@@ -29,16 +29,22 @@ import { LoginScreen } from '@/components/auth/login-screen'
 import { fetchClaudeAuthStatus, type AuthStatus } from '@/lib/claude-auth'
 import { getRootSurfaceState } from './-root-layout-state'
 
+
+const _isDev = import.meta.env.DEV
 const APP_CSP = [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
   "form-action 'self'",
-  // frame-ancestors is ignored in meta CSP and must be sent as an HTTP header.
-  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+  "frame-ancestors 'none'",
+  "script-src 'self' 'unsafe-inline'",
+  _isDev
+    ? "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com"
+    : "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
-  "font-src 'self' data: https://fonts.gstatic.com",
+  _isDev
+    ? "font-src 'self' data: https://fonts.gstatic.com"
+    : "font-src 'self' data:",
   "connect-src 'self' ws: wss: http: https:",
   "worker-src 'self' blob:",
   "media-src 'self' blob: data:",
@@ -265,7 +271,12 @@ function RootLayout() {
   useApplyChatWidth()
 
   useEffect(() => {
-    setMounted(true)
+    if (import.meta.env.DEV) {
+      void import('react-grab')
+    }
+  }, [])
+
+  useEffect(() => {
     initializeSettingsAppearance()
 
     const syncOnboardingCompletion = () => {
