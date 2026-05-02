@@ -135,6 +135,7 @@ import { Route as ApiClaudeJobsJobIdRouteImport } from './routes/api/claude-jobs
 import { Route as ApiArtifactsArtifactIdRouteImport } from './routes/api/artifacts.$artifactId'
 import { Route as ApiSessionsSessionKeyStatusRouteImport } from './routes/api/sessions/$sessionKey.status'
 import { Route as ApiSessionsSessionKeyActiveRunRouteImport } from './routes/api/sessions/$sessionKey.active-run'
+import { Route as ApiMcpNameLogsRouteImport } from './routes/api/mcp/$name.logs'
 
 const TerminalRoute = TerminalRouteImport.update({
   id: '/terminal',
@@ -769,6 +770,11 @@ const ApiSessionsSessionKeyActiveRunRoute =
     path: '/$sessionKey/active-run',
     getParentRoute: () => ApiSessionsRoute,
   } as any)
+const ApiMcpNameLogsRoute = ApiMcpNameLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => ApiMcpNameRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -866,7 +872,7 @@ export interface FileRoutesByFullPath {
   '/api/knowledge/read': typeof ApiKnowledgeReadRoute
   '/api/knowledge/search': typeof ApiKnowledgeSearchRoute
   '/api/knowledge/sync': typeof ApiKnowledgeSyncRoute
-  '/api/mcp/$name': typeof ApiMcpNameRoute
+  '/api/mcp/$name': typeof ApiMcpNameRouteWithChildren
   '/api/mcp/configure': typeof ApiMcpConfigureRoute
   '/api/mcp/discover': typeof ApiMcpDiscoverRoute
   '/api/mcp/reload': typeof ApiMcpReloadRoute
@@ -895,6 +901,7 @@ export interface FileRoutesByFullPath {
   '/api/update/agent': typeof ApiUpdateAgentRoute
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
+  '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
 }
@@ -993,7 +1000,7 @@ export interface FileRoutesByTo {
   '/api/knowledge/read': typeof ApiKnowledgeReadRoute
   '/api/knowledge/search': typeof ApiKnowledgeSearchRoute
   '/api/knowledge/sync': typeof ApiKnowledgeSyncRoute
-  '/api/mcp/$name': typeof ApiMcpNameRoute
+  '/api/mcp/$name': typeof ApiMcpNameRouteWithChildren
   '/api/mcp/configure': typeof ApiMcpConfigureRoute
   '/api/mcp/discover': typeof ApiMcpDiscoverRoute
   '/api/mcp/reload': typeof ApiMcpReloadRoute
@@ -1022,6 +1029,7 @@ export interface FileRoutesByTo {
   '/api/update/agent': typeof ApiUpdateAgentRoute
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
+  '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
 }
@@ -1122,7 +1130,7 @@ export interface FileRoutesById {
   '/api/knowledge/read': typeof ApiKnowledgeReadRoute
   '/api/knowledge/search': typeof ApiKnowledgeSearchRoute
   '/api/knowledge/sync': typeof ApiKnowledgeSyncRoute
-  '/api/mcp/$name': typeof ApiMcpNameRoute
+  '/api/mcp/$name': typeof ApiMcpNameRouteWithChildren
   '/api/mcp/configure': typeof ApiMcpConfigureRoute
   '/api/mcp/discover': typeof ApiMcpDiscoverRoute
   '/api/mcp/reload': typeof ApiMcpReloadRoute
@@ -1151,6 +1159,7 @@ export interface FileRoutesById {
   '/api/update/agent': typeof ApiUpdateAgentRoute
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
+  '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
 }
@@ -1281,6 +1290,7 @@ export interface FileRouteTypes {
     | '/api/update/agent'
     | '/api/update/status'
     | '/api/update/workspace'
+    | '/api/mcp/$name/logs'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
   fileRoutesByTo: FileRoutesByTo
@@ -1408,6 +1418,7 @@ export interface FileRouteTypes {
     | '/api/update/agent'
     | '/api/update/status'
     | '/api/update/workspace'
+    | '/api/mcp/$name/logs'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
   id:
@@ -1536,6 +1547,7 @@ export interface FileRouteTypes {
     | '/api/update/agent'
     | '/api/update/status'
     | '/api/update/workspace'
+    | '/api/mcp/$name/logs'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
   fileRoutesById: FileRoutesById
@@ -2529,6 +2541,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSessionsSessionKeyActiveRunRouteImport
       parentRoute: typeof ApiSessionsRoute
     }
+    '/api/mcp/$name/logs': {
+      id: '/api/mcp/$name/logs'
+      path: '/logs'
+      fullPath: '/api/mcp/$name/logs'
+      preLoaderRoute: typeof ApiMcpNameLogsRouteImport
+      parentRoute: typeof ApiMcpNameRoute
+    }
   }
 }
 
@@ -2584,8 +2603,20 @@ const ApiClaudeTasksRouteWithChildren = ApiClaudeTasksRoute._addFileChildren(
   ApiClaudeTasksRouteChildren,
 )
 
+interface ApiMcpNameRouteChildren {
+  ApiMcpNameLogsRoute: typeof ApiMcpNameLogsRoute
+}
+
+const ApiMcpNameRouteChildren: ApiMcpNameRouteChildren = {
+  ApiMcpNameLogsRoute: ApiMcpNameLogsRoute,
+}
+
+const ApiMcpNameRouteWithChildren = ApiMcpNameRoute._addFileChildren(
+  ApiMcpNameRouteChildren,
+)
+
 interface ApiMcpRouteChildren {
-  ApiMcpNameRoute: typeof ApiMcpNameRoute
+  ApiMcpNameRoute: typeof ApiMcpNameRouteWithChildren
   ApiMcpConfigureRoute: typeof ApiMcpConfigureRoute
   ApiMcpDiscoverRoute: typeof ApiMcpDiscoverRoute
   ApiMcpReloadRoute: typeof ApiMcpReloadRoute
@@ -2594,7 +2625,7 @@ interface ApiMcpRouteChildren {
 }
 
 const ApiMcpRouteChildren: ApiMcpRouteChildren = {
-  ApiMcpNameRoute: ApiMcpNameRoute,
+  ApiMcpNameRoute: ApiMcpNameRouteWithChildren,
   ApiMcpConfigureRoute: ApiMcpConfigureRoute,
   ApiMcpDiscoverRoute: ApiMcpDiscoverRoute,
   ApiMcpReloadRoute: ApiMcpReloadRoute,

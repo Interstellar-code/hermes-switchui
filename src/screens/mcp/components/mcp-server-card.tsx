@@ -1,9 +1,12 @@
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useConfigureMcpServer,
   useDeleteMcpServer,
   useTestMcpServer,
 } from '../hooks/use-mcp-mutations'
+import { useMcpOauth } from '../hooks/use-mcp-oauth'
+import { McpLogsDrawer } from './mcp-logs-drawer'
 import type { McpServer, McpTestResult } from '@/types/mcp'
 
 interface Props {
@@ -21,8 +24,11 @@ export function McpServerCard({ server, onEdit }: Props) {
   const test = useTestMcpServer()
   const configure = useConfigureMcpServer()
   const remove = useDeleteMcpServer()
+  const oauth = useMcpOauth()
+  const qc = useQueryClient()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [testResult, setTestResult] = useState<McpTestResult | null>(null)
+  const [logsOpen, setLogsOpen] = useState(false)
 
   return (
     <div className="rounded-xl border border-primary-200 bg-white p-4 shadow-sm">
@@ -77,6 +83,39 @@ export function McpServerCard({ server, onEdit }: Props) {
         </button>
         <button
           type="button"
+          className="rounded border border-primary-300 px-3 py-1 text-xs font-medium text-primary-700 hover:bg-primary-50 disabled:opacity-50"
+          disabled={test.isPending}
+          onClick={async () => {
+            const result = await test.mutateAsync({ name: server.name })
+            setTestResult(result)
+            // Re-fetch the list so the card's discoveredToolsCount reflects
+            // whatever the agent reports after this re-test.
+            qc.invalidateQueries({ queryKey: ['mcp', 'servers'] })
+          }}
+        >
+          {test.isPending ? 'Refreshing…' : 'Refresh'}
+        </button>
+        {server.authType === 'oauth' ? (
+          <button
+            type="button"
+            className="rounded border border-primary-300 px-3 py-1 text-xs font-medium text-primary-700 hover:bg-primary-50 disabled:opacity-50"
+            disabled={oauth.isPending}
+            onClick={() => {
+              void oauth.start(server)
+            }}
+          >
+            {oauth.isPending ? 'Waiting for reauth…' : 'Reauth'}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="rounded border border-primary-300 px-3 py-1 text-xs font-medium text-primary-700 hover:bg-primary-50"
+          onClick={() => setLogsOpen(true)}
+        >
+          Logs
+        </button>
+        <button
+          type="button"
           className="rounded border border-primary-300 px-3 py-1 text-xs font-medium text-primary-700 hover:bg-primary-50"
           onClick={() => onEdit(server)}
         >
@@ -117,6 +156,17 @@ export function McpServerCard({ server, onEdit }: Props) {
             : `Failed: ${testResult.error || 'unknown error'}`}
         </p>
       ) : null}
+      {oauth.isError && oauth.error ? (
+        <p className="mt-2 text-xs text-red-600">Reauth failed: {oauth.error.message}</p>
+      ) : null}
+      {oauth.data?.status === 'connected' ? (
+        <p className="mt-2 text-xs text-green-700">Reauth succeeded.</p>
+      ) : null}
+      <McpLogsDrawer
+        server={logsOpen ? server : null}
+        open={logsOpen}
+        onClose={() => setLogsOpen(false)}
+      />
     </div>
   )
 }

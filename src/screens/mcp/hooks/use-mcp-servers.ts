@@ -29,6 +29,6 @@ export function useMcpServers(params: UseMcpServersParams) {
       }
     },
     staleTime: 30_000,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
   })
 }
