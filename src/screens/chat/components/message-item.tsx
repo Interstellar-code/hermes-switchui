@@ -1957,6 +1957,10 @@ function MessageItemComponent({
   const hasRevealedText = effectiveIsStreaming
     ? assistantDisplayText.length > 0
     : hasText
+  const assistantCorruptionWarning = detectAssistantCorruptionWarning(
+    role,
+    displayText,
+  )
   const canRetryMessage =
     isUser && (hasText || hasAttachments || hasInlineImages)
 
