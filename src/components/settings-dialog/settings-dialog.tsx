@@ -920,6 +920,7 @@ function AppearanceContent() {
 
 const ENTERPRISE_THEME_FAMILIES: Array<ThemeId> = [
   'claude-nous',
+  'matrix',
   'claude-official',
   'claude-classic',
   'claude-slate',
@@ -945,53 +946,69 @@ const ENTERPRISE_THEMES = THEMES.map((theme) => ({
             accent: '#2557B7',
             text: '#16315F',
           }
-      : theme.id === 'claude-official'
-      ? {
-          bg: '#0A0E1A',
-          panel: '#11182A',
-          border: '#24304A',
-          accent: '#6366F1',
-          text: '#E6EAF2',
-        }
-      : theme.id === 'claude-official-light'
-        ? {
-            bg: '#F7F7F1',
-            panel: '#FAFBF6',
-            border: '#CDD5DA',
-            accent: '#2557B7',
-            text: '#16315F',
-          }
-        : theme.id === 'claude-classic'
+        : theme.id === 'matrix'
           ? {
-              bg: '#0d0f12',
-              panel: '#1a1f26',
-              border: '#2a313b',
-              accent: '#b98a44',
-              text: '#eceff4',
+              bg: '#020804',
+              panel: '#07130A',
+              border: 'rgba(0,255,65,0.28)',
+              accent: '#00FF41',
+              text: '#D8FFE3',
             }
-          : theme.id === 'claude-classic-light'
+          : theme.id === 'matrix-light'
             ? {
-                bg: '#F5F2ED',
-                panel: '#FCFAF7',
-                border: '#D8CCBC',
-                accent: '#b98a44',
-                text: '#1a1f26',
+                bg: '#F4FFF6',
+                panel: '#FFFFFF',
+                border: 'rgba(0,126,34,0.2)',
+                accent: '#008F2D',
+                text: '#062A12',
               }
-            : theme.id === 'claude-slate'
+            : theme.id === 'claude-official'
               ? {
-                  bg: '#0d1117',
-                  panel: '#1c2128',
-                  border: '#30363d',
-                  accent: '#7eb8f6',
-                  text: '#c9d1d9',
+                  bg: '#0A0E1A',
+                  panel: '#11182A',
+                  border: '#24304A',
+                  accent: '#6366F1',
+                  text: '#E6EAF2',
                 }
-              : {
-                  bg: '#F6F8FA',
-                  panel: '#FFFFFF',
-                  border: '#D0D7DE',
-                  accent: '#3b82f6',
-                  text: '#24292f',
-                },
+              : theme.id === 'claude-official-light'
+                ? {
+                    bg: '#F7F7F1',
+                    panel: '#FAFBF6',
+                    border: '#CDD5DA',
+                    accent: '#2557B7',
+                    text: '#16315F',
+                  }
+                : theme.id === 'claude-classic'
+                  ? {
+                      bg: '#0d0f12',
+                      panel: '#1a1f26',
+                      border: '#2a313b',
+                      accent: '#b98a44',
+                      text: '#eceff4',
+                    }
+                  : theme.id === 'claude-classic-light'
+                    ? {
+                        bg: '#F5F2ED',
+                        panel: '#FCFAF7',
+                        border: '#D8CCBC',
+                        accent: '#b98a44',
+                        text: '#1a1f26',
+                      }
+                    : theme.id === 'claude-slate'
+                      ? {
+                          bg: '#0d1117',
+                          panel: '#1c2128',
+                          border: '#30363d',
+                          accent: '#7eb8f6',
+                          text: '#c9d1d9',
+                        }
+                      : {
+                          bg: '#F6F8FA',
+                          panel: '#FFFFFF',
+                          border: '#D0D7DE',
+                          accent: '#3b82f6',
+                          text: '#24292f',
+                        },
 }))
 
 function ThemeSwatch({
