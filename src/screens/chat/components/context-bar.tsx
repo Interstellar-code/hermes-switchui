@@ -31,7 +31,7 @@ function formatTokens(n: number): string {
 }
 
 function ContextBarComponent({
-  compact: _compact,
+  compact = false,
   sessionId,
 }: {
   compact?: boolean
@@ -62,7 +62,10 @@ function ContextBarComponent({
         const maxTokens = Number(payload.maxTokens ?? 0)
         const usedTokens = Number(payload.usedTokens ?? 0)
         const model = String(payload.model ?? '')
-        if (statusData?.ok && (maxTokens > 0 || usedTokens > 0 || contextPercent > 0)) {
+        if (
+          statusData?.ok &&
+          (maxTokens > 0 || usedTokens > 0 || contextPercent > 0)
+        ) {
           setCtx({
             contextPercent,
             model,
@@ -136,6 +139,108 @@ function ContextBarComponent({
       : isWarning
         ? 'text-yellow-600'
         : 'text-emerald-600'
+
+  const ringColor = isCritical
+    ? '#ef4444'
+    : isDanger
+      ? '#f97316'
+      : isWarning
+        ? '#facc15'
+        : 'var(--theme-accent)'
+  const circumference = 61.261056745
+  const dashOffset = circumference * (1 - clampedPct / 100)
+  const compactLabel = Math.round(clampedPct)
+
+  if (compact) {
+    return (
+      <PreviewCard>
+        <PreviewCardTrigger
+          className="group inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-primary-500 transition hover:-translate-y-px hover:bg-primary-100/70 dark:hover:bg-primary-800/60"
+          aria-label={`Context window: ${compactLabel}% used`}
+          title={`Context window: ${compactLabel}% used`}
+        >
+          <span className="relative inline-flex h-8 w-8 items-center justify-center">
+            <svg
+              className="absolute inset-0 h-8 w-8 -rotate-90 overflow-visible"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="9.75"
+                fill="none"
+                stroke="var(--theme-border)"
+                strokeOpacity="0.9"
+                strokeWidth="3"
+              />
+              <circle
+                cx="12"
+                cy="12"
+                r="9.75"
+                fill="none"
+                stroke={ringColor}
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={dashOffset}
+                className="transition-[stroke-dashoffset,stroke] duration-500 ease-out"
+              />
+            </svg>
+            <span className="relative flex h-[19px] min-w-[19px] items-center justify-center rounded-full border border-primary-500/15 bg-[var(--theme-bg)] px-[1px] text-[9px] font-bold leading-none text-primary-600 shadow-sm tabular-nums dark:bg-[var(--theme-card)]">
+              {compactLabel}
+            </span>
+          </span>
+        </PreviewCardTrigger>
+
+        <PreviewCardPopup
+          align="end"
+          sideOffset={8}
+          className="w-64 rounded-xl px-3 py-2.5"
+        >
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-primary-900">
+                Context window
+              </span>
+              <span
+                className={cn('text-xs font-semibold tabular-nums', textColor)}
+              >
+                {Math.round(clampedPct)}%
+              </span>
+            </div>
+            <div
+              className={cn('h-2 w-full overflow-hidden rounded-full', barBg)}
+            >
+              <div
+                className={cn(
+                  'h-full rounded-full transition-all duration-500',
+                  barColor,
+                )}
+                style={{ width: `${clampedPct}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3 text-[11px] text-primary-500">
+              <span className="tabular-nums">
+                {formatTokens(ctx.usedTokens)} / {formatTokens(ctx.maxTokens)}{' '}
+                tokens
+              </span>
+              {ctx.model ? (
+                <span className="max-w-[100px] truncate text-primary-400">
+                  {ctx.model}
+                </span>
+              ) : null}
+            </div>
+            {isCritical ? (
+              <p className="text-[11px] font-medium text-red-600">
+                Context almost full — consider starting a new chat
+              </p>
+            ) : null}
+          </div>
+        </PreviewCardPopup>
+      </PreviewCard>
+    )
+  }
 
   if (isMobile) {
     return (
