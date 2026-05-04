@@ -20,9 +20,10 @@ import {
   COLUMN_LABELS,
   COLUMN_ORDER,
   COLUMN_COLORS,
-  isOverdue,
 } from '@/lib/tasks-api'
 import type { ClaudeTask, TaskColumn, CreateTaskInput, TaskAssignee } from '@/lib/tasks-api'
+import { HERMES_KANBAN_VISIBLE_STATUS_ORDER } from '@/lib/hermes-kanban-types'
+import type { HermesKanbanStatus } from '@/lib/hermes-kanban-types'
 
 const QUERY_KEY = ['claude', 'tasks'] as const
 const ASSIGNEES_KEY = ['claude', 'tasks', 'assignees'] as const
@@ -44,14 +45,19 @@ function SkeletonCard() {
   )
 }
 
+// Blocked confirmation dialog state
+type BlockedDropPending = { taskId: string; targetStatus: HermesKanbanStatus } | null
+
 export function TasksScreen() {
   const queryClient = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
-  const [createColumn, setCreateColumn] = useState<TaskColumn>('backlog')
+  const [createColumn, setCreateColumn] = useState<TaskColumn>('triage')
   const [editingTask, setEditingTask] = useState<ClaudeTask | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
-  const [dragOverColumn, setDragOverColumn] = useState<TaskColumn | null>(null)
+  const [dragOverColumn, setDragOverColumn] = useState<HermesKanbanStatus | null>(null)
   const [showDone, setShowDone] = useState(false)
+  const [blockedPending, setBlockedPending] = useState<BlockedDropPending>(null)
+  const [blockedReason, setBlockedReason] = useState('')
 
   const search = useSearch({ from: '/tasks' })
   const initialAssignee = typeof search.assignee === 'string' ? search.assignee : null
@@ -64,17 +70,14 @@ export function TasksScreen() {
     placeholderData: keepPreviousData,
   })
 
-  // Load assignees dynamically from profiles + config
   const assigneesQuery = useQuery({
     queryKey: ASSIGNEES_KEY,
     queryFn: fetchAssignees,
-    staleTime: 5 * 60_000, // profiles don't change often
+    staleTime: 5 * 60_000,
   })
 
   const assignees: Array<TaskAssignee> = assigneesQuery.data?.assignees ?? []
-  const humanReviewer = assigneesQuery.data?.humanReviewer ?? null
 
-  // Build a label map from dynamic assignees for TaskCard display
   const assigneeLabels = useMemo(() => {
     const map: Record<string, string> = {}
     for (const a of assignees) map[a.id] = a.label
@@ -83,27 +86,26 @@ export function TasksScreen() {
 
   const tasks = tasksQuery.data ?? []
 
-  const tasksByColumn = useMemo(() => {
-    const map: Record<TaskColumn, Array<ClaudeTask>> = {
-      backlog: [], todo: [], in_progress: [], review: [], done: [],
+  // Group tasks by Agent status
+  const tasksByStatus = useMemo(() => {
+    const map: Record<HermesKanbanStatus, Array<ClaudeTask>> = {
+      triage: [], todo: [], ready: [], running: [], blocked: [], done: [], archived: [],
     }
     for (const t of tasks) {
+      const status = (t.status as HermesKanbanStatus) ?? 'triage'
       if (assigneeFilter && t.assignee !== assigneeFilter) continue
-      if (map[t.column]) map[t.column].push(t)
-    }
-    for (const col of COLUMN_ORDER) {
-      map[col].sort((a, b) => a.position - b.position)
+      if (map[status]) map[status].push(t)
     }
     return map
   }, [tasks, assigneeFilter])
 
   const stats = useMemo(() => {
     const total = tasks.length
-    const inProgress = tasks.filter(t => t.column === 'in_progress').length
-    const done = tasks.filter(t => t.column === 'done').length
-    const overdue = tasks.filter(t => isOverdue(t) && t.column !== 'done').length
+    const running = tasks.filter(t => t.status === 'running').length
+    const blocked = tasks.filter(t => t.status === 'blocked').length
+    const done = tasks.filter(t => t.status === 'done').length
     const completion = total > 0 ? Math.round((done / total) * 100) : 0
-    return { total, inProgress, done, overdue, completion }
+    return { total, running, blocked, done, completion }
   }, [tasks])
 
   const invalidate = useCallback(() => {
@@ -124,12 +126,12 @@ export function TasksScreen() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteTask,
-    onSuccess: () => { invalidate(); toast('Task deleted') },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Failed to delete task', { type: 'error' }),
+    onSuccess: () => { invalidate(); toast('Task archived') },
+    onError: (e) => toast(e instanceof Error ? e.message : 'Failed to archive task', { type: 'error' }),
   })
 
   const moveMutation = useMutation({
-    mutationFn: ({ id, column }: { id: string; column: TaskColumn }) => moveTask(id, column, 'user'),
+    mutationFn: ({ id, status }: { id: string; status: HermesKanbanStatus }) => moveTask(id, status),
     onSuccess: () => invalidate(),
     onError: (e) => toast(e instanceof Error ? e.message : 'Failed to move task', { type: 'error' }),
   })
@@ -139,29 +141,40 @@ export function TasksScreen() {
     setDraggingId(taskId)
   }
 
-  function handleDragOver(e: React.DragEvent, col: TaskColumn) {
+  function handleDragOver(e: React.DragEvent, col: HermesKanbanStatus) {
     e.preventDefault()
     setDragOverColumn(col)
   }
 
-  function handleDrop(e: React.DragEvent, targetColumn: TaskColumn) {
+  function handleDrop(e: React.DragEvent, targetStatus: HermesKanbanStatus) {
     e.preventDefault()
     const taskId = e.dataTransfer.getData('text/plain')
     const task = tasks.find(t => t.id === taskId)
-    if (!task || task.column === targetColumn) {
+    if (!task || task.status === targetStatus) {
       setDraggingId(null)
       setDragOverColumn(null)
       return
     }
-    // Hybrid autonomy: if a human reviewer is configured, only they can move
-    // tasks into the 'done' column — agents may move to 'review' at most.
-    if (targetColumn === 'done' && humanReviewer) {
-      toast(`Only ${humanReviewer} can mark tasks as done`, { type: 'error' })
+    // Confirm before blocking a task — v1 requirement (plan Task 6)
+    if (targetStatus === 'blocked') {
+      setBlockedPending({ taskId, targetStatus })
+      setBlockedReason('')
       setDraggingId(null)
       setDragOverColumn(null)
       return
     }
-    moveMutation.mutate({ id: taskId, column: targetColumn })
+    // Warn when manually pulling a running task off-execution
+    if (task.status === 'running' && targetStatus !== 'running') {
+      const confirmed = window.confirm(
+        'This task has an active worker run. Moving it away from Running may affect the worker. Continue?',
+      )
+      if (!confirmed) {
+        setDraggingId(null)
+        setDragOverColumn(null)
+        return
+      }
+    }
+    moveMutation.mutate({ id: taskId, status: targetStatus })
     setDraggingId(null)
     setDragOverColumn(null)
   }
@@ -171,214 +184,266 @@ export function TasksScreen() {
     setDragOverColumn(null)
   }
 
-  const visibleColumns = showDone ? COLUMN_ORDER : COLUMN_ORDER.filter(c => c !== 'done')
-  const colMaxWidth = Math.floor(1200 / visibleColumns.length)
+  function confirmBlocked() {
+    if (!blockedPending) return
+    moveMutation.mutate({
+      id: blockedPending.taskId,
+      status: 'blocked',
+      ...(blockedReason.trim() ? { blockReason: blockedReason.trim() } : {}),
+    } as Parameters<typeof moveMutation.mutate>[0])
+    setBlockedPending(null)
+    setBlockedReason('')
+  }
+
+  // Agent lifecycle columns
+  const visibleStatuses: HermesKanbanStatus[] = showDone
+    ? HERMES_KANBAN_VISIBLE_STATUS_ORDER
+    : HERMES_KANBAN_VISIBLE_STATUS_ORDER.filter(s => s !== 'done')
+  const colMaxWidth = Math.floor(1200 / visibleStatuses.length)
 
   return (
     <div className="min-h-full overflow-y-auto bg-surface text-ink">
       <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-6 pb-[calc(var(--tabbar-h,80px)+1.5rem)] sm:px-6 lg:px-8">
-      {/* Header */}
-      <header className="rounded-2xl border border-primary-200 bg-primary-50/85 p-4 backdrop-blur-xl">
-        <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 min-w-0">
-          <h1 className="text-2xl font-medium text-ink">Tasks</h1>
-          {assigneeFilter && (
-            <div className="flex items-center gap-2 text-xs text-[var(--theme-muted)]">
-              <span>Filtered by: <span className="capitalize" style={{ color: '#f59e0b' }}>{assigneeFilter}</span></span>
+        {/* Header */}
+        <header className="rounded-2xl border border-primary-200 bg-primary-50/85 p-4 backdrop-blur-xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <h1 className="text-2xl font-medium text-ink">Tasks</h1>
+              {assigneeFilter && (
+                <div className="flex items-center gap-2 text-xs text-[var(--theme-muted)]">
+                  <span>Filtered by: <span className="capitalize" style={{ color: '#f59e0b' }}>{assigneeFilter}</span></span>
+                  <button
+                    type="button"
+                    onClick={() => setAssigneeFilter(null)}
+                    className="text-[var(--theme-muted)] hover:text-[var(--theme-text)] transition-colors"
+                  >
+                    ✕ Clear
+                  </button>
+                </div>
+              )}
+              {/* Stats */}
+              <div className="flex items-center gap-2 text-xs text-[var(--theme-muted)] flex-wrap">
+                <span>{stats.total} total</span>
+                <span className="hidden sm:inline">·</span>
+                <span className="hidden sm:inline">{stats.running} running</span>
+                {stats.blocked > 0 && (
+                  <>
+                    <span>·</span>
+                    <span className="text-red-400">{stats.blocked} blocked</span>
+                  </>
+                )}
+                <span className="hidden sm:inline">·</span>
+                <span className="hidden sm:inline">{stats.completion}% done</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
               <button
-                type="button"
-                onClick={() => setAssigneeFilter(null)}
-                className="text-[var(--theme-muted)] hover:text-[var(--theme-text)] transition-colors"
+                onClick={() => setShowDone(v => !v)}
+                className={cn(
+                  'text-xs px-2.5 py-1 rounded-lg border transition-colors',
+                  showDone
+                    ? 'border-[var(--theme-accent)] text-[var(--theme-accent)] bg-[var(--theme-hover)]'
+                    : 'border-[var(--theme-border)] text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:border-[var(--theme-accent)]',
+                )}
               >
-                ✕ Clear
+                {showDone ? 'Hide Done' : 'Show Done'}
+              </button>
+              <button
+                onClick={invalidate}
+                className="rounded-lg p-1.5 transition-colors hover:bg-[var(--theme-hover)]"
+                title="Refresh"
+              >
+                <HugeiconsIcon icon={RefreshIcon} size={16} className="text-[var(--theme-muted)]" />
+              </button>
+              <button
+                onClick={() => { setCreateColumn('triage'); setShowCreate(true) }}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
+                style={{ background: 'var(--theme-accent)' }}
+              >
+                <HugeiconsIcon icon={Add01Icon} size={14} />
+                New Task
               </button>
             </div>
-          )}
-          {/* Stats */}
-          <div className="flex items-center gap-2 text-xs text-[var(--theme-muted)] flex-wrap">
-            <span>{stats.total} total</span>
-            <span className="hidden sm:inline">·</span>
-            <span className="hidden sm:inline">{stats.inProgress} in progress</span>
-            {stats.overdue > 0 && (
-              <>
-                <span>·</span>
-                <span className="text-red-400">{stats.overdue} overdue</span>
-              </>
-            )}
-            <span className="hidden sm:inline">·</span>
-            <span className="hidden sm:inline">{stats.completion}% done</span>
           </div>
-        </div>
+          <p className="mt-3 text-xs text-[var(--theme-muted)]">
+            {TASKS_BOARD_HELP_TEXT}
+          </p>
+        </header>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => setShowDone(v => !v)}
-            className={cn(
-              'text-xs px-2.5 py-1 rounded-lg border transition-colors',
-              showDone
-                ? 'border-[var(--theme-accent)] text-[var(--theme-accent)] bg-[var(--theme-hover)]'
-                : 'border-[var(--theme-border)] text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:border-[var(--theme-accent)]',
-            )}
-          >
-            {showDone ? 'Hide Done' : 'Show Done'}
-          </button>
-          <button
-            onClick={invalidate}
-            className="rounded-lg p-1.5 transition-colors hover:bg-[var(--theme-hover)]"
-            title="Refresh"
-          >
-            <HugeiconsIcon icon={RefreshIcon} size={16} className="text-[var(--theme-muted)]" />
-          </button>
-          <button
-            onClick={() => { setCreateColumn('backlog'); setShowCreate(true) }}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
-            style={{ background: 'var(--theme-accent)' }}
-          >
-            <HugeiconsIcon icon={Add01Icon} size={14} />
-            New Task
-          </button>
-        </div>
-      </div>
-        <p className="mt-3 text-xs text-[var(--theme-muted)]">
-          {TASKS_BOARD_HELP_TEXT}
-        </p>
-      </header>
+        {/* Board */}
+        <div
+          className="mx-auto flex w-full max-w-[1200px] flex-1 gap-3 overflow-x-auto overflow-y-hidden p-4 min-h-0"
+          style={{ boxShadow: 'inset 0 8px 24px rgba(0,0,0,0.2)' }}
+        >
+          {visibleStatuses.map((status) => {
+            const colTasks = tasksByStatus[status] ?? []
+            const colColor = COLUMN_COLORS[status]
+            const isDragOver = dragOverColumn === status
+            const colLabel = COLUMN_LABELS[status]
 
-      {/* Board */}
-      <div
-        className="mx-auto flex w-full max-w-[1200px] flex-1 gap-3 overflow-x-auto overflow-y-hidden p-4 min-h-0"
-        style={{ boxShadow: 'inset 0 8px 24px rgba(0,0,0,0.2)' }}
-      >
-        {visibleColumns.map((col) => {
-          const colTasks = tasksByColumn[col]
-          const colColor = COLUMN_COLORS[col]
-          const isDragOver = dragOverColumn === col
-
-          return (
-            <div
-              key={col}
-              className={cn(
-                'flex flex-col rounded-xl border min-w-[180px] w-full shrink-0 flex-1',
-                'bg-[var(--theme-card)] border-[var(--theme-border)]',
-                'transition-colors shadow-[0_2px_12px_rgba(0,0,0,0.25)]',
-                isDragOver && 'border-[var(--theme-accent)] bg-[var(--theme-hover)]',
-              )}
-              style={{ maxWidth: colMaxWidth }}
-              onDragOver={e => handleDragOver(e, col)}
-              onDrop={e => handleDrop(e, col)}
-              onDragLeave={() => setDragOverColumn(null)}
-            >
-              {/* Column header */}
+            return (
               <div
-                className="flex items-center justify-between px-3 py-2.5 border-b border-[var(--theme-border)] rounded-t-xl"
-                style={{ borderTopWidth: 2, borderTopColor: colColor, borderTopStyle: 'solid' }}
+                key={status}
+                className={cn(
+                  'flex flex-col rounded-xl border min-w-[180px] w-full shrink-0 flex-1',
+                  'bg-[var(--theme-card)] border-[var(--theme-border)]',
+                  'transition-colors shadow-[0_2px_12px_rgba(0,0,0,0.25)]',
+                  isDragOver && 'border-[var(--theme-accent)] bg-[var(--theme-hover)]',
+                )}
+                style={{ maxWidth: colMaxWidth }}
+                onDragOver={e => handleDragOver(e, status)}
+                onDrop={e => handleDrop(e, status)}
+                onDragLeave={() => setDragOverColumn(null)}
               >
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: colColor }} />
-                  <span className="text-xs font-semibold text-[var(--theme-text)]">
-                    {COLUMN_LABELS[col]}
-                  </span>
-                  <span className="text-xs text-[var(--theme-muted)]">
-                    ({tasksQuery.isFetching && tasksQuery.data === undefined ? '…' : colTasks.length})
-                  </span>
-                </div>
-                <button
-                  onClick={() => { setCreateColumn(col); setShowCreate(true) }}
-                  className="rounded p-0.5 hover:bg-[var(--theme-hover)] transition-colors"
-                  title={`Add to ${COLUMN_LABELS[col]}`}
+                {/* Column header */}
+                <div
+                  className="flex items-center justify-between px-3 py-2.5 border-b border-[var(--theme-border)] rounded-t-xl"
+                  style={{ borderTopWidth: 2, borderTopColor: colColor, borderTopStyle: 'solid' }}
                 >
-                  <HugeiconsIcon icon={Add01Icon} size={14} className="text-[var(--theme-muted)]" />
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: colColor }} />
+                    <span className="text-xs font-semibold text-[var(--theme-text)]">
+                      {colLabel}
+                    </span>
+                    <span className="text-xs text-[var(--theme-muted)]">
+                      ({tasksQuery.isFetching && tasksQuery.data === undefined ? '…' : colTasks.length})
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => { setCreateColumn(status as TaskColumn); setShowCreate(true) }}
+                    className="rounded p-0.5 hover:bg-[var(--theme-hover)] transition-colors"
+                    title={`Add to ${colLabel}`}
+                  >
+                    <HugeiconsIcon icon={Add01Icon} size={14} className="text-[var(--theme-muted)]" />
+                  </button>
+                </div>
+
+                {/* Cards */}
+                <div className="flex flex-col gap-2 p-2 flex-1 overflow-y-auto">
+                  {tasksQuery.isError ? (
+                    <motion.div
+                      key="error"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="flex flex-col items-center justify-center py-8 gap-2 text-red-400"
+                    >
+                      <p className="text-xs font-medium">Failed to load tasks</p>
+                      <button
+                        onClick={() => tasksQuery.refetch()}
+                        className="text-xs text-[var(--theme-accent)] hover:underline"
+                      >
+                        Retry
+                      </button>
+                    </motion.div>
+                  ) : tasksQuery.isLoading ? (
+                    <>
+                      <SkeletonCard />
+                      <SkeletonCard />
+                      <SkeletonCard />
+                    </>
+                  ) : (
+                    <AnimatePresence initial={false}>
+                      {colTasks.length === 0 ? (
+                        <motion.div
+                          key="empty"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          className="flex flex-col items-center justify-center py-8 gap-2 text-[var(--theme-muted)] opacity-60"
+                        >
+                          <HugeiconsIcon icon={CheckListIcon} size={22} />
+                          <p className="text-xs font-medium">No tasks</p>
+                          <p className="text-[10px]">Drop here or click + to add</p>
+                        </motion.div>
+                      ) : (
+                        colTasks.map(task => (
+                          <motion.div
+                            key={task.id}
+                            layout
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -6 }}
+                            onDragEnd={handleDragEnd}
+                          >
+                            <TaskCard
+                              task={task}
+                              assigneeLabels={assigneeLabels}
+                              isDragging={draggingId === task.id}
+                              onDragStart={e => handleDragStart(e, task.id)}
+                              onClick={() => setEditingTask(task)}
+                            />
+                          </motion.div>
+                        ))
+                      )}
+                    </AnimatePresence>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Create dialog */}
+        <TaskDialog
+          open={showCreate}
+          onOpenChange={setShowCreate}
+          defaultColumn={createColumn}
+          assignees={assignees}
+          isSubmitting={createMutation.isPending}
+          onSubmit={async (input) => { await createMutation.mutateAsync(input) }}
+        />
+
+        {/* Edit dialog */}
+        <TaskDialog
+          open={editingTask !== null}
+          onOpenChange={(open) => { if (!open) setEditingTask(null) }}
+          task={editingTask}
+          assignees={assignees}
+          isSubmitting={updateMutation.isPending}
+          onSubmit={async (input) => {
+            if (!editingTask) return
+            await updateMutation.mutateAsync({ id: editingTask.id, input })
+          }}
+        />
+
+        {/* Blocked confirmation dialog (v1 requirement) */}
+        {blockedPending && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="w-full max-w-sm rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-card)] p-6 shadow-xl">
+              <h3 className="text-sm font-semibold text-[var(--theme-text)] mb-1">Block task?</h3>
+              <p className="text-xs text-[var(--theme-muted)] mb-4">
+                Optionally describe why this task is blocked. Workers and reviewers will see this reason.
+              </p>
+              <textarea
+                className="w-full rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2 text-xs text-[var(--theme-text)] placeholder:text-[var(--theme-muted)] resize-none focus:outline-none focus:border-[var(--theme-accent)] mb-4"
+                rows={3}
+                placeholder="Block reason (optional)"
+                value={blockedReason}
+                onChange={e => setBlockedReason(e.target.value)}
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBlockedPending(null)}
+                  className="rounded-lg px-3 py-1.5 text-xs text-[var(--theme-muted)] hover:text-[var(--theme-text)] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmBlocked}
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
+                  style={{ background: '#ef4444' }}
+                >
+                  Block task
                 </button>
               </div>
-
-              {/* Cards */}
-              <div className="flex flex-col gap-2 p-2 flex-1 overflow-y-auto">
-                {tasksQuery.isError ? (
-                  <motion.div
-                    key="error"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="flex flex-col items-center justify-center py-8 gap-2 text-red-400"
-                  >
-                    <p className="text-xs font-medium">Failed to load tasks</p>
-                    <button
-                      onClick={() => tasksQuery.refetch()}
-                      className="text-xs text-[var(--theme-accent)] hover:underline"
-                    >
-                      Retry
-                    </button>
-                  </motion.div>
-                ) : tasksQuery.isLoading ? (
-                  <>
-                    <SkeletonCard />
-                    <SkeletonCard />
-                    <SkeletonCard />
-                  </>
-                ) : (
-                  <AnimatePresence initial={false}>
-                    {colTasks.length === 0 ? (
-                      <motion.div
-                        key="empty"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="flex flex-col items-center justify-center py-8 gap-2 text-[var(--theme-muted)] opacity-60"
-                      >
-                        <HugeiconsIcon icon={CheckListIcon} size={22} />
-                        <p className="text-xs font-medium">No tasks</p>
-                        <p className="text-[10px]">Drop here or click + to add</p>
-                      </motion.div>
-                    ) : (
-                      colTasks.map(task => (
-                        <motion.div
-                          key={task.id}
-                          layout
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -6 }}
-                          onDragEnd={handleDragEnd}
-                        >
-                          <TaskCard
-                            task={task}
-                            assigneeLabels={assigneeLabels}
-                            isDragging={draggingId === task.id}
-                            onDragStart={e => handleDragStart(e, task.id)}
-                            onClick={() => setEditingTask(task)}
-                          />
-                        </motion.div>
-                      ))
-                    )}
-                  </AnimatePresence>
-                )}
-              </div>
             </div>
-          )
-        })}
+          </div>
+        )}
       </div>
-
-      {/* Create dialog */}
-      <TaskDialog
-        open={showCreate}
-        onOpenChange={setShowCreate}
-        defaultColumn={createColumn}
-        assignees={assignees}
-        isSubmitting={createMutation.isPending}
-        onSubmit={async (input) => { await createMutation.mutateAsync(input) }}
-      />
-
-      {/* Edit dialog */}
-      <TaskDialog
-        open={editingTask !== null}
-        onOpenChange={(open) => { if (!open) setEditingTask(null) }}
-        task={editingTask}
-        assignees={assignees}
-        isSubmitting={updateMutation.isPending}
-        onSubmit={async (input) => {
-          if (!editingTask) return
-          await updateMutation.mutateAsync({ id: editingTask.id, input })
-        }}
-      />
-    </div>
     </div>
   )
 }
