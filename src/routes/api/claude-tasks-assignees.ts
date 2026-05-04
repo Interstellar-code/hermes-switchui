@@ -1,17 +1,14 @@
 /**
- * Proxy endpoint — returns available task assignees.
- * Reads agent profiles from the Hermes Agent gateway and combines with the
- * configured human reviewer name (tasks.human_reviewer in config.yaml).
- * Falls back to profile directory listing if the gateway doesn't have
- * a /api/tasks/assignees endpoint.
+ * DEPRECATED: /api/claude-tasks-assignees
+ *
+ * This route now redirects to /api/hermes-kanban/assignees which is the
+ * canonical source of normalized Agent Kanban assignee data.
+ *
+ * Kept as a 308 redirect for one release cycle so any external callers
+ * are forwarded to the correct endpoint without breaking.
  */
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
-import { BEARER_TOKEN, CLAUDE_API, CLAUDE_DASHBOARD_URL } from '../../server/gateway-capabilities'
-import fs from 'node:fs'
-import path from 'node:path'
-import os from 'node:os'
-import YAML from 'yaml'
 
 type RawAssignee = {
   id?: unknown
@@ -124,48 +121,11 @@ export const Route = createFileRoute('/api/claude-tasks-assignees')({
         if (!isAuthenticated(request)) {
           return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
         }
-
-        const config = readConfig()
-        const tasksConfig = (config.tasks ?? {}) as Record<string, unknown>
-        const humanReviewer = (tasksConfig.human_reviewer as string) || null
-
-        // Prefer the dashboard plugin endpoint: it is the source used by the
-        // Hermes kanban CLI and includes ~/.hermes/profiles plus assignees
-        // already present on the board.
-        const remotePayload =
-          await fetchJson(`${CLAUDE_DASHBOARD_URL}/api/plugins/kanban/assignees`) ??
-          await fetchJson(`${CLAUDE_API}/api/tasks/assignees`)
-        const remoteAssignees = remotePayload
-          ? normalizeAssigneePayload(remotePayload, humanReviewer)
-          : []
-
-        const profiles = getProfileNames()
-        const merged = new Map<string, TaskAssignee>()
-        for (const assignee of remoteAssignees) {
-          merged.set(assignee.id, assignee)
-        }
-        for (const id of profiles) {
-          if (!merged.has(id)) {
-            merged.set(id, { id, label: titleCaseProfile(id), isHuman: id === humanReviewer })
-          }
-        }
-        if (humanReviewer && !merged.has(humanReviewer)) {
-          merged.set(humanReviewer, {
-            id: humanReviewer,
-            label: titleCaseProfile(humanReviewer),
-            isHuman: true,
-          })
-        }
-
-        const assignees = Array.from(merged.values()).sort((a, b) => {
-          if (a.isHuman !== b.isHuman) return a.isHuman ? -1 : 1
-          return a.label.localeCompare(b.label)
+        // 308 Permanent Redirect — external callers follow and update their bookmarks
+        return new Response(null, {
+          status: 308,
+          headers: { Location: '/api/hermes-kanban/assignees' },
         })
-
-        return new Response(
-          JSON.stringify({ assignees, humanReviewer }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        )
       },
     },
   },

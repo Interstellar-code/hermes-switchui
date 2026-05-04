@@ -1,144 +1,159 @@
-const BASE = '/api/claude-tasks'
+/**
+ * tasks-api.ts — Agent Kanban-backed frontend task API.
+ *
+ * All calls go through the Workspace proxy routes at /api/hermes-kanban/*.
+ * The legacy /api/claude-tasks routes are deprecated (see Task 16).
+ */
+import type {
+  HermesKanbanTask,
+  HermesKanbanStatus,
+  HermesKanbanBoard,
+  HermesKanbanAssignee,
+  CreateKanbanTaskInput,
+  UpdateKanbanTaskInput,
+} from './hermes-kanban-types'
+import {
+  HERMES_KANBAN_VISIBLE_STATUS_ORDER,
+  HERMES_KANBAN_STATUS_LABELS,
+  kanbanPriorityColor,
+} from './hermes-kanban-types'
 
-export type TaskColumn = 'backlog' | 'todo' | 'in_progress' | 'review' | 'done'
+export type { HermesKanbanTask as ClaudeTask, HermesKanbanStatus as TaskColumn }
+
+// Re-export for screen compat
+export { HERMES_KANBAN_STATUS_LABELS as COLUMN_LABELS }
+export { HERMES_KANBAN_VISIBLE_STATUS_ORDER as COLUMN_ORDER }
+
+// Legacy compat type shims
 export type TaskPriority = 'high' | 'medium' | 'low'
+export type CreateTaskInput = CreateKanbanTaskInput
+export type UpdateTaskInput = UpdateKanbanTaskInput
 
-export type ClaudeTask = {
-  id: string
-  title: string
-  description: string
-  column: TaskColumn
-  priority: TaskPriority
-  assignee: string | null
-  tags: Array<string>
-  due_date: string | null
-  position: number
-  created_by: string
-  created_at: string
-  updated_at: string
-}
+export type TaskAssignee = HermesKanbanAssignee
+export type AssigneesResponse = { assignees: HermesKanbanAssignee[]; humanReviewer: null }
 
-export type CreateTaskInput = {
-  title: string
-  description?: string
-  column?: TaskColumn
-  priority?: TaskPriority
-  assignee?: string | null
-  tags?: Array<string>
-  due_date?: string | null
-  created_by?: string
-}
+const KANBAN_BASE = '/api/hermes-kanban'
 
-export type UpdateTaskInput = Partial<Omit<CreateTaskInput, 'created_by'>>
-
-export type TaskAssignee = {
-  id: string
-  label: string
-  isHuman: boolean
-}
-
-export type AssigneesResponse = {
-  assignees: Array<TaskAssignee>
-  humanReviewer: string | null
+async function kanbanJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string; detail?: string }
+    throw new Error(body.error ?? body.detail ?? `Request failed: ${res.status}`)
+  }
+  return res.json() as Promise<T>
 }
 
 export async function fetchAssignees(): Promise<AssigneesResponse> {
-  const res = await fetch('/api/claude-tasks-assignees')
-  if (!res.ok) return { assignees: [], humanReviewer: null }
-  return res.json()
+  try {
+    const data = await kanbanJson<{ assignees: HermesKanbanAssignee[] }>(
+      `${KANBAN_BASE}/assignees`,
+    )
+    return { assignees: data.assignees, humanReviewer: null }
+  } catch {
+    return { assignees: [], humanReviewer: null }
+  }
 }
 
 export async function fetchTasks(params?: {
-  column?: TaskColumn
+  tenant?: string
   assignee?: string
-  priority?: TaskPriority
   include_done?: boolean
-}): Promise<Array<ClaudeTask>> {
+  include_archived?: boolean
+}): Promise<HermesKanbanTask[]> {
   const q = new URLSearchParams()
-  if (params?.column) q.set('column', params.column)
-  if (params?.assignee) q.set('assignee', params.assignee)
-  if (params?.priority) q.set('priority', params.priority)
-  if (params?.include_done) q.set('include_done', 'true')
-  const url = q.toString() ? `${BASE}?${q}` : BASE
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`Failed to fetch tasks: ${res.status}`)
-  const data = await res.json()
-  return data.tasks ?? []
+  if (params?.tenant) q.set('tenant', params.tenant)
+  if (params?.include_archived) q.set('include_archived', 'true')
+  const qs = q.toString()
+  const data = await kanbanJson<{ board: HermesKanbanBoard }>(
+    `${KANBAN_BASE}/board${qs ? `?${qs}` : ''}`,
+  )
+  const board = data.board
+  const statuses = params?.include_done
+    ? HERMES_KANBAN_VISIBLE_STATUS_ORDER
+    : HERMES_KANBAN_VISIBLE_STATUS_ORDER.filter((s) => s !== 'done')
+
+  const tasks: HermesKanbanTask[] = []
+  for (const status of statuses) {
+    const col = board.columns?.[status as HermesKanbanStatus]
+    if (Array.isArray(col)) tasks.push(...col)
+  }
+  if (params?.assignee) return tasks.filter((t) => t.assignee === params.assignee)
+  return tasks
 }
 
-export async function createTask(input: CreateTaskInput): Promise<ClaudeTask> {
-  const res = await fetch(BASE, {
+export async function createTask(
+  input: CreateKanbanTaskInput,
+): Promise<HermesKanbanTask> {
+  const data = await kanbanJson<{ task: HermesKanbanTask }>(`${KANBAN_BASE}/tasks`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.detail || `Failed to create task: ${res.status}`)
-  }
-  return (await res.json()).task
+  return data.task
 }
 
-export async function updateTask(taskId: string, input: UpdateTaskInput): Promise<ClaudeTask> {
-  const res = await fetch(`${BASE}/${taskId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  })
-  if (!res.ok) throw new Error(`Failed to update task: ${res.status}`)
-  return (await res.json()).task
+export async function updateTask(
+  taskId: string,
+  input: UpdateKanbanTaskInput,
+): Promise<HermesKanbanTask> {
+  const data = await kanbanJson<{ task: HermesKanbanTask }>(
+    `${KANBAN_BASE}/tasks/${taskId}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  )
+  return data.task
 }
 
+/**
+ * deleteTask → archive. Agent Kanban has no hard-delete endpoint.
+ * UI copy should say "Archive" to match actual behavior.
+ */
 export async function deleteTask(taskId: string): Promise<void> {
-  const res = await fetch(`${BASE}/${taskId}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error(`Failed to delete task: ${res.status}`)
+  await updateTask(taskId, { status: 'archived' })
 }
 
-export async function moveTask(taskId: string, column: TaskColumn, movedBy = 'user'): Promise<ClaudeTask> {
-  const res = await fetch(`${BASE}/${taskId}?action=move`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ column, moved_by: movedBy }),
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.detail || `Failed to move task: ${res.status}`)
-  }
-  return (await res.json()).task
+export async function moveTask(
+  taskId: string,
+  status: HermesKanbanStatus,
+): Promise<HermesKanbanTask> {
+  return updateTask(taskId, { status })
 }
 
-export const COLUMN_LABELS: Record<TaskColumn, string> = {
-  backlog: 'Backlog',
-  todo: 'Todo',
-  in_progress: 'In Progress',
-  review: 'Review',
-  done: 'Done',
+export function priorityColor(priority: number): string {
+  return kanbanPriorityColor(priority)
 }
 
-export const COLUMN_ORDER: Array<TaskColumn> = ['backlog', 'todo', 'in_progress', 'review', 'done']
+// ── Legacy compat shims (Task 5 bridge — removed in Task 6/7) ────────────────
 
-export const PRIORITY_COLORS: Record<TaskPriority, string> = {
+/** @deprecated Agent Kanban tasks have no due_date field. Always returns false. */
+export function isOverdue(_task: HermesKanbanTask): boolean {
+  return false
+}
+
+/**
+ * @deprecated Priority is now numeric in Agent Kanban. Use kanbanPriorityColor(task.priority).
+ * Kept as a Record to avoid breaking task-card.tsx until Task 7 updates it.
+ */
+export const PRIORITY_COLORS: Record<string, string> = {
   high: '#ef4444',
   medium: '#f97316',
   low: '#6b7280',
+  3: '#ef4444',
+  1: '#f97316',
+  0: '#6b7280',
+  '-1': '#94a3b8',
 }
 
-export const COLUMN_COLORS: Record<TaskColumn, string> = {
-  backlog: '#6b7280',
+export const COLUMN_COLORS: Record<HermesKanbanStatus, string> = {
+  triage: '#6b7280',
   todo: '#3b82f6',
-  in_progress: '#f97316',
-  review: '#a855f7',
+  ready: '#8b5cf6',
+  running: '#f97316',
+  blocked: '#ef4444',
   done: '#22c55e',
+  archived: '#94a3b8',
 }
 
-export function isOverdue(task: ClaudeTask): boolean {
-  if (!task.due_date) return false
-  // Parse YYYY-MM-DD manually to avoid UTC-vs-local offset issues.
-  // new Date("2026-04-02") parses as UTC midnight, which in EST is the
-  // previous evening — causing everything to appear one day early.
-  const [year, month, day] = task.due_date.split('-').map(Number)
-  const due = new Date(year, month - 1, day) // local midnight
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return due < today
-}
