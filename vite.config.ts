@@ -34,10 +34,10 @@ function resolveClaudeAgentDir(env: Record<string, string>): string | null {
   // Resolve relative to the workspace root (parent of hermes-workspace/)
   const workspaceRoot = dirname(resolve('.'))
   candidates.push(
-    resolve(workspaceRoot, 'hermes-agent'),            // sibling (old README)
-    resolve(workspaceRoot, '..', 'hermes-agent'),      // one level up
-    resolve(os.homedir(), '.claude', 'hermes-agent'),  // Nous installer default
-    resolve(os.homedir(), 'hermes-agent'),             // ~/hermes-agent
+    resolve(workspaceRoot, 'hermes-agent'), // sibling (old README)
+    resolve(workspaceRoot, '..', 'hermes-agent'), // one level up
+    resolve(os.homedir(), '.claude', 'hermes-agent'), // Nous installer default
+    resolve(os.homedir(), 'hermes-agent'), // ~/hermes-agent
   )
 
   for (const candidate of candidates) {
@@ -135,7 +135,15 @@ const config = defineConfig(({ mode, command }) => {
       const useGatewayRun = existsSync(resolve(agentDir, 'gateway', 'run.py'))
       commandArgs = useGatewayRun
         ? ['-m', 'gateway.run']
-        : ['-m', 'uvicorn', 'webapi.app:app', '--host', '0.0.0.0', '--port', '8642']
+        : [
+            '-m',
+            'uvicorn',
+            'webapi.app:app',
+            '--host',
+            '0.0.0.0',
+            '--port',
+            '8642',
+          ]
       launchCwd = agentDir
       console.log(
         `[hermes-agent] Starting from ${agentDir} using ${launchCmd} (${useGatewayRun ? 'gateway.run' : 'uvicorn'})`,
@@ -150,27 +158,23 @@ const config = defineConfig(({ mode, command }) => {
       return
     }
 
-    const child = spawn(
-      launchCmd,
-      commandArgs,
-      {
-        cwd: launchCwd,
-        detached: false, // keep tied to vite process — stops when dev server stops
-        stdio: 'pipe',
-        env: {
-          ...process.env,
-          PATH: [
-            resolve(os.homedir(), '.claude', 'bin'),
-            resolve(os.homedir(), '.local', 'bin'),
-            agentDir ? resolve(agentDir, '.venv', 'bin') : '',
-            agentDir ? resolve(agentDir, 'venv', 'bin') : '',
-            process.env.PATH || '',
-          ]
-            .filter(Boolean)
-            .join(':'),
-        },
+    const child = spawn(launchCmd, commandArgs, {
+      cwd: launchCwd,
+      detached: false, // keep tied to vite process — stops when dev server stops
+      stdio: 'pipe',
+      env: {
+        ...process.env,
+        PATH: [
+          resolve(os.homedir(), '.claude', 'bin'),
+          resolve(os.homedir(), '.local', 'bin'),
+          agentDir ? resolve(agentDir, '.venv', 'bin') : '',
+          agentDir ? resolve(agentDir, 'venv', 'bin') : '',
+          process.env.PATH || '',
+        ]
+          .filter(Boolean)
+          .join(':'),
       },
-    )
+    })
 
     claudeAgentChild = child
     claudeAgentStarted = true
@@ -474,9 +478,11 @@ const config = defineConfig(({ mode, command }) => {
       allowedHosts: true,
       watch: {
         ignored: [
-          // Generated route tree — TanStack Router's file watcher detects its
-          // own output as a change → infinite regeneration loop.
-          '**/routeTree.gen.ts',
+          // NOTE: the generated TanStack route tree must NOT be added to this
+          // ignore list — doing so causes route changes to require a full
+          // dev-server restart. See src/router-route-resolution.test.ts.
+          // Real fix for HMR thrash on the generated tree is to ensure only
+          // ONE vite dev server runs against this source tree at a time.
           // Local portable session store, rewritten on every chat send.
           // Without this, the watcher fires on every message → spurious
           // server-side reload events / test churn during development.
@@ -512,7 +518,7 @@ const config = defineConfig(({ mode, command }) => {
           ws: true,
           rewrite: (path) => path.replace(/^\/ws-claude/, ''),
         },
-// REST API proxy: API proxy for Hermes backend
+        // REST API proxy: API proxy for Hermes backend
         '/api/claude-proxy': {
           target: proxyTarget,
           changeOrigin: true,
