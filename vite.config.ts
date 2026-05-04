@@ -85,11 +85,9 @@ async function isClaudeAgentHealthy(port = 8642): Promise<boolean> {
 const config = defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const claudeApiUrl = env.CLAUDE_API_URL?.trim() || 'http://127.0.0.1:8642'
-  const claudeApiToken =
-    env.HERMES_API_TOKEN?.trim() || env.CLAUDE_API_TOKEN?.trim() || ''
-  const probeHeaders: Record<string, string> = claudeApiToken
-    ? { Authorization: `Bearer ${claudeApiToken}` }
-    : {}
+  // /api/connection-status is handled by the real route file at
+  // src/routes/api/connection-status.ts; the dev server no longer
+  // intercepts that path with a slim shortcut. See #285.
 
   // Hermes Agent auto-start state
   let claudeAgentChild: ChildProcess | null = null
@@ -564,75 +562,13 @@ const config = defineConfig(({ mode, command }) => {
               return
             }
 
-            // Portable-aware health check — returns ok if any chat backend is available
-            if (
-              req.method === 'GET' &&
-              requestPath === '/api/connection-status'
-            ) {
-              try {
-                // Check for enhanced Hermes Agent gateway first (has /api/sessions)
-                const [modelsRes, sessionsRes] = await Promise.all([
-                  fetch(`${claudeApiUrl}/v1/models`, {
-                    headers: probeHeaders,
-                    signal: AbortSignal.timeout(3000),
-                  }).catch(() => null),
-                  fetch(`${claudeApiUrl}/api/sessions?limit=1`, {
-                    headers: probeHeaders,
-                    signal: AbortSignal.timeout(3000),
-                  }).catch(() => null),
-                ])
-                const hasModels = modelsRes?.ok ?? false
-                const hasSessions = sessionsRes?.ok ?? false
-                if (hasModels && hasSessions) {
-                  res.statusCode = 200
-                  res.setHeader('content-type', 'application/json')
-                  res.end(
-                    JSON.stringify({
-                      ok: true,
-                      mode: 'enhanced',
-                      backend: claudeApiUrl,
-                    }),
-                  )
-                  return
-                }
-                if (hasModels) {
-                  res.statusCode = 200
-                  res.setHeader('content-type', 'application/json')
-                  res.end(
-                    JSON.stringify({
-                      ok: true,
-                      mode: 'portable',
-                      backend: claudeApiUrl,
-                    }),
-                  )
-                  return
-                }
-                // Fall back to /health for full Hermes backends
-                const healthRes = await fetch(`${claudeApiUrl}/health`, {
-                  signal: AbortSignal.timeout(3000),
-                })
-                res.statusCode = healthRes.ok ? 200 : 502
-                res.setHeader('content-type', 'application/json')
-                res.end(
-                  JSON.stringify({
-                    ok: healthRes.ok,
-                    mode: 'enhanced',
-                    backend: claudeApiUrl,
-                  }),
-                )
-              } catch {
-                res.statusCode = 502
-                res.setHeader('content-type', 'application/json')
-                res.end(
-                  JSON.stringify({
-                    ok: false,
-                    mode: 'disconnected',
-                    backend: claudeApiUrl,
-                  }),
-                )
-              }
-              return
-            }
+            // /api/connection-status is handled by the real route file at
+            // src/routes/api/connection-status.ts — it returns the full
+            // ConnectionStatus payload including capabilities and chatMode
+            // that downstream feature gates depend on. Earlier versions
+            // had an inline shortcut handler here that returned a slim
+            // body ({ok, mode, backend}) which silently broke things like
+            // useFeatureCapability/useFeatureAvailable in dev mode. See #285.
 
             if (
               req.method !== 'POST' ||
