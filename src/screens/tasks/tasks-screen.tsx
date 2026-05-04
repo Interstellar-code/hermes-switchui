@@ -67,10 +67,16 @@ export function TasksScreen() {
   const search = useSearch({ from: '/tasks' })
   const initialAssignee = typeof search.assignee === 'string' ? search.assignee : null
   const [assigneeFilter, setAssigneeFilter] = useState<string | null>(initialAssignee)
+  const [tenantFilter, setTenantFilter] = useState<string | null>(null)
+  const [dispatchResult, setDispatchResult] = useState<string | null>(null)
 
   const tasksQuery = useQuery({
-    queryKey: [...QUERY_KEY, showDone, showArchived],
-    queryFn: () => fetchTasks({ include_done: showDone, include_archived: showArchived }),
+    queryKey: [...QUERY_KEY, showDone, showArchived, tenantFilter],
+    queryFn: () => fetchTasks({
+      include_done: showDone,
+      include_archived: showArchived,
+      ...(tenantFilter ? { tenant: tenantFilter } : {}),
+    }),
     refetchInterval: 30_000,
     placeholderData: keepPreviousData,
   })
@@ -221,6 +227,30 @@ export function TasksScreen() {
     setBlockedReason('')
   }
 
+  const dispatchMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${KANBAN_BASE}/dispatch?max=8`, { method: 'POST' })
+      if (!res.ok) throw new Error(`Dispatch failed: ${res.status}`)
+      return res.json() as Promise<unknown>
+    },
+    onSuccess: (data) => {
+      const msg = typeof data === 'object' && data !== null && 'dispatched' in data
+        ? `Dispatched ${(data as { dispatched: number }).dispatched} task(s)`
+        : 'Dispatch complete'
+      setDispatchResult(msg)
+      invalidate()
+      setTimeout(() => setDispatchResult(null), 4000)
+    },
+    onError: (e) => toast(e instanceof Error ? e.message : 'Dispatch failed', { type: 'error' }),
+  })
+
+  // Derive unique tenants from current tasks for filter dropdown
+  const uniqueTenants = useMemo(() => {
+    const set = new Set<string>()
+    for (const t of tasks) if (t.tenant) set.add(t.tenant)
+    return Array.from(set).sort()
+  }, [tasks])
+
   function toggleSelect(taskId: string, e: React.MouseEvent) {
     e.stopPropagation()
     setSelectedIds(prev => {
@@ -248,12 +278,13 @@ export function TasksScreen() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0">
               <h1 className="text-2xl font-medium text-ink">Tasks</h1>
-              {assigneeFilter && (
+              {(assigneeFilter || tenantFilter) && (
                 <div className="flex items-center gap-2 text-xs text-[var(--theme-muted)]">
-                  <span>Filtered by: <span className="capitalize" style={{ color: '#f59e0b' }}>{assigneeFilter}</span></span>
+                  {assigneeFilter && <span>@{assigneeFilter}</span>}
+                  {tenantFilter && <span>tenant:{tenantFilter}</span>}
                   <button
                     type="button"
-                    onClick={() => setAssigneeFilter(null)}
+                    onClick={() => { setAssigneeFilter(null); setTenantFilter(null) }}
                     className="text-[var(--theme-muted)] hover:text-[var(--theme-text)] transition-colors"
                   >
                     ✕ Clear
@@ -307,6 +338,39 @@ export function TasksScreen() {
                 )}
               >
                 {showArchived ? 'Hide Archived' : 'Archived'}
+              </button>
+              {/* Tenant filter */}
+              {uniqueTenants.length > 0 && (
+                <select
+                  className="text-xs px-2 py-1 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-card)] text-[var(--theme-text)] focus:outline-none focus:border-[var(--theme-accent)]"
+                  style={{ colorScheme: 'dark' }}
+                  value={tenantFilter ?? ''}
+                  onChange={e => setTenantFilter(e.target.value || null)}
+                >
+                  <option value="">All tenants</option>
+                  {uniqueTenants.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              )}
+              {/* Assignee filter */}
+              {assignees.length > 0 && (
+                <select
+                  className="text-xs px-2 py-1 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-card)] text-[var(--theme-text)] focus:outline-none focus:border-[var(--theme-accent)]"
+                  style={{ colorScheme: 'dark' }}
+                  value={assigneeFilter ?? ''}
+                  onChange={e => setAssigneeFilter(e.target.value || null)}
+                >
+                  <option value="">All assignees</option>
+                  {assignees.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
+                </select>
+              )}
+              {/* Dispatch */}
+              <button
+                onClick={() => void dispatchMutation.mutate()}
+                disabled={dispatchMutation.isPending}
+                className="text-xs px-2.5 py-1 rounded-lg border border-[var(--theme-border)] text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:border-[var(--theme-accent)] transition-colors disabled:opacity-40"
+                title="Dispatch ready tasks to workers (max 8)"
+              >
+                {dispatchMutation.isPending ? 'Dispatching…' : dispatchResult ?? '⚡ Dispatch'}
               </button>
               <button
                 onClick={invalidate}
