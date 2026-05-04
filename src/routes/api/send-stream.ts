@@ -1325,6 +1325,32 @@ export const Route = createFileRoute('/api/send-stream')({
                       return
                     }
 
+                    if (event === 'usage.update') {
+                      const contextPercent =
+                        typeof data.context_percent === 'number'
+                          ? data.context_percent
+                          : undefined
+                      if (contextPercent !== undefined) {
+                        const usagePayload = {
+                          contextPercent,
+                          compacted: data.compacted === true,
+                          messagesBefore:
+                            typeof data.messages_before === 'number'
+                              ? data.messages_before
+                              : undefined,
+                          messagesAfter:
+                            typeof data.messages_after === 'number'
+                              ? data.messages_after
+                              : undefined,
+                          sessionKey: sessionKeyFromEvent,
+                          runId,
+                        }
+                        sendEvent('usage_update', usagePayload)
+                        skipPublish || publishChatEvent('usage_update', usagePayload)
+                      }
+                      return
+                    }
+
                     if (event === 'run.completed') {
                       // Backfill tool calls from session history.
                       // Hermes Agent currently does not stream tool.* events

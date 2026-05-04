@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useContextUsageStore } from '@/stores/context-usage-store'
 
 const POLL_MS = 15_000
 const STORAGE_KEY = 'claude-ctx-alert'
@@ -75,6 +76,9 @@ export function useContextAlert(): {
   const [alertThreshold, setAlertThreshold] = useState<number>(0)
   const [alertPercent, setAlertPercent] = useState<number>(0)
 
+  const lastCompactionAt = useContextUsageStore((s) => s.lastCompactionAt)
+  const storeContextPercent = useContextUsageStore((s) => s.contextPercent)
+
   const dismissAlert = useCallback(() => {
     setAlertOpen(false)
   }, [])
@@ -129,6 +133,20 @@ export function useContextAlert(): {
     }, POLL_MS)
     return () => window.clearInterval(id)
   }, [refresh])
+
+  // React immediately when context is compressed: reset fired thresholds so
+  // they can fire again on the next build-up, and update the displayed percent.
+  useEffect(() => {
+    if (lastCompactionAt === null) return
+    const today = getTodayKeyLocal()
+    const stored = storedRef.current ?? loadStoredState()
+    stored.date = today
+    stored.sent = emptySent()
+    storedRef.current = stored
+    saveStoredState(stored)
+    setAlertPercent(storeContextPercent)
+    setAlertOpen(false)
+  }, [lastCompactionAt, storeContextPercent])
 
   return { alertOpen, alertThreshold, alertPercent, dismissAlert }
 }

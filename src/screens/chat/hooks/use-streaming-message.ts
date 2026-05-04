@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatAttachment, ChatMessage } from '../types'
 import { readResolvedSessionHeaders } from '@/lib/send-stream-session-headers'
 import { useChatStore } from '@/stores/chat-store'
+import { useContextUsageStore } from '@/stores/context-usage-store'
 import { pushActivity } from '@/components/inspector/activity-store'
 
 type StreamingState = {
@@ -111,6 +112,8 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
   const unregisterSendStreamRun = useChatStore((s) => s.unregisterSendStreamRun)
   const processStoreEvent = useChatStore((s) => s.processEvent)
   const clearStreamingSession = useChatStore((s) => s.clearStreamingSession)
+  const recordCompaction = useContextUsageStore((s) => s.recordCompaction)
+  const updateContextPercent = useContextUsageStore((s) => s.updateContextPercent)
 
   const ACCEPTED_NO_ACTIVITY_TIMEOUT_MS = acceptedTimeoutMs ?? 120_000
   const HANDOFF_NO_ACTIVITY_TIMEOUT_MS = handoffTimeoutMs ?? 300_000
@@ -633,6 +636,33 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
                 : stepUsageRef.current.model,
           }
           stepUsageRef.current = nextUsage
+          if (typeof payload.contextPercent === 'number') {
+            updateContextPercent(payload.contextPercent)
+          }
+          break
+        }
+        case 'usage_update': {
+          const pct =
+            typeof payload.contextPercent === 'number'
+              ? payload.contextPercent
+              : null
+          if (pct !== null) {
+            if (payload.compacted === true) {
+              recordCompaction({
+                contextPercent: pct,
+                messagesBefore:
+                  typeof payload.messagesBefore === 'number'
+                    ? payload.messagesBefore
+                    : undefined,
+                messagesAfter:
+                  typeof payload.messagesAfter === 'number'
+                    ? payload.messagesAfter
+                    : undefined,
+              })
+            } else {
+              updateContextPercent(pct)
+            }
+          }
           break
         }
         case 'done': {
@@ -721,8 +751,10 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
       markActivity,
       processStoreEvent,
       pushTargetText,
+      recordCompaction,
       registerSendStreamRun,
       transitionToHandoff,
+      updateContextPercent,
     ],
   )
 
