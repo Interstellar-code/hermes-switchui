@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Cancel01Icon, BubbleChatIcon, HierarchyIcon, CpuIcon, Alert02Icon } from '@hugeicons/core-free-icons'
 import { cn } from '@/lib/utils'
 import { kanbanPriorityLabel, HERMES_KANBAN_STATUS_LABELS } from '@/lib/hermes-kanban-types'
 import type { HermesKanbanTask, HermesKanbanTaskDetail } from '@/lib/hermes-kanban-types'
+
+type LogResponse = { log: { content: string; exists: boolean; truncated: boolean; size_bytes: number } }
 
 export const DRAWER_TABS = ['overview', 'comments', 'dependencies', 'runs', 'events', 'log'] as const
 export type DrawerTab = typeof DRAWER_TABS[number]
@@ -60,7 +62,7 @@ export function TaskDetailDrawer({ task, onClose }: Props) {
     queryFn: async () => {
       const res = await fetch(`/api/hermes-kanban/tasks/${task.id}/log?tail=100`)
       if (!res.ok) throw new Error(`Log unavailable: ${res.status}`)
-      return res.json() as Promise<{ log: unknown }>
+      return res.json() as Promise<LogResponse>
     },
     enabled: activeTab === 'log',
     staleTime: 10_000,
@@ -194,17 +196,21 @@ function Field({ label, value }: { label: string; value: string }) {
 function CommentsTab({ detail, taskId }: { detail: HermesKanbanTaskDetail; taskId: string }) {
   const [body, setBody] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const queryClient = useQueryClient()
 
   async function submit() {
     if (!body.trim()) return
     setSubmitting(true)
     try {
-      await fetch(`/api/hermes-kanban/tasks/${taskId}/comments`, {
+      const res = await fetch(`/api/hermes-kanban/tasks/${taskId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ body: body.trim(), author: 'SwitchUI' }),
       })
-      setBody('')
+      if (res.ok) {
+        setBody('')
+        await queryClient.invalidateQueries({ queryKey: ['hermes-kanban', 'task', taskId] })
+      }
     } finally {
       setSubmitting(false)
     }
@@ -323,12 +329,20 @@ function EventsTab({ detail }: { detail: HermesKanbanTaskDetail }) {
 function LogTab({ query }: { query: ReturnType<typeof useQuery> }) {
   if (query.isLoading) return <p className="text-xs text-[var(--theme-muted)] animate-pulse">Loading log…</p>
   if (query.isError) return <p className="text-xs text-red-400">Worker log unavailable.</p>
-  const log = (query.data as { log: unknown } | undefined)?.log
-  if (!log) return <p className="text-xs text-[var(--theme-muted)]">No log data.</p>
+  const logObj = (query.data as LogResponse | undefined)?.log
+  if (!logObj?.exists) return <p className="text-xs text-[var(--theme-muted)]">No log file for this task yet.</p>
+  if (!logObj.content) return <p className="text-xs text-[var(--theme-muted)]">Log is empty.</p>
   return (
-    <pre className="text-[10px] font-mono text-[var(--theme-text)] whitespace-pre-wrap break-all leading-relaxed">
-      {typeof log === 'string' ? log : JSON.stringify(log, null, 2)}
-    </pre>
+    <div className="space-y-1">
+      {logObj.truncated && (
+        <p className="text-[10px] text-[var(--theme-muted)] italic">
+          Showing tail of {logObj.size_bytes.toLocaleString()} byte log.
+        </p>
+      )}
+      <pre className="text-[10px] font-mono text-[var(--theme-text)] whitespace-pre-wrap break-all leading-relaxed">
+        {logObj.content}
+      </pre>
+    </div>
   )
 }
 

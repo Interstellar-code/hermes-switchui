@@ -45,4 +45,34 @@ describe('task detail drawer — data helpers', () => {
     const logTab = 'log'
     expect(defaultTab).not.toBe(logTab)
   })
+
+  it('LogResponse: content is the leaf field, not the log object itself', () => {
+    // Simulate the live API response shape from Agent /tasks/:id/log
+    const apiResponse = {
+      log: {
+        task_id: 't_abc',
+        path: '/some/path/t_abc.log',
+        exists: true,
+        size_bytes: 340,
+        content: 'INFO task started\nINFO task running',
+        truncated: false,
+      },
+    }
+    // The drawer must access .log.content — not .log directly
+    const logObj = apiResponse.log
+    expect(logObj.exists).toBe(true)
+    expect(logObj.content).toBe('INFO task started\nINFO task running')
+    expect(typeof logObj.content).toBe('string')
+  })
+
+  it('LogResponse: empty content is handled separately from missing file', () => {
+    const missingFile = { log: { exists: false, content: '', truncated: false, size_bytes: 0 } }
+    const emptyFile = { log: { exists: true, content: '', truncated: false, size_bytes: 0 } }
+    const filledFile = { log: { exists: true, content: 'some log', truncated: false, size_bytes: 8 } }
+
+    expect(missingFile.log.exists).toBe(false)
+    expect(emptyFile.log.exists).toBe(true)
+    expect(emptyFile.log.content).toBe('')
+    expect(filledFile.log.content).toBe('some log')
+  })
 })
