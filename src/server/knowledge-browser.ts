@@ -2,10 +2,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import YAML from 'yaml'
-import {
-  readKnowledgeBaseConfig,
-  type KnowledgeBaseSource,
-} from './knowledge-config'
+import { getKnowledgeBaseEffectiveRoot, readKnowledgeBaseConfig } from './knowledge-config'
+import type { KnowledgeBaseSource } from './knowledge-config'
 
 export type WikiPageMeta = {
   path: string
@@ -120,13 +118,7 @@ function extractWikilinks(content: string): Array<string> {
 // ─── Legacy env-var fallback ──────────────────────────────────────────────────
 
 function getLegacyKnowledgeRoot(): string {
-  if (process.env.KNOWLEDGE_DIR) return path.resolve(process.env.KNOWLEDGE_DIR)
-  const claudeHome = path.join(os.homedir(), '.claude')
-  const claudeKnowledge = path.join(claudeHome, 'knowledge')
-  if (fs.existsSync(claudeKnowledge)) return claudeKnowledge
-  const homeKnowledge = path.join(os.homedir(), 'knowledge', 'wiki')
-  if (fs.existsSync(homeKnowledge)) return homeKnowledge
-  return claudeKnowledge
+  return getKnowledgeBaseEffectiveRoot()
 }
 
 // ─── GitHub Knowledge Provider ─────────────────────────────────────────────────
