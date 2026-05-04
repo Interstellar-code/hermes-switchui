@@ -96,6 +96,11 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
     typeof setTimeout
   > | null>(null)
   const activeSessionKeyRef = useRef<string>('main')
+  // Monotonically increasing token. Each call to startStreaming bumps this so
+  // any in-flight fetch-reader loop, or pending microtask processing chunks it
+  // already read into the SSE buffer, can detect that it is stale and refuse to
+  // dispatch events into the newly active session. See #297.
+  const streamGenerationRef = useRef<number>(0)
   const lifecyclePhaseRef = useRef<StreamLifecyclePhase>('idle')
   const acceptedAtRef = useRef<number | null>(null)
   const lastActivityAtRef = useRef<number | null>(null)
@@ -768,6 +773,13 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
       resetActiveStreamState(params.sessionKey)
       lifecyclePhaseRef.current = 'requesting'
 
+      // Bump the generation token so any chunks the previous stream had
+      // already buffered but not yet dispatched (after abort) get rejected
+      // when they reach processEvent. The local capture is what this run
+      // compares against. See #297.
+      streamGenerationRef.current += 1
+      const myGeneration = streamGenerationRef.current
+
       const messageId = `streaming-${Date.now()}`
 
       setState({
@@ -845,12 +857,30 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
           const { done, value } = await reader.read()
           if (done) break
 
+          // Guard against stale streams writing into a newer session.
+          // If startStreaming was called again, streamGenerationRef has been
+          // bumped; this loop is now for an aborted/superseded stream and
+          // must not dispatch events. See #297.
+          if (streamGenerationRef.current !== myGeneration) {
+            try {
+              await reader.cancel()
+            } catch {
+              // Reader may already be closed; safe to ignore.
+            }
+            break
+          }
+
           buffer += decoder.decode(value, { stream: true })
           const events = buffer.split('\n\n')
           buffer = events.pop() ?? ''
 
           for (const eventBlock of events) {
             if (!eventBlock.trim()) continue
+
+            // Re-check between events as well — a single read() can yield a
+            // batch of buffered events; if a new stream started mid-batch,
+            // the rest of this batch must be dropped.
+            if (streamGenerationRef.current !== myGeneration) break
 
             const lines = eventBlock.split('\n')
             let currentEvent = ''
