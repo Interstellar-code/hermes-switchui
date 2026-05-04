@@ -37,12 +37,12 @@ function formPriorityToNumeric(p: FormPriority): number {
 }
 
 const inputClass = cn(
-  'w-full rounded-lg border px-3 py-2 text-xs',
+  'w-full rounded-lg border px-3 py-2 text-sm',
   'bg-[var(--theme-input)] border-[var(--theme-border)] text-[var(--theme-text)]',
   'focus:outline-none focus:ring-1 focus:ring-[var(--theme-accent)]',
   'placeholder:text-[var(--theme-muted)]',
 )
-const labelClass = 'block text-[10px] font-medium text-[var(--theme-muted)] uppercase tracking-wide mb-1'
+const labelClass = 'block text-xs font-medium text-[var(--theme-muted)] mb-1'
 
 export const DRAWER_TABS = ['overview', 'comments', 'dependencies', 'runs', 'events', 'log'] as const
 export type DrawerTab = typeof DRAWER_TABS[number]
@@ -261,6 +261,14 @@ function OverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesK
               <option key={s} value={s}>{HERMES_KANBAN_STATUS_LABELS[s]}</option>
             ))}
           </select>
+          <p className="mt-1 text-[10px] text-[var(--theme-muted)]">
+            {status === 'triage' && 'Backlog — agent will not pick up automatically.'}
+            {status === 'ready' && 'Dispatchable — agent can claim immediately.'}
+            {status === 'todo' && 'Held — waiting on parent dependencies.'}
+            {status === 'blocked' && 'Blocked — enter a reason below.'}
+            {status === 'running' && 'Running — agent is actively working this task.'}
+            {status === 'done' && 'Done — task is complete.'}
+          </p>
         </div>
         <div>
           <label className={labelClass}>Priority</label>
