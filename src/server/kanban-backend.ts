@@ -195,7 +195,7 @@ function mapClaudeStatus(status: string | null | undefined): SwarmKanbanCard['st
 function mapBoardStatus(status: SwarmKanbanCard['status'] | null | undefined): string {
   switch (status) {
     case 'backlog':
-      return 'queued'
+      return 'triage'
     case 'ready':
       return 'ready'
     case 'running':
@@ -207,7 +207,7 @@ function mapBoardStatus(status: SwarmKanbanCard['status'] | null | undefined): s
     case 'done':
       return 'done'
     default:
-      return 'queued'
+      return 'triage'
   }
 }
 
