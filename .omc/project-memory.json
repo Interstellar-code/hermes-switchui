@@ -1,0 +1,230 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1777879213436,
+  "projectRoot": "/Volumes/Ext-nvme/Development/hermes-workspace",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "playwright",
+        "version": "1.58.2",
+        "category": "testing"
+      },
+      {
+        "name": "react",
+        "version": "19.2.0",
+        "category": "frontend"
+      },
+      {
+        "name": "react-dom",
+        "version": "19.2.0",
+        "category": "frontend"
+      },
+      {
+        "name": "vite",
+        "version": "7.3.2",
+        "category": "build"
+      },
+      {
+        "name": "vitest",
+        "version": "3.0.5",
+        "category": "testing"
+      },
+      {
+        "name": "esbuild",
+        "version": "0.27.0",
+        "category": "build"
+      }
+    ],
+    "packageManager": "pnpm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "pnpm build",
+    "testCommand": "pnpm test",
+    "lintCommand": "pnpm lint",
+    "devCommand": "pnpm dev",
+    "scripts": {
+      "dev": "NODE_OPTIONS=\"--max-old-space-size=2048\" vite dev",
+      "build": "vite build",
+      "start:all": "concurrently \"hermes gateway run\" \"pnpm dev\"",
+      "start": "NODE_OPTIONS=\"--max-old-space-size=2048\" node .output/server/index.mjs",
+      "start:dev": "NODE_OPTIONS=\"--max-old-space-size=2048\" vite dev",
+      "preview": "vite preview",
+      "test": "vitest run",
+      "smoke:managed": "node scripts/managed-companion-smoke.mjs",
+      "lint": "eslint",
+      "format": "prettier",
+      "check": "prettier --write . && eslint --fix",
+      "electron:dev": "NODE_ENV=development electron .",
+      "electron:build": "pnpm build && pnpm electron:bundle-server && electron-builder --config electron-builder.config.cjs",
+      "electron:build:mac": "pnpm build && pnpm electron:bundle-server && electron-builder --mac --config electron-builder.config.cjs",
+      "electron:build:win": "pnpm build && pnpm electron:bundle-server && electron-builder --win --config electron-builder.config.cjs",
+      "electron:bundle-server": "esbuild dist/server/server.js --bundle --platform=node --format=cjs --outfile=electron/server-bundle.cjs"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": "type-based"
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "assets",
+      "docs",
+      "public",
+      "scripts",
+      "src"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "assets": {
+      "path": "assets",
+      "purpose": "Static assets",
+      "fileCount": 2,
+      "lastAccessed": 1777879213426,
+      "keyFiles": [
+        "icon.png",
+        "mcp-presets.seed.json"
+      ]
+    },
+    "dist": {
+      "path": "dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 0,
+      "lastAccessed": 1777879213428,
+      "keyFiles": []
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 16,
+      "lastAccessed": 1777879213428,
+      "keyFiles": [
+        "AGENT-PAIRING.md",
+        "agent-authored-ui-state.md",
+        "claude-openai-compat-spec.md",
+        "conductor-bug-log.md",
+        "desktop-update-system.md"
+      ]
+    },
+    "electron": {
+      "path": "electron",
+      "purpose": null,
+      "fileCount": 4,
+      "lastAccessed": 1777879213429,
+      "keyFiles": [
+        "main.cjs",
+        "preload.cjs",
+        "prod-server.cjs",
+        "server-bundle.cjs"
+      ]
+    },
+    "public": {
+      "path": "public",
+      "purpose": "Public files",
+      "fileCount": 23,
+      "lastAccessed": 1777879213430,
+      "keyFiles": [
+        "apple-touch-icon.png",
+        "claude-avatar.png",
+        "claude-avatar.webp",
+        "claude-banner-light.png",
+        "claude-banner.png"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 9,
+      "lastAccessed": 1777879213430,
+      "keyFiles": [
+        "dashboard-smoke.mjs",
+        "generate-pwa-icons.js",
+        "managed-companion-smoke.mjs",
+        "seed-runtime.mjs",
+        "skills-search.py"
+      ]
+    },
+    "skills": {
+      "path": "skills",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1777879213430,
+      "keyFiles": []
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 5,
+      "lastAccessed": 1777879213431,
+      "keyFiles": [
+        "logo.svg",
+        "routeTree.gen.ts",
+        "router-route-resolution.test.ts",
+        "router.tsx",
+        "styles.css"
+      ]
+    },
+    "src/components": {
+      "path": "src/components",
+      "purpose": "UI components",
+      "fileCount": 48,
+      "lastAccessed": 1777879213432,
+      "keyFiles": [
+        "-mcp-nav.test.tsx",
+        "agent-avatar.tsx",
+        "agent-card.tsx"
+      ]
+    },
+    "src/lib": {
+      "path": "src/lib",
+      "purpose": "Library code",
+      "fileCount": 32,
+      "lastAccessed": 1777879213432,
+      "keyFiles": [
+        "accent-colors.ts",
+        "active-users.ts",
+        "agent-personas.ts"
+      ]
+    },
+    "src/routes": {
+      "path": "src/routes",
+      "purpose": "Route handlers",
+      "fileCount": 22,
+      "lastAccessed": 1777879213433,
+      "keyFiles": [
+        "$.tsx",
+        "-root-layout-state.test.ts",
+        "-root-layout-state.ts"
+      ]
+    }
+  },
+  "hotPaths": [],
+  "userDirectives": []
+}
