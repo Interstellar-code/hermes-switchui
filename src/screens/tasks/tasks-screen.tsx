@@ -8,6 +8,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Add01Icon, CheckListIcon, RefreshIcon } from '@hugeicons/core-free-icons'
 import { TaskCard } from './task-card'
 import { TaskDialog } from './task-dialog'
+import { TaskDetailDrawer } from './task-detail-drawer'
 import { toast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import {
@@ -394,18 +395,13 @@ export function TasksScreen() {
           onSubmit={async (input) => { await createMutation.mutateAsync(input) }}
         />
 
-        {/* Edit dialog */}
-        <TaskDialog
-          open={editingTask !== null}
-          onOpenChange={(open) => { if (!open) setEditingTask(null) }}
-          task={editingTask}
-          assignees={assignees}
-          isSubmitting={updateMutation.isPending}
-          onSubmit={async (input) => {
-            if (!editingTask) return
-            await updateMutation.mutateAsync({ id: editingTask.id, input })
-          }}
-        />
+        {/* Task detail drawer — replaces the old edit dialog for viewing */}
+        {editingTask && (
+          <TaskDetailDrawer
+            task={editingTask}
+            onClose={() => setEditingTask(null)}
+          />
+        )}
 
         {/* Blocked confirmation dialog (v1 requirement) */}
         {blockedPending && (
