@@ -188,6 +188,8 @@ export type UpdateKanbanTaskInput = {
   result?: string | null
   block_reason?: string | null
   summary?: string | null
+  workspace_kind?: string | null
+  workspace_path?: string | null
 }
 
 export type BulkKanbanInput = {

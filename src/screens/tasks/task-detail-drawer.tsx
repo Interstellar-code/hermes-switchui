@@ -44,6 +44,14 @@ const inputClass = cn(
 )
 const labelClass = 'block text-xs font-medium text-[var(--theme-muted)] mb-1'
 
+const WORKSPACE_KIND_OPTIONS = [
+  { value: '', label: 'None' },
+  { value: 'scratch', label: 'Scratch (auto temp dir)' },
+  { value: 'git', label: 'Git repo' },
+  { value: 'local', label: 'Local folder' },
+  { value: 'remote', label: 'Remote' },
+] as const
+
 export const DRAWER_TABS = ['overview', 'comments', 'dependencies', 'runs', 'events', 'log'] as const
 export type DrawerTab = typeof DRAWER_TABS[number]
 
@@ -196,6 +204,8 @@ function OverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesK
   const [priority, setPriority] = useState<FormPriority>(numericToFormPriority(td.priority ?? 0))
   const [blockReason, setBlockReason] = useState(td.block_reason ?? '')
   const [summary, setSummary] = useState(td.summary ?? '')
+  const [workspaceKind, setWorkspaceKind] = useState(td.workspace_kind ?? '')
+  const [workspacePath, setWorkspacePath] = useState(td.workspace_path ?? '')
   const [saving, setSaving] = useState(false)
 
   const assigneesQuery = useQuery({
@@ -213,7 +223,9 @@ function OverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesK
     formPriorityToNumeric(priority) !== (td.priority ?? 0) ||
     blockReason !== (td.block_reason ?? '') ||
     summary !== (td.summary ?? '') ||
-    assignee !== (td.assignee ?? '')
+    assignee !== (td.assignee ?? '') ||
+    workspaceKind !== (td.workspace_kind ?? '') ||
+    workspacePath !== (td.workspace_path ?? '')
 
   async function handleSave() {
     if (!title.trim() || saving) return
@@ -227,6 +239,8 @@ function OverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesK
         assignee: assignee || null,
         block_reason: blockReason.trim() || null,
         summary: summary.trim() || null,
+        workspace_kind: workspaceKind || null,
+        workspace_path: workspacePath.trim() || null,
       })
       await queryClient.invalidateQueries({ queryKey: ['hermes-kanban', 'task', task.id] })
       await queryClient.invalidateQueries({ queryKey: ['claude', 'tasks'] })
@@ -303,6 +317,25 @@ function OverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesK
         </select>
       </div>
 
+      {/* Workspace kind + path */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelClass}>Workspace type</label>
+          <select className={inputClass} style={{ colorScheme: 'dark' }}
+            value={workspaceKind} onChange={e => setWorkspaceKind(e.target.value)}>
+            {WORKSPACE_KIND_OPTIONS.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className={labelClass}>Workspace path</label>
+          <input className={inputClass} value={workspacePath}
+            onChange={e => setWorkspacePath(e.target.value)}
+            placeholder="/path/to/repo (optional)" />
+        </div>
+      </div>
+
       {/* Summary */}
       <div>
         <label className={labelClass}>Summary</label>
@@ -326,13 +359,12 @@ function OverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesK
       )}
 
       {/* Read-only metadata */}
-      {(td.tenant || td.skills || td.workspace_kind || td.max_runtime_seconds || td.result ||
+      {(td.tenant || td.skills || td.max_runtime_seconds || td.result ||
         td.created_at || td.started_at || td.completed_at || (td.spawn_failures ?? 0) > 0) && (
           <div className="pt-2 border-t border-[var(--theme-border)] space-y-2">
             <p className={labelClass}>Task metadata</p>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2">
               {td.tenant && <MetaField label="Tenant" value={td.tenant} />}
-              {td.workspace_kind && <MetaField label="Workspace" value={`${td.workspace_kind}${td.workspace_path ? ` — ${td.workspace_path}` : ''}`} />}
               {td.max_runtime_seconds && <MetaField label="Max runtime" value={`${td.max_runtime_seconds}s`} />}
               {td.skills && <MetaField label="Skills" value={Array.isArray(td.skills) ? td.skills.join(', ') : String(td.skills)} />}
               {td.result && <MetaField label="Result" value={td.result} />}
