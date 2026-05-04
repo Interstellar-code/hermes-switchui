@@ -12,6 +12,7 @@ import { useQuery } from '@tanstack/react-query'
 
 export type FeatureKey =
   | 'conductor'
+  | 'kanban'
   | 'mcp'
   | 'mcpFallback'
   | 'sessions'
