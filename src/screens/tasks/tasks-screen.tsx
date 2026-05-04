@@ -26,6 +26,8 @@ import type { ClaudeTask, TaskColumn, CreateTaskInput, TaskAssignee } from '@/li
 import { HERMES_KANBAN_VISIBLE_STATUS_ORDER } from '@/lib/hermes-kanban-types'
 import type { HermesKanbanStatus } from '@/lib/hermes-kanban-types'
 
+const KANBAN_BASE = '/api/hermes-kanban'
+
 const QUERY_KEY = ['claude', 'tasks'] as const
 const ASSIGNEES_KEY = ['claude', 'tasks', 'assignees'] as const
 
@@ -57,16 +59,18 @@ export function TasksScreen() {
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverColumn, setDragOverColumn] = useState<HermesKanbanStatus | null>(null)
   const [showDone, setShowDone] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
   const [blockedPending, setBlockedPending] = useState<BlockedDropPending>(null)
   const [blockedReason, setBlockedReason] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const search = useSearch({ from: '/tasks' })
   const initialAssignee = typeof search.assignee === 'string' ? search.assignee : null
   const [assigneeFilter, setAssigneeFilter] = useState<string | null>(initialAssignee)
 
   const tasksQuery = useQuery({
-    queryKey: [...QUERY_KEY, showDone],
-    queryFn: () => fetchTasks({ include_done: showDone }),
+    queryKey: [...QUERY_KEY, showDone, showArchived],
+    queryFn: () => fetchTasks({ include_done: showDone, include_archived: showArchived }),
     refetchInterval: 30_000,
     placeholderData: keepPreviousData,
   })
@@ -137,6 +141,27 @@ export function TasksScreen() {
     onError: (e) => toast(e instanceof Error ? e.message : 'Failed to move task', { type: 'error' }),
   })
 
+  const bulkMutation = useMutation({
+    mutationFn: async ({ status, archive }: { status?: HermesKanbanStatus; archive?: boolean }) => {
+      const ids = Array.from(selectedIds)
+      const res = await fetch(`${KANBAN_BASE}/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, ...(status ? { status } : {}), ...(archive ? { archive: true } : {}) }),
+      })
+      if (!res.ok) throw new Error(`Bulk update failed: ${res.status}`)
+      return res.json() as Promise<{ results: Array<{ id: string; ok: boolean; error?: string }> }>
+    },
+    onSuccess: (data) => {
+      const failed = data.results.filter(r => !r.ok)
+      if (failed.length > 0) toast(`${failed.length} tasks failed to update`, { type: 'error' })
+      else toast(`${data.results.length} tasks updated`)
+      setSelectedIds(new Set())
+      invalidate()
+    },
+    onError: (e) => toast(e instanceof Error ? e.message : 'Bulk update failed', { type: 'error' }),
+  })
+
   function handleDragStart(e: React.DragEvent, taskId: string) {
     e.dataTransfer.setData('text/plain', taskId)
     setDraggingId(taskId)
@@ -196,10 +221,23 @@ export function TasksScreen() {
     setBlockedReason('')
   }
 
+  function toggleSelect(taskId: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(taskId)) next.delete(taskId)
+      else next.add(taskId)
+      return next
+    })
+  }
+
   // Agent lifecycle columns
-  const visibleStatuses: HermesKanbanStatus[] = showDone
+  const baseStatuses: HermesKanbanStatus[] = showDone
     ? HERMES_KANBAN_VISIBLE_STATUS_ORDER
     : HERMES_KANBAN_VISIBLE_STATUS_ORDER.filter(s => s !== 'done')
+  const visibleStatuses: HermesKanbanStatus[] = showArchived
+    ? [...baseStatuses, 'archived']
+    : baseStatuses
   const colMaxWidth = Math.floor(1200 / visibleStatuses.length)
 
   return (
@@ -238,7 +276,16 @@ export function TasksScreen() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+              {selectedIds.size > 0 && (
+                <div className="flex items-center gap-1 rounded-lg border border-[var(--theme-accent)] bg-[var(--theme-hover)] px-2 py-1">
+                  <span className="text-xs text-[var(--theme-accent)] font-medium mr-1">{selectedIds.size}×</span>
+                  <button onClick={() => void bulkMutation.mutate({ status: 'done' })} className="text-xs px-1.5 py-0.5 rounded hover:bg-[var(--theme-border)] text-[var(--theme-muted)]" disabled={bulkMutation.isPending}>Done</button>
+                  <button onClick={() => void bulkMutation.mutate({ status: 'ready' })} className="text-xs px-1.5 py-0.5 rounded hover:bg-[var(--theme-border)] text-[var(--theme-muted)]" disabled={bulkMutation.isPending}>Ready</button>
+                  <button onClick={() => void bulkMutation.mutate({ archive: true })} className="text-xs px-1.5 py-0.5 rounded hover:bg-[var(--theme-border)] text-red-400" disabled={bulkMutation.isPending}>Archive</button>
+                  <button onClick={() => setSelectedIds(new Set())} className="text-xs px-1 py-0.5 rounded hover:bg-[var(--theme-border)] text-[var(--theme-muted)]">✕</button>
+                </div>
+              )}
               <button
                 onClick={() => setShowDone(v => !v)}
                 className={cn(
@@ -249,6 +296,17 @@ export function TasksScreen() {
                 )}
               >
                 {showDone ? 'Hide Done' : 'Show Done'}
+              </button>
+              <button
+                onClick={() => setShowArchived(v => !v)}
+                className={cn(
+                  'text-xs px-2.5 py-1 rounded-lg border transition-colors',
+                  showArchived
+                    ? 'border-[var(--theme-accent)] text-[var(--theme-accent)] bg-[var(--theme-hover)]'
+                    : 'border-[var(--theme-border)] text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:border-[var(--theme-accent)]',
+                )}
+              >
+                {showArchived ? 'Hide Archived' : 'Archived'}
               </button>
               <button
                 onClick={invalidate}
@@ -366,7 +424,24 @@ export function TasksScreen() {
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -6 }}
                             onDragEnd={handleDragEnd}
+                            className="relative"
                           >
+                            {/* Multi-select checkbox */}
+                            <button
+                              type="button"
+                              onClick={e => toggleSelect(task.id, e)}
+                              className={cn(
+                                'absolute top-2 left-2 z-10 w-4 h-4 rounded border transition-all',
+                                selectedIds.has(task.id)
+                                  ? 'bg-[var(--theme-accent)] border-[var(--theme-accent)]'
+                                  : 'bg-transparent border-[var(--theme-border)] opacity-0 group-hover:opacity-60',
+                              )}
+                              title="Select task"
+                            >
+                              {selectedIds.has(task.id) && (
+                                <span className="text-white text-[9px] leading-none flex items-center justify-center w-full h-full">✓</span>
+                              )}
+                            </button>
                             <TaskCard
                               task={task}
                               assigneeLabels={assigneeLabels}
