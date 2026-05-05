@@ -5,12 +5,12 @@ import { AgentProgress } from '@/components/agent-view/agent-progress'
 import { PixelAvatar } from '@/components/agent-swarm/pixel-avatar'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useOrchestratorIdentity } from '@/lib/orchestrator-identity'
 
 const ChatScreen = lazy(() =>
   import('@/screens/chat/chat-screen').then((m) => ({ default: m.ChatScreen })),
 )
 
-const ORCHESTRATOR_NAME_KEY = 'operations:orchestrator:name'
 const DEFAULT_ORCHESTRATOR_NAME = 'Main Agent'
 
 export function OrchestratorCard({
@@ -18,11 +18,8 @@ export function OrchestratorCard({
 }: {
   totalAgents: number
 }) {
+  const { name: orchestratorName, setName, isReadOnly } = useOrchestratorIdentity()
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [orchestratorName, setOrchestratorName] = useState(() => {
-    if (typeof window === 'undefined') return DEFAULT_ORCHESTRATOR_NAME
-    return window.localStorage.getItem(ORCHESTRATOR_NAME_KEY) || DEFAULT_ORCHESTRATOR_NAME
-  })
   const [draftName, setDraftName] = useState(orchestratorName)
 
   const openSettings = () => {
@@ -32,8 +29,7 @@ export function OrchestratorCard({
 
   const saveSettings = () => {
     const nextName = draftName.trim() || DEFAULT_ORCHESTRATOR_NAME
-    window.localStorage.setItem(ORCHESTRATOR_NAME_KEY, nextName)
-    setOrchestratorName(nextName)
+    if (!isReadOnly) setName(nextName)
     setDraftName(nextName)
     setSettingsOpen(false)
   }

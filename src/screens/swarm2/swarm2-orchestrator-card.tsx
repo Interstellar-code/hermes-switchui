@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { useOrchestratorIdentity } from '@/lib/orchestrator-identity'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Cancel01Icon,
@@ -18,7 +19,6 @@ import type { AgentWorkingRow } from '@/screens/gateway/components/agents-workin
 import type { CrewMember } from '@/hooks/use-crew-status'
 import { cn } from '@/lib/utils'
 
-const ORCHESTRATOR_NAME_KEY = 'swarm2:orchestrator:name'
 const DEFAULT_NAME = 'Main Agent'
 
 type SwarmCardMode = 'cards' | 'office'
@@ -90,14 +90,11 @@ export function Swarm2OrchestratorCard({
   onAnchorRef,
   className,
 }: Swarm2OrchestratorCardProps) {
+  const { name, setName: setIdentityName, isReadOnly } = useOrchestratorIdentity()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [swarmCardMode, setSwarmCardMode] = useState<SwarmCardMode>('cards')
   const [agentLens, setAgentLens] = useState<AgentLens>('all')
   const [agentPage, setAgentPage] = useState(0)
-  const [name, setName] = useState(() => {
-    if (typeof window === 'undefined') return DEFAULT_NAME
-    return window.localStorage.getItem(ORCHESTRATOR_NAME_KEY) || DEFAULT_NAME
-  })
   const [draftName, setDraftName] = useState(name)
   const anchorCallbackRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -113,10 +110,7 @@ export function Swarm2OrchestratorCard({
 
   function saveSettings() {
     const next = draftName.trim() || DEFAULT_NAME
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(ORCHESTRATOR_NAME_KEY, next)
-    }
-    setName(next)
+    if (!isReadOnly) setIdentityName(next)
     setSettingsOpen(false)
   }
 

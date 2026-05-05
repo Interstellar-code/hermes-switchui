@@ -40,6 +40,7 @@ import { useCliAgents } from '@/hooks/use-cli-agents'
 import { useSounds } from '@/hooks/use-sounds'
 import { OrchestratorAvatar } from '@/components/orchestrator-avatar'
 import { useOrchestratorState } from '@/hooks/use-orchestrator-state'
+import { useOrchestratorIdentity } from '@/lib/orchestrator-identity'
 import { useChatActivityStore } from '@/stores/chat-activity-store'
 import { cn } from '@/lib/utils'
 import { InspectorPanel, InspectorToggleButton } from '@/components/inspector/inspector-panel'
@@ -89,17 +90,6 @@ function getMiniAgentCardStatus(status: string): AgentCardStatus {
   return 'running'
 }
 
-const AGENT_NAME_KEY = 'hermes-workspace-agent-name'
-
-function getStoredAgentName(): string {
-  try {
-    const v = localStorage.getItem(AGENT_NAME_KEY)
-    if (v && v.trim()) return v.trim()
-  } catch {
-    /* noop */
-  }
-  return ''
-}
 
 const STATE_GLOW: Record<string, string> = {
   idle: 'border-primary-200/20',
@@ -205,8 +195,8 @@ function OrchestratorCard({
 }) {
   const { state, label } = useOrchestratorState()
   const glowClass = STATE_GLOW[state] ?? STATE_GLOW.idle
+  const { name: agentName, setName: setAgentName } = useOrchestratorIdentity()
 
-  const [agentName, setAgentName] = useState(getStoredAgentName)
   const [sessionName, setSessionName] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
@@ -319,7 +309,6 @@ function OrchestratorCard({
     const trimmed = editValue.trim()
     setAgentName(trimmed)
     setIsEditing(false)
-    try { localStorage.setItem(AGENT_NAME_KEY, trimmed) } catch { /* noop */ }
   }
 
   // Build usage rows: provider rows if available, else synthetic context row
@@ -1419,7 +1408,7 @@ export function AgentViewPanel() {
             onClick={function handleOpenPanel() {
               setOpen(true)
             }}
-            className="fixed right-4 bottom-4 z-30 inline-flex size-12 items-center justify-center rounded-full bg-linear-to-br from-accent-500 to-accent-600 text-primary-50 shadow-lg"
+            className="fixed right-4 bottom-4 z-30 inline-flex size-12 items-center justify-center rounded-full bg-linear-to-br from-accent-500 to-accent-600 text-primary-50 shadow-lg ring-1 ring-primary-50/20 transition-shadow hover:shadow-xl hover:shadow-accent-900/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-300 dark:from-accent-400 dark:to-accent-500 dark:shadow-accent-950/60 dark:ring-primary-50/30 dark:hover:shadow-accent-500/30"
             aria-label="Open Agent View"
           >
             <motion.span
@@ -1440,7 +1429,7 @@ export function AgentViewPanel() {
             >
               <HugeiconsIcon icon={BotIcon} size={20} strokeWidth={1.5} />
             </motion.span>
-            <span className="absolute -top-1 -right-1 inline-flex size-5 items-center justify-center rounded-full bg-primary-950 text-[11px] font-medium text-primary-50 tabular-nums">
+            <span className="absolute -top-1 -right-1 inline-flex size-5 items-center justify-center rounded-full bg-primary-950 text-[11px] font-medium text-primary-50 tabular-nums ring-2 ring-primary-50/90 dark:bg-primary-50 dark:text-primary-950 dark:ring-primary-950/80">
               {activeCount}
             </span>
           </motion.button>

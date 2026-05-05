@@ -80,6 +80,7 @@ import { Route as ApiHistoryRouteImport } from './routes/api/history'
 import { Route as ApiGatewayStatusRouteImport } from './routes/api/gateway-status'
 import { Route as ApiFilesRouteImport } from './routes/api/files'
 import { Route as ApiEventsRouteImport } from './routes/api/events'
+import { Route as ApiDashboardConfigRouteImport } from './routes/api/dashboard-config'
 import { Route as ApiCrewStatusRouteImport } from './routes/api/crew-status'
 import { Route as ApiContextUsageRouteImport } from './routes/api/context-usage'
 import { Route as ApiConnectionStatusRouteImport } from './routes/api/connection-status'
@@ -513,6 +514,11 @@ const ApiEventsRoute = ApiEventsRouteImport.update({
   path: '/api/events',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDashboardConfigRoute = ApiDashboardConfigRouteImport.update({
+  id: '/api/dashboard-config',
+  path: '/api/dashboard-config',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCrewStatusRoute = ApiCrewStatusRouteImport.update({
   id: '/api/crew-status',
   path: '/api/crew-status',
@@ -938,6 +944,7 @@ export interface FileRoutesByFullPath {
   '/api/connection-status': typeof ApiConnectionStatusRoute
   '/api/context-usage': typeof ApiContextUsageRoute
   '/api/crew-status': typeof ApiCrewStatusRoute
+  '/api/dashboard-config': typeof ApiDashboardConfigRoute
   '/api/events': typeof ApiEventsRoute
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-status': typeof ApiGatewayStatusRoute
@@ -1086,6 +1093,7 @@ export interface FileRoutesByTo {
   '/api/connection-status': typeof ApiConnectionStatusRoute
   '/api/context-usage': typeof ApiContextUsageRoute
   '/api/crew-status': typeof ApiCrewStatusRoute
+  '/api/dashboard-config': typeof ApiDashboardConfigRoute
   '/api/events': typeof ApiEventsRoute
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-status': typeof ApiGatewayStatusRoute
@@ -1236,6 +1244,7 @@ export interface FileRoutesById {
   '/api/connection-status': typeof ApiConnectionStatusRoute
   '/api/context-usage': typeof ApiContextUsageRoute
   '/api/crew-status': typeof ApiCrewStatusRoute
+  '/api/dashboard-config': typeof ApiDashboardConfigRoute
   '/api/events': typeof ApiEventsRoute
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-status': typeof ApiGatewayStatusRoute
@@ -1387,6 +1396,7 @@ export interface FileRouteTypes {
     | '/api/connection-status'
     | '/api/context-usage'
     | '/api/crew-status'
+    | '/api/dashboard-config'
     | '/api/events'
     | '/api/files'
     | '/api/gateway-status'
@@ -1535,6 +1545,7 @@ export interface FileRouteTypes {
     | '/api/connection-status'
     | '/api/context-usage'
     | '/api/crew-status'
+    | '/api/dashboard-config'
     | '/api/events'
     | '/api/files'
     | '/api/gateway-status'
@@ -1684,6 +1695,7 @@ export interface FileRouteTypes {
     | '/api/connection-status'
     | '/api/context-usage'
     | '/api/crew-status'
+    | '/api/dashboard-config'
     | '/api/events'
     | '/api/files'
     | '/api/gateway-status'
@@ -1834,6 +1846,7 @@ export interface RootRouteChildren {
   ApiConnectionStatusRoute: typeof ApiConnectionStatusRoute
   ApiContextUsageRoute: typeof ApiContextUsageRoute
   ApiCrewStatusRoute: typeof ApiCrewStatusRoute
+  ApiDashboardConfigRoute: typeof ApiDashboardConfigRoute
   ApiEventsRoute: typeof ApiEventsRoute
   ApiFilesRoute: typeof ApiFilesRoute
   ApiGatewayStatusRoute: typeof ApiGatewayStatusRoute
@@ -2417,6 +2430,13 @@ declare module '@tanstack/react-router' {
       path: '/api/events'
       fullPath: '/api/events'
       preLoaderRoute: typeof ApiEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/dashboard-config': {
+      id: '/api/dashboard-config'
+      path: '/api/dashboard-config'
+      fullPath: '/api/dashboard-config'
+      preLoaderRoute: typeof ApiDashboardConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/crew-status': {
@@ -3179,6 +3199,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiConnectionStatusRoute: ApiConnectionStatusRoute,
   ApiContextUsageRoute: ApiContextUsageRoute,
   ApiCrewStatusRoute: ApiCrewStatusRoute,
+  ApiDashboardConfigRoute: ApiDashboardConfigRoute,
   ApiEventsRoute: ApiEventsRoute,
   ApiFilesRoute: ApiFilesRoute,
   ApiGatewayStatusRoute: ApiGatewayStatusRoute,
