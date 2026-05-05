@@ -10,9 +10,9 @@
  */
 import { statSync, readFileSync } from 'node:fs'
 import { extname, resolve as resolvePath } from 'node:path'
-import os from 'node:os'
+import * as os from 'node:os'
 import { createFileRoute } from '@tanstack/react-router'
-import { isAuthenticated, isLocalRequest } from '../../server/auth-middleware'
+import { requireLocalOrAuth } from '../../server/auth-middleware'
 
 const MAX_BYTES = 10 * 1024 * 1024 // 10 MB ceiling for media files
 
@@ -63,14 +63,8 @@ export const Route = createFileRoute('/api/media')({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        // Allow local requests or authenticated sessions
-        if (!isPasswordEnabled() ? !isLocalRequest(request) : !isAuthenticated(request)) {
-          if (isPasswordEnabled() && !isAuthenticated(request)) {
-            return new Response('Unauthorized', { status: 401 })
-          }
-          if (!isPasswordEnabled() && !isLocalRequest(request)) {
-            return new Response('Forbidden', { status: 403 })
-          }
+        if (!requireLocalOrAuth(request)) {
+          return new Response('Unauthorized', { status: 401 })
         }
 
         try {
