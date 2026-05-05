@@ -577,7 +577,7 @@ export function TasksScreen() {
                   <option value="">All profiles</option>
                   {assigneeOptions.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.onDisk ? `${a.label}${a.isActive ? ' (active)' : ''}` : `${a.label} ⚠`}
+                      {a.onDisk ? a.label : `${a.label} ⚠`}
                     </option>
                   ))}
                 </select>
@@ -969,9 +969,13 @@ export function TasksScreen() {
         )}
       </div>
 
-      {/* Floating bulk-action footer — portal'd to body, escapes layout */}
+      {/* Floating bulk-action footer — portal'd to body, escapes layout.
+          Wrapper spans content area only (sidebar 300px → right edge) so the
+          pill centers within the page content, not the full viewport.
+          bottom-20 keeps it clear of the system-metrics footer. */}
       {selectedIds.size > 0 && createPortal(
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-1 rounded-xl border border-[var(--theme-accent)] bg-[var(--theme-card)] shadow-2xl px-3 py-2">
+        <div className="fixed bottom-20 left-[300px] right-0 z-[9999] flex justify-center pointer-events-none">
+        <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-[var(--theme-accent)] bg-[var(--theme-card)] shadow-2xl px-3 py-2">
           <span className="text-xs text-[var(--theme-accent)] font-semibold mr-2">
             {selectedIds.size}× selected
           </span>
@@ -1017,6 +1021,7 @@ export function TasksScreen() {
           >
             Clear
           </button>
+        </div>
         </div>,
         document.body,
       )}
