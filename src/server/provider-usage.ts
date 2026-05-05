@@ -983,6 +983,69 @@ export async function fetchOpenRouterUsage(): Promise<ProviderUsageResult> {
 const CACHE_TTL_MS = 30_000
 let cache: { timestamp: number; payload: ProviderUsageResponse } | undefined
 
+/**
+ * Inspect the hermes-agent gateway config and return the set of usage-fetcher
+ * ids that map to providers actually wired into the gateway. Only those
+ * fetchers should run — surfacing unrelated host-machine credentials (e.g. the
+ * Claude Code CLI OAuth login) misrepresents the active agent provider.
+ *
+ * Returns `null` if the gateway config cannot be read; callers fall back to
+ * legacy behaviour (run all fetchers) so the badge does not go blank during
+ * gateway boot/unavailable windows.
+ */
+async function getActiveUsageProviderIds(): Promise<Set<string> | null> {
+  try {
+    const { getConfig } = await import('./claude-dashboard-api')
+    const cfg = (await getConfig()) as Record<string, unknown>
+    const providersBlock = (cfg?.providers ?? {}) as Record<string, unknown>
+    const ids = new Set<string>()
+
+    const consider = (name: string, raw: unknown) => {
+      const entry = (raw ?? {}) as Record<string, unknown>
+      const type = String(entry.type ?? '').toLowerCase()
+      const baseUrl = String(
+        entry.base_url ?? (entry as { baseUrl?: unknown }).baseUrl ?? '',
+      ).toLowerCase()
+      const lname = name.toLowerCase()
+
+      if (
+        type.includes('anthropic') ||
+        type.includes('claude') ||
+        lname.includes('anthropic') ||
+        lname.includes('claude')
+      ) {
+        ids.add('claude')
+      }
+      if (baseUrl.includes('openrouter')) {
+        ids.add('openrouter')
+      } else if (type === 'openai' && baseUrl.includes('api.openai.com')) {
+        ids.add('openai')
+      }
+      if (
+        type.includes('codex') ||
+        lname.includes('codex') ||
+        lname.includes('chatgpt')
+      ) {
+        ids.add('codex')
+      }
+    }
+
+    for (const [name, entry] of Object.entries(providersBlock)) {
+      consider(name, entry)
+    }
+
+    const model = (cfg?.model ?? {}) as Record<string, unknown>
+    const activeName = String(model.provider ?? '')
+    if (activeName && providersBlock[activeName]) {
+      consider(activeName, providersBlock[activeName])
+    }
+
+    return ids
+  } catch {
+    return null
+  }
+}
+
 export async function getProviderUsage(
   force = false,
 ): Promise<ProviderUsageResponse> {
@@ -991,20 +1054,32 @@ export async function getProviderUsage(
     return cache.payload
   }
 
-  const results = await Promise.allSettled([
-    fetchClaudeUsage(),
-    fetchCodexUsage(),
-    fetchOpenAIUsage(),
-    fetchOpenRouterUsage(),
-  ])
+  const activeIds = await getActiveUsageProviderIds()
+
+  const allFetchers: Array<{
+    id: string
+    name: string
+    run: () => Promise<ProviderUsageResult>
+  }> = [
+    { id: 'claude', name: 'Claude (OAuth)', run: fetchClaudeUsage },
+    { id: 'codex', name: 'Codex', run: fetchCodexUsage },
+    { id: 'openai', name: 'OpenAI', run: fetchOpenAIUsage },
+    { id: 'openrouter', name: 'OpenRouter', run: fetchOpenRouterUsage },
+  ]
+
+  const fetchers =
+    activeIds === null
+      ? allFetchers
+      : allFetchers.filter((f) => activeIds.has(f.id))
+
+  const results = await Promise.allSettled(fetchers.map((f) => f.run()))
 
   const providers: ProviderUsageResult[] = results.map((r, i) => {
     if (r.status === 'fulfilled') return r.value
-    const names = ['Claude (OAuth)', 'Codex', 'OpenAI', 'OpenRouter']
-    const ids = ['claude', 'codex', 'openai', 'openrouter']
+    const f = fetchers[i]
     return {
-      provider: ids[i],
-      displayName: names[i],
+      provider: f.id,
+      displayName: f.name,
       status: 'error' as const,
       message: r.reason instanceof Error ? r.reason.message : String(r.reason),
       lines: [],
@@ -1012,13 +1087,10 @@ export async function getProviderUsage(
     }
   })
 
-  // Show all providers — unconfigured ones display setup instructions
-  const activeProviders = providers
-
   const payload: ProviderUsageResponse = {
     ok: true,
     updatedAt: now,
-    providers: activeProviders,
+    providers,
   }
 
   cache = { timestamp: now, payload }
