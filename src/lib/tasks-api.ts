@@ -199,15 +199,19 @@ export const PRIORITY_COLORS: Record<string, string> = {
 }
 
 export type KanbanStats = {
-  counts?: Partial<Record<HermesKanbanStatus, number>>
-  total?: number
-  oldestTodoAgeSeconds?: number | null
-  staleRunningCount?: number | null
+  by_status?: Partial<Record<HermesKanbanStatus, number>>
+  by_assignee?: Record<string, Partial<Record<HermesKanbanStatus, number>>>
+  oldest_ready_age_seconds?: number | null
+  oldest_running_age_seconds?: number | null
+  now?: number
   [k: string]: unknown
 }
 
 export async function fetchStats(): Promise<KanbanStats> {
-  return kanbanJson<KanbanStats>(`${KANBAN_BASE}/stats`)
+  const res = await kanbanJson<{ stats?: KanbanStats } | KanbanStats>(`${KANBAN_BASE}/stats`)
+  // Gateway returns { stats: {...} }; some proxies may flatten — handle both
+  if (res && typeof res === 'object' && 'stats' in res && res.stats) return res.stats as KanbanStats
+  return res as KanbanStats
 }
 
 export const COLUMN_COLORS: Record<HermesKanbanStatus, string> = {

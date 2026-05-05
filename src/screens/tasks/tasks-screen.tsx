@@ -698,10 +698,10 @@ export function TasksScreen() {
         {/* Gateway stats bar */}
         {!statsQuery.isLoading || statsQuery.data ? (
           statsQuery.data ? (() => {
-            const counts = statsQuery.data.counts ?? {}
-            const total = statsQuery.data.total
-            const stale = statsQuery.data.staleRunningCount
-            const oldestSecs = statsQuery.data.oldestTodoAgeSeconds
+            const counts = statsQuery.data.by_status ?? {}
+            const total = Object.values(counts).reduce<number>((acc, n) => acc + (typeof n === 'number' ? n : 0), 0)
+            const oldestSecs = statsQuery.data.oldest_ready_age_seconds
+            const oldestRunningSecs = statsQuery.data.oldest_running_age_seconds
 
             const statusEntries = (Object.entries(counts) as Array<[string, number]>)
               .filter(([, n]) => n > 0)
@@ -720,15 +720,13 @@ export function TasksScreen() {
                   <span className="text-[10px] uppercase tracking-widest text-[var(--theme-muted)] font-medium mr-1">
                     Global
                   </span>
-                  {total !== undefined && (
-                    <span className="text-xs text-[var(--theme-muted)]">{total} total</span>
-                  )}
-                  {statusEntries.map(([status, count], i) => {
+                  <span className="text-xs text-[var(--theme-muted)]">{total} total</span>
+                  {statusEntries.map(([status, count]) => {
                     const color = COLUMN_COLORS[status as keyof typeof COLUMN_COLORS] ?? '#6b7280'
                     const label = COLUMN_LABELS[status as keyof typeof COLUMN_LABELS] ?? status
                     return (
                       <span key={status} className="flex items-center gap-1 text-xs">
-                        {(total !== undefined || i > 0) && <span className="text-[var(--theme-border)]">·</span>}
+                        <span className="text-[var(--theme-border)]">·</span>
                         <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} />
                         <span style={{ color }}>{count}</span>
                         <span className="text-[var(--theme-muted)]">{label}</span>
@@ -738,10 +736,10 @@ export function TasksScreen() {
                 </div>
                 <div className="flex items-center gap-3 text-[10px] text-[var(--theme-muted)]">
                   {oldestSecs != null && oldestSecs > 0 && (
-                    <span>oldest todo: {fmtAge(oldestSecs)} ago</span>
+                    <span>oldest ready: {fmtAge(oldestSecs)} ago</span>
                   )}
-                  {stale != null && stale > 0 && (
-                    <span className="text-amber-400">stale running: {stale}</span>
+                  {oldestRunningSecs != null && oldestRunningSecs > 0 && (
+                    <span>oldest running: {fmtAge(oldestRunningSecs)} ago</span>
                   )}
                 </div>
               </div>
