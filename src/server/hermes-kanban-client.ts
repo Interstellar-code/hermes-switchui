@@ -153,3 +153,25 @@ export async function dispatchKanban(
     signal: AbortSignal.timeout(15_000),
   })
 }
+
+export async function getKanbanHomeChannels(): Promise<unknown> {
+  return kanbanFetch<unknown>(`${BASE}/home-channels`, {})
+}
+
+export async function subscribeKanbanHomeChannel(
+  taskId: string,
+  platform: string,
+): Promise<unknown> {
+  return kanbanFetch<unknown>(`${BASE}/tasks/${taskId}/home-subscribe/${platform}`, {
+    method: 'POST',
+  })
+}
+
+export async function unsubscribeKanbanHomeChannel(
+  taskId: string,
+  platform: string,
+): Promise<unknown> {
+  return kanbanFetch<unknown>(`${BASE}/tasks/${taskId}/home-subscribe/${platform}`, {
+    method: 'DELETE',
+  })
+}
