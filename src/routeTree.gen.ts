@@ -77,7 +77,10 @@ import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as ApiLocalProvidersRouteImport } from './routes/api/local-providers'
 import { Route as ApiIntegrationsRouteImport } from './routes/api/integrations'
 import { Route as ApiHistoryRouteImport } from './routes/api/history'
+import { Route as ApiHermesKanbanAssigneesRouteImport } from './routes/api/hermes-kanban-assignees'
+import { Route as ApiHermesKanbanRouteImport } from './routes/api/hermes-kanban'
 import { Route as ApiGatewayStatusRouteImport } from './routes/api/gateway-status'
+import { Route as ApiGatewayReprobeRouteImport } from './routes/api/gateway-reprobe'
 import { Route as ApiFilesRouteImport } from './routes/api/files'
 import { Route as ApiEventsRouteImport } from './routes/api/events'
 import { Route as ApiCrewStatusRouteImport } from './routes/api/crew-status'
@@ -482,9 +485,25 @@ const ApiHistoryRoute = ApiHistoryRouteImport.update({
   path: '/api/history',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHermesKanbanAssigneesRoute =
+  ApiHermesKanbanAssigneesRouteImport.update({
+    id: '/api/hermes-kanban-assignees',
+    path: '/api/hermes-kanban-assignees',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiHermesKanbanRoute = ApiHermesKanbanRouteImport.update({
+  id: '/api/hermes-kanban',
+  path: '/api/hermes-kanban',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiGatewayStatusRoute = ApiGatewayStatusRouteImport.update({
   id: '/api/gateway-status',
   path: '/api/gateway-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGatewayReprobeRoute = ApiGatewayReprobeRouteImport.update({
+  id: '/api/gateway-reprobe',
+  path: '/api/gateway-reprobe',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiFilesRoute = ApiFilesRouteImport.update({
@@ -836,7 +855,10 @@ export interface FileRoutesByFullPath {
   '/api/crew-status': typeof ApiCrewStatusRoute
   '/api/events': typeof ApiEventsRoute
   '/api/files': typeof ApiFilesRoute
+  '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
   '/api/gateway-status': typeof ApiGatewayStatusRoute
+  '/api/hermes-kanban': typeof ApiHermesKanbanRoute
+  '/api/hermes-kanban-assignees': typeof ApiHermesKanbanAssigneesRoute
   '/api/history': typeof ApiHistoryRoute
   '/api/integrations': typeof ApiIntegrationsRoute
   '/api/local-providers': typeof ApiLocalProvidersRoute
@@ -968,7 +990,10 @@ export interface FileRoutesByTo {
   '/api/crew-status': typeof ApiCrewStatusRoute
   '/api/events': typeof ApiEventsRoute
   '/api/files': typeof ApiFilesRoute
+  '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
   '/api/gateway-status': typeof ApiGatewayStatusRoute
+  '/api/hermes-kanban': typeof ApiHermesKanbanRoute
+  '/api/hermes-kanban-assignees': typeof ApiHermesKanbanAssigneesRoute
   '/api/history': typeof ApiHistoryRoute
   '/api/integrations': typeof ApiIntegrationsRoute
   '/api/local-providers': typeof ApiLocalProvidersRoute
@@ -1102,7 +1127,10 @@ export interface FileRoutesById {
   '/api/crew-status': typeof ApiCrewStatusRoute
   '/api/events': typeof ApiEventsRoute
   '/api/files': typeof ApiFilesRoute
+  '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
   '/api/gateway-status': typeof ApiGatewayStatusRoute
+  '/api/hermes-kanban': typeof ApiHermesKanbanRoute
+  '/api/hermes-kanban-assignees': typeof ApiHermesKanbanAssigneesRoute
   '/api/history': typeof ApiHistoryRoute
   '/api/integrations': typeof ApiIntegrationsRoute
   '/api/local-providers': typeof ApiLocalProvidersRoute
@@ -1237,7 +1265,10 @@ export interface FileRouteTypes {
     | '/api/crew-status'
     | '/api/events'
     | '/api/files'
+    | '/api/gateway-reprobe'
     | '/api/gateway-status'
+    | '/api/hermes-kanban'
+    | '/api/hermes-kanban-assignees'
     | '/api/history'
     | '/api/integrations'
     | '/api/local-providers'
@@ -1369,7 +1400,10 @@ export interface FileRouteTypes {
     | '/api/crew-status'
     | '/api/events'
     | '/api/files'
+    | '/api/gateway-reprobe'
     | '/api/gateway-status'
+    | '/api/hermes-kanban'
+    | '/api/hermes-kanban-assignees'
     | '/api/history'
     | '/api/integrations'
     | '/api/local-providers'
@@ -1502,7 +1536,10 @@ export interface FileRouteTypes {
     | '/api/crew-status'
     | '/api/events'
     | '/api/files'
+    | '/api/gateway-reprobe'
     | '/api/gateway-status'
+    | '/api/hermes-kanban'
+    | '/api/hermes-kanban-assignees'
     | '/api/history'
     | '/api/integrations'
     | '/api/local-providers'
@@ -1636,7 +1673,10 @@ export interface RootRouteChildren {
   ApiCrewStatusRoute: typeof ApiCrewStatusRoute
   ApiEventsRoute: typeof ApiEventsRoute
   ApiFilesRoute: typeof ApiFilesRoute
+  ApiGatewayReprobeRoute: typeof ApiGatewayReprobeRoute
   ApiGatewayStatusRoute: typeof ApiGatewayStatusRoute
+  ApiHermesKanbanRoute: typeof ApiHermesKanbanRoute
+  ApiHermesKanbanAssigneesRoute: typeof ApiHermesKanbanAssigneesRoute
   ApiHistoryRoute: typeof ApiHistoryRoute
   ApiIntegrationsRoute: typeof ApiIntegrationsRoute
   ApiLocalProvidersRoute: typeof ApiLocalProvidersRoute
@@ -2186,11 +2226,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/hermes-kanban-assignees': {
+      id: '/api/hermes-kanban-assignees'
+      path: '/api/hermes-kanban-assignees'
+      fullPath: '/api/hermes-kanban-assignees'
+      preLoaderRoute: typeof ApiHermesKanbanAssigneesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hermes-kanban': {
+      id: '/api/hermes-kanban'
+      path: '/api/hermes-kanban'
+      fullPath: '/api/hermes-kanban'
+      preLoaderRoute: typeof ApiHermesKanbanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/gateway-status': {
       id: '/api/gateway-status'
       path: '/api/gateway-status'
       fullPath: '/api/gateway-status'
       preLoaderRoute: typeof ApiGatewayStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/gateway-reprobe': {
+      id: '/api/gateway-reprobe'
+      path: '/api/gateway-reprobe'
+      fullPath: '/api/gateway-reprobe'
+      preLoaderRoute: typeof ApiGatewayReprobeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/files': {
@@ -2826,7 +2887,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrewStatusRoute: ApiCrewStatusRoute,
   ApiEventsRoute: ApiEventsRoute,
   ApiFilesRoute: ApiFilesRoute,
+  ApiGatewayReprobeRoute: ApiGatewayReprobeRoute,
   ApiGatewayStatusRoute: ApiGatewayStatusRoute,
+  ApiHermesKanbanRoute: ApiHermesKanbanRoute,
+  ApiHermesKanbanAssigneesRoute: ApiHermesKanbanAssigneesRoute,
   ApiHistoryRoute: ApiHistoryRoute,
   ApiIntegrationsRoute: ApiIntegrationsRoute,
   ApiLocalProvidersRoute: ApiLocalProvidersRoute,
