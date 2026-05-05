@@ -11,7 +11,9 @@ export const Route = createFileRoute('/api/hermes-kanban/home-channels')({
           return json({ error: 'Unauthorized' }, { status: 401 })
         }
         try {
-          const data = await getKanbanHomeChannels()
+          const url = new URL(request.url)
+          const taskId = url.searchParams.get('task_id') ?? undefined
+          const data = await getKanbanHomeChannels(taskId)
           return json(data)
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Home channels unavailable'

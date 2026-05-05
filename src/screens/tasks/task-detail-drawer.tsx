@@ -1043,9 +1043,9 @@ function DepsTab({ task, detail }: { task: HermesKanbanTask; detail: HermesKanba
 function NotificationsSection({ taskId }: { taskId: string }) {
   const queryClient = useQueryClient()
   const channelsQuery = useQuery({
-    queryKey: ['hermes-kanban', 'home-channels'],
-    queryFn: fetchHomeChannels,
-    staleTime: 60_000,
+    queryKey: ['hermes-kanban', 'home-channels', taskId],
+    queryFn: () => fetchHomeChannels(taskId),
+    staleTime: 30_000,
   })
   const [pending, setPending] = useState<string | null>(null)
 
@@ -1058,7 +1058,7 @@ function NotificationsSection({ taskId }: { taskId: string }) {
     try {
       if (currentlySubscribed) await unsubscribeHomeChannel(taskId, platform)
       else await subscribeHomeChannel(taskId, platform)
-      await queryClient.invalidateQueries({ queryKey: ['hermes-kanban', 'home-channels'] })
+      await queryClient.invalidateQueries({ queryKey: ['hermes-kanban', 'home-channels', taskId] })
       await queryClient.invalidateQueries({ queryKey: ['hermes-kanban', 'task', taskId] })
     } finally {
       setPending(null)
@@ -1070,7 +1070,7 @@ function NotificationsSection({ taskId }: { taskId: string }) {
       <p className={labelClass}>Notifications</p>
       <div className="space-y-1">
         {channels.map((ch) => {
-          const subscribed = (ch.subscribed_task_ids ?? []).includes(taskId)
+          const subscribed = !!ch.subscribed
           const platformLabel = ch.platform.charAt(0).toUpperCase() + ch.platform.slice(1)
           return (
             <button

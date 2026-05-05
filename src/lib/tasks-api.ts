@@ -226,14 +226,17 @@ export const COLUMN_COLORS: Record<HermesKanbanStatus, string> = {
 
 export type HomeChannel = {
   platform: string
-  channel?: string
-  subscribed_task_ids?: Array<string>
+  chat_id?: string
+  thread_id?: string
+  name?: string
+  subscribed?: boolean
   [k: string]: unknown
 }
 
-export async function fetchHomeChannels(): Promise<{ channels: Array<HomeChannel> }> {
+export async function fetchHomeChannels(taskId?: string): Promise<{ channels: Array<HomeChannel> }> {
+  const q = taskId ? `?task_id=${encodeURIComponent(taskId)}` : ''
   const res = await kanbanJson<{ home_channels?: Array<HomeChannel>; channels?: Array<HomeChannel> }>(
-    `${KANBAN_BASE}/home-channels`,
+    `${KANBAN_BASE}/home-channels${q}`,
   )
   return { channels: res.home_channels ?? res.channels ?? [] }
 }
