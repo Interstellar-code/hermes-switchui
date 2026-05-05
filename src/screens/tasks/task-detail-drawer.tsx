@@ -344,15 +344,23 @@ function OverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesK
 
   const [skills, setSkills] = useState<string[]>(normaliseSkills(td.skills))
 
-  // Collect all unique skill suggestions from the board task cache
-  const boardQuery = useQuery({
-    queryKey: ['claude', 'tasks', 'all'],
-    queryFn: () => fetchTasks({ include_done: true }),
-    staleTime: 60_000,
+  // Fetch the installed Hermes skills — same source as the Skills screen.
+  // Query key matches ['skills-browser','installed'] so it shares the TanStack
+  // cache if the Skills screen was already visited in this session.
+  const installedSkillsQuery = useQuery({
+    queryKey: ['skills-browser', 'installed'] as const,
+    queryFn: async () => {
+      const res = await fetch('/api/skills?tab=installed&limit=200')
+      if (!res.ok) return { skills: [] as Array<{ name: string; enabled: boolean }> }
+      return res.json() as Promise<{ skills: Array<{ name: string; enabled: boolean }> }>
+    },
+    staleTime: 5 * 60_000, // skills rarely change; 5-min cache
   })
-  const skillSuggestions = Array.from(new Set(
-    (boardQuery.data ?? []).flatMap(t => normaliseSkills(t.skills)),
-  )).sort()
+  const skillSuggestions = (installedSkillsQuery.data?.skills ?? [])
+    .filter(s => s.enabled !== false)
+    .map(s => s.name.trim().toLowerCase())
+    .filter(Boolean)
+    .sort()
 
   const initialSkills = normaliseSkills(td.skills)
   const isDirty =
