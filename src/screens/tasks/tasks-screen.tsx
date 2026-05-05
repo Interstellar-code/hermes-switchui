@@ -482,61 +482,7 @@ export function TasksScreen() {
             </div>
 
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
-              {selectedIds.size > 0 && (
-                <div className="flex items-center gap-1 rounded-lg border border-[var(--theme-accent)] bg-[var(--theme-hover)] px-2 py-1">
-                  <span className="text-xs text-[var(--theme-accent)] font-medium mr-1">
-                    {selectedIds.size}×
-                  </span>
-                  <button
-                    onClick={() => void bulkMutation.mutate({ status: 'triage' })}
-                    className="text-xs px-1.5 py-0.5 rounded hover:bg-[var(--theme-border)] text-[var(--theme-muted)]"
-                    disabled={bulkMutation.isPending}
-                  >
-                    Triage
-                  </button>
-                  <button
-                    onClick={() => void bulkMutation.mutate({ status: 'ready' })}
-                    className="text-xs px-1.5 py-0.5 rounded hover:bg-[var(--theme-border)] text-[var(--theme-muted)]"
-                    disabled={bulkMutation.isPending}
-                  >
-                    Ready
-                  </button>
-                  <button
-                    onClick={() => void bulkMutation.mutate({ status: 'blocked' })}
-                    className="text-xs px-1.5 py-0.5 rounded hover:bg-[var(--theme-border)] text-[var(--theme-muted)]"
-                    disabled={bulkMutation.isPending}
-                  >
-                    Blocked
-                  </button>
-                  <button
-                    onClick={() => void bulkMutation.mutate({ status: 'done' })}
-                    className="text-xs px-1.5 py-0.5 rounded hover:bg-[var(--theme-border)] text-[var(--theme-muted)]"
-                    disabled={bulkMutation.isPending}
-                  >
-                    Done
-                  </button>
-                  <button
-                    onClick={() => void bulkMutation.mutate({ archive: true })}
-                    className="text-xs px-1.5 py-0.5 rounded hover:bg-[var(--theme-border)] text-red-400"
-                    disabled={bulkMutation.isPending}
-                  >
-                    Archive
-                  </button>
-                  <button
-                    onClick={() => setSelectedIds(new Set())}
-                    className="text-xs px-1.5 py-0.5 rounded hover:bg-[var(--theme-border)] text-[var(--theme-muted)] ml-1 border-l border-[var(--theme-border)] pl-2"
-                    disabled={bulkMutation.isPending}
-                  >
-                    Clear
-                  </button>
-                  <button
-                    onClick={() => setSelectedIds(new Set())}
-                    className="text-xs px-1 py-0.5 rounded hover:bg-[var(--theme-border)] text-[var(--theme-muted)]"
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
+              {/* Bulk-action toolbar moved to floating footer (rendered via portal further below). */}
               {/* Consolidated columns visibility dropdown */}
               {(() => {
                 const anyHidden = !showTriage || !showBlocked || !showDone || !showArchived
@@ -1022,6 +968,58 @@ export function TasksScreen() {
           </div>
         )}
       </div>
+
+      {/* Floating bulk-action footer — portal'd to body, escapes layout */}
+      {selectedIds.size > 0 && createPortal(
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-1 rounded-xl border border-[var(--theme-accent)] bg-[var(--theme-card)] shadow-2xl px-3 py-2">
+          <span className="text-xs text-[var(--theme-accent)] font-semibold mr-2">
+            {selectedIds.size}× selected
+          </span>
+          <button
+            onClick={() => void bulkMutation.mutate({ status: 'triage' })}
+            className="text-xs px-2 py-1 rounded hover:bg-[var(--theme-hover)] text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
+            disabled={bulkMutation.isPending}
+          >
+            Triage
+          </button>
+          <button
+            onClick={() => void bulkMutation.mutate({ status: 'ready' })}
+            className="text-xs px-2 py-1 rounded hover:bg-[var(--theme-hover)] text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
+            disabled={bulkMutation.isPending}
+          >
+            Ready
+          </button>
+          <button
+            onClick={() => void bulkMutation.mutate({ status: 'blocked' })}
+            className="text-xs px-2 py-1 rounded hover:bg-[var(--theme-hover)] text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
+            disabled={bulkMutation.isPending}
+          >
+            Blocked
+          </button>
+          <button
+            onClick={() => void bulkMutation.mutate({ status: 'done' })}
+            className="text-xs px-2 py-1 rounded hover:bg-[var(--theme-hover)] text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
+            disabled={bulkMutation.isPending}
+          >
+            Done
+          </button>
+          <button
+            onClick={() => void bulkMutation.mutate({ archive: true })}
+            className="text-xs px-2 py-1 rounded hover:bg-[var(--theme-hover)] text-red-400"
+            disabled={bulkMutation.isPending}
+          >
+            Archive
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-xs px-2 py-1 rounded hover:bg-[var(--theme-hover)] text-[var(--theme-muted)] ml-1 border-l border-[var(--theme-border)] pl-3"
+            disabled={bulkMutation.isPending}
+          >
+            Clear
+          </button>
+        </div>,
+        document.body,
+      )}
     </div>
   )
 }
