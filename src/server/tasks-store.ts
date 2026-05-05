@@ -1,3 +1,8 @@
+/**
+ * Legacy SwitchUI tasks.json store. Do not use for active /tasks board writes.
+ * Kept only for one-time migration/import support via legacy-tasks-migration.ts.
+ * The active task board is backed by Hermes Agent Kanban (kanban.db via :9119 API).
+ */
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'

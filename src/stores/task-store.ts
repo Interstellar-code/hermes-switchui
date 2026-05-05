@@ -1,6 +1,14 @@
 /**
- * Task System Lite — Swarm-inspired task management.
- * localStorage-backed, zero backend dependencies.
+ * Task System Lite — Swarm2 mission-scoped local task planning.
+ *
+ * This store is intentionally LOCAL-ONLY and does NOT sync to any backend API.
+ * The dead /api/tasks fetch calls that were previously here have been removed
+ * because that route never existed. This store is used only by Swarm2 mission
+ * orchestration (upsertMissionTasks, getTasksByMission) as an ephemeral
+ * in-process planning surface.
+ *
+ * For the canonical task board, see /tasks (Hermes Agent Kanban via :9119 API).
+ * Do not add backend sync here without first deciding on the tenant model.
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
@@ -88,16 +96,6 @@ function createClientTaskId(): string {
   return `TASK-${Date.now().toString(36).toUpperCase()}`
 }
 
-async function readApiError(response: Response): Promise<string> {
-  try {
-    const payload = (await response.json()) as Record<string, unknown>
-    if (typeof payload.error === 'string') return payload.error
-    if (typeof payload.message === 'string') return payload.message
-    return `Request failed (${response.status})`
-  } catch {
-    return `Request failed (${response.status})`
-  }
-}
 
 type TaskStore = {
   tasks: Task[]
@@ -121,24 +119,10 @@ export const useTaskStore = create<TaskStore>()(
     (set, get) => ({
       tasks: SEED_TASKS,
       afterSync: false,
+      // syncFromApi is now a no-op: this store is local-only.
+      // The /api/tasks route never existed. Sync is not supported.
       syncFromApi: async function syncFromApi() {
-        if (typeof window === 'undefined') {
-          set({ afterSync: true })
-          return
-        }
-
-        try {
-          const response = await fetch('/api/tasks', { method: 'GET' })
-          if (!response.ok)
-            throw new Error(`Failed to sync tasks (${response.status})`)
-          const payload = await response.json().catch(() => ({}))
-          set({
-            tasks: normalizeTaskList(payload),
-            afterSync: true,
-          })
-        } catch {
-          set({ afterSync: true })
-        }
+        set({ afterSync: true })
       },
       addTask: async (taskData) => {
         const now = new Date().toISOString()
@@ -149,109 +133,19 @@ export const useTaskStore = create<TaskStore>()(
           updatedAt: now,
         }
         set((state) => ({ tasks: [task, ...state.tasks] }))
-
-        const response = await fetch('/api/tasks', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(task),
-        }).catch(() => null)
-
-        if (!response) {
-          set((state) => ({ tasks: state.tasks.filter((t) => t.id !== task.id) }))
-          throw new Error('Failed to create task')
-        }
-
-        if (!response.ok) {
-          const message = await readApiError(response)
-          set((state) => ({ tasks: state.tasks.filter((t) => t.id !== task.id) }))
-          throw new Error(message)
-        }
-
-        const payload = (await response.json().catch(() => ({}))) as {
-          task?: unknown
-        }
-        if (isTask(payload.task)) {
-          const serverTask: Task = payload.task
-          set((state) => ({
-            tasks: state.tasks.map((t) => (t.id === task.id ? serverTask : t)),
-          }))
-        }
       },
       updateTask: async (id, updates) => {
-        const previousTask = get().tasks.find((task) => task.id === id)
-        if (!previousTask) {
-          throw new Error('Task not found')
-        }
-        const optimisticTask: Task = {
-          ...previousTask,
-          ...updates,
-          updatedAt: new Date().toISOString(),
-        }
         set((state) => ({
-          tasks: state.tasks.map((t) => (t.id === id ? optimisticTask : t)),
+          tasks: state.tasks.map((t) =>
+            t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t,
+          ),
         }))
-
-        const response = await fetch(`/api/tasks/${id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updates),
-        }).catch(() => null)
-
-        if (!response) {
-          set((state) => ({
-            tasks: state.tasks.map((t) => (t.id === id ? previousTask : t)),
-          }))
-          throw new Error('Failed to update task')
-        }
-
-        if (!response.ok) {
-          const message =
-            response.status === 404
-              ? 'Task not found'
-              : await readApiError(response)
-          set((state) => ({
-            tasks: state.tasks.map((t) => (t.id === id ? previousTask : t)),
-          }))
-          throw new Error(message)
-        }
-
-        const payload = (await response.json().catch(() => ({}))) as {
-          task?: unknown
-        }
-        if (isTask(payload.task)) {
-          const serverTask: Task = payload.task
-          set((state) => ({
-            tasks: state.tasks.map((t) => (t.id === id ? serverTask : t)),
-          }))
-        }
       },
       moveTask: async (id, status) => {
         await get().updateTask(id, { status })
       },
       deleteTask: async (id) => {
-        const previousTask = get().tasks.find((task) => task.id === id)
-        if (!previousTask) {
-          throw new Error('Task not found')
-        }
         set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) }))
-
-        const response = await fetch(`/api/tasks/${id}`, {
-          method: 'DELETE',
-        }).catch(() => null)
-
-        if (!response) {
-          set((state) => ({ tasks: [previousTask, ...state.tasks] }))
-          throw new Error('Failed to delete task')
-        }
-
-        if (!response.ok) {
-          const message =
-            response.status === 404
-              ? 'Task not found'
-              : await readApiError(response)
-          set((state) => ({ tasks: [previousTask, ...state.tasks] }))
-          throw new Error(message)
-        }
       },
       // CS-020: Mission-scoped selectors
       getTasksByMission: (missionId: string) => {

@@ -1,69 +1,127 @@
 # Central Agent Project Model Implementation Plan
 
-> **For Hermes:** Use the `subagent-driven-development` skill to implement this plan task-by-task. This plan has been revised after Codex review; do not use the older 6-task version.
+> **For Hermes:** Use the `subagent-driven-development` skill to implement this plan task-by-task. This plan supersedes the earlier single-boundary version by splitting the system into SwitchUI-owned product surfaces, a Hermes Agent plugin-backed backend extension, and an explicit future core-migration path.
 
-**Goal:** Add a first-class project model to the central agent so work is routed by explicit project identity instead of only by conversation context or current directory.
+**Goal:** Add a first-class project model so work is routed by explicit project identity instead of only by conversation context or current directory, while using the right boundary for each layer: SwitchUI for UX, a Hermes Agent plugin for backend integration, and Hermes core only if project identity proves foundational across every surface.
 
-**Architecture:** Introduce a durable `ProjectRegistry` as the canonical source of truth for project identity. A project owns context, memory namespace, task namespace, and display identity; a workspace remains an execution location such as a cwd, worktree, or scratch directory. Every chat run, session, task, swarm mission, dashboard aggregation, and operation should carry a `projectId` when it belongs to a project, with a backward-compatible `null`/`legacy` path for existing data.
+**Architecture:** Treat **Project** as durable identity and ownership context, and **Workspace** as execution location. Implement the product in three coordinated parts:
 
-**Tech Stack:** TypeScript, TanStack Start, `src/routes/api/*` server routes, `src/server/*` stores/helpers, Zustand client state, Hermes gateway/dashboard proxy APIs, filesystem-backed profile state.
+1. **SwitchUI part** — project registry UX, project selector, project-aware chat/session/task/swarm/dashboard views, project-aware API routes, and client/server state within `hermes-switchui`.
+2. **Hermes Agent plugin part** — plugin-backed project services: project registry backend API/tooling, project-aware hooks, CLI/slash commands, dashboard plugin routes, and optional memory/task/session scoping helpers.
+3. **Future Hermes core path** — only if the project concept proves universal enough to justify promotion into core runtime/session/memory/task abstractions.
 
----
-
-## Codex Review Summary
-
-**Verdict:** Approve with changes.
-
-The concept is correct, but the previous plan was too abstract and referenced stale paths. This repo does not currently have a first-class `/api/projects` API. It has project-like surfaces, notably `/api/swarm-project`, but that endpoint only reports a swarm worker's current cwd/git preview. It is not a durable project registry.
-
-Critical corrections from review:
-
-- Use real workspace surfaces: `src/routes/api/*`, `src/server/tasks-store.ts`, `src/server/memory-browser.ts`, `src/server/run-store.ts`, swarm stores, and UI stores.
-- Thread `projectId` through `send-stream.ts`, sessions, local sessions, persisted runs, tasks, memory, swarm missions, kanban, and dashboard APIs before relying on UI labels.
-- Reuse existing workspace/path validation logic instead of bypassing `/api/workspace` semantics.
-- Do not expose full root paths by default. Normal UI should use redacted/display paths.
-- Existing data must remain readable: legacy sessions/tasks/runs without `projectId` must map to `projectId: null` or a `legacy` project contract.
+**Tech Stack:** TypeScript, TanStack Start, React, Zustand, `src/routes/api/*` server routes, `src/server/*` helpers/stores, Hermes Agent plugin SDK (`plugin.yaml`, `register(ctx)`, hooks, dashboard plugin APIs), filesystem-backed state, gateway/dashboard proxy APIs.
 
 ---
 
-## Strategic Rollout: Workspace First, Hermes Agent Core Later
+## Research Summary
 
-This plan intentionally starts in **Hermes Workspace** as a proof-of-concept, not as the final system boundary.
+### Open question resolved
 
-The current implementation target is Workspace because it can prove the product model quickly:
+The previous version of this plan assumed the long-term home was Hermes Agent core, with Workspace acting as an incubator. After reviewing the Hermes Agent plugin architecture, the better near-term split is:
 
-- `/api/projects` registry owned by Workspace
-- project selector/badge in the UI
-- `projectId` threaded through Workspace chat/session/run/task/swarm surfaces where possible
-- redacted path display and legacy/null fallback behavior
-- practical UX for project disambiguation
+- **SwitchUI owns the user experience and local product model**.
+- **A Hermes Agent plugin owns the backend extension seam** for project-aware tools, hooks, APIs, and dashboard surfaces.
+- **Hermes core remains a later step**, not the starting point.
 
-However, a durable project concept should eventually move into **Hermes Agent core**. If the Workspace implementation proves the model, use it as evidence for a Hermes Agent feature request or PR that proposes:
+This gives us a practical path that does not require hard-forking Hermes Agent internals immediately, while still validating whether project identity deserves eventual promotion into core.
 
-- core project registry in Hermes state
-- project-scoped sessions/runs/memory/tasks
-- CLI commands such as `/project`, `hermes project list`, `hermes project use`, `hermes project add`
-- project identity shared consistently across CLI, gateway, cron, Workspace, memory backends, and future UIs
+### Verified Hermes Agent plugin facts
 
-Relevant Hermes Agent upstream discussions to reference when preparing that follow-up:
+Research confirmed Hermes Agent has a real plugin SDK in `hermes_cli/plugins.py` and supports:
 
-- `#10309` — session-scoped repo pinning; closest existing proposal, but session-level rather than durable project-level
-- `#18457` — cross-surface session continuity; explicitly mentions a higher-level project concept
-- `#2058` — context anchors / persistent project memory; related but file-centric
-- `#9514` — single-daemon multi-agent with per-topic workspace and memory isolation
-- `#681` / `#502` — `.hermes.md` project config; cwd/git-root context injection, not durable project identity
-- `#531` — global `~/.hermes/workspace` document/RAG store, complementary but not project-scoped
-- `#14471`, `#14510`, PR `#4098`, PR `#10482`, PR `#12255` — context-file discovery and workspace-boundary issues
+- discovery from bundled, user, project, and pip entry-point sources
+- `plugin.yaml` manifests with `name`, `version`, `kind`, `provides_tools`, `hooks`, `pip_dependencies`
+- top-level `register(ctx)` entry point in `__init__.py`
+- plugin kinds: `standalone`, `backend`, `exclusive`, `platform`
+- `PluginContext` registration methods including:
+  - `register_tool`
+  - `register_hook`
+  - `register_command`
+  - `register_cli_command`
+  - `register_platform`
+  - `register_skill`
+  - `register_context_engine`
+  - `register_image_gen_provider`
+  - `inject_message`
+  - `dispatch_tool`
+- 16 lifecycle hooks including:
+  - `pre_tool_call`
+  - `post_tool_call`
+  - `pre_llm_call`
+  - `post_llm_call`
+  - `on_session_start`
+  - `on_session_end`
+  - `transform_terminal_output`
+  - `transform_tool_result`
+  - `pre_gateway_dispatch`
+- dashboard/UI plugin APIs mounted under `/api/plugins/<name>/`
+- existing bundled examples, especially the **kanban plugin**, which is the closest precedent for a backend stateful subsystem plus dashboard UI/plugin API
 
-In short: **Workspace is the incubator; Hermes Agent core is the long-term home.** Once this plan is implemented and validated in Workspace, create a second plan or upstream proposal for the Hermes Agent core changes.
+### Architectural conclusion
+
+The project system should **not** start as a Hermes core invasive rewrite. It should also **not** remain purely a SwitchUI-local fiction if the agent must understand projects while executing work.
+
+The right split is:
+
+- **SwitchUI** defines and ships the first-class product experience.
+- **A Hermes Agent plugin** provides the backend project-service layer.
+- **Hermes core** is only touched after this model proves necessary across CLI, gateway, cron, sessions, memory, and multiple UIs.
+
+---
+
+## Product Decision
+
+### Part A — SwitchUI product boundary
+
+SwitchUI should own:
+
+- project selector and active-project badge
+- project-aware chat/session/run/task/swarm/dashboard UX
+- project creation/edit flows
+- disambiguation UI when path/cwd inference is ambiguous
+- redacted path presentation
+- frontend state and API contracts for `projectId`
+- Workspace-side route handlers that talk to the backend project service
+
+This is where the user sees and controls the concept.
+
+### Part B — Hermes Agent plugin boundary
+
+A Hermes Agent plugin should own:
+
+- durable project registry backend and server-side validation
+- project-aware tool endpoints and/or CLI commands
+- dashboard plugin API routes, likely under `/api/plugins/projects/*`
+- project-aware hooks for session/run/task/swarm/memory scoping where feasible without core changes
+- slash commands and CLI commands such as project list/select/use/add
+- optional helper tools for agents to inspect/set project context explicitly
+
+This is where the agent runtime learns the concept without requiring immediate upstream core surgery.
+
+### Part C — Hermes core boundary
+
+Hermes core should only absorb the concept later if we prove that project identity must be universal across:
+
+- CLI
+- gateway
+- API server
+- cron
+- sessions
+- task systems
+- memory providers
+- swarm/worker orchestration
+- future UI surfaces beyond SwitchUI
+
+That promotion should be treated as a follow-up proposal/PR, not part of v1.
 
 ---
 
 ## Problem Statement
 
-The central agent currently infers context too loosely from active conversation, current working directory, and swarm/runtime metadata. That works for single-project CLI usage, but it becomes confusing when one central agent manages multiple projects, folders, worktrees, conversations, workers, and ongoing tasks.
+The central agent currently infers context too loosely from active conversation, current working directory, and swarm/runtime metadata. That works for single-project CLI usage, but it breaks down when one principal or one central runtime manages multiple projects, repositories, worktrees, workers, conversations, and task streams.
 
-The system needs an explicit project identity that travels with meaningful work:
+The system needs an explicit project identity that can travel with meaningful work:
 
 - chat sessions and runs
 - task records
@@ -72,16 +130,17 @@ The system needs an explicit project identity that travels with meaningful work:
 - dashboard summaries
 - operation/form submissions
 - UI context selectors and badges
+- agent/backend tooling and commands
 
 ---
 
 ## Core Model
 
-- **Project:** durable identity and ownership context. Example: `hermes-workspace`, `operator1`, `tool-catalog`.
-- **Workspace:** concrete execution location. Example: `/Volumes/Ext-nvme/Development/hermes-workspace`, a git worktree, or temp scratch path.
+- **Project:** durable identity and ownership context. Example: `hermes-switchui`, `operator1`, `tool-catalog`.
+- **Workspace:** concrete execution location. Example: `/Volumes/Ext-nvme/Development/hermes-switchui`, a git worktree, or temp scratch path.
 - **Run:** one execution instance bound to a session and optionally to a project/workspace.
 - **Session:** conversation record that may have a selected/default project.
-- **Task:** project-scoped user work item. Existing global tasks remain valid during migration.
+- **Task:** project-scoped user or agent work item.
 - **Agent/Worker:** durable or swarm worker that may be assigned to one or more projects.
 
 Important distinction:
@@ -95,7 +154,7 @@ Workspace = where commands/files execute.
 
 ## Canonical `ProjectRef`
 
-All APIs should converge on this shape or a close equivalent:
+All API boundaries should converge on this shape or a close equivalent:
 
 ```ts
 export type ProjectRef = {
@@ -120,25 +179,25 @@ Rules:
 - `id` is stable and URL-safe.
 - `rootPath` is server-side authoritative and must be validated.
 - `rootPathRedacted` is what normal UI displays by default.
-- Full paths may appear only in authenticated settings/detail views.
+- Full paths may appear only in authenticated detail/settings views.
 - `memoryNamespace` defaults to `project:${id}`.
 - `taskNamespace` defaults to `project:${id}`.
 - Existing legacy/global data may use `projectId: null` until migrated.
 
 ---
 
-## Current Related Surfaces
+## Existing Surfaces To Inspect
 
-There is no durable project API yet. Relevant existing surfaces to inspect/modify:
+### SwitchUI surfaces
 
-### Workspace/files
+#### Workspace/files
 
 - `src/routes/api/workspace.ts`
 - `src/routes/api/files.ts`
 - `src/routes/api/preview-file.ts`
 - `src/stores/workspace-store.ts`
 
-### Chat/session/run flow
+#### Chat/session/run flow
 
 - `src/routes/api/send-stream.ts`
 - `src/routes/api/sessions.ts`
@@ -147,23 +206,24 @@ There is no durable project API yet. Relevant existing surfaces to inspect/modif
 - `src/server/claude-api.ts`
 - `src/server/claude-dashboard-api.ts`
 
-### Tasks/memory
+#### Tasks/memory
 
 - `src/server/tasks-store.ts`
 - `src/routes/api/claude-tasks.ts`
 - `src/server/memory-browser.ts`
 - `src/server/swarm-memory.ts`
 
-### Swarm/gateway/dashboard
+#### Swarm/gateway/dashboard
 
 - `src/routes/api/swarm-project.ts`
+  - Note: today this is a per-worker metadata snapshot (cwd, branch, changed files, preview URLs from `runtime.json` + `lsof`/port probe). It derives a "project name" ad-hoc as `basename(cwd)` and has no relation to the central project registry. **Follow-up (post-v1):** resolve worker `cwd` against the project registry to render a real `ProjectRef` badge on swarm worker cards instead of a basename. Low priority — not part of v1 task↔project linking.
 - `src/routes/api/swarm-dispatch.ts`
 - `src/server/swarm-missions.ts`
 - `src/server/swarm-kanban-store.ts`
 - `src/server/kanban-backend.ts`
 - `src/routes/api/dashboard/overview.ts`
 
-### UI
+#### UI
 
 - `src/screens/chat/chat-screen.tsx`
 - `src/screens/chat/components/chat-header.tsx`
@@ -173,86 +233,93 @@ There is no durable project API yet. Relevant existing surfaces to inspect/modif
 - `src/stores/mission-store.ts`
 - `src/stores/agent-swarm-store.ts`
 
+### Hermes Agent plugin surfaces
+
+Use the plugin system, not ad-hoc patches to unrelated runtime files, wherever possible.
+
+Inspect/reference:
+
+- `hermes_cli/plugins.py`
+- plugin manifests: `plugins/*/plugin.yaml`
+- plugin entrypoints: `plugins/*/__init__.py`
+- dashboard plugin API patterns: `plugins/kanban/dashboard/plugin_api.py`
+- existing plugin examples for tools/hooks/CLI registration
+
+Planned plugin capabilities:
+
+- project registry service
+- dashboard/API routes under `/api/plugins/projects/*`
+- project tools (`project_list`, `project_get`, `project_select`, etc.)
+- slash/CLI commands
+- session/task/run/memory scoping hooks where viable
+
 ---
 
-## Implementation Tasks
+## Three-Part Implementation Plan
 
-### Task 1: Add project registry schema, persistence, validation, and redaction
+## Part 1 — SwitchUI project capabilities
 
-**Objective:** Create the canonical server-side project registry and tests.
+### Task 1: Define shared project types and Workspace-facing API contract
+
+**Objective:** Establish the local product contract before implementation spreads across the app.
 
 **Files:**
 
-- Create: `src/server/project-registry.ts`
-- Create: `src/server/project-registry.test.ts`
-- Reuse/inspect: `src/routes/api/workspace.ts`
+- Create: `src/lib/projects.ts`
+- Create: `src/lib/projects-api.ts`
+- Create tests near new modules
+- Inspect: `src/lib/gateway-api.ts`, existing route client patterns
 
-**Implementation notes:**
+**Requirements:**
 
-- Persist registry under active Hermes/workspace profile state, not inside a random project cwd.
-- Reuse existing workspace path allow/block semantics where possible.
-- Validate roots with realpath/symlink handling.
-- Redact full paths for normal UI responses.
-- Support schema versioning for future migrations.
-
-**Test cases:**
-
-- Requires `id`, `displayName`, and valid `rootPath`.
-- Normalizes namespaces to `project:<id>`.
-- Rejects blocked/sensitive paths.
-- Handles symlinked roots consistently.
-- Produces redacted display paths.
-- Reads empty registry as `[]` without crashing.
+- Define `ProjectRef`, `ProjectSelection`, and project-aware request/response types.
+- Add optional `projectId` and `project` metadata shapes used by chat/session/task/swarm/dashboard surfaces.
+- Keep `projectId` optional for legacy compatibility.
+- Ensure the client contract targets a backend project service rather than embedding registry logic in UI-only code.
 
 **Verification:**
 
-```bash
-pnpm vitest run src/server/project-registry.test.ts -v
-```
+- Typecheck succeeds.
+- Existing consumers do not break when project metadata is absent.
 
 ---
 
-### Task 2: Add `/api/projects` and extend `/api/workspace`
+### Task 2: Add Workspace proxy routes for projects
 
-**Objective:** Expose project list/create/update/select APIs while keeping workspace and project concepts separate.
+**Objective:** Give SwitchUI stable app-owned endpoints while allowing the backend source of truth to live in Hermes Agent plugin services.
 
 **Files:**
 
 - Create: `src/routes/api/projects.ts`
+- Create: `src/routes/api/projects.select.ts` or equivalent route pattern
 - Modify: `src/routes/api/workspace.ts`
-- Test: `src/routes/api/-projects.test.ts`
-- Update capability plumbing if needed: `src/server/gateway-capabilities.ts`, `src/lib/feature-gates.ts`
+- Add route tests
 
-**API shape:**
+**Requirements:**
 
-- `GET /api/projects` → list redacted project refs
-- `POST /api/projects` → create/update project
-- `POST /api/projects/select` or equivalent → set active project preference
-- `GET /api/workspace` should expose both current workspace and selected project when known
-
-**Rules:**
-
-- Normal responses must not leak full paths unless explicitly requested by an authenticated detail endpoint.
-- Project selection should not mutate cwd by itself.
-- Workspace selection should not silently change project identity unless resolution is confident.
+- `GET /api/projects` returns redacted project refs.
+- `POST /api/projects` creates/updates via backend project service.
+- `POST /api/projects/select` persists active selection in the appropriate Workspace/session preference path.
+- `GET /api/workspace` returns both current workspace and selected project when known.
+- Do not leak full root paths in normal responses.
+- Do not let project selection silently mutate cwd.
 
 **Verification:**
 
-```bash
-pnpm vitest run src/routes/api/-projects.test.ts src/routes/api/-workspace.test.ts -v
-```
+- Route tests cover list/create/select/error cases.
+- Workspace route degrades gracefully if plugin backend is unavailable.
 
 ---
 
-### Task 3: Add project resolution logic
+### Task 3: Add project resolution in SwitchUI request flow
 
-**Objective:** Resolve active project from explicit input, session/run/task/mission metadata, or safe cwd containment fallback.
+**Objective:** Resolve the effective project for UI requests using explicit selection first, inference only as fallback.
 
 **Files:**
 
 - Create: `src/server/project-resolution.ts`
 - Create: `src/server/project-resolution.test.ts`
-- Use registry from: `src/server/project-registry.ts`
+- Modify: route handlers that need project-aware behavior
 
 **Resolution order:**
 
@@ -260,30 +327,21 @@ pnpm vitest run src/routes/api/-projects.test.ts src/routes/api/-workspace.test.
 2. Session metadata project.
 3. Run/task/mission metadata project.
 4. Active UI/client selected project.
-5. Cwd/root containment fallback.
-6. Ambiguous/unknown → return low confidence and require disambiguation.
+5. Safe cwd/root containment fallback.
+6. Ambiguous/unknown → low confidence result requiring user disambiguation.
 
-**Test cases:**
+**Requirements:**
 
-- Explicit project wins.
-- Session metadata beats cwd.
-- Task/mission metadata resolves project.
-- Nested repos do not select parent incorrectly.
-- Symlink paths resolve safely.
-- Duplicate/overlapping roots return ambiguous.
+- Explicit selection always wins.
+- Ambiguous path inference must not silently route work.
+- Nested repos and overlapping roots must be tested.
 - Legacy/null project remains valid.
-
-**Verification:**
-
-```bash
-pnpm vitest run src/server/project-resolution.test.ts -v
-```
 
 ---
 
-### Task 4: Thread `projectId` through chat sessions, send-stream, local sessions, and persisted runs
+### Task 4: Thread `projectId` through chat/session/run flow in SwitchUI
 
-**Objective:** Make project identity part of the actual chat/run path before adding visible UI affordances.
+**Objective:** Make project identity part of the real data path before UI polish.
 
 **Files:**
 
@@ -297,22 +355,22 @@ pnpm vitest run src/server/project-resolution.test.ts -v
 **Requirements:**
 
 - Accept optional `projectId` in chat/send payloads.
-- Persist `projectId` on run records.
-- Include `projectId` in session summaries where available.
-- Keep legacy sessions readable when `projectId` is absent.
-- Do not send invalid/unknown project IDs to Hermes backend as if trusted.
+- Persist `projectId` on run records and session summaries where available.
+- Restore project context correctly when switching sessions.
+- Keep legacy sessions readable.
+- Do not treat unknown client-provided IDs as trusted until resolved.
 
 **Acceptance tests:**
 
-- A new chat run with `projectId` stores it in run metadata.
-- A legacy session without `projectId` still opens.
-- Switching sessions restores their project context independently.
+- A new run with `projectId` stores and restores it.
+- A legacy session with no `projectId` still opens cleanly.
+- Two sessions can keep different active projects.
 
 ---
 
-### Task 5: Scope tasks and memory with backward-compatible migration behavior
+### Task 5: Scope Workspace task, memory, and swarm views by project
 
-**Objective:** Ensure project-bound work does not leak into global task/memory views.
+**Objective:** Prevent cross-project bleed in product surfaces even before deeper Hermes-core adoption.
 
 **Files:**
 
@@ -320,78 +378,21 @@ pnpm vitest run src/server/project-resolution.test.ts -v
 - Modify: `src/routes/api/claude-tasks.ts`
 - Modify: `src/server/memory-browser.ts`
 - Modify: `src/server/swarm-memory.ts`
-- Test: `src/server/project-scoping.test.ts`
-
-**Requirements:**
-
-- Add optional `projectId` / `taskNamespace` to task records.
-- Filter task views by project when a project is selected.
-- Preserve existing `~/.hermes/tasks.json` records with no project.
-- Memory browser must support project namespace filtering when backend data supports it.
-- Avoid claiming memory isolation if the backend cannot enforce it yet; expose capability/partial state honestly.
-
-**Acceptance tests:**
-
-- Two projects can have tasks with the same title without mixing.
-- Legacy tasks still appear in global/legacy view.
-- Project memory filter does not show another project's namespace.
-
----
-
-### Task 6: Scope swarm missions, dispatch, kanban, checkpoint, and swarm memory events
-
-**Objective:** Bring swarm/agent orchestration into the same project model.
-
-**Files:**
-
-- Modify: `src/routes/api/swarm-project.ts`
-- Modify: `src/routes/api/swarm-dispatch.ts`
 - Modify: `src/server/swarm-missions.ts`
-- Modify: `src/server/swarm-kanban-store.ts`
-- Modify: `src/server/kanban-backend.ts`
-- Modify: `src/server/swarm-memory.ts`
+- Add tests near affected modules
 
 **Requirements:**
 
-- Swarm worker cwd preview remains available but is not treated as durable project identity.
-- Missions and kanban cards should carry `projectId` when known.
-- Dispatch should accept explicit `projectId` and reject/ask when ambiguous.
-- Shared swarm memory should include project context only for the selected project.
-
-**Acceptance tests:**
-
-- Two swarm missions in different projects do not share kanban/memory state accidentally.
-- Worker cwd preview can show `projectName` while separately reporting canonical `projectId` if resolved.
+- Add optional `projectId` / namespace fields to Workspace-side records where they exist.
+- Filter task/memory/swarm views by selected project when backend capability exists.
+- Preserve legacy/global records with `projectId: null`.
+- If the backend cannot guarantee true memory isolation yet, expose partial capability honestly instead of pretending full isolation exists.
 
 ---
 
-### Task 7: Update dashboard/gateway APIs and client helpers
+### Task 6: Add UI selector, badges, and disambiguation flows
 
-**Objective:** Carry and display project identity in overview/aggregation layers.
-
-**Files:**
-
-- Modify: `src/routes/api/dashboard/overview.ts`
-- Modify: `src/server/claude-dashboard-api.ts`
-- Modify: `src/lib/gateway-api.ts`
-- Modify related API client helpers under `src/lib/*` as needed
-
-**Requirements:**
-
-- Dashboard counts should optionally group/filter by project.
-- API client types should include optional `projectId` and `project` fields.
-- Existing clients should not break if backend omits project fields.
-
-**Acceptance tests:**
-
-- Dashboard shows total and per-project counts when project data exists.
-- Missing project data degrades gracefully.
-
----
-
-### Task 8: Add UI selector/badge and disambiguation flow
-
-**Objective:** Make active project visible and selectable without exposing full sensitive paths.
+**Objective:** Make the active project visible and controllable in SwitchUI.
 
 **Files:**
 
@@ -399,46 +400,229 @@ pnpm vitest run src/server/project-resolution.test.ts -v
 - Modify: `src/screens/chat/chat-screen.tsx`
 - Modify: `src/screens/chat/components/chat-header.tsx`
 - Modify: `src/screens/chat/components/chat-composer.tsx`
-- Modify: task/swarm screens as needed
+- Modify related task/swarm screens as needed
 
 **UI behavior:**
 
-- Show active project display name in chat/header/composer context.
-- Use redacted path or basename in normal UI.
-- Show full path only in authenticated settings/detail view or deliberate tooltip if safe.
-- When resolution confidence is low, ask the user to choose a project before running project-scoped operations.
-- Store selected project in a project-aware client store.
-
-**Acceptance tests:**
-
-- Two sessions can show different active projects.
-- Ambiguous cwd produces a project picker rather than silent routing.
-- Full local path is not visible in normal chat header/composer UI.
+- Show active project display name in chat/header/composer/task/swarm context.
+- Prefer redacted path or basename in normal UI.
+- Full path only in authenticated detail/settings views.
+- Low-confidence routing triggers a project picker, not silent inference.
+- Session-specific project state should remain independent between conversations.
 
 ---
 
-### Task 9: Add docs and full acceptance test suite
+## Part 2 — Hermes Agent plugin-backed project services
 
-**Objective:** Document the project/workspace model and verify real multi-project behavior.
+### Task 7: Create Hermes project plugin skeleton and manifest
 
-**Files:**
+**Objective:** Establish the official backend extension point.
 
-- Update: `docs/plans/central-agent-project-model.md`
-- Create/update user-facing docs as appropriate
-- Add tests near affected modules
+**Plugin shape:**
 
-**Acceptance matrix:**
+- plugin directory in the appropriate Hermes plugin location for development
+- `plugin.yaml`
+- `__init__.py` with `register(ctx)`
+- optional dashboard plugin API module(s)
+- optional shared storage/service module(s)
 
-- Two projects in one Hermes profile.
-- One project with two workspaces/worktrees.
-- One conversation mentioning multiple projects.
-- Ambiguous cwd rejection/disambiguation.
-- No cross-project task leakage.
-- No cross-project memory leakage where backend supports namespaces.
-- Legacy session still opens.
-- Legacy task still appears in global/legacy view.
-- Normal UI uses redacted paths.
-- Swarm mission and chat run can carry same project identity.
+**Recommended manifest direction:**
+
+- start as `standalone` for explicit opt-in during development
+- consider `backend` only if this becomes a bundled default subsystem
+
+**Requirements:**
+
+- Register cleanly through Hermes plugin discovery.
+- Document install/load path for local development against SwitchUI.
+- Add minimal smoke test proving the plugin loads and registers.
+
+---
+
+### Task 8: Implement plugin-backed project registry service
+
+**Objective:** Move durable server-side project ownership to Hermes-side services rather than burying it inside SwitchUI state.
+
+**Responsibilities:**
+
+- persist project registry
+- validate and normalize paths/ids/namespaces
+- produce redacted and privileged detail views
+- support schema versioning and future migrations
+
+**Requirements:**
+
+- Reuse existing workspace/path validation semantics where possible.
+- Normalize `memoryNamespace` and `taskNamespace` to `project:${id}` by default.
+- Reject blocked/sensitive roots.
+- Handle symlink/realpath cases consistently.
+- Return safe redacted payloads by default.
+
+**Design note:**
+
+The storage can begin plugin-local, but do not make it impossible to promote later into Hermes core if the concept graduates.
+
+---
+
+### Task 9: Expose plugin API routes for project services
+
+**Objective:** Give SwitchUI and other future consumers a proper Hermes-owned API surface.
+
+**Recommended shape:**
+
+- `/api/plugins/projects/list`
+- `/api/plugins/projects/get`
+- `/api/plugins/projects/upsert`
+- `/api/plugins/projects/select`
+- `/api/plugins/projects/resolve`
+- optional capability/introspection endpoint
+
+**Requirements:**
+
+- Follow the dashboard/plugin API pattern used by existing plugins such as kanban.
+- Distinguish safe redacted responses from privileged detail responses.
+- Return explicit ambiguity/confidence data for resolver endpoints.
+- Make failures actionable for SwitchUI proxy routes.
+
+---
+
+### Task 10: Register project-aware tools, slash commands, and CLI commands
+
+**Objective:** Let the agent runtime work with projects explicitly, not only through UI-side metadata.
+
+**Potential registrations:**
+
+- tools:
+  - `project_list`
+  - `project_get`
+  - `project_select`
+  - `project_resolve`
+- slash commands:
+  - `/project`
+  - `/project-use`
+- CLI commands:
+  - `hermes project list`
+  - `hermes project use <id>`
+  - `hermes project add`
+
+**Requirements:**
+
+- The agent can inspect current project context and switch it deliberately.
+- Commands should not silently mutate cwd unless explicitly designed to do so.
+- Tool results should be safe for gateway/UI display.
+
+---
+
+### Task 11: Add plugin hooks for project-aware execution context
+
+**Objective:** Thread project identity into runtime behavior without invasive core edits where hooks are sufficient.
+
+**Likely hooks to evaluate:**
+
+- `on_session_start`
+- `pre_tool_call`
+- `post_tool_call`
+- `pre_llm_call`
+- `post_llm_call`
+- `pre_gateway_dispatch`
+- `transform_tool_result`
+- `transform_terminal_output`
+
+**Use cases:**
+
+- attach active project context to session metadata
+- block or warn when a project-scoped operation is ambiguous
+- annotate tool results with project identity where useful
+- inject concise project context into the active conversation only when appropriate
+
+**Guardrails:**
+
+- do not bloat every prompt with verbose project payloads
+- do not fake isolation where the underlying subsystem cannot enforce it
+- avoid hook behavior that surprises non-project workflows
+
+---
+
+### Task 12: Add plugin dashboard surfaces and capability reporting
+
+**Objective:** Give Hermes-side observability and admin surfaces to the project subsystem.
+
+**Potential surfaces:**
+
+- project registry browser
+- project detail view
+- project capability status (sessions/tasks/memory/swarm support level)
+- ambiguity/conflict diagnostics
+- active project/session mappings
+
+**Requirements:**
+
+- Follow existing dashboard plugin conventions.
+- Make it easy for SwitchUI developers to verify backend project state.
+- Expose partial-support truthfully, especially for memory/session scoping that may still be transitional.
+
+---
+
+## Part 3 — Future Hermes core migration path
+
+### Task 13: Document graduation criteria for core adoption
+
+**Objective:** Avoid premature core surgery while making the promotion path explicit.
+
+Promote from plugin to Hermes core only if most of the following become true:
+
+- project identity is required across CLI, gateway, API server, cron, sessions, memory, and multiple UIs
+- plugin hooks are insufficient or too fragile for correct scoping
+- multiple plugins/tools need the same shared project primitive
+- project-aware session identity becomes a foundational runtime concern
+- memory/task/session persistence needs a universal schema rather than plugin-specific sidecars
+
+**Deliverable:**
+
+- a documented checklist inside this plan or a follow-up upstream proposal
+
+---
+
+### Task 14: Prepare upstream proposal / core PR plan
+
+**Objective:** Convert validated product evidence into a Hermes-core design only when warranted.
+
+**Likely upstream targets if promoted:**
+
+- session metadata schema
+- run/task persistence abstractions
+- API server/gateway session routing
+- memory-provider interfaces
+- cron/session context propagation
+- slash-command/core command registry defaults
+
+**Relevant upstream discussions to reference:**
+
+- `#10309` — session-scoped repo pinning
+- `#18457` — cross-surface session continuity and higher-level project concept
+- `#2058` — context anchors / persistent project memory
+- `#9514` — multi-agent daemon and workspace/memory isolation
+- `#681` / `#502` — `.hermes.md` project config
+- `#531` — global workspace RAG store
+- `#14471`, `#14510`, PR `#4098`, PR `#10482`, PR `#12255` — workspace/context-file boundary issues
+
+---
+
+## Acceptance Matrix
+
+The full system should eventually support these cases cleanly:
+
+- two projects in one Hermes profile
+- one project with two workspaces/worktrees
+- one conversation mentioning multiple projects without silent misrouting
+- ambiguous cwd causing disambiguation instead of guessed routing
+- no cross-project task leakage
+- no cross-project swarm leakage
+- honest memory scoping behavior, with real isolation only where supported
+- legacy sessions/tasks/runs still readable with `projectId: null`
+- normal UI uses redacted paths
+- SwitchUI can function when plugin services are present, and degrade gracefully when unavailable
+- agent can explicitly inspect/select project context through plugin tools/commands
 
 ---
 
@@ -446,10 +630,10 @@ pnpm vitest run src/server/project-resolution.test.ts -v
 
 - Never expose full local paths in normal UI by default.
 - Validate project roots against existing workspace path rules.
-- Treat project IDs from client requests as untrusted until resolved through registry.
-- Avoid cross-project memory/task leakage.
-- Include owner/user/session authorization fields in `ProjectRef` or surrounding persistence if multi-user workspace mode is enabled.
-- Redact path-like values in dashboard/project summaries unless the view is explicitly privileged.
+- Treat project IDs from client requests as untrusted until resolved through the registry.
+- Avoid cross-project task/memory/session leakage.
+- Include owner/user/session authorization fields in `ProjectRef` or surrounding persistence if multi-user mode is enabled later.
+- Redact path-like values in dashboard and project summaries unless the view is explicitly privileged.
 
 ---
 
@@ -457,18 +641,30 @@ pnpm vitest run src/server/project-resolution.test.ts -v
 
 - Existing sessions with no `projectId` must remain readable.
 - Existing runs with no `projectId` must remain readable.
-- Existing `~/.hermes/tasks.json` records must remain valid.
-- APIs should tolerate missing `projectId` fields.
-- Initial migration may use `projectId: null` for legacy/global data rather than forcing an unsafe guessed project.
+- Existing tasks/memory views with no project metadata must remain valid.
+- APIs must tolerate missing `projectId` fields.
+- Initial migration should prefer `projectId: null` over unsafe guessed assignment.
 
 ---
 
 ## Commit Protocol Note
 
-The previous plan included generic commit messages. Before implementation, confirm and follow the repo's current commit protocol from `CLAUDE.md` / project lore. Do not blindly use placeholder commits if the repo requires Lore-formatted commits.
+Before implementation, confirm and follow the repo’s current commit protocol from `CLAUDE.md` / project lore. Do not blindly use placeholder commit messages if the repo requires Lore-formatted commits.
 
 ---
 
 ## Execution Note
 
-Implement this incrementally. Do not retrofit the entire system in one pass. Start with the registry and API boundary, then resolution, then data-path threading, then UI. The goal is explicit routing, not guesswork. There is no spoon.
+Implement this incrementally. Do not retrofit the entire system in one pass.
+
+Recommended order:
+
+1. SwitchUI contract and proxy routes
+2. Hermes project plugin skeleton and registry service
+3. chat/session/run threading
+4. task/memory/swarm scoping
+5. UI selector/badges/disambiguation
+6. plugin tools/commands/hooks
+7. evaluate whether any part truly needs core promotion
+
+That sequence keeps the product moving while preserving the future migration path. Follow the white rabbit.

@@ -64,15 +64,15 @@ const _initialOverrides = readOverrides()
 
 export let CLAUDE_API = normalizeUrl(
   _initialOverrides.claudeApiUrl ||
-    process.env.HERMES_API_URL ||
-    process.env.CLAUDE_API_URL ||
-    'http://127.0.0.1:8642',
+  process.env.HERMES_API_URL ||
+  process.env.CLAUDE_API_URL ||
+  'http://127.0.0.1:8642',
 )
 export let CLAUDE_DASHBOARD_URL = normalizeUrl(
   _initialOverrides.claudeDashboardUrl ||
-    process.env.HERMES_DASHBOARD_URL ||
-    process.env.CLAUDE_DASHBOARD_URL ||
-    'http://127.0.0.1:9119',
+  process.env.HERMES_DASHBOARD_URL ||
+  process.env.CLAUDE_DASHBOARD_URL ||
+  'http://127.0.0.1:9119',
 )
 
 /**
@@ -179,6 +179,12 @@ export type EnhancedCapabilities = {
    * placeholder instead of failing mid-action. See #262.
    */
   conductor: boolean
+  /**
+   * True when the Hermes Agent Dashboard Kanban plugin is available at
+   * `/api/plugins/kanban/*`. The Tasks board requires this; degrades
+   * gracefully to a BackendUnavailableState when absent.
+   */
+  kanban: boolean
 }
 
 export type DashboardCapabilities = {
@@ -224,6 +230,7 @@ let capabilities: GatewayCapabilities = {
   mcp: false,
   mcpFallback: false,
   conductor: false,
+  kanban: false,
   dashboard: {
     available: false,
     url: CLAUDE_DASHBOARD_URL,
@@ -292,9 +299,9 @@ export async function fetchDashboardToken(options?: {
       loggedHtmlScrapeFallback = true
       console.warn(
         '[gateway] CLAUDE_DASHBOARD_TOKEN is not set — falling back to the legacy ' +
-          'HTML-scrape token flow. This fallback will be removed in a future release. ' +
-          'Set CLAUDE_DASHBOARD_TOKEN (or CLAUDE_API_TOKEN) to a dashboard bearer ' +
-          'token to migrate. See #124.',
+        'HTML-scrape token flow. This fallback will be removed in a future release. ' +
+        'Set CLAUDE_DASHBOARD_TOKEN (or CLAUDE_API_TOKEN) to a dashboard bearer ' +
+        'token to migrate. See #124.',
       )
     }
     // Dashboard injects the session token inline on `/` (root), not on
@@ -586,6 +593,23 @@ async function probeDashboard(): Promise<{ available: boolean; url: string }> {
 }
 
 /**
+ * Probe for the Hermes Agent Kanban plugin. Some deployments ship without
+ * the Kanban plugin; those should show a BackendUnavailableState on /tasks.
+ */
+async function probeKanban(dashboardAvailable: boolean): Promise<boolean> {
+  if (!dashboardAvailable) return false
+  try {
+    const res = await dashboardFetch('/api/plugins/kanban/board', {
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    })
+    if (res.status === 404 || res.status === 405) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Lightweight probe for the Conductor mission endpoint. Some dashboard builds
  * ship without it; those deployments should show a graceful placeholder
  * instead of letting the Conductor UI 500. See #262.
@@ -620,6 +644,7 @@ const OPTIONAL_APIS = new Set([
   'enhancedChat',
   'mcp',
   'mcpFallback',
+  'kanban', // task board degrades gracefully when Agent Kanban plugin is absent
 ])
 
 function logCapabilities(next: GatewayCapabilities): void {
@@ -642,13 +667,15 @@ function logCapabilities(next: GatewayCapabilities): void {
     'jobs',
     'mcp',
     'mcpFallback',
+    'conductor',
+    'kanban',
   ]
 
   for (const key of coreKeys) {
-    ;(next[key] ? core : missing).push(key)
+    ; (next[key] ? core : missing).push(key)
   }
   for (const key of enhancedKeys) {
-    ;(next[key] ? enhanced : missing).push(key)
+    ; (next[key] ? enhanced : missing).push(key)
   }
   if (next.dashboard.available) core.push('dashboard')
   else missing.push('dashboard')
@@ -693,9 +720,9 @@ async function autoDetectGatewayUrl(): Promise<void> {
 
   console.warn(
     '[gateway] Could not reach Hermes gateway on 8645, 8642, or 8643. ' +
-      'If you run the workspace on a different machine (Tailscale / VPN / LAN), ' +
-      'set HERMES_API_URL=http://<reachable-host>:8642 in .env and restart. ' +
-      'Also set API_SERVER_HOST=0.0.0.0 on the gateway so remote peers can connect.',
+    'If you run the workspace on a different machine (Tailscale / VPN / LAN), ' +
+    'set HERMES_API_URL=http://<reachable-host>:8642 in .env and restart. ' +
+    'Also set API_SERVER_HOST=0.0.0.0 on the gateway so remote peers can connect.',
   )
 }
 
@@ -759,8 +786,9 @@ export async function probeGateway(options?: {
     // the cache when the dashboard is up.
     const mcp = await probeMcp()
 
-    // Conductor probe runs after dashboard probe.
+    // Conductor and Kanban probes run after dashboard probe.
     const conductor = await probeConductor(dashboard.available)
+    const kanban = await probeKanban(dashboard.available)
 
     // Phase 1.5 fallback: when native /api/mcp is missing but the dashboard
     // exposes `config.mcp_servers` AND we are loopback-only, allow a config
@@ -791,6 +819,7 @@ export async function probeGateway(options?: {
       mcp,
       mcpFallback,
       conductor,
+      kanban,
       dashboard,
     }
     lastProbeAt = Date.now()
@@ -839,6 +868,8 @@ export function getEnhancedCapabilities(): EnhancedCapabilities {
     jobs: capabilities.jobs,
     mcp: capabilities.mcp,
     mcpFallback: capabilities.mcpFallback,
+    conductor: capabilities.conductor,
+    kanban: capabilities.kanban,
   }
 }
 

@@ -154,6 +154,36 @@ function readClaudeTask(taskId: string): ClaudeTaskRow | null {
   return Array.isArray(parsed) && parsed[0] ? parsed[0] : null
 }
 
+/**
+ * Permanently hard-delete a task row from the kanban SQLite database.
+ * The gateway REST API has no DELETE endpoint, so we go directly to SQLite.
+ * Safety guard: only tasks with status='archived' are eligible.
+ */
+export function hardDeleteKanbanTask(taskId: string): { ok: boolean; error?: string } {
+  const detection = detectClaudeKanban()
+  if (!detection.available) {
+    return { ok: false, error: 'Kanban database not available' }
+  }
+  // Safety: confirm the task exists and is archived before deleting
+  const task = readClaudeTask(taskId)
+  if (!task) {
+    return { ok: false, error: `Task ${taskId} not found` }
+  }
+  if (task.status !== 'archived') {
+    return { ok: false, error: 'Only archived tasks can be permanently deleted' }
+  }
+  try {
+    // sqlite3 CLI exits 0 for DELETE even when no rows are returned as JSON
+    execFileSync('sqlite3', [detection.dbPath, `DELETE FROM tasks WHERE id = ${sqliteQuote(taskId)} AND status = 'archived';`], {
+      encoding: 'utf8',
+      timeout: 10_000,
+    })
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'SQLite delete failed' }
+  }
+}
+
 function normalizeTimestamp(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value > 1_000_000_000_000 ? value : Math.round(value * 1000)
@@ -195,7 +225,7 @@ function mapClaudeStatus(status: string | null | undefined): SwarmKanbanCard['st
 function mapBoardStatus(status: SwarmKanbanCard['status'] | null | undefined): string {
   switch (status) {
     case 'backlog':
-      return 'queued'
+      return 'triage'
     case 'ready':
       return 'ready'
     case 'running':
@@ -207,7 +237,7 @@ function mapBoardStatus(status: SwarmKanbanCard['status'] | null | undefined): s
     case 'done':
       return 'done'
     default:
-      return 'queued'
+      return 'triage'
   }
 }
 

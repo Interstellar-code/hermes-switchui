@@ -224,5 +224,11 @@ describe('kanban-backend', () => {
     expect(sqliteCalls.every((call) => call.startsWith('/Users/aurora/.claude/kanban.db '))).toBe(true)
     expect(sqliteCalls.some((call) => call.includes('insert into tasks'))).toBe(true)
     expect(sqliteCalls.some((call) => call.includes('update tasks set'))).toBe(true)
+
+    // Pre-flight regression: backlog must write 'triage' not 'queued' into kanban.db.
+    // 'queued' is not a valid Agent Kanban status and silently corrupts rows.
+    const insertCall = sqliteCalls.find((call) => call.includes('insert into tasks')) ?? ''
+    expect(insertCall).toContain("'triage'")
+    expect(insertCall).not.toContain("'queued'")
   })
 })
