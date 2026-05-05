@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearch, useNavigate } from '@tanstack/react-router'
 import {
   keepPreviousData,
@@ -81,15 +81,35 @@ export function TasksScreen() {
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverColumn, setDragOverColumn] =
     useState<HermesKanbanStatus | null>(null)
-  const [showDone, setShowDone] = useState(false)
-  const [showArchived, setShowArchived] = useState(false)
-  const [showTriage, setShowTriage] = useState(true)
-  const [showBlocked, setShowBlocked] = useState(true)
+  // ── Column visibility — persisted to localStorage ──────────────────────
+  const COLS_KEY = 'switchui-column-visibility'
+  const [showDone, setShowDone] = useState<boolean>(() => {
+    try { return JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}').done ?? false } catch { return false }
+  })
+  const [showArchived, setShowArchived] = useState<boolean>(() => {
+    try { return JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}').archived ?? false } catch { return false }
+  })
+  const [showTriage, setShowTriage] = useState<boolean>(() => {
+    try { return JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}').triage ?? true } catch { return true }
+  })
+  const [showBlocked, setShowBlocked] = useState<boolean>(() => {
+    try { return JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}').blocked ?? true } catch { return true }
+  })
   const [showViewDropdown, setShowViewDropdown] = useState(false)
   const [blockedPending, setBlockedPending] = useState<BlockedDropPending>(null)
   const [blockedReason, setBlockedReason] = useState('')
   const [runningMovePending, setRunningMovePending] = useState<RunningMovePending>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  // Persist column visibility to localStorage whenever any toggle changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(COLS_KEY, JSON.stringify({
+        done: showDone, archived: showArchived,
+        triage: showTriage, blocked: showBlocked,
+      }))
+    } catch { /* storage quota / private-mode — silently ignore */ }
+  }, [showDone, showArchived, showTriage, showBlocked])
 
   const search = useSearch({ from: '/tasks' })
   const initialAssignee =
@@ -505,8 +525,8 @@ export function TasksScreen() {
                     </button>
                     {showViewDropdown && (
                       <>
-                        <div className="fixed inset-0 z-10" onClick={() => setShowViewDropdown(false)} />
-                        <div className="absolute top-full right-0 mt-1.5 z-20 w-52 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] shadow-2xl p-1.5">
+                        <div className="fixed inset-0 z-[200]" onClick={() => setShowViewDropdown(false)} />
+                        <div className="absolute top-full right-0 mt-1.5 z-[201] w-52 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] shadow-2xl p-1.5">
                           <p className="px-3 pt-1.5 pb-1 text-[9px] uppercase tracking-widest text-[var(--theme-muted)] font-medium">
                             Visible columns
                           </p>
@@ -807,7 +827,7 @@ export function TasksScreen() {
           open={showCreate}
           onOpenChange={setShowCreate}
           defaultColumn={createColumn}
-          assignees={assigneeOptions}
+          assignees={assigneeOptions as TaskAssignee[]}
           isSubmitting={createMutation.isPending}
           onSubmit={async (payload) => {
             await createMutation.mutateAsync(payload)
