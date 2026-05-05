@@ -195,6 +195,8 @@ export type UpdateKanbanTaskInput = {
   claim_lock?: string | null
   worker_pid?: number | null
   claimed_at?: number | null
+  spawn_failures?: number | null
+  last_spawn_error?: string | null
 }
 
 export type BulkKanbanInput = {

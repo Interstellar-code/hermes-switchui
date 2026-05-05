@@ -499,6 +499,8 @@ function OverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesK
     try {
       await updateTask(task.id, {
         status: targetStatus,
+        spawn_failures: 0,
+        last_spawn_error: null,
         ...(targetStatus === 'ready'
           ? { claim_lock: null, worker_pid: null }
           : { block_reason: td.last_spawn_error ?? 'Spawn failure: profile not found' }),
