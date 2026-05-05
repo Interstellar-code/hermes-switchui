@@ -802,11 +802,26 @@ function runWorker(assignment: AssignmentRequest, timeoutMs: number, roster: Swa
 
         if (error) {
           const code = (error as { code?: number | null }).code ?? null
+          const trimmedStderr = stderrStr.trim()
+          const trimmedStdout = stdoutStr.trim()
+          const parts: Array<string> = []
+          if (typeof code === 'number' && code !== 0) {
+            parts.push(`exit ${code}`)
+          }
+          if (trimmedStderr) {
+            parts.push(`stderr: ${trimmedStderr.slice(-1500)}`)
+          }
+          if (!trimmedStderr && trimmedStdout) {
+            parts.push(`stdout: ${trimmedStdout.slice(-1500)}`)
+          }
+          if (!trimmedStderr && !trimmedStdout) {
+            parts.push(error.message)
+          }
           const result: WorkerResult = {
             workerId,
             ok: false,
             output: out,
-            error: stderrStr.trim() || error.message,
+            error: parts.join('\n'),
             durationMs,
             exitCode: typeof code === 'number' ? code : null,
             delivery: 'oneshot',
