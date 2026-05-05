@@ -12,7 +12,8 @@ import {
   HERMES_KANBAN_VISIBLE_STATUS_ORDER,
 } from '@/lib/hermes-kanban-types'
 import type { HermesKanbanTask, HermesKanbanTaskDetail, HermesKanbanStatus } from '@/lib/hermes-kanban-types'
-import { updateTask, fetchAssignees, fetchTasks, addLink, removeLink, createTask, deleteTask, hardDeleteTask, COLUMN_COLORS } from '@/lib/tasks-api'
+import { updateTask, fetchAssignees, fetchTasks, addLink, removeLink, createTask, deleteTask, hardDeleteTask, COLUMN_COLORS, fetchHomeChannels, subscribeHomeChannel, unsubscribeHomeChannel } from '@/lib/tasks-api'
+import type { HomeChannel } from '@/lib/tasks-api'
 import { unionAssigneesWithProfiles } from '@/lib/assignee-profile-union'
 import { TaskDialog } from './task-dialog'
 import type { TaskDialogSubmit } from './task-dialog'
@@ -687,6 +688,8 @@ function OverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesK
         <SkillsCombobox selected={skills} onChange={setSkills} suggestions={skillSuggestions} />
       </div>
 
+      <NotificationsSection taskId={task.id} />
+
       {/* Summary */}
       <div>
         <label className={labelClass}>Summary</label>
@@ -1033,6 +1036,65 @@ function DepsTab({ task, detail }: { task: HermesKanbanTask; detail: HermesKanba
         isSubmitting={dialogSubmitting}
         onSubmit={handleDialogSubmit}
       />
+    </div>
+  )
+}
+
+function NotificationsSection({ taskId }: { taskId: string }) {
+  const queryClient = useQueryClient()
+  const channelsQuery = useQuery({
+    queryKey: ['hermes-kanban', 'home-channels'],
+    queryFn: fetchHomeChannels,
+    staleTime: 60_000,
+  })
+  const [pending, setPending] = useState<string | null>(null)
+
+  const channels: Array<HomeChannel> = channelsQuery.data?.channels ?? []
+  if (channelsQuery.isLoading || channels.length === 0) return null
+
+  async function toggle(platform: string, currentlySubscribed: boolean) {
+    if (pending) return
+    setPending(platform)
+    try {
+      if (currentlySubscribed) await unsubscribeHomeChannel(taskId, platform)
+      else await subscribeHomeChannel(taskId, platform)
+      await queryClient.invalidateQueries({ queryKey: ['hermes-kanban', 'home-channels'] })
+      await queryClient.invalidateQueries({ queryKey: ['hermes-kanban', 'task', taskId] })
+    } finally {
+      setPending(null)
+    }
+  }
+
+  return (
+    <div>
+      <p className={labelClass}>Notifications</p>
+      <div className="space-y-1">
+        {channels.map((ch) => {
+          const subscribed = (ch.subscribed_task_ids ?? []).includes(taskId)
+          const platformLabel = ch.platform.charAt(0).toUpperCase() + ch.platform.slice(1)
+          return (
+            <button
+              key={ch.platform}
+              onClick={() => toggle(ch.platform, subscribed)}
+              disabled={pending === ch.platform}
+              className="w-full flex items-center gap-2 rounded-lg border border-[var(--theme-border)] px-3 py-2 text-left hover:bg-[var(--theme-hover)] transition-colors disabled:opacity-50"
+            >
+              <span className={cn(
+                'w-4 h-4 rounded border flex items-center justify-center shrink-0',
+                subscribed
+                  ? 'border-[var(--theme-accent)] bg-[var(--theme-accent)]'
+                  : 'border-[var(--theme-border)] bg-transparent',
+              )}>
+                {subscribed && <span className="text-white text-[9px] leading-none">✓</span>}
+              </span>
+              <span className="text-xs flex-1">
+                Notify on completion via <span className="capitalize">{platformLabel}</span>
+                {ch.channel ? <span className="text-[var(--theme-muted)]"> · {ch.channel}</span> : null}
+              </span>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

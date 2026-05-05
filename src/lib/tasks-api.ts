@@ -223,3 +223,29 @@ export const COLUMN_COLORS: Record<HermesKanbanStatus, string> = {
   done: '#22c55e',
   archived: '#94a3b8',
 }
+
+export type HomeChannel = {
+  platform: string
+  channel?: string
+  subscribed_task_ids?: Array<string>
+  [k: string]: unknown
+}
+
+export async function fetchHomeChannels(): Promise<{ channels: Array<HomeChannel> }> {
+  const res = await kanbanJson<{ home_channels?: Array<HomeChannel>; channels?: Array<HomeChannel> }>(
+    `${KANBAN_BASE}/home-channels`,
+  )
+  return { channels: res.home_channels ?? res.channels ?? [] }
+}
+
+export async function subscribeHomeChannel(taskId: string, platform: string): Promise<void> {
+  await kanbanJson(`${KANBAN_BASE}/tasks/${taskId}/home-subscribe/${platform}`, {
+    method: 'POST',
+  })
+}
+
+export async function unsubscribeHomeChannel(taskId: string, platform: string): Promise<void> {
+  await kanbanJson(`${KANBAN_BASE}/tasks/${taskId}/home-subscribe/${platform}`, {
+    method: 'DELETE',
+  })
+}
