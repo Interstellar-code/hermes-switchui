@@ -607,23 +607,6 @@ async function probeDashboard(): Promise<{ available: boolean; url: string }> {
 }
 
 /**
- * Probe for the Hermes Agent Kanban plugin. Some deployments ship without
- * the Kanban plugin; those should show a BackendUnavailableState on /tasks.
- */
-async function probeKanban(dashboardAvailable: boolean): Promise<boolean> {
-  if (!dashboardAvailable) return false
-  try {
-    const res = await dashboardFetch('/api/plugins/kanban/board', {
-      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
-    })
-    if (res.status === 404 || res.status === 405) return false
-    return true
-  } catch {
-    return false
-  }
-}
-
-/**
  * Lightweight probe for the Conductor mission endpoint. Some dashboard builds
  * ship without it; those deployments should show a graceful placeholder
  * instead of letting the Conductor UI 500. See #262.
