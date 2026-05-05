@@ -28,7 +28,13 @@ import {
 const _authHeaders = (): Record<string, string> =>
   BEARER_TOKEN ? { Authorization: `Bearer ${BEARER_TOKEN}` } : {}
 
-console.log(`[claude-api] Configured API: ${CLAUDE_API}`)
+// Log API URL once per process; HMR reloads this module repeatedly so a bare
+// top-level console.log spams the dev server logs in a tight loop.
+const _CLAUDE_API_LOG_KEY = Symbol.for('hermes.claude-api.configured-log')
+if (!(globalThis as Record<symbol, unknown>)[_CLAUDE_API_LOG_KEY]) {
+  ;(globalThis as Record<symbol, unknown>)[_CLAUDE_API_LOG_KEY] = true
+  console.log(`[claude-api] Configured API: ${CLAUDE_API}`)
+}
 
 // ── Types ─────────────────────────────────────────────────────────
 
