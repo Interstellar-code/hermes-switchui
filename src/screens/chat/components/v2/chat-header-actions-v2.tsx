@@ -24,13 +24,13 @@ export function ChatHeaderActionsV2({ sessionId, sessionKey, title }: ChatHeader
       `Title: ${title}`,
       `Session: ${sessionKey}`,
       `URL: ${typeof window !== 'undefined' ? window.location.href : ''}`,
-      status?.payload?.model ? `Model: ${status.payload.model}` : null,
-      status?.payload?.modelProvider ? `Provider: ${status.payload.modelProvider}` : null,
-      typeof status?.payload?.contextPercent === 'number'
-        ? `Context: ${status.payload.contextPercent}% (${status.payload.usedTokens ?? 0} / ${status.payload.maxTokens ?? 0})`
+      status?.model ? `Model: ${status.model}` : null,
+      status?.modelProvider ? `Provider: ${status.modelProvider}` : null,
+      typeof status?.contextPercent === 'number'
+        ? `Context: ${status.contextPercent}% (${status.usedTokens ?? 0} / ${status.maxTokens ?? 0})`
         : null,
-      typeof status?.payload?.totalTokens === 'number'
-        ? `Tokens: ${status.payload.totalTokens}`
+      typeof status?.totalTokens === 'number'
+        ? `Tokens: ${status.totalTokens}`
         : null,
     ].filter(Boolean)
     const text = lines.join('\n')
