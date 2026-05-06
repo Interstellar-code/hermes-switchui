@@ -22,10 +22,9 @@ interface SidebarCardV2Props {
 
 const RAIL_COLORS: Record<string, string> = {
   chat: 'var(--m-green-500, #00ff41)',
-  task: '#5fcfff',
   cron: '#d6ff5f',
+  api: '#5fcfff',
   tg: '#ff5fa2',
-  mem: '#7dff9a',
   tool: '#b98aff',
 }
 
