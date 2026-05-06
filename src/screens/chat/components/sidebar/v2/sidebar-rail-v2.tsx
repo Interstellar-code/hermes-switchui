@@ -1,46 +1,111 @@
 'use client'
 
 /**
- * sidebar-rail-v2.tsx — collapsed 44px rail for the v2 sidebar.
- *
- * Phase 3b: vertical "SESSIONS" label, count badge, live-pulse indicator,
- * search/filter re-expand icons, new-chat icon at bottom.
+ * sidebar-rail-v2.tsx — collapsed 44px rail.
+ * - Vertical SESSIONS label + count + live pulse.
+ * - Functional source filter chips (icon-only).
+ * - Highlighted "+" new chat button.
  */
 
 import { Link } from '@tanstack/react-router'
+import type { FilterAndDecorateResult } from '@/screens/chat/apply-filters-and-decorate'
+import type { SessionSource, SessionSourceResult } from '@/screens/chat/sessions-feed-types'
+import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 
 interface SidebarRailV2Props {
   collapsed: boolean
   onExpand: () => void
   totalCount?: number
   hasLive?: boolean
+  sourceCounts?: FilterAndDecorateResult['sourceCounts']
+  sourceResults?: Array<SessionSourceResult>
 }
 
-export function SidebarRailV2({ collapsed, onExpand, totalCount, hasLive }: SidebarRailV2Props) {
+const RAIL_SOURCES: Array<{ id: SessionSource; label: string; color: string; icon: React.ReactNode }> = [
+  {
+    id: 'chat',
+    label: 'Chat',
+    color: 'var(--m-green-400, #00ff41)',
+    icon: (
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
+        <path d="M2 3h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H5l-3 2V4a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    id: 'cron',
+    label: 'Cron',
+    color: '#d6ff5f',
+    icon: (
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
+        <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M8 5v3.5l2.5 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    id: 'api',
+    label: 'API',
+    color: '#5fcfff',
+    icon: (
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
+        <path d="M3 5h10M3 8h10M3 11h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+]
+
+export function SidebarRailV2({
+  collapsed,
+  onExpand,
+  totalCount,
+  hasLive,
+  sourceCounts,
+  sourceResults,
+}: SidebarRailV2Props) {
+  const sources = useSessionsFilterStore((s) => s.sources)
+  const toggleSource = useSessionsFilterStore((s) => s.toggleSource)
+
+  if (!collapsed) {
+    return (
+      <div
+        className="flex flex-col items-center shrink-0"
+        style={{ width: 44, borderRight: '1px solid var(--theme-border)', background: 'var(--theme-sidebar)' }}
+      />
+    )
+  }
+
+  // Hide chip if source-result reports unavailable
+  const availableSet = new Set<string>()
+  if (sourceResults) {
+    for (const r of sourceResults) {
+      if (r.available) availableSet.add(r.src)
+    }
+  }
+  // chat/cron/api derive from chat source — show if chat is available OR if we have any items for the kind
+  const chatAvailable = availableSet.has('chat') || (sourceCounts?.chat ?? 0) > 0 || (sourceCounts?.cron ?? 0) > 0 || (sourceCounts?.api ?? 0) > 0
+
   return (
     <div
       className="flex flex-col items-center shrink-0"
       data-testid="sidebar-rail-v2"
-      aria-label={collapsed ? 'Expand sessions panel' : 'Sessions rail'}
+      aria-label="Sessions rail"
       style={{
         width: 44,
         borderRight: '1px solid var(--theme-border)',
         background: 'var(--theme-sidebar)',
       }}
     >
-      {collapsed ? (
-        /* ── Collapsed mode ── */
-        <div
-          className="flex flex-col items-center justify-between h-full w-full py-3 cursor-pointer"
-          onClick={onExpand}
-          role="button"
-          tabIndex={0}
-          aria-label="Expand sessions panel"
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onExpand() }}
-        >
-          {/* Top section */}
-          <div className="flex flex-col items-center gap-2">
-            {/* Vertical SESSIONS label */}
+      <div className="flex flex-col items-center justify-between h-full w-full py-3">
+        {/* Top: SESSIONS label + count + live + expand */}
+        <div className="flex flex-col items-center gap-2">
+          <button
+            type="button"
+            onClick={onExpand}
+            aria-label="Expand sessions panel"
+            className="flex flex-col items-center gap-2 cursor-pointer bg-transparent border-0 p-0"
+            style={{ color: 'inherit' }}
+          >
             <span
               style={{
                 writingMode: 'vertical-rl',
@@ -52,20 +117,18 @@ export function SidebarRailV2({ collapsed, onExpand, totalCount, hasLive }: Side
                 fontSize: 9,
                 letterSpacing: '0.15em',
                 userSelect: 'none',
-                marginTop: 8,
+                marginTop: 4,
               }}
             >
               SESSIONS
             </span>
-
-            {/* Count badge */}
             {totalCount != null && totalCount > 0 && (
               <span
                 className="rounded-full flex items-center justify-center"
                 style={{
-                  width: 20,
-                  height: 20,
-                  background: 'color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 20%, transparent)',
+                  width: 22,
+                  height: 22,
+                  background: 'color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 18%, transparent)',
                   color: 'var(--m-green-400, var(--theme-accent))',
                   border: '1px solid var(--m-green-500, var(--theme-accent))',
                   fontSize: 9,
@@ -76,8 +139,6 @@ export function SidebarRailV2({ collapsed, onExpand, totalCount, hasLive }: Side
                 {totalCount > 99 ? '99+' : totalCount}
               </span>
             )}
-
-            {/* Live pulse */}
             {hasLive && (
               <span
                 style={{
@@ -91,65 +152,66 @@ export function SidebarRailV2({ collapsed, onExpand, totalCount, hasLive }: Side
                 }}
               />
             )}
-          </div>
-
-          {/* Middle icons: search + filter */}
-          <div className="flex flex-col items-center gap-2">
-            <RailIcon aria-label="Expand to search">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
-                <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.5"/>
-                <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-            </RailIcon>
-            <RailIcon aria-label="Expand to filter">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
-                <path d="M2 3h12M4 8h8M6 13h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-            </RailIcon>
-          </div>
-
-          {/* Bottom: new chat icon — navigates to /chat/new */}
-          <Link
-            to="/chat/$sessionKey"
-            params={{ sessionKey: 'new' }}
-            style={{ textDecoration: 'none', color: 'inherit' }}
-            aria-label="New chat"
-          >
-            <RailIcon aria-label="New chat">
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
-                <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-            </RailIcon>
-          </Link>
+          </button>
         </div>
-      ) : (
-        /* ── Expanded mode — rail is just a decorative strip ── */
-        null
-      )}
+
+        {/* Middle: source filter chips (icon-only) */}
+        <div className="flex flex-col items-center gap-1.5">
+          {RAIL_SOURCES.map(({ id, label, color, icon }) => {
+            if (!chatAvailable) return null
+            const active = sources.includes(id)
+            const count = sourceCounts?.[id] ?? 0
+            return (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={active}
+                aria-label={`${label} — ${count}`}
+                title={`${label} (${count})`}
+                onClick={() => toggleSource(id)}
+                className="flex items-center justify-center rounded-full transition-all"
+                style={{
+                  width: 30,
+                  height: 30,
+                  background: active ? `color-mix(in srgb, ${color} 18%, transparent)` : 'transparent',
+                  color: active ? color : 'var(--theme-muted)',
+                  border: `1px solid ${active ? color : 'var(--theme-border)'}`,
+                  boxShadow: active ? `0 0 6px ${color}66` : 'none',
+                  cursor: 'pointer',
+                }}
+                data-testid={`rail-chip-${id}`}
+              >
+                {icon}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Bottom: New chat (highlighted) */}
+        <Link
+          to="/chat/$sessionKey"
+          params={{ sessionKey: 'new' }}
+          aria-label="New chat"
+          style={{ textDecoration: 'none' }}
+        >
+          <span
+            className="flex items-center justify-center rounded-full transition-all"
+            style={{
+              width: 32,
+              height: 32,
+              background: 'color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 22%, transparent)',
+              color: 'var(--m-green-400, var(--theme-accent))',
+              border: '1px solid var(--m-green-500, var(--theme-accent))',
+              boxShadow: '0 0 8px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 40%, transparent)',
+              cursor: 'pointer',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </span>
+        </Link>
+      </div>
     </div>
-  )
-}
-
-// ── Small icon helper for rail ────────────────────────────────────────────────
-
-interface RailIconProps {
-  children: React.ReactNode
-  'aria-label': string
-}
-
-function RailIcon({ children, 'aria-label': ariaLabel }: RailIconProps) {
-  return (
-    <span
-      role="img"
-      aria-label={ariaLabel}
-      className="flex items-center justify-center rounded"
-      style={{
-        width: 28,
-        height: 28,
-        color: 'var(--theme-muted)',
-      }}
-    >
-      {children}
-    </span>
   )
 }

@@ -67,6 +67,8 @@ export function SidebarShellV2() {
           onExpand={() => setCollapsed(false)}
           totalCount={totalCount}
           hasLive={hasLive}
+          sourceCounts={sourceCounts}
+          sourceResults={sources}
         />
       ) : (
         <div
