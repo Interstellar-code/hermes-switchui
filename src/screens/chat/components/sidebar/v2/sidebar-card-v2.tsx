@@ -195,7 +195,7 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
           </span>
         </div>
 
-        {/* Meta row: src badge · sub */}
+        {/* Meta row: src badge + inline stats */}
         <div className="flex items-center gap-1.5 min-w-0">
           <span
             className="shrink-0 rounded-full px-1.5 uppercase"
@@ -213,17 +213,13 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
           >
             {item.src}
           </span>
-        </div>
-
-        {/* Stats row: model · msg count · tool count · tokens */}
-        {(item.sourceMeta.model || item.sourceMeta.messageCount || item.tokens) ? (
           <div
-            className="flex items-center gap-2 mt-0.5"
+            className="flex items-center gap-2 min-w-0 truncate"
             style={{
               color: 'var(--theme-muted)',
               fontFamily: 'var(--font-mono, monospace)',
               fontSize: 9,
-              opacity: 0.6,
+              opacity: 0.7,
             }}
           >
             {typeof item.sourceMeta.model === 'string' && item.sourceMeta.model && (
@@ -241,7 +237,7 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
               </span>
             )}
           </div>
-        ) : null}
+        </div>
       </div>
 
       {/* Right column: time + tokens + three-dot menu trigger */}
@@ -288,20 +284,6 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
             }}
           >
             {formatWhen(item.when)}
-          </span>
-        )}
-        {item.tokens != null && (
-          <span
-            style={{
-              color: 'var(--theme-muted)',
-              fontFamily: 'var(--font-mono, monospace)',
-              fontSize: 9,
-              opacity: 0.6,
-              fontVariantNumeric: 'tabular-nums',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {formatTokens(item.tokens)}
           </span>
         )}
       </div>
