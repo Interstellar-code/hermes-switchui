@@ -104,10 +104,12 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
   // TODO: wire `tool` when a tool-run detail route is added.
   const rawId = item.id.split(':').slice(1).join(':')
   const isChatItem = item.src === 'chat'
-  const isCronItem = item.src === 'cron'
-  const isTaskItem = item.src === 'task'
-  const isMemItem = item.src === 'mem'
-  const isClickable = isChatItem || isCronItem || isTaskItem || isMemItem
+  // cron/task/mem: no chat_session_key available from the gateway — these
+  // sources carry no field that maps to a /chat/$sessionKey route. Clicking
+  // navigates to the global list pages which is disorienting inside the chat
+  // layout. Kept non-clickable until the backend exposes a session mapping.
+  // Unblocked by: ClaudeJob.session_key | HermesKanbanTask.chat_session_key
+  const isClickable = isChatItem
 
   const [hovered, setHovered] = useState(false)
   const [ctxMenu, setCtxMenu] = useState<ContextMenuPosition | null>(null)
@@ -285,42 +287,6 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
           preload="intent"
           style={{ display: 'block', textDecoration: 'none' }}
         >
-          {cardContent}
-        </Link>
-        {contextMenuEl}
-      </>
-    )
-  }
-
-  if (isCronItem) {
-    // /jobs is a flat list — no $jobId detail route exists yet.
-    return (
-      <>
-        <Link to="/jobs" preload="intent" style={{ display: 'block', textDecoration: 'none' }}>
-          {cardContent}
-        </Link>
-        {contextMenuEl}
-      </>
-    )
-  }
-
-  if (isTaskItem) {
-    // /tasks is a flat kanban board — no $taskId detail route exists yet.
-    return (
-      <>
-        <Link to="/tasks" preload="intent" style={{ display: 'block', textDecoration: 'none' }}>
-          {cardContent}
-        </Link>
-        {contextMenuEl}
-      </>
-    )
-  }
-
-  if (isMemItem) {
-    // /memory is a flat browser — no $path detail route exists yet.
-    return (
-      <>
-        <Link to="/memory" preload="intent" style={{ display: 'block', textDecoration: 'none' }}>
           {cardContent}
         </Link>
         {contextMenuEl}
