@@ -262,6 +262,33 @@ export function normalizeSessions(
       titleSource,
       titleError: session.titleError ?? null,
       preview: session.preview ?? null,
+      tokenCount: typeof (session as Record<string, unknown>).tokenCount === 'number'
+        ? ((session as Record<string, unknown>).tokenCount as number)
+        : typeof (session as Record<string, unknown>).totalTokens === 'number'
+          ? ((session as Record<string, unknown>).totalTokens as number)
+          : undefined,
+      totalTokens: typeof (session as Record<string, unknown>).totalTokens === 'number'
+        ? ((session as Record<string, unknown>).totalTokens as number)
+        : undefined,
+      messageCount: typeof (session as Record<string, unknown>).messageCount === 'number'
+        ? ((session as Record<string, unknown>).messageCount as number)
+        : typeof (session as Record<string, unknown>).message_count === 'number'
+          ? ((session as Record<string, unknown>).message_count as number)
+          : undefined,
+      toolCallCount: typeof (session as Record<string, unknown>).toolCallCount === 'number'
+        ? ((session as Record<string, unknown>).toolCallCount as number)
+        : typeof (session as Record<string, unknown>).tool_call_count === 'number'
+          ? ((session as Record<string, unknown>).tool_call_count as number)
+          : undefined,
+      model: typeof (session as Record<string, unknown>).model === 'string'
+        ? ((session as Record<string, unknown>).model as string)
+        : undefined,
+      status: typeof (session as Record<string, unknown>).status === 'string'
+        ? ((session as Record<string, unknown>).status as string)
+        : undefined,
+      kind: typeof (session as Record<string, unknown>).kind === 'string'
+        ? ((session as Record<string, unknown>).kind as string)
+        : undefined,
     }
   })
 }
