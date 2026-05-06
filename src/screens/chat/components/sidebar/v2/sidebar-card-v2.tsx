@@ -26,7 +26,7 @@ const RAIL_COLORS: Record<string, string> = {
 }
 
 export function SidebarCardV2({ item, isActive, onClick }: SidebarCardV2Props) {
-  const railColor = (RAIL_COLORS as Record<string, string | undefined>)[item.source] ?? 'var(--theme-border)'
+  const railColor = (RAIL_COLORS as Record<string, string | undefined>)[item.src] ?? 'var(--theme-border)'
 
   return (
     <button
@@ -56,8 +56,8 @@ export function SidebarCardV2({ item, isActive, onClick }: SidebarCardV2Props) {
           className="text-xs truncate"
           style={{ color: 'var(--theme-muted)' }}
         >
-          {item.source}
-          {item.subtitle ? ` · ${item.subtitle}` : ''}
+          {item.src}
+          {item.sub ? ` · ${item.sub}` : ''}
         </span>
       </div>
     </button>

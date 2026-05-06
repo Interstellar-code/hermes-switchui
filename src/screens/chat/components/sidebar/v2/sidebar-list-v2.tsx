@@ -16,19 +16,15 @@ import { useSessionsLocalStore } from '@/stores/sessions-local-store'
 export function SidebarListV2() {
   const filterState = useSessionsFilterStore()
   const localState = useSessionsLocalStore()
-  const { items, isLoading } = useSessionsFeed()
+  const { items } = useSessionsFeed({
+    sources: filterState.sources,
+    state: filterState.state,
+    query: filterState.query,
+    dateRange: filterState.dateRange,
+    sort: filterState.sort,
+  })
 
   const { groups } = applyFiltersAndDecorate(items, filterState, localState)
-
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <span className="text-xs" style={{ color: 'var(--theme-muted)' }}>
-          Loading…
-        </span>
-      </div>
-    )
-  }
 
   if (groups.length === 0) {
     return (

@@ -30,14 +30,14 @@ export function SidebarStateSegmentV2() {
       style={{ borderBottom: '1px solid var(--theme-border-subtle, var(--theme-border))' }}
     >
       {STATES.map(({ id, label }) => {
-        const active = state === id || (id === 'all' && !state)
+        const active = state === id
         return (
           <button
             key={id}
             type="button"
             role="button"
             aria-pressed={active}
-            onClick={() => { setState(id === 'all' ? null : id) }}
+            onClick={() => { setState(id) }}
             className="flex-1 rounded py-0.5 text-xs font-medium transition-colors"
             style={{
               background: active ? 'var(--theme-accent-subtle, var(--theme-card))' : 'transparent',
