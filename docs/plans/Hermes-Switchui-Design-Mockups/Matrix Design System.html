@@ -1,0 +1,1317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Hermes · Matrix Design System</title>
+<link rel="stylesheet" href="matrix-system.css" />
+<style>
+  /* canvas chrome stays neutral; artboards are matrix-themed inside */
+  body { background: #050505; }
+  .ds-art {
+    background: var(--m-bg);
+    color: var(--m-text);
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+  }
+  .ds-pad   { padding: 32px; height: 100%; overflow: auto; }
+  .ds-pad-lg{ padding: 40px; height: 100%; overflow: auto; }
+  .ds-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .ds-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .ds-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .ds-grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+
+  /* swatch */
+  .sw {
+    border-radius: var(--m-radius-md);
+    border: 1px solid var(--m-border-subtle);
+    overflow: hidden;
+    font-family: var(--m-font-mono);
+    font-size: 11px;
+  }
+  .sw-chip { aspect-ratio: 1.6 / 1; }
+  .sw-meta { padding: 8px 10px; background: var(--m-card); border-top: 1px solid var(--m-border-subtle); }
+  .sw-meta b { color: var(--m-text-strong); display: block; font-weight: 600; }
+  .sw-meta span { color: var(--m-text-muted); }
+
+  .type-row { display: grid; grid-template-columns: 110px 1fr 110px; align-items: baseline; gap: 16px; padding: 10px 0; border-bottom: 1px dashed var(--m-border-subtle); }
+  .type-row .lbl { color: var(--m-text-muted); font: 500 11px var(--m-font-mono); text-transform: uppercase; letter-spacing: .15em; }
+  .type-row .meta { color: var(--m-text-faint); font: 400 11px var(--m-font-mono); text-align: right; }
+
+  /* matrix rain canvas */
+  .rain-wrap { position: relative; height: 320px; border: 1px solid var(--m-border); border-radius: var(--m-radius-lg); overflow: hidden; background: var(--m-bg-deep); }
+  .rain-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .rain-wrap .overlay { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+
+  /* hero h1 inside artboard */
+  .ds-title {
+    font: 600 14px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .2em;
+    color: var(--m-green-500);
+    margin: 0 0 6px 0;
+  }
+  .ds-subtitle {
+    font: 400 13px var(--m-font-mono);
+    color: var(--m-text-muted);
+    margin: 0 0 28px 0;
+  }
+  .ds-section-rule {
+    height: 1px;
+    background: linear-gradient(90deg, var(--m-green-500), transparent);
+    margin: 4px 0 28px 0;
+  }
+
+  /* iconography svgs use currentColor */
+  .ico { width: 16px; height: 16px; flex: none; }
+
+  /* nav-mock */
+  .navmock { width: 220px; padding: 18px 12px; background: var(--m-sidebar); border-right: 1px solid var(--m-border); height: 100%; }
+  .navmock .brand { display: flex; align-items: center; gap: 10px; padding: 8px 6px 18px; border-bottom: 1px solid var(--m-border-subtle); margin-bottom: 12px; }
+  .navmock .brand b { color: var(--m-green-500); font: 600 14px var(--m-font-mono); letter-spacing: .15em; text-shadow: var(--m-text-glow); }
+
+  /* dialog mock */
+  .dlg-scrim { position: absolute; inset: 0; background: rgba(2,8,4,.78); backdrop-filter: blur(2px); display: grid; place-items: center; padding: 32px; }
+  .dlg { width: min(460px, 100%); background: var(--m-card); border: 1px solid var(--m-border-strong); border-radius: var(--m-radius-lg); box-shadow: var(--m-glow-md), var(--m-shadow-3); overflow: hidden; }
+
+  /* dashboard mock */
+  .dash { display: grid; grid-template-columns: 220px 1fr; height: 100%; }
+  .dash-main { padding: 20px 24px; overflow: auto; }
+
+  /* code block w line numbers */
+  .codeblk { font-family: var(--m-font-mono); font-size: 12px; line-height: 1.6; }
+  .codeblk .ln { display: inline-block; width: 22px; color: var(--m-text-faint); user-select: none; text-align: right; margin-right: 12px; }
+
+  /* table */
+  .tbl { width: 100%; border-collapse: collapse; font-family: var(--m-font-mono); font-size: 12px; }
+  .tbl th, .tbl td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--m-border-subtle); }
+  .tbl th { color: var(--m-text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .15em; font-size: 10px; background: var(--m-card-2); }
+  .tbl tr:hover td { background: var(--m-fill-subtle); }
+
+  /* spacing demo */
+  .sp-row { display: flex; align-items: center; gap: 14px; padding: 6px 0; }
+  .sp-bar { background: var(--m-green-500); height: 12px; box-shadow: var(--m-glow-sm); }
+  .sp-row .lbl { width: 100px; font: 500 11px var(--m-font-mono); color: var(--m-text-muted); text-transform: uppercase; letter-spacing: .15em; }
+  .sp-row .val { font: 400 11px var(--m-font-mono); color: var(--m-text-faint); }
+
+  /* radius demo */
+  .rd-box { aspect-ratio: 1.2 / 1; background: var(--m-fill); border: 1px solid var(--m-border-strong); display: grid; place-items: end center; padding: 10px; font: 500 11px var(--m-font-mono); color: var(--m-green-500); }
+
+  /* shadow demo */
+  .sh-box { background: var(--m-card); border: 1px solid var(--m-border); border-radius: var(--m-radius-lg); padding: 24px; text-align: center; font: 500 11px var(--m-font-mono); color: var(--m-text-muted); text-transform: uppercase; letter-spacing: .15em; }
+
+  /* logo lockup */
+  .lock {
+    display: inline-flex; align-items: center; gap: 12px;
+    font: 700 22px var(--m-font-mono);
+    color: var(--m-text-strong);
+    letter-spacing: .15em;
+  }
+  .lock .glyph {
+    width: 36px; height: 36px;
+    border: 1.5px solid var(--m-green-500);
+    display: grid; place-items: center;
+    color: var(--m-green-500);
+    font-size: 18px;
+    box-shadow: var(--m-glow-sm), inset 0 0 12px rgba(0,255,65,.12);
+    border-radius: 4px;
+  }
+  .lock .glyph::before { content: "ᕼ"; font-family: var(--m-font-mono); font-weight: 700; }
+  .lock .tag { font: 500 11px var(--m-font-mono); color: var(--m-text-muted); letter-spacing: .3em; padding-left: 10px; border-left: 1px solid var(--m-border); }
+</style>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel">
+const { DesignCanvas, DCSection, DCArtboard } = window;
+
+/* ─────────────────────────────────────────────────────────────
+   ICON SET — minimal, line-based, currentColor.
+   ───────────────────────────────────────────────────────────── */
+const Ico = {
+  search:  <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="11" cy="11" r="6"/><path d="m20 20-3.5-3.5"/></svg>,
+  arrow:   <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5 12h14M13 6l6 6-6 6"/></svg>,
+  send:    <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m4 12 16-8-5 18-3-7-8-3z"/></svg>,
+  bolt:    <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>,
+  shield:  <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6l-8-3z"/></svg>,
+  cpu:     <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>,
+  chat:    <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 5h16v11H8l-4 4z"/></svg>,
+  data:    <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.6 3.6 3 8 3s8-1.4 8-3V6M4 12v6c0 1.6 3.6 3 8 3s8-1.4 8-3v-6"/></svg>,
+  agent:   <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6"/></svg>,
+  cog:     <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1A2 2 0 1 1 4.4 17l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1A2 2 0 1 1 7 4.4l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1A2 2 0 1 1 19.6 7l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>,
+  check:   <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m4 12 5 5L20 6"/></svg>,
+  x:       <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 6 18 18M18 6 6 18"/></svg>,
+  warn:    <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 3 2 21h20L12 3z"/><path d="M12 10v5M12 17.5v.5"/></svg>,
+  copy:    <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg>,
+  play:    <svg className="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4v16l14-8z"/></svg>,
+  pause:   <svg className="ico" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>,
+  upload:  <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 16V4m0 0-5 5m5-5 5 5M4 20h16"/></svg>,
+};
+
+/* ─────────────────────────────────────────────────────────────
+   MATRIX RAIN — animated katakana + green tail.
+   ───────────────────────────────────────────────────────────── */
+function MatrixRain({ density = 1, speed = 1, hue = '#00ff41' }) {
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const cv = ref.current; if (!cv) return;
+    const ctx = cv.getContext('2d');
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let raf, drops, cols, w, h;
+    const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789ABCDEF<>/$#'.split('');
+    function size() {
+      const r = cv.getBoundingClientRect();
+      w = r.width; h = r.height;
+      cv.width = w * dpr; cv.height = h * dpr;
+      ctx.scale(dpr, dpr);
+      cols = Math.floor(w / 14);
+      drops = Array.from({ length: cols }, () => Math.random() * h / 14);
+    }
+    size();
+    const ro = new ResizeObserver(size); ro.observe(cv);
+    function frame() {
+      ctx.fillStyle = 'rgba(2,8,4,0.10)';
+      ctx.fillRect(0, 0, w, h);
+      ctx.font = '14px JetBrains Mono, monospace';
+      for (let i = 0; i < cols; i++) {
+        const t = chars[(Math.random() * chars.length) | 0];
+        const x = i * 14;
+        const y = drops[i] * 14;
+        // head — bright
+        ctx.fillStyle = '#eaffef';
+        ctx.shadowColor = hue; ctx.shadowBlur = 8;
+        ctx.fillText(t, x, y);
+        // tail — dimmer green just above
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = hue;
+        ctx.fillText(chars[(Math.random()*chars.length)|0], x, y - 14);
+        if (y > h && Math.random() > 0.975) drops[i] = 0;
+        drops[i] += 0.45 * speed * (1 + Math.random() * 0.4);
+      }
+      raf = requestAnimationFrame(frame);
+    }
+    frame();
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+  }, [density, speed, hue]);
+  return <canvas ref={ref} />;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ARTBOARD: COVER
+   ───────────────────────────────────────────────────────────── */
+function CoverArtboard() {
+  return (
+    <div className="ds-art m-scanlines m-crt" style={{display:'grid', gridTemplateRows:'1fr auto', height:'100%'}}>
+      <div className="rain-wrap" style={{borderRadius:0, border:'none', height:'100%'}}>
+        <MatrixRain />
+        <div className="overlay" style={{flexDirection:'column'}}>
+          <div style={{textAlign:'center', padding:'48px'}}>
+            <div className="m-label m-mb-3" style={{color:'var(--m-green-500)'}}>HERMES · SWITCHUI</div>
+            <div className="m-display" style={{fontSize:80, color:'var(--m-green-500)', textShadow:'var(--m-text-glow-lg)', letterSpacing:'-2px', margin:'0 0 8px'}}>
+              MATRIX
+            </div>
+            <div className="m-mono" style={{fontSize:18, color:'var(--m-text-strong)', letterSpacing:'.3em', textTransform:'uppercase'}}>
+              Design&nbsp;System
+            </div>
+            <div className="m-mono m-mt-4" style={{fontSize:12, color:'var(--m-text-muted)', maxWidth:560, margin:'24px auto 0', lineHeight:1.6}}>
+              The signal-green operating language for Hermes Workspace —
+              tokens, components, and atmosphere that make every surface feel like a console.
+            </div>
+            <div className="m-row m-gap-2" style={{justifyContent:'center', marginTop:32}}>
+              <span className="m-badge m-badge-accent">v1.0.0</span>
+              <span className="m-badge">10 surfaces</span>
+              <span className="m-badge">{`${42} tokens`}</span>
+              <span className="m-badge"><span className="m-dot m-dot-pulse"/> live</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="m-mono" style={{display:'flex', justifyContent:'space-between', padding:'14px 24px', borderTop:'1px solid var(--m-border)', fontSize:11, color:'var(--m-text-muted)', textTransform:'uppercase', letterSpacing:'.2em'}}>
+        <span>// hermes-switchui · matrix theme</span>
+        <span><span className="m-cursor">SYS::READY</span></span>
+        <span>00 / COVER</span>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ARTBOARD: COLOR
+   ───────────────────────────────────────────────────────────── */
+function Swatch({ name, css, hex, foot, big, glow }) {
+  return (
+    <div className="sw">
+      <div className="sw-chip" style={{background: hex, boxShadow: glow ? '0 0 24px rgba(0,255,65,.45) inset' : 'none', height: big ? 110 : null}}/>
+      <div className="sw-meta">
+        <b>{name}</b>
+        <span>{css}</span>
+        <div style={{color:'var(--m-text-faint)', fontSize:10, marginTop:2}}>{hex}{foot ? ` · ${foot}` : ''}</div>
+      </div>
+    </div>
+  );
+}
+
+function ColorArtboard() {
+  const greens = [
+    {n:'green-50', h:'#eaffef'},{n:'green-100', h:'#c2ffd2'},{n:'green-200', h:'#88ffa9'},
+    {n:'green-300', h:'#7cff9b'},{n:'green-400', h:'#3aff77'},
+    {n:'green-500', h:'#00ff41', glow:true},
+    {n:'green-600', h:'#00d136'},{n:'green-700', h:'#009a28'},
+    {n:'green-800', h:'#006a1c'},{n:'green-900', h:'#003c10'},{n:'green-950', h:'#001807'},
+  ];
+  const surfaces = [
+    {n:'void', h:'#000000'},
+    {n:'bg-deep', h:'#010402'},
+    {n:'bg', h:'#020804'},
+    {n:'sidebar', h:'#030d06'},
+    {n:'panel', h:'#041008'},
+    {n:'card', h:'#07130a'},
+    {n:'card-2', h:'#0a1c0f'},
+    {n:'card-3', h:'#0e2614'},
+  ];
+  const status = [
+    {n:'success', h:'#00ff41'},
+    {n:'warning', h:'#d6ff5f'},
+    {n:'danger',  h:'#ff5f6d'},
+    {n:'info',    h:'#5fcfff'},
+  ];
+  return (
+    <div className="ds-art ds-pad-lg">
+      <div className="ds-title">01 · COLOR</div>
+      <h2 className="m-h2 m-mb-2" style={{margin:'0 0 4px'}}>Phosphor green on terminal black</h2>
+      <p className="ds-subtitle">One accent. Eleven shades. Every border is a percentage of <span className="m-code-inline">#00ff41</span>.</p>
+      <div className="ds-section-rule"/>
+
+      <div className="m-label m-mb-3">PRIMARY · Matrix Green</div>
+      <div className="ds-grid-6" style={{marginBottom:32}}>
+        {greens.map(g => (
+          <Swatch key={g.n} name={g.n} css={`var(--m-${g.n})`} hex={g.h} glow={g.glow}/>
+        ))}
+      </div>
+
+      <div className="ds-grid-2" style={{marginBottom:32}}>
+        <div>
+          <div className="m-label m-mb-3">SURFACES · Cool to deep</div>
+          <div className="ds-grid-4">
+            {surfaces.map(s => <Swatch key={s.n} name={s.n} css={`var(--m-${s.n})`} hex={s.h}/>)}
+          </div>
+        </div>
+        <div>
+          <div className="m-label m-mb-3">STATUS · Signal palette</div>
+          <div className="ds-grid-4">
+            {status.map(s => <Swatch key={s.n} name={s.n} css={`var(--m-${s.n})`} hex={s.h}/>)}
+          </div>
+          <div className="m-label m-mt-4 m-mb-3">TEXT</div>
+          <div className="ds-grid-4">
+            <Swatch name="text" css="var(--m-text)" hex="#d8ffe3"/>
+            <Swatch name="strong" css="var(--m-text-strong)" hex="#eaffef"/>
+            <Swatch name="muted" css="rgba(216,255,227,.58)" hex="58% alpha"/>
+            <Swatch name="faint" css="rgba(216,255,227,.34)" hex="34% alpha"/>
+          </div>
+        </div>
+      </div>
+
+      <div className="m-label m-mb-3">USAGE · The 60 / 30 / 10 rule</div>
+      <div className="ds-grid-3">
+        <div className="m-surface m-p-4">
+          <div className="m-label m-label-accent m-mb-2">60% — bg & surfaces</div>
+          <div className="m-mono" style={{fontSize:12, color:'var(--m-text-muted)', lineHeight:1.6}}>
+            Near-black with a green hue keeps long sessions easy on the eye. Use <span className="m-code-inline">--m-bg</span> for app shell, <span className="m-code-inline">--m-card</span> for content blocks.
+          </div>
+        </div>
+        <div className="m-surface m-p-4">
+          <div className="m-label m-label-accent m-mb-2">30% — borders & text</div>
+          <div className="m-mono" style={{fontSize:12, color:'var(--m-text-muted)', lineHeight:1.6}}>
+            Phosphor white text and 13–28% green borders. Borders are <em>always</em> green — never neutral gray.
+          </div>
+        </div>
+        <div className="m-surface m-p-4" style={{borderColor:'var(--m-green-500)', boxShadow:'var(--m-glow-sm)'}}>
+          <div className="m-label m-label-accent m-mb-2">10% — accent & glow</div>
+          <div className="m-mono" style={{fontSize:12, color:'var(--m-text-muted)', lineHeight:1.6}}>
+            Reserve <span className="m-code-inline">#00ff41</span> for primary actions, focus, KPIs, and live signals. Glow only on interactive or active states.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ARTBOARD: TYPOGRAPHY
+   ───────────────────────────────────────────────────────────── */
+function TypeArtboard() {
+  return (
+    <div className="ds-art ds-pad-lg">
+      <div className="ds-title">02 · TYPOGRAPHY</div>
+      <h2 className="m-h2" style={{margin:'0 0 4px'}}>JetBrains Mono leads. Inter supports. Garamond punctuates.</h2>
+      <p className="ds-subtitle">Mono is the voice of the machine. UI labels, KPIs, code, prompts — all mono.</p>
+      <div className="ds-section-rule"/>
+
+      <div className="ds-grid-2" style={{gap:32}}>
+        <div>
+          <div className="m-label m-mb-3">DISPLAY · EB Garamond / 500</div>
+          <div style={{fontFamily:'EB Garamond, serif', fontSize:64, lineHeight:1, color:'var(--m-text-strong)', letterSpacing:'-1px'}}>
+            Enter the matrix.
+          </div>
+          <div className="m-mono m-text-muted m-mt-2" style={{fontSize:11}}>Used in hero, splash, empty states. Sparingly.</div>
+
+          <div className="m-label m-mt-6 m-mb-3">UI HEADINGS · JetBrains Mono / 600</div>
+          <div className="type-row"><div className="lbl">H1</div><div className="m-h1">SESSION_INTELLIGENCE</div><div className="meta">34 / 1.1</div></div>
+          <div className="type-row"><div className="lbl">H2</div><div className="m-h2">/ active.tasks</div><div className="meta">26 / 1.15</div></div>
+          <div className="type-row"><div className="lbl">H3</div><div className="m-h3">tokens.consumed</div><div className="meta">20 / 1.2</div></div>
+          <div className="type-row"><div className="lbl">H4</div><div className="m-h4">recent_messages</div><div className="meta">16 / 1.25</div></div>
+        </div>
+
+        <div>
+          <div className="m-label m-mb-3">BODY · Inter / 400</div>
+          <p style={{fontSize:14, lineHeight:1.6, margin:0, color:'var(--m-text)'}}>
+            Hermes is an opinionated workspace for AI agents. Streams, tools, terminals, and memory — co-located, observable,
+            and addressable. The UI gets out of the way so the agent can move.
+          </p>
+          <div className="m-mono m-text-muted m-mt-2" style={{fontSize:11}}>Inter — for prose only. ≤ 65ch line length.</div>
+
+          <div className="m-label m-mt-6 m-mb-3">MICRO LABEL · Caps · 0.2em tracking</div>
+          <div style={{display:'flex', gap:24, flexWrap:'wrap'}}>
+            <span className="m-label">CONTEXT WINDOW</span>
+            <span className="m-label m-label-accent">SESSION · ACTIVE</span>
+            <span className="m-label">TOKENS / SEC</span>
+          </div>
+
+          <div className="m-label m-mt-6 m-mb-3">PROMPT GLYPHS</div>
+          <div className="m-stack m-gap-2" style={{fontFamily:'var(--m-font-mono)', fontSize:14}}>
+            <div className="m-prompt"><span>boot sequence initiated</span></div>
+            <div className="m-prompt-caret"><span>npm run dev — port 3000</span></div>
+            <div><span className="m-prompt-bracket"><span>OK</span></span> <span style={{color:'var(--m-text-muted)'}}>handshake complete</span></div>
+            <div><span className="m-glow-text">$ hermes connect --token=*****</span></div>
+            <div><span className="m-cursor">awaiting input</span></div>
+          </div>
+
+          <div className="m-label m-mt-6 m-mb-3">KPI NUMERAL · Tabular</div>
+          <div className="m-row m-gap-6">
+            <div>
+              <div className="m-kpi-label">tokens / session</div>
+              <div className="m-kpi-value m-kpi-value-glow">128,420</div>
+            </div>
+            <div>
+              <div className="m-kpi-label">latency</div>
+              <div className="m-kpi-value">412<span style={{color:'var(--m-text-muted)', fontSize:14, marginLeft:4}}>ms</span></div>
+            </div>
+            <div>
+              <div className="m-kpi-label">uptime</div>
+              <div className="m-kpi-value">99.94<span style={{color:'var(--m-text-muted)', fontSize:14}}>%</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ARTBOARD: SPACING / RADIUS / SHADOW
+   ───────────────────────────────────────────────────────────── */
+function SpacingArtboard() {
+  const sp = [
+    ['space-1','4px',4],['space-2','8px',8],['space-3','12px',12],['space-4','16px',16],
+    ['space-5','20px',20],['space-6','24px',24],['space-8','32px',32],['space-10','40px',40],
+    ['space-12','48px',48],['space-16','64px',64],
+  ];
+  const rd = [
+    ['none','0px',0],['sm','2px',2],['md','4px',4],['lg','6px',6],['xl','10px',10],['pill','9999px',9999],
+  ];
+  return (
+    <div className="ds-art ds-pad-lg">
+      <div className="ds-title">03 · SPACING · RADIUS · SHADOW</div>
+      <h2 className="m-h2" style={{margin:'0 0 4px'}}>4px grid. Sharp corners. Glow before drop-shadow.</h2>
+      <p className="ds-subtitle">The Matrix theme prefers blunt geometry — small radii, dark surfaces, and green light as the source of depth.</p>
+      <div className="ds-section-rule"/>
+
+      <div className="ds-grid-2" style={{gap:40}}>
+        <div>
+          <div className="m-label m-mb-3">SPACING SCALE · 4px base</div>
+          <div className="m-surface m-p-4">
+            {sp.map(([n, lbl, px]) => (
+              <div className="sp-row" key={n}>
+                <span className="lbl">{n}</span>
+                <span className="sp-bar" style={{width: px}}/>
+                <span className="val">{lbl}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="m-label m-mt-6 m-mb-3">RADIUS</div>
+          <div className="ds-grid-3">
+            {rd.map(([n, lbl, px]) => (
+              <div key={n} className="rd-box" style={{borderRadius: px}}>
+                <span style={{fontSize:11}}>{n}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="m-label m-mb-3">SHADOW · Use sparingly</div>
+          <div className="ds-grid-2">
+            <div className="sh-box" style={{boxShadow:'var(--m-shadow-1)'}}>shadow-1<br/><span style={{color:'var(--m-text-faint)', textTransform:'none', letterSpacing:0, fontSize:10}}>cards at rest</span></div>
+            <div className="sh-box" style={{boxShadow:'var(--m-shadow-2)'}}>shadow-2<br/><span style={{color:'var(--m-text-faint)', textTransform:'none', letterSpacing:0, fontSize:10}}>popovers</span></div>
+            <div className="sh-box" style={{boxShadow:'var(--m-shadow-3)'}}>shadow-3<br/><span style={{color:'var(--m-text-faint)', textTransform:'none', letterSpacing:0, fontSize:10}}>dialogs</span></div>
+            <div className="sh-box" style={{boxShadow:'var(--m-glow-sm)', borderColor:'var(--m-border-strong)'}}>glow-sm</div>
+            <div className="sh-box" style={{boxShadow:'var(--m-glow-md)', borderColor:'var(--m-border-strong)'}}>glow-md</div>
+            <div className="sh-box" style={{boxShadow:'var(--m-glow-lg)', borderColor:'var(--m-green-500)'}}>glow-lg</div>
+          </div>
+
+          <div className="m-label m-mt-6 m-mb-3">MOTION · Easing</div>
+          <div className="m-surface m-p-4">
+            <table className="tbl">
+              <thead><tr><th>token</th><th>value</th><th>use</th></tr></thead>
+              <tbody>
+                <tr><td className="m-text-accent">--m-dur-fast</td><td>120ms</td><td className="m-text-muted">hover, focus, micro</td></tr>
+                <tr><td className="m-text-accent">--m-dur-base</td><td>200ms</td><td className="m-text-muted">expand, slide, default</td></tr>
+                <tr><td className="m-text-accent">--m-dur-slow</td><td>320ms</td><td className="m-text-muted">page, dialog</td></tr>
+                <tr><td className="m-text-accent">--m-dur-glow</td><td>1800ms</td><td className="m-text-muted">pulse, breathe</td></tr>
+                <tr><td className="m-text-accent">--m-ease-out</td><td>cubic(.22,1,.36,1)</td><td className="m-text-muted">enters</td></tr>
+                <tr><td className="m-text-accent">--m-ease-in-out</td><td>cubic(.45,0,.55,1)</td><td className="m-text-muted">loops, glow</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ARTBOARD: BUTTONS, INPUTS, FORM
+   ───────────────────────────────────────────────────────────── */
+function ControlsArtboard() {
+  const [check, setCheck] = React.useState({a:true, b:false, c:true});
+  const [tog, setTog]     = React.useState({x:true, y:false});
+  const [radio, setRadio] = React.useState('haiku');
+  return (
+    <div className="ds-art ds-pad-lg">
+      <div className="ds-title">04 · CONTROLS</div>
+      <h2 className="m-h2" style={{margin:'0 0 4px'}}>Buttons, inputs, switches</h2>
+      <p className="ds-subtitle">All interactive surfaces use mono type and feature 1px green borders. Focus is a 3px subtle ring.</p>
+      <div className="ds-section-rule"/>
+
+      <div className="ds-grid-2" style={{gap:32}}>
+        <div>
+          <div className="m-label m-mb-3">BUTTONS</div>
+          <div className="m-surface m-p-4 m-stack m-gap-4">
+            <div className="m-row m-gap-2" style={{flexWrap:'wrap'}}>
+              <button className="m-btn m-btn-primary">{Ico.send} Execute</button>
+              <button className="m-btn">{Ico.cog} Configure</button>
+              <button className="m-btn m-btn-ghost">{Ico.copy} Copy</button>
+              <button className="m-btn m-btn-danger">{Ico.x} Abort</button>
+            </div>
+            <div className="m-row m-gap-2">
+              <button className="m-btn m-btn-sm">SM</button>
+              <button className="m-btn">DEFAULT</button>
+              <button className="m-btn m-btn-lg">LARGE</button>
+              <button className="m-btn m-btn-icon" aria-label="Settings">{Ico.cog}</button>
+              <button className="m-btn m-btn-icon m-btn-primary" aria-label="Run">{Ico.play}</button>
+            </div>
+            <div className="m-row m-gap-2">
+              <button className="m-btn" disabled style={{opacity:.4, cursor:'not-allowed'}}>Disabled</button>
+              <button className="m-btn m-btn-primary m-anim-glow">{Ico.bolt} Glowing</button>
+            </div>
+          </div>
+
+          <div className="m-label m-mt-6 m-mb-3">INPUTS</div>
+          <div className="m-surface m-p-4 m-stack m-gap-3">
+            <input className="m-input" placeholder="ssh user@host..." defaultValue=""/>
+            <input className="m-input" placeholder="focused state — type a query" autoFocus/>
+            <div className="m-input-group">
+              <span className="m-prefix">{Ico.search}</span>
+              <input placeholder="search the matrix"/>
+              <span className="m-suffix m-text-muted" style={{fontSize:10}}>⌘K</span>
+            </div>
+            <div className="m-input-group" style={{borderColor:'var(--m-danger)', boxShadow:'0 0 0 3px rgba(255,95,109,.15)'}}>
+              <span className="m-prefix" style={{color:'var(--m-danger)'}}>{Ico.warn}</span>
+              <input defaultValue="invalid-token"/>
+            </div>
+            <input className="m-input" disabled placeholder="disabled" defaultValue="*** REDACTED ***"/>
+            <textarea className="m-input" rows="3" placeholder="multi-line input — type a system prompt..."></textarea>
+          </div>
+        </div>
+
+        <div>
+          <div className="m-label m-mb-3">CHECK · RADIO · TOGGLE</div>
+          <div className="m-surface m-p-4 m-stack m-gap-4">
+            <div className="m-stack m-gap-2">
+              {[['a','Stream tokens'], ['b','Auto-save context'], ['c','Show tool calls']].map(([k, lbl]) => (
+                <label key={k} className="m-row m-gap-3" style={{alignItems:'center', cursor:'pointer'}}
+                  onClick={() => setCheck(v => ({...v, [k]: !v[k]}))}>
+                  <span className={`m-check ${check[k] ? 'is-checked' : ''}`}/>
+                  <span className="m-mono" style={{fontSize:13}}>{lbl}</span>
+                </label>
+              ))}
+            </div>
+            <hr className="m-divider"/>
+            <div className="m-stack m-gap-2">
+              <div className="m-label m-label-accent">MODEL</div>
+              {['opus','sonnet','haiku'].map(k => (
+                <label key={k} className="m-row m-gap-3" style={{alignItems:'center', cursor:'pointer'}}
+                  onClick={() => setRadio(k)}>
+                  <span className={`m-check m-radio ${radio === k ? 'is-checked' : ''}`}/>
+                  <span className="m-mono" style={{fontSize:13}}>claude-{k}-4.5</span>
+                </label>
+              ))}
+            </div>
+            <hr className="m-divider"/>
+            <div className="m-stack m-gap-3">
+              {[['x','Tool calls allowed'],['y','Verbose mode']].map(([k, lbl]) => (
+                <label key={k} className="m-row" style={{alignItems:'center', justifyContent:'space-between', cursor:'pointer'}}
+                  onClick={() => setTog(v => ({...v, [k]: !v[k]}))}>
+                  <span className="m-mono" style={{fontSize:13}}>{lbl}</span>
+                  <span className={`m-toggle ${tog[k] ? 'is-on' : ''}`}/>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="m-label m-mt-6 m-mb-3">PROGRESS · METER</div>
+          <div className="m-surface m-p-4 m-stack m-gap-4">
+            <div>
+              <div className="m-row" style={{justifyContent:'space-between', marginBottom:6}}>
+                <span className="m-label">CONTEXT</span>
+                <span className="m-mono m-text-muted" style={{fontSize:11}}>62 / 100k</span>
+              </div>
+              <div className="m-progress"><div style={{width:'62%'}}/></div>
+            </div>
+            <div>
+              <div className="m-row" style={{justifyContent:'space-between', marginBottom:6}}>
+                <span className="m-label">TOKENS / SEC</span>
+                <span className="m-mono m-text-accent" style={{fontSize:11}}>187</span>
+              </div>
+              <div className="m-meter">
+                {Array.from({length:20}).map((_,i) => {
+                  const cls = i < 14 ? 'on' : i < 18 ? 'mid' : 'hi';
+                  return <span key={i} className={i < 16 ? cls : ''}/>;
+                })}
+              </div>
+            </div>
+            <div>
+              <div className="m-row" style={{justifyContent:'space-between', marginBottom:6}}>
+                <span className="m-label">SIGNAL</span>
+                <span className="m-mono m-text-accent" style={{fontSize:11}}><span className="m-dot m-dot-pulse" style={{marginRight:6}}/>STRONG</span>
+              </div>
+              <div className="m-meter">
+                {Array.from({length:12}).map((_,i) => <span key={i} className={i < 9 ? 'on' : ''}/>)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ARTBOARD: BADGES, KPIs, CARDS
+   ───────────────────────────────────────────────────────────── */
+function CardsArtboard() {
+  return (
+    <div className="ds-art ds-pad-lg">
+      <div className="ds-title">05 · BADGES · KPIs · CARDS</div>
+      <h2 className="m-h2" style={{margin:'0 0 4px'}}>Information surfaces</h2>
+      <p className="ds-subtitle">Status reads in a glance — color, dot, count. KPIs use tabular numerals. Cards stay flat unless they're alive.</p>
+      <div className="ds-section-rule"/>
+
+      <div className="m-label m-mb-3">BADGES · DOTS</div>
+      <div className="m-surface m-p-4 m-row m-gap-2 m-mb-6" style={{flexWrap:'wrap'}}>
+        <span className="m-badge"><span className="m-dot m-dot-on"/>online</span>
+        <span className="m-badge m-badge-accent">live</span>
+        <span className="m-badge m-badge-solid">PRIMARY</span>
+        <span className="m-badge m-badge-warn"><span className="m-dot m-dot-warn"/>degraded</span>
+        <span className="m-badge m-badge-danger"><span className="m-dot" style={{background:'var(--m-danger)'}}/>error</span>
+        <span className="m-badge m-badge-info">info</span>
+        <span className="m-badge m-badge-ghost">draft</span>
+        <span className="m-badge"><span className="m-dot m-dot-pulse"/>streaming</span>
+        <span className="m-badge m-badge-accent">v1.0.0</span>
+        <span className="m-badge">42 sessions</span>
+        <span className="m-badge m-badge-accent">PRO</span>
+      </div>
+
+      <div className="m-label m-mb-3">KPI CARDS</div>
+      <div className="ds-grid-4 m-mb-6">
+        <div className="m-kpi">
+          <div className="m-kpi-label">SESSIONS · 24h</div>
+          <div className="m-kpi-value m-kpi-value-glow">147</div>
+          <div><span className="m-kpi-trend m-kpi-trend-up">▲ 12.4%</span> <span className="m-text-muted m-mono" style={{fontSize:10}}>vs prev.</span></div>
+        </div>
+        <div className="m-kpi">
+          <div className="m-kpi-label">TOKENS USED</div>
+          <div className="m-kpi-value">2.4<span style={{color:'var(--m-text-muted)', fontSize:14}}>M</span></div>
+          <div className="m-progress"><div style={{width:'72%'}}/></div>
+        </div>
+        <div className="m-kpi">
+          <div className="m-kpi-label">LATENCY · P99</div>
+          <div className="m-kpi-value">412<span style={{color:'var(--m-text-muted)', fontSize:14}}> ms</span></div>
+          <div><span className="m-kpi-trend m-kpi-trend-down">▼ 8.1%</span> <span className="m-text-muted m-mono" style={{fontSize:10}}>improving</span></div>
+        </div>
+        <div className="m-kpi" style={{borderColor:'var(--m-border-strong)', boxShadow:'var(--m-glow-sm)'}}>
+          <div className="m-kpi-label m-text-accent">UPTIME</div>
+          <div className="m-kpi-value m-kpi-value-glow">99.94<span style={{color:'var(--m-text-muted)', fontSize:14}}>%</span></div>
+          <div className="m-row m-gap-1">
+            {Array.from({length:30}).map((_,i)=>(
+              <span key={i} style={{flex:1, height:14, background: i===22 ? 'var(--m-warning)' : 'var(--m-green-500)', boxShadow:'0 0 4px rgba(0,255,65,.5)', opacity: i===22 ? 1 : 0.7}}/>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="m-label m-mb-3">CARDS · SURFACES</div>
+      <div className="ds-grid-3">
+        {/* tool card */}
+        <div className="m-surface m-p-4">
+          <div className="m-row m-gap-3" style={{alignItems:'flex-start'}}>
+            <div className="m-avatar m-avatar-glow">{Ico.bolt}</div>
+            <div style={{flex:1, minWidth:0}}>
+              <div className="m-row" style={{justifyContent:'space-between'}}>
+                <h4 className="m-h4" style={{margin:0}}>execute_query</h4>
+                <span className="m-badge m-badge-accent">tool</span>
+              </div>
+              <div className="m-mono m-text-muted m-mt-1" style={{fontSize:11}}>postgres / readonly</div>
+            </div>
+          </div>
+          <div className="m-mono m-mt-3" style={{fontSize:12, color:'var(--m-text-muted)', lineHeight:1.6}}>
+            Query parsed in 12ms. 3,041 rows returned across 4 columns.
+          </div>
+          <div className="m-row m-gap-2 m-mt-4">
+            <button className="m-btn m-btn-sm">{Ico.copy} copy</button>
+            <button className="m-btn m-btn-sm m-btn-ghost">{Ico.arrow} expand</button>
+          </div>
+        </div>
+
+        {/* glow / featured card */}
+        <div className="m-glow-card m-p-4 m-anim-glow">
+          <div className="m-label m-label-accent m-mb-2">ACTIVE AGENT</div>
+          <h3 className="m-h3" style={{margin:0}}>Hermes-4-405b</h3>
+          <div className="m-mono m-text-muted m-mt-1" style={{fontSize:12}}>nous-research / instruct-tools-v1</div>
+          <hr className="m-divider"/>
+          <div className="m-row" style={{justifyContent:'space-between'}}>
+            <div>
+              <div className="m-kpi-label" style={{fontSize:9}}>CTX</div>
+              <div className="m-mono" style={{fontSize:14, color:'var(--m-green-500)'}}>32k</div>
+            </div>
+            <div>
+              <div className="m-kpi-label" style={{fontSize:9}}>TEMP</div>
+              <div className="m-mono" style={{fontSize:14, color:'var(--m-green-500)'}}>0.7</div>
+            </div>
+            <div>
+              <div className="m-kpi-label" style={{fontSize:9}}>TOOLS</div>
+              <div className="m-mono" style={{fontSize:14, color:'var(--m-green-500)'}}>14</div>
+            </div>
+          </div>
+        </div>
+
+        {/* bracketed card */}
+        <div className="m-card-bk m-brackets" style={{background:'var(--m-card)'}}>
+          <span className="m-bk-bl"></span><span className="m-bk-br"></span>
+          <div className="m-label m-mb-2">/ TRANSMISSION</div>
+          <h3 className="m-h3" style={{margin:0, color:'var(--m-green-500)'}}>HANDSHAKE OK</h3>
+          <p className="m-mono m-text-muted m-mt-2" style={{fontSize:12, lineHeight:1.6, margin:'8px 0 0'}}>
+            Channel established with hermes-agent on <span className="m-code-inline">127.0.0.1:8642</span>. Capabilities probed: sessions, tasks, jobs, memory.
+          </p>
+          <div className="m-mono m-mt-3 m-text-faint" style={{fontSize:10}}>
+            <span className="m-cursor">listening</span>
+          </div>
+        </div>
+
+        {/* alert/error */}
+        <div className="m-surface m-p-4" style={{borderColor:'rgba(255,95,109,.4)', background:'rgba(255,95,109,.04)'}}>
+          <div className="m-row m-gap-2" style={{alignItems:'center'}}>
+            <span style={{color:'var(--m-danger)'}}>{Ico.warn}</span>
+            <h4 className="m-h4" style={{margin:0, color:'var(--m-danger)'}}>RATE_LIMIT_EXCEEDED</h4>
+          </div>
+          <p className="m-mono m-mt-2" style={{fontSize:12, color:'var(--m-text-muted)', lineHeight:1.6, margin:'8px 0 0'}}>
+            Throttled at 150 RPM. Cooldown ends in 00:42. Add a key or upgrade tier.
+          </p>
+          <div className="m-row m-gap-2 m-mt-3">
+            <button className="m-btn m-btn-sm m-btn-danger">DISMISS</button>
+            <button className="m-btn m-btn-sm">view docs</button>
+          </div>
+        </div>
+
+        {/* warning */}
+        <div className="m-surface m-p-4" style={{borderColor:'rgba(214,255,95,.35)', background:'rgba(214,255,95,.04)'}}>
+          <div className="m-row m-gap-2" style={{alignItems:'center'}}>
+            <span style={{color:'var(--m-warning)'}}>{Ico.warn}</span>
+            <h4 className="m-h4" style={{margin:0, color:'var(--m-warning)'}}>CONTEXT_NEAR_LIMIT</h4>
+          </div>
+          <p className="m-mono m-mt-2" style={{fontSize:12, color:'var(--m-text-muted)', lineHeight:1.6, margin:'8px 0 0'}}>
+            87 / 100k. Compaction will trigger automatically at 95%.
+          </p>
+          <div className="m-progress m-mt-3"><div style={{width:'87%', background:'linear-gradient(90deg, var(--m-green-700), var(--m-warning))'}}/></div>
+        </div>
+
+        {/* success */}
+        <div className="m-surface m-p-4" style={{borderColor:'var(--m-border-strong)'}}>
+          <div className="m-row m-gap-2" style={{alignItems:'center'}}>
+            <span className="m-text-accent">{Ico.check}</span>
+            <h4 className="m-h4" style={{margin:0, color:'var(--m-green-500)'}}>DEPLOY_SUCCESS</h4>
+          </div>
+          <p className="m-mono m-mt-2" style={{fontSize:12, color:'var(--m-text-muted)', lineHeight:1.6, margin:'8px 0 0'}}>
+            Build #2,041 deployed in 14.2s. 12 routes, 3 endpoints, 0 errors.
+          </p>
+          <div className="m-row m-gap-2 m-mt-3">
+            <span className="m-badge m-badge-accent">production</span>
+            <span className="m-badge">main · a4f2e1</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ARTBOARD: NAV + TABS + CHROME
+   ───────────────────────────────────────────────────────────── */
+function NavArtboard() {
+  const [tab, setTab] = React.useState('sessions');
+  const [active, setActive] = React.useState('chat');
+  const navItems = [
+    {k:'chat', i: Ico.chat, l:'Chat'},
+    {k:'sessions', i: Ico.data, l:'Sessions'},
+    {k:'agents', i: Ico.agent, l:'Agents'},
+    {k:'tools', i: Ico.bolt, l:'Tools'},
+    {k:'memory', i: Ico.cpu, l:'Memory'},
+    {k:'cog', i: Ico.cog, l:'Settings'},
+  ];
+  return (
+    <div className="ds-art" style={{height:'100%'}}>
+      <div className="dash">
+        {/* sidebar */}
+        <aside className="navmock m-scanlines">
+          <div className="brand">
+            <div className="m-avatar m-avatar-glow" style={{width:28, height:28, fontSize:12}}>ᕼ</div>
+            <b>HERMES</b>
+          </div>
+          <div className="m-stack m-gap-1">
+            {navItems.map(n => (
+              <div key={n.k} className={`m-nav-item ${active===n.k?'is-active':''}`} onClick={()=>setActive(n.k)}>
+                <span style={{display:'inline-flex'}}>{n.i}</span><span>{n.l}</span>
+                {n.k === 'sessions' && <span className="m-badge m-badge-accent" style={{marginLeft:'auto', padding:'1px 6px', fontSize:9}}>3</span>}
+              </div>
+            ))}
+          </div>
+          <div className="m-divider"/>
+          <div className="m-label m-mb-2">SESSIONS</div>
+          <div className="m-stack m-gap-1">
+            {['neural-cascade','runtime-eval','memo-013'].map((s,i)=>(
+              <div key={s} className="m-nav-item" style={{padding:'6px 10px', fontSize:12}}>
+                <span className={`m-dot ${i===0?'m-dot-pulse':'m-dot-off'}`}/>
+                <span style={{flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{s}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{position:'absolute', bottom:18, left:12, right:12, fontSize:10, fontFamily:'var(--m-font-mono)', color:'var(--m-text-faint)'}}>
+            <div className="m-row" style={{justifyContent:'space-between'}}>
+              <span>v1.0.0</span><span><span className="m-dot m-dot-pulse" style={{marginRight:4}}/>online</span>
+            </div>
+          </div>
+        </aside>
+
+        {/* main */}
+        <div className="dash-main">
+          <div className="m-row" style={{justifyContent:'space-between', alignItems:'center', marginBottom:18}}>
+            <div>
+              <div className="m-label m-mb-1">/ workspace / sessions</div>
+              <h2 className="m-h2" style={{margin:0}}>Active sessions</h2>
+            </div>
+            <div className="m-row m-gap-2">
+              <div className="m-input-group" style={{minWidth:220}}>
+                <span className="m-prefix">{Ico.search}</span>
+                <input placeholder="search sessions..."/>
+              </div>
+              <button className="m-btn m-btn-primary">{Ico.bolt} new session</button>
+            </div>
+          </div>
+
+          {/* tabs */}
+          <div className="m-tabs m-mb-4">
+            <div className={`m-tab ${tab==='sessions'?'is-active':''}`} onClick={()=>setTab('sessions')}>sessions</div>
+            <div className={`m-tab ${tab==='tasks'?'is-active':''}`} onClick={()=>setTab('tasks')}>tasks</div>
+            <div className={`m-tab ${tab==='jobs'?'is-active':''}`} onClick={()=>setTab('jobs')}>jobs</div>
+            <div className={`m-tab ${tab==='trace'?'is-active':''}`} onClick={()=>setTab('trace')}>trace</div>
+            <div className={`m-tab ${tab==='cfg'?'is-active':''}`} onClick={()=>setTab('cfg')}>config</div>
+          </div>
+
+          <div className="m-surface" style={{overflow:'hidden'}}>
+            <table className="tbl">
+              <thead><tr>
+                <th style={{width:32}}></th>
+                <th>session</th>
+                <th>agent</th>
+                <th>tokens</th>
+                <th>state</th>
+                <th>started</th>
+                <th></th>
+              </tr></thead>
+              <tbody>
+                {[
+                  ['neural-cascade','hermes-4-405b','42,108','running','12m ago', 'pulse'],
+                  ['runtime-eval','sonnet-4.5','8,420','running','38m ago', 'pulse'],
+                  ['memo-013','haiku-4.5','142,889','idle','2h ago', 'on'],
+                  ['archive-sweep','opus-4','312,442','complete','yesterday','off'],
+                  ['handshake-test','hermes-4-70b','1,204','error','3d ago', 'err'],
+                ].map((r,i)=>(
+                  <tr key={i}>
+                    <td><span className={`m-dot ${r[5]==='pulse'?'m-dot-pulse':r[5]==='on'?'m-dot-on':r[5]==='err'?'m-dot-warn':'m-dot-off'}`} style={r[5]==='err'?{background:'var(--m-danger)'}:null}/></td>
+                    <td className="m-text-strong">{r[0]}</td>
+                    <td className="m-text-muted">{r[1]}</td>
+                    <td className="m-text-accent" style={{fontVariantNumeric:'tabular-nums'}}>{r[2]}</td>
+                    <td>{
+                      r[3]==='running' ? <span className="m-badge m-badge-accent">running</span> :
+                      r[3]==='idle'    ? <span className="m-badge m-badge-ghost">idle</span> :
+                      r[3]==='complete'? <span className="m-badge">complete</span> :
+                                         <span className="m-badge m-badge-danger">error</span>
+                    }</td>
+                    <td className="m-text-muted">{r[4]}</td>
+                    <td><button className="m-btn m-btn-sm m-btn-ghost">→</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ARTBOARD: TERMINAL + CODE
+   ───────────────────────────────────────────────────────────── */
+function CodeArtboard() {
+  return (
+    <div className="ds-art ds-pad-lg m-scanlines">
+      <div className="ds-title">07 · CODE · TERMINAL</div>
+      <h2 className="m-h2" style={{margin:'0 0 4px'}}>The console is the canvas</h2>
+      <p className="ds-subtitle">Mono everywhere. Phosphor highlights. Syntax in three muted hues so the green keyword stays loud.</p>
+      <div className="ds-section-rule"/>
+
+      <div className="ds-grid-2" style={{gap:24}}>
+        <div>
+          <div className="m-label m-mb-3">TERMINAL</div>
+          <div className="m-surface" style={{overflow:'hidden', boxShadow:'var(--m-glow-sm)'}}>
+            <div className="m-terminal-header">
+              <span className="m-dot" style={{background:'#ff5f6d'}}/>
+              <span className="m-dot" style={{background:'#d6ff5f'}}/>
+              <span className="m-dot m-dot-on"/>
+              <span style={{marginLeft:12}}>~ / hermes-switchui — bash</span>
+              <span style={{marginLeft:'auto', fontSize:10}}>● rec</span>
+            </div>
+            <div className="m-code" style={{border:'none', borderRadius:0, fontSize:12, padding:'14px 18px', minHeight:240}}>
+              <div><span className="m-text-accent">$</span> pnpm dev</div>
+              <div className="m-text-muted">› ready in 412ms</div>
+              <div className="m-text-muted">› vite v5.4.0  ─  port 3000</div>
+              <div className="m-text-muted">› hermes-agent  ─  127.0.0.1:8642 [<span className="m-text-accent">ok</span>]</div>
+              <div className="m-text-faint" style={{margin:'6px 0'}}>──────── handshake ────────</div>
+              <div><span className="m-text-accent">[14:02:41]</span> <span className="m-text-strong">capabilities</span> probed: sessions, tasks, jobs, memory</div>
+              <div><span className="m-text-accent">[14:02:42]</span> <span className="m-text-strong">model</span> <span className="m-tok-str">"hermes-4-405b"</span> ready</div>
+              <div><span className="m-text-accent">[14:02:43]</span> <span className="m-text-strong">stream</span> opened — <span className="m-text-warn">throttle=150rpm</span></div>
+              <div><span className="m-text-accent">[14:02:44]</span> <span className="m-text-strong">env</span> CUSTOM_API_KEY <span className="m-tok-cmt">// from ~/.hermes/.env</span></div>
+              <div className="m-mt-2"><span className="m-text-accent">$</span> <span className="m-cursor"></span></div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div className="m-label m-mb-3">CODE BLOCK · syntax</div>
+          <div className="m-surface" style={{overflow:'hidden'}}>
+            <div className="m-terminal-header">
+              <span>config / hermes.yml</span>
+              <span style={{marginLeft:'auto'}}><button className="m-btn m-btn-sm m-btn-ghost">{Ico.copy}</button></span>
+            </div>
+            <pre className="m-code codeblk" style={{border:'none', borderRadius:0, margin:0, padding:'14px 18px'}}>
+{[
+  ['1', <><span className="m-tok-kw">model</span><span className="m-tok-pun">:</span></>],
+  ['2', <>  <span className="m-tok-kw">default</span><span className="m-tok-pun">:</span> <span className="m-tok-str">"auto"</span></>],
+  ['3', <>  <span className="m-tok-kw">provider</span><span className="m-tok-pun">:</span> <span className="m-tok-str">"manifest"</span></>],
+  ['4', <><span className="m-tok-kw">providers</span><span className="m-tok-pun">:</span></>],
+  ['5', <>  <span className="m-tok-kw">manifest</span><span className="m-tok-pun">:</span></>],
+  ['6', <>    <span className="m-tok-kw">type</span><span className="m-tok-pun">:</span> <span className="m-tok-str">"openai"</span></>],
+  ['7', <>    <span className="m-tok-kw">base_url</span><span className="m-tok-pun">:</span> <span className="m-tok-str">"http://127.0.0.1:8642/v1"</span></>],
+  ['8', <>    <span className="m-tok-kw">key_env</span><span className="m-tok-pun">:</span> <span className="m-tok-str">"CUSTOM_API_KEY"</span></>],
+  ['9', <><span className="m-tok-cmt"># active stream — 14.2k tokens/min</span></>],
+  ['10', <><span className="m-tok-kw">limits</span><span className="m-tok-pun">:</span> <span className="m-tok-pun">{`{`}</span><span className="m-tok-kw"> rpm</span><span className="m-tok-pun">:</span> <span className="m-tok-num">150</span><span className="m-tok-pun">,</span><span className="m-tok-kw"> tpm</span><span className="m-tok-pun">:</span> <span className="m-tok-num">100000</span> <span className="m-tok-pun">{`}`}</span></>],
+].map(([n, line], i)=>(
+  <div key={i}><span className="ln">{n}</span>{line}</div>
+))}
+            </pre>
+          </div>
+
+          <div className="m-label m-mt-6 m-mb-3">INLINE / TOKENS</div>
+          <div className="m-surface m-p-4">
+            <div className="m-mono" style={{fontSize:13, lineHeight:1.9}}>
+              Use <span className="m-code-inline">window.claude.complete()</span> from any artifact, then await the
+              <span className="m-code-inline">Promise&lt;string&gt;</span>. The model is fixed at
+              <span className="m-code-inline">claude-haiku-4-5</span> with a <span className="m-code-inline">1024</span> token cap.
+            </div>
+            <hr className="m-divider"/>
+            <div className="m-row m-gap-2" style={{flexWrap:'wrap'}}>
+              <span className="m-badge m-badge-accent">stream</span>
+              <span className="m-badge m-badge-accent">tools</span>
+              <span className="m-badge">memory</span>
+              <span className="m-badge">artifacts</span>
+              <span className="m-badge m-badge-warn">beta</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ARTBOARD: CHAT + TOOL CARD + DIALOG (live agent surfaces)
+   ───────────────────────────────────────────────────────────── */
+function AgentArtboard() {
+  return (
+    <div className="ds-art ds-pad-lg">
+      <div className="ds-title">08 · AGENT SURFACES</div>
+      <h2 className="m-h2" style={{margin:'0 0 4px'}}>Chat, tools, and dialogs</h2>
+      <p className="ds-subtitle">The live ones. Glow is reserved for the active turn — composer ring while streaming, dot while listening.</p>
+      <div className="ds-section-rule"/>
+
+      <div className="ds-grid-2" style={{gap:24}}>
+        {/* chat thread */}
+        <div className="m-surface" style={{overflow:'hidden'}}>
+          <div className="m-terminal-header">
+            <span className="m-dot m-dot-pulse" style={{marginRight:6}}/>
+            <span>SESSION · neural-cascade</span>
+            <span style={{marginLeft:'auto', fontSize:10}}>tok 42,108 / 100k</span>
+          </div>
+          <div className="m-p-4 m-stack m-gap-4" style={{padding:'18px', maxHeight:580, overflow:'auto'}}>
+            {/* user */}
+            <div style={{alignSelf:'flex-end', maxWidth:'85%'}}>
+              <div className="m-mono" style={{
+                background:'var(--m-fill)',
+                border:'1px solid var(--m-border-strong)',
+                borderRadius:'10px 10px 2px 10px',
+                padding:'10px 14px',
+                fontSize:13, lineHeight:1.55, color:'var(--m-text-strong)'
+              }}>
+                Trace the WebSocket handshake from <span className="m-code-inline">/ws-hermes</span> through to the gateway. Where does auth land?
+              </div>
+              <div className="m-label m-mt-1" style={{textAlign:'right', fontSize:9}}>USER · 14:02:11</div>
+            </div>
+            {/* assistant */}
+            <div style={{alignSelf:'flex-start', maxWidth:'92%'}}>
+              <div className="m-row m-gap-2 m-mb-2" style={{alignItems:'center'}}>
+                <div className="m-avatar m-avatar-glow" style={{width:24, height:24, fontSize:11}}>H</div>
+                <span className="m-label m-label-accent">HERMES-4-405B</span>
+                <span className="m-badge m-badge-ghost">37 tok/s</span>
+              </div>
+              <div style={{
+                background:'var(--m-card-2)',
+                border:'1px solid var(--m-border-subtle)',
+                borderRadius:'10px 10px 10px 2px',
+                padding:'12px 14px',
+                fontSize:13, lineHeight:1.65, color:'var(--m-text)'
+              }}>
+                The proxy lives at <span className="m-code-inline">src/routes/api/ws-hermes.ts</span>. It upgrades the request, adds an <em>Authorization</em> header from the per-session token, then opens a tunnel to <span className="m-code-inline">HERMES_API_URL</span>.
+                <div className="m-mt-2"><span className="m-cursor">streaming</span></div>
+              </div>
+            </div>
+
+            {/* tool call card */}
+            <div className="m-surface-2" style={{padding:0, marginLeft:32, overflow:'hidden'}}>
+              <div className="m-row" style={{padding:'8px 12px', justifyContent:'space-between', borderBottom:'1px solid var(--m-border-subtle)'}}>
+                <div className="m-row m-gap-2" style={{alignItems:'center'}}>
+                  <span className="m-text-accent">{Ico.bolt}</span>
+                  <span className="m-mono" style={{fontSize:12}}>read_file</span>
+                  <span className="m-mono m-text-muted" style={{fontSize:11}}>src/routes/api/ws-hermes.ts</span>
+                </div>
+                <div className="m-row m-gap-2" style={{alignItems:'center'}}>
+                  <span className="m-badge m-badge-accent">ok · 12ms</span>
+                  <button className="m-btn m-btn-sm m-btn-ghost">{Ico.arrow}</button>
+                </div>
+              </div>
+              <div className="m-mono" style={{padding:'8px 12px', fontSize:11, color:'var(--m-text-muted)', background:'var(--m-bg-deep)'}}>
+                <span className="m-text-accent">+</span> 142 lines<span style={{margin:'0 12px'}}>·</span><span className="m-text-faint">read</span> 4.2 kb<span style={{margin:'0 12px'}}>·</span><span className="m-text-faint">cached</span>
+              </div>
+            </div>
+
+            {/* assistant continued */}
+            <div style={{alignSelf:'flex-start', maxWidth:'92%'}}>
+              <div style={{
+                background:'var(--m-card-2)',
+                border:'1px solid var(--m-border-subtle)',
+                borderRadius:'10px',
+                padding:'12px 14px',
+                fontSize:13, lineHeight:1.65,
+              }}>
+                Confirmed — the auth header is set on line 47, then the socket forwards bidirectionally. Want me to trace the rate-limit branch?
+              </div>
+            </div>
+          </div>
+          {/* composer */}
+          <div style={{padding:14, borderTop:'1px solid var(--m-border)'}}>
+            <div className="m-input-group m-anim-glow" style={{padding:'4px 10px', borderColor:'var(--m-green-500)'}}>
+              <span className="m-prefix">▸</span>
+              <input placeholder="reply, attach a tool, or ⌘+Enter to run..."/>
+              <button className="m-btn m-btn-icon m-btn-primary" aria-label="Send">{Ico.send}</button>
+            </div>
+            <div className="m-row m-gap-2 m-mt-2" style={{justifyContent:'space-between'}}>
+              <div className="m-row m-gap-2">
+                <button className="m-btn m-btn-sm m-btn-ghost">{Ico.upload} attach</button>
+                <button className="m-btn m-btn-sm m-btn-ghost">{Ico.bolt} tools · 14</button>
+              </div>
+              <div className="m-mono m-text-faint" style={{fontSize:10}}>⌘+Enter to send · ctx 42% used</div>
+            </div>
+          </div>
+        </div>
+
+        {/* dialog */}
+        <div style={{position:'relative'}}>
+          <div className="m-label m-mb-3">DIALOG · MODAL</div>
+          <div style={{position:'relative', height:420, background:'var(--m-bg-deep)', border:'1px solid var(--m-border-subtle)', borderRadius:8, overflow:'hidden'}} className="m-grid-bg-fine">
+            <div className="dlg-scrim">
+              <div className="dlg">
+                <div className="m-row" style={{padding:'14px 18px', borderBottom:'1px solid var(--m-border-subtle)', alignItems:'center'}}>
+                  <div className="m-label m-label-accent">/ AUTHORIZE</div>
+                  <button className="m-btn m-btn-icon m-btn-ghost" style={{marginLeft:'auto'}}>{Ico.x}</button>
+                </div>
+                <div className="m-p-4 m-stack m-gap-3" style={{padding:'18px'}}>
+                  <div>
+                    <h3 className="m-h3" style={{margin:'0 0 6px'}}>Connect a custom endpoint</h3>
+                    <p className="m-mono m-text-muted" style={{fontSize:12, lineHeight:1.6, margin:0}}>
+                      Hermes will store your key in <span className="m-code-inline">~/.hermes/.env</span> and never log requests.
+                    </p>
+                  </div>
+                  <div className="m-stack m-gap-2">
+                    <div className="m-label">BASE URL</div>
+                    <input className="m-input" defaultValue="http://127.0.0.1:8642/v1"/>
+                  </div>
+                  <div className="m-stack m-gap-2">
+                    <div className="m-label">API KEY</div>
+                    <input className="m-input" type="password" defaultValue="sk-•••••••••••••••••••"/>
+                  </div>
+                  <label className="m-row m-gap-3" style={{alignItems:'center', cursor:'pointer'}}>
+                    <span className="m-check is-checked"/>
+                    <span className="m-mono" style={{fontSize:12}}>verify TLS</span>
+                  </label>
+                </div>
+                <div className="m-row m-gap-2" style={{padding:'12px 18px', borderTop:'1px solid var(--m-border-subtle)', justifyContent:'flex-end'}}>
+                  <button className="m-btn m-btn-ghost">cancel</button>
+                  <button className="m-btn m-btn-primary">{Ico.shield} authorize</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="m-label m-mt-6 m-mb-3">TOAST · NOTIFICATION</div>
+          <div className="m-stack m-gap-2">
+            <div className="m-elevated m-row m-gap-3 m-p-3" style={{alignItems:'center', padding:'10px 14px'}}>
+              <span className="m-text-accent">{Ico.check}</span>
+              <div style={{flex:1}}>
+                <div className="m-mono" style={{fontSize:13, color:'var(--m-text-strong)'}}>Session saved</div>
+                <div className="m-mono m-text-muted" style={{fontSize:11}}>neural-cascade · 42,108 tokens · 14m</div>
+              </div>
+              <button className="m-btn m-btn-sm m-btn-ghost">undo</button>
+            </div>
+            <div className="m-elevated m-row m-gap-3 m-p-3" style={{alignItems:'center', padding:'10px 14px', borderColor:'rgba(255,95,109,.4)'}}>
+              <span style={{color:'var(--m-danger)'}}>{Ico.warn}</span>
+              <div style={{flex:1}}>
+                <div className="m-mono" style={{fontSize:13, color:'var(--m-danger)'}}>Connection refused</div>
+                <div className="m-mono m-text-muted" style={{fontSize:11}}>retrying in 8s...</div>
+              </div>
+              <button className="m-btn m-btn-sm m-btn-danger">retry</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ARTBOARD: BRAND · LOGO · ATMOSPHERE
+   ───────────────────────────────────────────────────────────── */
+function BrandArtboard() {
+  return (
+    <div className="ds-art ds-pad-lg">
+      <div className="ds-title">09 · BRAND · ATMOSPHERE</div>
+      <h2 className="m-h2" style={{margin:'0 0 4px'}}>Logo, marks, and the matrix rain</h2>
+      <p className="ds-subtitle">Atmospheric layers — scanlines, grid, rain — used at low opacity behind heroes and empty states.</p>
+      <div className="ds-section-rule"/>
+
+      <div className="ds-grid-2" style={{gap:24}}>
+        <div className="m-surface m-p-6 m-grid-bg" style={{position:'relative', minHeight:240, display:'grid', placeItems:'center'}}>
+          <div className="lock">
+            <div className="glyph"/>
+            <span style={{textShadow:'var(--m-text-glow)', color:'var(--m-green-500)'}}>HERMES</span>
+            <span className="tag">// SWITCHUI</span>
+          </div>
+        </div>
+
+        <div className="m-surface m-p-6" style={{minHeight:240, position:'relative', overflow:'hidden'}}>
+          <div className="m-label m-mb-3">MARKS · sizes</div>
+          <div className="m-row m-gap-6" style={{alignItems:'center', justifyContent:'space-around', flexWrap:'wrap'}}>
+            {[18, 28, 44, 64].map(s => (
+              <div key={s} style={{textAlign:'center'}}>
+                <div style={{
+                  width:s, height:s,
+                  border: `${Math.max(1, s/40)}px solid var(--m-green-500)`,
+                  display:'grid', placeItems:'center',
+                  color:'var(--m-green-500)', fontFamily:'var(--m-font-mono)', fontWeight:700,
+                  fontSize: s*0.55, borderRadius: s*0.1,
+                  boxShadow:'var(--m-glow-sm), inset 0 0 8px rgba(0,255,65,.12)',
+                  margin:'0 auto'
+                }}>ᕼ</div>
+                <div className="m-label m-mt-2" style={{fontSize:9}}>{s}px</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rain-wrap" style={{height:280}}>
+          <MatrixRain density={1.2}/>
+          <div className="overlay">
+            <div className="m-label m-label-accent" style={{textAlign:'center', fontSize:11}}>// ATMOSPHERE · MATRIX RAIN</div>
+          </div>
+        </div>
+
+        <div className="m-stack m-gap-3">
+          <div className="m-surface m-p-4 m-grid-bg" style={{minHeight:80, display:'grid', placeItems:'center'}}>
+            <span className="m-label m-label-accent">GRID — 24px</span>
+          </div>
+          <div className="m-surface m-p-4 m-grid-bg-fine" style={{minHeight:80, display:'grid', placeItems:'center'}}>
+            <span className="m-label m-label-accent">GRID FINE — 8px</span>
+          </div>
+          <div className="m-surface m-p-4 m-scanlines" style={{minHeight:80, display:'grid', placeItems:'center', background:'var(--m-card-2)'}}>
+            <span className="m-label m-label-accent">CRT SCANLINES</span>
+          </div>
+          <div className="m-surface m-p-4" style={{minHeight:80, display:'grid', placeItems:'center', background:'radial-gradient(ellipse at center, var(--m-card-2) 0%, var(--m-bg) 100%)'}}>
+            <span className="m-label m-label-accent">VIGNETTE / RADIAL</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="m-label m-mt-8 m-mb-3">VOICE · TONE</div>
+      <div className="ds-grid-3">
+        {[
+          ['Terminal', 'Imperative, mono, lowercase. "execute", "abort", "trace". No emoji. ALL_CAPS for state.'],
+          ['Operator',  'Compressed and unsentimental. "session saved · 42k tokens · 14m". Numbers always tabular.'],
+          ['Signal',    'Reserve adjectives. "live", "streaming", "throttled" carry their own light.'],
+        ].map(([t,d])=>(
+          <div className="m-surface m-p-4" key={t}>
+            <div className="m-label m-label-accent m-mb-2">{t.toUpperCase()}</div>
+            <p className="m-mono" style={{margin:0, fontSize:12, color:'var(--m-text-muted)', lineHeight:1.7}}>{d}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="m-divider-glow"/>
+
+      <div className="m-row" style={{justifyContent:'space-between', alignItems:'center'}}>
+        <div>
+          <div className="m-label m-label-accent">END_OF_TRANSMISSION</div>
+          <div className="m-mono m-text-muted m-mt-1" style={{fontSize:11}}>HERMES · MATRIX · v1.0.0 — handoff complete</div>
+        </div>
+        <div className="m-mono" style={{fontSize:11, color:'var(--m-text-faint)'}}>
+          <span className="m-cursor">// system.idle</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ARTBOARD: ICONS + MISC
+   ───────────────────────────────────────────────────────────── */
+function IconsArtboard() {
+  const all = Object.entries(Ico);
+  return (
+    <div className="ds-art ds-pad-lg">
+      <div className="ds-title">06 · ICONS</div>
+      <h2 className="m-h2" style={{margin:'0 0 4px'}}>Line-based · 1.6 stroke · currentColor</h2>
+      <p className="ds-subtitle">All icons inherit color from text. Use at 14–18px in UI; 20–24px in headers; never filled unless the design calls for emphasis.</p>
+      <div className="ds-section-rule"/>
+
+      <div className="ds-grid-6">
+        {all.map(([k, el]) => (
+          <div key={k} className="m-surface m-p-4" style={{textAlign:'center'}}>
+            <div style={{display:'grid', placeItems:'center', height:48, color:'var(--m-text)'}}>
+              {React.cloneElement(el, {style:{width:22, height:22}})}
+            </div>
+            <div className="m-mono m-text-muted m-mt-2" style={{fontSize:11}}>{k}</div>
+          </div>
+        ))}
+        {all.slice(0,6).map(([k, el]) => (
+          <div key={k+'-2'} className="m-surface m-p-4" style={{textAlign:'center', borderColor:'var(--m-border-strong)', boxShadow:'var(--m-glow-sm)'}}>
+            <div style={{display:'grid', placeItems:'center', height:48, color:'var(--m-green-500)'}}>
+              {React.cloneElement(el, {style:{width:22, height:22, filter:'drop-shadow(0 0 6px rgba(0,255,65,.7))'}})}
+            </div>
+            <div className="m-mono m-mt-2" style={{fontSize:11, color:'var(--m-green-500)'}}>{k} · accent</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="m-label m-mt-8 m-mb-3">AVATARS · IDENTITY</div>
+      <div className="m-row m-gap-3" style={{alignItems:'center'}}>
+        <div className="m-avatar m-avatar-glow">H</div>
+        <div className="m-avatar">N</div>
+        <div className="m-avatar" style={{background:'var(--m-fill-strong)', color:'var(--m-text-strong)'}}>JR</div>
+        <div className="m-avatar" style={{borderRadius:'50%', boxShadow:'var(--m-glow-sm)'}}>{Ico.agent}</div>
+        <div className="m-avatar" style={{width:48, height:48, fontSize:18, borderRadius:'50%'}}>U</div>
+        <div className="m-avatar" style={{width:48, height:48, fontSize:18, borderRadius:8, background:'var(--m-green-500)', color:'var(--m-bg)', borderColor:'var(--m-green-500)', boxShadow:'var(--m-glow-md)'}}>★</div>
+        <div className="m-avatar" style={{width:48, height:48, fontSize:18, borderRadius:'50%', borderStyle:'dashed', borderColor:'var(--m-border-strong)', color:'var(--m-text-faint)', background:'transparent'}}>?</div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────
+   CANVAS
+   ───────────────────────────────────────────────────────────── */
+function App() {
+  return (
+    <DesignCanvas
+      title="Hermes · Matrix Design System"
+      subtitle="Tokens · components · atmosphere — for hermes-switchui"
+    >
+      <DCSection id="cover" title="Cover" defaultLabel="Cover">
+        <DCArtboard id="cover-1" label="Cover · Matrix Rain" width={1200} height={780}>
+          <CoverArtboard/>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="foundations" title="Foundations" defaultLabel="Foundations">
+        <DCArtboard id="color"   label="01 Color"             width={1320} height={1080}><ColorArtboard/></DCArtboard>
+        <DCArtboard id="type"    label="02 Typography"        width={1320} height={1080}><TypeArtboard/></DCArtboard>
+        <DCArtboard id="space"   label="03 Spacing · Radius · Shadow" width={1320} height={1080}><SpacingArtboard/></DCArtboard>
+      </DCSection>
+
+      <DCSection id="components" title="Components" defaultLabel="Components">
+        <DCArtboard id="controls" label="04 Controls"      width={1320} height={1080}><ControlsArtboard/></DCArtboard>
+        <DCArtboard id="cards"    label="05 Badges · KPIs · Cards" width={1320} height={1080}><CardsArtboard/></DCArtboard>
+        <DCArtboard id="icons"    label="06 Icons · Avatars" width={1320} height={780}><IconsArtboard/></DCArtboard>
+        <DCArtboard id="code"     label="07 Code · Terminal" width={1320} height={900}><CodeArtboard/></DCArtboard>
+        <DCArtboard id="agent"    label="08 Agent Surfaces"  width={1320} height={1080}><AgentArtboard/></DCArtboard>
+      </DCSection>
+
+      <DCSection id="patterns" title="Patterns & Brand" defaultLabel="Patterns & Brand">
+        <DCArtboard id="nav"      label="Dashboard / Nav"   width={1440} height={900}><NavArtboard/></DCArtboard>
+        <DCArtboard id="brand"    label="09 Brand · Atmosphere" width={1320} height={1080}><BrandArtboard/></DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

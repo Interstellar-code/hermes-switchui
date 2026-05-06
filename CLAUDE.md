@@ -25,7 +25,7 @@ This is **hermes-switchui** — Interstellar Code's opinionated flavor of Hermes
 
 ### Fork strategy
 
-- `origin` = `Interstellar-code/hermes-workspace` — hermes-switchui home
+- `origin` = `Interstellar-code/hermes-switchui` — hermes-switchui home
 - `upstream` = `outsourc-e/hermes-workspace` — canonical Hermes Workspace
 - `local` / `hermes-switchui` branch = hermes-switchui baseline. **Never blindly rebase or merge from upstream.**
 - Sync strategy: **cherry-pick** upstream fixes periodically; never `git merge upstream/main` or `git rebase upstream/main`.
@@ -109,3 +109,13 @@ SSE streaming flows through `src/routes/api/chat-events.ts` and `src/routes/api/
 | `HERMES_PASSWORD`   | Workspace UI password (required for remote deployments)              |
 | `CUSTOM_API_KEY`    | API key for custom OpenAI-compatible endpoint (stored in .env)       |
 | `PORT`              | Workspace server port (default 3000)                                 |
+
+## graphify
+
+This project has a graphify knowledge graph at graphify-out/.
+
+Rules:
+- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
+- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
+- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
+- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)

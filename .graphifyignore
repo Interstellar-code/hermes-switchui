@@ -1,0 +1,8 @@
+node_modules/
+.output/
+.vinxi/
+.nitro/
+.tanstack/
+.vite/
+graphify-out/cache/
+src/routeTree.gen.ts

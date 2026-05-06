@@ -1,0 +1,1134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Hermes · Chat — Sessions Sidebar</title>
+<link rel="stylesheet" href="matrix-system.css"/>
+<style>
+  html, body { height: 100%; }
+  body { background: var(--m-bg); }
+
+  /* ── 3-column shell ─────────────────────────────────────── */
+  .shell {
+    display: grid;
+    grid-template-columns: 232px 320px 1fr;
+    transition: grid-template-columns var(--m-dur-base) var(--m-ease-out);
+  }
+  .shell.sess-collapsed {
+    grid-template-columns: 232px 44px 1fr;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── primary nav ────────────────────────────────────────── */
+  .nav {
+    background: var(--m-sidebar);
+    border-right: 1px solid var(--m-border);
+    padding: 14px 10px;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .nav .brand {
+    display: flex; align-items: center; gap: 10px;
+    padding: 4px 8px 14px;
+    border-bottom: 1px solid var(--m-border-subtle);
+    margin-bottom: 10px;
+  }
+  .nav .brand .glyph {
+    width: 28px; height: 28px;
+    border: 1.5px solid var(--m-green-500);
+    color: var(--m-green-500);
+    font-family: var(--m-font-mono); font-weight: 700; font-size: 14px;
+    border-radius: 4px; display: grid; place-items: center;
+    box-shadow: var(--m-glow-sm), inset 0 0 8px rgba(0,255,65,.12);
+  }
+  .nav .brand b {
+    font: 700 13px/1 var(--m-font-mono);
+    letter-spacing: .22em;
+    color: var(--m-text-strong);
+    text-shadow: var(--m-text-glow);
+  }
+  .nav .brand .ver {
+    font: 500 9px/1 var(--m-font-mono);
+    color: var(--m-text-faint);
+    margin-top: 3px;
+    letter-spacing: .15em;
+  }
+  .nav-grp {
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-faint);
+    padding: 14px 10px 6px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px;
+    border-radius: var(--m-radius-md);
+    font: 500 12.5px var(--m-font-mono);
+    color: var(--m-text-muted);
+    cursor: pointer;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+    border: 1px solid transparent;
+    user-select: none;
+  }
+  .nav-item:hover { background: var(--m-fill-subtle); color: var(--m-text); }
+  .nav-item.active {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border-color: var(--m-border);
+    box-shadow: inset 2px 0 0 var(--m-green-500);
+  }
+  .ico { width: 14px; height: 14px; flex: none; }
+  .nav-item .ico { width: 14px; height: 14px; flex: none; }
+  .nav-item .badge-mini {
+    margin-left: auto;
+    font: 500 9px var(--m-font-mono);
+    padding: 1px 6px;
+    border-radius: 9999px;
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border: 1px solid var(--m-border);
+  }
+  .nav-foot {
+    margin-top: auto;
+    padding-top: 10px;
+    border-top: 1px solid var(--m-border-subtle);
+    display: flex; gap: 8px; align-items: center;
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text-muted);
+  }
+
+  /* ── sessions panel (secondary sidebar) ─────────────────── */
+  .sess {
+    background: var(--m-panel);
+    border-right: 1px solid var(--m-border);
+    display: grid;
+    grid-template-rows: auto auto auto auto 1fr auto;
+    grid-template-columns: minmax(0, 1fr);
+    overflow: hidden;
+    min-width: 0;
+  }
+  /* collapsed rail */
+  .sess.is-collapsed {
+    grid-template-rows: auto 1fr auto;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sess-rail {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 10px 0;
+    gap: 8px;
+    height: 100%;
+  }
+  .sess-rail .vlabel {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .3em;
+    color: var(--m-text-faint);
+    margin-top: 14px;
+  }
+  /* date popover */
+  .date-pop {
+    position: absolute;
+    top: 44px; right: 8px;
+    z-index: 200;
+    width: 268px;
+    background: var(--m-card);
+    border: 1px solid var(--m-border-strong);
+    border-radius: var(--m-radius-lg);
+    box-shadow: var(--m-glow-md), 0 18px 54px rgba(0,0,0,.7);
+    padding: 12px;
+    font-family: var(--m-font-mono);
+  }
+  .date-pop .lbl { font-size: 10px; color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .2em; margin-bottom: 8px; }
+  .date-pop .presets { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 10px; }
+  .date-pop .presets button { background: transparent; color: var(--m-text-muted); border: 1px solid var(--m-border-subtle); border-radius: 4px; padding: 5px 8px; font: 500 10.5px var(--m-font-mono); text-transform: uppercase; letter-spacing: .1em; cursor: pointer; transition: all 120ms; }
+  .date-pop .presets button:hover { color: var(--m-green-500); border-color: var(--m-border); }
+  .date-pop .presets button.on { background: var(--m-fill); color: var(--m-green-500); border-color: var(--m-border-strong); box-shadow: var(--m-glow-sm); }
+  .date-pop .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-top: 6px; }
+  .date-pop .cal .dow { font-size: 9px; color: var(--m-text-faint); text-align: center; padding: 4px 0; letter-spacing: .1em; }
+  .date-pop .cal .d { font-size: 10.5px; color: var(--m-text-muted); text-align: center; padding: 5px 0; cursor: pointer; border-radius: 3px; transition: all 120ms; }
+  .date-pop .cal .d:hover { background: var(--m-fill-subtle); color: var(--m-text); }
+  .date-pop .cal .d.in { background: rgba(0,255,65,.10); color: var(--m-green-500); border-radius: 0; }
+  .date-pop .cal .d.start, .date-pop .cal .d.end { background: var(--m-green-500); color: var(--m-bg); box-shadow: var(--m-glow-sm); border-radius: 3px; }
+  .date-pop .cal .d.muted { color: var(--m-text-ghost); }
+  .date-pop .nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .date-pop .nav .mo { font-size: 11px; color: var(--m-text-strong); letter-spacing: .15em; text-transform: uppercase; }
+  .date-pop .nav button { background: transparent; border: 1px solid var(--m-border-subtle); color: var(--m-text-muted); width: 22px; height: 22px; border-radius: 4px; cursor: pointer; }
+  .date-pop .nav button:hover { color: var(--m-green-500); border-color: var(--m-border-strong); }
+  .date-pop .foot { display: flex; gap: 6px; justify-content: flex-end; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--m-border-subtle); }
+
+  .sess-rail .badge-n {
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-green-500);
+    border: 1px solid var(--m-border);
+    border-radius: 9999px;
+    padding: 1px 6px;
+  }
+  .sess-head {
+    display: flex; align-items: center;
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .sess-head h3 {
+    margin: 0;
+    font: 600 11px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-strong);
+  }
+  .sess-head .ct {
+    margin-left: 8px;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+  }
+  .sess-head .actions {
+    margin-left: auto;
+    display: flex; gap: 4px;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+  }
+  .sess-head h3 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sess-head { min-width: 0; }
+  .sess-head .ct { flex-shrink: 0; margin-right: 4px; }
+  .sess-head .actions .ico-btn { flex: 0 0 26px; min-width: 26px; }
+  .sess-head .actions .ico-btn .ico { width: 14px; height: 14px; }
+  .ico-btn {
+    display: inline-grid; place-items: center;
+    width: 26px; height: 26px;
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-muted);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .ico-btn:hover { background: var(--m-fill-subtle); color: var(--m-green-500); border-color: var(--m-border-subtle); }
+  .ico-btn.active { background: var(--m-fill); color: var(--m-green-500); border-color: var(--m-border); box-shadow: var(--m-glow-sm); }
+
+  .sess-search {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+
+  /* filter chip rail */
+  .chip-rail {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 9px;
+    font: 500 10.5px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--m-text-muted);
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 9999px;
+    cursor: pointer;
+    background: transparent;
+    user-select: none;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .chip:hover { color: var(--m-text); border-color: var(--m-border); }
+  .chip.on {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border-color: var(--m-border-strong);
+    box-shadow: var(--m-glow-sm);
+  }
+  .chip .ico { width: 11px; height: 11px; }
+  .chip .ct {
+    font-size: 9px;
+    padding: 0 5px;
+    background: var(--m-fill);
+    border-radius: 9999px;
+    color: var(--m-text-muted);
+    line-height: 1.5;
+  }
+  .chip.on .ct { background: var(--m-green-500); color: var(--m-bg); }
+
+  /* date / sort row */
+  .sess-meta {
+    display: flex; gap: 8px; align-items: center;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--m-border-subtle);
+    font: 500 10.5px var(--m-font-mono);
+    color: var(--m-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+  }
+  .sess-meta .seg {
+    display: flex;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    overflow: hidden;
+  }
+  .sess-meta .seg button {
+    background: transparent;
+    color: var(--m-text-muted);
+    border: none;
+    padding: 4px 8px;
+    font: 500 10px var(--m-font-mono);
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .sess-meta .seg button:hover { color: var(--m-text); }
+  .sess-meta .seg button.on {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    box-shadow: inset 0 -2px 0 var(--m-green-500);
+  }
+
+  /* list */
+  .sess-list { overflow: auto; padding: 6px 8px 8px; }
+  .day-label {
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-faint);
+    padding: 14px 10px 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .day-label::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--m-border-subtle);
+  }
+  .day-label .n {
+    color: var(--m-green-500);
+    font-size: 9px;
+    padding: 1px 5px;
+    border: 1px solid var(--m-border);
+    border-radius: 9999px;
+    margin-left: 0;
+  }
+
+  .sess-card {
+    display: grid;
+    grid-template-columns: 8px 1fr auto;
+    gap: 10px;
+    align-items: start;
+    padding: 10px 10px 10px 6px;
+    margin-bottom: 4px;
+    border-radius: var(--m-radius-md);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+    position: relative;
+  }
+  .sess-card:hover {
+    background: var(--m-fill-subtle);
+    border-color: var(--m-border-subtle);
+  }
+  .sess-card.active {
+    background: var(--m-fill);
+    border-color: var(--m-border-strong);
+    box-shadow: inset 2px 0 0 var(--m-green-500), var(--m-glow-sm);
+  }
+  .sess-card .rail {
+    width: 3px;
+    height: 100%;
+    border-radius: 2px;
+    background: var(--m-text-faint);
+  }
+  .sess-card.src-chat   .rail { background: var(--m-green-500); box-shadow: 0 0 6px var(--m-green-500); }
+  .sess-card.src-cron   .rail { background: var(--m-warning); }
+  .sess-card.src-task   .rail { background: var(--m-info); }
+  .sess-card.src-tg     .rail { background: var(--m-pink); }
+  .sess-card.src-mem    .rail { background: #c2ffd2; }
+  .sess-card.src-tool   .rail { background: var(--m-green-700); }
+
+  .sess-card .body { min-width: 0; }
+  .sess-card .title {
+    font: 500 12.5px/1.35 var(--m-font-mono);
+    color: var(--m-text-strong);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sess-card.active .title { color: var(--m-green-500); }
+  .sess-card .meta {
+    display: flex; gap: 6px; align-items: center;
+    font: 400 10.5px var(--m-font-mono);
+    color: var(--m-text-muted);
+    margin-top: 4px;
+  }
+  .sess-card .meta .src-tag {
+    text-transform: lowercase;
+    color: var(--m-text-faint);
+  }
+  .sess-card .meta .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--m-text-faint); }
+  .sess-card .right {
+    display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+    font: 400 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    white-space: nowrap;
+  }
+  .sess-card .right .live {
+    color: var(--m-green-500);
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .sess-card .right .tok {
+    color: var(--m-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .sess-card .badges { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+  .sess-card .badges .b {
+    font: 500 8.5px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    padding: 1px 5px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 9999px;
+    color: var(--m-text-muted);
+    background: transparent;
+  }
+  .sess-card .badges .b.acc { color: var(--m-green-500); border-color: var(--m-border); background: var(--m-fill-subtle); }
+  .sess-card .badges .b.warn { color: var(--m-warning); border-color: rgba(214,255,95,.3); }
+  .sess-card .badges .b.err { color: var(--m-danger); border-color: rgba(255,95,109,.3); }
+  .sess-card .badges .b.info { color: var(--m-info); border-color: rgba(95,207,255,.3); }
+  .sess-card .badges .b.pink { color: var(--m-pink); border-color: rgba(255,95,162,.3); }
+
+  .sess-foot {
+    border-top: 1px solid var(--m-border);
+    padding: 10px 12px;
+    background: var(--m-sidebar);
+  }
+
+  /* ── chat column ────────────────────────────────────────── */
+  .chat {
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    overflow: hidden;
+    background: var(--m-bg);
+    position: relative;
+  }
+  .chat-top {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 22px;
+    border-bottom: 1px solid var(--m-border);
+    background: var(--m-sidebar);
+  }
+  .chat-top .title {
+    font: 500 13px/1.2 var(--m-font-mono);
+    color: var(--m-text-strong);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    flex: 1;
+  }
+  .chat-top .title .src {
+    color: var(--m-green-500);
+    margin-right: 8px;
+  }
+  .chat-top .src-tabs {
+    display: flex;
+    gap: 2px;
+    background: var(--m-bg-deep);
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    padding: 2px;
+  }
+  .chat-top .src-tabs .t {
+    padding: 4px 10px;
+    font: 500 10.5px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    color: var(--m-text-muted);
+    border-radius: var(--m-radius-sm);
+    cursor: pointer;
+    display: inline-flex; gap: 6px; align-items: center;
+  }
+  .chat-top .src-tabs .t.on {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    box-shadow: 0 0 0 1px var(--m-border-strong) inset;
+  }
+  .chat-top .actions { display: flex; gap: 4px; }
+
+  .chat-meta-bar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 7px 22px;
+    border-bottom: 1px solid var(--m-border-subtle);
+    background: var(--m-bg);
+    font: 500 10.5px var(--m-font-mono);
+    color: var(--m-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .15em;
+  }
+  .chat-meta-bar .sep { width: 1px; height: 12px; background: var(--m-border-subtle); }
+
+  .chat-stream {
+    overflow: auto;
+    padding: 26px 22px 18px;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  .chat-stream .turn { display: flex; gap: 12px; max-width: 880px; width: 100%; margin: 0 auto; }
+  .chat-stream .turn.user { justify-content: flex-end; }
+  .chat-stream .turn.user .bubble {
+    background: var(--m-fill);
+    border: 1px solid var(--m-border-strong);
+    border-radius: 12px 12px 2px 12px;
+    color: var(--m-text-strong);
+    max-width: 75%;
+  }
+  .chat-stream .turn.assist .bubble {
+    background: var(--m-card);
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 12px 12px 12px 2px;
+    color: var(--m-text);
+    max-width: 90%;
+  }
+  .chat-stream .bubble {
+    padding: 12px 14px;
+    font: 400 13.5px/1.65 var(--m-font-sans);
+  }
+  .chat-stream .bubble code {
+    font-family: var(--m-font-mono);
+    background: var(--m-fill-subtle);
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 12.5px;
+    color: var(--m-green-300);
+  }
+  .chat-stream .meta {
+    font: 500 9.5px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .2em;
+    color: var(--m-text-faint);
+    margin-top: 4px;
+  }
+  .chat-stream .turn.user .meta { text-align: right; }
+
+  .avatar-h { width: 28px; height: 28px; border-radius: 6px; background: var(--m-fill); border: 1px solid var(--m-border-strong); display: grid; place-items: center; font: 700 11px var(--m-font-mono); color: var(--m-green-500); flex: none; box-shadow: var(--m-glow-sm); }
+  .avatar-u { width: 28px; height: 28px; border-radius: 6px; background: var(--m-card-2); border: 1px solid var(--m-border); display: grid; place-items: center; font: 600 11px var(--m-font-mono); color: var(--m-text); flex: none; }
+
+  /* tool activity card */
+  .tool-card {
+    background: var(--m-card-2);
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 8px;
+    overflow: hidden;
+    max-width: 680px;
+  }
+  .tool-card .hd {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--m-border-subtle);
+    background: var(--m-card);
+    font: 600 10px var(--m-font-mono);
+    color: var(--m-text-muted);
+    text-transform: uppercase; letter-spacing: .2em;
+  }
+  .tool-card .hd .right { margin-left: auto; color: var(--m-green-500); display: flex; gap: 8px; align-items: center; }
+  .tool-card .body { padding: 10px 12px; }
+  .tool-card .row { display: flex; align-items: center; gap: 10px; padding: 4px 0; font: 500 12px var(--m-font-mono); color: var(--m-text); }
+  .tool-card .row .ok { color: var(--m-green-500); }
+  .tool-card .row .name { color: var(--m-text-strong); }
+  .tool-card .row .sub { color: var(--m-text-muted); font-size: 10.5px; margin-left: auto; }
+
+  /* composer */
+  .composer-wrap {
+    border-top: 1px solid var(--m-border);
+    background: var(--m-sidebar);
+    padding: 14px 22px 16px;
+  }
+  .composer {
+    max-width: 880px; margin: 0 auto;
+    background: var(--m-bg-deep);
+    border: 1px solid var(--m-border-strong);
+    border-radius: 10px;
+    box-shadow: var(--m-glow-sm), inset 0 0 12px rgba(0,255,65,.04);
+    overflow: hidden;
+    transition: box-shadow var(--m-dur-base) var(--m-ease-out);
+  }
+  .composer.streaming { animation: m-glow-pulse 2.4s var(--m-ease-in-out) infinite; }
+  .composer .inp {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 14px;
+  }
+  .composer .inp::before {
+    content: "▸";
+    color: var(--m-green-500);
+    font: 700 14px var(--m-font-mono);
+    line-height: 1.4;
+  }
+  .composer textarea {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--m-text);
+    font: 400 13.5px/1.55 var(--m-font-mono);
+    resize: none;
+    min-height: 22px;
+    max-height: 160px;
+  }
+  .composer textarea::placeholder { color: var(--m-text-faint); }
+  .composer .toolbar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--m-border-subtle);
+    background: rgba(0,255,65,.025);
+  }
+  .composer .toolbar .left { display: flex; gap: 4px; }
+  .composer .toolbar .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .composer .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 9px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 9999px;
+    font: 500 10.5px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--m-text-muted);
+    cursor: pointer;
+    background: transparent;
+  }
+  .composer .pill:hover { border-color: var(--m-border-strong); color: var(--m-green-500); }
+  .composer .pill .ico { width: 11px; height: 11px; }
+  .composer .send {
+    width: 32px; height: 32px;
+    background: var(--m-green-500);
+    color: var(--m-bg);
+    border: none;
+    border-radius: 6px;
+    display: grid; place-items: center;
+    cursor: pointer;
+    box-shadow: var(--m-glow-sm);
+  }
+  .composer .send:hover { box-shadow: var(--m-glow-md); }
+
+  /* hint row */
+  .hint {
+    max-width: 880px; margin: 6px auto 0;
+    display: flex; gap: 14px;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase;
+    letter-spacing: .15em;
+  }
+  .kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 3px;
+    font: 500 9px var(--m-font-mono);
+    color: var(--m-text-muted);
+    background: var(--m-card);
+    margin-right: 4px;
+  }
+
+  /* tweaks panel anchor (in-page) */
+  .ds-corner {
+    position: fixed; right: 16px; bottom: 14px;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+
+  /* CRT scanlines on the chat panel only */
+  .chat::after {
+    content: "";
+    position: absolute; inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(to bottom, rgba(0,255,65,.022) 0px, rgba(0,255,65,.022) 1px, transparent 1px, transparent 3px);
+    mix-blend-mode: screen;
+    z-index: 1;
+  }
+  .chat > * { position: relative; z-index: 2; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+
+const Ico = {
+  search: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="11" cy="11" r="6" /><path d="m20 20-3.5-3.5" /></svg>,
+  filter: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 5h18l-7 9v6l-4-2v-4L3 5z" /></svg>,
+  cal: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>,
+  sort: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M7 4v16M4 17l3 3 3-3M17 4v16M14 7l3-3 3 3" /></svg>,
+  plus: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 5v14M5 12h14" /></svg>,
+  send: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m4 12 16-8-5 18-3-7-8-3z" /></svg>,
+  bolt: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" /></svg>,
+  chat: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 5h16v11H8l-4 4z" /></svg>,
+  data: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.6 3.6 3 8 3s8-1.4 8-3V6M4 12v6c0 1.6 3.6 3 8 3s8-1.4 8-3v-6" /></svg>,
+  agent: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="8" r="4" /><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6" /></svg>,
+  cog: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="3" /><path d="M19 12c0-.6-.05-1.2-.15-1.7l2.1-1.6-2-3.4-2.5 1a7 7 0 0 0-3-1.7l-.4-2.6h-4l-.4 2.6a7 7 0 0 0-3 1.7l-2.5-1-2 3.4 2.1 1.6c-.1.5-.15 1.1-.15 1.7s.05 1.2.15 1.7l-2.1 1.6 2 3.4 2.5-1a7 7 0 0 0 3 1.7l.4 2.6h4l.4-2.6a7 7 0 0 0 3-1.7l2.5 1 2-3.4-2.1-1.6c.1-.5.15-1.1.15-1.7z" /></svg>,
+  cpu: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="6" y="6" width="12" height="12" rx="2" /><rect x="9" y="9" width="6" height="6" /><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" /></svg>,
+  files: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M14 3H6v18h12V7z" /><path d="M14 3v4h4" /></svg>,
+  term: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="m7 9 3 3-3 3M13 15h4" /></svg>,
+  jobs: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V4h8v3" /></svg>,
+  task: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 7h16M4 12h16M4 17h10" /><circle cx="6.5" cy="7" r="1" fill="currentColor" /><circle cx="6.5" cy="12" r="1" fill="currentColor" /><circle cx="6.5" cy="17" r="1" fill="currentColor" /></svg>,
+  ops: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 6h16M4 12h10M4 18h7" /></svg>,
+  swarm: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="6" cy="6" r="2" /><circle cx="18" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /><circle cx="12" cy="12" r="2" /></svg>,
+  mem: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M8 4v16M16 4v16M4 8h4M4 16h4M16 8h4M16 16h4" /></svg>,
+  skill: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2 4 7l8 5 8-5-8-5z" /><path d="m4 17 8 5 8-5M4 12l8 5 8-5" /></svg>,
+  mcp: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 12h6l3-8 4 16 3-8h2" /></svg>,
+  prof: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="8" r="4" /><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6" /></svg>,
+  pin: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2v8m-5 0h10l-1 4H8z" /><path d="M12 14v8" /></svg>,
+  star: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m12 3 2.6 6 6.4.5-4.8 4.3 1.5 6.2L12 16.7 6.3 20l1.5-6.2L3 9.5 9.4 9z" /></svg>,
+  cron: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>,
+  tg: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m3 11 18-7-3 16-6-4-3 4v-6z" /></svg>,
+  tool: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M14 7a4 4 0 0 1-5 5l-6 6 2 2 6-6a4 4 0 0 1 5-5l-2-2 3-3 2 2-3 3z" /></svg>,
+  more: <svg className="ico" viewBox="0 0 24 24" fill="currentColor"><circle cx="6" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="18" cy="12" r="1.6" /></svg>,
+  archive: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="18" height="5" rx="1" /><path d="M5 9v11h14V9M10 13h4" /></svg>,
+  trash: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13" /></svg>,
+  x: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 6 18 18M18 6 6 18" /></svg>,
+  upload: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 16V4m0 0-5 5m5-5 5 5M4 20h16" /></svg>,
+  refresh: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 12a8 8 0 0 1 14-5l3-3M4 4v5h5M20 12a8 8 0 0 1-14 5l-3 3M20 20v-5h-5" /></svg>,
+  arrowUp: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12l7-7 7 7" /></svg>,
+  arrow: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5 12h14M13 6l6 6-6 6" /></svg>,
+  fold: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m9 6-6 6 6 6M21 6h-9M21 12h-6M21 18h-9" /></svg>,
+  unfold: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m15 6 6 6-6 6M3 6h9M3 12h6M3 18h9" /></svg>
+};
+
+/* ──────────────────────────────────────────────────────────
+   MOCK DATA — sessions
+   ────────────────────────────────────────────────────────── */
+const SOURCES = [
+{ id: 'all', label: 'All', ico: Ico.data, count: 247 },
+{ id: 'chat', label: 'Chat', ico: Ico.chat, count: 142, key: 'src-chat' },
+{ id: 'cron', label: 'Cron', ico: Ico.cron, count: 38, key: 'src-cron' },
+{ id: 'task', label: 'Tasks', ico: Ico.task, count: 24, key: 'src-task' },
+{ id: 'tool', label: 'Tools', ico: Ico.tool, count: 19, key: 'src-tool' },
+{ id: 'tg', label: 'Telegram', ico: Ico.tg, count: 12, key: 'src-tg' },
+{ id: 'mem', label: 'Memory', ico: Ico.mem, count: 12, key: 'src-mem' }];
+
+const STATES = [
+{ id: 'all', label: 'All states' },
+{ id: 'live', label: 'Live', tone: 'acc' },
+{ id: 'idle', label: 'Idle' },
+{ id: 'complete', label: 'Complete' },
+{ id: 'error', label: 'Error', tone: 'err' }];
+
+
+const FAKE_SESSIONS = [
+// TODAY
+{ id: 's1', src: 'chat', title: 'Hermes Memory File Structure', sub: 'hermes-4-405b · t_49b85d13', tok: '128,420', when: '7:27 PM', day: 'today', live: true, badges: ['live', 'tools'] },
+{ id: 's2', src: 'chat', title: 'Fix Local MEDIA Path Rendering', sub: 'sonnet-4.5', tok: '42,108', when: '6:21 PM', day: 'today', badges: ['tools'] },
+{ id: 's3', src: 'chat', title: '[IMPORTANT] You are running as kanban-orchestrator', sub: 'opus-4', tok: '88,402', when: '6:01 PM', day: 'today', badges: ['system'], pinned: true },
+{ id: 's4', src: 'cron', title: 'cron · daily-brief-research', sub: 'cron_5d57da540474_2026050…', tok: '12,210', when: '5:30 PM', day: 'today', badges: ['ok'] },
+{ id: 's5', src: 'chat', title: 'Integrating OpenUI into Hermes', sub: 'haiku-4.5', tok: '5,220', when: '3:24 PM', day: 'today', badges: ['tools'] },
+{ id: 's6', src: 'task', title: 'Trace WebSocket auth handshake', sub: 'task_a4f2 · 4 subtasks', tok: '18,920', when: '2:01 PM', day: 'today', badges: ['running'] },
+{ id: 's7', src: 'tg', title: '@hermesbot · /summarize launch-prep channel', sub: 'telegram · 142 msgs', tok: '24,011', when: '12:58 PM', day: 'today', badges: ['tg'] },
+// YESTERDAY
+{ id: 's8', src: 'chat', title: 'Implement second sidebar for sessions', sub: 'hermes-4-405b', tok: '72,442', when: 'Yesterday', day: 'yesterday', badges: ['done'] },
+{ id: 's9', src: 'cron', title: 'cron · github-awesome-monitor', sub: 'cron_3d57…  ·  6h cycle', tok: '8,101', when: 'Yesterday', day: 'yesterday', badges: ['ok'] },
+{ id: 's10', src: 'tool', title: 'tool · execute_query · postgres-readonly', sub: '3 invocations · 12ms p99', tok: '1,402', when: 'Yesterday', day: 'yesterday', badges: ['tools'] },
+{ id: 's11', src: 'cron', title: 'cron · daily-brief-weather-news', sub: 'failed at attempt 2', tok: '412', when: 'Yesterday', day: 'yesterday', badges: ['err'] },
+{ id: 's12', src: 'mem', title: 'memory · index sweep', sub: 'rebuilt 4,012 vectors', tok: '2,108', when: 'Yesterday', day: 'yesterday', badges: ['ok'] },
+// EARLIER
+{ id: 's13', src: 'chat', title: 'Hermes deployment + edge runtime', sub: 'opus-4', tok: '412,889', when: 'May 03', day: 'earlier', badges: ['archived'] },
+{ id: 's14', src: 'task', title: 'Plan: agent v2 retrieval graph', sub: 'task_b201 · 12 subtasks', tok: '92,012', when: 'May 02', day: 'earlier', badges: ['done'] },
+{ id: 's15', src: 'tg', title: '@hermesbot · daily standup digest', sub: 'telegram · 84 msgs', tok: '14,002', when: 'May 02', day: 'earlier', badges: ['tg', 'done'] },
+{ id: 's16', src: 'tool', title: 'tool · run_test_suite', sub: 'jest · 412 passing', tok: '4,810', when: 'May 01', day: 'earlier', badges: ['ok'] }];
+
+
+/* ──────────────────────────────────────────────────────────
+   PRIMARY NAV
+   ────────────────────────────────────────────────────────── */
+function PrimaryNav() {
+  const main = [
+  { k: 'dash', i: Ico.data, l: 'Dashboard' },
+  { k: 'chat', i: Ico.chat, l: 'Chat', active: true, badge: '3' },
+  { k: 'files', i: Ico.files, l: 'Files' },
+  { k: 'term', i: Ico.term, l: 'Terminal' },
+  { k: 'jobs', i: Ico.jobs, l: 'Jobs' },
+  { k: 'tasks', i: Ico.task, l: 'Tasks' },
+  { k: 'cond', i: Ico.bolt, l: 'Conductor' },
+  { k: 'ops', i: Ico.ops, l: 'Operations' },
+  { k: 'swarm', i: Ico.swarm, l: 'Swarm' }];
+
+  const know = [
+  { k: 'mem', i: Ico.mem, l: 'Memory' },
+  { k: 'skill', i: Ico.skill, l: 'Skills' },
+  { k: 'mcp', i: Ico.mcp, l: 'MCP' },
+  { k: 'prof', i: Ico.prof, l: 'Profiles' }];
+
+  return (
+    <aside className="nav">
+      <div className="brand">
+        <div className="glyph">ᕼ</div>
+        <div>
+          <b>HERMES</b>
+          <div className="ver">SWITCHUI · v2.0.4</div>
+        </div>
+      </div>
+
+      <div className="nav-item" style={{ borderColor: 'var(--m-border)', background: 'var(--m-fill-subtle)', color: 'var(--m-text)' }}>
+        {Ico.search}<span>Search</span><span className="badge-mini" style={{ background: 'transparent', color: 'var(--m-text-faint)', border: 'none' }}>⌘K</span>
+      </div>
+      <div className="nav-item" style={{ color: 'var(--m-green-500)' }}>
+        {Ico.plus}<span>New Session</span>
+      </div>
+
+      <div className="nav-grp">Main</div>
+      {main.map((n) =>
+      <div key={n.k} className={`nav-item ${n.active ? 'active' : ''}`}>
+          {n.i}<span>{n.l}</span>
+          {n.badge && <span className="badge-mini">{n.badge}</span>}
+        </div>
+      )}
+
+      <div className="nav-grp">Knowledge</div>
+      {know.map((n) =>
+      <div key={n.k} className="nav-item">{n.i}<span>{n.l}</span></div>
+      )}
+
+      <div className="nav-foot">
+        <span className="m-dot m-dot-pulse" />
+        <span>connected</span>
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6 }}>
+          <span className="ico-btn" style={{ width: 22, height: 22 }}>{Ico.cog}</span>
+        </span>
+      </div>
+    </aside>);
+
+}
+
+/* ──────────────────────────────────────────────────────────
+   SESSIONS PANEL
+   ────────────────────────────────────────────────────────── */
+function SessionsPanel({ activeId, onSelect, source, setSource, state, setState, q, setQ, sort, setSort, collapsed, setCollapsed }) {
+  const [dateOpen, setDateOpen] = React.useState(false);
+  const [preset, setPreset] = React.useState('7d');
+  if (collapsed) {
+    const total = FAKE_SESSIONS.length;
+    const live = FAKE_SESSIONS.filter(s => s.live).length;
+    return (
+      <aside className="sess is-collapsed">
+        <div className="sess-head" style={{ justifyContent: 'center', padding: '12px 0 10px' }}>
+          <span className="ico-btn" title="Expand panel" onClick={() => setCollapsed(false)}>{Ico.unfold}</span>
+        </div>
+        <div className="sess-rail">
+          <span className="vlabel">Sessions</span>
+          <span className="badge-n">{total}</span>
+          <span className="ico-btn active" title={`${live} live`} style={{ marginTop: 8 }}><span className="m-dot m-dot-pulse" /></span>
+          <span className="ico-btn" title="Search" onClick={() => setCollapsed(false)}>{Ico.search}</span>
+          <span className="ico-btn" title="Filters" onClick={() => setCollapsed(false)}>{Ico.filter}</span>
+        </div>
+        <div className="sess-foot" style={{ padding: 8, display: 'grid', placeItems: 'center' }}>
+          <span className="ico-btn active" title="New chat">{Ico.plus}</span>
+        </div>
+      </aside>
+    );
+  }
+  const list = React.useMemo(() => FAKE_SESSIONS.filter((s) => {
+    if (source !== 'all' && s.src !== source) return false;
+    if (state === 'live' && !s.live) return false;
+    if (state === 'error' && !(s.badges || []).includes('err')) return false;
+    if (state === 'complete' && !(s.badges || []).includes('done')) return false;
+    if (q && !s.title.toLowerCase().includes(q.toLowerCase()) && !s.sub.toLowerCase().includes(q.toLowerCase())) return false;
+    return true;
+  }), [source, state, q]);
+
+  const grouped = list.reduce((acc, s) => {
+    (acc[s.day] = acc[s.day] || []).push(s);
+    return acc;
+  }, {});
+
+  const dayLabels = { today: 'Today', yesterday: 'Yesterday', earlier: 'Earlier' };
+
+  return (
+    <aside className="sess" style={{ position: 'relative' }}>
+      {dateOpen && (
+        <div className="date-pop">
+          <div className="lbl">RANGE</div>
+          <div className="presets">
+            {['Today','24h','7d','30d','90d','All'].map(p => (
+              <button key={p} className={preset===p?'on':''} onClick={()=>setPreset(p)}>{p}</button>
+            ))}
+          </div>
+          <div className="nav">
+            <button onClick={()=>{}}>‹</button>
+            <span className="mo">May 2026</span>
+            <button onClick={()=>{}}>›</button>
+          </div>
+          <div className="cal">
+            {['S','M','T','W','T','F','S'].map((d,i)=><div key={i} className="dow">{d}</div>)}
+            {Array.from({length:35}).map((_,i)=>{
+              const day = i - 4;
+              if (day < 1 || day > 31) return <div key={i} className="d muted">{day<1? 30+day : day-31}</div>;
+              const cls = day===2?'start':day===5?'end':(day>2&&day<5)?'in':'';
+              return <div key={i} className={`d ${cls}`}>{day}</div>;
+            })}
+          </div>
+          <div className="foot">
+            <button className="m-btn m-btn-sm m-btn-ghost" onClick={()=>{setPreset(null);setDateOpen(false);}}>Clear</button>
+            <button className="m-btn m-btn-sm m-btn-primary" onClick={()=>setDateOpen(false)}>Apply</button>
+          </div>
+        </div>
+      )}
+      <div className="sess-head">
+        <h3>Sessions</h3>
+        <span className="ct">· {list.length}</span>
+        <div className="actions">
+          <span className="ico-btn" title="Refresh">{Ico.refresh}</span>
+          <span className={`ico-btn ${dateOpen?'active':''}`} title="Date filter" onClick={()=>setDateOpen(v=>!v)}>{Ico.cal}</span>
+          <span className="ico-btn active" title="More filters">{Ico.filter}</span>
+          <span className="ico-btn" title="Collapse panel" onClick={() => setCollapsed(true)}>{Ico.fold}</span>
+        </div>
+      </div>
+
+      <div className="sess-search">
+        <div className="m-input-group" style={{ padding: '0 8px', borderRadius: 6 }}>
+          <span className="m-prefix">{Ico.search}</span>
+          <input
+            placeholder="search sessions, tools, content..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            style={{ padding: '7px 4px', fontSize: 12.5 }} />
+          
+          {q ?
+          <span className="ico-btn" onClick={() => setQ('')} style={{ width: 22, height: 22 }}>{Ico.x}</span>
+          : null}
+        </div>
+      </div>
+
+      <div className="chip-rail">
+        {SOURCES.map((s) =>
+        <button key={s.id}
+        className={`chip ${source === s.id ? 'on' : ''}`}
+        onClick={() => setSource(s.id)}>
+            {s.ico}<span>{s.label}</span><span className="ct">{s.count}</span>
+          </button>
+        )}
+      </div>
+
+      <div className="sess-meta">
+        <span>State</span>
+        <div className="seg">
+          {STATES.map((s) =>
+          <button key={s.id} className={state === s.id ? 'on' : ''} onClick={() => setState(s.id)}>{s.label}</button>
+          )}
+        </div>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>{Ico.sort}<span>{sort}</span></span>
+        </div>
+      </div>
+
+      <div className="sess-list">
+        {Object.entries(grouped).map(([day, items]) =>
+        <React.Fragment key={day}>
+            <div className="day-label">
+              <span>{dayLabels[day]}</span>
+              <span className="n">{items.length}</span>
+            </div>
+            {items.map((s) =>
+          <div key={s.id}
+          className={`sess-card src-${s.src} ${activeId === s.id ? 'active' : ''}`}
+          onClick={() => onSelect(s.id)}>
+                <span className="rail" />
+                <div className="body">
+                  <div className="title">
+                    {s.pinned && <span style={{ color: 'var(--m-green-500)', marginRight: 4 }}>★</span>}
+                    {s.title}
+                  </div>
+                  <div className="meta">
+                    <span className="src-tag">{s.src}</span>
+                    <span className="dot" />
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.sub}</span>
+                  </div>
+                  <div className="badges">
+                    {(s.badges || []).map((b, i) => {
+                  const map = { live: 'acc', tools: '', system: 'info', err: 'err', ok: 'acc', done: '', tg: 'pink', running: 'acc', archived: '' };
+                  const lbl = b === 'tools' ? 'tools' : b === 'tg' ? 'TG' : b;
+                  return <span key={i} className={`b ${map[b] || ''}`}>{b === 'live' ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><span className="m-dot m-dot-pulse" style={{ width: 5, height: 5 }} />{lbl}</span> : lbl}</span>;
+                })}
+                  </div>
+                </div>
+                <div className="right">
+                  <span className={s.live ? 'live' : ''}>{s.when}</span>
+                  <span className="tok">{s.tok}</span>
+                </div>
+              </div>
+          )}
+          </React.Fragment>
+        )}
+        {list.length === 0 &&
+        <div style={{ padding: '40px 18px', textAlign: 'center', fontFamily: 'var(--m-font-mono)', color: 'var(--m-text-faint)', fontSize: 12, lineHeight: 1.7 }}>
+            <div style={{ marginBottom: 8, fontSize: 24, color: 'var(--m-text-faint)' }}>∅</div>
+            no sessions match.<br />
+            <span style={{ color: 'var(--m-text-muted)' }}>try clearing filters or widening the date range.</span>
+          </div>
+        }
+      </div>
+
+      <div className="sess-foot">
+        <button className="m-btn m-btn-primary" style={{ justifyContent: 'center', width: '100%' }}>
+          <span style={{ width:14, height:14, display:'inline-grid', placeItems:'center', flex:'none' }}>{Ico.plus}</span>
+          <span>new chat</span>
+        </button>
+      </div>
+    </aside>);
+
+}
+
+/* ──────────────────────────────────────────────────────────
+   CHAT
+   ────────────────────────────────────────────────────────── */
+function ChatColumn() {
+  return (
+    <main className="chat">
+      <div className="chat-top">
+        <div className="title">
+          <span className="src">[CHAT]</span>
+          Hermes Memory File Structure #2
+        </div>
+        <div className="src-tabs">
+          <span className="t on">{Ico.chat}<span>chat</span></span>
+          <span className="t">{Ico.tool}<span>tool</span></span>
+          <span className="t">{Ico.cpu}<span>activity</span></span>
+        </div>
+        <div className="actions">
+          <span className="ico-btn" title="Pin">{Ico.pin}</span>
+          <span className="ico-btn" title="Star">{Ico.star}</span>
+          <span className="ico-btn" title="Archive">{Ico.archive}</span>
+          <span className="ico-btn" title="More">{Ico.more}</span>
+        </div>
+      </div>
+
+      <div className="chat-meta-bar">
+        <span><span className="m-dot m-dot-pulse" style={{ marginRight: 6 }} />live · 37 tok/s</span>
+        <span className="sep" />
+        <span>hermes-4-405b</span>
+        <span className="sep" />
+        <span>ctx 42% · 42,108 / 100k</span>
+        <span className="sep" />
+        <span>tools · 14</span>
+        <span className="sep" />
+        <span>profile · default</span>
+        <span style={{ marginLeft: 'auto' }}>session · t_49b85d13</span>
+      </div>
+
+      <div className="chat-stream">
+        <div className="turn user">
+          <div>
+            <div className="bubble">
+              I now have comprehensive knowledge of the codebase. Let me gather a few more key details, then write the three files for the Hermes memory structure.
+            </div>
+            <div className="meta">USER · 11:04 AM</div>
+          </div>
+          <div className="avatar-u">U</div>
+        </div>
+
+        <div className="turn assist">
+          <div className="avatar-h">H</div>
+          <div style={{ flex: 1 }}>
+            <div className="bubble">
+              Good. I have everything I need — let me write all three files to the workspace at <code>/Users/rohits/.hermes/kanban/workspaces/t_49b85d13/</code>:
+              <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+                <li><code>PROJECT.md</code> — high-level scope &amp; constraints</li>
+                <li><code>ARCHITECTURE.md</code> — route/server map, gateway capabilities</li>
+                <li><code>DECISIONS.md</code> — rationale, locked choices, follow-ups</li>
+              </ul>
+            </div>
+            <div className="meta">HERMES · 11:04 AM · 18 tok/s</div>
+          </div>
+        </div>
+
+        <div className="turn assist" style={{ marginLeft: 40 }}>
+          <div style={{ flex: 1 }}>
+            <div className="tool-card">
+              <div className="hd">
+                <span>Activity</span>
+                <span className="m-text-faint">·</span>
+                <span>3 tools</span>
+                <span className="right"><span className="m-dot m-dot-on" /> done</span>
+              </div>
+              <div className="body">
+                <div className="row"><span className="ok">●</span><span className="name">write_file</span><span className="sub">PROJECT.md · 4.2 kb · 12ms</span></div>
+                <div className="row"><span className="ok">●</span><span className="name">write_file</span><span className="sub">ARCHITECTURE.md · 8.1 kb · 18ms</span></div>
+                <div className="row"><span className="ok">●</span><span className="name">write_file</span><span className="sub">DECISIONS.md · 3.4 kb · 9ms</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="turn assist">
+          <div className="avatar-h">H</div>
+          <div style={{ flex: 1 }}>
+            <div className="bubble">
+              Done. Three files committed to the workspace root. They're grounded in the actual hermes-switchui codebase, route/server structure, package metadata, and recent git history — no inferred content.
+              <div style={{ marginTop: 6, color: 'var(--m-text-muted)', fontSize: 12.5, fontFamily: 'var(--m-font-mono)' }}>
+                <span className="m-cursor">awaiting next directive</span>
+              </div>
+            </div>
+            <div className="meta">HERMES · 11:04 AM</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="composer-wrap">
+        <div className="composer streaming">
+          <div className="inp">
+            <textarea rows="1" placeholder="ask anything... (↵ to send · ⇧↵ new line · ⌘+M switch model)"></textarea>
+          </div>
+          <div className="toolbar">
+            <div className="left">
+              <button className="pill">{Ico.upload}<span>attach</span></button>
+              <button className="pill">{Ico.bolt}<span>tools · 14</span></button>
+              <button className="pill">{Ico.agent}<span>default</span></button>
+              <button className="pill">{Ico.cpu}<span>auto</span></button>
+            </div>
+            <div className="right">
+              <span style={{ font: '500 10px var(--m-font-mono)', color: 'var(--m-text-faint)', textTransform: 'uppercase', letterSpacing: '.15em' }}>42% ctx</span>
+              <button className="send" aria-label="Send">{Ico.arrowUp}</button>
+            </div>
+          </div>
+        </div>
+        <div className="hint">
+          <span><span className="kbd">↵</span>send</span>
+          <span><span className="kbd">⇧↵</span>newline</span>
+          <span><span className="kbd">⌘K</span>search</span>
+          <span><span className="kbd">⌘N</span>new session</span>
+          <span style={{ marginLeft: 'auto' }}>END_OF_TRANSMISSION</span>
+        </div>
+      </div>
+    </main>);
+
+}
+
+/* ──────────────────────────────────────────────────────────
+   APP
+   ────────────────────────────────────────────────────────── */
+function App() {
+  const [active, setActive] = React.useState('s1');
+  const [source, setSource] = React.useState('all');
+  const [state, setState] = React.useState('all');
+  const [q, setQ] = React.useState('');
+  const [sort, setSort] = React.useState('recent');
+  const [collapsed, setCollapsed] = React.useState(false);
+
+  return (
+    <div className={`shell ${collapsed ? 'sess-collapsed' : ''}`}>
+      <PrimaryNav />
+      <SessionsPanel
+        activeId={active} onSelect={setActive}
+        source={source} setSource={setSource}
+        state={state} setState={setState}
+        q={q} setQ={setQ}
+        sort={sort} setSort={setSort}
+        collapsed={collapsed} setCollapsed={setCollapsed} />
+      
+      <ChatColumn />
+    </div>);
+
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

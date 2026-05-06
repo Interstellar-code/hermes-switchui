@@ -1,0 +1,3534 @@
+{
+  "/Volumes/Ext-nvme/Development/hermes-switchui/server-entry.js": {
+    "mtime": 1777929346.9725254,
+    "hash": "76969086172441cffd3db42717a2a34e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/prettier.config.js": {
+    "mtime": 1777395130.868188,
+    "hash": "59950f4d2c89212b0dec6b52ba081d36"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/eslint.config.js": {
+    "mtime": 1777842137.7060406,
+    "hash": "bc61eb48b994561f2d4792e5d84acf15"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/vite.config.ts": {
+    "mtime": 1777911525.690781,
+    "hash": "3287f22a9e9718da984191e3366afb1b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/playground-ws-worker/src/worker.ts": {
+    "mtime": 1777929346.9682548,
+    "hash": "da36d3c4e0d6ed423cfec4e26b94f13f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/sw.js": {
+    "mtime": 1777395130.9013252,
+    "hash": "1034c71d2b75a0e0c319f961c584b066"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/scripts/generate-pwa-icons.js": {
+    "mtime": 1777842137.8681898,
+    "hash": "22a55264b4e42984a9cefd207497ae2f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/scripts/playground-ws.mjs": {
+    "mtime": 1777929346.9705245,
+    "hash": "3a4b10f10dbe09e7eac37098419d39ae"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/scripts/skills-search.py": {
+    "mtime": 1777842137.868348,
+    "hash": "0a7ea7f0411f6354e6ab95fd3bee523a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/scripts/seed-runtime.mjs": {
+    "mtime": 1777929346.9714308,
+    "hash": "2b775820cdc4d0659d5eec50f68ce270"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/scripts/managed-companion-smoke.mjs": {
+    "mtime": 1777929346.970132,
+    "hash": "f86813364cd3ea831f7b2d81168e7a88"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/scripts/dashboard-smoke.mjs": {
+    "mtime": 1777395130.901491,
+    "hash": "c0863cd2f185679772e63d2388fd90e4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/router.tsx": {
+    "mtime": 1777395130.9179802,
+    "hash": "0b24dc6f30f0f4ddea7b597a85ce7edd"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/router-route-resolution.test.ts": {
+    "mtime": 1777929347.0528593,
+    "hash": "363d0615ad86321dee6aaad28b80e1a5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/types/recharts.d.ts": {
+    "mtime": 1777395130.9392064,
+    "hash": "39b8ce9eba2f824146fc7127d74c7383"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/types/mcp.ts": {
+    "mtime": 1777874162.3230076,
+    "hash": "1716348ecdd60982f0dfe73a2e4109dc"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/types/mcp-input.ts": {
+    "mtime": 1777842137.9435828,
+    "hash": "ad53a6d9ecf21f3513adb841f6aecf3f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/types/ws.d.ts": {
+    "mtime": 1777395130.939253,
+    "hash": "7b9b51534dc0f4533c00488250b9cdcf"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/stores/session-model-store.ts": {
+    "mtime": 1777929347.2370324,
+    "hash": "e218775d991bd2e44adbbe03e4e590a1"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/stores/terminal-panel-store.ts": {
+    "mtime": 1777395130.938987,
+    "hash": "ad7126bea0d6828d82bea997e9362e3e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/stores/chat-store.test.ts": {
+    "mtime": 1777395130.9387054,
+    "hash": "ff65d3cdfedf2dc13e24f4963e3a4bb5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/stores/chat-store.ts": {
+    "mtime": 1777842137.9428911,
+    "hash": "14a7003e45c4a4fa6412cc7672fca1a0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/stores/task-store.ts": {
+    "mtime": 1777978548.9964085,
+    "hash": "c496abd2e89675fe392cf9a168180fdf"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/stores/chat-activity-store.ts": {
+    "mtime": 1777395130.9386578,
+    "hash": "db9696e0e53f9a15b08760af19f0df75"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/stores/context-usage-store.ts": {
+    "mtime": 1777967909.8943815,
+    "hash": "4cecaf078aab5538ec8525d2431e8b0a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/stores/mission-store.ts": {
+    "mtime": 1777929347.23693,
+    "hash": "a62318d176de0bb0b7ba687a1a32cb21"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/stores/workspace-store.ts": {
+    "mtime": 1777545300.319028,
+    "hash": "54e5697411ee2aa8885600e1a40f6253"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/stores/agent-swarm-store.ts": {
+    "mtime": 1777929347.236807,
+    "hash": "1ca8324ea3d84b5a57051be1c5166e8b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-tools-cache.ts": {
+    "mtime": 1777929347.2202182,
+    "hash": "a8cb4299f9fa74475fb31fd68d677dc6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-presets-store.ts": {
+    "mtime": 1777929347.2200391,
+    "hash": "fbc47262fa3ec7df8449d06079694909"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/claude-paths.ts": {
+    "mtime": 1777929347.2113411,
+    "hash": "bcbc0eb8caa013738096aace818a44cb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-presets-store.test.ts": {
+    "mtime": 1777929347.2199306,
+    "hash": "fcb873aab98bda3a6325bd0829e20c2e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-profile-config.ts": {
+    "mtime": 1777929347.2327023,
+    "hash": "d50f42dc1ec2a6c0b4248de9c337ee1a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-lifecycle.ts": {
+    "mtime": 1777929347.230325,
+    "hash": "05d5b42028b6786d5012692b42e2b123"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-environment.ts": {
+    "mtime": 1777929347.2299027,
+    "hash": "2794a224d92ada6b36aed9ad3e272193"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-missions.ts": {
+    "mtime": 1777929347.2313147,
+    "hash": "cb5207b6200d163f1fb953f89d9cc663"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/claude-api.ts": {
+    "mtime": 1777978548.9925563,
+    "hash": "c2b7d954e8dfa72090c742e9d68033b6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/terminal-sessions.ts": {
+    "mtime": 1777967909.89403,
+    "hash": "2d8abaed3f73f1f9602acecfd058ea9d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/knowledge-browser.ts": {
+    "mtime": 1777967909.8914404,
+    "hash": "a4801933506f1a62ef952693c543e41b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/profiles-browser.ts": {
+    "mtime": 1777850870.2081602,
+    "hash": "c1ee5b7073d70fa1d4885ed59fe6c619"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-normalize.test.ts": {
+    "mtime": 1777929347.219483,
+    "hash": "8c55766c2b5e934aadcaace1cc66e00c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/auth-middleware.ts": {
+    "mtime": 1777929347.2105572,
+    "hash": "21577b77330a19234b61750cced9bc29"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-chat-reader.ts": {
+    "mtime": 1777929347.2293124,
+    "hash": "6bd8a62eb21a42af035ddcc8d70b4864"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-model-resolver.ts": {
+    "mtime": 1777850870.2103493,
+    "hash": "cd84c85142921034f835d1e0c7acdf8c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-foundation.test.ts": {
+    "mtime": 1777929347.2300093,
+    "hash": "53068dfa69226539b53d7535eef31c9d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/session-utils.ts": {
+    "mtime": 1777395130.9384224,
+    "hash": "98945bc35f412c68e4a50a60554aa296"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/openai-compat-api.test.ts": {
+    "mtime": 1777929347.220514,
+    "hash": "3ebb8f8d3b6a05b54f67b81e6ecf2936"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/legacy-tasks-migration.test.ts": {
+    "mtime": 1777978548.9949608,
+    "hash": "ac7271e93ff8a939a1636629a487fceb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-model-resolver.test.ts": {
+    "mtime": 1777850870.2102594,
+    "hash": "d9908ea08dc438a91269612abd070920"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/chat-event-bus.ts": {
+    "mtime": 1777842137.9324389,
+    "hash": "5aa8ee587811acb6d2df224e6f80fde1"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/openai-compat-api.ts": {
+    "mtime": 1777929347.220785,
+    "hash": "bab8952c7702f55ef2abca3b505b275c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/hermes-kanban-client.test.ts": {
+    "mtime": 1777978548.9933426,
+    "hash": "6950e423017eb756cd56965dcc4806df"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-cli-bridge.ts": {
+    "mtime": 1777967909.8932576,
+    "hash": "5a95858cad0a4d5db186688f999b43c7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/integration-detection.test.ts": {
+    "mtime": 1777842137.9335175,
+    "hash": "461c5cd59a42af530b095de0e09b0779"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/chat-backends.ts": {
+    "mtime": 1777842137.932362,
+    "hash": "bc17719e9336265591b4510c4fb2c222"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/send-run-tracker.ts": {
+    "mtime": 1777842137.9390962,
+    "hash": "8edd889707e35ea90d2f2ac64d66fdfa"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-roster.ts": {
+    "mtime": 1777929347.2327826,
+    "hash": "20301895b90807f67d73e853dbf7668f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/hermes-kanban-client.ts": {
+    "mtime": 1777978548.9936,
+    "hash": "b092b912ca8807d168c92314adcfd2ae"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/local-provider-discovery.ts": {
+    "mtime": 1777929347.2169228,
+    "hash": "26c00bb17d26a5a179396a624f1494df"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/tasks-store.ts": {
+    "mtime": 1777978548.9960322,
+    "hash": "35b721a6f9a5dd84db2b9ae83d6b0d5d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/dashboard-aggregator.test.ts": {
+    "mtime": 1777929347.2115664,
+    "hash": "cb4749af2023f5aa68c1aaacb6bcc1db"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-mode.ts": {
+    "mtime": 1777929347.2315059,
+    "hash": "ac2a68d14310df4ddf4b9ed74ef7e572"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/responses-api.ts": {
+    "mtime": 1777929347.229032,
+    "hash": "14a99da1cf30b3a60c9ac85592cfc510"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/tool-artifacts-store.ts": {
+    "mtime": 1777929347.2333868,
+    "hash": "c25f0c74c689398ddecd72f12d8bd4f2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/context-usage.ts": {
+    "mtime": 1777929347.2114444,
+    "hash": "a816aa2ab0e8f69dce9e79e0adc864bc"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/local-session-store.ts": {
+    "mtime": 1777395130.93782,
+    "hash": "48d7b461501a1a1e776f3f41f4c1dc4e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-chat-reader.test.ts": {
+    "mtime": 1777842137.939157,
+    "hash": "da8af76312b4fea20e121b58eafba501"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/update-system.ts": {
+    "mtime": 1777929347.2337904,
+    "hash": "c6888b1fe89fa0da51bc4cd8cb6110d6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-mode.test.ts": {
+    "mtime": 1777929347.2314162,
+    "hash": "6d58fbdb6d258a8f55adda90b5b99cb8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/rate-limit.test.ts": {
+    "mtime": 1777929347.2286031,
+    "hash": "ae06092dcb495f8447bfb6e65ca749eb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/run-store.ts": {
+    "mtime": 1777842137.938671,
+    "hash": "dd94e0bd7f386d22e8efd527647cb33c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-notifications.test.ts": {
+    "mtime": 1777929347.2318318,
+    "hash": "bc91026a37b2df75eb8f02b363d9af0d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-input-validate.ts": {
+    "mtime": 1777929347.2194016,
+    "hash": "fbf8b55bdbcdcfbcd4f8fe3aa9e7176f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-kanban-store.ts": {
+    "mtime": 1777929347.230233,
+    "hash": "c3bc6c47316745c70437c5e8ef6764c0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/gateway-capabilities.ts": {
+    "mtime": 1777978548.9930496,
+    "hash": "5c3992cc376541451551865451f1d2ea"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/pty-helper.py": {
+    "mtime": 1777842137.938478,
+    "hash": "1d4a42b7a50afa07ac6c10689e25ae8a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-input-validate.test.ts": {
+    "mtime": 1777842137.9356158,
+    "hash": "93dcc3730ae6f744284c7141cc226589"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-memory.ts": {
+    "mtime": 1777929347.2307913,
+    "hash": "4879c410abd2b9cf75f33e0a9661a801"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-memory.test.ts": {
+    "mtime": 1777929347.2304134,
+    "hash": "6b3d12656a0f973b3aec2274add76a0b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/claude-agent.ts": {
+    "mtime": 1777929347.2106655,
+    "hash": "6a3d7c16ea390ca66a331ad4bfb86614"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-tools-cache.test.ts": {
+    "mtime": 1777929347.2201326,
+    "hash": "8c8645d25a2b0a6f2bc3632b018cfefb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/legacy-tasks-migration.ts": {
+    "mtime": 1777978548.9956284,
+    "hash": "c3ae2f37abf895eb8439fc255d09a057"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub-sources-store.ts": {
+    "mtime": 1777929347.2174318,
+    "hash": "0279c0ff23bfc58f0ae41fbd1d0b0959"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/provider-usage.ts": {
+    "mtime": 1777980893.0322044,
+    "hash": "da9ab0a1f08c0455dda7ea64d9abf8f4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-profile-config.test.ts": {
+    "mtime": 1777929347.232611,
+    "hash": "b2c6a534f9a9c1e4a8ef3aba5fc2e191"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/memory-browser.ts": {
+    "mtime": 1777929347.220297,
+    "hash": "4c5992278e9957ce70717e6ab75dd14f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-foundation.ts": {
+    "mtime": 1777929347.230131,
+    "hash": "948e286583210fb78025dfb9b533beba"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/dashboard-aggregator.ts": {
+    "mtime": 1777929347.2116952,
+    "hash": "d1d0433e90eb2012a2ed7d3f6d42387f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-checkpoints.test.ts": {
+    "mtime": 1777842137.9395895,
+    "hash": "0e9e26f5ee27ffbf4dcf7c39ab333c5c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub-sources-store.test.ts": {
+    "mtime": 1777929347.2173278,
+    "hash": "3bc5bb3f16017133d59b80b06fd4509f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/claude-dashboard-api.ts": {
+    "mtime": 1777929347.2112513,
+    "hash": "51e9d59fa52a1c1593f38c0541bf8c01"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-checkpoints.ts": {
+    "mtime": 1777929347.2297719,
+    "hash": "ccfbc8fcf2c49ee14c1f3b51ed9b1f4c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/update-system.test.ts": {
+    "mtime": 1777842137.9422934,
+    "hash": "002ae84218243106b14cbdc3eb71bb53"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/rate-limit.ts": {
+    "mtime": 1777395130.9382606,
+    "hash": "8c093c6bdc64c839aec6d22e9a819979"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/gateway.ts": {
+    "mtime": 1777929347.2129495,
+    "hash": "62809e6922b1780118e6b674c97c6189"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/kanban-backend.test.ts": {
+    "mtime": 1777978548.9939582,
+    "hash": "1dbbcce57d7978d8fee833400a573416"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/tool-artifacts-store.test.ts": {
+    "mtime": 1777842137.9421456,
+    "hash": "17bc0c1d1a7a02d441dea76f95297032"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/plugins-browser.ts": {
+    "mtime": 1777929347.2208695,
+    "hash": "419aae17bd2ce1e453144764f63142ef"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-normalize.ts": {
+    "mtime": 1777929347.2198224,
+    "hash": "a27a1e0ada303f7044219517d94af88c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/knowledge-config.ts": {
+    "mtime": 1777967909.8918636,
+    "hash": "6c9bbca13bffa075023f6c9e97d24300"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/profiles-browser.test.ts": {
+    "mtime": 1777929347.2233253,
+    "hash": "e803db00ee31e76e39ca08074e987368"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-notifications.ts": {
+    "mtime": 1777929347.2321553,
+    "hash": "9d0f099cdad678df8882d74f4ca0271a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/kanban-backend.ts": {
+    "mtime": 1777978548.9943635,
+    "hash": "1763f3fbc12511a02863b25e7e3f8274"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/swarm-missions.test.ts": {
+    "mtime": 1777929347.2308877,
+    "hash": "7de09b10460c207d9be3be2886d25068"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/chat-mode.ts": {
+    "mtime": 1777842137.9325163,
+    "hash": "5d5ba9f64dd74bcf7c170e7e6f9a62eb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/integration-detection.ts": {
+    "mtime": 1777842137.9335847,
+    "hash": "5b4b786bf5c93f1062319751066076e9"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/auth-middleware.test.ts": {
+    "mtime": 1777842137.9321594,
+    "hash": "89777a7aad37fc309131e8ada77114de"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/__tests__/gateway-capabilities.test.ts": {
+    "mtime": 1777929347.2093465,
+    "hash": "bcfcb6c294ded0728f20b9da50383f2a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/__tests__/memory-browser.test.ts": {
+    "mtime": 1777929347.2102153,
+    "hash": "b28fbd1cd511244c96afa3aef0c83fea"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/__tests__/local-provider-discovery.test.ts": {
+    "mtime": 1777929347.209724,
+    "hash": "0968088cda114e374172065995aeb90d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/__tests__/profiles-browser.test.ts": {
+    "mtime": 1777929347.2104235,
+    "hash": "5c100d825a028da4e508e0736707871e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub/-unified-search-user-sources.test.ts": {
+    "mtime": 1777929347.217963,
+    "hash": "5bc8c1ccabbdfa0ef4b73f0e4a16b573"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub/-unified-search.test.ts": {
+    "mtime": 1777929347.2180593,
+    "hash": "7d260f75d5fd37b1d1a3b99d9de35c34"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub/-trust.test.ts": {
+    "mtime": 1777929347.2178774,
+    "hash": "68d2c11b2b2334ff18fe17807a0891bf"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub/trust.ts": {
+    "mtime": 1777929347.2193086,
+    "hash": "b2061ff65d35d3d8436c00415471ff1f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub/-cache.test.ts": {
+    "mtime": 1777929347.2175393,
+    "hash": "cdd1914ec345b2bc5466377aed3a113a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub/types.ts": {
+    "mtime": 1777842137.9355366,
+    "hash": "08678d2860ac443958f345b099d6a3e0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub/cache.ts": {
+    "mtime": 1777929347.218142,
+    "hash": "4440bd47875070b211b62248bacd29cb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub/index.ts": {
+    "mtime": 1777929347.2182293,
+    "hash": "ffd6c3aad2fa874321ac8adea83f1d7b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub/lib/-ssrf-guard.test.ts": {
+    "mtime": 1777929347.2183332,
+    "hash": "bb3cdc2f7a08979f7834d1a5ab6fdf06"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub/lib/ssrf-guard.ts": {
+    "mtime": 1777929347.2185767,
+    "hash": "5970042a705723adf99283dfab5d4f85"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub/sources/-local-file.test.ts": {
+    "mtime": 1777929347.2187724,
+    "hash": "0bbca77318fe44a9aa90dc61eb0708ca"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub/sources/mcp-get.ts": {
+    "mtime": 1777929347.21921,
+    "hash": "fc6ef3de8e7b523cc2de68458a722887"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub/sources/-mcp-get.test.ts": {
+    "mtime": 1777929347.2189105,
+    "hash": "cad1e1c88eb66c5ff228fcfdf53c570c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub/sources/local-file.ts": {
+    "mtime": 1777929347.2191026,
+    "hash": "0bec1409fec366c2db609263207447ce"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub/sources/generic-json.ts": {
+    "mtime": 1777929347.2190185,
+    "hash": "cd098a8d6fe72e6e45978657e291e7f1"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/server/mcp-hub/sources/-generic-json.test.ts": {
+    "mtime": 1777929347.2186797,
+    "hash": "e3883ca5b74eef941e3ae7325315c736"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/utils/generate-session-title.ts": {
+    "mtime": 1777395130.9393418,
+    "hash": "09a6b65dbe419a6ddd1c4bd407451439"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/settings/providers-screen.tsx": {
+    "mtime": 1777929347.19974,
+    "hash": "7b34871c8908864dbc428764b56370ac"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/settings/components/provider-icon.tsx": {
+    "mtime": 1777395130.93559,
+    "hash": "f9a68519c356b895e070d969f9c8401e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/settings/components/provider-wizard.tsx": {
+    "mtime": 1777929347.199192,
+    "hash": "9a3ab68ba0564b088b9905c037913cc0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/swarm/swarm-screen.tsx": {
+    "mtime": 1777929347.200864,
+    "hash": "bc4447150ba2a99c57809aae063deb4a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/tasks/tasks-screen.tsx": {
+    "mtime": 1777978548.9890893,
+    "hash": "2238faa787cb3537134b11f608b90846"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/tasks/task-card.test.tsx": {
+    "mtime": 1777978548.984982,
+    "hash": "6a646de714074eb9f61ab33539291aff"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/tasks/task-detail-drawer.tsx": {
+    "mtime": 1777978548.9866538,
+    "hash": "eb0cddec4023475bf47ecc93bbef04e3"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/tasks/task-card.tsx": {
+    "mtime": 1777978548.9855542,
+    "hash": "ccdd8839560db6692f1f69c220fdf505"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/tasks/tasks-ux.test.ts": {
+    "mtime": 1777978548.9908311,
+    "hash": "9fabe0336e2a9eac6c6f46cae1c5ee26"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/tasks/task-dialog.tsx": {
+    "mtime": 1777978548.9877946,
+    "hash": "8fa9a87cee260a82fdb35963fb7288ae"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/tasks/task-detail-drawer.test.tsx": {
+    "mtime": 1777978548.9860227,
+    "hash": "3f37f6656d7420266d8b0c31de6ed31d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/memory/knowledge-browser-screen.tsx": {
+    "mtime": 1777929347.1914625,
+    "hash": "8612d9180c7b0531d8d83138c7b4485e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/memory/memory-browser-screen.tsx": {
+    "mtime": 1777395130.935359,
+    "hash": "beaddcc3b2e7a12306e530f8339bde37"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/pending-send.ts": {
+    "mtime": 1777842137.9149983,
+    "hash": "2f47204136db31add18dceafd197b9bb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/local-model-override.ts": {
+    "mtime": 1777842137.914627,
+    "hash": "e78f11d68cdf94346f473d4ab55b8fe2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/chat-queries.ts": {
+    "mtime": 1777929347.1478174,
+    "hash": "22b33c827d3bb87323901f66da32bcea"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/utils.ts": {
+    "mtime": 1777929347.1588993,
+    "hash": "69b3dbae4094500afe8e1f207bcd6132"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/chat-screen-utils.test.ts": {
+    "mtime": 1777395130.9268222,
+    "hash": "7ff46b410f6dfdb211b45365d8740d3b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/chat-screen-utils.ts": {
+    "mtime": 1777929347.1479805,
+    "hash": "a1903552312b69b2adeae17a3048ce13"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/types.ts": {
+    "mtime": 1777545300.316614,
+    "hash": "5adbd0a5f09b8d7f9a7fd7c2df1fda77"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/session-title-store.ts": {
+    "mtime": 1777842137.9153013,
+    "hash": "ceb070c4169174ea736c58e00f840ae7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/chat-queries.reconcile-session.test.ts": {
+    "mtime": 1777929347.1473403,
+    "hash": "875070279ef2be1dd602cb65896bbd25"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/chat-screen.tsx": {
+    "mtime": 1777967909.872346,
+    "hash": "0bd96a493287bf7b5d87011d0ddf91ca"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/chat-events.ts": {
+    "mtime": 1777842137.9070184,
+    "hash": "45985b28f7f2549e8e08925d342cdb54"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/chat-ui.ts": {
+    "mtime": 1777395130.9270763,
+    "hash": "da6b2c75b9415febeba064d25df7973f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/session-tombstones.ts": {
+    "mtime": 1777395130.9301822,
+    "hash": "e29f0bc67f02e951977740ef4720e642"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/message-timestamp.tsx": {
+    "mtime": 1777545300.3153737,
+    "hash": "8f57a71376e0007ab4b1eb1aa463f985"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/chat-composer-model-switch.test.ts": {
+    "mtime": 1777842137.908263,
+    "hash": "372790b52c1679dfe4962a9ca6e2c307"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/message-item.streaming-activity.test.tsx": {
+    "mtime": 1777850870.1643653,
+    "hash": "3dbda1538a1b81be67a389303067c83d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/tui-activity-card.tsx": {
+    "mtime": 1777929347.1559947,
+    "hash": "3796c16b2e5c3231c0377a7959207ce9"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/command-session.tsx": {
+    "mtime": 1777395130.9277484,
+    "hash": "b7f637dc869c7787357c65071a210def"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/chat-composer-model-switch.ts": {
+    "mtime": 1777842137.9085886,
+    "hash": "27ab72718a96ad4d5c178499e244a7b6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/message-actions-bar.tsx": {
+    "mtime": 1777395130.9280472,
+    "hash": "5841462afc120df300bccbc39a32e9ab"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/streaming-activity-ui.ts": {
+    "mtime": 1777929347.1557245,
+    "hash": "5eb4764a412ade47a58ca8a267403cd7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/context-meter.tsx": {
+    "mtime": 1777395130.927979,
+    "hash": "d8f33e45eb5fe2f9601a51e19ba23112"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/message-item.test.ts": {
+    "mtime": 1777842137.9113038,
+    "hash": "a03530c8d8c588b5f159d58de4fff99e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/chat-composer.tsx": {
+    "mtime": 1777967909.8733761,
+    "hash": "a358261247eb8deb944b778794168b3d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/chat-empty-state.tsx": {
+    "mtime": 1777929347.1496935,
+    "hash": "5ac41a47753dce5c31862d994dcd1b3d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/context-bar.tsx": {
+    "mtime": 1777967909.875569,
+    "hash": "b6819e23148bdc5d3aa9ecfc538cd063"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/chat-message-list.test.tsx": {
+    "mtime": 1777842137.9098446,
+    "hash": "e21b4e090dd121714eb25f15cae7e726"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/message-item.tsx": {
+    "mtime": 1777967909.877248,
+    "hash": "666636e661fdbc0d344cea0a4f731dcc"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/message-status.tsx": {
+    "mtime": 1777929347.1549003,
+    "hash": "7096cb4e6581f10bc62eef562b06a2e0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/research-card.tsx": {
+    "mtime": 1777395130.9284303,
+    "hash": "6edc50bfcd8e331b9a51e86d524bc8a0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/chat-header.tsx": {
+    "mtime": 1777967909.874364,
+    "hash": "e1c16989d1a02d936aa9c6b066acd049"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/scroll-to-bottom-button.tsx": {
+    "mtime": 1777395130.9284976,
+    "hash": "5c2ea07866f60855a78ff3c7c2cd495e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/chat-sidebar.tsx": {
+    "mtime": 1777967909.875018,
+    "hash": "c067553df5c9f7e7321948541f722dd4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/providers-dialog.tsx": {
+    "mtime": 1777395130.928376,
+    "hash": "e334e0e840e1fe967b2589bd3ddb9d3f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/chat-composer-context-controls.test.ts": {
+    "mtime": 1777873861.787126,
+    "hash": "7185e7610539821776e8caba3a78441d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/connection-status-message.tsx": {
+    "mtime": 1777929347.1523366,
+    "hash": "52deba84b41792a22e0759e8ba0ec51c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/chat-message-list.tsx": {
+    "mtime": 1777929347.1510937,
+    "hash": "2d9a90860777d616e33072e00b596ef3"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/sidebar/sidebar-sessions.tsx": {
+    "mtime": 1777395130.928756,
+    "hash": "f20cc7e369b12d24ce4bd138e22671b8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/sidebar/session-rename-dialog.tsx": {
+    "mtime": 1777395130.9287043,
+    "hash": "53a7495188dfa82ec58dc37dc8673e32"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/sidebar/session-delete-dialog.tsx": {
+    "mtime": 1777395130.9285953,
+    "hash": "359d33c9260daf7f4387ff50cf7c6d93"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/components/sidebar/session-item.tsx": {
+    "mtime": 1777842137.9116373,
+    "hash": "cb2ef0500daba599577344cc13ca8430"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/hooks/use-context-alert.ts": {
+    "mtime": 1777967909.8778036,
+    "hash": "555c84247c745f80d1c1e26b55f917e7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/hooks/use-auto-session-title.ts": {
+    "mtime": 1777395130.928914,
+    "hash": "66e818b19a997cba63539e1c74e8a0ab"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/hooks/use-chat-settings.ts": {
+    "mtime": 1777842137.913145,
+    "hash": "6eee04522a5c4197d64c21ae2961ee6d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/hooks/use-chat-measurements.ts": {
+    "mtime": 1777395130.929083,
+    "hash": "085fb3eb05410244fa10dde191bab53b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/hooks/use-streaming-message.ts": {
+    "mtime": 1777967909.8789606,
+    "hash": "9a9c194acccaa8d76fea1334c2c568ac"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/hooks/use-delete-session.ts": {
+    "mtime": 1777967909.8783488,
+    "hash": "23436aba698e3d39c1c7ee07f09d3f38"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/hooks/use-session-shortcuts.ts": {
+    "mtime": 1777395130.9297447,
+    "hash": "72fa60a0dc15bf810233224cd4de0114"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/hooks/use-chat-mobile.ts": {
+    "mtime": 1777395130.9291596,
+    "hash": "085ba824db9360bb0cd6603aa4078ecc"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/hooks/use-rename-session.ts": {
+    "mtime": 1777395130.9296515,
+    "hash": "1d576f4c5595d78648d5ce7629000a55"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/hooks/use-chat-sessions.ts": {
+    "mtime": 1777929347.15733,
+    "hash": "1c6751929a6a870a453bd6e8541eff24"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/hooks/use-active-run-check.ts": {
+    "mtime": 1777395130.9288578,
+    "hash": "eee3e6eb3f1abeaea7dc2a8bb6a7b9b6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/hooks/use-realtime-chat-history.ts": {
+    "mtime": 1777929347.1579416,
+    "hash": "1871f8755f0088fc098aa483dd18db77"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/hooks/use-smooth-streaming-text.ts": {
+    "mtime": 1777395130.929796,
+    "hash": "74b498ebd34877316092929140457d59"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/chat/hooks/use-chat-history.ts": {
+    "mtime": 1777929347.1567914,
+    "hash": "47402380ecab193e78549d3be9e27220"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/playground-screen.tsx": {
+    "mtime": 1777929347.1981792,
+    "hash": "a755207d6ce548d9143411be7b50428b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/components/playground-chat.tsx": {
+    "mtime": 1777929347.1921284,
+    "hash": "8bb3d1ac0298d998dff3992bcb3aa7a2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/components/playground-world-3d.tsx": {
+    "mtime": 1777929347.1956599,
+    "hash": "a44c8747e4315b7139bb4b575912e357"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/components/playground-minimap.tsx": {
+    "mtime": 1777929347.1935856,
+    "hash": "44c2392b3038b987f3324ac751b3be4c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/components/playground-hud.tsx": {
+    "mtime": 1777929347.192943,
+    "hash": "e16a9b56cb7165f57d6f7a91c2e2b2cf"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/components/playground-environment.tsx": {
+    "mtime": 1777929347.1926324,
+    "hash": "cca1ca31099791afafd51b3a8d3c794b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/components/playground-map.tsx": {
+    "mtime": 1777929347.1934793,
+    "hash": "3086045bd54c189fc9070d519b18ee9a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/components/playground-journal.tsx": {
+    "mtime": 1777929347.1931884,
+    "hash": "13c70a01ec11d80b0d7e70b33831e13a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/components/playground-npc-glb.tsx": {
+    "mtime": 1777929347.1936743,
+    "hash": "941beadb143aeb75e5855d37ba8cc49a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/components/playground-customizer.tsx": {
+    "mtime": 1777929347.1922178,
+    "hash": "e79f44b83e2f7a6bb03fb3b9e2f2d3b9"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/components/playground-hero-canvas.tsx": {
+    "mtime": 1777929347.1928377,
+    "hash": "a992be6d9b9aad1d392baa8068ef101e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/components/playground-dialog.tsx": {
+    "mtime": 1777929347.1923165,
+    "hash": "236d832928182bca37c1b133b2abd1d0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/components/playground-online-chip.tsx": {
+    "mtime": 1777929347.1940114,
+    "hash": "f2d08c99aa2f89b0758a05bc19b14d50"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/components/playground-actionbar.tsx": {
+    "mtime": 1777929347.192039,
+    "hash": "3ef17f0672f2fecad8e0059d25058a2a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/components/playground-sidepanel.tsx": {
+    "mtime": 1777929347.1941414,
+    "hash": "e0ec1fb4823249abdb071cbcfc7ad898"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/hooks/use-playground-multiplayer.ts": {
+    "mtime": 1777929347.1958323,
+    "hash": "98dcf14ab3d9fe03161ab7385b21b9a4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/hooks/use-playground-rpg.ts": {
+    "mtime": 1777967909.881417,
+    "hash": "d5f68e3ddcda909647468417cd3fc4e3"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/lib/npc-dialog.ts": {
+    "mtime": 1777929347.1976297,
+    "hash": "2d1062797e25c2b6ee900e9c73ffde8f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/lib/playground-narration.ts": {
+    "mtime": 1777929347.1979141,
+    "hash": "14cd921f56c42338bc774019d65d92e7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/lib/playground-rpg.ts": {
+    "mtime": 1777929347.1980274,
+    "hash": "a387b37550063c198b89cc8e7470b299"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/lib/avatar-config.ts": {
+    "mtime": 1777929347.1972435,
+    "hash": "ad7ce1c4ad77a61a5d867af244bb6f51"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/lib/playground-bots.ts": {
+    "mtime": 1777929347.1978178,
+    "hash": "34b8ea74b914d15c1c5cfe017f94490c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/playground/lib/playground-audio.ts": {
+    "mtime": 1777929347.197731,
+    "hash": "5c4a5a816b3db21cf88f1dd0f7018593"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agora/agora-screen.tsx": {
+    "mtime": 1777929347.1453714,
+    "hash": "1058e1383493cb358bf8e46c3e9ac51c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agora/components/agora-chat-panel.tsx": {
+    "mtime": 1777929347.1456373,
+    "hash": "c664f26f301fcad921bab638095bcc51"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agora/components/agora-avatar.tsx": {
+    "mtime": 1777929347.1455019,
+    "hash": "6e03671e696a6c234b44e6d42dfb8dd2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agora/components/agora-online-panel.tsx": {
+    "mtime": 1777929347.1457682,
+    "hash": "b0f4b32bec2bd417d7575cf1e5a85cc7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agora/components/agora-world.tsx": {
+    "mtime": 1777929347.1460383,
+    "hash": "3215cdd34db4b94b8ff6eb02be9e6c24"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agora/components/agora-profile-drawer.tsx": {
+    "mtime": 1777929347.1459272,
+    "hash": "51f58dd6b2d69ec2f2437137e1496a77"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agora/hooks/use-agora-profile.ts": {
+    "mtime": 1777929347.146173,
+    "hash": "2be697e336de1f6d3b7a38c5c6a1ebc9"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agora/hooks/use-agora-room.ts": {
+    "mtime": 1777929347.1463146,
+    "hash": "e08928badf725f471f259e8cff37ad4a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agora/lib/agora-types.ts": {
+    "mtime": 1777929347.1466217,
+    "hash": "18c57b09b836231346486275527e251f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agora/lib/agora-mock.ts": {
+    "mtime": 1777929347.1464581,
+    "hash": "b9c8339f85ce49d974745f5ad10dc51b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/swarm2/swarm2-memory-panel.tsx": {
+    "mtime": 1777929347.2031143,
+    "hash": "261dbad783f2b850f1ed831f44629120"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/swarm2/swarm2-kanban-board.test.ts": {
+    "mtime": 1777929347.2026029,
+    "hash": "9233d2e67f866d44b19c524ab38721d2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/swarm2/swarm2-orchestrator-card.tsx": {
+    "mtime": 1777983332.7926953,
+    "hash": "6a4c7ca0372a6c9bdebd2bb8fca34d66"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/swarm2/operational-worker-card.tsx": {
+    "mtime": 1777929347.2013488,
+    "hash": "4a13dd31b7ed3dd8e61b3879d15c5c27"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/swarm2/swarm2-reports-view.test.ts": {
+    "mtime": 1777929347.2037938,
+    "hash": "407f949441557b0e9d77e46b11f17fc8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/swarm2/swarm2-task-queue.tsx": {
+    "mtime": 1777929347.2053282,
+    "hash": "f3929d1c825162949227c1a403e3edcc"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/swarm2/swarm2-reports-view.tsx": {
+    "mtime": 1777929347.2041612,
+    "hash": "94519bb5f680d1c45f23e2add278c378"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/swarm2/swarm2-activity-feed.tsx": {
+    "mtime": 1777929347.2024286,
+    "hash": "9e211f3abdb75d11e53895cda5d0930a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/swarm2/swarm2-artifacts.tsx": {
+    "mtime": 1777929347.2025185,
+    "hash": "d30df01c081f54ef1be432bf8781475a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/swarm2/swarm2-screen.tsx": {
+    "mtime": 1777929347.2049918,
+    "hash": "ecce9002c1730e4feea6cdef114343af"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/swarm2/swarm2-kanban-board.tsx": {
+    "mtime": 1777967909.881905,
+    "hash": "a553eb199e520f3bc2f0ba1f086ecf6f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/swarm2/swarm2-wires.tsx": {
+    "mtime": 1777929347.2054138,
+    "hash": "70b83081a8e9c5f3fe891df3a85bfaae"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/swarm2/swarm2-live-chat.tsx": {
+    "mtime": 1777929347.2030292,
+    "hash": "e4f268737796512b5339184ae29b2b19"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/swarm2/swarm2-screen.test.ts": {
+    "mtime": 1777929347.2042713,
+    "hash": "00bd37bf839dbac86dec02ef8bf14f7d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agents/agents-screen.tsx": {
+    "mtime": 1777929347.1379292,
+    "hash": "3cac22b0c73ea6d02fe09f90624b8d7e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agents/operations-screen.tsx": {
+    "mtime": 1777929347.1448772,
+    "hash": "355f928e85bc2fd44dc5b3f2d2d301aa"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agents/agent-presets.ts": {
+    "mtime": 1777929347.137501,
+    "hash": "1148b6f30c020fd70b9ec4c81f4b1d89"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agents/components/operations-agent-detail.tsx": {
+    "mtime": 1777929347.141112,
+    "hash": "9378b2b6e3fbe968fc6772f2cc883afe"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agents/components/operations-new-agent-modal.tsx": {
+    "mtime": 1777929347.1414177,
+    "hash": "57873f1fe2575e47ef95b5a5e91a55fc"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agents/components/operations-agent-card.tsx": {
+    "mtime": 1777929347.1403294,
+    "hash": "4771bfcc2aa56da3ab89575ab18d61cb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agents/components/full-outputs-view.tsx": {
+    "mtime": 1777929347.138373,
+    "hash": "f671cb3dde3c0e46c6669d2925671592"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agents/components/operations-agent-chat.tsx": {
+    "mtime": 1777929347.1408772,
+    "hash": "8d0b8e9e04299a6db430b73a0078767f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agents/components/operations-agent-jobs.tsx": {
+    "mtime": 1777929347.1412334,
+    "hash": "7dab2d597ca7c941a1f10338237333d7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agents/components/operations-settings-modal.tsx": {
+    "mtime": 1777929347.1419096,
+    "hash": "0d18cd132196bb65c929c47e1d4b91eb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agents/components/orchestrator-card.tsx": {
+    "mtime": 1777983314.570705,
+    "hash": "15aba0caa5d439c726532ebe2e2f2520"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agents/hooks/use-agent-chat.ts": {
+    "mtime": 1777929347.1425464,
+    "hash": "2e1b85af3c955a2a868580f4e85545b3"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/agents/hooks/use-operations.ts": {
+    "mtime": 1777929347.1429203,
+    "hash": "d6b1ce499af7c31d46e761e6eb2b8c93"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/crew/crew-screen.tsx": {
+    "mtime": 1777929347.1603432,
+    "hash": "a7a7bb074e3e4f34e2fc1d978791207f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/mcp/-marketplace-placeholder-detection.test.tsx": {
+    "mtime": 1777929347.189476,
+    "hash": "05aed906b8753c631a6a1763a6d5bc42"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/mcp/mcp-screen.tsx": {
+    "mtime": 1777929347.1911097,
+    "hash": "62ae43571687cdccddf9d565e3bf7f55"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/mcp/-mcp-oauth.test.ts": {
+    "mtime": 1777842137.924532,
+    "hash": "10aed2e7586067dc4301973b4f19b7e2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/mcp/-marketplace-install-confirmation.test.tsx": {
+    "mtime": 1777929347.189364,
+    "hash": "c4be49c5954dee15a0a12abf07f7cf97"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/mcp/components/install-confirmation-dialog.tsx": {
+    "mtime": 1777929347.1899962,
+    "hash": "764458ee55821e39ac1383311f7fb5dc"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/mcp/components/mcp-server-card.tsx": {
+    "mtime": 1777929347.1901762,
+    "hash": "4db6bf1a43ca9364b2ecbfd1ec7b2c62"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/mcp/components/mcp-logs-drawer.tsx": {
+    "mtime": 1777929347.1900918,
+    "hash": "29a1d0a294d8e89fa27996c1b5dba57c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/mcp/components/mcp-server-dialog.tsx": {
+    "mtime": 1777929347.190438,
+    "hash": "5b485b4364526e5df33334bc502fc75a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/mcp/components/sources-manager-dialog.tsx": {
+    "mtime": 1777929347.1905398,
+    "hash": "671f8138a19b8ee64a1c8c3cb5720440"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/mcp/hooks/use-mcp-hub.ts": {
+    "mtime": 1777842137.925178,
+    "hash": "e6a90299bcd57c058c42519348226a0f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/mcp/hooks/use-mcp-oauth.ts": {
+    "mtime": 1777929347.1908407,
+    "hash": "71935ab8a7483dab5b72571200245888"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/mcp/hooks/use-mcp-hub-sources.ts": {
+    "mtime": 1777929347.1906633,
+    "hash": "b1959d328ce7b35c1153774cedc33b29"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/mcp/hooks/use-mcp-presets.ts": {
+    "mtime": 1777842137.9254293,
+    "hash": "da2dc8124ccc89a4a8e22ed7df414dba"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/mcp/hooks/use-mcp-servers.ts": {
+    "mtime": 1777929347.1909232,
+    "hash": "210092e4470867e57ad28f49b579922f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/mcp/hooks/use-mcp-mutations.ts": {
+    "mtime": 1777929347.1907563,
+    "hash": "157af176a25184a55e6b98805aea81fe"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/mcp/hooks/use-mcp-capability-mode.ts": {
+    "mtime": 1777842137.9250495,
+    "hash": "09128965f71cef7fa02be6c7950eba59"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/mcp/lib/placeholder-detect.ts": {
+    "mtime": 1777929347.191014,
+    "hash": "bc767c85158ab3c177aa06530f5a4798"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/dashboard-screen.tsx": {
+    "mtime": 1777929347.1657357,
+    "hash": "4a27ffb3fe412f56a1c0e8c98f3436e5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/sessions-intelligence-card.tsx": {
+    "mtime": 1777929347.1643708,
+    "hash": "b76a41f45df45647d489ceee67f62c27"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/attention-marquee.tsx": {
+    "mtime": 1777929347.1625009,
+    "hash": "c8d896a8ead6fa8d9b70aaf929fae549"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/ops-strip.tsx": {
+    "mtime": 1777929347.1637516,
+    "hash": "2a51436d87b6e01530db1b21e48a82bc"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/logs-tail-card.tsx": {
+    "mtime": 1777929347.1630304,
+    "hash": "c9d2e1f2980b4cd99b259077f1205e1b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/edit-mode-panel.tsx": {
+    "mtime": 1777929347.162771,
+    "hash": "e6a579835a8e5eae679c0f1659c01572"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/cost-ledger-card.tsx": {
+    "mtime": 1777929347.1626825,
+    "hash": "17b1d8fee14989cc9dcd5340348cf5c7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/hero-metrics.tsx": {
+    "mtime": 1777929347.1629035,
+    "hash": "fd2b7e18e0e0974fdeaf1237e9a4fb60"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/analytics-summary-card.tsx": {
+    "mtime": 1777929347.162291,
+    "hash": "5d3f7a577bec4a6e3d4824ebb3a5c5d2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/skills-usage-card.tsx": {
+    "mtime": 1777929347.1647372,
+    "hash": "cc04d4cfc19dc82148385ac549ea3758"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/operator-tip-card.tsx": {
+    "mtime": 1777929347.163379,
+    "hash": "b9e4d29fcb438e7410e8af5b67854d38"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/analytics-chart-card.tsx": {
+    "mtime": 1777929347.161988,
+    "hash": "6dc956755f612b6a7dc8144b151ac815"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/hour-of-day-card.tsx": {
+    "mtime": 1777850870.168113,
+    "hash": "dfd390041df904355705f0975829eca0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/achievements-card.tsx": {
+    "mtime": 1777929347.1608086,
+    "hash": "b17c5cf8d537674bf7761d60bea98f69"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/model-info-card.tsx": {
+    "mtime": 1777929347.1632705,
+    "hash": "1b9c6aa50a6cff859f8e3a14ca47ddeb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/velocity-card.tsx": {
+    "mtime": 1777929347.16553,
+    "hash": "79ad54b719f01bed5ac217d763e9ca0a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/cache-efficiency-card.tsx": {
+    "mtime": 1777929347.162597,
+    "hash": "b5759b1b94d7f813561727203b1ab663"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/provider-mix-card.tsx": {
+    "mtime": 1777929347.1642134,
+    "hash": "81189a5a5e134e7a9410fac300d8d95a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/analytics-hero-card.tsx": {
+    "mtime": 1777929347.1621501,
+    "hash": "5da93833a77eb510f53b4e47b770ba07"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/top-models-card.tsx": {
+    "mtime": 1777929347.16544,
+    "hash": "9b366ec2218eb7e98ce1861bcd777d10"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/active-model-kpi.tsx": {
+    "mtime": 1777929347.1615639,
+    "hash": "8ef5dedf1ab85e94ba0e06b85cd1451f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/attention-card.tsx": {
+    "mtime": 1777929347.162406,
+    "hash": "9f18788246f0dcc6e6c4261f746eede8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/components/widget-shell.tsx": {
+    "mtime": 1777929347.1656265,
+    "hash": "9cea4b4f51625d583e14d162e6c6b5de"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/lib/insights.ts": {
+    "mtime": 1777929347.165953,
+    "hash": "1026f2f8784a348a088055c0619ace0a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/lib/formatters.ts": {
+    "mtime": 1777929347.1658673,
+    "hash": "7c0818f8185c6c9bcf55cd93ea4d7b9e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/dashboard/lib/use-dashboard-layout.ts": {
+    "mtime": 1777929347.166047,
+    "hash": "52ca25d5795d2b680134d48dc7a76d70"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/files/files-screen.tsx": {
+    "mtime": 1777967909.880919,
+    "hash": "a7a00fd51d9a9411af80b38a8f664d0a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/skills/workspace-skills-screen.tsx": {
+    "mtime": 1777842137.9271371,
+    "hash": "06cd7d68dc5a6ac3f5fc85d33c444f2f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/skills/skills-screen.tsx": {
+    "mtime": 1777929347.200465,
+    "hash": "81c4aa04c2094e885093f48625681155"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/profiles/profiles-screen.tsx": {
+    "mtime": 1777929347.1990414,
+    "hash": "2e43c95d822d88bc525b7cee5228c35b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/jobs/edit-job-dialog.tsx": {
+    "mtime": 1777842137.92386,
+    "hash": "8aa97e16d4d42dd0bafe3f186b60ce84"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/jobs/create-job-dialog.tsx": {
+    "mtime": 1777842137.9236972,
+    "hash": "ed76ccbcf6c0195ffb13eee921c86888"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/jobs/jobs-screen.tsx": {
+    "mtime": 1777929347.1887872,
+    "hash": "43694fb922dab623d035c00d2e7fd388"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/agents-screen.tsx": {
+    "mtime": 1777929347.1676564,
+    "hash": "fad91995d2c5a411b6aa883b87359617"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/agent-hub-layout.tsx": {
+    "mtime": 1777929347.1667309,
+    "hash": "cb81133b7c1a3b305ba8d2d71f5f06ef"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/conductor.tsx": {
+    "mtime": 1777929347.1838028,
+    "hash": "7dbecc1f00f607b6e5d62333da7235cd"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/run-compare.tsx": {
+    "mtime": 1777929347.178611,
+    "hash": "ec38db52162f0f482a3c79f1467efdb8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/template-picker.tsx": {
+    "mtime": 1777929347.1830132,
+    "hash": "fadbf2ecadda98c3691d9529593f7262"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/feed-event-bus.ts": {
+    "mtime": 1777929347.1727653,
+    "hash": "144cab7dcfcc1db7e540dbb5682f31af"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/approvals-bell.tsx": {
+    "mtime": 1777929347.1709478,
+    "hash": "192b4a1f81408820d3781c4403f55a6b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/office-view.tsx": {
+    "mtime": 1777929347.1744053,
+    "hash": "f27d66afc867a26e2825d4380de01fdd"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/agents-working-panel.tsx": {
+    "mtime": 1777929347.1705592,
+    "hash": "f5d2bd6a96d814f86fa7f06ec0d4ce5b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/cost-analytics.tsx": {
+    "mtime": 1777929347.1724007,
+    "hash": "df2bafcd1b98cd2835a42b6dcafb903a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/hub-utils.tsx": {
+    "mtime": 1777929347.172976,
+    "hash": "4add42c358568350ee19b6cc44e23dac"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/collaboration-presence.tsx": {
+    "mtime": 1777929347.1715364,
+    "hash": "275ecf268a759591de5a64b0ace11119"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/kanban-board.tsx": {
+    "mtime": 1777929347.1731634,
+    "hash": "6a3979417a315fbbded31bb3aa5e050a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/run-console.tsx": {
+    "mtime": 1777929347.1805134,
+    "hash": "00786fe6812c3fce0b5502aeb4baf80f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/live-activity-panel.tsx": {
+    "mtime": 1777929347.1734593,
+    "hash": "ef3b9e5cf6afe66a4288ae7e96a88da8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/agent-output-panel.tsx": {
+    "mtime": 1777929347.1704247,
+    "hash": "9fb45660ea7b866e4432aa2876142699"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/overview-tab.tsx": {
+    "mtime": 1777929347.174686,
+    "hash": "3d72013ca652bd027affdc9d1b3eca1f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/hub-constants.tsx": {
+    "mtime": 1777929347.1728718,
+    "hash": "dddfa99e5c66952ca5150ec1c8b794f2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/agent-hub-error-boundary.tsx": {
+    "mtime": 1777929347.168853,
+    "hash": "f5a8df9da5834934e64da02d299c8484"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/remote-agents-panel.tsx": {
+    "mtime": 1777929347.1767483,
+    "hash": "968c039636844da77067430eee10d684"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/mission-timeline.tsx": {
+    "mtime": 1777929347.173854,
+    "hash": "8b4cb6057766ee6adf0e9bcd7729754c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/config-wizards.tsx": {
+    "mtime": 1777929347.1722941,
+    "hash": "d92e5a37829247f9e350fccb6491eb84"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/presence-indicator.tsx": {
+    "mtime": 1777929347.1762905,
+    "hash": "fd6ccf6efab0857bc1a1cdf06616bd57"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/use-live-feed-chat-stream.ts": {
+    "mtime": 1777929347.1831164,
+    "hash": "2b5256d86ae895eb24c121dc420a6ef0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/approvals-page.tsx": {
+    "mtime": 1777929347.1710649,
+    "hash": "dcf6ad33ebae924a97d6b1c1759742b8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/streaming-text.tsx": {
+    "mtime": 1777929347.1807432,
+    "hash": "6f1c3109cbb4aad4b111a6695bd17f4e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/agenda-view.tsx": {
+    "mtime": 1777929347.1681561,
+    "hash": "12a2a537c908bcc8fbdd1a8676192ad8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/export-mission.tsx": {
+    "mtime": 1777929347.1725008,
+    "hash": "ea84d4d32dfb965203bcb2538b280b74"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/approvals-panel.tsx": {
+    "mtime": 1777929347.1713173,
+    "hash": "0ccfb47fad43e08d7ed2ede3b433afc0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/live-feed-panel.tsx": {
+    "mtime": 1777929347.1735697,
+    "hash": "e8af86dce874b6a6080dbdcd34ac6424"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/calendar-view.tsx": {
+    "mtime": 1777929347.1714237,
+    "hash": "564cb7d914fb0e4f94021e8e04cec20e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/inline-approval-card.tsx": {
+    "mtime": 1777929347.1730673,
+    "hash": "8cbfb9a2289383ba385b49de3226a5f4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/task-board.tsx": {
+    "mtime": 1777929347.182297,
+    "hash": "aec1133a7eff10feb3db1d54efaa9edb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/reusable-snippets.tsx": {
+    "mtime": 1777929347.178467,
+    "hash": "c51f6f7188e3b75b0d70e0cb9ccc3a50"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/team-panel.tsx": {
+    "mtime": 1777929347.1827378,
+    "hash": "d0b5242f6d4cd1084a283fd650805d80"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/agent-chat-panel.tsx": {
+    "mtime": 1777929347.168751,
+    "hash": "2f295b323603e6dc999b3db1794f4f91"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/mission-event-log.tsx": {
+    "mtime": 1777929347.173769,
+    "hash": "b5fa571a96e1d880b9cbc64e1e896b3b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/run-learnings.tsx": {
+    "mtime": 1777929347.180645,
+    "hash": "6cc16dcee31bb469464ab46bdd2d9383"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/components/agent-avatar.tsx": {
+    "mtime": 1777929347.1684878,
+    "hash": "d4af4c8e241073bfd18c3fbecf3e2c5e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/hooks/use-conductor-gateway.ts": {
+    "mtime": 1777929347.1847212,
+    "hash": "c15a8c3316d1678953b507163aeb46b4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/hooks/use-mission-orchestrator.ts": {
+    "mtime": 1777929347.186635,
+    "hash": "d05840e0b16c2fee54479f70bd975fc4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/lib/mission-events.ts": {
+    "mtime": 1777929347.1871603,
+    "hash": "10083804efb04c8bf6de53a1e8220e97"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/lib/approvals-store.ts": {
+    "mtime": 1777929347.186959,
+    "hash": "6e930b78e16c748941a3c9d24ea35fe4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/lib/mission-checkpoint.ts": {
+    "mtime": 1777929347.1870606,
+    "hash": "aea465203e95448144e0d72fb2239fde"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/screens/gateway/lib/workflow-templates.ts": {
+    "mtime": 1777929347.1872578,
+    "hash": "2a975ded6ccd95f07b3663bcd0391fe0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/dashboard-overflow-panel.tsx": {
+    "mtime": 1777929346.986047,
+    "hash": "e15bc905dd7a23661e6204bf1bbac64d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/-mcp-nav.test.tsx": {
+    "mtime": 1777842137.8689067,
+    "hash": "559ade5ebad1afbd084b4f0271c89c10"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/error-boundary.tsx": {
+    "mtime": 1777395130.9053264,
+    "hash": "3c6c149d84fda4fd0a7c654fe83ef8c7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/provider-logo.tsx": {
+    "mtime": 1777842137.8733675,
+    "hash": "a56d22cdd62bbd4287b918bcead69984"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-card.tsx": {
+    "mtime": 1777395130.902269,
+    "hash": "2e460de1cb41af204745a2907cc6109c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/chat-panel-toggle.tsx": {
+    "mtime": 1777395130.904586,
+    "hash": "d242cff828f52f053e42c375ec60bc6f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/keyboard-shortcuts-modal.tsx": {
+    "mtime": 1777395130.9062634,
+    "hash": "927ae54e6204440d69aaf3e037a3a13a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/attachment-preview.tsx": {
+    "mtime": 1777395130.9041061,
+    "hash": "53a3fef6a9c5244d0e06dceaedd1cb0a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/claude-health-banner.tsx": {
+    "mtime": 1777842137.8701932,
+    "hash": "7a5f46dc6d990b3ecabb4dc45060f658"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/model-suggestion-toast.tsx": {
+    "mtime": 1777395130.9076262,
+    "hash": "4c21277dd22eb208232649ce49166ced"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/system-metrics-footer.tsx": {
+    "mtime": 1777929347.0090625,
+    "hash": "a06cb0783d572aca1094b224442a3a3c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/context-meter.tsx": {
+    "mtime": 1777395130.9049883,
+    "hash": "e99a93db385ebee9326ee1d6ba6ce621"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/manage-modes-modal.tsx": {
+    "mtime": 1777395130.9064972,
+    "hash": "c5bf2997e054256765f7d20a46cb1242"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/mobile-sessions-panel.tsx": {
+    "mtime": 1777545300.297555,
+    "hash": "c089db470f73bbf7f90d3843574bc460"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/loading-indicator.tsx": {
+    "mtime": 1777842137.8711627,
+    "hash": "0bab0bb5fb65eef59603f50cb40ba174"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/mobile-page-header.tsx": {
+    "mtime": 1777395130.9071333,
+    "hash": "8b07df09664e7876f20d8a0ab7160b0c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/status-indicator.tsx": {
+    "mtime": 1777842137.8740044,
+    "hash": "1303eb340d44ed0d0bca0a9925dc572c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/claude-reconnect-banner.tsx": {
+    "mtime": 1777929346.9855258,
+    "hash": "3700a23a8157fe3153d480ae42e8885f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/empty-state.tsx": {
+    "mtime": 1777395130.9052641,
+    "hash": "3802d4ae63f601b00dec4b1e51ceb9ab"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/workspace-shell.tsx": {
+    "mtime": 1777929347.0288663,
+    "hash": "836fcce4b802710dc5e7a45c326f0182"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/workflow-help-modal.tsx": {
+    "mtime": 1777929347.0247433,
+    "hash": "171da4b3b18a780a3f0db58e43ee8c82"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/feature-not-ready.tsx": {
+    "mtime": 1777850870.1302001,
+    "hash": "d9402a255576f977cd3a67cffd6bcbb9"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/command-palette.tsx": {
+    "mtime": 1777911525.6635642,
+    "hash": "79266a56db1c7e085803c6eb3acf7c92"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/rename-mode-dialog.tsx": {
+    "mtime": 1777395130.909691,
+    "hash": "0f8fd27ed32fa84aa1475313aa1e0482"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/global-shortcut-listener.tsx": {
+    "mtime": 1777395130.9058282,
+    "hash": "97a66addb52709e0cb799ab017e3c21c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/slash-command-menu.tsx": {
+    "mtime": 1777929346.9978092,
+    "hash": "ff9e6d86365301886dbe778a96bd85cd"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/chat-panel.tsx": {
+    "mtime": 1777395130.904667,
+    "hash": "5321646b7e8f47ebe9cc298fac792877"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/connection-overlay.tsx": {
+    "mtime": 1777395130.904799,
+    "hash": "91357e5af9e8273691eab52d8fc2bceb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/slash-command-menu.test.tsx": {
+    "mtime": 1777850870.132306,
+    "hash": "c9cd4b385d6c0d9c5b058f416ccf8c64"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/terminal-panel.tsx": {
+    "mtime": 1777395130.9107025,
+    "hash": "2bb1435698d0485a310cc55fbead67cd"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/attachment-button.tsx": {
+    "mtime": 1777395130.9040303,
+    "hash": "9cbbfc80b4e3e08394f1cdf54a3bb361"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/export-menu.tsx": {
+    "mtime": 1777395130.9054945,
+    "hash": "53c45bc541a0ba93d837b917275895de"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/save-mode-dialog.tsx": {
+    "mtime": 1777395130.9097512,
+    "hash": "4bcbb94cbfc741736808c0c8f1bde89c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/workspace-shell.test.ts": {
+    "mtime": 1777929347.0277183,
+    "hash": "c3a8ec8a77e7d3e5b0e2c8984cdc1b66"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/connection-startup-screen.tsx": {
+    "mtime": 1777929346.9859197,
+    "hash": "89d5a2d814ce75b273519ca556282ee6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/provider-model-icon.tsx": {
+    "mtime": 1777395130.909615,
+    "hash": "593ef90bf91724d57fd11f7aef1c8685"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/logo-loader.tsx": {
+    "mtime": 1777842137.871247,
+    "hash": "7a7be288bb8d7c3cf1d1e0ef1f95622e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/backend-unavailable-state.tsx": {
+    "mtime": 1777929346.984994,
+    "hash": "bd798b813ac20ada577d925ef93a7cae"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/mode-selector.tsx": {
+    "mtime": 1777395130.907535,
+    "hash": "a16aa8bbc7428c4c15a37ad7635e3184"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/update-center-notifier.tsx": {
+    "mtime": 1777967909.8446486,
+    "hash": "b6f524bc3484131cf46eff6d7b8aac0f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/apply-mode-dialog.tsx": {
+    "mtime": 1777395130.9039676,
+    "hash": "4c4eaa2177a03f6991f0ab8f65b88677"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/mobile-tab-bar.tsx": {
+    "mtime": 1777911525.663822,
+    "hash": "e8e685d6354c74f5c896cf62659438d4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/theme-toggle.tsx": {
+    "mtime": 1777395130.9112024,
+    "hash": "ddd7bcf051119d23002bc2da1cee50ff"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/mobile-hamburger-menu.tsx": {
+    "mtime": 1777911525.6636786,
+    "hash": "156117f7e07a6f1b6a01c84a3fc3ba3c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-avatar.tsx": {
+    "mtime": 1777842137.869013,
+    "hash": "cbc20333cf59064466c8e7035dadf43c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/error-toast.tsx": {
+    "mtime": 1777842137.870716,
+    "hash": "933e53509e68205891d65af3792f9667"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/terminal-shortcut-listener.tsx": {
+    "mtime": 1777395130.9107535,
+    "hash": "2bbf2c927f545105fab530ee42c9dc5a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/orchestrator-avatar.tsx": {
+    "mtime": 1777929346.9896204,
+    "hash": "e501d58c6781e41711e680050dd7d275"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/ui/alert-dialog.tsx": {
+    "mtime": 1777395130.9112797,
+    "hash": "d0a6b2bd33038b2a324443a5908775b6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/ui/tabs.tsx": {
+    "mtime": 1777395130.9122586,
+    "hash": "badac79bcbf5a83a8abedadf44588cbb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/ui/preview-card.tsx": {
+    "mtime": 1777395130.9119818,
+    "hash": "de75ae54d5079e155a707f2037b4793f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/ui/scroll-area.tsx": {
+    "mtime": 1777395130.9120903,
+    "hash": "0d3ee39dce119ce0479ca2b57d09395e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/ui/tooltip.tsx": {
+    "mtime": 1777850870.134331,
+    "hash": "fbe65e7aaa5c287edf9e46ed4064c701"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/ui/switch.tsx": {
+    "mtime": 1777967909.8440208,
+    "hash": "ddc860d448c69b214a45c87afeeef136"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/ui/three-dots-spinner.tsx": {
+    "mtime": 1777395130.9123125,
+    "hash": "9d7d617659e6f5b508c0c3986b86678a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/ui/command.tsx": {
+    "mtime": 1777395130.911685,
+    "hash": "ff458aa6b3318e6e5caea4b906591b34"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/ui/dialog.tsx": {
+    "mtime": 1777395130.911736,
+    "hash": "c8479e75d4f67a8acffeb93c33d21750"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/ui/menu.tsx": {
+    "mtime": 1777395130.9118924,
+    "hash": "b3f9f7522b5bc994b9f08257493a2146"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/ui/button.tsx": {
+    "mtime": 1777395130.9115622,
+    "hash": "391b2a21a7f5cae936cd1786943cadbb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/ui/toast.tsx": {
+    "mtime": 1777395130.9123795,
+    "hash": "1e8560454f7fb8989a8529c2d671e2d4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/ui/collapsible.tsx": {
+    "mtime": 1777395130.9116328,
+    "hash": "a36dac5dbe5eea453752f6da445c95e5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/ui/input.tsx": {
+    "mtime": 1777395130.9118338,
+    "hash": "e8fe85b4148cc4e602d04076e19f25a0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/ui/braille-spinner.tsx": {
+    "mtime": 1777842137.8757067,
+    "hash": "70480e0ca91d427bc4f8888ef25ca4a8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/ui/autocomplete.tsx": {
+    "mtime": 1777395130.9113674,
+    "hash": "45e0b024fdb2768a9940c366e0f302f5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/settings/settings-sidebar.tsx": {
+    "mtime": 1777929346.9969199,
+    "hash": "1b30151692a57e10fe5bbae83538c34e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/swarm/standalone-runtime-pane.tsx": {
+    "mtime": 1777929347.0051792,
+    "hash": "867ef0294f3fbb67ce0b00c48df8b19a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/swarm/agent-card.tsx": {
+    "mtime": 1777929346.9999583,
+    "hash": "c5144ecae24ba217146d2e14d46e2fa5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/swarm/widget-rail.tsx": {
+    "mtime": 1777842137.8752267,
+    "hash": "3a88bc485e970db255583dd3125c0e5a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/swarm/swarm-terminal.tsx": {
+    "mtime": 1777929347.0076628,
+    "hash": "c7b9d9f4a951b615dd8c9403ea2701f3"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/swarm/swarm-health-strip.tsx": {
+    "mtime": 1777929347.0060759,
+    "hash": "cdc88d744050fa4264a776fe6c4b1514"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/swarm/router-chat.tsx": {
+    "mtime": 1777929347.002545,
+    "hash": "8dc0cefcfdafb6764a2e7f0fec3b5443"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/swarm/swarm-compose.tsx": {
+    "mtime": 1777929347.0058231,
+    "hash": "5cdbb3d50fd78dad177e1a45cc5e6489"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/swarm/topology-band.tsx": {
+    "mtime": 1777850870.1332247,
+    "hash": "4ba342bb7d808ec4c33d86ef8494c946"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/swarm/swarm-node-chat.tsx": {
+    "mtime": 1777929347.0071414,
+    "hash": "2c89280ac3c8d5938dc10dfaa70e9154"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/memory-viewer/memory-types.ts": {
+    "mtime": 1777395130.9069788,
+    "hash": "b364fed5cf959d90e59d6eab5278d925"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/memory-viewer/MemoryFileList.tsx": {
+    "mtime": 1777395130.906683,
+    "hash": "773383533c177ed2ea482f84d771270c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/memory-viewer/MemorySearch.tsx": {
+    "mtime": 1777395130.9068358,
+    "hash": "dfbc41d423b42fd5d34e0d823ac07c36"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/memory-viewer/MemoryEditor.tsx": {
+    "mtime": 1777395130.906596,
+    "hash": "8cff38727a7a9008627d93862961233a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/memory-viewer/index.ts": {
+    "mtime": 1777395130.9069066,
+    "hash": "8847804573440d2c14c3380dd4181aa7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/memory-viewer/MemoryPreview.tsx": {
+    "mtime": 1777395130.9067624,
+    "hash": "043d0bd9d65845b0f439305f382e432b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-swarm/agent-behaviors.ts": {
+    "mtime": 1777395130.9027183,
+    "hash": "fd6c3a44e1451bda0eba70834ed5472c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-swarm/activity-panel.tsx": {
+    "mtime": 1777929346.978739,
+    "hash": "0a0a42116411f838ba7ef2f7f6e748ae"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-swarm/agent-character.tsx": {
+    "mtime": 1777929346.9791336,
+    "hash": "182b2c538764e1f18e078f487b935a5d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-swarm/isometric-office.tsx": {
+    "mtime": 1777929346.9799783,
+    "hash": "57f9cf5d0750de430537a933955e8ae9"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-swarm/session-display-name.ts": {
+    "mtime": 1777395130.9030492,
+    "hash": "2f30a5f2f6f2eecbbbc51d601199bcf9"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-swarm/pixel-avatar.tsx": {
+    "mtime": 1777929346.980205,
+    "hash": "30f1bd7f8ad49b0fa28ef7e833ace2ac"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/inspector/inspector-panel.tsx": {
+    "mtime": 1777929346.986553,
+    "hash": "f92f5d157dd3a4a5aee9e2a08db49a2e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/inspector/activity-store.ts": {
+    "mtime": 1777395130.9060915,
+    "hash": "a5f667e7c67c1e172e296af4c6dc763a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/auth/login-screen.tsx": {
+    "mtime": 1777842137.8697553,
+    "hash": "3d478b30d0343038ab033a3efa30de91"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-view/agent-progress.tsx": {
+    "mtime": 1777395130.9032378,
+    "hash": "6463ede0097a4dfec3619fee9de5e896"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-view/agent-stream-panel.tsx": {
+    "mtime": 1777929346.9825354,
+    "hash": "a2b530a595cf006ca8f427d1b72364c1"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-view/agent-card.tsx": {
+    "mtime": 1777929346.9803693,
+    "hash": "3298473ab5e068ce6e11f008b7e0385d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-view/steer-modal.tsx": {
+    "mtime": 1777395130.903853,
+    "hash": "e45c5fbe208b60a1a0c6416a2e30faef"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-view/agent-view-panel.tsx": {
+    "mtime": 1777983357.1900525,
+    "hash": "c1f670fab743695c7ac7fab5268cc9d6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-view/guardrails-modal.tsx": {
+    "mtime": 1777929346.9841466,
+    "hash": "961052c540aed6efe29e64d4e4e2d817"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-view/agent-registry-card.tsx": {
+    "mtime": 1777395130.903293,
+    "hash": "ab6cdd49d51fe918c475a46f117da0c8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-view/kill-confirm-dialog.tsx": {
+    "mtime": 1777395130.9037952,
+    "hash": "9b144da5b57634cdecbdf466d6c72b55"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-view/swarm-connection-overlay.tsx": {
+    "mtime": 1777395130.9039142,
+    "hash": "034d8517130cf38c4617017add751af5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-view/hooks/use-agent-spawn.ts": {
+    "mtime": 1777395130.9037082,
+    "hash": "cba70036b1e9d519bfd93e2aa4f05851"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/usage-meter/usage-meter-compact.tsx": {
+    "mtime": 1777929347.023735,
+    "hash": "cbba35a9c02e40c0b3bf61965d3315d4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/usage-meter/usage-meter.tsx": {
+    "mtime": 1777850870.1407762,
+    "hash": "be4262258c8dab26616b327715207e6b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/usage-meter/usage-details-modal.tsx": {
+    "mtime": 1777929347.0229118,
+    "hash": "b66d69bc453ba86db8de84aa21f4cf98"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/usage-meter/index.ts": {
+    "mtime": 1777395130.912623,
+    "hash": "440be88cb7f82b738dd9573cbb1ac839"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/usage-meter/context-alert-modal.tsx": {
+    "mtime": 1777929347.0166008,
+    "hash": "278d74f35a21c75903748c48339f5f03"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/terminal/debug-panel.tsx": {
+    "mtime": 1777842137.8756065,
+    "hash": "dab1143d781f917c742e7cdcebb5787f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/terminal/terminal-panel.tsx": {
+    "mtime": 1777929347.0119843,
+    "hash": "adcafa3fea3e7be4b59292ee8e2cf769"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/terminal/terminal-workspace.tsx": {
+    "mtime": 1777967909.8412657,
+    "hash": "478e90bfb0039a803882cf0d96951d36"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/terminal/mobile-terminal-input.tsx": {
+    "mtime": 1777395130.9109323,
+    "hash": "4baf8879494f6155b54d7c587bcee37e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/search/search-input.tsx": {
+    "mtime": 1777395130.9099069,
+    "hash": "1d9528f51de9faff96b279f8095510d5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/search/search-modal.tsx": {
+    "mtime": 1777911525.6646843,
+    "hash": "22c06e2d433d99bd99d776012c44caaa"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/search/quick-actions.tsx": {
+    "mtime": 1777911525.6641653,
+    "hash": "b8607066b557bb0405ef910ddc756748"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/search/search-result-item.tsx": {
+    "mtime": 1777395130.9100292,
+    "hash": "b55fe4712b9b006f74e20635594a4516"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/search/search-results.tsx": {
+    "mtime": 1777395130.9101195,
+    "hash": "f0e05c874b7ed99d76d2db59f369f8aa"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/mobile-prompt/MobileSetupModal.tsx": {
+    "mtime": 1777929346.9869437,
+    "hash": "bea36f7a25e3525ffc4a67a2cdcad7ee"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/mobile-prompt/MobilePromptTrigger.tsx": {
+    "mtime": 1777842137.8714933,
+    "hash": "652cd3b4900216eece573fe9c9152143"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/settings-dialog/index.ts": {
+    "mtime": 1777395130.9102108,
+    "hash": "8a5f0e6d48ec2f674d3053adc244a6aa"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/settings-dialog/settings-dialog.tsx": {
+    "mtime": 1777967909.8408046,
+    "hash": "d880e66412bbd4fd6d1f7935d26712ef"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/avatars/user-avatar.tsx": {
+    "mtime": 1777395130.9044402,
+    "hash": "2d519481cad909862fa1d47e9412c28d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/avatars/assistant-avatar.tsx": {
+    "mtime": 1777842137.8698328,
+    "hash": "a8e1ccc722475022b431e7cf97f8be2c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/avatars/index.ts": {
+    "mtime": 1777395130.904367,
+    "hash": "c89e83fc2b0367e891dd3025f5eb5444"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/file-explorer/file-explorer-sidebar.tsx": {
+    "mtime": 1777395130.905618,
+    "hash": "6f7f129fca42a7f445f3106dfae069af"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/file-explorer/index.ts": {
+    "mtime": 1777395130.9057453,
+    "hash": "6d0ef0d99f6b4614c2b94fce756c346d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/file-explorer/file-preview-dialog.tsx": {
+    "mtime": 1777395130.905696,
+    "hash": "efbb2ed97f5348ba7456a4a94c43b7ff"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-chat/AgentChatHeader.tsx": {
+    "mtime": 1777395130.9023664,
+    "hash": "236dbfba1a23849bb1869063b141b5cf"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-chat/AgentChatModal.tsx": {
+    "mtime": 1777842137.869237,
+    "hash": "ac14f772e3ad65c44fefdb506e858a14"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-chat/AgentChatInput.tsx": {
+    "mtime": 1777395130.9024332,
+    "hash": "5fd178693822987d81b3412ee07c1037"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/agent-chat/AgentChatMessages.tsx": {
+    "mtime": 1777395130.902489,
+    "hash": "9a142e454fb40be97816a9744832fba4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/prompt-kit/chat-container.tsx": {
+    "mtime": 1777395130.908576,
+    "hash": "4d96d8ceab1cea47b4872a26d780eb44"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/prompt-kit/tool.tsx": {
+    "mtime": 1777395130.9094112,
+    "hash": "44aab0516e749ba32939ed58ca84151c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/prompt-kit/markdown.tsx": {
+    "mtime": 1777974400.2439198,
+    "hash": "72ac27c95f2848d52db314b4eb804897"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/prompt-kit/markdown.test.ts": {
+    "mtime": 1777974400.2426524,
+    "hash": "6114461eb87f6d3e493dbf3664ea4a27"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/prompt-kit/typing-indicator.tsx": {
+    "mtime": 1777395130.9094656,
+    "hash": "020022e8559e1e0423559a9c8573f563"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/prompt-kit/prompt-input.tsx": {
+    "mtime": 1777395130.9089706,
+    "hash": "73773ec5f917deb891ae3bfd68c23a8b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/prompt-kit/text-shimmer.tsx": {
+    "mtime": 1777395130.9091413,
+    "hash": "bdeff21ab53671ef2c412fd5846444cc"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/prompt-kit/scroll-button.tsx": {
+    "mtime": 1777395130.9090874,
+    "hash": "af44bd7d13fb3ad50e658f3c4674dab5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/prompt-kit/tool-indicator.tsx": {
+    "mtime": 1777395130.9093637,
+    "hash": "ca8bcaae655cebc0acaf4830aaf77fdf"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/prompt-kit/thinking.tsx": {
+    "mtime": 1777395130.909313,
+    "hash": "c3720d7ba540e5376db8c803b89d768a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/prompt-kit/message.tsx": {
+    "mtime": 1777395130.9089146,
+    "hash": "18763373504626ce00dc7150a57ab060"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/prompt-kit/thinking-indicator.tsx": {
+    "mtime": 1777395130.9092147,
+    "hash": "aae3b9c018c32fce1b6ec0c4776b8abd"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/prompt-kit/code-block/index.tsx": {
+    "mtime": 1777395130.9086993,
+    "hash": "2090451f9be86987c10d4237c8b0edc3"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/prompt-kit/code-block/utils.ts": {
+    "mtime": 1777395130.9087574,
+    "hash": "28df4169471908b2bb4b943421dd2b18"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/cron-manager/cron-types.ts": {
+    "mtime": 1777395130.905136,
+    "hash": "6e0d353bc255673d99f24dd7546dcb97"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/onboarding/claude-onboarding.tsx": {
+    "mtime": 1777929346.988015,
+    "hash": "791b40888c07d06a95817a50a9cb353f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/onboarding/tour-steps.tsx": {
+    "mtime": 1777842137.8727784,
+    "hash": "88d22965aa4f1377e813dd830e30bac7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/onboarding/onboarding-steps.ts": {
+    "mtime": 1777842137.872108,
+    "hash": "42f465acb89345f330c072947374c9e0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/onboarding/setup-step-content.tsx": {
+    "mtime": 1777929346.9884167,
+    "hash": "8d16656931079e132a3b2228463be57f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/onboarding/onboarding-tour.test.ts": {
+    "mtime": 1777395130.9079933,
+    "hash": "88a5b101b3d74cf959a8f7889ef2d830"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/onboarding/provider-select-step.tsx": {
+    "mtime": 1777842137.8725734,
+    "hash": "89c76c3af16a183dee743707eaa9a232"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/onboarding/onboarding-tour.tsx": {
+    "mtime": 1777842137.8723886,
+    "hash": "ba1b08ce2f122d476ee9f10043e59da2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/onboarding/index.ts": {
+    "mtime": 1777395130.9078462,
+    "hash": "a862fe15dee42a1c965a3e7e99fa2170"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/components/onboarding/onboarding-wizard.tsx": {
+    "mtime": 1777842137.8724785,
+    "hash": "0617076191ccb9a1455d7b925a11460e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-agent-outputs.ts": {
+    "mtime": 1777929347.0356643,
+    "hash": "88b8b3e5ccc4f5407be7a323a1b997a8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-voice-recorder.ts": {
+    "mtime": 1777395130.9155004,
+    "hash": "2f3ce7d045cd535c49b3e6c39420a43e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-agent-view.ts": {
+    "mtime": 1777850870.141431,
+    "hash": "df7ff02a9bafa60ef0ebb5d0588babc1"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-kanban-events.ts": {
+    "mtime": 1777978548.9690294,
+    "hash": "1363eca6251fe46a0a33be5932e95e74"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-agent-behaviors.ts": {
+    "mtime": 1777929347.034856,
+    "hash": "732e096a83c18054de54bbb4428e8054"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-mobile-keyboard.ts": {
+    "mtime": 1777395130.9141328,
+    "hash": "da077baa7c3e4ef220da6b0836ad0c0a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-sounds.ts": {
+    "mtime": 1777395130.9152067,
+    "hash": "5467637614e98c7701196aaec95f83ac"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-orchestrator-state.ts": {
+    "mtime": 1777395130.9144351,
+    "hash": "8faf1badaf30fbdb58af9c7859fc40be"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-chat-settings.ts": {
+    "mtime": 1777842137.879088,
+    "hash": "5bbdd019552f8d7faab25df340ba676a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-voice-input.ts": {
+    "mtime": 1777395130.9154267,
+    "hash": "7bedf06389607ecc8b87234880db9395"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-crew-status.ts": {
+    "mtime": 1777842137.879754,
+    "hash": "b17736fa38be461b7f36ce1e1701f006"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-pinned-sessions.ts": {
+    "mtime": 1777395130.9146953,
+    "hash": "2c989b1945567d9a90b3bd6e22f8d107"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-cli-agents.ts": {
+    "mtime": 1777395130.913715,
+    "hash": "32b8ae8b822d5b3a608c277420d957f1"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-gateway-caps.ts": {
+    "mtime": 1777842137.8800647,
+    "hash": "8ce0f0420cf9dbc199a78a289ec64739"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-onboarding.ts": {
+    "mtime": 1777395130.914373,
+    "hash": "45af5e05b02d54477562a1718e3236c7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-page-title.ts": {
+    "mtime": 1777842137.880261,
+    "hash": "02a73782eded561576eeb3cb33e33a24"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-feature-capability.ts": {
+    "mtime": 1777978548.9687133,
+    "hash": "8ab59d8bb4b0ee8b1d536920b55793eb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-settings.ts": {
+    "mtime": 1777850870.1420135,
+    "hash": "82eb1aab5ce0d52ae06f930df814b62f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-swipe-navigation.ts": {
+    "mtime": 1777395130.9152896,
+    "hash": "8b77c4d9a6795cd3b114c88e16d26cdc"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-pull-to-refresh.ts": {
+    "mtime": 1777395130.914755,
+    "hash": "ea11678db2e55a52525013cf656518f0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-feature-available.ts": {
+    "mtime": 1777842137.8798676,
+    "hash": "88ea7609f9ec679ea6343cef6bed90ee"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-search-modal.ts": {
+    "mtime": 1777929347.0391881,
+    "hash": "f405186e4edf90c351a69420058799c5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-research-card.ts": {
+    "mtime": 1777395130.9148564,
+    "hash": "5661f8ebddccd6cedb47077594acb288"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-chat-mode.ts": {
+    "mtime": 1777842137.8789992,
+    "hash": "c0a14dcd0799ed9c227649c40c2a56c4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-search-data.ts": {
+    "mtime": 1777929347.0380306,
+    "hash": "0fedb23f121199dcf6635309550f0313"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-swarm-chat.ts": {
+    "mtime": 1777929347.0399501,
+    "hash": "7cf793f6ee33fe77782e690b0659b2d6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-chat-stream.ts": {
+    "mtime": 1777842137.8794436,
+    "hash": "f5155c610ee0ac7d2111f0409020d075"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-modes.ts": {
+    "mtime": 1777842137.8801763,
+    "hash": "3cd0ec3c2e33a06f4b62494589efcd6c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-global-shortcuts.ts": {
+    "mtime": 1777395130.9140697,
+    "hash": "253b5217efbdd2e3c93065c6b5f7a7eb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-model-suggestions.ts": {
+    "mtime": 1777395130.9142253,
+    "hash": "7618165a5fabc9055a2e8f41792486d7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-tap-debug.ts": {
+    "mtime": 1777842137.880743,
+    "hash": "4295fab23c5448b4fa9fc9a62b737f3b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/hooks/use-pinned-models.ts": {
+    "mtime": 1777395130.9146168,
+    "hash": "c046371f33f2fb3bb36c60d88c561381"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/active-users.ts": {
+    "mtime": 1777842137.8808386,
+    "hash": "4aef4a25a0cc36973c6b8d2705793b7b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/provider-catalog.ts": {
+    "mtime": 1777929347.0504627,
+    "hash": "d7b4d3c205dcaf719c58207d8dc9d0ea"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/accent-colors.ts": {
+    "mtime": 1777395130.9155965,
+    "hash": "54f63bdc2868f95da46cd33714d908e3"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/claude-auth.ts": {
+    "mtime": 1777842137.8824925,
+    "hash": "69a90b10657aa73baf4b68ad259a4532"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/format-model-name.ts": {
+    "mtime": 1777850870.1426573,
+    "hash": "fbaa000b8a1e50e8b9b7a68b2faf26b1"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/feature-gates.ts": {
+    "mtime": 1777967909.8464532,
+    "hash": "2ce0851033541fbd617bea441e8388da"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/model-info.ts": {
+    "mtime": 1777929347.0499535,
+    "hash": "b1ef0ee0cad8e24006033cabe97257d9"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/clipboard.ts": {
+    "mtime": 1777395130.9158633,
+    "hash": "54296fa06c584f32b6185fae1efb3c17"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/tasks-api.test.ts": {
+    "mtime": 1777978548.9708953,
+    "hash": "509bfeb7c95b422cb104c262875753ff"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/i18n.ts": {
+    "mtime": 1777911525.667385,
+    "hash": "e320131a12efbd57da540c3a19f8c1f1"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/send-stream-session-headers.ts": {
+    "mtime": 1777929347.0518894,
+    "hash": "1a422d834540fe08a3760c5a19b981ea"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/local-chat-threads.ts": {
+    "mtime": 1777395130.9167278,
+    "hash": "8aa3a6f40a8060958e4a56b958c5ce5d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/model-info.test.ts": {
+    "mtime": 1777395130.9167845,
+    "hash": "5db82538980c4212337cb987c81e1e6c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/agent-personas.ts": {
+    "mtime": 1777929347.0427434,
+    "hash": "79de48d5830668a5ea24c82a8c22327b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/gateway-api.ts": {
+    "mtime": 1777929347.0438976,
+    "hash": "ea1038836954cd0a4ee3b8eb2947581d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/utils.ts": {
+    "mtime": 1777395130.9174094,
+    "hash": "2d8de79afd0584836180c4b9b891b499"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/assignee-profile-union.test.ts": {
+    "mtime": 1777978548.9695778,
+    "hash": "6cfc7b7874e44567947306df0696011c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/approvals-store.ts": {
+    "mtime": 1777395130.915809,
+    "hash": "5bbd97d0c35929f680c5b752a6a1940f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/model-types.ts": {
+    "mtime": 1777395130.9169378,
+    "hash": "5d13c1cdbba45ee76c0571125950321a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/strip-queued-wrapper.ts": {
+    "mtime": 1777395130.917138,
+    "hash": "9c5b414d32142a865afb8e82d2034d5e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/connection-errors.ts": {
+    "mtime": 1777850870.1424687,
+    "hash": "8ad0289980c65db0ca138ef933e2e1dc"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/format-session-name.ts": {
+    "mtime": 1777842137.8846922,
+    "hash": "e16332d01508b105a38948e16e2c72c9"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/orchestrator-identity.ts": {
+    "mtime": 1777983293.408063,
+    "hash": "15d9a0ce80893408c9ae96ab091490a0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/tasks-api.ts": {
+    "mtime": 1777978548.9712486,
+    "hash": "fab2a9855dbb55da4d9259a4cba2c118"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/workspace-checkpoints.ts": {
+    "mtime": 1777395130.9176204,
+    "hash": "01528d8d3439b76802a2af0af7471644"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/jobs-api.ts": {
+    "mtime": 1777967909.8486505,
+    "hash": "2dd971f93e41d72dbf9903dc2e6a1ff9"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/assignee-profile-union.ts": {
+    "mtime": 1777978548.9698412,
+    "hash": "93b81bd72088883f55646aa62d2f18e7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/connection-errors.test.ts": {
+    "mtime": 1777850870.1423051,
+    "hash": "9a1a509ada9c0b784e0a8e517d15edff"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/cron-api.ts": {
+    "mtime": 1777929347.0437007,
+    "hash": "8f49af834f0cc17f9ac27a3b96842dc8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/haptics.ts": {
+    "mtime": 1777395130.9163837,
+    "hash": "6c0d443aab427ba84eb5beb6fd1da9a2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/workspace-agents.ts": {
+    "mtime": 1777395130.9175143,
+    "hash": "ee3db1bb5d4adb5b8d3cbccd09ae5a67"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/theme.ts": {
+    "mtime": 1777967909.8497062,
+    "hash": "b48e3d821619789389796d43e7b67b80"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/sounds.ts": {
+    "mtime": 1777842137.8860672,
+    "hash": "a0eac8ba870604ae210a456f03bf2a99"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/i18n.test.ts": {
+    "mtime": 1777967909.848034,
+    "hash": "7ddbd50298f5c696bff09b8568b5df01"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/jobs-api.test.ts": {
+    "mtime": 1777929347.045078,
+    "hash": "d32aefe93d1625bfb44e7d206649e51f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/hermes-kanban-types.test.ts": {
+    "mtime": 1777978548.970309,
+    "hash": "b8e450c7394fc6fe0d54fc41d7b9d01b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/hermes-kanban-types.ts": {
+    "mtime": 1777978548.9705992,
+    "hash": "9b108eabdeec19c698ab298360f3182b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/send-stream-session-headers.test.ts": {
+    "mtime": 1777850870.143518,
+    "hash": "6ce1bdeb2afe61a1fecb1afbb7ae4929"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/lib/config/costs.ts": {
+    "mtime": 1777395130.9159427,
+    "hash": "772884efbd52a813a42bcde67606c5d6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/settings.tsx": {
+    "mtime": 1777395130.9251416,
+    "hash": "b449aa738b3c478aa2b12a1cdf73d15f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/index.tsx": {
+    "mtime": 1777395130.924854,
+    "hash": "7b9e842862acea1a4f4a77320adbc276"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/__root.tsx": {
+    "mtime": 1777967909.8513196,
+    "hash": "0d8e506a2581efeef076ca94c59e835e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/-root-layout-state.ts": {
+    "mtime": 1777842137.8876626,
+    "hash": "cefe892fd3633b2cfaec6223d4ab2bbd"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/dashboard.tsx": {
+    "mtime": 1777395130.9247406,
+    "hash": "98cae94bc20ac129a985d90c1a16e050"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/files.tsx": {
+    "mtime": 1777395130.9248025,
+    "hash": "009daeeb5d84f53f9dd9e45cb28faeec"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/terminal.tsx": {
+    "mtime": 1777395130.925559,
+    "hash": "3d10d1d7f76012ea10cc949b812e1a5d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/-swarm-routes.test.ts": {
+    "mtime": 1777842137.8877196,
+    "hash": "25737242076f8dd4eb37fb4186b39654"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/agora.tsx": {
+    "mtime": 1777911525.668411,
+    "hash": "3e99a6dc2f19555b364da9ea20c35ab6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/tasks.tsx": {
+    "mtime": 1777978548.9815662,
+    "hash": "eb18f00287b5cb043613e1ae856e825e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/-root-layout-utils.test.ts": {
+    "mtime": 1777395130.9183319,
+    "hash": "bec3489ca4c811da92376b6651592185"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/-root-runtime-guards.test.ts": {
+    "mtime": 1777929347.053455,
+    "hash": "bf2774fa1eb7c9df0b2c269935d3c34b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/operations.tsx": {
+    "mtime": 1777395130.9250154,
+    "hash": "d36b18d26f6c2868e116e1a41cfda744"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/playground.tsx": {
+    "mtime": 1777911525.6705005,
+    "hash": "3880626765ad946347cc32743888454e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/jobs.tsx": {
+    "mtime": 1777395130.9249074,
+    "hash": "16dd745dc8aa9a523b1e0788f43adc04"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/swarm.tsx": {
+    "mtime": 1777842137.9061117,
+    "hash": "0835c31dde728927ea2a15dc8771c207"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/mcp.tsx": {
+    "mtime": 1777874162.1333182,
+    "hash": "cf266e8dcb1aab5739018593eed1dcc3"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/conductor.tsx": {
+    "mtime": 1777850870.157452,
+    "hash": "f0d4417dc5ba4c04a9196e9e26ad5097"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/$.tsx": {
+    "mtime": 1777395130.9181037,
+    "hash": "1bb93daaea2d4332242c3fe1083a01a5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/skills.tsx": {
+    "mtime": 1777395130.9254405,
+    "hash": "4c4530a8d6e43cd0d2658c76057c6881"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/-root-layout-state.test.ts": {
+    "mtime": 1777842137.8873277,
+    "hash": "12358c38ab34f73585178fcc64ae8775"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/profiles.tsx": {
+    "mtime": 1777395130.9250731,
+    "hash": "c3bf5be601e432b26a1bb5889d55d644"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/swarm2.tsx": {
+    "mtime": 1777842137.9061835,
+    "hash": "ce19b9c0c859626536663d69755ee1dc"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/memory.tsx": {
+    "mtime": 1777395130.9249597,
+    "hash": "ac2707f7e4ad5902f4ff6a2b5739ed32"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/settings/index.tsx": {
+    "mtime": 1777967909.8681324,
+    "hash": "95baf6e65142e815e95d2bd2ea6e6fd6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/settings/providers.tsx": {
+    "mtime": 1777395130.9253938,
+    "hash": "c7f4d4e540e945bb6c9a9067cf1e77f6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/chat/index.tsx": {
+    "mtime": 1777842137.904446,
+    "hash": "6d9d72b9d878953c6d6eabe2ff408a72"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/chat/$sessionKey.tsx": {
+    "mtime": 1777850870.1570013,
+    "hash": "d7c418b65e66441a1b65de77391f42f5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/dashboard-config.ts": {
+    "mtime": 1777983268.046605,
+    "hash": "d6bbfa30b78be43e0f0505a0ed63a34b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-orchestrator-loop.ts": {
+    "mtime": 1777929347.1330473,
+    "hash": "e6e2db37caffed782a23437951206476"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/-context-usage.test.ts": {
+    "mtime": 1777842137.8879628,
+    "hash": "440d877792118db6f562ec6adee95fad"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/history.ts": {
+    "mtime": 1777929347.1163387,
+    "hash": "78cb6c7b06aafe6430bc1d729515fc71"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/conductor-stop.ts": {
+    "mtime": 1777929347.063981,
+    "hash": "caf7c0c3cb7276bf0d64a9fdd7f778e1"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/start-agent.ts": {
+    "mtime": 1777842137.899786,
+    "hash": "4ddf7da260e3cc7e2e22ac3405160220"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-dispatch.ts": {
+    "mtime": 1777997097.372412,
+    "hash": "d8fcd00f6e244d93deea8bb5902bca20"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-lifecycle.ts": {
+    "mtime": 1777929347.1305344,
+    "hash": "5834286cfc5464b60677d09d99280ee2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/ping.ts": {
+    "mtime": 1777842137.896007,
+    "hash": "f323d630a1431a7ac546386f2cce0b41"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-environment.ts": {
+    "mtime": 1777842137.900913,
+    "hash": "6325b1a5cdf25f2e7151d5e8b60f9383"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-missions.ts": {
+    "mtime": 1777929347.1329093,
+    "hash": "44c0ad33cbff800eb9ea2da6e640df9a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/session-status.ts": {
+    "mtime": 1777850870.15454,
+    "hash": "679143c8e524288336fc713427f46abd"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/claude-tasks.ts": {
+    "mtime": 1777978548.973644,
+    "hash": "a26d542616ef7645a3e8db8561c72c09"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/integrations.ts": {
+    "mtime": 1777842137.893215,
+    "hash": "88d2319537e0ec46afef0750d1ef8d0e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-runtime.ts": {
+    "mtime": 1777929347.1345441,
+    "hash": "8e0d621d7fedf879962e1f5ef9f3af10"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/playground-npc.ts": {
+    "mtime": 1777929347.124328,
+    "hash": "ea1a87ec2caf87cbfb631c9ce94a45e6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/send-stream.ts": {
+    "mtime": 1777967909.8598034,
+    "hash": "3d41b8a4f155366fc8d41e6f8fb21980"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/connection-settings.ts": {
+    "mtime": 1777842137.8912222,
+    "hash": "044fa632e18c17ee68fe0f3199ff3738"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/workspace.ts": {
+    "mtime": 1777850964.7178764,
+    "hash": "6befa87595a6b645a30c6e4c168f8c9f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/artifacts.ts": {
+    "mtime": 1777842137.8894587,
+    "hash": "a2234d85f86129679d9875bcafd43806"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/claude-tasks.$taskId.ts": {
+    "mtime": 1777978548.9733775,
+    "hash": "961f33a2638146345a248897dd61aaa7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/terminal-input.ts": {
+    "mtime": 1777842137.9029365,
+    "hash": "2cbc65aa822f539b5aae77989d2dddf8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-roster.ts": {
+    "mtime": 1777929347.1341126,
+    "hash": "4a1ab1ed7d2f9a7f1f8e4cd5b1f03416"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/-swarm-dispatch.test.ts": {
+    "mtime": 1777929347.0554311,
+    "hash": "617438b0e223e85886a24bd0c281a2b7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-chat.ts": {
+    "mtime": 1777929347.1289942,
+    "hash": "396bda239175f7fef1cda46a464cad2d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/claude-config.ts": {
+    "mtime": 1777929347.0568652,
+    "hash": "bb207622b66256ce0107687a421fb4fe"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/session-send.ts": {
+    "mtime": 1777395130.9233158,
+    "hash": "a1d1e38f6cc6293b0bcffa36e1d7f725"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/context-usage.ts": {
+    "mtime": 1777850870.1477304,
+    "hash": "c560d082ae61cb3c39f99b2cb769cdc4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/mcp.ts": {
+    "mtime": 1777929347.1218104,
+    "hash": "f65b19bd824d37290155c38584ea7e6e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/crew-status.ts": {
+    "mtime": 1777929347.065432,
+    "hash": "bde0d1ed1719ba502ab7f056e448ec23"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/conductor-spawn.ts": {
+    "mtime": 1777929347.063831,
+    "hash": "91b97c47e46458486055a42bfa739182"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-kanban.ts": {
+    "mtime": 1777967909.8616772,
+    "hash": "5a719ec1e0a127f7410912b738e31bd2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/start-claude.ts": {
+    "mtime": 1777842137.8998554,
+    "hash": "0fe9a75c6e45369ee08f42e27a64df46"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/claude-update.ts": {
+    "mtime": 1777967909.8543513,
+    "hash": "a9913755a5e7764f27b54d78a56881b5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-tmux-scroll.ts": {
+    "mtime": 1777929347.1346617,
+    "hash": "9eb6cfa0d921a75d8b46500e1a71ed43"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/gateway-status.ts": {
+    "mtime": 1777842137.8922253,
+    "hash": "4e8be63ceb338abf1a32bca4e9b07da9"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/terminal-resize.ts": {
+    "mtime": 1777842137.9030373,
+    "hash": "8434fcb593b29ea05e94b6528169b5cf"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/local-providers.ts": {
+    "mtime": 1777929347.1210418,
+    "hash": "b069d477b11ef677b7542b9c11740f12"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/-send-stream-live-tools.test.ts": {
+    "mtime": 1777911525.6686873,
+    "hash": "167314fc0aaa85bb9409eae88ddff92c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/session-history.ts": {
+    "mtime": 1777929347.1255803,
+    "hash": "73408be02a911a146d67f9fe625ed65d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/-send-stream-live-tools.ts": {
+    "mtime": 1777929347.0552547,
+    "hash": "40cc0f49a2e16f94503e3ee45ea3bdc9"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/terminal-stream.ts": {
+    "mtime": 1777967909.8651686,
+    "hash": "12a00fae170bcc9fcf0ad5c22a7e244d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-decompose.ts": {
+    "mtime": 1777929347.1293278,
+    "hash": "893f299c234cf6503cbb5ebd1f0ed8d0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/claude-jobs.ts": {
+    "mtime": 1777967909.853094,
+    "hash": "b529043bc7a53a31d468000126ab5053"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/claude-jobs.$jobId.ts": {
+    "mtime": 1777842137.8900554,
+    "hash": "232984889c9e6454222e523e06d10bb7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-memory.ts": {
+    "mtime": 1777929347.1310496,
+    "hash": "a19c5b8cc8ab76e1e3057b9d84225700"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-project.ts": {
+    "mtime": 1777929347.133682,
+    "hash": "f65b9ea33a7335cad17575193857efc5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/-mcp-logs.test.ts": {
+    "mtime": 1777842137.8881505,
+    "hash": "7d7d7dd53a63bc1503c2a27b540ac758"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/-workspace.test.ts": {
+    "mtime": 1777842137.8884187,
+    "hash": "d75867d9a87b8cc89aab9683cc50a291"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/events.ts": {
+    "mtime": 1777395130.9197075,
+    "hash": "3db528436e5cffeef4a60ec1e36507a1"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/provider-usage.ts": {
+    "mtime": 1777850870.153542,
+    "hash": "4ce4a147881eb90afd608e2103650cf9"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-direct-chat.ts": {
+    "mtime": 1777929347.129442,
+    "hash": "09dfbae6d2b283a32de07da4e8461543"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/send.ts": {
+    "mtime": 1777842137.8980515,
+    "hash": "74df831119e81d10a234a175829c5be7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/-claude-update.test.ts": {
+    "mtime": 1777929347.0548177,
+    "hash": "97f584af435de192ff6bc35c6a1f9981"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/auth-check.ts": {
+    "mtime": 1777842137.88956,
+    "hash": "cac3b062c90f7168a0c91dc1dd3ab87f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/chat-events.ts": {
+    "mtime": 1777842137.889665,
+    "hash": "3d1096e69175c7a53b8297bed47337a9"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/connection-status.ts": {
+    "mtime": 1777967909.854465,
+    "hash": "dc4511370baf3566a2c32f88bedc06ce"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/memory.ts": {
+    "mtime": 1777842137.894704,
+    "hash": "8d53d86bc96037df0fd2665363c272c9"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/system-metrics.ts": {
+    "mtime": 1777929347.136446,
+    "hash": "ea362d2b17d0d765ffd3887168ca7586"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/terminal-close.ts": {
+    "mtime": 1777842137.9028282,
+    "hash": "f93a7c7a73f572edf49762feba2f4892"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/-mcp.test.ts": {
+    "mtime": 1777929347.055142,
+    "hash": "e9f9bcdb0b4e1ec4be9a2dc4fd15529f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/skills.ts": {
+    "mtime": 1777929347.126756,
+    "hash": "2e08adcc328aa161c4c01f1c19c36694"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/models.ts": {
+    "mtime": 1777929347.1240525,
+    "hash": "d5989b490e6a751f9bc67cbd25513b12"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/-files.test.ts": {
+    "mtime": 1777842137.8880897,
+    "hash": "4d0e1fccf7720866a879b006c1e4d86f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/oauth.device-code.ts": {
+    "mtime": 1777842137.8954198,
+    "hash": "bb14f250be4515999d269a4f345eb7b6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/paths.ts": {
+    "mtime": 1777929347.124234,
+    "hash": "52a09b12bf5ba991571abcec6e3540b3"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-tmux-start.ts": {
+    "mtime": 1777967909.8646944,
+    "hash": "1d026ecb3b42e7213dd16c70b679fa9f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-tmux-stop.ts": {
+    "mtime": 1777929347.1363256,
+    "hash": "5b8f22505f194176d44923ef2f8b1e0c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/claude-tasks-assignees.ts": {
+    "mtime": 1777978548.972864,
+    "hash": "cc7ae2a4e01fa49ff2d3f6c421837654"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-health.ts": {
+    "mtime": 1777929347.1302032,
+    "hash": "96d0d262032fe2a679795d1238dd64a2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/files.ts": {
+    "mtime": 1777842137.8918393,
+    "hash": "d705f0ebb030136897c9491accb0e355"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-reports.ts": {
+    "mtime": 1777842137.901813,
+    "hash": "cb82c6ffcd4670100b16b55eb20389d8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/sessions.ts": {
+    "mtime": 1777929347.1257281,
+    "hash": "a9b74f01937d7a69af15c8426bc8e01c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/preview-file.ts": {
+    "mtime": 1777929347.1244168,
+    "hash": "d44f889987da2985843d0cfcf35d837c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/plugins.ts": {
+    "mtime": 1777842137.896083,
+    "hash": "94f10021917552144e466b4d4f6c6d3e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/artifacts.$artifactId.ts": {
+    "mtime": 1777842137.8888113,
+    "hash": "bde91c2458be9fcf1d0fed3a77437cb1"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/auth.ts": {
+    "mtime": 1777395130.9188888,
+    "hash": "65c13fd1d4cbba67306ab6ecb5aa0d43"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-checkpoint.ts": {
+    "mtime": 1777929347.129165,
+    "hash": "0af5c9ddad42fae316c81e723623bff8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/memory/read.ts": {
+    "mtime": 1777395130.9220521,
+    "hash": "8c2238c84d2908d6288baa72ec7e0889"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/memory/search.ts": {
+    "mtime": 1777395130.9221063,
+    "hash": "62c760605a5bcddf10ddabe4d6a287c9"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/memory/write.ts": {
+    "mtime": 1777395130.922155,
+    "hash": "afa1fa7f0101c10ca1ddcf28e3f52d83"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/memory/list.ts": {
+    "mtime": 1777395130.9218218,
+    "hash": "b76cff19fdb0dd2f7affaa69262efb9d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/update/status.ts": {
+    "mtime": 1777842137.9032805,
+    "hash": "59d12829c7a4db2c25c082e1a9a65c8f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/update/workspace.ts": {
+    "mtime": 1777842137.9033525,
+    "hash": "421d04e0228979d6a3c33b93ac369a66"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/update/agent.ts": {
+    "mtime": 1777842137.9032235,
+    "hash": "a1baa6fe6304bd5bc8f53d1fd9194bd8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/claude-proxy/$.ts": {
+    "mtime": 1777929347.0575566,
+    "hash": "2b3568f3fb29277d85732aa37f4bbc88"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/mcp/-hub-search.test.ts": {
+    "mtime": 1777929347.122617,
+    "hash": "89b4d5e2fa45065e22ec23877f98a857"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/mcp/hub-sources.ts": {
+    "mtime": 1777929347.123689,
+    "hash": "c42fd24bdafff2dfb49bd41a4ff7fd6e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/mcp/$name.ts": {
+    "mtime": 1777929347.1224694,
+    "hash": "7ae05de5411993757268780bfc06d6ac"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/mcp/test.ts": {
+    "mtime": 1777929347.1237714,
+    "hash": "9efb9e1d18915b50711532e2c00c37a6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/mcp/discover.ts": {
+    "mtime": 1777929347.1234033,
+    "hash": "3cb6f142f94b49c7b2f7f58bafd4fe57"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/mcp/-hub-sources.test.ts": {
+    "mtime": 1777929347.123058,
+    "hash": "73186394521495880caaf674a84931b8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/mcp/presets.ts": {
+    "mtime": 1777842137.8944623,
+    "hash": "f71eecc78bdd15166a1bf54d158712c8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/mcp/-presets.test.ts": {
+    "mtime": 1777929347.1231787,
+    "hash": "5e270b6fea2e1750616abb36bbedfd34"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/mcp/configure.ts": {
+    "mtime": 1777929347.1233025,
+    "hash": "bb961339c80105bb1c11861456e9c96e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/mcp/$name.logs.ts": {
+    "mtime": 1777929347.122131,
+    "hash": "3348c726223530f9d8ea7ee1012f7a40"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/mcp/hub-sources.$id.ts": {
+    "mtime": 1777929347.123606,
+    "hash": "c9d7b723594f33829430f1e31e37ef19"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/mcp/hub-search.ts": {
+    "mtime": 1777929347.12352,
+    "hash": "160b04e27396ca7fced24accf84c8f2b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/dashboard/overview.ts": {
+    "mtime": 1777929347.065669,
+    "hash": "7bf7803ba2154351f6a1d108759d8321"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/sessions/$sessionKey.active-run.ts": {
+    "mtime": 1777395130.9235244,
+    "hash": "0929806167fbefae4a4e0ad3b6b5549c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/sessions/$sessionKey.status.ts": {
+    "mtime": 1777842137.89873,
+    "hash": "836a4581e426389b6de421d3ed7b563e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/sessions/send.ts": {
+    "mtime": 1777842137.8988466,
+    "hash": "80d80a1951a1af1d79568ca44b8d7050"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/__tests__/-models.test.ts": {
+    "mtime": 1777929347.0562654,
+    "hash": "777e3abb5379f60909e21eb8024ec9f6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/knowledge/read.ts": {
+    "mtime": 1777395130.9212515,
+    "hash": "de21d0e3d2c7aa797ba79d0ec7dc071f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/knowledge/search.ts": {
+    "mtime": 1777395130.921319,
+    "hash": "de6260f30399d9c6923715af5f09bc71"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/knowledge/graph.ts": {
+    "mtime": 1777395130.9211352,
+    "hash": "18ed4067aba6824e71160f4983e553a2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/knowledge/config.ts": {
+    "mtime": 1777929347.1190765,
+    "hash": "a3c4a95b47d80914f35639c324465930"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/knowledge/list.ts": {
+    "mtime": 1777395130.9211967,
+    "hash": "192f84bdca17f77dc4f2c4617f066e91"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/knowledge/sync.ts": {
+    "mtime": 1777929347.1193101,
+    "hash": "22eb04e4cc2d8133588b5ccaf2dcc438"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/model/info.ts": {
+    "mtime": 1777929347.123912,
+    "hash": "08517a343b29c669ef0f26e9db2f3b84"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/swarm-memory/search.ts": {
+    "mtime": 1777929347.1321049,
+    "hash": "7dbf88c0c3ad214aa0a05c686ac81c30"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/skills/install.ts": {
+    "mtime": 1777929347.1288028,
+    "hash": "2086c9e9509a3bedd30095acf1132487"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/skills/uninstall.ts": {
+    "mtime": 1777842137.899682,
+    "hash": "5cc24e8536a24a1cb7bd3a37491a7615"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/skills/hub-search.ts": {
+    "mtime": 1777929347.1277645,
+    "hash": "725bb594eef0f038a82eaefa40fc47f6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/skills/toggle.ts": {
+    "mtime": 1777842137.899569,
+    "hash": "e35990570bf7bd0c4d3bc061529c9baf"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/profiles/read.ts": {
+    "mtime": 1777395130.922877,
+    "hash": "c24ace767157c402236474d243bebdd1"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/profiles/activate.ts": {
+    "mtime": 1777395130.9226642,
+    "hash": "0e370033debdf8935f2d85191098ea1d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/profiles/rename.ts": {
+    "mtime": 1777395130.922921,
+    "hash": "a7cf94e6dd017b3e287bfe1c58c442f1"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/profiles/create.ts": {
+    "mtime": 1777395130.9227173,
+    "hash": "13bb46a250eba022778fc255020ad326"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/profiles/list.ts": {
+    "mtime": 1777395130.9228106,
+    "hash": "61a83733f457ec5a820fad4eed7e23e2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/profiles/update.ts": {
+    "mtime": 1777395130.922968,
+    "hash": "a4ffa506f2c693a08b05bde44498f971"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/profiles/delete.ts": {
+    "mtime": 1777395130.922759,
+    "hash": "880f4c396453389b94498c34510d59df"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/hermes-kanban/tasks.$taskId.log.ts": {
+    "mtime": 1777978548.9803164,
+    "hash": "c1ac9cdd59f4a49cfec51ce088278a3b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/hermes-kanban/assignees.ts": {
+    "mtime": 1777978548.9741905,
+    "hash": "2a0c550b1af659958490f10228b03d42"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/hermes-kanban/stats.ts": {
+    "mtime": 1777978548.9779744,
+    "hash": "291a9f04bf8e996e4faee19e98a679bc"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/hermes-kanban/tasks.$taskId.comments.ts": {
+    "mtime": 1777978548.978502,
+    "hash": "43171d8098f08ce76f4462641188cd23"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/hermes-kanban/migrate-legacy-tasks.ts": {
+    "mtime": 1777978548.977573,
+    "hash": "1b6ad0cf199c8b378fe13cab89f9c4f2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/hermes-kanban/tasks.$taskId.ts": {
+    "mtime": 1777978548.9809215,
+    "hash": "58186b43adbd053fdf123355e501e335"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/hermes-kanban/tasks.$taskId.home-subscribe.$platform.ts": {
+    "mtime": 1777978548.9798052,
+    "hash": "d039b91cc5b2ebdcb6d1c28310d83747"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/hermes-kanban/links.ts": {
+    "mtime": 1777978548.9773023,
+    "hash": "608726cc4a33d06a47f5ca505c59d53b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/hermes-kanban/dispatch.ts": {
+    "mtime": 1777978548.9752405,
+    "hash": "d5f76f16c034feb9b48dd63362fd544b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/hermes-kanban/events.ts": {
+    "mtime": 1777978548.9758189,
+    "hash": "562a8972b0ba768d29b6d79999b2d6e5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/hermes-kanban/bulk.ts": {
+    "mtime": 1777978548.974699,
+    "hash": "af34f3bf6405c1070521358d01fc60d0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/hermes-kanban/home-channels.ts": {
+    "mtime": 1777978548.9766672,
+    "hash": "45ab8225548b09a38778be3860f665cf"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/hermes-kanban/config.ts": {
+    "mtime": 1777978548.9749622,
+    "hash": "902e095ae0ab25a2ca4f9ec1e49519fb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/hermes-kanban/tasks.ts": {
+    "mtime": 1777978548.9812376,
+    "hash": "bbfc8074aa7e0309dcd142a00d05e213"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/routes/api/hermes-kanban/board.ts": {
+    "mtime": 1777978548.9744432,
+    "hash": "3ea59f7370a8366695bd74ab0b099b64"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/CHANGELOG.md": {
+    "mtime": 1777929346.7571626,
+    "hash": "05d914cbdd58174ac864125f5930e4d1"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docker-compose.dev.yml": {
+    "mtime": 1777850869.8994782,
+    "hash": "760ac2be76314340c3760c8ed9795b2e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/FUTURE-FEATURES.md": {
+    "mtime": 1777395130.8556027,
+    "hash": "091d639a5151c2fe197b8809e305e660"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/README.md": {
+    "mtime": 1777929346.7637322,
+    "hash": "722487735648537d7a31d02a14bf849f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/CONTRIBUTING.md": {
+    "mtime": 1777842137.6354244,
+    "hash": "b40f065180792032aaf4fb8c1a889774"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docker-compose.yml": {
+    "mtime": 1777850869.8997881,
+    "hash": "a73b56209fe965a8818dc3ea41b6d883"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/AGENTS.md": {
+    "mtime": 1778001142.1143992,
+    "hash": "bc36497da66df13b17f43894843eda70"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/FEATURES-INVENTORY.md": {
+    "mtime": 1777929346.7613118,
+    "hash": "2286d3f2e4a787df5ed3562d3f1cfb8a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/CLAUDE.md": {
+    "mtime": 1777997553.7566695,
+    "hash": "bd46aef24948203f54ac57ff4d3c09fa"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/SECURITY.md": {
+    "mtime": 1777842137.6361501,
+    "hash": "c0a28f1b416a7ed5c78d8992b935f8b7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/swarm.yaml": {
+    "mtime": 1777842137.943844,
+    "hash": "9eee5219ae884403b62450f1abe9239f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/playground-ws-worker/README.md": {
+    "mtime": 1777929346.9673505,
+    "hash": "84d384e040d4e046aac8dac102990063"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/memory/goals/2026-05-03-playground-training-grounds/SHIP-READY-CHECKLIST.md": {
+    "mtime": 1777929346.965068,
+    "hash": "3e566d81482bfe7cddd39c73291de712"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/memory/goals/2026-05-03-playground-training-grounds/HERMESWORLD-FINAL-DEMO-SCRIPT.md": {
+    "mtime": 1777929346.9649286,
+    "hash": "869d90c0b33981e8abb0dae276140094"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/memory/goals/2026-05-03-playground-training-grounds/iterations/001.md": {
+    "mtime": 1777911525.6580577,
+    "hash": "04c0b6d10023acb7b4724aafe70005a8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/memory/goals/2026-05-03-playground-training-grounds/iterations/005.md": {
+    "mtime": 1777929346.9666202,
+    "hash": "5fc53a904370a46e483f710a7b0bc42a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/memory/goals/2026-05-03-playground-training-grounds/iterations/004.md": {
+    "mtime": 1777929346.965902,
+    "hash": "e8bede6cce26ea95ad78fab60ff09b83"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/memory/goals/2026-05-03-playground-training-grounds/iterations/007-handoff.md": {
+    "mtime": 1777929346.9669647,
+    "hash": "a0f5de34d53b24f5a6afc9113a6b5904"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/memory/goals/2026-05-03-playground-training-grounds/iterations/006-showcase.md": {
+    "mtime": 1777929346.9668124,
+    "hash": "ca73a40173c40486d85d0b906c66846c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/memory/goals/2026-05-03-playground-training-grounds/iterations/003.md": {
+    "mtime": 1777911525.658205,
+    "hash": "16c148daea35b9b953974dadfa9d1bc0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/memory/goals/2026-05-03-playground-training-grounds/iterations/002.md": {
+    "mtime": 1777911525.658127,
+    "hash": "e4b17f34ccc25ce903ce1d1c75155e4d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/i18n-contributing.md": {
+    "mtime": 1777929346.7662551,
+    "hash": "248faed838d8443a163b9332370ee613"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/hermes-workspace-naming-contract.md": {
+    "mtime": 1777929346.7655506,
+    "hash": "5757f8abb1dde8a221d5ad379bf36ee3"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/agent-authored-ui-state.md": {
+    "mtime": 1777395130.8563426,
+    "hash": "e2d20509e7df4a680a9304c3f387d6e7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/troubleshooting.md": {
+    "mtime": 1777929346.7825217,
+    "hash": "6c0d572400e01a4950f97e55cb8422f5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/AGENT-PAIRING.md": {
+    "mtime": 1777929346.7654467,
+    "hash": "303841e28e68a4b50024f6b57e8add78"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/swarm2-autopilot-orchestration-spec.md": {
+    "mtime": 1777842137.641504,
+    "hash": "c95506b223d40449bc354ed100f7d70c"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/tool-artifacts-context-plan.md": {
+    "mtime": 1777929346.7823694,
+    "hash": "65e1bb7fdd5a066482d1dd11e5685392"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/release-2.1.0.md": {
+    "mtime": 1777929346.7779634,
+    "hash": "943e737a75751a4a36097646b015a511"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/swarm2-agent-ide-spec.md": {
+    "mtime": 1777929346.781411,
+    "hash": "bbe40c5f0b315af302d98b92217ce4cb"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/conductor-bug-log.md": {
+    "mtime": 1777842137.639739,
+    "hash": "f21ea85a4bab9c04b550bcdb58d2f95b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/swarm2-memory-framework-spec.md": {
+    "mtime": 1777929346.781937,
+    "hash": "207046572d713043364e08772fd6ac19"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/swarm2-frankengpu-control-plane.md": {
+    "mtime": 1777842137.6422353,
+    "hash": "ffbe1b8b4f4586ea26383c1c89147652"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/multi-gateway-pool-spec.md": {
+    "mtime": 1777929346.7670171,
+    "hash": "f0955efae71eb540d66a392ec4199bf5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/swarm2-worker-lifecycle-compaction-spec.md": {
+    "mtime": 1777842137.6424375,
+    "hash": "8001ede3720584c735cfb584e98fabc1"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/claude-openai-compat-spec.md": {
+    "mtime": 1777842137.6396923,
+    "hash": "0ddcee1871f7b4523361da2ea5eec127"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/desktop-update-system.md": {
+    "mtime": 1777842137.6398027,
+    "hash": "e0b3156fc9981cf56d4e7343d4e2587d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/swarm/ARCHITECTURE.md": {
+    "mtime": 1777929346.7786164,
+    "hash": "eea13779c053c11566ececd7e7885b79"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/swarm/QUICKSTART.md": {
+    "mtime": 1777929346.7802012,
+    "hash": "abb963e0c32704deddd061ad421a319a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/swarm/README.md": {
+    "mtime": 1777929346.7803698,
+    "hash": "ab5c0dab64425e51bdc8153bde8a5b1d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/swarm/ROLES.md": {
+    "mtime": 1777929346.7806132,
+    "hash": "33b6b317dc6c5a10a4cc18682b16c983"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/swarm/SKILLS.md": {
+    "mtime": 1777929346.7808068,
+    "hash": "821adf51c8fb6151fa271ef5f14e77d7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/playground/README.md": {
+    "mtime": 1777929346.776471,
+    "hash": "9449c0c525f017116a8549730f138cd0"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/plans/unified-kanban-task-system.md": {
+    "mtime": 1777967909.83581,
+    "hash": "90ccadf87e3b9f2aff8b39901f5a52ec"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/plans/central-agent-project-model.md": {
+    "mtime": 1777978548.9676776,
+    "hash": "152ff55811eb5a54165596c7c1e9fc03"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/test-streaming.html": {
+    "mtime": 1777395130.901398,
+    "hash": "cd3c205b7a61e35307befbd2d4d057a9"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/robots.txt": {
+    "mtime": 1777395130.8745933,
+    "hash": "fa1ded1ed7c11438a9b0385b1e112850"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/ascii-portraits/iris.txt": {
+    "mtime": 1777911525.6620548,
+    "hash": "436ad71414d6548a0aec539e14b4f2dc"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/ascii-portraits/nike.txt": {
+    "mtime": 1777911525.6621044,
+    "hash": "fe1b0555cea2c7b0d2d13a412acfcb5b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/ascii-portraits/banker.txt": {
+    "mtime": 1777911525.6618173,
+    "hash": "8670e20f19a71bb661f0eb94f4c81976"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/ascii-portraits/eros.txt": {
+    "mtime": 1777911525.6619298,
+    "hash": "16e5249e3db8272caab3de9370b9ba01"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/ascii-portraits/athena.txt": {
+    "mtime": 1777911525.6617403,
+    "hash": "1be372e859f37850963a3157e9cfacf4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/ascii-portraits/_banner.txt": {
+    "mtime": 1777911525.6615376,
+    "hash": "eba64dfa6780320f089e1acf111158c7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/ascii-portraits/chronos.txt": {
+    "mtime": 1777911525.6618755,
+    "hash": "0aace17b120f6fdad4fec457b004f914"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/ascii-portraits/_banner-doom.txt": {
+    "mtime": 1777911525.6614425,
+    "hash": "84974752896097f233b2633ca3276b4a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/ascii-portraits/hermes.txt": {
+    "mtime": 1777911525.6619906,
+    "hash": "6b05db39993f12ea275705a7a4e7e51d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/ascii-portraits/shopkeeper.txt": {
+    "mtime": 1777911525.662283,
+    "hash": "3887fd5f43aab3dc24516a77f73796ef"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/ascii-portraits/trainer.txt": {
+    "mtime": 1777911525.662392,
+    "hash": "755d04faf940addba9f450d26d8a6dac"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/ascii-portraits/recruiter.txt": {
+    "mtime": 1777911525.6622162,
+    "hash": "235f737e004c7c2beda494df2beefb52"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/ascii-portraits/tavernkeeper.txt": {
+    "mtime": 1777911525.662337,
+    "hash": "6c81b59d39c71a18c58581a1f040fe38"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/ascii-portraits/pan.txt": {
+    "mtime": 1777911525.6621592,
+    "hash": "c4591841894b26ca3dc4727d1d87af54"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/ascii-portraits/artemis.txt": {
+    "mtime": 1777911525.6616848,
+    "hash": "cc0979ece7f7cadf99b65104ca128a28"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/ascii-portraits/apollo.txt": {
+    "mtime": 1777911525.6616225,
+    "hash": "67e7ce52a19e0ddc1139a5dcfbae0471"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/avatars-3d/README.md": {
+    "mtime": 1777929346.969091,
+    "hash": "8fd3b825f13c9434c93e81637c00bb90"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/skills/workspace-dispatch/SKILL.md": {
+    "mtime": 1777929346.9728415,
+    "hash": "78322796dda86a1c0ece12a809cb863e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/screenshots/dashboard.png": {
+    "mtime": 1777395130.8602018,
+    "hash": "331c809fcce0ac1b7c249068916ccbd8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/screenshots/settings.png": {
+    "mtime": 1777395130.8642025,
+    "hash": "21e5129c84fd5230c66df540462b4e27"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/screenshots/terminal.png": {
+    "mtime": 1777395130.8672092,
+    "hash": "96337308d69af50f91f423896dafaa1b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/screenshots/files.png": {
+    "mtime": 1777395130.8613288,
+    "hash": "3d32275c8a6d3cffed0224813a36d3be"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/screenshots/tasks.png": {
+    "mtime": 1777395130.8669817,
+    "hash": "537716f9b6e81bc1efdd17d5eea3e1ed"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/screenshots/splash.png": {
+    "mtime": 1777395130.866552,
+    "hash": "29fad04c7fc7f8d784e665c0d52b87df"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/screenshots/conductor.png": {
+    "mtime": 1777395130.8589501,
+    "hash": "a0382a5a9b73914079c2f07b71974687"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/screenshots/jobs.png": {
+    "mtime": 1777395130.8619614,
+    "hash": "fd01571576715c5120c2cb0c7c4103e5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/screenshots/memory.png": {
+    "mtime": 1777395130.8635764,
+    "hash": "d9734b8af41c9b5de067d65809d4bd19"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/screenshots/skills.png": {
+    "mtime": 1777395130.8663747,
+    "hash": "ac9cfa0430dde71140edc9c63c881232"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/screenshots/chat.png": {
+    "mtime": 1777395130.8580728,
+    "hash": "b7890eb5d97e482a00205d9c860fac04"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/docs/images/star-history.png": {
+    "mtime": 1777395130.857345,
+    "hash": "155a4b66e8f884d5d2de51e1141c6385"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/claude-avatar.png": {
+    "mtime": 1777842137.8636842,
+    "hash": "e744a7a76fef229350dbfeca77cefb59"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/cover.webp": {
+    "mtime": 1777395130.8685596,
+    "hash": "c0ff8dd20eabe1b759591b90e604ac0b"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/claude-caduceus.png": {
+    "mtime": 1777842137.864376,
+    "hash": "dbff27833c78e9fc7ccc704edb49bc6d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/apple-touch-icon.png": {
+    "mtime": 1777395130.8682938,
+    "hash": "7cdd735a6bb0c2e8bbcdc7be5231b297"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/logo-icon.png": {
+    "mtime": 1777395130.8726418,
+    "hash": "a12c4e74af127564864702a0068d06fd"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/logo-icon.jpg": {
+    "mtime": 1777395130.8725538,
+    "hash": "bfd9a5c72f7b803c4d880ed52e447c7f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/claude-avatar.webp": {
+    "mtime": 1777842137.8637815,
+    "hash": "3f11ad31991ef33d123e795d4578eab2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/claude-icon-192.png": {
+    "mtime": 1777842137.864637,
+    "hash": "1c556369593f78e56c0d4fa8743a6e9f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/social-preview.png": {
+    "mtime": 1777395130.9012592,
+    "hash": "e744a7a76fef229350dbfeca77cefb59"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/claude-logo.png": {
+    "mtime": 1777842137.8675375,
+    "hash": "7f0755ba826b0fc3b8ebb08f518b1fb3"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/claude-banner-light.png": {
+    "mtime": 1777842137.8638597,
+    "hash": "4a64b6ef03b1a10ef83d0bd7abcf9e5d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/claude-crest.svg": {
+    "mtime": 1777842137.8644996,
+    "hash": "061243d359bec73d09ffecdeaa6374c2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/claude-banner.png": {
+    "mtime": 1777842137.8639352,
+    "hash": "d6a89456d9b70988d5b062e344abffa8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/cover.png": {
+    "mtime": 1777395130.8684475,
+    "hash": "e744a7a76fef229350dbfeca77cefb59"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/claude-icon.png": {
+    "mtime": 1777842137.8648727,
+    "hash": "93e1f141414ef5ccf7fd45763c9f9b5f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/claude-icon-512.png": {
+    "mtime": 1777842137.8648102,
+    "hash": "1ec51f0ac695ea926431a170d0a55e24"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/favicon.svg": {
+    "mtime": 1777395130.8686173,
+    "hash": "b847fac561294dc5f8c30eab3f134c6d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/dashboard.png": {
+    "mtime": 1777395130.8849666,
+    "hash": "b13ccfeb1578a58c1a893af439e51e6f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/chat-v3.png": {
+    "mtime": 1777395130.8813016,
+    "hash": "e7227748e38a1a36ac8916ad974a15dc"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/files.png": {
+    "mtime": 1777395130.886419,
+    "hash": "cca932d82367167f1961dc38bd351abc"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/command-palette.png": {
+    "mtime": 1777395130.8828406,
+    "hash": "d54bb83bd9eec4f66a1bc4877e1c9348"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/dashboard-v3.png": {
+    "mtime": 1777395130.8835938,
+    "hash": "dc95971d0dae60e27026f88642b6d1e8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/mobile-dashboard-v3.png": {
+    "mtime": 1777395130.8998954,
+    "hash": "b95d22fb8434d8325bd26c730cb86b55"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/agent-hub-v3.png": {
+    "mtime": 1777395130.8758633,
+    "hash": "798ed930863e54f81532f09b409b95de"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/chat-agent-hub.png": {
+    "mtime": 1777395130.8798606,
+    "hash": "cb08a40ff200670e1f4221990add4ced"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/mission-control-v3.png": {
+    "mtime": 1777395130.898952,
+    "hash": "195f421788520bb6e30bf6ce6d0e4c19"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/agent-hub.png": {
+    "mtime": 1777395130.8782947,
+    "hash": "c57f8687c69237f1189aa2020065a061"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/providers.png": {
+    "mtime": 1777395130.9008973,
+    "hash": "17e23e0bd9b10eeebd66e9c6ec78861f"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/chat.png": {
+    "mtime": 1777395130.8820775,
+    "hash": "c6d14d70bdcb00936f034bd2276e6c1d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/skills-browser.jpg": {
+    "mtime": 1777395130.9010966,
+    "hash": "49a21297cda3580c4fd013dbfb93d178"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/gallery/mobile-agent-hub.png": {
+    "mtime": 1777395130.892501,
+    "hash": "3775c18ce567ea159c7612c3d3101d89"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/gallery/mobile-configure.png": {
+    "mtime": 1777395130.8939857,
+    "hash": "c96f33f737fbdfb33057d82fa42af8d7"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/gallery/mission-wizard.png": {
+    "mtime": 1777395130.8911564,
+    "hash": "7fd07ebe6725ce1adbb7d81fc8d075cf"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/gallery/cron-manager.png": {
+    "mtime": 1777395130.8900354,
+    "hash": "8ac6d51456d92346e25460b4ec4b2198"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/gallery/tasks-board.png": {
+    "mtime": 1777395130.8974571,
+    "hash": "6909ca9cb4a3a351faeddf2cf0055844"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/gallery/agents-config.png": {
+    "mtime": 1777395130.887579,
+    "hash": "458ba85a0aed7e01761f03df89210f5d"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/screenshots/gallery/skills-browser.png": {
+    "mtime": 1777395130.8964248,
+    "hash": "068e1ba1c29c01f963c0bb9e56407dd5"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/nous.png": {
+    "mtime": 1777395130.874223,
+    "hash": "5e330686e67383c491d4b7ad627b0096"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/kimi.png": {
+    "mtime": 1777395130.8731625,
+    "hash": "9037794449b9185b7a23845b877b3875"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/openai.png": {
+    "mtime": 1777395130.8743844,
+    "hash": "e3bee6d8ec720e7a53d27b324db3cd12"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/nousresearch.png": {
+    "mtime": 1777395130.8742743,
+    "hash": "b12e91ffdc7a0536655710517f0f71e6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/zhipu.png": {
+    "mtime": 1777395130.8745213,
+    "hash": "6ccfc200fa5c292247ceb4a2d1e8aaf6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/atomic-chat.png": {
+    "mtime": 1777395130.8731053,
+    "hash": "0f2d3a6d9a8ddabc2fd6509a4dabbbb4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/ollama.png": {
+    "mtime": 1777395130.8743386,
+    "hash": "2995f71d246d35c5174cc7c3c2a58957"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/openrouter.png": {
+    "mtime": 1777395130.8744357,
+    "hash": "dd071685612688e5cc36ceecf9f549f8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/anthropic.png": {
+    "mtime": 1777395130.8727732,
+    "hash": "aef7fb476915a4b8264c467b0f3b2315"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/minimax.png": {
+    "mtime": 1777395130.8741522,
+    "hash": "8502b0d2d4cc2a1d00989471ac047663"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/light/nous.png": {
+    "mtime": 1777395130.8737855,
+    "hash": "376577adce7e9792e54be58bd556457e"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/light/kimi.png": {
+    "mtime": 1777395130.8736477,
+    "hash": "013e635cbcfd3029648fde6673a04d99"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/light/openai.png": {
+    "mtime": 1777395130.873961,
+    "hash": "fc1845c68da0b7edd03030f52c49d373"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/light/zhipu.png": {
+    "mtime": 1777395130.874101,
+    "hash": "19eebd00a8bcc3fabd45bd0b738bffe6"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/light/atomic-chat.png": {
+    "mtime": 1777395130.873563,
+    "hash": "0f2d3a6d9a8ddabc2fd6509a4dabbbb4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/light/ollama.png": {
+    "mtime": 1777395130.8738525,
+    "hash": "917fa25c886902f4ea34e9372eecad40"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/light/openrouter.png": {
+    "mtime": 1777395130.8740163,
+    "hash": "c859aafbbb974edebc6ec06cb8c63eb4"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/light/anthropic.png": {
+    "mtime": 1777395130.8732355,
+    "hash": "5d80b94217f0e7b076e65887fe5260a8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/providers/light/minimax.png": {
+    "mtime": 1777395130.8737054,
+    "hash": "8a0db70931afe997bf5d1ee3ddae5556"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/avatars/eros.png": {
+    "mtime": 1777850870.0469613,
+    "hash": "6b3eb026e9a6d83684f55b771ea5e6ca"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/avatars/athena.png": {
+    "mtime": 1777850870.015465,
+    "hash": "0897685312c8b69e4992fdd0bb1232b2"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/avatars/chronos.png": {
+    "mtime": 1777850870.0349584,
+    "hash": "44d18814472cfe7af1104be44f61c3be"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/avatars/iris.png": {
+    "mtime": 1777850870.0950584,
+    "hash": "6fad77355af594655a99aed425d9f4c8"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/avatars/nike.png": {
+    "mtime": 1777850870.1150014,
+    "hash": "c3033385ab07f919309ce6581609e675"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/avatars/apollo.png": {
+    "mtime": 1777850869.993131,
+    "hash": "478a21184c1f2e69cefe9dae116950a1"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/avatars/pan.png": {
+    "mtime": 1777850870.1238346,
+    "hash": "50f63f258ed8f75d624b3056fe77a29a"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/avatars/artemis.png": {
+    "mtime": 1777850870.0050483,
+    "hash": "6e36a353b0b0b45d68be7a01f6221096"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/public/avatars/hermes.png": {
+    "mtime": 1777850870.062367,
+    "hash": "c911440516fa496f5f26d9e1e053cbbe"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/assets/icon.png": {
+    "mtime": 1777850869.897927,
+    "hash": "1ec51f0ac695ea926431a170d0a55e24"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui/src/logo.svg": {
+    "mtime": 1777395130.9177127,
+    "hash": "6791f532c9385e96bcd15bb216e65ccb"
+  }
+}
