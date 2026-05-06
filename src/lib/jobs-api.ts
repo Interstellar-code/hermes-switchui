@@ -162,28 +162,29 @@ function errorMessageFromBody(body: unknown, fallback: string): string {
   return fallback
 }
 
-export async function createJob(input: {
+type JobMutationInput = {
   schedule: string
   prompt: string
   name?: string
   deliver?: Array<string>
   skills?: Array<string>
   repeat?: number
-}): Promise<ClaudeJob> {
-  // Normalize deliver: backend expects a string, but the form sends an array
-  const normalizedDeliver = Array.isArray(input.deliver)
-    ? input.deliver.join(',')
-    : input.deliver
+}
 
-  const payload = {
+export function buildJobMutationPayload(input: JobMutationInput): JobMutationInput & { input: string } {
+  const prompt = typeof input.prompt === 'string' ? input.prompt : ''
+  return {
     ...input,
-    ...(normalizedDeliver !== undefined ? { deliver: normalizedDeliver } : {}),
+    prompt,
+    input: prompt,
   }
+}
 
+export async function createJob(input: JobMutationInput): Promise<ClaudeJob> {
   const res = await fetch(CLAUDE_API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(buildJobMutationPayload(input)),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
@@ -196,10 +197,14 @@ export async function updateJob(
   jobId: string,
   updates: Record<string, unknown>,
 ): Promise<ClaudeJob> {
+  const payload =
+    typeof updates.prompt === 'string'
+      ? { ...updates, input: updates.prompt }
+      : updates
   const res = await fetch(`${CLAUDE_API}/${jobId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates),
+    body: JSON.stringify(payload),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))

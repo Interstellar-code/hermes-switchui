@@ -619,6 +619,7 @@ export function TasksScreen() {
                 New Task
               </button>
             </div>
+
           </div>
           <p className="mt-3 text-xs text-[var(--theme-muted)]">
             {TASKS_BOARD_HELP_TEXT}

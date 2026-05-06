@@ -3,11 +3,13 @@ import {
   Outlet,
   Scripts,
   createRootRoute,
+  useRouterState,
 } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import appCss from '../styles.css?url'
 import { SearchModal } from '@/components/search/search-modal'
+import { UsageMeter } from '@/components/usage-meter'
 import { TerminalShortcutListener } from '@/components/terminal-shortcut-listener'
 import { GlobalShortcutListener } from '@/components/global-shortcut-listener'
 import { WorkspaceShell } from '@/components/workspace-shell'
@@ -256,6 +258,13 @@ export async function unregisterServiceWorkers({
 }
 
 function RootLayout() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const isHermesWorldLandingRoute =
+    pathname === '/hermes-world' ||
+    pathname.startsWith('/hermes-world/') ||
+    pathname === '/world' ||
+    pathname.startsWith('/world/')
+  const isGameSurfaceRoute = isHermesWorldLandingRoute || pathname === '/playground' || pathname.startsWith('/playground/')
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(
     null,
   )
@@ -372,10 +381,14 @@ function RootLayout() {
               <Outlet />
             </ErrorBoundary>
           </WorkspaceShell>
-          <SearchModal />
-          <KeyboardShortcutsModal />
-          <UpdateCenterNotifier />
-          {rootSurfaceState.showPostOnboardingOverlays ? (
+          {!isHermesWorldLandingRoute ? <SearchModal /> : null}
+          {/* UsageMeter must be mounted at root so the OPEN_USAGE event from
+              the search modal's Usage tile has a listener. See #258.
+              But public launch surfaces like HermesWorld should not show app usage chrome. */}
+          {!isGameSurfaceRoute ? <UsageMeter /> : null}
+          {!isHermesWorldLandingRoute ? <KeyboardShortcutsModal /> : null}
+          {!isHermesWorldLandingRoute ? <UpdateCenterNotifier /> : null}
+          {rootSurfaceState.showPostOnboardingOverlays && !isGameSurfaceRoute ? (
             <>
               <MobilePromptTrigger />
               <OnboardingTour />
@@ -422,6 +435,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             __html: wrapInlineScript(`
           (function(){
             if (document.getElementById('splash-screen')) return;
+            if (location.pathname === '/hermes-world' || location.pathname.indexOf('/hermes-world/') === 0 || location.pathname === '/world' || location.pathname.indexOf('/world/') === 0) return;
             var bg = '#031A1A', txt = '#F8F1E3', muted = '#9CB2AE', accent = '#FFAC02';
             try {
               var theme = localStorage.getItem('${THEME_STORAGE_KEY}') || '${DEFAULT_THEME}';
