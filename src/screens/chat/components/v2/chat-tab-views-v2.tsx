@@ -30,11 +30,29 @@ type ToolTabViewProps = {
  */
 function categorizeEntry(entry: FlatToolEntry): string {
   const name = (entry.name || '').toLowerCase()
-  const keys = entry.input ? Object.keys(entry.input).map((k) => k.toLowerCase()) : []
+
+  // Collect input keys, recursing one level into a string-form `value` field
+  // when the gateway emits args as `{value: "<json string>"}`.
+  let keys: Array<string> = []
+  if (entry.input) {
+    keys = Object.keys(entry.input).map((k) => k.toLowerCase())
+    const v = (entry.input as Record<string, unknown>).value
+    if (typeof v === 'string') {
+      try {
+        const parsed = JSON.parse(v) as Record<string, unknown>
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          keys = keys.concat(Object.keys(parsed).map((k) => k.toLowerCase()))
+        }
+      } catch {
+        /* ignore non-JSON value */
+      }
+    }
+  }
+
   const has = (...ks: Array<string>) => ks.some((k) => keys.includes(k))
   if (has('command', 'cmd', 'shell') || /\b(exec|bash|terminal|shell|run_command)\b/.test(name)) return 'exec'
-  if (has('pattern', 'glob') || /\bglob\b/.test(name)) return 'glob'
-  if (has('query') || /\b(search|find|grep|query)\b/.test(name)) return 'search'
+  if (has('pattern', 'glob', 'file_glob') || /\bglob\b/.test(name)) return 'glob'
+  if (has('query', 'q', 'reasoning_level') || /\b(search|find|grep|query)\b/.test(name)) return 'search'
   if (has('url', 'href') || /\b(web|browser|fetch|http)\b/.test(name)) return 'web'
   if (has('file_path', 'path', 'target_file', 'filepath') || /\b(read|write|edit|file|notebook)\b/.test(name)) return 'file'
   if (/\b(skill|todo|task)\b/.test(name)) return 'skill'
