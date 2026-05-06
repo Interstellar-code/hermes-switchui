@@ -28,7 +28,7 @@ export function ToolTabView({ messages }: ToolTabViewProps) {
   const toolMessages = messages.filter((m) => {
     if (!Array.isArray(m.content)) return false
     return m.content.some(
-      (c) => c.type === 'toolCall' || c.type === 'toolResult',
+      (c) => (c as { type: string }).type === 'toolCall' || (c as { type: string }).type === 'toolResult',
     )
   })
 
@@ -51,7 +51,7 @@ export function ToolTabView({ messages }: ToolTabViewProps) {
       {toolMessages.map((m, i) => {
         const calls = Array.isArray(m.content)
           ? m.content.filter(
-              (c) => c.type === 'toolCall' || c.type === 'toolResult',
+              (c) => (c as { type: string }).type === 'toolCall' || (c as { type: string }).type === 'toolResult',
             )
           : []
         return calls.map((c, j) => {

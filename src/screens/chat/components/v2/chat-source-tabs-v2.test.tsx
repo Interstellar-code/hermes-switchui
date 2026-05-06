@@ -47,7 +47,7 @@ describe('ChatSourceTabsV2', () => {
   })
 
   it('calls onTabChange with the correct tab id when clicked', () => {
-    const onTabChange = vi.fn<[SourceTab], void>()
+    const onTabChange = vi.fn((_tab: SourceTab) => {})
     const { container } = renderInto(
       <ChatSourceTabsV2 activeTab="chat" onTabChange={onTabChange} />,
     )
@@ -58,7 +58,7 @@ describe('ChatSourceTabsV2', () => {
   })
 
   it('switches active tab when rerendered with new prop', () => {
-    const onTabChange = vi.fn<[SourceTab], void>()
+    const onTabChange = vi.fn((_tab: SourceTab) => {})
     const { container, root } = renderInto(
       <ChatSourceTabsV2 activeTab="chat" onTabChange={onTabChange} />,
     )
