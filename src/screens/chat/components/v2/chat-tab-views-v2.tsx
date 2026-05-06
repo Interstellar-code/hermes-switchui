@@ -245,7 +245,36 @@ function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> 
 }
 
 /** Extract completed tool calls embedded on a finished assistant message */
-function extractStreamToolCallsFromMessages(messages: Array<ChatMessage>): Array<FlatToolEntry> {
+/**
+ * Scan all messages once and build callId → result-message timestamp.
+ * Covers both root-level toolCallId messages and tool_result content blocks.
+ */
+function buildResultTsMap(messages: Array<ChatMessage>): Map<string, number> {
+  const map = new Map<string, number>()
+  for (const m of messages) {
+    const ts = getMessageTimestamp(m)
+    if (ts == null) continue
+    const rootId =
+      typeof m.toolCallId === 'string' && m.toolCallId ? m.toolCallId : ''
+    if (rootId) {
+      map.set(rootId, ts)
+      continue
+    }
+    if (!Array.isArray(m.content)) continue
+    for (const c of m.content) {
+      const cAny = c as unknown as Record<string, unknown>
+      if (cAny.type !== 'tool_result' && cAny.type !== 'toolResult') continue
+      const id = typeof cAny.toolCallId === 'string' ? cAny.toolCallId : ''
+      if (id) map.set(id, ts)
+    }
+  }
+  return map
+}
+
+function extractStreamToolCallsFromMessages(
+  messages: Array<ChatMessage>,
+  resultTsMap: Map<string, number>,
+): Array<FlatToolEntry> {
   const entries: Array<FlatToolEntry> = []
   messages.forEach((m, msgIdx) => {
     const mAny = m as unknown as Record<string, unknown>
@@ -284,7 +313,7 @@ function extractStreamToolCallsFromMessages(messages: Array<ChatMessage>): Array
         input,
         output,
         isError: status === 'error',
-        timestamp: baseTs + subIdx * 0.001,
+        timestamp: resultTsMap.get(tc.id) ?? baseTs + subIdx * 0.001,
       })
       subIdx++
     }
@@ -511,8 +540,9 @@ export function ToolTabView({ messages, streamingToolCalls = [], events = [] }: 
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
+  const resultTsMap = buildResultTsMap(messages)
   const streamingEntries = extractStreamingEntries(streamingToolCalls)
-  const completedEntries = extractStreamToolCallsFromMessages(messages)
+  const completedEntries = extractStreamToolCallsFromMessages(messages, resultTsMap)
   const messageEntries = extractToolEntries(messages)
   const entries = mergeToolEntries(streamingEntries, completedEntries, messageEntries)
 
@@ -670,8 +700,9 @@ function buildActivityRows(
     rows.push({ kind: 'lifecycle', event: ev })
   }
 
+  const resultTsMap = buildResultTsMap(messages)
   const streamingEntries = extractStreamingEntries(streamingToolCalls)
-  const completedEntries = extractStreamToolCallsFromMessages(messages)
+  const completedEntries = extractStreamToolCallsFromMessages(messages, resultTsMap)
   const messageEntries = extractToolEntries(messages)
   const toolEntries = mergeToolEntries(streamingEntries, completedEntries, messageEntries)
   for (const entry of toolEntries) {
