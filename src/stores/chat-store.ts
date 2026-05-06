@@ -92,6 +92,7 @@ export type StreamingState = {
     args?: unknown
     preview?: string
     result?: string
+    firstSeenAt?: number
   }>
 }
 
@@ -989,6 +990,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             args: event.args,
             preview: (event as any).preview,
             result: (event as any).result,
+            firstSeenAt: now,
           })
         }
 

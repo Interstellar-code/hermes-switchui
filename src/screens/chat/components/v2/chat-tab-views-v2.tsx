@@ -16,6 +16,7 @@ type StreamingToolCall = {
   args?: unknown
   preview?: string
   result?: string
+  firstSeenAt?: number
 }
 
 type ToolTabViewProps = {
@@ -153,6 +154,7 @@ function extractStreamingEntries(
       input,
       output,
       isError: status === 'error',
+      timestamp: tc.firstSeenAt,
     }
   })
 }
@@ -313,7 +315,7 @@ function extractStreamToolCallsFromMessages(
         input,
         output,
         isError: status === 'error',
-        timestamp: resultTsMap.get(tc.id) ?? baseTs + subIdx * 0.001,
+        timestamp: tc.firstSeenAt ?? resultTsMap.get(tc.id) ?? baseTs + subIdx * 0.001,
       })
       subIdx++
     }
