@@ -102,22 +102,56 @@ function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> 
   const entries: Array<FlatToolEntry> = []
   const resultsByCallId = new Map<string, RootLevelResult>()
 
-  // First pass: collect root-level tool results (role === 'tool' messages with toolCallId at root)
+  // First pass: collect tool results.
+  // Two shapes occur in the wild:
+  //   (a) realtime: a separate message with role 'tool'/'toolResult' and a
+  //       top-level toolCallId field.
+  //   (b) history (claude-api.ts): role 'tool' with a content block of
+  //       type 'tool_result' carrying toolCallId; no top-level toolCallId.
   for (const m of messages) {
-    if (typeof m.toolCallId !== 'string' || !m.toolCallId) continue
-    const textOutput = Array.isArray(m.content)
-      ? m.content
+    const rootToolCallId =
+      typeof m.toolCallId === 'string' && m.toolCallId ? m.toolCallId : ''
+    if (rootToolCallId) {
+      const textOutput = Array.isArray(m.content)
+        ? m.content
           .filter((c) => c.type === 'text')
           .map((c) => (c as { text?: string }).text ?? '')
           .join('')
-      : ''
-    const output = textOutput || (m.details ? JSON.stringify(m.details, null, 2) : '')
-    resultsByCallId.set(m.toolCallId, {
-      toolCallId: m.toolCallId,
-      toolName: typeof m.toolName === 'string' ? m.toolName : undefined,
-      isError: m.isError === true,
-      output,
-    })
+        : ''
+      const output = textOutput || (m.details ? JSON.stringify(m.details, null, 2) : '')
+      resultsByCallId.set(rootToolCallId, {
+        toolCallId: rootToolCallId,
+        toolName: typeof m.toolName === 'string' ? m.toolName : undefined,
+        isError: m.isError === true,
+        output,
+      })
+      continue
+    }
+    if (!Array.isArray(m.content)) continue
+    for (const c of m.content) {
+      const cAny = c as unknown as Record<string, unknown>
+      if (cAny.type !== 'tool_result' && cAny.type !== 'toolResult') continue
+      const callId =
+        typeof cAny.toolCallId === 'string' ? cAny.toolCallId : ''
+      if (!callId) continue
+      const text =
+        typeof cAny.text === 'string'
+          ? cAny.text
+          : Array.isArray(cAny.content)
+            ? (cAny.content as Array<{ type?: string; text?: string }>)
+              .filter((p) => p?.type === 'text')
+              .map((p) => p.text ?? '')
+              .join('')
+            : ''
+      const details = cAny.details as Record<string, unknown> | undefined
+      const output = text || (details ? JSON.stringify(details, null, 2) : '')
+      resultsByCallId.set(callId, {
+        toolCallId: callId,
+        toolName: typeof cAny.toolName === 'string' ? cAny.toolName : undefined,
+        isError: cAny.isError === true,
+        output,
+      })
+    }
   }
 
   // Second pass: build entries from toolCall content blocks
@@ -148,16 +182,29 @@ function extractStreamToolCallsFromMessages(messages: Array<ChatMessage>): Array
   const entries: Array<FlatToolEntry> = []
   for (const m of messages) {
     const mAny = m as unknown as Record<string, unknown>
-    const streamToolCalls = mAny.__streamToolCalls
-    if (!Array.isArray(streamToolCalls)) continue
-    // Defensive: if the enclosing message has finished streaming, treat
-    // non-error tool calls as settled even when their phase string is
-    // 'start'/'calling'. Upstream (Responses API → tool event translation
-    // in src/routes/api/send-stream.ts) intentionally swallows
-    // tool.completed for some tools, leaving phase stuck. The message-level
-    // __streamingStatus === 'complete' tells us the run is over.
-    const messageSettled = mAny.__streamingStatus === 'complete'
-    for (const tc of streamToolCalls as Array<StreamingToolCall>) {
+    // Two shapes carry embedded tool-call summaries:
+    //   __streamToolCalls — written by chat-store on the realtime 'done' event.
+    //   streamToolCalls   — written by claude-api.ts when normalising history
+    //                       (server-side history reload). Phase is already
+    //                       'complete' on this path.
+    const realtimeList = mAny.__streamToolCalls
+    const historyList = mAny.streamToolCalls
+    const list = Array.isArray(realtimeList)
+      ? realtimeList
+      : Array.isArray(historyList)
+        ? historyList
+        : null
+    if (!list) continue
+    // Defensive: if the enclosing message has finished streaming OR was
+    // loaded from history, treat non-error tool calls as settled even when
+    // their phase string is 'start'/'calling'. Upstream (Responses API →
+    // tool event translation in src/routes/api/send-stream.ts) intentionally
+    // swallows tool.completed for some tools, leaving phase stuck. History
+    // messages have no __streamingStatus, so any history-shape entry is
+    // settled by definition.
+    const messageSettled =
+      mAny.__streamingStatus === 'complete' || Array.isArray(historyList)
+    for (const tc of list as Array<StreamingToolCall>) {
       let status = phaseToStatus(tc.phase)
       if (messageSettled && status === 'running') status = 'done'
       const input =
@@ -184,7 +231,13 @@ function extractStreamToolCallsFromMessages(messages: Array<ChatMessage>): Array
 
 /**
  * Merge tool entries by callId.
- * Priority (highest to lowest): streaming (in-flight) > __streamToolCalls (completed) > message-content.
+ * Default priority (highest → lowest): streaming (in-flight) >
+ *   __streamToolCalls (completed snapshot) > message-content.
+ * Exception: when the live streaming entry is still 'running' but another
+ * source already has a settled entry (output set or error) for the same
+ * callId, prefer the settled one. This guards against upstream phase
+ * staleness (e.g. Responses API swallowing tool.completed) while the run
+ * is still considered active.
  */
 function mergeToolEntries(
   streamingEntries: Array<FlatToolEntry>,
@@ -193,22 +246,27 @@ function mergeToolEntries(
 ): Array<FlatToolEntry> {
   const byCallId = new Map<string, FlatToolEntry>()
 
-  // Message-content entries — lowest priority
+  const isSettled = (e: FlatToolEntry) =>
+    e.isError === true || e.output !== undefined
+
   for (const e of messageEntries) {
-    if (e.callId) byCallId.set(e.callId, e)
-    else byCallId.set(e.key, e)
+    const k = e.callId || e.key
+    byCallId.set(k, e)
   }
 
-  // __streamToolCalls entries — middle priority (override message-content)
   for (const e of completedEntries) {
-    if (e.callId) byCallId.set(e.callId, e)
-    else byCallId.set(e.key, e)
+    const k = e.callId || e.key
+    const existing = byCallId.get(k)
+    if (!existing || !isSettled(existing) || isSettled(e)) {
+      byCallId.set(k, e)
+    }
   }
 
-  // Streaming (in-flight) entries — highest priority
   for (const e of streamingEntries) {
-    if (e.callId) byCallId.set(e.callId, e)
-    else byCallId.set(e.key, e)
+    const k = e.callId || e.key
+    const existing = byCallId.get(k)
+    if (existing && isSettled(existing) && !isSettled(e)) continue
+    byCallId.set(k, e)
   }
 
   return Array.from(byCallId.values())

@@ -188,4 +188,89 @@ describe('ToolTabView streaming tool calls', () => {
     expect(container.textContent).toContain('done')
     expect(container.textContent).not.toContain('running')
   })
+
+  it('history-shape streamToolCalls (no underscore) renders as done', () => {
+    // claude-api.ts attaches streamToolCalls (no underscore) to history-loaded
+    // assistant messages with phase already 'complete'. The component must
+    // recognise both the field name and treat it as settled.
+    const messages = [
+      {
+        role: 'assistant',
+        content: [
+          { type: 'toolCall', id: 'call_history', name: 'honcho_profile', arguments: { q: 'x' } },
+        ],
+        streamToolCalls: [
+          { id: 'call_history', name: 'honcho_profile', phase: 'complete', args: { q: 'x' } },
+        ],
+      } as any,
+    ]
+    const container = renderInto(<ToolTabView messages={messages} streamingToolCalls={[]} />)
+    expect(container.textContent).toContain('done')
+    expect(container.textContent).not.toContain('running')
+  })
+
+  it('history-shape streamToolCalls with stuck phase still renders as done', () => {
+    // Even if a history entry slipped through with a non-complete phase,
+    // history-loaded entries should be considered settled by definition.
+    const messages = [
+      {
+        role: 'assistant',
+        content: [
+          { type: 'toolCall', id: 'call_x', name: 'todo', arguments: {} },
+        ],
+        streamToolCalls: [
+          { id: 'call_x', name: 'todo', phase: 'calling', args: {} },
+        ],
+      } as any,
+    ]
+    const container = renderInto(<ToolTabView messages={messages} streamingToolCalls={[]} />)
+    expect(container.textContent).toContain('done')
+  })
+
+  it('history tool_result content block supplies output for matching toolCall', () => {
+    // History-loaded tool result: role 'tool' with a tool_result content
+    // block carrying toolCallId (no top-level toolCallId field).
+    const messages = [
+      {
+        role: 'assistant',
+        content: [
+          { type: 'toolCall', id: 'call_h1', name: 'honcho_profile', arguments: { q: 'a' } },
+        ],
+      },
+      {
+        role: 'tool',
+        content: [
+          { type: 'tool_result', toolCallId: 'call_h1', toolName: 'honcho_profile', text: 'profile data' },
+        ],
+      },
+    ] as any
+    const container = renderInto(<ToolTabView messages={messages} streamingToolCalls={[]} />)
+    expect(container.textContent).toContain('done')
+    const button = container.querySelector('button')!
+    act(() => { fireEvent.click(button) })
+    expect(container.textContent).toContain('profile data')
+  })
+
+  it('settled message entry beats stuck-running streaming entry for same callId', () => {
+    // Live streaming entry for call_a has phase 'calling' (stuck), while a
+    // history/__streamToolCalls entry for the same id is already done with a
+    // result. The merge should prefer the settled entry.
+    const messages = [
+      {
+        role: 'assistant',
+        __streamingStatus: 'complete',
+        __streamToolCalls: [
+          { id: 'call_a', name: 'todo', phase: 'complete', args: { x: 1 }, result: 'OK' },
+        ],
+      } as any,
+    ]
+    const streamingToolCalls = [
+      { id: 'call_a', name: 'todo', phase: 'calling', args: { x: 1 } },
+    ]
+    const container = renderInto(
+      <ToolTabView messages={messages} streamingToolCalls={streamingToolCalls} />,
+    )
+    expect(container.textContent).toContain('done')
+    expect(container.textContent).not.toContain('running')
+  })
 })
