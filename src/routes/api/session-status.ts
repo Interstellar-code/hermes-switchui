@@ -19,6 +19,7 @@ export const Route = createFileRoute('/api/session-status')({
           return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         await ensureGatewayProbed()
+        let requestedKey = ''
         try {
           const capabilities = getGatewayCapabilities()
           if (!capabilities.sessions) {
@@ -38,7 +39,7 @@ export const Route = createFileRoute('/api/session-status')({
             })
           }
           const url = new URL(request.url)
-          const requestedKey = url.searchParams.get('sessionKey')?.trim() || ''
+          requestedKey = url.searchParams.get('sessionKey')?.trim() || ''
           let sessionKey = requestedKey || 'new'
 
           if (sessionKey === 'new') {
@@ -119,11 +120,27 @@ export const Route = createFileRoute('/api/session-status')({
             },
           })
         } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          // Gateway returns 404 when the session no longer exists — surface that
+          // as a graceful empty payload so clients stop retrying with backoff.
+          if (/:\s*404\b/.test(msg)) {
+            return json({
+              ok: true,
+              payload: {
+                status: 'idle',
+                sessionKey: requestedKey || 'new',
+                sessionLabel: '',
+                model: '',
+                modelProvider: '',
+                inputTokens: 0,
+                outputTokens: 0,
+                totalTokens: 0,
+                sessions: [],
+              },
+            })
+          }
           return json(
-            {
-              ok: false,
-              error: err instanceof Error ? err.message : String(err),
-            },
+            { ok: false, error: msg },
             { status: 503 },
           )
         }

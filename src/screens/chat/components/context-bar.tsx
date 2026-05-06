@@ -1,28 +1,13 @@
 'use client'
 
-import { memo, useCallback, useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import {
   PreviewCard,
   PreviewCardPopup,
   PreviewCardTrigger,
 } from '@/components/ui/preview-card'
-
-const POLL_MS = 15_000
-
-type ContextData = {
-  contextPercent: number
-  model: string
-  maxTokens: number
-  usedTokens: number
-}
-
-const EMPTY: ContextData = {
-  contextPercent: 0,
-  model: '',
-  maxTokens: 0,
-  usedTokens: 0,
-}
+import { useSessionStatus } from '@/hooks/use-session-status'
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -37,7 +22,7 @@ function ContextBarComponent({
   compact?: boolean
   sessionId?: string
 }) {
-  const [ctx, setCtx] = useState<ContextData>(EMPTY)
+  const status = useSessionStatus(sessionId)
   const [showLabel, setShowLabel] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
 
@@ -49,69 +34,17 @@ function ContextBarComponent({
     return () => media.removeEventListener('change', update)
   }, [])
 
-  const refresh = useCallback(async () => {
-    try {
-      const params = sessionId
-        ? `?sessionKey=${encodeURIComponent(sessionId)}`
-        : ''
-      const statusRes = await fetch(`/api/session-status${params}`)
-      if (statusRes.ok) {
-        const statusData = await statusRes.json()
-        const payload = statusData?.payload ?? {}
-        const contextPercent = Number(payload.contextPercent ?? 0)
-        const maxTokens = Number(payload.maxTokens ?? 0)
-        const usedTokens = Number(payload.usedTokens ?? 0)
-        const model = String(payload.model ?? '')
-        if (
-          statusData?.ok &&
-          (maxTokens > 0 || usedTokens > 0 || contextPercent > 0)
-        ) {
-          setCtx({
-            contextPercent,
-            model,
-            maxTokens,
-            usedTokens,
-          })
-          return
-        }
-      }
-
-      const fallbackParams = sessionId
-        ? `?sessionId=${encodeURIComponent(sessionId)}`
-        : ''
-      const res = await fetch(`/api/context-usage${fallbackParams}`)
-      if (!res.ok) return
-      const data = await res.json()
-      if (data.ok) {
-        setCtx({
-          contextPercent: data.contextPercent ?? 0,
-          model: data.model ?? '',
-          maxTokens: data.maxTokens ?? 0,
-          usedTokens: data.usedTokens ?? 0,
-        })
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [sessionId])
-
-  useEffect(() => {
-    void refresh()
-    const id = window.setInterval(refresh, POLL_MS)
-    return () => window.clearInterval(id)
-  }, [refresh])
-
   useEffect(() => {
     if (!showLabel) return
     const id = setTimeout(() => setShowLabel(false), 3000)
     return () => clearTimeout(id)
   }, [showLabel])
 
-  const pct = ctx.contextPercent
+  const pct = status.contextPercent
   const clampedPct = Math.min(Math.max(pct, 0), 100)
 
   // Hide entirely when no data has loaded yet
-  if (clampedPct === 0 && ctx.usedTokens === 0) return null
+  if (clampedPct === 0 && status.usedTokens === 0) return null
   const isCritical = clampedPct > 90
   const isDanger = clampedPct >= 75 && clampedPct <= 90
   const isWarning = clampedPct >= 50 && clampedPct < 75
@@ -222,12 +155,12 @@ function ContextBarComponent({
             </div>
             <div className="flex items-center justify-between gap-3 text-[11px] text-primary-500">
               <span className="tabular-nums">
-                {formatTokens(ctx.usedTokens)} / {formatTokens(ctx.maxTokens)}{' '}
+                {formatTokens(status.usedTokens)} / {formatTokens(status.maxTokens)}{' '}
                 tokens
               </span>
-              {ctx.model ? (
+              {status.model ? (
                 <span className="max-w-[100px] truncate text-primary-400">
-                  {ctx.model}
+                  {status.model}
                 </span>
               ) : null}
             </div>
@@ -269,7 +202,7 @@ function ContextBarComponent({
               {Math.round(clampedPct)}%
             </span>
             <span className="text-[9px] text-white/70 tabular-nums">
-              {formatTokens(ctx.usedTokens)}/{formatTokens(ctx.maxTokens)}
+              {formatTokens(status.usedTokens)}/{formatTokens(status.maxTokens)}
             </span>
           </div>
         )}
@@ -327,12 +260,12 @@ function ContextBarComponent({
           </div>
           <div className="flex items-center justify-between">
             <span className="text-[10px] text-primary-500 tabular-nums">
-              {formatTokens(ctx.usedTokens)} / {formatTokens(ctx.maxTokens)}{' '}
+              {formatTokens(status.usedTokens)} / {formatTokens(status.maxTokens)}{' '}
               tokens
             </span>
-            {ctx.model && (
+            {status.model && (
               <span className="text-[10px] text-primary-400 truncate max-w-[100px]">
-                {ctx.model}
+                {status.model}
               </span>
             )}
           </div>

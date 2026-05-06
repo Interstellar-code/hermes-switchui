@@ -1,23 +1,6 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo } from 'react'
+import { useSessionStatus } from '@/hooks/use-session-status'
 import { cn } from '@/lib/utils'
-
-const POLL_MS = 15_000
-
-type MetaData = {
-  model: string
-  contextPercent: number
-  usedTokens: number
-  maxTokens: number
-  toolCount: number
-}
-
-const EMPTY_META: MetaData = {
-  model: '',
-  contextPercent: 0,
-  usedTokens: 0,
-  maxTokens: 0,
-  toolCount: 0,
-}
 
 function formatTokensShort(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -55,68 +38,13 @@ function ChatMetaBarV2Component({
   toolCount: toolCountProp,
   profile,
 }: ChatMetaBarV2Props) {
-  const [meta, setMeta] = useState<MetaData>(EMPTY_META)
-  const hasFetched = useRef(false)
+  const status = useSessionStatus(sessionKey)
 
-  const refresh = useCallback(async () => {
-    try {
-      const params = sessionKey
-        ? `?sessionKey=${encodeURIComponent(sessionKey)}`
-        : ''
-      const res = await fetch(`/api/session-status${params}`)
-      if (res.ok) {
-        const data = await res.json()
-        const payload = data?.payload ?? {}
-        const contextPercent = Number(payload.contextPercent ?? 0)
-        const usedTokens = Number(payload.usedTokens ?? 0)
-        const maxTokens = Number(payload.maxTokens ?? 0)
-        const model = String(payload.model ?? '')
-        if (data?.ok) {
-          hasFetched.current = true
-          setMeta((prev) => ({
-            ...prev,
-            model,
-            contextPercent,
-            usedTokens,
-            maxTokens,
-          }))
-          return
-        }
-      }
-      // Fallback
-      const fbParams = sessionKey
-        ? `?sessionId=${encodeURIComponent(sessionKey)}`
-        : ''
-      const fbRes = await fetch(`/api/context-usage${fbParams}`)
-      if (!fbRes.ok) return
-      const fbData = await fbRes.json()
-      if (fbData.ok) {
-        hasFetched.current = true
-        setMeta((prev) => ({
-          ...prev,
-          model: fbData.model ?? '',
-          contextPercent: fbData.contextPercent ?? 0,
-          usedTokens: fbData.usedTokens ?? 0,
-          maxTokens: fbData.maxTokens ?? 0,
-        }))
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [sessionKey])
-
-  useEffect(() => {
-    void refresh()
-    const id = window.setInterval(refresh, POLL_MS)
-    return () => window.clearInterval(id)
-  }, [refresh])
-
-  const pct = Math.round(Math.min(Math.max(meta.contextPercent, 0), 100))
-  const displayModel = meta.model || '—'
+  const pct = Math.round(Math.min(Math.max(status.contextPercent, 0), 100))
+  const displayModel = status.model || '—'
   const displayTokPerSec =
     isStreaming && tokPerSec != null ? `${Math.round(tokPerSec)} tok/s` : null
-  const displayToolCount =
-    toolCountProp != null ? toolCountProp : meta.toolCount
+  const displayToolCount = toolCountProp ?? 0
   const displayProfile = profile ?? 'default'
 
   // Derive a short session label from the key
@@ -171,14 +99,14 @@ function ChatMetaBarV2Component({
 
       {/* Context */}
       <span className="shrink-0 whitespace-nowrap" data-testid="meta-ctx">
-        {pct > 0 || meta.usedTokens > 0 ? (
+        {pct > 0 || status.usedTokens > 0 ? (
           <>
             ctx {pct}%
-            {meta.maxTokens > 0 && (
+            {status.maxTokens > 0 && (
               <>
                 {' '}·{' '}
-                {formatTokensShort(meta.usedTokens)} /{' '}
-                {formatTokensShort(meta.maxTokens)}
+                {formatTokensShort(status.usedTokens)} /{' '}
+                {formatTokensShort(status.maxTokens)}
               </>
             )}
           </>
