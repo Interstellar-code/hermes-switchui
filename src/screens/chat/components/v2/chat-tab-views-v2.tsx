@@ -24,7 +24,24 @@ type ToolTabViewProps = {
   events?: Array<LifecycleEvent>
 }
 
-type ToolTabFilter = 'all' | 'tools' | 'events'
+/**
+ * Categorize a tool entry by inferring its "kind" from arg keys + name.
+ * Drives the filter chip row so users filter by purpose rather than tool name.
+ */
+function categorizeEntry(entry: FlatToolEntry): string {
+  const name = (entry.name || '').toLowerCase()
+  const keys = entry.input ? Object.keys(entry.input).map((k) => k.toLowerCase()) : []
+  const has = (...ks: Array<string>) => ks.some((k) => keys.includes(k))
+  if (has('command', 'cmd', 'shell') || /\b(exec|bash|terminal|shell|run_command)\b/.test(name)) return 'exec'
+  if (has('pattern', 'glob') || /\bglob\b/.test(name)) return 'glob'
+  if (has('query') || /\b(search|find|grep|query)\b/.test(name)) return 'search'
+  if (has('url', 'href') || /\b(web|browser|fetch|http)\b/.test(name)) return 'web'
+  if (has('file_path', 'path', 'target_file', 'filepath') || /\b(read|write|edit|file|notebook)\b/.test(name)) return 'file'
+  if (/\b(skill|todo|task)\b/.test(name)) return 'skill'
+  if (/\b(honcho|memory|recall|remember|context|profile|reasoning)\b/.test(name)) return 'memory'
+  if (/\bcron\b/.test(name)) return 'cron'
+  return 'other'
+}
 
 type ActivityTabViewProps = {
   events: Array<LifecycleEvent>
@@ -446,7 +463,7 @@ const filterPillStyle = (active: boolean): React.CSSProperties => ({
 })
 
 export function ToolTabView({ messages, streamingToolCalls = [], events = [] }: ToolTabViewProps) {
-  const [filter, setFilter] = useState<ToolTabFilter>('all')
+  const [filter, setFilter] = useState<string>('all')
   const [sortDir, setSortDir] = useState<'oldest' | 'newest'>('oldest')
 
   const streamingEntries = extractStreamingEntries(streamingToolCalls)
@@ -456,10 +473,15 @@ export function ToolTabView({ messages, streamingToolCalls = [], events = [] }: 
 
   const allRows = buildMixedRows(entries, events)
 
+  // Derive the set of categories present in the current tool entries
+  const categoriesPresent = Array.from(
+    new Set(entries.map((e) => categorizeEntry(e))),
+  ).sort()
   const filteredRows = allRows.filter((row) => {
-    if (filter === 'tools') return row.kind !== 'lifecycle'
+    if (filter === 'all') return true
     if (filter === 'events') return row.kind !== 'tool'
-    return true
+    if (row.kind === 'tool') return categorizeEntry(row.entry) === filter
+    return false
   })
   const visibleRows = sortDir === 'newest' ? [...filteredRows].reverse() : filteredRows
 
@@ -468,8 +490,8 @@ export function ToolTabView({ messages, streamingToolCalls = [], events = [] }: 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto flex flex-col font-mono text-xs" style={toolViewStyle}>
       {/* Filter pill row + sort */}
-      <div className="flex items-center gap-1.5 px-4 pt-3 pb-2 shrink-0">
-        {(['all', 'tools', 'events'] as const).map((f) => (
+      <div className="flex items-center gap-1.5 px-4 pt-3 pb-2 shrink-0 flex-wrap">
+        {(['all', ...categoriesPresent, 'events'] as const).map((f) => (
           <button
             key={f}
             type="button"
