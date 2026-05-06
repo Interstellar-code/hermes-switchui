@@ -25,6 +25,8 @@ import { fetchClaudeAuthStatus, type AuthStatus } from '@/lib/claude-auth'
 import { cn } from '@/lib/utils'
 import { ConnectionStartupScreen } from '@/components/connection-startup-screen'
 import { ChatSidebar } from '@/screens/chat/components/chat-sidebar'
+import { SidebarShellV2 } from '@/screens/chat/components/sidebar/v2/sidebar-shell-v2'
+import { useSidebarV2Flag } from '@/screens/chat/components/sidebar/v2/sidebar-flag'
 import { useChatSessions } from '@/screens/chat/hooks/use-chat-sessions'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { SIDEBAR_TOGGLE_EVENT } from '@/hooks/use-global-shortcuts'
@@ -185,6 +187,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   const isOnChatRoute = Boolean(chatMatch) || pathname === '/new'
   const isOnTerminalRoute = pathname.startsWith('/terminal')
   const isOnPlaygroundRoute = pathname === '/playground' || pathname.startsWith('/playground/')
+  const sidebarV2 = useSidebarV2Flag()
   const hideChatSidebar = isOnChatRoute && chatFocusMode
   const showDesktopSidebarBackdrop =
     !isMobile && !isOnChatRoute && !sidebarCollapsed
@@ -333,7 +336,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
         >
           {/* Activity ticker bar */}
           {/* Persistent sidebar */}
-          {!isMobile && !hideChatSidebar && (
+          {!isMobile && !hideChatSidebar && !sidebarV2 && (
             <div className="relative z-30">
               <ChatSidebar
                 sessions={sessions}
@@ -349,6 +352,13 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
                 sessionsError={sessionsError}
                 onRetrySessions={refetchSessions}
               />
+            </div>
+          )}
+
+          {/* Sidebar v2 — full-width shell; renders only when flag is on */}
+          {!isMobile && sidebarV2 && (
+            <div className="absolute inset-0 z-30 flex" data-testid="sidebar-v2-mount">
+              <SidebarShellV2 />
             </div>
           )}
 
