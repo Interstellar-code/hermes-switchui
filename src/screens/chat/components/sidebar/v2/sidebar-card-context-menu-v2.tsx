@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SessionFeedItem } from '@/screens/chat/sessions-feed-types'
 import { SessionDeleteDialog } from '@/screens/chat/components/sidebar/session-delete-dialog'
 import { SessionRenameDialog } from '@/screens/chat/components/sidebar/session-rename-dialog'
+import { archiveTask } from '@/lib/tasks-api'
 import { useSessionsLocalStore } from '@/stores/sessions-local-store'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -44,7 +45,18 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
 
   const menuRef = useRef<HTMLDivElement>(null)
   const isChatItem = item.src === 'chat'
+  const isTaskItem = item.src === 'task'
   const rawId = item.id.split(':').slice(1).join(':')
+
+  const handleArchiveToggle = useCallback(() => {
+    toggleArchived(item.id)
+    // When archiving (not unarchiving) a task item, also sync status to gateway.
+    if (isTaskItem && !isArchived) {
+      archiveTask(rawId).catch((err: unknown) => {
+        console.error('[sidebar] gateway archive task failed', err)
+      })
+    }
+  }, [toggleArchived, item.id, isTaskItem, isArchived, rawId])
 
   // Close on click-outside
   useEffect(() => {
@@ -117,7 +129,7 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
         <MenuItem
           label={isArchived ? 'Unarchive' : 'Archive'}
           icon="⊞"
-          onClick={() => act(() => toggleArchived(item.id))}
+          onClick={() => act(handleArchiveToggle)}
         />
 
         {isChatItem && (

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { applyFiltersAndDecorate } from './apply-filters-and-decorate'
 import type { SessionFeedItem } from './sessions-feed-types'
 import type { FilterState } from '@/stores/sessions-filter-store'
