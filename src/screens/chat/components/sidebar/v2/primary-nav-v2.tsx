@@ -23,6 +23,7 @@ import { useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { useSearchModal } from '@/hooks/use-search-modal'
 import { getTheme, getThemeVariant, isDarkTheme, setTheme } from '@/lib/theme'
+import { SettingsDialog } from '@/components/settings-dialog'
 
 // ── Nav item types ────────────────────────────────────────────────────────────
 
@@ -184,6 +185,7 @@ function GroupLabel({ label }: { label: string }) {
 
 function ConnectedFooter({ collapsed }: { collapsed?: boolean }) {
   const [, force] = useState(0)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const isDark = typeof document !== 'undefined'
     ? !(document.documentElement.getAttribute('data-theme') || '').endsWith('-light')
     : true
@@ -194,6 +196,8 @@ function ConnectedFooter({ collapsed }: { collapsed?: boolean }) {
     force((n) => n + 1)
   }
   return (
+    <>
+    <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     <div
       style={{
         display: 'flex',
@@ -205,8 +209,9 @@ function ConnectedFooter({ collapsed }: { collapsed?: boolean }) {
         marginTop: 'auto',
       }}
     >
-      <Link
-        to="/settings"
+      <button
+        type="button"
+        onClick={() => setSettingsOpen(true)}
         aria-label="Settings"
         style={{
           background: 'none',
@@ -218,14 +223,13 @@ function ConnectedFooter({ collapsed }: { collapsed?: boolean }) {
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          textDecoration: 'none',
           fontFamily: 'var(--font-mono, monospace)',
           fontSize: 11,
         }}
       >
         <Icon d={ICONS.cog} size={14} />
         {!collapsed && <span>Settings</span>}
-      </Link>
+      </button>
       {!collapsed && (
         <button
           type="button"
@@ -256,6 +260,7 @@ function ConnectedFooter({ collapsed }: { collapsed?: boolean }) {
         </button>
       )}
     </div>
+    </>
   )
 }
 

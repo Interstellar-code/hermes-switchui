@@ -44,6 +44,7 @@ import { SlashCommandMenu } from '@/components/slash-command-menu'
 import { useSettings } from '@/hooks/use-settings'
 import { MOBILE_TAB_BAR_OFFSET } from '@/components/mobile-tab-bar'
 import { useWorkspaceStore } from '@/stores/workspace-store'
+import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 import { useSessionModelStore } from '@/stores/session-model-store'
 import { Button } from '@/components/ui/button'
 import { usePinnedModels } from '@/hooks/use-pinned-models'
@@ -815,6 +816,12 @@ function ChatComposerComponent({
   const setMobileComposerFocused = useWorkspaceStore(
     (s) => s.setMobileComposerFocused,
   )
+  const setLeftPanel = useSessionsFilterStore((s) => s.setLeftPanel)
+  const setSidebarCollapsed = useSessionsFilterStore((s) => s.setCollapsed)
+  const openFilesPanel = useCallback(() => {
+    setSidebarCollapsed(false)
+    setLeftPanel('files')
+  }, [setSidebarCollapsed, setLeftPanel])
   const [value, setValue] = useState('')
   const [attachments, setAttachments] = useState<Array<ChatComposerAttachment>>(
     [],
@@ -1063,11 +1070,6 @@ function ChatComposerComponent({
     },
     [onThinkingLevelChange],
   )
-
-  const handleOpenWorkspaceManager = useCallback(() => {
-    setIsWorkspaceMenuOpen(false)
-    emitSearchModalEvent(SEARCH_MODAL_EVENTS.TOGGLE_FILE_EXPLORER)
-  }, [])
 
   const activeProfileName =
     profilesQuery.data?.activeProfile ||
@@ -2791,9 +2793,11 @@ function ChatComposerComponent({
                                     onClick={() => {
                                       if (selected) {
                                         setIsWorkspaceMenuOpen(false)
+                                        openFilesPanel()
                                         return
                                       }
                                       workspaceSelectMutation.mutate(workspace)
+                                      openFilesPanel()
                                     }}
                                     className={cn(
                                       'flex w-full flex-col rounded-lg px-3 py-2 text-left text-sm transition-colors',
@@ -2830,14 +2834,6 @@ function ChatComposerComponent({
                               Failed to load workspaces
                             </div>
                           ) : null}
-                          <div className="my-1 h-px bg-neutral-200 dark:bg-neutral-800" />
-                          <button
-                            type="button"
-                            onClick={handleOpenWorkspaceManager}
-                            className="w-full rounded-lg px-3 py-2 text-left text-sm text-neutral-700 transition-colors hover:bg-neutral-50 dark:text-neutral-300 dark:hover:bg-neutral-800/60"
-                          >
-                            Show files sidebar…
-                          </button>
                         </div>
                       )}
                     </div>

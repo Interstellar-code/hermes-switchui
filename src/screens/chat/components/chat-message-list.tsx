@@ -244,7 +244,13 @@ function ThinkingBubble({
       </div>
 
       {/* Chat bubble */}
-      <div className="relative max-w-[36rem] overflow-hidden rounded-2xl rounded-bl-sm border border-primary-200 dark:border-primary-200/20 bg-primary-100 dark:bg-primary-100 thinking-shimmer-bubble">
+      <div
+        className="relative max-w-[36rem] overflow-hidden rounded-2xl rounded-bl-sm thinking-shimmer-bubble"
+        style={{
+          background: 'var(--theme-card, rgba(0,255,65,0.04))',
+          border: '1px solid color-mix(in srgb, var(--m-green-500, var(--theme-accent, #4ade80)) 35%, var(--theme-border))',
+          boxShadow: '0 0 12px color-mix(in srgb, var(--m-green-500, var(--theme-accent, #4ade80)) 18%, transparent)',
+        }}>
         {/* Shimmer overlay */}
         <div
           className="thinking-shimmer-sweep pointer-events-none absolute inset-0"
@@ -268,13 +274,13 @@ function ThinkingBubble({
                   </>
                 )}
                 <span
-                  className={cn(
-                    'thinking-label ml-1.5 text-xs font-medium transition-opacity duration-300',
-                    isStale
-                      ? 'text-amber-500 dark:text-amber-400'
-                      : 'text-primary-500 dark:text-primary-500',
-                  )}
-                  style={{ opacity: visible ? 1 : 0 }}
+                  className="thinking-label ml-1.5 text-xs font-mono font-medium transition-opacity duration-300"
+                  style={{
+                    opacity: visible ? 1 : 0,
+                    color: isStale
+                      ? 'var(--m-yellow, #d6ff5f)'
+                      : 'var(--m-green-400, var(--theme-accent, #4ade80))',
+                  }}
                 >
                   {displayedLabel}{' '}
                   {elapsed >= 3 ? (
@@ -335,7 +341,7 @@ function ThinkingBubble({
           </div>
 
           {isStale ? (
-            <span className="text-[11px] text-amber-500 dark:text-amber-400 animate-pulse">
+            <span className="text-[11px] font-mono animate-pulse" style={{ color: 'var(--m-yellow, #d6ff5f)' }}>
               {isVeryStale
                 ? 'Still thinking… this is taking a while'
                 : 'Taking longer than usual…'}
