@@ -73,13 +73,6 @@ export function SidebarHeaderV2({ onCollapse, count }: SidebarHeaderV2Props) {
         </IconButton>
         {dateOpen && <SidebarDatePopoverV2 onClose={() => setDateOpen(false)} />}
 
-        {/* Filter (active glow) */}
-        <IconButton aria-label="Filter sessions" active>
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
-            <path d="M2 3h12M4 8h8M6 13h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-        </IconButton>
-
         {/* Collapse / fold */}
         <IconButton aria-label="Collapse sessions panel" onClick={onCollapse}>
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
