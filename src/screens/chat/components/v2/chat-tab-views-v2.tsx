@@ -126,8 +126,7 @@ function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> 
         name: c.name ?? '',
         callId,
         input: c.arguments,
-        // Fix: use result ? (result.output ?? '') : undefined so empty string → done, not running
-        output: result ? (result.output ?? '') : undefined,
+        output: result ? result.output : undefined,
         isError: result?.isError ?? false,
         timestamp: m.timestamp,
       })
@@ -137,23 +136,60 @@ function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> 
   return entries
 }
 
+/** Extract completed tool calls embedded on a finished assistant message */
+function extractStreamToolCallsFromMessages(messages: Array<ChatMessage>): Array<FlatToolEntry> {
+  const entries: Array<FlatToolEntry> = []
+  for (const m of messages) {
+    const streamToolCalls = (m as unknown as Record<string, unknown>).__streamToolCalls
+    if (!Array.isArray(streamToolCalls)) continue
+    for (const tc of streamToolCalls as Array<StreamingToolCall>) {
+      const status = phaseToStatus(tc.phase)
+      const input =
+        tc.args && typeof tc.args === 'object' && !Array.isArray(tc.args)
+          ? (tc.args as Record<string, unknown>)
+          : tc.args !== undefined
+            ? { value: tc.args }
+            : undefined
+      const output = status !== 'running' ? (tc.result ?? '') : undefined
+      entries.push({
+        key: tc.id || `${tc.name}-${entries.length}`,
+        isCall: true,
+        name: tc.name,
+        callId: tc.id,
+        input,
+        output,
+        isError: status === 'error',
+        timestamp: typeof m.timestamp === 'number' ? m.timestamp : undefined,
+      })
+    }
+  }
+  return entries
+}
+
 /**
- * Merge streaming entries + message-based entries by callId.
- * Streaming entries take precedence (most recent data).
+ * Merge tool entries by callId.
+ * Priority (highest to lowest): streaming (in-flight) > __streamToolCalls (completed) > message-content.
  */
 function mergeToolEntries(
   streamingEntries: Array<FlatToolEntry>,
+  completedEntries: Array<FlatToolEntry>,
   messageEntries: Array<FlatToolEntry>,
 ): Array<FlatToolEntry> {
   const byCallId = new Map<string, FlatToolEntry>()
 
-  // Message entries first (lower priority)
+  // Message-content entries — lowest priority
   for (const e of messageEntries) {
     if (e.callId) byCallId.set(e.callId, e)
     else byCallId.set(e.key, e)
   }
 
-  // Streaming entries override (higher priority)
+  // __streamToolCalls entries — middle priority (override message-content)
+  for (const e of completedEntries) {
+    if (e.callId) byCallId.set(e.callId, e)
+    else byCallId.set(e.key, e)
+  }
+
+  // Streaming (in-flight) entries — highest priority
   for (const e of streamingEntries) {
     if (e.callId) byCallId.set(e.callId, e)
     else byCallId.set(e.key, e)
@@ -263,8 +299,9 @@ function ExpandableToolCard({ entry }: { entry: FlatToolEntry }) {
 
 export function ToolTabView({ messages, streamingToolCalls = [] }: ToolTabViewProps) {
   const streamingEntries = extractStreamingEntries(streamingToolCalls)
+  const completedEntries = extractStreamToolCallsFromMessages(messages)
   const messageEntries = extractToolEntries(messages)
-  const entries = mergeToolEntries(streamingEntries, messageEntries)
+  const entries = mergeToolEntries(streamingEntries, completedEntries, messageEntries)
 
   if (entries.length === 0) {
     return (
@@ -307,8 +344,9 @@ function buildActivityRows(
   }
 
   const streamingEntries = extractStreamingEntries(streamingToolCalls)
+  const completedEntries = extractStreamToolCallsFromMessages(messages)
   const messageEntries = extractToolEntries(messages)
-  const toolEntries = mergeToolEntries(streamingEntries, messageEntries)
+  const toolEntries = mergeToolEntries(streamingEntries, completedEntries, messageEntries)
   for (const entry of toolEntries) {
     rows.push({ kind: 'tool', entry })
   }

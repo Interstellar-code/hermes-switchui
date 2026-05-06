@@ -16,6 +16,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "e2e": "playwright test",
+    "e2e:capture-tools": "node scripts/capture-tool-tab.mjs",
     "smoke:managed": "node scripts/managed-companion-smoke.mjs",
     "lint": "eslint",
     "format": "prettier",

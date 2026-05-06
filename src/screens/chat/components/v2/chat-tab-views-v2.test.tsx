@@ -64,6 +64,66 @@ describe('ToolTabView streaming tool calls', () => {
     expect(container.textContent).toContain('error')
   })
 
+  it('renders done status from __streamToolCalls on message', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: [],
+        __streamToolCalls: [{ id: 'c1', name: 'foo', phase: 'complete', args: { x: 1 }, result: 'OK' }],
+      },
+    ] as any
+    const container = renderInto(<ToolTabView messages={messages} />)
+    expect(container.textContent).toContain('foo')
+    expect(container.textContent).toContain('done')
+
+    const button = container.querySelector('button')!
+    act(() => { fireEvent.click(button) })
+    expect(container.textContent).toContain('OK')
+    expect(container.textContent).toContain('"x": 1')
+  })
+
+  it('renders error status from __streamToolCalls with phase error', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: [],
+        __streamToolCalls: [{ id: 'c2', name: 'bar', phase: 'error', args: {}, result: 'boom' }],
+      },
+    ] as any
+    const container = renderInto(<ToolTabView messages={messages} />)
+    expect(container.textContent).toContain('bar')
+    expect(container.textContent).toContain('error')
+  })
+
+  it('renders running status from __streamToolCalls with phase running', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: [],
+        __streamToolCalls: [{ id: 'c3', name: 'baz', phase: 'running' }],
+      },
+    ] as any
+    const container = renderInto(<ToolTabView messages={messages} />)
+    expect(container.textContent).toContain('baz')
+    expect(container.textContent).toContain('running')
+    expect(container.textContent).not.toContain('done')
+  })
+
+  it('renders done with canExpand true for __streamToolCalls phase done, no result', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: [],
+        __streamToolCalls: [{ id: 'c4', name: 'qux', phase: 'done' }],
+      },
+    ] as any
+    const container = renderInto(<ToolTabView messages={messages} />)
+    expect(container.textContent).toContain('done')
+    // canExpand true → button should be clickable (cursor pointer via style)
+    const button = container.querySelector('button')!
+    expect(button.style.cursor).toBe('pointer')
+  })
+
   it('card expansion toggles on click', () => {
     const streamingToolCalls = [
       { id: 'c4', name: 'toggle_me', phase: 'complete', args: { a: 1 }, result: 'out' },
