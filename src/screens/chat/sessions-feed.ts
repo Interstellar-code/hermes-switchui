@@ -135,7 +135,7 @@ export function useChatSessionsFeed(): SessionSourceResult {
           src: kind,
           title: rawTitle,
           sub: rawSub,
-          tokens: null,
+          tokens: s.tokenCount ?? s.totalTokens ?? null,
           when,
           day: getDayBucket(when, nowMs),
           live: false, // live flag set by chat-store subscriber in Phase 3
@@ -150,6 +150,9 @@ export function useChatSessionsFeed(): SessionSourceResult {
             titleStatus: s.titleStatus,
             lastMessage: s.lastMessage,
             kind,
+            messageCount: s.messageCount,
+            toolCallCount: s.toolCallCount,
+            model: s.model,
           },
         }
       })

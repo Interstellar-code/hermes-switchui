@@ -213,21 +213,35 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
           >
             {item.src}
           </span>
-          {item.sub && (
-            <span
-              className="truncate"
-              style={{
-                color: 'var(--theme-muted)',
-                fontFamily: 'var(--font-mono, monospace)',
-                fontSize: 10,
-                opacity: 0.65,
-                letterSpacing: '0.02em',
-              }}
-            >
-              {item.sub}
-            </span>
-          )}
         </div>
+
+        {/* Stats row: model · msg count · tool count · tokens */}
+        {(item.sourceMeta.model || item.sourceMeta.messageCount || item.tokens) ? (
+          <div
+            className="flex items-center gap-2 mt-0.5"
+            style={{
+              color: 'var(--theme-muted)',
+              fontFamily: 'var(--font-mono, monospace)',
+              fontSize: 9,
+              opacity: 0.6,
+            }}
+          >
+            {typeof item.sourceMeta.model === 'string' && item.sourceMeta.model && (
+              <span title="Model">{String(item.sourceMeta.model)}</span>
+            )}
+            {typeof item.sourceMeta.messageCount === 'number' && (item.sourceMeta.messageCount as number) > 0 && (
+              <span title={`${item.sourceMeta.messageCount} messages`}>💬 {item.sourceMeta.messageCount as number}</span>
+            )}
+            {typeof item.sourceMeta.toolCallCount === 'number' && (item.sourceMeta.toolCallCount as number) > 0 && (
+              <span title={`${item.sourceMeta.toolCallCount} tool calls`}>🔧 {item.sourceMeta.toolCallCount as number}</span>
+            )}
+            {item.tokens != null && item.tokens > 0 && (
+              <span title={`${item.tokens} tokens`} style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {formatTokens(item.tokens)} tok
+              </span>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {/* Right column: time + tokens + three-dot menu trigger */}
