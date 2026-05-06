@@ -103,7 +103,9 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
   // TODO: wire `tg` when a Telegram session detail route is added.
   // TODO: wire `tool` when a tool-run detail route is added.
   const rawId = item.id.split(':').slice(1).join(':')
-  const isChatItem = item.src === 'chat'
+  // Both 'chat' and 'cron' are backed by chat sessions — cron-generated chat
+  // sessions have src='cron' (key prefix) but the same /chat/$sessionKey route loads them.
+  const isChatItem = item.src === 'chat' || item.src === 'cron'
   // cron/task/mem: no chat_session_key available from the gateway — these
   // sources carry no field that maps to a /chat/$sessionKey route. Clicking
   // navigates to the global list pages which is disorienting inside the chat
