@@ -101,6 +101,11 @@ import {
   useChatActivityStore,
   type AgentActivity,
 } from '@/stores/chat-activity-store'
+import { useSidebarV2Flag } from './components/sidebar/v2/sidebar-flag'
+import { ChatHeaderV2 } from './components/v2/chat-header-v2'
+import { ChatMetaBarV2 } from './components/v2/chat-meta-bar-v2'
+import { ActivityTabView, ToolTabView } from './components/v2/chat-tab-views-v2'
+import type { SourceTab } from './components/v2/chat-header-v2'
 
 type ChatScreenProps = {
   activeFriendlyId: string
@@ -462,6 +467,8 @@ export function ChatScreen({
   const chatFocusMode = useWorkspaceStore((s) => s.chatFocusMode)
   const setChatFocusMode = useWorkspaceStore((s) => s.setChatFocusMode)
   const queryClient = useQueryClient()
+  const sidebarV2 = useSidebarV2Flag()
+  const [activeTab, setActiveTab] = useState<SourceTab>('chat')
   const [sending, setSending] = useState(false)
   const [_creatingSession, setCreatingSession] = useState(false)
   const [sessionsOpen, setSessionsOpen] = useState(false)
@@ -2623,7 +2630,21 @@ export function ChatScreen({
           }}
           ref={mainRef}
         >
-          {!compact && (
+          {!compact && sidebarV2 ? (
+            <>
+              <ChatHeaderV2
+                activeTitle={activeTitle}
+                sessionKey={activeSessionKey || activeFriendlyId}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+              />
+              <ChatMetaBarV2
+                sessionKey={activeSessionKey || activeFriendlyId}
+                isStreaming={isRealtimeStreaming}
+                toolCount={activeToolCalls.length}
+              />
+            </>
+          ) : !compact ? (
             <ChatHeader
               activeTitle={activeTitle}
               onRenameTitle={handleRenameActiveSessionTitle}
@@ -2655,7 +2676,7 @@ export function ChatScreen({
               onUndo={undefined}
               onClear={undefined}
             />
-          )}
+          ) : null}
 
           {errorNotice && (
             <div className="sticky top-0 z-20 px-4 py-2">{errorNotice}</div>
@@ -2708,7 +2729,12 @@ export function ChatScreen({
             </div>
           )}
 
-          {hideUi ? null : (
+          {sidebarV2 && activeTab === 'tool' ? (
+            <ToolTabView messages={finalDisplayMessages} />
+          ) : sidebarV2 && activeTab === 'activity' ? (
+            <ActivityTabView events={realtimeLifecycleEvents} />
+          ) : null}
+          {hideUi || (sidebarV2 && activeTab !== 'chat') ? null : (
             <ChatMessageList
               messages={finalDisplayMessages}
               onRetryMessage={handleRetryMessage}
