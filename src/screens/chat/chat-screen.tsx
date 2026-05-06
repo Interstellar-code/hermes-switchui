@@ -2732,7 +2732,7 @@ export function ChatScreen({
           {sidebarV2 && activeTab === 'tool' ? (
             <ToolTabView messages={finalDisplayMessages} />
           ) : sidebarV2 && activeTab === 'activity' ? (
-            <ActivityTabView events={realtimeLifecycleEvents} />
+            <ActivityTabView events={realtimeLifecycleEvents} messages={finalDisplayMessages} />
           ) : null}
           {hideUi || (sidebarV2 && activeTab !== 'chat') ? null : (
             <ChatMessageList
