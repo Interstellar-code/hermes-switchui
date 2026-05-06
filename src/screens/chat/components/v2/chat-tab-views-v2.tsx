@@ -57,7 +57,7 @@ function categorizeEntry(entry: FlatToolEntry): string {
   if (has('file_path', 'path', 'target_file', 'filepath') || /\b(read|write|edit|file|notebook)\b/.test(name)) return 'file'
   if (/\b(skill|todo|task)\b/.test(name)) return 'skill'
   if (/\b(honcho|memory|recall|remember|context|profile|reasoning)\b/.test(name)) return 'memory'
-  if (/\bcron\b/.test(name)) return 'cron'
+  if (has('job_id', 'schedule', 'repeat') || /\bcron\b/.test(name)) return 'cron'
   return 'other'
 }
 
