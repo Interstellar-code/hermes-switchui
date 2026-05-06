@@ -2730,9 +2730,9 @@ export function ChatScreen({
           )}
 
           {sidebarV2 && activeTab === 'tool' ? (
-            <ToolTabView messages={realtimeMessages} />
+            <ToolTabView messages={realtimeMessages} streamingToolCalls={activeToolCalls} />
           ) : sidebarV2 && activeTab === 'activity' ? (
-            <ActivityTabView events={realtimeLifecycleEvents} messages={realtimeMessages} />
+            <ActivityTabView events={realtimeLifecycleEvents} messages={realtimeMessages} streamingToolCalls={activeToolCalls} />
           ) : null}
           {hideUi || (sidebarV2 && activeTab !== 'chat') ? null : (
             <ChatMessageList

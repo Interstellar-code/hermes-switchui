@@ -9,13 +9,24 @@ type LifecycleEvent = {
   isError: boolean
 }
 
+type StreamingToolCall = {
+  id: string
+  name: string
+  phase: string
+  args?: unknown
+  preview?: string
+  result?: string
+}
+
 type ToolTabViewProps = {
   messages: Array<ChatMessage>
+  streamingToolCalls?: Array<StreamingToolCall>
 }
 
 type ActivityTabViewProps = {
   events: Array<LifecycleEvent>
   messages?: Array<ChatMessage>
+  streamingToolCalls?: Array<StreamingToolCall>
 }
 
 const toolViewStyle: React.CSSProperties = {
@@ -43,6 +54,41 @@ type RootLevelResult = {
   toolName?: string
   isError?: boolean
   output: string
+}
+
+/** Determine phase → status */
+function phaseToStatus(phase: string): 'running' | 'done' | 'error' {
+  if (phase === 'error') return 'error'
+  if (phase === 'complete' || phase === 'done') return 'done'
+  // skill.loaded, artifact.created, etc. with non-start phases → done
+  if (phase !== 'start' && phase !== 'running') return 'done'
+  return 'running'
+}
+
+/** Build FlatToolEntry list from streaming tool calls */
+function extractStreamingEntries(
+  streamingToolCalls: Array<StreamingToolCall>,
+): Array<FlatToolEntry> {
+  return streamingToolCalls.map((tc) => {
+    const status = phaseToStatus(tc.phase)
+    const input =
+      tc.args && typeof tc.args === 'object' && !Array.isArray(tc.args)
+        ? (tc.args as Record<string, unknown>)
+        : tc.args !== undefined
+          ? { value: tc.args }
+          : undefined
+    // Use result field for output; empty string is valid (shows 'done' with empty body)
+    const output = status !== 'running' ? (tc.result ?? '') : undefined
+    return {
+      key: tc.id,
+      isCall: true,
+      name: tc.name,
+      callId: tc.id,
+      input,
+      output,
+      isError: status === 'error',
+    }
+  })
 }
 
 function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> {
@@ -80,7 +126,8 @@ function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> 
         name: c.name ?? '',
         callId,
         input: c.arguments,
-        output: result?.output || undefined,
+        // Fix: use result ? (result.output ?? '') : undefined so empty string → done, not running
+        output: result ? (result.output ?? '') : undefined,
         isError: result?.isError ?? false,
         timestamp: m.timestamp,
       })
@@ -88,6 +135,31 @@ function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> 
   }
 
   return entries
+}
+
+/**
+ * Merge streaming entries + message-based entries by callId.
+ * Streaming entries take precedence (most recent data).
+ */
+function mergeToolEntries(
+  streamingEntries: Array<FlatToolEntry>,
+  messageEntries: Array<FlatToolEntry>,
+): Array<FlatToolEntry> {
+  const byCallId = new Map<string, FlatToolEntry>()
+
+  // Message entries first (lower priority)
+  for (const e of messageEntries) {
+    if (e.callId) byCallId.set(e.callId, e)
+    else byCallId.set(e.key, e)
+  }
+
+  // Streaming entries override (higher priority)
+  for (const e of streamingEntries) {
+    if (e.callId) byCallId.set(e.callId, e)
+    else byCallId.set(e.key, e)
+  }
+
+  return Array.from(byCallId.values())
 }
 
 function statusBadge(entry: FlatToolEntry) {
@@ -100,8 +172,9 @@ function ExpandableToolCard({ entry }: { entry: FlatToolEntry }) {
   const [open, setOpen] = useState(false)
   const badge = statusBadge(entry)
   const hasInput = !!(entry.input && Object.keys(entry.input).length > 0)
-  const hasOutput = !!(entry.output)
-  const canExpand = hasInput || hasOutput
+  const hasOutput = entry.output !== undefined && entry.output !== ''
+  // canExpand: allow inspection whenever there's input, output, or call is settled (done/error)
+  const canExpand = hasInput || hasOutput || badge.label === 'done' || badge.label === 'error'
   const displayName = formatStreamingActivityLabel(entry.name, entry.input)
 
   return (
@@ -161,7 +234,9 @@ function ExpandableToolCard({ entry }: { entry: FlatToolEntry }) {
                 {JSON.stringify(entry.input, null, 2)}
               </pre>
             </div>
-          ) : null}
+          ) : (
+            <div className="mb-0.5 font-sans text-[9px] opacity-40 italic">no input</div>
+          )}
           {hasOutput ? (
             <div className={hasInput ? 'mt-1.5' : ''}>
               <div
@@ -177,15 +252,19 @@ function ExpandableToolCard({ entry }: { entry: FlatToolEntry }) {
                 {entry.output}
               </pre>
             </div>
-          ) : null}
+          ) : (
+            <div className={`font-sans text-[9px] opacity-40 italic ${hasInput ? 'mt-1.5' : ''}`}>no output</div>
+          )}
         </div>
       ) : null}
     </div>
   )
 }
 
-export function ToolTabView({ messages }: ToolTabViewProps) {
-  const entries = extractToolEntries(messages)
+export function ToolTabView({ messages, streamingToolCalls = [] }: ToolTabViewProps) {
+  const streamingEntries = extractStreamingEntries(streamingToolCalls)
+  const messageEntries = extractToolEntries(messages)
+  const entries = mergeToolEntries(streamingEntries, messageEntries)
 
   if (entries.length === 0) {
     return (
@@ -219,6 +298,7 @@ type ActivityRow =
 function buildActivityRows(
   events: Array<LifecycleEvent>,
   messages: Array<ChatMessage>,
+  streamingToolCalls: Array<StreamingToolCall>,
 ): Array<ActivityRow> {
   const rows: Array<ActivityRow> = []
 
@@ -226,7 +306,9 @@ function buildActivityRows(
     rows.push({ kind: 'lifecycle', event: ev })
   }
 
-  const toolEntries = extractToolEntries(messages)
+  const streamingEntries = extractStreamingEntries(streamingToolCalls)
+  const messageEntries = extractToolEntries(messages)
+  const toolEntries = mergeToolEntries(streamingEntries, messageEntries)
   for (const entry of toolEntries) {
     rows.push({ kind: 'tool', entry })
   }
@@ -255,8 +337,8 @@ function ActivityDot({ isError, isRunning }: { isError?: boolean; isRunning?: bo
   )
 }
 
-export function ActivityTabView({ events, messages = [] }: ActivityTabViewProps) {
-  const rows = buildActivityRows(events, messages)
+export function ActivityTabView({ events, messages = [], streamingToolCalls = [] }: ActivityTabViewProps) {
+  const rows = buildActivityRows(events, messages, streamingToolCalls)
 
   if (rows.length === 0) {
     return (
