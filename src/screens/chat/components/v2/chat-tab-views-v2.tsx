@@ -447,6 +447,7 @@ const filterPillStyle = (active: boolean): React.CSSProperties => ({
 
 export function ToolTabView({ messages, streamingToolCalls = [], events = [] }: ToolTabViewProps) {
   const [filter, setFilter] = useState<ToolTabFilter>('all')
+  const [sortDir, setSortDir] = useState<'oldest' | 'newest'>('oldest')
 
   const streamingEntries = extractStreamingEntries(streamingToolCalls)
   const completedEntries = extractStreamToolCallsFromMessages(messages)
@@ -455,17 +456,18 @@ export function ToolTabView({ messages, streamingToolCalls = [], events = [] }: 
 
   const allRows = buildMixedRows(entries, events)
 
-  const visibleRows = allRows.filter((row) => {
+  const filteredRows = allRows.filter((row) => {
     if (filter === 'tools') return row.kind !== 'lifecycle'
     if (filter === 'events') return row.kind !== 'tool'
     return true
   })
+  const visibleRows = sortDir === 'newest' ? [...filteredRows].reverse() : filteredRows
 
   const isEmpty = entries.length === 0 && events.length === 0
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto flex flex-col font-mono text-xs" style={toolViewStyle}>
-      {/* Filter pill row */}
+      {/* Filter pill row + sort */}
       <div className="flex items-center gap-1.5 px-4 pt-3 pb-2 shrink-0">
         {(['all', 'tools', 'events'] as const).map((f) => (
           <button
@@ -477,6 +479,14 @@ export function ToolTabView({ messages, streamingToolCalls = [], events = [] }: 
             {f}
           </button>
         ))}
+        <button
+          type="button"
+          aria-label={`Sort ${sortDir}`}
+          style={{ ...filterPillStyle(false), marginLeft: 'auto' }}
+          onClick={() => setSortDir((s) => (s === 'oldest' ? 'newest' : 'oldest'))}
+        >
+          {sortDir === 'oldest' ? '↑ oldest' : '↓ newest'}
+        </button>
       </div>
 
       {isEmpty ? (
