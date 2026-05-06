@@ -356,11 +356,11 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
             </div>
           )}
 
-          {/* Sidebar v2 — primary nav + sessions panel; renders only when flag is on */}
+          {/* Sidebar v2 — primary nav always; sessions panel only on chat route */}
           {!isMobile && sidebarV2 && (
             <div className="relative z-30 flex h-full" data-testid="sidebar-v2-mount">
               <PrimaryNavV2 />
-              <SidebarShellV2 />
+              {isOnChatRoute && <SidebarShellV2 />}
             </div>
           )}
 

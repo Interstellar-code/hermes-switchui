@@ -21,17 +21,26 @@ import { applyFiltersAndDecorate } from '@/screens/chat/apply-filters-and-decora
 export function SidebarShellV2() {
   const collapsed = useSessionsFilterStore((s) => s.collapsed)
   const setCollapsed = useSessionsFilterStore((s) => s.setCollapsed)
+  const fSources = useSessionsFilterStore((s) => s.sources)
+  const fState = useSessionsFilterStore((s) => s.state)
+  const fQuery = useSessionsFilterStore((s) => s.query)
+  const fDateRange = useSessionsFilterStore((s) => s.dateRange)
+  const fSort = useSessionsFilterStore((s) => s.sort)
 
-  const filterState = useSessionsFilterStore()
-  const localState = useSessionsLocalStore()
+  const lPinned = useSessionsLocalStore((s) => s.pinned)
+  const lStarred = useSessionsLocalStore((s) => s.starred)
+  const lArchived = useSessionsLocalStore((s) => s.archived)
 
   const { items, sources } = useSessionsFeed({
-    sources: filterState.sources,
-    state: filterState.state,
-    query: filterState.query,
-    dateRange: filterState.dateRange,
-    sort: filterState.sort,
+    sources: fSources,
+    state: fState,
+    query: fQuery,
+    dateRange: fDateRange,
+    sort: fSort,
   })
+
+  const filterState = { version: 1 as const, sources: fSources, state: fState, query: fQuery, dateRange: fDateRange, sort: fSort, collapsed }
+  const localState = { version: 1 as const, pinned: lPinned, starred: lStarred, archived: lArchived }
 
   const { totalCount, sourceCounts } = applyFiltersAndDecorate(items, filterState, localState)
   const hasLive = items.some((i) => i.live)
@@ -42,16 +51,15 @@ export function SidebarShellV2() {
       data-testid="sidebar-shell-v2"
       style={{ background: 'var(--theme-sidebar)' }}
     >
-      {/* Rail — always 44px */}
-      <SidebarRailV2
-        collapsed={collapsed}
-        onExpand={() => setCollapsed(false)}
-        totalCount={totalCount}
-        hasLive={hasLive}
-      />
-
-      {/* Sessions panel — 320px, hidden when collapsed */}
-      {!collapsed && (
+      {/* Collapsed: 44px rail only. Expanded: full sessions panel only. */}
+      {collapsed ? (
+        <SidebarRailV2
+          collapsed={collapsed}
+          onExpand={() => setCollapsed(false)}
+          totalCount={totalCount}
+          hasLive={hasLive}
+        />
+      ) : (
         <div
           className="flex flex-col border-r shrink-0 overflow-hidden"
           data-testid="sessions-panel"

@@ -26,15 +26,26 @@ const GROUP_LABEL_STYLE: Record<DayGroupLabel, React.CSSProperties> = {
 }
 
 export function SidebarListV2() {
-  const filterState = useSessionsFilterStore()
-  const localState = useSessionsLocalStore()
+  const fSources = useSessionsFilterStore((s) => s.sources)
+  const fState = useSessionsFilterStore((s) => s.state)
+  const fQuery = useSessionsFilterStore((s) => s.query)
+  const fDateRange = useSessionsFilterStore((s) => s.dateRange)
+  const fSort = useSessionsFilterStore((s) => s.sort)
+  const fCollapsed = useSessionsFilterStore((s) => s.collapsed)
+  const lPinned = useSessionsLocalStore((s) => s.pinned)
+  const lStarred = useSessionsLocalStore((s) => s.starred)
+  const lArchived = useSessionsLocalStore((s) => s.archived)
+
   const { items } = useSessionsFeed({
-    sources: filterState.sources,
-    state: filterState.state,
-    query: filterState.query,
-    dateRange: filterState.dateRange,
-    sort: filterState.sort,
+    sources: fSources,
+    state: fState,
+    query: fQuery,
+    dateRange: fDateRange,
+    sort: fSort,
   })
+
+  const filterState = { version: 1 as const, sources: fSources, state: fState, query: fQuery, dateRange: fDateRange, sort: fSort, collapsed: fCollapsed }
+  const localState = { version: 1 as const, pinned: lPinned, starred: lStarred, archived: lArchived }
 
   const { groups } = applyFiltersAndDecorate(items, filterState, localState)
 
