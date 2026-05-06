@@ -3,22 +3,20 @@
 /**
  * sidebar-shell-v2.tsx — 3-column grid shell for the unified sessions sidebar.
  *
- * Layout (desktop):
- *   col 1: 44px collapsed rail  (always visible)
- *   col 2: 232px sources panel  (hidden when collapsed)
- *   col 3: 1fr chat column      (passes children through)
- *
- * Phase 3a: structure + collapse logic only.
- * Full UI fidelity implemented in Phase 3b/3c.
+ * Phase 3b: wires collapsed state to filter store, passes count+live to rail,
+ * count to header.
  */
 
-import { useState } from 'react'
-import { SidebarRailV2 } from './sidebar-rail-v2'
 import { SidebarHeaderV2 } from './sidebar-header-v2'
+import { SidebarListV2 } from './sidebar-list-v2'
+import { SidebarRailV2 } from './sidebar-rail-v2'
 import { SidebarSearchV2 } from './sidebar-search-v2'
 import { SidebarSourceChipsV2 } from './sidebar-source-chips-v2'
 import { SidebarStateSegmentV2 } from './sidebar-state-segment-v2'
-import { SidebarListV2 } from './sidebar-list-v2'
+import { useSessionsLocalStore } from '@/stores/sessions-local-store'
+import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
+import { useSessionsFeed } from '@/screens/chat/sessions-feed'
+import { applyFiltersAndDecorate } from '@/screens/chat/apply-filters-and-decorate'
 
 interface SidebarShellV2Props {
   /** The main chat column content (route outlet). */
@@ -26,7 +24,22 @@ interface SidebarShellV2Props {
 }
 
 export function SidebarShellV2({ children }: SidebarShellV2Props) {
-  const [collapsed, setCollapsed] = useState(false)
+  const collapsed = useSessionsFilterStore((s) => s.collapsed)
+  const setCollapsed = useSessionsFilterStore((s) => s.setCollapsed)
+
+  const filterState = useSessionsFilterStore()
+  const localState = useSessionsLocalStore()
+
+  const { items, sources } = useSessionsFeed({
+    sources: filterState.sources,
+    state: filterState.state,
+    query: filterState.query,
+    dateRange: filterState.dateRange,
+    sort: filterState.sort,
+  })
+
+  const { totalCount, sourceCounts } = applyFiltersAndDecorate(items, filterState, localState)
+  const hasLive = items.some((i) => i.live)
 
   return (
     <div
@@ -38,6 +51,8 @@ export function SidebarShellV2({ children }: SidebarShellV2Props) {
       <SidebarRailV2
         collapsed={collapsed}
         onExpand={() => setCollapsed(false)}
+        totalCount={totalCount}
+        hasLive={hasLive}
       />
 
       {/* Sessions panel — 320px, hidden when collapsed */}
@@ -51,9 +66,9 @@ export function SidebarShellV2({ children }: SidebarShellV2Props) {
             background: 'var(--theme-sidebar)',
           }}
         >
-          <SidebarHeaderV2 onCollapse={() => setCollapsed(true)} />
+          <SidebarHeaderV2 onCollapse={() => setCollapsed(true)} count={totalCount} />
           <SidebarSearchV2 />
-          <SidebarSourceChipsV2 />
+          <SidebarSourceChipsV2 sourceResults={sources} sourceCounts={sourceCounts} />
           <SidebarStateSegmentV2 />
           <SidebarListV2 />
         </div>
