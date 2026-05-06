@@ -371,6 +371,18 @@ function ExpandableToolCard({ entry }: { entry: FlatToolEntry }) {
           <span className="opacity-40 truncate min-w-0 text-[10px]">{entry.callId}</span>
         ) : null}
         <span className="flex-1" />
+        {entry.timestamp ? (
+          <span
+            className="shrink-0 opacity-40 text-[10px] tabular-nums"
+            title={new Date(entry.timestamp).toLocaleString()}
+          >
+            {new Date(entry.timestamp).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            })}
+          </span>
+        ) : null}
         <span
           className="shrink-0 text-[10px] px-1.5 py-0.5 rounded"
           style={{
