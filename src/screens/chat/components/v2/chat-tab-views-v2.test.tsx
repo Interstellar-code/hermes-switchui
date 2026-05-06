@@ -47,7 +47,7 @@ describe('ToolTabView streaming tool calls', () => {
     expect(container.textContent).toContain('done')
 
     // Click card to expand
-    const button = container.querySelector('button')!
+    const button = container.querySelector('button[aria-expanded]')!
     act(() => { fireEvent.click(button) })
     expect(container.textContent).toContain('"y": 2')
     expect(container.textContent).toContain('hi')
@@ -76,7 +76,7 @@ describe('ToolTabView streaming tool calls', () => {
     expect(container.textContent).toContain('foo')
     expect(container.textContent).toContain('done')
 
-    const button = container.querySelector('button')!
+    const button = container.querySelector('button[aria-expanded]')!
     act(() => { fireEvent.click(button) })
     expect(container.textContent).toContain('OK')
     expect(container.textContent).toContain('"x": 1')
@@ -120,7 +120,7 @@ describe('ToolTabView streaming tool calls', () => {
     const container = renderInto(<ToolTabView messages={messages} />)
     expect(container.textContent).toContain('done')
     // canExpand true → button should be clickable (cursor pointer via style)
-    const button = container.querySelector('button')!
+    const button = container.querySelector('button[aria-expanded]')!
     expect(button.style.cursor).toBe('pointer')
   })
 
@@ -131,7 +131,7 @@ describe('ToolTabView streaming tool calls', () => {
     const container = renderInto(
       <ToolTabView messages={[]} streamingToolCalls={streamingToolCalls} />,
     )
-    const button = container.querySelector('button')!
+    const button = container.querySelector('button[aria-expanded]')!
 
     // Initially collapsed — output not visible
     expect(container.querySelector('pre')).toBeNull()
@@ -246,7 +246,7 @@ describe('ToolTabView streaming tool calls', () => {
     ] as any
     const container = renderInto(<ToolTabView messages={messages} streamingToolCalls={[]} />)
     expect(container.textContent).toContain('done')
-    const button = container.querySelector('button')!
+    const button = container.querySelector('button[aria-expanded]')!
     act(() => { fireEvent.click(button) })
     expect(container.textContent).toContain('profile data')
   })
