@@ -72,11 +72,11 @@ export function SidebarShellV2() {
         />
       ) : (
         <div
-          className="flex flex-col border-r shrink-0 overflow-hidden"
+          className="flex flex-col shrink-0 overflow-hidden rounded-md my-2 mx-2"
           data-testid="sessions-panel"
           style={{
             width: 320,
-            borderColor: 'var(--theme-border)',
+            border: '1px solid var(--theme-border)',
             background: 'var(--theme-sidebar)',
           }}
         >

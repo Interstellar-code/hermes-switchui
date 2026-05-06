@@ -380,15 +380,9 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
                   ? 'pb-7'
                   : '',
               !isMobile && sidebarV2 && isOnChatRoute
-                ? 'border border-[color:var(--theme-border)] rounded-md m-2 ml-0'
+                ? 'rounded-md border border-[color:var(--theme-border)] my-2 mr-2'
                 : '',
             ].join(' ')}
-            style={!isMobile && sidebarV2 && isOnChatRoute
-              ? {
-                  boxShadow:
-                    'inset 0 0 0 1px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 12%, transparent), 0 0 12px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 6%, transparent)',
-                }
-              : undefined}
             data-tour="chat-area"
           >
             {/* Persistent terminal — stays mounted to preserve session across navigation */}
