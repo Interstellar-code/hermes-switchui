@@ -112,7 +112,7 @@ export function useChatSessionsFeed(): SessionSourceResult {
   const available = capsQuery.data?.sessions ?? false
 
   const query = useQuery({
-    queryKey: ['sessions-feed', 'chat'],
+    queryKey: ['sessions-feed', 'chat', 'v2-api-cron-split'],
     queryFn: async () => {
       const sessions = await fetchSessions()
       const nowMs = Date.now()
