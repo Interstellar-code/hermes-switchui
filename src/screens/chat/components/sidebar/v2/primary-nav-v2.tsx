@@ -19,6 +19,7 @@
  * Non-existent routes are rendered as non-link buttons.
  */
 
+import { useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { useSearchModal } from '@/hooks/use-search-modal'
 
@@ -71,6 +72,7 @@ const ICONS = {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const NAV_WIDTH = 232
+const NAV_COLLAPSED_WIDTH = 48
 
 function getItemStyle(active: boolean): React.CSSProperties {
   if (active) {
@@ -118,10 +120,13 @@ interface NavItemProps {
   iconKey: keyof typeof ICONS
   to?: string
   active: boolean
+  collapsed?: boolean
 }
 
-function NavItem({ label, iconKey, to, active }: NavItemProps) {
-  const style = getItemStyle(active)
+function NavItem({ label, iconKey, to, active, collapsed }: NavItemProps) {
+  const style = collapsed
+    ? { ...getItemStyle(active), justifyContent: 'center', padding: '8px 0' }
+    : getItemStyle(active)
 
   if (to) {
     return (
@@ -130,23 +135,24 @@ function NavItem({ label, iconKey, to, active }: NavItemProps) {
         style={style}
         className="primary-nav-v2-item"
         data-active={active ? 'true' : undefined}
+        title={collapsed ? label : undefined}
       >
         <Icon d={ICONS[iconKey]} />
-        {label}
+        {!collapsed && label}
       </Link>
     )
   }
 
-  // Non-routed item — button with no navigation
   return (
     <button
       type="button"
       style={{ ...style, background: undefined }}
       className="primary-nav-v2-item"
       aria-disabled="true"
+      title={collapsed ? label : undefined}
     >
       <Icon d={ICONS[iconKey]} />
-      {label}
+      {!collapsed && label}
     </button>
   )
 }
@@ -175,66 +181,68 @@ function GroupLabel({ label }: { label: string }) {
 
 // ── Connected footer dot ──────────────────────────────────────────────────────
 
-function ConnectedFooter({ onOpenSettings }: { onOpenSettings?: () => void }) {
+function ConnectedFooter({ collapsed }: { collapsed?: boolean }) {
   return (
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 6,
-        padding: '8px 12px',
+        justifyContent: collapsed ? 'center' : 'flex-start',
+        gap: 8,
+        padding: collapsed ? '8px 0' : '8px 12px',
         borderTop: '1px solid var(--theme-border)',
         marginTop: 'auto',
       }}
     >
-      {/* Status dot — always connected (gateway probe runs in workspace-shell) */}
-      <span
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: '50%',
-          background: 'var(--m-green-500, var(--theme-accent))',
-          boxShadow: '0 0 6px var(--m-green-500, var(--theme-accent))',
-          flexShrink: 0,
-          display: 'inline-block',
-        }}
-      />
-      <span
-        style={{
-          fontFamily: 'var(--font-mono, monospace)',
-          fontSize: 10,
-          color: 'var(--theme-muted)',
-          flex: 1,
-        }}
-      >
-        connected
-      </span>
-      <button
-        type="button"
+      <Link
+        to="/settings"
         aria-label="Settings"
-        onClick={onOpenSettings}
         style={{
           background: 'none',
           border: 'none',
-          padding: 4,
+          padding: 6,
           borderRadius: 4,
           color: 'var(--theme-muted)',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
+          gap: 8,
+          textDecoration: 'none',
+          fontFamily: 'var(--font-mono, monospace)',
+          fontSize: 11,
         }}
       >
-        <Icon d={ICONS.cog} size={13} />
-      </button>
+        <Icon d={ICONS.cog} size={14} />
+        {!collapsed && <span>Settings</span>}
+      </Link>
     </div>
   )
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+const NAV_COLLAPSED_KEY = 'hermes.primary-nav.collapsed'
+
+function readInitialCollapsed(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(NAV_COLLAPSED_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
 export function PrimaryNavV2() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const openSearchModal = useSearchModal((s) => s.openModal)
+  const [collapsed, setCollapsed] = useState<boolean>(readInitialCollapsed)
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      const next = !c
+      try { window.localStorage.setItem(NAV_COLLAPSED_KEY, String(next)) } catch { /* noop */ }
+      return next
+    })
+  }
 
   // Active states
   const isDashboard = pathname === '/dashboard'
@@ -252,18 +260,22 @@ export function PrimaryNavV2() {
   const isProfiles = pathname.startsWith('/profiles')
   const isNewSession = pathname === '/new' || pathname.startsWith('/chat/new')
 
+  const w = collapsed ? NAV_COLLAPSED_WIDTH : NAV_WIDTH
+
   return (
     <div
       data-testid="primary-nav-v2"
+      data-collapsed={collapsed ? 'true' : undefined}
       style={{
-        width: NAV_WIDTH,
-        minWidth: NAV_WIDTH,
+        width: w,
+        minWidth: w,
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
         background: 'var(--theme-sidebar)',
         borderRight: '1px solid var(--theme-border)',
         overflow: 'hidden',
+        transition: 'width 160ms ease-out',
       }}
     >
       {/* Brand header */}
@@ -272,41 +284,72 @@ export function PrimaryNavV2() {
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          padding: '10px 12px 8px',
+          padding: collapsed ? '10px 0 8px' : '10px 12px 8px',
+          justifyContent: collapsed ? 'center' : 'space-between',
           borderBottom: '1px solid var(--theme-border)',
           flexShrink: 0,
         }}
       >
-        <img
-          src="/claude-avatar.webp"
-          alt="Hermes"
-          style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0 }}
-        />
-        <div style={{ minWidth: 0 }}>
-          <div
-            style={{
-              fontFamily: 'var(--font-mono, monospace)',
-              fontSize: 12,
-              fontWeight: 700,
-              letterSpacing: '0.05em',
-              color: 'var(--theme-text)',
-              lineHeight: 1.2,
-            }}
-          >
-            HERMES
+        {!collapsed && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <img
+              src="/claude-avatar.webp"
+              alt="Hermes"
+              style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0 }}
+            />
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontFamily: 'var(--font-mono, monospace)',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: '0.05em',
+                  color: 'var(--theme-text)',
+                  lineHeight: 1.2,
+                }}
+              >
+                HERMES
+              </div>
+              <div
+                style={{
+                  fontFamily: 'var(--font-mono, monospace)',
+                  fontSize: 9,
+                  color: 'var(--theme-muted)',
+                  opacity: 0.7,
+                  letterSpacing: '0.1em',
+                }}
+              >
+                v2.3.0
+              </div>
+            </div>
           </div>
-          <div
-            style={{
-              fontFamily: 'var(--font-mono, monospace)',
-              fontSize: 9,
-              color: 'var(--theme-muted)',
-              opacity: 0.7,
-              letterSpacing: '0.1em',
-            }}
-          >
-            v2.3.0
-          </div>
-        </div>
+        )}
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+          title={collapsed ? 'Expand' : 'Collapse'}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 4,
+            borderRadius: 4,
+            color: 'var(--theme-muted)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <path
+              d={collapsed ? 'M6 3l5 5-5 5' : 'M10 3L5 8l5 5'}
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
       </div>
 
       {/* Scrollable nav body */}
@@ -321,7 +364,7 @@ export function PrimaryNavV2() {
         }}
       >
         {/* Search */}
-        <button
+        {!collapsed && <button
           type="button"
           onClick={openSearchModal}
           style={{
@@ -354,7 +397,7 @@ export function PrimaryNavV2() {
           >
             ⌘K
           </span>
-        </button>
+        </button>}
 
         {/* New Session */}
         <Link
@@ -380,33 +423,34 @@ export function PrimaryNavV2() {
             opacity: 0.9,
           }}
           aria-label="New Session"
+          title={collapsed ? 'New Session' : undefined}
         >
           <Icon d={ICONS.newchat} />
-          + New Session
+          {!collapsed && '+ New Session'}
         </Link>
 
         {/* MAIN group */}
-        <GroupLabel label="Main" />
-        <NavItem label="Dashboard" iconKey="dashboard" to="/dashboard" active={isDashboard} />
-        <NavItem label="Chat" iconKey="chat" to="/chat" active={isChat} />
-        <NavItem label="Files" iconKey="files" to="/files" active={isFiles} />
-        <NavItem label="Terminal" iconKey="terminal" to="/terminal" active={isTerminal} />
-        <NavItem label="Jobs" iconKey="jobs" to="/jobs" active={isJobs} />
-        <NavItem label="Tasks" iconKey="tasks" to="/tasks" active={isTasks} />
-        <NavItem label="Conductor" iconKey="conductor" to="/conductor" active={isConductor} />
-        <NavItem label="Operations" iconKey="operations" to="/operations" active={isOperations} />
-        <NavItem label="Swarm" iconKey="swarm" to="/swarm" active={isSwarm} />
+        {!collapsed && <GroupLabel label="Main" />}
+        <NavItem label="Dashboard" iconKey="dashboard" to="/dashboard" active={isDashboard} collapsed={collapsed} />
+        <NavItem label="Chat" iconKey="chat" to="/chat" active={isChat} collapsed={collapsed} />
+        <NavItem label="Files" iconKey="files" to="/files" active={isFiles} collapsed={collapsed} />
+        <NavItem label="Terminal" iconKey="terminal" to="/terminal" active={isTerminal} collapsed={collapsed} />
+        <NavItem label="Jobs" iconKey="jobs" to="/jobs" active={isJobs} collapsed={collapsed} />
+        <NavItem label="Tasks" iconKey="tasks" to="/tasks" active={isTasks} collapsed={collapsed} />
+        <NavItem label="Conductor" iconKey="conductor" to="/conductor" active={isConductor} collapsed={collapsed} />
+        <NavItem label="Operations" iconKey="operations" to="/operations" active={isOperations} collapsed={collapsed} />
+        <NavItem label="Swarm" iconKey="swarm" to="/swarm" active={isSwarm} collapsed={collapsed} />
 
         {/* KNOWLEDGE group */}
-        <GroupLabel label="Knowledge" />
-        <NavItem label="Memory" iconKey="memory" to="/memory" active={isMemory} />
-        <NavItem label="Skills" iconKey="skills" to="/skills" active={isSkills} />
-        <NavItem label="MCP" iconKey="mcp" to="/mcp" active={isMcp} />
-        <NavItem label="Profiles" iconKey="profiles" to="/profiles" active={isProfiles} />
+        {!collapsed && <GroupLabel label="Knowledge" />}
+        <NavItem label="Memory" iconKey="memory" to="/memory" active={isMemory} collapsed={collapsed} />
+        <NavItem label="Skills" iconKey="skills" to="/skills" active={isSkills} collapsed={collapsed} />
+        <NavItem label="MCP" iconKey="mcp" to="/mcp" active={isMcp} collapsed={collapsed} />
+        <NavItem label="Profiles" iconKey="profiles" to="/profiles" active={isProfiles} collapsed={collapsed} />
       </div>
 
       {/* Footer */}
-      <ConnectedFooter />
+      <ConnectedFooter collapsed={collapsed} />
     </div>
   )
 }

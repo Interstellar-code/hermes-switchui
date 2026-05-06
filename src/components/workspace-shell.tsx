@@ -450,7 +450,18 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
 
       <MobileHamburgerMenu />
       {!isMobile && !isOnChatRoute && settings.showSystemMetricsFooter ? (
-        <SystemMetricsFooter leftOffsetPx={sidebarCollapsed ? 48 : 300} />
+        <SystemMetricsFooter
+          leftOffsetPx={
+            sidebarV2
+              ? (typeof window !== 'undefined' &&
+                  window.localStorage.getItem('hermes.primary-nav.collapsed') === 'true'
+                  ? 48
+                  : 232)
+              : sidebarCollapsed
+                ? 48
+                : 300
+          }
+        />
       ) : null}
       <CommandPalette pathname={pathname} sessions={sessions} />
     </>
