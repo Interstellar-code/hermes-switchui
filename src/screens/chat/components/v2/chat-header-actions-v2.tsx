@@ -20,7 +20,7 @@ export function ChatHeaderActionsV2({ sessionId, sessionKey, title }: ChatHeader
   // Pull live session metadata for the copy payload
   const status = useSessionStatus(sessionKey)
   const sessionsQuery = useQuery({
-    queryKey: ['sessions-feed', 'chat', 'v2-api-cron-split'],
+    queryKey: ['chat', 'sessions', 'raw'],
     queryFn: fetchSessions,
     staleTime: 30_000,
   })
