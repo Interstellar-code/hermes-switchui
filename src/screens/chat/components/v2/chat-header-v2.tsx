@@ -50,7 +50,11 @@ function ChatHeaderV2Component({
 
       {/* Right: actions */}
       <div className="shrink-0">
-        <ChatHeaderActionsV2 sessionId={`chat:${sessionKey}`} />
+        <ChatHeaderActionsV2
+          sessionId={`chat:${sessionKey}`}
+          sessionKey={sessionKey}
+          title={displayTitle}
+        />
       </div>
     </div>
   )

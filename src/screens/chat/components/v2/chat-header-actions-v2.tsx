@@ -1,17 +1,47 @@
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useSessionsLocalStore } from '@/stores/sessions-local-store'
+import { useSessionStatus } from '@/hooks/use-session-status'
 
 type ChatHeaderActionsV2Props = {
   sessionId: string
+  sessionKey: string
+  title: string
 }
 
-export function ChatHeaderActionsV2({ sessionId }: ChatHeaderActionsV2Props) {
+export function ChatHeaderActionsV2({ sessionId, sessionKey, title }: ChatHeaderActionsV2Props) {
   const isPinned = useSessionsLocalStore((s) => s.isPinned(sessionId))
-  const isStarred = useSessionsLocalStore((s) => s.isStarred(sessionId))
   const isArchived = useSessionsLocalStore((s) => s.isArchived(sessionId))
   const togglePinned = useSessionsLocalStore((s) => s.togglePinned)
-  const toggleStarred = useSessionsLocalStore((s) => s.toggleStarred)
   const toggleArchived = useSessionsLocalStore((s) => s.toggleArchived)
+
+  // Pull live session metadata for the copy payload
+  const status = useSessionStatus(sessionKey)
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    const lines = [
+      `Title: ${title}`,
+      `Session: ${sessionKey}`,
+      `URL: ${typeof window !== 'undefined' ? window.location.href : ''}`,
+      status?.payload?.model ? `Model: ${status.payload.model}` : null,
+      status?.payload?.modelProvider ? `Provider: ${status.payload.modelProvider}` : null,
+      typeof status?.payload?.contextPercent === 'number'
+        ? `Context: ${status.payload.contextPercent}% (${status.payload.usedTokens ?? 0} / ${status.payload.maxTokens ?? 0})`
+        : null,
+      typeof status?.payload?.totalTokens === 'number'
+        ? `Tokens: ${status.payload.totalTokens}`
+        : null,
+    ].filter(Boolean)
+    const text = lines.join('\n')
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* noop */
+    }
+  }
 
   const btnClass =
     'flex items-center justify-center w-7 h-7 rounded transition-colors hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]'
@@ -20,7 +50,28 @@ export function ChatHeaderActionsV2({ sessionId }: ChatHeaderActionsV2Props) {
 
   return (
     <div className="flex items-center gap-0.5">
-      {/* Pin */}
+      {/* Copy session details */}
+      <button
+        type="button"
+        aria-label={copied ? 'Copied!' : 'Copy session details'}
+        title={copied ? 'Copied!' : 'Copy session details'}
+        onClick={handleCopy}
+        className={cn(btnClass)}
+        style={{ color: copied ? activeColor : mutedColor }}
+      >
+        {copied ? (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+        )}
+      </button>
+
+      {/* Pin (icon: star) — performs pinning so item appears in Pinned group */}
       <button
         type="button"
         aria-label={isPinned ? 'Unpin session' : 'Pin session'}
@@ -30,20 +81,6 @@ export function ChatHeaderActionsV2({ sessionId }: ChatHeaderActionsV2Props) {
         style={{ color: isPinned ? activeColor : mutedColor }}
       >
         <svg width="14" height="14" viewBox="0 0 24 24" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" aria-hidden="true">
-          <path d="M12 2L8 8H3l9 14 9-14h-5L12 2z" />
-        </svg>
-      </button>
-
-      {/* Star */}
-      <button
-        type="button"
-        aria-label={isStarred ? 'Unstar session' : 'Star session'}
-        aria-pressed={isStarred}
-        onClick={() => toggleStarred(sessionId)}
-        className={cn(btnClass)}
-        style={{ color: isStarred ? activeColor : mutedColor }}
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill={isStarred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
         </svg>
       </button>
