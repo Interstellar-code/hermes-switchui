@@ -112,6 +112,7 @@ type RootLevelResult = {
   toolName?: string
   isError?: boolean
   output: string
+  timestamp?: number
 }
 
 /** Determine phase → status. Canonical mapping per v1 message-item.tsx:376-389. */
@@ -182,6 +183,7 @@ function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> 
         toolName: typeof m.toolName === 'string' ? m.toolName : undefined,
         isError: m.isError === true,
         output,
+        timestamp: getMessageTimestamp(m),
       })
       continue
     }
@@ -207,6 +209,7 @@ function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> 
         toolCallId: callId,
         toolName: typeof cAny.toolName === 'string' ? cAny.toolName : undefined,
         isError: cAny.isError === true,
+        timestamp: getMessageTimestamp(m),
         output,
       })
     }
@@ -495,6 +498,8 @@ const filterPillStyle = (active: boolean): React.CSSProperties => ({
 export function ToolTabView({ messages, streamingToolCalls = [], events = [] }: ToolTabViewProps) {
   const [filter, setFilter] = useState<string>('all')
   const [sortDir, setSortDir] = useState<'oldest' | 'newest'>('oldest')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const streamingEntries = extractStreamingEntries(streamingToolCalls)
   const completedEntries = extractStreamToolCallsFromMessages(messages)
@@ -507,7 +512,22 @@ export function ToolTabView({ messages, streamingToolCalls = [], events = [] }: 
   const categoriesPresent = Array.from(
     new Set(entries.map((e) => categorizeEntry(e))),
   ).sort()
+  const q = searchQuery.trim().toLowerCase()
+  const matchesQuery = (row: typeof allRows[number]): boolean => {
+    if (!q) return true
+    if (row.kind === 'tool') {
+      const e = row.entry
+      const hay =
+        `${e.name} ${e.callId} ${e.input ? JSON.stringify(e.input) : ''} ${e.output ?? ''}`.toLowerCase()
+      return hay.includes(q)
+    }
+    if (row.kind === 'lifecycle') {
+      return row.event.text.toLowerCase().includes(q)
+    }
+    return true
+  }
   const filteredRows = allRows.filter((row) => {
+    if (!matchesQuery(row)) return false
     if (filter === 'all') return true
     if (filter === 'events') return row.kind !== 'tool'
     if (row.kind === 'tool') return categorizeEntry(row.entry) === filter
@@ -531,14 +551,52 @@ export function ToolTabView({ messages, streamingToolCalls = [], events = [] }: 
             {f}
           </button>
         ))}
-        <button
-          type="button"
-          aria-label={`Sort ${sortDir}`}
-          style={{ ...filterPillStyle(false), marginLeft: 'auto' }}
-          onClick={() => setSortDir((s) => (s === 'oldest' ? 'newest' : 'oldest'))}
-        >
-          {sortDir === 'oldest' ? '↑ oldest' : '↓ newest'}
-        </button>
+        <div style={{ marginLeft: 'auto' }} className="flex items-center gap-1.5">
+          {searchOpen ? (
+            <input
+              autoFocus
+              type="text"
+              value={searchQuery}
+              placeholder="search…"
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setSearchQuery('')
+                  setSearchOpen(false)
+                }
+              }}
+              style={{
+                ...filterPillStyle(false),
+                padding: '1px 8px',
+                width: 140,
+                outline: 'none',
+              }}
+            />
+          ) : null}
+          <button
+            type="button"
+            aria-label={searchOpen ? 'Close search' : 'Open search'}
+            style={filterPillStyle(searchOpen || !!q)}
+            onClick={() => {
+              if (searchOpen) {
+                setSearchQuery('')
+                setSearchOpen(false)
+              } else {
+                setSearchOpen(true)
+              }
+            }}
+          >
+            {searchOpen ? '×' : '⌕'}
+          </button>
+          <button
+            type="button"
+            aria-label={`Sort ${sortDir}`}
+            style={filterPillStyle(false)}
+            onClick={() => setSortDir((s) => (s === 'oldest' ? 'newest' : 'oldest'))}
+          >
+            {sortDir === 'oldest' ? '↑ oldest' : '↓ newest'}
+          </button>
+        </div>
       </div>
 
       {isEmpty ? (
