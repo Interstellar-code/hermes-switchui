@@ -22,6 +22,7 @@
 import { useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { useSearchModal } from '@/hooks/use-search-modal'
+import { getTheme, getThemeVariant, isDarkTheme, setTheme } from '@/lib/theme'
 
 // ── Nav item types ────────────────────────────────────────────────────────────
 
@@ -182,12 +183,22 @@ function GroupLabel({ label }: { label: string }) {
 // ── Connected footer dot ──────────────────────────────────────────────────────
 
 function ConnectedFooter({ collapsed }: { collapsed?: boolean }) {
+  const [, force] = useState(0)
+  const isDark = typeof document !== 'undefined'
+    ? !(document.documentElement.getAttribute('data-theme') || '').endsWith('-light')
+    : true
+  const handleToggleTheme = () => {
+    const current = getTheme()
+    const dark = isDarkTheme(current)
+    setTheme(getThemeVariant(current, dark ? 'light' : 'dark'))
+    force((n) => n + 1)
+  }
   return (
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: collapsed ? 'center' : 'flex-start',
+        justifyContent: collapsed ? 'center' : 'space-between',
         gap: 8,
         padding: collapsed ? '8px 0' : '8px 12px',
         borderTop: '1px solid var(--theme-border)',
@@ -215,6 +226,35 @@ function ConnectedFooter({ collapsed }: { collapsed?: boolean }) {
         <Icon d={ICONS.cog} size={14} />
         {!collapsed && <span>Settings</span>}
       </Link>
+      {!collapsed && (
+        <button
+          type="button"
+          onClick={handleToggleTheme}
+          aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={isDark ? 'Light mode' : 'Dark mode'}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 6,
+            borderRadius: 4,
+            color: 'var(--theme-muted)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+          }}
+        >
+          {isDark ? (
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.4"/>
+              <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <path d="M13.5 9.5A6 6 0 0 1 6.5 2.5a6 6 0 1 0 7 7z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </button>
+      )}
     </div>
   )
 }
