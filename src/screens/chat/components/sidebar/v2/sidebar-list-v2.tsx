@@ -160,10 +160,11 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
               <div id={`group-${label}`}>
                 {groupItems.map((item) => {
                   const rawId = item.id.split(':').slice(1).join(':')
-                  let isActive = false
-                  if (item.src === 'chat') {
-                    isActive = rawId === activeSessionKey
-                  }
+                  // chat / cron / api are all backed by chat sessions —
+                  // active highlight applies to any of them.
+                  const isActive =
+                    (item.src === 'chat' || item.src === 'cron' || item.src === 'api') &&
+                    rawId === activeSessionKey
                   return (
                     <SidebarCardV2 key={item.id} item={item} isActive={isActive} />
                   )
