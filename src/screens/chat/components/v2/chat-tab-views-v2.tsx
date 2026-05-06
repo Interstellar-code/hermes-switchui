@@ -321,13 +321,23 @@ function mergeToolEntries(
     const k = e.callId || e.key
     const existing = byCallId.get(k)
     if (!existing || !isSettled(existing) || isSettled(e)) {
-      byCallId.set(k, e)
+      // Preserve a real result-message timestamp from the prior entry when
+      // the higher-priority entry only has a synthesized parent-message ts.
+      const merged: FlatToolEntry = {
+        ...e,
+        timestamp: existing?.timestamp ?? e.timestamp,
+      }
+      byCallId.set(k, merged)
     }
   }
 
   for (const e of streamingEntries) {
     const k = e.callId || e.key
     const existing = byCallId.get(k)
+    // Preserve sibling timestamp when streaming entry lacks one
+    if (existing?.timestamp != null && e.timestamp == null) {
+      e.timestamp = existing.timestamp
+    }
     if (existing && isSettled(existing) && !isSettled(e)) continue
     byCallId.set(k, e)
   }
