@@ -57,35 +57,46 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
           <div key={label}>
             {/* Sticky group header */}
             <div
-              className="flex items-center justify-between px-3 py-1 sticky top-0 z-10"
+              className="flex items-center gap-2 px-3 pt-3 pb-1 sticky top-0 z-10 select-none"
               style={{
                 background: 'var(--theme-sidebar)',
-                borderBottom: '1px solid var(--theme-border-subtle, var(--theme-border))',
               }}
             >
               <span
-                className="text-xs font-bold uppercase select-none"
+                className="font-bold uppercase"
                 style={{
                   ...GROUP_LABEL_STYLE[label],
-                  letterSpacing: '0.1em',
+                  letterSpacing: '0.22em',
                   fontFamily: 'var(--font-mono, monospace)',
                   fontSize: 9,
+                  opacity: 0.7,
                 }}
               >
                 {label}
               </span>
               <span
-                className="rounded-full px-1.5"
+                className="rounded-full px-1.5 flex-shrink-0"
                 style={{
-                  background: 'var(--theme-border)',
-                  color: 'var(--theme-muted)',
+                  border: '1px solid var(--m-green-500, var(--theme-accent))',
+                  color: 'var(--m-green-400, var(--theme-accent))',
+                  background: 'transparent',
                   fontFamily: 'var(--font-mono, monospace)',
                   fontSize: 9,
                   lineHeight: '14px',
+                  fontVariantNumeric: 'tabular-nums',
                 }}
               >
                 {groupItems.length}
               </span>
+              <span
+                aria-hidden
+                style={{
+                  flex: 1,
+                  height: 1,
+                  background: 'var(--theme-border-subtle, var(--theme-border))',
+                  opacity: 0.5,
+                }}
+              />
             </div>
 
             {/* Cards */}
