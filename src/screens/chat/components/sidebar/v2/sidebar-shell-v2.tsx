@@ -46,10 +46,10 @@ export function SidebarShellV2() {
     () =>
       applyFiltersAndDecorate(
         items,
-        { version: 1, sources: fSources, state: fState, query: fQuery, dateRange: fDateRange, sort: fSort, collapsed },
-        { version: 1, pinned: lPinned, starred: lStarred, archived: lArchived },
+        { sources: fSources, state: fState, query: fQuery, dateRange: fDateRange, sort: fSort },
+        { pinned: lPinned, starred: lStarred, archived: lArchived },
       ),
-    [items, fSources, fState, fQuery, fDateRange, fSort, collapsed, lPinned, lStarred, lArchived],
+    [items, fSources, fState, fQuery, fDateRange, fSort, lPinned, lStarred, lArchived],
   )
 
   const hasLive = useMemo(() => items.some((i) => i.live), [items])
