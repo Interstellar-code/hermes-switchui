@@ -180,13 +180,24 @@ export function ChatSkillsTabV2({ messages, streamingToolCalls = [], events: _ev
   const messageEntries = extractToolEntries(messages)
   const allEntries = mergeToolEntries(streamingEntries, completedEntries, messageEntries)
 
-  // Filter to skill entries only — strict match on entry.name === 'skill'
-  const skillEntries = allEntries.filter((e) => e.name === 'skill')
+  // Filter to skill-shaped entries:
+  //   - name === 'skill' → gateway-translated skill.loaded event; skill name in result
+  //   - name matches skill/todo/task → tool invocations of skills (todo, task plugins)
+  const isSkill = (e: { name: string }) => {
+    const n = (e.name || '').toLowerCase()
+    return n === 'skill' || /\b(skill|todo|task)\b/.test(n)
+  }
+  const skillEntries = allEntries.filter(isSkill)
 
-  // Group by skill name (entry.result or 'unknown skill')
+  // Group by skill name. For 'skill' entries use entry.output (the loaded
+  // SKILL name); for direct invocations (todo, task) use entry.name itself.
   const groupMap = new Map<string, SkillGroup>()
   for (const entry of skillEntries) {
-    const skillName = (typeof entry.output === 'string' && entry.output.trim()) ? entry.output.trim() : 'unknown skill'
+    const fromResult = typeof entry.output === 'string' ? entry.output.trim() : ''
+    const skillName =
+      entry.name === 'skill'
+        ? fromResult || 'unknown skill'
+        : entry.name || 'unknown skill'
     let group = groupMap.get(skillName)
     if (!group) {
       group = { skillName, invocations: [], count: 0, lastInvokedTs: undefined, status: 'done' }
