@@ -170,20 +170,52 @@ export function useChatSessionsFeed(): SessionSourceResult {
     refetchInterval: false,
   })
 
-  if (!available) {
-    return { src: 'chat', items: [], available: false, loading: false, error: null }
-  }
-
-  return {
-    src: 'chat',
-    items: query.data ?? [],
-    available: true,
-    loading: query.isLoading,
-    error: query.error,
-  }
+  return available
+    ? {
+        src: 'chat',
+        items: query.data ?? [],
+        available: true,
+        loading: query.isLoading,
+        error: query.error,
+      }
+    : { src: 'chat', items: [], available: false, loading: false, error: null }
 }
 
 // ── Cron source hook ───────────────────────────────────────────────────────────
+
+// ── Cron → chat session resolver ──────────────────────────────────────────────
+
+/**
+ * Pattern: `cron_{jobId}_{YYYYMMDD_HHMMSS}` — as minted by hermes-agent
+ * scheduler.py:1003. We match by jobId prefix and pick the most recently
+ * updated session.
+ */
+export const CRON_SESSION_KEY_PATTERN = /^cron_([^_]+(?:_[^_]+)*?)_\d{8}_\d{6}$/
+
+/**
+ * Resolve the most recent chat session key for a given cron job ID.
+ * Returns null when no matching session is found.
+ *
+ * @param jobId  The raw cron job ID (e.g. "abc-123")
+ * @param sessions  Chat sessions from fetchSessions(), each with `key` and optional `updatedAt`
+ */
+export function resolveCronChatSessionKey(
+  jobId: string,
+  sessions: Array<{ key: string; updatedAt?: number }>,
+): string | null {
+  let best: { key: string; updatedAt: number } | null = null
+  for (const s of sessions) {
+    const m = CRON_SESSION_KEY_PATTERN.exec(s.key)
+    if (!m) continue
+    // m[1] is the jobId portion captured by the non-greedy group
+    if (m[1] !== jobId) continue
+    const updatedAt = s.updatedAt ?? 0
+    if (!best || updatedAt > best.updatedAt) {
+      best = { key: s.key, updatedAt }
+    }
+  }
+  return best ? best.key : null
+}
 
 /** Hook for cron jobs. Gated by `capabilities.jobs`. Polls every 30 s. */
 export function useCronSessionsFeed(): SessionSourceResult {
@@ -194,6 +226,15 @@ export function useCronSessionsFeed(): SessionSourceResult {
   })
 
   const available = capsQuery.data?.jobs ?? false
+
+  // Fetch chat sessions so we can attach chatSessionKey to each cron item.
+  // We use the same query key as the chat hook so the cache is shared.
+  const chatSessionsQuery = useQuery({
+    queryKey: ['sessions-feed', 'chat'],
+    queryFn: fetchSessions,
+    enabled: available,
+    staleTime: 30_000,
+  })
 
   const query = useQuery({
     queryKey: ['sessions-feed', 'cron'],
@@ -238,17 +279,32 @@ export function useCronSessionsFeed(): SessionSourceResult {
     refetchInterval: available ? 30_000 : false,
   })
 
-  if (!available) {
-    return { src: 'cron', items: [], available: false, loading: false, error: null }
-  }
+  // Attach chatSessionKey after both queries resolve, without re-triggering the cron query.
+  const chatSessions = (chatSessionsQuery.data ?? []) as Array<{ key: string; updatedAt?: number }>
+  const itemsWithSessionKey = useMemo(() => {
+    const items = query.data ?? []
+    if (chatSessions.length === 0) return items
+    return items.map((item) => {
+      const jobId = item.sourceMeta.jobId as string | undefined
+      if (!jobId) return item
+      const chatSessionKey = resolveCronChatSessionKey(jobId, chatSessions)
+      if (!chatSessionKey) return item
+      return {
+        ...item,
+        sourceMeta: { ...item.sourceMeta, chatSessionKey },
+      }
+    })
+  }, [query.data, chatSessions])
 
-  return {
-    src: 'cron',
-    items: query.data ?? [],
-    available: true,
-    loading: query.isLoading,
-    error: query.error,
-  }
+  return available
+    ? {
+        src: 'cron',
+        items: itemsWithSessionKey,
+        available: true,
+        loading: query.isLoading,
+        error: query.error,
+      }
+    : { src: 'cron', items: [], available: false, loading: false, error: null }
 }
 
 // ── Task source hook ───────────────────────────────────────────────────────────
@@ -306,17 +362,15 @@ export function useTaskSessionsFeed(): SessionSourceResult {
     refetchInterval: available ? 15_000 : false,
   })
 
-  if (!available) {
-    return { src: 'task', items: [], available: false, loading: false, error: null }
-  }
-
-  return {
-    src: 'task',
-    items: query.data ?? [],
-    available: true,
-    loading: query.isLoading,
-    error: query.error,
-  }
+  return available
+    ? {
+        src: 'task',
+        items: query.data ?? [],
+        available: true,
+        loading: query.isLoading,
+        error: query.error,
+      }
+    : { src: 'task', items: [], available: false, loading: false, error: null }
 }
 
 // ── Tool source hook — permanently unavailable ─────────────────────────────────
@@ -393,17 +447,15 @@ export function useMemorySessionsFeed(): SessionSourceResult {
     refetchInterval: available ? 60_000 : false,
   })
 
-  if (!available) {
-    return { src: 'mem', items: [], available: false, loading: false, error: null }
-  }
-
-  return {
-    src: 'mem',
-    items: query.data ?? [],
-    available: true,
-    loading: query.isLoading,
-    error: query.error,
-  }
+  return available
+    ? {
+        src: 'mem',
+        items: query.data ?? [],
+        available: true,
+        loading: query.isLoading,
+        error: query.error,
+      }
+    : { src: 'mem', items: [], available: false, loading: false, error: null }
 }
 
 // ── Filter helpers ─────────────────────────────────────────────────────────────
