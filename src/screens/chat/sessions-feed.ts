@@ -289,10 +289,15 @@ export function useSessionsFeed(options: SessionsFeedOptions = {}): SessionsFeed
 
     for (const sourceResult of allSources) {
       if (!sourceResult.available) continue
-      if (!includeAll && !sourceFilter.has(sourceResult.src)) continue
-
       const rebased = sourceResult.items.map(rebase)
       merged.push(...rebased)
+    }
+
+    // Source filter applied at the item level — chat hook may emit items with
+    // src='cron' (cron-generated chat sessions detected by key prefix), so we
+    // can't gate by sourceResult.src.
+    if (!includeAll) {
+      merged = merged.filter((item) => sourceFilter.has(item.src))
     }
 
     // State filter (skip 'all')
