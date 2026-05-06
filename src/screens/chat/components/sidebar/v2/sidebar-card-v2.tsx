@@ -123,23 +123,31 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
 
   const cardContent = (
     <div
-      className="w-full flex items-stretch text-left transition-all group/card"
+      className="flex items-stretch text-left transition-all group/card"
       data-testid={`session-card-${item.id}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onContextMenu={handleContextMenu}
       style={{
+        margin: '4px 8px',
+        borderRadius: 6,
         background: isActive
-          ? `color-mix(in srgb, ${railColor} 12%, var(--theme-card))`
+          ? `color-mix(in srgb, ${railColor} 14%, var(--theme-card))`
           : hovered
-            ? 'color-mix(in srgb, var(--theme-card) 60%, transparent)'
-            : 'transparent',
-        borderBottom: '1px solid var(--theme-border-subtle, var(--theme-border))',
-        borderLeft: isActive ? `2px solid ${railColor}` : '2px solid transparent',
-        boxShadow: isActive ? `inset 4px 0 12px ${railColor}55, 0 0 8px ${railColor}33` : 'none',
+            ? 'color-mix(in srgb, var(--theme-card) 70%, transparent)'
+            : 'color-mix(in srgb, var(--theme-card) 30%, transparent)',
+        border: isActive
+          ? `1px solid ${railColor}`
+          : '1px solid var(--theme-border-subtle, var(--theme-border))',
+        boxShadow: isActive
+          ? `inset 0 0 0 1px ${railColor}55, 0 0 12px ${railColor}55, 0 0 4px ${railColor}33`
+          : hovered
+            ? `0 0 0 1px ${railColor}33`
+            : 'none',
         cursor: isClickable ? 'pointer' : 'default',
         minHeight: 60,
         position: 'relative',
+        overflow: 'hidden',
       }}
     >
       {/* Left rail — 3px color strip with glow on active/hover/live */}
