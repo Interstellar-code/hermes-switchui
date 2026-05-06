@@ -235,7 +235,7 @@ function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> 
         input: c.arguments,
         output: result ? result.output : undefined,
         isError: result?.isError ?? false,
-        timestamp: baseTs + subIdx * 0.001,
+        timestamp: result?.timestamp ?? baseTs + subIdx * 0.001,
       })
       subIdx++
     }
