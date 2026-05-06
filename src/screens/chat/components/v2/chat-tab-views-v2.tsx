@@ -56,13 +56,20 @@ type RootLevelResult = {
   output: string
 }
 
-/** Determine phase → status */
+/** Determine phase → status. Canonical mapping per v1 message-item.tsx:376-389. */
 function phaseToStatus(phase: string): 'running' | 'done' | 'error' {
-  if (phase === 'error') return 'error'
-  if (phase === 'complete' || phase === 'done') return 'done'
-  // skill.loaded, artifact.created, etc. with non-start phases → done
-  if (phase !== 'start' && phase !== 'running') return 'done'
-  return 'running'
+  if (phase === 'error' || phase === 'failed' || phase === 'failure') return 'error'
+  if (
+    phase === 'done' ||
+    phase === 'result' ||
+    phase === 'complete' ||
+    phase === 'completed'
+  )
+    return 'done'
+  if (phase === 'start' || phase === 'started' || phase === 'calling' || phase === 'running')
+    return 'running'
+  // Unknown phases (skill.loaded, artifact.created, etc.) → treat as done
+  return 'done'
 }
 
 /** Build FlatToolEntry list from streaming tool calls */
