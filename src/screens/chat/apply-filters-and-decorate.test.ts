@@ -192,6 +192,15 @@ describe('applyFiltersAndDecorate', () => {
     expect(item.archived).toBe(false)
   })
 
+  it('source-archived item gets archived=true after decoration', () => {
+    // item.state === 'archived' should decorate archived=true even without local entry
+    const items = [makeItem({ id: 'chat:b', state: 'archived' })]
+    const result = applyFiltersAndDecorate(items, makeFilter({ state: 'archived' }), makeLocal())
+    const item = result.groups.flatMap((g) => g.items)[0]
+    expect(item).toBeDefined()
+    expect(item.archived).toBe(true)
+  })
+
   it('sort = recent: most recent first', () => {
     const items = [
       makeItem({ id: 'chat:old', when: 1000 }),
@@ -248,6 +257,33 @@ describe('applyFiltersAndDecorate', () => {
     expect(result.sourceCounts['chat']).toBe(1)
     expect(result.sourceCounts['task']).toBe(1)
     expect(result.sourceCounts['cron']).toBeUndefined()
+  })
+
+  it('date range: item at local 23:30 on to-day is included', () => {
+    // Use a fixed local date: 2025-01-15 23:30:00 local time
+    const d = new Date(2025, 0, 15, 23, 30, 0, 0) // local midnight-ish
+    const items = [
+      makeItem({ id: 'chat:a', when: d.getTime(), day: 'earlier' }),
+    ]
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ dateRange: { from: '2025-01-15', to: '2025-01-15' } }),
+      makeLocal(),
+    )
+    expect(result.totalCount).toBe(1)
+  })
+
+  it('date range: item at local 00:00 on day after to is excluded', () => {
+    const d = new Date(2025, 0, 16, 0, 0, 0, 0)
+    const items = [
+      makeItem({ id: 'chat:a', when: d.getTime(), day: 'earlier' }),
+    ]
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ dateRange: { from: null, to: '2025-01-15' } }),
+      makeLocal(),
+    )
+    expect(result.totalCount).toBe(0)
   })
 
   it('totalCount is 0 when nothing matches', () => {

@@ -109,15 +109,21 @@ export const useSessionsLocalStore = create<LocalState & LocalActions>()(
         if (stored.version !== 1) return { ...initialState }
         return stored as LocalState
       },
-      onRehydrateStorage: () => (state) => {
-        if (!state) return
-        // Migrate legacy pinned-sessions → namespaced ids (idempotent).
+      onRehydrateStorage: () => (state, error) => {
+        if (error || !state) return
+        // Migrate legacy pinned-sessions → namespaced ids (idempotent, one-shot).
         const legacy = readLegacyPinned()
         if (legacy.length === 0) return
         const existing = new Set(state.pinned)
         const toAdd = legacy.filter((id) => !existing.has(id))
         if (toAdd.length > 0) {
-          state.pinned = [...state.pinned, ...toAdd]
+          useSessionsLocalStore.setState({ pinned: [...state.pinned, ...toAdd] })
+        }
+        // Remove legacy key so migration only runs once.
+        try {
+          window.localStorage.removeItem('pinned-sessions')
+        } catch {
+          // ignore
         }
       },
     },

@@ -106,6 +106,42 @@ describe('sessions-local-store', () => {
     expect(result).toContain('chat:key2')
   })
 
+  it('rehydrate: legacy pinned-sessions merged into store state', async () => {
+    localStorageMock.setItem(
+      'pinned-sessions',
+      JSON.stringify({ state: { pinnedSessionKeys: ['abc', 'chat:def'] }, version: 0 }),
+    )
+    const useStore = await getStore()
+    // Trigger rehydrate
+    await useStore.persist.rehydrate()
+    const { pinned } = useStore.getState()
+    expect(pinned).toContain('chat:abc')
+    expect(pinned).toContain('chat:def')
+  })
+
+  it('rehydrate: legacy key removed after migration (one-shot)', async () => {
+    localStorageMock.setItem(
+      'pinned-sessions',
+      JSON.stringify({ state: { pinnedSessionKeys: ['abc'] }, version: 0 }),
+    )
+    const useStore = await getStore()
+    await useStore.persist.rehydrate()
+    expect(localStorageMock.getItem('pinned-sessions')).toBeNull()
+  })
+
+  it('rehydrate: idempotent — rehydrate twice yields same state', async () => {
+    localStorageMock.setItem(
+      'pinned-sessions',
+      JSON.stringify({ state: { pinnedSessionKeys: ['abc'] }, version: 0 }),
+    )
+    const useStore = await getStore()
+    await useStore.persist.rehydrate()
+    // After first rehydrate legacy key is gone; second rehydrate is a no-op
+    await useStore.persist.rehydrate()
+    const { pinned } = useStore.getState()
+    expect(pinned.filter((id) => id === 'chat:abc').length).toBe(1)
+  })
+
   it('future version (v99) drops to defaults', async () => {
     localStorageMock.setItem(
       'hermes.sessions.local',

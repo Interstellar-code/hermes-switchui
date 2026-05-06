@@ -48,13 +48,15 @@ function matchesDateRange(
 ): boolean {
   if (!from && !to) return true
   if (from) {
-    const fromMs = new Date(from).getTime()
+    const [fy, fm, fd] = from.split('-').map(Number)
+    const fromMs = new Date(fy, fm - 1, fd, 0, 0, 0, 0).getTime()
     if (Number.isFinite(fromMs) && item.when < fromMs) return false
   }
   if (to) {
-    // Inclusive to-day: add 24h
-    const toMs = new Date(to).getTime() + 86_400_000
-    if (Number.isFinite(toMs) && item.when >= toMs) return false
+    // Inclusive to-day: local end-of-day 23:59:59.999
+    const [ty, tm, td] = to.split('-').map(Number)
+    const toMs = new Date(ty, tm - 1, td, 23, 59, 59, 999).getTime()
+    if (Number.isFinite(toMs) && item.when > toMs) return false
   }
   return true
 }
@@ -69,7 +71,7 @@ function decorateItem(
     ...item,
     pinned: local.pinned.includes(item.id),
     starred: local.starred.includes(item.id),
-    archived: local.archived.includes(item.id),
+    archived: local.archived.includes(item.id) || item.state === 'archived',
   }
 }
 
