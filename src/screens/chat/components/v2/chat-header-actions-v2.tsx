@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { useSessionsLocalStore } from '@/stores/sessions-local-store'
 import { useSessionStatus } from '@/hooks/use-session-status'
+import { fetchSessions } from '@/screens/chat/chat-queries'
 
 type ChatHeaderActionsV2Props = {
   sessionId: string
@@ -17,21 +19,54 @@ export function ChatHeaderActionsV2({ sessionId, sessionKey, title }: ChatHeader
 
   // Pull live session metadata for the copy payload
   const status = useSessionStatus(sessionKey)
+  const sessionsQuery = useQuery({
+    queryKey: ['sessions-feed', 'chat', 'v2-api-cron-split'],
+    queryFn: fetchSessions,
+    staleTime: 30_000,
+  })
+  const meta = (sessionsQuery.data ?? []).find((s) => s.key === sessionKey)
   const [copied, setCopied] = useState(false)
 
+  const fmtTime = (ms?: number) =>
+    typeof ms === 'number' && ms > 0 ? new Date(ms).toLocaleString() : ''
+  const fmtDuration = (start?: number, end?: number) => {
+    if (!start || !end) return ''
+    const s = Math.max(0, Math.floor((end - start) / 1000))
+    if (s < 60) return `${s}s`
+    const m = Math.floor(s / 60)
+    if (m < 60) return `${m}m ${s % 60}s`
+    const h = Math.floor(m / 60)
+    return `${h}h ${m % 60}m`
+  }
+
   const handleCopy = async () => {
+    const startedAt = (meta as Record<string, unknown> | undefined)?.startedAt as number | undefined
+    const updatedAt = meta?.updatedAt
+    const created = fmtTime(startedAt)
+    const lastActive = fmtTime(updatedAt)
+    const duration = fmtDuration(startedAt, updatedAt)
     const lines = [
       `Title: ${title}`,
       `Session: ${sessionKey}`,
       `URL: ${typeof window !== 'undefined' ? window.location.href : ''}`,
-      status?.model ? `Model: ${status.model}` : null,
+      meta?.kind ? `Kind: ${meta.kind}` : null,
+      meta?.status ? `Status: ${meta.status}` : null,
+      meta?.model ? `Model: ${meta.model}` : status?.model ? `Model: ${status.model}` : null,
       status?.modelProvider ? `Provider: ${status.modelProvider}` : null,
-      typeof status?.contextPercent === 'number'
-        ? `Context: ${status.contextPercent}% (${status.usedTokens ?? 0} / ${status.maxTokens ?? 0})`
+      typeof meta?.messageCount === 'number' ? `Messages: ${meta.messageCount}` : null,
+      typeof meta?.toolCallCount === 'number' ? `Tool calls: ${meta.toolCallCount}` : null,
+      typeof meta?.tokenCount === 'number' && meta.tokenCount > 0
+        ? `Tokens (session): ${meta.tokenCount.toLocaleString()}`
         : null,
-      typeof status?.totalTokens === 'number'
-        ? `Tokens: ${status.totalTokens}`
+      typeof status?.contextPercent === 'number' && status.contextPercent > 0
+        ? `Context: ${status.contextPercent}% (${(status.usedTokens ?? 0).toLocaleString()} / ${(status.maxTokens ?? 0).toLocaleString()})`
         : null,
+      typeof status?.totalTokens === 'number' && status.totalTokens > 0
+        ? `Live tokens: ${status.totalTokens.toLocaleString()}`
+        : null,
+      created ? `Created: ${created}` : null,
+      lastActive ? `Last active: ${lastActive}` : null,
+      duration ? `Duration: ${duration}` : null,
     ].filter(Boolean)
     const text = lines.join('\n')
     try {
