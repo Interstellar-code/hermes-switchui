@@ -34,7 +34,7 @@ describe('ChatSourceTabsV2', () => {
     )
     expect(queryTab(container, 'chat')).not.toBeNull()
     expect(queryTab(container, 'tool')).not.toBeNull()
-    expect(queryTab(container, 'activity')).not.toBeNull()
+    expect(queryTab(container, 'skills')).not.toBeNull()
   })
 
   it('marks the active tab as selected', () => {
@@ -43,7 +43,7 @@ describe('ChatSourceTabsV2', () => {
     )
     expect(queryTab(container, 'tool')?.getAttribute('aria-selected')).toBe('true')
     expect(queryTab(container, 'chat')?.getAttribute('aria-selected')).toBe('false')
-    expect(queryTab(container, 'activity')?.getAttribute('aria-selected')).toBe('false')
+    expect(queryTab(container, 'skills')?.getAttribute('aria-selected')).toBe('false')
   })
 
   it('calls onTabChange with the correct tab id when clicked', () => {
@@ -52,9 +52,9 @@ describe('ChatSourceTabsV2', () => {
       <ChatSourceTabsV2 activeTab="chat" onTabChange={onTabChange} />,
     )
     act(() => {
-      queryTab(container, 'activity')?.click()
+      queryTab(container, 'skills')?.click()
     })
-    expect(onTabChange).toHaveBeenCalledWith('activity')
+    expect(onTabChange).toHaveBeenCalledWith('skills')
   })
 
   it('switches active tab when rerendered with new prop', () => {

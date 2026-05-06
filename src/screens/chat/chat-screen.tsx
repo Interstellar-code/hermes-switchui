@@ -104,7 +104,8 @@ import {
 import { useSidebarV2Flag } from './components/sidebar/v2/sidebar-flag'
 import { ChatHeaderV2 } from './components/v2/chat-header-v2'
 import { ChatMetaBarV2 } from './components/v2/chat-meta-bar-v2'
-import { ActivityTabView, ToolTabView } from './components/v2/chat-tab-views-v2'
+import { ToolTabView } from './components/v2/chat-tab-views-v2'
+import { ChatSkillsTabV2 } from './components/v2/chat-skills-tab-v2'
 import type { SourceTab } from './components/v2/chat-header-v2'
 
 type ChatScreenProps = {
@@ -2731,8 +2732,8 @@ export function ChatScreen({
 
           {sidebarV2 && activeTab === 'tool' ? (
             <ToolTabView messages={realtimeMessages} streamingToolCalls={activeToolCalls} events={realtimeLifecycleEvents} />
-          ) : sidebarV2 && activeTab === 'activity' ? (
-            <ActivityTabView events={realtimeLifecycleEvents} messages={realtimeMessages} streamingToolCalls={activeToolCalls} />
+          ) : sidebarV2 && activeTab === 'skills' ? (
+            <ChatSkillsTabV2 messages={realtimeMessages} streamingToolCalls={activeToolCalls} events={realtimeLifecycleEvents} />
           ) : null}
           {hideUi || (sidebarV2 && activeTab !== 'chat') ? null : (
             <ChatMessageList

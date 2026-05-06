@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
-export type SourceTab = 'chat' | 'tool' | 'activity'
+export type SourceTab = 'chat' | 'tool' | 'skills'
 
 type TabDef = {
   id: SourceTab
@@ -29,11 +29,13 @@ const TABS: Array<TabDef> = [
     ),
   },
   {
-    id: 'activity',
-    label: 'activity',
+    id: 'skills',
+    label: 'skills',
     icon: (
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+        <path d="M12 2L2 7l10 5 10-5-10-5z" />
+        <path d="M2 17l10 5 10-5" />
+        <path d="M2 12l10 5 10-5" />
       </svg>
     ),
   },

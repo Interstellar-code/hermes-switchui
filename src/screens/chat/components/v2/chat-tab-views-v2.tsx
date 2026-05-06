@@ -85,7 +85,18 @@ type FlatToolEntry = {
   input?: Record<string, unknown>
   output?: string
   isError?: boolean
+  /**
+   * Sort-order timestamp — may be a synthesised parent-message offset.
+   * Do NOT display this directly; use displayTs instead.
+   */
   timestamp?: number
+  /**
+   * Display timestamp — only set when the timestamp is reliably per-tool-call:
+   *   • firstSeenAt from the SSE stream (live runs)
+   *   • result-message timestamp (when a tool result message exists in history)
+   * Absent for old/history sessions where the gateway never persisted per-tool time.
+   */
+  displayTs?: number
 }
 
 /**
@@ -133,7 +144,7 @@ function phaseToStatus(phase: string): 'running' | 'done' | 'error' {
 }
 
 /** Build FlatToolEntry list from streaming tool calls */
-function extractStreamingEntries(
+export function extractStreamingEntries(
   streamingToolCalls: Array<StreamingToolCall>,
 ): Array<FlatToolEntry> {
   return streamingToolCalls.map((tc) => {
@@ -154,12 +165,14 @@ function extractStreamingEntries(
       input,
       output,
       isError: status === 'error',
+      // firstSeenAt is set by chat-store on SSE insert — reliable per-tool clock.
       timestamp: tc.firstSeenAt,
+      displayTs: tc.firstSeenAt,
     }
   })
 }
 
-function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> {
+export function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> {
   const entries: Array<FlatToolEntry> = []
   const resultsByCallId = new Map<string, RootLevelResult>()
 
@@ -229,6 +242,10 @@ function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> 
       if (c.type !== 'toolCall') continue
       const callId = c.id ?? ''
       const result = callId ? resultsByCallId.get(callId) : undefined
+      // result?.timestamp is the tool result message's timestamp — reliable.
+      // baseTs is the parent assistant message — shared across all calls in the
+      // turn, so we use it only for sort order, never for display.
+      const reliableTs = result?.timestamp
       entries.push({
         key: callId || `${c.name ?? 'tool'}-${entries.length}`,
         isCall: true,
@@ -237,7 +254,8 @@ function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> 
         input: c.arguments,
         output: result ? result.output : undefined,
         isError: result?.isError ?? false,
-        timestamp: result?.timestamp ?? baseTs + subIdx * 0.001,
+        timestamp: reliableTs ?? baseTs + subIdx * 0.001,
+        displayTs: reliableTs,
       })
       subIdx++
     }
@@ -251,7 +269,7 @@ function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> 
  * Scan all messages once and build callId → result-message timestamp.
  * Covers both root-level toolCallId messages and tool_result content blocks.
  */
-function buildResultTsMap(messages: Array<ChatMessage>): Map<string, number> {
+export function buildResultTsMap(messages: Array<ChatMessage>): Map<string, number> {
   const map = new Map<string, number>()
   for (const m of messages) {
     const ts = getMessageTimestamp(m)
@@ -273,7 +291,7 @@ function buildResultTsMap(messages: Array<ChatMessage>): Map<string, number> {
   return map
 }
 
-function extractStreamToolCallsFromMessages(
+export function extractStreamToolCallsFromMessages(
   messages: Array<ChatMessage>,
   resultTsMap: Map<string, number> = new Map(),
 ): Array<FlatToolEntry> {
@@ -307,6 +325,10 @@ function extractStreamToolCallsFromMessages(
             ? { value: tc.args }
             : undefined
       const output = status !== 'running' ? (tc.result ?? '') : undefined
+      // Reliable per-tool timestamp: firstSeenAt (SSE-stamped) or result-msg ts.
+      // baseTs (parent message) is shared across all calls in the turn — use
+      // only for sort order, never as a display timestamp.
+      const reliableTs = tc.firstSeenAt ?? resultTsMap.get(tc.id)
       entries.push({
         key: tc.id || `${tc.name}-${entries.length}`,
         isCall: true,
@@ -315,7 +337,8 @@ function extractStreamToolCallsFromMessages(
         input,
         output,
         isError: status === 'error',
-        timestamp: tc.firstSeenAt ?? resultTsMap.get(tc.id) ?? baseTs + subIdx * 0.001,
+        timestamp: reliableTs ?? baseTs + subIdx * 0.001,
+        displayTs: reliableTs,
       })
       subIdx++
     }
@@ -333,7 +356,7 @@ function extractStreamToolCallsFromMessages(
  * staleness (e.g. Responses API swallowing tool.completed) while the run
  * is still considered active.
  */
-function mergeToolEntries(
+export function mergeToolEntries(
   streamingEntries: Array<FlatToolEntry>,
   completedEntries: Array<FlatToolEntry>,
   messageEntries: Array<FlatToolEntry>,
@@ -348,29 +371,30 @@ function mergeToolEntries(
     byCallId.set(k, e)
   }
 
+  // bestDisplayTs: pick the most reliable displayTs across any source for a callId.
+  const bestTs = (
+    a: FlatToolEntry | undefined,
+    b: FlatToolEntry,
+  ): Pick<FlatToolEntry, 'timestamp' | 'displayTs'> => ({
+    // Sort timestamp: prefer a defined value; fall back to the other.
+    timestamp: a?.timestamp ?? b.timestamp,
+    // Display timestamp: prefer whichever source has a reliable per-tool ts.
+    displayTs: a?.displayTs ?? b.displayTs,
+  })
+
   for (const e of completedEntries) {
     const k = e.callId || e.key
     const existing = byCallId.get(k)
     if (!existing || !isSettled(existing) || isSettled(e)) {
-      // Preserve a real result-message timestamp from the prior entry when
-      // the higher-priority entry only has a synthesized parent-message ts.
-      const merged: FlatToolEntry = {
-        ...e,
-        timestamp: existing?.timestamp ?? e.timestamp,
-      }
-      byCallId.set(k, merged)
+      byCallId.set(k, { ...e, ...bestTs(existing, e) })
     }
   }
 
   for (const e of streamingEntries) {
     const k = e.callId || e.key
     const existing = byCallId.get(k)
-    // Preserve sibling timestamp when streaming entry lacks one
-    if (existing?.timestamp != null && e.timestamp == null) {
-      e.timestamp = existing.timestamp
-    }
     if (existing && isSettled(existing) && !isSettled(e)) continue
-    byCallId.set(k, e)
+    byCallId.set(k, { ...e, ...bestTs(existing, e) })
   }
 
   return Array.from(byCallId.values())
@@ -415,12 +439,12 @@ function ExpandableToolCard({ entry }: { entry: FlatToolEntry }) {
           <span className="opacity-40 truncate min-w-0 text-[10px]">{entry.callId}</span>
         ) : null}
         <span className="flex-1" />
-        {entry.timestamp ? (
+        {entry.displayTs ? (
           <span
             className="shrink-0 opacity-40 text-[10px] tabular-nums"
-            title={new Date(entry.timestamp).toLocaleString()}
+            title={new Date(entry.displayTs).toLocaleString()}
           >
-            {new Date(entry.timestamp).toLocaleTimeString([], {
+            {new Date(entry.displayTs).toLocaleTimeString([], {
               hour: '2-digit',
               minute: '2-digit',
               second: '2-digit',
@@ -783,9 +807,9 @@ export function ActivityTabView({ events, messages = [], streamingToolCalls = []
               tool · <span style={greenStyle}>{displayName}</span> ·{' '}
               <span style={{ color: badge.color }}>{badge.label}</span>
             </span>
-            {entry.timestamp ? (
+            {entry.displayTs ? (
               <span className="opacity-40 ml-auto shrink-0 tabular-nums">
-                {new Date(entry.timestamp).toLocaleTimeString([], {
+                {new Date(entry.displayTs).toLocaleTimeString([], {
                   hour: '2-digit',
                   minute: '2-digit',
                   second: '2-digit',
