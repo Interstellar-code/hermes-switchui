@@ -26,6 +26,16 @@ const SOURCE_DEFS: Array<{ id: SessionSource; label: string; icon: React.ReactNo
     ),
   },
   {
+    id: 'cron',
+    label: 'CRON',
+    icon: (
+      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden>
+        <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5"/>
+        <path d="M8 5v3.5l2.5 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+  {
     id: 'tool',
     label: 'TOOLS',
     icon: (
@@ -49,6 +59,7 @@ const SOURCE_DEFS: Array<{ id: SessionSource; label: string; icon: React.ReactNo
 
 const SOURCE_COLORS: Record<SessionSource, string> = {
   chat: 'var(--m-green-400, #00ff41)',
+  cron: '#d6ff5f',
   tool: '#b98aff',
   tg: '#ff5fa2',
 }
