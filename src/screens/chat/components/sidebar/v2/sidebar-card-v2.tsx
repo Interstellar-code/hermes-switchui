@@ -123,24 +123,26 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
 
   const cardContent = (
     <div
-      className="w-full flex items-stretch text-left transition-all"
+      className="w-full flex items-stretch text-left transition-all group/card"
       data-testid={`session-card-${item.id}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onContextMenu={handleContextMenu}
       style={{
         background: isActive
-          ? 'color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 8%, var(--theme-card))'
-          : 'transparent',
+          ? `color-mix(in srgb, ${railColor} 12%, var(--theme-card))`
+          : hovered
+            ? 'color-mix(in srgb, var(--theme-card) 60%, transparent)'
+            : 'transparent',
         borderBottom: '1px solid var(--theme-border-subtle, var(--theme-border))',
         borderLeft: isActive ? `2px solid ${railColor}` : '2px solid transparent',
-        boxShadow: isActive ? `inset 2px 0 8px ${railColor}44` : 'none',
+        boxShadow: isActive ? `inset 4px 0 12px ${railColor}55, 0 0 8px ${railColor}33` : 'none',
         cursor: isClickable ? 'pointer' : 'default',
-        minHeight: 56,
+        minHeight: 60,
         position: 'relative',
       }}
     >
-      {/* Left rail — 3px color strip */}
+      {/* Left rail — 3px color strip with glow on active/hover/live */}
       <div
         aria-hidden
         data-testid={`card-rail-${item.src}`}
@@ -148,20 +150,39 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
           width: 3,
           background: railColor,
           flexShrink: 0,
-          boxShadow: railGlow,
+          boxShadow: isActive || hovered || item.live ? `0 0 8px ${railColor}, 0 0 4px ${railColor}` : `0 0 2px ${railColor}66`,
+          opacity: isActive ? 1 : hovered ? 0.95 : 0.75,
+          transition: 'box-shadow 120ms ease-out, opacity 120ms ease-out',
         }}
       />
 
       {/* Body */}
-      <div className="flex flex-col justify-center gap-0.5 px-2 py-2 min-w-0 flex-1">
+      <div className="flex flex-col justify-center gap-1 px-2.5 py-2 min-w-0 flex-1">
         {/* Title line */}
-        <div className="flex items-center gap-1 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
           {item.pinned && (
-            <span style={{ color: 'var(--m-green-400, var(--theme-accent))', fontSize: 10, flexShrink: 0 }}>★</span>
+            <span
+              style={{
+                color: 'var(--m-green-400, var(--theme-accent))',
+                fontSize: 10,
+                flexShrink: 0,
+                textShadow: '0 0 4px var(--m-green-500, var(--theme-accent))',
+              }}
+            >
+              ★
+            </span>
           )}
           <span
-            className="text-xs font-medium truncate"
-            style={{ color: 'var(--theme-text)' }}
+            className="truncate"
+            style={{
+              color: isActive ? 'var(--m-green-400, var(--theme-accent))' : 'var(--theme-text)',
+              fontFamily: 'var(--font-mono, monospace)',
+              fontSize: 12.5,
+              fontWeight: isActive ? 600 : 500,
+              letterSpacing: '0.01em',
+              lineHeight: 1.35,
+              textShadow: isActive ? `0 0 6px ${railColor}55` : 'none',
+            }}
           >
             {item.title}
           </span>
@@ -169,43 +190,23 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
 
         {/* Meta row: src · sub */}
         <span
-          className="text-xs truncate"
+          className="truncate"
           style={{
             color: 'var(--theme-muted)',
             fontFamily: 'var(--font-mono, monospace)',
-            fontSize: 9,
+            fontSize: 10,
+            opacity: 0.65,
+            letterSpacing: '0.02em',
           }}
         >
-          <span style={{ opacity: 0.7 }}>{item.src}</span>
+          <span style={{ color: railColor, opacity: 0.85, textTransform: 'lowercase' }}>{item.src}</span>
           {item.sub ? (
             <>
               <span style={{ opacity: 0.4 }}> · </span>
-              <span style={{ opacity: 0.6 }}>{item.sub}</span>
+              <span>{item.sub}</span>
             </>
           ) : null}
         </span>
-
-        {/* Badges row */}
-        {item.badges.length > 0 && (
-          <div className="flex flex-wrap gap-0.5 mt-0.5">
-            {item.live && (
-              <Badge text="live" badgeStyle={getBadgeStyle('live')} pulse />
-            )}
-            {item.badges.map((badge, i) => (
-              <Badge key={i} text={badge.text} badgeStyle={badge.color ? {
-                background: `color-mix(in srgb, ${badge.color} 20%, transparent)`,
-                color: badge.color,
-                border: `1px solid ${badge.color}66`,
-              } : getBadgeStyle(badge.text)} />
-            ))}
-          </div>
-        )}
-        {/* Live badge even without other badges */}
-        {item.live && item.badges.length === 0 && (
-          <div className="flex flex-wrap gap-0.5 mt-0.5">
-            <Badge text="live" badgeStyle={getBadgeStyle('live')} pulse />
-          </div>
-        )}
       </div>
 
       {/* Right column: time + tokens + three-dot menu trigger */}
