@@ -56,8 +56,14 @@ function categorizeEntry(entry: FlatToolEntry): string {
   if (has('query', 'q', 'reasoning_level') || /\b(search|find|grep|query)\b/.test(name)) return 'search'
   if (has('url', 'href') || /\b(web|browser|fetch|http)\b/.test(name)) return 'web'
   if (has('file_path', 'path', 'target_file', 'filepath') || /\b(read|write|edit|file|notebook)\b/.test(name)) return 'file'
-  if (/\b(skill|todo|task)\b/.test(name)) return 'skill'
-  if (/\b(honcho|memory|recall|remember|context|profile|reasoning)\b/.test(name)) return 'memory'
+  // Strict skill system tools per Hermes Agent canonical taxonomy
+  if (name === 'skill' || name === 'skill_view' || name === 'skill_manage' || name === 'skills_list') return 'skill'
+  // todo is its own tool, not a skill
+  if (name === 'todo') return 'todo'
+  // kanban task tool
+  if (name === 'task' || /\bkanban\b/.test(name)) return 'kanban'
+  // plugin tools: honcho_*, mem0_*
+  if (/\b(honcho|mem0|memory|recall|remember|context|profile|reasoning)\b/.test(name)) return 'memory'
   if (has('job_id', 'schedule', 'repeat') || /\bcron\b/.test(name)) return 'cron'
   return 'other'
 }

@@ -46,7 +46,7 @@ type SkillGroup = {
   count: number
   lastInvokedTs?: number
   status: 'error' | 'done' | 'running'
-  kind: 'loaded' | 'invoked'
+  kind: 'loaded' | 'edited' | 'enumerate'
 }
 
 const tabStyle: React.CSSProperties = {
@@ -115,7 +115,7 @@ function argsSummary(args?: Record<string, unknown>): string {
   return ''
 }
 
-type SkillFilter = 'all' | 'loaded' | 'invoked' | 'errored'
+type SkillFilter = 'all' | 'loaded' | 'edited' | 'enumerate' | 'errored'
 
 function SkillCard({ group }: { group: SkillGroup }) {
   const [open, setOpen] = useState(false)
@@ -215,24 +215,56 @@ export function ChatSkillsTabV2({ messages, streamingToolCalls = [], events: _ev
   const messageEntries = extractToolEntries(messages)
   const allEntries = mergeToolEntries(streamingEntries, completedEntries, messageEntries)
 
-  // Filter to skill-shaped entries:
-  //   - name === 'skill' → gateway-translated skill.loaded event; skill name in result
-  //   - name matches skill/todo/task → tool invocations of skills (todo, task plugins)
-  const isSkill = (e: { name: string }) => {
-    const n = (e.name || '').toLowerCase()
-    return n === 'skill' || /\b(skill|todo|task)\b/.test(n)
-  }
-  const skillEntries = allEntries.filter(isSkill)
+  // Filter to skill-system entries per Hermes Agent canonical taxonomy:
+  //   - name === 'skill'        → legacy gateway-translated skill.loaded event
+  //   - name === 'skills_list'  → Tier-0 enumerate
+  //   - name === 'skill_view'   → Tier-1/2 load or drill
+  //   - name === 'skill_manage' → create/edit/patch/delete
+  const SKILL_TOOL_NAMES = new Set(['skills_list', 'skill_view', 'skill_manage'])
+  const isSkillSystemEntry = (e: { name: string }) =>
+    e.name === 'skill' || SKILL_TOOL_NAMES.has(e.name)
+  const skillEntries = allEntries.filter(isSkillSystemEntry)
 
-  // Group by skill name. For 'skill' entries use entry.output (the loaded
-  // SKILL name); for direct invocations (todo, task) use entry.name itself.
+  /**
+   * Resolve the skill name from a tool entry.
+   * - 'skill' (legacy gateway event): name is in entry.output
+   * - 'skill_view' / 'skill_manage': name is in entry.input.name (may be
+   *   string-wrapped inside a `value` JSON field)
+   * - 'skills_list': catalog enumeration, no specific skill
+   */
+  function resolveSkillName(entry: { name: string; output?: string; input?: Record<string, unknown> }): string {
+    if (entry.name === 'skill') {
+      return (typeof entry.output === 'string' ? entry.output.trim() : '') || 'unknown skill'
+    }
+    if (entry.name === 'skills_list') {
+      return '(skill catalog enumeration)'
+    }
+    // skill_view / skill_manage: extract `name` arg
+    if (entry.input) {
+      let args: Record<string, unknown> = entry.input
+      const v = args.value
+      if (typeof v === 'string') {
+        try {
+          const parsed = JSON.parse(v) as Record<string, unknown>
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) args = parsed
+        } catch { /* keep wrapper */ }
+      }
+      const n = args.name
+      if (typeof n === 'string' && n.trim()) return n.trim()
+    }
+    return 'unknown skill'
+  }
+
+  function resolveKind(name: string): SkillGroup['kind'] {
+    if (name === 'skills_list') return 'enumerate'
+    if (name === 'skill_manage') return 'edited'
+    return 'loaded' // 'skill' (legacy) and 'skill_view'
+  }
+
+  // Group by skill name.
   const groupMap = new Map<string, SkillGroup>()
   for (const entry of skillEntries) {
-    const fromResult = typeof entry.output === 'string' ? entry.output.trim() : ''
-    const skillName =
-      entry.name === 'skill'
-        ? fromResult || 'unknown skill'
-        : entry.name || 'unknown skill'
+    const skillName = resolveSkillName(entry)
     let group = groupMap.get(skillName)
     if (!group) {
       group = {
@@ -241,7 +273,7 @@ export function ChatSkillsTabV2({ messages, streamingToolCalls = [], events: _ev
         count: 0,
         lastInvokedTs: undefined,
         status: 'done',
-        kind: entry.name === 'skill' ? 'loaded' : 'invoked',
+        kind: resolveKind(entry.name),
       }
       groupMap.set(skillName, group)
     }
@@ -274,7 +306,8 @@ export function ChatSkillsTabV2({ messages, streamingToolCalls = [], events: _ev
   const visibleGroups = allGroups.filter((g) => {
     if (filter === 'all') return true
     if (filter === 'loaded') return g.kind === 'loaded'
-    if (filter === 'invoked') return g.kind === 'invoked'
+    if (filter === 'edited') return g.kind === 'edited'
+    if (filter === 'enumerate') return g.kind === 'enumerate'
     if (filter === 'errored') return g.status === 'error'
     return true
   })
@@ -282,7 +315,7 @@ export function ChatSkillsTabV2({ messages, streamingToolCalls = [], events: _ev
   return (
     <div className="flex-1 min-h-0 overflow-y-auto flex flex-col font-mono text-xs" style={tabStyle}>
       <div className="flex items-center gap-1.5 px-4 pt-3 pb-2 shrink-0">
-        {(['all', 'loaded', 'invoked', 'errored'] as const).map((f) => (
+        {(['all', 'loaded', 'edited', 'enumerate', 'errored'] as const).map((f) => (
           <button
             key={f}
             type="button"

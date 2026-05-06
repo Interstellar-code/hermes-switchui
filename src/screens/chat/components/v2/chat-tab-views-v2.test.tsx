@@ -251,6 +251,61 @@ describe('ToolTabView streaming tool calls', () => {
     expect(container.textContent).toContain('profile data')
   })
 
+  it('todo tool is not categorized as skill chip', () => {
+    // todo is its own tool, not a skill; it should NOT appear under 'skill' filter
+    const messages = [
+      {
+        role: 'assistant',
+        content: [],
+        __streamToolCalls: [{ id: 'call_todo', name: 'todo', phase: 'complete', args: { todos: [] }, result: 'ok' }],
+      },
+    ] as any
+    const container = renderInto(<ToolTabView messages={messages} streamingToolCalls={[]} />)
+    // The 'skill' filter pill should NOT appear since there are no skill entries
+    const pills = container.querySelectorAll('button')
+    const skillPill = Array.from(pills).find((b) => b.textContent === 'skill')
+    expect(skillPill).toBeUndefined()
+    // But 'todo' pill should appear
+    const todoPill = Array.from(pills).find((b) => b.textContent === 'todo')
+    expect(todoPill).not.toBeUndefined()
+  })
+
+  it('task tool appears under kanban category not skill', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: [],
+        __streamToolCalls: [{ id: 'call_task', name: 'task', phase: 'complete', args: { title: 'fix' }, result: 'ok' }],
+      },
+    ] as any
+    const container = renderInto(<ToolTabView messages={messages} streamingToolCalls={[]} />)
+    const pills = container.querySelectorAll('button')
+    const skillPill = Array.from(pills).find((b) => b.textContent === 'skill')
+    expect(skillPill).toBeUndefined()
+    const kanbanPill = Array.from(pills).find((b) => b.textContent === 'kanban')
+    expect(kanbanPill).not.toBeUndefined()
+  })
+
+  it('skill_view tool appears under skill category', () => {
+    const streamingToolCalls = [
+      { id: 'sv1', name: 'skill_view', phase: 'complete', args: { name: 'caveman' }, result: '# caveman' },
+    ]
+    const container = renderInto(<ToolTabView messages={[]} streamingToolCalls={streamingToolCalls} />)
+    const pills = container.querySelectorAll('button')
+    const skillPill = Array.from(pills).find((b) => b.textContent === 'skill')
+    expect(skillPill).not.toBeUndefined()
+  })
+
+  it('skills_list tool appears under skill category', () => {
+    const streamingToolCalls = [
+      { id: 'sl1', name: 'skills_list', phase: 'complete', args: {}, result: 'caveman, ralph' },
+    ]
+    const container = renderInto(<ToolTabView messages={[]} streamingToolCalls={streamingToolCalls} />)
+    const pills = container.querySelectorAll('button')
+    const skillPill = Array.from(pills).find((b) => b.textContent === 'skill')
+    expect(skillPill).not.toBeUndefined()
+  })
+
   it('settled message entry beats stuck-running streaming entry for same callId', () => {
     // Live streaming entry for call_a has phase 'calling' (stuck), while a
     // history/__streamToolCalls entry for the same id is already done with a
