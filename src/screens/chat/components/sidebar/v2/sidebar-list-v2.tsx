@@ -9,9 +9,32 @@
  * Virtualization: @tanstack/react-virtual not in deps — native scroll fallback.
  */
 
+import { useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { SidebarCardV2 } from './sidebar-card-v2'
 import type { DayGroupLabel, SessionDayGroup } from '@/screens/chat/apply-filters-and-decorate'
+
+const COLLAPSED_KEY = 'hermes.sessions.groups.collapsed'
+
+function readCollapsedMap(): Record<string, boolean> {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = window.localStorage.getItem(COLLAPSED_KEY)
+    if (!raw) return {}
+    return JSON.parse(raw) as Record<string, boolean>
+  } catch {
+    return {}
+  }
+}
+
+function writeCollapsedMap(map: Record<string, boolean>): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(COLLAPSED_KEY, JSON.stringify(map))
+  } catch {
+    /* noop */
+  }
+}
 
 // ── Group label colors ────────────────────────────────────────────────────────
 
@@ -27,6 +50,14 @@ interface SidebarListV2Props {
 }
 
 export function SidebarListV2({ groups }: SidebarListV2Props) {
+  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(readCollapsedMap)
+  const toggleGroup = (label: DayGroupLabel) => {
+    setCollapsedMap((prev) => {
+      const next = { ...prev, [label]: !prev[label] }
+      writeCollapsedMap(next)
+      return next
+    })
+  }
 
   // Determine active route from router
   const pathname = useRouterState({ select: (s) => s.location.pathname })
@@ -53,15 +84,40 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
     <div className="flex flex-col flex-1 overflow-hidden">
       {/* List */}
       <div className="flex-1 overflow-y-auto" data-testid="sessions-list-v2">
-        {groups.map(({ label, items: groupItems }) => (
+        {groups.map(({ label, items: groupItems }) => {
+          const isCollapsed = collapsedMap[label] === true
+          return (
           <div key={label}>
-            {/* Sticky group header */}
-            <div
-              className="flex items-center gap-2 px-3 pt-3 pb-1 sticky top-0 z-10 select-none"
+            {/* Sticky group header (clickable accordion toggle) */}
+            <button
+              type="button"
+              onClick={() => toggleGroup(label)}
+              aria-expanded={!isCollapsed}
+              aria-controls={`group-${label}`}
+              className="flex items-center gap-2 px-3 pt-3 pb-1 sticky top-0 z-10 select-none w-full"
               style={{
                 background: 'var(--theme-sidebar)',
+                border: 'none',
+                cursor: 'pointer',
+                color: 'inherit',
               }}
             >
+              <span
+                aria-hidden
+                style={{
+                  display: 'inline-block',
+                  fontSize: 8,
+                  width: 10,
+                  textAlign: 'center',
+                  color: 'var(--theme-muted)',
+                  opacity: 0.7,
+                  transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                  transition: 'transform 120ms ease-out',
+                  fontFamily: 'var(--font-mono, monospace)',
+                }}
+              >
+                ▼
+              </span>
               <span
                 className="font-bold uppercase"
                 style={{
@@ -97,21 +153,26 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
                   opacity: 0.5,
                 }}
               />
-            </div>
+            </button>
 
             {/* Cards */}
-            {groupItems.map((item) => {
-              const rawId = item.id.split(':').slice(1).join(':')
-              let isActive = false
-              if (item.src === 'chat') {
-                isActive = rawId === activeSessionKey
-              }
-              return (
-                <SidebarCardV2 key={item.id} item={item} isActive={isActive} />
-              )
-            })}
+            {!isCollapsed && (
+              <div id={`group-${label}`}>
+                {groupItems.map((item) => {
+                  const rawId = item.id.split(':').slice(1).join(':')
+                  let isActive = false
+                  if (item.src === 'chat') {
+                    isActive = rawId === activeSessionKey
+                  }
+                  return (
+                    <SidebarCardV2 key={item.id} item={item} isActive={isActive} />
+                  )
+                })}
+              </div>
+            )}
           </div>
-        ))}
+          )
+        })}
       </div>
 
       <NewChatFooter />
