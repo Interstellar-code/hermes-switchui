@@ -166,12 +166,20 @@ function readString(value: unknown): string {
 }
 
 async function firstValidDirectory(
-  candidates: Array<{ path: string; source: string; create?: boolean }>,
+  candidates: Array<{
+    path: string
+    source: string
+    create?: boolean
+    basePath?: string
+  }>,
 ): Promise<{ path: string; source: string } | null> {
   for (const candidate of candidates) {
     const raw = candidate.path.trim()
-    if (!raw || raw === '.') continue
-    const resolved = normalizeCandidate(raw)
+    if (!raw) continue
+    const resolved =
+      candidate.basePath && !path.isAbsolute(expandHome(raw))
+        ? path.resolve(candidate.basePath, expandHome(raw))
+        : normalizeCandidate(raw)
     if (candidate.create) {
       try {
         await fs.mkdir(resolved, { recursive: true })
@@ -185,6 +193,50 @@ async function firstValidDirectory(
     }
   }
   return null
+}
+
+function readRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function deriveWorkspaceFromKnowledgePath(input: unknown): string {
+  const rawPath = readString(input)
+  if (!rawPath) return ''
+  const resolved = normalizeCandidate(rawPath)
+  const segments = resolved.split(path.sep)
+  const wikiIndex = segments.findIndex(
+    (segment) => segment === 'wiki' || segment === 'wikis',
+  )
+  if (wikiIndex > 0)
+    return segments.slice(0, wikiIndex).join(path.sep) || path.sep
+  return path.dirname(resolved)
+}
+
+function knowledgeWorkspaceCandidates(
+  cfg: Record<string, unknown>,
+): Array<{ path: string; source: string }> {
+  const knowledge = readRecord(cfg.knowledge)
+  const llmWiki = readRecord(cfg.llm_wiki)
+  return [
+    {
+      path: deriveWorkspaceFromKnowledgePath(knowledge.wiki_path),
+      source: 'config.knowledge.wiki_path',
+    },
+    {
+      path: deriveWorkspaceFromKnowledgePath(knowledge.path),
+      source: 'config.knowledge.path',
+    },
+    {
+      path: deriveWorkspaceFromKnowledgePath(llmWiki.path),
+      source: 'config.llm_wiki.path',
+    },
+    {
+      path: deriveWorkspaceFromKnowledgePath(llmWiki.wiki_path),
+      source: 'config.llm_wiki.wiki_path',
+    },
+  ]
 }
 
 function activeProfileHome(): string {
@@ -251,12 +303,20 @@ async function configuredDefaultWorkspace(): Promise<{
 } | null> {
   const profileHome = activeProfileHome()
   const cfg = await readYamlConfig(path.join(profileHome, 'config.yaml'))
-  const terminal = cfg.terminal
-  const terminalCwd =
-    terminal && typeof terminal === 'object' && !Array.isArray(terminal)
-      ? readString((terminal as Record<string, unknown>).cwd)
-      : ''
+  const terminalCwd = readString(readRecord(cfg.terminal).cwd)
 
+  /*
+   * Default workspace priority:
+   * 1. Explicit env overrides.
+   * 2. Explicit profile workspace strings (`workspace`, `default_workspace`).
+   *    Non-string workspace objects are Hermes agent settings, not paths.
+   * 3. `terminal.cwd`, resolved relative to the active profile home for `.` or
+   *    other relative values, then filtered by the normal workspace guards.
+   * 4. Workspace inferred from knowledge wiki paths, e.g.
+   *    `/Users/me/hermes/wikis/project` -> `/Users/me/hermes`.
+   * 5. Existing user defaults (`~/workspace`, `~/work`), then create
+   *    `~/workspace` as the final user-workspace fallback.
+   */
   return firstValidDirectory([
     { path: process.env.HERMES_WORKSPACE_DIR ?? '', source: 'env' },
     { path: process.env.CLAUDE_WORKSPACE_DIR ?? '', source: 'env' },
@@ -266,7 +326,12 @@ async function configuredDefaultWorkspace(): Promise<{
       path: readString(cfg.default_workspace),
       source: 'config.default_workspace',
     },
-    { path: terminalCwd, source: 'config.terminal.cwd' },
+    {
+      path: terminalCwd,
+      source: 'config.terminal.cwd',
+      basePath: profileHome,
+    },
+    ...knowledgeWorkspaceCandidates(cfg),
     { path: path.join(os.homedir(), 'workspace'), source: 'home.workspace' },
     { path: path.join(os.homedir(), 'work'), source: 'home.work' },
     {
