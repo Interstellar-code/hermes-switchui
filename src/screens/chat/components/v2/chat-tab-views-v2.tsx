@@ -21,7 +21,10 @@ type StreamingToolCall = {
 type ToolTabViewProps = {
   messages: Array<ChatMessage>
   streamingToolCalls?: Array<StreamingToolCall>
+  events?: Array<LifecycleEvent>
 }
+
+type ToolTabFilter = 'all' | 'tools' | 'events'
 
 type ActivityTabViewProps = {
   events: Array<LifecycleEvent>
@@ -371,31 +374,129 @@ function ExpandableToolCard({ entry }: { entry: FlatToolEntry }) {
   )
 }
 
-export function ToolTabView({ messages, streamingToolCalls = [] }: ToolTabViewProps) {
+type MixedRow =
+  | { kind: 'tool'; entry: FlatToolEntry; ts: number }
+  | { kind: 'lifecycle'; event: LifecycleEvent; ts: number }
+  | { kind: 'gap'; minutes: number; id: string }
+
+function buildMixedRows(
+  entries: Array<FlatToolEntry>,
+  events: Array<LifecycleEvent>,
+): Array<MixedRow> {
+  // Sort tool entries chronologically (stable — entries without timestamps last)
+  const sortedEntries = [...entries].sort(
+    (a, b) => (a.timestamp ?? Infinity) - (b.timestamp ?? Infinity),
+  )
+
+  const items: Array<{ kind: 'tool' | 'lifecycle'; ts: number; entry?: FlatToolEntry; event?: LifecycleEvent }> = [
+    ...sortedEntries.map((e) => ({ kind: 'tool' as const, ts: e.timestamp ?? Infinity, entry: e })),
+    ...events.map((ev) => ({ kind: 'lifecycle' as const, ts: ev.timestamp, event: ev })),
+  ]
+  items.sort((a, b) => a.ts - b.ts)
+
+  const rows: Array<MixedRow> = []
+  let prevTs: number | null = null
+  for (const item of items) {
+    if (prevTs !== null && item.ts !== Infinity && item.ts - prevTs > 60_000) {
+      const minutes = Math.round((item.ts - prevTs) / 60_000)
+      rows.push({ kind: 'gap', minutes, id: `gap-${prevTs}-${item.ts}` })
+    }
+    if (item.kind === 'tool') {
+      rows.push({ kind: 'tool', entry: item.entry!, ts: item.ts })
+    } else {
+      rows.push({ kind: 'lifecycle', event: item.event!, ts: item.ts })
+    }
+    if (item.ts !== Infinity) prevTs = item.ts
+  }
+  return rows
+}
+
+const filterPillStyle = (active: boolean): React.CSSProperties => ({
+  background: active ? 'var(--m-green, #4ade80)' : 'transparent',
+  border: `1px solid ${active ? 'var(--m-green, #4ade80)' : 'var(--m-border, var(--theme-border))'}`,
+  color: active ? 'var(--theme-bg, #000)' : 'var(--m-muted, var(--theme-muted))',
+  borderRadius: '9999px',
+  padding: '1px 8px',
+  fontSize: '9px',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  fontWeight: active ? 600 : 400,
+})
+
+export function ToolTabView({ messages, streamingToolCalls = [], events = [] }: ToolTabViewProps) {
+  const [filter, setFilter] = useState<ToolTabFilter>('all')
+
   const streamingEntries = extractStreamingEntries(streamingToolCalls)
   const completedEntries = extractStreamToolCallsFromMessages(messages)
   const messageEntries = extractToolEntries(messages)
   const entries = mergeToolEntries(streamingEntries, completedEntries, messageEntries)
 
-  if (entries.length === 0) {
-    return (
-      <div
-        className="flex-1 min-h-0 overflow-y-auto p-4 font-mono text-xs"
-        style={toolViewStyle}
-      >
-        <p className="opacity-40 text-center mt-8">No tool invocations yet</p>
-      </div>
-    )
-  }
+  const allRows = buildMixedRows(entries, events)
+
+  const visibleRows = allRows.filter((row) => {
+    if (filter === 'tools') return row.kind !== 'lifecycle'
+    if (filter === 'events') return row.kind !== 'tool'
+    return true
+  })
+
+  const isEmpty = entries.length === 0 && events.length === 0
 
   return (
-    <div
-      className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2 font-mono text-xs"
-      style={toolViewStyle}
-    >
-      {entries.map((entry) => (
-        <ExpandableToolCard key={entry.key} entry={entry} />
-      ))}
+    <div className="flex-1 min-h-0 overflow-y-auto flex flex-col font-mono text-xs" style={toolViewStyle}>
+      {/* Filter pill row */}
+      <div className="flex items-center gap-1.5 px-4 pt-3 pb-2 shrink-0">
+        {(['all', 'tools', 'events'] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            style={filterPillStyle(filter === f)}
+            onClick={() => setFilter(f)}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
+
+      {isEmpty ? (
+        <div className="flex-1 flex items-start justify-center pt-8 p-4">
+          <p className="opacity-40 text-center">No tool invocations yet</p>
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0 p-4 pt-1 space-y-2">
+          {visibleRows.map((row, i) => {
+            if (row.kind === 'gap') {
+              return (
+                <div
+                  key={row.id}
+                  className="text-center tabular-nums opacity-30"
+                  style={{ fontSize: '9px', letterSpacing: '0.05em' }}
+                >
+                  ··· {row.minutes}m gap ···
+                </div>
+              )
+            }
+            if (row.kind === 'lifecycle') {
+              const ev = row.event
+              return (
+                <div key={`lc-${i}`} className="flex items-center gap-2" style={{ fontSize: '9px' }}>
+                  <ActivityDot isError={ev.isError} />
+                  <span className={ev.isError ? 'text-red-400 shrink-0' : 'opacity-70 shrink-0'}>
+                    {ev.text}
+                  </span>
+                  <span className="opacity-40 ml-auto shrink-0 tabular-nums">
+                    {new Date(ev.timestamp).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    })}
+                  </span>
+                </div>
+              )
+            }
+            return <ExpandableToolCard key={row.entry.key} entry={row.entry} />
+          })}
+        </div>
+      )}
     </div>
   )
 }
