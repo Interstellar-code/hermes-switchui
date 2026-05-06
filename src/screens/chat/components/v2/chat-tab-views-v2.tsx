@@ -147,10 +147,19 @@ function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> 
 function extractStreamToolCallsFromMessages(messages: Array<ChatMessage>): Array<FlatToolEntry> {
   const entries: Array<FlatToolEntry> = []
   for (const m of messages) {
-    const streamToolCalls = (m as unknown as Record<string, unknown>).__streamToolCalls
+    const mAny = m as unknown as Record<string, unknown>
+    const streamToolCalls = mAny.__streamToolCalls
     if (!Array.isArray(streamToolCalls)) continue
+    // Defensive: if the enclosing message has finished streaming, treat
+    // non-error tool calls as settled even when their phase string is
+    // 'start'/'calling'. Upstream (Responses API → tool event translation
+    // in src/routes/api/send-stream.ts) intentionally swallows
+    // tool.completed for some tools, leaving phase stuck. The message-level
+    // __streamingStatus === 'complete' tells us the run is over.
+    const messageSettled = mAny.__streamingStatus === 'complete'
     for (const tc of streamToolCalls as Array<StreamingToolCall>) {
-      const status = phaseToStatus(tc.phase)
+      let status = phaseToStatus(tc.phase)
+      if (messageSettled && status === 'running') status = 'done'
       const input =
         tc.args && typeof tc.args === 'object' && !Array.isArray(tc.args)
           ? (tc.args as Record<string, unknown>)

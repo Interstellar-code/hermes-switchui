@@ -171,4 +171,21 @@ describe('ToolTabView streaming tool calls', () => {
     )
     expect(container.textContent).toContain('running')
   })
+
+  it('messageSettled overrides stuck running phase to done (Responses API gap)', () => {
+    // Upstream sometimes swallows tool.completed; phase stays 'calling'/'start'.
+    // If the enclosing message has __streamingStatus === 'complete', treat as done.
+    const messages = [
+      {
+        role: 'assistant',
+        __streamingStatus: 'complete',
+        __streamToolCalls: [
+          { id: 'call_stuck', name: 'todo', phase: 'calling', args: { x: 1 } },
+        ],
+      } as unknown as Parameters<typeof ToolTabView>[0]['messages'][number],
+    ]
+    const container = renderInto(<ToolTabView messages={messages} streamingToolCalls={[]} />)
+    expect(container.textContent).toContain('done')
+    expect(container.textContent).not.toContain('running')
+  })
 })
