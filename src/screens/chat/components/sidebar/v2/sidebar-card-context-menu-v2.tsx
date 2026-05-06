@@ -11,11 +11,13 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import type { SessionFeedItem } from '@/screens/chat/sessions-feed-types'
 import { SessionDeleteDialog } from '@/screens/chat/components/sidebar/session-delete-dialog'
 import { SessionRenameDialog } from '@/screens/chat/components/sidebar/session-rename-dialog'
 import { archiveTask } from '@/lib/tasks-api'
 import { useSessionsLocalStore } from '@/stores/sessions-local-store'
+import { useDeleteSession } from '@/screens/chat/hooks/use-delete-session'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -83,8 +85,19 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
     onClose()
   }
 
-  // Delete confirm — for now closes; API call wired from v1 flow
+  const { deleteSession } = useDeleteSession()
+  const navigate = useNavigate()
+  const currentPath = useRouterState({ select: (s) => s.location.pathname })
+  const isActive = isChatItem && currentPath.includes(`/chat/${rawId}`)
+
   function handleDeleteConfirm() {
+    if (isChatItem && rawId) {
+      void deleteSession(rawId, rawId, isActive).then(() => {
+        if (isActive) {
+          void navigate({ to: '/chat/$sessionKey', params: { sessionKey: 'new' } })
+        }
+      })
+    }
     setDeleteOpen(false)
     onClose()
   }
