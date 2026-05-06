@@ -230,7 +230,7 @@ export function useCronSessionsFeed(): SessionSourceResult {
   // Fetch chat sessions so we can attach chatSessionKey to each cron item.
   // We use the same query key as the chat hook so the cache is shared.
   const chatSessionsQuery = useQuery({
-    queryKey: ['sessions-feed', 'chat'],
+    queryKey: ['sessions-feed', 'chat-raw'],
     queryFn: fetchSessions,
     enabled: available,
     staleTime: 30_000,
@@ -322,7 +322,7 @@ export function useTaskSessionsFeed(): SessionSourceResult {
   const query = useQuery({
     queryKey: ['sessions-feed', 'task'],
     queryFn: async () => {
-      const tasks = await fetchTasks({ include_done: true })
+      const tasks = await fetchTasks({ include_done: true, include_archived: true })
       const nowMs = Date.now()
       return tasks.map((task): SessionFeedItem => {
         const when =
