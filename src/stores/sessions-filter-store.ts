@@ -24,6 +24,8 @@ export type FilterState = {
   sort: SessionFeedSort
   /** Sidebar collapsed state. */
   collapsed: boolean
+  /** Which panel renders in the left column: sessions list or file explorer. */
+  leftPanel: 'sessions' | 'files'
 }
 
 type FilterActions = {
@@ -33,6 +35,7 @@ type FilterActions = {
   setDateRange: (from: string | null, to: string | null) => void
   setSort: (s: SessionFeedSort) => void
   setCollapsed: (b: boolean) => void
+  setLeftPanel: (p: 'sessions' | 'files') => void
   reset: () => void
 }
 
@@ -44,6 +47,7 @@ const initialState: FilterState = {
   dateRange: { from: null, to: null },
   sort: 'recent',
   collapsed: false,
+  leftPanel: 'sessions',
 }
 
 export const useSessionsFilterStore = create<FilterState & FilterActions>()(
@@ -67,6 +71,8 @@ export const useSessionsFilterStore = create<FilterState & FilterActions>()(
       setSort: (sort) => set({ sort }),
 
       setCollapsed: (collapsed) => set({ collapsed }),
+
+      setLeftPanel: (leftPanel) => set({ leftPanel }),
 
       reset: () => set({ ...initialState }),
     }),
