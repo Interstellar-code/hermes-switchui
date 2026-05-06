@@ -3,18 +3,15 @@
 /**
  * sidebar-list-v2.tsx — day-grouped session list for the v2 sidebar.
  *
+ * Phase 3c: groups prop passed from shell (no duplicate useSessionsFeed call).
  * Phase 3b: day group labels with count badges, sticky headers, Pinned section,
- * + NEW CHAT footer button. Passes sourceCounts + sourceResults down to chips.
+ * + NEW CHAT footer button.
  * Virtualization: @tanstack/react-virtual not in deps — native scroll fallback.
  */
 
 import { Link, useRouterState } from '@tanstack/react-router'
 import { SidebarCardV2 } from './sidebar-card-v2'
-import type { DayGroupLabel } from '@/screens/chat/apply-filters-and-decorate'
-import { applyFiltersAndDecorate } from '@/screens/chat/apply-filters-and-decorate'
-import { useSessionsFeed } from '@/screens/chat/sessions-feed'
-import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
-import { useSessionsLocalStore } from '@/stores/sessions-local-store'
+import type { DayGroupLabel, SessionDayGroup } from '@/screens/chat/apply-filters-and-decorate'
 
 // ── Group label colors ────────────────────────────────────────────────────────
 
@@ -25,29 +22,11 @@ const GROUP_LABEL_STYLE: Record<DayGroupLabel, React.CSSProperties> = {
   Earlier: { color: 'var(--theme-muted)' },
 }
 
-export function SidebarListV2() {
-  const fSources = useSessionsFilterStore((s) => s.sources)
-  const fState = useSessionsFilterStore((s) => s.state)
-  const fQuery = useSessionsFilterStore((s) => s.query)
-  const fDateRange = useSessionsFilterStore((s) => s.dateRange)
-  const fSort = useSessionsFilterStore((s) => s.sort)
-  const fCollapsed = useSessionsFilterStore((s) => s.collapsed)
-  const lPinned = useSessionsLocalStore((s) => s.pinned)
-  const lStarred = useSessionsLocalStore((s) => s.starred)
-  const lArchived = useSessionsLocalStore((s) => s.archived)
+interface SidebarListV2Props {
+  groups: Array<SessionDayGroup>
+}
 
-  const { items } = useSessionsFeed({
-    sources: fSources,
-    state: fState,
-    query: fQuery,
-    dateRange: fDateRange,
-    sort: fSort,
-  })
-
-  const filterState = { version: 1 as const, sources: fSources, state: fState, query: fQuery, dateRange: fDateRange, sort: fSort, collapsed: fCollapsed }
-  const localState = { version: 1 as const, pinned: lPinned, starred: lStarred, archived: lArchived }
-
-  const { groups } = applyFiltersAndDecorate(items, filterState, localState)
+export function SidebarListV2({ groups }: SidebarListV2Props) {
 
   // Determine active session from router
   const pathname = useRouterState({ select: (s) => s.location.pathname })

@@ -7,7 +7,10 @@
  * Layout: [rail 3px] | [body: title / src·sub / badges] | [right: time / tokens]
  */
 
+import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
+import { SidebarCardContextMenuV2 } from './sidebar-card-context-menu-v2'
+import type { ContextMenuPosition } from './sidebar-card-context-menu-v2'
 import type { SessionFeedItem } from '@/screens/chat/sessions-feed-types'
 
 interface SidebarCardV2Props {
@@ -99,10 +102,21 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
   const rawId = item.id.split(':').slice(1).join(':')
   const isChatItem = item.src === 'chat'
 
+  const [hovered, setHovered] = useState(false)
+  const [ctxMenu, setCtxMenu] = useState<ContextMenuPosition | null>(null)
+
+  function handleContextMenu(e: React.MouseEvent) {
+    e.preventDefault()
+    setCtxMenu({ x: e.clientX, y: e.clientY })
+  }
+
   const cardContent = (
     <div
       className="w-full flex items-stretch text-left transition-all"
       data-testid={`session-card-${item.id}`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onContextMenu={handleContextMenu}
       style={{
         background: isActive
           ? 'color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 8%, var(--theme-card))'
@@ -112,6 +126,7 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
         boxShadow: isActive ? `inset 2px 0 8px ${railColor}44` : 'none',
         cursor: isChatItem ? 'pointer' : 'default',
         minHeight: 56,
+        position: 'relative',
       }}
     >
       {/* Left rail — 3px color strip */}
@@ -182,22 +197,52 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
         )}
       </div>
 
-      {/* Right column: time + tokens */}
+      {/* Right column: time + tokens + three-dot menu trigger */}
       <div
         className="flex flex-col items-end justify-center gap-0.5 px-2 py-2 shrink-0"
         style={{ minWidth: 52 }}
       >
-        <span
-          className="text-xs"
-          style={{
-            color: 'var(--theme-muted)',
-            fontFamily: 'var(--font-mono, monospace)',
-            fontSize: 9,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {formatWhen(item.when)}
-        </span>
+        {hovered ? (
+          <button
+            type="button"
+            aria-label="Session actions"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+              setCtxMenu({ x: rect.left, y: rect.bottom + 4 })
+            }}
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--theme-border)',
+              borderRadius: 3,
+              cursor: 'pointer',
+              color: 'var(--theme-muted)',
+              fontSize: 12,
+              lineHeight: 1,
+              width: 20,
+              height: 16,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+            }}
+          >
+            ⋯
+          </button>
+        ) : (
+          <span
+            className="text-xs"
+            style={{
+              color: 'var(--theme-muted)',
+              fontFamily: 'var(--font-mono, monospace)',
+              fontSize: 9,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {formatWhen(item.when)}
+          </span>
+        )}
         {item.tokens != null && (
           <span
             style={{
@@ -216,20 +261,31 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
     </div>
   )
 
+  const contextMenuEl = ctxMenu ? (
+    <SidebarCardContextMenuV2
+      item={item}
+      position={ctxMenu}
+      onClose={() => setCtxMenu(null)}
+    />
+  ) : null
+
   if (isChatItem) {
     return (
-      <Link
-        to="/chat/$sessionKey"
-        params={{ sessionKey: rawId }}
-        preload="intent"
-        style={{ display: 'block', textDecoration: 'none' }}
-      >
-        {cardContent}
-      </Link>
+      <>
+        <Link
+          to="/chat/$sessionKey"
+          params={{ sessionKey: rawId }}
+          preload="intent"
+          style={{ display: 'block', textDecoration: 'none' }}
+        >
+          {cardContent}
+        </Link>
+        {contextMenuEl}
+      </>
     )
   }
 
-  return <div>{cardContent}</div>
+  return <>{cardContent}{contextMenuEl}</>
 }
 
 // ── Badge ─────────────────────────────────────────────────────────────────────

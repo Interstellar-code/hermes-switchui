@@ -7,6 +7,7 @@
  * count to header.
  */
 
+import { useMemo } from 'react'
 import { SidebarHeaderV2 } from './sidebar-header-v2'
 import { SidebarListV2 } from './sidebar-list-v2'
 import { SidebarRailV2 } from './sidebar-rail-v2'
@@ -31,6 +32,7 @@ export function SidebarShellV2() {
   const lStarred = useSessionsLocalStore((s) => s.starred)
   const lArchived = useSessionsLocalStore((s) => s.archived)
 
+  // Single feed subscription — SidebarListV2 consumes groups via prop (no duplicate hook)
   const { items, sources } = useSessionsFeed({
     sources: fSources,
     state: fState,
@@ -39,11 +41,18 @@ export function SidebarShellV2() {
     sort: fSort,
   })
 
-  const filterState = { version: 1 as const, sources: fSources, state: fState, query: fQuery, dateRange: fDateRange, sort: fSort, collapsed }
-  const localState = { version: 1 as const, pinned: lPinned, starred: lStarred, archived: lArchived }
+  // Memoize to avoid new object refs on every render
+  const { groups, totalCount, sourceCounts } = useMemo(
+    () =>
+      applyFiltersAndDecorate(
+        items,
+        { version: 1, sources: fSources, state: fState, query: fQuery, dateRange: fDateRange, sort: fSort, collapsed },
+        { version: 1, pinned: lPinned, starred: lStarred, archived: lArchived },
+      ),
+    [items, fSources, fState, fQuery, fDateRange, fSort, collapsed, lPinned, lStarred, lArchived],
+  )
 
-  const { totalCount, sourceCounts } = applyFiltersAndDecorate(items, filterState, localState)
-  const hasLive = items.some((i) => i.live)
+  const hasLive = useMemo(() => items.some((i) => i.live), [items])
 
   return (
     <div
@@ -73,7 +82,7 @@ export function SidebarShellV2() {
           <SidebarSearchV2 />
           <SidebarSourceChipsV2 sourceResults={sources} sourceCounts={sourceCounts} />
           <SidebarStateSegmentV2 />
-          <SidebarListV2 />
+          <SidebarListV2 groups={groups} />
         </div>
       )}
 

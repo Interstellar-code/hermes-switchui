@@ -4,8 +4,11 @@
  * sidebar-header-v2.tsx — header row for the sessions panel.
  *
  * Shows: "SESSIONS" title, session count · N, refresh / date-filter / filter / collapse icons.
- * Phase 3b: full mockup fidelity.
+ * Phase 3c: calendar icon wired to SidebarDatePopoverV2.
  */
+
+import { useState } from 'react'
+import { SidebarDatePopoverV2 } from './sidebar-date-popover-v2'
 
 interface SidebarHeaderV2Props {
   onCollapse?: () => void
@@ -13,6 +16,8 @@ interface SidebarHeaderV2Props {
 }
 
 export function SidebarHeaderV2({ onCollapse, count }: SidebarHeaderV2Props) {
+  const [dateOpen, setDateOpen] = useState(false)
+
   return (
     <div
       className="flex items-center justify-between shrink-0 px-3"
@@ -21,6 +26,7 @@ export function SidebarHeaderV2({ onCollapse, count }: SidebarHeaderV2Props) {
         height: 44,
         borderBottom: '1px solid var(--theme-border)',
         background: 'var(--theme-sidebar)',
+        position: 'relative',
       }}
     >
       {/* Left: title + count */}
@@ -58,13 +64,14 @@ export function SidebarHeaderV2({ onCollapse, count }: SidebarHeaderV2Props) {
         </IconButton>
 
         {/* Calendar / date filter */}
-        <IconButton aria-label="Date filter">
+        <IconButton aria-label="Date filter" onClick={() => setDateOpen((v) => !v)} active={dateOpen}>
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
             <rect x="1" y="3" width="14" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
             <path d="M1 6h14" stroke="currentColor" strokeWidth="1.5"/>
             <path d="M5 1v3M11 1v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
           </svg>
         </IconButton>
+        {dateOpen && <SidebarDatePopoverV2 onClose={() => setDateOpen(false)} />}
 
         {/* Filter (active glow) */}
         <IconButton aria-label="Filter sessions" active>
