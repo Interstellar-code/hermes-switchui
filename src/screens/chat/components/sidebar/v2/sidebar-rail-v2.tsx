@@ -7,6 +7,8 @@
  * search/filter re-expand icons, new-chat icon at bottom.
  */
 
+import { Link } from '@tanstack/react-router'
+
 interface SidebarRailV2Props {
   collapsed: boolean
   onExpand: () => void
@@ -106,12 +108,19 @@ export function SidebarRailV2({ collapsed, onExpand, totalCount, hasLive }: Side
             </RailIcon>
           </div>
 
-          {/* Bottom: new chat icon */}
-          <RailIcon aria-label="New chat">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
-              <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          </RailIcon>
+          {/* Bottom: new chat icon — navigates to /chat/new */}
+          <Link
+            to="/chat/$sessionKey"
+            params={{ sessionKey: 'new' }}
+            style={{ textDecoration: 'none', color: 'inherit' }}
+            aria-label="New chat"
+          >
+            <RailIcon aria-label="New chat">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
+                <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+            </RailIcon>
+          </Link>
         </div>
       ) : (
         /* ── Expanded mode — rail is just a decorative strip ── */

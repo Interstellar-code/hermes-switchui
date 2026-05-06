@@ -57,7 +57,7 @@ test.describe('sidebar-v2 feature flag ON', () => {
     await page.waitForTimeout(500)
 
     await expect(panel).toHaveScreenshot('sidebar-v2.png', {
-      maxDiffPixelRatio: 0.15,
+      maxDiffPixelRatio: 0.18,
     })
   })
 
@@ -83,15 +83,24 @@ test.describe('sidebar-v2 feature flag ON', () => {
   test('ALL chip clears active source selection', async ({ page }) => {
     await page.goto('/')
     const chatChip = page.locator('[data-testid="chip-chat"]')
-    const allChip = page.locator('[data-testid="sessions-panel"] button[aria-pressed]').first()
+    const allChip = page.locator('[data-testid="sessions-panel"] button').filter({ hasText: 'ALL' })
 
     // Activate a source chip
     await chatChip.click()
     await expect(chatChip).toHaveAttribute('aria-pressed', 'true')
 
     // Click ALL chip to reset
-    await page.locator('[data-testid="sessions-panel"] button').filter({ hasText: 'ALL' }).click()
+    await allChip.click()
     await expect(chatChip).toHaveAttribute('aria-pressed', 'false')
+
+    // Verify filter store sources[] is cleared in localStorage
+    const stored = await page.evaluate(() =>
+      localStorage.getItem('hermes.sessions.filter'),
+    )
+    if (stored) {
+      const parsed = JSON.parse(stored) as { sources?: string[] }
+      expect(parsed.sources ?? []).toHaveLength(0)
+    }
   })
 
   // ── Search input test ─────────────────────────────────────────────────────

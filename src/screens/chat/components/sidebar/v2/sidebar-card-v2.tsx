@@ -91,7 +91,9 @@ function formatTokens(n: number): string {
 
 export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
   const railColor = RAIL_COLORS[item.src] ?? 'var(--theme-border)'
-  const railGlow = isActive ? (RAIL_GLOW[item.src] ?? 'none') : 'none'
+  // Glow: always emit when item.live is true regardless of isActive; active also glows
+  const railGlow =
+    item.live || isActive ? (RAIL_GLOW[item.src] ?? 'none') : 'none'
 
   // Determine link target — chat items navigate to /chat/$sessionKey; others no-op for now
   const rawId = item.id.split(':').slice(1).join(':')
@@ -108,7 +110,7 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
         borderBottom: '1px solid var(--theme-border-subtle, var(--theme-border))',
         borderLeft: isActive ? `2px solid ${railColor}` : '2px solid transparent',
         boxShadow: isActive ? `inset 2px 0 8px ${railColor}44` : 'none',
-        cursor: 'pointer',
+        cursor: isChatItem ? 'pointer' : 'default',
         minHeight: 56,
       }}
     >
@@ -120,7 +122,7 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
           width: 3,
           background: railColor,
           flexShrink: 0,
-          boxShadow: isActive || item.live ? railGlow : 'none',
+          boxShadow: railGlow,
         }}
       />
 

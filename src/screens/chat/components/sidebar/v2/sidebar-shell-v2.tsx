@@ -18,12 +18,7 @@ import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 import { useSessionsFeed } from '@/screens/chat/sessions-feed'
 import { applyFiltersAndDecorate } from '@/screens/chat/apply-filters-and-decorate'
 
-interface SidebarShellV2Props {
-  /** The main chat column content (route outlet). */
-  children?: React.ReactNode
-}
-
-export function SidebarShellV2({ children }: SidebarShellV2Props) {
+export function SidebarShellV2() {
   const collapsed = useSessionsFilterStore((s) => s.collapsed)
   const setCollapsed = useSessionsFilterStore((s) => s.setCollapsed)
 
@@ -74,8 +69,6 @@ export function SidebarShellV2({ children }: SidebarShellV2Props) {
         </div>
       )}
 
-      {/* Main content (1fr) */}
-      <div className="flex-1 min-w-0 overflow-hidden">{children}</div>
     </div>
   )
 }

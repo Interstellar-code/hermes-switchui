@@ -28,7 +28,7 @@ const GROUP_LABEL_STYLE: Record<DayGroupLabel, React.CSSProperties> = {
 export function SidebarListV2() {
   const filterState = useSessionsFilterStore()
   const localState = useSessionsLocalStore()
-  const { items, sources } = useSessionsFeed({
+  const { items } = useSessionsFeed({
     sources: filterState.sources,
     state: filterState.state,
     query: filterState.query,
@@ -36,7 +36,7 @@ export function SidebarListV2() {
     sort: filterState.sort,
   })
 
-  const { groups, totalCount, sourceCounts } = applyFiltersAndDecorate(items, filterState, localState)
+  const { groups } = applyFiltersAndDecorate(items, filterState, localState)
 
   // Determine active session from router
   const pathname = useRouterState({ select: (s) => s.location.pathname })
