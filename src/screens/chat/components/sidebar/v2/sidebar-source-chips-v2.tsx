@@ -36,6 +36,15 @@ const SOURCE_DEFS: Array<{ id: SessionSource; label: string; icon: React.ReactNo
     ),
   },
   {
+    id: 'api',
+    label: 'API',
+    icon: (
+      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden>
+        <path d="M3 5h10M3 8h10M3 11h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+  {
     id: 'tool',
     label: 'TOOLS',
     icon: (
@@ -60,6 +69,7 @@ const SOURCE_DEFS: Array<{ id: SessionSource; label: string; icon: React.ReactNo
 const SOURCE_COLORS: Record<SessionSource, string> = {
   chat: 'var(--m-green-400, #00ff41)',
   cron: '#d6ff5f',
+  api: '#5fcfff',
   tool: '#b98aff',
   tg: '#ff5fa2',
 }

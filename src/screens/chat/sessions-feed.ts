@@ -121,9 +121,15 @@ export function useChatSessionsFeed(): SessionSourceResult {
         const rawTitle = s.title ?? s.derivedTitle ?? s.label ?? s.key
         const rawSub = s.preview ?? null
         const badges: Array<SessionBadge> = []
-        // Detect cron-generated chat sessions by key prefix.
-        // Pattern: cron_{jobId}_{YYYYMMDD_HHMMSS} (hermes-agent scheduler.py:1003)
-        const kind: SessionSource = s.key.startsWith('cron_') ? 'cron' : 'chat'
+        // Detect session origin by key prefix:
+        //   cron_{jobId}_{YYYYMMDD_HHMMSS} — scheduled cron run (scheduler.py:1003)
+        //   api-{hex}                       — programmatic API caller (CLI, MCP, scripts)
+        //   YYYYMMDD_HHMMSS_*               — manual UI-created chat
+        const kind: SessionSource = s.key.startsWith('cron_')
+          ? 'cron'
+          : s.key.startsWith('api-')
+            ? 'api'
+            : 'chat'
         return {
           id: makeId('chat', s.key),
           src: kind,
@@ -210,8 +216,9 @@ function matchesDateRange(item: SessionFeedItem, from: string | null, to: string
 const SOURCE_ORDER: Record<SessionSource, number> = {
   chat: 0,
   cron: 1,
-  tool: 2,
-  tg: 3,
+  api: 2,
+  tool: 3,
+  tg: 4,
 }
 
 export function sortItems(items: Array<SessionFeedItem>, sort: SessionFeedSort): Array<SessionFeedItem> {
