@@ -44,7 +44,8 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   const menuRef = useRef<HTMLDivElement>(null)
-  const isChatItem = item.src === 'chat'
+  // chat / cron / api are all backed by chat sessions
+  const isChatItem = item.src === 'chat' || item.src === 'cron' || item.src === 'api'
   const rawId = item.id.split(':').slice(1).join(':')
 
   const handleArchiveToggle = useCallback(() => {
