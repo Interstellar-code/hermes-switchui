@@ -57,12 +57,6 @@ export function SidebarHeaderV2({ onCollapse, count }: SidebarHeaderV2Props) {
       {/* Right: action icons */}
       <div className="flex items-center gap-0.5">
         {/* Refresh */}
-        <IconButton aria-label="Refresh sessions">
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
-            <path d="M13.65 2.35A8 8 0 1 0 15 8h-2a6 6 0 1 1-1.07-3.43L10 6h4V2l-0.35 0.35z" fill="currentColor"/>
-          </svg>
-        </IconButton>
-
         {/* Calendar / date filter */}
         <IconButton aria-label="Date filter" onClick={() => setDateOpen((v) => !v)} active={dateOpen}>
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
