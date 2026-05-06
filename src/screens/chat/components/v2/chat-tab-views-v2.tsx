@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import type { ChatMessage, ToolCallContent, ToolResultContent } from '../../types'
 import { formatStreamingActivityLabel } from '../streaming-activity-ui'
+import type { ChatMessage, ToolCallContent } from '../../types'
 
 type LifecycleEvent = {
   text: string
@@ -38,38 +38,49 @@ type FlatToolEntry = {
   timestamp?: number
 }
 
+type RootLevelResult = {
+  toolCallId: string
+  toolName?: string
+  isError?: boolean
+  output: string
+}
+
 function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> {
   const entries: Array<FlatToolEntry> = []
-  const resultsByCallId = new Map<string, ToolResultContent>()
+  const resultsByCallId = new Map<string, RootLevelResult>()
 
-  // First pass: collect results
+  // First pass: collect root-level tool results (role === 'tool' messages with toolCallId at root)
   for (const m of messages) {
-    if (!Array.isArray(m.content)) continue
-    for (const c of m.content) {
-      const raw = c as unknown as ToolResultContent
-      if (raw.type === 'toolResult') {
-        const id = raw.toolCallId ?? ''
-        if (id) resultsByCallId.set(id, raw)
-      }
-    }
+    if (typeof m.toolCallId !== 'string' || !m.toolCallId) continue
+    const textOutput = Array.isArray(m.content)
+      ? m.content
+          .filter((c) => c.type === 'text')
+          .map((c) => (c as { text?: string }).text ?? '')
+          .join('')
+      : ''
+    const output = textOutput || (m.details ? JSON.stringify(m.details, null, 2) : '')
+    resultsByCallId.set(m.toolCallId, {
+      toolCallId: m.toolCallId,
+      toolName: typeof m.toolName === 'string' ? m.toolName : undefined,
+      isError: m.isError === true,
+      output,
+    })
   }
 
-  // Second pass: build entries from calls
+  // Second pass: build entries from toolCall content blocks
   for (const m of messages) {
     if (!Array.isArray(m.content)) continue
     for (const c of m.content) {
-      const raw = c as unknown as ToolCallContent
-      if (raw.type !== 'toolCall') continue
-      const callId = raw.id ?? ''
+      if (c.type !== 'toolCall') continue
+      const callId = c.id ?? ''
       const result = callId ? resultsByCallId.get(callId) : undefined
-      const outputText = result?.content?.map((chunk) => chunk.text ?? '').join('') ?? ''
       entries.push({
-        key: callId || `${raw.name ?? 'tool'}-${entries.length}`,
+        key: callId || `${c.name ?? 'tool'}-${entries.length}`,
         isCall: true,
-        name: raw.name ?? '',
+        name: c.name ?? '',
         callId,
-        input: raw.arguments,
-        output: outputText || undefined,
+        input: c.arguments,
+        output: result?.output || undefined,
         isError: result?.isError ?? false,
         timestamp: m.timestamp,
       })
