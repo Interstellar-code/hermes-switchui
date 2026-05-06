@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { formatStreamingActivityLabel } from '../streaming-activity-ui'
-import type { ChatMessage, ToolCallContent } from '../../types'
+import type { ChatMessage } from '../../types'
 
 type LifecycleEvent = {
   text: string
