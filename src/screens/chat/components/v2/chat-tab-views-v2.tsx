@@ -52,6 +52,26 @@ type FlatToolEntry = {
   timestamp?: number
 }
 
+/**
+ * Read a usable timestamp off a chat message. Tries createdAt, timestamp
+ * (number or ISO string), then __receiveTime. Returns undefined if none.
+ * Mirrors chat-store.ts:444-466.
+ */
+function getMessageTimestamp(m: ChatMessage): number | undefined {
+  const raw = m as unknown as Record<string, unknown>
+  for (const key of ['createdAt', 'timestamp']) {
+    const v = raw[key]
+    if (typeof v === 'number' && Number.isFinite(v)) return v
+    if (typeof v === 'string' && v.trim().length > 0) {
+      const parsed = Date.parse(v)
+      if (Number.isFinite(parsed)) return parsed
+    }
+  }
+  const r = raw.__receiveTime
+  if (typeof r === 'number' && Number.isFinite(r)) return r
+  return undefined
+}
+
 type RootLevelResult = {
   toolCallId: string
   toolName?: string
@@ -157,9 +177,14 @@ function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> 
     }
   }
 
-  // Second pass: build entries from toolCall content blocks
-  for (const m of messages) {
-    if (!Array.isArray(m.content)) continue
+  // Second pass: build entries from toolCall content blocks.
+  // Synthesise a strictly-increasing timestamp so order across + within
+  // messages is preserved when the message-level timestamp is missing
+  // or shared.
+  messages.forEach((m, msgIdx) => {
+    if (!Array.isArray(m.content)) return
+    const baseTs = getMessageTimestamp(m) ?? msgIdx * 1000
+    let subIdx = 0
     for (const c of m.content) {
       if (c.type !== 'toolCall') continue
       const callId = c.id ?? ''
@@ -172,10 +197,11 @@ function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> 
         input: c.arguments,
         output: result ? result.output : undefined,
         isError: result?.isError ?? false,
-        timestamp: m.timestamp,
+        timestamp: baseTs + subIdx * 0.001,
       })
+      subIdx++
     }
-  }
+  })
 
   return entries
 }
@@ -183,7 +209,7 @@ function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> 
 /** Extract completed tool calls embedded on a finished assistant message */
 function extractStreamToolCallsFromMessages(messages: Array<ChatMessage>): Array<FlatToolEntry> {
   const entries: Array<FlatToolEntry> = []
-  for (const m of messages) {
+  messages.forEach((m, msgIdx) => {
     const mAny = m as unknown as Record<string, unknown>
     // Two shapes carry embedded tool-call summaries:
     //   __streamToolCalls — written by chat-store on the realtime 'done' event.
@@ -197,16 +223,11 @@ function extractStreamToolCallsFromMessages(messages: Array<ChatMessage>): Array
       : Array.isArray(historyList)
         ? historyList
         : null
-    if (!list) continue
-    // Defensive: if the enclosing message has finished streaming OR was
-    // loaded from history, treat non-error tool calls as settled even when
-    // their phase string is 'start'/'calling'. Upstream (Responses API →
-    // tool event translation in src/routes/api/send-stream.ts) intentionally
-    // swallows tool.completed for some tools, leaving phase stuck. History
-    // messages have no __streamingStatus, so any history-shape entry is
-    // settled by definition.
+    if (!list) return
     const messageSettled =
       mAny.__streamingStatus === 'complete' || Array.isArray(historyList)
+    const baseTs = getMessageTimestamp(m) ?? msgIdx * 1000
+    let subIdx = 0
     for (const tc of list as Array<StreamingToolCall>) {
       let status = phaseToStatus(tc.phase)
       if (messageSettled && status === 'running') status = 'done'
@@ -225,10 +246,11 @@ function extractStreamToolCallsFromMessages(messages: Array<ChatMessage>): Array
         input,
         output,
         isError: status === 'error',
-        timestamp: typeof m.timestamp === 'number' ? m.timestamp : undefined,
+        timestamp: baseTs + subIdx * 0.001,
       })
+      subIdx++
     }
-  }
+  })
   return entries
 }
 
