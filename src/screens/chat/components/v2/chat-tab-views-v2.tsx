@@ -273,7 +273,7 @@ function buildResultTsMap(messages: Array<ChatMessage>): Map<string, number> {
 
 function extractStreamToolCallsFromMessages(
   messages: Array<ChatMessage>,
-  resultTsMap: Map<string, number>,
+  resultTsMap: Map<string, number> = new Map(),
 ): Array<FlatToolEntry> {
   const entries: Array<FlatToolEntry> = []
   messages.forEach((m, msgIdx) => {
