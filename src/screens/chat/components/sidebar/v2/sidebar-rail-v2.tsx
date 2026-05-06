@@ -168,11 +168,14 @@ export function SidebarRailV2({
                 aria-pressed={active}
                 aria-label={`${label} — ${count}`}
                 title={`${label} (${count})`}
-                onClick={() => toggleSource(id)}
+                onClick={() => {
+                  toggleSource(id)
+                  onExpand()
+                }}
                 className="flex items-center justify-center rounded-full transition-all"
                 style={{
-                  width: 30,
-                  height: 30,
+                  width: 32,
+                  height: 32,
                   background: active ? `color-mix(in srgb, ${color} 18%, transparent)` : 'transparent',
                   color: active ? color : 'var(--theme-muted)',
                   border: `1px solid ${active ? color : 'var(--theme-border)'}`,
