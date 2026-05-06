@@ -26,8 +26,6 @@ import type {
   SessionsFeedOptions,
   SessionsFeedResult,
 } from './sessions-feed-types'
-import { fetchJobs } from '@/lib/jobs-api'
-import { fetchTasks } from '@/lib/tasks-api'
 
 // ── Capability accessor ────────────────────────────────────────────────────────
 // We read capabilities from the /api/connection-status endpoint (already used
@@ -101,25 +99,6 @@ function makeId(src: SessionSource, rawId: string): string {
 
 // ── State normalization ────────────────────────────────────────────────────────
 
-function normalizeCronState(state: string | undefined): SessionState {
-  const s = (state ?? '').trim().toLowerCase()
-  if (s === 'running' || s === 'active') return 'live'
-  if (s === 'scheduled' || s === 'enabled' || s === 'idle' || s === 'waiting' || s === 'paused') return 'idle'
-  if (s === 'completed' || s === 'complete' || s === 'succeeded' || s === 'success' || s === 'done' || s === 'finished') return 'complete'
-  if (s === 'failed' || s === 'error' || s === 'errored' || s === 'cancelled' || s === 'canceled' || s === 'aborted') return 'error'
-  if (s === 'archived') return 'archived'
-  return 'unknown'
-}
-
-function normalizeKanbanState(status: string | undefined): SessionState {
-  const s = (status ?? '').trim().toLowerCase()
-  if (s === 'running') return 'live'
-  if (s === 'triage' || s === 'todo' || s === 'ready' || s === 'blocked') return 'idle'
-  if (s === 'done') return 'complete'
-  if (s === 'archived') return 'archived'
-  return 'unknown'
-}
-
 // ── Chat source hook ───────────────────────────────────────────────────────────
 
 /** Hook for chat sessions. Gated by `capabilities.sessions`. */
@@ -181,281 +160,14 @@ export function useChatSessionsFeed(): SessionSourceResult {
     : { src: 'chat', items: [], available: false, loading: false, error: null }
 }
 
-// ── Cron source hook ───────────────────────────────────────────────────────────
+// ── Tool / Telegram source hooks — permanently unavailable ───────────────────
 
-// ── Cron → chat session resolver ──────────────────────────────────────────────
-
-/**
- * Pattern: `cron_{jobId}_{YYYYMMDD_HHMMSS}` — as minted by hermes-agent
- * scheduler.py:1003. We match by jobId prefix and pick the most recently
- * updated session.
- */
-export const CRON_SESSION_KEY_PATTERN = /^cron_([^_]+(?:_[^_]+)*?)_\d{8}_\d{6}$/
-
-/**
- * Resolve the most recent chat session key for a given cron job ID.
- * Returns null when no matching session is found.
- *
- * @param jobId  The raw cron job ID (e.g. "abc-123")
- * @param sessions  Chat sessions from fetchSessions(), each with `key` and optional `updatedAt`
- */
-export function resolveCronChatSessionKey(
-  jobId: string,
-  sessions: Array<{ key: string; updatedAt?: number }>,
-): string | null {
-  let best: { key: string; updatedAt: number } | null = null
-  for (const s of sessions) {
-    const m = CRON_SESSION_KEY_PATTERN.exec(s.key)
-    if (!m) continue
-    // m[1] is the jobId portion captured by the non-greedy group
-    if (m[1] !== jobId) continue
-    const updatedAt = s.updatedAt ?? 0
-    if (!best || updatedAt > best.updatedAt) {
-      best = { key: s.key, updatedAt }
-    }
-  }
-  return best ? best.key : null
-}
-
-/** Hook for cron jobs. Gated by `capabilities.jobs`. Polls every 30 s. */
-export function useCronSessionsFeed(): SessionSourceResult {
-  const capsQuery = useQuery({
-    queryKey: CAPABILITIES_QUERY_KEY,
-    queryFn: fetchCapabilities,
-    staleTime: 120_000,
-  })
-
-  const available = capsQuery.data?.jobs ?? false
-
-  // Fetch chat sessions so we can attach chatSessionKey to each cron item.
-  // We use the same query key as the chat hook so the cache is shared.
-  const chatSessionsQuery = useQuery({
-    queryKey: ['sessions-feed', 'chat-raw'],
-    queryFn: fetchSessions,
-    enabled: available,
-    staleTime: 30_000,
-  })
-
-  const query = useQuery({
-    queryKey: ['sessions-feed', 'cron'],
-    queryFn: async () => {
-      const jobs = await fetchJobs()
-      const nowMs = Date.now()
-      return jobs.map((job): SessionFeedItem => {
-        const when = job.last_run_at
-          ? new Date(job.last_run_at).getTime()
-          : job.created_at
-            ? new Date(job.created_at).getTime()
-            : 0
-        const state = normalizeCronState(job.state)
-        const badges: Array<SessionBadge> = []
-        if (!job.enabled) badges.push({ text: 'disabled', color: '#6b7280' })
-        return {
-          id: makeId('cron', job.id),
-          src: 'cron',
-          title: job.name || job.prompt.slice(0, 60),
-          sub: job.schedule_display ?? null,
-          tokens: null,
-          when,
-          day: getDayBucket(when, nowMs),
-          live: state === 'live',
-          state,
-          badges,
-          pinned: false,
-          starred: false,
-          archived: false,
-          sourceMeta: {
-            jobId: job.id,
-            enabled: job.enabled,
-            schedule: job.schedule,
-            lastRunSuccess: job.last_run_success,
-            runCount: job.run_count,
-          },
-        }
-      })
-    },
-    enabled: available,
-    staleTime: 25_000,
-    refetchInterval: available ? 30_000 : false,
-  })
-
-  // Attach chatSessionKey after both queries resolve, without re-triggering the cron query.
-  const chatSessions = (chatSessionsQuery.data ?? []) as Array<{ key: string; updatedAt?: number }>
-  const itemsWithSessionKey = useMemo(() => {
-    const items = query.data ?? []
-    if (chatSessions.length === 0) return items
-    return items.map((item) => {
-      const jobId = item.sourceMeta.jobId as string | undefined
-      if (!jobId) return item
-      const chatSessionKey = resolveCronChatSessionKey(jobId, chatSessions)
-      if (!chatSessionKey) return item
-      return {
-        ...item,
-        sourceMeta: { ...item.sourceMeta, chatSessionKey },
-      }
-    })
-  }, [query.data, chatSessions])
-
-  return available
-    ? {
-        src: 'cron',
-        items: itemsWithSessionKey,
-        available: true,
-        loading: query.isLoading,
-        error: query.error,
-      }
-    : { src: 'cron', items: [], available: false, loading: false, error: null }
-}
-
-// ── Task source hook ───────────────────────────────────────────────────────────
-
-/** Hook for kanban tasks. Gated by `capabilities.kanban`. Polls every 15 s. */
-export function useTaskSessionsFeed(): SessionSourceResult {
-  const capsQuery = useQuery({
-    queryKey: CAPABILITIES_QUERY_KEY,
-    queryFn: fetchCapabilities,
-    staleTime: 120_000,
-  })
-
-  const available = capsQuery.data?.kanban ?? false
-
-  const query = useQuery({
-    queryKey: ['sessions-feed', 'task'],
-    queryFn: async () => {
-      const tasks = await fetchTasks({ include_done: true, include_archived: true })
-      const nowMs = Date.now()
-      return tasks.map((task): SessionFeedItem => {
-        const when =
-          task.completed_at ??
-          task.started_at ??
-          task.last_heartbeat_at ??
-          task.created_at ??
-          0
-        const state = normalizeKanbanState(task.status)
-        const badges: Array<SessionBadge> = []
-        if (task.assignee) badges.push({ text: task.assignee, color: '#8b5cf6' })
-        return {
-          id: makeId('task', task.id),
-          src: 'task',
-          title: task.title,
-          sub: task.summary ?? task.body ?? null,
-          tokens: null,
-          when,
-          day: getDayBucket(when, nowMs),
-          live: state === 'live',
-          state,
-          badges,
-          pinned: false,
-          starred: false,
-          archived: state === 'archived',
-          sourceMeta: {
-            taskId: task.id,
-            status: task.status,
-            priority: task.priority,
-            assignee: task.assignee,
-          },
-        }
-      })
-    },
-    enabled: available,
-    staleTime: 10_000,
-    refetchInterval: available ? 15_000 : false,
-  })
-
-  return available
-    ? {
-        src: 'task',
-        items: query.data ?? [],
-        available: true,
-        loading: query.isLoading,
-        error: query.error,
-      }
-    : { src: 'task', items: [], available: false, loading: false, error: null }
-}
-
-// ── Tool source hook — permanently unavailable ─────────────────────────────────
-// TODO(phase1-audit): No cross-session tool-run list endpoint exists on the
-// gateway or dashboard. See sessions-sidebar-phase1-audit.md §Tool runs.
-// When the gateway exposes a `/api/tool-runs` or similar feed, implement this hook.
-
-/** Tool-run feed. No gateway endpoint — permanently `available: false`. */
 export function useToolSessionsFeed(): SessionSourceResult {
   return { src: 'tool', items: [], available: false, loading: false, error: null }
 }
 
-// ── Telegram source hook — permanently unavailable ─────────────────────────────
-// TODO(phase1-audit): No Telegram conversation/message list endpoint exists.
-// Dashboard /api/status exposes telegram platform state (string) only.
-// See sessions-sidebar-phase1-audit.md §Telegram.
-
-/** Telegram feed. No gateway endpoint — permanently `available: false`. */
 export function useTelegramSessionsFeed(): SessionSourceResult {
   return { src: 'tg', items: [], available: false, loading: false, error: null }
-}
-
-// ── Memory source hook ─────────────────────────────────────────────────────────
-
-/** Hook for memory file list. `capabilities.memory` is always true. Polls every 60 s. */
-export function useMemorySessionsFeed(): SessionSourceResult {
-  const capsQuery = useQuery({
-    queryKey: CAPABILITIES_QUERY_KEY,
-    queryFn: fetchCapabilities,
-    staleTime: 120_000,
-  })
-
-  // memory capability is always true in gateway-capabilities.ts (filesystem read).
-  // We still read it from caps to be consistent with the pattern.
-  const available = capsQuery.data?.memory !== false
-
-  const query = useQuery({
-    queryKey: ['sessions-feed', 'mem'],
-    queryFn: async (): Promise<Array<SessionFeedItem>> => {
-      const res = await fetch('/api/memory/list')
-      if (!res.ok) return []
-      const data = (await res.json()) as { files?: Array<{ name?: string; path?: string; updatedAt?: number; size?: number }> } | Array<unknown>
-      const files = Array.isArray(data)
-        ? (data as Array<{ name?: string; path?: string; updatedAt?: number; size?: number }>)
-        : (Array.isArray((data as { files?: Array<unknown> }).files)
-            ? ((data as { files: Array<{ name?: string; path?: string; updatedAt?: number; size?: number }> }).files)
-            : [])
-      const nowMs = Date.now()
-      return files.map((f, idx): SessionFeedItem => {
-        const name = f.name ?? f.path ?? `memory-${idx}`
-        const when = f.updatedAt ?? nowMs
-        // Use encodeURIComponent so names containing ':' or '/' do not collide
-        // with the namespace separator or create ambiguous IDs across dirs.
-        return {
-          id: makeId('mem', encodeURIComponent(name)),
-          src: 'mem',
-          title: name,
-          sub: null,
-          tokens: null,
-          when,
-          day: getDayBucket(when, nowMs),
-          live: false,
-          state: 'idle',
-          badges: [],
-          pinned: false,
-          starred: false,
-          archived: false,
-          sourceMeta: { name, path: f.path, size: f.size },
-        }
-      })
-    },
-    enabled: available,
-    staleTime: 55_000,
-    refetchInterval: available ? 60_000 : false,
-  })
-
-  return available
-    ? {
-        src: 'mem',
-        items: query.data ?? [],
-        available: true,
-        loading: query.isLoading,
-        error: query.error,
-      }
-    : { src: 'mem', items: [], available: false, loading: false, error: null }
 }
 
 // ── Filter helpers ─────────────────────────────────────────────────────────────
@@ -493,11 +205,8 @@ function matchesDateRange(item: SessionFeedItem, from: string | null, to: string
 
 const SOURCE_ORDER: Record<SessionSource, number> = {
   chat: 0,
-  cron: 1,
-  task: 2,
-  tool: 3,
-  tg: 4,
-  mem: 5,
+  tool: 1,
+  tg: 2,
 }
 
 export function sortItems(items: Array<SessionFeedItem>, sort: SessionFeedSort): Array<SessionFeedItem> {
@@ -548,13 +257,13 @@ export function useSessionsFeed(options: SessionsFeedOptions = {}): SessionsFeed
   } = options
 
   const chat = useChatSessionsFeed()
-  const cron = useCronSessionsFeed()
-  const task = useTaskSessionsFeed()
   const tool = useToolSessionsFeed()
   const tg = useTelegramSessionsFeed()
-  const mem = useMemorySessionsFeed()
-
-  const allSources: Array<SessionSourceResult> = [chat, cron, task, tool, tg, mem]
+  // cron/task/memory removed from sidebar:
+  //   - cron-generated chat sessions appear directly in chat source.
+  //   - tasks moved to a dedicated chat-header tab (see chat-source-tabs-v2).
+  //   - memory removed entirely from chat sidebar.
+  const allSources: Array<SessionSourceResult> = [chat, tool, tg]
 
   const result = useMemo(() => {
     const now = Date.now()
@@ -614,11 +323,8 @@ export function useSessionsFeed(options: SessionsFeedOptions = {}): SessionsFeed
     }
   }, [
     chat.items, chat.available, chat.loading,
-    cron.items, cron.available, cron.loading,
-    task.items, task.available, task.loading,
     tool.available,
     tg.available,
-    mem.items, mem.available, mem.loading,
     requestedSources,
     stateFilter,
     query,

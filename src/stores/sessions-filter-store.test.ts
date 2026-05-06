@@ -42,7 +42,7 @@ describe('sessions-filter-store', () => {
     const { toggleSource } = useStore.getState()
     toggleSource('chat')
     expect(useStore.getState().sources).toEqual(['chat'])
-    toggleSource('task')
+    toggleSource('task' as any)
     expect(useStore.getState().sources).toContain('task')
     toggleSource('chat')
     expect(useStore.getState().sources).not.toContain('chat')

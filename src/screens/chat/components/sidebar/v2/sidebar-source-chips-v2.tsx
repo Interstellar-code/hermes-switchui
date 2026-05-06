@@ -26,25 +26,6 @@ const SOURCE_DEFS: Array<{ id: SessionSource; label: string; icon: React.ReactNo
     ),
   },
   {
-    id: 'cron',
-    label: 'CRON',
-    icon: (
-      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden>
-        <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5"/>
-        <path d="M8 5v3.5l2.5 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-      </svg>
-    ),
-  },
-  {
-    id: 'task',
-    label: 'TASKS',
-    icon: (
-      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden>
-        <path d="M3 8l3 3 7-7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-    ),
-  },
-  {
     id: 'tool',
     label: 'TOOLS',
     icon: (
@@ -62,28 +43,14 @@ const SOURCE_DEFS: Array<{ id: SessionSource; label: string; icon: React.ReactNo
       </svg>
     ),
   },
-  {
-    id: 'mem',
-    label: 'MEMORY',
-    icon: (
-      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden>
-        <ellipse cx="8" cy="5" rx="6" ry="2.5" stroke="currentColor" strokeWidth="1.3"/>
-        <path d="M2 5v6c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5V5" stroke="currentColor" strokeWidth="1.3"/>
-        <path d="M2 8c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5" stroke="currentColor" strokeWidth="1.3"/>
-      </svg>
-    ),
-  },
 ]
 
 // ── Rail / accent colors per source ───────────────────────────────────────────
 
 const SOURCE_COLORS: Record<SessionSource, string> = {
   chat: 'var(--m-green-400, #00ff41)',
-  cron: '#d6ff5f',
-  task: '#5fcfff',
   tool: '#b98aff',
   tg: '#ff5fa2',
-  mem: '#7dff9a',
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────

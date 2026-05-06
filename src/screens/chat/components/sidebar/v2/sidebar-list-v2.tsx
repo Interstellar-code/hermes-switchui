@@ -94,12 +94,6 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
               let isActive = false
               if (item.src === 'chat') {
                 isActive = rawId === activeSessionKey
-              } else if (item.src === 'cron') {
-                isActive = pathname === '/jobs'
-              } else if (item.src === 'task') {
-                isActive = pathname === '/tasks'
-              } else if (item.src === 'mem') {
-                isActive = pathname === '/memory'
               }
               return (
                 <SidebarCardV2 key={item.id} item={item} isActive={isActive} />

@@ -45,18 +45,11 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
 
   const menuRef = useRef<HTMLDivElement>(null)
   const isChatItem = item.src === 'chat'
-  const isTaskItem = item.src === 'task'
   const rawId = item.id.split(':').slice(1).join(':')
 
   const handleArchiveToggle = useCallback(() => {
     toggleArchived(item.id)
-    // When archiving (not unarchiving) a task item, also sync status to gateway.
-    if (isTaskItem && !isArchived) {
-      archiveTask(rawId).catch((err: unknown) => {
-        console.error('[sidebar] gateway archive task failed', err)
-      })
-    }
-  }, [toggleArchived, item.id, isTaskItem, isArchived, rawId])
+  }, [toggleArchived, item.id])
 
   // Close on click-outside
   useEffect(() => {
