@@ -132,15 +132,15 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
         margin: '4px 8px',
         borderRadius: 6,
         background: isActive
-          ? `color-mix(in srgb, ${railColor} 14%, var(--theme-card))`
+          ? `color-mix(in srgb, ${railColor} 22%, var(--theme-card))`
           : hovered
             ? 'color-mix(in srgb, var(--theme-card) 70%, transparent)'
             : 'color-mix(in srgb, var(--theme-card) 30%, transparent)',
         border: isActive
-          ? `1px solid ${railColor}`
+          ? `1.5px solid ${railColor}`
           : '1px solid var(--theme-border-subtle, var(--theme-border))',
         boxShadow: isActive
-          ? `inset 0 0 0 1px ${railColor}55, 0 0 12px ${railColor}55, 0 0 4px ${railColor}33`
+          ? `inset 0 0 0 1px ${railColor}77, 0 0 18px ${railColor}88, 0 0 6px ${railColor}55`
           : hovered
             ? `0 0 0 1px ${railColor}33`
             : 'none',
@@ -196,25 +196,39 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
           </span>
         </div>
 
-        {/* Meta row: src · sub */}
-        <span
-          className="truncate"
-          style={{
-            color: 'var(--theme-muted)',
-            fontFamily: 'var(--font-mono, monospace)',
-            fontSize: 10,
-            opacity: 0.65,
-            letterSpacing: '0.02em',
-          }}
-        >
-          <span style={{ color: railColor, opacity: 0.85, textTransform: 'lowercase' }}>{item.src}</span>
-          {item.sub ? (
-            <>
-              <span style={{ opacity: 0.4 }}> · </span>
-              <span>{item.sub}</span>
-            </>
-          ) : null}
-        </span>
+        {/* Meta row: src badge · sub */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span
+            className="shrink-0 rounded-full px-1.5 uppercase"
+            style={{
+              border: `1px solid ${railColor}`,
+              background: `color-mix(in srgb, ${railColor} 14%, transparent)`,
+              color: railColor,
+              fontFamily: 'var(--font-mono, monospace)',
+              fontSize: 8,
+              letterSpacing: '0.12em',
+              fontWeight: 600,
+              lineHeight: '14px',
+              textShadow: `0 0 4px ${railColor}66`,
+            }}
+          >
+            {item.src}
+          </span>
+          {item.sub && (
+            <span
+              className="truncate"
+              style={{
+                color: 'var(--theme-muted)',
+                fontFamily: 'var(--font-mono, monospace)',
+                fontSize: 10,
+                opacity: 0.65,
+                letterSpacing: '0.02em',
+              }}
+            >
+              {item.sub}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Right column: time + tokens + three-dot menu trigger */}
