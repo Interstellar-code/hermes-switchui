@@ -28,7 +28,7 @@ interface SidebarListV2Props {
 
 export function SidebarListV2({ groups }: SidebarListV2Props) {
 
-  // Determine active session from router
+  // Determine active route from router
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const activeSessionKey = pathname.startsWith('/chat/') ? pathname.split('/chat/')[1] : null
 
@@ -91,7 +91,16 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
             {/* Cards */}
             {groupItems.map((item) => {
               const rawId = item.id.split(':').slice(1).join(':')
-              const isActive = item.src === 'chat' && rawId === activeSessionKey
+              let isActive = false
+              if (item.src === 'chat') {
+                isActive = rawId === activeSessionKey
+              } else if (item.src === 'cron') {
+                isActive = pathname === '/jobs'
+              } else if (item.src === 'task') {
+                isActive = pathname === '/tasks'
+              } else if (item.src === 'mem') {
+                isActive = pathname === '/memory'
+              }
               return (
                 <SidebarCardV2 key={item.id} item={item} isActive={isActive} />
               )

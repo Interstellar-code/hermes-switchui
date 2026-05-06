@@ -98,9 +98,16 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
   const railGlow =
     item.live || isActive ? (RAIL_GLOW[item.src] ?? 'none') : 'none'
 
-  // Determine link target — chat items navigate to /chat/$sessionKey; others no-op for now
+  // Determine link target per source.
+  // `tool` and `tg` have no detail route — left non-clickable intentionally.
+  // TODO: wire `tg` when a Telegram session detail route is added.
+  // TODO: wire `tool` when a tool-run detail route is added.
   const rawId = item.id.split(':').slice(1).join(':')
   const isChatItem = item.src === 'chat'
+  const isCronItem = item.src === 'cron'
+  const isTaskItem = item.src === 'task'
+  const isMemItem = item.src === 'mem'
+  const isClickable = isChatItem || isCronItem || isTaskItem || isMemItem
 
   const [hovered, setHovered] = useState(false)
   const [ctxMenu, setCtxMenu] = useState<ContextMenuPosition | null>(null)
@@ -124,7 +131,7 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
         borderBottom: '1px solid var(--theme-border-subtle, var(--theme-border))',
         borderLeft: isActive ? `2px solid ${railColor}` : '2px solid transparent',
         boxShadow: isActive ? `inset 2px 0 8px ${railColor}44` : 'none',
-        cursor: isChatItem ? 'pointer' : 'default',
+        cursor: isClickable ? 'pointer' : 'default',
         minHeight: 56,
         position: 'relative',
       }}
@@ -278,6 +285,42 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
           preload="intent"
           style={{ display: 'block', textDecoration: 'none' }}
         >
+          {cardContent}
+        </Link>
+        {contextMenuEl}
+      </>
+    )
+  }
+
+  if (isCronItem) {
+    // /jobs is a flat list — no $jobId detail route exists yet.
+    return (
+      <>
+        <Link to="/jobs" preload="intent" style={{ display: 'block', textDecoration: 'none' }}>
+          {cardContent}
+        </Link>
+        {contextMenuEl}
+      </>
+    )
+  }
+
+  if (isTaskItem) {
+    // /tasks is a flat kanban board — no $taskId detail route exists yet.
+    return (
+      <>
+        <Link to="/tasks" preload="intent" style={{ display: 'block', textDecoration: 'none' }}>
+          {cardContent}
+        </Link>
+        {contextMenuEl}
+      </>
+    )
+  }
+
+  if (isMemItem) {
+    // /memory is a flat browser — no $path detail route exists yet.
+    return (
+      <>
+        <Link to="/memory" preload="intent" style={{ display: 'block', textDecoration: 'none' }}>
           {cardContent}
         </Link>
         {contextMenuEl}
