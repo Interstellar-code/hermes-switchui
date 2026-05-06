@@ -46,6 +46,7 @@ type SkillGroup = {
   count: number
   lastInvokedTs?: number
   status: 'error' | 'done' | 'running'
+  kind: 'loaded' | 'invoked'
 }
 
 const tabStyle: React.CSSProperties = {
@@ -78,10 +79,43 @@ function statusColor(status: SkillGroup['status']): string {
   return 'var(--theme-accent, #6366f1)'
 }
 
+/**
+ * Extract a human-readable summary from tool args. Recurses into a
+ * stringified `value` field (gateway sometimes wraps args this way).
+ */
 function argsSummary(args?: Record<string, unknown>): string {
   if (!args || Object.keys(args).length === 0) return ''
-  return truncate(JSON.stringify(args))
+  let a: Record<string, unknown> = args
+  const v = a.value
+  if (typeof v === 'string') {
+    try {
+      const parsed = JSON.parse(v) as Record<string, unknown>
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) a = parsed
+    } catch {
+      /* keep wrapper */
+    }
+  }
+  // todo: extract `todos[].content`
+  if (Array.isArray(a.todos)) {
+    const items = (a.todos as Array<Record<string, unknown>>)
+      .map((t) => (typeof t.content === 'string' ? t.content : ''))
+      .filter(Boolean)
+    if (items.length) return truncate(items.join(' / '), 100)
+  }
+  // common single-string fields
+  for (const key of ['task', 'title', 'name', 'command', 'cmd', 'query', 'q', 'prompt', 'pattern', 'file_path', 'path', 'url']) {
+    const x = a[key]
+    if (typeof x === 'string' && x.trim()) return truncate(x.trim(), 100)
+  }
+  // first non-trivial entry as `key=value`
+  for (const [k, x] of Object.entries(a)) {
+    if (typeof x === 'string' && x.trim()) return truncate(`${k}=${x.trim()}`, 100)
+    if (typeof x === 'number' || typeof x === 'boolean') return `${k}=${x}`
+  }
+  return ''
 }
+
+type SkillFilter = 'all' | 'loaded' | 'invoked' | 'errored'
 
 function SkillCard({ group }: { group: SkillGroup }) {
   const [open, setOpen] = useState(false)
@@ -174,6 +208,7 @@ function SkillCard({ group }: { group: SkillGroup }) {
 }
 
 export function ChatSkillsTabV2({ messages, streamingToolCalls = [], events: _events = [] }: ChatSkillsTabV2Props) {
+  const [filter, setFilter] = useState<SkillFilter>('all')
   const resultTsMap = buildResultTsMap(messages)
   const streamingEntries = extractStreamingEntries(streamingToolCalls)
   const completedEntries = extractStreamToolCallsFromMessages(messages, resultTsMap)
@@ -200,7 +235,14 @@ export function ChatSkillsTabV2({ messages, streamingToolCalls = [], events: _ev
         : entry.name || 'unknown skill'
     let group = groupMap.get(skillName)
     if (!group) {
-      group = { skillName, invocations: [], count: 0, lastInvokedTs: undefined, status: 'done' }
+      group = {
+        skillName,
+        invocations: [],
+        count: 0,
+        lastInvokedTs: undefined,
+        status: 'done',
+        kind: entry.name === 'skill' ? 'loaded' : 'invoked',
+      }
       groupMap.set(skillName, group)
     }
     const inv: SkillInvocation = {
@@ -228,21 +270,53 @@ export function ChatSkillsTabV2({ messages, streamingToolCalls = [], events: _ev
     group.status = hasError ? 'error' : allSettled ? 'done' : 'running'
   }
 
-  const groups = Array.from(groupMap.values())
-
-  if (groups.length === 0) {
-    return (
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 font-mono text-xs" style={tabStyle}>
-        <p className="opacity-40 text-center mt-8">∅ No skills loaded in this session</p>
-      </div>
-    )
-  }
+  const allGroups = Array.from(groupMap.values())
+  const visibleGroups = allGroups.filter((g) => {
+    if (filter === 'all') return true
+    if (filter === 'loaded') return g.kind === 'loaded'
+    if (filter === 'invoked') return g.kind === 'invoked'
+    if (filter === 'errored') return g.status === 'error'
+    return true
+  })
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2 font-mono text-xs" style={tabStyle}>
-      {groups.map((group) => (
-        <SkillCard key={group.skillName} group={group} />
-      ))}
+    <div className="flex-1 min-h-0 overflow-y-auto flex flex-col font-mono text-xs" style={tabStyle}>
+      <div className="flex items-center gap-1.5 px-4 pt-3 pb-2 shrink-0">
+        {(['all', 'loaded', 'invoked', 'errored'] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            style={pillStyle(filter === f)}
+            onClick={() => setFilter(f)}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
+      {visibleGroups.length === 0 ? (
+        <div className="flex-1 flex items-start justify-center pt-8 p-4">
+          <p className="opacity-40 text-center">∅ No skills loaded in this session</p>
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0 p-4 pt-1 space-y-2">
+          {visibleGroups.map((group) => (
+            <SkillCard key={group.skillName} group={group} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
+
+const pillStyle = (active: boolean): React.CSSProperties => ({
+  background: active ? 'color-mix(in srgb, var(--m-green, #4ade80) 18%, transparent)' : 'transparent',
+  color: active ? 'var(--m-green, #4ade80)' : 'var(--theme-muted)',
+  border: '1px solid',
+  borderColor: active ? 'var(--m-green, #4ade80)' : 'var(--theme-border)',
+  borderRadius: '9999px',
+  padding: '1px 8px',
+  fontSize: '9px',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  fontWeight: active ? 600 : 400,
+})
