@@ -1,4 +1,6 @@
-import type { ChatMessage } from '../../types'
+import { useState } from 'react'
+import type { ChatMessage, ToolCallContent, ToolResultContent } from '../../types'
+import { formatStreamingActivityLabel } from '../streaming-activity-ui'
 
 type LifecycleEvent = {
   text: string
@@ -13,6 +15,7 @@ type ToolTabViewProps = {
 
 type ActivityTabViewProps = {
   events: Array<LifecycleEvent>
+  messages?: Array<ChatMessage>
 }
 
 const toolViewStyle: React.CSSProperties = {
@@ -24,15 +27,156 @@ const cardStyle: React.CSSProperties = {
 }
 const greenStyle: React.CSSProperties = { color: 'var(--m-green, #4ade80)' }
 
-export function ToolTabView({ messages }: ToolTabViewProps) {
-  const toolMessages = messages.filter((m) => {
-    if (!Array.isArray(m.content)) return false
-    return m.content.some(
-      (c) => (c as { type: string }).type === 'toolCall' || (c as { type: string }).type === 'toolResult',
-    )
-  })
+type FlatToolEntry = {
+  key: string
+  isCall: boolean
+  name: string
+  callId: string
+  input?: Record<string, unknown>
+  output?: string
+  isError?: boolean
+  timestamp?: number
+}
 
-  if (toolMessages.length === 0) {
+function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> {
+  const entries: Array<FlatToolEntry> = []
+  const resultsByCallId = new Map<string, ToolResultContent>()
+
+  // First pass: collect results
+  for (const m of messages) {
+    if (!Array.isArray(m.content)) continue
+    for (const c of m.content) {
+      const raw = c as unknown as ToolResultContent
+      if (raw.type === 'toolResult') {
+        const id = raw.toolCallId ?? ''
+        if (id) resultsByCallId.set(id, raw)
+      }
+    }
+  }
+
+  // Second pass: build entries from calls
+  for (const m of messages) {
+    if (!Array.isArray(m.content)) continue
+    for (const c of m.content) {
+      const raw = c as unknown as ToolCallContent
+      if (raw.type !== 'toolCall') continue
+      const callId = raw.id ?? ''
+      const result = callId ? resultsByCallId.get(callId) : undefined
+      const outputText = result?.content?.map((chunk) => chunk.text ?? '').join('') ?? ''
+      entries.push({
+        key: callId || `${raw.name ?? 'tool'}-${entries.length}`,
+        isCall: true,
+        name: raw.name ?? '',
+        callId,
+        input: raw.arguments,
+        output: outputText || undefined,
+        isError: result?.isError ?? false,
+        timestamp: m.timestamp,
+      })
+    }
+  }
+
+  return entries
+}
+
+function statusBadge(entry: FlatToolEntry) {
+  if (entry.isError) return { label: 'error', color: 'var(--theme-danger, #ef4444)' }
+  if (entry.output !== undefined) return { label: 'done', color: 'var(--theme-success, #22c55e)' }
+  return { label: 'running', color: 'var(--theme-accent, #6366f1)' }
+}
+
+function ExpandableToolCard({ entry }: { entry: FlatToolEntry }) {
+  const [open, setOpen] = useState(false)
+  const badge = statusBadge(entry)
+  const hasInput = !!(entry.input && Object.keys(entry.input).length > 0)
+  const hasOutput = !!(entry.output)
+  const canExpand = hasInput || hasOutput
+  const displayName = formatStreamingActivityLabel(entry.name, entry.input)
+
+  return (
+    <div
+      className="rounded border overflow-hidden"
+      style={cardStyle}
+    >
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => canExpand && setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (canExpand && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault()
+            setOpen((v) => !v)
+          }
+        }}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left font-mono text-xs"
+        style={{ cursor: canExpand ? 'pointer' : 'default', background: 'transparent', border: 'none' }}
+      >
+        <span style={greenStyle}>{open ? '▼' : '▶'}</span>
+        <span className="font-semibold" style={greenStyle}>{displayName}</span>
+        {entry.callId ? (
+          <span className="opacity-40 truncate min-w-0 text-[10px]">{entry.callId}</span>
+        ) : null}
+        <span className="flex-1" />
+        <span
+          className="shrink-0 text-[10px] px-1.5 py-0.5 rounded"
+          style={{
+            color: badge.color,
+            background: `color-mix(in srgb, ${badge.color} 15%, transparent)`,
+          }}
+        >
+          {badge.label}
+        </span>
+        {canExpand ? (
+          <span className="shrink-0 opacity-40 text-[10px]">{open ? '▾' : '▸'}</span>
+        ) : null}
+      </button>
+      {open && canExpand ? (
+        <div
+          className="mx-3 mb-2 rounded border px-3 py-2 text-[11px]"
+          style={{
+            background: 'var(--code-bg, color-mix(in srgb, var(--theme-card) 70%, transparent))',
+            borderColor: 'var(--theme-border)',
+          }}
+        >
+          {hasInput ? (
+            <div>
+              <div className="mb-0.5 font-sans text-[9px] uppercase tracking-widest opacity-50" style={{ color: 'var(--theme-muted)' }}>
+                Input
+              </div>
+              <pre
+                className="max-h-32 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px]"
+                style={{ color: 'var(--code-foreground, var(--theme-text))' }}
+              >
+                {JSON.stringify(entry.input, null, 2)}
+              </pre>
+            </div>
+          ) : null}
+          {hasOutput ? (
+            <div className={hasInput ? 'mt-1.5' : ''}>
+              <div
+                className="mb-0.5 font-sans text-[9px] uppercase tracking-widest opacity-50"
+                style={{ color: entry.isError ? 'var(--theme-danger, #ef4444)' : 'var(--theme-muted)' }}
+              >
+                {entry.isError ? 'Error' : 'Output'}
+              </div>
+              <pre
+                className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px]"
+                style={{ color: entry.isError ? 'var(--theme-danger, #ef4444)' : 'var(--code-foreground, var(--theme-text))' }}
+              >
+                {entry.output}
+              </pre>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+export function ToolTabView({ messages }: ToolTabViewProps) {
+  const entries = extractToolEntries(messages)
+
+  if (entries.length === 0) {
     return (
       <div
         className="flex-1 min-h-0 overflow-y-auto p-4 font-mono text-xs"
@@ -48,40 +192,62 @@ export function ToolTabView({ messages }: ToolTabViewProps) {
       className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2 font-mono text-xs"
       style={toolViewStyle}
     >
-      {toolMessages.map((m, i) => {
-        const calls = Array.isArray(m.content)
-          ? m.content.filter(
-              (c) => (c as { type: string }).type === 'toolCall' || (c as { type: string }).type === 'toolResult',
-            )
-          : []
-        return calls.map((c, j) => {
-          const raw = c as Record<string, unknown>
-          const isCall = raw['type'] === 'toolCall'
-          const label = isCall
-            ? String(raw['name'] ?? '')
-            : String(raw['toolName'] ?? '')
-          const callId = String(raw['id'] ?? raw['toolCallId'] ?? '')
-          return (
-            <div
-              key={`${String(m.id ?? i)}-${j}`}
-              className="rounded px-3 py-2 border"
-              style={cardStyle}
-            >
-              <span style={greenStyle}>{isCall ? '▶' : '◀'} </span>
-              {label}
-              {callId ? (
-                <span className="ml-2 opacity-50">{callId}</span>
-              ) : null}
-            </div>
-          )
-        })
-      })}
+      {entries.map((entry) => (
+        <ExpandableToolCard key={entry.key} entry={entry} />
+      ))}
     </div>
   )
 }
 
-export function ActivityTabView({ events }: ActivityTabViewProps) {
-  if (events.length === 0) {
+// --- Activity Tab ---
+
+type ActivityRow =
+  | { kind: 'lifecycle'; event: LifecycleEvent }
+  | { kind: 'tool'; entry: FlatToolEntry }
+
+function buildActivityRows(
+  events: Array<LifecycleEvent>,
+  messages: Array<ChatMessage>,
+): Array<ActivityRow> {
+  const rows: Array<ActivityRow> = []
+
+  for (const ev of events) {
+    rows.push({ kind: 'lifecycle', event: ev })
+  }
+
+  const toolEntries = extractToolEntries(messages)
+  for (const entry of toolEntries) {
+    rows.push({ kind: 'tool', entry })
+  }
+
+  // Sort chronologically; tool entries without timestamps go after lifecycle events
+  rows.sort((a, b) => {
+    const ta = a.kind === 'lifecycle' ? a.event.timestamp : (a.entry.timestamp ?? Infinity)
+    const tb = b.kind === 'lifecycle' ? b.event.timestamp : (b.entry.timestamp ?? Infinity)
+    return ta - tb
+  })
+
+  return rows
+}
+
+function ActivityDot({ isError, isRunning }: { isError?: boolean; isRunning?: boolean }) {
+  const color = isError
+    ? 'var(--theme-danger, #ef4444)'
+    : isRunning
+      ? 'var(--theme-accent, #6366f1)'
+      : 'var(--theme-success, #22c55e)'
+  return (
+    <span
+      className="shrink-0 size-1.5 rounded-full mt-1.5"
+      style={{ background: color, display: 'inline-block' }}
+    />
+  )
+}
+
+export function ActivityTabView({ events, messages = [] }: ActivityTabViewProps) {
+  const rows = buildActivityRows(events, messages)
+
+  if (rows.length === 0) {
     return (
       <div
         className="flex-1 min-h-0 overflow-y-auto p-4 font-mono text-xs"
@@ -97,27 +263,47 @@ export function ActivityTabView({ events }: ActivityTabViewProps) {
       className="flex-1 min-h-0 overflow-y-auto p-4 space-y-1.5 font-mono text-xs"
       style={toolViewStyle}
     >
-      {events.map((ev, i) => (
-        <div key={i} className="flex items-start gap-2">
-          <span style={greenStyle} aria-hidden="true">
-            {ev.emoji || '·'}
-          </span>
-          <span
-            className={
-              ev.isError ? 'text-red-400 shrink-0' : 'opacity-80 shrink-0'
-            }
-          >
-            {ev.text}
-          </span>
-          <span className="opacity-40 ml-auto shrink-0 tabular-nums">
-            {new Date(ev.timestamp).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-            })}
-          </span>
-        </div>
-      ))}
+      {rows.map((row, i) => {
+        if (row.kind === 'lifecycle') {
+          const ev = row.event
+          return (
+            <div key={`lc-${i}`} className="flex items-start gap-2">
+              <ActivityDot isError={ev.isError} />
+              <span className={ev.isError ? 'text-red-400 shrink-0' : 'opacity-80 shrink-0'}>
+                {ev.text}
+              </span>
+              <span className="opacity-40 ml-auto shrink-0 tabular-nums">
+                {new Date(ev.timestamp).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                })}
+              </span>
+            </div>
+          )
+        }
+        const entry = row.entry
+        const badge = statusBadge(entry)
+        const displayName = formatStreamingActivityLabel(entry.name, entry.input)
+        return (
+          <div key={`tool-${entry.key}`} className="flex items-start gap-2">
+            <ActivityDot isError={entry.isError} isRunning={badge.label === 'running'} />
+            <span className="opacity-80 shrink-0">
+              tool · <span style={greenStyle}>{displayName}</span> ·{' '}
+              <span style={{ color: badge.color }}>{badge.label}</span>
+            </span>
+            {entry.timestamp ? (
+              <span className="opacity-40 ml-auto shrink-0 tabular-nums">
+                {new Date(entry.timestamp).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                })}
+              </span>
+            ) : null}
+          </div>
+        )
+      })}
     </div>
   )
 }
