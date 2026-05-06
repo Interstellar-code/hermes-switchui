@@ -87,12 +87,12 @@ export function SidebarRailV2({
 
   return (
     <div
-      className="flex flex-col items-center shrink-0"
+      className="flex flex-col items-center shrink-0 rounded-md my-2 mx-2"
       data-testid="sidebar-rail-v2"
       aria-label="Sessions rail"
       style={{
         width: 44,
-        borderRight: '1px solid var(--theme-border)',
+        border: '1px solid var(--theme-border)',
         background: 'var(--theme-sidebar)',
       }}
     >
