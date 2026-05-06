@@ -135,6 +135,9 @@ export async function deleteTask(taskId: string): Promise<void> {
   await updateTask(taskId, { status: 'archived' })
 }
 
+/** archiveTask alias for clarity at call sites. */
+export const archiveTask = deleteTask
+
 /**
  * hardDeleteTask → permanent removal via DELETE.
  * Only call this on tasks that are already archived.
