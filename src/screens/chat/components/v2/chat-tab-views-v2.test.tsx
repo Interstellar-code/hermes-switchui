@@ -144,4 +144,31 @@ describe('ToolTabView streaming tool calls', () => {
     act(() => { fireEvent.click(button) })
     expect(container.querySelector('pre')).toBeNull()
   })
+
+  it.each([
+    ['failed', 'error'],
+    ['failure', 'error'],
+    ['result', 'done'],
+    ['completed', 'done'],
+    ['calling', 'running'],
+    ['started', 'running'],
+  ])('phase alias %s maps to status %s', (phase, expected) => {
+    const streamingToolCalls = [
+      { id: `c-${phase}`, name: 'aliasTool', phase, args: { a: 1 }, result: 'r' },
+    ]
+    const container = renderInto(
+      <ToolTabView messages={[]} streamingToolCalls={streamingToolCalls} />,
+    )
+    expect(container.textContent).toContain(expected)
+  })
+
+  it('unknown phase falls back to running (matches v1 message-item)', () => {
+    const streamingToolCalls = [
+      { id: 'c-unk', name: 'mystery', phase: 'mystery-phase', args: { a: 1 } },
+    ]
+    const container = renderInto(
+      <ToolTabView messages={[]} streamingToolCalls={streamingToolCalls} />,
+    )
+    expect(container.textContent).toContain('running')
+  })
 })

@@ -68,8 +68,8 @@ function phaseToStatus(phase: string): 'running' | 'done' | 'error' {
     return 'done'
   if (phase === 'start' || phase === 'started' || phase === 'calling' || phase === 'running')
     return 'running'
-  // Unknown phases (skill.loaded, artifact.created, etc.) → treat as done
-  return 'done'
+  // Unknown phases default to running, matching v1 message-item.tsx:389.
+  return 'running'
 }
 
 /** Build FlatToolEntry list from streaming tool calls */
