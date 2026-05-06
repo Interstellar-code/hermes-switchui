@@ -154,6 +154,7 @@ export function useChatSessionsFeed(): SessionSourceResult {
           state: 'idle',
           badges,
           pinned: false,
+          starred: false,
           archived: false,
           sourceMeta: {
             key: s.key,
@@ -220,6 +221,7 @@ export function useCronSessionsFeed(): SessionSourceResult {
           state,
           badges,
           pinned: false,
+          starred: false,
           archived: false,
           sourceMeta: {
             jobId: job.id,
@@ -288,6 +290,7 @@ export function useTaskSessionsFeed(): SessionSourceResult {
           state,
           badges,
           pinned: false,
+          starred: false,
           archived: state === 'archived',
           sourceMeta: {
             taskId: task.id,
@@ -379,6 +382,7 @@ export function useMemorySessionsFeed(): SessionSourceResult {
           state: 'idle',
           badges: [],
           pinned: false,
+          starred: false,
           archived: false,
           sourceMeta: { name, path: f.path, size: f.size },
         }

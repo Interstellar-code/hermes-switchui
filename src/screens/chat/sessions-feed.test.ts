@@ -30,6 +30,7 @@ function makeItem(
     state: 'idle',
     badges: [],
     pinned: false,
+    starred: false,
     archived: false,
     sourceMeta: {},
     ...overrides,

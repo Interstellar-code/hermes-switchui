@@ -71,6 +71,7 @@ export type SessionFeedItem = {
   state: SessionState
   badges: Array<SessionBadge>
   pinned: boolean
+  starred: boolean
   archived: boolean
   /** Optional chip-count for collapsed grouping (e.g. unread messages, task subtasks). */
   badgeCount?: number
