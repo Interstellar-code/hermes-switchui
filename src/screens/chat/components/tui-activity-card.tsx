@@ -24,11 +24,23 @@ export type TuiToolSection = {
   preview?: string
   outputText: string
   errorText?: string
+  timestamp?: number
   state:
     | 'input-streaming'
     | 'input-available'
     | 'output-available'
     | 'output-error'
+}
+
+function formatTime(ms?: number): string {
+  if (!ms || !Number.isFinite(ms)) return ''
+  const d = new Date(ms)
+  const h = d.getHours()
+  const m = String(d.getMinutes()).padStart(2, '0')
+  const s = String(d.getSeconds()).padStart(2, '0')
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 || 12
+  return `${h12}:${m}:${s} ${ampm}`
 }
 
 type TuiActivityCardProps = {
@@ -158,14 +170,6 @@ function ToolRow({
   const hasOutputData = !!(section.outputText || section.errorText)
   const canExpand = hasInputData || hasOutputData
 
-  const outputBytes = outputText.length
-  const formatBytes = (n: number): string => {
-    if (n <= 0) return ''
-    if (n < 1024) return `${n} b`
-    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} kb`
-    return `${(n / (1024 * 1024)).toFixed(1)} mb`
-  }
-  const sizeLabel = !isPending ? formatBytes(outputBytes) : ''
   const durationLabel =
     isPending && isStreamingActive && elapsed > 0 ? formatElapsed(elapsed) : ''
 
@@ -199,28 +203,21 @@ function ToolRow({
           {label}
         </span>
         <span className="flex-1" />
-        {argTruncated && argTruncated !== label ? (
-          <span
-            className="truncate min-w-0 opacity-70 text-[10px]"
-            style={{ color: 'var(--theme-muted)' }}
-          >
-            {argTruncated}
-          </span>
-        ) : null}
-        {sizeLabel ? (
-          <span
-            className="shrink-0 tabular-nums text-[10px]"
-            style={{ color: 'var(--theme-muted)' }}
-          >
-            · {sizeLabel}
-          </span>
-        ) : null}
         {durationLabel ? (
           <span
             className="shrink-0 tabular-nums text-[10px] opacity-60"
             style={{ color: 'var(--theme-muted)' }}
           >
-            · {durationLabel}
+            {durationLabel}
+          </span>
+        ) : null}
+        {section.timestamp ? (
+          <span
+            className="shrink-0 tabular-nums text-[10px]"
+            style={{ color: 'var(--theme-muted)' }}
+            title={argTruncated ?? undefined}
+          >
+            {formatTime(section.timestamp)}
           </span>
         ) : null}
         {canExpand ? (
