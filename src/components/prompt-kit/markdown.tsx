@@ -65,11 +65,30 @@ const INITIAL_COMPONENTS: Partial<Components> = {
     const isInline = !className?.includes('language-')
 
     if (isInline) {
-      return (
-        <code className="rounded bg-primary-100 px-1.5 py-0.5 text-[0.9em] font-mono text-primary-900 border border-primary-200">
-          {children}
-        </code>
-      )
+      const text = String(children ?? '').trim()
+      const looksLikePath =
+        /^(?:\/|~\/|\.\.?\/)/.test(text) &&
+        /[A-Za-z0-9._-]/.test(text) &&
+        !/\s/.test(text)
+      const codeClass =
+        'rounded px-1.5 py-0.5 text-[0.9em] font-mono ' +
+        'bg-[color-mix(in_srgb,var(--m-green-500,var(--theme-accent,#4ade80))_10%,transparent)] ' +
+        'text-[var(--m-green-400,var(--theme-accent,#4ade80))] ' +
+        'border border-[color-mix(in_srgb,var(--m-green-500,var(--theme-accent,#4ade80))_25%,transparent)]'
+      if (looksLikePath) {
+        const expanded = text.replace(/^~(?=\/)/, '')
+        const href = `/files?path=${encodeURIComponent(expanded)}`
+        return (
+          <a
+            href={href}
+            className={codeClass + ' underline-offset-2 hover:underline cursor-pointer'}
+            title={`Open ${text}`}
+          >
+            {children}
+          </a>
+        )
+      }
+      return <code className={codeClass}>{children}</code>
     }
 
     const language = extractLanguage(className)
