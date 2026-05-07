@@ -11,7 +11,7 @@ import { persist } from 'zustand/middleware'
 import type { SessionDateRange, SessionFeedSort, SessionSource, SessionState } from '@/screens/chat/sessions-feed-types'
 
 export type FilterState = {
-  version: 2
+  version: 3
   /** Multi-select; empty array = all sources (no implicit "All" chip). */
   sources: Array<SessionSource>
   /** Single-select; default 'all'. */
@@ -39,19 +39,13 @@ type FilterActions = {
   reset: () => void
 }
 
-function todayStartIso(): string {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  return d.toISOString()
-}
-
 function buildInitialState(): FilterState {
   return {
-    version: 2,
+    version: 3,
     sources: ['chat'],
     state: 'all',
     query: '',
-    dateRange: { from: todayStartIso(), to: null },
+    dateRange: { from: null, to: null },
     sort: 'recent',
     collapsed: false,
     leftPanel: 'sessions',
@@ -90,10 +84,19 @@ export const useSessionsFilterStore = create<FilterState & FilterActions>()(
       name: 'hermes.sessions.filter',
       migrate: (persisted, _version) => {
         const stored = persisted as Partial<FilterState>
-        if (stored.version !== 2) return buildInitialState()
-        return stored as FilterState
+        if (stored.version === 3) return stored as FilterState
+        if (stored.version === 2) {
+          // v2 → v3: drop the today-only default date filter
+          return {
+            ...buildInitialState(),
+            ...stored,
+            version: 3,
+            dateRange: { from: null, to: null },
+          }
+        }
+        return buildInitialState()
       },
-      version: 2,
+      version: 3,
     },
   ),
 )
