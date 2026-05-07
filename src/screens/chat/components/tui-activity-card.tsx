@@ -136,6 +136,17 @@ function ToolRow({
   const hasOutputData = !!(section.outputText || section.errorText)
   const canExpand = hasInputData || hasOutputData
 
+  const outputBytes = outputText.length
+  const formatBytes = (n: number): string => {
+    if (n <= 0) return ''
+    if (n < 1024) return `${n} b`
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} kb`
+    return `${(n / (1024 * 1024)).toFixed(1)} mb`
+  }
+  const sizeLabel = !isPending ? formatBytes(outputBytes) : ''
+  const durationLabel =
+    isPending && isStreamingActive && elapsed > 0 ? formatElapsed(elapsed) : ''
+
   return (
     <div className="font-mono text-[12px] leading-relaxed">
       <button
@@ -162,40 +173,50 @@ function ToolRow({
         >
           {label}
         </span>
+        <span className="flex-1" />
         {argTruncated && argTruncated !== label ? (
           <span
-            className="truncate min-w-0 opacity-70"
+            className="truncate min-w-0 opacity-70 text-[10px]"
             style={{ color: 'var(--theme-muted)' }}
           >
             {argTruncated}
           </span>
         ) : null}
-        <span className="flex-1" />
-        {isPending && isStreamingActive && elapsed > 0 ? (
+        {sizeLabel ? (
+          <span
+            className="shrink-0 tabular-nums text-[10px]"
+            style={{ color: 'var(--theme-muted)' }}
+          >
+            · {sizeLabel}
+          </span>
+        ) : null}
+        {durationLabel ? (
           <span
             className="shrink-0 tabular-nums text-[10px] opacity-60"
             style={{ color: 'var(--theme-muted)' }}
           >
-            {formatElapsed(elapsed)}
+            · {durationLabel}
           </span>
         ) : null}
         {canExpand ? (
           <span
-            className="shrink-0 text-[10px] opacity-40"
+            className="shrink-0 text-[10px] opacity-40 ml-1"
             style={{ color: 'var(--theme-muted)' }}
           >
             {open ? '▾' : '▸'}
           </span>
         ) : null}
       </button>
-      {/* Output preview line — TUI-style ⎿ */}
-      <div
-        className="flex items-baseline gap-1.5 px-3 pl-7 pb-0.5 opacity-70"
-        style={{ color: isError ? 'var(--theme-danger, #ef4444)' : 'var(--theme-muted)' }}
-      >
-        <span className="shrink-0 leading-none opacity-50">⎿</span>
-        <span className="truncate min-w-0">{outputSummary}</span>
-      </div>
+      {/* Sub-line only on errors or while streaming (drops noisy "done" line) */}
+      {(isError || (isPending && isStreamingActive)) ? (
+        <div
+          className="flex items-baseline gap-1.5 px-3 pl-7 pb-0.5 opacity-70"
+          style={{ color: isError ? 'var(--theme-danger, #ef4444)' : 'var(--theme-muted)' }}
+        >
+          <span className="shrink-0 leading-none opacity-50">⎿</span>
+          <span className="truncate min-w-0">{outputSummary}</span>
+        </div>
+      ) : null}
       {open && canExpand ? (
         <div
           className="mx-3 mt-2 mb-1 rounded border px-3 py-2 text-[11px]"
@@ -346,9 +367,15 @@ function TuiActivityCardComponent({
     ).length
     const done = total - errors - running
 
-    if (errors > 0) return `${errors} failed · ${done} done`
-    if (running > 0) return `${running} running · ${done} done`
-    return `${total} ${total === 1 ? 'tool' : 'tools'} · done`
+    if (errors > 0) return `● ${errors} FAILED · ${done} DONE`
+    if (running > 0) return `● ${running} RUNNING · ${done} DONE`
+    return '● DONE'
+  }, [toolSections, hasTools])
+
+  const headerLabel = useMemo(() => {
+    if (!hasTools) return ''
+    const total = toolSections.length
+    return `ACTIVITY · ${total} ${total === 1 ? 'TOOL' : 'TOOLS'}`
   }, [toolSections, hasTools])
 
   const summaryColor =
@@ -387,7 +414,7 @@ function TuiActivityCardComponent({
           className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em]"
           style={{ color: 'var(--theme-muted)' }}
         >
-          {isStreaming ? '⚡ Working' : 'Activity'}
+          {isStreaming && !hasTools ? '⚡ WORKING' : headerLabel || 'ACTIVITY'}
         </span>
         <span className="flex-1" />
         {summary ? (
