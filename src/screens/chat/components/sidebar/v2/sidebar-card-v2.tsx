@@ -22,6 +22,7 @@ interface SidebarCardV2Props {
 
 const RAIL_COLORS: Record<string, string> = {
   chat: 'var(--m-green-500, #00ff41)',
+  task: '#ff9f5f',
   cron: '#d6ff5f',
   api: '#5fcfff',
   tg: '#ff5fa2',
@@ -104,7 +105,7 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
   const rawId = item.id.split(':').slice(1).join(':')
   // chat / cron / api are all backed by chat sessions — only the key prefix
   // differs. All three navigate via /chat/$sessionKey.
-  const isChatItem = item.src === 'chat' || item.src === 'cron' || item.src === 'api'
+  const isChatItem = item.src === 'chat' || item.src === 'cron' || item.src === 'api' || item.src === 'task'
   // cron/task/mem: no chat_session_key available from the gateway — these
   // sources carry no field that maps to a /chat/$sessionKey route. Clicking
   // navigates to the global list pages which is disorienting inside the chat

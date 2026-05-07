@@ -26,6 +26,16 @@ const SOURCE_DEFS: Array<{ id: SessionSource; label: string; icon: React.ReactNo
     ),
   },
   {
+    id: 'task',
+    label: 'TASK',
+    icon: (
+      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden>
+        <rect x="2.5" y="3" width="11" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
+        <path d="M5.5 7.5l1.5 1.5 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
     id: 'cron',
     label: 'CRON',
     icon: (
@@ -68,6 +78,7 @@ const SOURCE_DEFS: Array<{ id: SessionSource; label: string; icon: React.ReactNo
 
 const SOURCE_COLORS: Record<SessionSource, string> = {
   chat: 'var(--m-green-400, #00ff41)',
+  task: '#ff9f5f',
   cron: '#d6ff5f',
   api: '#5fcfff',
   tool: '#b98aff',

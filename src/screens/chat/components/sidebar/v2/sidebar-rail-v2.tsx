@@ -33,6 +33,17 @@ const RAIL_SOURCES: Array<{ id: SessionSource; label: string; color: string; ico
     ),
   },
   {
+    id: 'task',
+    label: 'Task',
+    color: '#ff9f5f',
+    icon: (
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden>
+        <rect x="2.5" y="3" width="11" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
+        <path d="M5.5 7.5l1.5 1.5 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
     id: 'cron',
     label: 'Cron',
     color: '#d6ff5f',
@@ -83,7 +94,7 @@ export function SidebarRailV2({
     }
   }
   // chat/cron/api derive from chat source — show if chat is available OR if we have any items for the kind
-  const chatAvailable = availableSet.has('chat') || (sourceCounts?.chat ?? 0) > 0 || (sourceCounts?.cron ?? 0) > 0 || (sourceCounts?.api ?? 0) > 0
+  const chatAvailable = availableSet.has('chat') || (sourceCounts?.chat ?? 0) > 0 || (sourceCounts?.cron ?? 0) > 0 || (sourceCounts?.api ?? 0) > 0 || (sourceCounts?.task ?? 0) > 0
 
   return (
     <div

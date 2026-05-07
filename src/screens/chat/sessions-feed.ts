@@ -112,7 +112,7 @@ export function useChatSessionsFeed(): SessionSourceResult {
   const available = capsQuery.data?.sessions ?? false
 
   const query = useQuery({
-    queryKey: ['sessions-feed', 'chat', 'v2-api-cron-split'],
+    queryKey: ['sessions-feed', 'chat', 'v3-task-split'],
     queryFn: async () => {
       const sessions = await fetchSessions()
       const nowMs = Date.now()
@@ -125,11 +125,18 @@ export function useChatSessionsFeed(): SessionSourceResult {
         //   cron_{jobId}_{YYYYMMDD_HHMMSS} — scheduled cron run (scheduler.py:1003)
         //   api-{hex}                       — programmatic API caller (CLI, MCP, scripts)
         //   YYYYMMDD_HHMMSS_*               — manual UI-created chat
+        const titleLower = (s.title ?? s.derivedTitle ?? '').toLowerCase()
+        const previewLower = (s.preview ?? '').toLowerCase()
+        const isTaskTriggered =
+          titleLower.startsWith('work kanban task ') ||
+          previewLower.startsWith('work kanban task ')
         const kind: SessionSource = s.key.startsWith('cron_')
           ? 'cron'
           : s.key.startsWith('api-')
             ? 'api'
-            : 'chat'
+            : isTaskTriggered
+              ? 'task'
+              : 'chat'
         return {
           id: makeId('chat', s.key),
           src: kind,
@@ -218,10 +225,11 @@ function matchesDateRange(item: SessionFeedItem, from: string | null, to: string
 
 const SOURCE_ORDER: Record<SessionSource, number> = {
   chat: 0,
-  cron: 1,
-  api: 2,
-  tool: 3,
-  tg: 4,
+  task: 1,
+  cron: 2,
+  api: 3,
+  tool: 4,
+  tg: 5,
 }
 
 export function sortItems(items: Array<SessionFeedItem>, sort: SessionFeedSort): Array<SessionFeedItem> {

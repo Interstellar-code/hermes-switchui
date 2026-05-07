@@ -26,7 +26,9 @@ type ModelsResponse = {
 async function fetchModelCatalog(): Promise<Array<ModelCatalogEntry>> {
   const response = await fetch('/api/models')
   if (!response.ok) return []
-  const payload = (await response.json()) as ModelsResponse | Array<ModelCatalogEntry>
+  const payload = (await response.json()) as
+    | ModelsResponse
+    | Array<ModelCatalogEntry>
   if (Array.isArray(payload)) return payload
   if (Array.isArray(payload.data)) return payload.data
   if (Array.isArray(payload.models)) return payload.models
@@ -37,7 +39,10 @@ function normalizeModelId(value: string): string {
   return value.trim().toLowerCase()
 }
 
-function matchesModel(candidate: ModelCatalogEntry, activeModel: string): boolean {
+function matchesModel(
+  candidate: ModelCatalogEntry,
+  activeModel: string,
+): boolean {
   const model = normalizeModelId(activeModel)
   if (!model) return false
   const ids = [candidate.id, candidate.model, candidate.name]
@@ -78,10 +83,11 @@ function ContextBarComponent({
   const fallbackUsed =
     typeof meta?.tokenCount === 'number'
       ? meta.tokenCount
-      : typeof (meta as { totalTokens?: number } | undefined)?.totalTokens === 'number'
+      : typeof (meta as { totalTokens?: number } | undefined)?.totalTokens ===
+          'number'
         ? Number((meta as { totalTokens?: number }).totalTokens)
         : 0
-  const activeModel = meta?.model ?? status.model ?? ''
+  const activeModel = status.model || meta?.model || ''
   const matchingModel = modelsQuery.data?.find((model) =>
     matchesModel(model, activeModel),
   )
@@ -95,8 +101,7 @@ function ContextBarComponent({
     fallbackMax > 0 ? Math.min(100, (fallbackUsed / fallbackMax) * 100) : 0
   const effectivePct =
     status.contextPercent > 0 ? status.contextPercent : fallbackPct
-  const effectiveUsed =
-    status.usedTokens > 0 ? status.usedTokens : fallbackUsed
+  const effectiveUsed = status.usedTokens > 0 ? status.usedTokens : fallbackUsed
   const effectiveMax = status.maxTokens > 0 ? status.maxTokens : fallbackMax
   const [showLabel, setShowLabel] = useState(false)
   const [isMobile, setIsMobile] = useState(false)

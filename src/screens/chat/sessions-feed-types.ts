@@ -7,7 +7,7 @@
  */
 
 /** All feed sources. */
-export type SessionSource = 'chat' | 'cron' | 'api' | 'tool' | 'tg'
+export type SessionSource = 'chat' | 'cron' | 'api' | 'task' | 'tool' | 'tg'
 
 /**
  * Lifecycle state of a session/job/task item.
