@@ -11,25 +11,42 @@ import {
 import { useSessionStatus } from '@/hooks/use-session-status'
 import { fetchSessions } from '@/screens/chat/chat-queries'
 
-const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
-  opus: 200_000,
-  sonnet: 200_000,
-  haiku: 200_000,
-  'gpt-5': 1_000_000,
-  'gpt-4.1': 1_000_000,
-  'gpt-4o': 128_000,
-  o1: 200_000,
-  o3: 200_000,
-  gemini: 1_000_000,
+type ModelCatalogEntry = {
+  id?: string
+  model?: string
+  name?: string
+  contextLength?: number
 }
 
-function maxForModel(model: string): number {
-  if (!model) return 200_000
-  const lower = model.toLowerCase()
-  for (const [key, val] of Object.entries(MODEL_CONTEXT_WINDOWS)) {
-    if (lower.includes(key)) return val
-  }
-  return 200_000
+type ModelsResponse = {
+  data?: Array<ModelCatalogEntry>
+  models?: Array<ModelCatalogEntry>
+}
+
+async function fetchModelCatalog(): Promise<Array<ModelCatalogEntry>> {
+  const response = await fetch('/api/models')
+  if (!response.ok) return []
+  const payload = (await response.json()) as ModelsResponse | Array<ModelCatalogEntry>
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload.data)) return payload.data
+  if (Array.isArray(payload.models)) return payload.models
+  return []
+}
+
+function normalizeModelId(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+function matchesModel(candidate: ModelCatalogEntry, activeModel: string): boolean {
+  const model = normalizeModelId(activeModel)
+  if (!model) return false
+  const ids = [candidate.id, candidate.model, candidate.name]
+    .filter((value): value is string => typeof value === 'string')
+    .map(normalizeModelId)
+  const modelName = model.split('/').pop()
+  return ids.some(
+    (id) => id === model || id.split('/').pop() === model || id === modelName,
+  )
 }
 
 function formatTokens(n: number): string {
@@ -52,6 +69,11 @@ function ContextBarComponent({
     staleTime: 30_000,
     enabled: Boolean(sessionId),
   })
+  const modelsQuery = useQuery({
+    queryKey: ['models'],
+    queryFn: fetchModelCatalog,
+    staleTime: 5 * 60 * 1000,
+  })
   const meta = (sessionsQuery.data ?? []).find((s) => s.key === sessionId)
   const fallbackUsed =
     typeof meta?.tokenCount === 'number'
@@ -59,7 +81,16 @@ function ContextBarComponent({
       : typeof (meta as { totalTokens?: number } | undefined)?.totalTokens === 'number'
         ? Number((meta as { totalTokens?: number }).totalTokens)
         : 0
-  const fallbackMax = maxForModel(meta?.model ?? status.model ?? '')
+  const activeModel = meta?.model ?? status.model ?? ''
+  const matchingModel = modelsQuery.data?.find((model) =>
+    matchesModel(model, activeModel),
+  )
+  const fallbackMax =
+    typeof matchingModel?.contextLength === 'number' &&
+    Number.isFinite(matchingModel.contextLength) &&
+    matchingModel.contextLength > 0
+      ? matchingModel.contextLength
+      : 200_000
   const fallbackPct =
     fallbackMax > 0 ? Math.min(100, (fallbackUsed / fallbackMax) * 100) : 0
   const effectivePct =
