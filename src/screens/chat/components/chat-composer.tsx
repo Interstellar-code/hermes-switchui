@@ -1817,10 +1817,11 @@ function ChatComposerComponent({
   const [scrollHidden, setScrollHidden] = useState(false)
   // Reset scroll-hide state when session changes (prevents composer staying hidden when navigating)
   const prevSessionKeyRef = useRef<string | undefined>(undefined)
-  if (prevSessionKeyRef.current !== sessionKey) {
+  useEffect(() => {
+    if (prevSessionKeyRef.current === sessionKey) return
     prevSessionKeyRef.current = sessionKey
-    if (scrollHidden) setScrollHidden(false)
-  }
+    setScrollHidden(false)
+  }, [sessionKey])
   useEffect(() => {
     if (!isMobileViewport) return
     let lastScrollTop = 0
@@ -1953,13 +1954,10 @@ function ChatComposerComponent({
                     ].join(' '),
               ].join(' ')
           : [
-              'relative z-40 shrink-0 w-full mx-auto px-3 pt-2 sm:px-5',
+              'relative z-40 shrink-0 w-full mx-auto px-3 pt-2 pb-6 sm:px-5 md:pb-8',
               'bg-surface',
             ].join(' '),
-        // Mobile: pin above tab bar + safe-area inset. Desktop: normal bottom padding.
-        !isMobileViewport
-          ? 'pb-[max(var(--safe-b),8px)] md:pb-[calc(var(--safe-b)+0.75rem)]'
-          : '',
+        !isMobileViewport ? '' : '',
         'md:bg-surface/95 md:backdrop-blur md:transition-[padding-bottom,background-color,backdrop-filter] md:duration-200',
       )}
       style={composerWrapperStyle}
