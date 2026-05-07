@@ -11,7 +11,7 @@ import { persist } from 'zustand/middleware'
 import type { SessionDateRange, SessionFeedSort, SessionSource, SessionState } from '@/screens/chat/sessions-feed-types'
 
 export type FilterState = {
-  version: 1
+  version: 2
   /** Multi-select; empty array = all sources (no implicit "All" chip). */
   sources: Array<SessionSource>
   /** Single-select; default 'all'. */
@@ -39,16 +39,26 @@ type FilterActions = {
   reset: () => void
 }
 
-const initialState: FilterState = {
-  version: 1,
-  sources: [],
-  state: 'all',
-  query: '',
-  dateRange: { from: null, to: null },
-  sort: 'recent',
-  collapsed: false,
-  leftPanel: 'sessions',
+function todayStartIso(): string {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d.toISOString()
 }
+
+function buildInitialState(): FilterState {
+  return {
+    version: 2,
+    sources: ['chat'],
+    state: 'all',
+    query: '',
+    dateRange: { from: todayStartIso(), to: null },
+    sort: 'recent',
+    collapsed: false,
+    leftPanel: 'sessions',
+  }
+}
+
+const initialState: FilterState = buildInitialState()
 
 export const useSessionsFilterStore = create<FilterState & FilterActions>()(
   persist(
@@ -74,17 +84,16 @@ export const useSessionsFilterStore = create<FilterState & FilterActions>()(
 
       setLeftPanel: (leftPanel) => set({ leftPanel }),
 
-      reset: () => set({ ...initialState }),
+      reset: () => set(buildInitialState()),
     }),
     {
       name: 'hermes.sessions.filter',
       migrate: (persisted, _version) => {
-        // If stored version is not 1, drop unknown future state and return defaults.
         const stored = persisted as Partial<FilterState>
-        if (stored.version !== 1) return { ...initialState }
+        if (stored.version !== 2) return buildInitialState()
         return stored as FilterState
       },
-      version: 1,
+      version: 2,
     },
   ),
 )
