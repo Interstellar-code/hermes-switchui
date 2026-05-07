@@ -47,12 +47,7 @@ function ChatMetaBarV2Component({
   const displayToolCount = toolCountProp ?? 0
   const displayProfile = profile ?? 'default'
 
-  // Derive a short session label from the key
-  const sessionLabel = sessionKey
-    ? sessionKey.length > 12
-      ? `t_${sessionKey.slice(-8)}`
-      : sessionKey
-    : '—'
+  const sessionLabel = sessionKey ?? '—'
 
   return (
     <div
