@@ -74,6 +74,28 @@ function summarizeOutput(text: string, maxLen = 120): string {
   return `${compact.slice(0, maxLen - 1)}…`
 }
 
+const TOOL_ICONS: Record<string, string> = {
+  web_search: '🔍', search: '🔍', search_files: '🔍', session_search: '🔍',
+  terminal: '💻', exec: '💻', shell: '💻', bash: '💻',
+  Read: '📖', read: '📖', read_file: '📖', file_read: '📖',
+  Write: '✏️', write: '✏️', write_file: '✏️', file_write: '✏️',
+  Edit: '✏️', edit: '✏️',
+  memory: '🧠', memory_search: '🧠', memory_get: '🧠', save_memory: '🧠',
+  browser: '🌐', browser_navigate: '🌐', navigate: '🌐',
+  image: '🖼️', vision: '🖼️',
+  skill: '📦', skill_view: '📦', skill_load: '📦',
+  delegate: '🤖', spawn: '🤖',
+  tts: '🗣️', speak: '🗣️',
+}
+function getToolIcon(name: string): string {
+  if (TOOL_ICONS[name]) return TOOL_ICONS[name]
+  const lower = name.toLowerCase()
+  for (const key of Object.keys(TOOL_ICONS)) {
+    if (lower.includes(key.toLowerCase())) return TOOL_ICONS[key]
+  }
+  return '🔧'
+}
+
 function formatElapsed(seconds: number): string {
   if (seconds < 60) return `${seconds}s`
   const m = Math.floor(seconds / 60)
@@ -166,6 +188,9 @@ function ToolRow({
           style={{ color }}
         >
           {dot}
+        </span>
+        <span className="shrink-0 leading-none" aria-hidden>
+          {getToolIcon(section.type)}
         </span>
         <span
           className="shrink-0 font-semibold"
