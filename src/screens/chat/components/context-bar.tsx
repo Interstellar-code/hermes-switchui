@@ -43,8 +43,8 @@ function ContextBarComponent({
   const pct = status.contextPercent
   const clampedPct = Math.min(Math.max(pct, 0), 100)
 
-  // Hide entirely when no data has loaded yet
-  if (clampedPct === 0 && status.usedTokens === 0) return null
+  // Compact ring stays visible (shows 0% until data loads); non-compact bar still hides
+  if (!compact && clampedPct === 0 && status.usedTokens === 0) return null
   const isCritical = clampedPct > 90
   const isDanger = clampedPct >= 75 && clampedPct <= 90
   const isWarning = clampedPct >= 50 && clampedPct < 75
