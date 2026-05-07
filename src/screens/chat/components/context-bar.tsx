@@ -88,13 +88,13 @@ function ContextBarComponent({
     return (
       <PreviewCard>
         <PreviewCardTrigger
-          className="group inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-primary-500 transition hover:-translate-y-px hover:bg-primary-100/70 dark:hover:bg-primary-800/60"
+          className="group inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-primary-500 transition hover:-translate-y-px hover:bg-primary-100/70 dark:hover:bg-primary-800/60"
           aria-label={`Context window: ${compactLabel}% used`}
           title={`Context window: ${compactLabel}% used`}
         >
-          <span className="relative inline-flex h-8 w-8 items-center justify-center">
+          <span className="relative inline-flex h-10 w-10 items-center justify-center">
             <svg
-              className="absolute inset-0 h-8 w-8 -rotate-90 overflow-visible"
+              className="absolute inset-0 h-10 w-10 -rotate-90 overflow-visible"
               viewBox="0 0 24 24"
               aria-hidden="true"
             >
@@ -105,7 +105,7 @@ function ContextBarComponent({
                 fill="none"
                 stroke="var(--theme-border)"
                 strokeOpacity="0.9"
-                strokeWidth="3"
+                strokeWidth="2.4"
               />
               <circle
                 cx="12"
@@ -113,14 +113,14 @@ function ContextBarComponent({
                 r="9.75"
                 fill="none"
                 stroke={ringColor}
-                strokeWidth="3"
+                strokeWidth="2.4"
                 strokeLinecap="round"
                 strokeDasharray={circumference}
                 strokeDashoffset={dashOffset}
                 className="transition-[stroke-dashoffset,stroke] duration-500 ease-out"
               />
             </svg>
-            <span className="relative flex h-[19px] min-w-[19px] items-center justify-center rounded-full border border-primary-500/15 bg-[var(--theme-bg)] px-[1px] text-[9px] font-bold leading-none text-primary-600 shadow-sm tabular-nums dark:bg-[var(--theme-card)]">
+            <span className="relative flex h-[22px] min-w-[22px] items-center justify-center rounded-full border border-primary-500/15 bg-[var(--theme-bg)] px-[2px] text-[10px] font-bold leading-none text-primary-600 shadow-sm tabular-nums dark:bg-[var(--theme-card)]">
               {compactLabel}
             </span>
           </span>
