@@ -182,6 +182,29 @@ export function FileExplorerSidebar({
     })
   }, [])
 
+  // Listen for cross-app "open this path" events from inline-code links
+  useEffect(() => {
+    function onOpen(e: Event) {
+      const detail = (e as CustomEvent<{ path?: string }>).detail
+      const target = (detail?.path ?? '').trim()
+      if (!target) return
+      const parts = target.split('/').filter(Boolean)
+      const parents: Array<string> = []
+      for (let i = 0; i < parts.length; i++) {
+        parents.push('/' + parts.slice(0, i + 1).join('/'))
+      }
+      setExpanded((prev) => {
+        const next = new Set(prev)
+        for (const p of parents) next.add(p)
+        return next
+      })
+      // Best-effort preview if it looks like a file (has extension)
+      if (/\.[A-Za-z0-9]+$/.test(target)) setPreviewPath(target)
+    }
+    window.addEventListener('hermes:open-file', onOpen as EventListener)
+    return () => window.removeEventListener('hermes:open-file', onOpen as EventListener)
+  }, [])
+
   const openPrompt = useCallback((state: PromptState) => {
     setPromptState(state)
     setPromptValue(state.defaultValue || '')

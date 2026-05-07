@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm'
 import { CodeBlock } from './code-block'
 import type { Components } from 'react-markdown'
 import { cn } from '@/lib/utils'
+import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 
 export type MarkdownProps = {
   children: string
@@ -77,15 +78,26 @@ const INITIAL_COMPONENTS: Partial<Components> = {
         'border border-[color-mix(in_srgb,var(--m-green-500,var(--theme-accent,#4ade80))_25%,transparent)]'
       if (looksLikePath) {
         const expanded = text.replace(/^~(?=\/)/, '')
-        const href = `/files?path=${encodeURIComponent(expanded)}`
         return (
-          <a
-            href={href}
-            className={codeClass + ' underline-offset-2 hover:underline cursor-pointer'}
+          <button
+            type="button"
+            className={codeClass + ' underline-offset-2 hover:underline cursor-pointer text-left align-baseline'}
             title={`Open ${text}`}
+            onClick={(e) => {
+              e.preventDefault()
+              try {
+                useSessionsFilterStore.getState().setCollapsed(false)
+                useSessionsFilterStore.getState().setLeftPanel('files')
+                window.dispatchEvent(
+                  new CustomEvent('hermes:open-file', { detail: { path: expanded } }),
+                )
+              } catch {
+                /* noop */
+              }
+            }}
           >
             {children}
-          </a>
+          </button>
         )
       }
       return <code className={codeClass}>{children}</code>
