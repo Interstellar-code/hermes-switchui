@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import {
   PreviewCard,
@@ -8,6 +9,28 @@ import {
   PreviewCardTrigger,
 } from '@/components/ui/preview-card'
 import { useSessionStatus } from '@/hooks/use-session-status'
+import { fetchSessions } from '@/screens/chat/chat-queries'
+
+const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
+  opus: 200_000,
+  sonnet: 200_000,
+  haiku: 200_000,
+  'gpt-5': 1_000_000,
+  'gpt-4.1': 1_000_000,
+  'gpt-4o': 128_000,
+  o1: 200_000,
+  o3: 200_000,
+  gemini: 1_000_000,
+}
+
+function maxForModel(model: string): number {
+  if (!model) return 200_000
+  const lower = model.toLowerCase()
+  for (const [key, val] of Object.entries(MODEL_CONTEXT_WINDOWS)) {
+    if (lower.includes(key)) return val
+  }
+  return 200_000
+}
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -23,6 +46,27 @@ function ContextBarComponent({
   sessionId?: string
 }) {
   const status = useSessionStatus(sessionId)
+  const sessionsQuery = useQuery({
+    queryKey: ['chat', 'sessions', 'raw'],
+    queryFn: fetchSessions,
+    staleTime: 30_000,
+    enabled: Boolean(sessionId),
+  })
+  const meta = (sessionsQuery.data ?? []).find((s) => s.key === sessionId)
+  const fallbackUsed =
+    typeof meta?.tokenCount === 'number'
+      ? meta.tokenCount
+      : typeof (meta as { totalTokens?: number } | undefined)?.totalTokens === 'number'
+        ? Number((meta as { totalTokens?: number }).totalTokens)
+        : 0
+  const fallbackMax = maxForModel(meta?.model ?? status.model ?? '')
+  const fallbackPct =
+    fallbackMax > 0 ? Math.min(100, (fallbackUsed / fallbackMax) * 100) : 0
+  const effectivePct =
+    status.contextPercent > 0 ? status.contextPercent : fallbackPct
+  const effectiveUsed =
+    status.usedTokens > 0 ? status.usedTokens : fallbackUsed
+  const effectiveMax = status.maxTokens > 0 ? status.maxTokens : fallbackMax
   const [showLabel, setShowLabel] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
 
@@ -40,11 +84,10 @@ function ContextBarComponent({
     return () => clearTimeout(id)
   }, [showLabel])
 
-  const pct = status.contextPercent
+  const pct = effectivePct
   const clampedPct = Math.min(Math.max(pct, 0), 100)
 
-  // Compact ring stays visible (shows 0% until data loads); non-compact bar still hides
-  if (!compact && clampedPct === 0 && status.usedTokens === 0) return null
+  if (!compact && clampedPct === 0 && effectiveUsed === 0) return null
   const isCritical = clampedPct > 90
   const isDanger = clampedPct >= 75 && clampedPct <= 90
   const isWarning = clampedPct >= 50 && clampedPct < 75
@@ -155,7 +198,7 @@ function ContextBarComponent({
             </div>
             <div className="flex items-center justify-between gap-3 text-[11px] text-primary-500">
               <span className="tabular-nums">
-                {formatTokens(status.usedTokens)} / {formatTokens(status.maxTokens)}{' '}
+                {formatTokens(effectiveUsed)} / {formatTokens(effectiveMax)}{' '}
                 tokens
               </span>
               {status.model ? (
@@ -202,7 +245,7 @@ function ContextBarComponent({
               {Math.round(clampedPct)}%
             </span>
             <span className="text-[9px] text-white/70 tabular-nums">
-              {formatTokens(status.usedTokens)}/{formatTokens(status.maxTokens)}
+              {formatTokens(effectiveUsed)}/{formatTokens(effectiveMax)}
             </span>
           </div>
         )}
@@ -260,7 +303,7 @@ function ContextBarComponent({
           </div>
           <div className="flex items-center justify-between">
             <span className="text-[10px] text-primary-500 tabular-nums">
-              {formatTokens(status.usedTokens)} / {formatTokens(status.maxTokens)}{' '}
+              {formatTokens(effectiveUsed)} / {formatTokens(effectiveMax)}{' '}
               tokens
             </span>
             {status.model && (
