@@ -149,3 +149,4 @@ skills-bundle/
 # OMC / Claude Code local state
 .omc/
 .omx/
+.claude/worktrees
