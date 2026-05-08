@@ -4,7 +4,6 @@ import {
   BrainIcon,
   Building01Icon,
   Cancel01Icon,
-  Castle02Icon,
   Chat01Icon,
   Clock01Icon,
   CommandLineIcon,
@@ -41,13 +40,6 @@ export const MOBILE_HAMBURGER_NAV_ITEMS = [
     icon: DashboardSquare01Icon,
     to: '/dashboard',
     match: (p: string) => p.startsWith('/dashboard'),
-  },
-  {
-    id: 'playground',
-    label: 'HermesWorld',
-    icon: Castle02Icon,
-    to: '/playground',
-    match: (p: string) => p.startsWith('/playground'),
   },
   {
     id: 'terminal',
