@@ -101,6 +101,19 @@ import {
   useChatActivityStore,
   type AgentActivity,
 } from '@/stores/chat-activity-store'
+import { useSidebarV2Flag } from './components/sidebar/v2/sidebar-flag'
+import { ChatHeaderV2 } from './components/v2/chat-header-v2'
+import { ChatMetaBarV2 } from './components/v2/chat-meta-bar-v2'
+import {
+  ToolTabView,
+  buildResultTsMap,
+  extractStreamingEntries,
+  extractStreamToolCallsFromMessages,
+  extractToolEntries,
+  mergeToolEntries,
+} from './components/v2/chat-tab-views-v2'
+import { ChatSkillsTabV2 } from './components/v2/chat-skills-tab-v2'
+import type { SourceTab } from './components/v2/chat-header-v2'
 
 type ChatScreenProps = {
   activeFriendlyId: string
@@ -462,6 +475,8 @@ export function ChatScreen({
   const chatFocusMode = useWorkspaceStore((s) => s.chatFocusMode)
   const setChatFocusMode = useWorkspaceStore((s) => s.setChatFocusMode)
   const queryClient = useQueryClient()
+  const sidebarV2 = useSidebarV2Flag()
+  const [activeTab, setActiveTab] = useState<SourceTab>('chat')
   const [sending, setSending] = useState(false)
   const [_creatingSession, setCreatingSession] = useState(false)
   const [sessionsOpen, setSessionsOpen] = useState(false)
@@ -476,26 +491,7 @@ export function ChatScreen({
   // --- Issue #43 fix: lift waitingForResponse into persistent Zustand store ---
   // The store survives component unmount, so navigating away mid-stream
   // doesn't lose the "waiting" flag. sessionStorage backup handles reloads.
-  const storeWaiting = useChatStore((s) => s.waitingSessionKeys)
-  // resolvedSessionKey isn't available yet (defined below), so we track it via
-  // a ref that's updated once it resolves. The memo/callback read the ref.
   const sessionKeyForWaiting = useRef<string | undefined>(undefined)
-  const waitingForResponse = useMemo(() => {
-    const key = sessionKeyForWaiting.current
-    if (!key) return hasPendingSend() || hasPendingGeneration()
-    return storeWaiting.has(key)
-  }, [storeWaiting])
-
-  const setWaitingForResponse = useCallback((waiting: boolean) => {
-    const store = useChatStore.getState()
-    const key = sessionKeyForWaiting.current
-    if (!key) return
-    if (waiting) {
-      store.setSessionWaiting(key)
-    } else {
-      store.clearSessionWaiting(key)
-    }
-  }, [])
   const [liveToolActivity, setLiveToolActivity] = useState<
     Array<{ name: string; timestamp: number }>
   >([])
@@ -587,15 +583,40 @@ export function ChatScreen({
     portableMode: isPortableMode,
   })
 
-  // Keep the waiting-state ref in sync with the resolved session key
-  sessionKeyForWaiting.current = resolvedSessionKey
+  const waitingStoreKey = resolvedSessionKey
+  const selectWaitingForSession = useCallback(
+    (s: ReturnType<typeof useChatStore.getState>) =>
+      waitingStoreKey ? s.waitingSessionKeys.has(waitingStoreKey) : false,
+    [waitingStoreKey],
+  )
+  const storeWaitingForSession = useChatStore(selectWaitingForSession)
+  const waitingForResponse = waitingStoreKey
+    ? storeWaitingForSession
+    : hasPendingSend() || hasPendingGeneration()
+
+  // Keep the waiting-state ref in sync after commit; mutating it during render
+  // can create inconsistent reads when React replays renders in DevTools/StrictMode.
+  useEffect(() => {
+    sessionKeyForWaiting.current = resolvedSessionKey
+  }, [resolvedSessionKey])
+
+  const setWaitingForResponse = useCallback((waiting: boolean) => {
+    const store = useChatStore.getState()
+    const key = sessionKeyForWaiting.current
+    if (!key) return
+    if (waiting) {
+      store.setSessionWaiting(key)
+    } else {
+      store.clearSessionWaiting(key)
+    }
+  }, [])
 
   // On remount, check if the server still has an active run for this session.
   // If so, re-set waitingForResponse in the store so the UI shows the spinner.
   useActiveRunCheck({
-    sessionKey: resolvedSessionKey ?? '',
+    sessionKey: resolvedSessionKey,
     enabled:
-      !isNewChat && Boolean(resolvedSessionKey) && historyQuery.isSuccess,
+      !isNewChat && resolvedSessionKey.length > 0 && historyQuery.isSuccess,
   })
 
   // Wire SSE realtime stream for instant message delivery
@@ -2549,6 +2570,19 @@ export function ChatScreen({
     resetKey: `${resolvedSessionKey || activeCanonicalKey || 'main'}:${researchResetKey}`,
   })
 
+  const totalToolCount = useMemo(() => {
+    const resultTsMap = buildResultTsMap(realtimeMessages)
+    const streamingEntries = extractStreamingEntries(activeToolCalls)
+    const completedEntries = extractStreamToolCallsFromMessages(realtimeMessages, resultTsMap)
+    const messageEntries = extractToolEntries(realtimeMessages)
+    return mergeToolEntries(streamingEntries, completedEntries, messageEntries).length
+  }, [realtimeMessages, activeToolCalls])
+
+  const sessionModelFallback =
+    (typeof (activeSession as { model?: unknown } | null | undefined)?.model === 'string'
+      ? ((activeSession as { model?: string }).model as string)
+      : undefined) ?? undefined
+
   // Pull-to-refresh offset removed
 
   const handleOpenAgentDetails = useCallback(() => {
@@ -2623,7 +2657,22 @@ export function ChatScreen({
           }}
           ref={mainRef}
         >
-          {!compact && (
+          {!compact && sidebarV2 ? (
+            <>
+              <ChatHeaderV2
+                activeTitle={activeTitle}
+                sessionKey={activeSessionKey || activeFriendlyId}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+              />
+              <ChatMetaBarV2
+                sessionKey={activeSessionKey || activeFriendlyId}
+                isStreaming={isRealtimeStreaming}
+                toolCount={totalToolCount}
+                modelFallback={sessionModelFallback}
+              />
+            </>
+          ) : !compact ? (
             <ChatHeader
               activeTitle={activeTitle}
               onRenameTitle={handleRenameActiveSessionTitle}
@@ -2655,7 +2704,7 @@ export function ChatScreen({
               onUndo={undefined}
               onClear={undefined}
             />
-          )}
+          ) : null}
 
           {errorNotice && (
             <div className="sticky top-0 z-20 px-4 py-2">{errorNotice}</div>
@@ -2708,7 +2757,12 @@ export function ChatScreen({
             </div>
           )}
 
-          {hideUi ? null : (
+          {sidebarV2 && activeTab === 'tool' ? (
+            <ToolTabView messages={realtimeMessages} streamingToolCalls={activeToolCalls} events={realtimeLifecycleEvents} />
+          ) : sidebarV2 && activeTab === 'skills' ? (
+            <ChatSkillsTabV2 messages={realtimeMessages} streamingToolCalls={activeToolCalls} events={realtimeLifecycleEvents} />
+          ) : null}
+          {hideUi || (sidebarV2 && activeTab !== 'chat') ? null : (
             <ChatMessageList
               messages={finalDisplayMessages}
               onRetryMessage={handleRetryMessage}

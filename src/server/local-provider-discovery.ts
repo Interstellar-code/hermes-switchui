@@ -137,6 +137,10 @@ async function probeProvider(
 }
 
 async function probeAll(): Promise<void> {
+  if (process.env.HERMES_DISABLE_LOCAL_DISCOVERY === '1') {
+    lastProbeAll = Date.now()
+    return
+  }
   const results = await Promise.allSettled(
     LOCAL_PROVIDERS.map((def) => probeProvider(def)),
   )

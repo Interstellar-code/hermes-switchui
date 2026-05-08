@@ -16,14 +16,24 @@ import {
   ensureProviderInConfig,
 } from '../../server/local-provider-discovery'
 
-const CLAUDE_HOME = process.env.HERMES_HOME ?? process.env.CLAUDE_HOME ?? path.join(os.homedir(), '.hermes')
+const CLAUDE_HOME =
+  process.env.HERMES_HOME ??
+  process.env.CLAUDE_HOME ??
+  path.join(os.homedir(), '.hermes')
 const MODELS_PATH = path.join(CLAUDE_HOME, 'models.json')
+const MODELS_DEV_CACHE_PATH = path.join(
+  os.homedir(),
+  '.hermes',
+  'models_dev_cache.json',
+)
 const CONFIG_PATH = path.join(CLAUDE_HOME, 'config.yaml')
 
 type ModelEntry = {
   provider?: string
   id?: string
   name?: string
+  contextLength?: number
+  outputLength?: number
   [key: string]: unknown
 }
 
@@ -35,6 +45,12 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function readString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+function readPositiveNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? value
+    : undefined
 }
 
 function normalizeModel(entry: unknown): ModelEntry | null {
@@ -64,6 +80,78 @@ function normalizeModel(entry: unknown): ModelEntry | null {
       readString(record.owned_by) ||
       (id.includes('/') ? id.split('/')[0] : 'unknown'),
   }
+}
+
+type ModelLimit = {
+  contextLength?: number
+  outputLength?: number
+}
+
+function modelLimitKeys(provider: string, id: string): Array<string> {
+  const keys = new Set<string>()
+  const normalizedProvider = provider.toLowerCase()
+  const normalizedId = id.toLowerCase()
+  if (normalizedId) keys.add(normalizedId)
+  if (normalizedProvider && normalizedId) {
+    keys.add(`${normalizedProvider}/${normalizedId}`)
+  }
+  const idParts = normalizedId.split('/')
+  const lastIdPart = idParts[idParts.length - 1]
+  if (lastIdPart) keys.add(lastIdPart)
+  return Array.from(keys)
+}
+
+function readModelLimitsCache(): Map<string, ModelLimit> {
+  const limits = new Map<string, ModelLimit>()
+  try {
+    if (!fs.existsSync(MODELS_DEV_CACHE_PATH)) return limits
+    const cache = asRecord(
+      JSON.parse(fs.readFileSync(MODELS_DEV_CACHE_PATH, 'utf-8')),
+    )
+    for (const [providerKey, providerValue] of Object.entries(cache)) {
+      const provider = asRecord(providerValue)
+      const models = asRecord(provider.models)
+      for (const [modelKey, modelValue] of Object.entries(models)) {
+        const model = asRecord(modelValue)
+        const limit = asRecord(model.limit)
+        const contextLength = readPositiveNumber(limit.context)
+        const outputLength = readPositiveNumber(limit.output)
+        if (!contextLength && !outputLength) continue
+        const id = readString(model.id) || modelKey
+        const entry: ModelLimit = {}
+        if (contextLength) entry.contextLength = contextLength
+        if (outputLength) entry.outputLength = outputLength
+        for (const key of modelLimitKeys(providerKey, id)) {
+          limits.set(key, entry)
+        }
+      }
+    }
+  } catch {
+    return limits
+  }
+  return limits
+}
+
+function enrichModelLimits(
+  models: Array<ModelEntry>,
+  limits: Map<string, ModelLimit>,
+): Array<ModelEntry> {
+  if (limits.size === 0) return models
+  return models.map((model) => {
+    const provider = readString(model.provider)
+    const ids = [
+      readString(model.id),
+      readString(model.model),
+      readString(model.name),
+    ].filter(Boolean)
+    for (const id of ids) {
+      for (const key of modelLimitKeys(provider, id)) {
+        const limit = limits.get(key)
+        if (limit) return { ...model, ...limit }
+      }
+    }
+    return model
+  })
 }
 
 /**
@@ -96,19 +184,33 @@ function readClaudeModelsJson(): Array<ModelEntry> {
 const DEFAULT_ACCEPTED_TIMEOUT_S = 120
 const DEFAULT_HANDOFF_TIMEOUT_S = 300
 
-function readStreamTimeouts(): { streamAcceptedTimeoutMs: number; streamHandoffTimeoutMs: number } {
+function readStreamTimeouts(): {
+  streamAcceptedTimeoutMs: number
+  streamHandoffTimeoutMs: number
+} {
   let acceptedS = DEFAULT_ACCEPTED_TIMEOUT_S
   let handoffS = DEFAULT_HANDOFF_TIMEOUT_S
   try {
     if (fs.existsSync(CONFIG_PATH)) {
       const parsed = YAML.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'))
       const ws =
-        parsed && typeof parsed === 'object' && typeof (parsed as Record<string, unknown>).workspace === 'object'
-          ? ((parsed as Record<string, unknown>).workspace as Record<string, unknown>)
+        parsed &&
+        typeof parsed === 'object' &&
+        typeof (parsed as Record<string, unknown>).workspace === 'object'
+          ? ((parsed as Record<string, unknown>).workspace as Record<
+              string,
+              unknown
+            >)
           : {}
-      if (typeof ws.stream_accepted_timeout === 'number' && ws.stream_accepted_timeout > 0)
+      if (
+        typeof ws.stream_accepted_timeout === 'number' &&
+        ws.stream_accepted_timeout > 0
+      )
         acceptedS = ws.stream_accepted_timeout
-      if (typeof ws.stream_handoff_timeout === 'number' && ws.stream_handoff_timeout > 0)
+      if (
+        typeof ws.stream_handoff_timeout === 'number' &&
+        ws.stream_handoff_timeout > 0
+      )
         handoffS = ws.stream_handoff_timeout
     }
   } catch {
@@ -117,8 +219,14 @@ function readStreamTimeouts(): { streamAcceptedTimeoutMs: number; streamHandoffT
   const envAccepted = parseInt(process.env.STREAM_ACCEPTED_TIMEOUT_MS ?? '', 10)
   const envHandoff = parseInt(process.env.STREAM_HANDOFF_TIMEOUT_MS ?? '', 10)
   return {
-    streamAcceptedTimeoutMs: Number.isFinite(envAccepted) && envAccepted > 0 ? envAccepted : acceptedS * 1000,
-    streamHandoffTimeoutMs: Number.isFinite(envHandoff) && envHandoff > 0 ? envHandoff : handoffS * 1000,
+    streamAcceptedTimeoutMs:
+      Number.isFinite(envAccepted) && envAccepted > 0
+        ? envAccepted
+        : acceptedS * 1000,
+    streamHandoffTimeoutMs:
+      Number.isFinite(envHandoff) && envHandoff > 0
+        ? envHandoff
+        : handoffS * 1000,
   }
 }
 
@@ -211,6 +319,7 @@ export const Route = createFileRoute('/api/models')({
               ensureProviderInConfig(m.provider)
             }
           }
+          models = enrichModelLimits(models, readModelLimitsCache())
 
           const configuredProviders = Array.from(
             new Set(

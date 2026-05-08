@@ -160,14 +160,15 @@ function PromptInput({
           onClick={handleClick}
           onPointerDown={handlePointerDown}
           className={cn(
-            'cursor-text rounded-3xl py-3 gap-3 flex flex-col touch-manipulation mb-2',
+            'cursor-text rounded-lg py-3 gap-3 flex flex-col touch-manipulation mb-2 composer-matrix-root',
             disabled && 'cursor-not-allowed opacity-60',
             className,
           )}
           style={{
-            background: 'var(--composer-bg)',
-            border: '1px solid var(--composer-border)',
+            background: 'color-mix(in srgb, var(--theme-card) 30%, transparent)',
+            border: '1.5px solid var(--theme-border-subtle, var(--theme-border))',
             boxShadow: 'var(--theme-shadow-1)',
+            transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
           }}
           {...props}
         >
@@ -320,9 +321,14 @@ function PromptInputTextarea({
       onPaste={handlePaste}
       onPointerDown={handlePointerDown}
       className={cn(
-        'text-primary-950 min-h-[28px] w-full resize-none border-none bg-transparent shadow-none outline-none focus-visible:ring-0 pl-4 pr-1 py-2 md:py-0 text-base placeholder:text-primary-500',
+        'min-h-[28px] w-full resize-none border-none bg-transparent shadow-none outline-none focus-visible:ring-0 pl-4 pr-1 py-2 md:py-0 text-base placeholder:text-primary-500',
         className,
       )}
+      style={{
+        color: 'var(--theme-text)',
+        fontFamily: 'var(--font-mono, monospace)',
+        caretColor: 'var(--m-green-500, #00ff41)',
+      }}
       rows={1}
       enterKeyHint="send"
       readOnly={disabled}

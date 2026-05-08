@@ -50,6 +50,33 @@ describe('workspace API catalog semantics', () => {
     expect(catalog.path).not.toBe(process.env.HERMES_HOME)
   })
 
+  it('derives Home from knowledge wiki paths when workspace config is not a string', async () => {
+    const hermesHome = await makeDir(tempRoot, 'hermes')
+    const wikiPath = await makeDir(hermesHome, 'wikis', 'hermes-workspace-ui')
+    await fs.writeFile(
+      path.join(process.env.HERMES_HOME!, 'config.yaml'),
+      `workspace:
+  stream_accepted_timeout: 120
+terminal:
+  cwd: .
+knowledge:
+  wiki_path: ${JSON.stringify(wikiPath)}
+`,
+      'utf-8',
+    )
+
+    const catalog = await loadWorkspaceCatalog()
+
+    expect(catalog).toMatchObject({
+      path: hermesHome,
+      folderName: 'Home',
+      source: 'config.knowledge.wiki_path',
+      isValid: true,
+      last: hermesHome,
+    })
+    expect(catalog.workspaces).toEqual([{ name: 'Home', path: hermesHome }])
+  })
+
   it('ignores legacy persisted Hermes state paths as workspaces', async () => {
     const project = await makeDir(tempRoot, 'workspace')
     await fs.writeFile(

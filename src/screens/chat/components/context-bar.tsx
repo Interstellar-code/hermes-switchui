@@ -1,27 +1,57 @@
 'use client'
 
-import { memo, useCallback, useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import {
   PreviewCard,
   PreviewCardPopup,
   PreviewCardTrigger,
 } from '@/components/ui/preview-card'
+import { useSessionStatus } from '@/hooks/use-session-status'
+import { fetchSessions } from '@/screens/chat/chat-queries'
 
-const POLL_MS = 15_000
-
-type ContextData = {
-  contextPercent: number
-  model: string
-  maxTokens: number
-  usedTokens: number
+type ModelCatalogEntry = {
+  id?: string
+  model?: string
+  name?: string
+  contextLength?: number
 }
 
-const EMPTY: ContextData = {
-  contextPercent: 0,
-  model: '',
-  maxTokens: 0,
-  usedTokens: 0,
+type ModelsResponse = {
+  data?: Array<ModelCatalogEntry>
+  models?: Array<ModelCatalogEntry>
+}
+
+async function fetchModelCatalog(): Promise<Array<ModelCatalogEntry>> {
+  const response = await fetch('/api/models')
+  if (!response.ok) return []
+  const payload = (await response.json()) as
+    | ModelsResponse
+    | Array<ModelCatalogEntry>
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload.data)) return payload.data
+  if (Array.isArray(payload.models)) return payload.models
+  return []
+}
+
+function normalizeModelId(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+function matchesModel(
+  candidate: ModelCatalogEntry,
+  activeModel: string,
+): boolean {
+  const model = normalizeModelId(activeModel)
+  if (!model) return false
+  const ids = [candidate.id, candidate.model, candidate.name]
+    .filter((value): value is string => typeof value === 'string')
+    .map(normalizeModelId)
+  const modelName = model.split('/').pop()
+  return ids.some(
+    (id) => id === model || id.split('/').pop() === model || id === modelName,
+  )
 }
 
 function formatTokens(n: number): string {
@@ -37,7 +67,42 @@ function ContextBarComponent({
   compact?: boolean
   sessionId?: string
 }) {
-  const [ctx, setCtx] = useState<ContextData>(EMPTY)
+  const status = useSessionStatus(sessionId)
+  const sessionsQuery = useQuery({
+    queryKey: ['chat', 'sessions', 'raw'],
+    queryFn: fetchSessions,
+    staleTime: 30_000,
+    enabled: Boolean(sessionId),
+  })
+  const modelsQuery = useQuery({
+    queryKey: ['models'],
+    queryFn: fetchModelCatalog,
+    staleTime: 5 * 60 * 1000,
+  })
+  const meta = (sessionsQuery.data ?? []).find((s) => s.key === sessionId)
+  const fallbackUsed =
+    typeof meta?.tokenCount === 'number'
+      ? meta.tokenCount
+      : typeof (meta as { totalTokens?: number } | undefined)?.totalTokens ===
+          'number'
+        ? Number((meta as { totalTokens?: number }).totalTokens)
+        : 0
+  const activeModel = status.model || meta?.model || ''
+  const matchingModel = modelsQuery.data?.find((model) =>
+    matchesModel(model, activeModel),
+  )
+  const fallbackMax =
+    typeof matchingModel?.contextLength === 'number' &&
+    Number.isFinite(matchingModel.contextLength) &&
+    matchingModel.contextLength > 0
+      ? matchingModel.contextLength
+      : 200_000
+  const fallbackPct =
+    fallbackMax > 0 ? Math.min(100, (fallbackUsed / fallbackMax) * 100) : 0
+  const effectivePct =
+    status.contextPercent > 0 ? status.contextPercent : fallbackPct
+  const effectiveUsed = status.usedTokens > 0 ? status.usedTokens : fallbackUsed
+  const effectiveMax = status.maxTokens > 0 ? status.maxTokens : fallbackMax
   const [showLabel, setShowLabel] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
 
@@ -49,69 +114,16 @@ function ContextBarComponent({
     return () => media.removeEventListener('change', update)
   }, [])
 
-  const refresh = useCallback(async () => {
-    try {
-      const params = sessionId
-        ? `?sessionKey=${encodeURIComponent(sessionId)}`
-        : ''
-      const statusRes = await fetch(`/api/session-status${params}`)
-      if (statusRes.ok) {
-        const statusData = await statusRes.json()
-        const payload = statusData?.payload ?? {}
-        const contextPercent = Number(payload.contextPercent ?? 0)
-        const maxTokens = Number(payload.maxTokens ?? 0)
-        const usedTokens = Number(payload.usedTokens ?? 0)
-        const model = String(payload.model ?? '')
-        if (
-          statusData?.ok &&
-          (maxTokens > 0 || usedTokens > 0 || contextPercent > 0)
-        ) {
-          setCtx({
-            contextPercent,
-            model,
-            maxTokens,
-            usedTokens,
-          })
-          return
-        }
-      }
-
-      const fallbackParams = sessionId
-        ? `?sessionId=${encodeURIComponent(sessionId)}`
-        : ''
-      const res = await fetch(`/api/context-usage${fallbackParams}`)
-      if (!res.ok) return
-      const data = await res.json()
-      if (data.ok) {
-        setCtx({
-          contextPercent: data.contextPercent ?? 0,
-          model: data.model ?? '',
-          maxTokens: data.maxTokens ?? 0,
-          usedTokens: data.usedTokens ?? 0,
-        })
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [sessionId])
-
-  useEffect(() => {
-    void refresh()
-    const id = window.setInterval(refresh, POLL_MS)
-    return () => window.clearInterval(id)
-  }, [refresh])
-
   useEffect(() => {
     if (!showLabel) return
     const id = setTimeout(() => setShowLabel(false), 3000)
     return () => clearTimeout(id)
   }, [showLabel])
 
-  const pct = ctx.contextPercent
+  const pct = effectivePct
   const clampedPct = Math.min(Math.max(pct, 0), 100)
 
-  // Hide entirely when no data has loaded yet
-  if (clampedPct === 0 && ctx.usedTokens === 0) return null
+  if (!compact && clampedPct === 0 && effectiveUsed === 0) return null
   const isCritical = clampedPct > 90
   const isDanger = clampedPct >= 75 && clampedPct <= 90
   const isWarning = clampedPct >= 50 && clampedPct < 75
@@ -155,13 +167,13 @@ function ContextBarComponent({
     return (
       <PreviewCard>
         <PreviewCardTrigger
-          className="group inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-primary-500 transition hover:-translate-y-px hover:bg-primary-100/70 dark:hover:bg-primary-800/60"
+          className="group inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-primary-500 transition hover:-translate-y-px hover:bg-primary-100/70 dark:hover:bg-primary-800/60"
           aria-label={`Context window: ${compactLabel}% used`}
           title={`Context window: ${compactLabel}% used`}
         >
-          <span className="relative inline-flex h-8 w-8 items-center justify-center">
+          <span className="relative inline-flex h-10 w-10 items-center justify-center">
             <svg
-              className="absolute inset-0 h-8 w-8 -rotate-90 overflow-visible"
+              className="absolute inset-0 h-10 w-10 -rotate-90 overflow-visible"
               viewBox="0 0 24 24"
               aria-hidden="true"
             >
@@ -172,7 +184,7 @@ function ContextBarComponent({
                 fill="none"
                 stroke="var(--theme-border)"
                 strokeOpacity="0.9"
-                strokeWidth="3"
+                strokeWidth="2.4"
               />
               <circle
                 cx="12"
@@ -180,14 +192,14 @@ function ContextBarComponent({
                 r="9.75"
                 fill="none"
                 stroke={ringColor}
-                strokeWidth="3"
+                strokeWidth="2.4"
                 strokeLinecap="round"
                 strokeDasharray={circumference}
                 strokeDashoffset={dashOffset}
                 className="transition-[stroke-dashoffset,stroke] duration-500 ease-out"
               />
             </svg>
-            <span className="relative flex h-[19px] min-w-[19px] items-center justify-center rounded-full border border-primary-500/15 bg-[var(--theme-bg)] px-[1px] text-[9px] font-bold leading-none text-primary-600 shadow-sm tabular-nums dark:bg-[var(--theme-card)]">
+            <span className="relative flex h-[22px] min-w-[22px] items-center justify-center rounded-full border border-primary-500/15 bg-[var(--theme-bg)] px-[2px] text-[10px] font-bold leading-none text-primary-600 shadow-sm tabular-nums dark:bg-[var(--theme-card)]">
               {compactLabel}
             </span>
           </span>
@@ -222,12 +234,12 @@ function ContextBarComponent({
             </div>
             <div className="flex items-center justify-between gap-3 text-[11px] text-primary-500">
               <span className="tabular-nums">
-                {formatTokens(ctx.usedTokens)} / {formatTokens(ctx.maxTokens)}{' '}
+                {formatTokens(effectiveUsed)} / {formatTokens(effectiveMax)}{' '}
                 tokens
               </span>
-              {ctx.model ? (
+              {status.model ? (
                 <span className="max-w-[100px] truncate text-primary-400">
-                  {ctx.model}
+                  {status.model}
                 </span>
               ) : null}
             </div>
@@ -269,7 +281,7 @@ function ContextBarComponent({
               {Math.round(clampedPct)}%
             </span>
             <span className="text-[9px] text-white/70 tabular-nums">
-              {formatTokens(ctx.usedTokens)}/{formatTokens(ctx.maxTokens)}
+              {formatTokens(effectiveUsed)}/{formatTokens(effectiveMax)}
             </span>
           </div>
         )}
@@ -327,12 +339,12 @@ function ContextBarComponent({
           </div>
           <div className="flex items-center justify-between">
             <span className="text-[10px] text-primary-500 tabular-nums">
-              {formatTokens(ctx.usedTokens)} / {formatTokens(ctx.maxTokens)}{' '}
+              {formatTokens(effectiveUsed)} / {formatTokens(effectiveMax)}{' '}
               tokens
             </span>
-            {ctx.model && (
+            {status.model && (
               <span className="text-[10px] text-primary-400 truncate max-w-[100px]">
-                {ctx.model}
+                {status.model}
               </span>
             )}
           </div>

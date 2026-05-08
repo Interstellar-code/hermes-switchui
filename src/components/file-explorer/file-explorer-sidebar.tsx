@@ -182,6 +182,30 @@ export function FileExplorerSidebar({
     })
   }, [])
 
+  // Listen for cross-app "open this path" events from inline-code links
+  useEffect(() => {
+    function onOpen(e: Event) {
+      const detail = (e as CustomEvent<{ path?: string }>).detail
+      const target = (detail.path ?? '').trim()
+      if (!target) return
+      const parts = target.split('/').filter(Boolean)
+      const parents: Array<string> = []
+      for (let i = 0; i < parts.length; i++) {
+        parents.push('/' + parts.slice(0, i + 1).join('/'))
+      }
+      setExpanded((prev) => {
+        if (parents.every((p) => prev.has(p))) return prev
+        const next = new Set(prev)
+        for (const p of parents) next.add(p)
+        return next
+      })
+      // Best-effort preview if it looks like a file (has extension)
+      if (/\.[A-Za-z0-9]+$/.test(target)) setPreviewPath(target)
+    }
+    window.addEventListener('hermes:open-file', onOpen as EventListener)
+    return () => window.removeEventListener('hermes:open-file', onOpen as EventListener)
+  }, [])
+
   const openPrompt = useCallback((state: PromptState) => {
     setPromptState(state)
     setPromptValue(state.defaultValue || '')
@@ -335,8 +359,8 @@ export function FileExplorerSidebar({
               })
             }}
             className={cn(
-              'group flex w-full items-center gap-2 rounded-md py-1.5 text-left text-sm text-primary-900',
-              'hover:bg-primary-200',
+              'group flex w-full items-center gap-2 rounded-md py-1.5 text-left text-sm text-[var(--m-text,var(--theme-text))]',
+              'hover:bg-[var(--m-surface-2,rgba(255,255,255,0.08))]',
             )}
             style={{ paddingLeft: padding }}
           >
@@ -371,16 +395,24 @@ export function FileExplorerSidebar({
   return (
     <aside
       className={cn(
-        'border-r border-primary-200 bg-primary-100 h-full flex flex-col transition-all duration-200 ease-out',
-        collapsed
-          ? 'w-0 opacity-0 pointer-events-none'
-          : 'w-[260px] opacity-100',
+        'h-full w-full flex flex-col transition-all duration-200 ease-out overflow-hidden',
+        collapsed && 'w-0 opacity-0 pointer-events-none',
         className,
       )}
+      style={{
+        background: 'var(--theme-sidebar)',
+        color: 'var(--m-text, var(--theme-text))',
+      }}
     >
-      <div className="flex items-center justify-between h-12 px-3 border-b border-primary-200">
-        <div className="text-sm font-semibold text-primary-900">
-          {ROOT_LABEL}
+      <div
+        className="flex items-center justify-between h-11 px-3 shrink-0"
+        style={{ borderBottom: '1px solid var(--theme-border)' }}
+      >
+        <div
+          className="text-[10px] font-mono font-semibold tracking-wider"
+          style={{ color: 'var(--m-green, var(--theme-accent, #4ade80))' }}
+        >
+          [{ROOT_LABEL.toUpperCase()}]
         </div>
         <div className="flex items-center gap-1">
           <Button
@@ -415,29 +447,34 @@ export function FileExplorerSidebar({
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Search files"
-          className="w-full rounded-md border border-primary-200 bg-primary-50 px-2 py-1 text-sm text-primary-900 placeholder:text-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-300"
+          className="w-full rounded-md px-2 py-1 text-sm focus:outline-none"
+          style={{
+            background: 'var(--theme-card, rgba(0,0,0,0.3))',
+            border: '1px solid var(--theme-border)',
+            color: 'var(--m-text, var(--theme-text))',
+          }}
         />
       </div>
 
       <ScrollAreaRoot className="flex-1 min-h-0">
         <ScrollAreaViewport className="px-1">
           {loading ? (
-            <div className="px-3 py-2 text-xs text-primary-500">Loading…</div>
+            <div className="px-3 py-2 text-xs text-[var(--m-muted,var(--theme-muted,#6b7280))]">Loading…</div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center gap-3 px-4 py-8 text-center">
-              <div className="flex size-10 items-center justify-center rounded-xl border border-primary-200 bg-primary-100/60">
+              <div className="flex size-10 items-center justify-center rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card,rgba(0,0,0,0.3))]">
                 <HugeiconsIcon
                   icon={Folder01Icon}
                   size={20}
                   strokeWidth={1.5}
-                  className="text-primary-500"
+                  className="text-[var(--m-muted,var(--theme-muted,#6b7280))]"
                 />
               </div>
               <div>
-                <p className="text-sm font-medium text-primary-800">
+                <p className="text-sm font-medium text-[var(--m-text,var(--theme-text))]">
                   No workspace selected
                 </p>
-                <p className="mt-1 text-xs text-primary-500 text-pretty">
+                <p className="mt-1 text-xs text-[var(--m-muted,var(--theme-muted,#6b7280))] text-pretty">
                   Select a folder to browse and edit files.
                 </p>
               </div>
@@ -453,19 +490,19 @@ export function FileExplorerSidebar({
             </div>
           ) : entries.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 px-4 py-8 text-center">
-              <div className="flex size-10 items-center justify-center rounded-xl border border-primary-200 bg-primary-100/60">
+              <div className="flex size-10 items-center justify-center rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card,rgba(0,0,0,0.3))]">
                 <HugeiconsIcon
                   icon={Folder01Icon}
                   size={20}
                   strokeWidth={1.5}
-                  className="text-primary-500"
+                  className="text-[var(--m-muted,var(--theme-muted,#6b7280))]"
                 />
               </div>
               <div>
-                <p className="text-sm font-medium text-primary-800">
+                <p className="text-sm font-medium text-[var(--m-text,var(--theme-text))]">
                   Workspace is empty
                 </p>
-                <p className="mt-1 text-xs text-primary-500 text-pretty">
+                <p className="mt-1 text-xs text-[var(--m-muted,var(--theme-muted,#6b7280))] text-pretty">
                   Create files or upload content to get started.
                 </p>
               </div>
@@ -515,11 +552,11 @@ export function FileExplorerSidebar({
 
       {contextMenu ? (
         <div
-          className="fixed z-50 min-w-[160px] rounded-lg bg-primary-50 p-1 text-sm text-primary-900 shadow-lg outline outline-primary-900/10"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
+          className="fixed z-50 min-w-[160px] rounded-lg p-1 text-sm text-[var(--m-text,var(--theme-text))] shadow-lg"
+          style={{ background: 'var(--theme-card,#0a0a0a)', border: '1px solid var(--theme-border)', top: contextMenu.y, left: contextMenu.x }}
         >
           <button
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-primary-100"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
             onClick={() => {
               handleRename(contextMenu.entry)
               setContextMenu(null)
@@ -530,7 +567,7 @@ export function FileExplorerSidebar({
           {contextMenu.entry.type === 'folder' ? (
             <>
               <button
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-primary-100"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
                 onClick={() => {
                   handleNewFile(contextMenu.entry)
                   setContextMenu(null)
@@ -539,7 +576,7 @@ export function FileExplorerSidebar({
                 <HugeiconsIcon icon={PlusSignIcon} size={16} /> New file
               </button>
               <button
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-primary-100"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
                 onClick={() => {
                   handleNewFolder(contextMenu.entry)
                   setContextMenu(null)
@@ -548,7 +585,7 @@ export function FileExplorerSidebar({
                 <HugeiconsIcon icon={Folder01Icon} size={16} /> New folder
               </button>
               <button
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-primary-100"
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
                 onClick={() => {
                   handleUploadClick(contextMenu.entry.path)
                   setContextMenu(null)
@@ -559,7 +596,7 @@ export function FileExplorerSidebar({
             </>
           ) : (
             <button
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-primary-100"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
               onClick={() => {
                 void handleDownload(contextMenu.entry)
                 setContextMenu(null)
@@ -603,7 +640,8 @@ export function FileExplorerSidebar({
             <input
               value={promptValue}
               onChange={(event) => setPromptValue(event.target.value)}
-              className="w-full rounded-md border border-primary-200 bg-primary-50 px-3 py-2 text-sm text-primary-900 focus:outline-none focus:ring-2 focus:ring-primary-300"
+              className="w-full rounded-md px-3 py-2 text-sm text-[var(--m-text,var(--theme-text))] focus:outline-none"
+              style={{ background: 'var(--theme-card,rgba(0,0,0,0.3))', border: '1px solid var(--theme-border)' }}
               autoFocus
             />
             <div className="flex justify-end gap-2 pt-2">

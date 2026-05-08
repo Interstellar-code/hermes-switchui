@@ -98,6 +98,13 @@ export type SessionMeta = {
   titleSource?: SessionTitleSource
   titleError?: string | null
   preview?: string | null
+  tokenCount?: number
+  totalTokens?: number
+  messageCount?: number
+  toolCallCount?: number
+  model?: string
+  status?: string
+  kind?: string
 }
 
 export type PathsPayload = {

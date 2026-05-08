@@ -1,11 +1,12 @@
 import { marked } from 'marked'
-import { createContext, memo, useContext, useId, useMemo, useRef } from 'react'
+import { memo, useId, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import { CodeBlock } from './code-block'
 import type { Components } from 'react-markdown'
 import { cn } from '@/lib/utils'
+import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 
 export type MarkdownProps = {
   children: string
@@ -23,18 +24,6 @@ function extractLanguage(className?: string): string {
   if (!className) return 'text'
   const match = className.match(/language-(\w+)/)
   return match ? match[1] : 'text'
-}
-
-type TableRenderContextValue = {
-  headersRef: React.MutableRefObject<Array<string>>
-  columnIndexRef: React.MutableRefObject<number>
-  collectingHeaderRef: React.MutableRefObject<boolean>
-}
-
-const TableRenderContext = createContext<TableRenderContextValue | null>(null)
-
-function useTableRenderContext() {
-  return useContext(TableRenderContext)
 }
 
 function textFromNode(node: React.ReactNode): string {
@@ -65,11 +54,41 @@ const INITIAL_COMPONENTS: Partial<Components> = {
     const isInline = !className?.includes('language-')
 
     if (isInline) {
-      return (
-        <code className="rounded bg-primary-100 px-1.5 py-0.5 text-[0.9em] font-mono text-primary-900 border border-primary-200">
-          {children}
-        </code>
-      )
+      const text = String(children ?? '').trim()
+      const looksLikePath =
+        /^(?:\/|~\/|\.\.?\/)/.test(text) &&
+        /[A-Za-z0-9._-]/.test(text) &&
+        !/\s/.test(text)
+      const codeClass =
+        'rounded px-1.5 py-0.5 text-[0.9em] font-mono ' +
+        'bg-[color-mix(in_srgb,var(--m-green-500,var(--theme-accent,#4ade80))_10%,transparent)] ' +
+        'text-[var(--m-green-400,var(--theme-accent,#4ade80))] ' +
+        'border border-[color-mix(in_srgb,var(--m-green-500,var(--theme-accent,#4ade80))_25%,transparent)]'
+      if (looksLikePath) {
+        const expanded = text.replace(/^~(?=\/)/, '')
+        return (
+          <button
+            type="button"
+            className={codeClass + ' underline-offset-2 hover:underline cursor-pointer text-left align-baseline'}
+            title={`Open ${text}`}
+            onClick={(e) => {
+              e.preventDefault()
+              try {
+                useSessionsFilterStore.getState().setCollapsed(false)
+                useSessionsFilterStore.getState().setLeftPanel('files')
+                window.dispatchEvent(
+                  new CustomEvent('hermes:open-file', { detail: { path: expanded } }),
+                )
+              } catch {
+                /* noop */
+              }
+            }}
+          >
+            {children}
+          </button>
+        )
+      }
+      return <code className={codeClass}>{children}</code>
     }
 
     const language = extractLanguage(className)
@@ -207,28 +226,15 @@ const INITIAL_COMPONENTS: Partial<Components> = {
     return <hr className="my-3 border-primary-200" />
   },
   table: function TableComponent({ children }) {
-    const headersRef = useRef<Array<string>>([])
-    const columnIndexRef = useRef(0)
-    const collectingHeaderRef = useRef(false)
     return (
-      <TableRenderContext.Provider
-        value={{ headersRef, columnIndexRef, collectingHeaderRef }}
-      >
-        <div className="my-3 max-w-full overflow-x-auto rounded-lg border border-primary-200 bg-primary-50/20">
-          <table className="w-full min-w-max border-collapse text-sm sm:min-w-full tabular-nums">
-            {children}
-          </table>
-        </div>
-      </TableRenderContext.Provider>
+      <div className="my-3 max-w-full overflow-x-auto rounded-lg border border-primary-200 bg-primary-50/20">
+        <table className="w-full min-w-max border-collapse text-sm sm:min-w-full tabular-nums">
+          {children}
+        </table>
+      </div>
     )
   },
   thead: function TheadComponent({ children }) {
-    const context = useTableRenderContext()
-    if (context) {
-      context.collectingHeaderRef.current = true
-      context.columnIndexRef.current = 0
-      context.headersRef.current = []
-    }
     return (
       <thead className="sticky top-0 z-10 border-b border-primary-200 bg-primary-100/95 backdrop-blur-sm max-sm:hidden">
         {children}
@@ -236,11 +242,6 @@ const INITIAL_COMPONENTS: Partial<Components> = {
     )
   },
   tbody: function TbodyComponent({ children }) {
-    const context = useTableRenderContext()
-    if (context) {
-      context.collectingHeaderRef.current = false
-      context.columnIndexRef.current = 0
-    }
     return (
       <tbody className="divide-y divide-primary-100 max-sm:block max-sm:divide-y-0">
         {children}
@@ -248,10 +249,6 @@ const INITIAL_COMPONENTS: Partial<Components> = {
     )
   },
   tr: function TrComponent({ children }) {
-    const context = useTableRenderContext()
-    if (context) {
-      context.columnIndexRef.current = 0
-    }
     return (
       <tr className="odd:bg-primary-50/60 even:bg-primary-100/20 transition-colors hover:bg-primary-100/45 max-sm:mb-3 max-sm:block max-sm:overflow-hidden max-sm:rounded-lg max-sm:border max-sm:border-primary-200 max-sm:bg-primary-50">
         {children}
@@ -259,14 +256,6 @@ const INITIAL_COMPONENTS: Partial<Components> = {
     )
   },
   th: function ThComponent({ children }) {
-    const context = useTableRenderContext()
-    if (context) {
-      const index = context.columnIndexRef.current
-      context.columnIndexRef.current += 1
-      if (context.collectingHeaderRef.current) {
-        context.headersRef.current[index] = textFromNode(children).trim()
-      }
-    }
     return (
       <th className="px-3 py-2 text-left font-medium text-primary-950 whitespace-nowrap">
         {children}
@@ -274,16 +263,8 @@ const INITIAL_COMPONENTS: Partial<Components> = {
     )
   },
   td: function TdComponent({ children }) {
-    const context = useTableRenderContext()
-    let label = ''
-    if (context) {
-      const index = context.columnIndexRef.current
-      context.columnIndexRef.current += 1
-      label = context.headersRef.current[index] ?? `Column ${index + 1}`
-    }
     return (
       <td
-        data-label={label}
         className="px-3 py-2 text-primary-950 align-top max-sm:grid max-sm:grid-cols-[minmax(0,9rem)_1fr] max-sm:gap-3 max-sm:border-b max-sm:border-primary-100 max-sm:px-3 max-sm:py-2 max-sm:last:border-b-0 max-sm:before:content-[attr(data-label)] max-sm:before:text-xs max-sm:before:font-medium max-sm:before:text-primary-700"
       >
         {children}

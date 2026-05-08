@@ -119,6 +119,7 @@ import { Route as ApiMemoryWriteRouteImport } from './routes/api/memory/write'
 import { Route as ApiMemorySearchRouteImport } from './routes/api/memory/search'
 import { Route as ApiMemoryReadRouteImport } from './routes/api/memory/read'
 import { Route as ApiMemoryListRouteImport } from './routes/api/memory/list'
+import { Route as ApiMemoryGetRouteImport } from './routes/api/memory/get'
 import { Route as ApiMcpTestRouteImport } from './routes/api/mcp/test'
 import { Route as ApiMcpPresetsRouteImport } from './routes/api/mcp/presets'
 import { Route as ApiMcpHubSourcesRouteImport } from './routes/api/mcp/hub-sources'
@@ -709,6 +710,11 @@ const ApiMemoryListRoute = ApiMemoryListRouteImport.update({
   path: '/list',
   getParentRoute: () => ApiMemoryRoute,
 } as any)
+const ApiMemoryGetRoute = ApiMemoryGetRouteImport.update({
+  id: '/get',
+  path: '/get',
+  getParentRoute: () => ApiMemoryRoute,
+} as any)
 const ApiMcpTestRoute = ApiMcpTestRouteImport.update({
   id: '/test',
   path: '/test',
@@ -1028,6 +1034,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp/hub-sources': typeof ApiMcpHubSourcesRouteWithChildren
   '/api/mcp/presets': typeof ApiMcpPresetsRoute
   '/api/mcp/test': typeof ApiMcpTestRoute
+  '/api/memory/get': typeof ApiMemoryGetRoute
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
   '/api/memory/search': typeof ApiMemorySearchRoute
@@ -1177,6 +1184,7 @@ export interface FileRoutesByTo {
   '/api/mcp/hub-sources': typeof ApiMcpHubSourcesRouteWithChildren
   '/api/mcp/presets': typeof ApiMcpPresetsRoute
   '/api/mcp/test': typeof ApiMcpTestRoute
+  '/api/memory/get': typeof ApiMemoryGetRoute
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
   '/api/memory/search': typeof ApiMemorySearchRoute
@@ -1328,6 +1336,7 @@ export interface FileRoutesById {
   '/api/mcp/hub-sources': typeof ApiMcpHubSourcesRouteWithChildren
   '/api/mcp/presets': typeof ApiMcpPresetsRoute
   '/api/mcp/test': typeof ApiMcpTestRoute
+  '/api/memory/get': typeof ApiMemoryGetRoute
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
   '/api/memory/search': typeof ApiMemorySearchRoute
@@ -1480,6 +1489,7 @@ export interface FileRouteTypes {
     | '/api/mcp/hub-sources'
     | '/api/mcp/presets'
     | '/api/mcp/test'
+    | '/api/memory/get'
     | '/api/memory/list'
     | '/api/memory/read'
     | '/api/memory/search'
@@ -1629,6 +1639,7 @@ export interface FileRouteTypes {
     | '/api/mcp/hub-sources'
     | '/api/mcp/presets'
     | '/api/mcp/test'
+    | '/api/memory/get'
     | '/api/memory/list'
     | '/api/memory/read'
     | '/api/memory/search'
@@ -1779,6 +1790,7 @@ export interface FileRouteTypes {
     | '/api/mcp/hub-sources'
     | '/api/mcp/presets'
     | '/api/mcp/test'
+    | '/api/memory/get'
     | '/api/memory/list'
     | '/api/memory/read'
     | '/api/memory/search'
@@ -2705,6 +2717,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMemoryListRouteImport
       parentRoute: typeof ApiMemoryRoute
     }
+    '/api/memory/get': {
+      id: '/api/memory/get'
+      path: '/get'
+      fullPath: '/api/memory/get'
+      preLoaderRoute: typeof ApiMemoryGetRouteImport
+      parentRoute: typeof ApiMemoryRoute
+    }
     '/api/mcp/test': {
       id: '/api/mcp/test'
       path: '/test'
@@ -3071,6 +3090,7 @@ const ApiMcpRouteWithChildren =
   ApiMcpRoute._addFileChildren(ApiMcpRouteChildren)
 
 interface ApiMemoryRouteChildren {
+  ApiMemoryGetRoute: typeof ApiMemoryGetRoute
   ApiMemoryListRoute: typeof ApiMemoryListRoute
   ApiMemoryReadRoute: typeof ApiMemoryReadRoute
   ApiMemorySearchRoute: typeof ApiMemorySearchRoute
@@ -3078,6 +3098,7 @@ interface ApiMemoryRouteChildren {
 }
 
 const ApiMemoryRouteChildren: ApiMemoryRouteChildren = {
+  ApiMemoryGetRoute: ApiMemoryGetRoute,
   ApiMemoryListRoute: ApiMemoryListRoute,
   ApiMemoryReadRoute: ApiMemoryReadRoute,
   ApiMemorySearchRoute: ApiMemorySearchRoute,

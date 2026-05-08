@@ -269,14 +269,24 @@ export function toChatMessage(
         args: toolArgs,
         phase: 'complete',
       })
+      let parsedArgs: Record<string, unknown> | undefined
+      if (toolArgs && typeof toolArgs === 'object' && !Array.isArray(toolArgs)) {
+        parsedArgs = toolArgs as Record<string, unknown>
+      } else if (typeof toolArgs === 'string' && toolArgs.trim()) {
+        try {
+          const parsed = JSON.parse(toolArgs)
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            parsedArgs = parsed as Record<string, unknown>
+          }
+        } catch {
+          /* leave undefined; raw string still surfaces via partialJson */
+        }
+      }
       content.push({
         type: 'toolCall',
         id: toolCallId,
         name: toolName,
-        arguments:
-          toolArgs && typeof toolArgs === 'object'
-            ? (toolArgs as Record<string, unknown>)
-            : undefined,
+        arguments: parsedArgs,
         partialJson: typeof toolArgs === 'string' ? toolArgs : undefined,
       })
     }

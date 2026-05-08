@@ -25,6 +25,9 @@ import { fetchClaudeAuthStatus, type AuthStatus } from '@/lib/claude-auth'
 import { cn } from '@/lib/utils'
 import { ConnectionStartupScreen } from '@/components/connection-startup-screen'
 import { ChatSidebar } from '@/screens/chat/components/chat-sidebar'
+import { SidebarShellV2 } from '@/screens/chat/components/sidebar/v2/sidebar-shell-v2'
+import { PrimaryNavV2 } from '@/screens/chat/components/sidebar/v2/primary-nav-v2'
+import { useSidebarV2Flag } from '@/screens/chat/components/sidebar/v2/sidebar-flag'
 import { useChatSessions } from '@/screens/chat/hooks/use-chat-sessions'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { SIDEBAR_TOGGLE_EVENT } from '@/hooks/use-global-shortcuts'
@@ -185,6 +188,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   const isOnChatRoute = Boolean(chatMatch) || pathname === '/new'
   const isOnTerminalRoute = pathname.startsWith('/terminal')
   const isOnPlaygroundRoute = pathname === '/playground' || pathname.startsWith('/playground/')
+  const sidebarV2 = useSidebarV2Flag()
   const hideChatSidebar = isOnChatRoute && chatFocusMode
   const showDesktopSidebarBackdrop =
     !isMobile && !isOnChatRoute && !sidebarCollapsed
@@ -333,7 +337,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
         >
           {/* Activity ticker bar */}
           {/* Persistent sidebar */}
-          {!isMobile && !hideChatSidebar && (
+          {!isMobile && !hideChatSidebar && !sidebarV2 && (
             <div className="relative z-30">
               <ChatSidebar
                 sessions={sessions}
@@ -352,6 +356,14 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
             </div>
           )}
 
+          {/* Sidebar v2 — primary nav always; sessions panel only on chat route */}
+          {!isMobile && sidebarV2 && (
+            <div className="relative z-30 flex h-full" data-testid="sidebar-v2-mount">
+              <PrimaryNavV2 />
+              {isOnChatRoute && <SidebarShellV2 />}
+            </div>
+          )}
+
           {/* Main content area — renders the matched route */}
           <main
             onTouchStart={isMobile ? onTouchStart : undefined}
@@ -367,6 +379,9 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
                     settings.showSystemMetricsFooter
                   ? 'pb-7'
                   : '',
+              !isMobile && sidebarV2 && isOnChatRoute
+                ? 'rounded-md border border-[color:var(--theme-border)] my-2 mr-2'
+                : '',
             ].join(' ')}
             data-tour="chat-area"
           >
@@ -438,7 +453,18 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
 
       <MobileHamburgerMenu />
       {!isMobile && !isOnChatRoute && settings.showSystemMetricsFooter ? (
-        <SystemMetricsFooter leftOffsetPx={sidebarCollapsed ? 48 : 300} />
+        <SystemMetricsFooter
+          leftOffsetPx={
+            sidebarV2
+              ? (typeof window !== 'undefined' &&
+                  window.localStorage.getItem('hermes.primary-nav.collapsed') === 'true'
+                  ? 48
+                  : 232)
+              : sidebarCollapsed
+                ? 48
+                : 300
+          }
+        />
       ) : null}
       <CommandPalette pathname={pathname} sessions={sessions} />
     </>

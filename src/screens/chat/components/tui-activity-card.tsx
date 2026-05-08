@@ -24,11 +24,23 @@ export type TuiToolSection = {
   preview?: string
   outputText: string
   errorText?: string
+  timestamp?: number
   state:
     | 'input-streaming'
     | 'input-available'
     | 'output-available'
     | 'output-error'
+}
+
+function formatTime(ms?: number): string {
+  if (!ms || !Number.isFinite(ms)) return ''
+  const d = new Date(ms)
+  const h = d.getHours()
+  const m = String(d.getMinutes()).padStart(2, '0')
+  const s = String(d.getSeconds()).padStart(2, '0')
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const h12 = h % 12 || 12
+  return `${h12}:${m}:${s} ${ampm}`
 }
 
 type TuiActivityCardProps = {
@@ -72,6 +84,28 @@ function summarizeOutput(text: string, maxLen = 120): string {
   const compact = firstLine.replace(/\s+/g, ' ').trim()
   if (compact.length <= maxLen) return compact
   return `${compact.slice(0, maxLen - 1)}…`
+}
+
+const TOOL_ICONS: Record<string, string> = {
+  web_search: '🔍', search: '🔍', search_files: '🔍', session_search: '🔍',
+  terminal: '💻', exec: '💻', shell: '💻', bash: '💻',
+  Read: '📖', read: '📖', read_file: '📖', file_read: '📖',
+  Write: '✏️', write: '✏️', write_file: '✏️', file_write: '✏️',
+  Edit: '✏️', edit: '✏️',
+  memory: '🧠', memory_search: '🧠', memory_get: '🧠', save_memory: '🧠',
+  browser: '🌐', browser_navigate: '🌐', navigate: '🌐',
+  image: '🖼️', vision: '🖼️',
+  skill: '📦', skill_view: '📦', skill_load: '📦',
+  delegate: '🤖', spawn: '🤖',
+  tts: '🗣️', speak: '🗣️',
+}
+function getToolIcon(name: string): string {
+  if (TOOL_ICONS[name]) return TOOL_ICONS[name]
+  const lower = name.toLowerCase()
+  for (const key of Object.keys(TOOL_ICONS)) {
+    if (lower.includes(key.toLowerCase())) return TOOL_ICONS[key]
+  }
+  return '🔧'
 }
 
 function formatElapsed(seconds: number): string {
@@ -136,6 +170,9 @@ function ToolRow({
   const hasOutputData = !!(section.outputText || section.errorText)
   const canExpand = hasInputData || hasOutputData
 
+  const durationLabel =
+    isPending && isStreamingActive && elapsed > 0 ? formatElapsed(elapsed) : ''
+
   return (
     <div className="font-mono text-[12px] leading-relaxed">
       <button
@@ -156,46 +193,52 @@ function ToolRow({
         >
           {dot}
         </span>
+        <span className="shrink-0 leading-none" aria-hidden>
+          {getToolIcon(section.type)}
+        </span>
         <span
           className="shrink-0 font-semibold"
           style={{ color: 'var(--theme-text)' }}
         >
           {label}
         </span>
-        {argTruncated && argTruncated !== label ? (
-          <span
-            className="truncate min-w-0 opacity-70"
-            style={{ color: 'var(--theme-muted)' }}
-          >
-            {argTruncated}
-          </span>
-        ) : null}
         <span className="flex-1" />
-        {isPending && isStreamingActive && elapsed > 0 ? (
+        {durationLabel ? (
           <span
             className="shrink-0 tabular-nums text-[10px] opacity-60"
             style={{ color: 'var(--theme-muted)' }}
           >
-            {formatElapsed(elapsed)}
+            {durationLabel}
+          </span>
+        ) : null}
+        {section.timestamp ? (
+          <span
+            className="shrink-0 tabular-nums text-[10px]"
+            style={{ color: 'var(--theme-muted)' }}
+            title={argTruncated ?? undefined}
+          >
+            {formatTime(section.timestamp)}
           </span>
         ) : null}
         {canExpand ? (
           <span
-            className="shrink-0 text-[10px] opacity-40"
+            className="shrink-0 text-[10px] opacity-40 ml-1"
             style={{ color: 'var(--theme-muted)' }}
           >
             {open ? '▾' : '▸'}
           </span>
         ) : null}
       </button>
-      {/* Output preview line — TUI-style ⎿ */}
-      <div
-        className="flex items-baseline gap-1.5 px-3 pl-7 pb-0.5 opacity-70"
-        style={{ color: isError ? 'var(--theme-danger, #ef4444)' : 'var(--theme-muted)' }}
-      >
-        <span className="shrink-0 leading-none opacity-50">⎿</span>
-        <span className="truncate min-w-0">{outputSummary}</span>
-      </div>
+      {/* Sub-line only on errors or while streaming (drops noisy "done" line) */}
+      {(isError || (isPending && isStreamingActive)) ? (
+        <div
+          className="flex items-baseline gap-1.5 px-3 pl-7 pb-0.5 opacity-70"
+          style={{ color: isError ? 'var(--theme-danger, #ef4444)' : 'var(--theme-muted)' }}
+        >
+          <span className="shrink-0 leading-none opacity-50">⎿</span>
+          <span className="truncate min-w-0">{outputSummary}</span>
+        </div>
+      ) : null}
       {open && canExpand ? (
         <div
           className="mx-3 mt-2 mb-1 rounded border px-3 py-2 text-[11px]"
@@ -346,9 +389,15 @@ function TuiActivityCardComponent({
     ).length
     const done = total - errors - running
 
-    if (errors > 0) return `${errors} failed · ${done} done`
-    if (running > 0) return `${running} running · ${done} done`
-    return `${total} ${total === 1 ? 'tool' : 'tools'} · done`
+    if (errors > 0) return `● ${errors} FAILED · ${done} DONE`
+    if (running > 0) return `● ${running} RUNNING · ${done} DONE`
+    return '● DONE'
+  }, [toolSections, hasTools])
+
+  const headerLabel = useMemo(() => {
+    if (!hasTools) return ''
+    const total = toolSections.length
+    return `ACTIVITY · ${total} ${total === 1 ? 'TOOL' : 'TOOLS'}`
   }, [toolSections, hasTools])
 
   const summaryColor =
@@ -387,7 +436,7 @@ function TuiActivityCardComponent({
           className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em]"
           style={{ color: 'var(--theme-muted)' }}
         >
-          {isStreaming ? '⚡ Working' : 'Activity'}
+          {isStreaming && !hasTools ? '⚡ WORKING' : headerLabel || 'ACTIVITY'}
         </span>
         <span className="flex-1" />
         {summary ? (

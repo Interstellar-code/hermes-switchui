@@ -152,6 +152,7 @@ type InlineToolSection = {
   preview?: string
   outputText: string
   errorText?: string
+  timestamp?: number
   state:
     | 'input-streaming'
     | 'input-available'
@@ -2102,6 +2103,13 @@ function MessageItemComponent({
             outputText = JSON.stringify(rawOutput, null, 2)
           }
         }
+        const resultMsg = toolPart.toolCallId
+          ? toolResultsByCallId?.get(toolPart.toolCallId)
+          : undefined
+        const ts =
+          (resultMsg && getMessageTimestamp(resultMsg)) ||
+          getMessageTimestamp(message) ||
+          undefined
 
         return {
           key: toolPart.toolCallId || `${toolPart.type}-${index}`,
@@ -2109,12 +2117,13 @@ function MessageItemComponent({
           input: toolPart.input,
           outputText,
           errorText: toolPart.errorText,
+          timestamp: ts,
           state: toolPart.state,
         }
       }),
       ...attachedToolSections,
     ],
-    [attachedToolSections, streamToolSections, toolParts],
+    [attachedToolSections, streamToolSections, toolParts, toolResultsByCallId, message],
   )
   // When streaming is done, force all tool sections to completed state
   // Prevents stuck timers from race conditions where tool.completed SSE
