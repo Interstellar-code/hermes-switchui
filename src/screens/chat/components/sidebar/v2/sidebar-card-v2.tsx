@@ -215,6 +215,8 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
             style={{
               color: 'var(--theme-muted)',
               opacity: 0.7,
+              fontSize: 9.5,
+              fontVariantNumeric: 'tabular-nums',
             }}
           >
             {typeof item.sourceMeta.model === 'string' && item.sourceMeta.model && (

@@ -104,7 +104,7 @@ function ChatMetaBarV2Component({
       role="status"
       aria-label="Session meta"
       className={cn(
-        'shrink-0 flex items-center gap-1.5 px-4 h-7 overflow-x-auto scrollbar-none',
+        'shrink-0 flex items-center gap-1.5 px-4 h-7 text-[10px] font-mono overflow-x-auto scrollbar-none',
         'border-b',
       )}
       style={{
