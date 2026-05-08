@@ -1,6 +1,6 @@
 {
   "name": "hermes-switchui",
-  "version": "2.3.0",
+  "version": "2.3.4",
   "description": "Hermes SwitchUI — Interstellar Code's opinionated workspace for Hermes Agent",
   "author": "Interstellar Code (https://github.com/Interstellar-code)",
   "license": "MIT",
@@ -102,5 +102,13 @@
     "vite": "^7.3.2",
     "vitest": "^3.0.5",
     "web-vitals": "^5.1.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-winstaller",
+      "esbuild",
+      "unrs-resolver"
+    ]
   }
 }
