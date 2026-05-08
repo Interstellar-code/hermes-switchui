@@ -187,7 +187,7 @@ function Chip({ label, icon, active, count, accentColor, onClick, 'data-testid':
       aria-pressed={active}
       onClick={onClick}
       data-testid={testId}
-      className="m-label flex items-center gap-1 rounded-full px-2 py-0.5 transition-all"
+      className="m-chip flex items-center gap-1 rounded-full px-2 py-0.5 transition-all"
       style={{
         background: active ? `color-mix(in srgb, ${accentColor} 18%, transparent)` : 'var(--theme-card)',
         color: active ? accentColor : 'var(--theme-muted)',
