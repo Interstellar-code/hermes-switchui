@@ -304,14 +304,14 @@ export function PrimaryNavV2() {
     <div
       data-testid="primary-nav-v2"
       data-collapsed={collapsed ? 'true' : undefined}
+      className="rounded-md my-2 mx-2"
       style={{
         width: w,
         minWidth: w,
-        height: '100%',
         display: 'flex',
         flexDirection: 'column',
         background: 'var(--theme-sidebar)',
-        borderRight: '1px solid var(--theme-border)',
+        border: '1px solid var(--theme-border)',
         overflow: 'hidden',
         transition: 'width 160ms ease-out',
       }}
@@ -320,21 +320,22 @@ export function PrimaryNavV2() {
       <div
         style={{
           display: 'flex',
+          flexDirection: collapsed ? 'column' : 'row',
           alignItems: 'center',
-          gap: 8,
-          padding: collapsed ? '10px 0 8px' : '10px 12px 8px',
+          gap: collapsed ? 4 : 8,
+          padding: collapsed ? '8px 0' : '10px 12px 8px',
           justifyContent: collapsed ? 'center' : 'space-between',
           borderBottom: '1px solid var(--theme-border)',
           flexShrink: 0,
         }}
       >
-        {!collapsed && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            <img
-              src="/claude-avatar.webp"
-              alt="Hermes"
-              style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0 }}
-            />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <img
+            src="/claude-avatar.webp"
+            alt="Hermes"
+            style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0 }}
+          />
+          {!collapsed && (
             <div style={{ minWidth: 0 }}>
               <div
                 className="m-mono"
@@ -358,13 +359,13 @@ export function PrimaryNavV2() {
                 v2.3.0
               </div>
             </div>
-          </div>
-        )}
-        <button
+          )}
+        </div>
+        {!collapsed && <button
           type="button"
           onClick={toggleCollapsed}
-          aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
-          title={collapsed ? 'Expand' : 'Collapse'}
+          aria-label="Collapse navigation"
+          title="Collapse"
           style={{
             background: 'none',
             border: 'none',
@@ -385,7 +386,7 @@ export function PrimaryNavV2() {
               strokeLinejoin="round"
             />
           </svg>
-        </button>
+        </button>}
       </div>
 
       {/* Scrollable nav body */}
@@ -431,33 +432,59 @@ export function PrimaryNavV2() {
           </span>
         </button>}
 
-        {/* New Session */}
-        <Link
-          to="/chat/$sessionKey"
-          params={{ sessionKey: 'new' }}
-          className="m-mono"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '6px 12px',
-            borderRadius: 4,
-            color: 'var(--m-green-400, var(--theme-accent))',
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: 'pointer',
-            textDecoration: 'none',
-            width: '100%',
-            boxSizing: 'border-box',
-            marginBottom: 4,
-            opacity: 0.9,
-          }}
-          aria-label="New Session"
-          title={collapsed ? 'New Session' : undefined}
-        >
-          <Icon d={ICONS.newchat} />
-          {!collapsed && '+ New Session'}
-        </Link>
+        {/* New Session — hidden when collapsed; chevron expand takes its slot */}
+        {collapsed ? (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label="Expand navigation"
+            title="Expand"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '6px 0',
+              borderRadius: 4,
+              color: 'var(--theme-muted)',
+              cursor: 'pointer',
+              width: '100%',
+              boxSizing: 'border-box',
+              marginBottom: 4,
+              background: 'none',
+              border: 'none',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        ) : (
+          <Link
+            to="/chat/$sessionKey"
+            params={{ sessionKey: 'new' }}
+            className="m-mono"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '6px 12px',
+              borderRadius: 4,
+              color: 'var(--m-green-400, var(--theme-accent))',
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: 'pointer',
+              textDecoration: 'none',
+              width: '100%',
+              boxSizing: 'border-box',
+              marginBottom: 4,
+              opacity: 0.9,
+            }}
+            aria-label="New Session"
+          >
+            <Icon d={ICONS.newchat} />
+            + New Session
+          </Link>
+        )}
 
         {/* MAIN group */}
         {!collapsed && <GroupLabel label="Main" />}

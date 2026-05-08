@@ -67,7 +67,7 @@ export function SidebarSearchV2() {
           value={localQuery}
           onChange={handleChange}
           className="m-mono flex-1 min-w-0 outline-none bg-transparent"
-          style={{ color: 'var(--theme-text)' }}
+          style={{ color: 'var(--theme-text)', fontSize: 11 }}
           aria-label="Search sessions"
           data-testid="sessions-search-input"
         />

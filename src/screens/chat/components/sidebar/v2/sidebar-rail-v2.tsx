@@ -107,9 +107,36 @@ export function SidebarRailV2({
         background: 'var(--theme-sidebar)',
       }}
     >
-      <div className="flex flex-col items-center justify-between h-full w-full py-3">
-        {/* Top: SESSIONS label + count + live + expand */}
+      <div className="flex flex-col items-center justify-between h-full w-full py-2">
+        {/* Top: chevron expand toggle + SESSIONS label + count + live */}
         <div className="flex flex-col items-center gap-2">
+          <button
+            type="button"
+            onClick={onExpand}
+            aria-label="Expand sessions panel"
+            title="Expand"
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 4,
+              borderRadius: 4,
+              color: 'var(--theme-muted)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <path
+                d="M6 3l5 5-5 5"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
           <button
             type="button"
             onClick={onExpand}
