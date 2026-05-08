@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { formatStreamingActivityLabel } from '../streaming-activity-ui'
 import type { ChatMessage } from '../../types'
 
@@ -572,40 +572,55 @@ export function ToolTabView({ messages, streamingToolCalls = [], events = [] }: 
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const resultTsMap = buildResultTsMap(messages)
-  const streamingEntries = extractStreamingEntries(streamingToolCalls)
-  const completedEntries = extractStreamToolCallsFromMessages(messages, resultTsMap)
-  const messageEntries = extractToolEntries(messages)
-  const entries = mergeToolEntries(streamingEntries, completedEntries, messageEntries)
+  const resultTsMap = useMemo(() => buildResultTsMap(messages), [messages])
+  const streamingEntries = useMemo(
+    () => extractStreamingEntries(streamingToolCalls),
+    [streamingToolCalls],
+  )
+  const completedEntries = useMemo(
+    () => extractStreamToolCallsFromMessages(messages, resultTsMap),
+    [messages, resultTsMap],
+  )
+  const messageEntries = useMemo(() => extractToolEntries(messages), [messages])
+  const entries = useMemo(
+    () => mergeToolEntries(streamingEntries, completedEntries, messageEntries),
+    [completedEntries, messageEntries, streamingEntries],
+  )
 
-  const allRows = buildMixedRows(entries, events)
+  const allRows = useMemo(() => buildMixedRows(entries, events), [entries, events])
 
   // Derive the set of categories present in the current tool entries
-  const categoriesPresent = Array.from(
-    new Set(entries.map((e) => categorizeEntry(e))),
-  ).sort()
-  const q = searchQuery.trim().toLowerCase()
-  const matchesQuery = (row: typeof allRows[number]): boolean => {
-    if (!q) return true
-    if (row.kind === 'tool') {
-      const e = row.entry
-      const hay =
-        `${e.name} ${e.callId} ${e.input ? JSON.stringify(e.input) : ''} ${e.output ?? ''}`.toLowerCase()
-      return hay.includes(q)
+  const categoriesPresent = useMemo(
+    () => Array.from(new Set(entries.map((e) => categorizeEntry(e)))).sort(),
+    [entries],
+  )
+  const q = useMemo(() => searchQuery.trim().toLowerCase(), [searchQuery])
+  const filteredRows = useMemo(() => {
+    const matchesQuery = (row: typeof allRows[number]): boolean => {
+      if (!q) return true
+      if (row.kind === 'tool') {
+        const e = row.entry
+        const hay =
+          `${e.name} ${e.callId} ${e.input ? JSON.stringify(e.input) : ''} ${e.output ?? ''}`.toLowerCase()
+        return hay.includes(q)
+      }
+      if (row.kind === 'lifecycle') {
+        return row.event.text.toLowerCase().includes(q)
+      }
+      return true
     }
-    if (row.kind === 'lifecycle') {
-      return row.event.text.toLowerCase().includes(q)
-    }
-    return true
-  }
-  const filteredRows = allRows.filter((row) => {
-    if (!matchesQuery(row)) return false
-    if (filter === 'all') return true
-    if (filter === 'events') return row.kind !== 'tool'
-    if (row.kind === 'tool') return categorizeEntry(row.entry) === filter
-    return false
-  })
-  const visibleRows = sortDir === 'newest' ? [...filteredRows].reverse() : filteredRows
+    return allRows.filter((row) => {
+      if (!matchesQuery(row)) return false
+      if (filter === 'all') return true
+      if (filter === 'events') return row.kind !== 'tool'
+      if (row.kind === 'tool') return categorizeEntry(row.entry) === filter
+      return false
+    })
+  }, [allRows, filter, q])
+  const visibleRows = useMemo(
+    () => (sortDir === 'newest' ? [...filteredRows].reverse() : filteredRows),
+    [filteredRows, sortDir],
+  )
 
   const isEmpty = entries.length === 0 && events.length === 0
 
@@ -766,7 +781,10 @@ function ActivityDot({ isError, isRunning }: { isError?: boolean; isRunning?: bo
 }
 
 export function ActivityTabView({ events, messages = [], streamingToolCalls = [] }: ActivityTabViewProps) {
-  const rows = buildActivityRows(events, messages, streamingToolCalls)
+  const rows = useMemo(
+    () => buildActivityRows(events, messages, streamingToolCalls),
+    [events, messages, streamingToolCalls],
+  )
 
   if (rows.length === 0) {
     return (

@@ -186,7 +186,7 @@ export function FileExplorerSidebar({
   useEffect(() => {
     function onOpen(e: Event) {
       const detail = (e as CustomEvent<{ path?: string }>).detail
-      const target = (detail?.path ?? '').trim()
+      const target = (detail.path ?? '').trim()
       if (!target) return
       const parts = target.split('/').filter(Boolean)
       const parents: Array<string> = []
@@ -194,6 +194,7 @@ export function FileExplorerSidebar({
         parents.push('/' + parts.slice(0, i + 1).join('/'))
       }
       setExpanded((prev) => {
+        if (parents.every((p) => prev.has(p))) return prev
         const next = new Set(prev)
         for (const p of parents) next.add(p)
         return next

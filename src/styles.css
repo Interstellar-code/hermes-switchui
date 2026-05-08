@@ -1605,3 +1605,20 @@ code {
       border-radius 0.3s ease;
   }
 }
+
+/* ── Matrix composer focus ring ─────────────────────────────────────────────
+   Applied via .composer-matrix-root on the PromptInput outer div.
+   All themes get a subtle focus ring; matrix theme gets neon green glow.
+*/
+.composer-matrix-root:focus-within {
+  border-color: var(--m-green-500, #00ff41) !important;
+  box-shadow:
+    0 0 18px color-mix(in srgb, var(--m-green-500, #00ff41) 33%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--m-green-500, #00ff41) 47%, transparent) !important;
+}
+
+/* Non-matrix themes: use accent color for focus ring, no glow */
+:not([data-theme='matrix']) :not([data-theme='matrix-light']) .composer-matrix-root:focus-within {
+  border-color: var(--theme-accent, var(--theme-border)) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--theme-accent, #6366f1) 20%, transparent) !important;
+}

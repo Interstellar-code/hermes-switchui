@@ -11,6 +11,7 @@ import {
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useShallow } from 'zustand/react/shallow'
 import {
   memo,
   useCallback,
@@ -803,21 +804,28 @@ function ChatComposerComponent({
   hideModelSelector = false,
 }: ChatComposerProps) {
   const queryClient = useQueryClient()
-  const mobileKeyboardInset = useWorkspaceStore((s) => s.mobileKeyboardInset)
-  const mobileComposerFocused = useWorkspaceStore(
-    (s) => s.mobileComposerFocused,
+  const {
+    mobileKeyboardInset,
+    mobileComposerFocused,
+    setMobileKeyboardOpen,
+    setMobileKeyboardInset,
+    setMobileComposerFocused,
+  } = useWorkspaceStore(
+    useShallow((s) => ({
+      mobileKeyboardInset: s.mobileKeyboardInset,
+      mobileComposerFocused: s.mobileComposerFocused,
+      setMobileKeyboardOpen: s.setMobileKeyboardOpen,
+      setMobileKeyboardInset: s.setMobileKeyboardInset,
+      setMobileComposerFocused: s.setMobileComposerFocused,
+    })),
   )
-  const setMobileKeyboardOpen = useWorkspaceStore(
-    (s) => s.setMobileKeyboardOpen,
-  )
-  const setMobileKeyboardInset = useWorkspaceStore(
-    (s) => s.setMobileKeyboardInset,
-  )
-  const setMobileComposerFocused = useWorkspaceStore(
-    (s) => s.setMobileComposerFocused,
-  )
-  const setLeftPanel = useSessionsFilterStore((s) => s.setLeftPanel)
-  const setSidebarCollapsed = useSessionsFilterStore((s) => s.setCollapsed)
+  const { setLeftPanel, setCollapsed: setSidebarCollapsed } =
+    useSessionsFilterStore(
+      useShallow((s) => ({
+        setLeftPanel: s.setLeftPanel,
+        setCollapsed: s.setCollapsed,
+      })),
+    )
   const openFilesPanel = useCallback(() => {
     setSidebarCollapsed(false)
     setLeftPanel('files')
@@ -1012,10 +1020,13 @@ function ChatComposerComponent({
   // Drives both the composer label and the model passed to startStreaming.
   // Replaces an earlier flow that PATCHed ~/.hermes/config.yaml — that path
   // 404s and would clobber the global default for every channel anyway.
-  const persistedSessionModel = useSessionModelStore((s) =>
-    s.getModel(sessionKey),
-  )
-  const setPersistedSessionModel = useSessionModelStore((s) => s.setModel)
+  const { persistedSessionModel, setPersistedSessionModel } =
+    useSessionModelStore(
+      useShallow((s) => ({
+        persistedSessionModel: sessionKey ? s.models[sessionKey] : undefined,
+        setPersistedSessionModel: s.setModel,
+      })),
+    )
 
   // Model switching is now per-session via the persistent store above.
   // Previously this issued a PATCH /api/hermes-proxy/api/config to write to
@@ -1571,6 +1582,7 @@ function ChatComposerComponent({
     setComposerValue,
     value,
     fastMode,
+    thinkingLevel,
   ])
 
   // Fire queued submit once all in-flight attachment processing finishes
@@ -1923,7 +1935,13 @@ function ChatComposerComponent({
       WebkitTransform: tf,
       '--mobile-tab-bar-offset': MOBILE_TAB_BAR_OFFSET,
     } as CSSProperties
-  }, [isMobileViewport, keyboardOrFocusActive, effectiveScrollHidden, embedded])
+  }, [
+    chatNavMode,
+    effectiveScrollHidden,
+    embedded,
+    isMobileViewport,
+    keyboardOrFocusActive,
+  ])
 
   return (
     <div
@@ -1942,13 +1960,13 @@ function ChatComposerComponent({
                   ? [
                       // iMessage-style: edge-to-edge, docked to bottom
                       'left-0 right-0',
-                      'bg-surface/95 backdrop-blur-xl',
+                      'bg-transparent',
                       'border-t border-primary-200/60',
                     ].join(' ')
                   : [
                       // scroll-hide / integrated: floating pill above tab bar
                       'left-4 right-4',
-                      'bg-surface/95 backdrop-blur-2xl',
+                      'bg-transparent',
                       'shadow-[0_8px_32px_rgba(0,0,0,0.15)]',
                       'rounded-[22px]',
                     ].join(' '),
@@ -1958,7 +1976,7 @@ function ChatComposerComponent({
               'bg-surface',
             ].join(' '),
         !isMobileViewport ? '' : '',
-        'md:bg-surface/95 md:backdrop-blur md:transition-[padding-bottom,background-color,backdrop-filter] md:duration-200',
+        'md:bg-transparent md:transition-[padding-bottom] md:duration-200',
       )}
       style={composerWrapperStyle}
       ref={setWrapperRefs}
@@ -2434,8 +2452,8 @@ function ChatComposerComponent({
                                   }}
                                   className={`flex flex-1 items-center gap-3 px-4 py-3 text-left text-sm transition-colors ${
                                     isActive
-                                      ? 'bg-accent-50 text-accent-700 font-medium dark:bg-accent-900/30 dark:text-accent-300 border-l-2 border-accent-500'
-                                      : 'text-neutral-700 hover:bg-neutral-50 dark:text-neutral-300 dark:hover:bg-neutral-800'
+                                      ? 'border-l-2 border-[var(--m-green-500,#00ff41)] bg-[color-mix(in_srgb,var(--m-green-500,#00ff41)_14%,transparent)] text-[var(--m-green-400,#3aff77)] font-medium'
+                                      : 'text-[var(--theme-text)] hover:bg-[color-mix(in_srgb,var(--m-green-500,#00ff41)_8%,transparent)] hover:text-[var(--m-green-400,#3aff77)]'
                                   }`}
                                 >
                                   <span className="flex-1 truncate">
@@ -2584,7 +2602,7 @@ function ChatComposerComponent({
                           ? 'text-red-600 bg-red-100 hover:bg-red-200 animate-pulse'
                           : voiceInput.isListening
                             ? 'text-red-500 bg-red-50 hover:bg-red-100 animate-pulse'
-                            : 'text-primary-500 hover:bg-primary-100 dark:hover:bg-primary-800 hover:text-primary-700',
+                            : 'hover:text-[var(--m-green-400,#3aff77)] text-[var(--theme-muted)] hover:bg-transparent',
                       )}
                       aria-label={
                         voiceRecorder.isRecording
@@ -2613,7 +2631,7 @@ function ChatComposerComponent({
                   <Button
                     size="icon-sm"
                     variant="ghost"
-                    className="rounded-lg text-primary-500 hover:bg-primary-100 dark:hover:bg-primary-800 hover:text-primary-500"
+                    className="rounded-lg text-[var(--theme-muted)] hover:text-[var(--m-green-400,#3aff77)] hover:bg-transparent transition-colors"
                     aria-label="Add attachment"
                     disabled={disabled}
                     onClick={handleOpenAttachmentPicker}
@@ -2630,7 +2648,7 @@ function ChatComposerComponent({
                     <Button
                       size="icon-sm"
                       variant="ghost"
-                      className="rounded-lg text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-800 hover:text-red-600"
+                      className="rounded-lg text-[var(--theme-muted)] hover:text-red-500 hover:bg-transparent transition-colors"
                       aria-label="Clear draft"
                       onClick={handleClearDraft}
                     >
@@ -2664,7 +2682,13 @@ function ChatComposerComponent({
                           setIsModelMenuOpen(false)
                         }}
                         disabled={disabled || profileActivateMutation.isPending}
-                        className="inline-flex h-8 max-w-[8rem] items-center gap-1.5 rounded-full bg-primary-100/70 px-2.5 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-200/80 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-primary-800/60"
+                        className="inline-flex h-7 max-w-[8rem] items-center gap-1.5 rounded px-2.5 text-[10px] font-mono font-semibold tracking-wider uppercase transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                        style={{
+                          background: 'color-mix(in srgb, var(--m-green-500, #00ff41) 14%, transparent)',
+                          border: '1px solid color-mix(in srgb, var(--m-green-500, #00ff41) 50%, transparent)',
+                          color: 'var(--m-green-400, #3aff77)',
+                          textShadow: '0 0 4px color-mix(in srgb, var(--m-green-500, #00ff41) 40%, transparent)',
+                        }}
                         title={
                           activeProfile
                             ? `${activeProfile.name}${profileMeta(activeProfile) ? ` · ${profileMeta(activeProfile)}` : ''}`
@@ -2689,8 +2713,17 @@ function ChatComposerComponent({
                         <HugeiconsIcon icon={ArrowDown01Icon} size={11} />
                       </button>
                       {isProfileMenuOpen && (
-                        <div className="absolute bottom-full left-0 z-[200] mb-2 min-w-[14rem] overflow-hidden rounded-xl border border-neutral-200 bg-white p-1 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-150 dark:border-neutral-700 dark:bg-neutral-900">
-                          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                        <div
+                          className="absolute bottom-full left-0 z-[200] mb-2 min-w-[14rem] overflow-hidden rounded-lg p-1 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-150"
+                          style={{
+                            background: 'color-mix(in srgb, var(--theme-card) 92%, transparent)',
+                            border: '1.5px solid var(--m-green-500, var(--theme-accent, #00ff41))',
+                            boxShadow:
+                              '0 0 18px color-mix(in srgb, var(--m-green-500, #00ff41) 35%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--m-green-500, #00ff41) 25%, transparent)',
+                            fontFamily: 'var(--font-mono, monospace)',
+                          }}
+                        >
+                          <div className="px-3 py-2 text-[10px] font-mono font-semibold uppercase tracking-wider" style={{ color: 'var(--m-green-400, #3aff77)' }}>
                             Agent profile
                           </div>
                           {(profilesQuery.data?.profiles ?? []).map(
@@ -2709,18 +2742,22 @@ function ChatComposerComponent({
                                     profileActivateMutation.mutate(profile.name)
                                   }}
                                   className={cn(
-                                    'flex w-full flex-col rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                                    'flex w-full flex-col rounded px-3 py-2 text-left text-sm transition-colors',
                                     selected
-                                      ? 'bg-neutral-100 text-neutral-950 dark:bg-neutral-800 dark:text-neutral-50'
-                                      : 'text-neutral-700 hover:bg-neutral-50 dark:text-neutral-300 dark:hover:bg-neutral-800/60',
+                                      ? 'text-[var(--m-green-400,#3aff77)]'
+                                      : 'text-[var(--theme-text)] hover:text-[var(--m-green-400,#3aff77)]',
                                   )}
+                                  style={selected ? {
+                                    background: 'color-mix(in srgb, var(--m-green-500, #00ff41) 10%, transparent)',
+                                    borderLeft: '2px solid var(--m-green-500, #00ff41)',
+                                  } : undefined}
                                 >
                                   <span className="flex items-center gap-2">
-                                    <span className="truncate font-medium">
+                                    <span className="truncate font-mono font-medium">
                                       {profile.name}
                                     </span>
                                     {selected ? (
-                                      <span className="text-[10px] text-accent-500">
+                                      <span className="text-[10px] font-mono" style={{ color: 'var(--m-green-500, #00ff41)' }}>
                                         active
                                       </span>
                                     ) : null}
@@ -2755,7 +2792,13 @@ function ChatComposerComponent({
                           setIsThinkingMenuOpen(false)
                           setIsModelMenuOpen(false)
                         }}
-                        className="inline-flex h-8 max-w-[9rem] items-center gap-1.5 rounded-full bg-primary-100/70 px-2.5 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-200/80 dark:hover:bg-primary-800/60"
+                        className="inline-flex h-7 max-w-[9rem] items-center gap-1.5 rounded px-2.5 text-[10px] font-mono font-semibold tracking-wider uppercase transition-colors"
+                        style={{
+                          background: 'color-mix(in srgb, var(--m-green-500, #00ff41) 14%, transparent)',
+                          border: '1px solid color-mix(in srgb, var(--m-green-500, #00ff41) 50%, transparent)',
+                          color: 'var(--m-green-400, #3aff77)',
+                          textShadow: '0 0 4px color-mix(in srgb, var(--m-green-500, #00ff41) 40%, transparent)',
+                        }}
                         title={detectedWorkspacePath || 'Workspace context'}
                       >
                         <svg
@@ -2775,8 +2818,17 @@ function ChatComposerComponent({
                         <HugeiconsIcon icon={ArrowDown01Icon} size={11} />
                       </button>
                       {isWorkspaceMenuOpen && (
-                        <div className="absolute bottom-full left-0 z-[200] mb-2 min-w-[19rem] overflow-hidden rounded-xl border border-neutral-200 bg-white p-1 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-150 dark:border-neutral-700 dark:bg-neutral-900">
-                          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                        <div
+                          className="absolute bottom-full left-0 z-[200] mb-2 min-w-[19rem] overflow-hidden rounded-lg p-1 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-150"
+                          style={{
+                            background: 'color-mix(in srgb, var(--theme-card) 92%, transparent)',
+                            border: '1.5px solid var(--m-green-500, var(--theme-accent, #00ff41))',
+                            boxShadow:
+                              '0 0 18px color-mix(in srgb, var(--m-green-500, #00ff41) 35%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--m-green-500, #00ff41) 25%, transparent)',
+                            fontFamily: 'var(--font-mono, monospace)',
+                          }}
+                        >
+                          <div className="px-3 py-2 text-[10px] font-mono font-semibold uppercase tracking-wider" style={{ color: 'var(--m-green-400, #3aff77)' }}>
                             Workspace context
                           </div>
                           <div className="max-h-56 overflow-y-auto">
@@ -2797,25 +2849,62 @@ function ChatComposerComponent({
                                       workspaceSelectMutation.mutate(workspace)
                                       openFilesPanel()
                                     }}
-                                    className={cn(
-                                      'flex w-full flex-col rounded-lg px-3 py-2 text-left text-sm transition-colors',
-                                      selected
-                                        ? 'bg-neutral-100 text-neutral-950 dark:bg-neutral-800 dark:text-neutral-50'
-                                        : 'text-neutral-700 hover:bg-neutral-50 dark:text-neutral-300 dark:hover:bg-neutral-800/60',
-                                    )}
+                                    className="flex w-full flex-col rounded-sm px-3 py-2 text-left transition-colors"
+                                    style={{
+                                      fontFamily: 'var(--font-mono, monospace)',
+                                      color: selected
+                                        ? 'var(--m-green-400, var(--theme-accent))'
+                                        : 'var(--theme-text)',
+                                      background: selected
+                                        ? 'color-mix(in srgb, var(--m-green-500, #00ff41) 14%, transparent)'
+                                        : 'transparent',
+                                      textShadow: selected
+                                        ? '0 0 4px color-mix(in srgb, var(--m-green-500, #00ff41) 60%, transparent)'
+                                        : 'none',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      if (!selected)
+                                        e.currentTarget.style.background =
+                                          'color-mix(in srgb, var(--m-green-500, #00ff41) 8%, transparent)'
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      if (!selected) e.currentTarget.style.background = 'transparent'
+                                    }}
                                   >
                                     <span className="flex items-center gap-2">
-                                      <span className="truncate font-medium">
+                                      <span
+                                        className="truncate"
+                                        style={{ fontSize: 12.5, fontWeight: selected ? 600 : 500 }}
+                                      >
                                         {workspace.name ||
                                           shortPathLabel(workspace.path)}
                                       </span>
                                       {selected ? (
-                                        <span className="text-[10px] text-accent-500">
+                                        <span
+                                          className="uppercase rounded-full px-1.5"
+                                          style={{
+                                            fontSize: 8,
+                                            letterSpacing: '0.12em',
+                                            lineHeight: '14px',
+                                            color: 'var(--m-green-400, #3aff77)',
+                                            border: '1px solid var(--m-green-500, #00ff41)',
+                                            background:
+                                              'color-mix(in srgb, var(--m-green-500, #00ff41) 14%, transparent)',
+                                            textShadow: '0 0 4px var(--m-green-500, #00ff41)',
+                                          }}
+                                        >
                                           active
                                         </span>
                                       ) : null}
                                     </span>
-                                    <span className="mt-0.5 max-w-[16rem] truncate font-mono text-[11px] text-neutral-500">
+                                    <span
+                                      className="mt-0.5 max-w-[16rem] truncate"
+                                      style={{
+                                        fontSize: 10,
+                                        opacity: 0.7,
+                                        color: 'var(--theme-muted)',
+                                      }}
+                                    >
                                       {workspace.path}
                                     </span>
                                   </button>
@@ -2872,32 +2961,68 @@ function ChatComposerComponent({
                         <HugeiconsIcon icon={ArrowDown01Icon} size={11} />
                       </button>
                       {isThinkingMenuOpen && (
-                        <div className="absolute bottom-full left-0 z-[200] mb-2 min-w-[10rem] overflow-hidden rounded-xl border border-neutral-200 bg-white p-1 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-150 dark:border-neutral-700 dark:bg-neutral-900">
+                        <div
+                          className="absolute bottom-full left-0 z-[200] mb-2 min-w-[10rem] overflow-hidden rounded-md p-1 animate-in fade-in slide-in-from-bottom-2 duration-150"
+                          style={{
+                            background: 'color-mix(in srgb, var(--theme-card) 92%, transparent)',
+                            border: '1.5px solid var(--m-green-500, var(--theme-accent, #00ff41))',
+                            boxShadow:
+                              '0 0 18px color-mix(in srgb, var(--m-green-500, #00ff41) 35%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--m-green-500, #00ff41) 25%, transparent)',
+                            fontFamily: 'var(--font-mono, monospace)',
+                          }}
+                        >
                           {(
                             [
-                              ['off', 'None'],
-                              ['low', 'Low'],
-                              ['medium', 'Medium'],
-                              ['high', 'High'],
+                              ['off', 'NONE'],
+                              ['low', 'LOW'],
+                              ['medium', 'MEDIUM'],
+                              ['high', 'HIGH'],
                             ] as Array<[ThinkingLevel, string]>
-                          ).map(([level, label]) => (
-                            <button
-                              key={level}
-                              type="button"
-                              onClick={() => handleThinkingSelect(level)}
-                              className={cn(
-                                'flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors',
-                                thinkingLevel === level
-                                  ? 'bg-neutral-100 text-neutral-950 dark:bg-neutral-800 dark:text-neutral-50'
-                                  : 'text-neutral-700 hover:bg-neutral-50 dark:text-neutral-300 dark:hover:bg-neutral-800/60',
-                              )}
-                            >
-                              <span>{label}</span>
-                              {thinkingLevel === level ? (
-                                <span className="h-1.5 w-1.5 rounded-full bg-accent-500" />
-                              ) : null}
-                            </button>
-                          ))}
+                          ).map(([level, label]) => {
+                            const selected = thinkingLevel === level
+                            return (
+                              <button
+                                key={level}
+                                type="button"
+                                onClick={() => handleThinkingSelect(level)}
+                                className="flex w-full items-center justify-between rounded-sm px-3 py-2 text-left transition-colors uppercase tracking-wider"
+                                style={{
+                                  fontSize: 11,
+                                  letterSpacing: '0.08em',
+                                  color: selected
+                                    ? 'var(--m-green-400, var(--theme-accent))'
+                                    : 'var(--theme-muted)',
+                                  background: selected
+                                    ? 'color-mix(in srgb, var(--m-green-500, #00ff41) 14%, transparent)'
+                                    : 'transparent',
+                                  textShadow: selected
+                                    ? '0 0 4px color-mix(in srgb, var(--m-green-500, #00ff41) 60%, transparent)'
+                                    : 'none',
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!selected)
+                                    e.currentTarget.style.background =
+                                      'color-mix(in srgb, var(--m-green-500, #00ff41) 8%, transparent)'
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!selected) e.currentTarget.style.background = 'transparent'
+                                }}
+                              >
+                                <span>{label}</span>
+                                {selected ? (
+                                  <span
+                                    style={{
+                                      width: 6,
+                                      height: 6,
+                                      borderRadius: '50%',
+                                      background: 'var(--m-green-500, #00ff41)',
+                                      boxShadow: '0 0 6px var(--m-green-500, #00ff41)',
+                                    }}
+                                  />
+                                ) : null}
+                              </button>
+                            )
+                          })}
                         </div>
                       )}
                     </div>
@@ -2928,7 +3053,16 @@ function ChatComposerComponent({
                             className="fixed inset-0 z-[199]"
                             onClick={() => setIsModelMenuOpen(false)}
                           />
-                          <div className="absolute bottom-full left-0 mb-2 z-[200] w-[min(28rem,calc(100vw-2rem))] min-w-[18rem] origin-bottom-left overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl dark:border-neutral-700 dark:bg-neutral-900 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                          <div
+                            className="absolute bottom-full left-0 mb-2 z-[200] w-[min(28rem,calc(100vw-2rem))] min-w-[18rem] origin-bottom-left overflow-hidden rounded-md animate-in fade-in slide-in-from-bottom-2 duration-150"
+                            style={{
+                              background: 'color-mix(in srgb, var(--theme-card) 92%, transparent)',
+                              border: '1.5px solid var(--m-green-500, var(--theme-accent, #00ff41))',
+                              boxShadow:
+                                '0 0 18px color-mix(in srgb, var(--m-green-500, #00ff41) 35%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--m-green-500, #00ff41) 25%, transparent)',
+                              fontFamily: 'var(--font-mono, monospace)',
+                            }}
+                          >
                             <div className="max-h-[20rem] overflow-y-auto overflow-x-hidden p-1">
                               {(() => {
                                 const allModels = modelsQuery.data?.models ?? []
@@ -3011,8 +3145,8 @@ function ChatComposerComponent({
                                         }}
                                         className={`flex flex-1 items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors ${
                                           isActive
-                                            ? 'border-l-2 border-accent-500 bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100'
-                                            : 'text-neutral-700 hover:bg-neutral-50 dark:text-neutral-300 dark:hover:bg-neutral-800/50'
+                                            ? 'border-l-2 border-[var(--m-green-500,#00ff41)] bg-[color-mix(in_srgb,var(--m-green-500,#00ff41)_14%,transparent)] text-[var(--m-green-400,#3aff77)]'
+                                            : 'text-[var(--theme-text)] hover:bg-[color-mix(in_srgb,var(--m-green-500,#00ff41)_8%,transparent)] hover:text-[var(--m-green-400,#3aff77)]'
                                         }`}
                                       >
                                         <span className="flex-1 truncate">

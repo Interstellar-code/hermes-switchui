@@ -163,7 +163,7 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
                   // chat / cron / api are all backed by chat sessions —
                   // active highlight applies to any of them.
                   const isActive =
-                    (item.src === 'chat' || item.src === 'cron' || item.src === 'api') &&
+                    (item.src === 'chat' || item.src === 'cron' || item.src === 'api' || item.src === 'task') &&
                     rawId === activeSessionKey
                   return (
                     <SidebarCardV2 key={item.id} item={item} isActive={isActive} />

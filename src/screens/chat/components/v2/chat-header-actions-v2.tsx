@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useShallow } from 'zustand/react/shallow'
 import { cn } from '@/lib/utils'
 import { useSessionsLocalStore } from '@/stores/sessions-local-store'
 import { useSessionStatus } from '@/hooks/use-session-status'
@@ -12,10 +13,15 @@ type ChatHeaderActionsV2Props = {
 }
 
 export function ChatHeaderActionsV2({ sessionId, sessionKey, title }: ChatHeaderActionsV2Props) {
-  const isPinned = useSessionsLocalStore((s) => s.isPinned(sessionId))
-  const isArchived = useSessionsLocalStore((s) => s.isArchived(sessionId))
-  const togglePinned = useSessionsLocalStore((s) => s.togglePinned)
-  const toggleArchived = useSessionsLocalStore((s) => s.toggleArchived)
+  const { isPinned, isArchived, togglePinned, toggleArchived } =
+    useSessionsLocalStore(
+      useShallow((s) => ({
+        isPinned: s.pinned.includes(sessionId),
+        isArchived: s.archived.includes(sessionId),
+        togglePinned: s.togglePinned,
+        toggleArchived: s.toggleArchived,
+      })),
+    )
 
   // Pull live session metadata for the copy payload
   const status = useSessionStatus(sessionKey)

@@ -66,6 +66,7 @@ function ChatHeaderV2Component({
 
 function FileExplorerToggle() {
   const leftPanel = useSessionsFilterStore((s) => s.leftPanel)
+  const collapsed = useSessionsFilterStore((s) => s.collapsed)
   const setLeftPanel = useSessionsFilterStore((s) => s.setLeftPanel)
   const setCollapsed = useSessionsFilterStore((s) => s.setCollapsed)
   const isFiles = leftPanel === 'files'
@@ -76,7 +77,7 @@ function FileExplorerToggle() {
       aria-pressed={isFiles}
       title={isFiles ? 'Show sessions' : 'Show file explorer'}
       onClick={() => {
-        setCollapsed(false)
+        if (collapsed) setCollapsed(false)
         setLeftPanel(isFiles ? 'sessions' : 'files')
       }}
       className="flex items-center justify-center w-7 h-7 rounded transition-colors hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))] shrink-0"

@@ -1,6 +1,18 @@
-import { memo } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useSessionStatus } from '@/hooks/use-session-status'
 import { cn } from '@/lib/utils'
+
+type ProfilesResponse = {
+  activeProfile?: string
+  profiles?: Array<{ name: string; active?: boolean }>
+}
+
+async function fetchProfiles(): Promise<ProfilesResponse> {
+  const res = await fetch('/api/profiles/list')
+  if (!res.ok) return {}
+  return (await res.json()) as ProfilesResponse
+}
 
 function formatTokensShort(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -29,6 +41,8 @@ type ChatMetaBarV2Props = {
   toolCount?: number
   /** Profile/model override label */
   profile?: string
+  /** Fallback model name when session-status hasn't returned model yet */
+  modelFallback?: string
 }
 
 function ChatMetaBarV2Component({
@@ -37,15 +51,51 @@ function ChatMetaBarV2Component({
   tokPerSec = null,
   toolCount: toolCountProp,
   profile,
+  modelFallback,
 }: ChatMetaBarV2Props) {
   const status = useSessionStatus(sessionKey)
 
+  const profilesQuery = useQuery({
+    queryKey: ['profiles', 'list'],
+    queryFn: fetchProfiles,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  })
+  const resolvedProfile =
+    profile ??
+    profilesQuery.data?.activeProfile ??
+    profilesQuery.data?.profiles?.find((p) => p.active)?.name ??
+    null
+
+  // Derive tok/s from usedTokens deltas while streaming.
+  const [derivedTokPerSec, setDerivedTokPerSec] = useState<number | null>(null)
+  const lastSampleRef = useRef<{ tokens: number; t: number } | null>(null)
+  useEffect(() => {
+    if (!isStreaming) {
+      lastSampleRef.current = null
+      setDerivedTokPerSec(null)
+      return
+    }
+    const now = Date.now()
+    const tokens = status.usedTokens || status.outputTokens || 0
+    const prev = lastSampleRef.current
+    if (prev && tokens > prev.tokens && now > prev.t) {
+      const dt = (now - prev.t) / 1000
+      const dTok = tokens - prev.tokens
+      if (dt > 0.25) setDerivedTokPerSec(dTok / dt)
+    }
+    lastSampleRef.current = { tokens, t: now }
+  }, [isStreaming, status.usedTokens, status.outputTokens])
+
   const pct = Math.round(Math.min(Math.max(status.contextPercent, 0), 100))
-  const displayModel = status.model || '—'
+  const displayModel = status.model || modelFallback || '—'
+  const effectiveTokPerSec = tokPerSec ?? derivedTokPerSec
   const displayTokPerSec =
-    isStreaming && tokPerSec != null ? `${Math.round(tokPerSec)} tok/s` : null
+    isStreaming && effectiveTokPerSec != null && effectiveTokPerSec > 0
+      ? `${Math.round(effectiveTokPerSec)} tok/s`
+      : null
   const displayToolCount = toolCountProp ?? 0
-  const displayProfile = profile ?? 'default'
+  const displayProfile = resolvedProfile ?? 'default'
 
   const sessionLabel = sessionKey ?? '—'
 

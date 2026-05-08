@@ -138,7 +138,9 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
             : 'color-mix(in srgb, var(--theme-card) 30%, transparent)',
         border: isActive
           ? `1.5px solid ${railColor}`
-          : '1px solid var(--theme-border-subtle, var(--theme-border))',
+          : hovered
+            ? `1.5px solid ${railColor}66`
+            : '1.5px solid transparent',
         boxShadow: isActive
           ? `inset 0 0 0 1px ${railColor}77, 0 0 18px ${railColor}88, 0 0 6px ${railColor}55`
           : hovered

@@ -19,7 +19,7 @@
  * Non-existent routes are rendered as non-link buttons.
  */
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { useSearchModal } from '@/hooks/use-search-modal'
 import { getTheme, getThemeVariant, isDarkTheme, setTheme } from '@/lib/theme'
@@ -75,6 +75,8 @@ const ICONS = {
 
 const NAV_WIDTH = 232
 const NAV_COLLAPSED_WIDTH = 48
+const selectPathname = (s: { location: { pathname: string } }) =>
+  s.location.pathname
 
 function getItemStyle(active: boolean): React.CSSProperties {
   if (active) {
@@ -184,17 +186,14 @@ function GroupLabel({ label }: { label: string }) {
 // ── Connected footer dot ──────────────────────────────────────────────────────
 
 function ConnectedFooter({ collapsed }: { collapsed?: boolean }) {
-  const [, force] = useState(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const isDark = typeof document !== 'undefined'
-    ? !(document.documentElement.getAttribute('data-theme') || '').endsWith('-light')
-    : true
-  const handleToggleTheme = () => {
+  const [isDark, setIsDark] = useState(() => isDarkTheme(getTheme()))
+  const handleToggleTheme = useCallback(() => {
     const current = getTheme()
     const dark = isDarkTheme(current)
     setTheme(getThemeVariant(current, dark ? 'light' : 'dark'))
-    force((n) => n + 1)
-  }
+    setIsDark(!dark)
+  }, [])
   return (
     <>
     <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
@@ -278,16 +277,16 @@ function readInitialCollapsed(): boolean {
 }
 
 export function PrimaryNavV2() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const pathname = useRouterState({ select: selectPathname })
   const openSearchModal = useSearchModal((s) => s.openModal)
   const [collapsed, setCollapsed] = useState<boolean>(readInitialCollapsed)
-  const toggleCollapsed = () => {
+  const toggleCollapsed = useCallback(() => {
     setCollapsed((c) => {
       const next = !c
       try { window.localStorage.setItem(NAV_COLLAPSED_KEY, String(next)) } catch { /* noop */ }
       return next
     })
-  }
+  }, [])
 
   // Active states
   const isDashboard = pathname === '/dashboard'

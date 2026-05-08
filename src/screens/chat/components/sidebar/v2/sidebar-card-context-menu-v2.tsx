@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
+import { useShallow } from 'zustand/react/shallow'
 import type { SessionFeedItem } from '@/screens/chat/sessions-feed-types'
 import { SessionDeleteDialog } from '@/screens/chat/components/sidebar/session-delete-dialog'
 import { SessionRenameDialog } from '@/screens/chat/components/sidebar/session-rename-dialog'
@@ -32,15 +33,29 @@ interface SidebarCardContextMenuV2Props {
   onClose: () => void
 }
 
+const selectPathname = (s: { location: { pathname: string } }) =>
+  s.location.pathname
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCardContextMenuV2Props) {
-  const isPinned = useSessionsLocalStore((s) => s.isPinned(item.id))
-  const isStarred = useSessionsLocalStore((s) => s.isStarred(item.id))
-  const isArchived = useSessionsLocalStore((s) => s.isArchived(item.id))
-  const togglePinned = useSessionsLocalStore((s) => s.togglePinned)
-  const toggleStarred = useSessionsLocalStore((s) => s.toggleStarred)
-  const toggleArchived = useSessionsLocalStore((s) => s.toggleArchived)
+  const {
+    isPinned,
+    isStarred,
+    isArchived,
+    togglePinned,
+    toggleStarred,
+    toggleArchived,
+  } = useSessionsLocalStore(
+    useShallow((s) => ({
+      isPinned: s.pinned.includes(item.id),
+      isStarred: s.starred.includes(item.id),
+      isArchived: s.archived.includes(item.id),
+      togglePinned: s.togglePinned,
+      toggleStarred: s.toggleStarred,
+      toggleArchived: s.toggleArchived,
+    })),
+  )
 
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -87,7 +102,7 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
 
   const { deleteSession } = useDeleteSession()
   const navigate = useNavigate()
-  const currentPath = useRouterState({ select: (s) => s.location.pathname })
+  const currentPath = useRouterState({ select: selectPathname })
   const isActive = isChatItem && currentPath.includes(`/chat/${rawId}`)
 
   function handleDeleteConfirm() {
