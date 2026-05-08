@@ -210,6 +210,7 @@ function MenuItem({ label, icon, onClick, danger }: MenuItemProps) {
       type="button"
       role="menuitem"
       onClick={onClick}
+      className="m-mono"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -220,7 +221,6 @@ function MenuItem({ label, icon, onClick, danger }: MenuItemProps) {
         border: 'none',
         cursor: 'pointer',
         fontSize: 11,
-        fontFamily: 'var(--font-mono, monospace)',
         color: danger ? '#ff5f5f' : 'var(--theme-text)',
         textAlign: 'left',
         transition: 'background 0.1s',

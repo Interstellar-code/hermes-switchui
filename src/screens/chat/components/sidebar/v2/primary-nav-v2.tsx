@@ -90,7 +90,6 @@ function getItemStyle(active: boolean): React.CSSProperties {
       color: 'var(--m-green-400, var(--theme-accent))',
       borderLeft: '2px solid var(--m-green-500, var(--theme-accent))',
       boxShadow: 'inset 2px 0 6px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 20%, transparent)',
-      fontFamily: 'var(--font-mono, monospace)',
       fontSize: 11,
       fontWeight: 500,
       cursor: 'pointer',
@@ -106,7 +105,6 @@ function getItemStyle(active: boolean): React.CSSProperties {
     padding: '6px 12px',
     borderRadius: 4,
     color: 'var(--theme-muted)',
-    fontFamily: 'var(--font-mono, monospace)',
     fontSize: 11,
     fontWeight: 400,
     cursor: 'pointer',
@@ -137,7 +135,7 @@ function NavItem({ label, iconKey, to, active, collapsed }: NavItemProps) {
       <Link
         to={to}
         style={style}
-        className="primary-nav-v2-item"
+        className="m-mono primary-nav-v2-item"
         data-active={active ? 'true' : undefined}
         title={collapsed ? label : undefined}
       >
@@ -151,7 +149,7 @@ function NavItem({ label, iconKey, to, active, collapsed }: NavItemProps) {
     <button
       type="button"
       style={{ ...style, background: undefined }}
-      className="primary-nav-v2-item"
+      className="m-mono primary-nav-v2-item"
       aria-disabled="true"
       title={collapsed ? label : undefined}
     >
@@ -166,13 +164,9 @@ function NavItem({ label, iconKey, to, active, collapsed }: NavItemProps) {
 function GroupLabel({ label }: { label: string }) {
   return (
     <div
+      className="m-label"
       style={{
         padding: '10px 12px 4px',
-        fontFamily: 'var(--font-mono, monospace)',
-        fontSize: 9,
-        fontWeight: 700,
-        letterSpacing: '0.15em',
-        textTransform: 'uppercase',
         color: 'var(--theme-muted)',
         opacity: 0.6,
         userSelect: 'none',
@@ -212,6 +206,7 @@ function ConnectedFooter({ collapsed }: { collapsed?: boolean }) {
         type="button"
         onClick={() => setSettingsOpen(true)}
         aria-label="Settings"
+        className="m-mono"
         style={{
           background: 'none',
           border: 'none',
@@ -222,7 +217,6 @@ function ConnectedFooter({ collapsed }: { collapsed?: boolean }) {
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          fontFamily: 'var(--font-mono, monospace)',
           fontSize: 11,
         }}
       >
@@ -343,8 +337,8 @@ export function PrimaryNavV2() {
             />
             <div style={{ minWidth: 0 }}>
               <div
+                className="m-mono"
                 style={{
-                  fontFamily: 'var(--font-mono, monospace)',
                   fontSize: 12,
                   fontWeight: 700,
                   letterSpacing: '0.05em',
@@ -355,12 +349,10 @@ export function PrimaryNavV2() {
                 HERMES
               </div>
               <div
+                className="m-label"
                 style={{
-                  fontFamily: 'var(--font-mono, monospace)',
-                  fontSize: 9,
                   color: 'var(--theme-muted)',
                   opacity: 0.7,
-                  letterSpacing: '0.1em',
                 }}
               >
                 v2.3.0
@@ -411,6 +403,7 @@ export function PrimaryNavV2() {
         {!collapsed && <button
           type="button"
           onClick={openSearchModal}
+          className="m-mono"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -421,7 +414,6 @@ export function PrimaryNavV2() {
             background: 'none',
             border: 'none',
             color: 'var(--theme-muted)',
-            fontFamily: 'var(--font-mono, monospace)',
             fontSize: 11,
             cursor: 'pointer',
             boxSizing: 'border-box',
@@ -432,12 +424,8 @@ export function PrimaryNavV2() {
           <Icon d={ICONS.search} />
           <span style={{ flex: 1, textAlign: 'left' }}>Search</span>
           <span
-            style={{
-              fontSize: 9,
-              opacity: 0.5,
-              letterSpacing: '0.05em',
-              fontFamily: 'var(--font-mono, monospace)',
-            }}
+            className="m-mono"
+            style={{ fontSize: 9, opacity: 0.5 }}
           >
             ⌘K
           </span>
@@ -447,16 +435,14 @@ export function PrimaryNavV2() {
         <Link
           to="/chat/$sessionKey"
           params={{ sessionKey: 'new' }}
+          className="m-mono"
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 8,
             padding: '6px 12px',
             borderRadius: 4,
-            color: isNewSession
-              ? 'var(--m-green-400, var(--theme-accent))'
-              : 'var(--m-green-400, var(--theme-accent))',
-            fontFamily: 'var(--font-mono, monospace)',
+            color: 'var(--m-green-400, var(--theme-accent))',
             fontSize: 11,
             fontWeight: 600,
             cursor: 'pointer',

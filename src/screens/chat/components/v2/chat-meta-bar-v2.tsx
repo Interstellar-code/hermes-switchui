@@ -104,7 +104,7 @@ function ChatMetaBarV2Component({
       role="status"
       aria-label="Session meta"
       className={cn(
-        'shrink-0 flex items-center gap-1.5 px-4 h-7 text-[10px] font-mono overflow-x-auto scrollbar-none',
+        'shrink-0 flex items-center gap-1.5 px-4 h-7 overflow-x-auto scrollbar-none',
         'border-b',
       )}
       style={{
@@ -124,11 +124,11 @@ function ChatMetaBarV2Component({
               : 'bg-[var(--m-green,#4ade80)] opacity-70',
           )}
         />
-        <span style={{ color: 'var(--m-green, #4ade80)' }}>live</span>
+        <span className="m-label m-label-accent">live</span>
         {displayTokPerSec && (
           <>
             <span className="opacity-40">·</span>
-            <span data-testid="tok-per-sec">{displayTokPerSec}</span>
+            <span className="m-timestamp" data-testid="tok-per-sec">{displayTokPerSec}</span>
           </>
         )}
       </span>
@@ -136,17 +136,17 @@ function ChatMetaBarV2Component({
       <Sep />
 
       {/* Model */}
-      <span className="shrink-0 truncate max-w-[140px]" data-testid="meta-model">
+      <span className="m-mono shrink-0 truncate max-w-[140px]" data-testid="meta-model">
         {displayModel}
       </span>
 
       <Sep />
 
       {/* Context */}
-      <span className="shrink-0 whitespace-nowrap" data-testid="meta-ctx">
+      <span className="m-mono shrink-0 whitespace-nowrap" data-testid="meta-ctx">
         {pct > 0 || status.usedTokens > 0 ? (
           <>
-            ctx {pct}%
+            <span className="m-label">ctx</span>{' '}{pct}%
             {status.maxTokens > 0 && (
               <>
                 {' '}·{' '}
@@ -156,7 +156,7 @@ function ChatMetaBarV2Component({
             )}
           </>
         ) : (
-          'ctx —'
+          <><span className="m-label">ctx</span>{' '}—</>
         )}
       </span>
 
@@ -164,14 +164,14 @@ function ChatMetaBarV2Component({
 
       {/* Tools */}
       <span className="shrink-0 whitespace-nowrap" data-testid="meta-tools">
-        tools · {displayToolCount > 0 ? displayToolCount : '—'}
+        <span className="m-label">tools</span>{' · '}<span className="m-mono">{displayToolCount > 0 ? displayToolCount : '—'}</span>
       </span>
 
       <Sep />
 
       {/* Profile */}
       <span className="shrink-0 whitespace-nowrap" data-testid="meta-profile">
-        profile · {displayProfile}
+        <span className="m-label">profile</span>{' · '}<span className="m-mono">{displayProfile}</span>
       </span>
 
       {/* Spacer */}
@@ -179,7 +179,7 @@ function ChatMetaBarV2Component({
 
       {/* Session id — right aligned */}
       <span
-        className="shrink-0 whitespace-nowrap opacity-60"
+        className="m-timestamp shrink-0 whitespace-nowrap opacity-60"
         data-testid="meta-session-id"
       >
         session · {sessionLabel}

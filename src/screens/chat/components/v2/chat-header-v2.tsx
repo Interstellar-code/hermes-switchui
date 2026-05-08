@@ -30,8 +30,7 @@ function ChatHeaderV2Component({
       {/* Left: source prefix + title */}
       <div className="flex items-center gap-1.5 min-w-0 flex-1">
         <span
-          className="shrink-0 text-[10px] font-mono font-semibold tracking-wider"
-          style={{ color: 'var(--m-green, #4ade80)' }}
+          className="m-label m-label-accent shrink-0"
         >
           [CHAT]
         </span>

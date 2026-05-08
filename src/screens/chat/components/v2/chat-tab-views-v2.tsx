@@ -81,7 +81,7 @@ const cardStyle: React.CSSProperties = {
   background: 'var(--m-surface-1, var(--theme-card))',
   borderColor: 'var(--m-border, var(--theme-border))',
 }
-const greenStyle: React.CSSProperties = { color: 'var(--m-green, #4ade80)' }
+const greenStyle: React.CSSProperties = { color: 'var(--m-green-500)' }
 
 type FlatToolEntry = {
   key: string
@@ -436,7 +436,7 @@ function ExpandableToolCard({ entry }: { entry: FlatToolEntry }) {
             setOpen((v) => !v)
           }
         }}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left font-mono text-xs"
+        className="m-mono flex w-full items-center gap-2 px-3 py-2 text-left"
         style={{ cursor: canExpand ? 'pointer' : 'default', background: 'transparent', border: 'none' }}
       >
         <span style={greenStyle}>{open ? '▼' : '▶'}</span>
@@ -447,7 +447,7 @@ function ExpandableToolCard({ entry }: { entry: FlatToolEntry }) {
         <span className="flex-1" />
         {entry.displayTs ? (
           <span
-            className="shrink-0 opacity-40 text-[10px] tabular-nums"
+            className="m-timestamp shrink-0 opacity-40"
             title={new Date(entry.displayTs).toLocaleString()}
           >
             {new Date(entry.displayTs).toLocaleTimeString([], {
@@ -458,7 +458,7 @@ function ExpandableToolCard({ entry }: { entry: FlatToolEntry }) {
           </span>
         ) : null}
         <span
-          className="shrink-0 text-[10px] px-1.5 py-0.5 rounded"
+          className="m-label shrink-0 px-1.5 py-0.5 rounded"
           style={{
             color: badge.color,
             background: `color-mix(in srgb, ${badge.color} 15%, transparent)`,
@@ -480,7 +480,7 @@ function ExpandableToolCard({ entry }: { entry: FlatToolEntry }) {
         >
           {hasInput ? (
             <div>
-              <div className="mb-0.5 font-sans text-[9px] uppercase tracking-widest opacity-50" style={{ color: 'var(--theme-muted)' }}>
+              <div className="m-label mb-0.5 opacity-50" style={{ color: 'var(--theme-muted)' }}>
                 Input
               </div>
               <pre
@@ -496,7 +496,7 @@ function ExpandableToolCard({ entry }: { entry: FlatToolEntry }) {
           {hasOutput ? (
             <div className={hasInput ? 'mt-1.5' : ''}>
               <div
-                className="mb-0.5 font-sans text-[9px] uppercase tracking-widest opacity-50"
+                className="m-label mb-0.5 opacity-50"
                 style={{ color: entry.isError ? 'var(--theme-danger, #ef4444)' : 'var(--theme-muted)' }}
               >
                 {entry.isError ? 'Error' : 'Output'}
@@ -555,14 +555,13 @@ function buildMixedRows(
 }
 
 const filterPillStyle = (active: boolean): React.CSSProperties => ({
-  background: active ? 'var(--m-green, #4ade80)' : 'transparent',
-  border: `1px solid ${active ? 'var(--m-green, #4ade80)' : 'var(--m-border, var(--theme-border))'}`,
+  background: active ? 'var(--m-green-500)' : 'transparent',
+  border: `1px solid ${active ? 'var(--m-green-500)' : 'var(--m-border, var(--theme-border))'}`,
   color: active ? 'var(--theme-bg, #000)' : 'var(--m-muted, var(--theme-muted))',
   borderRadius: '9999px',
   padding: '1px 8px',
   fontSize: '9px',
   cursor: 'pointer',
-  fontFamily: 'inherit',
   fontWeight: active ? 600 : 400,
 })
 
@@ -625,7 +624,7 @@ export function ToolTabView({ messages, streamingToolCalls = [], events = [] }: 
   const isEmpty = entries.length === 0 && events.length === 0
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto flex flex-col font-mono text-xs" style={toolViewStyle}>
+    <div className="m-mono flex-1 min-h-0 overflow-y-auto flex flex-col" style={toolViewStyle}>
       {/* Filter pill row + sort */}
       <div className="flex items-center gap-1.5 px-4 pt-3 pb-2 shrink-0 flex-wrap">
         {(['all', ...categoriesPresent, 'events'] as const).map((f) => (
@@ -789,7 +788,7 @@ export function ActivityTabView({ events, messages = [], streamingToolCalls = []
   if (rows.length === 0) {
     return (
       <div
-        className="flex-1 min-h-0 overflow-y-auto p-4 font-mono text-xs"
+        className="m-mono flex-1 min-h-0 overflow-y-auto p-4"
         style={toolViewStyle}
       >
         <p className="opacity-40 text-center mt-8">No activity events yet</p>
@@ -799,7 +798,7 @@ export function ActivityTabView({ events, messages = [], streamingToolCalls = []
 
   return (
     <div
-      className="flex-1 min-h-0 overflow-y-auto p-4 space-y-1.5 font-mono text-xs"
+      className="m-mono flex-1 min-h-0 overflow-y-auto p-4 space-y-1.5"
       style={toolViewStyle}
     >
       {rows.map((row, i) => {

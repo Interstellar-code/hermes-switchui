@@ -187,14 +187,12 @@ function Chip({ label, icon, active, count, accentColor, onClick, 'data-testid':
       aria-pressed={active}
       onClick={onClick}
       data-testid={testId}
-      className="flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium transition-all"
+      className="m-label flex items-center gap-1 rounded-full px-2 py-0.5 transition-all"
       style={{
         background: active ? `color-mix(in srgb, ${accentColor} 18%, transparent)` : 'var(--theme-card)',
         color: active ? accentColor : 'var(--theme-muted)',
         border: `1px solid ${active ? accentColor : 'var(--theme-border)'}`,
         boxShadow: active ? `0 0 6px ${accentColor}66` : 'none',
-        fontFamily: 'var(--font-mono, monospace)',
-        letterSpacing: '0.06em',
         cursor: 'pointer',
       }}
     >
@@ -204,7 +202,7 @@ function Chip({ label, icon, active, count, accentColor, onClick, 'data-testid':
       <span>{label}</span>
       {count != null && (
         <span
-          className="rounded-full px-1"
+          className="m-mono rounded-full px-1"
           style={{
             background: active ? `color-mix(in srgb, ${accentColor} 30%, transparent)` : 'var(--theme-border)',
             color: active ? accentColor : 'var(--theme-muted)',

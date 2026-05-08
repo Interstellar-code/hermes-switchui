@@ -21,7 +21,7 @@ interface SidebarCardV2Props {
 // ── Rail colors per source ─────────────────────────────────────────────────────
 
 const RAIL_COLORS: Record<string, string> = {
-  chat: 'var(--m-green-500, #00ff41)',
+  chat: 'var(--m-green-500)',
   task: '#ff9f5f',
   cron: '#d6ff5f',
   api: '#5fcfff',
@@ -44,9 +44,9 @@ function getBadgeStyle(text: string): React.CSSProperties {
   const t = text.toLowerCase()
   if (t === 'live')
     return {
-      background: 'color-mix(in srgb, #00ff41 20%, transparent)',
-      color: '#00ff41',
-      border: '1px solid #00ff4166',
+      background: 'color-mix(in srgb, var(--m-green-500) 20%, transparent)',
+      color: 'var(--m-green-500)',
+      border: '1px solid color-mix(in srgb, var(--m-green-500) 40%, transparent)',
     }
   if (t === 'err' || t === 'error')
     return { background: 'color-mix(in srgb, #ff5f5f 20%, transparent)', color: '#ff5f5f', border: '1px solid #ff5f5f66' }
@@ -56,9 +56,9 @@ function getBadgeStyle(text: string): React.CSSProperties {
     return { background: 'color-mix(in srgb, #5fcfff 20%, transparent)', color: '#5fcfff', border: '1px solid #5fcfff66' }
   if (t === 'done' || t === 'ok' || t === 'complete')
     return {
-      background: 'color-mix(in srgb, #00ff41 15%, transparent)',
-      color: '#00ff41',
-      border: '1px solid #00ff4166',
+      background: 'color-mix(in srgb, var(--m-green-500) 15%, transparent)',
+      color: 'var(--m-green-500)',
+      border: '1px solid color-mix(in srgb, var(--m-green-500) 40%, transparent)',
     }
   return {
     background: 'var(--theme-card)',
@@ -183,13 +183,11 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
             </span>
           )}
           <span
-            className="truncate"
+            className="m-mono truncate"
             style={{
               color: isActive ? 'var(--m-green-400, var(--theme-accent))' : 'var(--theme-text)',
-              fontFamily: 'var(--font-mono, monospace)',
               fontSize: 12.5,
               fontWeight: isActive ? 600 : 500,
-              letterSpacing: '0.01em',
               lineHeight: 1.35,
               textShadow: isActive ? `0 0 6px ${railColor}55` : 'none',
             }}
@@ -201,15 +199,11 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
         {/* Meta row: src badge + inline stats */}
         <div className="flex items-center gap-1.5 min-w-0">
           <span
-            className="shrink-0 rounded-full px-1.5 uppercase"
+            className="m-label shrink-0 rounded-full px-1.5"
             style={{
               border: `1px solid ${railColor}`,
               background: `color-mix(in srgb, ${railColor} 14%, transparent)`,
               color: railColor,
-              fontFamily: 'var(--font-mono, monospace)',
-              fontSize: 8,
-              letterSpacing: '0.12em',
-              fontWeight: 600,
               lineHeight: '14px',
               textShadow: `0 0 4px ${railColor}66`,
             }}
@@ -217,11 +211,9 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
             {item.src}
           </span>
           <div
-            className="flex items-center gap-2 min-w-0 truncate"
+            className="m-mono flex items-center gap-2 min-w-0 truncate"
             style={{
               color: 'var(--theme-muted)',
-              fontFamily: 'var(--font-mono, monospace)',
-              fontSize: 9,
               opacity: 0.7,
             }}
           >
@@ -278,11 +270,9 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
           </button>
         ) : (
           <span
-            className="text-xs"
+            className="m-timestamp"
             style={{
               color: 'var(--theme-muted)',
-              fontFamily: 'var(--font-mono, monospace)',
-              fontSize: 9,
               whiteSpace: 'nowrap',
             }}
           >
@@ -331,13 +321,11 @@ interface BadgeProps {
 function Badge({ text, badgeStyle, pulse }: BadgeProps) {
   return (
     <span
-      className="flex items-center gap-0.5 rounded-full px-1.5"
+      className="m-mono flex items-center gap-0.5 rounded-full px-1.5"
       style={{
         ...badgeStyle,
         fontSize: 8,
         lineHeight: '14px',
-        fontFamily: 'var(--font-mono, monospace)',
-        letterSpacing: '0.04em',
         textTransform: 'lowercase',
       }}
     >

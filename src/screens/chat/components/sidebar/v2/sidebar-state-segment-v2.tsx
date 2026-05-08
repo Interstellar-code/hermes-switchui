@@ -45,13 +45,8 @@ export function SidebarStateSegmentV2() {
       {/* State label + sort row */}
       <div className="flex items-center justify-between px-3 pt-1.5 pb-0.5">
         <span
-          className="text-xs font-bold uppercase select-none"
-          style={{
-            color: 'var(--theme-muted)',
-            letterSpacing: '0.1em',
-            fontFamily: 'var(--font-mono, monospace)',
-            fontSize: 9,
-          }}
+          className="m-label select-none"
+          style={{ color: 'var(--theme-muted)' }}
         >
           STATE
         </span>
@@ -59,13 +54,12 @@ export function SidebarStateSegmentV2() {
         <button
           type="button"
           onClick={handleSortCycle}
-          className="text-xs"
+          className="m-mono"
           style={{
             color: 'var(--theme-muted)',
             background: 'transparent',
             border: 'none',
             cursor: 'pointer',
-            fontFamily: 'var(--font-mono, monospace)',
             fontSize: 9,
           }}
           aria-label={`Sort: ${sort}`}
@@ -89,7 +83,7 @@ export function SidebarStateSegmentV2() {
               role="button"
               aria-pressed={active}
               onClick={() => { setState(id) }}
-              className="flex-1 rounded py-0.5 text-xs font-medium transition-colors"
+              className="m-mono flex-1 rounded py-0.5 transition-colors"
               style={{
                 background: active
                   ? 'color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 20%, transparent)'
@@ -99,8 +93,6 @@ export function SidebarStateSegmentV2() {
                 borderColor: active
                   ? 'var(--m-green-500, var(--theme-accent))'
                   : 'transparent',
-                fontFamily: 'var(--font-mono, monospace)',
-                letterSpacing: '0.04em',
                 cursor: 'pointer',
                 fontSize: 9,
               }}

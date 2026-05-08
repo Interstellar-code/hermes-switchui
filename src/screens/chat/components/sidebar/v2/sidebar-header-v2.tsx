@@ -32,22 +32,14 @@ export function SidebarHeaderV2({ onCollapse, count }: SidebarHeaderV2Props) {
       {/* Left: title + count */}
       <div className="flex items-center gap-1 min-w-0">
         <span
-          className="text-xs font-bold uppercase select-none"
-          style={{
-            color: 'var(--m-green-400, var(--theme-accent))',
-            letterSpacing: '0.12em',
-            fontFamily: 'var(--font-mono, monospace)',
-          }}
+          className="m-label m-label-accent select-none"
         >
           SESSIONS
         </span>
         {count != null && (
           <span
-            className="text-xs select-none"
-            style={{
-              color: 'var(--theme-muted)',
-              fontFamily: 'var(--font-mono, monospace)',
-            }}
+            className="m-mono select-none"
+            style={{ color: 'var(--theme-muted)' }}
           >
             · {count}
           </span>

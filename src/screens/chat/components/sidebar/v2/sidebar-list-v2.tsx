@@ -104,6 +104,7 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
             >
               <span
                 aria-hidden
+                className="m-mono"
                 style={{
                   display: 'inline-block',
                   fontSize: 8,
@@ -113,31 +114,25 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
                   opacity: 0.7,
                   transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
                   transition: 'transform 120ms ease-out',
-                  fontFamily: 'var(--font-mono, monospace)',
                 }}
               >
                 ▼
               </span>
               <span
-                className="font-bold uppercase"
+                className="m-label"
                 style={{
                   ...GROUP_LABEL_STYLE[label],
-                  letterSpacing: '0.22em',
-                  fontFamily: 'var(--font-mono, monospace)',
-                  fontSize: 9,
                   opacity: 0.7,
                 }}
               >
                 {label}
               </span>
               <span
-                className="rounded-full px-1.5 flex-shrink-0"
+                className="m-mono rounded-full px-1.5 flex-shrink-0"
                 style={{
                   border: '1px solid var(--m-green-500, var(--theme-accent))',
                   color: 'var(--m-green-400, var(--theme-accent))',
                   background: 'transparent',
-                  fontFamily: 'var(--font-mono, monospace)',
-                  fontSize: 9,
                   lineHeight: '14px',
                   fontVariantNumeric: 'tabular-nums',
                 }}
@@ -196,14 +191,12 @@ function NewChatFooter() {
       >
         <button
           type="button"
-          className="w-full rounded py-1.5 text-xs font-bold uppercase tracking-widest transition-all"
+          className="m-label w-full rounded py-1.5 font-bold transition-all"
           style={{
             background: 'color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 20%, transparent)',
             color: 'var(--m-green-400, var(--theme-accent))',
             border: '1px solid var(--m-green-500, var(--theme-accent))',
             boxShadow: '0 0 8px var(--m-green-500, var(--theme-accent))44',
-            fontFamily: 'var(--font-mono, monospace)',
-            letterSpacing: '0.12em',
             cursor: 'pointer',
           }}
         >

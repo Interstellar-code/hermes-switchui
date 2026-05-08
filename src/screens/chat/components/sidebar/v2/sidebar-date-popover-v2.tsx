@@ -209,14 +209,7 @@ export function SidebarDatePopoverV2({ onClose }: SidebarDatePopoverV2Props) {
       }}
     >
       {/* RANGE label */}
-      <span style={{
-        fontSize: 9,
-        fontFamily: 'var(--font-mono, monospace)',
-        letterSpacing: '0.12em',
-        color: 'var(--theme-muted)',
-        textTransform: 'uppercase',
-        fontWeight: 700,
-      }}>
+      <span className="m-label" style={{ color: 'var(--theme-muted)' }}>
         RANGE
       </span>
 
@@ -229,11 +222,10 @@ export function SidebarDatePopoverV2({ onClose }: SidebarDatePopoverV2Props) {
               key={id}
               type="button"
               onClick={() => handlePreset(id)}
+              className="m-mono"
               style={{
                 padding: '4px 8px',
                 fontSize: 10,
-                fontFamily: 'var(--font-mono, monospace)',
-                letterSpacing: '0.06em',
                 borderRadius: 4,
                 border: `1px solid ${active ? accent : 'var(--theme-border)'}`,
                 background: active ? accentBg : 'transparent',
@@ -252,7 +244,7 @@ export function SidebarDatePopoverV2({ onClose }: SidebarDatePopoverV2Props) {
       {/* Month nav */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button type="button" onClick={prevMonth} style={navBtnStyle} aria-label="Previous month">‹</button>
-        <span style={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', color: 'var(--theme-text)' }}>
+        <span className="m-mono" style={{ fontSize: 11, color: 'var(--theme-text)' }}>
           {MONTHS[viewMonth]} {viewYear}
         </span>
         <button type="button" onClick={nextMonth} style={navBtnStyle} aria-label="Next month">›</button>
@@ -263,11 +255,10 @@ export function SidebarDatePopoverV2({ onClose }: SidebarDatePopoverV2Props) {
         {/* DOW header */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 2 }}>
           {DOW.map((d, i) => (
-            <span key={i} style={{
+            <span key={i} className="m-mono" style={{
               textAlign: 'center',
               fontSize: 9,
               color: 'var(--theme-muted)',
-              fontFamily: 'var(--font-mono, monospace)',
               padding: '2px 0',
             }}>{d}</span>
           ))}
@@ -279,6 +270,7 @@ export function SidebarDatePopoverV2({ onClose }: SidebarDatePopoverV2Props) {
               key={iso}
               type="button"
               onClick={() => handleDayClick(iso, thisMonth)}
+              className="m-mono"
               style={{
                 textAlign: 'center',
                 fontSize: 10,
@@ -286,7 +278,6 @@ export function SidebarDatePopoverV2({ onClose }: SidebarDatePopoverV2Props) {
                 cursor: thisMonth ? 'pointer' : 'default',
                 border: '1px solid transparent',
                 background: 'transparent',
-                fontFamily: 'var(--font-mono, monospace)',
                 transition: 'all 0.1s',
                 ...dayStyle(iso, thisMonth),
               }}
@@ -300,10 +291,10 @@ export function SidebarDatePopoverV2({ onClose }: SidebarDatePopoverV2Props) {
 
       {/* Footer */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, paddingTop: 4, borderTop: '1px solid var(--theme-border)' }}>
-        <button type="button" onClick={handleClear} style={footerBtnStyle('muted')}>
+        <button type="button" onClick={handleClear} className="m-mono" style={footerBtnStyle('muted')}>
           Clear
         </button>
-        <button type="button" onClick={handleApply} style={footerBtnStyle('accent')}>
+        <button type="button" onClick={handleApply} className="m-mono" style={footerBtnStyle('accent')}>
           Apply
         </button>
       </div>
@@ -327,8 +318,6 @@ function footerBtnStyle(variant: 'muted' | 'accent'): React.CSSProperties {
   const isAccent = variant === 'accent'
   return {
     fontSize: 10,
-    fontFamily: 'var(--font-mono, monospace)',
-    letterSpacing: '0.06em',
     padding: '4px 12px',
     borderRadius: 4,
     border: isAccent ? '1px solid var(--m-green-500, var(--theme-accent))' : '1px solid var(--theme-border)',

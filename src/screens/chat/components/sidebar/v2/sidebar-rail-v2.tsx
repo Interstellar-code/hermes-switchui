@@ -118,15 +118,11 @@ export function SidebarRailV2({
             style={{ color: 'inherit' }}
           >
             <span
+              className="m-label m-label-accent"
               style={{
                 writingMode: 'vertical-rl',
                 textOrientation: 'mixed',
                 transform: 'rotate(180deg)',
-                color: 'var(--m-green-400, var(--theme-accent))',
-                fontFamily: 'var(--font-mono, monospace)',
-                fontWeight: 700,
-                fontSize: 9,
-                letterSpacing: '0.15em',
                 userSelect: 'none',
                 marginTop: 4,
               }}
@@ -135,15 +131,13 @@ export function SidebarRailV2({
             </span>
             {totalCount != null && totalCount > 0 && (
               <span
-                className="rounded-full flex items-center justify-center"
+                className="m-mono rounded-full flex items-center justify-center"
                 style={{
                   width: 22,
                   height: 22,
                   background: 'color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 18%, transparent)',
                   color: 'var(--m-green-400, var(--theme-accent))',
                   border: '1px solid var(--m-green-500, var(--theme-accent))',
-                  fontSize: 9,
-                  fontFamily: 'var(--font-mono, monospace)',
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >
