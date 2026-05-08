@@ -8,9 +8,27 @@ import { isAuthenticated } from '../../server/auth-middleware'
 import { newestCheckpointFromMessages, type ParsedSwarmCheckpoint } from '../../server/swarm-checkpoints'
 import { readWorkerMessages } from '../../server/swarm-chat-reader'
 import { createOrUpdateMission, markMissionAssignmentDispatched, recordMissionCheckpoint } from '../../server/swarm-missions'
-import { appendSwarmMemoryEvent } from '../../server/swarm-memory'
+import { appendSwarmMemoryEvent, buildSwarmStartupSnapshot } from '../../server/swarm-memory'
 import { rosterByWorkerId, type SwarmRosterWorker } from '../../server/swarm-roster'
 import { publishSwarmCheckpointNotification } from '../../server/swarm-notifications'
+
+const HERMES_BIN_CANDIDATES = [
+  process.env.HERMES_CLI_BIN,
+  join(homedir(), '.hermes', 'hermes-agent', 'venv', 'bin', 'hermes'),
+  join(homedir(), '.local', 'bin', 'hermes'),
+  'hermes',
+].filter((value): value is string => Boolean(value))
+
+function resolveHermesBin(): string {
+  for (const candidate of HERMES_BIN_CANDIDATES) {
+    if (candidate.includes('/')) {
+      if (existsSync(candidate)) return candidate
+      continue
+    }
+    return candidate
+  }
+  return 'hermes'
+}
 
 type AssignmentRequest = {
   workerId: string
@@ -90,12 +108,13 @@ function validateWorkerId(workerId: string): boolean {
 }
 
 const TMUX_BIN_CANDIDATES = [
-  join(homedir(), '.local', 'bin', 'tmux'),
+  process.env.TMUX_BIN,
   '/opt/homebrew/bin/tmux',
   '/usr/local/bin/tmux',
   '/usr/bin/tmux',
+  join(homedir(), '.local', 'bin', 'tmux'),
   'tmux',
-]
+].filter((value): value is string => Boolean(value))
 
 function resolveTmuxBin(): string | null {
   // Allow operators on non-standard installs (Docker, NixOS, custom
@@ -110,10 +129,17 @@ function resolveTmuxBin(): string | null {
   }
   for (const candidate of TMUX_BIN_CANDIDATES) {
     if (candidate.includes('/')) {
-      if (existsSync(candidate)) return candidate
-    } else {
-      return candidate
+      if (
+        candidate === process.env.TMUX_BIN ||
+        candidate === '/opt/homebrew/bin/tmux' ||
+        candidate === '/usr/local/bin/tmux' ||
+        existsSync(candidate)
+      ) {
+        return candidate
+      }
+      continue
     }
+    return candidate
   }
   return null
 }
@@ -166,6 +192,25 @@ function resolveGithubToken(): string | null {
 
 function shellEscapeSingle(value: string): string {
   return value.replace(/'/g, `'\\''`)
+}
+
+export function buildHermesTmuxLaunchCommand(input: {
+  profilePath: string
+  hermesBin: string
+  ghToken?: string | null
+}): string {
+  const launchPrefix = [
+    `HERMES_HOME='${shellEscapeSingle(input.profilePath)}'`,
+    `HERMES_CLI_BIN='${shellEscapeSingle(input.hermesBin)}'`,
+    input.ghToken ? `GH_TOKEN='${shellEscapeSingle(input.ghToken)}'` : '',
+    input.ghToken ? `GITHUB_TOKEN='${shellEscapeSingle(input.ghToken)}'` : '',
+  ].filter(Boolean).join(' ')
+  const hermesBin = shellEscapeSingle(input.hermesBin)
+
+  // Do not exec the Hermes process. Keeping the parent shell alive means a
+  // failed worker startup leaves a readable tmux pane instead of destroying the
+  // session and turning the real error into "can't find pane".
+  return `${launchPrefix} '${hermesBin}' chat --tui; status=$?; printf '\n[Hermes worker exited with status %s]\n' "$status"`
 }
 
 function parseAssignments(value: unknown): Array<AssignmentRequest> {
@@ -515,6 +560,17 @@ function resolveWorkerCwd(workerId: string): string {
   return homedir()
 }
 
+async function captureTmuxPane(tmuxBin: string, sessionName: string): Promise<string> {
+  const captured = await execFileAsync(tmuxBin, ['capture-pane', '-p', '-t', sessionName, '-S', '-200'], 8_000)
+  return captured.ok ? captured.stdout.trim() : ''
+}
+
+function redactStartupOutput(output: string): string {
+  return output
+    .replace(/(sk-[A-Za-z0-9_-]{12,})/g, '[REDACTED]')
+    .replace(/(gh[pousr]_[A-Za-z0-9_]{12,})/g, '[REDACTED]')
+}
+
 async function ensureLiveTmuxSession(workerId: string): Promise<{ ok: true; tmuxBin: string; sessionName: string } | { ok: false; error: string }> {
   const tmuxBin = resolveTmuxBin()
   if (!tmuxBin) return { ok: false, error: 'tmux not installed' }
@@ -526,12 +582,13 @@ async function ensureLiveTmuxSession(workerId: string): Promise<{ ok: true; tmux
 
   const profilePath = getProfilePath(workerId)
   const cwd = resolveWorkerCwd(workerId)
-  const ghToken = resolveGithubToken()
-  const launchPrefix = [
-    `HERMES_HOME='${shellEscapeSingle(profilePath)}'`,
-    ghToken ? `GH_TOKEN='${shellEscapeSingle(ghToken)}'` : '',
-    ghToken ? `GITHUB_TOKEN='${shellEscapeSingle(ghToken)}'` : '',
-  ].filter(Boolean).join(' ')
+  const hermesBin = resolveHermesBin()
+  const launchCommand = buildHermesTmuxLaunchCommand({
+    profilePath,
+    hermesBin,
+    ghToken: resolveGithubToken(),
+  })
+
   const started = await execFileAsync(tmuxBin, [
     'new-session',
     '-d',
@@ -539,14 +596,38 @@ async function ensureLiveTmuxSession(workerId: string): Promise<{ ok: true; tmux
     sessionName,
     '-c',
     cwd,
-    `${launchPrefix} exec hermes chat --continue`,
   ])
   if (!started.ok) {
     return { ok: false, error: started.error }
   }
 
-  // Give the agent a moment to render its prompt before sending keys.
+  const launched = await execFileAsync(tmuxBin, ['send-keys', '-t', sessionName, launchCommand, 'C-m'])
+  if (!launched.ok) {
+    return { ok: false, error: launched.error }
+  }
+
+  // Give the agent a moment to render its prompt before sending keys. If Hermes
+  // exits immediately, the shell stays alive and prints a sentinel that lets us
+  // surface the real startup failure instead of a later tmux "can't find pane".
   await sleep(1200)
+  if (!(await tmuxHasSession(tmuxBin, sessionName))) {
+    return { ok: false, error: `Hermes worker tmux session ${sessionName} exited during startup` }
+  }
+
+  const startupOutput = await captureTmuxPane(tmuxBin, sessionName)
+  if (startupOutput.includes('[Hermes worker exited with status')) {
+    const sanitizedOutput = redactStartupOutput(startupOutput).slice(-4_000)
+    const logsDir = join(profilePath, 'logs')
+    mkdirSync(logsDir, { recursive: true })
+    const startupLogPath = join(logsDir, 'swarm-dispatch-startup.log')
+    writeFileSync(startupLogPath, `${new Date().toISOString()} ${sanitizedOutput}
+`, { flag: 'a' })
+    return {
+      ok: false,
+      error: `Hermes worker failed to start in tmux session ${sessionName}. Startup output saved to ${startupLogPath}: ${sanitizedOutput}`,
+    }
+  }
+
   return { ok: true, tmuxBin, sessionName }
 }
 
@@ -616,16 +697,31 @@ async function sendPromptToLiveSession(workerId: string, prompt: string): Promis
     }
   }
 
-  // Give the TUI a beat to ingest the paste before submitting. Some workers
-  // render slower and otherwise keep the pasted text sitting at the prompt.
-  await sleep(120)
-  const enter = await execFileAsync(tmuxBin, ['send-keys', '-t', sessionName, 'Enter'])
+  // Give the TUI enough time to ingest the paste before submitting. The Hermes
+  // prompt can visually contain the pasted text before prompt_toolkit is ready
+  // to accept Enter; sending a confirmation Enter shortly after the first one
+  // prevents the user-visible failure mode where the task sits at the prompt.
+  await sleep(2000)
+  const enter = await execFileAsync(tmuxBin, ['send-keys', '-t', sessionName, 'C-m'])
   if (!enter.ok) {
     return {
       workerId,
       ok: false,
       output: '',
       error: enter.error,
+      durationMs: Date.now() - startedAt,
+      exitCode: null,
+      delivery: 'tmux',
+    }
+  }
+  await sleep(1000)
+  const confirmEnter = await execFileAsync(tmuxBin, ['send-keys', '-t', sessionName, 'C-m'])
+  if (!confirmEnter.ok) {
+    return {
+      workerId,
+      ok: false,
+      output: '',
+      error: confirmEnter.error,
       durationMs: Date.now() - startedAt,
       exitCode: null,
       delivery: 'tmux',
@@ -772,7 +868,7 @@ function runWorker(assignment: AssignmentRequest, timeoutMs: number, roster: Swa
     }
 
     const useWrapper = existsSync(wrapperPath)
-    const cmd = useWrapper ? wrapperPath : 'hermes'
+    const cmd = useWrapper ? wrapperPath : resolveHermesBin()
     const args = ['chat', '-q', prompt, '-Q', '--yolo', '--ignore-rules', '--source', 'swarm-dispatch']
     const env: NodeJS.ProcessEnv = {
       ...process.env,
@@ -802,26 +898,11 @@ function runWorker(assignment: AssignmentRequest, timeoutMs: number, roster: Swa
 
         if (error) {
           const code = (error as { code?: number | null }).code ?? null
-          const trimmedStderr = stderrStr.trim()
-          const trimmedStdout = stdoutStr.trim()
-          const parts: Array<string> = []
-          if (typeof code === 'number' && code !== 0) {
-            parts.push(`exit ${code}`)
-          }
-          if (trimmedStderr) {
-            parts.push(`stderr: ${trimmedStderr.slice(-1500)}`)
-          }
-          if (!trimmedStderr && trimmedStdout) {
-            parts.push(`stdout: ${trimmedStdout.slice(-1500)}`)
-          }
-          if (!trimmedStderr && !trimmedStdout) {
-            parts.push(error.message)
-          }
           const result: WorkerResult = {
             workerId,
             ok: false,
             output: out,
-            error: parts.join('\n'),
+            error: stderrStr.trim() || error.message,
             durationMs,
             exitCode: typeof code === 'number' ? code : null,
             delivery: 'oneshot',

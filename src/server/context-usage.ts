@@ -5,6 +5,7 @@ import {
   ensureGatewayProbed,
   getCapabilities,
 } from '@/server/gateway-capabilities'
+import { getLocalMessages, getLocalSession } from '@/server/local-session-store'
 
 export type ContextUsageSnapshot = {
   ok: true
@@ -36,6 +37,7 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   'o3-mini': 200_000,
   'gemini-2.5-flash': 1_000_000,
   'gemini-2.5-pro': 1_000_000,
+  'kimi-k2.6': 256_000,
 }
 
 const CHARS_PER_TOKEN = 3.5
@@ -73,16 +75,42 @@ export async function readContextUsage(
 ): Promise<ContextUsageSnapshot> {
   try {
     let sessionData: Record<string, unknown> | null = null
+    const explicitSessionId = sessionId.trim()
     const capabilities = await ensureGatewayProbed()
 
-    if (sessionId) {
+    if (explicitSessionId) {
+      const localSession = getLocalSession(explicitSessionId)
+      if (localSession) {
+        const messages = getLocalMessages(explicitSessionId)
+        const totalChars = messages.reduce(
+          (sum, msg) => sum + (msg.content || '').length,
+          0,
+        )
+        const usedTokens = Math.ceil(totalChars / CHARS_PER_TOKEN)
+        const model = localSession.model || 'gpt-5.5'
+        const maxTokens = getContextWindow(model)
+        const contextPercent =
+          maxTokens > 0 ? Math.round((usedTokens / maxTokens) * 1000) / 10 : 0
+        return {
+          ok: true,
+          contextPercent,
+          maxTokens,
+          usedTokens,
+          model,
+          staticTokens: 0,
+          conversationTokens: usedTokens,
+        }
+      }
+    }
+
+    if (explicitSessionId) {
       try {
         const res = capabilities.dashboard.available
-          ? await dashboardFetch(`/api/sessions/${encodeURIComponent(sessionId)}`, {
+          ? await dashboardFetch(`/api/sessions/${encodeURIComponent(explicitSessionId)}`, {
               signal: AbortSignal.timeout(3000),
             })
           : await fetch(
-              `${CLAUDE_API}/api/sessions/${encodeURIComponent(sessionId)}`,
+              `${CLAUDE_API}/api/sessions/${encodeURIComponent(explicitSessionId)}`,
               {
                 headers: authHeaders(),
                 signal: AbortSignal.timeout(3000),
@@ -98,6 +126,11 @@ export async function readContextUsage(
         /* ignore */
       }
     }
+
+    // If the caller asked for a specific session and neither the local store nor
+    // the gateway has it, return empty. Falling back to the latest session makes
+    // new/portable chats inherit unrelated large context usage in the UI.
+    if (explicitSessionId && !sessionData) return emptySnapshot()
 
     if (!sessionData) {
       try {
@@ -140,7 +173,7 @@ export async function readContextUsage(
       usedTokens = Math.ceil((cacheReadTokens / assistantTurns) * 1.2)
     } else if (messageCount > 0) {
       try {
-        const targetSessionId = sessionId || String(sessionData.id || '')
+        const targetSessionId = explicitSessionId || String(sessionData.id || '')
         if (targetSessionId) {
           const capabilitiesNow = getCapabilities()
           const msgRes = capabilitiesNow.dashboard.available

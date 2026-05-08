@@ -26,7 +26,9 @@ if (isNonLoopbackHost(host)) {
   // Honor HERMES_PASSWORD (current name) with CLAUDE_PASSWORD as a back-compat
   // fallback for deployments configured pre-rename.
   const password = (
-    process.env.HERMES_PASSWORD || process.env.CLAUDE_PASSWORD || ''
+    process.env.HERMES_PASSWORD ||
+    process.env.CLAUDE_PASSWORD ||
+    ''
   ).trim()
   if (!password) {
     console.error(
@@ -46,7 +48,11 @@ if (isNonLoopbackHost(host)) {
     )
       .trim()
       .toLowerCase()
-    if (allowInsecure !== '1' && allowInsecure !== 'true' && allowInsecure !== 'yes') {
+    if (
+      allowInsecure !== '1' &&
+      allowInsecure !== 'true' &&
+      allowInsecure !== 'yes'
+    ) {
       process.exit(1)
     }
     console.warn(
@@ -58,23 +64,13 @@ if (isNonLoopbackHost(host)) {
   // sets the Secure flag on session cookies, which browsers silently drop
   // over http://.  Operators must set COOKIE_SECURE=0 for plain-HTTP LAN
   // deployments.  See #149.
-  const cookieSecureOverride = (process.env.COOKIE_SECURE || '').trim().toLowerCase()
-  const cookieSecureExplicit = cookieSecureOverride === '0' || cookieSecureOverride === 'false' || cookieSecureOverride === 'no'
-  if (!cookieSecureExplicit && process.env.NODE_ENV === 'production') {
-    console.warn(
-      '\n[workspace] warning: plain-HTTP LAN deployment detected.\n' +
-        '  NODE_ENV=production enables the Secure flag on session cookies.\n' +
-        '  Browsers silently drop Secure cookies over http://, so login will fail.\n' +
-        '  Add COOKIE_SECURE=0 to your .env to fix this.  See #149.\n',
-    )
-  }
-
-  // Warn when serving over plain HTTP with a password: NODE_ENV=production
-  // sets the Secure flag on session cookies, which browsers silently drop
-  // over http://.  Operators must set COOKIE_SECURE=0 for plain-HTTP LAN
-  // deployments.  See #149.
-  const cookieSecureOverride = (process.env.COOKIE_SECURE || '').trim().toLowerCase()
-  const cookieSecureExplicit = cookieSecureOverride === '0' || cookieSecureOverride === 'false' || cookieSecureOverride === 'no'
+  const cookieSecureOverride = (process.env.COOKIE_SECURE || '')
+    .trim()
+    .toLowerCase()
+  const cookieSecureExplicit =
+    cookieSecureOverride === '0' ||
+    cookieSecureOverride === 'false' ||
+    cookieSecureOverride === 'no'
   if (!cookieSecureExplicit && process.env.NODE_ENV === 'production') {
     console.warn(
       '\n[workspace] warning: plain-HTTP LAN deployment detected.\n' +
@@ -117,6 +113,27 @@ async function tryServeStatic(req, res) {
 
   // Prevent directory traversal
   if (pathname.includes('..')) return false
+
+  // Asset requests should never fall through to the SSR handler. If a browser
+  // asks for a stale hashed JS/CSS chunk after a deploy or branch switch,
+  // returning the HTML shell with 200 text/html makes the SPA fail as a black
+  // screen. Return a real 404 instead so clients reload/recover correctly and
+  // health checks can detect the broken asset reference.
+  if (pathname.startsWith('/assets/')) {
+    const filePath = join(CLIENT_DIR, pathname)
+    if (!filePath.startsWith(CLIENT_DIR)) return false
+    try {
+      const fileStat = await stat(filePath)
+      if (!fileStat.isFile()) throw new Error('not a file')
+    } catch {
+      res.writeHead(404, {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      })
+      res.end('Asset not found')
+      return true
+    }
+  }
 
   const filePath = join(CLIENT_DIR, pathname)
 
