@@ -234,6 +234,69 @@ code {
     'JetBrains Mono', Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
+/* ─── Matrix typography utilities ──────────────────────────────────────── */
+/* Single source of truth for the Matrix design system text styles.
+   Use these classes instead of inline `fontFamily` / `fontSize` / `letterSpacing`. */
+
+.m-mono {
+  font-family: var(--m-font-mono);
+  letter-spacing: var(--m-tracking-mono);
+}
+
+.m-sans {
+  font-family: var(--m-font-sans);
+}
+
+.m-display {
+  font-family: var(--m-font-display);
+  letter-spacing: var(--m-tracking-tight);
+  font-weight: 500;
+}
+
+/* MICRO LABEL — uppercase tracked caps for section headers, sender prefixes,
+   "ACTIVITY · 3 TOOLS", "USER", "DONE", source chips. */
+.m-label {
+  font-family: var(--m-font-mono);
+  font-size: var(--m-text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--m-tracking-label);
+  color: var(--m-text-muted);
+  line-height: 1.2;
+}
+
+.m-label-accent {
+  color: var(--m-green-500);
+}
+
+/* TIMESTAMP / metric tail — mono, small, tabular-nums, muted. */
+.m-timestamp {
+  font-family: var(--m-font-mono);
+  font-size: var(--m-text-2xs);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--m-tracking-mono);
+  color: var(--m-text-muted);
+  white-space: nowrap;
+}
+
+/* BODY MONO — chat message text, prose content rendered in Matrix theme. */
+.m-body {
+  font-family: var(--m-font-mono);
+  font-size: var(--m-text-base);
+  line-height: var(--m-leading-normal);
+  letter-spacing: var(--m-tracking-mono);
+  color: var(--m-text);
+}
+
+.m-glow-text {
+  text-shadow: var(--m-text-glow);
+  color: var(--m-green-500);
+}
+.m-glow-text-lg {
+  text-shadow: var(--m-text-glow-lg);
+  color: var(--m-green-500);
+}
+
 @keyframes shimmer {
   0% {
     background-position: 200% 50%;
@@ -832,6 +895,21 @@ code {
   --m-leading-tight: 1.15;
   --m-leading-snug: 1.35;
   --m-leading-normal: 1.55;
+  --m-void: #000000;
+  /* Alias for legacy `var(--font-mono, monospace)` references in components.
+     Lets v2 sidebar/composer pick up the Matrix mono without a code refactor. */
+  --font-mono: var(--m-font-mono);
+  --m-space-0: 0;
+  --m-space-1: 4px;
+  --m-space-2: 8px;
+  --m-space-3: 12px;
+  --m-space-4: 16px;
+  --m-space-5: 20px;
+  --m-space-6: 24px;
+  --m-space-8: 32px;
+  --m-space-10: 40px;
+  --m-space-12: 48px;
+  --m-space-16: 64px;
   --theme-border-subtle: rgba(0, 255, 65, 0.13);
   --theme-accent-subtle: rgba(0, 255, 65, 0.13);
   --theme-accent-border: rgba(0, 255, 65, 0.36);
