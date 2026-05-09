@@ -57,11 +57,11 @@ export function deriveTags(task: ClaudeTask): Array<Tag> {
       .slice(0, 5)
   }
 
-  // 3. Keyword match on title (max 2)
-  const title = task.title ?? ''
+  // 3. Keyword match on title + body/description (max 2)
+  const searchText = [task.title, (task as unknown as { body?: string; description?: string }).body, (task as unknown as { body?: string; description?: string }).description].filter(Boolean).join(' ')
   const derived: Array<Tag> = []
   for (const rule of KEYWORD_RULES) {
-    if (rule.re.test(title)) {
+    if (rule.re.test(searchText)) {
       derived.push({ label: rule.label, kind: rule.kind })
       if (derived.length >= 2) break
     }
