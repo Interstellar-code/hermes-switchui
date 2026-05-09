@@ -33,6 +33,7 @@ import { TaskCard } from './task-card'
 import { TaskDialog } from './task-dialog'
 import { TaskDetailDrawer } from './task-detail-drawer'
 import { SwimView } from './swim-view'
+import { TimelineView } from './timeline-view'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { ClaudeTask, TaskAssignee, TaskColumn } from '@/lib/tasks-api'
 import type { HermesKanbanStatus } from '@/lib/hermes-kanban-types'
@@ -773,9 +774,10 @@ export function TasksScreen() {
           />
         )}
         {activeView === 'time' && (
-          <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] px-6 py-12 text-center text-sm text-[var(--theme-muted)]">
-            Timeline view — Coming in P5
-          </div>
+          <TimelineView
+            tasks={tasks}
+            onCardClick={(t) => setEditingTask(t)}
+          />
         )}
 
         {/* Board */}
