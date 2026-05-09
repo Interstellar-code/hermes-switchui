@@ -20,6 +20,12 @@ interface BarLayout {
   ghost: boolean
 }
 
+function hashJitter(id: string, range: number): number {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0
+  return (Math.abs(h) % 1000) / 1000 * range
+}
+
 function computeBar(task: ClaudeTask, now: number): BarLayout {
   const status = task.status
 
@@ -38,7 +44,7 @@ function computeBar(task: ClaudeTask, now: number): BarLayout {
 
   if (status === 'todo' || status === 'ready') {
     const left = 60 // ~+1h slot
-    const width = 18 + Math.random() * 4 // 18-22% — deterministic enough for display
+    const width = 18 + hashJitter(task.id, 4) // 18-22%, stable per task id
     return { left, width, label: 'scheduled +1h', live: false, ghost: true }
   }
 
@@ -47,7 +53,7 @@ function computeBar(task: ClaudeTask, now: number): BarLayout {
   }
 
   // triage / backlog
-  const left = 75 + (Math.random() * 8) // 75-83%
+  const left = 75 + hashJitter(task.id, 8) // 75-83%, stable per task id
   const width = 20
   return { left, width, label: 'planned +3h', live: false, ghost: true }
 }
