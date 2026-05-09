@@ -24,10 +24,8 @@ import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { fetchClaudeAuthStatus, type AuthStatus } from '@/lib/claude-auth'
 import { cn } from '@/lib/utils'
 import { ConnectionStartupScreen } from '@/components/connection-startup-screen'
-import { ChatSidebar } from '@/screens/chat/components/chat-sidebar'
 import { SidebarShellV2 } from '@/screens/chat/components/sidebar/v2/sidebar-shell-v2'
 import { PrimaryNavV2 } from '@/screens/chat/components/sidebar/v2/primary-nav-v2'
-import { useSidebarV2Flag } from '@/screens/chat/components/sidebar/v2/sidebar-flag'
 import { useChatSessions } from '@/screens/chat/hooks/use-chat-sessions'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { SIDEBAR_TOGGLE_EVENT } from '@/hooks/use-global-shortcuts'
@@ -187,10 +185,10 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   const activeFriendlyId = chatMatch ? chatMatch[1] : 'main'
   const isOnChatRoute = Boolean(chatMatch) || pathname === '/new'
   const isOnTerminalRoute = pathname.startsWith('/terminal')
-  const sidebarV2 = useSidebarV2Flag()
   const hideChatSidebar = isOnChatRoute && chatFocusMode
   const showDesktopSidebarBackdrop =
     !isMobile && !isOnChatRoute && !sidebarCollapsed
+
 
   const isNewChat = activeFriendlyId === 'new'
 
@@ -334,29 +332,8 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
             hideChatSidebar ? 'md:grid-cols-1' : 'md:grid-cols-[auto_1fr]',
           )}
         >
-          {/* Activity ticker bar */}
-          {/* Persistent sidebar */}
-          {!isMobile && !hideChatSidebar && !sidebarV2 && (
-            <div className="relative z-30">
-              <ChatSidebar
-                sessions={sessions}
-                activeFriendlyId={activeFriendlyId}
-                creatingSession={creatingSession}
-                onCreateSession={startNewChat}
-                isCollapsed={sidebarCollapsed}
-                onToggleCollapse={toggleSidebar}
-                onSelectSession={handleSelectSession}
-                onActiveSessionDelete={handleActiveSessionDelete}
-                sessionsLoading={sessionsLoading}
-                sessionsFetching={sessionsFetching}
-                sessionsError={sessionsError}
-                onRetrySessions={refetchSessions}
-              />
-            </div>
-          )}
-
-          {/* Sidebar v2 — primary nav always; sessions panel only on chat route */}
-          {!isMobile && sidebarV2 && (
+          {/* Sidebar — primary nav always; sessions panel only on chat route */}
+          {!isMobile && !hideChatSidebar && (
             <div className="relative z-30 flex h-full" data-testid="sidebar-v2-mount">
               <PrimaryNavV2 />
               {isOnChatRoute && <SidebarShellV2 />}
@@ -378,7 +355,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
                     settings.showSystemMetricsFooter
                   ? 'pb-7'
                   : '',
-              !isMobile && sidebarV2 && isOnChatRoute
+              !isMobile && isOnChatRoute
                 ? 'rounded-md border border-[color:var(--theme-border)] my-2 mr-2'
                 : '',
             ].join(' ')}
@@ -454,14 +431,10 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
       {!isMobile && !isOnChatRoute && settings.showSystemMetricsFooter ? (
         <SystemMetricsFooter
           leftOffsetPx={
-            sidebarV2
-              ? (typeof window !== 'undefined' &&
-                  window.localStorage.getItem('hermes.primary-nav.collapsed') === 'true'
-                  ? 48
-                  : 232)
-              : sidebarCollapsed
-                ? 48
-                : 300
+            typeof window !== 'undefined' &&
+            window.localStorage.getItem('hermes.primary-nav.collapsed') === 'true'
+              ? 48
+              : 232
           }
         />
       ) : null}

@@ -28,7 +28,6 @@ import {
   updateHistoryMessageByClientIdEverywhere,
   updateSessionLastMessage,
 } from './chat-queries'
-import { ChatHeader } from './components/chat-header'
 import { ChatMessageList } from './components/chat-message-list'
 import { ChatEmptyState } from './components/chat-empty-state'
 import { ChatComposer } from './components/chat-composer'
@@ -101,7 +100,6 @@ import {
   useChatActivityStore,
   type AgentActivity,
 } from '@/stores/chat-activity-store'
-import { useSidebarV2Flag } from './components/sidebar/v2/sidebar-flag'
 import { ChatHeaderV2 } from './components/v2/chat-header-v2'
 import { ChatMetaBarV2 } from './components/v2/chat-meta-bar-v2'
 import {
@@ -475,7 +473,6 @@ export function ChatScreen({
   const chatFocusMode = useWorkspaceStore((s) => s.chatFocusMode)
   const setChatFocusMode = useWorkspaceStore((s) => s.setChatFocusMode)
   const queryClient = useQueryClient()
-  const sidebarV2 = useSidebarV2Flag()
   const [activeTab, setActiveTab] = useState<SourceTab>('chat')
   const [sending, setSending] = useState(false)
   const [_creatingSession, setCreatingSession] = useState(false)
@@ -2657,7 +2654,7 @@ export function ChatScreen({
           }}
           ref={mainRef}
         >
-          {!compact && sidebarV2 ? (
+          {!compact ? (
             <>
               <ChatHeaderV2
                 activeTitle={activeTitle}
@@ -2672,38 +2669,6 @@ export function ChatScreen({
                 modelFallback={sessionModelFallback}
               />
             </>
-          ) : !compact ? (
-            <ChatHeader
-              activeTitle={activeTitle}
-              onRenameTitle={handleRenameActiveSessionTitle}
-              renamingTitle={renamingSessionTitle}
-              wrapperRef={headerRef}
-              onOpenSessions={() => setSessionsOpen(true)}
-              sessions={sessions ?? []}
-              activeFriendlyId={activeFriendlyId}
-              onSelectSession={(key) =>
-                void navigate({
-                  to: '/chat/$sessionKey',
-                  params: { sessionKey: key },
-                })
-              }
-              showFileExplorerButton={!isMobile && !isFocusMode}
-              fileExplorerCollapsed={fileExplorerCollapsed}
-              onToggleFileExplorer={handleToggleFileExplorer}
-              dataUpdatedAt={historyQuery.dataUpdatedAt}
-              onRefresh={handleRefreshHistory}
-              agentModel={currentModel}
-              agentConnected={mobileHeaderStatus === 'connected'}
-              onOpenAgentDetails={handleOpenAgentDetails}
-              pullOffset={0}
-              statusMode={headerStatusMode}
-              activeToolName={activeHeaderToolName}
-              thinkingLevel={thinkingLevel}
-              isFocusMode={isFocusMode}
-              onToggleFocusMode={handleToggleFocusMode}
-              onUndo={undefined}
-              onClear={undefined}
-            />
           ) : null}
 
           {errorNotice && (
@@ -2757,12 +2722,12 @@ export function ChatScreen({
             </div>
           )}
 
-          {sidebarV2 && activeTab === 'tool' ? (
+          {activeTab === 'tool' ? (
             <ToolTabView messages={realtimeMessages} streamingToolCalls={activeToolCalls} events={realtimeLifecycleEvents} />
-          ) : sidebarV2 && activeTab === 'skills' ? (
+          ) : activeTab === 'skills' ? (
             <ChatSkillsTabV2 messages={realtimeMessages} streamingToolCalls={activeToolCalls} events={realtimeLifecycleEvents} />
           ) : null}
-          {hideUi || (sidebarV2 && activeTab !== 'chat') ? null : (
+          {hideUi || activeTab !== 'chat' ? null : (
             <ChatMessageList
               messages={finalDisplayMessages}
               onRetryMessage={handleRetryMessage}
