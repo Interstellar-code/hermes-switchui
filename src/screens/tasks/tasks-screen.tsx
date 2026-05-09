@@ -484,223 +484,262 @@ export function TasksScreen() {
   })
 
   return (
-    <div className="min-h-full overflow-y-auto bg-surface text-ink" data-screen="tasks">
-      <div className="flex w-full flex-col gap-5 px-4 py-6 pb-[calc(var(--tabbar-h,80px)+30px+1.5rem)] sm:px-6 lg:px-8">
-        {/* Header */}
-        <header className="rounded-2xl border border-primary-200 bg-primary-50/85 p-4 backdrop-blur-xl">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 min-w-0">
-              <h1 className="text-2xl font-medium text-ink">Tasks</h1>
-              {(assigneeFilter || tenantFilter) && (
-                <div className="flex items-center gap-2 text-xs text-[var(--theme-muted)]">
-                  {assigneeFilter && (() => {
-                    const a = assigneeOptions.find(x => x.id === assigneeFilter)
-                    return (
-                      <span className={a && !a.onDisk ? 'text-amber-400' : ''}>
-                        profile:{assigneeFilter}{a && !a.onDisk ? ' ⚠' : ''}
-                      </span>
-                    )
-                  })()}
-                  {tenantFilter && <span>tenant:{tenantFilter}</span>}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAssigneeFilter(null)
-                      setTenantFilter(null)
-                    }}
-                    className="text-[var(--theme-muted)] hover:text-[var(--theme-text)] transition-colors"
-                  >
-                    ✕ Clear
-                  </button>
-                </div>
-              )}
-              {/* 5-stat row */}
-              <div className="tk-stat-row hidden sm:flex">
-                <button
-                  type="button"
-                  className="stat clickable"
-                  aria-label={`Show ${stats.done} done tasks`}
-                  title="Click to view done tasks"
-                  onClick={() => setShowDoneList(true)}
-                >
-                  <span className="v ok">{stats.done}</span>
-                  <span className="l">Done</span>
-                </button>
-                <div className="stat">
-                  <span className="v warn">{stats.running}</span>
-                  <span className="l">Running</span>
-                </div>
-                <div className="stat">
-                  <span className="v cyan">{tasksByStatus.todo.length}</span>
-                  <span className="l">Todo</span>
-                </div>
-                <div className="stat">
-                  <span className="v violet">{tasksByStatus.triage.length}</span>
-                  <span className="l">Backlog</span>
-                </div>
-                <div className="stat">
-                  <span className="v">{stats.total}</span>
-                  <span className="l">Total</span>
-                </div>
-              </div>
+    <div className="min-h-full bg-surface text-ink tk-shell" data-screen="tasks">
+
+      {/* ── Breadcrumb strip (TS-01 / TS-02 / TS-03) ── */}
+      <header className="tk-top">
+        <div className="crumbs" aria-label="Breadcrumb">
+          <span>Workspace</span><span className="sep" aria-hidden="true">/</span>
+          <span className="cur">Tasks</span><span className="sep" aria-hidden="true">/</span>
+          <span>Kanban</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+          {/* TS-02: stat cells */}
+          <div className="meta">
+            <button
+              type="button"
+              className="stat clickable"
+              aria-label={`Show ${stats.done} done tasks`}
+              title="Click to view done tasks"
+              onClick={() => setShowDoneList(true)}
+            >
+              <span className="v ok">{stats.done}</span>
+              <span className="l">Done</span>
+            </button>
+            <div className="stat">
+              <span className="v warn">{stats.running}</span>
+              <span className="l">Running</span>
             </div>
-
-            <div className="flex items-center gap-2 shrink-0 flex-wrap">
-              {/* Bulk-action toolbar moved to floating footer (rendered via portal further below). */}
-              {/* View toggle: Board / Swim / Time */}
-              <div className="tk-view-seg" role="tablist" aria-label="Task view">
-                {(['board', 'swim', 'time'] as const).map((v) => (
-                  <button
-                    key={v}
-                    role="tab"
-                    aria-selected={activeView === v}
-                    className={activeView === v ? 'active' : ''}
-                    onClick={() => setActiveView(v)}
-                  >
-                    {v === 'board' ? 'Board' : v === 'swim' ? 'Swim' : 'Time'}
-                  </button>
-                ))}
-              </div>
-
-              {/* Consolidated columns visibility dropdown */}
-              {(() => {
-                const anyHidden = !showTriage || !showBlocked || !showDone || !showArchived
-                const cols = [
-                  { key: 'triage', label: 'Triage / Backlog', checked: showTriage, toggle: () => setShowTriage(v => !v) },
-                  { key: 'blocked', label: 'Blocked', checked: showBlocked, toggle: () => setShowBlocked(v => !v) },
-                  { key: 'done', label: 'Done', checked: showDone, toggle: () => setShowDone(v => !v) },
-                  { key: 'archived', label: 'Archived', checked: showArchived, toggle: () => setShowArchived(v => !v) },
-                ]
-                return (
-                  <>
-                    <button
-                      ref={colsButtonRef}
-                      onClick={openColsDropdown}
-                      className={cn(
-                        'flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors',
-                        showViewDropdown || anyHidden
-                          ? 'border-[var(--theme-accent)] text-[var(--theme-accent)] bg-[var(--theme-hover)]'
-                          : 'border-[var(--theme-border)] text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:border-[var(--theme-accent)]',
-                      )}
-                    >
-                      <HugeiconsIcon icon={CheckListIcon} size={12} />
-                      Columns
-                      {anyHidden && (
-                        <span className="ml-0.5 text-[9px] font-bold opacity-70">
-                          {cols.filter(c => !c.checked).length}
-                        </span>
-                      )}
-                      <span className="opacity-50 text-[10px]">▾</span>
-                    </button>
-                    {showViewDropdown && colsPanelPos && createPortal(
-                      <>
-                        <div className="fixed inset-0 z-[9998]" onClick={() => setShowViewDropdown(false)} />
-                        <div
-                          className="fixed z-[9999] w-52 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] shadow-2xl p-1.5"
-                          style={{ top: colsPanelPos.top, right: colsPanelPos.right, backgroundColor: 'var(--theme-card)' }}
-                        >
-                          <p className="px-3 pt-1.5 pb-1 text-[9px] uppercase tracking-widest text-[var(--theme-muted)] font-medium">
-                            Visible columns
-                          </p>
-                          {cols.map(({ key, label, checked, toggle }) => (
-                            <button
-                              key={key}
-                              onClick={toggle}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs hover:bg-[var(--theme-hover)] transition-colors"
-                            >
-                              <span className={cn(
-                                'w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors',
-                                checked
-                                  ? 'border-[var(--theme-accent)] bg-[var(--theme-accent)]'
-                                  : 'border-[var(--theme-border)] bg-transparent',
-                              )}>
-                                {checked && <span className="text-white text-[9px] leading-none">✓</span>}
-                              </span>
-                              <span className={checked ? 'text-[var(--theme-text)]' : 'text-[var(--theme-muted)]'}>
-                                {label}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </>,
-                      document.body,
-                    )}
-                  </>
-                )
-              })()}
-              <KanbanSettingsButton />
-              {/* Tenant filter */}
-              {uniqueTenants.length > 0 && (
-                <select
-                  className="text-xs px-2 py-1 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-card)] text-[var(--theme-text)] focus:outline-none focus:border-[var(--theme-accent)]"
-                  style={{ colorScheme: 'dark' }}
-                  value={tenantFilter ?? ''}
-                  onChange={(e) => setTenantFilter(e.target.value || null)}
-                >
-                  <option value="">All tenants</option>
-                  {uniqueTenants.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {/* Agent profile filter */}
-              {assigneeOptions.length > 0 && (
-                <select
-                  className="text-xs px-2 py-1 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-card)] text-[var(--theme-text)] focus:outline-none focus:border-[var(--theme-accent)]"
-                  style={{ colorScheme: 'dark' }}
-                  value={assigneeFilter ?? ''}
-                  onChange={(e) => setAssigneeFilter(e.target.value || null)}
-                  title="Filter by agent profile"
-                >
-                  <option value="">All profiles</option>
-                  {assigneeOptions.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.onDisk ? a.label : `${a.label} ⚠`}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {/* Dispatch */}
-              <button
-                onClick={() => void dispatchMutation.mutate()}
-                disabled={dispatchMutation.isPending}
-                className="text-xs px-2.5 py-1 rounded-lg border border-[var(--theme-border)] text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:border-[var(--theme-accent)] transition-colors disabled:opacity-40"
-                title="Dispatch ready tasks to workers (max 8)"
-              >
-                {dispatchMutation.isPending
-                  ? 'Dispatching…'
-                  : (dispatchResult ?? '⚡ Dispatch')}
-              </button>
-              <button
-                onClick={invalidate}
-                className="rounded-lg p-1.5 transition-colors hover:bg-[var(--theme-hover)]"
-                title="Refresh"
-              >
-                <HugeiconsIcon
-                  icon={RefreshIcon}
-                  size={16}
-                  className="text-[var(--theme-muted)]"
-                />
-              </button>
-              <button
-                onClick={() => {
-                  setCreateColumn('triage')
-                  setShowCreate(true)
-                }}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
-                style={{ background: 'var(--theme-accent)' }}
-              >
-                <HugeiconsIcon icon={Add01Icon} size={14} />
-                New Task
-              </button>
+            <div className="stat">
+              <span className="v">{tasksByStatus.todo.length}</span>
+              <span className="l">Todo</span>
+            </div>
+            <div className="stat">
+              <span className="v">{tasksByStatus.triage.length}</span>
+              <span className="l">Backlog</span>
+            </div>
+            <div className="stat">
+              <span className="v">{stats.total}</span>
+              <span className="l">Total</span>
             </div>
           </div>
-          <p className="mt-3 text-xs text-[var(--theme-muted)]">
-            {TASKS_BOARD_HELP_TEXT}
-          </p>
-        </header>
+          {/* TS-03: refresh + filter icobtns */}
+          <div className="right-actions">
+            <button
+              type="button"
+              className="icobtn"
+              aria-label="Refresh board"
+              title="Refresh"
+              onClick={invalidate}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M3 21v-5h5"/></svg>
+            </button>
+            <button
+              type="button"
+              className="icobtn"
+              aria-label="Filters"
+              title="Filters"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Action bar (TS-04 / AB-01..04) ── */}
+      <div className="actbar">
+        {/* AB-02: left — title + sub line */}
+        <div>
+          <h1>Tasks</h1>
+          <div className="sub">
+            <span><span className="v">{stats.total}</span> total</span>
+            <span className="dot" aria-hidden="true" />
+            <span><span className="v run">{stats.running}</span> running</span>
+            <span className="dot" aria-hidden="true" />
+            <span><span className="v ok">{stats.completion}%</span> done</span>
+            {(assigneeFilter || tenantFilter) && (
+              <>
+                <span className="dot" aria-hidden="true" />
+                {assigneeFilter && (() => {
+                  const a = assigneeOptions.find(x => x.id === assigneeFilter)
+                  return <span style={{ color: a && !a.onDisk ? 'var(--m-amber,#ffb454)' : undefined }}>profile:{assigneeFilter}{a && !a.onDisk ? ' ⚠' : ''}</span>
+                })()}
+                {tenantFilter && <span>tenant:{tenantFilter}</span>}
+                <button
+                  type="button"
+                  onClick={() => { setAssigneeFilter(null); setTenantFilter(null) }}
+                  style={{ color: 'var(--m-text-faint)', cursor: 'pointer', background: 'none', border: 'none', font: 'inherit', letterSpacing: 'inherit' }}
+                >
+                  ✕ Clear
+                </button>
+              </>
+            )}
+            <span className="dot" aria-hidden="true" />
+            <span>Drag cards to change status — open a card to set assignee &amp; due date</span>
+          </div>
+        </div>
+
+        {/* AB-03: right — tools row */}
+        <div className="tools">
+          {/* Segmented view toggle */}
+          <div className="seg" role="tablist" aria-label="Task view">
+            {(['board', 'swim', 'time'] as const).map((v) => (
+              <button
+                key={v}
+                role="tab"
+                aria-selected={activeView === v}
+                className={activeView === v ? 'on' : ''}
+                onClick={() => setActiveView(v)}
+                title={v === 'board' ? 'Kanban view' : v === 'swim' ? 'Swimlanes by assignee' : 'Timeline'}
+              >
+                {v === 'board' ? (
+                  <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="5" height="16"/><rect x="10" y="4" width="5" height="11"/><rect x="17" y="4" width="4" height="7"/></svg>Board</>
+                ) : v === 'swim' ? (
+                  <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 6h18M3 12h18M3 18h18"/></svg>Swim</>
+                ) : (
+                  <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 5h18M3 12h12M3 19h7"/></svg>Time</>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Columns pill */}
+          {(() => {
+            const anyHidden = !showTriage || !showBlocked || !showDone || !showArchived
+            const cols = [
+              { key: 'triage', label: 'Triage / Backlog', checked: showTriage, toggle: () => setShowTriage(v => !v) },
+              { key: 'blocked', label: 'Blocked', checked: showBlocked, toggle: () => setShowBlocked(v => !v) },
+              { key: 'done', label: 'Done', checked: showDone, toggle: () => setShowDone(v => !v) },
+              { key: 'archived', label: 'Archived', checked: showArchived, toggle: () => setShowArchived(v => !v) },
+            ]
+            const hiddenCount = cols.filter(c => !c.checked).length
+            return (
+              <>
+                <button
+                  ref={colsButtonRef}
+                  onClick={openColsDropdown}
+                  className={cn('pill', (showViewDropdown || anyHidden) ? 'pill-active' : '')}
+                  title="Configure columns"
+                  aria-label="Configure visible columns"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="5" height="16"/><rect x="10" y="4" width="5" height="16"/><rect x="17" y="4" width="4" height="16"/></svg>
+                  Columns
+                  <span className="ct">{anyHidden ? `${5 - hiddenCount}/5` : '5'}</span>
+                </button>
+                {showViewDropdown && colsPanelPos && createPortal(
+                  <>
+                    <div className="fixed inset-0 z-[9998]" onClick={() => setShowViewDropdown(false)} />
+                    <div
+                      className="fixed z-[9999] w-52 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] shadow-2xl p-1.5"
+                      style={{ top: colsPanelPos.top, right: colsPanelPos.right, backgroundColor: 'var(--theme-card)' }}
+                    >
+                      <p className="px-3 pt-1.5 pb-1 text-[9px] uppercase tracking-widest text-[var(--theme-muted)] font-medium">
+                        Visible columns
+                      </p>
+                      {cols.map(({ key, label, checked, toggle }) => (
+                        <button
+                          key={key}
+                          onClick={toggle}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs hover:bg-[var(--theme-hover)] transition-colors"
+                        >
+                          <span className={cn(
+                            'w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors',
+                            checked
+                              ? 'border-[var(--theme-accent)] bg-[var(--theme-accent)]'
+                              : 'border-[var(--theme-border)] bg-transparent',
+                          )}>
+                            {checked && <span className="text-white text-[9px] leading-none">✓</span>}
+                          </span>
+                          <span className={checked ? 'text-[var(--theme-text)]' : 'text-[var(--theme-muted)]'}>
+                            {label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </>,
+                  document.body,
+                )}
+              </>
+            )
+          })()}
+
+          {/* Settings */}
+          <KanbanSettingsButton />
+
+          {/* Agent profile select (AB-03 selbox) */}
+          {assigneeOptions.length > 0 && (
+            <select
+              className="selbox"
+              style={{ colorScheme: 'dark' }}
+              value={assigneeFilter ?? ''}
+              onChange={(e) => setAssigneeFilter(e.target.value || null)}
+              aria-label="Filter by agent profile"
+              title="Filter by agent profile"
+            >
+              <option value="">All profiles</option>
+              {assigneeOptions.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.onDisk ? a.label : `${a.label} ⚠`}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* Tenant filter (kept when tenants present) */}
+          {uniqueTenants.length > 0 && (
+            <select
+              className="selbox"
+              style={{ colorScheme: 'dark' }}
+              value={tenantFilter ?? ''}
+              onChange={(e) => setTenantFilter(e.target.value || null)}
+              aria-label="Filter by tenant"
+            >
+              <option value="">All tenants</option>
+              {uniqueTenants.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          )}
+
+          {/* Dispatch (AB-03 btn-sec) */}
+          <button
+            type="button"
+            className="btn-sec"
+            onClick={() => void dispatchMutation.mutate()}
+            disabled={dispatchMutation.isPending}
+            title="Dispatch ready tasks to workers (max 8)"
+            aria-label="Dispatch ready tasks"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="m13 2-9 12h7l-1 8 9-12h-7z"/></svg>
+            {dispatchMutation.isPending ? 'Dispatching…' : (dispatchResult ?? 'Dispatch')}
+          </button>
+
+          {/* Refresh icobtn (AB-03) */}
+          <button
+            type="button"
+            className="icobtn"
+            aria-label="Refresh board"
+            title="Refresh"
+            onClick={invalidate}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M3 21v-5h5"/></svg>
+          </button>
+
+          {/* New Task (AB-04 btn-prim) */}
+          <button
+            type="button"
+            className="btn-prim"
+            onClick={() => { setCreateColumn('triage'); setShowCreate(true) }}
+            aria-label="Create new task"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+            New Task
+          </button>
+        </div>
+      </div>
+
+      {/* ── Page content ── */}
+      <div className="tk-content pb-[calc(var(--tabbar-h,80px)+30px+1.5rem)]">
 
         {/* Orphan-assignee resilience banner */}
         {orphanAssignees.length > 0 && !orphanBannerDismissed && (
