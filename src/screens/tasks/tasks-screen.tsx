@@ -565,7 +565,8 @@ export function TasksScreen() {
               type="button"
               className="icobtn"
               aria-label="Filters"
-              title="Filters"
+              title="Filters (coming soon)"
+              onClick={() => toast('Filter UI coming soon — use the profile selector + columns popover for now')}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
             </button>
