@@ -32,6 +32,7 @@ import {
 import { TaskCard } from './task-card'
 import { TaskDialog } from './task-dialog'
 import { TaskDetailDrawer } from './task-detail-drawer'
+import { SwimView } from './swim-view'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { ClaudeTask, TaskAssignee, TaskColumn } from '@/lib/tasks-api'
 import type { HermesKanbanStatus } from '@/lib/hermes-kanban-types'
@@ -763,11 +764,13 @@ export function TasksScreen() {
           )
         })() : null}
 
-        {/* Swim / Time placeholders */}
+        {/* Swim view */}
         {activeView === 'swim' && (
-          <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] px-6 py-12 text-center text-sm text-[var(--theme-muted)]">
-            Swim lane view — Coming in P4
-          </div>
+          <SwimView
+            tasks={tasks}
+            assigneeLabels={assigneeLabels}
+            onCardClick={(t) => setEditingTask(t)}
+          />
         )}
         {activeView === 'time' && (
           <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] px-6 py-12 text-center text-sm text-[var(--theme-muted)]">
