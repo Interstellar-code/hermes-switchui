@@ -151,8 +151,11 @@ export async function hardDeleteTask(taskId: string): Promise<void> {
 export async function moveTask(
   taskId: string,
   status: HermesKanbanStatus,
+  blockReason?: string,
 ): Promise<HermesKanbanTask> {
-  return updateTask(taskId, { status })
+  const patch: { status: HermesKanbanStatus; blockReason?: string } = { status }
+  if (blockReason) patch.blockReason = blockReason
+  return updateTask(taskId, patch as Parameters<typeof updateTask>[1])
 }
 
 export function priorityColor(priority: number): string {

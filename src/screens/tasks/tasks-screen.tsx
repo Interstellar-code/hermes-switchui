@@ -3,7 +3,7 @@
 import '@/styles/matrix-tasks.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useSearch, useNavigate } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import {
   keepPreviousData,
   useMutation,
@@ -19,12 +19,23 @@ import {
   RefreshIcon,
   Settings01Icon,
 } from '@hugeicons/core-free-icons'
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCorners,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
 import { TaskCard } from './task-card'
 import { TaskDialog } from './task-dialog'
-import type { TaskDialogSubmit } from './task-dialog'
 import { TaskDetailDrawer } from './task-detail-drawer'
+import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { ClaudeTask, TaskAssignee, TaskColumn } from '@/lib/tasks-api'
 import type { HermesKanbanStatus } from '@/lib/hermes-kanban-types'
+import type { TaskDialogSubmit } from './task-dialog'
 import { useKanbanEvents } from '@/hooks/use-kanban-events'
 import { toast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
@@ -49,6 +60,51 @@ const ASSIGNEES_KEY = ['claude', 'tasks', 'assignees'] as const
 
 export const TASKS_BOARD_HELP_TEXT =
   'Drag cards to change status. Open a card to set assignee and due date.'
+
+// ── @dnd-kit droppable column ──────────────────────────────────────────────
+function DroppableColumn({
+  status,
+  colColor,
+  children,
+}: {
+  status: string
+  colColor: string
+  children: React.ReactNode
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: status })
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn('col', isOver && 'drag-over')}
+      style={{ '--col-color': colColor } as React.CSSProperties}
+    >
+      {children}
+    </div>
+  )
+}
+
+// ── @dnd-kit draggable card wrapper ───────────────────────────────────────
+function DraggableCard({
+  taskId,
+  isDragging,
+  children,
+}: {
+  taskId: string
+  isDragging: boolean
+  children: React.ReactNode
+}) {
+  const { attributes, listeners, setNodeRef } = useDraggable({ id: taskId })
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      style={isDragging ? { opacity: 0.4 } : undefined}
+    >
+      {children}
+    </div>
+  )
+}
 
 function SkeletonCard() {
   return (
@@ -82,11 +138,10 @@ export function TasksScreen() {
   const [createColumn, setCreateColumn] = useState<TaskColumn>('triage')
   const [editingTask, setEditingTask] = useState<ClaudeTask | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
-  const [dragOverColumn, setDragOverColumn] =
-    useState<HermesKanbanStatus | null>(null)
+  const [, setDragOverColumn] = useState<HermesKanbanStatus | null>(null)
   // ── Column visibility — persisted to localStorage ──────────────────────
   const COLS_KEY = 'switchui-column-visibility'
-  const [showDone, setShowDone] = useState<boolean>(() => {
+  const [showDone] = useState<boolean>(() => {
     try { return JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}').done ?? false } catch { return false }
   })
   const [showArchived, setShowArchived] = useState<boolean>(() => {
@@ -268,8 +323,8 @@ export function TasksScreen() {
   })
 
   const moveMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: HermesKanbanStatus }) =>
-      moveTask(id, status),
+    mutationFn: ({ id, status, blockReason }: { id: string; status: HermesKanbanStatus; blockReason?: string }) =>
+      moveTask(id, status, blockReason),
     onSuccess: () => invalidate(),
     onError: (e) =>
       toast(e instanceof Error ? e.message : 'Failed to move task', {
@@ -315,49 +370,40 @@ export function TasksScreen() {
       }),
   })
 
-  function handleDragStart(e: React.DragEvent, taskId: string) {
-    e.dataTransfer.setData('text/plain', taskId)
-    setDraggingId(taskId)
+  // ── @dnd-kit sensors ──────────────────────────────────────────────────────
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor),
+  )
+
+  function handleDndDragStart(event: DragStartEvent) {
+    setDraggingId(String(event.active.id))
   }
 
-  function handleDragOver(e: React.DragEvent, col: HermesKanbanStatus) {
-    e.preventDefault()
-    setDragOverColumn(col)
-  }
+  function handleDndDragEnd(event: DragEndEvent) {
+    const taskId = String(event.active.id)
+    const targetStatus = event.over?.id as HermesKanbanStatus | undefined
+    setDraggingId(null)
+    setDragOverColumn(null)
 
-  function handleDrop(e: React.DragEvent, targetStatus: HermesKanbanStatus) {
-    e.preventDefault()
-    const taskId = e.dataTransfer.getData('text/plain')
+    if (!targetStatus) return
     const task = tasks.find((t) => t.id === taskId)
-    if (!task || task.status === targetStatus) {
-      setDraggingId(null)
-      setDragOverColumn(null)
-      return
-    }
-    // Confirm before blocking a task — v1 requirement (plan Task 6)
+    if (!task || task.status === targetStatus) return
+
     if (targetStatus === 'blocked') {
       setBlockedPending({ taskId, targetStatus })
       setBlockedReason('')
-      setDraggingId(null)
-      setDragOverColumn(null)
       return
     }
-    // Warn when manually pulling a running task off-execution
     if (task.status === 'running' && targetStatus !== 'running') {
       setRunningMovePending({ taskId, targetStatus })
-      setDraggingId(null)
-      setDragOverColumn(null)
       return
     }
     moveMutation.mutate({ id: taskId, status: targetStatus })
-    setDraggingId(null)
-    setDragOverColumn(null)
   }
 
-  function handleDragEnd() {
-    setDraggingId(null)
-    setDragOverColumn(null)
-  }
+  // Legacy HTML5 drag kept as no-op stub (TaskCard still passes onDragStart)
+  function handleDragStart(_e: React.DragEvent, _taskId: string) {}
 
   function confirmRunningMove() {
     if (!runningMovePending) return
@@ -371,7 +417,7 @@ export function TasksScreen() {
       id: blockedPending.taskId,
       status: 'blocked',
       ...(blockedReason.trim() ? { blockReason: blockedReason.trim() } : {}),
-    } as Parameters<typeof moveMutation.mutate>[0])
+    })
     setBlockedPending(null)
     setBlockedReason('')
   }
@@ -416,18 +462,19 @@ export function TasksScreen() {
     })
   }
 
-  // Agent lifecycle columns — filtered by the four view toggles
-  const visibleStatuses: Array<HermesKanbanStatus> = [
-    ...HERMES_KANBAN_VISIBLE_STATUS_ORDER,
-    'archived' as HermesKanbanStatus,
-  ].filter((s) => {
+  // SPEC-05: fixed 5-col board — triage, todo, ready, running, blocked.
+  // `done` is intentionally excluded from board columns regardless of showDone.
+  // showDone only controls the `include_done` query param for stats math and
+  // the Done stat cell click-to-list drawer; it must NOT add a board column.
+  const visibleStatuses: Array<HermesKanbanStatus> = (
+    [...HERMES_KANBAN_VISIBLE_STATUS_ORDER, 'archived' as HermesKanbanStatus] as Array<HermesKanbanStatus>
+  ).filter((s) => {
+    if (s === 'done') return false          // always off — SPEC-05
     if (s === 'triage' && !showTriage) return false
     if (s === 'blocked' && !showBlocked) return false
-    if (s === 'done' && !showDone) return false
     if (s === 'archived' && !showArchived) return false
     return true
   })
-  const colMaxWidth = Math.floor(1200 / visibleStatuses.length)
 
   return (
     <div className="min-h-full overflow-y-auto bg-surface text-ink" data-screen="tasks">
@@ -506,11 +553,12 @@ export function TasksScreen() {
 
               {/* Consolidated columns visibility dropdown */}
               {(() => {
-                const anyHidden = !showTriage || !showBlocked || !showDone || !showArchived
+                const anyHidden = !showTriage || !showBlocked || !showArchived
+                // Done is excluded from board columns (SPEC-05); omit from popover.
+                // showDone state is kept for include_done query param / stats math.
                 const cols = [
                   { key: 'triage', label: 'Triage / Backlog', checked: showTriage, toggle: () => setShowTriage(v => !v) },
                   { key: 'blocked', label: 'Blocked', checked: showBlocked, toggle: () => setShowBlocked(v => !v) },
-                  { key: 'done', label: 'Done', checked: showDone, toggle: () => setShowDone(v => !v) },
                   { key: 'archived', label: 'Archived', checked: showArchived, toggle: () => setShowArchived(v => !v) },
                 ]
                 return (
@@ -728,168 +776,144 @@ export function TasksScreen() {
         )}
 
         {/* Board */}
-        {activeView === 'board' && <div
-          className="mx-auto flex w-full max-w-[1200px] flex-1 gap-3 overflow-x-auto overflow-y-hidden min-h-0"
-          style={{ boxShadow: 'inset 0 8px 24px rgba(0,0,0,0.2)' }}
+        {activeView === 'board' && (
+        <DndContext
+          sensors={dndSensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDndDragStart}
+          onDragEnd={handleDndDragEnd}
         >
+        <div className="board">
+          <div className="board-grid">
           {visibleStatuses.map((status) => {
             const colTasks = tasksByStatus[status] ?? []
             const colColor = COLUMN_COLORS[status]
-            const isDragOver = dragOverColumn === status
             const colLabel = COLUMN_LABELS[status]
+            const unassigned = colTasks.filter((t) => !t.assignee).length
+            const runningLive = colTasks.filter((t) => t.status === 'running').length
 
             return (
-              <div
+              <DroppableColumn
                 key={status}
-                className={cn(
-                  'flex flex-col rounded-xl border min-w-[180px] w-full shrink-0 flex-1',
-                  'bg-[var(--theme-card)] border-[var(--theme-border)]',
-                  'transition-colors shadow-[0_2px_12px_rgba(0,0,0,0.25)]',
-                  isDragOver &&
-                  'border-[var(--theme-accent)] bg-[var(--theme-hover)]',
-                )}
-                style={{ maxWidth: colMaxWidth }}
-                onDragOver={(e) => handleDragOver(e, status)}
-                onDrop={(e) => handleDrop(e, status)}
-                onDragLeave={() => setDragOverColumn(null)}
+                status={status}
+                colColor={colColor}
               >
                 {/* Column header */}
-                <div
-                  className="flex items-center justify-between px-3 py-2.5 border-b border-[var(--theme-border)] rounded-t-xl"
-                  style={{
-                    borderTopWidth: 2,
-                    borderTopColor: colColor,
-                    borderTopStyle: 'solid',
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ background: colColor }}
-                    />
-                    <span className="text-xs font-semibold text-[var(--theme-text)]">
-                      {colLabel}
-                    </span>
-                    <span className="text-xs text-[var(--theme-muted)]">
-                      (
-                      {tasksQuery.isFetching && tasksQuery.data === undefined
-                        ? '…'
-                        : colTasks.length}
-                      )
-                    </span>
-                  </div>
+                <div className="col-h">
+                  <span className="pip" />
+                  <h3>{colLabel}</h3>
+                  <span className="ct">
+                    {tasksQuery.isFetching && tasksQuery.data === undefined ? '…' : colTasks.length}
+                  </span>
                   <button
-                    onClick={() => {
-                      setCreateColumn(status)
-                      setShowCreate(true)
-                    }}
-                    className="rounded p-0.5 hover:bg-[var(--theme-hover)] transition-colors"
+                    className="add"
+                    onClick={() => { setCreateColumn(status); setShowCreate(true) }}
                     title={`Add to ${colLabel}`}
                   >
-                    <HugeiconsIcon
-                      icon={Add01Icon}
-                      size={14}
-                      className="text-[var(--theme-muted)]"
-                    />
+                    <HugeiconsIcon icon={Add01Icon} size={12} />
                   </button>
                 </div>
 
+                {/* Column meta row */}
+                <div className="col-meta">
+                  {(status === 'triage') && (
+                    <><span><b>{colTasks.length}</b> Awaiting</span><span><b>{unassigned}</b> Unassigned</span><span>— WIP</span></>
+                  )}
+                  {status === 'todo' && (
+                    <><span><b>{colTasks.length}</b> Ready</span><span><b>{colTasks.filter(t => (t.link_counts?.parents ?? 0) > 0).length}</b> Blockers</span></>
+                  )}
+                  {status === 'ready' && (
+                    <span>Queued · will auto-dispatch</span>
+                  )}
+                  {status === 'running' && (
+                    <><span><b>{runningLive}</b> Live</span><span>WIP <b>{runningLive}/6</b></span></>
+                  )}
+                  {status === 'blocked' && (
+                    <span>Needs attention · set block reason</span>
+                  )}
+                  {status === 'done' && (
+                    <span><b>{colTasks.length}</b> Completed</span>
+                  )}
+                  {status === 'archived' && (
+                    <span><b>{colTasks.length}</b> Archived</span>
+                  )}
+                </div>
+
                 {/* Cards */}
-                <div className="flex flex-col gap-2 p-2 flex-1 overflow-y-auto">
+                <div className="col-body">
                   {tasksQuery.isError ? (
-                    <motion.div
-                      key="error"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="flex flex-col items-center justify-center py-8 gap-2 text-red-400"
-                    >
-                      <p className="text-xs font-medium">
-                        Failed to load tasks
-                      </p>
-                      <button
-                        onClick={() => tasksQuery.refetch()}
-                        className="text-xs text-[var(--theme-accent)] hover:underline"
-                      >
-                        Retry
-                      </button>
-                    </motion.div>
+                    <div className="col-empty">
+                      <p>Failed to load</p>
+                      <button onClick={() => tasksQuery.refetch()} className="text-xs text-[var(--theme-accent)] hover:underline mt-1">Retry</button>
+                    </div>
                   ) : tasksQuery.isLoading ? (
-                    <>
-                      <SkeletonCard />
-                      <SkeletonCard />
-                      <SkeletonCard />
-                    </>
+                    <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
+                  ) : colTasks.length === 0 ? (
+                    <div className="col-empty">
+                      <HugeiconsIcon icon={CheckListIcon} size={18} />
+                      <div>No tasks</div>
+                      <div className="sub">Drop here or click + to add</div>
+                    </div>
                   ) : (
                     <AnimatePresence initial={false}>
-                      {colTasks.length === 0 ? (
+                      {colTasks.map((task) => (
                         <motion.div
-                          key="empty"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="flex flex-col items-center justify-center py-8 gap-2 text-[var(--theme-muted)] opacity-60"
+                          key={task.id}
+                          layout
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                          className="relative group"
                         >
-                          <HugeiconsIcon icon={CheckListIcon} size={22} />
-                          <p className="text-xs font-medium">No tasks</p>
-                          <p className="text-[10px]">
-                            Drop here or click + to add
-                          </p>
-                        </motion.div>
-                      ) : (
-                        colTasks.map((task) => (
-                          <motion.div
-                            key={task.id}
-                            layout
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -6 }}
-                            onDragEnd={handleDragEnd}
-                            className="relative group"
+                          <button
+                            type="button"
+                            onClick={(e) => toggleSelect(task.id, e)}
+                            className={cn(
+                              'absolute top-2 left-2 z-10 w-4 h-4 rounded border transition-all',
+                              selectedIds.has(task.id)
+                                ? 'bg-[var(--theme-accent)] border-[var(--theme-accent)] opacity-100'
+                                : selectedIds.size > 0
+                                  ? 'bg-transparent border-[var(--theme-border)] opacity-60 hover:opacity-100'
+                                  : 'bg-transparent border-[var(--theme-border)] opacity-0 group-hover:opacity-60 hover:opacity-100',
+                            )}
+                            title="Select task"
                           >
-                            {/* Multi-select checkbox — visible on hover, always visible when selected or any selected */}
-                            <button
-                              type="button"
-                              onClick={(e) => toggleSelect(task.id, e)}
-                              className={cn(
-                                'absolute top-2 left-2 z-10 w-4 h-4 rounded border transition-all',
-                                selectedIds.has(task.id)
-                                  ? 'bg-[var(--theme-accent)] border-[var(--theme-accent)] opacity-100'
-                                  : selectedIds.size > 0
-                                    ? 'bg-transparent border-[var(--theme-border)] opacity-60 hover:opacity-100'
-                                    : 'bg-transparent border-[var(--theme-border)] opacity-0 group-hover:opacity-60 hover:opacity-100',
-                              )}
-                              title="Select task"
-                            >
-                              {selectedIds.has(task.id) && (
-                                <span className="text-white text-[9px] leading-none flex items-center justify-center w-full h-full">
-                                  ✓
-                                </span>
-                              )}
-                            </button>
+                            {selectedIds.has(task.id) && (
+                              <span className="text-white text-[9px] leading-none flex items-center justify-center w-full h-full">✓</span>
+                            )}
+                          </button>
+                          <DraggableCard
+                            taskId={task.id}
+                            isDragging={draggingId === task.id}
+                          >
                             <TaskCard
                               task={task}
+                              colColor={colColor}
                               assigneeLabels={assigneeLabels}
                               isDragging={draggingId === task.id}
                               onDragStart={(e) => handleDragStart(e, task.id)}
                               onClick={() => setEditingTask(task)}
                             />
-                          </motion.div>
-                        ))
-                      )}
+                          </DraggableCard>
+                        </motion.div>
+                      ))}
                     </AnimatePresence>
                   )}
                 </div>
-              </div>
+              </DroppableColumn>
             )
           })}
-        </div>}
+          </div>
+        </div>
+        </DndContext>
+        )}
 
         {/* Create dialog */}
         <TaskDialog
           open={showCreate}
           onOpenChange={setShowCreate}
           defaultColumn={createColumn}
-          assignees={assigneeOptions as TaskAssignee[]}
+          assignees={assigneeOptions as Array<TaskAssignee>}
           isSubmitting={createMutation.isPending}
           onSubmit={async (payload) => {
             await createMutation.mutateAsync(payload)
