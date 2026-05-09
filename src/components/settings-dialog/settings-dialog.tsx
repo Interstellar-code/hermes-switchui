@@ -954,7 +954,7 @@ function AppearanceContent() {
       {/* Accent color removed — themes control accent */}
       <div className={SETTINGS_CARD_CLASS}>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary-500">
-          Enterprise Theme
+          Matrix Theme
         </p>
         <EnterpriseThemePicker />
       </div>
@@ -1158,8 +1158,8 @@ function EnterpriseThemePicker() {
           className="inline-flex items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary-900 transition-colors hover:bg-primary-100"
           aria-label={
             currentMode === 'dark'
-              ? 'Switch enterprise theme to light mode'
-              : 'Switch enterprise theme to dark mode'
+              ? 'Switch matrix theme to light mode'
+              : 'Switch matrix theme to dark mode'
           }
         >
           <HugeiconsIcon
