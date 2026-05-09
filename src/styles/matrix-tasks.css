@@ -356,7 +356,7 @@
 
   /* ── global stripe ── */
   .tk-global-stripe {
-    margin: 10px 0 0;
+    margin: 12px 22px 0;
     padding: 10px 16px;
     border: 1px solid var(--m-border-subtle, var(--theme-border));
     border-radius: 8px;

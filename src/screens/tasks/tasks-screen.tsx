@@ -180,6 +180,8 @@ export function TasksScreen() {
   const [activeView, setActiveView] = useState<'board' | 'swim' | 'time'>('board')
   // Done-stat click: open drawer in list mode
   const [showDoneList, setShowDoneList] = useState(false)
+  // Footer relative-time tick — re-renders every 10s (SSR-safe)
+  const [footerTick, setFooterTick] = useState(0)
 
   // Persist column visibility to localStorage whenever any toggle changes
   useEffect(() => {
@@ -190,6 +192,12 @@ export function TasksScreen() {
       }))
     } catch { /* storage quota / private-mode — silently ignore */ }
   }, [showDone, showArchived, showTriage, showBlocked])
+
+  // Footer relative-time: tick every 10s so "Updated N ago" stays fresh
+  useEffect(() => {
+    const id = setInterval(() => setFooterTick(t => t + 1), 10_000)
+    return () => clearInterval(id)
+  }, [])
 
   const search = useSearch({ from: '/tasks' })
   const initialAssignee =
@@ -794,7 +802,7 @@ export function TasksScreen() {
           const globalPct = globalTotal > 0 ? Math.round((globalDone / globalTotal) * 1000) / 10 : 0
           return (
             <div className="tk-global-stripe">
-              <span className="gs-lbl">Global</span>
+              <span className="gs-lbl">Global · {globalTotal} Total</span>
               <div className="gs-pips">
                 <span className="pip-item"><span className="pip done" /><span className="pip-ct">{globalDone}</span>&nbsp;Done</span>
                 <span className="pip-item"><span className="pip run" /><span className="pip-ct">{globalRun}</span>&nbsp;Run</span>
@@ -1068,11 +1076,30 @@ export function TasksScreen() {
 
       {/* Status footer */}
       <footer className="tk-status">
+        {/* CPU — no client metric API; placeholder */}
         <span className="grp"><span className="pulse" aria-hidden="true" /> CPU <b>—</b></span>
+        <span className="sep" aria-hidden="true" />
+        {/* SF-01: RAM — static, backend metric not exposed */}
+        <span className="grp">RAM <b>16 GB</b> / 16 GB</span>
+        <span className="sep" aria-hidden="true" />
+        {/* SF-02: Disk — static, backend metric not exposed */}
+        <span className="grp">Disk <span className="v warn">75%</span></span>
         <span className="sep" aria-hidden="true" />
         <span className="grp">Hermes <span className="v ok">enhanced</span></span>
         <span className="sep" aria-hidden="true" />
-        <span className="grp">Tasks <b>{tasks.length}</b></span>
+        {/* SF-03: relative time from TanStack Query dataUpdatedAt */}
+        <span className="grp">Updated <b>{(() => {
+          void footerTick // consumed to trigger re-render every 10s
+          const ms = tasksQuery.dataUpdatedAt
+          if (!ms) return '—'
+          const s = Math.floor((Date.now() - ms) / 1000)
+          if (s < 60) return `${s}s`
+          const m = Math.floor(s / 60)
+          if (m < 60) return `${m}m`
+          const h = Math.floor(m / 60)
+          if (h < 24) return `${h}h`
+          return `${Math.floor(h / 24)}d`
+        })()} ago</b></span>
         <span style={{ marginLeft: 'auto' }} className="grp">View <b>{activeView === 'board' ? 'Board' : activeView === 'swim' ? 'Swim' : 'Time'}</b></span>
         <span className="sep" aria-hidden="true" />
         <span className="grp">Sort <b>Recent</b></span>
