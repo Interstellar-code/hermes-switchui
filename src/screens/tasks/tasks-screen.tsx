@@ -147,7 +147,7 @@ export function TasksScreen() {
   const [, setDragOverColumn] = useState<HermesKanbanStatus | null>(null)
   // ── Column visibility — persisted to localStorage ──────────────────────
   const COLS_KEY = 'switchui-column-visibility'
-  const [showDone] = useState<boolean>(() => {
+  const [showDone, setShowDone] = useState<boolean>(() => {
     try { return JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}').done ?? false } catch { return false }
   })
   const [showArchived, setShowArchived] = useState<boolean>(() => {
@@ -475,7 +475,7 @@ export function TasksScreen() {
   const visibleStatuses: Array<HermesKanbanStatus> = (
     [...HERMES_KANBAN_VISIBLE_STATUS_ORDER, 'archived' as HermesKanbanStatus] as Array<HermesKanbanStatus>
   ).filter((s) => {
-    if (s === 'done') return false          // always off — SPEC-05
+    if (s === 'done' && !showDone) return false
     if (s === 'triage' && !showTriage) return false
     if (s === 'blocked' && !showBlocked) return false
     if (s === 'archived' && !showArchived) return false
@@ -484,7 +484,7 @@ export function TasksScreen() {
 
   return (
     <div className="min-h-full overflow-y-auto bg-surface text-ink" data-screen="tasks">
-      <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-6 pb-[calc(var(--tabbar-h,80px)+1.5rem)] sm:px-6 lg:px-8">
+      <div className="flex w-full flex-col gap-5 px-4 py-6 pb-[calc(var(--tabbar-h,80px)+1.5rem)] sm:px-6 lg:px-8">
         {/* Header */}
         <header className="rounded-2xl border border-primary-200 bg-primary-50/85 p-4 backdrop-blur-xl">
           <div className="flex items-center justify-between">
@@ -563,12 +563,11 @@ export function TasksScreen() {
 
               {/* Consolidated columns visibility dropdown */}
               {(() => {
-                const anyHidden = !showTriage || !showBlocked || !showArchived
-                // Done is excluded from board columns (SPEC-05); omit from popover.
-                // showDone state is kept for include_done query param / stats math.
+                const anyHidden = !showTriage || !showBlocked || !showDone || !showArchived
                 const cols = [
                   { key: 'triage', label: 'Triage / Backlog', checked: showTriage, toggle: () => setShowTriage(v => !v) },
                   { key: 'blocked', label: 'Blocked', checked: showBlocked, toggle: () => setShowBlocked(v => !v) },
+                  { key: 'done', label: 'Done', checked: showDone, toggle: () => setShowDone(v => !v) },
                   { key: 'archived', label: 'Archived', checked: showArchived, toggle: () => setShowArchived(v => !v) },
                 ]
                 return (
