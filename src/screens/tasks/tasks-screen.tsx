@@ -147,17 +147,37 @@ export function TasksScreen() {
   const [, setDragOverColumn] = useState<HermesKanbanStatus | null>(null)
   // ── Column visibility — persisted to localStorage ──────────────────────
   const COLS_KEY = 'switchui-column-visibility'
+  // BC-01: v2 migration — ensure triage+blocked default to true for all visitors
+  // (pre-rewrite stale storage may have triage:false; bump migrated_v2 flag).
   const [showDone, setShowDone] = useState<boolean>(() => {
-    try { return JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}').done ?? false } catch { return false }
+    try {
+      const raw = JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}') as Record<string, unknown>
+      if (!raw.migrated_v2) {
+        // First visit or pre-v2 visitor: force triage+blocked on, write migration flag
+        const migrated = { ...raw, triage: true, blocked: true, migrated_v2: true }
+        localStorage.setItem(COLS_KEY, JSON.stringify(migrated))
+        return typeof raw.done === 'boolean' ? raw.done : false
+      }
+      return typeof raw.done === 'boolean' ? raw.done : false
+    } catch { return false }
   })
   const [showArchived, setShowArchived] = useState<boolean>(() => {
-    try { return JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}').archived ?? false } catch { return false }
+    try {
+      const raw = JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}') as Record<string, unknown>
+      return typeof raw.archived === 'boolean' ? raw.archived : false
+    } catch { return false }
   })
   const [showTriage, setShowTriage] = useState<boolean>(() => {
-    try { return JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}').triage ?? true } catch { return true }
+    try {
+      const raw = JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}') as Record<string, unknown>
+      return typeof raw.triage === 'boolean' ? raw.triage : true
+    } catch { return true }
   })
   const [showBlocked, setShowBlocked] = useState<boolean>(() => {
-    try { return JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}').blocked ?? true } catch { return true }
+    try {
+      const raw = JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}') as Record<string, unknown>
+      return typeof raw.blocked === 'boolean' ? raw.blocked : true
+    } catch { return true }
   })
   const [showViewDropdown, setShowViewDropdown] = useState(false)
   // Ref to the trigger button so we can measure its position for fixed-panel placement
@@ -880,7 +900,7 @@ export function TasksScreen() {
                     <><span><b>{colTasks.length}</b> Awaiting</span><span><b>{unassigned}</b> Unassigned</span><span>— WIP</span></>
                   )}
                   {status === 'todo' && (
-                    <><span><b>{colTasks.length}</b> Ready</span><span><b>{colTasks.filter(t => (t.link_counts?.parents ?? 0) > 0).length}</b> Blockers</span></>
+                    <><span><b>{colTasks.length}</b> Ready</span><span><b>{colTasks.filter(t => (t.link_counts?.parents ?? 0) > 0).length}</b> Blockers</span><span>Lead —</span></>
                   )}
                   {status === 'ready' && (
                     <span>Queued · will auto-dispatch</span>
@@ -889,10 +909,10 @@ export function TasksScreen() {
                     <><span><b>{runningLive}</b> Live</span><span>Tok/min —</span><span>WIP <b>{runningLive}/6</b></span></>
                   )}
                   {status === 'blocked' && (
-                    <span>Needs attention · set block reason</span>
+                    <span>Drop tasks waiting on dependencies or input</span>
                   )}
                   {status === 'done' && (
-                    <span><b>{colTasks.length}</b> Completed</span>
+                    <><span><b>{colTasks.length}</b> Completed</span><span>Auto-archive 7d</span></>
                   )}
                   {status === 'archived' && (
                     <span><b>{colTasks.length}</b> Archived</span>
