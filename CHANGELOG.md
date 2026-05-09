@@ -3,6 +3,25 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.5] — 2026-05-09
+
+Single-system chat UI. Strips the v1 chat surface so the v2 unified sessions sidebar / matrix-themed chat surface is the only path. The `VITE_HERMES_SIDEBAR_V2` feature flag is gone — install / onboarding no longer require any env-var gymnastics to get the Switch UI.
+
+### Removed
+
+- **v1 chat UI components** (7 files, ~2451 lines): `src/screens/chat/components/chat-sidebar.tsx`, `chat-header.tsx`, `sidebar/sidebar-sessions.tsx`, `sidebar/session-item.tsx`, `sidebar/session-rename-dialog.tsx`, `sidebar/session-delete-dialog.tsx`, `sidebar/v2/sidebar-flag.ts`
+- **`VITE_HERMES_SIDEBAR_V2`** env flag from `.env.example`
+- **All 8 conditional branch sites** in `chat-screen.tsx` + `workspace-shell.tsx` collapsed to v2-only path; the `useSidebarV2Flag` hook removed entirely
+
+### Changed
+
+- `sidebar-card-context-menu-v2.tsx` absorbs rename + delete dialogs (previously imported from deleted v1 files) as inline components, wired to `useRenameSession` / `useDeleteSession` with proper loading + error UX (Save/Delete buttons disable during in-flight, error rendered inline, Esc/Cancel blocked while saving). Codex review caught a no-op rename on the first pass — fixed in this release.
+- `AGENTS.md`: noted the v1 strip in the chat UI section
+
+### Mobile
+
+No code changes needed — pre-deletion audit (`.omc/v1-audit.md`) confirmed `mobile-tab-bar.tsx` and `mobile-hamburger-menu.tsx` had zero v1 chat-component imports. Mobile surfaces continue to work with the v2 sidebar/header path that was already shipped.
+
 ## [2.3.4] — 2026-05-08
 
 First release as **Switch UI** — fork of `outsourc-e/hermes-workspace` with a Matrix-styled UI direction. Bundles the v2.3.0 upstream bugfixes plus the Switch UI typography pass, unified sessions sidebar, composer retheme, and HermesWorld removal.
