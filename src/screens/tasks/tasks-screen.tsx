@@ -484,7 +484,7 @@ export function TasksScreen() {
 
   return (
     <div className="min-h-full overflow-y-auto bg-surface text-ink" data-screen="tasks">
-      <div className="flex w-full flex-col gap-5 px-4 py-6 pb-[calc(var(--tabbar-h,80px)+1.5rem)] sm:px-6 lg:px-8">
+      <div className="flex w-full flex-col gap-5 px-4 py-6 pb-[calc(var(--tabbar-h,80px)+30px+1.5rem)] sm:px-6 lg:px-8">
         {/* Header */}
         <header className="rounded-2xl border border-primary-200 bg-primary-50/85 p-4 backdrop-blur-xl">
           <div className="flex items-center justify-between">

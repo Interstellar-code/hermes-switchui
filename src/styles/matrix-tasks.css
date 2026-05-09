@@ -800,19 +800,24 @@
 
   /* ── status footer ── */
   .tk-status {
+    position: fixed;
+    left: var(--sidebar-w, 300px);
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    height: 30px;
     display: flex;
     align-items: center;
     gap: 22px;
-    padding: 8px 14px;
+    padding: 0 14px;
     border-top: 1px solid var(--m-border, var(--theme-border));
     background: var(--m-sidebar, var(--theme-card));
     font: 500 10px var(--m-font-mono, ui-monospace, monospace);
     color: var(--m-text-faint, var(--theme-muted));
     letter-spacing: .14em;
     text-transform: uppercase;
-    border-radius: 0 0 10px 10px;
-    flex-wrap: wrap;
-    row-gap: 4px;
+    overflow: hidden;
+    white-space: nowrap;
   }
   .tk-status .grp {
     display: flex;
