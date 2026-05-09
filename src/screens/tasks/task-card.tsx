@@ -94,11 +94,22 @@ export function TaskCard({
   // Inline CSS var for col-color — used by .card::after and hover box-shadow
   const colStyle = { '--col-color': colColor } as React.CSSProperties
 
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onClick()
+    }
+  }
+
   return (
     <div
       draggable
       onDragStart={onDragStart}
       onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label={`Task: ${task.title}. Priority: ${priorityLabel}. Status: ${task.status}.`}
       style={colStyle}
       className={cn(
         'card',

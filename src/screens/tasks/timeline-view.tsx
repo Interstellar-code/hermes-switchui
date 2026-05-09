@@ -9,8 +9,8 @@ interface TimelineViewProps {
 }
 
 const TICKS = ['-6h', '-5h', '-4h', '-3h', '-2h', '-1h', 'now', '+1h', '+2h', '+3h', '+4h', '+5h']
-// 'now' is at index 6 (7th tick) — mark index 5 ('-1h') as the tick before now
-const NOW_TICK_INDEX = 6
+// Mark '-1h' (index 5) so its right edge aligns with the body now-line at 50%
+const NOW_TICK_INDEX = 5
 
 interface BarLayout {
   left: number   // percent

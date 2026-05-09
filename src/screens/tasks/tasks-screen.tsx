@@ -67,18 +67,22 @@ export const TASKS_BOARD_HELP_TEXT =
 function DroppableColumn({
   status,
   colColor,
+  taskCount,
   children,
 }: {
   status: string
   colColor: string
+  taskCount: number
   children: React.ReactNode
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
+  const label = COLUMN_LABELS[status as keyof typeof COLUMN_LABELS] ?? status
   return (
     <div
       ref={setNodeRef}
       className={cn('col', isOver && 'drag-over')}
       style={{ '--col-color': colColor } as React.CSSProperties}
+      aria-label={`${label} column, ${taskCount} task${taskCount !== 1 ? 's' : ''}`}
     >
       {children}
     </div>
@@ -511,14 +515,16 @@ export function TasksScreen() {
               )}
               {/* 5-stat row */}
               <div className="tk-stat-row hidden sm:flex">
-                <div
+                <button
+                  type="button"
                   className="stat clickable"
+                  aria-label={`Show ${stats.done} done tasks`}
                   title="Click to view done tasks"
                   onClick={() => setShowDoneList(true)}
                 >
                   <span className="v ok">{stats.done}</span>
                   <span className="l">Done</span>
-                </div>
+                </button>
                 <div className="stat">
                   <span className="v warn">{stats.running}</span>
                   <span className="l">Running</span>
@@ -541,10 +547,12 @@ export function TasksScreen() {
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
               {/* Bulk-action toolbar moved to floating footer (rendered via portal further below). */}
               {/* View toggle: Board / Swim / Time */}
-              <div className="tk-view-seg">
+              <div className="tk-view-seg" role="tablist" aria-label="Task view">
                 {(['board', 'swim', 'time'] as const).map((v) => (
                   <button
                     key={v}
+                    role="tab"
+                    aria-selected={activeView === v}
                     className={activeView === v ? 'active' : ''}
                     onClick={() => setActiveView(v)}
                   >
@@ -802,6 +810,7 @@ export function TasksScreen() {
                 key={status}
                 status={status}
                 colColor={colColor}
+                taskCount={colTasks.length}
               >
                 {/* Column header */}
                 <div className="col-h">
@@ -1017,6 +1026,18 @@ export function TasksScreen() {
             </div>
           </div>
         )}
+
+      {/* Status footer */}
+      <footer className="tk-status">
+        <span className="grp"><span className="pulse" aria-hidden="true" /> CPU <b>—</b></span>
+        <span className="sep" aria-hidden="true" />
+        <span className="grp">Hermes <span className="v ok">enhanced</span></span>
+        <span className="sep" aria-hidden="true" />
+        <span className="grp">Tasks <b>{tasks.length}</b></span>
+        <span style={{ marginLeft: 'auto' }} className="grp">View <b>{activeView === 'board' ? 'Board' : activeView === 'swim' ? 'Swim' : 'Time'}</b></span>
+        <span className="sep" aria-hidden="true" />
+        <span className="grp">Sort <b>Recent</b></span>
+      </footer>
       </div>
 
       {/* Floating bulk-action footer — portal'd to body, escapes layout.

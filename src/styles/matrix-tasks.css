@@ -168,6 +168,13 @@
   user-select: none;
 }
 .card:active { cursor: grabbing; }
+.card:focus-visible {
+  outline: 2px solid var(--col-color, var(--m-green-500, #00ff41));
+  outline-offset: 2px;
+  box-shadow:
+    0 4px 18px rgba(0,0,0,.4),
+    0 0 0 1px color-mix(in srgb, var(--col-color, #00ff41) 30%, transparent);
+}
 .card:hover {
   border-color: var(--col-color, var(--m-green-500, #00ff41));
   box-shadow:
@@ -790,6 +797,50 @@
     color: var(--theme-muted);
     box-shadow: none;
   }
+
+  /* ── status footer ── */
+  .tk-status {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    padding: 8px 14px;
+    border-top: 1px solid var(--m-border, var(--theme-border));
+    background: var(--m-sidebar, var(--theme-card));
+    font: 500 10px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text-faint, var(--theme-muted));
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    border-radius: 0 0 10px 10px;
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .tk-status .grp {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tk-status .grp b {
+    color: var(--m-text-strong, var(--theme-text));
+    font-weight: 600;
+  }
+  .tk-status .grp .v.warn { color: var(--m-amber, #ffb454); }
+  .tk-status .grp .v.ok { color: var(--m-green-500, #00ff41); }
+  .tk-status .sep {
+    width: 1px;
+    height: 14px;
+    background: var(--m-border-subtle, var(--theme-border));
+    flex-shrink: 0;
+  }
+  .tk-status .pulse {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--m-green-500, #00ff41);
+    box-shadow: 0 0 6px var(--m-green-500, #00ff41);
+    animation: tk-pulse 1.6s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  @keyframes tk-pulse { 50% { opacity: .35; } }
 }
 
 @keyframes tl-shimmer {

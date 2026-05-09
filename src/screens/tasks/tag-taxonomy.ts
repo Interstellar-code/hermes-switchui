@@ -13,11 +13,11 @@ export type Tag = {
 }
 
 const KEYWORD_RULES: Array<{ re: RegExp; kind: TagKind; label: string }> = [
-  { re: /\b(research|survey|study|investigate|analyse|analyze)\b/i, kind: 'research', label: 'research' },
-  { re: /\b(llm|gpt|claude|gemini|model|prompt|completion|inference|embedding)\b/i, kind: 'llm', label: 'llm' },
-  { re: /\b(arch|architecture|design|refactor|structure|schema|scaffold)\b/i, kind: 'arch', label: 'arch' },
-  { re: /\b(import|migration|migrate|ingest|load|parse|etl|pipeline)\b/i, kind: 'import', label: 'import' },
-  { re: /\b(batch|bulk|parallel|queue|job|worker|cron|schedule)\b/i, kind: 'batch', label: 'batch' },
+  { re: /\b(research|survey|study|investigate|analyse|analyze|paper|review|explore|exploration)\b/i, kind: 'research', label: 'research' },
+  { re: /\b(llm|gpt|claude|gemini|model|prompt|completion|inference|embedding|deepseek|anthropic|openai|mistral|token|tokenize)\b/i, kind: 'llm', label: 'llm' },
+  { re: /\b(arch|architecture|design|refactor|structure|schema|scaffold|infra|infrastructure|system|blueprint)\b/i, kind: 'arch', label: 'arch' },
+  { re: /\b(import|migration|migrate|ingest|load|parse|etl|pipeline|sync|transfer|export)\b/i, kind: 'import', label: 'import' },
+  { re: /\b(batch|bulk|parallel|queue|job|worker|cron|schedule|gtw|gateway|dispatch|throughput)\b/i, kind: 'batch', label: 'batch' },
 ]
 
 const KIND_ORDER: Array<TagKind> = ['research', 'llm', 'arch', 'import', 'batch']
