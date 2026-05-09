@@ -1,5 +1,6 @@
 'use client'
 
+import '@/styles/matrix-tasks.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearch, useNavigate } from '@tanstack/react-router'
@@ -30,9 +31,7 @@ import { cn } from '@/lib/utils'
 import {
   COLUMN_COLORS,
   COLUMN_LABELS,
-  COLUMN_ORDER,
   createTask,
-  deleteTask,
   fetchAssignees,
   fetchKanbanConfig,
   fetchStats,
@@ -115,6 +114,10 @@ export function TasksScreen() {
   const [blockedReason, setBlockedReason] = useState('')
   const [runningMovePending, setRunningMovePending] = useState<RunningMovePending>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // View toggle: board is the only implemented view for P1; swim/time are placeholders
+  const [activeView, setActiveView] = useState<'board' | 'swim' | 'time'>('board')
+  // Done-stat click: open drawer in list mode
+  const [showDoneList, setShowDoneList] = useState(false)
 
   // Persist column visibility to localStorage whenever any toggle changes
   useEffect(() => {
@@ -151,6 +154,17 @@ export function TasksScreen() {
     queryKey: ASSIGNEES_KEY,
     queryFn: fetchAssignees,
     staleTime: 5 * 60_000,
+  })
+
+  const doneTasksQuery = useQuery({
+    queryKey: [...QUERY_KEY, 'done-only', tenantFilter],
+    queryFn: () =>
+      fetchTasks({
+        include_done: true,
+        ...(tenantFilter ? { tenant: tenantFilter } : {}),
+      }),
+    enabled: showDoneList,
+    staleTime: 30_000,
   })
 
   const statsQuery = useQuery({
@@ -249,18 +263,6 @@ export function TasksScreen() {
     },
     onError: (e) =>
       toast(e instanceof Error ? e.message : 'Failed to create task', {
-        type: 'error',
-      }),
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteTask,
-    onSuccess: () => {
-      invalidate()
-      toast('Task archived')
-    },
-    onError: (e) =>
-      toast(e instanceof Error ? e.message : 'Failed to archive task', {
         type: 'error',
       }),
   })
@@ -428,7 +430,7 @@ export function TasksScreen() {
   const colMaxWidth = Math.floor(1200 / visibleStatuses.length)
 
   return (
-    <div className="min-h-full overflow-y-auto bg-surface text-ink">
+    <div className="min-h-full overflow-y-auto bg-surface text-ink" data-screen="tasks">
       <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-6 pb-[calc(var(--tabbar-h,80px)+1.5rem)] sm:px-6 lg:px-8">
         {/* Header */}
         <header className="rounded-2xl border border-primary-200 bg-primary-50/85 p-4 backdrop-blur-xl">
@@ -458,33 +460,50 @@ export function TasksScreen() {
                   </button>
                 </div>
               )}
-              {/* Stats — filtered view tally */}
-              <div
-                className="flex items-center gap-2 text-xs text-[var(--theme-muted)] flex-wrap opacity-60"
-                title="filtered view"
-              >
-                <span>{stats.total} total</span>
-                <span className="hidden sm:inline">·</span>
-                <span className="hidden sm:inline">
-                  {stats.running} running
-                </span>
-                {stats.blocked > 0 && (
-                  <>
-                    <span>·</span>
-                    <span className="text-red-400/60">
-                      {stats.blocked} blocked
-                    </span>
-                  </>
-                )}
-                <span className="hidden sm:inline">·</span>
-                <span className="hidden sm:inline">
-                  {stats.completion}% done
-                </span>
+              {/* 5-stat row */}
+              <div className="tk-stat-row hidden sm:flex">
+                <div
+                  className="stat clickable"
+                  title="Click to view done tasks"
+                  onClick={() => setShowDoneList(true)}
+                >
+                  <span className="v ok">{stats.done}</span>
+                  <span className="l">Done</span>
+                </div>
+                <div className="stat">
+                  <span className="v warn">{stats.running}</span>
+                  <span className="l">Running</span>
+                </div>
+                <div className="stat">
+                  <span className="v cyan">{tasksByStatus.todo?.length ?? 0}</span>
+                  <span className="l">Todo</span>
+                </div>
+                <div className="stat">
+                  <span className="v violet">{tasksByStatus.triage?.length ?? 0}</span>
+                  <span className="l">Backlog</span>
+                </div>
+                <div className="stat">
+                  <span className="v">{stats.total}</span>
+                  <span className="l">Total</span>
+                </div>
               </div>
             </div>
 
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
               {/* Bulk-action toolbar moved to floating footer (rendered via portal further below). */}
+              {/* View toggle: Board / Swim / Time */}
+              <div className="tk-view-seg">
+                {(['board', 'swim', 'time'] as const).map((v) => (
+                  <button
+                    key={v}
+                    className={activeView === v ? 'active' : ''}
+                    onClick={() => setActiveView(v)}
+                  >
+                    {v === 'board' ? 'Board' : v === 'swim' ? 'Swim' : 'Time'}
+                  </button>
+                ))}
+              </div>
+
               {/* Consolidated columns visibility dropdown */}
               {(() => {
                 const anyHidden = !showTriage || !showBlocked || !showDone || !showArchived
@@ -664,62 +683,52 @@ export function TasksScreen() {
           </div>
         )}
 
-        {/* Gateway stats bar */}
-        {!statsQuery.isLoading || statsQuery.data ? (
-          statsQuery.data ? (() => {
-            const counts = statsQuery.data.by_status ?? {}
-            const total = Object.values(counts).reduce<number>((acc, n) => acc + (typeof n === 'number' ? n : 0), 0)
-            const oldestSecs = statsQuery.data.oldest_ready_age_seconds
-            const oldestRunningSecs = statsQuery.data.oldest_running_age_seconds
-
-            const statusEntries = (Object.entries(counts) as Array<[string, number]>)
-              .filter(([, n]) => n > 0)
-
-            function fmtAge(secs: number): string {
-              const d = Math.floor(secs / 86400)
-              if (d > 0) return `${d}d`
-              const h = Math.floor(secs / 3600)
-              if (h > 0) return `${h}h`
-              return `${Math.floor(secs / 60)}m`
-            }
-
-            return (
-              <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] px-4 py-2.5 flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] uppercase tracking-widest text-[var(--theme-muted)] font-medium mr-1">
-                    Global
-                  </span>
-                  <span className="text-xs text-[var(--theme-muted)]">{total} total</span>
-                  {statusEntries.map(([status, count]) => {
-                    const color = COLUMN_COLORS[status as keyof typeof COLUMN_COLORS] ?? '#6b7280'
-                    const label = COLUMN_LABELS[status as keyof typeof COLUMN_LABELS] ?? status
-                    return (
-                      <span key={status} className="flex items-center gap-1 text-xs">
-                        <span className="text-[var(--theme-border)]">·</span>
-                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} />
-                        <span style={{ color }}>{count}</span>
-                        <span className="text-[var(--theme-muted)]">{label}</span>
-                      </span>
-                    )
-                  })}
-                </div>
-                <div className="flex items-center gap-3 text-[10px] text-[var(--theme-muted)]">
-                  {oldestSecs != null && oldestSecs > 0 && (
-                    <span>oldest ready: {fmtAge(oldestSecs)} ago</span>
-                  )}
-                  {oldestRunningSecs != null && oldestRunningSecs > 0 && (
-                    <span>oldest running: {fmtAge(oldestRunningSecs)} ago</span>
-                  )}
+        {/* Global stripe — 5-pip legend + progress bar */}
+        {statsQuery.isLoading && !statsQuery.data ? (
+          <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] px-4 py-2.5 h-9 animate-pulse" />
+        ) : statsQuery.data ? (() => {
+          const counts = statsQuery.data.by_status ?? {}
+          const globalTotal = Object.values(counts).reduce<number>((acc, n) => acc + (typeof n === 'number' ? n : 0), 0)
+          const globalDone = typeof counts.done === 'number' ? counts.done : 0
+          const globalRun = typeof counts.running === 'number' ? counts.running : 0
+          const globalTodo = typeof counts.todo === 'number' ? counts.todo : 0
+          const globalBacklog = (typeof counts.triage === 'number' ? counts.triage : 0) + (typeof counts.ready === 'number' ? counts.ready : 0)
+          const globalBlocked = typeof counts.blocked === 'number' ? counts.blocked : 0
+          const globalPct = globalTotal > 0 ? Math.round((globalDone / globalTotal) * 100) : 0
+          return (
+            <div className="tk-global-stripe">
+              <span className="gs-lbl">Global</span>
+              <div className="gs-pips">
+                <span className="pip-item"><span className="pip done" /><span className="pip-ct">{globalDone}</span>&nbsp;Done</span>
+                <span className="pip-item"><span className="pip run" /><span className="pip-ct">{globalRun}</span>&nbsp;Run</span>
+                <span className="pip-item"><span className="pip todo" /><span className="pip-ct">{globalTodo}</span>&nbsp;Todo</span>
+                <span className="pip-item"><span className="pip bk" /><span className="pip-ct">{globalBacklog}</span>&nbsp;Backlog</span>
+                <span className="pip-item"><span className="pip bl" /><span className="pip-ct">{globalBlocked}</span>&nbsp;Blocked</span>
+              </div>
+              <div className="gs-right">
+                <span className="gs-pct">{globalPct}%</span>
+                <div className="gs-bar">
+                  <i style={{ width: `${globalPct}%` }} />
                 </div>
               </div>
-            )
-          })() : null
-        ) : (
-          <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] px-4 py-2.5 h-9 animate-pulse" />
+            </div>
+          )
+        })() : null}
+
+        {/* Swim / Time placeholders */}
+        {activeView === 'swim' && (
+          <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] px-6 py-12 text-center text-sm text-[var(--theme-muted)]">
+            Swim lane view — Coming in P4
+          </div>
+        )}
+        {activeView === 'time' && (
+          <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] px-6 py-12 text-center text-sm text-[var(--theme-muted)]">
+            Timeline view — Coming in P5
+          </div>
         )}
 
         {/* Board */}
-        <div
+        {activeView === 'board' && <div
           className="mx-auto flex w-full max-w-[1200px] flex-1 gap-3 overflow-x-auto overflow-y-hidden min-h-0"
           style={{ boxShadow: 'inset 0 8px 24px rgba(0,0,0,0.2)' }}
         >
@@ -873,7 +882,7 @@ export function TasksScreen() {
               </div>
             )
           })}
-        </div>
+        </div>}
 
         {/* Create dialog */}
         <TaskDialog
@@ -892,6 +901,15 @@ export function TasksScreen() {
           <TaskDetailDrawer
             task={editingTask}
             onClose={() => setEditingTask(null)}
+          />
+        )}
+
+        {/* Done-list drawer — opened by clicking Done stat cell */}
+        {showDoneList && (
+          <TaskDetailDrawer
+            mode="list"
+            listTasks={(doneTasksQuery.data ?? []).filter((t) => t.status === 'done')}
+            onClose={() => setShowDoneList(false)}
           />
         )}
 

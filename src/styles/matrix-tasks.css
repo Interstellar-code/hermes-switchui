@@ -1,0 +1,260 @@
+/* matrix-tasks.css — scoped to [data-screen="tasks"] to prevent token bleed */
+
+[data-screen="tasks"] {
+  /* ── top stat row ── */
+  .tk-stat-row {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 0 18px;
+    border-left: 1px solid var(--m-border-subtle, var(--theme-border));
+    height: 100%;
+  }
+
+  .tk-stat-row .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    line-height: 1.1;
+    cursor: default;
+  }
+
+  .tk-stat-row .stat.clickable {
+    cursor: pointer;
+  }
+
+  .tk-stat-row .stat.clickable:hover .v {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .tk-stat-row .stat .v {
+    font: 600 13px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text-strong, var(--theme-text));
+  }
+
+  .tk-stat-row .stat .v.ok { color: var(--m-green-500, #00ff41); }
+  .tk-stat-row .stat .v.warn { color: var(--m-amber, #ffb454); }
+  .tk-stat-row .stat .v.cyan { color: var(--m-cyan, #5ad3ff); }
+  .tk-stat-row .stat .v.violet { color: var(--m-violet, #b07cff); }
+
+  .tk-stat-row .stat .l {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+
+  /* ── global stripe ── */
+  .tk-global-stripe {
+    margin: 10px 0 0;
+    padding: 10px 16px;
+    border: 1px solid var(--m-border-subtle, var(--theme-border));
+    border-radius: 8px;
+    background:
+      linear-gradient(90deg, rgba(0, 255, 65, 0.02), transparent 60%),
+      var(--m-panel, var(--theme-card));
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 18px;
+    align-items: center;
+  }
+
+  .tk-global-stripe .gs-lbl {
+    font: 600 10px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+
+  .tk-global-stripe .gs-pips {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    font: 500 11px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text-muted, var(--theme-muted));
+    flex-wrap: wrap;
+  }
+
+  .tk-global-stripe .gs-pips .pip-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .tk-global-stripe .gs-pips .pip {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .tk-global-stripe .gs-pips .pip.done {
+    background: var(--m-green-500, #00ff41);
+    box-shadow: 0 0 6px var(--m-green-500, #00ff41);
+  }
+
+  .tk-global-stripe .gs-pips .pip.run {
+    background: var(--m-amber, #ffb454);
+    box-shadow: 0 0 6px var(--m-amber, #ffb454);
+  }
+
+  .tk-global-stripe .gs-pips .pip.todo {
+    background: var(--m-cyan, #5ad3ff);
+    box-shadow: 0 0 6px var(--m-cyan, #5ad3ff);
+  }
+
+  .tk-global-stripe .gs-pips .pip.bk {
+    background: var(--m-violet, #b07cff);
+    box-shadow: 0 0 6px var(--m-violet, #b07cff);
+  }
+
+  .tk-global-stripe .gs-pips .pip.bl {
+    background: var(--m-pink, #ff5fa2);
+    box-shadow: 0 0 6px var(--m-pink, #ff5fa2);
+  }
+
+  .tk-global-stripe .gs-pips .pip-ct {
+    color: var(--m-text-strong, var(--theme-text));
+    font-weight: 600;
+  }
+
+  .tk-global-stripe .gs-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .tk-global-stripe .gs-pct {
+    font: 600 11px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-green-500, #00ff41);
+    white-space: nowrap;
+  }
+
+  .tk-global-stripe .gs-bar {
+    width: 220px;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--m-border-subtle, var(--theme-border));
+    overflow: hidden;
+    position: relative;
+  }
+
+  .tk-global-stripe .gs-bar > i {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: var(--m-green-500, #00ff41);
+    box-shadow: 0 0 8px var(--m-green-500, #00ff41);
+    animation: tk-shimmer 2s ease-in-out infinite;
+  }
+
+  /* ── view toggle segmented control ── */
+  .tk-view-seg {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid var(--m-border, var(--theme-border));
+    border-radius: 6px;
+    background: var(--m-fill-subtle, var(--theme-card));
+    overflow: hidden;
+    height: 30px;
+  }
+
+  .tk-view-seg button {
+    background: transparent;
+    border: none;
+    color: var(--m-text-muted, var(--theme-muted));
+    font: 500 10px var(--m-font-mono, ui-monospace, monospace);
+    padding: 0 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-right: 1px solid var(--m-border-subtle, var(--theme-border));
+  }
+
+  .tk-view-seg button:last-child {
+    border-right: none;
+  }
+
+  .tk-view-seg button.active {
+    color: var(--m-green-500, #00ff41);
+    background: rgba(0, 255, 65, 0.08);
+    box-shadow: inset 0 -1px 0 var(--m-green-500, #00ff41);
+  }
+
+  .tk-view-seg button:hover:not(.active) {
+    color: var(--theme-text);
+  }
+
+  /* ── done task list panel ── */
+  .tk-done-list {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .tk-done-list .dl-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--theme-border);
+  }
+
+  .tk-done-list .dl-head h2 {
+    margin: 0;
+    font: 600 13px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--m-green-500, #00ff41);
+  }
+
+  .tk-done-list .dl-rows {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+
+  .tk-done-list .dl-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 20px;
+    cursor: pointer;
+    transition: background 0.12s;
+    border-bottom: 1px solid var(--theme-border, rgba(255,255,255,0.06));
+  }
+
+  .tk-done-list .dl-row:hover {
+    background: var(--theme-hover);
+  }
+
+  .tk-done-list .dl-row .dl-title {
+    font-size: 13px;
+    color: var(--theme-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tk-done-list .dl-row .dl-assignee {
+    font-size: 11px;
+    color: var(--theme-muted);
+    white-space: nowrap;
+  }
+
+  .tk-done-list .dl-row .dl-time {
+    font: 500 10px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-green-500, #00ff41);
+    white-space: nowrap;
+  }
+}
+
+@keyframes tk-shimmer {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}

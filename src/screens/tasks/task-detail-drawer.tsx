@@ -94,8 +94,11 @@ function relativeTime(epochSeconds: number): string {
 }
 
 type Props = {
-  task: HermesKanbanTask
+  task?: HermesKanbanTask
   onClose: () => void
+  /** list mode: show a scrollable list of done tasks, click row → detail */
+  mode?: 'detail' | 'list'
+  listTasks?: Array<HermesKanbanTask>
 }
 
 function HeaderMetaStrip({ td }: { td: HermesKanbanTask }) {
@@ -130,71 +133,133 @@ function HeaderMetaStrip({ td }: { td: HermesKanbanTask }) {
   )
 }
 
-export function TaskDetailDrawer({ task, onClose }: Props) {
+export function TaskDetailDrawer({ task: taskProp, onClose, mode = 'detail', listTasks = [] }: Props) {
   const [activeTab, setActiveTab] = useState<DrawerTab>('overview')
   const queryClient = useQueryClient()
   const [archiving, setArchiving] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const isArchived = task.status === 'archived'
+  // list mode: which task is selected for detail view (null = show list)
+  const [listSelectedTask, setListSelectedTask] = useState<HermesKanbanTask | null>(null)
+
+  // In list mode with no task selected, we show the list panel
+  const task = (mode === 'list' ? listSelectedTask : taskProp) ?? taskProp
+  const showList = mode === 'list' && listSelectedTask === null
+
+  const isArchived = task?.status === 'archived'
 
   async function handleArchive() {
-    if (archiving) return
+    if (archiving || !task) return
     setArchiving(true)
     try {
       await deleteTask(task.id)
       await queryClient.invalidateQueries({ queryKey: ['claude', 'tasks'] })
-      onClose()
+      if (mode === 'list') setListSelectedTask(null)
+      else onClose()
     } finally {
       setArchiving(false)
     }
   }
 
   async function handleHardDelete() {
-    if (deleting) return
+    if (deleting || !task) return
     setDeleting(true)
     try {
       await hardDeleteTask(task.id)
       await queryClient.invalidateQueries({ queryKey: ['claude', 'tasks'] })
-      onClose()
+      if (mode === 'list') setListSelectedTask(null)
+      else onClose()
     } finally {
       setDeleting(false)
     }
   }
 
   const detailQuery = useQuery<HermesKanbanTaskDetail>({
-    queryKey: ['hermes-kanban', 'task', task.id],
+    queryKey: ['hermes-kanban', 'task', task?.id ?? '__none__'],
     queryFn: async () => {
+      if (!task) throw new Error('No task')
       const res = await fetch(`/api/hermes-kanban/tasks/${task.id}`)
       if (!res.ok) throw new Error(`Failed to load task: ${res.status}`)
       return res.json() as Promise<HermesKanbanTaskDetail>
     },
     staleTime: 30_000,
+    enabled: !!task && !showList,
   })
 
   const logQuery = useQuery({
-    queryKey: ['hermes-kanban', 'task', task.id, 'log'],
+    queryKey: ['hermes-kanban', 'task', task?.id ?? '__none__', 'log'],
     queryFn: async () => {
+      if (!task) throw new Error('No task')
       const res = await fetch(`/api/hermes-kanban/tasks/${task.id}/log?tail=100`)
       if (!res.ok) throw new Error(`Log unavailable: ${res.status}`)
       return res.json() as Promise<LogResponse>
     },
-    enabled: activeTab === 'log',
+    enabled: activeTab === 'log' && !!task && !showList,
     staleTime: 10_000,
   })
 
   const detail = detailQuery.data
 
   return (
-    <div className="fixed inset-0 z-40 flex items-stretch justify-end py-3 pr-3">
+    <div className="fixed inset-0 z-40 flex items-stretch justify-end py-3 pr-3" data-screen="tasks">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       {/* Drawer — floats with rounded corners */}
       <div className="relative z-10 flex h-full w-full max-w-xl flex-col bg-[var(--theme-card)] border border-[var(--theme-border)] shadow-2xl rounded-2xl overflow-hidden">
+
+        {/* ── LIST MODE ── */}
+        {showList && (
+          <div className="tk-done-list flex flex-col h-full">
+            <div className="dl-head">
+              <h2 className="dl-head-title" style={{ margin: 0, font: '600 13px ui-monospace, monospace', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--m-green-500, #00ff41)' }}>
+                Done tasks ({listTasks.length})
+              </h2>
+              <button
+                onClick={onClose}
+                className="rounded-md p-1.5 hover:bg-[var(--theme-hover)] transition-colors"
+                title="Close"
+              >
+                <HugeiconsIcon icon={Cancel01Icon} size={15} className="text-[var(--theme-muted)]" />
+              </button>
+            </div>
+            <div className="dl-rows flex-1 overflow-y-auto">
+              {listTasks.length === 0 && (
+                <p className="px-5 py-8 text-sm text-[var(--theme-muted)] text-center">No done tasks</p>
+              )}
+              {listTasks.map((t) => (
+                <div
+                  key={t.id}
+                  className="dl-row"
+                  onClick={() => setListSelectedTask(t)}
+                >
+                  <span className="dl-title">{t.title}</span>
+                  <span className="dl-assignee">{t.assignee ?? ''}</span>
+                  {t.completed_at ? (
+                    <span className="dl-time">{relativeTime(t.completed_at)}</span>
+                  ) : (
+                    <span className="dl-time" />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── DETAIL MODE (or list-mode with task selected) ── */}
+        {!showList && task && (
+        <>
         {/* Header */}
         <div className="flex flex-col gap-1.5 border-b border-[var(--theme-border)] px-5 pt-3 pb-3">
           {/* Top row: task ID + actions */}
           <div className="flex items-center justify-between gap-2">
+            {mode === 'list' && (
+              <button
+                onClick={() => setListSelectedTask(null)}
+                className="text-[10px] text-[var(--theme-accent)] hover:underline mr-2 shrink-0"
+              >
+                ← Back
+              </button>
+            )}
             <p className="text-[10px] font-mono text-[var(--theme-muted)] truncate">{task.id}</p>
             <div className="flex items-center gap-1 shrink-0">
               {isArchived ? (
@@ -296,6 +361,8 @@ export function TaskDetailDrawer({ task, onClose }: Props) {
             </>
           )}
         </div>
+        </>
+        )}
       </div>
     </div>
   )
@@ -726,14 +793,6 @@ function OverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesK
   )
 }
 
-function MetaField({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-[var(--theme-muted)] uppercase tracking-wide text-[9px] mb-0.5">{label}</p>
-      <p className="text-[var(--theme-text)] break-words text-xs">{value}</p>
-    </div>
-  )
-}
 
 function CommentsTab({ detail, taskId }: { detail: HermesKanbanTaskDetail; taskId: string }) {
   const [body, setBody] = useState('')
