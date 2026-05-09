@@ -742,7 +742,7 @@ export function TasksScreen() {
           const globalTodo = typeof counts.todo === 'number' ? counts.todo : 0
           const globalBacklog = (typeof counts.triage === 'number' ? counts.triage : 0) + (typeof counts.ready === 'number' ? counts.ready : 0)
           const globalBlocked = typeof counts.blocked === 'number' ? counts.blocked : 0
-          const globalPct = globalTotal > 0 ? Math.round((globalDone / globalTotal) * 100) : 0
+          const globalPct = globalTotal > 0 ? Math.round((globalDone / globalTotal) * 1000) / 10 : 0
           return (
             <div className="tk-global-stripe">
               <span className="gs-lbl">Global</span>
@@ -826,7 +826,7 @@ export function TasksScreen() {
                     <span>Queued · will auto-dispatch</span>
                   )}
                   {status === 'running' && (
-                    <><span><b>{runningLive}</b> Live</span><span>WIP <b>{runningLive}/6</b></span></>
+                    <><span><b>{runningLive}</b> Live</span><span>Tok/min —</span><span>WIP <b>{runningLive}/6</b></span></>
                   )}
                   {status === 'blocked' && (
                     <span>Needs attention · set block reason</span>
