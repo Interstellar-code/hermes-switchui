@@ -208,6 +208,7 @@ export function TasksScreen() {
       localStorage.setItem(COLS_KEY, JSON.stringify({
         done: showDone, archived: showArchived,
         triage: showTriage, blocked: showBlocked,
+        migrated_v2: true,
       }))
     } catch { /* storage quota / private-mode — silently ignore */ }
   }, [showDone, showArchived, showTriage, showBlocked])
@@ -576,15 +577,43 @@ export function TasksScreen() {
 
       {/* ── Action bar (TS-04 / AB-01..04) ── */}
       <div className="actbar">
-        {/* AB-02: left — title + sub line */}
-        <div>
+        {/* AB-02: left — title + global stripe + hint row */}
+        <div className="actbar-left">
           <h1>Tasks</h1>
+          {/* Global stripe inline — 5-pip legend + progress bar */}
+          {statsQuery.isLoading ? (
+            <div className="actbar-stripe-skeleton" />
+          ) : statsQuery.data ? (() => {
+            const counts = statsQuery.data.by_status ?? {}
+            const globalTotal = Object.values(counts).reduce<number>((acc, n) => acc + (typeof n === 'number' ? n : 0), 0)
+            const globalDone = typeof counts.done === 'number' ? counts.done : 0
+            const globalRun = typeof counts.running === 'number' ? counts.running : 0
+            const globalTodo = typeof counts.todo === 'number' ? counts.todo : 0
+            const globalBacklog = (typeof counts.triage === 'number' ? counts.triage : 0) + (typeof counts.ready === 'number' ? counts.ready : 0)
+            const globalBlocked = typeof counts.blocked === 'number' ? counts.blocked : 0
+            const globalPct = globalTotal > 0 ? Math.round((globalDone / globalTotal) * 1000) / 10 : 0
+            return (
+              <div className="actbar-stripe">
+                <span className="gs-lbl">Global · {globalTotal} Total</span>
+                <div className="gs-pips">
+                  <span className="pip-item"><span className="pip done" /><span className="pip-ct">{globalDone}</span>&nbsp;Done</span>
+                  <span className="pip-item"><span className="pip run" /><span className="pip-ct">{globalRun}</span>&nbsp;Run</span>
+                  <span className="pip-item"><span className="pip todo" /><span className="pip-ct">{globalTodo}</span>&nbsp;Todo</span>
+                  <span className="pip-item"><span className="pip bk" /><span className="pip-ct">{globalBacklog}</span>&nbsp;Backlog</span>
+                  <span className="pip-item"><span className="pip bl" /><span className="pip-ct">{globalBlocked}</span>&nbsp;Blocked</span>
+                </div>
+                <div className="gs-right">
+                  <span className="gs-pct">{globalPct}%</span>
+                  <div className="gs-bar">
+                    <i style={{ width: `${globalPct}%` }} />
+                  </div>
+                </div>
+              </div>
+            )
+          })() : null}
+          {/* Hint + active filter chip */}
           <div className="sub">
-            <span><span className="v">{stats.total}</span> total</span>
-            <span className="dot" aria-hidden="true" />
-            <span><span className="v run">{stats.running}</span> running</span>
-            <span className="dot" aria-hidden="true" />
-            <span><span className="v ok">{stats.completion}%</span> done</span>
+            <span>Drag cards to change status — open a card to set assignee &amp; due date</span>
             {(assigneeFilter || tenantFilter) && (
               <>
                 <span className="dot" aria-hidden="true" />
@@ -602,8 +631,6 @@ export function TasksScreen() {
                 </button>
               </>
             )}
-            <span className="dot" aria-hidden="true" />
-            <span>Drag cards to change status — open a card to set assignee &amp; due date</span>
           </div>
         </div>
 
@@ -807,38 +834,6 @@ export function TasksScreen() {
             </div>
           </div>
         )}
-
-        {/* Global stripe — 5-pip legend + progress bar */}
-        {statsQuery.isLoading ? (
-          <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] px-4 py-2.5 h-9 animate-pulse" />
-        ) : statsQuery.data ? (() => {
-          const counts = statsQuery.data.by_status ?? {}
-          const globalTotal = Object.values(counts).reduce<number>((acc, n) => acc + (typeof n === 'number' ? n : 0), 0)
-          const globalDone = typeof counts.done === 'number' ? counts.done : 0
-          const globalRun = typeof counts.running === 'number' ? counts.running : 0
-          const globalTodo = typeof counts.todo === 'number' ? counts.todo : 0
-          const globalBacklog = (typeof counts.triage === 'number' ? counts.triage : 0) + (typeof counts.ready === 'number' ? counts.ready : 0)
-          const globalBlocked = typeof counts.blocked === 'number' ? counts.blocked : 0
-          const globalPct = globalTotal > 0 ? Math.round((globalDone / globalTotal) * 1000) / 10 : 0
-          return (
-            <div className="tk-global-stripe">
-              <span className="gs-lbl">Global · {globalTotal} Total</span>
-              <div className="gs-pips">
-                <span className="pip-item"><span className="pip done" /><span className="pip-ct">{globalDone}</span>&nbsp;Done</span>
-                <span className="pip-item"><span className="pip run" /><span className="pip-ct">{globalRun}</span>&nbsp;Run</span>
-                <span className="pip-item"><span className="pip todo" /><span className="pip-ct">{globalTodo}</span>&nbsp;Todo</span>
-                <span className="pip-item"><span className="pip bk" /><span className="pip-ct">{globalBacklog}</span>&nbsp;Backlog</span>
-                <span className="pip-item"><span className="pip bl" /><span className="pip-ct">{globalBlocked}</span>&nbsp;Blocked</span>
-              </div>
-              <div className="gs-right">
-                <span className="gs-pct">{globalPct}%</span>
-                <div className="gs-bar">
-                  <i style={{ width: `${globalPct}%` }} />
-                </div>
-              </div>
-            </div>
-          )
-        })() : null}
 
         {/* Swim view */}
         {activeView === 'swim' && (

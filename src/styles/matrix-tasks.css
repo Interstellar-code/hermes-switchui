@@ -894,7 +894,7 @@
   .actbar {
     display: grid;
     grid-template-columns: 1fr auto;
-    align-items: end;
+    align-items: center;
     gap: 18px;
     padding: 16px 22px 12px;
     border-bottom: 1px solid var(--m-border-subtle, var(--theme-border));
@@ -904,6 +904,13 @@
     top: 56px;
     z-index: 19;
   }
+  /* AB-02: left column */
+  .actbar-left {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
   /* AB-02: heading */
   .actbar h1 {
     margin: 0;
@@ -912,8 +919,90 @@
     text-shadow: var(--m-text-glow, none);
     letter-spacing: -.5px;
   }
+  /* AB-02: inline global stripe */
+  .actbar-stripe {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 14px;
+    align-items: center;
+    padding: 7px 14px;
+    border: 1px solid var(--m-border-subtle, var(--theme-border));
+    border-radius: 8px;
+    background:
+      linear-gradient(90deg, rgba(0, 255, 65, 0.02), transparent 60%),
+      var(--m-panel, var(--theme-card));
+  }
+  .actbar-stripe-skeleton {
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid var(--m-border-subtle, var(--theme-border));
+    background: var(--m-panel, var(--theme-card));
+    animation: tk-shimmer 2s ease-in-out infinite;
+  }
+  /* gs-* reused under actbar-stripe */
+  .actbar-stripe .gs-lbl {
+    font: 600 10px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--m-text-faint, var(--theme-muted));
+    white-space: nowrap;
+  }
+  .actbar-stripe .gs-pips {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    font: 500 11px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text-muted, var(--theme-muted));
+    flex-wrap: wrap;
+  }
+  .actbar-stripe .gs-pips .pip-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .actbar-stripe .gs-pips .pip {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+  .actbar-stripe .gs-pips .pip.done { background: var(--m-green-500, #00ff41); box-shadow: 0 0 6px var(--m-green-500, #00ff41); }
+  .actbar-stripe .gs-pips .pip.run  { background: var(--m-amber, #ffb454);     box-shadow: 0 0 6px var(--m-amber, #ffb454); }
+  .actbar-stripe .gs-pips .pip.todo { background: var(--m-cyan, #5ad3ff);      box-shadow: 0 0 6px var(--m-cyan, #5ad3ff); }
+  .actbar-stripe .gs-pips .pip.bk   { background: var(--m-violet, #b07cff);   box-shadow: 0 0 6px var(--m-violet, #b07cff); }
+  .actbar-stripe .gs-pips .pip.bl   { background: var(--m-pink, #ff5fa2);     box-shadow: 0 0 6px var(--m-pink, #ff5fa2); }
+  .actbar-stripe .gs-pips .pip-ct { color: var(--m-text-strong, var(--theme-text)); font-weight: 600; }
+  .actbar-stripe .gs-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .actbar-stripe .gs-pct {
+    font: 600 11px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-green-500, #00ff41);
+    white-space: nowrap;
+  }
+  .actbar-stripe .gs-bar {
+    width: 180px;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--m-border-subtle, var(--theme-border));
+    overflow: hidden;
+    position: relative;
+  }
+  .actbar-stripe .gs-bar > i {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: var(--m-green-500, #00ff41);
+    box-shadow: 0 0 8px var(--m-green-500, #00ff41);
+    animation: tk-shimmer 2s ease-in-out infinite;
+  }
   .actbar .sub {
-    margin-top: 4px;
+    margin-top: 0;
     font: 500 11px var(--m-font-mono, ui-monospace, monospace);
     color: var(--m-text-faint, var(--theme-muted));
     letter-spacing: .15em;
@@ -930,9 +1019,6 @@
     background: var(--m-text-ghost, var(--theme-muted));
     flex-shrink: 0;
   }
-  .actbar .sub .v     { color: var(--m-text-strong, var(--theme-text)); font-weight: 600; }
-  .actbar .sub .v.ok  { color: var(--m-green-500, #00ff41); }
-  .actbar .sub .v.run { color: var(--m-amber, #ffb454); }
 
   /* AB-03: tools row */
   .actbar .tools {
