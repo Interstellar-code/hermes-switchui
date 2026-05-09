@@ -29,18 +29,17 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { TaskCard } from './task-card'
 import { TaskDialog } from './task-dialog'
 import { TaskDetailDrawer } from './task-detail-drawer'
 import { SwimView } from './swim-view'
 import { TimelineView } from './timeline-view'
-import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
-import type { ClaudeTask, TaskAssignee, TaskColumn } from '@/lib/tasks-api'
-import type { HermesKanbanStatus } from '@/lib/hermes-kanban-types'
 import type { TaskDialogSubmit } from './task-dialog'
-import { useKanbanEvents } from '@/hooks/use-kanban-events'
-import { toast } from '@/components/ui/toast'
-import { cn } from '@/lib/utils'
+import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
+import type { HermesKanbanStatus } from '@/lib/hermes-kanban-types'
+import type { ClaudeTask, TaskAssignee, TaskColumn } from '@/lib/tasks-api'
+import { HERMES_KANBAN_VISIBLE_STATUS_ORDER } from '@/lib/hermes-kanban-types'
 import {
   COLUMN_COLORS,
   COLUMN_LABELS,
@@ -52,8 +51,10 @@ import {
   moveTask,
   updateTask,
 } from '@/lib/tasks-api'
-import { HERMES_KANBAN_VISIBLE_STATUS_ORDER } from '@/lib/hermes-kanban-types'
 import { unionAssigneesWithProfiles } from '@/lib/assignee-profile-union'
+import { useKanbanEvents } from '@/hooks/use-kanban-events'
+import { toast } from '@/components/ui/toast'
+import { cn } from '@/lib/utils'
 
 const KANBAN_BASE = '/api/hermes-kanban'
 
@@ -76,7 +77,7 @@ function DroppableColumn({
   children: React.ReactNode
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status })
-  const label = COLUMN_LABELS[status as keyof typeof COLUMN_LABELS] ?? status
+  const label = COLUMN_LABELS[status as keyof typeof COLUMN_LABELS]
   return (
     <div
       ref={setNodeRef}
@@ -270,9 +271,9 @@ export function TasksScreen() {
       archived: [],
     }
     for (const t of tasks) {
-      const status = (t.status) ?? 'triage'
+      const status = t.status
       if (assigneeFilter && t.assignee !== assigneeFilter) continue
-      if (map[status]) map[status].push(t)
+      map[status].push(t)
     }
     return map
   }, [tasks, assigneeFilter])
@@ -379,7 +380,7 @@ export function TasksScreen() {
   // ── @dnd-kit sensors ──────────────────────────────────────────────────────
   const dndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
   function handleDndDragStart(event: DragStartEvent) {
@@ -530,11 +531,11 @@ export function TasksScreen() {
                   <span className="l">Running</span>
                 </div>
                 <div className="stat">
-                  <span className="v cyan">{tasksByStatus.todo?.length ?? 0}</span>
+                  <span className="v cyan">{tasksByStatus.todo.length}</span>
                   <span className="l">Todo</span>
                 </div>
                 <div className="stat">
-                  <span className="v violet">{tasksByStatus.triage?.length ?? 0}</span>
+                  <span className="v violet">{tasksByStatus.triage.length}</span>
                   <span className="l">Backlog</span>
                 </div>
                 <div className="stat">
@@ -741,7 +742,7 @@ export function TasksScreen() {
         )}
 
         {/* Global stripe — 5-pip legend + progress bar */}
-        {statsQuery.isLoading && !statsQuery.data ? (
+        {statsQuery.isLoading ? (
           <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] px-4 py-2.5 h-9 animate-pulse" />
         ) : statsQuery.data ? (() => {
           const counts = statsQuery.data.by_status ?? {}
@@ -798,7 +799,7 @@ export function TasksScreen() {
         <div className="board">
           <div className="board-grid">
           {visibleStatuses.map((status) => {
-            const colTasks = tasksByStatus[status] ?? []
+            const colTasks = tasksByStatus[status]
             const colColor = COLUMN_COLORS[status]
             const colLabel = COLUMN_LABELS[status]
             const unassigned = colTasks.filter((t) => !t.assignee).length

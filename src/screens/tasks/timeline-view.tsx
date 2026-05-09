@@ -4,7 +4,7 @@ import type { ClaudeTask } from '@/lib/tasks-api'
 import { COLUMN_COLORS } from '@/lib/tasks-api'
 
 interface TimelineViewProps {
-  tasks: ClaudeTask[]
+  tasks: Array<ClaudeTask>
   onCardClick: (task: ClaudeTask) => void
 }
 
@@ -104,7 +104,7 @@ export function TimelineView({ tasks, onCardClick }: TimelineViewProps) {
           <div className="tl-empty">No active tasks to display</div>
         )}
         {visibleTasks.map((task) => {
-          const colColor = COLUMN_COLORS[task.status] ?? '#6b7280'
+          const colColor = COLUMN_COLORS[task.status]
           const bar = computeBar(task, now)
           const statusLabel = task.status.charAt(0).toUpperCase() + task.status.slice(1)
           const pctDisplay = task.progress

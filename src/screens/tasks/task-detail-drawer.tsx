@@ -1,27 +1,28 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Cancel01Icon, HierarchyIcon, CpuIcon, Alert02Icon } from '@hugeicons/core-free-icons'
-import { cn } from '@/lib/utils'
-import {
-  kanbanPriorityLabel,
-  kanbanPriorityColor,
-  HERMES_KANBAN_STATUS_LABELS,
-  HERMES_KANBAN_VISIBLE_STATUS_ORDER,
-} from '@/lib/hermes-kanban-types'
-import type { HermesKanbanTask, HermesKanbanTaskDetail, HermesKanbanStatus } from '@/lib/hermes-kanban-types'
-import { updateTask, fetchAssignees, fetchTasks, addLink, removeLink, createTask, deleteTask, hardDeleteTask, COLUMN_COLORS, fetchHomeChannels, subscribeHomeChannel, unsubscribeHomeChannel } from '@/lib/tasks-api'
-import type { HomeChannel } from '@/lib/tasks-api'
-import { unionAssigneesWithProfiles } from '@/lib/assignee-profile-union'
+import { Alert02Icon, Cancel01Icon, CpuIcon, HierarchyIcon } from '@hugeicons/core-free-icons'
 import { TaskDialog } from './task-dialog'
 import type { TaskDialogSubmit } from './task-dialog'
+import type { HermesKanbanStatus, HermesKanbanTask, HermesKanbanTaskDetail } from '@/lib/hermes-kanban-types'
+import type { HomeChannel } from '@/lib/tasks-api'
+import {
+  HERMES_KANBAN_STATUS_LABELS,
+  HERMES_KANBAN_VISIBLE_STATUS_ORDER,
+  kanbanPriorityColor,
+  kanbanPriorityLabel,
+} from '@/lib/hermes-kanban-types'
+import { COLUMN_COLORS, addLink, createTask, deleteTask, fetchAssignees, fetchHomeChannels, fetchTasks, hardDeleteTask, removeLink, subscribeHomeChannel, unsubscribeHomeChannel, updateTask } from '@/lib/tasks-api'
+import { unionAssigneesWithProfiles } from '@/lib/assignee-profile-union'
+import { cn } from '@/lib/utils'
+
 
 type LogResponse = { log: { content: string; exists: boolean; truncated: boolean; size_bytes: number } }
 
 /** Normalise the skills field (string | string[] | null) → trimmed lowercase string[]. */
-function normaliseSkills(raw: Array<string> | string | null | undefined): string[] {
+function normaliseSkills(raw: Array<string> | string | null | undefined): Array<string> {
   if (!raw) return []
   if (Array.isArray(raw)) return raw.map(s => s.trim().toLowerCase()).filter(Boolean)
   return raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
@@ -109,7 +110,7 @@ function HeaderMetaStrip({ td }: { td: HermesKanbanTask }) {
   if (td.tenant) fields.push(['Tenant', td.tenant])
   if (td.max_runtime_seconds) fields.push(['Runtime', `${td.max_runtime_seconds}s`])
   if (td.result) fields.push(['Result', td.result])
-  const hasWarning = (td.spawn_failures ?? 0) > 0
+  const hasWarning = td.spawn_failures > 0
   if (fields.length === 0 && !hasWarning) return null
   return (
     <div className="flex flex-col gap-1 pt-1.5 border-t border-[var(--theme-border)]/40">
@@ -299,8 +300,8 @@ export function TaskDetailDrawer({ task: taskProp, onClose, mode = 'detail', lis
               {HERMES_KANBAN_STATUS_LABELS[task.status]}
             </span>
             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full text-white"
-              style={{ background: kanbanPriorityColor(task.priority ?? 0) }}>
-              {kanbanPriorityLabel(task.priority ?? 0)} priority
+              style={{ background: kanbanPriorityColor(task.priority) }}>
+              {kanbanPriorityLabel(task.priority)} priority
             </span>
             {task.assignee && (
               <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--theme-hover)] text-[var(--theme-muted)]">
@@ -327,7 +328,7 @@ export function TaskDetailDrawer({ task: taskProp, onClose, mode = 'detail', lis
               )}
             >
               {TAB_LABELS[tab]}
-              {tab === 'comments' && (detail?.comments?.length ?? 0) > 0 && (
+              {tab === 'comments' && (detail?.comments.length ?? 0) > 0 && (
                 <span className={cn('ml-1 text-[9px]', activeTab === tab ? 'opacity-70' : 'opacity-50')}>
                   {detail?.comments.length}
                 </span>
@@ -373,9 +374,9 @@ function SkillsCombobox({
   onChange,
   suggestions,
 }: {
-  selected: string[]
-  onChange: (skills: string[]) => void
-  suggestions: string[]
+  selected: Array<string>
+  onChange: (skills: Array<string>) => void
+  suggestions: Array<string>
 }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
@@ -459,13 +460,13 @@ function SkillsCombobox({
 }
 
 function OverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesKanbanTaskDetail }) {
-  const td = detail.task ?? task
+  const td = detail.task
   const queryClient = useQueryClient()
 
   const [title, setTitle] = useState(td.title)
   const [body, setBody] = useState(td.body ?? '')
   const [status, setStatus] = useState<HermesKanbanStatus>(td.status)
-  const [priority, setPriority] = useState<FormPriority>(numericToFormPriority(td.priority ?? 0))
+  const [priority, setPriority] = useState<FormPriority>(numericToFormPriority(td.priority))
   const [blockReason, setBlockReason] = useState(td.block_reason ?? '')
   const [summary, setSummary] = useState(td.summary ?? '')
   const [workspaceKind, setWorkspaceKind] = useState(td.workspace_kind ?? '')
@@ -492,7 +493,7 @@ function OverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesK
   )
   const [assignee, setAssignee] = useState(td.assignee ?? '')
 
-  const [skills, setSkills] = useState<string[]>(normaliseSkills(td.skills))
+  const [skills, setSkills] = useState<Array<string>>(normaliseSkills(td.skills))
 
   // Re-sync server-driven fields whenever the underlying task data refreshes
   // (e.g. after rescue actions, SSE-triggered board updates, or manual refetch).
@@ -504,7 +505,7 @@ function OverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesK
     setBlockReason(td.block_reason ?? '')
     setSummary(td.summary ?? '')
     setWorkspaceKind(td.workspace_kind ?? '')
-    setPriority(numericToFormPriority(td.priority ?? 0))
+    setPriority(numericToFormPriority(td.priority))
     setSaveError(null)
   }, [td.id, td.status, td.assignee, td.claim_lock, td.priority,
   td.block_reason, td.summary, td.workspace_kind])
@@ -532,7 +533,7 @@ function OverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesK
     title !== td.title ||
     body !== (td.body ?? '') ||
     status !== td.status ||
-    formPriorityToNumeric(priority) !== (td.priority ?? 0) ||
+    formPriorityToNumeric(priority) !== td.priority ||
     blockReason !== (td.block_reason ?? '') ||
     summary !== (td.summary ?? '') ||
     assignee !== (td.assignee ?? '') ||
@@ -541,7 +542,7 @@ function OverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesK
     JSON.stringify([...skills].sort()) !== JSON.stringify([...initialSkills].sort())
 
   // Detected: task is in running state but the spawn failed
-  const isSpawnFailed = td.status === 'running' && ((td.spawn_failures ?? 0) > 0 || !!td.last_spawn_error)
+  const isSpawnFailed = td.status === 'running' && (td.spawn_failures > 0 || !!td.last_spawn_error)
   // Detected: gateway will refuse assignee/profile change while claim_lock is held
   const isClaimLocked = !!td.claim_lock && td.status === 'running'
 
@@ -605,7 +606,7 @@ function OverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesK
             <div className="min-w-0">
               <p className="text-xs font-semibold text-amber-300 mb-0.5">
                 {isSpawnFailed
-                  ? `Task stuck — spawn failed ${(td.spawn_failures ?? 0) > 0 ? `(${td.spawn_failures}×)` : ''}`
+                  ? `Task stuck — spawn failed ${td.spawn_failures > 0 ? `(${td.spawn_failures}×)` : ''}`
                   : 'Task appears claimed but worker may have died'}
               </p>
               {isSpawnFailed && td.last_spawn_error && (
@@ -882,7 +883,7 @@ function TaskCombobox({
   disabled,
 }: {
   placeholder: string
-  candidates: HermesKanbanTask[]
+  candidates: Array<HermesKanbanTask>
   onSelect: (task: HermesKanbanTask) => void
   disabled: boolean
 }) {
@@ -935,7 +936,7 @@ function TaskCombobox({
 function resolveLinked(
   raw: Array<HermesKanbanTask | string>,
   taskMap: Map<string, HermesKanbanTask>,
-): HermesKanbanTask[] {
+): Array<HermesKanbanTask> {
   return raw.map(entry => {
     if (typeof entry === 'string') {
       return taskMap.get(entry) ?? ({
@@ -971,7 +972,7 @@ function resolveLinked(
 }
 
 function DepsTab({ task, detail }: { task: HermesKanbanTask; detail: HermesKanbanTaskDetail }) {
-  const rawLinks = detail.links ?? { parents: [], children: [] }
+  const rawLinks = detail.links
   const queryClient = useQueryClient()
   const [linking, setLinking] = useState(false)
   const [dialogMode, setDialogMode] = useState<'blocker' | 'unblocks' | null>(null)
@@ -1173,9 +1174,9 @@ function NotificationsSection({ taskId, compact = false }: { taskId: string; com
 }
 
 function TaskRef({ task, onRemove }: { task: HermesKanbanTask; onRemove?: () => void }) {
-  const displayId = task.id ?? '???'
-  const displayTitle = task.title ?? displayId
-  const displayStatus = HERMES_KANBAN_STATUS_LABELS[task.status] ?? task.status ?? '—'
+  const displayId = task.id
+  const displayTitle = task.title
+  const displayStatus = HERMES_KANBAN_STATUS_LABELS[task.status]
   return (
     <div className="flex items-center gap-2 rounded-lg border border-[var(--theme-border)] px-3 py-2 mb-1.5 group">
       <span className="text-[10px] text-[var(--theme-muted)] font-mono shrink-0">{displayId.slice(0, 10)}</span>
@@ -1277,7 +1278,7 @@ function eventPayloadSummary(kind: string, payload: unknown): string | null {
   if (!payload || typeof payload !== 'object') return null
   const p = payload as Record<string, unknown>
   if (kind === 'created') {
-    const parts: string[] = []
+    const parts: Array<string> = []
     if (p.status) parts.push(`status: ${p.status}`)
     if (p.assignee) parts.push(`assignee: ${p.assignee}`)
     return parts.join(' · ') || null

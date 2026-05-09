@@ -62,11 +62,10 @@ export function TaskCard({
   const isStale =
     isRunning &&
     task.last_heartbeat_at !== null &&
-    task.last_heartbeat_at !== undefined &&
     Date.now() / 1000 - task.last_heartbeat_at > STALE_HEARTBEAT_MS / 1000
 
   const hasSpawnError =
-    (task.spawn_failures ?? 0) > 0 || !!task.last_spawn_error
+    task.spawn_failures > 0 || !!task.last_spawn_error
   const commentCount = task.comment_count ?? 0
   const linkParents = task.link_counts?.parents ?? 0
   const linkChildren = task.link_counts?.children ?? 0

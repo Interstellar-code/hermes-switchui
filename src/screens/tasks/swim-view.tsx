@@ -18,7 +18,7 @@ function avatarLetter(assigneeId: string | null): string {
 interface SwimRowProps {
   assigneeId: string | null
   label: string
-  tasks: ClaudeTask[]
+  tasks: Array<ClaudeTask>
   onCardClick: (task: ClaudeTask) => void
 }
 
@@ -26,7 +26,7 @@ function SwimRow({ assigneeId, label, tasks, onCardClick }: SwimRowProps) {
   const activeCount = tasks.filter((t) => t.status !== 'triage').length
   const runningCount = tasks.filter((t) => t.status === 'running').length
 
-  const tasksByStatus = SWIM_STATUSES.reduce<Record<SwimStatus, ClaudeTask[]>>(
+  const tasksByStatus = SWIM_STATUSES.reduce<Record<SwimStatus, Array<ClaudeTask>>>(
     (acc, s) => {
       acc[s] = tasks.filter((t) => t.status === s)
       return acc
@@ -82,14 +82,14 @@ function SwimRow({ assigneeId, label, tasks, onCardClick }: SwimRowProps) {
 }
 
 interface SwimViewProps {
-  tasks: ClaudeTask[]
+  tasks: Array<ClaudeTask>
   assigneeLabels: Record<string, string>
   onCardClick: (task: ClaudeTask) => void
 }
 
 export function SwimView({ tasks, assigneeLabels, onCardClick }: SwimViewProps) {
   // Group tasks by assignee
-  const byAssignee = new Map<string | null, ClaudeTask[]>()
+  const byAssignee = new Map<string | null, Array<ClaudeTask>>()
   for (const task of tasks) {
     const key = task.assignee ?? null
     const arr = byAssignee.get(key) ?? []
