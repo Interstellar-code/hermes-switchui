@@ -892,10 +892,9 @@
 
   /* ── action bar (TS-04 / AB-01) ── */
   .actbar {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    gap: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
     padding: 16px 22px 12px;
     border-bottom: 1px solid var(--m-border-subtle, var(--theme-border));
     background: var(--m-sidebar, var(--theme-card));
@@ -904,11 +903,13 @@
     top: 56px;
     z-index: 19;
   }
-  /* AB-02: left column */
-  .actbar-left {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+  /* AB-02/03: header row */
+  .actbar-header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 18px;
+    width: 100%;
     min-width: 0;
   }
   /* AB-02: heading */
@@ -919,10 +920,10 @@
     text-shadow: var(--m-text-glow, none);
     letter-spacing: -.5px;
   }
-  /* AB-02: inline global stripe */
+  /* AB-02: full-width global stripe */
   .actbar-stripe {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto 1fr auto;
     gap: 18px;
     align-items: center;
     width: 100%;
@@ -992,7 +993,7 @@
     white-space: nowrap;
   }
   .actbar-stripe .gs-bar {
-    width: 180px;
+    width: 220px;
     height: 6px;
     border-radius: 3px;
     background: rgba(255, 255, 255, 0.06);

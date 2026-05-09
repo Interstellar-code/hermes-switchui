@@ -577,86 +577,33 @@ export function TasksScreen() {
 
       {/* ── Action bar (TS-04 / AB-01..04) ── */}
       <div className="actbar">
-        {/* AB-02: left — title + global stripe + hint row */}
-        <div className="actbar-left">
+        {/* AB-02/03: header — title + tools row */}
+        <div className="actbar-header">
           <h1>Tasks</h1>
-          {/* Global stripe inline — 5-pip legend + progress bar */}
-          {statsQuery.isLoading ? (
-            <div className="actbar-stripe-skeleton" />
-          ) : statsQuery.data ? (() => {
-            const counts = statsQuery.data.by_status ?? {}
-            const globalTotal = Object.values(counts).reduce<number>((acc, n) => acc + (typeof n === 'number' ? n : 0), 0)
-            const globalDone = typeof counts.done === 'number' ? counts.done : 0
-            const globalRun = typeof counts.running === 'number' ? counts.running : 0
-            const globalTodo = typeof counts.todo === 'number' ? counts.todo : 0
-            const globalBacklog = (typeof counts.triage === 'number' ? counts.triage : 0) + (typeof counts.ready === 'number' ? counts.ready : 0)
-            const globalBlocked = typeof counts.blocked === 'number' ? counts.blocked : 0
-            const globalPct = globalTotal > 0 ? Math.round((globalDone / globalTotal) * 1000) / 10 : 0
-            return (
-              <div className="actbar-stripe">
-                <span className="gs-lbl">Global · {globalTotal} Total</span>
-                <div className="gs-pips">
-                  <span className="gs-pip-item"><span className="pip done" /><span className="pip-ct">{globalDone}</span>&nbsp;Done</span>
-                  <span className="gs-pip-item"><span className="pip run" /><span className="pip-ct">{globalRun}</span>&nbsp;Run</span>
-                  <span className="gs-pip-item"><span className="pip todo" /><span className="pip-ct">{globalTodo}</span>&nbsp;Todo</span>
-                  <span className="gs-pip-item"><span className="pip bk" /><span className="pip-ct">{globalBacklog}</span>&nbsp;Backlog</span>
-                  <span className="gs-pip-item"><span className="pip bl" /><span className="pip-ct">{globalBlocked}</span>&nbsp;Blocked</span>
-                </div>
-                <div className="gs-right">
-                  <span className="gs-pct">{globalPct}%</span>
-                  <div className="gs-bar">
-                    <i style={{ width: `${globalPct}%` }} />
-                  </div>
-                </div>
-              </div>
-            )
-          })() : null}
-          {/* Hint + active filter chip */}
-          <div className="sub">
-            <span>Drag cards to change status — open a card to set assignee &amp; due date</span>
-            {(assigneeFilter || tenantFilter) && (
-              <>
-                <span className="dot" aria-hidden="true" />
-                {assigneeFilter && (() => {
-                  const a = assigneeOptions.find(x => x.id === assigneeFilter)
-                  return <span style={{ color: a && !a.onDisk ? 'var(--m-amber,#ffb454)' : undefined }}>profile:{assigneeFilter}{a && !a.onDisk ? ' ⚠' : ''}</span>
-                })()}
-                {tenantFilter && <span>tenant:{tenantFilter}</span>}
-                <button
-                  type="button"
-                  onClick={() => { setAssigneeFilter(null); setTenantFilter(null) }}
-                  style={{ color: 'var(--m-text-faint)', cursor: 'pointer', background: 'none', border: 'none', font: 'inherit', letterSpacing: 'inherit' }}
-                >
-                  ✕ Clear
-                </button>
-              </>
-            )}
-          </div>
-        </div>
 
-        {/* AB-03: right — tools row */}
-        <div className="tools">
-          {/* Segmented view toggle */}
-          <div className="seg" role="tablist" aria-label="Task view">
-            {(['board', 'swim', 'time'] as const).map((v) => (
-              <button
-                key={v}
-                role="tab"
-                aria-selected={activeView === v}
-                className={activeView === v ? 'on' : ''}
-                onClick={() => setActiveView(v)}
-                title={v === 'board' ? 'Kanban view' : v === 'swim' ? 'Swimlanes by assignee' : 'Timeline'}
-              >
-                {v === 'board' ? (
-                  <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="5" height="16"/><rect x="10" y="4" width="5" height="11"/><rect x="17" y="4" width="4" height="7"/></svg>Board</>
-                ) : v === 'swim' ? (
-                  <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 6h18M3 12h18M3 18h18"/></svg>Swim</>
-                ) : (
-                  <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 5h18M3 12h12M3 19h7"/></svg>Time</>
-                )}
-              </button>
-            ))}
-          </div>
+          {/* AB-03: right — tools row */}
+          <div className="tools">
+            {/* Segmented view toggle */}
+            <div className="seg" role="tablist" aria-label="Task view">
+              {(['board', 'swim', 'time'] as const).map((v) => (
+                <button
+                  key={v}
+                  role="tab"
+                  aria-selected={activeView === v}
+                  className={activeView === v ? 'on' : ''}
+                  onClick={() => setActiveView(v)}
+                  title={v === 'board' ? 'Kanban view' : v === 'swim' ? 'Swimlanes by assignee' : 'Timeline'}
+                >
+                  {v === 'board' ? (
+                    <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="5" height="16"/><rect x="10" y="4" width="5" height="11"/><rect x="17" y="4" width="4" height="7"/></svg>Board</>
+                  ) : v === 'swim' ? (
+                    <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 6h18M3 12h18M3 18h18"/></svg>Swim</>
+                  ) : (
+                    <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 5h18M3 12h12M3 19h7"/></svg>Time</>
+                  )}
+                </button>
+              ))}
+            </div>
 
           {/* Columns pill */}
           {(() => {
@@ -790,6 +737,61 @@ export function TasksScreen() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
             New Task
           </button>
+        </div>
+        </div>
+
+        {/* Global stripe — 5-pip legend + progress bar */}
+        {statsQuery.isLoading ? (
+          <div className="actbar-stripe-skeleton" />
+        ) : statsQuery.data ? (() => {
+          const counts = statsQuery.data.by_status ?? {}
+          const globalTotal = Object.values(counts).reduce<number>((acc, n) => acc + (typeof n === 'number' ? n : 0), 0)
+          const globalDone = typeof counts.done === 'number' ? counts.done : 0
+          const globalRun = typeof counts.running === 'number' ? counts.running : 0
+          const globalTodo = typeof counts.todo === 'number' ? counts.todo : 0
+          const globalBacklog = (typeof counts.triage === 'number' ? counts.triage : 0) + (typeof counts.ready === 'number' ? counts.ready : 0)
+          const globalBlocked = typeof counts.blocked === 'number' ? counts.blocked : 0
+          const globalPct = globalTotal > 0 ? Math.round((globalDone / globalTotal) * 1000) / 10 : 0
+          return (
+            <div className="actbar-stripe">
+              <span className="gs-lbl">Global · {globalTotal} Total</span>
+              <div className="gs-pips">
+                <span className="gs-pip-item"><span className="pip done" /><span className="pip-ct">{globalDone}</span>&nbsp;Done</span>
+                <span className="gs-pip-item"><span className="pip run" /><span className="pip-ct">{globalRun}</span>&nbsp;Run</span>
+                <span className="gs-pip-item"><span className="pip todo" /><span className="pip-ct">{globalTodo}</span>&nbsp;Todo</span>
+                <span className="gs-pip-item"><span className="pip bk" /><span className="pip-ct">{globalBacklog}</span>&nbsp;Backlog</span>
+                <span className="gs-pip-item"><span className="pip bl" /><span className="pip-ct">{globalBlocked}</span>&nbsp;Blocked</span>
+              </div>
+              <div className="gs-right">
+                <span className="gs-pct">{globalPct}%</span>
+                <div className="gs-bar">
+                  <i style={{ width: `${globalPct}%` }} />
+                </div>
+              </div>
+            </div>
+          )
+        })() : null}
+
+        {/* Hint + active filter chip */}
+        <div className="actbar-subhint sub">
+          <span>Drag cards to change status — open a card to set assignee &amp; due date</span>
+          {(assigneeFilter || tenantFilter) && (
+            <>
+              <span className="dot" aria-hidden="true" />
+              {assigneeFilter && (() => {
+                const a = assigneeOptions.find(x => x.id === assigneeFilter)
+                return <span style={{ color: a && !a.onDisk ? 'var(--m-amber,#ffb454)' : undefined }}>profile:{assigneeFilter}{a && !a.onDisk ? ' ⚠' : ''}</span>
+              })()}
+              {tenantFilter && <span>tenant:{tenantFilter}</span>}
+              <button
+                type="button"
+                onClick={() => { setAssigneeFilter(null); setTenantFilter(null) }}
+                style={{ color: 'var(--m-text-faint)', cursor: 'pointer', background: 'none', border: 'none', font: 'inherit', letterSpacing: 'inherit' }}
+              >
+                ✕ Clear
+              </button>
+            </>
+          )}
         </div>
       </div>
 
