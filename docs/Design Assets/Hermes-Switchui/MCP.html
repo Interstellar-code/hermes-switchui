@@ -1,0 +1,926 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Hermes · MCP</title>
+<link rel="stylesheet" href="matrix-system.css"/>
+<link rel="stylesheet" href="primary-nav-v2.css"/>
+<style>.nav { background: transparent !important; border: none !important; padding: 0 !important; }</style>
+<style>
+  html, body { height: 100%; }
+  body { background: var(--m-bg); }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 232px 280px 1fr;
+    height: 100vh;
+    overflow: hidden;
+    transition: grid-template-columns var(--m-dur-base) var(--m-ease-out);
+  }
+  .shell.filters-collapsed { grid-template-columns: 232px 44px 1fr; }
+  .nav { display: block; min-width: 0; }
+
+  /* filters panel */
+  .filt {
+    background: var(--m-panel);
+    border-right: 1px solid var(--m-border);
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    grid-template-columns: minmax(0,1fr);
+    overflow: hidden;
+  }
+  .filt-head { display: flex; align-items: center; padding: 12px 14px 10px; border-bottom: 1px solid var(--m-border-subtle); }
+  .filt-head h3 { margin: 0; font: 600 11px var(--m-font-mono); text-transform: uppercase; letter-spacing: .22em; color: var(--m-text-strong); }
+  .filt-head .ct { margin-left: 8px; font: 500 10px var(--m-font-mono); color: var(--m-text-faint); }
+  .filt-head .actions { margin-left: auto; display: flex; gap: 4px; }
+
+  .ico-btn {
+    display: inline-grid; place-items: center;
+    width: 26px; height: 26px;
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-muted);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .ico-btn:hover { background: var(--m-fill-subtle); color: var(--m-green-500); border-color: var(--m-border-subtle); }
+  .ico-btn.active { background: var(--m-fill); color: var(--m-green-500); border-color: var(--m-border); box-shadow: var(--m-glow-sm); }
+  .ico { width: 14px; height: 14px; flex: none; }
+
+  .filt-search { padding: 10px 14px; border-bottom: 1px solid var(--m-border-subtle); }
+  .filt-body { overflow: auto; padding: 4px 0 12px; }
+  .filt-grp { padding: 14px 14px 4px; }
+  .filt-grp h4 { margin: 0 0 8px; font: 600 10px var(--m-font-mono); text-transform: uppercase; letter-spacing: .22em; color: var(--m-text-faint); }
+  .opt-row {
+    display: flex; align-items: center;
+    padding: 5px 10px; margin: 0 4px;
+    border-radius: var(--m-radius-md);
+    font: 500 12px var(--m-font-mono);
+    color: var(--m-text-muted); cursor: pointer;
+    border: 1px solid transparent;
+    user-select: none;
+  }
+  .opt-row:hover { background: var(--m-fill-subtle); color: var(--m-text); }
+  .opt-row.on {
+    background: var(--m-fill); color: var(--m-green-500);
+    border-color: var(--m-border);
+    box-shadow: inset 2px 0 0 var(--m-green-500);
+  }
+  .opt-row .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--m-text-faint); margin-right: 9px; flex: none; }
+  .opt-row.on .dot { background: var(--m-green-500); box-shadow: var(--m-glow-sm); }
+  .opt-row .ct {
+    margin-left: auto; font-size: 10px;
+    color: var(--m-text-faint);
+    padding: 1px 6px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 9999px; background: var(--m-bg-deep);
+  }
+  .opt-row.on .ct { color: var(--m-green-500); border-color: var(--m-border); }
+
+  .seg-stack {
+    display: grid; gap: 2px;
+    margin: 0 10px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    background: var(--m-bg-deep);
+    padding: 2px;
+  }
+  .seg-stack button {
+    background: transparent; color: var(--m-text-muted);
+    border: none; padding: 6px 10px;
+    font: 500 11px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .12em;
+    cursor: pointer; text-align: left;
+    border-radius: 4px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .seg-stack button:hover { color: var(--m-text); }
+  .seg-stack button.on { background: var(--m-fill); color: var(--m-green-500); box-shadow: inset 2px 0 0 var(--m-green-500); }
+  .seg-stack button .ct { margin-left: auto; font-size: 10px; color: var(--m-text-faint); }
+  .seg-stack button.on .ct { color: var(--m-green-500); }
+
+  .filt-foot { border-top: 1px solid var(--m-border-subtle); padding: 10px 12px; display: grid; gap: 6px; }
+  .filt.is-collapsed { grid-template-rows: auto 1fr auto; }
+  .filt-rail { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 0; }
+  .filt-rail .vlabel { writing-mode: vertical-rl; transform: rotate(180deg); font: 600 10px var(--m-font-mono); text-transform: uppercase; letter-spacing: .3em; color: var(--m-text-faint); margin-top: 14px; }
+  .filt-rail .badge-n { font: 500 10px var(--m-font-mono); color: var(--m-green-500); border: 1px solid var(--m-border); border-radius: 9999px; padding: 1px 6px; }
+
+  .main { display: grid; grid-template-rows: auto auto auto 1fr; overflow: hidden; background: var(--m-bg); }
+  .top { display: flex; align-items: flex-end; gap: 18px; padding: 18px 24px 14px; border-bottom: 1px solid var(--m-border-subtle); }
+  .top .crumbs { font: 500 10px var(--m-font-mono); text-transform: uppercase; letter-spacing: .22em; color: var(--m-text-faint); }
+  .top .crumbs .sep { color: var(--m-text-ghost); margin: 0 8px; }
+  .top h1 { margin: 4px 0 2px; font: 600 22px var(--m-font-mono); color: var(--m-text-strong); letter-spacing: .04em; text-shadow: var(--m-text-glow); }
+  .top .sub { font: 400 13px var(--m-font-sans); color: var(--m-text-muted); max-width: 580px; }
+  .top .right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .top .stat { display: grid; font: 500 10px var(--m-font-mono); color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .15em; text-align: right; border-left: 1px solid var(--m-border-subtle); padding-left: 12px; }
+  .top .stat b { font: 600 16px var(--m-font-mono); color: var(--m-green-500); text-shadow: var(--m-text-glow); letter-spacing: .04em; }
+
+  .banner {
+    margin: 12px 24px 0;
+    padding: 10px 14px;
+    border: 1px solid rgba(255,179,71,.4);
+    border-left: 3px solid #ffb347;
+    border-radius: var(--m-radius-md);
+    background: rgba(255,179,71,.06);
+    color: #ffd9a0;
+    font: 500 12px var(--m-font-mono);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .banner .ic { color: #ffb347; }
+  .banner .x { margin-left: auto; cursor: pointer; color: var(--m-text-faint); }
+
+  .toolbar { display: flex; align-items: center; gap: 10px; padding: 10px 24px; border-bottom: 1px solid var(--m-border-subtle); background: var(--m-bg-deep); }
+  .toolbar .grow { flex: 1; min-width: 0; }
+  .toolbar .sort {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    background: var(--m-bg);
+    color: var(--m-text-muted);
+    font: 500 11px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .12em;
+    cursor: pointer;
+  }
+  .toolbar .sort:hover { color: var(--m-text); border-color: var(--m-border); }
+  .view-toggle { display: inline-flex; border: 1px solid var(--m-border-subtle); border-radius: var(--m-radius-md); overflow: hidden; background: var(--m-bg); }
+  .view-toggle button {
+    background: transparent; color: var(--m-text-muted); border: none;
+    padding: 6px 12px; font: 500 11px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .12em;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .view-toggle button:hover { color: var(--m-text); }
+  .view-toggle button.on { background: var(--m-fill); color: var(--m-green-500); box-shadow: inset 0 -2px 0 var(--m-green-500); }
+  .view-toggle button svg { width: 12px; height: 12px; }
+
+  .canvas { overflow: auto; padding: 18px 24px 32px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .card {
+    background: var(--m-panel);
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    padding: 14px;
+    display: grid; gap: 10px;
+    cursor: pointer; position: relative; overflow: hidden;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .card::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 2px; background: var(--m-text-ghost);
+  }
+  .card.connected::before { background: var(--m-green-500); box-shadow: 0 0 8px rgba(0,255,65,.4); }
+  .card.unknown::before { background: var(--m-text-faint); }
+  .card.error::before { background: #ff5fa2; box-shadow: 0 0 8px rgba(255,95,162,.4); }
+  .card:hover { border-color: var(--m-border-strong); background: var(--m-fill-subtle); transform: translateY(-1px); }
+  .card .hd { display: flex; align-items: flex-start; gap: 8px; }
+  .card .hd .glyph {
+    width: 28px; height: 28px;
+    border: 1px solid var(--m-border);
+    border-radius: 5px;
+    display: grid; place-items: center;
+    background: var(--m-bg-deep);
+    color: var(--m-green-500);
+    font: 700 12px var(--m-font-mono);
+    flex: none;
+  }
+  .card .hd .name { font: 600 13.5px var(--m-font-mono); color: var(--m-text-strong); letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .hd .by { font: 400 11px var(--m-font-mono); color: var(--m-text-faint); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .hd .right { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+
+  .endpoint {
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text-muted);
+    background: var(--m-bg-deep);
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 4px;
+    padding: 5px 8px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .endpoint .scheme { color: #5fcfff; }
+
+  .kvgrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    font: 500 11px var(--m-font-mono);
+  }
+  .kvgrid .kv { display: flex; flex-direction: column; gap: 2px; }
+  .kvgrid .kv .lbl { color: var(--m-text-faint); font-size: 9.5px; text-transform: uppercase; letter-spacing: .18em; }
+  .kvgrid .kv b { color: var(--m-text); font-weight: 600; }
+  .kvgrid .kv b.zero { color: var(--m-text-faint); }
+  .kvgrid .kv b.live { color: var(--m-green-500); text-shadow: var(--m-text-glow); }
+
+  .tags { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tag {
+    font: 500 9.5px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .12em;
+    padding: 2px 7px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 9999px;
+    color: var(--m-text-muted);
+    background: var(--m-bg-deep);
+  }
+  .tag.transport { color: #d6ff5f; border-color: rgba(214,255,95,.35); }
+  .tag.auth { color: #5fcfff; border-color: rgba(95,207,255,.35); }
+  .tag.auth.none { color: var(--m-text-faint); border-color: var(--m-border-subtle); }
+
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font: 500 9.5px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .12em;
+    padding: 2px 7px;
+    border-radius: 9999px;
+    border: 1px solid var(--m-border-subtle);
+    color: var(--m-text-muted);
+  }
+  .status-pill.connected { color: var(--m-green-500); border-color: var(--m-border); background: var(--m-fill); }
+  .status-pill.unknown { color: var(--m-text-faint); }
+  .status-pill.error { color: #ff5fa2; border-color: rgba(255,95,162,.35); background: rgba(255,95,162,.08); }
+  .status-pill .d { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .status-pill.connected .d { box-shadow: 0 0 6px var(--m-green-500); }
+
+  .actrow {
+    display: flex; gap: 6px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--m-border-subtle);
+    align-items: center;
+  }
+  .btn-mini {
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .14em;
+    padding: 5px 10px;
+    border: 1px solid var(--m-border);
+    border-radius: 4px;
+    color: var(--m-text);
+    background: var(--m-bg-deep);
+    cursor: pointer;
+  }
+  .btn-mini:hover { color: var(--m-green-500); border-color: var(--m-green-500); box-shadow: var(--m-glow-sm); }
+  .btn-mini.danger { color: #ff5fa2; border-color: rgba(255,95,162,.35); }
+  .btn-mini.danger:hover { background: rgba(255,95,162,.08); box-shadow: 0 0 8px rgba(255,95,162,.3); }
+  .actrow .switch {
+    margin-left: auto;
+    position: relative;
+    width: 30px; height: 16px;
+    border: 1px solid var(--m-border);
+    border-radius: 9999px;
+    background: var(--m-bg-deep);
+    cursor: pointer; flex: none;
+  }
+  .actrow .switch::after {
+    content: ""; position: absolute;
+    top: 1px; left: 2px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--m-text-faint);
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .actrow .switch.on { border-color: var(--m-green-500); background: rgba(0,255,65,.13); box-shadow: var(--m-glow-sm); }
+  .actrow .switch.on::after { left: 16px; background: var(--m-green-500); box-shadow: 0 0 6px var(--m-green-500); }
+
+  /* TABLE */
+  .tbl { width: 100%; border-collapse: collapse; font: 400 12.5px var(--m-font-mono); color: var(--m-text); }
+  .tbl thead th {
+    position: sticky; top: 0; z-index: 1;
+    background: var(--m-bg-deep);
+    text-align: left;
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .22em;
+    color: var(--m-text-faint);
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--m-border);
+    white-space: nowrap;
+  }
+  .tbl tbody td { padding: 11px 12px; border-bottom: 1px solid var(--m-border-subtle); vertical-align: middle; }
+  .tbl tbody tr { cursor: pointer; }
+  .tbl tbody tr:hover { background: var(--m-fill-subtle); }
+  .tbl tbody tr.connected td:first-child { box-shadow: inset 2px 0 0 var(--m-green-500); }
+  .tbl tbody tr.unknown td:first-child { box-shadow: inset 2px 0 0 var(--m-text-faint); }
+  .tbl tbody tr.error td:first-child { box-shadow: inset 2px 0 0 #ff5fa2; }
+  .tbl .name-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .tbl .name-cell .glyph {
+    width: 22px; height: 22px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 4px;
+    display: grid; place-items: center;
+    background: var(--m-bg-deep);
+    color: var(--m-green-500);
+    font: 700 10px var(--m-font-mono);
+    flex: none;
+  }
+  .tbl .ttl { font: 600 12.5px var(--m-font-mono); color: var(--m-text-strong); }
+  .tbl .endpoint-cell { color: var(--m-text-muted); font-size: 11px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tbl .actions { display: inline-flex; gap: 4px; }
+
+  /* drawer */
+  .scrim { position: fixed; inset: 0; z-index: 50; background: rgba(0,12,4,.62); backdrop-filter: blur(2px); display: none; }
+  .scrim.open { display: block; }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: min(720px, 92vw);
+    background: var(--m-panel);
+    border-left: 1px solid var(--m-green-500);
+    box-shadow: -2px 0 24px rgba(0,255,65,.18), -1px 0 0 rgba(0,255,65,.4);
+    z-index: 51;
+    display: none;
+    grid-template-rows: auto auto 1fr auto;
+    overflow: hidden;
+    transform: translateX(20px); opacity: 0;
+    transition: transform var(--m-dur-base) var(--m-ease-out), opacity var(--m-dur-base) var(--m-ease-out);
+  }
+  .drawer.open { display: grid; transform: translateX(0); opacity: 1; }
+  .dr-head {
+    padding: 16px 22px 14px;
+    border-bottom: 1px solid var(--m-border);
+    display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: start;
+  }
+  .dr-head .ttl-row { display: flex; align-items: center; gap: 12px; }
+  .dr-head .glyph {
+    width: 36px; height: 36px;
+    border: 1px solid var(--m-green-500);
+    border-radius: 6px;
+    display: grid; place-items: center;
+    background: var(--m-bg-deep);
+    color: var(--m-green-500);
+    font: 700 14px var(--m-font-mono);
+    box-shadow: var(--m-glow-sm), inset 0 0 8px rgba(0,255,65,.12);
+  }
+  .dr-head h2 { margin: 0; font: 600 18px var(--m-font-mono); color: var(--m-text-strong); letter-spacing: .03em; text-shadow: var(--m-text-glow); }
+  .dr-head .meta-line { margin-top: 4px; font: 500 11px var(--m-font-mono); color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .14em; }
+  .dr-head .meta-line span + span::before { content: " · "; color: var(--m-text-ghost); }
+  .dr-head .actions { display: flex; gap: 6px; }
+
+  .dr-tabs {
+    display: flex; gap: 0;
+    border-bottom: 1px solid var(--m-border);
+    padding: 0 22px;
+    background: var(--m-panel);
+  }
+  .dr-tabs button {
+    background: transparent; border: none;
+    color: var(--m-text-muted);
+    font: 500 11px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .14em;
+    padding: 10px 14px; cursor: pointer;
+    border-bottom: 2px solid transparent;
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .dr-tabs button:hover { color: var(--m-text); }
+  .dr-tabs button.on { color: var(--m-green-500); border-bottom-color: var(--m-green-500); text-shadow: var(--m-text-glow); }
+  .dr-tabs button .ct { font-size: 9px; padding: 1px 5px; background: var(--m-bg-deep); border: 1px solid var(--m-border-subtle); border-radius: 9999px; color: var(--m-text-faint); }
+  .dr-tabs button.on .ct { color: var(--m-green-500); border-color: var(--m-border); }
+
+  .dr-body { overflow: auto; padding: 16px 22px 24px; display: grid; gap: 14px; }
+  .panel-card { background: var(--m-bg-deep); border: 1px solid var(--m-border); border-radius: var(--m-radius-md); overflow: hidden; }
+  .panel-card .hd { padding: 9px 12px; border-bottom: 1px solid var(--m-border-subtle); display: flex; align-items: center; gap: 10px; font: 600 10px var(--m-font-mono); text-transform: uppercase; letter-spacing: .22em; color: var(--m-text-faint); background: var(--m-panel); }
+  .panel-card .hd .right { margin-left: auto; display: flex; gap: 6px; align-items: center; color: var(--m-green-500); }
+  .panel-card .bd { padding: 12px 14px; }
+
+  .preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-card { background: var(--m-bg-deep); border: 1px solid var(--m-border-subtle); border-radius: var(--m-radius-md); padding: 10px 12px; }
+  .stat-card .lbl { font: 600 9.5px var(--m-font-mono); text-transform: uppercase; letter-spacing: .22em; color: var(--m-text-faint); }
+  .stat-card b { display: block; margin-top: 4px; font: 600 17px var(--m-font-mono); color: var(--m-text-strong); letter-spacing: .03em; text-shadow: var(--m-text-glow); }
+  .stat-card .sub { margin-top: 2px; font: 400 11px var(--m-font-sans); color: var(--m-text-muted); }
+
+  .tools-list { display: grid; gap: 6px; padding: 6px 8px 10px; }
+  .tool-row {
+    display: grid; grid-template-columns: auto 1fr auto;
+    gap: 10px; align-items: center;
+    padding: 8px 10px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 4px;
+    background: var(--m-bg);
+    font: 500 12px var(--m-font-mono);
+  }
+  .tool-row .ic { color: var(--m-green-500); }
+  .tool-row .nm { color: var(--m-text-strong); }
+  .tool-row .desc { font: 400 11px var(--m-font-sans); color: var(--m-text-muted); margin-top: 2px; }
+  .tool-row .right { color: var(--m-text-faint); font-size: 10px; text-transform: uppercase; letter-spacing: .14em; }
+
+  .log {
+    background: #02080d;
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    padding: 12px;
+    font: 500 11.5px/1.65 var(--m-font-mono);
+    color: var(--m-text);
+    max-height: 320px; overflow: auto;
+  }
+  .log .ts { color: var(--m-text-faint); margin-right: 10px; }
+  .log .ok { color: var(--m-green-500); }
+  .log .warn { color: #ffb347; }
+  .log .err { color: #ff5fa2; }
+  .log .key { color: #5fcfff; }
+
+  .dr-foot {
+    padding: 12px 22px;
+    border-top: 1px solid var(--m-border);
+    background: var(--m-panel);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .dr-foot .src-line { flex: 1; min-width: 0; font: 500 11px var(--m-font-mono); color: var(--m-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dr-foot .src-line .lbl { color: var(--m-text-faint); margin-right: 8px; text-transform: uppercase; letter-spacing: .15em; font-size: 10px; }
+  .dr-foot .src-line code { color: var(--m-green-500); background: transparent; }
+
+  .switch { position: relative; width: 30px; height: 16px; border: 1px solid var(--m-border); border-radius: 9999px; background: var(--m-bg-deep); cursor: pointer; flex: none; }
+  .switch::after { content: ""; position: absolute; top: 1px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--m-text-faint); transition: all var(--m-dur-fast) var(--m-ease-out); }
+  .switch.on { border-color: var(--m-green-500); background: rgba(0,255,65,.13); box-shadow: var(--m-glow-sm); }
+  .switch.on::after { left: 16px; background: var(--m-green-500); box-shadow: 0 0 6px var(--m-green-500); }
+
+  .empty { padding: 60px 18px; text-align: center; font: 500 12px var(--m-font-mono); color: var(--m-text-faint); border: 1px dashed var(--m-border-subtle); border-radius: var(--m-radius-md); }
+  .empty .glyph { font-size: 34px; margin-bottom: 8px; color: var(--m-text-ghost); }
+
+  /* footer status bar */
+  .pg-foot {
+    border-top: 1px solid var(--m-border);
+    background: var(--m-sidebar);
+    display: flex; align-items: center; gap: 22px;
+    padding: 0 24px;
+    height: 30px;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  .pg-foot b { color: var(--m-text-strong); font-weight: 600; }
+  .pg-foot .v.ok { color: var(--m-green-500); }
+  .pg-foot .sep { width: 1px; height: 14px; background: var(--m-border-subtle); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="primary-nav-v2.jsx"></script>
+
+<script type="text/babel">
+const Ico = {
+  search: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="11" cy="11" r="6"/><path d="m20 20-3.5-3.5"/></svg>,
+  refresh: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 12a8 8 0 0 1 14-5l3-3M4 4v5h5M20 12a8 8 0 0 1-14 5l-3 3M20 20v-5h-5"/></svg>,
+  fold: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m9 6-6 6 6 6M21 6h-9M21 12h-6M21 18h-9"/></svg>,
+  unfold: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m15 6 6 6-6 6M3 6h9M3 12h6M3 18h9"/></svg>,
+  plus: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 5v14M5 12h14"/></svg>,
+  x: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 6 18 18M18 6 6 18"/></svg>,
+  warn: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 3 2 21h20zM12 9v6M12 17.5v.5"/></svg>,
+  bolt: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>,
+  tool: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M14 7a4 4 0 0 1-5 5L4 17l3 3 5-5a4 4 0 0 1 5-5l3-3-3-3z"/></svg>,
+  doc: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h7"/></svg>,
+  log: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 6h16M4 12h10M4 18h12"/></svg>,
+  shield: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg>,
+  copy: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg>,
+  edit: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 20h4l10-10-4-4L4 16zM14 6l4 4"/></svg>,
+  trash: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>,
+  grid: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>,
+  rows: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 6h18M3 12h18M3 18h18"/></svg>,
+  link: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/></svg>,
+};
+
+const SERVERS = [
+  { id:'dart',        endpoint:'/Users/rohits/Library/PhpWebStudy/env/n…/dart-mcp-server', transport:'stdio', auth:'bearer', status:'connected', tools:16, latency:42, cmd:'npx -y dart-mcp-server', source:'config.yaml' },
+  { id:'filesystem',  endpoint:'npx -y @modelcontextprotocol/server-filesystem', transport:'stdio', auth:'none', status:'connected', tools:14, latency:31, cmd:'npx', source:'config.yaml' },
+  { id:'gmail',       endpoint:'/Users/rohits/Library/PhpWebStudy/env/n…/gmail-mcp', transport:'stdio', auth:'none', status:'unknown',  tools:0,  cmd:'node ./bin/gmail-mcp', source:'config.yaml' },
+  { id:'lifeplan42',  endpoint:'http://192.168.0.72:3009/api/mcp', transport:'http',  auth:'bearer', status:'unknown', tools:0, source:'config.yaml' },
+  { id:'mail-server', endpoint:'/Users/rohits/Library/PhpWebStudy/env/n…/mail-server', transport:'stdio', auth:'none', status:'unknown', tools:0, source:'config.yaml' },
+  { id:'notebooklm',  endpoint:'/Users/rohits/.local/bin/notebooklm-mcp', transport:'stdio', auth:'none', status:'unknown', tools:0, source:'config.yaml' },
+  { id:'ssh',         endpoint:'/Users/rohits/Library/PhpWebStudy/env/n…/ssh-mcp', transport:'stdio', auth:'none', status:'unknown', tools:0, source:'config.yaml' },
+  { id:'zai-vision',  endpoint:'/Users/rohits/Library/PhpWebStudy/env/n…/zai-vision', transport:'stdio', auth:'bearer', status:'unknown', tools:0, source:'config.yaml' },
+  { id:'zai-web-reader', endpoint:'https://api.z.ai/api/mcp/web_reader/mcp', transport:'http', auth:'bearer', status:'unknown', tools:0, source:'config.yaml' },
+  { id:'zai-web-search', endpoint:'https://api.z.ai/api/mcp/web_search_pri…', transport:'http', auth:'bearer', status:'unknown', tools:0, source:'config.yaml' },
+  { id:'context-mode', endpoint:'/Users/rohits/Library/PhpWebStudy/env/n…/context-mode', transport:'stdio', auth:'none', status:'unknown', tools:0, source:'config.yaml' },
+  { id:'zai-zread',   endpoint:'https://api.z.ai/api/mcp/zread/mcp', transport:'http', auth:'bearer', status:'unknown', tools:0, source:'config.yaml' },
+  /* marketplace */
+  { id:'github',      endpoint:'github.com — official', transport:'http', auth:'oauth', status:'market', tools:24, source:'marketplace', desc:'Repos, issues, PRs, code search.' },
+  { id:'slack',       endpoint:'slack.com — official', transport:'http', auth:'oauth', status:'market', tools:18, source:'marketplace', desc:'Read channels, post, search history.' },
+  { id:'postgres',    endpoint:'@modelcontextprotocol/server-postgres', transport:'stdio', auth:'none', status:'market', tools:9, source:'marketplace', desc:'Run read-only SQL against any Postgres instance.' },
+  { id:'browser',     endpoint:'@modelcontextprotocol/server-puppeteer', transport:'stdio', auth:'none', status:'market', tools:11, source:'marketplace', desc:'Headless Chromium for navigation and DOM extraction.' },
+].map(s => ({ enabled: s.status === 'connected', installed: s.status !== 'market', ...s }));
+
+const TOOLS_BY_SERVER = {
+  dart: [
+    { n:'dart_pub_search', d:'Search packages on pub.dev' },
+    { n:'dart_format',     d:'Format Dart source via dartfmt' },
+    { n:'dart_analyze',    d:'Static analyze a target file or directory' },
+    { n:'dart_run',        d:'Run a Dart entrypoint with stdout/stderr capture' },
+    { n:'dart_test',       d:'Run package tests; reports pass/fail per test' },
+  ],
+  filesystem: [
+    { n:'fs.read_file',  d:'Read a UTF-8 text file' },
+    { n:'fs.write_file', d:'Write a file (overwrite or append)' },
+    { n:'fs.list_dir',   d:'List directory entries with metadata' },
+    { n:'fs.search',     d:'Glob + content search' },
+  ],
+};
+
+function StatusPill({ s }) {
+  if (s.status === 'connected') return <span className="status-pill connected"><span className="d"/>connected</span>;
+  if (s.status === 'error')     return <span className="status-pill error"><span className="d"/>error</span>;
+  if (s.status === 'market')    return <span className="status-pill" style={{ color:'#5fcfff', borderColor:'rgba(95,207,255,.35)', background:'rgba(95,207,255,.06)' }}><span className="d"/>marketplace</span>;
+  return <span className="status-pill unknown"><span className="d"/>unknown</span>;
+}
+
+function FiltersPanel({ q, setQ, status, setStatus, transport, setTransport, auth, setAuth, count, collapsed, setCollapsed }) {
+  if (collapsed) {
+    return (
+      <aside className="filt is-collapsed">
+        <div className="filt-head" style={{ justifyContent:'center' }}>
+          <span className="ico-btn active" onClick={() => setCollapsed(false)} title="Expand filters">{Ico.unfold}</span>
+        </div>
+        <div className="filt-rail">
+          <span className="badge-n">{count}</span>
+          <span className="vlabel">Filters</span>
+        </div>
+        <div/>
+      </aside>
+    );
+  }
+  return (
+    <aside className="filt">
+      <div className="filt-head">
+        <h3>Filters</h3><span className="ct">{count}</span>
+        <span className="actions">
+          <span className="ico-btn" title="Reset" onClick={() => { setQ(''); setStatus('installed'); setTransport('all'); setAuth('all'); }}>{Ico.refresh}</span>
+          <span className="ico-btn" title="Collapse" onClick={() => setCollapsed(true)}>{Ico.fold}</span>
+        </span>
+      </div>
+      <div className="filt-search">
+        <div className="m-input" style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px' }}>
+          {Ico.search}
+          <input style={{ flex:1, background:'transparent', border:'none', outline:'none', color:'var(--m-text)', font:'500 12.5px var(--m-font-mono)' }}
+            placeholder="search servers…" value={q} onChange={e => setQ(e.target.value)}/>
+        </div>
+      </div>
+      <div className="filt-body">
+        <div className="filt-grp">
+          <h4>Status</h4>
+          <div className="seg-stack">
+            {[{id:'installed',l:'Installed'},{id:'connected',l:'Connected'},{id:'market',l:'Marketplace'},{id:'all',l:'All'}].map(o => (
+              <button key={o.id} className={status===o.id?'on':''} onClick={() => setStatus(o.id)}>{o.l}<span className="ct">{
+                o.id==='installed' ? SERVERS.filter(s=>s.installed).length :
+                o.id==='connected' ? SERVERS.filter(s=>s.status==='connected').length :
+                o.id==='market'    ? SERVERS.filter(s=>s.status==='market').length :
+                SERVERS.length
+              }</span></button>
+            ))}
+          </div>
+        </div>
+        <div className="filt-grp">
+          <h4>Transport</h4>
+          {[{id:'all',l:'All'},{id:'stdio',l:'stdio'},{id:'http',l:'http'},{id:'sse',l:'sse'}].map(o => (
+            <div key={o.id} className={`opt-row ${transport===o.id?'on':''}`} onClick={() => setTransport(o.id)}>
+              <span className="dot"/>{o.l}
+              <span className="ct">{ o.id==='all' ? SERVERS.length : SERVERS.filter(s=>s.transport===o.id).length }</span>
+            </div>
+          ))}
+        </div>
+        <div className="filt-grp">
+          <h4>Auth</h4>
+          {[{id:'all',l:'All'},{id:'none',l:'None'},{id:'bearer',l:'Bearer'},{id:'oauth',l:'OAuth'}].map(o => (
+            <div key={o.id} className={`opt-row ${auth===o.id?'on':''}`} onClick={() => setAuth(o.id)}>
+              <span className="dot"/>{o.l}
+              <span className="ct">{ o.id==='all' ? SERVERS.length : SERVERS.filter(s=>s.auth===o.id).length }</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="filt-foot">
+        <button className="m-btn m-btn-sm m-btn-primary" style={{ display:'inline-flex', alignItems:'center', gap:6, justifyContent:'center' }}>{Ico.plus} Add Server</button>
+        <span style={{ font:'500 10px var(--m-font-mono)', color:'var(--m-text-faint)', textAlign:'center', textTransform:'uppercase', letterSpacing:'.18em' }}>config.yaml fallback</span>
+      </div>
+    </aside>
+  );
+}
+
+function Card({ s, onOpen, onToggle }) {
+  const initials = s.id.replace(/-/g,' ').split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();
+  const cls = s.status === 'market' ? 'market' : s.status;
+  return (
+    <div className={`card ${cls}`} onClick={() => onOpen(s)}>
+      <div className="hd">
+        <div className="glyph">{initials}</div>
+        <div style={{ minWidth:0, flex:1 }}>
+          <div className="name">{s.id}</div>
+          <div className="by">{s.source || 'config.yaml'}</div>
+        </div>
+        <div className="right">
+          <StatusPill s={s}/>
+        </div>
+      </div>
+      <div className="endpoint"><span className="scheme">{s.transport === 'http' ? 'http://' : '$ '}</span>{s.endpoint.replace(/^https?:\/\//,'')}</div>
+      <div className="kvgrid">
+        <div className="kv"><span className="lbl">Tools</span><b className={s.tools>0?'live':'zero'}>{s.tools}</b></div>
+        <div className="kv"><span className="lbl">Auth</span><b>{s.auth}</b></div>
+      </div>
+      <div className="tags">
+        <span className="tag transport">{s.transport}</span>
+        <span className={`tag auth ${s.auth==='none'?'none':''}`}>auth: {s.auth}</span>
+        {s.status === 'connected' && <span className="tag" style={{ color:'var(--m-green-500)', borderColor:'var(--m-border)' }}>online</span>}
+        {s.status === 'market' && <span className="tag" style={{ color:'#5fcfff', borderColor:'rgba(95,207,255,.35)' }}>install</span>}
+      </div>
+      <div className="actrow" onClick={e => e.stopPropagation()}>
+        {s.installed ? <>
+          <button className="btn-mini" onClick={() => onOpen(s)}>Test</button>
+          <button className="btn-mini" onClick={() => onOpen(s)}>Edit</button>
+          <button className="btn-mini danger">Delete</button>
+        </> : <>
+          <button className="btn-mini" onClick={() => onOpen(s)}>Inspect</button>
+          <button className="btn-mini" style={{ color:'var(--m-green-500)', borderColor:'var(--m-border)' }}>Install</button>
+        </>}
+        <span className={`switch ${s.enabled?'on':''}`} onClick={() => onToggle(s)} title={s.enabled?'Disable':'Enable'}/>
+      </div>
+    </div>
+  );
+}
+
+function Table({ list, onOpen, onToggle }) {
+  return (
+    <table className="tbl">
+      <thead><tr>
+        <th style={{ width:'22%' }}>Server</th>
+        <th>Endpoint</th>
+        <th>Transport</th>
+        <th>Auth</th>
+        <th>Tools</th>
+        <th>Status</th>
+        <th style={{ textAlign:'right' }}>Actions</th>
+      </tr></thead>
+      <tbody>
+        {list.map(s => {
+          const initials = s.id.replace(/-/g,' ').split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();
+          const cls = s.status === 'market' ? 'unknown' : s.status;
+          return (
+            <tr key={s.id} className={cls} onClick={() => onOpen(s)}>
+              <td>
+                <div className="name-cell">
+                  <div className="glyph">{initials}</div>
+                  <div style={{ minWidth:0 }}>
+                    <div className="ttl">{s.id}</div>
+                    <div style={{ font:'400 10.5px var(--m-font-mono)', color:'var(--m-text-faint)' }}>{s.source || 'config.yaml'}</div>
+                  </div>
+                </div>
+              </td>
+              <td><div className="endpoint-cell">{s.endpoint}</div></td>
+              <td><span className="tag transport">{s.transport}</span></td>
+              <td style={{ color:'var(--m-text-muted)' }}>{s.auth}</td>
+              <td style={{ color: s.tools>0 ? 'var(--m-green-500)' : 'var(--m-text-faint)' }}>{s.tools}</td>
+              <td><StatusPill s={s}/></td>
+              <td style={{ textAlign:'right' }}>
+                <div className="actions" onClick={e => e.stopPropagation()}>
+                  <span className={`switch ${s.enabled?'on':''}`} onClick={() => onToggle(s)}/>
+                  <span className="ico-btn" title="Inspect" onClick={() => onOpen(s)}>{Ico.doc}</span>
+                </div>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function Drawer({ server, onClose, onToggle }) {
+  const [tab, setTab] = React.useState('overview');
+  React.useEffect(() => {
+    const onKey = e => { if (e.key === 'Escape' && server) onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [server, onClose]);
+  if (!server) return (<><div className="scrim"/><div className="drawer"/></>);
+
+  const initials = server.id.replace(/-/g,' ').split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase();
+  const tools = TOOLS_BY_SERVER[server.id] || Array.from({length: Math.min(server.tools, 4)}, (_, i) => ({ n:`${server.id}.tool_${i+1}`, d:'(no schema introspected — run Test to fetch)' }));
+
+  return (
+    <>
+      <div className="scrim open" onClick={onClose}/>
+      <aside className="drawer open">
+        <div className="dr-head">
+          <div>
+            <div className="ttl-row">
+              <div className="glyph">{initials}</div>
+              <div style={{ minWidth:0 }}>
+                <h2>{server.id}</h2>
+                <div className="meta-line">
+                  <span>{server.transport}</span>
+                  <span>auth: {server.auth}</span>
+                  <span>{server.tools} tools</span>
+                  <span>{server.source}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="actions">
+            <span className="ico-btn" title="Copy endpoint">{Ico.copy}</span>
+            <span className="ico-btn" title="Edit">{Ico.edit}</span>
+            <span className="ico-btn" title="Delete" style={{ color:'#ff5fa2' }}>{Ico.trash}</span>
+            <span className="ico-btn" onClick={onClose} title="Close (Esc)">{Ico.x}</span>
+          </div>
+        </div>
+        <div className="dr-tabs">
+          <button className={tab==='overview'?'on':''} onClick={() => setTab('overview')}>{Ico.shield}<span>Overview</span></button>
+          <button className={tab==='tools'?'on':''} onClick={() => setTab('tools')}>{Ico.tool}<span>Tools</span><span className="ct">{server.tools}</span></button>
+          <button className={tab==='config'?'on':''} onClick={() => setTab('config')}>{Ico.doc}<span>Config</span></button>
+          <button className={tab==='logs'?'on':''} onClick={() => setTab('logs')}>{Ico.log}<span>Logs</span></button>
+        </div>
+        <div className="dr-body">
+          {tab === 'overview' && <>
+            <div className="panel-card">
+              <div className="hd"><span>Endpoint</span><span className="right">{server.transport.toUpperCase()}</span></div>
+              <div className="bd"><div className="endpoint" style={{ fontSize:12 }}>{server.endpoint}</div></div>
+            </div>
+            <div className="preview-grid">
+              <div className="stat-card"><div className="lbl">Status</div><b style={{ color: server.status==='connected'?'var(--m-green-500)':'var(--m-text-faint)' }}>{server.status}</b><div className="sub">{server.status==='connected'?'Live introspection ok':'No probe yet — try Test'}</div></div>
+              <div className="stat-card"><div className="lbl">Tools</div><b>{server.tools}</b><div className="sub">{server.tools>0?'introspected':'awaiting probe'}</div></div>
+              <div className="stat-card"><div className="lbl">Latency</div><b>{server.latency ? server.latency+'ms' : '—'}</b><div className="sub">last test cycle</div></div>
+              <div className="stat-card"><div className="lbl">Auth</div><b>{server.auth}</b><div className="sub">{server.auth==='bearer'?'token in env':server.auth==='oauth'?'oauth flow':'no credentials'}</div></div>
+            </div>
+            <div className="panel-card">
+              <div className="hd"><span>Quick actions</span></div>
+              <div className="bd" style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                <button className="btn-mini">{Ico.bolt} Test connection</button>
+                <button className="btn-mini">Discover tools</button>
+                <button className="btn-mini">Restart</button>
+                <button className="btn-mini">Copy endpoint</button>
+                <button className="btn-mini danger">Disconnect</button>
+              </div>
+            </div>
+          </>}
+          {tab === 'tools' && <div className="panel-card">
+            <div className="hd"><span>Exposed tools</span><span className="right">{server.tools}</span></div>
+            <div className="tools-list">
+              {tools.length === 0
+                ? <div className="empty"><div className="glyph">∅</div>no tools introspected yet</div>
+                : tools.map(t => (
+                  <div key={t.n} className="tool-row">
+                    <span className="ic">{Ico.tool}</span>
+                    <div>
+                      <div className="nm">{t.n}</div>
+                      <div className="desc">{t.d}</div>
+                    </div>
+                    <span className="right">callable</span>
+                  </div>
+                ))}
+            </div>
+          </div>}
+          {tab === 'config' && <div className="panel-card">
+            <div className="hd"><span>config.yaml entry</span><span className="right">{server.source}</span></div>
+            <div className="bd" style={{ background:'#02080d', font:'500 12px/1.65 var(--m-font-mono)', color:'var(--m-text)', padding:14, borderRadius:6, border:'1px solid var(--m-border)' }}>
+              <div><span style={{ color:'#5fcfff' }}>{server.id}</span>:</div>
+              <div>{'  '}<span style={{ color:'#5fcfff' }}>transport</span>: <span style={{ color:'#d6ff5f' }}>{server.transport}</span></div>
+              {server.transport === 'stdio'
+                ? <div>{'  '}<span style={{ color:'#5fcfff' }}>command</span>: <span style={{ color:'var(--m-text)' }}>{server.cmd || server.endpoint}</span></div>
+                : <div>{'  '}<span style={{ color:'#5fcfff' }}>url</span>: <span style={{ color:'var(--m-text)' }}>{server.endpoint}</span></div>}
+              <div>{'  '}<span style={{ color:'#5fcfff' }}>auth</span>: <span style={{ color:'#d6ff5f' }}>{server.auth}</span></div>
+              {server.auth === 'bearer' && <div>{'  '}<span style={{ color:'#5fcfff' }}>token</span>: <span style={{ color:'var(--m-text-faint)', fontStyle:'italic' }}>$&#123;ENV.{server.id.toUpperCase().replace(/-/g,'_')}_TOKEN&#125;</span></div>}
+              <div>{'  '}<span style={{ color:'#5fcfff' }}>enabled</span>: <span style={{ color:'#d6ff5f' }}>{String(server.enabled)}</span></div>
+            </div>
+          </div>}
+          {tab === 'logs' && <div className="panel-card">
+            <div className="hd"><span>Recent log</span><span className="right">tail —200</span></div>
+            <div className="bd" style={{ padding:0 }}>
+              <div className="log">
+                <div><span className="ts">14:02:11.412</span><span className="ok">[ok]</span> spawn <span className="key">{server.cmd || server.endpoint}</span></div>
+                <div><span className="ts">14:02:11.418</span><span className="ok">[ok]</span> handshake protocol=2024-11-05</div>
+                <div><span className="ts">14:02:11.421</span><span className="ok">[ok]</span> capabilities: tools, prompts</div>
+                <div><span className="ts">14:02:11.502</span><span className="ok">[ok]</span> tools/list → {server.tools} tools</div>
+                {server.status !== 'connected' && <div><span className="ts">14:02:12.114</span><span className="warn">[warn]</span> probe deferred — local fallback mode</div>}
+                <div><span className="ts">14:02:12.118</span> idle</div>
+              </div>
+            </div>
+          </div>}
+        </div>
+        <div className="dr-foot">
+          <span className="src-line"><span className="lbl">Source:</span><code>{server.endpoint}</code></span>
+          <span className={`switch ${server.enabled?'on':''}`} onClick={() => onToggle(server)}/>
+          {server.installed
+            ? <button className="m-btn m-btn-sm">Uninstall</button>
+            : <button className="m-btn m-btn-sm m-btn-primary">Install</button>}
+          <button className="m-btn m-btn-sm" onClick={onClose}>Close</button>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function App() {
+  const [q, setQ] = React.useState('');
+  const [status, setStatus] = React.useState('installed');
+  const [transport, setTransport] = React.useState('all');
+  const [auth, setAuth] = React.useState('all');
+  const [view, setView] = React.useState('grid');
+  const [collapsed, setCollapsed] = React.useState(false);
+  const [active, setActive] = React.useState(null);
+  const [servers, setServers] = React.useState(SERVERS);
+  const [sort, setSort] = React.useState('status');
+  const [showBanner, setShowBanner] = React.useState(true);
+
+  const list = React.useMemo(() => {
+    let l = servers.filter(s => {
+      if (status === 'installed' && !s.installed) return false;
+      if (status === 'connected' && s.status !== 'connected') return false;
+      if (status === 'market' && s.status !== 'market') return false;
+      if (transport !== 'all' && s.transport !== transport) return false;
+      if (auth !== 'all' && s.auth !== auth) return false;
+      if (q) {
+        const t = q.toLowerCase();
+        if (!s.id.toLowerCase().includes(t) && !s.endpoint.toLowerCase().includes(t)) return false;
+      }
+      return true;
+    });
+    if (sort === 'name')   l = [...l].sort((a,b) => a.id.localeCompare(b.id));
+    if (sort === 'status') l = [...l].sort((a,b) => (a.status==='connected'?0:1)-(b.status==='connected'?0:1) || a.id.localeCompare(b.id));
+    if (sort === 'tools')  l = [...l].sort((a,b) => b.tools - a.tools);
+    return l;
+  }, [servers, status, transport, auth, q, sort]);
+
+  const onToggle = s => {
+    setServers(prev => prev.map(x => x.id === s.id ? { ...x, enabled: !x.enabled, installed: x.installed || true, status: x.status === 'market' ? 'unknown' : x.status } : x));
+    if (active && active.id === s.id) setActive(a => ({ ...a, enabled: !a.enabled }));
+  };
+
+  const total = servers.length;
+  const connected = servers.filter(s => s.status === 'connected').length;
+  const installed = servers.filter(s => s.installed).length;
+  const marketCt = servers.filter(s => s.status === 'market').length;
+
+  return (
+    <div className={`shell ${collapsed ? 'filters-collapsed' : ''}`}>
+      <nav className="nav"><PrimaryNavV2 active="mcp" sessionsBadge={9} /></nav>
+      <FiltersPanel
+        q={q} setQ={setQ}
+        status={status} setStatus={setStatus}
+        transport={transport} setTransport={setTransport}
+        auth={auth} setAuth={setAuth}
+        count={list.length}
+        collapsed={collapsed} setCollapsed={setCollapsed}/>
+      <main className="main">
+        <div className="top">
+          <div>
+            <div className="crumbs">Hermes Workspace<span className="sep">·</span>MCP</div>
+            <h1>MCP Servers</h1>
+            <div className="sub">Discover, install, and manage Model Context Protocol servers exposed to Hermes Agent.</div>
+          </div>
+          <div className="right">
+            <div className="stat"><span>Installed</span><b>{installed}</b></div>
+            <div className="stat"><span>Connected</span><b style={{ color:'var(--m-green-500)' }}>{connected}</b></div>
+            <div className="stat"><span>Marketplace</span><b style={{ color:'#5fcfff', textShadow:'0 0 6px rgba(95,207,255,.4)' }}>{marketCt}</b></div>
+            <button className="m-btn m-btn-primary" style={{ marginLeft: 8, display:'inline-flex', alignItems:'center', gap:6 }}>{Ico.plus} Add Server</button>
+          </div>
+        </div>
+
+        {showBanner && (
+          <div className="banner">
+            <span className="ic">{Ico.warn}</span>
+            <span>Local fallback mode — using config.yaml. Test, Discover, and Logs require the new <code style={{ color:'#ffd9a0' }}>hermes-agent /api/mcp</code> endpoints.</span>
+            <span className="x" onClick={() => setShowBanner(false)}>{Ico.x}</span>
+          </div>
+        )}
+
+        <div className="toolbar">
+          <span style={{ font:'500 11px var(--m-font-mono)', color:'var(--m-text-faint)', textTransform:'uppercase', letterSpacing:'.18em' }}>
+            {list.length} of {total}
+          </span>
+          <span className="grow"/>
+          <span className="sort" onClick={() => setSort(s => s === 'status' ? 'name' : s === 'name' ? 'tools' : 'status')}>
+            sort · {sort === 'status' ? 'connected first' : sort === 'name' ? 'name a–z' : 'most tools'}
+          </span>
+          <div className="view-toggle" role="tablist">
+            <button className={view==='grid'?'on':''} onClick={() => setView('grid')}>{Ico.grid}<span>grid</span></button>
+            <button className={view==='table'?'on':''} onClick={() => setView('table')}>{Ico.rows}<span>table</span></button>
+          </div>
+        </div>
+
+        <div className="canvas">
+          {list.length === 0 ? (
+            <div className="empty">
+              <div className="glyph">∅</div>
+              no servers match.<br/>
+              <span style={{ color:'var(--m-text-muted)' }}>try clearing filters or switching to marketplace.</span>
+            </div>
+          ) : view === 'grid' ? (
+            <div className="grid">{list.map(s => <Card key={s.id} s={s} onOpen={setActive} onToggle={onToggle}/>)}</div>
+          ) : <Table list={list} onOpen={setActive} onToggle={onToggle}/>}
+        </div>
+
+        <footer className="pg-foot">
+          <span><b>{total}</b> servers</span>
+          <span className="sep"/>
+          <span><b className="v ok">{connected}</b> connected</span>
+          <span className="sep"/>
+          <span>mode <b>config fallback</b></span>
+          <span style={{ marginLeft:'auto' }}>updated <b>now</b></span>
+        </footer>
+      </main>
+
+      <Drawer server={active} onClose={() => setActive(null)} onToggle={onToggle}/>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

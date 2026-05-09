@@ -1,0 +1,1235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tasks · Hermes</title>
+<link rel="stylesheet" href="matrix-system.css" />
+<link rel="stylesheet" href="primary-nav-v2.css" />
+<style>
+  body { overflow: hidden; }
+  .nav { background: transparent !important; border: none !important; padding: 0 !important; }
+
+  /* ── shell ── */
+  .tk {
+    display: grid;
+    grid-template-columns: 232px 1fr;
+    grid-template-rows: 56px 1fr 30px;
+    height: 100vh;
+  }
+  .tk-top {
+    grid-column: 2 / -1;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    border-bottom: 1px solid var(--m-border);
+    background: var(--m-sidebar);
+  }
+  .tk-top .crumbs {
+    display: flex; align-items: center; gap: 14px;
+    padding: 0 22px;
+    font: 500 11.5px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .18em;
+    color: var(--m-text-faint);
+  }
+  .tk-top .crumbs span.cur { color: var(--m-green-500); }
+  .tk-top .crumbs .sep { color: var(--m-text-ghost); }
+
+  /* page header */
+  .tk-top .meta {
+    display: flex; align-items: center; gap: 18px;
+    padding: 0 18px;
+    border-left: 1px solid var(--m-border-subtle);
+    height: 100%;
+    color: var(--m-text-muted);
+  }
+  .tk-top .meta .stat { display: flex; flex-direction: column; gap: 1px; line-height: 1.1; }
+  .tk-top .meta .stat .v {
+    font: 600 13px var(--m-font-mono);
+    color: var(--m-text-strong);
+  }
+  .tk-top .meta .stat .v.ok { color: var(--m-green-500); }
+  .tk-top .meta .stat .v.warn { color: var(--m-amber, #ffb454); }
+  .tk-top .meta .stat .l {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: .18em;
+    color: var(--m-text-faint);
+  }
+  .tk-top .right-actions { display: flex; gap: 6px; padding-right: 14px; }
+
+  .nav { grid-row: 1 / -1; grid-column: 1; }
+  .tk-top { grid-column: 2 / -1; grid-row: 1; }
+  .tk-work { grid-column: 2 / -1; grid-row: 2; }
+  .tk-status { grid-column: 2 / -1; grid-row: 3; }
+
+  /* ── workspace ── */
+  .tk-work {
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+    background:
+      radial-gradient(circle at 80% 20%, rgba(0,255,65,.04), transparent 60%),
+      var(--m-bg);
+  }
+
+  /* ── action bar ── */
+  .actbar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: 18px;
+    padding: 16px 22px 12px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .actbar h1 {
+    margin: 0;
+    font: 600 22px/1.1 var(--m-font-mono);
+    color: var(--m-text);
+    text-shadow: var(--m-text-glow);
+    letter-spacing: -.5px;
+  }
+  .actbar .sub {
+    margin-top: 4px;
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text-faint);
+    letter-spacing: .15em; text-transform: uppercase;
+    display: flex; gap: 14px; align-items: center;
+  }
+  .actbar .sub .dot {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--m-text-ghost);
+  }
+  .actbar .sub b { color: var(--m-text-strong); font-weight: 600; }
+  .actbar .sub .v.ok { color: var(--m-green-500); }
+  .actbar .sub .v.run { color: var(--m-amber, #ffb454); }
+  .actbar .tools {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .seg {
+    display: flex; align-items: stretch;
+    border: 1px solid var(--m-border);
+    border-radius: 6px;
+    background: var(--m-fill-subtle);
+    overflow: hidden;
+    height: 32px;
+  }
+  .seg button {
+    background: transparent;
+    border: none;
+    color: var(--m-text-muted);
+    font: 500 10.5px var(--m-font-mono);
+    padding: 0 12px;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-right: 1px solid var(--m-border-subtle);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .seg button:last-child { border-right: none; }
+  .seg button.on {
+    color: var(--m-green-500);
+    background: rgba(0,255,65,.08);
+    box-shadow: inset 0 -1px 0 var(--m-green-500);
+  }
+  .seg button:hover:not(.on) { color: var(--m-text); }
+  .seg button svg { width: 12px; height: 12px; }
+
+  .pill {
+    height: 32px; padding: 0 12px;
+    border: 1px solid var(--m-border);
+    background: var(--m-fill-subtle);
+    border-radius: 6px;
+    color: var(--m-text-muted);
+    font: 500 10.5px var(--m-font-mono);
+    letter-spacing: .15em; text-transform: uppercase;
+    display: inline-flex; align-items: center; gap: 8px;
+    cursor: pointer;
+  }
+  .pill:hover { color: var(--m-text); border-color: var(--m-border-strong); }
+  .pill .ct {
+    font-size: 9.5px;
+    color: var(--m-green-500);
+    background: rgba(0,255,65,.10);
+    border: 1px solid var(--m-green-500);
+    padding: 1px 6px; border-radius: 999px;
+  }
+  .pill svg { width: 12px; height: 12px; }
+
+  .icobtn {
+    width: 32px; height: 32px;
+    border: 1px solid var(--m-border);
+    background: var(--m-fill-subtle);
+    color: var(--m-text-muted);
+    border-radius: 6px;
+    cursor: pointer;
+    display: grid; place-items: center;
+  }
+  .icobtn:hover { color: var(--m-green-500); border-color: var(--m-border-strong); }
+  .icobtn svg { width: 14px; height: 14px; }
+
+  .selbox {
+    height: 32px; padding: 0 28px 0 12px;
+    border: 1px solid var(--m-border);
+    background: var(--m-fill-subtle);
+    border-radius: 6px;
+    color: var(--m-text); font: 500 10.5px var(--m-font-mono);
+    letter-spacing: .12em; text-transform: uppercase;
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, var(--m-text-faint) 50%), linear-gradient(135deg, var(--m-text-faint) 50%, transparent 50%);
+    background-position: calc(100% - 14px) center, calc(100% - 9px) center;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+  }
+
+  .btn-prim {
+    height: 32px;
+    background: var(--m-green-500);
+    color: #04140a;
+    border: 1px solid var(--m-green-500);
+    border-radius: 6px;
+    padding: 0 16px;
+    font: 700 11px var(--m-font-mono);
+    letter-spacing: .14em; text-transform: uppercase;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    box-shadow: 0 0 16px rgba(0,255,65,.32);
+  }
+  .btn-prim svg { width: 12px; height: 12px; }
+  .btn-prim:hover { box-shadow: 0 0 22px rgba(0,255,65,.5); }
+
+  .btn-sec {
+    height: 32px;
+    background: var(--m-fill-subtle);
+    color: var(--m-text);
+    border: 1px solid var(--m-border);
+    border-radius: 6px;
+    padding: 0 14px;
+    font: 600 10.5px var(--m-font-mono);
+    letter-spacing: .14em; text-transform: uppercase;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-sec:hover { color: var(--m-green-500); border-color: var(--m-border-strong); }
+  .btn-sec svg { width: 12px; height: 12px; }
+
+  /* ── global stripe ── */
+  .global-stripe {
+    margin: 12px 22px 0;
+    padding: 10px 16px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 8px;
+    background:
+      linear-gradient(90deg, rgba(0,255,65,.02), transparent 60%),
+      var(--m-panel);
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 18px;
+    align-items: center;
+  }
+  .global-stripe .lbl {
+    font: 600 10px var(--m-font-mono);
+    letter-spacing: .25em; text-transform: uppercase;
+    color: var(--m-text-faint);
+  }
+  .global-stripe .row {
+    display: flex; gap: 22px; align-items: center;
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text-muted);
+  }
+  .global-stripe .row b { color: var(--m-text-strong); font-weight: 600; }
+  .global-stripe .pip {
+    width: 8px; height: 8px; border-radius: 50%;
+    display: inline-block; margin-right: 8px; vertical-align: middle;
+  }
+  .global-stripe .pip.done { background: var(--m-green-500); box-shadow: 0 0 6px var(--m-green-500); }
+  .global-stripe .pip.run { background: var(--m-amber, #ffb454); box-shadow: 0 0 6px var(--m-amber, #ffb454); }
+  .global-stripe .pip.todo { background: var(--m-cyan, #5ad3ff); box-shadow: 0 0 6px var(--m-cyan, #5ad3ff); }
+  .global-stripe .pip.bk { background: var(--m-violet, #b07cff); box-shadow: 0 0 6px var(--m-violet, #b07cff); }
+  .global-stripe .pip.bl { background: var(--m-pink, #ff5fa2); box-shadow: 0 0 6px var(--m-pink, #ff5fa2); }
+  .global-stripe .progress {
+    width: 220px; height: 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid var(--m-border-subtle);
+    overflow: hidden; position: relative;
+  }
+  .global-stripe .progress > i {
+    position: absolute; top: 0; bottom: 0;
+    background: var(--m-green-500);
+    box-shadow: 0 0 8px var(--m-green-500);
+    animation: shimmer 2s ease-in-out infinite;
+  }
+  @keyframes shimmer { 0%,100% { opacity: .8 } 50% { opacity: 1 } }
+
+  /* ── board ── */
+  .board {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 14px 22px 14px;
+  }
+  .board-grid {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 304px;
+    gap: 14px;
+    height: 100%;
+  }
+
+  /* ── column ── */
+  .col {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    border: 1px solid var(--m-border);
+    border-radius: 10px;
+    background:
+      linear-gradient(180deg, rgba(0,0,0,.16), transparent 30px),
+      var(--m-panel);
+    overflow: hidden;
+    min-height: 0;
+    position: relative;
+  }
+  .col::before {
+    content:''; position: absolute; left: 0; right: 0; top: 0;
+    height: 2px; opacity: .8;
+    background: var(--col-color, var(--m-green-500));
+    box-shadow: 0 0 12px var(--col-color, var(--m-green-500));
+  }
+  .col-h {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .col-h .pip {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--col-color, var(--m-green-500));
+    box-shadow: 0 0 8px var(--col-color, var(--m-green-500));
+  }
+  .col-h h3 {
+    margin: 0;
+    font: 600 12px var(--m-font-mono);
+    letter-spacing: .14em; text-transform: uppercase;
+    color: var(--m-text-strong);
+  }
+  .col-h .ct {
+    font: 600 10.5px var(--m-font-mono);
+    color: var(--m-text-muted);
+    background: var(--m-fill-subtle);
+    border: 1px solid var(--m-border-subtle);
+    padding: 2px 7px; border-radius: 999px;
+  }
+  .col-h .add {
+    width: 22px; height: 22px;
+    border: 1px solid var(--m-border-subtle);
+    background: transparent;
+    border-radius: 5px;
+    color: var(--m-text-muted);
+    cursor: pointer;
+    display: grid; place-items: center;
+  }
+  .col-h .add:hover { color: var(--col-color, var(--m-green-500)); border-color: var(--col-color, var(--m-green-500)); box-shadow: 0 0 8px color-mix(in srgb, var(--col-color, var(--m-green-500)) 40%, transparent); }
+  .col-h .add svg { width: 12px; height: 12px; }
+
+  .col-meta {
+    grid-column: 1 / -1;
+    display: flex; gap: 14px;
+    margin-top: 4px;
+    font: 500 9.5px var(--m-font-mono);
+    color: var(--m-text-faint);
+    letter-spacing: .15em; text-transform: uppercase;
+  }
+  .col-meta b { color: var(--m-text-muted); font-weight: 600; }
+
+  .col-body {
+    overflow-y: auto;
+    padding: 10px 10px 14px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .col-body::-webkit-scrollbar { width: 8px; }
+  .col-body::-webkit-scrollbar-thumb { background: var(--m-border); border-radius: 4px; }
+
+  /* ── card ── */
+  .card {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    padding: 11px 12px 10px;
+    background:
+      linear-gradient(180deg, rgba(0,255,65,.02), transparent 24px),
+      var(--m-panel-elevated, var(--m-panel));
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 8px;
+    cursor: grab;
+    transition: transform 120ms var(--m-ease-out), border-color 120ms, box-shadow 120ms;
+  }
+  .card:hover {
+    border-color: var(--col-color, var(--m-green-500));
+    box-shadow: 0 4px 18px rgba(0,0,0,.4), 0 0 0 1px color-mix(in srgb, var(--col-color, var(--m-green-500)) 30%, transparent);
+    transform: translateY(-1px);
+  }
+  .card::after {
+    content:''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 2px;
+    background: var(--col-color, var(--m-green-500));
+    opacity: .55;
+    border-top-left-radius: 8px; border-bottom-left-radius: 8px;
+  }
+  .card .ttl {
+    grid-column: 1;
+    font: 600 12.5px/1.35 var(--m-font-mono);
+    color: var(--m-text);
+    letter-spacing: -.2px;
+    word-break: break-word;
+    text-wrap: pretty;
+  }
+  .card .stat-dot {
+    grid-column: 2;
+    align-self: start;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--m-text-ghost);
+    border: 1px solid currentColor;
+    color: var(--col-color, var(--m-green-500));
+  }
+  .card .stat-dot.live { background: var(--col-color, var(--m-green-500)); box-shadow: 0 0 8px var(--col-color, var(--m-green-500)); }
+  .card .desc {
+    grid-column: 1 / -1;
+    font: 500 11px/1.5 var(--m-font-mono);
+    color: var(--m-text-muted);
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .card .tagrow {
+    grid-column: 1 / -1;
+    display: flex; gap: 5px; flex-wrap: wrap;
+  }
+  .card .tag {
+    font: 500 9px var(--m-font-mono);
+    letter-spacing: .14em; text-transform: uppercase;
+    padding: 2px 6px; border-radius: 3px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--m-border-subtle);
+    color: var(--m-text-muted);
+  }
+  .card .tag.tag-research { color: #5ad3ff; border-color: rgba(90,211,255,.35); background: rgba(90,211,255,.08); }
+  .card .tag.tag-llm { color: #b07cff; border-color: rgba(176,124,255,.35); background: rgba(176,124,255,.08); }
+  .card .tag.tag-arch { color: #ffb454; border-color: rgba(255,180,84,.35); background: rgba(255,180,84,.08); }
+  .card .tag.tag-import { color: var(--m-green-500); border-color: rgba(0,255,65,.35); background: rgba(0,255,65,.08); }
+  .card .tag.tag-batch { color: #ff5fa2; border-color: rgba(255,95,162,.35); background: rgba(255,95,162,.08); }
+
+  .card .foot {
+    grid-column: 1 / -1;
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--m-border-subtle);
+    display: flex; align-items: center; gap: 12px;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    letter-spacing: .1em; text-transform: uppercase;
+  }
+  .card .foot .as {
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .card .foot .av {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: rgba(0,255,65,.10);
+    border: 1px solid var(--m-green-500);
+    color: var(--m-green-500);
+    display: grid; place-items: center;
+    font: 700 8px var(--m-font-mono);
+    letter-spacing: 0;
+  }
+  .card .foot .av.un {
+    background: var(--m-fill-subtle);
+    border-color: var(--m-border-subtle);
+    color: var(--m-text-faint);
+  }
+  .card .foot .as b { color: var(--m-text-muted); font-weight: 600; }
+  .card .foot .icoct {
+    margin-left: auto;
+    display: flex; gap: 10px; align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .card .foot .icoct .ic {
+    display: inline-flex; align-items: center; gap: 4px;
+    color: var(--m-text-faint);
+  }
+  .card .foot .icoct svg { width: 11px; height: 11px; }
+  .card .foot .icoct .ic.up { color: var(--m-green-500); }
+  .card .foot .icoct .ic.dn { color: var(--m-pink, #ff5fa2); }
+
+  .card .id {
+    grid-column: 2;
+    align-self: end;
+    font: 600 9px var(--m-font-mono);
+    color: var(--m-text-faint);
+    letter-spacing: .1em;
+    white-space: nowrap;
+  }
+
+  /* progress strip per running card */
+  .card .prog {
+    grid-column: 1 / -1;
+    height: 3px;
+    margin-top: 4px;
+    background: rgba(255,255,255,.04);
+    border-radius: 2px; overflow: hidden;
+    position: relative;
+  }
+  .card .prog > i {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: var(--col-color, var(--m-green-500));
+    box-shadow: 0 0 6px var(--col-color, var(--m-green-500));
+  }
+
+  /* drop targets */
+  .col.empty .col-body {
+    align-items: center; justify-content: center;
+  }
+  .col-empty {
+    border: 1px dashed var(--m-border);
+    border-radius: 8px;
+    padding: 26px 14px;
+    text-align: center;
+    color: var(--m-text-faint);
+    font: 500 10.5px var(--m-font-mono);
+    letter-spacing: .15em; text-transform: uppercase;
+    background: rgba(255,255,255,.015);
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .col-empty svg { width: 18px; height: 18px; margin-bottom: 8px; opacity: .6; }
+  .col-empty .sub {
+    margin-top: 6px;
+    font-size: 9.5px;
+    color: var(--m-text-ghost);
+    letter-spacing: .15em;
+  }
+
+  /* ── status footer ── */
+  .tk-status {
+    display: flex; align-items: center;
+    gap: 22px;
+    padding: 0 14px;
+    background: var(--m-sidebar);
+    border-top: 1px solid var(--m-border);
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  .tk-status .grp { display: flex; align-items: center; gap: 6px; }
+  .tk-status .grp b { color: var(--m-text-strong); font-weight: 600; }
+  .tk-status .grp .v.warn { color: var(--m-amber, #ffb454); }
+  .tk-status .grp .v.ok { color: var(--m-green-500); }
+  .tk-status .sep { width: 1px; height: 14px; background: var(--m-border-subtle); }
+  .tk-status .pulse {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--m-green-500);
+    box-shadow: 0 0 6px var(--m-green-500);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: .35 } }
+
+  /* ── swimlane view ── */
+  .swim {
+    overflow: auto;
+    padding: 14px 22px;
+    display: none;
+  }
+  .view-swim .swim { display: block; }
+  .view-swim .board { display: none; }
+  .swim-row {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    border: 1px solid var(--m-border);
+    border-radius: 10px;
+    background: var(--m-panel);
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .swim-lane {
+    padding: 14px 12px;
+    border-right: 1px solid var(--m-border-subtle);
+    display: grid; align-content: start; gap: 6px;
+    background: linear-gradient(180deg, rgba(0,255,65,.025), transparent 80px);
+  }
+  .swim-lane .av {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: rgba(0,255,65,.10);
+    border: 1px solid var(--m-green-500); color: var(--m-green-500);
+    display: grid; place-items: center;
+    font: 700 11px var(--m-font-mono);
+  }
+  .swim-lane .av.un { background: var(--m-fill-subtle); border-color: var(--m-border-subtle); color: var(--m-text-faint); }
+  .swim-lane .nm { font: 600 12px var(--m-font-mono); color: var(--m-text); letter-spacing: .1em; text-transform: uppercase; }
+  .swim-lane .role { font: 500 10px var(--m-font-mono); color: var(--m-text-faint); letter-spacing: .15em; text-transform: uppercase; }
+  .swim-lane .stats { display: flex; gap: 10px; margin-top: 6px; font: 500 10px var(--m-font-mono); color: var(--m-text-muted); }
+  .swim-lane .stats b { color: var(--m-text); }
+  .swim-cells {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(220px, 1fr));
+    border-left: 1px dashed var(--m-border-subtle);
+  }
+  .swim-cell {
+    border-right: 1px dashed var(--m-border-subtle);
+    padding: 10px;
+    display: flex; flex-direction: column; gap: 8px;
+    min-height: 90px;
+  }
+  .swim-cell:last-child { border-right: none; }
+  .swim-cell .lbl { font: 600 9px var(--m-font-mono); letter-spacing: .2em; text-transform: uppercase; color: var(--m-text-faint); }
+  .swim-mini {
+    border: 1px solid var(--m-border-subtle);
+    border-left: 2px solid var(--col-color, var(--m-green-500));
+    border-radius: 6px;
+    padding: 6px 8px;
+    background: var(--m-panel-elevated, var(--m-panel));
+    font: 500 11px/1.35 var(--m-font-mono);
+    color: var(--m-text);
+    display: grid; gap: 4px;
+    cursor: grab;
+  }
+  .swim-mini:hover { border-color: var(--col-color, var(--m-green-500)); }
+  .swim-mini .id { font: 600 9px var(--m-font-mono); color: var(--m-text-faint); letter-spacing: .1em; }
+
+  /* ── timeline view ── */
+  .timeline {
+    overflow: auto;
+    padding: 14px 22px;
+    display: none;
+  }
+  .view-time .timeline { display: block; }
+  .view-time .board { display: none; }
+  .tl-head {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    border: 1px solid var(--m-border);
+    border-radius: 10px 10px 0 0;
+    background: var(--m-panel);
+    border-bottom: none;
+  }
+  .tl-head .lbl {
+    padding: 10px 12px;
+    border-right: 1px solid var(--m-border-subtle);
+    font: 600 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    letter-spacing: .2em; text-transform: uppercase;
+  }
+  .tl-head .ticks {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    font: 500 9.5px var(--m-font-mono);
+    color: var(--m-text-faint);
+    letter-spacing: .12em;
+  }
+  .tl-head .ticks span {
+    border-right: 1px dashed var(--m-border-subtle);
+    padding: 10px 6px;
+    text-align: left;
+  }
+  .tl-head .ticks span.now { color: var(--m-green-500); position: relative; }
+  .tl-head .ticks span.now::after { content:''; position: absolute; right: -1px; top: 0; bottom: -1px; width: 1px; background: var(--m-green-500); box-shadow: 0 0 8px var(--m-green-500); }
+  .tl-body {
+    border: 1px solid var(--m-border);
+    border-radius: 0 0 10px 10px;
+    background: var(--m-panel);
+    overflow: hidden;
+  }
+  .tl-row {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    border-top: 1px solid var(--m-border-subtle);
+    min-height: 56px;
+  }
+  .tl-row:first-child { border-top: none; }
+  .tl-row .meta {
+    padding: 10px 12px;
+    border-right: 1px solid var(--m-border-subtle);
+    display: grid; gap: 4px; align-content: center;
+  }
+  .tl-row .meta .id { font: 600 9px var(--m-font-mono); color: var(--m-text-faint); letter-spacing: .12em; }
+  .tl-row .meta .ttl { font: 600 11.5px/1.3 var(--m-font-mono); color: var(--m-text); }
+  .tl-row .meta .as { font: 500 10px var(--m-font-mono); color: var(--m-text-muted); letter-spacing: .1em; text-transform: uppercase; }
+  .tl-track {
+    position: relative;
+    background-image:
+      linear-gradient(90deg, var(--m-border-subtle) 1px, transparent 1px);
+    background-size: calc(100%/12) 100%;
+  }
+  .tl-track .now {
+    position: absolute; top: 0; bottom: 0;
+    width: 1px; background: var(--m-green-500);
+    box-shadow: 0 0 8px var(--m-green-500);
+  }
+  .tl-bar {
+    position: absolute;
+    top: 50%; transform: translateY(-50%);
+    height: 22px;
+    border-radius: 5px;
+    border: 1px solid var(--col-color, var(--m-green-500));
+    background: color-mix(in srgb, var(--col-color, var(--m-green-500)) 18%, transparent);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--col-color, var(--m-green-500)) 40%, transparent);
+    display: flex; align-items: center;
+    padding: 0 8px;
+    font: 600 10px var(--m-font-mono);
+    color: var(--m-text);
+    letter-spacing: .12em; text-transform: uppercase;
+    overflow: hidden; white-space: nowrap;
+  }
+  .tl-bar.live::after {
+    content:''; position: absolute; top: 0; right: 0; bottom: 0;
+    width: 22px;
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--col-color, var(--m-green-500)) 60%, transparent));
+    animation: shimmer 1.6s linear infinite;
+  }
+  .tl-bar.ghost {
+    background: transparent;
+    border-style: dashed;
+    color: var(--m-text-muted);
+    box-shadow: none;
+  }
+
+  /* ── columns config popover (visual only) ── */
+  .columns-pop {
+    position: absolute;
+    top: 56px; right: 220px;
+    width: 280px;
+    background: var(--m-panel);
+    border: 1px solid var(--m-border);
+    border-radius: 8px;
+    padding: 10px;
+    box-shadow: 0 12px 36px rgba(0,0,0,.6), 0 0 0 1px var(--m-border-subtle);
+    z-index: 30;
+    display: none;
+  }
+  .columns-pop.open { display: block; }
+  .columns-pop h4 { margin: 0 0 8px; font: 600 10px var(--m-font-mono); letter-spacing: .2em; text-transform: uppercase; color: var(--m-text-faint); }
+  .columns-pop .row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; border-radius: 5px; cursor: grab;
+  }
+  .columns-pop .row:hover { background: var(--m-fill-subtle); }
+  .columns-pop .row .pip { width: 8px; height: 8px; border-radius: 50%; }
+  .columns-pop .row .name { flex: 1; font: 500 11px var(--m-font-mono); color: var(--m-text); }
+  .columns-pop .row .ct { font: 500 10px var(--m-font-mono); color: var(--m-text-faint); }
+  .columns-pop .row input[type="checkbox"] { accent-color: var(--m-green-500); }
+  .columns-pop .grip { color: var(--m-text-ghost); font: 600 11px var(--m-font-mono); }
+</style>
+</head>
+<body>
+
+<div class="tk view-board" data-screen-label="Tasks" id="tk-shell">
+
+  <!-- NAV -->
+  <nav class="nav" id="primary-nav-mount"></nav>
+
+  <!-- TOP -->
+  <header class="tk-top">
+    <div class="crumbs">
+      <span>Workspace</span><span class="sep">/</span>
+      <span class="cur">Tasks</span><span class="sep">/</span>
+      <span>Kanban</span>
+    </div>
+    <div style="display:flex;align-items:center;height:100%">
+      <div class="meta">
+        <div class="stat"><span class="v ok">154</span><span class="l">Done</span></div>
+        <div class="stat"><span class="v warn">4</span><span class="l">Running</span></div>
+        <div class="stat"><span class="v">1</span><span class="l">Todo</span></div>
+        <div class="stat"><span class="v">4</span><span class="l">Backlog</span></div>
+        <div class="stat"><span class="v">163</span><span class="l">Total</span></div>
+      </div>
+      <div class="right-actions">
+        <button class="icobtn" title="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M3 21v-5h5"/></svg></button>
+        <button class="icobtn" title="Filters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 5h18M6 12h12M10 19h4"/></svg></button>
+      </div>
+    </div>
+  </header>
+
+  <!-- WORKSPACE -->
+  <section class="tk-work">
+
+    <!-- ACTION BAR -->
+    <div class="actbar">
+      <div>
+        <h1>Tasks</h1>
+        <div class="sub">
+          <span><span class="v">9</span> total</span>
+          <span class="dot"></span>
+          <span><span class="v run">4</span> running</span>
+          <span class="dot"></span>
+          <span><span class="v ok">0%</span> done</span>
+          <span class="dot"></span>
+          <span>Drag cards to change status — open a card to set assignee &amp; due date</span>
+        </div>
+      </div>
+      <div class="tools">
+        <div class="seg" role="tablist" aria-label="View" id="view-seg">
+          <button class="on" data-view="board" title="Kanban view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="5" height="16"/><rect x="10" y="4" width="5" height="11"/><rect x="17" y="4" width="4" height="7"/></svg>Board</button>
+          <button data-view="swim" title="Swimlanes by assignee"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h18M3 12h18M3 18h18"/></svg>Swim</button>
+          <button data-view="time" title="Timeline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 5h18M3 12h12M3 19h7"/></svg>Time</button>
+        </div>
+        <button class="pill" title="Configure columns">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="5" height="16"/><rect x="10" y="4" width="5" height="16"/><rect x="17" y="4" width="4" height="16"/></svg>
+          Columns <span class="ct">5</span>
+        </button>
+        <button class="icobtn" title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+        <select class="selbox" aria-label="Profile">
+          <option>All profiles</option><option>Default</option><option>Research</option><option>GTW#33</option>
+        </select>
+        <button class="btn-sec" title="Dispatch a task"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m13 2-9 12h7l-1 8 9-12h-7z"/></svg>Dispatch</button>
+        <button class="icobtn" title="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M3 21v-5h5"/></svg></button>
+        <button class="btn-prim"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>New Task</button>
+      </div>
+    </div>
+
+    <!-- GLOBAL STRIPE -->
+    <div class="global-stripe">
+      <span class="lbl">Global · 163 Total</span>
+      <div class="row">
+        <span><span class="pip done"></span><b>154</b> Done</span>
+        <span><span class="pip run"></span><b>4</b> Running</span>
+        <span><span class="pip todo"></span><b>1</b> Todo</span>
+        <span><span class="pip bk"></span><b>4</b> Backlog / Triage</span>
+        <span><span class="pip bl"></span><b>0</b> Blocked</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;font:500 10.5px var(--m-font-mono);color:var(--m-text-faint);text-transform:uppercase;letter-spacing:.18em">
+        <span>94.5% complete</span>
+        <div class="progress"><i style="width:94.5%"></i></div>
+      </div>
+    </div>
+
+    <!-- BOARD -->
+    <div class="board">
+      <div class="board-grid">
+
+        <!-- BACKLOG / TRIAGE -->
+        <div class="col" style="--col-color: #b07cff">
+          <div class="col-h">
+            <span class="pip"></span>
+            <h3>Backlog / Triage</h3>
+            <span class="ct">4</span>
+            <button class="add" title="Add task"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+            <div class="col-meta">
+              <span><b>4</b> Awaiting</span><span><b>3</b> Unassigned</span><span><b>—</b> WIP</span>
+            </div>
+          </div>
+          <div class="col-body">
+
+            <article class="card">
+              <div class="ttl">Evaluate DeepSeek V4 / V4 Pro from research-models</div>
+              <span class="stat-dot"></span>
+              <div class="desc">Tags: research, llm, deepseek, models · Research multiple model options for the V4 release. Compare context windows, pricing, latency, and tool use parity.</div>
+              <div class="tagrow"><span class="tag tag-research">research</span><span class="tag tag-llm">llm</span><span class="tag">deepseek</span><span class="tag">models</span></div>
+              <div class="foot">
+                <span class="as"><span class="av un">·</span><b>Unassigned</b></span>
+                <span class="icoct">
+                  <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/></svg>1</span>
+                </span>
+              </div>
+              <span class="id">T-127</span>
+            </article>
+
+            <article class="card">
+              <div class="ttl">Clarify DeepSeek API 75% discount / post-window pricing</div>
+              <span class="stat-dot"></span>
+              <div class="desc">[Imported from SwitchUI tasks.json] Tags: research, finance · Confirm whether the 75% discount applies post-window or only during the rollout period.</div>
+              <div class="tagrow"><span class="tag tag-import">imported</span><span class="tag tag-research">research</span><span class="tag">finance</span></div>
+              <div class="foot">
+                <span class="as"><span class="av un">·</span><b>Unassigned</b></span>
+                <span class="icoct">
+                  <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12h13l-3-3M3 12l3 3"/></svg>imported</span>
+                </span>
+              </div>
+              <span class="id">T-128</span>
+            </article>
+
+            <article class="card">
+              <div class="ttl">Design Hermes vision fallback strategy for offline mode</div>
+              <span class="stat-dot"></span>
+              <div class="desc">[Imported from SwitchUI tasks.json] Tags: architecture, vision, offline · Define how Hermes degrades gracefully when no model is reachable. Cover queueing, surface signaling, and safe-mode UX.</div>
+              <div class="tagrow"><span class="tag tag-import">imported</span><span class="tag tag-arch">architecture</span><span class="tag">vision</span><span class="tag">offline</span></div>
+              <div class="foot">
+                <span class="as"><span class="av un">·</span><b>Unassigned</b></span>
+              </div>
+              <span class="id">T-129</span>
+            </article>
+
+            <article class="card">
+              <div class="ttl">Import: free-claude-code — local proxy for offline Claude</div>
+              <span class="stat-dot"></span>
+              <div class="desc">EXECUTION RULES: No web research or context indexing — ship a local proxy compatible with the existing Claude API surface and validate via cassette tests.</div>
+              <div class="tagrow"><span class="tag tag-import">imported</span><span class="tag">proxy</span><span class="tag tag-arch">infra</span></div>
+              <div class="foot">
+                <span class="as"><span class="av">D</span><b>default</b></span>
+                <span class="icoct">
+                  <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>3d</span>
+                </span>
+              </div>
+              <span class="id">T-130</span>
+            </article>
+
+          </div>
+        </div>
+
+        <!-- TODO -->
+        <div class="col" style="--col-color: #5ad3ff">
+          <div class="col-h">
+            <span class="pip"></span>
+            <h3>Todo</h3>
+            <span class="ct">1</span>
+            <button class="add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+            <div class="col-meta">
+              <span><b>1</b> Ready</span><span><b>0</b> Blockers</span><span>Lead <b>—</b></span>
+            </div>
+          </div>
+          <div class="col-body">
+
+            <article class="card">
+              <div class="ttl">GTW#33 Finalizer: verify all tools imported</div>
+              <span class="stat-dot live"></span>
+              <div class="desc">Sweep the GTW#33 tool registry. Confirm all 17 tools loaded, versions match the manifest, and dependents resolved. Block release if any missing.</div>
+              <div class="tagrow"><span class="tag tag-batch">gtw#33</span><span class="tag">finalize</span><span class="tag">qa</span></div>
+              <div class="foot">
+                <span class="as"><span class="av">D</span><b>default</b></span>
+                <span class="icoct">
+                  <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/></svg>1</span>
+                  <span class="ic up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 19V5M5 12l7-7 7 7"/></svg>4</span>
+                </span>
+              </div>
+              <span class="id">T-131</span>
+            </article>
+
+          </div>
+        </div>
+
+        <!-- READY -->
+        <div class="col empty" style="--col-color: #b07cff">
+          <div class="col-h">
+            <span class="pip"></span>
+            <h3>Ready</h3>
+            <span class="ct">0</span>
+            <button class="add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+            <div class="col-meta"><span>Drop staged-and-ready work here</span></div>
+          </div>
+          <div class="col-body">
+            <div class="col-empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M9 12h6M9 16h4M9 8h6"/><rect x="4" y="3" width="16" height="18" rx="2"/></svg>
+              <div>No tasks</div>
+              <div class="sub">Drop here or click + to add</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RUNNING -->
+        <div class="col" style="--col-color: #ffb454">
+          <div class="col-h">
+            <span class="pip"></span>
+            <h3>Running</h3>
+            <span class="ct">4</span>
+            <button class="add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+            <div class="col-meta"><span><b>4</b> Live</span><span>Tok/min <b>2.4k</b></span><span>WIP <b>4/6</b></span></div>
+          </div>
+          <div class="col-body">
+
+            <article class="card">
+              <div class="ttl">GTW#33 Batch 1: mirage, deepsec, trustless-ssh</div>
+              <span class="stat-dot live"></span>
+              <div class="desc">EXECUTION RULES: Do NOT use web readers, context indexing, or external lookup. Run the cassette suite for the three tools, log per-tool latency, and emit the merged report.</div>
+              <div class="tagrow"><span class="tag tag-batch">gtw#33</span><span class="tag">batch-1</span><span class="tag tag-arch">tools</span></div>
+              <div class="prog"><i style="width:42%"></i></div>
+              <div class="foot">
+                <span class="as"><span class="av">D</span><b>default</b></span>
+                <span class="icoct">
+                  <span class="ic up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 19V5M5 12l7-7 7 7"/></svg>1</span>
+                  <span class="ic dn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>1</span>
+                  <span class="ic">0/1</span>
+                  <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>17808</span>
+                </span>
+              </div>
+              <span class="id">T-132</span>
+            </article>
+
+            <article class="card">
+              <div class="ttl">GTW#33 Batch 2: ps5-linux-loader, kernel-fuzzer</div>
+              <span class="stat-dot live"></span>
+              <div class="desc">EXECUTION RULES: Do NOT use web readers, context indexing, or external lookup. Pin to local mirror; fail fast on signature mismatch.</div>
+              <div class="tagrow"><span class="tag tag-batch">gtw#33</span><span class="tag">batch-2</span><span class="tag">kernel</span></div>
+              <div class="prog"><i style="width:64%"></i></div>
+              <div class="foot">
+                <span class="as"><span class="av">D</span><b>default</b></span>
+                <span class="icoct">
+                  <span class="ic up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 19V5M5 12l7-7 7 7"/></svg>1</span>
+                  <span class="ic dn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>1</span>
+                  <span class="ic">0/1</span>
+                  <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>17809</span>
+                </span>
+              </div>
+              <span class="id">T-133</span>
+            </article>
+
+            <article class="card">
+              <div class="ttl">GTW#33 Batch 3: claude-pets, MTPLX, snitch-rs</div>
+              <span class="stat-dot live"></span>
+              <div class="desc">EXECUTION RULES: Do NOT use web readers, context indexing, or external lookup. Validate the three runtime adapters against the cached fixtures.</div>
+              <div class="tagrow"><span class="tag tag-batch">gtw#33</span><span class="tag">batch-3</span><span class="tag tag-arch">runtime</span></div>
+              <div class="prog"><i style="width:28%"></i></div>
+              <div class="foot">
+                <span class="as"><span class="av">D</span><b>default</b></span>
+                <span class="icoct">
+                  <span class="ic up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 19V5M5 12l7-7 7 7"/></svg>1</span>
+                  <span class="ic dn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>1</span>
+                  <span class="ic">0/1</span>
+                  <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>17810</span>
+                </span>
+              </div>
+              <span class="id">T-134</span>
+            </article>
+
+            <article class="card">
+              <div class="ttl">GTW#33 Batch 4: cursed_browser, lazy-ws-tap</div>
+              <span class="stat-dot live"></span>
+              <div class="desc">EXECUTION RULES: Do NOT use web readers, context indexing, or external lookup. Capture trace for the synthetic browser session and fingerprint the WS tap.</div>
+              <div class="tagrow"><span class="tag tag-batch">gtw#33</span><span class="tag">batch-4</span><span class="tag">browser</span></div>
+              <div class="prog"><i style="width:11%"></i></div>
+              <div class="foot">
+                <span class="as"><span class="av">D</span><b>default</b></span>
+                <span class="icoct">
+                  <span class="ic up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 19V5M5 12l7-7 7 7"/></svg>1</span>
+                  <span class="ic dn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>1</span>
+                  <span class="ic">0/1</span>
+                  <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>17811</span>
+                </span>
+              </div>
+              <span class="id">T-135</span>
+            </article>
+
+          </div>
+        </div>
+
+        <!-- BLOCKED -->
+        <div class="col empty" style="--col-color: #ff5fa2">
+          <div class="col-h">
+            <span class="pip"></span>
+            <h3>Blocked</h3>
+            <span class="ct">0</span>
+            <button class="add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+            <div class="col-meta"><span>Drop tasks waiting on dependencies or input</span></div>
+          </div>
+          <div class="col-body">
+            <div class="col-empty">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M5 5l14 14"/></svg>
+              <div>No tasks</div>
+              <div class="sub">Drop here or click + to add</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- SWIMLANE VIEW -->
+    <div class="swim" aria-label="Swimlanes by assignee">
+      <div class="swim-row">
+        <div class="swim-lane">
+          <div class="av">D</div>
+          <div class="nm">default</div>
+          <div class="role">Lead Operator</div>
+          <div class="stats"><span><b>5</b> Active</span><span><b>4</b> Run</span></div>
+        </div>
+        <div class="swim-cells">
+          <div class="swim-cell"><span class="lbl">Backlog</span>
+            <div class="swim-mini" style="--col-color:#b07cff"><span class="id">T-130</span>Import: free-claude-code — local proxy</div>
+          </div>
+          <div class="swim-cell"><span class="lbl">Todo</span>
+            <div class="swim-mini" style="--col-color:#5ad3ff"><span class="id">T-131</span>GTW#33 Finalizer · verify all tools imported</div>
+          </div>
+          <div class="swim-cell"><span class="lbl">Ready</span></div>
+          <div class="swim-cell"><span class="lbl">Running</span>
+            <div class="swim-mini" style="--col-color:#ffb454"><span class="id">T-132</span>GTW#33 Batch 1 · mirage, deepsec, trustless-ssh</div>
+            <div class="swim-mini" style="--col-color:#ffb454"><span class="id">T-133</span>GTW#33 Batch 2 · ps5-linux-loader, kernel-fuzzer</div>
+            <div class="swim-mini" style="--col-color:#ffb454"><span class="id">T-134</span>GTW#33 Batch 3 · claude-pets, MTPLX, snitch-rs</div>
+            <div class="swim-mini" style="--col-color:#ffb454"><span class="id">T-135</span>GTW#33 Batch 4 · cursed_browser, lazy-ws-tap</div>
+          </div>
+          <div class="swim-cell"><span class="lbl">Blocked</span></div>
+        </div>
+      </div>
+
+      <div class="swim-row">
+        <div class="swim-lane">
+          <div class="av un">·</div>
+          <div class="nm">Unassigned</div>
+          <div class="role">Awaiting Pickup</div>
+          <div class="stats"><span><b>3</b> Awaiting</span></div>
+        </div>
+        <div class="swim-cells">
+          <div class="swim-cell"><span class="lbl">Backlog</span>
+            <div class="swim-mini" style="--col-color:#b07cff"><span class="id">T-127</span>Evaluate DeepSeek V4 / V4 Pro</div>
+            <div class="swim-mini" style="--col-color:#b07cff"><span class="id">T-128</span>Clarify DeepSeek API 75% discount / pricing</div>
+            <div class="swim-mini" style="--col-color:#b07cff"><span class="id">T-129</span>Design Hermes vision fallback strategy</div>
+          </div>
+          <div class="swim-cell"><span class="lbl">Todo</span></div>
+          <div class="swim-cell"><span class="lbl">Ready</span></div>
+          <div class="swim-cell"><span class="lbl">Running</span></div>
+          <div class="swim-cell"><span class="lbl">Blocked</span></div>
+        </div>
+      </div>
+
+      <div class="swim-row">
+        <div class="swim-lane">
+          <div class="av">R</div>
+          <div class="nm">research-lead</div>
+          <div class="role">Domain Specialist</div>
+          <div class="stats"><span><b>0</b> Active</span></div>
+        </div>
+        <div class="swim-cells">
+          <div class="swim-cell"><span class="lbl">Backlog</span></div>
+          <div class="swim-cell"><span class="lbl">Todo</span></div>
+          <div class="swim-cell"><span class="lbl">Ready</span></div>
+          <div class="swim-cell"><span class="lbl">Running</span></div>
+          <div class="swim-cell"><span class="lbl">Blocked</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TIMELINE VIEW -->
+    <div class="timeline" aria-label="Timeline">
+      <div class="tl-head">
+        <div class="lbl">Task · 12h horizon</div>
+        <div class="ticks">
+          <span>−6h</span><span>−5h</span><span>−4h</span><span>−3h</span><span>−2h</span><span class="now">−1h</span><span>now</span><span>+1h</span><span>+2h</span><span>+3h</span><span>+4h</span><span>+5h</span>
+        </div>
+      </div>
+      <div class="tl-body">
+        <div class="tl-row">
+          <div class="meta">
+            <span class="id">T-132 · Running</span>
+            <span class="ttl">GTW#33 Batch 1 · mirage, deepsec, trustless-ssh</span>
+            <span class="as">default · 42% · 17,808 tok</span>
+          </div>
+          <div class="tl-track">
+            <div class="now" style="left:50%"></div>
+            <div class="tl-bar live" style="--col-color:#ffb454; left:33%; width:25%">running 42%</div>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="meta">
+            <span class="id">T-133 · Running</span>
+            <span class="ttl">GTW#33 Batch 2 · ps5-linux-loader, kernel-fuzzer</span>
+            <span class="as">default · 64%</span>
+          </div>
+          <div class="tl-track">
+            <div class="now" style="left:50%"></div>
+            <div class="tl-bar live" style="--col-color:#ffb454; left:25%; width:33%">running 64%</div>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="meta">
+            <span class="id">T-134 · Running</span>
+            <span class="ttl">GTW#33 Batch 3 · claude-pets, MTPLX, snitch-rs</span>
+            <span class="as">default · 28%</span>
+          </div>
+          <div class="tl-track">
+            <div class="now" style="left:50%"></div>
+            <div class="tl-bar live" style="--col-color:#ffb454; left:42%; width:18%">running 28%</div>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="meta">
+            <span class="id">T-135 · Running</span>
+            <span class="ttl">GTW#33 Batch 4 · cursed_browser, lazy-ws-tap</span>
+            <span class="as">default · 11%</span>
+          </div>
+          <div class="tl-track">
+            <div class="now" style="left:50%"></div>
+            <div class="tl-bar live" style="--col-color:#ffb454; left:48%; width:14%">running 11%</div>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="meta">
+            <span class="id">T-131 · Todo</span>
+            <span class="ttl">GTW#33 Finalizer · verify all tools imported</span>
+            <span class="as">default · queued</span>
+          </div>
+          <div class="tl-track">
+            <div class="now" style="left:50%"></div>
+            <div class="tl-bar ghost" style="--col-color:#5ad3ff; left:60%; width:18%">scheduled +1h</div>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="meta">
+            <span class="id">T-127 · Backlog</span>
+            <span class="ttl">Evaluate DeepSeek V4 / V4 Pro</span>
+            <span class="as">unassigned</span>
+          </div>
+          <div class="tl-track">
+            <div class="now" style="left:50%"></div>
+            <div class="tl-bar ghost" style="--col-color:#b07cff; left:75%; width:22%">planned +3h</div>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="meta">
+            <span class="id">T-129 · Backlog</span>
+            <span class="ttl">Design Hermes vision fallback strategy</span>
+            <span class="as">unassigned</span>
+          </div>
+          <div class="tl-track">
+            <div class="now" style="left:50%"></div>
+            <div class="tl-bar ghost" style="--col-color:#b07cff; left:80%; width:18%">planned +4h</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- STATUS -->
+  <footer class="tk-status">
+    <span class="grp"><span class="pulse"></span> CPU <b>89%</b></span>
+    <span class="sep"></span>
+    <span class="grp">RAM <b>16 GB</b> / 16 GB</span>
+    <span class="sep"></span>
+    <span class="grp">Disk <span class="v warn">75%</span></span>
+    <span class="sep"></span>
+    <span class="grp">Hermes <span class="v ok">enhanced</span></span>
+    <span class="sep"></span>
+    <span class="grp">Updated <b>10s</b> ago</span>
+    <span style="margin-left:auto" class="grp">View <b>Board</b></span>
+    <span class="sep"></span>
+    <span class="grp">Sort <b>Recent</b></span>
+  </footer>
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="primary-nav-v2.jsx"></script>
+<script type="text/babel">
+  ReactDOM.createRoot(document.getElementById('primary-nav-mount'))
+    .render(<PrimaryNavV2 active="tasks" sessionsBadge={9} />);
+</script>
+<script>
+  (function () {
+    const shell = document.getElementById('tk-shell');
+    const seg = document.getElementById('view-seg');
+    const footer = document.querySelector('.tk-status');
+    seg.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-view]');
+      if (!btn) return;
+      seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
+      const v = btn.dataset.view;
+      shell.classList.remove('view-board', 'view-swim', 'view-time');
+      shell.classList.add('view-' + v);
+      const labels = { board: 'Board', swim: 'Swim', time: 'Time' };
+      const grp = footer && footer.querySelector('.grp:last-of-type b') ? null : null;
+      const viewSpan = footer && [...footer.querySelectorAll('.grp')].find(g => /View/i.test(g.textContent));
+      if (viewSpan) { const b = viewSpan.querySelector('b'); if (b) b.textContent = labels[v]; }
+    });
+  })();
+</script>
+</body>
+</html>

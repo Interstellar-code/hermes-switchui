@@ -1,0 +1,92 @@
+/* Primary Nav v2 styles — match shipped React component */
+.pnv-root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--m-sidebar, var(--m-panel));
+  border-right: 1px solid var(--m-border);
+  overflow: hidden;
+  font-family: 'JetBrains Mono', monospace;
+  box-sizing: border-box;
+}
+.pnv-brand {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--m-border);
+}
+.pnv-brand-l { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pnv-glyph {
+  width: 22px; height: 22px; border-radius: 6px;
+  background: rgba(0,255,65,.10); border: 1px solid var(--m-green-500);
+  color: var(--m-green-400);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.pnv-glyph svg { width: 14px; height: 14px; }
+.pnv-name { font-size: 12px; font-weight: 700; letter-spacing: .05em; color: var(--m-text); line-height: 1.2; }
+.pnv-ver  { font-size: 9px; color: var(--m-muted); opacity: .7; letter-spacing: 1.2px; }
+.pnv-icon-btn {
+  background: none; border: none; padding: 4px; border-radius: 4px;
+  color: var(--m-muted); cursor: pointer; display: flex; align-items: center;
+}
+.pnv-icon-btn:hover { color: var(--m-green-400); background: rgba(0,255,65,.06); }
+.pnv-body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; padding: 6px 6px 0;
+}
+.pnv-search {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border-radius: 4px; width: 100%;
+  background: none; border: none; color: var(--m-muted);
+  font-size: 11px; cursor: pointer; box-sizing: border-box; margin-bottom: 2px;
+  font-family: inherit;
+}
+.pnv-search:hover { background: rgba(0,255,65,.04); color: var(--m-text); }
+.pnv-kbd { font-size: 9px; opacity: .5; padding: 1px 5px; border: 1px solid var(--m-border); border-radius: 3px; }
+.pnv-newsess {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border-radius: 4px;
+  color: var(--m-green-400); font-size: 11px; font-weight: 600;
+  cursor: pointer; text-decoration: none; width: 100%;
+  box-sizing: border-box; margin-bottom: 4px; opacity: .9;
+}
+.pnv-newsess:hover { opacity: 1; background: rgba(0,255,65,.06); }
+.pnv-group {
+  padding: 10px 12px 4px; color: var(--m-muted); opacity: .6;
+  user-select: none; font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+}
+.pnv-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border-radius: 4px;
+  color: var(--m-muted); font-size: 11px; font-weight: 400;
+  cursor: pointer; text-decoration: none;
+  width: calc(100% - 0px); box-sizing: border-box;
+  transition: background .1s, color .1s;
+}
+.pnv-item:hover { background: rgba(0,255,65,.04); color: var(--m-text); }
+.pnv-item[data-active="true"] {
+  background: color-mix(in srgb, var(--m-green-500) 10%, transparent);
+  color: var(--m-green-400);
+  border-left: 2px solid var(--m-green-500);
+  padding-left: 10px;
+  box-shadow: inset 2px 0 6px color-mix(in srgb, var(--m-green-500) 20%, transparent);
+  font-weight: 500;
+}
+.pnv-badge {
+  font-size: 9.5px; padding: 1px 6px;
+  background: rgba(0,255,65,.14); border: 1px solid var(--m-green-500);
+  color: var(--m-green-400); border-radius: 999px;
+}
+.pnv-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 8px 12px; border-top: 1px solid var(--m-border);
+  margin-top: auto;
+}
+.pnv-foot-btn {
+  background: none; border: none; padding: 6px;
+  border-radius: 4px; color: var(--m-muted); cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; font-family: inherit;
+}
+.pnv-foot-btn:hover { color: var(--m-green-400); background: rgba(0,255,65,.05); }

@@ -1,0 +1,1689 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Hermes · Skills</title>
+<link rel="stylesheet" href="matrix-system.css"/>
+<link rel="stylesheet" href="primary-nav-v2.css"/>
+<style>.nav { background: transparent !important; border: none !important; padding: 0 !important; }</style>
+<style>
+  html, body { height: 100%; }
+  body { background: var(--m-bg); }
+
+  /* ── 3-column shell ─────────────────────────────────────── */
+  .shell {
+    display: grid;
+    grid-template-columns: 232px 280px 1fr;
+    height: 100vh;
+    overflow: hidden;
+    transition: grid-template-columns var(--m-dur-base) var(--m-ease-out);
+  }
+  .shell.filters-collapsed { grid-template-columns: 232px 44px 1fr; }
+
+  /* ── primary nav (cloned from chat page) ─────────────────── */
+  .nav {
+    background: var(--m-sidebar);
+    border-right: 1px solid var(--m-border);
+    padding: 14px 10px;
+    display: flex; flex-direction: column;
+    overflow: hidden; min-width: 0;
+  }
+  .nav .brand {
+    display: flex; align-items: center; gap: 10px;
+    padding: 4px 8px 14px;
+    border-bottom: 1px solid var(--m-border-subtle);
+    margin-bottom: 10px;
+  }
+  .nav .brand .glyph {
+    width: 28px; height: 28px;
+    border: 1.5px solid var(--m-green-500);
+    color: var(--m-green-500);
+    font-family: var(--m-font-mono); font-weight: 700; font-size: 14px;
+    border-radius: 4px; display: grid; place-items: center;
+    box-shadow: var(--m-glow-sm), inset 0 0 8px rgba(0,255,65,.12);
+  }
+  .nav .brand b {
+    font: 700 13px/1 var(--m-font-mono);
+    letter-spacing: .22em;
+    color: var(--m-text-strong);
+    text-shadow: var(--m-text-glow);
+  }
+  .nav .brand .ver {
+    font: 500 9px/1 var(--m-font-mono);
+    color: var(--m-text-faint);
+    margin-top: 3px;
+    letter-spacing: .15em;
+  }
+  .nav-grp {
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .22em;
+    color: var(--m-text-faint);
+    padding: 14px 10px 6px;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px;
+    border-radius: var(--m-radius-md);
+    font: 500 12.5px var(--m-font-mono);
+    color: var(--m-text-muted);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+    user-select: none;
+  }
+  .nav-item:hover { background: var(--m-fill-subtle); color: var(--m-text); }
+  .nav-item.active {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border-color: var(--m-border);
+    box-shadow: inset 2px 0 0 var(--m-green-500);
+  }
+  .ico { width: 14px; height: 14px; flex: none; }
+  .nav-item .badge-mini {
+    margin-left: auto;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    padding: 1px 6px;
+    border-radius: 9999px;
+    border: 1px solid var(--m-border-subtle);
+    background: var(--m-fill-subtle);
+  }
+  .nav-item.active .badge-mini { color: var(--m-green-500); border-color: var(--m-border); }
+  .nav-foot {
+    margin-top: auto;
+    padding-top: 10px;
+    border-top: 1px solid var(--m-border-subtle);
+    display: flex; gap: 8px; align-items: center;
+    font: 500 11px var(--m-font-mono); color: var(--m-text-muted);
+  }
+
+  /* ── filters panel ──────────────────────────────────────── */
+  .filt {
+    background: var(--m-panel);
+    border-right: 1px solid var(--m-border);
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    grid-template-columns: minmax(0,1fr);
+    overflow: hidden;
+  }
+  .filt-head {
+    display: flex; align-items: center;
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .filt-head h3 {
+    margin: 0;
+    font: 600 11px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .22em;
+    color: var(--m-text-strong);
+  }
+  .filt-head .ct {
+    margin-left: 8px;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+  }
+  .filt-head .actions { margin-left: auto; display: flex; gap: 4px; }
+
+  .ico-btn {
+    display: inline-grid; place-items: center;
+    width: 26px; height: 26px;
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-muted);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .ico-btn:hover { background: var(--m-fill-subtle); color: var(--m-green-500); border-color: var(--m-border-subtle); }
+  .ico-btn.active { background: var(--m-fill); color: var(--m-green-500); border-color: var(--m-border); box-shadow: var(--m-glow-sm); }
+
+  .filt-search { padding: 10px 14px; border-bottom: 1px solid var(--m-border-subtle); }
+
+  .filt-body { overflow: auto; padding: 4px 0 12px; }
+  .filt-grp { padding: 14px 14px 4px; }
+  .filt-grp h4 {
+    margin: 0 0 8px;
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .22em;
+    color: var(--m-text-faint);
+  }
+  .opt-row {
+    display: flex; align-items: center;
+    padding: 5px 10px;
+    margin: 0 4px;
+    border-radius: var(--m-radius-md);
+    font: 500 12px var(--m-font-mono);
+    color: var(--m-text-muted);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+    user-select: none;
+  }
+  .opt-row:hover { background: var(--m-fill-subtle); color: var(--m-text); }
+  .opt-row.on {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border-color: var(--m-border);
+    box-shadow: inset 2px 0 0 var(--m-green-500);
+  }
+  .opt-row .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--m-text-faint);
+    margin-right: 9px; flex: none;
+  }
+  .opt-row.on .dot { background: var(--m-green-500); box-shadow: var(--m-glow-sm); }
+  .opt-row .ct {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--m-text-faint);
+    padding: 1px 6px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 9999px;
+    background: var(--m-bg-deep);
+  }
+  .opt-row.on .ct { color: var(--m-green-500); border-color: var(--m-border); }
+
+  /* segmented (Status: Installed / Marketplace / All) */
+  .seg-stack {
+    display: grid; gap: 2px;
+    margin: 0 10px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    background: var(--m-bg-deep);
+    padding: 2px;
+  }
+  .seg-stack button {
+    background: transparent;
+    color: var(--m-text-muted);
+    border: none;
+    padding: 6px 10px;
+    font: 500 11px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .12em;
+    cursor: pointer; text-align: left;
+    border-radius: 4px;
+    display: flex; align-items: center; gap: 8px;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .seg-stack button:hover { color: var(--m-text); }
+  .seg-stack button.on {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    box-shadow: inset 2px 0 0 var(--m-green-500);
+  }
+  .seg-stack button .ct { margin-left: auto; font-size: 10px; color: var(--m-text-faint); }
+  .seg-stack button.on .ct { color: var(--m-green-500); }
+
+  .filt-foot {
+    border-top: 1px solid var(--m-border-subtle);
+    padding: 10px 12px;
+    display: grid; gap: 6px;
+  }
+
+  /* collapsed rail */
+  .filt.is-collapsed { grid-template-rows: auto 1fr auto; }
+  .filt-rail {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 8px; padding: 10px 0;
+  }
+  .filt-rail .vlabel {
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .3em;
+    color: var(--m-text-faint);
+    margin-top: 14px;
+  }
+  .filt-rail .badge-n {
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-green-500);
+    border: 1px solid var(--m-border);
+    border-radius: 9999px;
+    padding: 1px 6px;
+  }
+
+  /* ── main column ────────────────────────────────────────── */
+  .main {
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+    overflow: hidden;
+    background: var(--m-bg);
+  }
+  .top {
+    display: flex; align-items: flex-end; gap: 18px;
+    padding: 18px 24px 14px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .top .crumbs {
+    font: 500 10px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .22em;
+    color: var(--m-text-faint);
+  }
+  .top .crumbs .sep { color: var(--m-text-ghost); margin: 0 8px; }
+  .top h1 {
+    margin: 4px 0 2px;
+    font: 600 22px var(--m-font-mono);
+    color: var(--m-text-strong);
+    letter-spacing: .04em;
+    text-shadow: var(--m-text-glow);
+  }
+  .top .sub {
+    font: 400 13px var(--m-font-sans);
+    color: var(--m-text-muted);
+    max-width: 540px;
+  }
+  .top .right {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .top .stat {
+    display: grid;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase; letter-spacing: .15em;
+    text-align: right;
+    border-left: 1px solid var(--m-border-subtle);
+    padding-left: 12px;
+  }
+  .top .stat b {
+    font: 600 16px var(--m-font-mono);
+    color: var(--m-green-500);
+    text-shadow: var(--m-text-glow);
+    letter-spacing: .04em;
+  }
+
+  /* toolbar */
+  .toolbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 24px;
+    border-bottom: 1px solid var(--m-border-subtle);
+    background: var(--m-bg-deep);
+  }
+  .toolbar .grow { flex: 1; min-width: 0; }
+  .toolbar .sort {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    background: var(--m-bg);
+    color: var(--m-text-muted);
+    font: 500 11px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .12em;
+    cursor: pointer;
+  }
+  .toolbar .sort:hover { color: var(--m-text); border-color: var(--m-border); }
+
+  .view-toggle {
+    display: inline-flex;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    overflow: hidden;
+    background: var(--m-bg);
+  }
+  .view-toggle button {
+    background: transparent;
+    color: var(--m-text-muted);
+    border: none;
+    padding: 6px 12px;
+    font: 500 11px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .12em;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .view-toggle button:hover { color: var(--m-text); }
+  .view-toggle button.on {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    box-shadow: inset 0 -2px 0 var(--m-green-500);
+  }
+  .view-toggle button svg { width: 12px; height: 12px; }
+
+  .canvas { overflow: auto; padding: 18px 24px 32px; }
+
+  /* GRID */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+  }
+  .card {
+    background: var(--m-panel);
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    padding: 14px;
+    display: grid;
+    gap: 10px;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 2px; background: var(--m-text-ghost);
+    transition: background var(--m-dur-fast) var(--m-ease-out);
+  }
+  .card.installed::before { background: var(--m-green-500); box-shadow: 0 0 8px rgba(0,255,65,.4); }
+  .card.disabled::before { background: var(--m-text-faint); }
+  .card.market::before { background: #5fcfff; }
+  .card:hover {
+    border-color: var(--m-border-strong);
+    background: var(--m-fill-subtle);
+    transform: translateY(-1px);
+  }
+  .card .hd { display: flex; align-items: flex-start; gap: 8px; }
+  .card .hd .glyph {
+    width: 28px; height: 28px;
+    border: 1px solid var(--m-border);
+    border-radius: 5px;
+    display: grid; place-items: center;
+    background: var(--m-bg-deep);
+    color: var(--m-green-500);
+    font: 700 12px var(--m-font-mono);
+    flex: none;
+  }
+  .card .hd .name {
+    font: 600 13.5px var(--m-font-mono);
+    color: var(--m-text-strong);
+    letter-spacing: .04em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .card .hd .by {
+    font: 400 11px var(--m-font-mono);
+    color: var(--m-text-faint);
+    margin-top: 2px;
+  }
+  .card .hd .right { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+
+  .desc {
+    font: 400 12.5px/1.5 var(--m-font-sans);
+    color: var(--m-text-muted);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .tags { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tag {
+    font: 500 9.5px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .12em;
+    padding: 2px 7px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 9999px;
+    color: var(--m-text-muted);
+    background: var(--m-bg-deep);
+  }
+  .tag.cat { color: var(--m-green-500); border-color: var(--m-border); }
+  .tag.scan { color: #d6ff5f; border-color: rgba(214,255,95,.35); }
+  .tag.scan.warn { color: #ffb347; border-color: rgba(255,179,71,.35); }
+  .tag.scan.risk { color: #ff5fa2; border-color: rgba(255,95,162,.35); }
+  .tag.origin { color: #5fcfff; border-color: rgba(95,207,255,.35); }
+  .tag.builtin { color: var(--m-text); border-color: var(--m-border); background: var(--m-fill); }
+  .tag.market { color: #5fcfff; border-color: rgba(95,207,255,.35); background: rgba(95,207,255,.06); }
+
+  .meta {
+    display: flex; align-items: center; gap: 10px;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase; letter-spacing: .14em;
+    padding-top: 6px;
+    border-top: 1px dashed var(--m-border-subtle);
+  }
+  .meta .sep { width: 3px; height: 3px; background: var(--m-text-ghost); border-radius: 50%; }
+  .meta .right { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; }
+
+  /* status pill (Enabled / Disabled / Marketplace) */
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font: 500 9.5px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .12em;
+    padding: 2px 7px;
+    border-radius: 9999px;
+    border: 1px solid var(--m-border-subtle);
+    color: var(--m-text-muted);
+  }
+  .status-pill.on { color: var(--m-green-500); border-color: var(--m-border); background: var(--m-fill); }
+  .status-pill.off { color: var(--m-text-faint); }
+  .status-pill.market { color: #5fcfff; border-color: rgba(95,207,255,.35); background: rgba(95,207,255,.06); }
+  .status-pill .d { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* TABLE */
+  .tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font: 400 12.5px var(--m-font-mono);
+    color: var(--m-text);
+  }
+  .tbl thead th {
+    position: sticky; top: 0; z-index: 1;
+    background: var(--m-bg-deep);
+    text-align: left;
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .22em;
+    color: var(--m-text-faint);
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--m-border);
+    white-space: nowrap;
+  }
+  .tbl tbody td {
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--m-border-subtle);
+    vertical-align: middle;
+  }
+  .tbl tbody tr {
+    cursor: pointer;
+    transition: background var(--m-dur-fast) var(--m-ease-out);
+  }
+  .tbl tbody tr:hover { background: var(--m-fill-subtle); }
+  .tbl tbody tr.installed td:first-child { box-shadow: inset 2px 0 0 var(--m-green-500); }
+  .tbl tbody tr.disabled td:first-child { box-shadow: inset 2px 0 0 var(--m-text-faint); }
+  .tbl tbody tr.market td:first-child { box-shadow: inset 2px 0 0 #5fcfff; }
+  .tbl .name-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .tbl .name-cell .glyph {
+    width: 22px; height: 22px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 4px;
+    display: grid; place-items: center;
+    background: var(--m-bg-deep);
+    color: var(--m-green-500);
+    font: 700 10px var(--m-font-mono);
+    flex: none;
+  }
+  .tbl .name-cell .ttl {
+    font: 600 12.5px var(--m-font-mono);
+    color: var(--m-text-strong);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .tbl .name-cell .by {
+    font: 400 10.5px var(--m-font-mono);
+    color: var(--m-text-faint);
+  }
+  .tbl .desc-cell {
+    color: var(--m-text-muted);
+    font: 400 12px/1.5 var(--m-font-sans);
+    max-width: 380px;
+    overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical;
+  }
+  .tbl .tag.row { font-size: 9px; padding: 1px 6px; }
+  .tbl .actions { display: inline-flex; gap: 4px; }
+
+  /* ── DETAIL DRAWER ──────────────────────────────────────── */
+  .scrim {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(0,12,4,.62);
+    backdrop-filter: blur(2px);
+    display: none;
+  }
+  .scrim.open { display: block; animation: m-fade-in var(--m-dur-base) var(--m-ease-out); }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: min(820px, 92vw);
+    background: var(--m-panel);
+    border-left: 1px solid var(--m-green-500);
+    box-shadow: -2px 0 24px rgba(0,255,65,.18), -1px 0 0 rgba(0,255,65,.4);
+    z-index: 51;
+    display: none;
+    grid-template-rows: auto 1fr auto;
+    overflow: hidden;
+    transform: translateX(20px);
+    opacity: 0;
+    transition: transform var(--m-dur-base) var(--m-ease-out), opacity var(--m-dur-base) var(--m-ease-out);
+  }
+  .drawer.open { display: grid; transform: translateX(0); opacity: 1; }
+  .drawer .scan {
+    position: absolute; left: 0; right: 0; top: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--m-green-500), transparent);
+    opacity: .65;
+    animation: m-scan 6s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes m-scan { 0% { transform: translateY(0); } 100% { transform: translateY(100vh); } }
+  @keyframes m-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+  .dr-head {
+    padding: 16px 22px 14px;
+    border-bottom: 1px solid var(--m-border);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 14px;
+    align-items: start;
+  }
+  .dr-head .ttl-row { display: flex; align-items: center; gap: 12px; }
+  .dr-head .glyph {
+    width: 36px; height: 36px;
+    border: 1px solid var(--m-green-500);
+    border-radius: 6px;
+    display: grid; place-items: center;
+    background: var(--m-bg-deep);
+    color: var(--m-green-500);
+    font: 700 14px var(--m-font-mono);
+    box-shadow: var(--m-glow-sm), inset 0 0 8px rgba(0,255,65,.12);
+  }
+  .dr-head h2 {
+    margin: 0;
+    font: 600 18px var(--m-font-mono);
+    color: var(--m-text-strong);
+    letter-spacing: .03em;
+    text-shadow: var(--m-text-glow);
+  }
+  .dr-head .meta-line {
+    margin-top: 4px;
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase; letter-spacing: .14em;
+  }
+  .dr-head .meta-line span + span::before { content: " · "; color: var(--m-text-ghost); }
+  .dr-head .actions { display: flex; gap: 6px; }
+
+  .dr-body { overflow: auto; padding: 16px 22px 24px; display: grid; gap: 18px; }
+
+  .panel-card {
+    background: var(--m-bg-deep);
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    overflow: hidden;
+  }
+  .panel-card .hd {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--m-border-subtle);
+    display: flex; align-items: center; gap: 10px;
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .22em;
+    color: var(--m-text-faint);
+    background: var(--m-panel);
+  }
+  .panel-card .hd .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .panel-card .bd { padding: 12px 14px; }
+
+  /* security panel */
+  .sec-row { display: flex; align-items: center; gap: 10px; }
+  .sec-row .kw {
+    font: 600 12px var(--m-font-mono);
+    color: var(--m-text-strong);
+    letter-spacing: .03em;
+  }
+  .sec-row .pill {
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .14em;
+    padding: 3px 8px;
+    border-radius: 9999px;
+    border: 1px solid var(--m-border);
+    color: var(--m-green-500);
+    background: var(--m-fill);
+  }
+  .sec-row .conf {
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-muted);
+    text-transform: uppercase; letter-spacing: .14em;
+    margin-left: auto;
+  }
+  .sec-note {
+    margin-top: 8px;
+    font: 400 12.5px/1.55 var(--m-font-sans);
+    color: var(--m-text-muted);
+  }
+  .sec-tip {
+    margin-top: 10px;
+    font: italic 400 11.5px var(--m-font-sans);
+    color: var(--m-text-faint);
+    border-left: 2px solid var(--m-border);
+    padding-left: 10px;
+  }
+
+  /* triggers */
+  .trig-empty {
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text-faint);
+    padding: 4px 10px;
+    border: 1px dashed var(--m-border-subtle);
+    border-radius: 9999px;
+    display: inline-block;
+  }
+  .trig-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .trig {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 9px;
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text-muted);
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 9999px;
+    background: var(--m-bg);
+  }
+  .trig code {
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-green-500);
+    background: transparent;
+  }
+
+  /* tabs */
+  .dr-tabs {
+    display: flex; gap: 0;
+    border-bottom: 1px solid var(--m-border);
+    padding: 0 22px;
+    background: var(--m-panel);
+    margin-top: -2px;
+  }
+  .dr-tabs button {
+    background: transparent; border: none;
+    color: var(--m-text-muted);
+    font: 500 11px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .14em;
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    display: inline-flex; align-items: center; gap: 7px;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .dr-tabs button:hover { color: var(--m-text); }
+  .dr-tabs button.on {
+    color: var(--m-green-500);
+    border-bottom-color: var(--m-green-500);
+    text-shadow: var(--m-text-glow);
+  }
+  .dr-tabs button .ct {
+    font-size: 9px;
+    padding: 1px 5px;
+    background: var(--m-bg-deep);
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 9999px;
+    color: var(--m-text-faint);
+  }
+  .dr-tabs button.on .ct { color: var(--m-green-500); border-color: var(--m-border); }
+
+  /* markdown panel */
+  .md-card {
+    background: var(--m-bg-deep);
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    overflow: hidden;
+  }
+  .md-card .hd {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--m-border-subtle);
+    display: flex; align-items: center; gap: 10px;
+    background: var(--m-panel);
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .22em;
+    color: var(--m-text-faint);
+  }
+  .md-card .hd .filename {
+    color: var(--m-green-500);
+    text-transform: none;
+    letter-spacing: 0;
+    font: 500 12px var(--m-font-mono);
+  }
+  .md-card .hd .right { margin-left: auto; display: flex; gap: 6px; }
+  .md-card .bd {
+    padding: 0;
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    font: 500 12.5px/1.65 var(--m-font-mono);
+    color: var(--m-text);
+    overflow: auto;
+    max-height: 480px;
+  }
+  .md-card .ln {
+    text-align: right;
+    padding: 14px 10px 14px 0;
+    color: var(--m-text-ghost);
+    border-right: 1px solid var(--m-border-subtle);
+    background: var(--m-bg-deep);
+    user-select: none;
+    font-size: 11px;
+  }
+  .md-card .ln span { display: block; line-height: 1.65; }
+  .md-card .src { padding: 14px 16px; white-space: pre-wrap; overflow-x: auto; }
+  .md-card .src .h1 { color: #d6ff5f; font-weight: 700; }
+  .md-card .src .h2 { color: var(--m-green-500); font-weight: 700; }
+  .md-card .src .key { color: #5fcfff; }
+  .md-card .src .val { color: var(--m-text); }
+  .md-card .src .str { color: #d6ff5f; }
+  .md-card .src .cm { color: var(--m-text-faint); font-style: italic; }
+  .md-card .src .li { color: var(--m-text); }
+  .md-card .src .li::before { content: "—  "; color: var(--m-green-500); }
+  .md-card .src .code { color: #d6ff5f; background: rgba(214,255,95,.06); padding: 0 4px; border-radius: 2px; }
+
+  /* preview pane */
+  .preview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .stat-card {
+    background: var(--m-bg-deep);
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    padding: 10px 12px;
+  }
+  .stat-card .lbl {
+    font: 600 9.5px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .22em;
+    color: var(--m-text-faint);
+  }
+  .stat-card b {
+    display: block; margin-top: 4px;
+    font: 600 17px var(--m-font-mono);
+    color: var(--m-text-strong);
+    letter-spacing: .03em;
+    text-shadow: var(--m-text-glow);
+  }
+  .stat-card .sub {
+    margin-top: 2px;
+    font: 400 11px var(--m-font-sans);
+    color: var(--m-text-muted);
+  }
+
+  .file-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 12px;
+    border-top: 1px solid var(--m-border-subtle);
+    font: 500 12px var(--m-font-mono);
+  }
+  .file-row:first-child { border-top: none; }
+  .file-row .ic { color: var(--m-text-muted); }
+  .file-row .nm { color: var(--m-text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-row .sz { color: var(--m-text-faint); font-size: 11px; }
+  .file-row .lg { color: var(--m-text-faint); font-size: 10px; text-transform: uppercase; letter-spacing: .14em; }
+
+  /* footer */
+  .dr-foot {
+    padding: 12px 22px;
+    border-top: 1px solid var(--m-border);
+    background: var(--m-panel);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .dr-foot .src-line {
+    flex: 1; min-width: 0;
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text-muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .dr-foot .src-line .lbl { color: var(--m-text-faint); margin-right: 8px; text-transform: uppercase; letter-spacing: .15em; font-size: 10px; }
+  .dr-foot .src-line code { color: var(--m-green-500); background: transparent; }
+
+  /* toggle switch */
+  .switch {
+    position: relative;
+    width: 30px; height: 16px;
+    border: 1px solid var(--m-border);
+    border-radius: 9999px;
+    background: var(--m-bg-deep);
+    cursor: pointer;
+    flex: none;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .switch::after {
+    content: ""; position: absolute;
+    top: 1px; left: 2px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--m-text-faint);
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .switch.on { border-color: var(--m-green-500); background: rgba(0,255,65,.13); box-shadow: var(--m-glow-sm); }
+  .switch.on::after { left: 16px; background: var(--m-green-500); box-shadow: 0 0 6px var(--m-green-500); }
+
+  .empty {
+    padding: 60px 18px;
+    text-align: center;
+    font: 500 12px var(--m-font-mono);
+    color: var(--m-text-faint);
+    border: 1px dashed var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+  }
+  .empty .glyph { font-size: 34px; margin-bottom: 8px; color: var(--m-text-ghost); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="primary-nav-v2.jsx"></script>
+
+<script type="text/babel">
+const Ico = {
+  search: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="11" cy="11" r="6"/><path d="m20 20-3.5-3.5"/></svg>,
+  filter: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 5h18l-7 9v6l-4-2v-4L3 5z"/></svg>,
+  refresh: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 12a8 8 0 0 1 14-5l3-3M4 4v5h5M20 12a8 8 0 0 1-14 5l-3 3M20 20v-5h-5"/></svg>,
+  fold: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m9 6-6 6 6 6M21 6h-9M21 12h-6M21 18h-9"/></svg>,
+  unfold: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m15 6 6 6-6 6M3 6h9M3 12h6M3 18h9"/></svg>,
+  plus: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 5v14M5 12h14"/></svg>,
+  x: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 6 18 18M18 6 6 18"/></svg>,
+  cog: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>,
+  data: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>,
+  chat: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 5h16v11H7l-3 3z"/></svg>,
+  files: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5 4h8l4 4v12H5z"/></svg>,
+  term: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="m7 9 3 3-3 3M13 15h4"/></svg>,
+  jobs: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="6" width="18" height="14" rx="1"/><path d="M9 6V3h6v3M3 13h18"/></svg>,
+  task: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 6h16M4 12h16M4 18h10"/></svg>,
+  bolt: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>,
+  ops: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="8" r="3"/><path d="M5 21a7 7 0 0 1 14 0"/></svg>,
+  swarm: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><circle cx="12" cy="12" r="2"/><path d="M8 6h8M6 8v8M18 8v8M8 18h8M8 8l8 8M16 8l-8 8"/></svg>,
+  mem: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M8 10v4M12 10v4M16 10v4"/></svg>,
+  skill: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>,
+  mcp: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 7h18v10H3zM7 11v2M11 11v2M15 11v2"/></svg>,
+  prof: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="8" r="3"/><path d="M5 21a7 7 0 0 1 14 0"/></svg>,
+  grid: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>,
+  rows: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 6h18M3 12h18M3 18h18"/></svg>,
+  copy: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg>,
+  link: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/></svg>,
+  edit: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 20h4l10-10-4-4L4 16zM14 6l4 4"/></svg>,
+  doc: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h7"/></svg>,
+  dl: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 4v12m0 0-5-5m5 5 5-5M4 20h16"/></svg>,
+  shield: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg>,
+};
+
+/* ──────────────────────────────────────────────────────────
+   MOCK SKILL DATA
+   ────────────────────────────────────────────────────────── */
+const CATEGORIES = [
+  { id: 'all', label: 'All categories', count: 142 },
+  { id: 'productivity', label: 'Productivity', count: 28 },
+  { id: 'image', label: 'Image & Video', count: 21 },
+  { id: 'devops', label: 'DevOps & Cloud', count: 18 },
+  { id: 'research', label: 'Search & Research', count: 16 },
+  { id: 'data', label: 'Data & ML', count: 14 },
+  { id: 'comms', label: 'Comms', count: 11 },
+  { id: 'web', label: 'Web & APIs', count: 19 },
+  { id: 'sec', label: 'Security', count: 8 },
+];
+
+const ORIGINS = [
+  { id: 'all',     label: 'All origins',  count: 142 },
+  { id: 'builtin', label: 'Built-in',     count: 71 },
+  { id: 'comm',    label: 'Community',    count: 38 },
+  { id: 'agent',   label: 'Hermes Agent', count: 24 },
+  { id: 'private', label: 'Private',      count: 9  },
+];
+
+const SKILLS = [
+  { id: 'apple-notes', name: 'apple-notes', author: 'Hermes Agent', cat: 'productivity', origin: 'agent', source: 'builtin', installed: true, enabled: true,
+    desc: 'Manage Apple Notes via memo CLI: create, search, edit.',
+    scan: 'benign', conf: 'high', files: 0, ver: '1.4.2', updated: '2 days ago', triggers: [],
+    path: '/Users/rohits/.hermes/skills/apple/apple-notes',
+    md: 'apple-notes' },
+  { id: 'apple-reminders', name: 'apple-reminders', author: 'Hermes Agent', cat: 'productivity', origin: 'agent', source: 'builtin', installed: true, enabled: false,
+    desc: 'Apple Reminders via remindctl: add, list, complete.',
+    scan: 'benign', conf: 'high', files: 1, ver: '1.2.0', updated: '5 days ago', triggers: ['remind me', 'reminder'],
+    path: '/Users/rohits/.hermes/skills/apple/apple-reminders',
+    md: 'apple-reminders' },
+  { id: 'airtable', name: 'airtable', author: 'community', cat: 'data', origin: 'comm', source: 'builtin', installed: true, enabled: false,
+    desc: 'Airtable REST API via curl. Records CRUD, filters, upserts.',
+    scan: 'benign', conf: 'high', files: 3, ver: '0.9.1', updated: '11 days ago', triggers: ['airtable'],
+    path: '/Users/rohits/.hermes/skills/airtable/airtable',
+    md: 'airtable' },
+  { id: 'arch-diagram', name: 'architecture-diagram', author: 'Cocoon AI', cat: 'image', origin: 'comm', source: 'builtin', installed: true, enabled: true,
+    desc: 'Dark-themed SVG architecture/cloud/infra diagrams as HTML.',
+    scan: 'benign', conf: 'high', files: 7, ver: '2.0.0', updated: 'today', triggers: ['draw architecture', 'diagram', 'infra map'],
+    path: '/Users/rohits/.hermes/skills/cocoon/architecture-diagram',
+    md: 'architecture-diagram' },
+  { id: 'arxiv', name: 'arxiv', author: 'Hermes Agent', cat: 'research', origin: 'agent', source: 'builtin', installed: true, enabled: false,
+    desc: 'Search arXiv papers by keyword, author, category, or ID.',
+    scan: 'benign', conf: 'high', files: 2, ver: '1.0.4', updated: '3 days ago', triggers: ['arxiv', 'find paper'],
+    path: '/Users/rohits/.hermes/skills/research/arxiv',
+    md: 'arxiv' },
+  { id: 'ascii-art', name: 'ascii-art', author: '0xbyt4, Hermes Agent', cat: 'image', origin: 'comm', source: 'builtin', installed: true, enabled: true,
+    desc: 'ASCII art: pyfiglet, cowsay, boxes, image-to-ascii.',
+    scan: 'benign', conf: 'high', files: 4, ver: '1.1.0', updated: '6 days ago', triggers: ['ascii', 'figlet', 'cowsay'],
+    path: '/Users/rohits/.hermes/skills/community/ascii-art',
+    md: 'ascii-art' },
+  { id: 'ascii-video', name: 'ascii-video', author: 'Hermes Agent', cat: 'image', origin: 'agent', source: 'builtin', installed: true, enabled: false,
+    desc: 'ASCII video: convert video/audio to colored ASCII MP4/GIF.',
+    scan: 'benign', conf: 'high', files: 5, ver: '0.7.2', updated: '2 weeks ago', triggers: ['ascii video'],
+    path: '/Users/rohits/.hermes/skills/media/ascii-video',
+    md: 'ascii-video' },
+  { id: 'audiocraft', name: 'audiocraft-audio', author: 'Hermes Agent', cat: 'image', origin: 'agent', source: 'market', installed: true, enabled: false,
+    desc: 'PyTorch library for audio generation including text-to-music (MusicGen) and text-to-sound (AudioGen). Use when you need to generate music or sound effects.',
+    scan: 'warn', conf: 'med', files: 12, ver: '2.1.0', updated: '1 month ago', triggers: ['music', 'sound effect'],
+    path: '/Users/rohits/.hermes/skills/marketplace/audiocraft-audio',
+    md: 'audiocraft-audio' },
+  { id: 'axolotl', name: 'axolotl', author: 'Hermes Agent', cat: 'data', origin: 'agent', source: 'builtin', installed: true, enabled: false,
+    desc: 'Axolotl: YAML LLM fine-tuning (LoRA, DPO, GRPO).',
+    scan: 'benign', conf: 'high', files: 6, ver: '0.4.0', updated: '8 days ago', triggers: ['fine tune', 'lora'],
+    path: '/Users/rohits/.hermes/skills/ml/axolotl',
+    md: 'axolotl' },
+  { id: 'baoyu-comic', name: 'baoyu-comic', author: '宝玉 (JimLiu)', cat: 'image', origin: 'comm', source: 'builtin', installed: true, enabled: true,
+    desc: 'Knowledge comics (知识漫画): educational, biography, tutorial.',
+    scan: 'benign', conf: 'high', files: 9, ver: '1.0.0', updated: '4 days ago', triggers: ['comic', 'knowledge comic'],
+    path: '/Users/rohits/.hermes/skills/community/baoyu-comic',
+    md: 'baoyu-comic' },
+  { id: 'baoyu-info', name: 'baoyu-infographic', author: '宝玉 (JimLiu)', cat: 'image', origin: 'comm', source: 'builtin', installed: true, enabled: false,
+    desc: 'Infographics: 21 layouts × 21 styles (信息图, 可视化).',
+    scan: 'benign', conf: 'high', files: 8, ver: '1.2.0', updated: '4 days ago', triggers: ['infographic'],
+    path: '/Users/rohits/.hermes/skills/community/baoyu-infographic',
+    md: 'baoyu-infographic' },
+  { id: 'blogwatcher', name: 'blogwatcher', author: 'JulienTant (fork of …)', cat: 'comms', origin: 'comm', source: 'builtin', installed: true, enabled: true,
+    desc: 'Monitor blogs and RSS/Atom feeds via blogwatcher-cli tool.',
+    scan: 'benign', conf: 'high', files: 4, ver: '0.6.1', updated: '12 days ago', triggers: ['blog watch', 'rss'],
+    path: '/Users/rohits/.hermes/skills/community/blogwatcher',
+    md: 'blogwatcher' },
+  { id: 'cron-pro', name: 'cron-pro', author: 'community', cat: 'devops', origin: 'comm', source: 'market', installed: false, enabled: false,
+    desc: 'Cron expression validation, next-run preview, schedule audit.',
+    scan: 'benign', conf: 'high', files: 3, ver: '1.0.0', updated: '3 weeks ago', triggers: ['cron'],
+    path: 'marketplace://cron-pro',
+    md: 'cron-pro' },
+  { id: 'github-pr', name: 'github-pr', author: 'Hermes Agent', cat: 'devops', origin: 'agent', source: 'builtin', installed: true, enabled: true,
+    desc: 'GitHub PR helper: list, summarize, comment, merge, conflict detection.',
+    scan: 'benign', conf: 'high', files: 5, ver: '2.3.1', updated: '1 day ago', triggers: ['pr', 'pull request', 'github pr'],
+    path: '/Users/rohits/.hermes/skills/devops/github-pr',
+    md: 'github-pr' },
+  { id: 'sql-runner', name: 'sql-runner', author: 'community', cat: 'data', origin: 'comm', source: 'market', installed: false, enabled: false,
+    desc: 'Run parameterized SQL against connected databases. Postgres, MySQL, SQLite.',
+    scan: 'warn', conf: 'med', files: 4, ver: '0.5.0', updated: '1 week ago', triggers: ['sql', 'query db'],
+    path: 'marketplace://sql-runner',
+    md: 'sql-runner' },
+  { id: 'shell-exec', name: 'shell-exec', author: 'Private', cat: 'sec', origin: 'private', source: 'builtin', installed: true, enabled: false,
+    desc: 'Execute shell commands in a sandboxed subshell. Capability-gated.',
+    scan: 'risk', conf: 'high', files: 2, ver: '0.2.0', updated: 'today', triggers: ['shell', 'exec'],
+    path: '/Users/rohits/.hermes/skills/private/shell-exec',
+    md: 'shell-exec' },
+];
+
+/* mock markdown content (per skill, but we only build a real one for the focused skill) */
+const MD_TEMPLATES = {
+  'apple-notes': `---
+name: apple-notes
+description: Manage Apple Notes via memo CLI — create, search, and edit notes from natural-language requests.
+author: Hermes Agent
+version: 1.4.2
+license: MIT
+triggers: []
+capabilities:
+  - notes.read
+  - notes.write
+---
+
+# apple-notes
+
+Bridge between Hermes and Apple Notes. Uses the \`memo\` CLI to perform CRUD operations against your local Notes database without bouncing through iCloud.
+
+## When to use
+
+Use this skill when the user wants to:
+- create a new note in a specific folder
+- find a note by title or content
+- append or replace the body of an existing note
+
+## How it works
+
+1. The agent receives an intent like "save this as a note in Inbox".
+2. The skill normalizes the title, body, and folder.
+3. \`memo\` is invoked in non-interactive mode.
+4. The resulting note id is returned to the agent.
+
+## Examples
+
+- "Save the meeting recap as a note titled *Q3 Plan*."
+- "Find every note that mentions BenchLoop."
+- "Append the latest standup digest to *Daily Log*."`,
+
+  'github-pr': `---
+name: github-pr
+description: GitHub PR helper — list, summarize, comment, merge, conflict detection.
+author: Hermes Agent
+version: 2.3.1
+license: Apache-2.0
+triggers: ["pr", "pull request", "github pr"]
+capabilities:
+  - github.read
+  - github.write
+  - net.outbound
+---
+
+# github-pr
+
+A high-leverage skill for working with GitHub pull requests directly from chat.
+
+## Capabilities
+
+- **List** open PRs in a repo, filtered by reviewer, label, or branch
+- **Summarize** a PR's diff at three densities (one-line / paragraph / file-by-file)
+- **Comment** on lines, files, or the conversation thread
+- **Merge** with squash / rebase / merge-commit, gated on required reviews
+- **Detect conflicts** before requesting a merge
+
+## Required env
+
+\`GITHUB_TOKEN\` with \`repo\` scope. The token is read from the host's keychain — never logged.
+
+## Examples
+
+- "Summarize PR #318 in three bullets."
+- "Find every open PR in hermes-switchui that touches \`src/server\`."
+- "Approve and squash-merge PR #318 if CI is green."`,
+
+  'shell-exec': `---
+name: shell-exec
+description: Execute shell commands in a sandboxed subshell. Capability-gated.
+author: Private
+version: 0.2.0
+license: Internal
+triggers: ["shell", "exec"]
+capabilities:
+  - shell.exec
+sandbox: strict
+---
+
+# shell-exec  ⚠
+
+Runs shell commands inside a tightly scoped subshell with the network disabled and a per-call CPU/wall-clock budget.
+
+> Like a lobster shell, security has layers — review code before you run it.
+
+## Allowed binaries
+
+Only binaries listed in \`policy.yaml\` are executable. Adding new binaries requires bumping the skill version and re-signing the manifest.
+
+## Failure modes
+
+- **Timeout** — the subshell is killed at 10s wall-clock.
+- **Network attempt** — any outbound socket call returns ENETUNREACH.
+- **Missing binary** — the agent surfaces a structured error.`,
+};
+
+function makeMd(s) {
+  if (MD_TEMPLATES[s.id]) return MD_TEMPLATES[s.id];
+  return `---
+name: ${s.name}
+description: ${s.desc}
+author: ${s.author}
+version: ${s.ver}
+${s.triggers.length ? `triggers: [${s.triggers.map(t=>`"${t}"`).join(', ')}]` : 'triggers: []'}
+---
+
+# ${s.name}
+
+${s.desc}
+
+## When to use
+
+The agent reaches for this skill whenever the prompt matches one of the trigger phrases above, or when planning explicitly names \`${s.name}\` as a tool.
+
+## Behaviour
+
+- Reads inputs from the agent's structured payload
+- Validates the call against the skill's capability manifest
+- Returns a structured result the agent can compose with downstream skills`;
+}
+
+/* ──────────────────────────────────────────────────────────
+   PRIMARY NAV
+   ────────────────────────────────────────────────────────── */
+function PrimaryNav() {
+  const main = [
+    { k: 'dash',  i: Ico.data,  l: 'Dashboard' },
+    { k: 'chat',  i: Ico.chat,  l: 'Chat', badge: '3' },
+    { k: 'files', i: Ico.files, l: 'Files' },
+    { k: 'term',  i: Ico.term,  l: 'Terminal' },
+    { k: 'jobs',  i: Ico.jobs,  l: 'Jobs' },
+    { k: 'tasks', i: Ico.task,  l: 'Tasks' },
+    { k: 'cond',  i: Ico.bolt,  l: 'Conductor' },
+    { k: 'ops',   i: Ico.ops,   l: 'Operations' },
+    { k: 'swarm', i: Ico.swarm, l: 'Swarm' },
+  ];
+  const know = [
+    { k: 'mem',   i: Ico.mem,   l: 'Memory' },
+    { k: 'skill', i: Ico.skill, l: 'Skills', active: true, badge: '142' },
+    { k: 'mcp',   i: Ico.mcp,   l: 'MCP' },
+    { k: 'prof',  i: Ico.prof,  l: 'Profiles' },
+  ];
+  return (
+    <aside className="nav">
+      <div className="brand">
+        <div className="glyph">ᕼ</div>
+        <div>
+          <b>HERMES</b>
+          <div className="ver">SWITCHUI · v2.0.4</div>
+        </div>
+      </div>
+      <div className="nav-item" style={{ borderColor: 'var(--m-border)', background: 'var(--m-fill-subtle)', color: 'var(--m-text)' }}>
+        {Ico.search}<span>Search</span>
+        <span className="badge-mini" style={{ background: 'transparent', color: 'var(--m-text-faint)', border: 'none' }}>⌘K</span>
+      </div>
+      <div className="nav-item" style={{ color: 'var(--m-green-500)' }}>
+        {Ico.plus}<span>New Session</span>
+      </div>
+      <div className="nav-grp">Main</div>
+      {main.map(n => (
+        <div key={n.k} className={`nav-item ${n.active?'active':''}`}>
+          {n.i}<span>{n.l}</span>
+          {n.badge && <span className="badge-mini">{n.badge}</span>}
+        </div>
+      ))}
+      <div className="nav-grp">Knowledge</div>
+      {know.map(n => (
+        <div key={n.k} className={`nav-item ${n.active?'active':''}`}>
+          {n.i}<span>{n.l}</span>
+          {n.badge && <span className="badge-mini">{n.badge}</span>}
+        </div>
+      ))}
+      <div className="nav-foot">
+        <span className="m-dot m-dot-pulse"/>
+        <span>connected</span>
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6 }}>
+          <span className="ico-btn" style={{ width: 22, height: 22 }}>{Ico.cog}</span>
+        </span>
+      </div>
+    </aside>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────
+   FILTERS PANEL
+   ────────────────────────────────────────────────────────── */
+function FiltersPanel({ q, setQ, status, setStatus, cat, setCat, origin, setOrigin, count, collapsed, setCollapsed }) {
+  if (collapsed) {
+    return (
+      <aside className="filt is-collapsed">
+        <div className="filt-head" style={{ justifyContent: 'center', padding: '12px 0 10px' }}>
+          <span className="ico-btn" title="Expand panel" onClick={() => setCollapsed(false)}>{Ico.unfold}</span>
+        </div>
+        <div className="filt-rail">
+          <span className="vlabel">Filters</span>
+          <span className="badge-n">{count}</span>
+          <span className="ico-btn" title="Search" onClick={() => setCollapsed(false)}>{Ico.search}</span>
+          <span className="ico-btn active" title="Filters" onClick={() => setCollapsed(false)}>{Ico.filter}</span>
+        </div>
+        <div className="filt-foot" style={{ padding: 8, display: 'grid', placeItems: 'center' }}>
+          <span className="ico-btn active" title="Add Skill">{Ico.plus}</span>
+        </div>
+      </aside>
+    );
+  }
+  return (
+    <aside className="filt">
+      <div className="filt-head">
+        <h3>Filters</h3>
+        <span className="ct">· {count} skill{count===1?'':'s'}</span>
+        <div className="actions">
+          <span className="ico-btn" title="Refresh">{Ico.refresh}</span>
+          <span className="ico-btn" title="Collapse panel" onClick={() => setCollapsed(true)}>{Ico.fold}</span>
+        </div>
+      </div>
+
+      <div className="filt-search">
+        <div className="m-input-group" style={{ padding: '0 8px', borderRadius: 6 }}>
+          <span className="m-prefix">{Ico.search}</span>
+          <input
+            placeholder="search name, tags, description..."
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            style={{ padding: '7px 4px', fontSize: 12.5 }}/>
+          {q && <span className="ico-btn" onClick={() => setQ('')} style={{ width: 22, height: 22 }}>{Ico.x}</span>}
+        </div>
+      </div>
+
+      <div className="filt-body">
+        <div className="filt-grp">
+          <h4>Status</h4>
+          <div className="seg-stack">
+            <button className={status==='installed'?'on':''} onClick={() => setStatus('installed')}>
+              <span>Installed</span><span className="ct">{SKILLS.filter(s=>s.installed).length}</span>
+            </button>
+            <button className={status==='enabled'?'on':''} onClick={() => setStatus('enabled')}>
+              <span>Enabled</span><span className="ct">{SKILLS.filter(s=>s.installed && s.enabled).length}</span>
+            </button>
+            <button className={status==='market'?'on':''} onClick={() => setStatus('market')}>
+              <span>Marketplace</span><span className="ct">{SKILLS.filter(s=>!s.installed).length}</span>
+            </button>
+            <button className={status==='all'?'on':''} onClick={() => setStatus('all')}>
+              <span>All</span><span className="ct">{SKILLS.length}</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="filt-grp">
+          <h4>Category</h4>
+          {CATEGORIES.map(c => (
+            <div key={c.id} className={`opt-row ${cat===c.id?'on':''}`} onClick={() => setCat(c.id)}>
+              <span className="dot"/>
+              <span>{c.label}</span>
+              <span className="ct">{c.count}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="filt-grp">
+          <h4>Origin</h4>
+          {ORIGINS.map(o => (
+            <div key={o.id} className={`opt-row ${origin===o.id?'on':''}`} onClick={() => setOrigin(o.id)}>
+              <span className="dot"/>
+              <span>{o.label}</span>
+              <span className="ct">{o.count}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="filt-foot">
+        <button className="m-btn m-btn-primary" style={{ justifyContent: 'center', width: '100%' }}>
+          <span style={{ width:14, height:14, display:'inline-grid', placeItems:'center', flex:'none' }}>{Ico.plus}</span>
+          <span>add skill</span>
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────
+   GRID + TABLE VIEWS
+   ────────────────────────────────────────────────────────── */
+function StatusPill({ s }) {
+  if (!s.installed) return <span className="status-pill market"><span className="d"/>marketplace</span>;
+  return s.enabled
+    ? <span className="status-pill on"><span className="d"/>enabled</span>
+    : <span className="status-pill off"><span className="d"/>disabled</span>;
+}
+
+function Card({ s, onOpen, onToggle }) {
+  const initials = s.name.slice(0,2).toUpperCase();
+  const cls = !s.installed ? 'market' : (s.enabled ? 'installed' : 'disabled');
+  const cat = CATEGORIES.find(c => c.id === s.cat);
+  return (
+    <div className={`card ${cls}`} onClick={() => onOpen(s)}>
+      <div className="hd">
+        <div className="glyph">{initials}</div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div className="name">{s.name}</div>
+          <div className="by">by {s.author}</div>
+        </div>
+        <div className="right">
+          {s.source === 'builtin' && <span className="tag builtin">built-in</span>}
+          {s.source === 'market' && <span className="tag market">market</span>}
+        </div>
+      </div>
+      <div className="desc">{s.desc}</div>
+      <div className="tags">
+        <span className={`tag scan ${s.scan==='warn'?'warn':s.scan==='risk'?'risk':''}`}>{s.scan}</span>
+        {cat && <span className="tag cat">{cat.label}</span>}
+      </div>
+      <div className="meta">
+        <span>v{s.ver}</span><span className="sep"/>
+        <span>{s.updated}</span><span className="sep"/>
+        <span>{s.files} file{s.files===1?'':'s'}</span>
+        <div className="right">
+          <StatusPill s={s}/>
+          <span
+            className={`switch ${s.installed && s.enabled ? 'on' : ''}`}
+            onClick={e => { e.stopPropagation(); onToggle(s); }}
+            title={s.enabled ? 'Disable' : 'Enable'}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Table({ list, onOpen, onToggle }) {
+  return (
+    <table className="tbl">
+      <thead>
+        <tr>
+          <th style={{ width: '26%' }}>Name</th>
+          <th>Description</th>
+          <th>Category</th>
+          <th>Scan</th>
+          <th>Files</th>
+          <th>Version</th>
+          <th>Updated</th>
+          <th>Status</th>
+          <th style={{ textAlign: 'right' }}>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {list.map(s => {
+          const cat = CATEGORIES.find(c => c.id === s.cat);
+          const cls = !s.installed ? 'market' : (s.enabled ? 'installed' : 'disabled');
+          const initials = s.name.slice(0,2).toUpperCase();
+          return (
+            <tr key={s.id} className={cls} onClick={() => onOpen(s)}>
+              <td>
+                <div className="name-cell">
+                  <div className="glyph">{initials}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="ttl">{s.name}</div>
+                    <div className="by">by {s.author}</div>
+                  </div>
+                </div>
+              </td>
+              <td><div className="desc-cell">{s.desc}</div></td>
+              <td>{cat ? <span className="tag cat row">{cat.label}</span> : '—'}</td>
+              <td><span className={`tag scan row ${s.scan==='warn'?'warn':s.scan==='risk'?'risk':''}`}>{s.scan}</span></td>
+              <td style={{ color: 'var(--m-text-muted)' }}>{s.files}</td>
+              <td style={{ color: 'var(--m-text-muted)' }}>v{s.ver}</td>
+              <td style={{ color: 'var(--m-text-faint)' }}>{s.updated}</td>
+              <td><StatusPill s={s}/></td>
+              <td style={{ textAlign: 'right' }}>
+                <div className="actions" onClick={e => e.stopPropagation()}>
+                  <span
+                    className={`switch ${s.installed && s.enabled ? 'on' : ''}`}
+                    onClick={() => onToggle(s)}
+                    title={s.enabled ? 'Disable' : 'Enable'}/>
+                  <span className="ico-btn" title="Open" onClick={() => onOpen(s)}>{Ico.doc}</span>
+                </div>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────
+   DETAIL DRAWER
+   ────────────────────────────────────────────────────────── */
+function highlightMd(src) {
+  // light syntax shading for the mock MD viewer
+  const lines = src.split('\n');
+  return lines.map((ln, i) => {
+    let cls = '';
+    let html = ln
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    if (/^---\s*$/.test(ln)) cls = 'cm';
+    else if (/^# /.test(ln)) { cls = 'h1'; }
+    else if (/^## /.test(ln)) { cls = 'h2'; }
+    else if (/^[a-zA-Z_-]+:\s/.test(ln) && i < 30) {
+      html = html.replace(/^([a-zA-Z_-]+):/, '<span class="key">$1</span>:');
+    } else if (/^\s*-\s/.test(ln)) {
+      cls = 'li';
+      html = html.replace(/^\s*-\s/, '');
+    } else if (/^>\s/.test(ln)) {
+      cls = 'cm';
+    }
+    // backticked code spans
+    html = html.replace(/`([^`]+)`/g, '<span class="code">$1</span>');
+    return { html, cls };
+  });
+}
+
+function Drawer({ skill, onClose, onToggle }) {
+  const [tab, setTab] = React.useState('md');
+  React.useEffect(() => {
+    const onKey = e => { if (e.key === 'Escape' && skill) onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [skill, onClose]);
+
+  if (!skill) return (
+    <>
+      <div className="scrim"/>
+      <div className="drawer"/>
+    </>
+  );
+
+  const md = makeMd(skill);
+  const lines = highlightMd(md);
+  const cat = CATEGORIES.find(c => c.id === skill.cat);
+  const origin = ORIGINS.find(o => o.id === skill.origin);
+  const initials = skill.name.slice(0,2).toUpperCase();
+
+  return (
+    <>
+      <div className="scrim open" onClick={onClose}/>
+      <aside className="drawer open">
+        <div className="scan"/>
+
+        <div className="dr-head">
+          <div>
+            <div className="ttl-row">
+              <div className="glyph">{initials}</div>
+              <div style={{ minWidth: 0 }}>
+                <h2>{skill.name}</h2>
+                <div className="meta-line">
+                  <span>by {skill.author}</span>
+                  <span>{cat ? cat.label : '—'}</span>
+                  <span>{skill.files} file{skill.files===1?'':'s'}</span>
+                  <span>v{skill.ver}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="actions">
+            <span className="ico-btn" title="Copy path">{Ico.copy}</span>
+            <span className="ico-btn" title="Open in editor">{Ico.edit}</span>
+            <span className="ico-btn" title="Download">{Ico.dl}</span>
+            <span className="ico-btn" onClick={onClose} title="Close (Esc)">{Ico.x}</span>
+          </div>
+        </div>
+
+        <div className="dr-tabs">
+          <button className={tab==='md'?'on':''} onClick={() => setTab('md')}>{Ico.doc}<span>SKILL.md</span></button>
+          <button className={tab==='overview'?'on':''} onClick={() => setTab('overview')}>{Ico.shield}<span>Overview</span></button>
+          <button className={tab==='files'?'on':''} onClick={() => setTab('files')}>{Ico.files}<span>Files</span><span className="ct">{skill.files}</span></button>
+          <button className={tab==='triggers'?'on':''} onClick={() => setTab('triggers')}>{Ico.bolt}<span>Triggers</span><span className="ct">{skill.triggers.length}</span></button>
+        </div>
+
+        <div className="dr-body">
+          {tab === 'md' && (
+            <div className="md-card">
+              <div className="hd">
+                <span>SKILL.md</span>
+                <span className="filename">{skill.name}/SKILL.md</span>
+                <span className="right">
+                  <span className="ico-btn" title="Copy">{Ico.copy}</span>
+                  <span className="ico-btn" title="Open in editor">{Ico.edit}</span>
+                </span>
+              </div>
+              <div className="bd">
+                <div className="ln">
+                  {lines.map((_,i) => <span key={i}>{i+1}</span>)}
+                </div>
+                <div className="src">
+                  {lines.map((ln, i) => (
+                    <div key={i} className={ln.cls} dangerouslySetInnerHTML={{ __html: ln.html || '\u00a0' }}/>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === 'overview' && (
+            <>
+              <div className="panel-card">
+                <div className="hd">
+                  <span>Security Scan</span>
+                  <span className="right" style={{ color: 'var(--m-text-muted)' }}>Hermes Workspace</span>
+                </div>
+                <div className="bd">
+                  <div className="sec-row">
+                    <span className="kw">{skill.scan === 'risk' ? 'High-risk capability' : skill.scan === 'warn' ? 'Review recommended' : 'No risky patterns detected'}</span>
+                    <span className="pill" style={
+                      skill.scan === 'risk' ? { color:'#ff5fa2', borderColor:'rgba(255,95,162,.4)', background:'rgba(255,95,162,.08)' }
+                      : skill.scan === 'warn' ? { color:'#ffb347', borderColor:'rgba(255,179,71,.4)', background:'rgba(255,179,71,.08)' }
+                      : {}
+                    }>{skill.scan}</span>
+                    <span className="conf">{skill.conf} confidence</span>
+                  </div>
+                  <div className="sec-note">
+                    {skill.scan === 'risk'
+                      ? 'This skill exercises shell or network capabilities that can mutate host state. Review the SKILL.md and lock the capability manifest before enabling.'
+                      : skill.scan === 'warn'
+                      ? 'Light review recommended — non-trivial dependencies or large generated artefacts.'
+                      : 'No risky patterns detected. This skill appears safe to install.'}
+                  </div>
+                  <div className="sec-tip">Like a lobster shell, security has layers — review code before you run it.</div>
+                </div>
+              </div>
+
+              <div className="preview-grid">
+                <div className="stat-card"><div className="lbl">Version</div><b>v{skill.ver}</b><div className="sub">updated {skill.updated}</div></div>
+                <div className="stat-card"><div className="lbl">Origin</div><b>{origin ? origin.label : '—'}</b><div className="sub">{skill.source}</div></div>
+                <div className="stat-card"><div className="lbl">Triggers</div><b>{skill.triggers.length}</b><div className="sub">{skill.triggers.length ? skill.triggers.slice(0,2).join(', ') : 'none registered'}</div></div>
+                <div className="stat-card"><div className="lbl">Files</div><b>{skill.files}</b><div className="sub">in skill bundle</div></div>
+              </div>
+
+              <div className="panel-card">
+                <div className="hd"><span>Description</span></div>
+                <div className="bd" style={{ font: '400 13px/1.55 var(--m-font-sans)', color: 'var(--m-text)' }}>
+                  {skill.desc}
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === 'files' && (
+            <div className="panel-card">
+              <div className="hd"><span>Bundle contents</span><span className="right" style={{ color: 'var(--m-green-500)' }}>{skill.files} files</span></div>
+              <div>
+                {[
+                  { n: 'SKILL.md',     sz: '2.1 kb', lg: 'md'   },
+                  { n: 'manifest.yaml',sz: '0.6 kb', lg: 'yaml' },
+                  { n: 'handler.ts',   sz: '4.4 kb', lg: 'ts'   },
+                  { n: 'fixtures/',    sz: '—',      lg: 'dir'  },
+                ].slice(0, Math.max(skill.files, 1)).map((f, i) => (
+                  <div key={i} className="file-row">
+                    <span className="ic">{f.lg === 'dir' ? Ico.files : Ico.doc}</span>
+                    <span className="nm">{f.n}</span>
+                    <span className="sz">{f.sz}</span>
+                    <span className="lg">{f.lg}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {tab === 'triggers' && (
+            <div className="panel-card">
+              <div className="hd"><span>Trigger phrases</span><span className="right" style={{ color: 'var(--m-text-muted)' }}>{skill.triggers.length}</span></div>
+              <div className="bd">
+                {skill.triggers.length === 0
+                  ? <span className="trig-empty">No triggers listed</span>
+                  : (
+                    <div className="trig-list">
+                      {skill.triggers.map(t => (
+                        <span key={t} className="trig">{Ico.bolt}<code>{t}</code></span>
+                      ))}
+                    </div>
+                  )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="dr-foot">
+          {skill.source === 'builtin' && <span className="tag builtin">built-in</span>}
+          {skill.source === 'market' && <span className="tag market">market</span>}
+          <span className="src-line"><span className="lbl">Source:</span><code>{skill.path}</code></span>
+          <span
+            className={`switch ${skill.installed && skill.enabled ? 'on' : ''}`}
+            onClick={() => onToggle(skill)}
+            title={skill.enabled ? 'Disable' : 'Enable'}/>
+          {skill.installed
+            ? <button className="m-btn m-btn-sm">Uninstall</button>
+            : <button className="m-btn m-btn-sm m-btn-primary">Install</button>}
+          <button className="m-btn m-btn-sm" onClick={onClose}>Close</button>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────
+   APP
+   ────────────────────────────────────────────────────────── */
+function App() {
+  const [q, setQ] = React.useState('');
+  const [status, setStatus] = React.useState('installed');
+  const [cat, setCat] = React.useState('all');
+  const [origin, setOrigin] = React.useState('all');
+  const [view, setView] = React.useState('grid');
+  const [collapsed, setCollapsed] = React.useState(false);
+  const [active, setActive] = React.useState(null);
+  const [skills, setSkills] = React.useState(SKILLS);
+  const [sort, setSort] = React.useState('name');
+
+  const list = React.useMemo(() => {
+    let l = skills.filter(s => {
+      if (status === 'installed' && !s.installed) return false;
+      if (status === 'enabled' && !(s.installed && s.enabled)) return false;
+      if (status === 'market' && s.installed) return false;
+      if (cat !== 'all' && s.cat !== cat) return false;
+      if (origin !== 'all' && s.origin !== origin) return false;
+      if (q) {
+        const t = q.toLowerCase();
+        if (!s.name.toLowerCase().includes(t) && !s.desc.toLowerCase().includes(t) && !s.author.toLowerCase().includes(t)) return false;
+      }
+      return true;
+    });
+    if (sort === 'name') l = [...l].sort((a,b) => a.name.localeCompare(b.name));
+    if (sort === 'updated') l = [...l].sort((a,b) => a.updated.localeCompare(b.updated));
+    return l;
+  }, [skills, status, cat, origin, q, sort]);
+
+  const onToggle = s => {
+    setSkills(prev => prev.map(x => x.id === s.id ? { ...x, enabled: !x.enabled, installed: x.installed || !x.installed } : x));
+    if (active && active.id === s.id) setActive(a => ({ ...a, enabled: !a.enabled }));
+  };
+
+  const enabledCount = skills.filter(s => s.installed && s.enabled).length;
+  const installedCount = skills.filter(s => s.installed).length;
+
+  return (
+    <div className={`shell ${collapsed ? 'filters-collapsed' : ''}`}>
+      <nav className="nav"><PrimaryNavV2 active="skills" sessionsBadge={142} /></nav>
+      <FiltersPanel
+        q={q} setQ={setQ}
+        status={status} setStatus={setStatus}
+        cat={cat} setCat={setCat}
+        origin={origin} setOrigin={setOrigin}
+        count={list.length}
+        collapsed={collapsed} setCollapsed={setCollapsed}/>
+      <main className="main">
+        <div className="top">
+          <div>
+            <div className="crumbs">Hermes Workspace<span className="sep">·</span>Marketplace<span className="sep">·</span>Skills</div>
+            <h1>Skills Browser</h1>
+            <div className="sub">Discover, install, and manage skills across your local workspace and Skills Hub.</div>
+          </div>
+          <div className="right">
+            <div className="stat"><span>Installed</span><b>{installedCount}</b></div>
+            <div className="stat"><span>Enabled</span><b style={{ color: 'var(--m-green-500)' }}>{enabledCount}</b></div>
+            <div className="stat"><span>Marketplace</span><b style={{ color: '#5fcfff', textShadow: '0 0 6px rgba(95,207,255,.4)' }}>{skills.length - installedCount}</b></div>
+          </div>
+        </div>
+
+        <div className="toolbar">
+          <span style={{ font: '500 11px var(--m-font-mono)', color: 'var(--m-text-faint)', textTransform: 'uppercase', letterSpacing: '.18em' }}>
+            {list.length} of {skills.length}
+          </span>
+          <span className="grow"/>
+          <span className="sort" onClick={() => setSort(s => s === 'name' ? 'updated' : 'name')}>
+            sort · {sort === 'name' ? 'name a–z' : 'recently updated'}
+          </span>
+          <div className="view-toggle" role="tablist" aria-label="View toggle">
+            <button className={view==='grid'?'on':''} onClick={() => setView('grid')}>{Ico.grid}<span>grid</span></button>
+            <button className={view==='table'?'on':''} onClick={() => setView('table')}>{Ico.rows}<span>table</span></button>
+          </div>
+        </div>
+
+        <div className="canvas">
+          {list.length === 0 ? (
+            <div className="empty">
+              <div className="glyph">∅</div>
+              no skills match.<br/>
+              <span style={{ color: 'var(--m-text-muted)' }}>try clearing filters or searching by tag.</span>
+            </div>
+          ) : view === 'grid' ? (
+            <div className="grid">
+              {list.map(s => <Card key={s.id} s={s} onOpen={setActive} onToggle={onToggle}/>)}
+            </div>
+          ) : (
+            <Table list={list} onOpen={setActive} onToggle={onToggle}/>
+          )}
+        </div>
+      </main>
+
+      <Drawer skill={active} onClose={() => setActive(null)} onToggle={onToggle}/>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

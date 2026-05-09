@@ -1,0 +1,1347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Conductor · Hermes</title>
+<link rel="stylesheet" href="matrix-system.css" />
+<link rel="stylesheet" href="primary-nav-v2.css" />
+<style>
+  body { overflow: hidden; }
+  .cnd-nav { background: transparent !important; border: none !important; padding: 0 !important; overflow: hidden !important; }
+  .cnd {
+    display: grid;
+    grid-template-columns: 232px 1fr 320px;
+    grid-template-rows: 56px 1fr;
+    height: 100vh;
+  }
+  /* TOP */
+  .cnd-top {
+    grid-column: 2 / -1;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    border-bottom: 1px solid var(--m-border);
+    background: var(--m-sidebar);
+  }
+  .cnd-top .brand {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 14px;
+    height: 100%;
+    border-right: 1px solid var(--m-border-subtle);
+  }
+  .cnd-top .brand .glyph {
+    width: 26px; height: 26px;
+    display: grid; place-items: center;
+    color: var(--m-green-500);
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    font-family: var(--m-font-mono);
+    font-weight: 700;
+    text-shadow: var(--m-text-glow);
+  }
+  .cnd-top .brand b {
+    font: 600 12px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-strong);
+  }
+  .cnd-top .crumbs {
+    display: flex; align-items: center; gap: 14px;
+    padding: 0 18px;
+    font: 500 11px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .18em;
+    color: var(--m-text-faint);
+  }
+  .cnd-top .crumbs span.cur { color: var(--m-green-500); }
+  .cnd-top .crumbs .sep { color: var(--m-text-ghost); }
+  .cnd-top .health {
+    display: flex; align-items: center; gap: 18px;
+    padding: 0 18px;
+    height: 100%;
+    border-left: 1px solid var(--m-border-subtle);
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text-muted);
+  }
+  .cnd-top .stat { display: flex; flex-direction: column; gap: 1px; line-height: 1.1; }
+  .cnd-top .stat .v {
+    font: 600 14px var(--m-font-mono);
+    color: var(--m-text-strong);
+  }
+  .cnd-top .stat .v.ok { color: var(--m-green-500); }
+  .cnd-top .stat .l {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-faint);
+  }
+  .cnd-top .right-actions { display: flex; gap: 6px; }
+  .ico-btn {
+    display: inline-grid; place-items: center;
+    width: 26px; height: 26px;
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-muted);
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .ico-btn svg { width: 14px; height: 14px; }
+  .ico-btn:hover { background: var(--m-fill-subtle); color: var(--m-green-500); border-color: var(--m-border-subtle); }
+
+  /* NAV */
+  .cnd-nav {
+    grid-row: 1 / -1;
+    background: var(--m-sidebar);
+    border-right: 1px solid var(--m-border);
+    padding: 14px 10px;
+    display: flex; flex-direction: column; gap: 2px;
+    overflow: auto;
+  }
+  .cnd-nav .grp {
+    margin-top: 14px;
+    padding: 0 8px 6px;
+    font: 600 9.5px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-ghost);
+  }
+  .cnd-nav .lk {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 9px;
+    border-radius: var(--m-radius-md);
+    font: 500 12.5px var(--m-font-mono);
+    color: var(--m-text-muted);
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .cnd-nav .lk:hover { color: var(--m-text); background: var(--m-fill-subtle); }
+  .cnd-nav .lk.on {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border-color: var(--m-border);
+    box-shadow: inset 2px 0 0 var(--m-green-500);
+  }
+  .cnd-nav .lk svg { width: 14px; height: 14px; flex: 0 0 14px; }
+  .cnd-nav .lk .ct {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--m-text-faint);
+  }
+
+  /* MAIN */
+  .cnd-main {
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto 1fr auto auto;
+    background:
+      radial-gradient(circle at 50% 30%, rgba(0,255,65,.04), transparent 60%),
+      var(--m-bg);
+  }
+
+  /* now-playing strip */
+  .now {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: 18px;
+    align-items: center;
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--m-border-subtle);
+    background: var(--m-panel);
+  }
+  .now .stamp {
+    display: flex; flex-direction: column;
+    font: 500 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-faint);
+    line-height: 1.4;
+  }
+  .now .stamp b {
+    font: 700 22px var(--m-font-mono);
+    color: var(--m-green-500);
+    text-shadow: var(--m-text-glow);
+    letter-spacing: -0.5px;
+    margin-top: 2px;
+  }
+  .now .body { min-width: 0; }
+  .now .lbl {
+    font: 600 9.5px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .25em;
+    color: var(--m-green-500);
+    margin-bottom: 4px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .now .lbl::before {
+    content: "";
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--m-green-500);
+    box-shadow: 0 0 8px var(--m-green-500);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% {opacity:1; transform:scale(1);} 50%{opacity:.55; transform:scale(1.18);} }
+  .now .prompt {
+    font: 500 14.5px/1.4 var(--m-font-mono);
+    color: var(--m-text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .now .prompt::before { content: "▸ "; color: var(--m-green-500); }
+  .now .meta {
+    font: 500 10.5px var(--m-font-mono);
+    color: var(--m-text-faint);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: .15em;
+  }
+  .now .meta b { color: var(--m-text); font-weight: 500; }
+  .now .stages {
+    display: flex; gap: 4px;
+  }
+  .now .stages .st {
+    font: 500 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    padding: 4px 8px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 9999px;
+    color: var(--m-text-faint);
+  }
+  .now .stages .st.done { color: var(--m-green-500); border-color: var(--m-border); background: var(--m-fill-subtle); }
+  .now .stages .st.now { color: var(--m-bg); background: var(--m-green-500); border-color: var(--m-green-500); }
+  .now .controls { display: flex; gap: 6px; }
+  .now .btn-kill {
+    background: transparent;
+    color: var(--m-danger);
+    border: 1px solid rgba(255,95,109,.4);
+    padding: 7px 11px;
+    border-radius: var(--m-radius-md);
+    font: 600 10.5px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .18em;
+    cursor: pointer;
+  }
+  .now .btn-kill:hover { background: rgba(255,95,109,.1); }
+
+  /* DAG (mission graph) */
+  .dag-wrap {
+    overflow: hidden;
+    padding: 22px 22px 8px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .dag-head {
+    display: flex; align-items: baseline; gap: 14px;
+    margin-bottom: 12px;
+  }
+  .dag-head h3 {
+    margin: 0;
+    font: 600 11px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-strong);
+  }
+  .dag-head .ct {
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+  }
+  .dag-head .right {
+    margin-left: auto;
+    display: flex; gap: 8px; align-items: center;
+    font: 500 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: var(--m-text-faint);
+  }
+  .view-toggle {
+    display: inline-flex;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    overflow: hidden;
+    margin-right: 4px;
+  }
+  .view-toggle button {
+    background: transparent;
+    color: var(--m-text-muted);
+    border: none;
+    padding: 5px 10px;
+    font: 500 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .view-toggle button svg { width: 12px; height: 12px; }
+  .view-toggle button:hover { color: var(--m-text); }
+  .view-toggle button.on {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    box-shadow: inset 0 -2px 0 var(--m-green-500);
+  }
+  .dag {
+    width: 100%;
+    height: 380px;
+    display: block;
+  }
+
+  /* SWIMLANE TIMELINE */
+  .lanes-wrap {
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    min-height: 0;
+  }
+  .lanes-head {
+    display: flex; align-items: baseline; gap: 14px;
+    padding: 12px 22px 8px;
+  }
+  .lanes-head h3 {
+    margin: 0;
+    font: 600 11px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-strong);
+  }
+  .lanes-head .ct {
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+  }
+  .lanes-head .right {
+    margin-left: auto;
+    display: flex; gap: 6px; align-items: center;
+    font: 500 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: var(--m-text-faint);
+  }
+  .lanes-head .scale {
+    display: flex; gap: 0;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    overflow: hidden;
+  }
+  .lanes-head .scale button {
+    background: transparent;
+    color: var(--m-text-muted);
+    border: none;
+    padding: 4px 9px;
+    font: 500 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    cursor: pointer;
+  }
+  .lanes-head .scale button.on { background: var(--m-fill); color: var(--m-green-500); }
+
+  .lanes {
+    overflow: auto;
+    padding: 0 22px 18px;
+    position: relative;
+  }
+  /* tick row */
+  .ticks {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    align-items: center;
+    height: 24px;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-ghost);
+    text-transform: uppercase;
+    letter-spacing: .15em;
+    border-bottom: 1px solid var(--m-border-faint);
+    margin-bottom: 4px;
+  }
+  .ticks .row {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    height: 100%;
+  }
+  .ticks .row span {
+    border-left: 1px dashed var(--m-border-faint);
+    padding: 6px 6px 0;
+  }
+  .ticks .row span:first-child { border-left: none; }
+
+  .lane {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    align-items: stretch;
+    height: 38px;
+    border-bottom: 1px solid var(--m-border-faint);
+    position: relative;
+  }
+  .lane .name {
+    display: flex; align-items: center; gap: 8px;
+    font: 500 12px var(--m-font-mono);
+    color: var(--m-text);
+    padding-right: 10px;
+    border-right: 1px solid var(--m-border-faint);
+  }
+  .lane .name .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--m-green-500);
+    box-shadow: 0 0 6px var(--m-green-500);
+  }
+  .lane .name .dot.idle { background: var(--m-text-faint); box-shadow: none; }
+  .lane .name .dot.blocked { background: var(--m-warning); box-shadow: 0 0 6px var(--m-warning); }
+  .lane .name .dot.error { background: var(--m-danger); box-shadow: 0 0 6px var(--m-danger); }
+  .lane .name .role {
+    margin-left: auto;
+    font-size: 9px;
+    color: var(--m-text-faint);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+  }
+  .lane .track {
+    position: relative;
+    background:
+      repeating-linear-gradient(90deg, transparent 0, transparent calc(100% / 12 - 1px), var(--m-border-faint) calc(100% / 12 - 1px), var(--m-border-faint) calc(100% / 12));
+  }
+  .lane .blk {
+    position: absolute;
+    top: 6px;
+    height: 26px;
+    border-radius: 3px;
+    background: var(--m-fill);
+    border: 1px solid var(--m-border);
+    color: var(--m-text);
+    font: 500 10.5px var(--m-font-mono);
+    display: flex; align-items: center; gap: 6px;
+    padding: 0 8px;
+    overflow: hidden;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .lane .blk:hover { background: var(--m-fill-strong); }
+  .lane .blk.run {
+    background: rgba(0,255,65,.18);
+    border-color: var(--m-green-500);
+    color: var(--m-green-500);
+    box-shadow: var(--m-glow-sm);
+  }
+  .lane .blk.live {
+    animation: livepulse 1.6s ease-in-out infinite;
+  }
+  @keyframes livepulse {
+    0%,100% { box-shadow: var(--m-glow-sm); }
+    50% { box-shadow: var(--m-glow-md); }
+  }
+  .lane .blk.tool {
+    background: rgba(95,207,255,.1);
+    border-color: rgba(95,207,255,.4);
+    color: var(--m-info);
+  }
+  .lane .blk.review {
+    background: rgba(214,255,95,.1);
+    border-color: rgba(214,255,95,.4);
+    color: var(--m-warning);
+  }
+  .lane .blk.handoff {
+    background: rgba(255,95,162,.1);
+    border-color: rgba(255,95,162,.4);
+    color: var(--m-pink);
+  }
+  .lane .blk.err {
+    background: rgba(255,95,109,.1);
+    border-color: rgba(255,95,109,.4);
+    color: var(--m-danger);
+  }
+  .lane .now-line {
+    position: absolute;
+    top: -4px; bottom: -4px;
+    width: 1px;
+    background: var(--m-green-500);
+    box-shadow: 0 0 8px var(--m-green-500);
+    pointer-events: none;
+    z-index: 4;
+  }
+  .lane .now-line::after {
+    content: "NOW";
+    position: absolute;
+    top: -16px; left: -14px;
+    font: 700 9px var(--m-font-mono);
+    color: var(--m-green-500);
+    letter-spacing: .18em;
+    text-shadow: var(--m-text-glow);
+  }
+
+  /* legend */
+  .legend {
+    display: flex; gap: 14px;
+    padding: 8px 22px 12px;
+    font: 500 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: var(--m-text-faint);
+    border-top: 1px solid var(--m-border-subtle);
+  }
+  .legend .l { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .sw {
+    width: 14px; height: 8px;
+    border-radius: 2px;
+    background: var(--m-fill);
+    border: 1px solid var(--m-border);
+  }
+  .legend .sw.run { background: rgba(0,255,65,.2); border-color: var(--m-green-500); }
+  .legend .sw.tool { background: rgba(95,207,255,.15); border-color: rgba(95,207,255,.5); }
+  .legend .sw.review { background: rgba(214,255,95,.15); border-color: rgba(214,255,95,.5); }
+  .legend .sw.handoff { background: rgba(255,95,162,.15); border-color: rgba(255,95,162,.5); }
+  .legend .sw.err { background: rgba(255,95,109,.15); border-color: rgba(255,95,109,.5); }
+
+  /* HISTORY (right rail) */
+  .cnd-history {
+    background: var(--m-sidebar);
+    border-left: 1px solid var(--m-border);
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    overflow: hidden;
+  }
+  .h-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px 10px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .h-head h3 {
+    margin: 0;
+    font: 600 11px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-strong);
+  }
+  .h-head .ct {
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+  }
+  .h-head .actions { margin-left: auto; display: flex; gap: 4px; }
+  .h-filters {
+    display: flex; gap: 4px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .h-filters button {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-muted);
+    font: 500 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    padding: 5px 4px;
+    cursor: pointer;
+  }
+  .h-filters button.on {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border-color: var(--m-border-strong);
+    box-shadow: var(--m-glow-sm);
+  }
+  .h-list {
+    overflow: auto;
+    padding: 6px 10px 10px;
+  }
+  .h-day {
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-faint);
+    padding: 12px 6px 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .h-day::after {
+    content: "";
+    flex: 1; height: 1px; background: var(--m-border-faint);
+  }
+  .miss {
+    display: grid;
+    grid-template-columns: 6px 1fr auto;
+    gap: 10px;
+    padding: 9px 8px 9px 0;
+    border-radius: var(--m-radius-md);
+    cursor: pointer;
+    border: 1px solid transparent;
+    margin-bottom: 2px;
+    align-items: start;
+  }
+  .miss:hover { background: var(--m-fill-subtle); border-color: var(--m-border-subtle); }
+  .miss.live {
+    background: var(--m-fill);
+    border-color: var(--m-border-strong);
+    box-shadow: inset 0 0 0 1px var(--m-border-strong), var(--m-glow-sm);
+  }
+  .miss .rail {
+    width: 3px; height: 100%;
+    background: var(--m-text-faint);
+    border-radius: 1px;
+    margin-left: 6px;
+  }
+  .miss.live .rail { background: var(--m-green-500); box-shadow: 0 0 6px var(--m-green-500); }
+  .miss.ok .rail { background: var(--m-green-700); }
+  .miss.err .rail { background: var(--m-danger); }
+  .miss .body { min-width: 0; }
+  .miss .ttl {
+    font: 600 12.5px var(--m-font-mono);
+    color: var(--m-text-strong);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 2px;
+  }
+  .miss .sub {
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 4px;
+  }
+  .miss .badges {
+    display: flex; gap: 4px;
+  }
+  .miss .b {
+    font: 500 9.5px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    padding: 1px 5px;
+    border-radius: 9999px;
+    border: 1px solid var(--m-border-subtle);
+    color: var(--m-text-faint);
+  }
+  .miss .b.ok { color: var(--m-green-500); border-color: var(--m-border); background: var(--m-fill-subtle); }
+  .miss .b.live { color: var(--m-bg); background: var(--m-green-500); border-color: var(--m-green-500); }
+  .miss .b.err { color: var(--m-danger); border-color: rgba(255,95,109,.4); }
+  .miss .meta {
+    text-align: right;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    line-height: 1.4;
+  }
+  .miss .meta .tok { color: var(--m-green-500); }
+  .miss .meta .replay {
+    margin-top: 2px;
+    display: inline-flex; align-items: center; gap: 4px;
+    color: var(--m-text-muted);
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    font-size: 9px;
+  }
+  .miss .meta .replay:hover { color: var(--m-green-500); }
+  .miss .meta .replay svg { width: 9px; height: 9px; }
+
+  .h-foot {
+    border-top: 1px solid var(--m-border);
+    padding: 12px 16px;
+  }
+  .h-foot button {
+    width: 100%;
+    background: var(--m-green-500);
+    color: var(--m-bg);
+    border: 1px solid var(--m-green-500);
+    border-radius: var(--m-radius-md);
+    padding: 9px 14px;
+    font: 600 11px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .18em;
+    cursor: pointer;
+    box-shadow: var(--m-glow-sm);
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .h-foot button:hover { box-shadow: var(--m-glow-md); }
+</style>
+</head>
+<body>
+<div class="cnd" data-screen-label="Conductor">
+  <!-- TOP -->
+  <header class="cnd-top">
+    <div class="crumbs">
+      <span>Workspace</span>
+      <span class="sep">›</span>
+      <span class="cur">Conductor</span>
+      <span class="sep">·</span>
+      <span>mission flow · live</span>
+    </div>
+    <div class="health">
+      <div class="stat"><span class="v ok">1</span><span class="l">live mission</span></div>
+      <div class="stat"><span class="v">04:18</span><span class="l">elapsed</span></div>
+      <div class="stat"><span class="v">5</span><span class="l">workers active</span></div>
+      <div class="stat"><span class="v">8.4k</span><span class="l">tok used</span></div>
+      <div class="right-actions">
+        <span class="ico-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg></span>
+        <span class="ico-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M12 1v3M12 20v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M1 12h3M20 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- NAV (canonical Hermes PrimaryNavV2) -->
+  <nav class="cnd-nav" id="primary-nav-mount"></nav>
+  <template id="cnd-nav-legacy" style="display:none">
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5v14M5 12h14"/></svg>New Session</div>
+    <div class="grp">Main</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15a4 4 0 0 1-4 4H8l-5 4V6a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/></svg>Chat</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Files</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>Terminal</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>Jobs<span class="ct">3</span></div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Tasks<span class="ct">12</span></div>
+    <div class="lk on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3 19 12 5 21 z"/></svg>Conductor<span class="ct">live</span></div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="11" r="2.5"/><path d="M3 20c0-3 3-5 6-5s6 2 6 5M14 20c0-2 2-3 4-3s4 1 4 3"/></svg>Operations<span class="ct">9</span></div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="6" cy="7" r="2"/><circle cx="18" cy="7" r="2"/><circle cx="12" cy="17" r="2"/><path d="M8 7h8M7 8l4 7M17 8l-4 7"/></svg>Swarm</div>
+    <div class="grp">Knowledge</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 3a3 3 0 0 0-3 3 3 3 0 0 0-3 3 3 3 0 0 0 3 3v3a3 3 0 0 0 3 3 3 3 0 0 0 3 3V3 z"/></svg>Memory</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 7V4l4 4-4 4V9c-3 0-6 2-6 5h-3c0-5 4-9 9-9z"/></svg>Skills</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7h18M3 12h18M3 17h18"/></svg>MCP</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>Profiles</div>
+  </template>
+
+  <!-- MAIN -->
+  <main class="cnd-main">
+    <!-- now playing -->
+    <div class="now">
+      <div class="stamp">
+        elapsed
+        <b>04:18</b>
+      </div>
+      <div class="body">
+        <div class="lbl">now playing · t_49b85d13</div>
+        <div class="prompt">Sweep open PRs in hermes-switchui, summarise BenchLoop runs from PC1, draft a launch tweet.</div>
+        <div class="meta">routed by <b>switch</b> · 3 domains (neo · trinity · morpheus) · 7 tasks · est. <b>06:10</b> · budget <b>25k tok</b> · used <b>8.4k</b></div>
+      </div>
+      <div class="stages">
+        <span class="st done">plan</span>
+        <span class="st done">route</span>
+        <span class="st now">execute</span>
+        <span class="st">review</span>
+        <span class="st">report</span>
+      </div>
+      <div class="controls">
+        <span class="ico-btn" title="Pause"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></span>
+        <button class="btn-kill">abort</button>
+      </div>
+    </div>
+
+    <!-- DAG -->
+    <div class="dag-wrap">
+      <div class="dag-head">
+        <h3 id="canvas-title">Mission DAG</h3>
+        <span class="ct" id="canvas-sub">· 3-tier orchestration · plan → route → execute ↺ review → report</span>
+        <div class="right">
+          <div class="view-toggle" role="tablist">
+            <button id="view-flow" class="on" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 12h4M14 7l-3 4M14 17l-3-4"/></svg>
+              flow
+            </button>
+            <button id="view-org" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4M6 16v-2h12v2"/></svg>
+              org
+            </button>
+          </div>
+          <span>auto-fit</span>
+          <span class="ico-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7V3h4M21 7V3h-4M3 17v4h4M21 17v4h-4"/></svg></span>
+        </div>
+      </div>
+      <svg class="dag" id="dag-flow" viewBox="0 0 1200 380" preserveAspectRatio="xMidYMid meet" style="height: 380px;">
+        <defs>
+          <linearGradient id="edge-active" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="rgba(0,255,65,.05)" />
+            <stop offset="50%" stop-color="rgba(0,255,65,1)" />
+            <stop offset="100%" stop-color="rgba(0,255,65,.05)" />
+          </linearGradient>
+          <linearGradient id="edge-active-cyan" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="rgba(95,207,255,.05)" />
+            <stop offset="50%" stop-color="rgba(95,207,255,.95)" />
+            <stop offset="100%" stop-color="rgba(95,207,255,.05)" />
+          </linearGradient>
+          <linearGradient id="edge-active-pink" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="rgba(255,95,162,.05)" />
+            <stop offset="50%" stop-color="rgba(255,95,162,.95)" />
+            <stop offset="100%" stop-color="rgba(255,95,162,.05)" />
+          </linearGradient>
+          <filter id="glow"><feGaussianBlur stdDeviation="2.5" /></filter>
+          <marker id="arrow-loop" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#d6ff5f" />
+          </marker>
+        </defs>
+
+        <!-- ── tier band guides ───────────────────────────────────── -->
+        <g>
+          <!-- T1 band -->
+          <rect x="0" y="20" width="1200" height="120" fill="rgba(0,255,65,.025)" />
+          <line x1="0" y1="20" x2="1200" y2="20" stroke="rgba(0,255,65,.18)" stroke-dasharray="2 4" />
+          <line x1="0" y1="140" x2="1200" y2="140" stroke="rgba(0,255,65,.12)" stroke-dasharray="2 4" />
+          <text x="14" y="36" font-family="JetBrains Mono" font-size="9" fill="rgba(0,255,65,.7)" letter-spacing="2" font-weight="600">T1 · SWITCH · ORCHESTRATOR</text>
+
+          <!-- T2 band -->
+          <line x1="0" y1="240" x2="1200" y2="240" stroke="rgba(95,207,255,.12)" stroke-dasharray="2 4" />
+          <text x="14" y="156" font-family="JetBrains Mono" font-size="9" fill="rgba(216,255,227,.45)" letter-spacing="2" font-weight="600">T2 · DOMAIN HEADS</text>
+
+          <!-- T3 band -->
+          <line x1="0" y1="370" x2="1200" y2="370" stroke="rgba(214,255,95,.10)" stroke-dasharray="2 4" />
+          <text x="14" y="256" font-family="JetBrains Mono" font-size="9" fill="rgba(216,255,227,.35)" letter-spacing="2" font-weight="600">T3 · TRANSIENT SPECIALISTS</text>
+        </g>
+
+        <!-- ── edges ──────────────────────────────────────────────── -->
+        <g stroke-width="1.5" fill="none">
+          <!-- T1: plan -> route -->
+          <path d="M 165 90 C 220 90, 240 90, 295 90" stroke="rgba(0,255,65,.55)" />
+          <!-- T1: route -> review (the orchestration spine) -->
+          <path d="M 405 90 C 540 90, 600 90, 920 90" stroke="rgba(0,255,65,.18)" stroke-dasharray="3 4" />
+          <!-- review -> report -->
+          <path d="M 990 90 L 1100 90" stroke="rgba(0,255,65,.22)" />
+
+          <!-- T1 ROUTE -> T2 (fanout, distinct exit points to avoid overlap) -->
+          <!-- ROUTE bottom-left exit -> NEO (left T2) — drops then curves left -->
+          <path d="M 305 120 C 305 160, 540 160, 540 168" stroke="url(#edge-active-cyan)" stroke-dasharray="4 4">
+            <animate attributeName="stroke-dashoffset" from="0" to="-16" dur="0.6s" repeatCount="indefinite" />
+          </path>
+          <!-- ROUTE bottom-center exit -> TRINITY (center T2) — straight vertical -->
+          <path d="M 335 120 L 335 175 L 760 175 L 760 168" stroke="rgba(214,255,95,.30)" stroke-dasharray="4 4" />
+          <!-- ROUTE bottom-right exit -> MORPHEUS (right T2) — drops then curves right, AROUND trinity, lower corridor -->
+          <path d="M 365 120 C 365 130, 365 152, 410 152 L 880 152 C 980 152, 980 158, 980 168" stroke="url(#edge-active-pink)" stroke-dasharray="4 4">
+            <animate attributeName="stroke-dashoffset" from="0" to="-16" dur="0.6s" repeatCount="indefinite" />
+          </path>
+
+          <!-- T2 NEO -> T3 specialists -->
+          <path d="M 510 232 L 510 280 L 380 280 L 380 310" stroke="url(#edge-active-cyan)" stroke-dasharray="3 3">
+            <animate attributeName="stroke-dashoffset" from="0" to="-12" dur="0.6s" repeatCount="indefinite" />
+          </path>
+          <path d="M 570 232 L 570 280 L 540 280 L 540 310" stroke="rgba(95,207,255,.35)" stroke-dasharray="3 3" />
+          <!-- T2 TRINITY -> T3 -->
+          <path d="M 760 232 L 760 280 L 720 280 L 720 310" stroke="rgba(214,255,95,.18)" stroke-dasharray="3 3" />
+          <!-- T2 MORPHEUS -> T3 specialists -->
+          <path d="M 950 232 L 950 280 L 880 280 L 880 310" stroke="url(#edge-active-pink)" stroke-dasharray="3 3">
+            <animate attributeName="stroke-dashoffset" from="0" to="-12" dur="0.6s" repeatCount="indefinite" />
+          </path>
+          <path d="M 1010 232 L 1010 280 L 1040 280 L 1040 310" stroke="rgba(255,95,162,.30)" stroke-dasharray="3 3" />
+
+          <!-- T2 -> REVIEW (distinct entry points, separate y-corridors so they don't overlap fanout) -->
+          <!-- NEO -> REVIEW : drops up to corridor y=132, runs right, lifts into REVIEW left edge -->
+          <path d="M 510 168 C 510 152, 510 132, 560 132 L 890 132 C 920 132, 920 124, 920 120" stroke="rgba(95,207,255,.32)" />
+          <!-- TRINITY -> REVIEW : right side of trinity up to corridor y=140, into REVIEW center-bottom -->
+          <path d="M 790 168 C 790 152, 790 140, 830 140 L 920 140 C 950 140, 950 130, 950 120" stroke="rgba(214,255,95,.22)" />
+          <!-- MORPHEUS -> REVIEW : left side, straight up corridor y=124 into REVIEW right-bottom -->
+          <path d="M 950 168 C 950 152, 950 124, 970 124 C 980 124, 980 122, 980 120" stroke="rgba(255,95,162,.32)" />
+        </g>
+
+        <!-- ── REVIEW ↺ ROUTE feedback loop (curving above) ──────── -->
+        <g fill="none">
+          <path d="M 920 68 C 880 8, 420 8, 365 68" stroke="#d6ff5f" stroke-width="1.4" stroke-dasharray="5 5" opacity="0.85" marker-end="url(#arrow-loop)">
+            <animate attributeName="stroke-dashoffset" from="0" to="-20" dur="1.4s" repeatCount="indefinite" />
+          </path>
+          <text x="640" y="14" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="#d6ff5f" letter-spacing="2" font-weight="600">REVIEW ↺ ROUTE · until goal achieved</text>
+        </g>
+
+        <!-- ─────────────────────────────────────────────────────────
+             T1 NODES — SWITCH band
+             ───────────────────────────────────────────────────────── -->
+        <!-- PLAN (done) -->
+        <g transform="translate(85, 90)">
+          <rect x="-80" y="-26" width="160" height="52" rx="5" fill="rgba(0,255,65,.10)" stroke="rgba(0,255,65,.5)" />
+          <text x="-66" y="-9" font-family="JetBrains Mono" font-size="9" fill="rgba(0,255,65,.65)" letter-spacing="1.5" font-weight="600">SWITCH ·</text>
+          <text x="0" y="6" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="#d8ffe3" font-weight="700">PLAN</text>
+          <text x="0" y="20" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="rgba(216,255,227,.5)">done · 02:08 · 3 subgoals</text>
+        </g>
+
+        <!-- ROUTE (live, the brains) -->
+        <g transform="translate(335, 90)">
+          <rect x="-70" y="-30" width="140" height="60" rx="5" fill="rgba(0,255,65,.20)" stroke="#00ff41" filter="url(#glow)" opacity="0.45" />
+          <rect x="-70" y="-30" width="140" height="60" rx="5" fill="rgba(0,255,65,.18)" stroke="#00ff41" />
+          <circle cx="58" cy="-18" r="3.5" fill="#00ff41"><animate attributeName="opacity" values="1;0.3;1" dur="1.4s" repeatCount="indefinite" /></circle>
+          <text x="-58" y="-13" font-family="JetBrains Mono" font-size="9" fill="#00ff41" letter-spacing="1.5" font-weight="600">SWITCH ·</text>
+          <text x="0" y="3" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#00ff41" font-weight="700">ROUTE</text>
+          <text x="0" y="18" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="rgba(0,255,65,.85)">3 domains · 7 tasks</text>
+        </g>
+
+        <!-- REVIEW (awaiting) -->
+        <g transform="translate(950, 90)">
+          <rect x="-60" y="-26" width="120" height="52" rx="5" fill="rgba(216,255,227,.04)" stroke="rgba(216,255,227,.22)" />
+          <text x="-46" y="-9" font-family="JetBrains Mono" font-size="9" fill="rgba(216,255,227,.4)" letter-spacing="1.5" font-weight="600">SWITCH ·</text>
+          <text x="0" y="6" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="rgba(216,255,227,.65)" font-weight="700">REVIEW</text>
+          <text x="0" y="20" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="rgba(216,255,227,.35)">awaiting · loop ↺</text>
+        </g>
+
+        <!-- REPORT (awaiting) -->
+        <g transform="translate(1140, 90)">
+          <rect x="-50" y="-26" width="100" height="52" rx="5" fill="rgba(216,255,227,.04)" stroke="rgba(216,255,227,.18)" />
+          <text x="-36" y="-9" font-family="JetBrains Mono" font-size="9" fill="rgba(216,255,227,.4)" letter-spacing="1.5" font-weight="600">SWITCH ·</text>
+          <text x="0" y="6" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="rgba(216,255,227,.65)" font-weight="700">REPORT</text>
+          <text x="0" y="20" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="rgba(216,255,227,.3)">on goal achieved</text>
+        </g>
+
+        <!-- ─────────────────────────────────────────────────────────
+             T2 NODES — DOMAIN HEADS (NEO · TRINITY · MORPHEUS)
+             ───────────────────────────────────────────────────────── -->
+        <!-- NEO · technical · live -->
+        <g transform="translate(540, 200)">
+          <rect x="-90" y="-32" width="180" height="64" rx="5" fill="rgba(95,207,255,.16)" stroke="#5fcfff" filter="url(#glow)" opacity="0.4" />
+          <rect x="-90" y="-32" width="180" height="64" rx="5" fill="rgba(95,207,255,.12)" stroke="#5fcfff" />
+          <circle cx="78" cy="-20" r="3.5" fill="#5fcfff"><animate attributeName="opacity" values="1;0.3;1" dur="1.6s" repeatCount="indefinite" /></circle>
+          <text x="-78" y="-15" font-family="JetBrains Mono" font-size="9" fill="rgba(95,207,255,.85)" letter-spacing="1.5" font-weight="600">T2 · TECHNICAL</text>
+          <text x="0" y="2" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#5fcfff" font-weight="700">NEO</text>
+          <text x="0" y="17" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="rgba(216,255,227,.6)">tasks · 12/48 · 2 specialists</text>
+        </g>
+
+        <!-- TRINITY · finance · idle/awaiting -->
+        <g transform="translate(760, 200)">
+          <rect x="-90" y="-32" width="180" height="64" rx="5" fill="rgba(214,255,95,.06)" stroke="rgba(214,255,95,.5)" />
+          <text x="-78" y="-15" font-family="JetBrains Mono" font-size="9" fill="rgba(214,255,95,.7)" letter-spacing="1.5" font-weight="600">T2 · FINANCE</text>
+          <text x="0" y="2" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#d6ff5f" font-weight="700">TRINITY</text>
+          <text x="0" y="17" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="rgba(216,255,227,.45)">budget audit · 1 task · queued</text>
+        </g>
+
+        <!-- MORPHEUS · marketing · live -->
+        <g transform="translate(980, 200)">
+          <rect x="-90" y="-32" width="180" height="64" rx="5" fill="rgba(255,95,162,.14)" stroke="#ff5fa2" filter="url(#glow)" opacity="0.4" />
+          <rect x="-90" y="-32" width="180" height="64" rx="5" fill="rgba(255,95,162,.10)" stroke="#ff5fa2" />
+          <circle cx="78" cy="-20" r="3.5" fill="#ff5fa2"><animate attributeName="opacity" values="1;0.3;1" dur="1.6s" repeatCount="indefinite" /></circle>
+          <text x="-78" y="-15" font-family="JetBrains Mono" font-size="9" fill="rgba(255,95,162,.85)" letter-spacing="1.5" font-weight="600">T2 · MARKETING</text>
+          <text x="0" y="2" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="#ff5fa2" font-weight="700">MORPHEUS</text>
+          <text x="0" y="17" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="rgba(216,255,227,.6)">launch tweet · 3 tasks</text>
+        </g>
+
+        <!-- ─────────────────────────────────────────────────────────
+             T3 NODES — TRANSIENT SPECIALISTS
+             ───────────────────────────────────────────────────────── -->
+        <!-- DRIFT (transient · spawned by NEO) -->
+        <g transform="translate(380, 332)">
+          <rect x="-70" y="-22" width="140" height="48" rx="4" fill="rgba(95,207,255,.06)" stroke="rgba(95,207,255,.55)" stroke-dasharray="4 3" />
+          <circle cx="58" cy="-12" r="3" fill="#5fcfff"><animate attributeName="opacity" values="1;0.3;1" dur="1.6s" repeatCount="indefinite" /></circle>
+          <text x="-58" y="-7" font-family="JetBrains Mono" font-size="8.5" fill="rgba(95,207,255,.7)" letter-spacing="1.4" font-weight="600">T3 · TRANSIENT</text>
+          <text x="0" y="8" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#d8ffe3" font-weight="600">DRIFT</text>
+          <text x="0" y="20" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="rgba(216,255,227,.5)">benchloop · 60% · 8 calls</text>
+        </g>
+        <!-- WORKSPACE (transient · spawned by NEO · pinned) -->
+        <g transform="translate(540, 332)">
+          <rect x="-70" y="-22" width="140" height="48" rx="4" fill="rgba(95,207,255,.04)" stroke="rgba(95,207,255,.4)" stroke-dasharray="4 3" />
+          <text x="-58" y="-7" font-family="JetBrains Mono" font-size="8.5" fill="rgba(95,207,255,.55)" letter-spacing="1.4" font-weight="600">T3 · PROMOTING ★</text>
+          <text x="0" y="8" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#d8ffe3" font-weight="600">WORKSPACE</text>
+          <text x="0" y="20" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="rgba(216,255,227,.5)">queued · 142 calls / 30d</text>
+        </g>
+        <!-- ECHO (transient · spawned by TRINITY) -->
+        <g transform="translate(720, 332)">
+          <rect x="-70" y="-22" width="140" height="48" rx="4" fill="rgba(216,255,227,.03)" stroke="rgba(214,255,95,.3)" stroke-dasharray="4 3" />
+          <text x="-58" y="-7" font-family="JetBrains Mono" font-size="8.5" fill="rgba(214,255,95,.55)" letter-spacing="1.4" font-weight="600">T3 · TRANSIENT</text>
+          <text x="0" y="8" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="rgba(216,255,227,.6)" font-weight="600">ECHO</text>
+          <text x="0" y="20" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="rgba(216,255,227,.35)">queued · awaiting trinity</text>
+        </g>
+        <!-- BLAZE (transient · spawned by MORPHEUS · live) -->
+        <g transform="translate(880, 332)">
+          <rect x="-70" y="-22" width="140" height="48" rx="4" fill="rgba(255,95,162,.06)" stroke="rgba(255,95,162,.55)" stroke-dasharray="4 3" />
+          <circle cx="58" cy="-12" r="3" fill="#ff5fa2"><animate attributeName="opacity" values="1;0.3;1" dur="1.6s" repeatCount="indefinite" /></circle>
+          <text x="-58" y="-7" font-family="JetBrains Mono" font-size="8.5" fill="rgba(255,95,162,.75)" letter-spacing="1.4" font-weight="600">T3 · TRANSIENT</text>
+          <text x="0" y="8" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="#d8ffe3" font-weight="600">BLAZE</text>
+          <text x="0" y="20" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="rgba(216,255,227,.5)">copywriter · drafting</text>
+        </g>
+        <!-- PIXEL (transient · spawned by MORPHEUS) -->
+        <g transform="translate(1040, 332)">
+          <rect x="-70" y="-22" width="140" height="48" rx="4" fill="rgba(255,95,162,.05)" stroke="rgba(255,95,162,.4)" stroke-dasharray="4 3" />
+          <text x="-58" y="-7" font-family="JetBrains Mono" font-size="8.5" fill="rgba(255,95,162,.6)" letter-spacing="1.4" font-weight="600">T3 · TRANSIENT</text>
+          <text x="0" y="8" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="rgba(216,255,227,.7)" font-weight="600">PIXEL</text>
+          <text x="0" y="20" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="rgba(216,255,227,.4)">image gen · queued</text>
+        </g>
+
+        <!-- LEGEND -->
+        <g transform="translate(1080, 156)">
+          <rect x="-10" y="-12" width="120" height="76" rx="4" fill="rgba(7,19,10,.8)" stroke="rgba(0,255,65,.2)" />
+          <text x="0" y="0" font-family="JetBrains Mono" font-size="8" fill="rgba(216,255,227,.5)" letter-spacing="1.5" font-weight="600">STAGES</text>
+          <rect x="0" y="6" width="10" height="4" rx="1" fill="#00ff41" /><text x="16" y="11" font-family="JetBrains Mono" font-size="8.5" fill="#d8ffe3">plan · route</text>
+          <rect x="0" y="18" width="10" height="4" rx="1" fill="#5fcfff" /><text x="16" y="23" font-family="JetBrains Mono" font-size="8.5" fill="#d8ffe3">execute (T2/T3)</text>
+          <line x1="0" y1="32" x2="10" y2="32" stroke="#d6ff5f" stroke-width="1.4" stroke-dasharray="3 2" /><text x="16" y="35" font-family="JetBrains Mono" font-size="8.5" fill="#d8ffe3">review ↺ loop</text>
+          <rect x="0" y="42" width="10" height="4" rx="1" fill="rgba(216,255,227,.5)" /><text x="16" y="47" font-family="JetBrains Mono" font-size="8.5" fill="#d8ffe3">report</text>
+          <text x="0" y="59" font-family="JetBrains Mono" font-size="7.5" fill="rgba(216,255,227,.4)" letter-spacing="1">— — —  transient (T3)</text>
+        </g>
+      </svg>
+
+      <!-- ORG TREE (3-tier hierarchy) -->
+      <svg class="dag" id="dag-org" viewBox="0 0 1200 240" preserveAspectRatio="xMidYMid meet" style="display:none; height:240px;">
+        <!-- edges -->
+        <g stroke-width="1.4" fill="none">
+          <!-- T1 -> T2 -->
+          <path d="M 600 56 L 600 80 L 250 80 L 250 100" stroke="rgba(0,255,65,.45)" />
+          <path d="M 600 80 L 600 100" stroke="rgba(0,255,65,.45)" />
+          <path d="M 600 80 L 950 80 L 950 100" stroke="rgba(0,255,65,.45)" />
+          <!-- T2 -> T3 -->
+          <path d="M 250 156 L 250 178 L 130 178 L 130 200" stroke="rgba(255,95,162,.5)" />
+          <path d="M 250 178 L 370 178 L 370 200" stroke="rgba(255,95,162,.5)" />
+          <path d="M 600 156 L 600 200" stroke="rgba(95,207,255,.55)" />
+          <path d="M 950 156 L 950 178 L 830 178 L 830 200" stroke="rgba(214,255,95,.55)" />
+          <path d="M 950 178 L 1070 178 L 1070 200" stroke="rgba(214,255,95,.55)" />
+        </g>
+        <!-- T1 CORE -->
+        <g transform="translate(600, 28)">
+          <rect x="-110" y="-22" width="220" height="56" rx="5" fill="rgba(0,255,65,.13)" stroke="#00ff41" />
+          <circle cx="-92" cy="-2" r="4" fill="#00ff41"><animate attributeName="opacity" values="1;0.4;1" dur="1.6s" repeatCount="indefinite" /></circle>
+          <text x="-78" y="3" font-family="JetBrains Mono" font-size="13" fill="#eaffef" font-weight="700">SAGE</text>
+          <text x="96" y="3" font-family="JetBrains Mono" font-size="9" fill="#00ff41" text-anchor="end">✓</text>
+          <rect x="-92" y="14" width="54" height="14" rx="2" fill="rgba(0,255,65,.18)" stroke="rgba(0,255,65,.4)" />
+          <text x="-65" y="24" font-family="JetBrains Mono" font-size="9" fill="#00ff41" text-anchor="middle" font-weight="600">T1 CORE</text>
+        </g>
+        <!-- T2 DEPT HEADS -->
+        <g transform="translate(250, 128)">
+          <rect x="-90" y="-22" width="180" height="50" rx="5" fill="rgba(255,95,162,.06)" stroke="rgba(255,95,162,.45)" />
+          <circle cx="-74" cy="-4" r="3.5" fill="#ff5fa2" />
+          <text x="-62" y="1" font-family="JetBrains Mono" font-size="12" fill="#eaffef" font-weight="600">MORPHEUS</text>
+          <text x="76" y="1" font-family="JetBrains Mono" font-size="9" fill="#00ff41" text-anchor="end">✓</text>
+          <rect x="-74" y="10" width="68" height="13" rx="2" fill="rgba(255,95,162,.13)" stroke="rgba(255,95,162,.35)" />
+          <text x="-40" y="19" font-family="JetBrains Mono" font-size="8.5" fill="#ff5fa2" text-anchor="middle" font-weight="600">T2 DEPT HEAD</text>
+          <text x="40" y="20" font-family="JetBrains Mono" font-size="8.5" fill="rgba(216,255,227,.5)">marketing</text>
+        </g>
+        <g transform="translate(600, 128)">
+          <rect x="-90" y="-22" width="180" height="50" rx="5" fill="rgba(95,207,255,.07)" stroke="rgba(95,207,255,.5)" />
+          <circle cx="-74" cy="-4" r="3.5" fill="#5fcfff"><animate attributeName="opacity" values="1;0.4;1" dur="1.6s" repeatCount="indefinite" /></circle>
+          <text x="-62" y="1" font-family="JetBrains Mono" font-size="12" fill="#eaffef" font-weight="600">NEO</text>
+          <text x="76" y="1" font-family="JetBrains Mono" font-size="9" fill="#00ff41" text-anchor="end">✓</text>
+          <rect x="-74" y="10" width="68" height="13" rx="2" fill="rgba(95,207,255,.13)" stroke="rgba(95,207,255,.4)" />
+          <text x="-40" y="19" font-family="JetBrains Mono" font-size="8.5" fill="#5fcfff" text-anchor="middle" font-weight="600">T2 DEPT HEAD</text>
+          <text x="40" y="20" font-family="JetBrains Mono" font-size="8.5" fill="rgba(216,255,227,.5)">engineering</text>
+        </g>
+        <g transform="translate(950, 128)">
+          <rect x="-90" y="-22" width="180" height="50" rx="5" fill="rgba(214,255,95,.06)" stroke="rgba(214,255,95,.5)" />
+          <circle cx="-74" cy="-4" r="3.5" fill="#d6ff5f" />
+          <text x="-62" y="1" font-family="JetBrains Mono" font-size="12" fill="#eaffef" font-weight="600">TRINITY</text>
+          <text x="76" y="1" font-family="JetBrains Mono" font-size="9" fill="#00ff41" text-anchor="end">✓</text>
+          <rect x="-74" y="10" width="68" height="13" rx="2" fill="rgba(214,255,95,.13)" stroke="rgba(214,255,95,.4)" />
+          <text x="-40" y="19" font-family="JetBrains Mono" font-size="8.5" fill="#d6ff5f" text-anchor="middle" font-weight="600">T2 DEPT HEAD</text>
+          <text x="40" y="20" font-family="JetBrains Mono" font-size="8.5" fill="rgba(216,255,227,.5)">finance</text>
+        </g>
+        <!-- T3 SPECIALISTS -->
+        <g transform="translate(130, 222)">
+          <rect x="-78" y="-22" width="156" height="42" rx="4" fill="rgba(255,95,162,.04)" stroke="rgba(255,95,162,.3)" />
+          <circle cx="-64" cy="-6" r="3" fill="#ff5fa2" />
+          <text x="-54" y="-2" font-family="JetBrains Mono" font-size="10.5" fill="#eaffef" font-weight="600">DRIFT</text>
+          <text x="66" y="-2" font-family="JetBrains Mono" font-size="9" fill="#00ff41" text-anchor="end">✓</text>
+          <rect x="-64" y="6" width="60" height="11" rx="2" fill="rgba(255,95,162,.1)" stroke="rgba(255,95,162,.3)" />
+          <text x="-34" y="14" font-family="JetBrains Mono" font-size="8" fill="#ff5fa2" text-anchor="middle" font-weight="600">T3 SPECIALIST</text>
+        </g>
+        <g transform="translate(370, 222)">
+          <rect x="-78" y="-22" width="156" height="42" rx="4" fill="rgba(255,95,162,.04)" stroke="rgba(255,95,162,.3)" />
+          <circle cx="-64" cy="-6" r="3" fill="#ff5fa2" />
+          <text x="-54" y="-2" font-family="JetBrains Mono" font-size="10.5" fill="#eaffef" font-weight="600">BLAZE</text>
+          <text x="66" y="-2" font-family="JetBrains Mono" font-size="9" fill="#00ff41" text-anchor="end">✓</text>
+          <rect x="-64" y="6" width="60" height="11" rx="2" fill="rgba(255,95,162,.1)" stroke="rgba(255,95,162,.3)" />
+          <text x="-34" y="14" font-family="JetBrains Mono" font-size="8" fill="#ff5fa2" text-anchor="middle" font-weight="600">T3 SPECIALIST</text>
+        </g>
+        <g transform="translate(600, 222)">
+          <rect x="-78" y="-22" width="156" height="42" rx="4" fill="rgba(95,207,255,.05)" stroke="rgba(95,207,255,.4)" />
+          <circle cx="-64" cy="-6" r="3" fill="#5fcfff"><animate attributeName="opacity" values="1;0.4;1" dur="1.6s" repeatCount="indefinite" /></circle>
+          <text x="-54" y="-2" font-family="JetBrains Mono" font-size="10.5" fill="#eaffef" font-weight="600">WORKSPACE</text>
+          <text x="66" y="-2" font-family="JetBrains Mono" font-size="9" fill="#00ff41" text-anchor="end">✓</text>
+          <rect x="-64" y="6" width="60" height="11" rx="2" fill="rgba(95,207,255,.13)" stroke="rgba(95,207,255,.3)" />
+          <text x="-34" y="14" font-family="JetBrains Mono" font-size="8" fill="#5fcfff" text-anchor="middle" font-weight="600">T3 SPECIALIST</text>
+        </g>
+        <g transform="translate(830, 222)">
+          <rect x="-78" y="-22" width="156" height="42" rx="4" fill="rgba(214,255,95,.04)" stroke="rgba(214,255,95,.4)" />
+          <circle cx="-64" cy="-6" r="3" fill="#d6ff5f" />
+          <text x="-54" y="-2" font-family="JetBrains Mono" font-size="10.5" fill="#eaffef" font-weight="600">PIXEL</text>
+          <text x="66" y="-2" font-family="JetBrains Mono" font-size="9" fill="#00ff41" text-anchor="end">✓</text>
+          <rect x="-64" y="6" width="60" height="11" rx="2" fill="rgba(214,255,95,.1)" stroke="rgba(214,255,95,.3)" />
+          <text x="-34" y="14" font-family="JetBrains Mono" font-size="8" fill="#d6ff5f" text-anchor="middle" font-weight="600">T3 SPECIALIST</text>
+        </g>
+        <g transform="translate(1070, 222)">
+          <rect x="-78" y="-22" width="156" height="42" rx="4" fill="rgba(214,255,95,.04)" stroke="rgba(214,255,95,.4)" />
+          <circle cx="-64" cy="-6" r="3" fill="#d6ff5f" />
+          <text x="-54" y="-2" font-family="JetBrains Mono" font-size="10.5" fill="#eaffef" font-weight="600">NOVA</text>
+          <text x="66" y="-2" font-family="JetBrains Mono" font-size="9" fill="#00ff41" text-anchor="end">✓</text>
+          <rect x="-64" y="6" width="60" height="11" rx="2" fill="rgba(214,255,95,.1)" stroke="rgba(214,255,95,.3)" />
+          <text x="-34" y="14" font-family="JetBrains Mono" font-size="8" fill="#d6ff5f" text-anchor="middle" font-weight="600">T3 SPECIALIST</text>
+        </g>
+        <!-- legend -->
+        <g transform="translate(1080, 22)">
+          <rect x="-8" y="-12" width="112" height="60" rx="4" fill="rgba(7,19,10,.7)" stroke="rgba(0,255,65,.18)" />
+          <text x="0" y="0" font-family="JetBrains Mono" font-size="8" fill="rgba(216,255,227,.5)" letter-spacing="1.5">TIERS</text>
+          <rect x="0" y="6" width="10" height="4" rx="1" fill="#00ff41" /><text x="16" y="11" font-family="JetBrains Mono" font-size="8.5" fill="#d8ffe3">T1 Core</text>
+          <rect x="0" y="18" width="10" height="4" rx="1" fill="#5fcfff" /><text x="16" y="23" font-family="JetBrains Mono" font-size="8.5" fill="#d8ffe3">T2 Dept Head</text>
+          <rect x="0" y="30" width="10" height="4" rx="1" fill="#ff5fa2" /><text x="16" y="35" font-family="JetBrains Mono" font-size="8.5" fill="#d8ffe3">T3 Specialist</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- LANES -->
+    <div class="lanes-wrap">
+      <div class="lanes-head">
+        <h3>Worker timeline</h3>
+        <span class="ct">· 6 lanes · last 06:00</span>
+        <div class="right">
+          <div class="scale">
+            <button>1m</button>
+            <button class="on">5m</button>
+            <button>15m</button>
+            <button>1h</button>
+          </div>
+          <span class="ico-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 12h14M12 5v14"/></svg></span>
+        </div>
+      </div>
+      <div class="lanes">
+        <div class="ticks">
+          <div></div>
+          <div class="row">
+            <span>-5:00</span>
+            <span>-4:30</span>
+            <span>-4:00</span>
+            <span>-3:30</span>
+            <span>-3:00</span>
+            <span>-2:30</span>
+            <span>-2:00</span>
+            <span>-1:30</span>
+            <span>-1:00</span>
+            <span>-0:30</span>
+            <span>now</span>
+            <span>+0:30</span>
+          </div>
+        </div>
+
+        <!-- sage (orchestrator) -->
+        <div class="lane">
+          <div class="name"><span class="dot"></span>sage<span class="role">orch</span></div>
+          <div class="track">
+            <div class="blk run" style="left: 0%; width: 8%;">plan</div>
+            <div class="blk handoff" style="left: 9%; width: 5%;">route</div>
+            <div class="blk run" style="left: 15%; width: 6%;">handoff →</div>
+            <div class="blk tool" style="left: 22%; width: 4%;">memory.recall</div>
+            <div class="blk handoff" style="left: 27%; width: 4%;">handoff →</div>
+            <div class="blk run live" style="left: 82%; width: 9%;">monitor</div>
+            <div class="now-line" style="left: 91%;"></div>
+          </div>
+        </div>
+        <!-- drift -->
+        <div class="lane">
+          <div class="name"><span class="dot"></span>drift<span class="role">w</span></div>
+          <div class="track">
+            <div class="blk tool" style="left: 18%; width: 6%;">list_files</div>
+            <div class="blk run" style="left: 25%; width: 28%;">benchloop.parse</div>
+            <div class="blk tool" style="left: 54%; width: 5%;">read_file</div>
+            <div class="blk run live" style="left: 60%; width: 31%;">summarise · 60%</div>
+            <div class="now-line" style="left: 91%;"></div>
+          </div>
+        </div>
+        <!-- neo -->
+        <div class="lane">
+          <div class="name"><span class="dot"></span>neo<span class="role">w</span></div>
+          <div class="track">
+            <div class="blk tool" style="left: 30%; width: 7%;">github.search</div>
+            <div class="blk run" style="left: 38%; width: 18%;">scan PRs · 48</div>
+            <div class="blk review" style="left: 57%; width: 8%;">classify</div>
+            <div class="blk run live" style="left: 66%; width: 25%;">summarise · 12/48</div>
+            <div class="now-line" style="left: 91%;"></div>
+          </div>
+        </div>
+        <!-- echo -->
+        <div class="lane">
+          <div class="name"><span class="dot idle"></span>echo<span class="role">w</span></div>
+          <div class="track">
+            <div class="blk" style="left: 5%; width: 14%; opacity: .5;">standup-1106</div>
+            <div class="now-line" style="left: 91%;"></div>
+          </div>
+        </div>
+        <!-- blaze -->
+        <div class="lane">
+          <div class="name"><span class="dot"></span>blaze<span class="role">w</span></div>
+          <div class="track">
+            <div class="blk run" style="left: 8%; width: 22%;">market signals</div>
+            <div class="blk tool" style="left: 31%; width: 5%;">x.compose</div>
+            <div class="blk run live" style="left: 75%; width: 16%;">draft tweet</div>
+            <div class="now-line" style="left: 91%;"></div>
+          </div>
+        </div>
+        <!-- nova -->
+        <div class="lane">
+          <div class="name"><span class="dot error"></span>nova<span class="role">w</span></div>
+          <div class="track">
+            <div class="blk tool" style="left: 40%; width: 5%;">mcp.gateway</div>
+            <div class="blk err" style="left: 46%; width: 9%;">timeout · retry 3/5</div>
+            <div class="blk err" style="left: 56%; width: 9%;">timeout · retry 4/5</div>
+            <div class="blk err live" style="left: 66%; width: 25%;">awaiting backoff</div>
+            <div class="now-line" style="left: 91%;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="legend">
+        <span class="l"><span class="sw run"></span>execute</span>
+        <span class="l"><span class="sw tool"></span>tool call</span>
+        <span class="l"><span class="sw review"></span>review</span>
+        <span class="l"><span class="sw handoff"></span>handoff</span>
+        <span class="l"><span class="sw err"></span>error / retry</span>
+        <span class="l" style="margin-left: auto;">scroll horizontally · click any block to inspect</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- HISTORY -->
+  <aside class="cnd-history">
+    <div class="h-head">
+      <h3>Missions</h3>
+      <span class="ct">· 24 today</span>
+      <div class="actions">
+        <span class="ico-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 21l-4.3-4.3M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16z"/></svg></span>
+        <span class="ico-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h18M6 12h12M10 18h4"/></svg></span>
+      </div>
+    </div>
+    <div class="h-filters">
+      <button class="on">all</button>
+      <button>live · 1</button>
+      <button>done · 21</button>
+      <button>err · 2</button>
+    </div>
+    <div class="h-list">
+      <div class="h-day">Now <span style="color: var(--m-green-500); margin-left: auto;">●</span></div>
+      <div class="miss live">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="ttl">Sweep PRs + summarise BenchLoop</div>
+          <div class="sub">routed by switch · 3 domains · 7 tasks</div>
+          <div class="badges">
+            <span class="b live">live</span>
+            <span class="b">04:18</span>
+            <span class="b">8.4k</span>
+          </div>
+        </div>
+        <div class="meta">
+          <span class="tok">8.4k</span><br/>
+          <span class="replay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><polygon points="10 8 16 12 10 16"/></svg>focus</span>
+        </div>
+      </div>
+
+      <div class="h-day">Earlier today</div>
+      <div class="miss ok">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="ttl">Standup digest · 1106</div>
+          <div class="sub">echo + sage · 3 stages</div>
+          <div class="badges">
+            <span class="b ok">done</span>
+            <span class="b">02:14</span>
+          </div>
+        </div>
+        <div class="meta">
+          <span class="tok">3.1k</span><br/>
+          <span class="replay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 12 11 12"/></svg>replay</span>
+        </div>
+      </div>
+      <div class="miss ok">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="ttl">Market signals · BTC/ETH/SOL</div>
+          <div class="sub">blaze · 1 stage · 6 series</div>
+          <div class="badges">
+            <span class="b ok">done</span>
+            <span class="b">01:42</span>
+          </div>
+        </div>
+        <div class="meta">
+          <span class="tok">2.8k</span><br/>
+          <span class="replay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 12 11 12"/></svg>replay</span>
+        </div>
+      </div>
+      <div class="miss err">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="ttl">Index .hermes/embeddings</div>
+          <div class="sub">workspace · 4 stages · failed at 3</div>
+          <div class="badges">
+            <span class="b err">err</span>
+            <span class="b">06:02</span>
+          </div>
+        </div>
+        <div class="meta">
+          <span class="tok">12k</span><br/>
+          <span class="replay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 12 11 12"/></svg>retry</span>
+        </div>
+      </div>
+      <div class="miss ok">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="ttl">Cron · nightly digest 0810</div>
+          <div class="sub">cron_54fc55bce759 · 4 stages</div>
+          <div class="badges">
+            <span class="b ok">done</span>
+            <span class="b">04:21</span>
+          </div>
+        </div>
+        <div class="meta">
+          <span class="tok">3.0k</span><br/>
+          <span class="replay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 12 11 12"/></svg>replay</span>
+        </div>
+      </div>
+
+      <div class="h-day">Yesterday</div>
+      <div class="miss ok">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="ttl">PR review queue · #318 thru #331</div>
+          <div class="sub">drift + neo · 14 PRs reviewed</div>
+          <div class="badges">
+            <span class="b ok">done</span>
+            <span class="b">14:08</span>
+          </div>
+        </div>
+        <div class="meta">
+          <span class="tok">42k</span><br/>
+          <span class="replay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 12 11 12"/></svg>replay</span>
+        </div>
+      </div>
+      <div class="miss ok">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="ttl">Memory rewrite · scratch → kanban</div>
+          <div class="sub">drift · 7 stages</div>
+          <div class="badges">
+            <span class="b ok">done</span>
+            <span class="b">28:47</span>
+          </div>
+        </div>
+        <div class="meta">
+          <span class="tok">88k</span><br/>
+          <span class="replay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 12 11 12"/></svg>replay</span>
+        </div>
+      </div>
+      <div class="miss err">
+        <div class="rail"></div>
+        <div class="body">
+          <div class="ttl">MCP gateway probe</div>
+          <div class="sub">nova · 2 stages · timeout</div>
+          <div class="badges">
+            <span class="b err">err</span>
+            <span class="b">00:42</span>
+          </div>
+        </div>
+        <div class="meta">
+          <span class="tok">410</span><br/>
+          <span class="replay"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12a9 9 0 1 0 9-9"/><polyline points="3 4 3 12 11 12"/></svg>retry</span>
+        </div>
+      </div>
+    </div>
+    <div class="h-foot">
+      <button>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M12 5v14M5 12h14"/></svg>
+        new mission
+      </button>
+    </div>
+  </aside>
+</div>
+<script>
+  (function() {
+    var bFlow = document.getElementById('view-flow');
+    var bOrg = document.getElementById('view-org');
+    var dFlow = document.getElementById('dag-flow');
+    var dOrg = document.getElementById('dag-org');
+    var ttl = document.getElementById('canvas-title');
+    var sub = document.getElementById('canvas-sub');
+    function set(view){
+      var flow = view === 'flow';
+      bFlow.classList.toggle('on', flow);
+      bOrg.classList.toggle('on', !flow);
+      dFlow.style.display = flow ? '' : 'none';
+      dOrg.style.display  = flow ? 'none' : '';
+      ttl.textContent = flow ? 'Mission DAG' : 'Agent Organization';
+      sub.textContent = flow ? '· 3-tier orchestration · plan → route → execute ↺ review → report' : '· 3-tier hierarchy · 1 core · 3 dept heads · 5 specialists';
+    }
+    bFlow.addEventListener('click', function(){ set('flow'); });
+    bOrg.addEventListener('click',  function(){ set('org');  });
+  })();
+</script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="primary-nav-v2.jsx"></script>
+<script type="text/babel">
+  ReactDOM.createRoot(document.getElementById('primary-nav-mount'))
+    .render(<PrimaryNavV2 active="conductor" sessionsBadge={null} />);
+</script>
+</body>
+</html>

@@ -1,0 +1,1271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Operations · Hermes</title>
+<link rel="stylesheet" href="matrix-system.css" />
+<link rel="stylesheet" href="primary-nav-v2.css" />
+<style>
+  body { overflow: hidden; }
+  .ops-nav { background: transparent !important; border: none !important; padding: 0 !important; overflow: hidden !important; }
+  .ops {
+    display: grid;
+    grid-template-columns: 232px 320px 1fr 360px;
+    grid-template-rows: 56px 1fr 180px;
+    height: 100vh;
+    gap: 0;
+  }
+  /* ── top strip ── */
+  .ops-top {
+    grid-column: 2 / -1;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    border-bottom: 1px solid var(--m-border);
+    background: var(--m-sidebar);
+  }
+  .ops-top .brand {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 14px;
+    height: 100%;
+    border-right: 1px solid var(--m-border-subtle);
+  }
+  .ops-top .brand .glyph {
+    width: 26px; height: 26px;
+    display: grid; place-items: center;
+    color: var(--m-green-500);
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    font-family: var(--m-font-mono);
+    font-weight: 700;
+    text-shadow: var(--m-text-glow);
+  }
+  .ops-top .brand b {
+    font: 600 12px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-strong);
+  }
+  .ops-top .crumbs {
+    display: flex; align-items: center; gap: 14px;
+    padding: 0 18px;
+    font: 500 11px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .18em;
+    color: var(--m-text-faint);
+  }
+  .ops-top .crumbs span.cur { color: var(--m-green-500); }
+  .ops-top .crumbs .sep { color: var(--m-text-ghost); }
+  .ops-top .health {
+    display: flex; align-items: center; gap: 18px;
+    padding: 0 18px;
+    height: 100%;
+    border-left: 1px solid var(--m-border-subtle);
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text-muted);
+  }
+  .ops-top .health .stat {
+    display: flex; flex-direction: column; gap: 1px;
+    line-height: 1.1;
+  }
+  .ops-top .health .stat .v {
+    font: 600 14px var(--m-font-mono);
+    color: var(--m-text-strong);
+    letter-spacing: -0.3px;
+  }
+  .ops-top .health .stat .v.ok { color: var(--m-green-500); }
+  .ops-top .health .stat .v.warn { color: var(--m-warning); }
+  .ops-top .health .stat .l {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-faint);
+  }
+  .ops-top .health .spark {
+    width: 96px; height: 28px;
+  }
+  .ops-top .health .actions {
+    display: flex; gap: 6px;
+  }
+
+  /* ── nav ── */
+  .ops-nav {
+    grid-row: 1 / -1;
+    background: var(--m-sidebar);
+    border-right: 1px solid var(--m-border);
+    padding: 14px 10px;
+    display: flex; flex-direction: column; gap: 2px;
+    overflow: auto;
+  }
+  .ops-nav .grp {
+    margin-top: 14px;
+    padding: 0 8px 6px;
+    font: 600 9.5px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-ghost);
+  }
+  .ops-nav .lk {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 9px;
+    border-radius: var(--m-radius-md);
+    font: 500 12.5px var(--m-font-mono);
+    color: var(--m-text-muted);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .ops-nav .lk:hover { color: var(--m-text); background: var(--m-fill-subtle); }
+  .ops-nav .lk.on {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border-color: var(--m-border);
+    box-shadow: inset 2px 0 0 var(--m-green-500);
+  }
+  .ops-nav .lk svg { width: 14px; height: 14px; flex: 0 0 14px; }
+  .ops-nav .lk .ct {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--m-text-faint);
+  }
+
+  /* ── roster (column 2) ── */
+  .ops-roster {
+    grid-row: 2;
+    background: var(--m-panel);
+    border-right: 1px solid var(--m-border);
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+    overflow: hidden;
+  }
+  .roster-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .roster-head h3 {
+    margin: 0;
+    font: 600 11px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-strong);
+  }
+  .roster-head .ct {
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+  }
+  .roster-head .actions { margin-left: auto; display: flex; gap: 4px; }
+  .roster-filters {
+    display: flex; gap: 4px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .roster-filters button {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-muted);
+    font: 500 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    padding: 5px 4px;
+    cursor: pointer;
+  }
+  .roster-filters button.on {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border-color: var(--m-border-strong);
+    box-shadow: var(--m-glow-sm);
+  }
+  .roster-list { overflow: auto; padding: 6px 8px; }
+  .agent {
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    gap: 10px;
+    padding: 10px 10px;
+    border-radius: var(--m-radius-md);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+    margin-bottom: 2px;
+    align-items: start;
+  }
+  .agent:hover { background: var(--m-fill-subtle); }
+  .agent.active {
+    background: var(--m-fill);
+    border-color: var(--m-border-strong);
+    box-shadow: inset 3px 0 0 var(--m-green-500), var(--m-glow-sm);
+  }
+  .agent .av {
+    width: 36px; height: 36px;
+    background: var(--m-card-2);
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    display: grid; place-items: center;
+    color: var(--m-green-500);
+    font: 700 13px var(--m-font-mono);
+    position: relative;
+  }
+  .agent .av .pulse {
+    position: absolute;
+    bottom: -2px; right: -2px;
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    border: 2px solid var(--m-panel);
+  }
+  .agent .av .pulse.live { background: var(--m-green-500); box-shadow: 0 0 8px var(--m-green-500); animation: m-pulse 1.6s ease-in-out infinite; }
+  .agent .av .pulse.idle { background: var(--m-text-faint); }
+  .agent .av .pulse.blocked { background: var(--m-warning); }
+  .agent .av .pulse.error { background: var(--m-danger); }
+  @keyframes m-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(1.18); } }
+  .agent .body { min-width: 0; }
+  .agent .body .name {
+    font: 600 13px var(--m-font-mono);
+    color: var(--m-text-strong);
+    margin-bottom: 2px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .agent .body .name .role {
+    font: 500 9.5px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    padding: 1px 5px;
+    border-radius: 9999px;
+    background: var(--m-fill);
+    color: var(--m-green-500);
+  }
+  .agent .body .name .role.worker { background: rgba(95,207,255,.1); color: var(--m-info); }
+  .agent .body .task {
+    font: 500 11.5px var(--m-font-mono);
+    color: var(--m-text-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 4px;
+  }
+  .agent .body .cap {
+    height: 3px;
+    background: var(--m-fill-subtle);
+    border-radius: 9999px;
+    overflow: hidden;
+    position: relative;
+  }
+  .agent .body .cap > span {
+    display: block;
+    height: 100%;
+    background: var(--m-green-500);
+    box-shadow: 0 0 6px var(--m-green-500);
+  }
+  .agent .body .cap.warn > span { background: var(--m-warning); box-shadow: 0 0 6px var(--m-warning); }
+  .agent .body .cap.err > span { background: var(--m-danger); box-shadow: 0 0 6px var(--m-danger); }
+  .agent .meta {
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-align: right;
+    line-height: 1.4;
+  }
+  .agent .meta .tok { color: var(--m-green-500); }
+
+  /* ── focus column ── */
+  .ops-focus {
+    grid-row: 2;
+    overflow: auto;
+    padding: 18px 22px 8px;
+    background:
+      linear-gradient(180deg, transparent 0%, transparent 100%),
+      repeating-linear-gradient(0deg, transparent 0, transparent 23px, var(--m-stripe) 23px, var(--m-stripe) 24px);
+  }
+  .focus-hero {
+    display: grid;
+    grid-template-columns: 64px 1fr auto;
+    gap: 16px;
+    align-items: center;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .focus-hero .av {
+    width: 64px; height: 64px;
+    border: 1px solid var(--m-border-strong);
+    border-radius: var(--m-radius-lg);
+    background: radial-gradient(circle at 30% 30%, var(--m-fill-strong), var(--m-card-3));
+    display: grid; place-items: center;
+    color: var(--m-green-500);
+    font: 700 24px var(--m-font-mono);
+    text-shadow: var(--m-text-glow);
+    box-shadow: var(--m-glow-md);
+  }
+  .focus-hero h1 {
+    margin: 0;
+    font: 500 28px var(--m-font-display);
+    color: var(--m-text-strong);
+    letter-spacing: -0.5px;
+  }
+  .focus-hero h1 .live {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-left: 12px;
+    font: 600 11px var(--m-font-mono);
+    color: var(--m-green-500);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    vertical-align: middle;
+  }
+  .focus-hero h1 .live::before {
+    content: "";
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--m-green-500);
+    box-shadow: 0 0 8px var(--m-green-500);
+    animation: m-pulse 1.6s ease-in-out infinite;
+  }
+  .focus-hero .sub {
+    font: 500 12px var(--m-font-mono);
+    color: var(--m-text-muted);
+    margin-top: 4px;
+  }
+  .focus-hero .sub b {
+    color: var(--m-green-500);
+    font-weight: 500;
+  }
+  .focus-hero .quick {
+    display: flex; gap: 8px;
+  }
+  .focus-hero .quick button {
+    background: var(--m-card-2);
+    border: 1px solid var(--m-border);
+    color: var(--m-text);
+    padding: 7px 11px;
+    border-radius: var(--m-radius-md);
+    font: 500 11px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .focus-hero .quick button:hover { border-color: var(--m-border-strong); color: var(--m-green-500); }
+  .focus-hero .quick button svg { width: 12px; height: 12px; }
+
+  .focus-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 16px;
+  }
+  .panel {
+    background: var(--m-card);
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-lg);
+    overflow: hidden;
+  }
+  .panel-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--m-border-subtle);
+    background: linear-gradient(180deg, var(--m-card-2), transparent);
+  }
+  .panel-head h4 {
+    margin: 0;
+    font: 600 11px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-strong);
+  }
+  .panel-head .ct {
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+  }
+  .panel-head .more {
+    margin-left: auto;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase;
+    letter-spacing: .15em;
+  }
+  .panel-body { padding: 12px 14px; }
+  .panel.span2 { grid-column: 1 / -1; }
+
+  /* mission card */
+  .mission .panel-body {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    align-items: start;
+  }
+  .mission .prompt {
+    font: 500 13.5px/1.5 var(--m-font-mono);
+    color: var(--m-text);
+  }
+  .mission .prompt::before {
+    content: "▸ ";
+    color: var(--m-green-500);
+  }
+  .mission .stage {
+    display: flex; gap: 4px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .mission .stage .st {
+    font: 500 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    padding: 3px 7px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 9999px;
+    color: var(--m-text-faint);
+  }
+  .mission .stage .st.done { color: var(--m-green-500); border-color: var(--m-border); background: var(--m-fill-subtle); }
+  .mission .stage .st.now { color: var(--m-bg); background: var(--m-green-500); border-color: var(--m-green-500); box-shadow: var(--m-glow-sm); }
+  .mission .timing {
+    font: 500 10px var(--m-font-mono);
+    text-align: right;
+    color: var(--m-text-faint);
+    line-height: 1.5;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+  }
+  .mission .timing b {
+    display: block;
+    font: 700 22px var(--m-font-mono);
+    color: var(--m-green-500);
+    text-shadow: var(--m-text-glow);
+  }
+
+  /* activity timeline */
+  .timeline { position: relative; padding-left: 18px; }
+  .timeline::before {
+    content: "";
+    position: absolute;
+    left: 5px; top: 4px; bottom: 4px;
+    width: 1px;
+    background: var(--m-border-subtle);
+  }
+  .tl-item {
+    position: relative;
+    padding: 6px 0 8px;
+    font: 500 12px var(--m-font-mono);
+    color: var(--m-text);
+  }
+  .tl-item::before {
+    content: "";
+    position: absolute;
+    left: -16px; top: 11px;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--m-green-500);
+    box-shadow: 0 0 6px var(--m-green-500);
+  }
+  .tl-item.done::before { background: var(--m-text-faint); box-shadow: none; }
+  .tl-item .t {
+    color: var(--m-text-faint);
+    font-size: 10px;
+    margin-right: 8px;
+  }
+  .tl-item .tag {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: var(--m-info);
+    margin-right: 6px;
+  }
+  .tl-item .tag.tool { color: var(--m-warning); }
+  .tl-item .tag.handoff { color: var(--m-pink); }
+
+  /* tools used */
+  .tool-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+  .tool-cell {
+    display: grid;
+    grid-template-columns: 24px 1fr auto;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 10px;
+    background: var(--m-card-2);
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+  }
+  .tool-cell .ico {
+    width: 24px; height: 24px;
+    display: grid; place-items: center;
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border-radius: var(--m-radius-sm);
+    font: 700 12px var(--m-font-mono);
+  }
+  .tool-cell .nm {
+    font: 500 12px var(--m-font-mono);
+    color: var(--m-text);
+  }
+  .tool-cell .ct {
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+  }
+
+  /* output stream */
+  .out {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 0;
+    font: 500 12px var(--m-font-mono);
+  }
+  .out + .out { border-top: 1px solid var(--m-border-faint); }
+  .out .ico {
+    width: 20px; height: 20px;
+    display: grid; place-items: center;
+    color: var(--m-green-500);
+    flex: 0 0 20px;
+  }
+  .out .nm { flex: 1; color: var(--m-text); }
+  .out .nm small {
+    display: block;
+    font-size: 10px;
+    color: var(--m-text-faint);
+    margin-top: 2px;
+  }
+  .out .sz {
+    color: var(--m-text-muted);
+    font-size: 11px;
+  }
+
+  /* ── dispatch (right column) ── */
+  .ops-dispatch {
+    grid-row: 2;
+    background: var(--m-sidebar);
+    border-left: 1px solid var(--m-border);
+    display: grid;
+    grid-template-rows: auto auto auto 1fr auto;
+    overflow: hidden;
+  }
+  .disp-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px 10px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .disp-head h3 {
+    margin: 0;
+    font: 600 11px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-strong);
+  }
+  .disp-head .live {
+    margin-left: auto;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-green-500);
+    text-transform: uppercase;
+    letter-spacing: .15em;
+  }
+  .route-mode {
+    display: flex; gap: 6px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .route-mode button {
+    flex: 1;
+    background: var(--m-card);
+    border: 1px solid var(--m-border-subtle);
+    color: var(--m-text-muted);
+    border-radius: var(--m-radius-md);
+    padding: 7px 6px;
+    font: 500 10.5px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    cursor: pointer;
+  }
+  .route-mode button.on {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border-color: var(--m-border-strong);
+    box-shadow: var(--m-glow-sm);
+  }
+  .compose {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .compose textarea {
+    width: 100%;
+    background: var(--m-card);
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    color: var(--m-text);
+    padding: 10px 12px;
+    font: 500 12.5px/1.5 var(--m-font-mono);
+    resize: vertical;
+    min-height: 88px;
+    outline: none;
+  }
+  .compose textarea:focus {
+    border-color: var(--m-border-strong);
+    box-shadow: var(--m-glow-sm);
+  }
+  .compose .row {
+    display: flex; gap: 6px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 9px;
+    background: var(--m-card-2);
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 9999px;
+    font: 500 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    color: var(--m-text-muted);
+    cursor: pointer;
+  }
+  .pill:hover { color: var(--m-green-500); border-color: var(--m-border); }
+  .pill.on { color: var(--m-green-500); background: var(--m-fill); border-color: var(--m-border-strong); }
+
+  .preview {
+    overflow: auto;
+    padding: 12px 16px 8px;
+  }
+  .preview .lbl {
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-faint);
+    margin-bottom: 8px;
+  }
+  .preview .step {
+    display: grid;
+    grid-template-columns: 18px 1fr auto;
+    gap: 8px;
+    align-items: center;
+    padding: 7px 10px 7px 8px;
+    margin-bottom: 6px;
+    background: var(--m-card);
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    font: 500 11.5px var(--m-font-mono);
+    color: var(--m-text);
+    position: relative;
+  }
+  .preview .step .num {
+    width: 18px; height: 18px;
+    display: grid; place-items: center;
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border-radius: var(--m-radius-sm);
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .preview .step .who { color: var(--m-text-strong); }
+  .preview .step .who small {
+    display: block;
+    font-size: 9.5px;
+    color: var(--m-text-faint);
+    margin-top: 1px;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+  }
+  .preview .step .conf {
+    font-size: 10px;
+    color: var(--m-green-500);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+  }
+  .preview .step .conf.med { color: var(--m-warning); }
+  .preview .step .arrow {
+    text-align: center;
+    color: var(--m-text-faint);
+    font: 500 12px var(--m-font-mono);
+    padding: 2px 0 4px;
+  }
+  .preview .est {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: var(--m-fill-subtle);
+    border: 1px dashed var(--m-border);
+    border-radius: var(--m-radius-md);
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text-muted);
+    display: flex; justify-content: space-between;
+  }
+  .preview .est b {
+    color: var(--m-green-500);
+    font-weight: 600;
+  }
+
+  .disp-foot {
+    padding: 12px 16px;
+    border-top: 1px solid var(--m-border);
+    display: flex; gap: 8px;
+  }
+  .btn-prim {
+    flex: 1;
+    background: var(--m-green-500);
+    color: var(--m-bg);
+    border: 1px solid var(--m-green-500);
+    border-radius: var(--m-radius-md);
+    padding: 9px 14px;
+    font: 600 11px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .18em;
+    cursor: pointer;
+    box-shadow: var(--m-glow-sm);
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn-prim:hover { box-shadow: var(--m-glow-md); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--m-text-muted);
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    padding: 9px 12px;
+    font: 500 11px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    cursor: pointer;
+  }
+
+  /* ── outputs strip (bottom) ── */
+  .ops-outputs {
+    grid-column: 2 / -1;
+    grid-row: 3;
+    background: var(--m-panel);
+    border-top: 1px solid var(--m-border);
+    display: grid;
+    grid-template-rows: auto 1fr;
+    overflow: hidden;
+  }
+  .out-head {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .out-head h4 {
+    margin: 0;
+    font: 600 11px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .22em;
+    color: var(--m-text-strong);
+  }
+  .out-head .ct {
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+  }
+  .out-head .filters {
+    display: flex; gap: 4px;
+    margin-left: 12px;
+  }
+  .out-head .filters .f {
+    font: 500 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    padding: 3px 9px;
+    border-radius: 9999px;
+    border: 1px solid var(--m-border-subtle);
+    color: var(--m-text-muted);
+    cursor: pointer;
+  }
+  .out-head .filters .f.on { color: var(--m-green-500); background: var(--m-fill); border-color: var(--m-border-strong); }
+  .out-head .right {
+    margin-left: auto;
+    display: flex; gap: 8px;
+    align-items: center;
+    font: 500 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .15em;
+    color: var(--m-text-faint);
+  }
+
+  .out-rail {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 12px 18px;
+    display: flex;
+    gap: 10px;
+  }
+  .out-card {
+    flex: 0 0 240px;
+    background: var(--m-card);
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    padding: 10px 12px;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 6px;
+    cursor: pointer;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .out-card:hover {
+    border-color: var(--m-border-strong);
+    box-shadow: var(--m-glow-sm);
+    transform: translateY(-1px);
+  }
+  .out-card .t {
+    display: flex; align-items: center; gap: 6px;
+    font: 500 10px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .15em;
+    color: var(--m-text-faint);
+  }
+  .out-card .t .who {
+    color: var(--m-green-500);
+  }
+  .out-card .nm {
+    font: 600 13px var(--m-font-mono);
+    color: var(--m-text-strong);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .out-card .pv {
+    font: 500 11px/1.4 var(--m-font-mono);
+    color: var(--m-text-muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .out-card .ft {
+    display: flex; justify-content: space-between;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    padding-top: 6px;
+    border-top: 1px solid var(--m-border-faint);
+  }
+  .out-card .ft .sz { color: var(--m-green-500); }
+
+  .ico-btn {
+    display: inline-grid; place-items: center;
+    width: 26px; height: 26px;
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-muted);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .ico-btn svg { width: 14px; height: 14px; }
+  .ico-btn:hover { background: var(--m-fill-subtle); color: var(--m-green-500); border-color: var(--m-border-subtle); }
+</style>
+</head>
+<body>
+<div class="ops" data-screen-label="Operations">
+  <!-- TOP STRIP -->
+  <header class="ops-top">
+    <div class="crumbs">
+      <span>Workspace</span>
+      <span class="sep">›</span>
+      <span class="cur">Operations</span>
+      <span class="sep">·</span>
+      <span>persistent agent team</span>
+    </div>
+    <div class="health">
+      <div class="stat"><span class="v ok">7/9</span><span class="l">live</span></div>
+      <div class="stat"><span class="v">14.2k</span><span class="l">tok/min</span></div>
+      <div class="stat"><span class="v">3</span><span class="l">queue</span></div>
+      <div class="stat"><span class="v warn">2</span><span class="l">errors · 24h</span></div>
+      <svg class="spark" viewBox="0 0 96 28" fill="none" stroke="currentColor" style="color: var(--m-green-500)">
+        <path d="M0 22 L8 18 L16 20 L24 14 L32 16 L40 9 L48 12 L56 6 L64 10 L72 4 L80 8 L88 3 L96 7" stroke-width="1.4" />
+        <path d="M0 22 L8 18 L16 20 L24 14 L32 16 L40 9 L48 12 L56 6 L64 10 L72 4 L80 8 L88 3 L96 7 L96 28 L0 28 Z" fill="rgba(0,255,65,.08)" stroke="none" />
+      </svg>
+      <div class="actions">
+        <span class="ico-btn" title="Pause team">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+        </span>
+        <span class="ico-btn" title="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- LEFT NAV (canonical Hermes PrimaryNavV2) -->
+  <nav class="ops-nav" id="primary-nav-mount"></nav>
+  <template id="ops-nav-legacy" style="display:none">
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5v14M5 12h14"/></svg>New Session</div>
+    <div class="grp">Main</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15a4 4 0 0 1-4 4H8l-5 4V6a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/></svg>Chat</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Files</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>Terminal</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>Jobs<span class="ct">3</span></div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Tasks<span class="ct">12</span></div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3 19 12 5 21 z"/></svg>Conductor</div>
+    <div class="lk on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="11" r="2.5"/><path d="M3 20c0-3 3-5 6-5s6 2 6 5M14 20c0-2 2-3 4-3s4 1 4 3"/></svg>Operations<span class="ct">9</span></div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="6" cy="7" r="2"/><circle cx="18" cy="7" r="2"/><circle cx="12" cy="17" r="2"/><path d="M8 7h8M7 8l4 7M17 8l-4 7"/></svg>Swarm</div>
+    <div class="grp">Knowledge</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 3a3 3 0 0 0-3 3 3 3 0 0 0-3 3 3 3 0 0 0 3 3v3a3 3 0 0 0 3 3 3 3 0 0 0 3 3V3 z"/><path d="M15 3a3 3 0 0 1 3 3 3 3 0 0 1 3 3 3 3 0 0 1-3 3v3a3 3 0 0 1-3 3 3 3 0 0 1-3 3"/></svg>Memory</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 7V4l4 4-4 4V9c-3 0-6 2-6 5h-3c0-5 4-9 9-9z"/><path d="M9 21v-3l-4-4 4-4"/></svg>Skills</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 7h18M3 12h18M3 17h18"/></svg>MCP</div>
+    <div class="lk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>Profiles</div>
+  </template>
+
+  <!-- ROSTER -->
+  <aside class="ops-roster">
+    <div class="roster-head">
+      <h3>Team</h3>
+      <span class="ct">· 9</span>
+      <div class="actions">
+        <span class="ico-btn" title="Add agent">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5v14M5 12h14"/></svg>
+        </span>
+      </div>
+    </div>
+    <div class="roster-filters">
+      <button class="on">All · 9</button>
+      <button>Live · 7</button>
+      <button>Idle · 1</button>
+      <button>Issues · 1</button>
+    </div>
+    <div class="roster-list">
+      <div class="agent active">
+        <div class="av">SG<span class="pulse live"></span></div>
+        <div class="body">
+          <div class="name">sage<span class="role">orchestrator</span></div>
+          <div class="task">routing &middot; planning q4 portfolio rebalance</div>
+          <div class="cap"><span style="width: 64%"></span></div>
+        </div>
+        <div class="meta"><span class="tok">2.4k</span><br/>now</div>
+      </div>
+      <div class="agent">
+        <div class="av">NE<span class="pulse live"></span></div>
+        <div class="body">
+          <div class="name">neo<span class="role worker">worker</span></div>
+          <div class="task">scanning issue tracker · 14 PRs queued</div>
+          <div class="cap"><span style="width: 82%"></span></div>
+        </div>
+        <div class="meta"><span class="tok">1.1k</span><br/>4s</div>
+      </div>
+      <div class="agent">
+        <div class="av">WS<span class="pulse live"></span></div>
+        <div class="body">
+          <div class="name">workspace<span class="role worker">worker</span></div>
+          <div class="task">indexing /Users/rohits/.hermes</div>
+          <div class="cap"><span style="width: 38%"></span></div>
+        </div>
+        <div class="meta"><span class="tok">820</span><br/>1m</div>
+      </div>
+      <div class="agent">
+        <div class="av">PX<span class="pulse live"></span></div>
+        <div class="body">
+          <div class="name">pixel<span class="role worker">worker</span></div>
+          <div class="task">rendering preview frames · 12/24</div>
+          <div class="cap"><span style="width: 50%"></span></div>
+        </div>
+        <div class="meta"><span class="tok">680</span><br/>now</div>
+      </div>
+      <div class="agent">
+        <div class="av">EC<span class="pulse live"></span></div>
+        <div class="body">
+          <div class="name">echo<span class="role worker">worker</span></div>
+          <div class="task">summarising standup notes</div>
+          <div class="cap"><span style="width: 24%"></span></div>
+        </div>
+        <div class="meta"><span class="tok">410</span><br/>3s</div>
+      </div>
+      <div class="agent">
+        <div class="av">DR<span class="pulse blocked"></span></div>
+        <div class="body">
+          <div class="name">drift<span class="role worker">worker</span></div>
+          <div class="task">awaiting review · PR #318</div>
+          <div class="cap warn"><span style="width: 100%"></span></div>
+        </div>
+        <div class="meta">blocked<br/>2m</div>
+      </div>
+      <div class="agent">
+        <div class="av">BL<span class="pulse live"></span></div>
+        <div class="body">
+          <div class="name">blaze<span class="role worker">worker</span></div>
+          <div class="task">market signals · BTC/ETH/SOL</div>
+          <div class="cap"><span style="width: 70%"></span></div>
+        </div>
+        <div class="meta"><span class="tok">3.2k</span><br/>now</div>
+      </div>
+      <div class="agent">
+        <div class="av">NV<span class="pulse error"></span></div>
+        <div class="body">
+          <div class="name">nova<span class="role worker">worker</span></div>
+          <div class="task">retry · MCP gateway timeout (3/5)</div>
+          <div class="cap err"><span style="width: 12%"></span></div>
+        </div>
+        <div class="meta">err<br/>9s</div>
+      </div>
+      <div class="agent">
+        <div class="av">WT<span class="pulse idle"></span></div>
+        <div class="body">
+          <div class="name">water<span class="role worker">worker</span></div>
+          <div class="task">idle · awaiting dispatch</div>
+          <div class="cap"><span style="width: 0%"></span></div>
+        </div>
+        <div class="meta">—<br/>17m</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- FOCUS -->
+  <section class="ops-focus">
+    <div class="focus-hero">
+      <div class="av">SG</div>
+      <div>
+        <h1>sage<span class="live">live</span></h1>
+        <div class="sub">orchestrator · routing for <b>3 workers</b> · model <b>hermes-4-405b</b> · profile <b>default</b> · 12 tools loaded</div>
+      </div>
+      <div class="quick">
+        <button>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          open chat
+        </button>
+        <button>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19 12h2M3 12h2M12 3v2M12 19v2"/></svg>
+          configure
+        </button>
+        <button>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+          pause
+        </button>
+      </div>
+    </div>
+
+    <div class="focus-grid">
+      <!-- current mission -->
+      <div class="panel mission span2">
+        <div class="panel-head">
+          <h4>Current mission</h4>
+          <span class="ct">· t_49b85d13 · started 11:04</span>
+          <span class="more">view trace →</span>
+        </div>
+        <div class="panel-body">
+          <div>
+            <div class="prompt">Sweep open PRs in hermes-switchui, summarise BenchLoop runs from PC1, draft a launch tweet.</div>
+            <div class="stage">
+              <span class="st done">plan</span>
+              <span class="st done">route</span>
+              <span class="st now">execute · 3/5</span>
+              <span class="st">review</span>
+              <span class="st">report</span>
+            </div>
+          </div>
+          <div class="timing">
+            <b>04:18</b>
+            elapsed
+          </div>
+        </div>
+      </div>
+
+      <!-- timeline -->
+      <div class="panel">
+        <div class="panel-head">
+          <h4>Activity</h4>
+          <span class="ct">· last 10 min</span>
+          <span class="more">stream →</span>
+        </div>
+        <div class="panel-body">
+          <div class="timeline">
+            <div class="tl-item"><span class="t">11:08:42</span><span class="tag handoff">handoff</span>delegated <b>summarise BenchLoop</b> → drift</div>
+            <div class="tl-item"><span class="t">11:08:31</span><span class="tag tool">tool</span><code>list_files</code> · /workspaces/hermes-switchui/.benchloop · 4ms</div>
+            <div class="tl-item"><span class="t">11:08:14</span><span class="tag handoff">handoff</span>delegated <b>scan PRs</b> → neo</div>
+            <div class="tl-item done"><span class="t">11:07:52</span><span class="tag tool">tool</span><code>github.search_pulls</code> · 48 results · 312ms</div>
+            <div class="tl-item done"><span class="t">11:06:02</span>plan finalised · 5 stages · est 06:10</div>
+            <div class="tl-item done"><span class="t">11:04:00</span>mission accepted from user (rohit)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- tools used -->
+      <div class="panel">
+        <div class="panel-head">
+          <h4>Tools used</h4>
+          <span class="ct">· this mission</span>
+          <span class="more">all →</span>
+        </div>
+        <div class="panel-body">
+          <div class="tool-grid">
+            <div class="tool-cell"><div class="ico">git</div><div class="nm">github.search</div><div class="ct">12×</div></div>
+            <div class="tool-cell"><div class="ico">fs</div><div class="nm">list_files</div><div class="ct">8×</div></div>
+            <div class="tool-cell"><div class="ico">fs</div><div class="nm">read_file</div><div class="ct">21×</div></div>
+            <div class="tool-cell"><div class="ico">w</div><div class="nm">write_file</div><div class="ct">3×</div></div>
+            <div class="tool-cell"><div class="ico">x</div><div class="nm">x.compose</div><div class="ct">1×</div></div>
+            <div class="tool-cell"><div class="ico">db</div><div class="nm">memory.recall</div><div class="ct">5×</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- output stream -->
+      <div class="panel span2">
+        <div class="panel-head">
+          <h4>Outputs · this session</h4>
+          <span class="ct">· 4 artifacts</span>
+          <span class="more">all outputs →</span>
+        </div>
+        <div class="panel-body">
+          <div class="out">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            </div>
+            <div class="nm">PROJECT.md<small>workspace root · committed by drift · 4.2 kb</small></div>
+            <div class="sz">11:08</div>
+          </div>
+          <div class="out">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            </div>
+            <div class="nm">ARCHITECTURE.md<small>workspace root · committed by drift · 8.1 kb</small></div>
+            <div class="sz">11:08</div>
+          </div>
+          <div class="out">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9"/><polyline points="3 15 21 15 17 21 7 21 3 15"/></svg>
+            </div>
+            <div class="nm">launch-tweet.draft<small>by neo · awaiting review · 178 chars</small></div>
+            <div class="sz">11:07</div>
+          </div>
+          <div class="out">
+            <div class="ico">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg>
+            </div>
+            <div class="nm">benchloop-summary.json<small>by drift · 12 runs · 2.6 kb</small></div>
+            <div class="sz">11:06</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DISPATCH -->
+  <aside class="ops-dispatch">
+    <div class="disp-head">
+      <h3>Dispatch</h3>
+      <span class="live">● ready</span>
+    </div>
+    <div class="route-mode">
+      <button class="on">auto</button>
+      <button>broadcast</button>
+      <button>manual</button>
+    </div>
+    <div class="compose">
+      <textarea placeholder="describe a mission for the team... e.g. 'scan blaze's market signals for divergences and draft a brief'"></textarea>
+      <div class="row">
+        <span class="pill on">priority · normal</span>
+        <span class="pill">budget · 25k tok</span>
+        <span class="pill">deadline · 30m</span>
+        <span class="pill">+ tags</span>
+      </div>
+    </div>
+    <div class="preview">
+      <div class="lbl">routing preview</div>
+      <div class="step">
+        <div class="num">1</div>
+        <div class="who">sage<small>plan + decompose</small></div>
+        <div class="conf">98%</div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="step">
+        <div class="num">2</div>
+        <div class="who">blaze<small>scan signals · 6 series</small></div>
+        <div class="conf">94%</div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="step">
+        <div class="num">3</div>
+        <div class="who">echo<small>draft brief · 200 words</small></div>
+        <div class="conf med">71%</div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="step">
+        <div class="num">4</div>
+        <div class="who">sage<small>review + emit</small></div>
+        <div class="conf">96%</div>
+      </div>
+      <div class="est">
+        <span>est. cost <b>~8.4k tok</b></span>
+        <span>est. time <b>~3:40</b></span>
+      </div>
+    </div>
+    <div class="disp-foot">
+      <button class="btn-ghost">save draft</button>
+      <button class="btn-prim">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        dispatch
+      </button>
+    </div>
+  </aside>
+
+  <!-- OUTPUTS STRIP -->
+  <section class="ops-outputs">
+    <div class="out-head">
+      <h4>Team outputs · today</h4>
+      <span class="ct">· 28 artifacts</span>
+      <div class="filters">
+        <span class="f on">all</span>
+        <span class="f">code</span>
+        <span class="f">docs</span>
+        <span class="f">data</span>
+        <span class="f">media</span>
+      </div>
+      <div class="right">
+        <span>auto-refresh · on</span>
+        <span class="ico-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg>
+        </span>
+      </div>
+    </div>
+    <div class="out-rail">
+      <div class="out-card">
+        <div class="t"><span class="who">drift</span> · md</div>
+        <div class="nm">PROJECT.md</div>
+        <div class="pv">High-level scope and constraints for the hermes-switchui rewrite. Frozen routes, locked profiles, follow-ups…</div>
+        <div class="ft"><span>11:08</span><span class="sz">4.2 kb</span></div>
+      </div>
+      <div class="out-card">
+        <div class="t"><span class="who">drift</span> · md</div>
+        <div class="nm">ARCHITECTURE.md</div>
+        <div class="pv">Route/server map, gateway capabilities, MCP surface, queue topology, shared state contracts and side-effects…</div>
+        <div class="ft"><span>11:08</span><span class="sz">8.1 kb</span></div>
+      </div>
+      <div class="out-card">
+        <div class="t"><span class="who">neo</span> · draft</div>
+        <div class="nm">launch-tweet.draft</div>
+        <div class="pv">"hermes-switchui v0.4 ships today: a control room for persistent agent teams. dispatch missions, watch them route, see…"</div>
+        <div class="ft"><span>11:07</span><span class="sz">178 ch</span></div>
+      </div>
+      <div class="out-card">
+        <div class="t"><span class="who">drift</span> · json</div>
+        <div class="nm">benchloop-summary.json</div>
+        <div class="pv">12 runs across PC1 nightly · p50 latency 612ms (-8%) · p99 1.4s · regression at run #1009 narrowed to scheduler…</div>
+        <div class="ft"><span>11:06</span><span class="sz">2.6 kb</span></div>
+      </div>
+      <div class="out-card">
+        <div class="t"><span class="who">blaze</span> · csv</div>
+        <div class="nm">market-signals-1106.csv</div>
+        <div class="pv">BTC/ETH/SOL hourly bands · funding divergences flagged at 03:00 and 09:00 · Z &gt; 2.4 on three pairs…</div>
+        <div class="ft"><span>10:54</span><span class="sz">14 kb</span></div>
+      </div>
+      <div class="out-card">
+        <div class="t"><span class="who">echo</span> · md</div>
+        <div class="nm">standup-1106.md</div>
+        <div class="pv">3 wins · 2 blockers · 1 ask. neo merged #312, drift unblocked memory rewrite, water awaiting design tokens…</div>
+        <div class="ft"><span>10:31</span><span class="sz">1.8 kb</span></div>
+      </div>
+      <div class="out-card">
+        <div class="t"><span class="who">pixel</span> · png</div>
+        <div class="nm">conductor-frame-008.png</div>
+        <div class="pv">Frame 8/24 of the conductor radar overlay · 1920×1080 · agents diffused, glow at 0.6 opacity…</div>
+        <div class="ft"><span>10:18</span><span class="sz">312 kb</span></div>
+      </div>
+      <div class="out-card">
+        <div class="t"><span class="who">workspace</span> · idx</div>
+        <div class="nm">.hermes-index.bin</div>
+        <div class="pv">Indexed 4,212 files across .hermes/kanban/workspaces. Embeddings refreshed for 188 changed paths…</div>
+        <div class="ft"><span>10:02</span><span class="sz">2.1 mb</span></div>
+      </div>
+    </div>
+  </section>
+</div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="primary-nav-v2.jsx"></script>
+<script type="text/babel">
+  ReactDOM.createRoot(document.getElementById('primary-nav-mount'))
+    .render(<PrimaryNavV2 active="operations" sessionsBadge={9} />);
+</script>
+</body>
+</html>
