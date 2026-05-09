@@ -1,215 +1,227 @@
-# Archon-Hermes Integration Plan — Conductor & Operations
+# Archon-Hermes Integration Plan
 
-> **Status:** Planning doc — ready for execution review
+> **Status:** Planning doc — split into two workstreams
 
-**Goal:** Integrate Archon's YAML workflow engine into Hermes Switch UI, using the new Conductor and Operations page designs as the visual frontend, and the Hermes Kanban as the execution runtime. Keep Archon native — the YAML workflow engine, Claude Code/Codex providers, and drag-and-drop DAG builder come as-is. Switch UI adds the Conductor/Operations UI surfaces and Kanban-backed execution.
+**Goal:** Port the Archon workflow engine into Hermes Switch UI as a native subsystem. Strip what we don't need (platform adapters, chat UI, layout shell, dashboard). Keep only: the YAML DAG engine, Claude Code/Codex providers, and the drag-and-drop workflow builder UI. Everything we keep gets embedded into Switch UI's existing architecture — two workstreams running in parallel.
 
-**Architecture principle:** Archon defines workflows (YAML). Kanban runs them (tasks). Switch UI shows them (Conductor/Operations). Claude Code and Codex work through Archon's existing providers — no reimplementation needed.
+**Architecture philosophy:** Take the pieces, not the package. Archon's core engine becomes a Switch UI server module. Archon's DAG builder UI becomes part of the Conductor page. Hermes Kanban becomes the execution runtime. Claude Code and Codex providers come from Archon's source — ported in, not imported from npm.
 
----
-
-## Phase 1: Conductor Page — Interactive DAG Builder
-
-**Goal:** Replace the static SVG DAG in Conductor.html with the interactive Archon Workflow Builder. The "flow" tab shows the Archon DAG editor. The "org" tab retains the current 3-tier hierarchy view.
-
-### Task 1.1: Port the Archon DAG editor component
-- Extract the drag-and-drop DAG editor from Archon's web UI (`@archon/web/src/components/workflow/`)
-- Port the node palette, canvas, edge-drawing, and property panel components
-- Map Archon's node types to visual elements: prompt, bash, script, loop, approval, command
-- Preserve the Matrix theme styling (dark background, green accents, monospace fonts)
-
-### Task 1.2: Wire DAG editor to YAML filesystem
-- The editor reads/writes `.archon/workflows/*.yaml` on the server
-- Save button → writes YAML to the user's project or Hermes workspace
-- Load button → reads YAML, renders in the canvas
-- The YAML format is 100% Archon-native — no Hermes-specific extensions
-
-### Task 1.3: "Now Playing" strip live data
-- Replace the static mission info with data from the current running Kanban parent task
-- Show: elapsed time, active workers, token usage, stage badges
-- The "abort" button calls Kanban cancel on the parent task
-- The "pause" button calls Kanban block on the parent task
-
-### Task 1.4: Right rail — Mission history from task_runs
-- Replace the mock history with real data from `task_runs` + `task_events`
-- Group by day, show status (completed/failed/running), token count
-- Click a past mission → load its DAG into the canvas (read-only mode)
-
-### Task 1.5: View toggle — flow vs org
-- "Flow" tab → Archon DAG editor (interactive, for editing workflow definitions)
-- "Org" tab → current 3-tier SVG view (read-only, for visualizing active missions)
-- Both views share the same route; the toggle switches between them
+**Strip audit:** ~70% of Archon is redundant with Switch UI or Hermes Gateway. We import only:
+- Workflow engine: ~25 files from `packages/workflows/src/`
+- Providers: ~15 files from `packages/providers/src/claude/` and `codex/`
+- DAG builder UI: ~8 React components from `packages/web/src/components/workflows/`
 
 ---
 
-## Phase 2: Operations Page — Agent Roster & Dispatch
+## Workstream A: Archon Backend Integration
 
-**Goal:** Replace the mock data in Operations.html with real Hermes agent state and a working dispatch pipeline. The roster shows real agents. The focus panel shows real-time mission detail. The dispatch panel actually routes work.
+**Owner:** Switch (Tier 1) + Neo (Tier 2)
+**Location:** `hermes-switchui/src/server/workflow-engine/`
 
-### Task 2.1: Team Roster from real agent data
-- Read from `~/.hermes/agents.db` (persona/agent registry) + Kanban task assignments
-- Show: avatar, name, role (orchestrator/worker), current task, capacity bar, token usage, status pulse (live/idle/blocked/error)
-- Agent list is sorted by status: live first, then idle, then error
-- Click an agent → focus panel shows their detail
+**Goal:** Port the Archon workflow engine into Hermes Switch UI's server, wire it to the Hermes Agent (Kanban, delegate_task, dispatcher), and add Claude Code/Codex provider support. This is the backend that powers the Conductor and Operations pages.
 
-### Task 2.2: Focus panel — selected agent detail
-- Hero section with large avatar, name, status badge, model, profile, tools loaded
-- Quick actions: open chat, configure, pause
-- Grid panels:
-  - **Current mission** — reads from Kanban tasks assigned to this agent
-  - **Activity timeline** — reads from `task_events` for this agent's recent tasks
-  - **Tools used** — aggregates tool call stats from recent task runs
-  - **Outputs** — files produced by this agent's task runs
+### A.1: Core Engine Port
 
-### Task 2.3: Dispatch panel — compose & route
-- Compose textarea + pills (priority, budget, deadline, tags)
-- Route mode toggle: auto (router picks best agent), broadcast (all agents), manual (user picks)
-- **Routing preview** — when user types a mission, call the Archon router to decompose it into steps, show each step with confidence score and estimated cost/time
-- "Dispatch" button → creates a Kanban parent task with linked children, promotes to `ready`
-- "Save draft" → saves the mission text as a YAML workflow draft
+**Goal:** Extract and adapt Archon's workflow engine (loader, DAG executor, router, schemas, validator) into Switch UI's server module. No UI dependencies.
 
-### Task 2.4: Team outputs strip
-- Horizontal scrolling rail of real Kanban task outputs (files created, summaries, results)
-- Read from `task_runs.summary` and `task_runs.outcome`
-- Filterable by type: all, code, docs, data, media
-- Click a card → open the output in a detail view
+- **Files to port from `packages/workflows/src/`:**
+  - `loader.ts` — parse YAML workflow files into typed DAG structures
+  - `dag-executor.ts` — execute nodes in topological order, manage concurrency
+  - `executor.ts` — per-node execution with provider dispatch
+  - `router.ts` — decompose natural language missions into workflow steps
+  - `schemas/` — Zod schemas for workflow YAML validation
+  - `validator.ts` — DAG structure validation (cycles, deps, references)
+  - `condition-evaluator.ts` — evaluate `when:` conditions on nodes
+  - `event-emitter.ts` — emit lifecycle events for SSE/streaming
+  - `store.ts` — Archon's workflow store abstraction
+  - `types.ts` + `index.ts` — re-exports
 
----
+- **Adaptations for Switch UI:**
+  - Replace Archon's logger (`@archon/paths`) with Hermes' internal logger
+  - Replace Archon's DB adapter with direct SQLite or Hermes Kanban queries
+  - Remove Bun-specific imports (use Node.js equivalents)
+  - Remove worktree isolation dependencies (not needed)
 
-## Phase 3: Archon Workflow Engine — Kanban Adapter
+- **Location:** `hermes-switchui/src/server/workflow-engine/`
 
-**Goal:** Build the bridge between Archon's YAML workflow engine and Hermes Kanban. When a workflow runs inside Switch UI, the DAG nodes materialize as Kanban tasks. Auto-promotion via `task_links`.
+### A.2: Kanban Execution Adapter
 
-### Task 3.1: Kanban-dispatched workflow runner
-- Create a Hermes Agent skill: `archon-workflow-runner`
-- Input: workflow YAML path, optional variable overrides
-- Process:
-  1. Load and parse the YAML via Archon's `parseWorkflow()`
-  2. Create a Kanban parent task with metadata pointing to the YAML
-  3. For each node in the DAG, create a child task linked via `task_links`
-  4. Set the first-layer nodes (zero deps) to `ready`
-  5. Subscribe to Kanban task completion events
-  6. When a child task completes, check `task_links` for downstream nodes whose deps are all done → flip them to `ready`
-  7. Handle loop nodes by re-creating child tasks until the completion signal
-  8. Handle approval nodes by setting the task to `blocked` status — human unblocks via the Conductor page
+**Goal:** When a workflow runs, its DAG nodes materialize as Kanban tasks. Auto-promotion via `task_links`. This is the bridge between Archon's executor and Hermes Kanban.
 
-### Task 3.2: Node type → task mapping
+- **A.2.1: Kanban-dispatched workflow runner (Hermes Agent skill)**
+  - Create a skill: `archon-workflow-runner`
+  - Input: workflow YAML path, optional variable overrides
+  - Process:
+    1. Load YAML via Archon's `parseWorkflow()`
+    2. Create a Kanban parent task with metadata linking to the YAML
+    3. For each DAG node, create a child task linked via `task_links`
+    4. Set first-layer nodes (zero deps) to `ready`
+    5. Subscribe to Kanban task completion events
+    6. On child completion, check deps → flip downstream nodes to `ready`
+    7. Loop nodes: recreate child tasks until completion signal
+    8. Approval nodes: set task to `blocked`, Conductor unblocks
+
+- **A.2.2: Node type → task mapping**
+
 | Archon Node Type | Kanban Mapping |
 |---|---|
 | `prompt:` | Task with `skills: ['archon-prompt-worker']`, content in `body` |
 | `bash:` | Task with `skills: ['archon-bash-worker']`, script in `body` |
 | `script:` | Task with `skills: ['archon-script-worker']`, code + runtime in `body` |
-| `loop:` | Parent task with children for each iteration, re-created until done |
+| `loop:` | Parent task with children per iteration, re-created until done |
 | `approval:` | Task set to `status: 'blocked'`, unblocked via Conductor UI |
-| `command:` | Task that loads a named command file from `.archon/commands/` |
+| `command:` | Task that loads a command file from `.archon/commands/` |
 
-For Claude Code / Codex node execution: the task dispatches with the appropriate skill that calls the Archon provider SDK. The YAML stays unchanged — Archon's `IAgentProvider` handles Claude Code and Codex natively.
+- **A.2.3: Auto-promotion engine**
+  - Watches Kanban for completed tasks (event subscription or poll)
+  - On completion: reads `task_links`, checks upstream deps of children
+  - All deps done → promote child from `triage` → `ready`
+  - Loop/approval → notify Conductor via SSE
+  - Edge cases: cycle detection, failure propagation, timeout handling
 
-### Task 3.3: Auto-promotion engine
-- Lightweight daemon (or cron-based) that watches Kanban for completed tasks
-- On completion: reads `task_links`, checks if all upstream deps of any child are done
-- If yes: promotes child from `triage` → `ready`
-- If no (loop/approval): sends notification to Conductor page via SSE
-- Edge cases: cycle detection (prevent infinite loops beyond `max_iterations`), failure propagation (if a dep fails, downstream nodes get `blocked` with reason), timeout handling
+- **A.2.4: Variable substitution**
+  - `$nodeId.output` = `task_runs.summary` or `task.result`
+  - Engine substitutes these when creating downstream tasks
+  - Supports: `$WORKFLOW_ID`, `$ARTIFACTS_DIR`, `$1`, `$ARGUMENTS`, `$LOOP_USER_INPUT`
 
-### Task 3.4: Variable substitution bridge
-- Archon's `$nodeId.output` references the output of another node
-- In Kanban terms: `$task_id.output` = `task_runs.summary` or `task.result`
-- The auto-promotion engine substitutes these values when creating downstream tasks
-- Support: `$WORKFLOW_ID`, `$ARTIFACTS_DIR`, `$1`, `$ARGUMENTS`, `$LOOP_USER_INPUT`
+- **Archon DB:** Keeps its own `~/.archon/archon.db` (SQLite) for workflow run state, provider config, session tracking. Separate from the Kanban DB. The Kanban adapter is the translation layer.
 
----
+### A.3: Provider Port (Claude Code & Codex)
 
-## Phase 4: Claude Code & Codex Integration (Free via Archon)
+**Goal:** Port Archon's Claude Code and Codex provider implementations so workflow nodes can dispatch to these coding agents. This is what gives us the multi-agent control — Hermes delegates via Kanban, Claude Code / Codex execute workflow nodes directly.
 
-**Goal:** Claude Code and Codex work through Archon's existing `IAgentProvider` implementations. No reimplementation needed — the YAML workflow engine already calls them.
+- **Files to port from `packages/providers/src/`:**
+  - `claude/provider.ts` + `config.ts` + `binary-resolver.ts` + `capabilities.ts`
+  - `codex/provider.ts` + `config.ts` + `binary-resolver.ts` + `capabilities.ts`
+  - `types.ts` — the `IAgentProvider` interface
+  - `registry.ts` — provider registry
 
-### Task 4.1: Archon provider configuration in Switch UI
-- Add a settings panel to configure Claude Code (`CLAUDE_BIN_PATH`) and Codex providers
-- Read/write `.archon/config.yaml` via the same mechanism Archon uses
-- Show provider status (installed, version, available models)
+- **Location:** `hermes-switchui/src/server/providers/`
 
-### Task 4.2: Workflow routing — Hermes vs Claude Code vs Codex
-- When a workflow node runs, the router picks the provider based on:
-  - Explicit `provider:` field in the YAML node
-  - Workflow-level `provider:` default
-  - `.archon/config.yaml` `assistant` default
-- If the provider is `hermes`: use Kanban dispatch with `delegate_task`
-- If the provider is `claude` or `codex`: use Archon's provider SDK
-- The Conductor page shows which provider each node is routed to
+- **Adaptations:**
+  - Replace Archon's provider config loading with Switch UI settings
+  - Wire provider status/validation to the Operations page
+  - Claude Code needs `CLAUDE_BIN_PATH` configurable in settings
+  - Codex needs `CODEX_BIN_PATH` configurable in settings
 
-### Task 4.3: Archon skill installation
-- Add a "Setup Archon" flow in Switch UI that:
-  1. Checks if Archon is installed (`archon --version`)
-  2. If not, prompts to install via the quick-install script
-  3. Configures `.archon/config.yaml` with Hermes as a provider
-  4. Copies any missing default workflows to `.archon/workflows/defaults/`
-  5. Verifies Claude Code / Codex connectivity
+- **Workflow routing logic:**
+  - YAML node specifies `provider: hermes | claude | codex`
+  - If `hermes`: route through Kanban dispatch
+  - If `claude` or `codex`: route through Archon provider SDK
+  - Provider selection visible in the Conductor DAG view
 
----
+### A.4: Cron Integration
 
-## Phase 5: Cron & Time-Based Triggers
+**Goal:** Hermes cron jobs can trigger Archon workflows. A cron fires → invokes a workflow YAML → the workflow materializes as Kanban tasks → the team executes.
 
-**Goal:** Wire Hermes cron jobs to trigger Archon workflows. A cron job fires → invokes a workflow YAML → the workflow materializes as Kanban tasks → the team executes them → results delivered back.
-
-### Task 5.1: Cron → workflow binding
-- Extend the cron job creation UI to let users pick a workflow YAML as the action
-- When the cron fires, it calls the Kanban-dispatched workflow runner (Phase 3)
-- The cron output is the workflow run's summary
-
-### Task 5.2: Scheduled workflow runs
-- Workflow YAMLs can have an optional `schedule:` field (cron expression)
-- On load, the Conductor page registers these with Hermes cron
-- The Operations page shows upcoming scheduled runs in a calendar/timeline view
+- Cron job UI extended to support picking a workflow YAML as the action
+- When cron fires, it calls the Kanban-dispatched workflow runner (A.2.1)
+- Cron output = workflow run summary
+- Workflow YAMLs can have optional `schedule:` field (cron expression)
 
 ---
 
-## Phase 6: Conductor & Operations — From Mockup to Live
+## Workstream B: Archon UI Integration
 
-**Goal:** Wire the Conductor and Operations React components to real data sources. The mockups are done; now the data flows.
+**Owner:** Switch (Tier 1) + Trinity (Tier 2)
+**Location:** `hermes-switchui/src/components/conductor/` and `operations/`
 
-### Task 6.1: Conductor — API routes
-- `GET /api/conductor/missions` — list active/past Kanban parent tasks with workflow metadata
-- `GET /api/conductor/missions/:id/dag` — load the DAG structure from `task_links`
-- `POST /api/conductor/dispatch` — accept a mission description, invoke the Archon router, create Kanban task group
-- `POST /api/conductor/missions/:id/cancel` — abort running mission (cancel all child tasks)
-- `POST /api/conductor/missions/:id/approve` — unblock a blocked approval node
-- `GET /api/conductor/missions/:id/history` — mission event history for the right rail
+**Goal:** Port the Archon drag-and-drop DAG builder into the Conductor page. The Operations page is Switch UI-native (designed from scratch) but consumes the backend APIs created in Workstream A. No porting of Archon's chat UI, dashboard, sidebar, layout, or design system — Switch UI has its own.
 
-### Task 6.2: Operations — API routes
-- `GET /api/operations/agents` — list all agents with status, current task, capacity
-- `GET /api/operations/agents/:id` — detail for the focus panel
-- `GET /api/operations/agents/:id/activity` — timeline events
-- `GET /api/operations/agents/:id/tools` — aggregated tool usage
-- `GET /api/operations/agents/:id/outputs` — artifacts produced
-- `GET /api/operations/outputs` — team-wide output feed for the bottom strip
-- `POST /api/operations/dispatch` — compose and dispatch a mission
+### B.1: Conductor — DAG Builder (Flow Tab)
 
-### Task 6.3: SSE streaming
-- The Conductor "now playing" strip updates in real-time via SSE events from running workflows
-- The Operations agent roster pulses update when agent status changes
-- SSE events: `mission_updated`, `task_completed`, `agent_status_changed`, `output_produced`
+**Goal:** The "flow" tab of the Conductor page becomes Archon's interactive DAG editor with full drag-and-drop, node configuration, and YAML export. The "org" tab retains the 3-tier hierarchy view.
+
+- **Components to port from `packages/web/src/components/workflows/`:**
+  - `WorkflowBuilder.tsx` — the main builder component (orchestrates canvas + palette + properties)
+  - `WorkflowCanvas.tsx` — the interactive DAG canvas (drag nodes, draw edges)
+  - `NodePalette.tsx` — the node type palette (prompt, bash, script, loop, approval, command)
+  - `NodeInspector.tsx` — properties panel for the selected node
+  - `BuilderToolbar.tsx` — save, load, undo/redo, run, validate buttons
+  - `ValidationPanel.tsx` — shows validation errors in real-time
+  - `DagNodeComponent.tsx` — visual node on the canvas
+  - `DagNodeProgress.tsx` — execution progress overlay on nodes
+  - `YamlCodeView.tsx` — raw YAML editor view (toggle between visual and code)
+
+- **Adaptations for Switch UI:**
+  - Replace shadcn/ui imports with Switch UI's design system components
+  - Apply Matrix theme (dark background, green accents, monospace fonts, glow effects)
+  - Wire save/load to Switch UI's server API rather than Archon's filesystem
+  - Remove conversations/project context dependencies
+
+- **Location:** `hermes-switchui/src/components/conductor/`
+
+- **B.1.1: View toggle**
+  - "Flow" tab → DAG builder (interactive, for editing workflow definitions)
+  - "Org" tab → 3-tier SVG hierarchy view (read-only, for active mission visualization)
+  - Both share the Conductor route, toggle switches between them
+
+- **B.1.2: Now Playing strip**
+  - Shows live mission status from Kanban parent task
+  - Elapsed time, active workers, token usage, stage badges
+  - Abort button → cancel parent Kanban task
+  - Pause button → block parent Kanban task
+  - Real-time updates via SSE from Workstream A's event-emitter
+
+- **B.1.3: Mission history rail (right side)**
+  - Loads from `task_runs` + `task_events`
+  - Grouped by day, status badges, token counts
+  - Click past mission → load DAG in read-only mode
+
+### B.2: Operations — Agent Team Management
+
+**Goal:** The Operations page is built from Switch UI's existing design mockup. No Archon UI components are ported here. It consumes Workstream A's backend APIs for real data.
+
+- **Design reference:** Operations.html mockup in `docs/Design Assets/Hermes-Switchui/`
+
+- **Components to build (Switch UI-native):**
+  - **Team Roster** — agent cards with avatar, status pulse, task, capacity bar, token usage
+  - **Focus panel** — selected agent detail with hero, mission, activity timeline, tools, outputs
+  - **Dispatch panel** — compose textarea, route mode, routing preview, estimated cost/time
+  - **Team outputs strip** — horizontal artifact rail, filterable by type
+
+- **Consumes Workstream A APIs:**
+  - `GET /api/operations/agents` — roster data
+  - `GET /api/operations/agents/:id` — focus detail
+  - `GET /api/operations/agents/:id/activity` — timeline
+  - `GET /api/operations/agents/:id/tools` — tool usage
+  - `GET /api/operations/agents/:id/outputs` — artifacts
+  - `GET /api/operations/outputs` — team feed
+  - `POST /api/operations/dispatch` — compose and route a mission
+  - SSE stream for real-time updates
+
+### B.3: Settings Page (Provider Configuration)
+
+**Goal:** A settings UI for configuring Claude Code and Codex binary paths, verifying installation, and setting workflow defaults.
+
+- Where to find `CLAUDE_BIN_PATH` / `CODEX_BIN_PATH`
+- Show installed version, connectivity status
+- Default provider selection for workflow nodes
+- This is a simple form, not a port from Archon
 
 ---
 
 ## Implementation Order
 
-| Phase | Priority | Why This Order |
-|---|---|---|
-| **Phase 3** (Kanban adapter) | P0 | Foundation — without it, nothing connects to real data |
-| **Phase 1** (Conductor page) | P1 | The visual DAG builder is the marquee feature |
-| **Phase 2** (Operations page) | P1 | Agent roster and dispatch need the adapter first |
-| **Phase 4** (Claude Code/Codex) | P2 | Free integration — works out of the box once Archon is wired |
-| **Phase 5** (Cron triggers) | P3 | Nice-to-have after the core loop works |
-| **Phase 6** (Live data wiring) | P0 | This is the final mile — hooking mockups to real APIs |
+| Priority | Stream | Module | Depends On |
+|---|---|---|---|
+| **P0** | A | A.1 Core Engine Port | — |
+| **P0** | A | A.2 Kanban Execution Adapter | A.1 |
+| **P0** | B | B.1 Conductor DAG Builder | A.1 (for save/load) |
+| **P1** | B | B.2 Operations Page | B.1 (shared patterns) |
+| **P1** | A | A.3 Provider Port (Claude/Codex) | A.1 |
+| **P2** | B | B.3 Settings Page | A.3 |
+| **P3** | A | A.4 Cron Integration | A.2 |
+
+**Parallel tracks:** A.1 + B.1 can start together (engine port doesn't block UI scaffold). A.3 is independent of the UI, can run alongside B.1/B.2. A.2 depends on A.1. B.2 depends on B.1's component patterns.
 
 ---
 
 ## Key Decisions
 
-- **YAML is the source of truth** for workflow definitions. Kanban is the execution runtime, not the definition store.
-- **Archon stays native.** No forking Archon's codebase. We import/consume it as a dependency. This ensures Claude Code/Codex providers and future Archon features work without maintenance burden.
-- **Archon DB strategy: separate SQLite.** Archon manages its own `~/.archon/archon.db` for workflow run state, provider config, and session tracking. The Hermes Kanban DB owns task execution state. The two DBs don't merge — the Kanban adapter (Phase 3) is the translation layer between them. This keeps Archon upgradeable independently.
-- **Conductor = workflow editor + live mission view.** The two tabs (flow/org) reflect two modes: editing definitions vs watching execution.
-- **Operations = agent team management.** Roster → select → focus → dispatch. The bottom strip is the team's artifact stream.
-- **SSE drives real-time updates.** No polling. The Conductor and Operations pages subscribe to Hermes gateway events.
+- **YAML is the source of truth** for workflow definitions. Archon keeps its own `~/.archon/archon.db` for provider config and run state. Hermes Kanban DB owns task execution. Separate DBs, two sync points: Kanban adapter + API routes.
+- **Archon stays native.** We port source files, not npm packages. No runtime dependency on Archon packages. Port select files only — ~50 files total out of ~400.
+- **No Archon chat UI.** Switch UI has its own chat. No Archon dashboard, layout, sidebar, or design system — Switch UI has its own.
+- **Conductor = DAG builder (flow tab) + hierarchy view (org tab).** The DAG builder is ported from Archon and themed with Matrix styling.
+- **Operations = built from scratch** using Switch UI's native components, consuming Workstream A APIs.
+- **SSE drives real-time updates.** Event emitter from Workstream A feeds both Conductor and Operations.
