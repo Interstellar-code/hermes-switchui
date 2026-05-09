@@ -12,7 +12,7 @@ import {
   listSessions,
   toSessionSummary,
   updateSession,
-} from '../../server/claude-api'
+} from '../../server/hermes-api'
 import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
 import {
   deleteLocalSession,

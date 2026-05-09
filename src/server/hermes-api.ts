@@ -30,10 +30,10 @@ const _authHeaders = (): Record<string, string> =>
 
 // Log API URL once per process; HMR reloads this module repeatedly so a bare
 // top-level console.log spams the dev server logs in a tight loop.
-const _CLAUDE_API_LOG_KEY = Symbol.for('hermes.claude-api.configured-log')
+const _CLAUDE_API_LOG_KEY = Symbol.for('hermes.hermes-api.configured-log')
 if (!(globalThis as Record<symbol, unknown>)[_CLAUDE_API_LOG_KEY]) {
   ;(globalThis as Record<symbol, unknown>)[_CLAUDE_API_LOG_KEY] = true
-  console.log(`[claude-api] Configured API: ${CLAUDE_API}`)
+  console.log(`[hermes-api] Configured API: ${CLAUDE_API}`)
 }
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -425,10 +425,10 @@ export async function streamChat(
         `sse-${sessionId}-${Date.now()}.log`,
       )
       toolDebugStream = fs.createWriteStream(file, { flags: 'a' })
-      console.log(`[claude-api][tool-debug] writing SSE dump to ${file}`)
+      console.log(`[hermes-api][tool-debug] writing SSE dump to ${file}`)
       toolDebugStream.write(`# session=${sessionId} ts=${new Date().toISOString()}\n`)
     } catch (err) {
-      console.warn('[claude-api][tool-debug] failed to open dump file:', err)
+      console.warn('[hermes-api][tool-debug] failed to open dump file:', err)
     }
   }
 

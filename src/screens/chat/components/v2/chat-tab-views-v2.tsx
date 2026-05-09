@@ -186,7 +186,7 @@ export function extractToolEntries(messages: Array<ChatMessage>): Array<FlatTool
   // Two shapes occur in the wild:
   //   (a) realtime: a separate message with role 'tool'/'toolResult' and a
   //       top-level toolCallId field.
-  //   (b) history (claude-api.ts): role 'tool' with a content block of
+  //   (b) history (hermes-api.ts): role 'tool' with a content block of
   //       type 'tool_result' carrying toolCallId; no top-level toolCallId.
   for (const m of messages) {
     const rootToolCallId =
@@ -306,7 +306,7 @@ export function extractStreamToolCallsFromMessages(
     const mAny = m as unknown as Record<string, unknown>
     // Two shapes carry embedded tool-call summaries:
     //   __streamToolCalls — written by chat-store on the realtime 'done' event.
-    //   streamToolCalls   — written by claude-api.ts when normalising history
+    //   streamToolCalls   — written by hermes-api.ts when normalising history
     //                       (server-side history reload). Phase is already
     //                       'complete' on this path.
     const realtimeList = mAny.__streamToolCalls

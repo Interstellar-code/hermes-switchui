@@ -1,4 +1,4 @@
-import { streamChat } from './claude-api'
+import { streamChat } from './hermes-api'
 import { resolveChatBackend } from './chat-mode'
 import { openaiChat } from './openai-compat-api'
 

@@ -5,7 +5,7 @@ import {
   SESSIONS_API_UNAVAILABLE_MESSAGE,
   ensureGatewayProbed,
   getGatewayCapabilities,
-} from '../../server/claude-api'
+} from '../../server/hermes-api'
 import { requireJsonContentType } from '../../server/rate-limit'
 
 export const Route = createFileRoute('/api/send')({

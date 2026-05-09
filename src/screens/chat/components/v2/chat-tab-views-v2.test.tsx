@@ -190,7 +190,7 @@ describe('ToolTabView streaming tool calls', () => {
   })
 
   it('history-shape streamToolCalls (no underscore) renders as done', () => {
-    // claude-api.ts attaches streamToolCalls (no underscore) to history-loaded
+    // hermes-api.ts attaches streamToolCalls (no underscore) to history-loaded
     // assistant messages with phase already 'complete'. The component must
     // recognise both the field name and treat it as settled.
     const messages = [

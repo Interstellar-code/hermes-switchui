@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { requireJsonContentType } from '../../server/rate-limit'
-import { deleteSession } from '../../server/claude-api'
+import { deleteSession } from '../../server/hermes-api'
 import {
   dashboardFetch,
   ensureGatewayProbed,

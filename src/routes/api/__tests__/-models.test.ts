@@ -41,7 +41,7 @@ vi.mock('../../../server/gateway-capabilities', () => ({
   CLAUDE_API: 'http://127.0.0.1:8642',
 }))
 
-vi.mock('../../../server/claude-api', () => ({
+vi.mock('../../../server/hermes-api', () => ({
   ensureGatewayProbed: vi.fn(),
   getGatewayCapabilities: () => ({ models: false }),
 }))

@@ -36,7 +36,7 @@ import {
   getMessages as getSessionMessagesFromAgent,
   listSessions,
   streamChat,
-} from '../../server/claude-api'
+} from '../../server/hermes-api'
 import type {OpenAICompatContentPart, OpenAICompatMessage} from '../../server/openai-compat-api';
 // Claude agent runs can take 5+ minutes with complex tool chains
 const SEND_STREAM_RUN_TIMEOUT_MS = 600_000
