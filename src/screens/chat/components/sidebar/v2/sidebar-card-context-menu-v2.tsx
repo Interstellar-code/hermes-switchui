@@ -14,9 +14,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useShallow } from 'zustand/react/shallow'
 import type { SessionFeedItem } from '@/screens/chat/sessions-feed-types'
-import { SessionDeleteDialog } from '@/screens/chat/components/sidebar/session-delete-dialog'
-import { SessionRenameDialog } from '@/screens/chat/components/sidebar/session-rename-dialog'
-import { archiveTask } from '@/lib/tasks-api'
 import { useSessionsLocalStore } from '@/stores/sessions-local-store'
 import { useDeleteSession } from '@/screens/chat/hooks/use-delete-session'
 
@@ -173,9 +170,7 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
       </div>
 
       {renameOpen && (
-        <SessionRenameDialog
-          open={renameOpen}
-          onOpenChange={(o) => { if (!o) { setRenameOpen(false); onClose() } }}
+        <InlineRenameDialog
           sessionTitle={item.title}
           onSave={handleRenameSave}
           onCancel={() => { setRenameOpen(false); onClose() }}
@@ -183,9 +178,7 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
       )}
 
       {deleteOpen && (
-        <SessionDeleteDialog
-          open={deleteOpen}
-          onOpenChange={(o) => { if (!o) { setDeleteOpen(false); onClose() } }}
+        <InlineDeleteDialog
           sessionTitle={item.title}
           onConfirm={handleDeleteConfirm}
           onCancel={() => { setDeleteOpen(false); onClose() }}
@@ -202,6 +195,84 @@ interface MenuItemProps {
   icon: string
   onClick: () => void
   danger?: boolean
+}
+
+// ── Inline dialogs (previously imported from deleted v1 files) ────────────────
+
+function InlineRenameDialog({
+  sessionTitle,
+  onSave,
+  onCancel,
+}: {
+  sessionTitle: string
+  onSave: (title: string) => void
+  onCancel: () => void
+}) {
+  const [value, setValue] = useState(sessionTitle)
+  return (
+    <div style={overlayStyle}>
+      <div style={dialogStyle}>
+        <p style={{ marginBottom: 8, fontSize: 13, color: 'var(--theme-text)' }}>Rename session</p>
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') onSave(value); if (e.key === 'Escape') onCancel() }}
+          style={{ width: '100%', padding: '4px 8px', marginBottom: 12, background: 'var(--theme-sidebar)', border: '1px solid var(--theme-border)', borderRadius: 4, color: 'var(--theme-text)', fontSize: 12 }}
+        />
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onCancel} style={cancelBtnStyle}>Cancel</button>
+          <button type="button" onClick={() => onSave(value)} style={confirmBtnStyle}>Save</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function InlineDeleteDialog({
+  sessionTitle,
+  onConfirm,
+  onCancel,
+}: {
+  sessionTitle: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div style={overlayStyle}>
+      <div style={dialogStyle}>
+        <p style={{ marginBottom: 8, fontSize: 13, color: 'var(--theme-text)' }}>
+          Delete <strong>{sessionTitle}</strong>?
+        </p>
+        <p style={{ marginBottom: 12, fontSize: 11, color: 'var(--theme-text-muted, #888)' }}>This cannot be undone.</p>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onCancel} style={cancelBtnStyle}>Cancel</button>
+          <button type="button" onClick={onConfirm} style={{ ...confirmBtnStyle, background: '#c0392b' }}>Delete</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const overlayStyle: React.CSSProperties = {
+  position: 'fixed', inset: 0, zIndex: 300,
+  background: 'rgba(0,0,0,0.5)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+}
+const dialogStyle: React.CSSProperties = {
+  background: 'var(--theme-card, #0d1117)',
+  border: '1px solid var(--theme-border)',
+  borderRadius: 8, padding: 16, minWidth: 260, maxWidth: 360,
+}
+const cancelBtnStyle: React.CSSProperties = {
+  padding: '4px 12px', fontSize: 12, borderRadius: 4,
+  background: 'transparent', border: '1px solid var(--theme-border)',
+  color: 'var(--theme-text)', cursor: 'pointer',
+}
+const confirmBtnStyle: React.CSSProperties = {
+  padding: '4px 12px', fontSize: 12, borderRadius: 4,
+  background: 'var(--theme-accent, #4CAF50)', border: 'none',
+  color: '#fff', cursor: 'pointer',
 }
 
 function MenuItem({ label, icon, onClick, danger }: MenuItemProps) {
