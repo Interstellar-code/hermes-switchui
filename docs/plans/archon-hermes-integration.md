@@ -209,6 +209,7 @@ For Claude Code / Codex node execution: the task dispatches with the appropriate
 
 - **YAML is the source of truth** for workflow definitions. Kanban is the execution runtime, not the definition store.
 - **Archon stays native.** No forking Archon's codebase. We import/consume it as a dependency. This ensures Claude Code/Codex providers and future Archon features work without maintenance burden.
+- **Archon DB strategy: separate SQLite.** Archon manages its own `~/.archon/archon.db` for workflow run state, provider config, and session tracking. The Hermes Kanban DB owns task execution state. The two DBs don't merge — the Kanban adapter (Phase 3) is the translation layer between them. This keeps Archon upgradeable independently.
 - **Conductor = workflow editor + live mission view.** The two tabs (flow/org) reflect two modes: editing definitions vs watching execution.
 - **Operations = agent team management.** Roster → select → focus → dispatch. The bottom strip is the team's artifact stream.
 - **SSE drives real-time updates.** No polling. The Conductor and Operations pages subscribe to Hermes gateway events.
