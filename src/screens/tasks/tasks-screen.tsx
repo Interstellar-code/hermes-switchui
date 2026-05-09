@@ -596,11 +596,11 @@ export function TasksScreen() {
               <div className="actbar-stripe">
                 <span className="gs-lbl">Global · {globalTotal} Total</span>
                 <div className="gs-pips">
-                  <span className="pip-item"><span className="pip done" /><span className="pip-ct">{globalDone}</span>&nbsp;Done</span>
-                  <span className="pip-item"><span className="pip run" /><span className="pip-ct">{globalRun}</span>&nbsp;Run</span>
-                  <span className="pip-item"><span className="pip todo" /><span className="pip-ct">{globalTodo}</span>&nbsp;Todo</span>
-                  <span className="pip-item"><span className="pip bk" /><span className="pip-ct">{globalBacklog}</span>&nbsp;Backlog</span>
-                  <span className="pip-item"><span className="pip bl" /><span className="pip-ct">{globalBlocked}</span>&nbsp;Blocked</span>
+                  <span className="gs-pip-item"><span className="pip done" /><span className="pip-ct">{globalDone}</span>&nbsp;Done</span>
+                  <span className="gs-pip-item"><span className="pip run" /><span className="pip-ct">{globalRun}</span>&nbsp;Run</span>
+                  <span className="gs-pip-item"><span className="pip todo" /><span className="pip-ct">{globalTodo}</span>&nbsp;Todo</span>
+                  <span className="gs-pip-item"><span className="pip bk" /><span className="pip-ct">{globalBacklog}</span>&nbsp;Backlog</span>
+                  <span className="gs-pip-item"><span className="pip bl" /><span className="pip-ct">{globalBlocked}</span>&nbsp;Blocked</span>
                 </div>
                 <div className="gs-right">
                   <span className="gs-pct">{globalPct}%</span>

@@ -922,9 +922,11 @@
   /* AB-02: inline global stripe */
   .actbar-stripe {
     display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: 14px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 18px;
     align-items: center;
+    width: 100%;
+    min-width: 0;
     padding: 7px 14px;
     border: 1px solid var(--m-border-subtle, var(--theme-border));
     border-radius: 8px;
@@ -949,16 +951,19 @@
   }
   .actbar-stripe .gs-pips {
     display: flex;
-    gap: 16px;
+    flex-wrap: nowrap;
+    gap: 18px;
     align-items: center;
     font: 500 11px var(--m-font-mono, ui-monospace, monospace);
     color: var(--m-text-muted, var(--theme-muted));
-    flex-wrap: wrap;
+    min-width: 0;
   }
-  .actbar-stripe .gs-pips .pip-item {
+  .actbar-stripe .gs-pips .gs-pip-item {
     display: flex;
     align-items: center;
     gap: 6px;
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
   .actbar-stripe .gs-pips .pip {
     width: 8px;
@@ -976,6 +981,8 @@
   .actbar-stripe .gs-right {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
+    justify-self: end;
     gap: 12px;
     flex-shrink: 0;
   }
