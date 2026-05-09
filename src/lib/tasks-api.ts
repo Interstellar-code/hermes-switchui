@@ -71,6 +71,7 @@ export async function fetchTasks(params?: {
 }): Promise<Array<HermesKanbanTask>> {
   const q = new URLSearchParams()
   if (params?.tenant) q.set('tenant', params.tenant)
+  if (params?.include_done) q.set('include_done', 'true')
   if (params?.include_archived) q.set('include_archived', 'true')
   const qs = q.toString()
   const data = await kanbanJson<{ board: HermesKanbanBoard }>(
@@ -78,7 +79,7 @@ export async function fetchTasks(params?: {
   )
   const board = data.board
   // Agent API returns columns as [{name, tasks}] list — convert to a status map
-  const colMap = boardColumnsToMap(board.columns ?? [])
+  const colMap = boardColumnsToMap(board.columns)
   // Build the list of statuses to collect from colMap.
   // HERMES_KANBAN_VISIBLE_STATUS_ORDER excludes 'archived', so we append it
   // explicitly when the caller requested archived tasks.
@@ -151,8 +152,11 @@ export async function hardDeleteTask(taskId: string): Promise<void> {
 export async function moveTask(
   taskId: string,
   status: HermesKanbanStatus,
+  blockReason?: string,
 ): Promise<HermesKanbanTask> {
-  return updateTask(taskId, { status })
+  const patch: UpdateKanbanTaskInput = { status }
+  if (blockReason) patch.block_reason = blockReason
+  return updateTask(taskId, patch)
 }
 
 export function priorityColor(priority: number): string {
@@ -213,7 +217,7 @@ export type KanbanStats = {
 export async function fetchStats(): Promise<KanbanStats> {
   const res = await kanbanJson<{ stats?: KanbanStats } | KanbanStats>(`${KANBAN_BASE}/stats`)
   // Gateway returns { stats: {...} }; some proxies may flatten — handle both
-  if (res && typeof res === 'object' && 'stats' in res && res.stats) return res.stats as KanbanStats
+  if (typeof res === 'object' && 'stats' in res && res.stats) return res.stats as KanbanStats
   return res as KanbanStats
 }
 

@@ -1,8 +1,9 @@
 'use client'
 
+import '@/styles/matrix-tasks.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useSearch, useNavigate } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import {
   keepPreviousData,
   useMutation,
@@ -15,24 +16,33 @@ import {
   Add01Icon,
   Alert02Icon,
   CheckListIcon,
-  RefreshIcon,
   Settings01Icon,
 } from '@hugeicons/core-free-icons'
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCorners,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { TaskCard } from './task-card'
 import { TaskDialog } from './task-dialog'
-import type { TaskDialogSubmit } from './task-dialog'
 import { TaskDetailDrawer } from './task-detail-drawer'
-import type { ClaudeTask, TaskAssignee, TaskColumn } from '@/lib/tasks-api'
+import { SwimView } from './swim-view'
+import { TimelineView } from './timeline-view'
+import type { TaskDialogSubmit } from './task-dialog'
+import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { HermesKanbanStatus } from '@/lib/hermes-kanban-types'
-import { useKanbanEvents } from '@/hooks/use-kanban-events'
-import { toast } from '@/components/ui/toast'
-import { cn } from '@/lib/utils'
+import type { ClaudeTask, TaskAssignee, TaskColumn } from '@/lib/tasks-api'
+import { HERMES_KANBAN_VISIBLE_STATUS_ORDER } from '@/lib/hermes-kanban-types'
 import {
   COLUMN_COLORS,
   COLUMN_LABELS,
-  COLUMN_ORDER,
   createTask,
-  deleteTask,
   fetchAssignees,
   fetchKanbanConfig,
   fetchStats,
@@ -40,8 +50,10 @@ import {
   moveTask,
   updateTask,
 } from '@/lib/tasks-api'
-import { HERMES_KANBAN_VISIBLE_STATUS_ORDER } from '@/lib/hermes-kanban-types'
 import { unionAssigneesWithProfiles } from '@/lib/assignee-profile-union'
+import { useKanbanEvents } from '@/hooks/use-kanban-events'
+import { toast } from '@/components/ui/toast'
+import { cn } from '@/lib/utils'
 
 const KANBAN_BASE = '/api/hermes-kanban'
 
@@ -50,6 +62,55 @@ const ASSIGNEES_KEY = ['claude', 'tasks', 'assignees'] as const
 
 export const TASKS_BOARD_HELP_TEXT =
   'Drag cards to change status. Open a card to set assignee and due date.'
+
+// ── @dnd-kit droppable column ──────────────────────────────────────────────
+function DroppableColumn({
+  status,
+  colColor,
+  taskCount,
+  children,
+}: {
+  status: string
+  colColor: string
+  taskCount: number
+  children: React.ReactNode
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: status })
+  const label = COLUMN_LABELS[status as keyof typeof COLUMN_LABELS]
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn('col', isOver && 'drag-over')}
+      style={{ '--col-color': colColor } as React.CSSProperties}
+      aria-label={`${label} column, ${taskCount} task${taskCount !== 1 ? 's' : ''}`}
+    >
+      {children}
+    </div>
+  )
+}
+
+// ── @dnd-kit draggable card wrapper ───────────────────────────────────────
+function DraggableCard({
+  taskId,
+  isDragging,
+  children,
+}: {
+  taskId: string
+  isDragging: boolean
+  children: React.ReactNode
+}) {
+  const { attributes, listeners, setNodeRef } = useDraggable({ id: taskId })
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      style={isDragging ? { opacity: 0.4 } : undefined}
+    >
+      {children}
+    </div>
+  )
+}
 
 function SkeletonCard() {
   return (
@@ -83,21 +144,40 @@ export function TasksScreen() {
   const [createColumn, setCreateColumn] = useState<TaskColumn>('triage')
   const [editingTask, setEditingTask] = useState<ClaudeTask | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
-  const [dragOverColumn, setDragOverColumn] =
-    useState<HermesKanbanStatus | null>(null)
+  const [, setDragOverColumn] = useState<HermesKanbanStatus | null>(null)
   // ── Column visibility — persisted to localStorage ──────────────────────
   const COLS_KEY = 'switchui-column-visibility'
+  // BC-01: v2 migration — ensure triage+blocked default to true for all visitors
+  // (pre-rewrite stale storage may have triage:false; bump migrated_v2 flag).
   const [showDone, setShowDone] = useState<boolean>(() => {
-    try { return JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}').done ?? false } catch { return false }
+    try {
+      const raw = JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}') as Record<string, unknown>
+      if (!raw.migrated_v2) {
+        // First visit or pre-v2 visitor: force triage+blocked on, write migration flag
+        const migrated = { ...raw, triage: true, blocked: true, migrated_v2: true }
+        localStorage.setItem(COLS_KEY, JSON.stringify(migrated))
+        return typeof raw.done === 'boolean' ? raw.done : false
+      }
+      return typeof raw.done === 'boolean' ? raw.done : false
+    } catch { return false }
   })
   const [showArchived, setShowArchived] = useState<boolean>(() => {
-    try { return JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}').archived ?? false } catch { return false }
+    try {
+      const raw = JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}') as Record<string, unknown>
+      return typeof raw.archived === 'boolean' ? raw.archived : false
+    } catch { return false }
   })
   const [showTriage, setShowTriage] = useState<boolean>(() => {
-    try { return JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}').triage ?? true } catch { return true }
+    try {
+      const raw = JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}') as Record<string, unknown>
+      return typeof raw.triage === 'boolean' ? raw.triage : true
+    } catch { return true }
   })
   const [showBlocked, setShowBlocked] = useState<boolean>(() => {
-    try { return JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}').blocked ?? true } catch { return true }
+    try {
+      const raw = JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}') as Record<string, unknown>
+      return typeof raw.blocked === 'boolean' ? raw.blocked : true
+    } catch { return true }
   })
   const [showViewDropdown, setShowViewDropdown] = useState(false)
   // Ref to the trigger button so we can measure its position for fixed-panel placement
@@ -115,6 +195,12 @@ export function TasksScreen() {
   const [blockedReason, setBlockedReason] = useState('')
   const [runningMovePending, setRunningMovePending] = useState<RunningMovePending>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // View toggle: board is the only implemented view for P1; swim/time are placeholders
+  const [activeView, setActiveView] = useState<'board' | 'swim' | 'time'>('board')
+  // Done-stat click: open drawer in list mode
+  const [showDoneList, setShowDoneList] = useState(false)
+  // Footer relative-time tick — re-renders every 10s (SSR-safe)
+  const [footerTick, setFooterTick] = useState(0)
 
   // Persist column visibility to localStorage whenever any toggle changes
   useEffect(() => {
@@ -122,9 +208,16 @@ export function TasksScreen() {
       localStorage.setItem(COLS_KEY, JSON.stringify({
         done: showDone, archived: showArchived,
         triage: showTriage, blocked: showBlocked,
+        migrated_v2: true,
       }))
     } catch { /* storage quota / private-mode — silently ignore */ }
   }, [showDone, showArchived, showTriage, showBlocked])
+
+  // Footer relative-time: tick every 10s so "Updated N ago" stays fresh
+  useEffect(() => {
+    const id = setInterval(() => setFooterTick(t => t + 1), 10_000)
+    return () => clearInterval(id)
+  }, [])
 
   const search = useSearch({ from: '/tasks' })
   const initialAssignee =
@@ -151,6 +244,17 @@ export function TasksScreen() {
     queryKey: ASSIGNEES_KEY,
     queryFn: fetchAssignees,
     staleTime: 5 * 60_000,
+  })
+
+  const doneTasksQuery = useQuery({
+    queryKey: [...QUERY_KEY, 'done-only', tenantFilter],
+    queryFn: () =>
+      fetchTasks({
+        include_done: true,
+        ...(tenantFilter ? { tenant: tenantFilter } : {}),
+      }),
+    enabled: showDoneList,
+    staleTime: 30_000,
   })
 
   const statsQuery = useQuery({
@@ -195,9 +299,9 @@ export function TasksScreen() {
       archived: [],
     }
     for (const t of tasks) {
-      const status = (t.status) ?? 'triage'
+      const status = t.status
       if (assigneeFilter && t.assignee !== assigneeFilter) continue
-      if (map[status]) map[status].push(t)
+      map[status].push(t)
     }
     return map
   }, [tasks, assigneeFilter])
@@ -253,21 +357,9 @@ export function TasksScreen() {
       }),
   })
 
-  const deleteMutation = useMutation({
-    mutationFn: deleteTask,
-    onSuccess: () => {
-      invalidate()
-      toast('Task archived')
-    },
-    onError: (e) =>
-      toast(e instanceof Error ? e.message : 'Failed to archive task', {
-        type: 'error',
-      }),
-  })
-
   const moveMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: HermesKanbanStatus }) =>
-      moveTask(id, status),
+    mutationFn: ({ id, status, blockReason }: { id: string; status: HermesKanbanStatus; blockReason?: string }) =>
+      moveTask(id, status, blockReason),
     onSuccess: () => invalidate(),
     onError: (e) =>
       toast(e instanceof Error ? e.message : 'Failed to move task', {
@@ -313,49 +405,40 @@ export function TasksScreen() {
       }),
   })
 
-  function handleDragStart(e: React.DragEvent, taskId: string) {
-    e.dataTransfer.setData('text/plain', taskId)
-    setDraggingId(taskId)
+  // ── @dnd-kit sensors ──────────────────────────────────────────────────────
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  function handleDndDragStart(event: DragStartEvent) {
+    setDraggingId(String(event.active.id))
   }
 
-  function handleDragOver(e: React.DragEvent, col: HermesKanbanStatus) {
-    e.preventDefault()
-    setDragOverColumn(col)
-  }
+  function handleDndDragEnd(event: DragEndEvent) {
+    const taskId = String(event.active.id)
+    const targetStatus = event.over?.id as HermesKanbanStatus | undefined
+    setDraggingId(null)
+    setDragOverColumn(null)
 
-  function handleDrop(e: React.DragEvent, targetStatus: HermesKanbanStatus) {
-    e.preventDefault()
-    const taskId = e.dataTransfer.getData('text/plain')
+    if (!targetStatus) return
     const task = tasks.find((t) => t.id === taskId)
-    if (!task || task.status === targetStatus) {
-      setDraggingId(null)
-      setDragOverColumn(null)
-      return
-    }
-    // Confirm before blocking a task — v1 requirement (plan Task 6)
+    if (!task || task.status === targetStatus) return
+
     if (targetStatus === 'blocked') {
       setBlockedPending({ taskId, targetStatus })
       setBlockedReason('')
-      setDraggingId(null)
-      setDragOverColumn(null)
       return
     }
-    // Warn when manually pulling a running task off-execution
     if (task.status === 'running' && targetStatus !== 'running') {
       setRunningMovePending({ taskId, targetStatus })
-      setDraggingId(null)
-      setDragOverColumn(null)
       return
     }
     moveMutation.mutate({ id: taskId, status: targetStatus })
-    setDraggingId(null)
-    setDragOverColumn(null)
   }
 
-  function handleDragEnd() {
-    setDraggingId(null)
-    setDragOverColumn(null)
-  }
+  // Legacy HTML5 drag kept as no-op stub (TaskCard still passes onDragStart)
+  function handleDragStart(_e: React.DragEvent, _taskId: string) {}
 
   function confirmRunningMove() {
     if (!runningMovePending) return
@@ -369,7 +452,7 @@ export function TasksScreen() {
       id: blockedPending.taskId,
       status: 'blocked',
       ...(blockedReason.trim() ? { blockReason: blockedReason.trim() } : {}),
-    } as Parameters<typeof moveMutation.mutate>[0])
+    })
     setBlockedPending(null)
     setBlockedReason('')
   }
@@ -414,216 +497,306 @@ export function TasksScreen() {
     })
   }
 
-  // Agent lifecycle columns — filtered by the four view toggles
-  const visibleStatuses: Array<HermesKanbanStatus> = [
-    ...HERMES_KANBAN_VISIBLE_STATUS_ORDER,
-    'archived' as HermesKanbanStatus,
-  ].filter((s) => {
+  // SPEC-05: fixed 5-col board — triage, todo, ready, running, blocked.
+  // `done` is intentionally excluded from board columns regardless of showDone.
+  // showDone only controls the `include_done` query param for stats math and
+  // the Done stat cell click-to-list drawer; it must NOT add a board column.
+  const visibleStatuses: Array<HermesKanbanStatus> = (
+    [...HERMES_KANBAN_VISIBLE_STATUS_ORDER, 'archived' as HermesKanbanStatus] as Array<HermesKanbanStatus>
+  ).filter((s) => {
+    if (s === 'done' && !showDone) return false
     if (s === 'triage' && !showTriage) return false
     if (s === 'blocked' && !showBlocked) return false
-    if (s === 'done' && !showDone) return false
     if (s === 'archived' && !showArchived) return false
     return true
   })
-  const colMaxWidth = Math.floor(1200 / visibleStatuses.length)
 
   return (
-    <div className="min-h-full overflow-y-auto bg-surface text-ink">
-      <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-6 pb-[calc(var(--tabbar-h,80px)+1.5rem)] sm:px-6 lg:px-8">
-        {/* Header */}
-        <header className="rounded-2xl border border-primary-200 bg-primary-50/85 p-4 backdrop-blur-xl">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 min-w-0">
-              <h1 className="text-2xl font-medium text-ink">Tasks</h1>
-              {(assigneeFilter || tenantFilter) && (
-                <div className="flex items-center gap-2 text-xs text-[var(--theme-muted)]">
-                  {assigneeFilter && (() => {
-                    const a = assigneeOptions.find(x => x.id === assigneeFilter)
-                    return (
-                      <span className={a && !a.onDisk ? 'text-amber-400' : ''}>
-                        profile:{assigneeFilter}{a && !a.onDisk ? ' ⚠' : ''}
-                      </span>
-                    )
-                  })()}
-                  {tenantFilter && <span>tenant:{tenantFilter}</span>}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAssigneeFilter(null)
-                      setTenantFilter(null)
-                    }}
-                    className="text-[var(--theme-muted)] hover:text-[var(--theme-text)] transition-colors"
-                  >
-                    ✕ Clear
-                  </button>
-                </div>
-              )}
-              {/* Stats — filtered view tally */}
-              <div
-                className="flex items-center gap-2 text-xs text-[var(--theme-muted)] flex-wrap opacity-60"
-                title="filtered view"
-              >
-                <span>{stats.total} total</span>
-                <span className="hidden sm:inline">·</span>
-                <span className="hidden sm:inline">
-                  {stats.running} running
-                </span>
-                {stats.blocked > 0 && (
-                  <>
-                    <span>·</span>
-                    <span className="text-red-400/60">
-                      {stats.blocked} blocked
-                    </span>
-                  </>
-                )}
-                <span className="hidden sm:inline">·</span>
-                <span className="hidden sm:inline">
-                  {stats.completion}% done
-                </span>
-              </div>
-            </div>
+    <div className="min-h-full bg-surface text-ink tk-shell" data-screen="tasks">
 
-            <div className="flex items-center gap-2 shrink-0 flex-wrap">
-              {/* Bulk-action toolbar moved to floating footer (rendered via portal further below). */}
-              {/* Consolidated columns visibility dropdown */}
-              {(() => {
-                const anyHidden = !showTriage || !showBlocked || !showDone || !showArchived
-                const cols = [
-                  { key: 'triage', label: 'Triage / Backlog', checked: showTriage, toggle: () => setShowTriage(v => !v) },
-                  { key: 'blocked', label: 'Blocked', checked: showBlocked, toggle: () => setShowBlocked(v => !v) },
-                  { key: 'done', label: 'Done', checked: showDone, toggle: () => setShowDone(v => !v) },
-                  { key: 'archived', label: 'Archived', checked: showArchived, toggle: () => setShowArchived(v => !v) },
-                ]
-                return (
-                  <>
-                    <button
-                      ref={colsButtonRef}
-                      onClick={openColsDropdown}
-                      className={cn(
-                        'flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors',
-                        showViewDropdown || anyHidden
-                          ? 'border-[var(--theme-accent)] text-[var(--theme-accent)] bg-[var(--theme-hover)]'
-                          : 'border-[var(--theme-border)] text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:border-[var(--theme-accent)]',
-                      )}
-                    >
-                      <HugeiconsIcon icon={CheckListIcon} size={12} />
-                      Columns
-                      {anyHidden && (
-                        <span className="ml-0.5 text-[9px] font-bold opacity-70">
-                          {cols.filter(c => !c.checked).length}
-                        </span>
-                      )}
-                      <span className="opacity-50 text-[10px]">▾</span>
-                    </button>
-                    {showViewDropdown && colsPanelPos && createPortal(
-                      <>
-                        <div className="fixed inset-0 z-[9998]" onClick={() => setShowViewDropdown(false)} />
-                        <div
-                          className="fixed z-[9999] w-52 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] shadow-2xl p-1.5"
-                          style={{ top: colsPanelPos.top, right: colsPanelPos.right, backgroundColor: 'var(--theme-card)' }}
-                        >
-                          <p className="px-3 pt-1.5 pb-1 text-[9px] uppercase tracking-widest text-[var(--theme-muted)] font-medium">
-                            Visible columns
-                          </p>
-                          {cols.map(({ key, label, checked, toggle }) => (
-                            <button
-                              key={key}
-                              onClick={toggle}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs hover:bg-[var(--theme-hover)] transition-colors"
-                            >
-                              <span className={cn(
-                                'w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors',
-                                checked
-                                  ? 'border-[var(--theme-accent)] bg-[var(--theme-accent)]'
-                                  : 'border-[var(--theme-border)] bg-transparent',
-                              )}>
-                                {checked && <span className="text-white text-[9px] leading-none">✓</span>}
-                              </span>
-                              <span className={checked ? 'text-[var(--theme-text)]' : 'text-[var(--theme-muted)]'}>
-                                {label}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </>,
-                      document.body,
-                    )}
-                  </>
-                )
-              })()}
-              <KanbanSettingsButton />
-              {/* Tenant filter */}
-              {uniqueTenants.length > 0 && (
-                <select
-                  className="text-xs px-2 py-1 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-card)] text-[var(--theme-text)] focus:outline-none focus:border-[var(--theme-accent)]"
-                  style={{ colorScheme: 'dark' }}
-                  value={tenantFilter ?? ''}
-                  onChange={(e) => setTenantFilter(e.target.value || null)}
-                >
-                  <option value="">All tenants</option>
-                  {uniqueTenants.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {/* Agent profile filter */}
-              {assigneeOptions.length > 0 && (
-                <select
-                  className="text-xs px-2 py-1 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-card)] text-[var(--theme-text)] focus:outline-none focus:border-[var(--theme-accent)]"
-                  style={{ colorScheme: 'dark' }}
-                  value={assigneeFilter ?? ''}
-                  onChange={(e) => setAssigneeFilter(e.target.value || null)}
-                  title="Filter by agent profile"
-                >
-                  <option value="">All profiles</option>
-                  {assigneeOptions.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.onDisk ? a.label : `${a.label} ⚠`}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {/* Dispatch */}
-              <button
-                onClick={() => void dispatchMutation.mutate()}
-                disabled={dispatchMutation.isPending}
-                className="text-xs px-2.5 py-1 rounded-lg border border-[var(--theme-border)] text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:border-[var(--theme-accent)] transition-colors disabled:opacity-40"
-                title="Dispatch ready tasks to workers (max 8)"
-              >
-                {dispatchMutation.isPending
-                  ? 'Dispatching…'
-                  : (dispatchResult ?? '⚡ Dispatch')}
-              </button>
-              <button
-                onClick={invalidate}
-                className="rounded-lg p-1.5 transition-colors hover:bg-[var(--theme-hover)]"
-                title="Refresh"
-              >
-                <HugeiconsIcon
-                  icon={RefreshIcon}
-                  size={16}
-                  className="text-[var(--theme-muted)]"
-                />
-              </button>
-              <button
-                onClick={() => {
-                  setCreateColumn('triage')
-                  setShowCreate(true)
-                }}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
-                style={{ background: 'var(--theme-accent)' }}
-              >
-                <HugeiconsIcon icon={Add01Icon} size={14} />
-                New Task
-              </button>
+      {/* ── Breadcrumb strip (TS-01 / TS-02 / TS-03) ── */}
+      <header className="tk-top">
+        <div className="crumbs" aria-label="Breadcrumb">
+          <span>Workspace</span><span className="sep" aria-hidden="true">/</span>
+          <span className="cur">Tasks</span><span className="sep" aria-hidden="true">/</span>
+          <span>Kanban</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+          {/* TS-02: stat cells */}
+          <div className="meta">
+            <button
+              type="button"
+              className="stat clickable"
+              aria-label={`Show ${stats.done} done tasks`}
+              title="Click to view done tasks"
+              onClick={() => setShowDoneList(true)}
+            >
+              <span className="v ok">{stats.done}</span>
+              <span className="l">Done</span>
+            </button>
+            <div className="stat">
+              <span className="v warn">{stats.running}</span>
+              <span className="l">Running</span>
+            </div>
+            <div className="stat">
+              <span className="v">{tasksByStatus.todo.length}</span>
+              <span className="l">Todo</span>
+            </div>
+            <div className="stat">
+              <span className="v">{tasksByStatus.triage.length}</span>
+              <span className="l">Backlog</span>
+            </div>
+            <div className="stat">
+              <span className="v">{stats.total}</span>
+              <span className="l">Total</span>
             </div>
           </div>
-          <p className="mt-3 text-xs text-[var(--theme-muted)]">
-            {TASKS_BOARD_HELP_TEXT}
-          </p>
-        </header>
+          {/* TS-03: refresh + filter icobtns */}
+          <div className="right-actions">
+            <button
+              type="button"
+              className="icobtn"
+              aria-label="Refresh board"
+              title="Refresh"
+              onClick={invalidate}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M3 21v-5h5"/></svg>
+            </button>
+            <button
+              type="button"
+              className="icobtn"
+              aria-label="Filters"
+              title="Filters (coming soon)"
+              onClick={() => toast('Filter UI coming soon — use the profile selector + columns popover for now')}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Action bar (TS-04 / AB-01..04) ── */}
+      <div className="actbar">
+        {/* AB-02/03: header — title + tools row */}
+        <div className="actbar-header">
+          <h1>Tasks</h1>
+
+          {/* AB-03: right — tools row */}
+          <div className="tools">
+            {/* Segmented view toggle */}
+            <div className="seg" role="tablist" aria-label="Task view">
+              {(['board', 'swim', 'time'] as const).map((v) => (
+                <button
+                  key={v}
+                  role="tab"
+                  aria-selected={activeView === v}
+                  className={activeView === v ? 'on' : ''}
+                  onClick={() => setActiveView(v)}
+                  title={v === 'board' ? 'Kanban view' : v === 'swim' ? 'Swimlanes by assignee' : 'Timeline'}
+                >
+                  {v === 'board' ? (
+                    <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="5" height="16"/><rect x="10" y="4" width="5" height="11"/><rect x="17" y="4" width="4" height="7"/></svg>Board</>
+                  ) : v === 'swim' ? (
+                    <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 6h18M3 12h18M3 18h18"/></svg>Swim</>
+                  ) : (
+                    <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 5h18M3 12h12M3 19h7"/></svg>Time</>
+                  )}
+                </button>
+              ))}
+            </div>
+
+          {/* Columns pill */}
+          {(() => {
+            const anyHidden = !showTriage || !showBlocked || !showDone || !showArchived
+            const cols = [
+              { key: 'triage', label: 'Triage / Backlog', checked: showTriage, toggle: () => setShowTriage(v => !v) },
+              { key: 'blocked', label: 'Blocked', checked: showBlocked, toggle: () => setShowBlocked(v => !v) },
+              { key: 'done', label: 'Done', checked: showDone, toggle: () => setShowDone(v => !v) },
+              { key: 'archived', label: 'Archived', checked: showArchived, toggle: () => setShowArchived(v => !v) },
+            ]
+            const hiddenCount = cols.filter(c => !c.checked).length
+            return (
+              <>
+                <button
+                  ref={colsButtonRef}
+                  onClick={openColsDropdown}
+                  className={cn('pill', (showViewDropdown || anyHidden) ? 'pill-active' : '')}
+                  title="Configure columns"
+                  aria-label="Configure visible columns"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="5" height="16"/><rect x="10" y="4" width="5" height="16"/><rect x="17" y="4" width="4" height="16"/></svg>
+                  Columns
+                  <span className="ct">{anyHidden ? `${5 - hiddenCount}/5` : '5'}</span>
+                </button>
+                {showViewDropdown && colsPanelPos && createPortal(
+                  <>
+                    <div className="fixed inset-0 z-[9998]" onClick={() => setShowViewDropdown(false)} />
+                    <div
+                      className="fixed z-[9999] w-52 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] shadow-2xl p-1.5"
+                      style={{ top: colsPanelPos.top, right: colsPanelPos.right, backgroundColor: 'var(--theme-card)' }}
+                    >
+                      <p className="px-3 pt-1.5 pb-1 text-[9px] uppercase tracking-widest text-[var(--theme-muted)] font-medium">
+                        Visible columns
+                      </p>
+                      {cols.map(({ key, label, checked, toggle }) => (
+                        <button
+                          key={key}
+                          onClick={toggle}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs hover:bg-[var(--theme-hover)] transition-colors"
+                        >
+                          <span className={cn(
+                            'w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors',
+                            checked
+                              ? 'border-[var(--theme-accent)] bg-[var(--theme-accent)]'
+                              : 'border-[var(--theme-border)] bg-transparent',
+                          )}>
+                            {checked && <span className="text-white text-[9px] leading-none">✓</span>}
+                          </span>
+                          <span className={checked ? 'text-[var(--theme-text)]' : 'text-[var(--theme-muted)]'}>
+                            {label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </>,
+                  document.body,
+                )}
+              </>
+            )
+          })()}
+
+          {/* Settings */}
+          <KanbanSettingsButton />
+
+          {/* Agent profile select (AB-03 selbox) */}
+          {assigneeOptions.length > 0 && (
+            <select
+              className="selbox"
+              style={{ colorScheme: 'dark' }}
+              value={assigneeFilter ?? ''}
+              onChange={(e) => setAssigneeFilter(e.target.value || null)}
+              aria-label="Filter by agent profile"
+              title="Filter by agent profile"
+            >
+              <option value="">All profiles</option>
+              {assigneeOptions.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.onDisk ? a.label : `${a.label} ⚠`}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* Tenant filter (kept when tenants present) */}
+          {uniqueTenants.length > 0 && (
+            <select
+              className="selbox"
+              style={{ colorScheme: 'dark' }}
+              value={tenantFilter ?? ''}
+              onChange={(e) => setTenantFilter(e.target.value || null)}
+              aria-label="Filter by tenant"
+            >
+              <option value="">All tenants</option>
+              {uniqueTenants.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          )}
+
+          {/* Dispatch (AB-03 btn-sec) */}
+          <button
+            type="button"
+            className="btn-sec"
+            onClick={() => void dispatchMutation.mutate()}
+            disabled={dispatchMutation.isPending}
+            title="Dispatch ready tasks to workers (max 8)"
+            aria-label="Dispatch ready tasks"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="m13 2-9 12h7l-1 8 9-12h-7z"/></svg>
+            {dispatchMutation.isPending ? 'Dispatching…' : (dispatchResult ?? 'Dispatch')}
+          </button>
+
+          {/* Refresh icobtn (AB-03) */}
+          <button
+            type="button"
+            className="icobtn"
+            aria-label="Refresh board"
+            title="Refresh"
+            onClick={invalidate}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M3 21v-5h5"/></svg>
+          </button>
+
+          {/* New Task (AB-04 btn-prim) */}
+          <button
+            type="button"
+            className="btn-prim"
+            onClick={() => { setCreateColumn('triage'); setShowCreate(true) }}
+            aria-label="Create new task"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+            New Task
+          </button>
+        </div>
+        </div>
+
+        {/* Global stripe — 5-pip legend + progress bar */}
+        {statsQuery.isLoading ? (
+          <div className="actbar-stripe-skeleton" />
+        ) : statsQuery.data ? (() => {
+          const counts = statsQuery.data.by_status ?? {}
+          const globalTotal = Object.values(counts).reduce<number>((acc, n) => acc + (typeof n === 'number' ? n : 0), 0)
+          const globalDone = typeof counts.done === 'number' ? counts.done : 0
+          const globalRun = typeof counts.running === 'number' ? counts.running : 0
+          const globalTodo = typeof counts.todo === 'number' ? counts.todo : 0
+          const globalBacklog = (typeof counts.triage === 'number' ? counts.triage : 0) + (typeof counts.ready === 'number' ? counts.ready : 0)
+          const globalBlocked = typeof counts.blocked === 'number' ? counts.blocked : 0
+          const globalPct = globalTotal > 0 ? Math.round((globalDone / globalTotal) * 1000) / 10 : 0
+          return (
+            <div className="actbar-stripe">
+              <span className="gs-lbl">Global · {globalTotal} Total</span>
+              <div className="gs-pips">
+                <span className="gs-pip-item"><span className="pip done" /><span className="pip-ct">{globalDone}</span>&nbsp;Done</span>
+                <span className="gs-pip-item"><span className="pip run" /><span className="pip-ct">{globalRun}</span>&nbsp;Run</span>
+                <span className="gs-pip-item"><span className="pip todo" /><span className="pip-ct">{globalTodo}</span>&nbsp;Todo</span>
+                <span className="gs-pip-item"><span className="pip bk" /><span className="pip-ct">{globalBacklog}</span>&nbsp;Backlog</span>
+                <span className="gs-pip-item"><span className="pip bl" /><span className="pip-ct">{globalBlocked}</span>&nbsp;Blocked</span>
+              </div>
+              <div className="gs-right">
+                <span className="gs-pct">{globalPct}%</span>
+                <div className="gs-bar">
+                  <i style={{ width: `${globalPct}%` }} />
+                </div>
+              </div>
+            </div>
+          )
+        })() : null}
+
+        {/* Hint + active filter chip */}
+        <div className="actbar-subhint sub">
+          <span>Drag cards to change status — open a card to set assignee &amp; due date</span>
+          {(assigneeFilter || tenantFilter) && (
+            <>
+              <span className="dot" aria-hidden="true" />
+              {assigneeFilter && (() => {
+                const a = assigneeOptions.find(x => x.id === assigneeFilter)
+                return <span style={{ color: a && !a.onDisk ? 'var(--m-amber,#ffb454)' : undefined }}>profile:{assigneeFilter}{a && !a.onDisk ? ' ⚠' : ''}</span>
+              })()}
+              {tenantFilter && <span>tenant:{tenantFilter}</span>}
+              <button
+                type="button"
+                onClick={() => { setAssigneeFilter(null); setTenantFilter(null) }}
+                style={{ color: 'var(--m-text-faint)', cursor: 'pointer', background: 'none', border: 'none', font: 'inherit', letterSpacing: 'inherit' }}
+              >
+                ✕ Clear
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Page content ── */}
+      <div className="tk-content pb-[calc(var(--tabbar-h,80px)+30px+1.5rem)]">
 
         {/* Orphan-assignee resilience banner */}
         {orphanAssignees.length > 0 && !orphanBannerDismissed && (
@@ -664,223 +837,161 @@ export function TasksScreen() {
           </div>
         )}
 
-        {/* Gateway stats bar */}
-        {!statsQuery.isLoading || statsQuery.data ? (
-          statsQuery.data ? (() => {
-            const counts = statsQuery.data.by_status ?? {}
-            const total = Object.values(counts).reduce<number>((acc, n) => acc + (typeof n === 'number' ? n : 0), 0)
-            const oldestSecs = statsQuery.data.oldest_ready_age_seconds
-            const oldestRunningSecs = statsQuery.data.oldest_running_age_seconds
-
-            const statusEntries = (Object.entries(counts) as Array<[string, number]>)
-              .filter(([, n]) => n > 0)
-
-            function fmtAge(secs: number): string {
-              const d = Math.floor(secs / 86400)
-              if (d > 0) return `${d}d`
-              const h = Math.floor(secs / 3600)
-              if (h > 0) return `${h}h`
-              return `${Math.floor(secs / 60)}m`
-            }
-
-            return (
-              <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] px-4 py-2.5 flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10px] uppercase tracking-widest text-[var(--theme-muted)] font-medium mr-1">
-                    Global
-                  </span>
-                  <span className="text-xs text-[var(--theme-muted)]">{total} total</span>
-                  {statusEntries.map(([status, count]) => {
-                    const color = COLUMN_COLORS[status as keyof typeof COLUMN_COLORS] ?? '#6b7280'
-                    const label = COLUMN_LABELS[status as keyof typeof COLUMN_LABELS] ?? status
-                    return (
-                      <span key={status} className="flex items-center gap-1 text-xs">
-                        <span className="text-[var(--theme-border)]">·</span>
-                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} />
-                        <span style={{ color }}>{count}</span>
-                        <span className="text-[var(--theme-muted)]">{label}</span>
-                      </span>
-                    )
-                  })}
-                </div>
-                <div className="flex items-center gap-3 text-[10px] text-[var(--theme-muted)]">
-                  {oldestSecs != null && oldestSecs > 0 && (
-                    <span>oldest ready: {fmtAge(oldestSecs)} ago</span>
-                  )}
-                  {oldestRunningSecs != null && oldestRunningSecs > 0 && (
-                    <span>oldest running: {fmtAge(oldestRunningSecs)} ago</span>
-                  )}
-                </div>
-              </div>
-            )
-          })() : null
-        ) : (
-          <div className="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] px-4 py-2.5 h-9 animate-pulse" />
+        {/* Swim view */}
+        {activeView === 'swim' && (
+          <SwimView
+            tasks={tasks}
+            assigneeLabels={assigneeLabels}
+            onCardClick={(t) => setEditingTask(t)}
+          />
+        )}
+        {activeView === 'time' && (
+          <TimelineView
+            tasks={tasks}
+            onCardClick={(t) => setEditingTask(t)}
+          />
         )}
 
         {/* Board */}
-        <div
-          className="mx-auto flex w-full max-w-[1200px] flex-1 gap-3 overflow-x-auto overflow-y-hidden min-h-0"
-          style={{ boxShadow: 'inset 0 8px 24px rgba(0,0,0,0.2)' }}
+        {activeView === 'board' && (
+        <DndContext
+          sensors={dndSensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDndDragStart}
+          onDragEnd={handleDndDragEnd}
         >
+        <div className="board">
+          <div className="board-grid">
           {visibleStatuses.map((status) => {
-            const colTasks = tasksByStatus[status] ?? []
+            const colTasks = tasksByStatus[status]
             const colColor = COLUMN_COLORS[status]
-            const isDragOver = dragOverColumn === status
             const colLabel = COLUMN_LABELS[status]
+            const unassigned = colTasks.filter((t) => !t.assignee).length
+            const runningLive = colTasks.filter((t) => t.status === 'running').length
 
             return (
-              <div
+              <DroppableColumn
                 key={status}
-                className={cn(
-                  'flex flex-col rounded-xl border min-w-[180px] w-full shrink-0 flex-1',
-                  'bg-[var(--theme-card)] border-[var(--theme-border)]',
-                  'transition-colors shadow-[0_2px_12px_rgba(0,0,0,0.25)]',
-                  isDragOver &&
-                  'border-[var(--theme-accent)] bg-[var(--theme-hover)]',
-                )}
-                style={{ maxWidth: colMaxWidth }}
-                onDragOver={(e) => handleDragOver(e, status)}
-                onDrop={(e) => handleDrop(e, status)}
-                onDragLeave={() => setDragOverColumn(null)}
+                status={status}
+                colColor={colColor}
+                taskCount={colTasks.length}
               >
                 {/* Column header */}
-                <div
-                  className="flex items-center justify-between px-3 py-2.5 border-b border-[var(--theme-border)] rounded-t-xl"
-                  style={{
-                    borderTopWidth: 2,
-                    borderTopColor: colColor,
-                    borderTopStyle: 'solid',
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ background: colColor }}
-                    />
-                    <span className="text-xs font-semibold text-[var(--theme-text)]">
-                      {colLabel}
-                    </span>
-                    <span className="text-xs text-[var(--theme-muted)]">
-                      (
-                      {tasksQuery.isFetching && tasksQuery.data === undefined
-                        ? '…'
-                        : colTasks.length}
-                      )
-                    </span>
-                  </div>
+                <div className="col-h">
+                  <span className="pip" />
+                  <h3>{colLabel}</h3>
+                  <span className="ct">
+                    {tasksQuery.isFetching && tasksQuery.data === undefined ? '…' : colTasks.length}
+                  </span>
                   <button
-                    onClick={() => {
-                      setCreateColumn(status)
-                      setShowCreate(true)
-                    }}
-                    className="rounded p-0.5 hover:bg-[var(--theme-hover)] transition-colors"
+                    className="add"
+                    onClick={() => { setCreateColumn(status); setShowCreate(true) }}
                     title={`Add to ${colLabel}`}
                   >
-                    <HugeiconsIcon
-                      icon={Add01Icon}
-                      size={14}
-                      className="text-[var(--theme-muted)]"
-                    />
+                    <HugeiconsIcon icon={Add01Icon} size={12} />
                   </button>
                 </div>
 
+                {/* Column meta row */}
+                <div className="col-meta">
+                  {(status === 'triage') && (
+                    <><span><b>{colTasks.length}</b> Awaiting</span><span><b>{unassigned}</b> Unassigned</span><span>— WIP</span></>
+                  )}
+                  {status === 'todo' && (
+                    <><span><b>{colTasks.length}</b> Ready</span><span><b>{colTasks.filter(t => (t.link_counts?.parents ?? 0) > 0).length}</b> Blockers</span><span>Lead —</span></>
+                  )}
+                  {status === 'ready' && (
+                    <span>Queued · will auto-dispatch</span>
+                  )}
+                  {status === 'running' && (
+                    <><span><b>{runningLive}</b> Live</span><span>Tok/min —</span><span>WIP <b>{runningLive}/6</b></span></>
+                  )}
+                  {status === 'blocked' && (
+                    <span>Drop tasks waiting on dependencies or input</span>
+                  )}
+                  {status === 'done' && (
+                    <><span><b>{colTasks.length}</b> Completed</span><span>Auto-archive 7d</span></>
+                  )}
+                  {status === 'archived' && (
+                    <span><b>{colTasks.length}</b> Archived</span>
+                  )}
+                </div>
+
                 {/* Cards */}
-                <div className="flex flex-col gap-2 p-2 flex-1 overflow-y-auto">
+                <div className="col-body">
                   {tasksQuery.isError ? (
-                    <motion.div
-                      key="error"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="flex flex-col items-center justify-center py-8 gap-2 text-red-400"
-                    >
-                      <p className="text-xs font-medium">
-                        Failed to load tasks
-                      </p>
-                      <button
-                        onClick={() => tasksQuery.refetch()}
-                        className="text-xs text-[var(--theme-accent)] hover:underline"
-                      >
-                        Retry
-                      </button>
-                    </motion.div>
+                    <div className="col-empty">
+                      <p>Failed to load</p>
+                      <button onClick={() => tasksQuery.refetch()} className="text-xs text-[var(--theme-accent)] hover:underline mt-1">Retry</button>
+                    </div>
                   ) : tasksQuery.isLoading ? (
-                    <>
-                      <SkeletonCard />
-                      <SkeletonCard />
-                      <SkeletonCard />
-                    </>
+                    <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
+                  ) : colTasks.length === 0 ? (
+                    <div className="col-empty">
+                      <HugeiconsIcon icon={CheckListIcon} size={18} />
+                      <div>No tasks</div>
+                      <div className="sub">Drop here or click + to add</div>
+                    </div>
                   ) : (
                     <AnimatePresence initial={false}>
-                      {colTasks.length === 0 ? (
+                      {colTasks.map((task) => (
                         <motion.div
-                          key="empty"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="flex flex-col items-center justify-center py-8 gap-2 text-[var(--theme-muted)] opacity-60"
+                          key={task.id}
+                          layout
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                          className="relative group"
                         >
-                          <HugeiconsIcon icon={CheckListIcon} size={22} />
-                          <p className="text-xs font-medium">No tasks</p>
-                          <p className="text-[10px]">
-                            Drop here or click + to add
-                          </p>
-                        </motion.div>
-                      ) : (
-                        colTasks.map((task) => (
-                          <motion.div
-                            key={task.id}
-                            layout
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -6 }}
-                            onDragEnd={handleDragEnd}
-                            className="relative group"
+                          <button
+                            type="button"
+                            onClick={(e) => toggleSelect(task.id, e)}
+                            className={cn(
+                              'absolute top-2 left-2 z-10 w-4 h-4 rounded border transition-all',
+                              selectedIds.has(task.id)
+                                ? 'bg-[var(--theme-accent)] border-[var(--theme-accent)] opacity-100'
+                                : selectedIds.size > 0
+                                  ? 'bg-transparent border-[var(--theme-border)] opacity-60 hover:opacity-100'
+                                  : 'bg-transparent border-[var(--theme-border)] opacity-0 group-hover:opacity-60 hover:opacity-100',
+                            )}
+                            title="Select task"
                           >
-                            {/* Multi-select checkbox — visible on hover, always visible when selected or any selected */}
-                            <button
-                              type="button"
-                              onClick={(e) => toggleSelect(task.id, e)}
-                              className={cn(
-                                'absolute top-2 left-2 z-10 w-4 h-4 rounded border transition-all',
-                                selectedIds.has(task.id)
-                                  ? 'bg-[var(--theme-accent)] border-[var(--theme-accent)] opacity-100'
-                                  : selectedIds.size > 0
-                                    ? 'bg-transparent border-[var(--theme-border)] opacity-60 hover:opacity-100'
-                                    : 'bg-transparent border-[var(--theme-border)] opacity-0 group-hover:opacity-60 hover:opacity-100',
-                              )}
-                              title="Select task"
-                            >
-                              {selectedIds.has(task.id) && (
-                                <span className="text-white text-[9px] leading-none flex items-center justify-center w-full h-full">
-                                  ✓
-                                </span>
-                              )}
-                            </button>
+                            {selectedIds.has(task.id) && (
+                              <span className="text-white text-[9px] leading-none flex items-center justify-center w-full h-full">✓</span>
+                            )}
+                          </button>
+                          <DraggableCard
+                            taskId={task.id}
+                            isDragging={draggingId === task.id}
+                          >
                             <TaskCard
                               task={task}
+                              colColor={colColor}
                               assigneeLabels={assigneeLabels}
                               isDragging={draggingId === task.id}
                               onDragStart={(e) => handleDragStart(e, task.id)}
                               onClick={() => setEditingTask(task)}
                             />
-                          </motion.div>
-                        ))
-                      )}
+                          </DraggableCard>
+                        </motion.div>
+                      ))}
                     </AnimatePresence>
                   )}
                 </div>
-              </div>
+              </DroppableColumn>
             )
           })}
+          </div>
         </div>
+        </DndContext>
+        )}
 
         {/* Create dialog */}
         <TaskDialog
           open={showCreate}
           onOpenChange={setShowCreate}
           defaultColumn={createColumn}
-          assignees={assigneeOptions as TaskAssignee[]}
+          assignees={assigneeOptions as Array<TaskAssignee>}
           isSubmitting={createMutation.isPending}
           onSubmit={async (payload) => {
             await createMutation.mutateAsync(payload)
@@ -892,6 +1003,15 @@ export function TasksScreen() {
           <TaskDetailDrawer
             task={editingTask}
             onClose={() => setEditingTask(null)}
+          />
+        )}
+
+        {/* Done-list drawer — opened by clicking Done stat cell */}
+        {showDoneList && (
+          <TaskDetailDrawer
+            mode="list"
+            listTasks={(doneTasksQuery.data ?? []).filter((t) => t.status === 'done')}
+            onClose={() => setShowDoneList(false)}
           />
         )}
 
@@ -970,6 +1090,37 @@ export function TasksScreen() {
             </div>
           </div>
         )}
+
+      {/* Status footer */}
+      <footer className="tk-status">
+        {/* CPU — no client metric API; placeholder */}
+        <span className="grp"><span className="pulse" aria-hidden="true" /> CPU <b>—</b></span>
+        <span className="sep" aria-hidden="true" />
+        {/* SF-01: RAM — static, backend metric not exposed */}
+        <span className="grp">RAM <b>16 GB</b> / 16 GB</span>
+        <span className="sep" aria-hidden="true" />
+        {/* SF-02: Disk — static, backend metric not exposed */}
+        <span className="grp">Disk <span className="v warn">75%</span></span>
+        <span className="sep" aria-hidden="true" />
+        <span className="grp">Hermes <span className="v ok">enhanced</span></span>
+        <span className="sep" aria-hidden="true" />
+        {/* SF-03: relative time from TanStack Query dataUpdatedAt */}
+        <span className="grp">Updated <b>{(() => {
+          void footerTick // consumed to trigger re-render every 10s
+          const ms = tasksQuery.dataUpdatedAt
+          if (!ms) return '—'
+          const s = Math.floor((Date.now() - ms) / 1000)
+          if (s < 60) return `${s}s`
+          const m = Math.floor(s / 60)
+          if (m < 60) return `${m}m`
+          const h = Math.floor(m / 60)
+          if (h < 24) return `${h}h`
+          return `${Math.floor(h / 24)}d`
+        })()} ago</b></span>
+        <span style={{ marginLeft: 'auto' }} className="grp">View <b>{activeView === 'board' ? 'Board' : activeView === 'swim' ? 'Swim' : 'Time'}</b></span>
+        <span className="sep" aria-hidden="true" />
+        <span className="grp">Sort <b>Recent</b></span>
+      </footer>
       </div>
 
       {/* Floating bulk-action footer — portal'd to body, escapes layout.

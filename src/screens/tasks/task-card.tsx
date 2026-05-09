@@ -2,12 +2,15 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Alert02Icon,
   BubbleChatIcon,
+  CheckmarkCircle02Icon,
+  Clock01Icon,
   CpuIcon,
+  GitBranchIcon,
   HierarchyIcon,
 } from '@hugeicons/core-free-icons'
+import { deriveTags } from './tag-taxonomy'
 import type { ClaudeTask } from '@/lib/tasks-api'
 import {
-  kanbanPriorityColor,
   kanbanPriorityLabel,
 } from '@/lib/hermes-kanban-types'
 import { cn } from '@/lib/utils'
@@ -17,6 +20,7 @@ const STALE_HEARTBEAT_MS = 5 * 60 * 1000
 
 type Props = {
   task: ClaudeTask
+  colColor?: string
   assigneeLabels?: Record<string, string>
   onClick: () => void
   onDragStart: (e: React.DragEvent) => void
@@ -33,140 +37,193 @@ export function formatTaskAssigneeLabel(
   return `Assignee: ${resolvedLabel}`
 }
 
+/** Short task ID: T-{last4} when last 4 chars are numeric, else T-{last6hex}.
+ *  Matches mockup convention: T-127, T-132. */
+function shortId(id: string): string {
+  const last4 = id.slice(-4)
+  if (/^\d+$/.test(last4)) return `T-${last4}`
+  return `T-${id.slice(-6).toUpperCase()}`
+}
+
 export function TaskCard({
   task,
+  colColor = 'var(--m-green-500, #00ff41)',
   assigneeLabels = {},
   onClick,
   onDragStart,
   isDragging,
 }: Props) {
   const priority = typeof task.priority === 'number' ? task.priority : 0
-  const priorityColor = kanbanPriorityColor(priority)
   const priorityLabel = kanbanPriorityLabel(priority)
-  const assigneeLabel = formatTaskAssigneeLabel(task.assignee, assigneeLabels)
+
+  const isRunning = task.status === 'running'
 
   // Staleness: running tasks with no heartbeat in 5+ minutes
   const isStale =
-    task.status === 'running' &&
+    isRunning &&
     task.last_heartbeat_at !== null &&
-    task.last_heartbeat_at !== undefined &&
-    Date.now() / 1000 - (task.last_heartbeat_at) >
-      STALE_HEARTBEAT_MS / 1000
+    Date.now() / 1000 - task.last_heartbeat_at > STALE_HEARTBEAT_MS / 1000
 
   const hasSpawnError =
-    (task.spawn_failures ?? 0) > 0 || !!task.last_spawn_error
+    task.spawn_failures > 0 || !!task.last_spawn_error
   const commentCount = task.comment_count ?? 0
   const linkParents = task.link_counts?.parents ?? 0
   const linkChildren = task.link_counts?.children ?? 0
   const progress = task.progress
+
+  // Extended fields not yet in HermesKanbanTask schema — accessed defensively
+  const extTask = task as Record<string, unknown>
+  // Subtasks = link_counts.children (canonical schema field)
+  const subtaskCount = linkChildren > 0 ? linkChildren : null
+  const checksPassed = typeof extTask.checks_passed === 'number' ? extTask.checks_passed : null
+  const checksTotal = typeof extTask.checks_total === 'number' ? extTask.checks_total : null
+  const tokensTotal = typeof extTask.tokens_total === 'number' ? extTask.tokens_total
+    : typeof (extTask.metadata as Record<string,unknown> | undefined)?.tokens === 'number'
+      ? (extTask.metadata as Record<string,unknown>).tokens as number
+      : null
+
+  const assignee = task.assignee ?? null
+  const assigneeLabel = assignee ? (assigneeLabels[assignee] ?? assignee) : null
+  const avatarLetter = assigneeLabel ? assigneeLabel[0].toUpperCase() : '·'
+
+  const tags = deriveTags(task)
+
+  // Inline CSS var for col-color — used by .card::after and hover box-shadow
+  const colStyle = { '--col-color': colColor } as React.CSSProperties
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onClick()
+    }
+  }
 
   return (
     <div
       draggable
       onDragStart={onDragStart}
       onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label={`Task: ${task.title}. Priority: ${priorityLabel}. Status: ${task.status}.`}
+      style={colStyle}
       className={cn(
-        'relative rounded-lg border p-3 cursor-pointer transition-all select-none',
-        'bg-[var(--theme-card)] border-[var(--theme-border)]',
-        'hover:border-[var(--theme-accent)]',
-        isDragging
-          ? 'opacity-40 rotate-1 shadow-2xl'
-          : 'hover:shadow-[0_4px_16px_rgba(0,0,0,0.35)]',
+        'card',
+        isDragging && 'opacity-40 rotate-1 shadow-2xl',
       )}
-      style={{ borderLeftWidth: 3, borderLeftColor: priorityColor }}
+      title={`Priority: ${priorityLabel}`}
     >
-      {/* Priority dot */}
+      {/* Title + status dot */}
+      <p className="ttl line-clamp-2 pr-1">{task.title}</p>
       <span
-        className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full shrink-0"
-        style={{ background: priorityColor }}
-        title={`Priority: ${priorityLabel}`}
+        className={cn('stat-dot', isRunning && !isStale && 'live')}
+        title={isRunning ? 'Live' : task.status}
       />
 
-      <p className="text-sm font-medium text-[var(--theme-text)] leading-snug mb-1 line-clamp-2 pr-4">
-        {task.title}
-      </p>
-
+      {/* Description */}
       {task.body && (
-        <p className="text-xs text-[var(--theme-muted)] line-clamp-2 mb-2">
-          {task.body}
-        </p>
+        <p className="desc">{task.body}</p>
       )}
 
-      {/* Execution metadata badges */}
-      <div className="flex items-center gap-1.5 flex-wrap mt-2">
-        {/* Assignee */}
-        <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--theme-hover)] text-[var(--theme-muted)]">
-          {assigneeLabel}
+      {/* Tags */}
+      {tags.length > 0 && (
+        <div className="tagrow">
+          {tags.map((tag) => (
+            <span key={tag.label} className={`tag tag-${tag.kind}`}>
+              {tag.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Progress strip — only when running AND progress exists */}
+      {isRunning && progress && progress.total > 0 && (
+        <div className="prog">
+          <i style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} />
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="foot">
+        {/* Assignee avatar + name */}
+        <span className="as">
+          <span className={cn('av', !assignee && 'un')}>{avatarLetter}</span>
+          {assigneeLabel && <b>{assigneeLabel}</b>}
         </span>
 
-        {/* Comment count */}
-        {commentCount > 0 && (
-          <span
-            className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--theme-hover)] text-[var(--theme-muted)]"
-            title={`${commentCount} comment${commentCount !== 1 ? 's' : ''}`}
-          >
-            <HugeiconsIcon icon={BubbleChatIcon} size={10} />
-            {commentCount}
-          </span>
-        )}
+        {/* Icon cluster (right) */}
+        <span className="icoct">
+          {commentCount > 0 && (
+            <span className="ic" title={`${commentCount} comment${commentCount !== 1 ? 's' : ''}`}>
+              <HugeiconsIcon icon={BubbleChatIcon} size={11} />
+              {commentCount}
+            </span>
+          )}
 
-        {/* TODO: show "🔒 blocked by N" amber badge when any parent is non-done (needs parent status data, not just count) */}
-        {/* Dependency/subtask links */}
-        {(linkParents > 0 || linkChildren > 0) && (
-          <span
-            className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--theme-hover)] text-[var(--theme-muted)]"
-            title={`${linkParents} parent${linkParents !== 1 ? 's' : ''}, ${linkChildren} child${linkChildren !== 1 ? 'ren' : ''}`}
-          >
-            <HugeiconsIcon icon={HierarchyIcon} size={10} />
-            {linkParents > 0 && <span>↑{linkParents}</span>}
-            {linkChildren > 0 && <span>↓{linkChildren}</span>}
-          </span>
-        )}
+          {/* Branch / subtask count — shown only when > 0 */}
+          {subtaskCount !== null && subtaskCount > 0 && (
+            <span className="ic" title={`${subtaskCount} subtask${subtaskCount !== 1 ? 's' : ''}`}>
+              <HugeiconsIcon icon={GitBranchIcon} size={11} />
+              {subtaskCount}
+            </span>
+          )}
 
-        {/* Child progress */}
-        {progress && progress.total > 0 && (
-          <span
-            className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--theme-hover)] text-[var(--theme-muted)]"
-            title={`${progress.done}/${progress.total} subtasks done`}
-          >
-            {progress.done}/{progress.total}
-          </span>
-        )}
+          {/* Checks ratio — show real data when available; placeholder 0/1 when running */}
+          {(checksPassed !== null && checksTotal !== null) ? (
+            <span className="ic" title={`Checks: ${checksPassed}/${checksTotal}`}>
+              <HugeiconsIcon icon={CheckmarkCircle02Icon} size={11} />
+              {checksPassed}/{checksTotal}
+            </span>
+          ) : isRunning ? (
+            <span className="ic" title="Checks: 0/1 (placeholder)">
+              <HugeiconsIcon icon={CheckmarkCircle02Icon} size={11} />
+              0/1
+            </span>
+          ) : null}
 
-        {/* Worker PID for running tasks */}
-        {task.status === 'running' && task.worker_pid && !isStale && (
-          <span
-            className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--theme-hover)] text-[var(--theme-muted)]"
-            title={`Worker PID ${task.worker_pid}`}
-          >
-            <HugeiconsIcon icon={CpuIcon} size={10} />
-            {task.worker_pid}
-          </span>
-        )}
+          {/* Tokens total — omit when unavailable */}
+          {tokensTotal !== null && (
+            <span className="ic" title={`${tokensTotal.toLocaleString()} tokens`}>
+              <HugeiconsIcon icon={Clock01Icon} size={11} />
+              {tokensTotal >= 1000 ? `${Math.round(tokensTotal / 1000)}k` : tokensTotal}
+            </span>
+          )}
 
-        {/* Stale running indicator */}
-        {isStale && (
-          <span
-            className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-400"
-            title="Worker heartbeat is overdue — may be stale"
-          >
-            <HugeiconsIcon icon={Alert02Icon} size={10} />
-            stale
-          </span>
-        )}
+          {linkParents > 0 && (
+            <span
+              className="ic up"
+              title={`${linkParents} parent${linkParents !== 1 ? 's' : ''}`}
+            >
+              <HugeiconsIcon icon={HierarchyIcon} size={11} />
+              ↑{linkParents}
+            </span>
+          )}
 
-        {/* Spawn failure badge */}
-        {hasSpawnError && (
-          <span
-            className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-md bg-red-500/20 text-red-400"
-            title={
-              task.last_spawn_error ?? `${task.spawn_failures} spawn failure(s)`
-            }
-          >
-            <HugeiconsIcon icon={Alert02Icon} size={10} />
-            failed spawn
-          </span>
-        )}
+          {isRunning && task.worker_pid && !isStale && (
+            <span className="ic" title={`Worker PID ${task.worker_pid}`}>
+              <HugeiconsIcon icon={CpuIcon} size={11} />
+              {task.worker_pid}
+            </span>
+          )}
+
+          {isStale && (
+            <span className="ic" title="Worker heartbeat overdue — may be stale" style={{ color: '#ffb454' }}>
+              <HugeiconsIcon icon={Alert02Icon} size={11} />
+              stale
+            </span>
+          )}
+
+          {hasSpawnError && (
+            <span className="ic" style={{ color: '#ff5fa2' }} title={task.last_spawn_error ?? `${task.spawn_failures} spawn failure(s)`}>
+              <HugeiconsIcon icon={Alert02Icon} size={11} />
+              err
+            </span>
+          )}
+        </span>
+
+        {/* T-id badge — bottom-right grid area */}
+        <span className="id">{shortId(task.id)}</span>
       </div>
     </div>
   )
