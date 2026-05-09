@@ -120,7 +120,7 @@ describe('ToolTabView streaming tool calls', () => {
     const container = renderInto(<ToolTabView messages={messages} />)
     expect(container.textContent).toContain('done')
     // canExpand true → button should be clickable (cursor pointer via style)
-    const button = container.querySelector('button[aria-expanded]')!
+    const button = container.querySelector('button[aria-expanded]') as HTMLElement
     expect(button.style.cursor).toBe('pointer')
   })
 

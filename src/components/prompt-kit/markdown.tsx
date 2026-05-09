@@ -3,6 +3,8 @@ import { memo, useId, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
+
+export const MARKDOWN_REMARK_PLUGINS = [remarkGfm, remarkBreaks]
 import { CodeBlock } from './code-block'
 import type { Components } from 'react-markdown'
 import { cn } from '@/lib/utils'
@@ -290,7 +292,7 @@ const MemoizedMarkdownBlock = memo(
   }) {
     return (
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks]}
+        remarkPlugins={MARKDOWN_REMARK_PLUGINS}
         components={components}
       >
         {content}

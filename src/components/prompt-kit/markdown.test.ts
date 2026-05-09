@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest'
 
-import { MARKDOWN_REHYPE_PLUGINS, MARKDOWN_REMARK_PLUGINS } from './markdown'
+import { MARKDOWN_REMARK_PLUGINS } from './markdown'
 
-describe('Markdown math support', () => {
-  it('wires remark-math into the markdown parser pipeline', () => {
+describe('Markdown plugin pipeline', () => {
+  it('wires remark-gfm into the markdown parser pipeline', () => {
     expect(
-      MARKDOWN_REMARK_PLUGINS.some((plugin) => plugin.name === 'remarkMath'),
+      MARKDOWN_REMARK_PLUGINS.some((plugin) => plugin.name === 'remarkGfm'),
     ).toBe(true)
   })
 
-  it('wires rehype-katex into the HTML renderer pipeline', () => {
+  it('wires remark-breaks into the markdown parser pipeline', () => {
     expect(
-      MARKDOWN_REHYPE_PLUGINS.some((plugin) => plugin.name === 'rehypeKatex'),
+      MARKDOWN_REMARK_PLUGINS.some((plugin) => plugin.name === 'remarkBreaks'),
     ).toBe(true)
   })
 })

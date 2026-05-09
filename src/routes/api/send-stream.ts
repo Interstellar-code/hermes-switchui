@@ -1508,9 +1508,13 @@ export const Route = createFileRoute('/api/send-stream')({
               streamTimeoutTimer = null
             }
             if (activeRunId) {
-              persistActiveRun((runSessionKey, activeId) =>
-                markRunStatus(runSessionKey, activeId, 'handoff'),
-              )
+              if (activeRunSessionKey) {
+                const _runId = activeRunId
+                const _sessionKey = activeRunSessionKey
+                void (persistedRunReady ?? Promise.resolve())
+                  .then(() => markRunStatus(_sessionKey, _runId, 'handoff'))
+                  .catch(() => null)
+              }
               unregisterActiveSendRun(activeRunId)
               activeRunId = null
             }

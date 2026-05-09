@@ -344,7 +344,7 @@ describe('InstallConfirmationDialog — 2-click commit', () => {
 
     // Signal should exist and not yet aborted
     expect(capturedSignal).not.toBeNull()
-    expect((capturedSignal as AbortSignal).aborted).toBe(false)
+    expect((capturedSignal as unknown as AbortSignal).aborted).toBe(false)
 
     // Now close the dialog while installing — Cancel button is disabled, so
     // we test via onOpenChange: simulate the dialog requesting close

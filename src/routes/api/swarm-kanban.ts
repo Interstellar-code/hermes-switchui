@@ -6,7 +6,10 @@ import { createKanbanCard, getKanbanBackendMeta, listKanbanCards, updateKanbanCa
 const CreateCardSchema = z.object({
   title: z.string().trim().min(1).max(200),
   spec: z.string().trim().max(5000).optional().default(''),
-  acceptanceCriteria: z.string().trim().max(5000).optional().default(''),
+  acceptanceCriteria: z.preprocess(
+    (v) => (typeof v === 'string' ? v.split(/\n+/).map((s) => s.trim()).filter(Boolean) : v),
+    z.array(z.string().trim()).optional().default([]),
+  ),
   assignedWorker: z.string().trim().max(120).optional().nullable(),
   reviewer: z.string().trim().max(120).optional().nullable(),
   status: z.enum(['backlog', 'ready', 'running', 'review', 'blocked', 'done']).optional().default('backlog'),

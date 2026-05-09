@@ -512,14 +512,62 @@ export function buildDisplayEntries(
     entries.push(entry)
   })
 
-  if (pendingAssistantToolMessages.length > 0) {
-    const previousEntry = entries[entries.length - 1]
-    if (previousEntry?.message.role === 'assistant') {
-      previousEntry.attachedToolMessages.push(...pendingAssistantToolMessages)
+  return entries
+}
+
+export type TrailingToolOnlyTurnSummary = {
+  count: number
+  toolNames: string[]
+  hasFinalAssistantText: boolean
+}
+
+/**
+ * Returns a summary of trailing tool-only assistant turns (and their tool
+ * results) that come after the last text-bearing assistant message, or null
+ * if the thread already ends with an assistant text message.
+ */
+export function getTrailingToolOnlyTurnSummary(
+  messages: Array<ChatMessage>,
+): TrailingToolOnlyTurnSummary | null {
+  // Find the last assistant message that has text
+  let lastTextAssistantIdx = -1
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]
+    if (msg.role === 'assistant' && textFromMessage(msg).trim().length > 0) {
+      lastTextAssistantIdx = i
+      break
     }
   }
 
-  return entries
+  // If the last text-bearing assistant message is the final message, nothing trailing
+  if (lastTextAssistantIdx === messages.length - 1) return null
+  // If no text assistant at all, nothing to summarize
+  if (lastTextAssistantIdx === -1) return null
+
+  const trailing = messages.slice(lastTextAssistantIdx + 1)
+  if (trailing.length === 0) return null
+
+  const toolNamesSet = new Set<string>()
+  let count = 0
+
+  for (const msg of trailing) {
+    if (isAssistantToolCallOnlyMessage(msg)) {
+      count++
+      for (const tc of getToolCallsFromMessage(msg)) {
+        if (tc.name) toolNamesSet.add(tc.name)
+      }
+    } else if (msg.role === 'tool' || msg.role === 'toolResult') {
+      count++
+    }
+  }
+
+  if (count === 0) return null
+
+  return {
+    count,
+    toolNames: Array.from(toolNamesSet),
+    hasFinalAssistantText: lastTextAssistantIdx >= 0,
+  }
 }
 
 function escapeAttributeSelector(value: string): string {

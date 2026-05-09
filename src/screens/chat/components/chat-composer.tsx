@@ -70,7 +70,7 @@ type ChatComposerAttachment = {
   kind?: 'image' | 'file' | 'audio'
 }
 
-type ThinkingLevel = 'off' | 'low' | 'medium' | 'high'
+type ThinkingLevel = 'off' | 'low' | 'medium' | 'high' | 'adaptive'
 
 type ChatComposerProps = {
   onSubmit: (
@@ -767,7 +767,8 @@ function thinkingLabel(level: ThinkingLevel): string {
   if (level === 'off') return 'None'
   if (level === 'low') return 'Low'
   if (level === 'medium') return 'Medium'
-  return 'High'
+  if (level === 'high') return 'High'
+  return 'Adaptive'
 }
 
 function profileMeta(profile: ProfileSummary): string {
@@ -2977,6 +2978,7 @@ function ChatComposerComponent({
                               ['low', 'LOW'],
                               ['medium', 'MEDIUM'],
                               ['high', 'HIGH'],
+                              ['adaptive', 'ADAPTIVE'],
                             ] as Array<[ThinkingLevel, string]>
                           ).map(([level, label]) => {
                             const selected = thinkingLevel === level

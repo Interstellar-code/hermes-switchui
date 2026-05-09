@@ -75,7 +75,12 @@ export function fallbackRoster(ids: Array<string> = []): SwarmRoster {
       specialty: '',
       model: 'Worker',
       mission: 'Awaiting orchestrator dispatch.',
-      skills: [],
+      skills: [] as string[],
+      capabilities: [],
+      preferredTaskTypes: [],
+      maxConcurrentTasks: 1,
+      acceptsBroadcast: true,
+      reviewRequired: false,
     })),
   }
 }

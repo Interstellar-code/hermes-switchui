@@ -7,6 +7,7 @@ import {
   Activity01Icon,
   ChartLineData02Icon,
   ComputerTerminal01Icon,
+  CpuIcon,
   FlashIcon,
   RefreshIcon,
   ViewIcon,
