@@ -1177,13 +1177,15 @@
     min-height: 0;
   }
 
-  /* ── status footer ── */
+  /* ── status footer — fixed full-viewport span; sidebar (z-10) overlays the
+     left portion via higher stacking, so footer effectively starts at sidebar
+     edge regardless of collapse state. ── */
   .tk-status {
     position: fixed;
-    left: var(--sidebar-w, 300px);
+    left: 0;
     right: 0;
     bottom: 0;
-    z-index: 40;
+    z-index: 5;
     height: 30px;
     display: flex;
     align-items: center;
