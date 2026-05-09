@@ -74,10 +74,8 @@ export function TaskCard({
 
   // Extended fields not yet in HermesKanbanTask schema — accessed defensively
   const extTask = task as Record<string, unknown>
-  const subtaskCount = typeof extTask.subtasks === 'number' ? extTask.subtasks
-    : typeof (extTask.link_counts as Record<string,unknown> | undefined)?.subtasks === 'number'
-      ? (extTask.link_counts as Record<string,unknown>).subtasks as number
-      : null
+  // Subtasks = link_counts.children (canonical schema field)
+  const subtaskCount = linkChildren > 0 ? linkChildren : null
   const checksPassed = typeof extTask.checks_passed === 'number' ? extTask.checks_passed : null
   const checksTotal = typeof extTask.checks_total === 'number' ? extTask.checks_total : null
   const tokensTotal = typeof extTask.tokens_total === 'number' ? extTask.tokens_total
@@ -193,14 +191,13 @@ export function TaskCard({
             </span>
           )}
 
-          {(linkParents > 0 || linkChildren > 0) && (
+          {linkParents > 0 && (
             <span
-              className="ic"
-              title={`${linkParents} parent${linkParents !== 1 ? 's' : ''}, ${linkChildren} child${linkChildren !== 1 ? 'ren' : ''}`}
+              className="ic up"
+              title={`${linkParents} parent${linkParents !== 1 ? 's' : ''}`}
             >
               <HugeiconsIcon icon={HierarchyIcon} size={11} />
-              {linkParents > 0 && <span className="ic up">↑{linkParents}</span>}
-              {linkChildren > 0 && <span className="ic dn">↓{linkChildren}</span>}
+              ↑{linkParents}
             </span>
           )}
 
