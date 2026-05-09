@@ -14,11 +14,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useShallow } from 'zustand/react/shallow'
 import type { SessionFeedItem } from '@/screens/chat/sessions-feed-types'
-import { SessionDeleteDialog } from '@/screens/chat/components/sidebar/session-delete-dialog'
-import { SessionRenameDialog } from '@/screens/chat/components/sidebar/session-rename-dialog'
-import { archiveTask } from '@/lib/tasks-api'
 import { useSessionsLocalStore } from '@/stores/sessions-local-store'
 import { useDeleteSession } from '@/screens/chat/hooks/use-delete-session'
+import { useRenameSession } from '@/screens/chat/hooks/use-rename-session'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -94,27 +92,45 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
     onClose()
   }, [onClose])
 
-  // Rename save — for now just closes (title stored locally; full API rename out of scope)
-  function handleRenameSave(_newTitle: string) {
-    setRenameOpen(false)
-    onClose()
+  const { renameSession, renaming, error: renameError } = useRenameSession()
+
+  async function handleRenameSave(newTitle: string) {
+    const trimmed = newTitle.trim()
+    if (!trimmed || trimmed === item.title) {
+      setRenameOpen(false)
+      onClose()
+      return
+    }
+    const sessionKey =
+      (typeof item.sourceMeta.key === 'string' ? item.sourceMeta.key : null) ?? rawId
+    const friendlyId =
+      typeof item.sourceMeta.friendlyId === 'string' ? item.sourceMeta.friendlyId : null
+    try {
+      await renameSession(sessionKey, friendlyId, trimmed)
+      setRenameOpen(false)
+      onClose()
+    } catch {
+      // Error surfaced via renameError; dialog stays open
+    }
   }
 
-  const { deleteSession } = useDeleteSession()
+  const { deleteSession, deleting, error: deleteError } = useDeleteSession()
   const navigate = useNavigate()
   const currentPath = useRouterState({ select: selectPathname })
   const isActive = isChatItem && currentPath.includes(`/chat/${rawId}`)
 
-  function handleDeleteConfirm() {
-    if (isChatItem && rawId) {
-      void deleteSession(rawId, rawId, isActive).then(() => {
-        if (isActive) {
-          void navigate({ to: '/chat/$sessionKey', params: { sessionKey: 'new' } })
-        }
-      })
+  async function handleDeleteConfirm() {
+    if (!isChatItem || !rawId) return
+    try {
+      await deleteSession(rawId, rawId, isActive)
+      if (isActive) {
+        void navigate({ to: '/chat/$sessionKey', params: { sessionKey: 'new' } })
+      }
+      setDeleteOpen(false)
+      onClose()
+    } catch {
+      // Error surfaced via deleteError; dialog stays open
     }
-    setDeleteOpen(false)
-    onClose()
   }
 
   return (
@@ -173,22 +189,22 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
       </div>
 
       {renameOpen && (
-        <SessionRenameDialog
-          open={renameOpen}
-          onOpenChange={(o) => { if (!o) { setRenameOpen(false); onClose() } }}
+        <InlineRenameDialog
           sessionTitle={item.title}
+          saving={renaming}
+          error={renameError}
           onSave={handleRenameSave}
-          onCancel={() => { setRenameOpen(false); onClose() }}
+          onCancel={() => { if (!renaming) { setRenameOpen(false); onClose() } }}
         />
       )}
 
       {deleteOpen && (
-        <SessionDeleteDialog
-          open={deleteOpen}
-          onOpenChange={(o) => { if (!o) { setDeleteOpen(false); onClose() } }}
+        <InlineDeleteDialog
           sessionTitle={item.title}
+          deleting={deleting}
+          error={deleteError}
           onConfirm={handleDeleteConfirm}
-          onCancel={() => { setDeleteOpen(false); onClose() }}
+          onCancel={() => { if (!deleting) { setDeleteOpen(false); onClose() } }}
         />
       )}
     </>
@@ -202,6 +218,103 @@ interface MenuItemProps {
   icon: string
   onClick: () => void
   danger?: boolean
+}
+
+// ── Inline dialogs (previously imported from deleted v1 files) ────────────────
+
+function InlineRenameDialog({
+  sessionTitle,
+  saving,
+  error,
+  onSave,
+  onCancel,
+}: {
+  sessionTitle: string
+  saving: boolean
+  error: string | null
+  onSave: (title: string) => void
+  onCancel: () => void
+}) {
+  const [value, setValue] = useState(sessionTitle)
+  const disabled = saving || value.trim().length === 0
+  return (
+    <div style={overlayStyle}>
+      <div style={dialogStyle}>
+        <p style={{ marginBottom: 8, fontSize: 13, color: 'var(--theme-text)' }}>Rename session</p>
+        <input
+          autoFocus
+          value={value}
+          disabled={saving}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !disabled) onSave(value)
+            if (e.key === 'Escape' && !saving) onCancel()
+          }}
+          style={{ width: '100%', padding: '4px 8px', marginBottom: 8, background: 'var(--theme-sidebar)', border: '1px solid var(--theme-border)', borderRadius: 4, color: 'var(--theme-text)', fontSize: 12, opacity: saving ? 0.6 : 1 }}
+        />
+        {error && (
+          <p style={{ marginBottom: 8, fontSize: 11, color: '#ff5f5f' }}>{error}</p>
+        )}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onCancel} disabled={saving} style={{ ...cancelBtnStyle, opacity: saving ? 0.6 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}>Cancel</button>
+          <button type="button" onClick={() => onSave(value)} disabled={disabled} style={{ ...confirmBtnStyle, opacity: disabled ? 0.6 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>{saving ? 'Saving…' : 'Save'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function InlineDeleteDialog({
+  sessionTitle,
+  deleting,
+  error,
+  onConfirm,
+  onCancel,
+}: {
+  sessionTitle: string
+  deleting: boolean
+  error: string | null
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div style={overlayStyle}>
+      <div style={dialogStyle}>
+        <p style={{ marginBottom: 8, fontSize: 13, color: 'var(--theme-text)' }}>
+          Delete <strong>{sessionTitle}</strong>?
+        </p>
+        <p style={{ marginBottom: 8, fontSize: 11, color: 'var(--theme-text-muted, #888)' }}>This cannot be undone.</p>
+        {error && (
+          <p style={{ marginBottom: 8, fontSize: 11, color: '#ff5f5f' }}>{error}</p>
+        )}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onCancel} disabled={deleting} style={{ ...cancelBtnStyle, opacity: deleting ? 0.6 : 1, cursor: deleting ? 'not-allowed' : 'pointer' }}>Cancel</button>
+          <button type="button" onClick={onConfirm} disabled={deleting} style={{ ...confirmBtnStyle, background: '#c0392b', opacity: deleting ? 0.6 : 1, cursor: deleting ? 'not-allowed' : 'pointer' }}>{deleting ? 'Deleting…' : 'Delete'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const overlayStyle: React.CSSProperties = {
+  position: 'fixed', inset: 0, zIndex: 300,
+  background: 'rgba(0,0,0,0.5)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+}
+const dialogStyle: React.CSSProperties = {
+  background: 'var(--theme-card, #0d1117)',
+  border: '1px solid var(--theme-border)',
+  borderRadius: 8, padding: 16, minWidth: 260, maxWidth: 360,
+}
+const cancelBtnStyle: React.CSSProperties = {
+  padding: '4px 12px', fontSize: 12, borderRadius: 4,
+  background: 'transparent', border: '1px solid var(--theme-border)',
+  color: 'var(--theme-text)', cursor: 'pointer',
+}
+const confirmBtnStyle: React.CSSProperties = {
+  padding: '4px 12px', fontSize: 12, borderRadius: 4,
+  background: 'var(--theme-accent, #4CAF50)', border: 'none',
+  color: '#fff', cursor: 'pointer',
 }
 
 function MenuItem({ label, icon, onClick, danger }: MenuItemProps) {
