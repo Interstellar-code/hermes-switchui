@@ -1,0 +1,843 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Hermes · Files</title>
+<link rel="stylesheet" href="matrix-system.css"/>
+<link rel="stylesheet" href="primary-nav-v2.css"/>
+<style>.nav { background: transparent !important; border: none !important; padding: 0 !important; }</style>
+<style>
+  html, body { height: 100%; }
+  body { background: var(--m-bg); }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 232px 320px 1fr;
+    height: 100vh; overflow: hidden;
+    transition: grid-template-columns var(--m-dur-base) var(--m-ease-out);
+  }
+  .shell.tree-collapsed { grid-template-columns: 232px 44px 1fr; }
+  .nav { display: block; min-width: 0; }
+
+  /* tree panel */
+  .tree { background: var(--m-panel); border-right: 1px solid var(--m-border); display: grid; grid-template-rows: auto auto auto 1fr auto; overflow: hidden; }
+  .tree-head { display: flex; align-items: center; padding: 12px 14px 10px; border-bottom: 1px solid var(--m-border-subtle); }
+  .tree-head h3 { margin: 0; font: 600 11px var(--m-font-mono); text-transform: uppercase; letter-spacing: .22em; color: var(--m-text-strong); }
+  .tree-head .ct { margin-left: 8px; font: 500 10px var(--m-font-mono); color: var(--m-text-faint); }
+  .tree-head .actions { margin-left: auto; display: flex; gap: 4px; }
+  .ico-btn { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: var(--m-radius-md); color: var(--m-text-muted); cursor: pointer; border: 1px solid transparent; transition: all var(--m-dur-fast) var(--m-ease-out); }
+  .ico-btn:hover { background: var(--m-fill-subtle); color: var(--m-green-500); border-color: var(--m-border-subtle); }
+  .ico-btn.active { background: var(--m-fill); color: var(--m-green-500); border-color: var(--m-border); box-shadow: var(--m-glow-sm); }
+  .ico { width: 14px; height: 14px; flex: none; }
+
+  .tree-search { padding: 10px 14px; border-bottom: 1px solid var(--m-border-subtle); }
+  .tree-bcr {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--m-border-subtle);
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase; letter-spacing: .18em;
+    display: flex; align-items: center; gap: 6px;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  }
+  .tree-bcr .seg { color: var(--m-text-muted); cursor: pointer; }
+  .tree-bcr .seg:hover { color: var(--m-green-500); }
+  .tree-bcr .seg.cur { color: var(--m-green-500); }
+  .tree-bcr .sep { color: var(--m-text-ghost); }
+
+  .tree-body { overflow: auto; padding: 6px 4px 12px; }
+  .row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 8px; margin: 0 4px;
+    border-radius: var(--m-radius-md);
+    font: 500 12px var(--m-font-mono);
+    color: var(--m-text-muted);
+    cursor: pointer;
+    border: 1px solid transparent;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .row:hover { background: var(--m-fill-subtle); color: var(--m-text); }
+  .row.on {
+    background: var(--m-fill); color: var(--m-green-500);
+    border-color: var(--m-border);
+    box-shadow: inset 2px 0 0 var(--m-green-500);
+  }
+  .row .chev { width: 12px; color: var(--m-text-ghost); flex: none; transition: transform var(--m-dur-fast); }
+  .row.expanded .chev { transform: rotate(90deg); color: var(--m-green-500); }
+  .row.leaf .chev { visibility: hidden; }
+  .row .ic { width: 14px; height: 14px; flex: none; color: var(--m-text-faint); }
+  .row.on .ic { color: var(--m-green-500); }
+  .row .nm { overflow: hidden; text-overflow: ellipsis; }
+  .row .badge {
+    margin-left: auto;
+    font-size: 9px;
+    color: var(--m-text-faint);
+    padding: 1px 5px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 9999px;
+  }
+  .row.on .badge { color: var(--m-green-500); border-color: var(--m-border); }
+  .row.dirty .nm::after { content: " ●"; color: #ffb347; }
+  .kid { padding-left: 18px; }
+
+  .tree-foot { border-top: 1px solid var(--m-border-subtle); padding: 8px 12px; display: flex; align-items: center; gap: 8px; font: 500 10px var(--m-font-mono); color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .14em; }
+  .tree-foot b { color: var(--m-green-500); font-weight: 600; }
+
+  .tree.is-collapsed { grid-template-rows: auto 1fr auto; }
+  .tree-rail { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 0; }
+  .tree-rail .vlabel { writing-mode: vertical-rl; transform: rotate(180deg); font: 600 10px var(--m-font-mono); text-transform: uppercase; letter-spacing: .3em; color: var(--m-text-faint); margin-top: 14px; }
+  .tree-rail .badge-n { font: 500 10px var(--m-font-mono); color: var(--m-green-500); border: 1px solid var(--m-border); border-radius: 9999px; padding: 1px 6px; }
+
+  /* preview */
+  .pv { display: grid; grid-template-rows: auto auto auto 1fr auto; min-width: 0; overflow: hidden; background: var(--m-bg); }
+  .pv-top {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 22px;
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .pv-top .crumbs { font: 500 10px var(--m-font-mono); text-transform: uppercase; letter-spacing: .22em; color: var(--m-text-faint); display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; }
+  .pv-top .crumbs .seg { color: var(--m-text-muted); }
+  .pv-top .crumbs .seg.cur { color: var(--m-green-500); text-shadow: var(--m-text-glow); }
+  .pv-top .crumbs .sep { color: var(--m-text-ghost); }
+  .pv-top .right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+
+  .pv-meta {
+    display: flex; align-items: center; gap: 22px;
+    padding: 10px 22px;
+    border-bottom: 1px solid var(--m-border-subtle);
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase; letter-spacing: .15em;
+    background: var(--m-bg-deep);
+  }
+  .pv-meta .kv b { color: var(--m-text-strong); font-weight: 600; }
+  .pv-meta .kv b.ok { color: var(--m-green-500); }
+  .pv-meta .sep { width: 1px; height: 14px; background: var(--m-border-subtle); }
+
+  .pv-tabs {
+    display: flex; align-items: stretch;
+    border-bottom: 1px solid var(--m-border-subtle);
+    background: var(--m-panel);
+  }
+  .pv-tabs button {
+    background: transparent; border: none; cursor: pointer;
+    color: var(--m-text-muted);
+    font: 500 11px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .14em;
+    padding: 9px 14px;
+    display: inline-flex; align-items: center; gap: 7px;
+    border-bottom: 2px solid transparent;
+  }
+  .pv-tabs button:hover { color: var(--m-text); }
+  .pv-tabs button.on {
+    color: var(--m-green-500);
+    border-bottom-color: var(--m-green-500);
+    text-shadow: var(--m-text-glow);
+  }
+  .pv-tabs .grow { flex: 1; }
+  .pv-tabs .right { display: flex; align-items: center; gap: 6px; padding: 0 12px; }
+
+  .pv-canvas { overflow: auto; background: var(--m-bg); position: relative; }
+
+  /* preview shells */
+  .doc-shell {
+    max-width: 880px; margin: 0 auto; padding: 28px 36px 60px;
+    font: 400 14.5px/1.7 var(--m-font-sans);
+    color: var(--m-text);
+  }
+  .doc-shell h1 { font: 600 28px var(--m-font-mono); color: var(--m-text-strong); letter-spacing: .03em; text-shadow: var(--m-text-glow); margin: 0 0 6px; }
+  .doc-shell h2 { font: 600 18px var(--m-font-mono); color: var(--m-green-500); letter-spacing: .04em; margin: 28px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--m-border-subtle); }
+  .doc-shell h3 { font: 600 14px var(--m-font-mono); color: var(--m-text-strong); letter-spacing: .03em; margin: 22px 0 6px; text-transform: uppercase; }
+  .doc-shell p  { margin: 0 0 12px; color: var(--m-text); }
+  .doc-shell ul { margin: 0 0 16px; padding-left: 22px; }
+  .doc-shell li { margin: 4px 0; color: var(--m-text); }
+  .doc-shell li::marker { color: var(--m-green-500); }
+  .doc-shell code { font: 500 13px var(--m-font-mono); padding: 1px 5px; background: var(--m-bg-deep); border: 1px solid var(--m-border-subtle); border-radius: 3px; color: #d6ff5f; }
+  .doc-shell pre { background: #02080d; border: 1px solid var(--m-border); border-left: 3px solid var(--m-green-500); border-radius: var(--m-radius-md); padding: 14px 16px; margin: 12px 0 18px; font: 500 12.5px/1.6 var(--m-font-mono); overflow: auto; color: var(--m-text); }
+  .doc-shell pre .key { color: #5fcfff; }
+  .doc-shell pre .str { color: #d6ff5f; }
+  .doc-shell pre .com { color: var(--m-text-faint); font-style: italic; }
+  .doc-shell pre .kw  { color: #ff5fa2; }
+  .doc-shell pre .fn  { color: var(--m-green-500); }
+  .doc-shell .lead {
+    font-size: 16px; color: var(--m-text-muted); border-left: 2px solid var(--m-green-500); padding: 6px 0 6px 14px; margin: 4px 0 22px;
+    background: linear-gradient(90deg, rgba(0,255,65,.06), rgba(0,255,65,0));
+  }
+  .doc-shell blockquote { border-left: 2px solid var(--m-border); padding: 6px 0 6px 14px; margin: 12px 0; color: var(--m-text-muted); font-style: italic; }
+  .doc-shell table { border-collapse: collapse; width: 100%; margin: 8px 0 16px; font: 500 12.5px var(--m-font-mono); }
+  .doc-shell th, .doc-shell td { border: 1px solid var(--m-border-subtle); padding: 8px 10px; text-align: left; }
+  .doc-shell th { background: var(--m-bg-deep); color: var(--m-text-faint); text-transform: uppercase; font-size: 10.5px; letter-spacing: .15em; }
+
+  .doc-shell .arch {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0 22px;
+  }
+  .doc-shell .arch .node {
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    padding: 12px;
+    background: var(--m-bg-deep);
+    box-shadow: 0 0 0 1px rgba(0,255,65,.06) inset;
+  }
+  .doc-shell .arch .node .lbl { font: 600 10px var(--m-font-mono); text-transform: uppercase; letter-spacing: .22em; color: var(--m-text-faint); }
+  .doc-shell .arch .node b { display: block; margin-top: 4px; font: 600 14px var(--m-font-mono); color: var(--m-green-500); text-shadow: var(--m-text-glow); }
+  .doc-shell .arch .node p { margin-top: 6px; font: 400 12.5px/1.55 var(--m-font-sans); color: var(--m-text-muted); }
+
+  /* code/raw view */
+  .code-shell {
+    display: grid; grid-template-columns: 56px 1fr;
+    font: 500 12.5px/1.65 var(--m-font-mono);
+    color: var(--m-text);
+    background: #02080d;
+    min-height: 100%;
+  }
+  .code-shell .ln {
+    text-align: right; padding: 18px 12px 18px 0;
+    color: var(--m-text-ghost);
+    border-right: 1px solid var(--m-border-subtle);
+    user-select: none; font-size: 11.5px;
+    background: var(--m-bg-deep);
+  }
+  .code-shell .ln span { display: block; line-height: 1.65; }
+  .code-shell .src { padding: 18px 18px; white-space: pre; overflow-x: auto; }
+  .code-shell .src .key { color: #5fcfff; }
+  .code-shell .src .str { color: #d6ff5f; }
+  .code-shell .src .com { color: var(--m-text-faint); font-style: italic; }
+  .code-shell .src .kw  { color: #ff5fa2; }
+  .code-shell .src .fn  { color: var(--m-green-500); }
+  .code-shell .src .tag { color: #ff5fa2; }
+  .code-shell .src .attr { color: #5fcfff; }
+
+  /* outline panel (right rail in markdown) */
+  .doc-shell-wrap { display: grid; grid-template-columns: 1fr 220px; gap: 24px; max-width: 1140px; margin: 0 auto; padding-right: 24px; }
+  .outline {
+    position: sticky; top: 28px;
+    align-self: start;
+    margin-top: 32px;
+    padding: 14px 12px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    background: var(--m-panel);
+    font: 500 11.5px var(--m-font-mono);
+  }
+  .outline h5 { margin: 0 0 10px; font: 600 10px var(--m-font-mono); text-transform: uppercase; letter-spacing: .22em; color: var(--m-text-faint); }
+  .outline a { display: block; padding: 4px 8px; border-radius: 3px; color: var(--m-text-muted); text-decoration: none; border-left: 2px solid transparent; line-height: 1.45; }
+  .outline a:hover { color: var(--m-text); background: var(--m-fill-subtle); }
+  .outline a.on { color: var(--m-green-500); background: var(--m-fill); border-left-color: var(--m-green-500); }
+  .outline a.h3 { padding-left: 18px; font-size: 11px; }
+
+  /* footer */
+  .pg-foot {
+    border-top: 1px solid var(--m-border);
+    background: var(--m-sidebar);
+    display: flex; align-items: center; gap: 22px;
+    padding: 0 24px;
+    height: 30px;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  .pg-foot b { color: var(--m-text-strong); font-weight: 600; }
+  .pg-foot .ok { color: var(--m-green-500); }
+  .pg-foot .sep { width: 1px; height: 14px; background: var(--m-border-subtle); }
+
+  .empty { display: grid; place-items: center; height: 100%; color: var(--m-text-faint); font: 500 12px var(--m-font-mono); text-align: center; }
+  .empty .glyph { font-size: 36px; margin-bottom: 8px; color: var(--m-text-ghost); }
+
+  .pill-kind {
+    display: inline-flex; align-items: center; gap: 5px;
+    font: 500 9.5px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .14em;
+    padding: 2px 7px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 9999px;
+    color: var(--m-text-muted);
+    background: var(--m-bg-deep);
+  }
+  .pill-kind.html { color: #ff8a4f; border-color: rgba(255,138,79,.35); }
+  .pill-kind.md   { color: #5fcfff; border-color: rgba(95,207,255,.35); }
+  .pill-kind.json { color: #d6ff5f; border-color: rgba(214,255,95,.35); }
+  .pill-kind.yaml { color: #d6ff5f; border-color: rgba(214,255,95,.35); }
+  .pill-kind.code { color: var(--m-green-500); border-color: var(--m-border); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="primary-nav-v2.jsx"></script>
+
+<script type="text/babel">
+const Ico = {
+  search: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="11" cy="11" r="6"/><path d="m20 20-3.5-3.5"/></svg>,
+  chev:   <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m9 6 6 6-6 6"/></svg>,
+  fold:   <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m9 6-6 6 6 6M21 6h-9M21 12h-6M21 18h-9"/></svg>,
+  unfold: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m15 6 6 6-6 6M3 6h9M3 12h6M3 18h9"/></svg>,
+  refresh:<svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 12a8 8 0 0 1 14-5l3-3M4 4v5h5M20 12a8 8 0 0 1-14 5l-3 3M20 20v-5h-5"/></svg>,
+  plus:   <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 5v14M5 12h14"/></svg>,
+  upload: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 20V8m0 0-5 5m5-5 5 5M4 4h16"/></svg>,
+  dl:     <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 4v12m0 0-5-5m5 5 5-5M4 20h16"/></svg>,
+  copy:   <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg>,
+  edit:   <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 20h4l10-10-4-4L4 16zM14 6l4 4"/></svg>,
+  link:   <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/></svg>,
+  trash:  <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>,
+  open:   <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M14 4h6v6M20 4 10 14M10 6H4v14h14v-6"/></svg>,
+  ext:    <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M14 4h6v6M20 4 10 14M10 6H4v14h14v-6"/></svg>,
+  preview:<svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>,
+  raw:    <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m9 4-6 8 6 8M15 4l6 8-6 8"/></svg>,
+  outline:<svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 6h6M4 12h10M4 18h8"/></svg>,
+  meta:   <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 8v5l3 2"/></svg>,
+  folder: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 6a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6z"/></svg>,
+  fileHtml: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="m9 14 1 4 2-3 2 3 1-4" stroke="#ff8a4f"/></svg>,
+  fileMd:   <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 18v-4l1.5 2L12 14v4M14 14v4h2v-2l-1 1z" stroke="#5fcfff"/></svg>,
+  fileJson: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M10 12c-1 0-1 1-1 2s0 2 1 2M14 12c1 0 1 1 1 2s0 2-1 2" stroke="#d6ff5f"/></svg>,
+  fileYml:  <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="m9 13 2 3 2-3M11 16v3" stroke="#d6ff5f"/></svg>,
+  fileGen:  <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/></svg>,
+};
+
+const KIND = (n) => {
+  const ext = n.split('.').pop().toLowerCase();
+  if (ext === 'html' || ext === 'htm') return 'html';
+  if (ext === 'md' || ext === 'mdx') return 'md';
+  if (ext === 'json') return 'json';
+  if (ext === 'yaml' || ext === 'yml') return 'yaml';
+  if (['ts','tsx','js','jsx','css','sh','py','go','rs','sql'].includes(ext)) return 'code';
+  return 'txt';
+};
+const fileIcon = (n) => {
+  const k = KIND(n);
+  if (k === 'html') return Ico.fileHtml;
+  if (k === 'md')   return Ico.fileMd;
+  if (k === 'json') return Ico.fileJson;
+  if (k === 'yaml') return Ico.fileYml;
+  return Ico.fileGen;
+};
+
+/* ── Tree shape ─────────────────────────────────────────── */
+const TREE = [
+  { id:'art',  type:'dir', name:'artifacts', count: 14, children: [
+    { id:'art1', type:'file', name:'matrix-ui-spec.md',         size:'12 KB', mod:'2h ago', kind:'md' },
+    { id:'art2', type:'file', name:'session-export-2025-11.json', size:'48 KB', mod:'yesterday', kind:'json' },
+    { id:'art3', type:'file', name:'kpi-snapshot.png',          size:'212 KB', mod:'3d ago', kind:'img' },
+  ]},
+  { id:'scr',  type:'dir', name:'scripts',   count: 7, children: [
+    { id:'scr1', type:'file', name:'reindex.sh', size:'1.2 KB', mod:'4d ago', kind:'code' },
+    { id:'scr2', type:'file', name:'snapshot.py', size:'3.4 KB', mod:'1w ago', kind:'code' },
+  ]},
+  { id:'wik',  type:'dir', name:'wikis',     count: 22, children: [
+    { id:'wik1', type:'file', name:'agent-runtime.md', size:'18 KB', mod:'today', kind:'md' },
+  ]},
+  { id:'f1', type:'file', name:'claude-code-acp-architecture.html', size:'72 KB', mod:'today', kind:'html', dirty:true },
+  { id:'f2', type:'file', name:'Hermes Agent - Claude Design.html', size:'108 KB', mod:'today', kind:'html' },
+  { id:'f3', type:'file', name:'Hermes Agent - Matrix Landing.html', size:'94 KB',  mod:'yesterday', kind:'html' },
+  { id:'f4', type:'file', name:'Hermes Agent - Open Design.html',    size:'82 KB',  mod:'2d ago', kind:'html' },
+  { id:'f5', type:'file', name:'Hermes Agent - Terminator Landing.html', size:'76 KB', mod:'3d ago', kind:'html' },
+  { id:'f6', type:'file', name:'hermes-honcho-memory-flow.html',  size:'46 KB', mod:'5d ago', kind:'html' },
+  { id:'f7', type:'file', name:'hermes-manifest-local-config.html', size:'52 KB', mod:'5d ago', kind:'html' },
+  { id:'f8', type:'file', name:'hermes-manifest-router-architecture.html', size:'88 KB', mod:'1w ago', kind:'html' },
+  { id:'f9', type:'file', name:'hermes-memory-llmwiki-architecture.html', size:'64 KB', mod:'1w ago', kind:'html' },
+  { id:'f10',type:'file', name:'interstellar-consulting-redesign.html', size:'120 KB', mod:'2w ago', kind:'html' },
+  { id:'f11',type:'file', name:'config.yaml', size:'1.8 KB', mod:'today', kind:'yaml' },
+  { id:'f12',type:'file', name:'README.md', size:'4.2 KB', mod:'today', kind:'md' },
+];
+
+/* sample preview content per file kind */
+const SAMPLES = {
+  'README.md': { kind:'md',
+    raw: `# Hermes Agent
+*A local-first agent runtime that ships its own UI.*
+
+> Hermes is a runtime + UI for orchestrating LLM agents against MCP servers,
+> skills, and your filesystem — without sending your work to anyone else's cloud.
+
+## What's in this workspace
+- **Skills** — versioned prompt-modules invoked by trigger phrases
+- **MCP** — Model Context Protocol servers exposed to the agent
+- **Sessions** — persistent multi-turn conversations with full transcripts
+- **Memory** — Honcho-backed long-term recall
+
+## Getting started
+\`\`\`bash
+pnpm install
+pnpm dev
+hermes-agent serve --listen :7331
+\`\`\`
+
+The dashboard runs at \`http://localhost:3000\`.
+
+## Architecture
+The runtime is split between a TanStack Start UI and a Go-based agent service.
+See \`hermes-manifest-router-architecture.html\` for the request lifecycle.
+
+## License
+MIT.` },
+  'config.yaml': { kind:'yaml',
+    raw: `# Hermes config — local-first defaults
+runtime:
+  listen: ":7331"
+  workers: 8
+  heap_mb: 12288
+
+session:
+  store: ./sessions.db
+  ttl_hours: 168
+  archive_dir: ./archive
+
+mcp:
+  config_fallback: true
+  servers:
+    - id: dart
+      transport: stdio
+      command: "npx -y dart-mcp-server"
+      auth: bearer
+    - id: filesystem
+      transport: stdio
+      command: "npx -y @modelcontextprotocol/server-filesystem"
+      auth: none
+
+memory:
+  backend: honcho
+  url: http://localhost:8080
+
+logging:
+  level: info
+  format: json` },
+};
+
+/* ── flatten the tree to visible rows based on expanded set ─ */
+function buildRows(tree, expanded, q, depth = 0, out = []) {
+  const re = q ? new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'i') : null;
+  for (const node of tree) {
+    const matches = !re || re.test(node.name) || (node.children && node.children.some(c => re.test(c.name)));
+    if (!matches) continue;
+    out.push({ ...node, depth });
+    if (node.type === 'dir' && (expanded[node.id] || (re && node.children && node.children.some(c => re.test(c.name))))) {
+      buildRows(node.children || [], expanded, q, depth + 1, out);
+    }
+  }
+  return out;
+}
+
+/* ── tiny markdown renderer (good enough for previews) ───── */
+function MD({ text }) {
+  // very small renderer — handles #, ##, ###, lists, code fences, paragraphs, blockquote, inline code
+  const blocks = [];
+  const lines = text.split('\n');
+  let i = 0;
+  while (i < lines.length) {
+    const l = lines[i];
+    if (l.startsWith('```')) {
+      const code = []; i++;
+      while (i < lines.length && !lines[i].startsWith('```')) { code.push(lines[i]); i++; }
+      i++;
+      blocks.push({ t:'code', text: code.join('\n') });
+      continue;
+    }
+    if (/^#\s/.test(l))   { blocks.push({ t:'h1', text:l.slice(2) }); i++; continue; }
+    if (/^##\s/.test(l))  { blocks.push({ t:'h2', text:l.slice(3), id:l.slice(3).toLowerCase().replace(/[^a-z0-9]+/g,'-') }); i++; continue; }
+    if (/^###\s/.test(l)) { blocks.push({ t:'h3', text:l.slice(4), id:l.slice(4).toLowerCase().replace(/[^a-z0-9]+/g,'-') }); i++; continue; }
+    if (/^>\s/.test(l))   { blocks.push({ t:'q', text:l.slice(2) }); i++; continue; }
+    if (/^\*[^*]/.test(l)) { blocks.push({ t:'em', text:l.slice(1).replace(/\*$/,'') }); i++; continue; }
+    if (/^[-*]\s/.test(l)) {
+      const items = []; while (i < lines.length && /^[-*]\s/.test(lines[i])) { items.push(lines[i].slice(2)); i++; }
+      blocks.push({ t:'ul', items }); continue;
+    }
+    if (l.trim() === '') { i++; continue; }
+    const para = [l]; i++;
+    while (i < lines.length && lines[i].trim() && !/^[#>\-*]/.test(lines[i]) && !lines[i].startsWith('```')) { para.push(lines[i]); i++; }
+    blocks.push({ t:'p', text: para.join(' ') });
+  }
+  const inline = (s) => {
+    // bold, code, links — render as JSX array
+    const parts = []; let rest = s, key = 0;
+    const re = /(\*\*[^*]+\*\*|`[^`]+`|\[[^\]]+\]\([^)]+\))/;
+    while (rest) {
+      const m = rest.match(re);
+      if (!m) { parts.push(<React.Fragment key={key++}>{rest}</React.Fragment>); break; }
+      if (m.index > 0) parts.push(<React.Fragment key={key++}>{rest.slice(0, m.index)}</React.Fragment>);
+      const tok = m[0];
+      if (tok.startsWith('**')) parts.push(<strong key={key++} style={{ color:'var(--m-text-strong)' }}>{tok.slice(2,-2)}</strong>);
+      else if (tok.startsWith('`')) parts.push(<code key={key++}>{tok.slice(1,-1)}</code>);
+      else { const lm = tok.match(/\[([^\]]+)\]\(([^)]+)\)/); parts.push(<a key={key++} href={lm[2]} style={{ color:'var(--m-green-500)' }}>{lm[1]}</a>); }
+      rest = rest.slice(m.index + tok.length);
+    }
+    return parts;
+  };
+  return (
+    <>
+      {blocks.map((b, idx) => {
+        if (b.t === 'h1') return <h1 key={idx}>{inline(b.text)}</h1>;
+        if (b.t === 'h2') return <h2 key={idx} id={b.id}>{inline(b.text)}</h2>;
+        if (b.t === 'h3') return <h3 key={idx} id={b.id}>{inline(b.text)}</h3>;
+        if (b.t === 'p')  return <p key={idx}>{inline(b.text)}</p>;
+        if (b.t === 'em') return <p key={idx} className="lead">{inline(b.text)}</p>;
+        if (b.t === 'q')  return <blockquote key={idx}>{inline(b.text)}</blockquote>;
+        if (b.t === 'ul') return <ul key={idx}>{b.items.map((it, j) => <li key={j}>{inline(it)}</li>)}</ul>;
+        if (b.t === 'code') return <pre key={idx}><code>{b.text}</code></pre>;
+        return null;
+      })}
+    </>
+  );
+}
+
+/* simple yaml/json line numbering */
+function CodeView({ src, lang }) {
+  const lines = src.split('\n');
+  const colorize = (line) => {
+    if (lang === 'yaml') {
+      // key:
+      const m = line.match(/^(\s*)([\w.-]+)(:)(.*)$/);
+      if (m) {
+        return <><span>{m[1]}</span><span className="key">{m[2]}</span><span>{m[3]}</span><span className={/^"|'/.test(m[4].trim())?'str':''}>{m[4]}</span></>;
+      }
+      if (/^\s*#/.test(line)) return <span className="com">{line}</span>;
+      if (/^\s*-\s/.test(line)) return <span><span style={{color:'#5fcfff'}}>{line.match(/^\s*-/)[0]}</span>{line.replace(/^\s*-/, '')}</span>;
+    }
+    return line;
+  };
+  return (
+    <div className="code-shell">
+      <div className="ln">{lines.map((_, i) => <span key={i}>{i+1}</span>)}</div>
+      <div className="src">{lines.map((l, i) => <div key={i} style={{ minHeight:'1.65em' }}>{colorize(l)}</div>)}</div>
+    </div>
+  );
+}
+
+/* ── HTML preview (rich landing-style mock for .html) ── */
+function HtmlPreview({ name }) {
+  return (
+    <div className="doc-shell">
+      <div style={{ font:'500 10px var(--m-font-mono)', color:'var(--m-text-faint)', textTransform:'uppercase', letterSpacing:'.22em' }}>artifact · architecture</div>
+      <h1>{name.replace(/\.html$/, '')}</h1>
+      <p className="lead">Sandboxed HTML preview. Scripts are stripped; styles are rewritten to live within the Files canvas. Click <b style={{ color:'var(--m-green-500)' }}>Open in tab</b> to render the original.</p>
+
+      <h2 id="overview">Overview</h2>
+      <p>
+        Hermes routes every agent turn through a manifest router that picks a handler from the registered
+        skills, MCP tool calls, and built-in primitives. The diagram below shows how a single user message
+        traverses the runtime before it ever hits an LLM.
+      </p>
+
+      <div className="arch">
+        <div className="node"><div className="lbl">01 — UI</div><b>switchui</b><p>TanStack Start renders the chat / files / terminal surfaces and posts intents over WebSocket.</p></div>
+        <div className="node"><div className="lbl">02 — Router</div><b>manifest-router</b><p>Resolves intent → skill or tool. Falls back to the model with retrieved memory.</p></div>
+        <div className="node"><div className="lbl">03 — Runtime</div><b>hermes-agent</b><p>Executes tool calls, streams tokens back, persists session state.</p></div>
+      </div>
+
+      <h2 id="lifecycle">Request lifecycle</h2>
+      <ul>
+        <li><b style={{color:'var(--m-green-500)'}}>UI → /api/sessions/cmd</b> – queues the user turn, returns a session id.</li>
+        <li><b style={{color:'var(--m-green-500)'}}>Router</b> – matches against installed skills, then MCP tool registry.</li>
+        <li><b style={{color:'var(--m-green-500)'}}>LLM</b> – streams tokens; tool calls are intercepted and proxied.</li>
+        <li><b style={{color:'var(--m-green-500)'}}>WS push</b> – partial output is fanned out to all subscribers of that session.</li>
+      </ul>
+
+      <h2 id="manifest">Manifest contract</h2>
+      <p>Every skill ships a small <code>manifest.yaml</code> declaring triggers, inputs, and outputs:</p>
+      <pre>
+<span className="com">{`# skills/site-summary/manifest.yaml`}</span>{'\n'}
+<span className="key">id</span>: site-summary{'\n'}
+<span className="key">version</span>: <span className="str">"1.4.0"</span>{'\n'}
+<span className="key">triggers</span>:{'\n'}{'  '}- <span className="str">"summarize this page"</span>{'\n'}{'  '}- <span className="str">"give me the gist of {`{url}`}"</span>{'\n'}
+<span className="key">inputs</span>:{'\n'}{'  '}- <span className="key">name</span>: url{'\n'}{'    '}<span className="key">type</span>: string{'\n'}
+<span className="key">outputs</span>:{'\n'}{'  '}- <span className="key">name</span>: summary{'\n'}{'    '}<span className="key">type</span>: markdown
+      </pre>
+
+      <h2 id="ops">Ops &amp; observability</h2>
+      <table>
+        <thead><tr><th>Surface</th><th>Channel</th><th>Retention</th></tr></thead>
+        <tbody>
+          <tr><td>Tool call traces</td><td>OTLP</td><td>14 days</td></tr>
+          <tr><td>Session transcripts</td><td>SQLite</td><td>180 days</td></tr>
+          <tr><td>Telemetry counters</td><td>Prometheus</td><td>30 days</td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="caveats">Caveats</h3>
+      <blockquote>The local fallback path skips OTLP — only the SQLite log captures activity.</blockquote>
+      <p>This preview is a mock rendering of the artifact, not the original document. Use the <b>Raw</b> tab to inspect source.</p>
+    </div>
+  );
+}
+
+/* derive outline from current preview node */
+function makeOutline(file) {
+  const k = file.kind || KIND(file.name);
+  if (k === 'html') {
+    return [
+      { id:'overview', t:'Overview', lvl:2 },
+      { id:'lifecycle', t:'Request lifecycle', lvl:2 },
+      { id:'manifest', t:'Manifest contract', lvl:2 },
+      { id:'ops', t:'Ops & observability', lvl:2 },
+      { id:'caveats', t:'Caveats', lvl:3 },
+    ];
+  }
+  if (k === 'md' && SAMPLES[file.name]) {
+    return SAMPLES[file.name].raw.split('\n').filter(l => /^##\s|^###\s/.test(l)).map(l => ({
+      id: l.replace(/^#+\s/,'').toLowerCase().replace(/[^a-z0-9]+/g,'-'),
+      t:  l.replace(/^#+\s/,''),
+      lvl: l.startsWith('### ') ? 3 : 2,
+    }));
+  }
+  return [];
+}
+
+/* raw text per file kind (mock) */
+function rawFor(file) {
+  if (SAMPLES[file.name]) return SAMPLES[file.name].raw;
+  const k = file.kind || KIND(file.name);
+  if (k === 'html') return `<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8"/>\n    <title>${file.name}</title>\n    <link rel="stylesheet" href="../matrix-system.css"/>\n  </head>\n  <body>\n    <header>\n      <h1>${file.name.replace(/\.html$/,'')}</h1>\n      <p class="lead">Hermes agent runtime — architecture brief.</p>\n    </header>\n    <main>\n      <section id="overview">…</section>\n      <section id="lifecycle">…</section>\n    </main>\n  </body>\n</html>\n`;
+  if (k === 'json') return `{\n  "session": "s_8412c3",\n  "model": "claude-haiku-4-5",\n  "turns": 14,\n  "started": "2025-11-05T13:58:02Z",\n  "tools_used": ["fs.read_file", "dart_analyze", "github.search"]\n}\n`;
+  return `# ${file.name}\n\n(no preview content)\n`;
+}
+
+/* ── Components ─────────────────────────────────────────── */
+function Tree({ rows, openDirs, toggleDir, activeId, onPick, q, setQ, collapsed, setCollapsed }) {
+  if (collapsed) {
+    return (
+      <aside className="tree is-collapsed">
+        <div className="tree-head" style={{ justifyContent:'center' }}>
+          <span className="ico-btn active" onClick={() => setCollapsed(false)} title="Expand tree">{Ico.unfold}</span>
+        </div>
+        <div className="tree-rail">
+          <span className="badge-n">{rows.filter(r => r.type==='file').length}</span>
+          <span className="vlabel">Workspace</span>
+        </div>
+        <div/>
+      </aside>
+    );
+  }
+  const fileCt = rows.filter(r => r.type === 'file').length;
+  const dirCt  = rows.filter(r => r.type === 'dir').length;
+  return (
+    <aside className="tree">
+      <div className="tree-head">
+        <h3>Workspace</h3><span className="ct">{fileCt + dirCt}</span>
+        <span className="actions">
+          <span className="ico-btn" title="Refresh">{Ico.refresh}</span>
+          <span className="ico-btn" title="Upload">{Ico.upload}</span>
+          <span className="ico-btn" title="Collapse" onClick={() => setCollapsed(true)}>{Ico.fold}</span>
+        </span>
+      </div>
+      <div className="tree-search">
+        <div className="m-input" style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px' }}>
+          {Ico.search}
+          <input style={{ flex:1, background:'transparent', border:'none', outline:'none', color:'var(--m-text)', font:'500 12.5px var(--m-font-mono)' }} placeholder="search files…" value={q} onChange={e => setQ(e.target.value)}/>
+          {q && <span style={{ font:'500 10px var(--m-font-mono)', color:'var(--m-text-faint)', cursor:'pointer' }} onClick={() => setQ('')}>esc</span>}
+        </div>
+      </div>
+      <div className="tree-bcr">
+        <span className="seg">~</span>
+        <span className="sep">/</span>
+        <span className="seg">.hermes</span>
+        <span className="sep">/</span>
+        <span className="seg cur">workspace</span>
+      </div>
+      <div className="tree-body">
+        {rows.map(r => r.type === 'dir' ? (
+          <div key={r.id} style={{ paddingLeft: r.depth * 12 }}>
+            <div className={`row ${openDirs[r.id]?'expanded':''} ${r.id===activeId?'on':''}`} onClick={() => toggleDir(r.id)}>
+              <span className="chev">{Ico.chev}</span>
+              <span className="ic">{Ico.folder}</span>
+              <span className="nm">{r.name}</span>
+              <span className="badge">{r.count}</span>
+            </div>
+          </div>
+        ) : (
+          <div key={r.id} style={{ paddingLeft: r.depth * 12 }}>
+            <div className={`row leaf ${r.dirty?'dirty':''} ${r.id===activeId?'on':''}`} onClick={() => onPick(r)}>
+              <span className="chev">{Ico.chev}</span>
+              <span className="ic">{fileIcon(r.name)}</span>
+              <span className="nm">{r.name}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="tree-foot">
+        <span><b>{fileCt}</b> files</span>
+        <span style={{ marginLeft:'auto' }}><b>{dirCt}</b> dirs</span>
+      </div>
+    </aside>
+  );
+}
+
+/* ── App ────────────────────────────────────────────────── */
+function App() {
+  const [openDirs, setOpenDirs] = React.useState({ art:true, scr:false, wik:false });
+  const [q, setQ] = React.useState('');
+  const [activeId, setActiveId] = React.useState('f3');
+  const [tab, setTab] = React.useState('preview');
+  const [showOutline, setShowOutline] = React.useState(true);
+  const [collapsed, setCollapsed] = React.useState(false);
+  const [activeAnchor, setActiveAnchor] = React.useState('overview');
+
+  const rows = React.useMemo(() => buildRows(TREE, openDirs, q), [openDirs, q]);
+  const findFile = (id, list = TREE) => {
+    for (const n of list) {
+      if (n.id === id && n.type === 'file') return n;
+      if (n.children) { const f = findFile(id, n.children); if (f) return f; }
+    }
+    return null;
+  };
+  const file = findFile(activeId) || TREE.find(n => n.type === 'file');
+  const kind = file ? (file.kind || KIND(file.name)) : null;
+  const outline = file ? makeOutline(file) : [];
+
+  const toggleDir = (id) => setOpenDirs(p => ({ ...p, [id]: !p[id] }));
+  const pick = (n) => { setActiveId(n.id); setTab('preview'); };
+
+  // outline scroll-spy (very light)
+  const scrollerRef = React.useRef(null);
+  React.useEffect(() => {
+    const el = scrollerRef.current; if (!el || tab !== 'preview' || outline.length === 0) return;
+    const onScroll = () => {
+      let cur = outline[0]?.id;
+      for (const o of outline) {
+        const node = el.querySelector('#' + CSS.escape(o.id));
+        if (node && node.getBoundingClientRect().top < 120) cur = o.id;
+      }
+      setActiveAnchor(cur);
+    };
+    el.addEventListener('scroll', onScroll);
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [tab, file, outline]);
+
+  return (
+    <div className={`shell ${collapsed?'tree-collapsed':''}`}>
+      <nav className="nav"><PrimaryNavV2 active="files" sessionsBadge={9} /></nav>
+      <Tree rows={rows} openDirs={openDirs} toggleDir={toggleDir} activeId={activeId} onPick={pick} q={q} setQ={setQ} collapsed={collapsed} setCollapsed={setCollapsed}/>
+
+      <main className="pv">
+        {file ? <>
+          <div className="pv-top">
+            <div className="crumbs">
+              <span className="seg">~/.hermes</span>
+              <span className="sep">/</span>
+              <span className="seg">workspace</span>
+              <span className="sep">/</span>
+              <span className="seg cur">{file.name}</span>
+            </div>
+            <div className="right">
+              <span className={`pill-kind ${kind}`}>{kind}</span>
+              <span className="ico-btn" title="Copy path">{Ico.copy}</span>
+              <span className="ico-btn" title="Edit">{Ico.edit}</span>
+              <span className="ico-btn" title="Open in new tab">{Ico.open}</span>
+              <span className="ico-btn" title="Download">{Ico.dl}</span>
+              <span className="ico-btn" title="Delete" style={{ color:'#ff5fa2' }}>{Ico.trash}</span>
+            </div>
+          </div>
+
+          <div className="pv-meta">
+            <span className="kv">{file.name} · <b>{file.size}</b></span>
+            <span className="sep"/>
+            <span className="kv">modified <b>{file.mod}</b></span>
+            <span className="sep"/>
+            <span className="kv">kind <b className="ok">{kind}</b></span>
+            <span className="sep"/>
+            <span className="kv">encoding <b>UTF-8</b></span>
+            <span className="sep"/>
+            <span className="kv">permissions <b>0644</b></span>
+            {file.dirty && <><span className="sep"/><span className="kv" style={{ color:'#ffb347' }}>● <b style={{ color:'#ffb347' }}>unsaved changes</b></span></>}
+          </div>
+
+          <div className="pv-tabs">
+            <button className={tab==='preview'?'on':''} onClick={() => setTab('preview')}>{Ico.preview}<span>preview</span></button>
+            <button className={tab==='raw'?'on':''} onClick={() => setTab('raw')}>{Ico.raw}<span>raw</span></button>
+            <button className={tab==='meta'?'on':''} onClick={() => setTab('meta')}>{Ico.meta}<span>metadata</span></button>
+            <span className="grow"/>
+            <span className="right">
+              {(kind === 'html' || kind === 'md') && outline.length > 0 && (
+                <span className={`ico-btn ${showOutline?'active':''}`} title="Toggle outline" onClick={() => setShowOutline(s => !s)}>{Ico.outline}</span>
+              )}
+              <span className="ico-btn" title="Open externally">{Ico.ext}</span>
+            </span>
+          </div>
+
+          <div className="pv-canvas" ref={scrollerRef}>
+            {tab === 'preview' && (
+              <>
+                {kind === 'html' && (
+                  showOutline && outline.length > 0 ? (
+                    <div className="doc-shell-wrap">
+                      <HtmlPreview name={file.name}/>
+                      <aside className="outline">
+                        <h5>On this page</h5>
+                        {outline.map(o => (
+                          <a key={o.id} href={'#'+o.id} className={`${o.lvl===3?'h3':''} ${activeAnchor===o.id?'on':''}`}
+                            onClick={e => { e.preventDefault(); const node = scrollerRef.current.querySelector('#'+CSS.escape(o.id)); if (node) node.scrollIntoView({ block:'start' }); setActiveAnchor(o.id); }}>{o.t}</a>
+                        ))}
+                      </aside>
+                    </div>
+                  ) : <HtmlPreview name={file.name}/>
+                )}
+                {kind === 'md' && (
+                  showOutline && outline.length > 0 ? (
+                    <div className="doc-shell-wrap">
+                      <div className="doc-shell"><MD text={SAMPLES[file.name]?.raw || rawFor(file)}/></div>
+                      <aside className="outline">
+                        <h5>On this page</h5>
+                        {outline.map(o => (
+                          <a key={o.id} href={'#'+o.id} className={`${o.lvl===3?'h3':''} ${activeAnchor===o.id?'on':''}`}
+                            onClick={e => { e.preventDefault(); const node = scrollerRef.current.querySelector('#'+CSS.escape(o.id)); if (node) node.scrollIntoView({ block:'start' }); setActiveAnchor(o.id); }}>{o.t}</a>
+                        ))}
+                      </aside>
+                    </div>
+                  ) : <div className="doc-shell"><MD text={SAMPLES[file.name]?.raw || rawFor(file)}/></div>
+                )}
+                {kind === 'yaml' && <CodeView src={rawFor(file)} lang="yaml"/>}
+                {kind === 'json' && <CodeView src={rawFor(file)} lang="json"/>}
+                {(kind !== 'html' && kind !== 'md' && kind !== 'yaml' && kind !== 'json') && (
+                  <div className="empty"><div><div className="glyph">⌧</div>preview not available — switch to <b style={{color:'var(--m-green-500)'}}>raw</b></div></div>
+                )}
+              </>
+            )}
+            {tab === 'raw' && <CodeView src={rawFor(file)} lang={kind}/>}
+            {tab === 'meta' && (
+              <div className="doc-shell">
+                <h2>Metadata</h2>
+                <table>
+                  <tbody>
+                    <tr><th style={{ width:180 }}>Path</th><td><code>~/.hermes/workspace/{file.name}</code></td></tr>
+                    <tr><th>Size</th><td>{file.size}</td></tr>
+                    <tr><th>Modified</th><td>{file.mod}</td></tr>
+                    <tr><th>Kind</th><td>{kind}</td></tr>
+                    <tr><th>Encoding</th><td>UTF-8</td></tr>
+                    <tr><th>Permissions</th><td>0644 (rw-r--r--)</td></tr>
+                    <tr><th>Owner</th><td>rohits:staff</td></tr>
+                    <tr><th>SHA-256</th><td><code>4e9f…c2a1</code></td></tr>
+                    <tr><th>Linked sessions</th><td>3 — <a style={{ color:'var(--m-green-500)' }}>open in chat</a></td></tr>
+                  </tbody>
+                </table>
+                <h3 style={{ marginTop: 22 }}>Recent activity</h3>
+                <ul>
+                  <li><b style={{color:'var(--m-green-500)'}}>14:02</b> — agent appended 3 sections</li>
+                  <li><b style={{color:'var(--m-green-500)'}}>13:58</b> — rohits opened the file in editor</li>
+                  <li><b style={{color:'var(--m-text-faint)'}}>yesterday</b> — created via <code>skill: doc.draft</code></li>
+                </ul>
+              </div>
+            )}
+          </div>
+        </> : <div className="empty"><div><div className="glyph">∅</div>pick a file from the workspace</div></div>}
+
+        <footer className="pg-foot">
+          <span><b>{TREE.filter(n => n.type==='file').length}</b> files</span>
+          <span className="sep"/>
+          <span>{file ? <>viewing <b style={{ color:'var(--m-green-500)' }}>{file.name}</b></> : 'no file'}</span>
+          <span className="sep"/>
+          <span>tab <b>{tab}</b></span>
+          <span style={{ marginLeft:'auto' }}>workspace <b>~/.hermes</b></span>
+          <span className="sep"/>
+          <span>indexed <b>just now</b></span>
+        </footer>
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
