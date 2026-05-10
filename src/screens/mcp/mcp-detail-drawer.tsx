@@ -15,6 +15,7 @@ export type McpServerView = {
   tools: number
   latency: number | null
   cmd: string
+  args?: Array<string>
   source: string
   enabled: boolean
   installed: boolean
@@ -110,6 +111,17 @@ export function McpDetailDrawer({ server, onClose, onToggle }: McpDetailDrawerPr
     if (server) setActiveTab('overview')
   }, [server?.id])
 
+  const toolEntries = useMemo(() => {
+    if (!server) return []
+    if (server.discoveredTools && server.discoveredTools.length > 0) {
+      return server.discoveredTools.map((t) => ({ n: t.name, d: t.description || '(no description)' }))
+    }
+    return Array.from({ length: Math.min(server.tools, 4) }, (_, i) => ({
+      n: `${server.id}.tool_${i + 1}`,
+      d: '(no schema introspected — run Test to fetch)',
+    }))
+  }, [server])
+
   if (!server) {
     return (
       <>
@@ -120,16 +132,7 @@ export function McpDetailDrawer({ server, onClose, onToggle }: McpDetailDrawerPr
   }
 
   const ini = initials(server.id)
-
-  const toolEntries = useMemo(() => {
-    if (server.discoveredTools && server.discoveredTools.length > 0) {
-      return server.discoveredTools.map((t) => ({ n: t.name, d: t.description || '(no description)' }))
-    }
-    return Array.from({ length: Math.min(server.tools, 4) }, (_, i) => ({
-      n: `${server.id}.tool_${i + 1}`,
-      d: '(no schema introspected — run Test to fetch)',
-    }))
-  }, [server])
+  const commandLine = [server.cmd, ...(server.args ?? [])].filter(Boolean).join(' ')
 
   function handleCopyEndpoint() {
     if (!server) return
@@ -143,7 +146,7 @@ export function McpDetailDrawer({ server, onClose, onToggle }: McpDetailDrawerPr
       <div className="mcp-drawer-scrim open" onClick={onClose} />
 
       {/* drawer panel */}
-      <div className="mcp-drawer open">
+      <aside className="mcp-drawer open">
         {/* header */}
         <div className="mcp-drawer-hdr">
           <div className="mcp-glyph">{ini}</div>
@@ -289,7 +292,7 @@ export function McpDetailDrawer({ server, onClose, onToggle }: McpDetailDrawerPr
                   </div>
                   {server.transport === 'stdio' ? (
                     <div>
-                      {'  '}<span style={{ color: '#5fcfff' }}>command</span>: <span style={{ color: 'var(--m-text, #a0d4b8)' }}>{server.cmd || server.endpoint}</span>
+                      {'  '}<span style={{ color: '#5fcfff' }}>command</span>: <span style={{ color: 'var(--m-text, #a0d4b8)' }}>{commandLine || server.endpoint}</span>
                     </div>
                   ) : (
                     <div>
@@ -324,7 +327,7 @@ export function McpDetailDrawer({ server, onClose, onToggle }: McpDetailDrawerPr
                 <div className="mcp-log">
                   <div>
                     <span className="mcp-ts">14:02:11.412</span>
-                    <span className="mcp-ok">[ok]</span> spawn <span className="mcp-key">{server.cmd || server.endpoint}</span>
+                    <span className="mcp-ok">[ok]</span> spawn <span className="mcp-key">{commandLine || server.endpoint}</span>
                   </div>
                   <div>
                     <span className="mcp-ts">14:02:11.418</span>
@@ -370,7 +373,7 @@ export function McpDetailDrawer({ server, onClose, onToggle }: McpDetailDrawerPr
           )}
           <button type="button" className="mcp-btn mcp-btn-sm" onClick={onClose}>Close</button>
         </div>
-      </div>
+      </aside>
     </>
   )
 }

@@ -46,6 +46,14 @@ const Ico = {
       <path d="M12 5v14M5 12h14" />
     </svg>
   ),
+  refresh: (
+    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M21 12a9 9 0 0 1-15.3 6.36L3 15" />
+      <path d="M3 21v-6h6" />
+      <path d="M3 12A9 9 0 0 1 18.3 5.64L21 9" />
+      <path d="M21 3v6h-6" />
+    </svg>
+  ),
   x: (
     <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <path d="M6 6 18 18M18 6 6 18" />
@@ -87,13 +95,35 @@ function serverInitials(id: string): string {
     .toUpperCase()
 }
 
+function endpointDisplay(s: McpServer): string {
+  if (s.transportType === 'stdio') {
+    return [s.command, ...s.args].filter(Boolean).join(' ') || s.id
+  }
+  return s.url || s.id
+}
+
+function endpointScheme(server: McpServerView): string {
+  if (server.transport === 'stdio') return '$ '
+  if (server.endpoint.startsWith('https://')) return 'https://'
+  if (server.endpoint.startsWith('http://')) return 'http://'
+  return ''
+}
+
+function endpointBody(server: McpServerView): string {
+  return server.transport === 'stdio'
+    ? server.endpoint
+    : server.endpoint.replace(/^https?:\/\//, '')
+}
+
+function toolsLabel(tools: number): string {
+  return tools > 0 ? `${tools} tools` : 'awaiting probe'
+}
+
 /** Map McpServer from API to our internal view model */
 function toView(s: McpServer): McpServerView {
   const transport = s.transportType
   const auth = s.authType
-  const endpoint = s.transportType === 'stdio'
-    ? (s.command || s.url || s.id)
-    : (s.url || s.id)
+  const endpoint = endpointDisplay(s)
   const status = s.status === 'connected' ? 'connected'
     : s.status === 'failed' ? 'error'
     : 'unknown'
@@ -108,6 +138,7 @@ function toView(s: McpServer): McpServerView {
     tools: s.discoveredToolsCount,
     latency: null,
     cmd,
+    args: s.args,
     source: s.source === 'configured' ? 'config.yaml' : 'config.yaml',
     enabled: s.enabled,
     installed: true,
@@ -142,7 +173,7 @@ function statusPillClass(status: string): string {
 
 function sortLabel(s: SortMode): string {
   if (s === 'status') return 'connected first'
-  if (s === 'name') return 'name a–z'
+  if (s === 'name') return 'name a-z'
   return 'most tools'
 }
 
@@ -224,6 +255,13 @@ export function McpScreen() {
   const installedCount = allServers.filter((s) => s.installed).length
   const marketCount = allServers.filter((s) => s.status === 'market').length
 
+  const resetFilters = useCallback(() => {
+    setSearch('')
+    setStatusFilter('installed')
+    setTransportFilter('all')
+    setAuthFilter('all')
+  }, [])
+
   /* toggle handler */
   const handleToggle = useCallback(
     (s: McpServerView) => {
@@ -249,10 +287,7 @@ export function McpScreen() {
       )}
       data-screen="mcp"
     >
-      {/* Column 1: Nav placeholder */}
-      <nav className="mcp-nav" />
-
-      {/* Column 2: Filter panel */}
+      {/* Column 1: Filter panel */}
       {filtersCollapsed ? (
         <aside className="mcp-filter is-collapsed">
           <div className="mcp-filter-hdr" style={{ justifyContent: 'center' }}>
@@ -286,6 +321,14 @@ export function McpScreen() {
             <h3>Filters</h3>
             <span className="mcp-ct">{filteredList.length}</span>
             <span className="mcp-actions">
+              <button
+                type="button"
+                className="mcp-ico-btn"
+                onClick={resetFilters}
+                title="Reset filters"
+              >
+                {Ico.refresh}
+              </button>
               <button
                 type="button"
                 className="mcp-ico-btn"
@@ -417,7 +460,7 @@ export function McpScreen() {
         </aside>
       )}
 
-      {/* Column 3: Main content */}
+      {/* Column 2: Main content */}
       <main className="mcp-main">
         {/* Top header */}
         <div className="mcp-top">
@@ -540,7 +583,7 @@ export function McpScreen() {
           <span><b className="mcp-ok">{connectedCount}</b> connected</span>
           <span className="mcp-sep" />
           <span>mode <b>{capabilityMode === 'fallback' ? 'config fallback' : 'native'}</b></span>
-          <span style={{ marginLeft: 'auto' }}>updated <b>now</b></span>
+          <span className="mcp-foot-updated">updated <b>now</b></span>
         </footer>
       </main>
 
@@ -602,16 +645,34 @@ function ServerCard({
         <div className="mcp-glyph">{ini}</div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div className="mcp-name">{server.id}</div>
-          <div className="mcp-by">{server.source || server.endpoint}</div>
+          <div className="mcp-by">{server.source || 'config.yaml'}</div>
+        </div>
+        <div className="mcp-right">
+          <span className={cn('mcp-status-pill', statusPillClass(server.status))}>
+            <span className="mcp-d" />
+            {server.status === 'market' ? 'marketplace' : server.status}
+          </span>
+        </div>
+      </div>
+      <div className="mcp-endpoint">
+        <span className="mcp-scheme">{endpointScheme(server)}</span>
+        {endpointBody(server)}
+      </div>
+      <div className="mcp-kvgrid">
+        <div className="mcp-kv">
+          <span className="mcp-lbl">Tools</span>
+          <b className={server.tools > 0 ? 'mcp-live' : 'mcp-zero'}>{toolsLabel(server.tools)}</b>
+        </div>
+        <div className="mcp-kv">
+          <span className="mcp-lbl">Auth</span>
+          <b>{server.auth}</b>
         </div>
       </div>
       <div className="mcp-bd">
-        <span className="mcp-tag">{server.transport}</span>
-        <span className="mcp-tag">auth: {server.auth}</span>
-        {server.tools > 0 && <span className="mcp-tag">{server.tools} tools</span>}
-        <span className={cn('mcp-status-pill', statusPillClass(server.status))}>
-          {server.status}
-        </span>
+        <span className="mcp-tag mcp-transport">{server.transport}</span>
+        <span className={cn('mcp-tag mcp-auth', server.auth === 'none' && 'mcp-none')}>auth: {server.auth}</span>
+        {server.status === 'connected' && <span className="mcp-tag mcp-online">online</span>}
+        {server.status === 'market' && <span className="mcp-tag mcp-install-tag">install</span>}
       </div>
       <div className="mcp-ft">
         {server.status === 'market' ? (
@@ -634,7 +695,7 @@ function ServerCard({
             className="mcp-btn-mini"
             onClick={(e) => {
               e.stopPropagation()
-              onToggle(server)
+              onOpen(server)
             }}
           >
             Inspect
@@ -693,10 +754,11 @@ function ServerTable({
               <td className="mcp-endpoint-cell">{s.endpoint}</td>
               <td>{s.transport}</td>
               <td>{s.auth}</td>
-              <td>{s.tools}</td>
+              <td>{toolsLabel(s.tools)}</td>
               <td>
                 <span className={cn('mcp-status-pill', statusPillClass(s.status))}>
-                  {s.status}
+                  <span className="mcp-d" />
+                  {s.status === 'market' ? 'marketplace' : s.status}
                 </span>
               </td>
               <td>
