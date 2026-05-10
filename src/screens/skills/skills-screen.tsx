@@ -68,6 +68,48 @@ type HubSearchResponse = {
 type StatusFilter = 'installed' | 'marketplace' | 'all'
 type ViewMode = 'grid' | 'table'
 type SortMode = 'name' | 'category' | 'updated'
+type PageSize = 10 | 25 | 50 | 100
+
+/* ── PaginationBar ── */
+function PaginationBar({
+  page,
+  totalPages,
+  total,
+  pageSize,
+  onPage,
+  onPageSize,
+}: {
+  page: number
+  totalPages: number
+  total: number
+  pageSize: PageSize
+  onPage: (p: number) => void
+  onPageSize: (s: PageSize) => void
+}) {
+  return (
+    <div className="sk-pagination">
+      <select
+        value={pageSize}
+        onChange={(e) => onPageSize(Number(e.target.value) as PageSize)}
+        aria-label="Page size"
+        className="sk-pg-size"
+      >
+        {([10, 25, 50, 100] as PageSize[]).map((s) => (
+          <option key={s} value={s}>{s} / page</option>
+        ))}
+      </select>
+      <span className="sk-pg-label">
+        Page {page} of {totalPages} · {total} total
+      </span>
+      <div className="sk-pg-btns">
+        <button type="button" onClick={() => onPage(1)} disabled={page === 1} aria-label="First page">«</button>
+        <button type="button" onClick={() => onPage(page - 1)} disabled={page === 1} aria-label="Previous page">‹</button>
+        <button type="button" onClick={() => onPage(page + 1)} disabled={page === totalPages} aria-label="Next page">›</button>
+        <button type="button" onClick={() => onPage(totalPages)} disabled={page === totalPages} aria-label="Last page">»</button>
+      </div>
+    </div>
+  )
+}
 
 /* ── constants ── */
 const DEFAULT_CATEGORIES = [
@@ -144,11 +186,23 @@ export function SkillsScreen() {
   const [selectedSkill, setSelectedSkill] = useState<SkillSummary | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
+  /* pagination — installed/all */
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSize>(25)
+
+  /* pagination — marketplace */
+  const [mktPage, setMktPage] = useState(1)
+  const [mktPageSize, setMktPageSize] = useState<PageSize>(25)
+
   /* debounce search */
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(searchQuery), 250)
     return () => clearTimeout(id)
   }, [searchQuery])
+
+  /* reset pages on filter/search/sort changes */
+  useEffect(() => { setPage(1) }, [debouncedSearch, activeCategory, activeOrigin, activeStatus, sortMode])
+  useEffect(() => { setMktPage(1) }, [debouncedSearch, activeStatus])
 
   /* data query */
   const skillsQuery = useQuery({
@@ -263,6 +317,15 @@ export function SkillsScreen() {
     else if (sortMode === 'category') list.sort((a, b) => a.category.localeCompare(b.category))
     return list
   }, [skills, sortMode])
+
+  /* paginated slices */
+  const totalPages = Math.max(1, Math.ceil(sortedSkills.length / pageSize))
+  const clampedPage = Math.min(Math.max(1, page), totalPages)
+  const pagedSkills = sortedSkills.slice((clampedPage - 1) * pageSize, clampedPage * pageSize)
+
+  const mktTotalPages = Math.max(1, Math.ceil(marketplaceSkills.length / mktPageSize))
+  const mktClampedPage = Math.min(Math.max(1, mktPage), mktTotalPages)
+  const pagedMarketplace = marketplaceSkills.slice((mktClampedPage - 1) * mktPageSize, mktClampedPage * mktPageSize)
 
   /* toggle mutation */
   const toggleMutation = useMutation({
@@ -527,102 +590,122 @@ export function SkillsScreen() {
                 <p>{debouncedSearch ? 'Try a different search term.' : 'Start typing to search Skills Hub and other sources.'}</p>
               </div>
             ) : viewMode === 'grid' ? (
-              <div className="sk-grid">
-                {marketplaceSkills.map((skill) => (
-                  <article
-                    key={skill.id}
-                    className="sk-card"
-                    style={{ '--card-accent': '#00d4ff' } as React.CSSProperties}
-                    onClick={() => openDrawer(skill)}
-                  >
-                    <div className="sk-card-body">
-                      <div className="sk-glyph">{initials(skill.name)}</div>
-                      <div className="sk-card-info">
-                        <p className="name">{skill.name}</p>
-                        <p className="author">{skill.author}</p>
-                      </div>
-                    </div>
-                    <p className="sk-card-desc">{skill.description}</p>
-                    <div className="sk-card-tags">
-                      <span className="sk-tag cat">{skill.category}</span>
-                      <span className="sk-tag origin">Community</span>
-                      {skill.security && (
-                        <span className={cn('sk-tag', scanTagClass(skill.security.level))}>
-                          {skill.security.level}
-                        </span>
-                      )}
-                    </div>
-                    <div className="sk-card-meta">
-                      <div className="meta-left">
-                        <span>{skill.installed ? 'Installed' : '—'}</span>
-                      </div>
-                      {!skill.installed && (
-                        <button
-                          type="button"
-                          className="sk-tag cat"
-                          style={{ cursor: 'pointer' }}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleToggle(skill.id, true)
-                          }}
-                        >
-                          Install
-                        </button>
-                      )}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <table className="sk-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Category</th>
-                    <th>Source</th>
-                    <th>Trust</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {marketplaceSkills.map((skill) => (
-                    <tr
+              <>
+                <div className="sk-grid">
+                  {pagedMarketplace.map((skill) => (
+                    <article
                       key={skill.id}
-                      style={{ '--row-accent': '#00d4ff' } as React.CSSProperties}
+                      className="sk-card"
+                      style={{ '--card-accent': '#00d4ff' } as React.CSSProperties}
                       onClick={() => openDrawer(skill)}
                     >
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div className="sk-glyph" style={{ width: 28, height: 28, fontSize: 10 }}>
-                            {initials(skill.name)}
-                          </div>
-                          <div>
-                            <div style={{ fontWeight: 600, fontSize: 12 }}>{skill.name}</div>
-                            <div style={{ fontSize: 10, color: 'var(--m-text-faint, var(--theme-muted))' }}>
-                              {skill.author}
-                            </div>
-                          </div>
+                      <div className="sk-card-body">
+                        <div className="sk-glyph">{initials(skill.name)}</div>
+                        <div className="sk-card-info">
+                          <p className="name">{skill.name}</p>
+                          <p className="author">{skill.author}</p>
                         </div>
-                      </td>
-                      <td>{skill.category}</td>
-                      <td>Community</td>
-                      <td>
-                        {skill.security ? (
-                          <span className={cn('sk-tag', scanTagClass(skill.security.level))} style={{ fontSize: 9 }}>
+                      </div>
+                      <p className="sk-card-desc">{skill.description}</p>
+                      <div className="sk-card-tags">
+                        <span className="sk-tag cat">{skill.category}</span>
+                        <span className="sk-tag origin">Community</span>
+                        {skill.security && (
+                          <span className={cn('sk-tag', scanTagClass(skill.security.level))}>
                             {skill.security.level}
                           </span>
-                        ) : '—'}
-                      </td>
-                      <td>
-                        <span className={`*** ${skill.installed ? 'active' : 'market'}`}>
-                          <span className="dot" />
-                          {skill.installed ? 'Installed' : 'Available'}
-                        </span>
-                      </td>
-                    </tr>
+                        )}
+                      </div>
+                      <div className="sk-card-meta">
+                        <div className="meta-left">
+                          <span>{skill.installed ? 'Installed' : '—'}</span>
+                        </div>
+                        {!skill.installed && (
+                          <button
+                            type="button"
+                            className="sk-tag cat"
+                            style={{ cursor: 'pointer' }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleToggle(skill.id, true)
+                            }}
+                          >
+                            Install
+                          </button>
+                        )}
+                      </div>
+                    </article>
                   ))}
-                </tbody>
-              </table>
+                </div>
+                <PaginationBar
+                  page={mktClampedPage}
+                  totalPages={mktTotalPages}
+                  total={marketplaceSkills.length}
+                  pageSize={mktPageSize}
+                  onPage={setMktPage}
+                  onPageSize={setMktPageSize}
+                />
+              </>
+            ) : (
+              <>
+                <table className="sk-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Category</th>
+                      <th>Source</th>
+                      <th>Trust</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagedMarketplace.map((skill) => (
+                      <tr
+                        key={skill.id}
+                        style={{ '--row-accent': '#00d4ff' } as React.CSSProperties}
+                        onClick={() => openDrawer(skill)}
+                      >
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div className="sk-glyph" style={{ width: 28, height: 28, fontSize: 10 }}>
+                              {initials(skill.name)}
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: 12 }}>{skill.name}</div>
+                              <div style={{ fontSize: 10, color: 'var(--m-text-faint, var(--theme-muted))' }}>
+                                {skill.author}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>{skill.category}</td>
+                        <td>Community</td>
+                        <td>
+                          {skill.security ? (
+                            <span className={cn('sk-tag', scanTagClass(skill.security.level))} style={{ fontSize: 9 }}>
+                              {skill.security.level}
+                            </span>
+                          ) : '—'}
+                        </td>
+                        <td>
+                          <span className={`sk-status-pill ${skill.installed ? 'active' : 'market'}`}>
+                            <span className="dot" />
+                            {skill.installed ? 'Installed' : 'Available'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <PaginationBar
+                  page={mktClampedPage}
+                  totalPages={mktTotalPages}
+                  total={marketplaceSkills.length}
+                  pageSize={mktPageSize}
+                  onPage={setMktPage}
+                  onPageSize={setMktPageSize}
+                />
+              </>
             )
           ) : skillsQuery.isPending ? (
             <div className="sk-grid">
@@ -641,83 +724,14 @@ export function SkillsScreen() {
               </p>
             </div>
           ) : viewMode === 'grid' ? (
-            <div className="sk-grid">
-              {sortedSkills.map((skill) => (
-                <article
-                  key={skill.id}
-                  className="sk-card"
-                  style={{
-                    '--card-accent':
-                      skill.installed
-                        ? skill.enabled
-                          ? 'var(--m-green-500, #00ff41)'
-                          : 'var(--m-text-ghost, #555)'
-                        : '#00d4ff',
-                  } as React.CSSProperties}
-                  onClick={() => openDrawer(skill)}
-                >
-                  <div className="sk-card-body">
-                    <div className="sk-glyph">{initials(skill.name)}</div>
-                    <div className="sk-card-info">
-                      <p className="name">{skill.name}</p>
-                      <p className="author">{skill.author}</p>
-                    </div>
-                  </div>
-                  <p className="sk-card-desc">{skill.description}</p>
-                  <div className="sk-card-tags">
-                    <span className="sk-tag cat">{skill.category}</span>
-                    {skill.origin && skill.origin !== 'marketplace' && (
-                      <span className="sk-tag origin">
-                        {skill.origin === 'builtin' ? 'Built-in' : 'Hermes Agent'}
-                      </span>
-                    )}
-                    {skill.security && (
-                      <span className={cn('sk-tag', scanTagClass(skill.security.level))}>
-                        {skill.security.level}
-                      </span>
-                    )}
-                    {skill.origin === 'builtin' && !skill.security && (
-                      <span className="sk-tag builtin">builtin</span>
-                    )}
-                  </div>
-                  <div className="sk-card-meta">
-                    <div className="meta-left">
-                      <span>{skill.installed ? 'Installed' : '—'}</span>
-                    </div>
-                    <button
-                      type="button"
-                      className={cn('sk-toggle', skill.enabled && 'on')}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleToggle(skill.id, !skill.enabled)
-                      }}
-                      aria-label={skill.enabled ? 'Disable skill' : 'Enable skill'}
-                    >
-                      <span className="knob" />
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            /* table view */
-            <table className="sk-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Category</th>
-                  <th>Origin</th>
-                  <th>Security</th>
-                  <th>Status</th>
-                  <th style={{ width: 50 }}>Enabled</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedSkills.map((skill) => (
-                  <tr
+            <>
+              <div className="sk-grid">
+                {pagedSkills.map((skill) => (
+                  <article
                     key={skill.id}
+                    className="sk-card"
                     style={{
-                      '--row-accent':
+                      '--card-accent':
                         skill.installed
                           ? skill.enabled
                             ? 'var(--m-green-500, #00ff41)'
@@ -726,42 +740,34 @@ export function SkillsScreen() {
                     } as React.CSSProperties}
                     onClick={() => openDrawer(skill)}
                   >
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div className="sk-glyph" style={{ width: 28, height: 28, fontSize: 10 }}>
-                          {initials(skill.name)}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: 12 }}>{skill.name}</div>
-                          <div style={{ fontSize: 10, color: 'var(--m-text-faint, var(--theme-muted))' }}>
-                            {skill.author}
-                          </div>
-                        </div>
+                    <div className="sk-card-body">
+                      <div className="sk-glyph">{initials(skill.name)}</div>
+                      <div className="sk-card-info">
+                        <p className="name">{skill.name}</p>
+                        <p className="author">{skill.author}</p>
                       </div>
-                    </td>
-                    <td>{skill.category}</td>
-                    <td style={{ textTransform: 'capitalize' }}>
-                      {skill.origin === 'agent-created' ? 'Hermes Agent' : skill.origin || '—'}
-                    </td>
-                    <td>
-                      {skill.security ? (
-                        <span
-                          className={cn('sk-tag', scanTagClass(skill.security.level))}
-                          style={{ fontSize: 9 }}
-                        >
+                    </div>
+                    <p className="sk-card-desc">{skill.description}</p>
+                    <div className="sk-card-tags">
+                      <span className="sk-tag cat">{skill.category}</span>
+                      {skill.origin && skill.origin !== 'marketplace' && (
+                        <span className="sk-tag origin">
+                          {skill.origin === 'builtin' ? 'Built-in' : 'Hermes Agent'}
+                        </span>
+                      )}
+                      {skill.security && (
+                        <span className={cn('sk-tag', scanTagClass(skill.security.level))}>
                           {skill.security.level}
                         </span>
-                      ) : (
-                        '—'
                       )}
-                    </td>
-                    <td>
-                      <span className={`sk-status-pill ${skill.installed ? (skill.enabled ? 'active' : 'disabled') : 'market'}`}>
-                        <span className="dot" />
-                        {skill.installed ? (skill.enabled ? 'Enabled' : 'Disabled') : 'Marketplace'}
-                      </span>
-                    </td>
-                    <td>
+                      {skill.origin === 'builtin' && !skill.security && (
+                        <span className="sk-tag builtin">builtin</span>
+                      )}
+                    </div>
+                    <div className="sk-card-meta">
+                      <div className="meta-left">
+                        <span>{skill.installed ? 'Installed' : '—'}</span>
+                      </div>
                       <button
                         type="button"
                         className={cn('sk-toggle', skill.enabled && 'on')}
@@ -773,11 +779,108 @@ export function SkillsScreen() {
                       >
                         <span className="knob" />
                       </button>
-                    </td>
-                  </tr>
+                    </div>
+                  </article>
                 ))}
-              </tbody>
-            </table>
+              </div>
+              <PaginationBar
+                page={clampedPage}
+                totalPages={totalPages}
+                total={sortedSkills.length}
+                pageSize={pageSize}
+                onPage={setPage}
+                onPageSize={setPageSize}
+              />
+            </>
+          ) : (
+            /* table view */
+            <>
+              <table className="sk-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Origin</th>
+                    <th>Security</th>
+                    <th>Status</th>
+                    <th style={{ width: 50 }}>Enabled</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagedSkills.map((skill) => (
+                    <tr
+                      key={skill.id}
+                      style={{
+                        '--row-accent':
+                          skill.installed
+                            ? skill.enabled
+                              ? 'var(--m-green-500, #00ff41)'
+                              : 'var(--m-text-ghost, #555)'
+                            : '#00d4ff',
+                      } as React.CSSProperties}
+                      onClick={() => openDrawer(skill)}
+                    >
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div className="sk-glyph" style={{ width: 28, height: 28, fontSize: 10 }}>
+                            {initials(skill.name)}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: 12 }}>{skill.name}</div>
+                            <div style={{ fontSize: 10, color: 'var(--m-text-faint, var(--theme-muted))' }}>
+                              {skill.author}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>{skill.category}</td>
+                      <td style={{ textTransform: 'capitalize' }}>
+                        {skill.origin === 'agent-created' ? 'Hermes Agent' : skill.origin || '—'}
+                      </td>
+                      <td>
+                        {skill.security ? (
+                          <span
+                            className={cn('sk-tag', scanTagClass(skill.security.level))}
+                            style={{ fontSize: 9 }}
+                          >
+                            {skill.security.level}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td>
+                        <span className={`sk-status-pill ${skill.installed ? (skill.enabled ? 'active' : 'disabled') : 'market'}`}>
+                          <span className="dot" />
+                          {skill.installed ? (skill.enabled ? 'Enabled' : 'Disabled') : 'Marketplace'}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className={cn('sk-toggle', skill.enabled && 'on')}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleToggle(skill.id, !skill.enabled)
+                          }}
+                          aria-label={skill.enabled ? 'Disable skill' : 'Enable skill'}
+                        >
+                          <span className="knob" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <PaginationBar
+                page={clampedPage}
+                totalPages={totalPages}
+                total={sortedSkills.length}
+                pageSize={pageSize}
+                onPage={setPage}
+                onPageSize={setPageSize}
+              />
+            </>
           )}
         </div>
       </div>
