@@ -5,37 +5,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'motion/react'
 import { SkillDetailDrawer } from './skill-detail-drawer'
+import type { SkillSummary } from './skill-detail-drawer'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toast'
 
 /* ── types ── */
-type SecurityRisk = {
-  level: 'safe' | 'low' | 'medium' | 'high'
-  flags: Array<string>
-  score: number
-}
-
-type SkillSummary = {
-  id: string
-  slug: string
-  name: string
-  description: string
-  author: string
-  triggers: Array<string>
-  tags: Array<string>
-  homepage: string | null
-  category: string
-  icon: string
-  content: string
-  fileCount: number
-  sourcePath: string
-  installed: boolean
-  enabled: boolean
-  featuredGroup?: string
-  security?: SecurityRisk
-  origin?: 'builtin' | 'agent-created' | 'marketplace'
-}
-
 type SkillsApiResponse = {
   skills: Array<SkillSummary>
   total: number
@@ -86,6 +60,7 @@ function PaginationBar({
   onPage: (p: number) => void
   onPageSize: (s: PageSize) => void
 }) {
+  if (total === 0) return null
   return (
     <div className="sk-pagination">
       <select
@@ -148,7 +123,7 @@ function initials(name: string): string {
     .toUpperCase()
 }
 
-function scanTagClass(level?: SecurityRisk['level']): string {
+function scanTagClass(level?: 'safe' | 'low' | 'medium' | 'high'): string {
   if (!level) return ''
   if (level === 'safe') return 'scan-safe'
   if (level === 'low') return 'scan-low'

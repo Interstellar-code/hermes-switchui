@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { writeTextToClipboard } from '@/lib/clipboard'
 import { toast } from '@/components/ui/toast'
 
-/* ── types (mirrored from skills-screen) ── */
+/* ── types ── */
 type SecurityRisk = {
   level: 'safe' | 'low' | 'medium' | 'high'
   flags: Array<string>
@@ -117,7 +117,7 @@ function buildFileList(skill: SkillSummary) {
     const ext = i % 3 === 0 ? '.json' : i % 2 === 0 ? '.ts' : '.md'
     files.push({
       name: `${base}-${i}${ext}`,
-      size: `${(Math.floor(Math.random() * 8) + 1)}.${Math.floor(Math.random() * 9)}kb`,
+      size: '—',
     })
   }
   return files
@@ -211,7 +211,7 @@ export function SkillDetailDrawer({
             onClick={() => setActiveTab('overview')}
           >
             Overview
-            {skill.security && <span className="tab-ct">4</span>}
+            {skill.security && <span className="tab-ct">{skill.security.flags.length}</span>}
           </button>
           <button
             type="button"
