@@ -1,28 +1,12 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import type { McpServer } from '@/types/mcp'
 import { cn } from '@/lib/utils'
 import { writeTextToClipboard } from '@/lib/clipboard'
 import { toast } from '@/components/ui/toast'
+import { Ico, serverInitials } from './icons'
+import type { McpServerView } from './mcp-screen'
 
-/* ── internal server view type (matches mcp-screen's mapped data) ── */
-export type McpServerView = {
-  id: string
-  endpoint: string
-  transport: string
-  auth: string
-  status: string
-  tools: number
-  latency: number | null
-  cmd: string
-  args?: Array<string>
-  source: string
-  enabled: boolean
-  installed: boolean
-  desc?: string
-  /** discovered tools from McpServer, if available */
-  discoveredTools?: Array<{ name: string; description?: string }>
-}
+export type { McpServerView }
 
 type DrawerTab = 'overview' | 'tools' | 'config' | 'logs'
 
@@ -30,68 +14,6 @@ type McpDetailDrawerProps = {
   server: McpServerView | null
   onClose: () => void
   onToggle: (server: McpServerView) => void
-}
-
-/* ── helpers ── */
-function initials(id: string): string {
-  return id
-    .replace(/-/g, ' ')
-    .split(' ')
-    .slice(0, 2)
-    .map((x) => x[0])
-    .join('')
-    .toUpperCase()
-}
-
-/* ── SVG icons ── */
-const Ico = {
-  tool: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M14 7a4 4 0 0 1-5 5L4 17l3 3 5-5a4 4 0 0 1 5-5l3-3-3-3z" />
-    </svg>
-  ),
-  copy: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <rect x="9" y="9" width="13" height="13" rx="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
-  ),
-  edit: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-    </svg>
-  ),
-  trash: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-    </svg>
-  ),
-  x: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M6 6 18 18M18 6 6 18" />
-    </svg>
-  ),
-  shield: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M12 2 4 6v6c0 5.25 3.5 9.74 8 11 4.5-1.26 8-5.75 8-11V6Z" />
-    </svg>
-  ),
-  doc: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
-      <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
-    </svg>
-  ),
-  log: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-  ),
-  bolt: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M13 2 4 14h7l-1 8 9-12h-7z" />
-    </svg>
-  ),
 }
 
 /* ── component ── */
@@ -131,7 +53,7 @@ export function McpDetailDrawer({ server, onClose, onToggle }: McpDetailDrawerPr
     )
   }
 
-  const ini = initials(server.id)
+  const ini = serverInitials(server.id)
   const commandLine = [server.cmd, ...(server.args ?? [])].filter(Boolean).join(' ')
 
   function handleCopyEndpoint() {
@@ -321,35 +243,13 @@ export function McpDetailDrawer({ server, onClose, onToggle }: McpDetailDrawerPr
             <div className="mcp-panel-card">
               <div className="mcp-pc-hd">
                 <span>Recent log</span>
-                <span className="mcp-right">tail —200</span>
               </div>
-              <div className="mcp-pc-bd" style={{ padding: 0 }}>
-                <div className="mcp-log">
-                  <div>
-                    <span className="mcp-ts">14:02:11.412</span>
-                    <span className="mcp-ok">[ok]</span> spawn <span className="mcp-key">{commandLine || server.endpoint}</span>
-                  </div>
-                  <div>
-                    <span className="mcp-ts">14:02:11.418</span>
-                    <span className="mcp-ok">[ok]</span> handshake protocol=2024-11-05
-                  </div>
-                  <div>
-                    <span className="mcp-ts">14:02:11.421</span>
-                    <span className="mcp-ok">[ok]</span> capabilities: tools, prompts
-                  </div>
-                  <div>
-                    <span className="mcp-ts">14:02:11.502</span>
-                    <span className="mcp-ok">[ok]</span> tools/list → {server.tools} tools
-                  </div>
-                  {server.status !== 'connected' && (
-                    <div>
-                      <span className="mcp-ts">14:02:12.114</span>
-                      <span className="mcp-warn">[warn]</span> probe deferred — local fallback mode
-                    </div>
-                  )}
-                  <div>
-                    <span className="mcp-ts">14:02:12.118</span> idle
-                  </div>
+              <div className="mcp-pc-bd">
+                <div
+                  className="mcp-empty"
+                  style={{ textAlign: 'center', color: 'var(--m-text-faint, #3a5a4a)', padding: '24px 0' }}
+                >
+                  Live logs not yet available.
                 </div>
               </div>
             </div>

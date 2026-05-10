@@ -11,90 +11,37 @@ import { McpServerDialog } from './components/mcp-server-dialog'
 import { InstallConfirmationDialog } from './components/install-confirmation-dialog'
 import { SourcesManagerDialog } from './components/sources-manager-dialog'
 import type { McpClientInput, McpServer } from '@/types/mcp'
-import type { McpServerView } from './mcp-detail-drawer'
 import type { HubMcpEntry } from './hooks/use-mcp-hub'
 import { toast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
+import { Ico, serverInitials } from './icons'
 
 /* ── types ── */
+export type McpServerView = {
+  id: string
+  endpoint: string
+  transport: string
+  auth: string
+  status: string
+  tools: number
+  latency: number | null
+  cmd: string
+  args?: Array<string>
+  source: string
+  enabled: boolean
+  installed: boolean
+  desc?: string
+  /** discovered tools from McpServer, if available */
+  discoveredTools?: Array<{ name: string; description?: string }>
+}
+
 type StatusFilter = 'installed' | 'connected' | 'market' | 'all'
 type TransportFilter = 'all' | 'stdio' | 'http' | 'sse'
 type AuthFilter = 'all' | 'none' | 'bearer' | 'oauth'
 type ViewMode = 'grid' | 'table'
 type SortMode = 'status' | 'name' | 'tools'
 
-/* ── SVG icons ── */
-const Ico = {
-  search: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <circle cx="11" cy="11" r="6" />
-      <path d="m20 20-3.5-3.5" />
-    </svg>
-  ),
-  fold: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="m9 6-6 6 6 6M21 6h-9M21 12h-6M21 18h-9" />
-    </svg>
-  ),
-  unfold: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="m15 6 6 6-6 6M3 6h9M3 12h6M3 18h9" />
-    </svg>
-  ),
-  plus: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  ),
-  refresh: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M21 12a9 9 0 0 1-15.3 6.36L3 15" />
-      <path d="M3 21v-6h6" />
-      <path d="M3 12A9 9 0 0 1 18.3 5.64L21 9" />
-      <path d="M21 3v6h-6" />
-    </svg>
-  ),
-  x: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M6 6 18 18M18 6 6 18" />
-    </svg>
-  ),
-  warn: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M12 3 2 21h20zM12 9v6M12 17.5v.5" />
-    </svg>
-  ),
-  grid: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <rect x="3" y="3" width="7" height="7" rx="1" />
-      <rect x="14" y="3" width="7" height="7" rx="1" />
-      <rect x="3" y="14" width="7" height="7" rx="1" />
-      <rect x="14" y="14" width="7" height="7" rx="1" />
-    </svg>
-  ),
-  rows: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M3 6h18M3 12h18M3 18h18" />
-    </svg>
-  ),
-  tool: (
-    <svg className="mcp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M14 7a4 4 0 0 1-5 5L4 17l3 3 5-5a4 4 0 0 1 5-5l3-3-3-3z" />
-    </svg>
-  ),
-}
-
 /* ── helpers ── */
-function serverInitials(id: string): string {
-  return id
-    .replace(/-/g, ' ')
-    .split(' ')
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
-}
-
 function endpointDisplay(s: McpServer): string {
   if (s.transportType === 'stdio') {
     return [s.command, ...s.args].filter(Boolean).join(' ') || s.id
@@ -139,7 +86,8 @@ function toView(s: McpServer): McpServerView {
     latency: null,
     cmd,
     args: s.args,
-    source: s.source === 'configured' ? 'config.yaml' : 'config.yaml',
+    // source distinction not yet wired; all configured servers use config.yaml
+    source: 'config.yaml',
     enabled: s.enabled,
     installed: true,
     discoveredTools: s.discoveredTools.map((t) => ({ name: t.name, description: t.description })),
