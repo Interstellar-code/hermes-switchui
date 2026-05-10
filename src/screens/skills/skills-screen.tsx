@@ -4,9 +4,9 @@ import '@/styles/matrix-skills.css'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'motion/react'
+import { SkillDetailDrawer } from './skill-detail-drawer'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toast'
-import { SkillDetailDrawer } from './skill-detail-drawer'
 
 /* ── types ── */
 type SecurityRisk = {
@@ -41,6 +41,28 @@ type SkillsApiResponse = {
   total: number
   page: number
   categories: Array<string>
+}
+
+type HubSkill = {
+  id: string
+  name: string
+  description: string
+  author: string
+  category: string
+  tags: Array<string>
+  source: string
+  identifier?: string
+  trust_level?: string
+  repo?: string
+  homepage?: string
+  extra?: Record<string, unknown>
+  installed: boolean
+}
+
+type HubSearchResponse = {
+  results: Array<HubSkill>
+  source: string
+  error?: string
 }
 
 type StatusFilter = 'installed' | 'marketplace' | 'all'
@@ -147,6 +169,68 @@ export function SkillsScreen() {
     },
     refetchInterval: 30_000,
   })
+
+  /* hub query — marketplace / Hub tab */
+  const hubQuery = useQuery({
+    queryKey: ['skills-hub-search', debouncedSearch],
+    enabled: activeStatus === 'marketplace',
+    queryFn: async (): Promise<HubSearchResponse> => {
+      const params = new URLSearchParams()
+      params.set('q', debouncedSearch)
+      params.set('source', 'all')
+      params.set('limit', '20')
+      const res = await fetch(`/api/skills/hub-search?${params.toString()}`)
+      const payload = (await res.json()) as HubSearchResponse
+      if (!res.ok) throw new Error(payload.error || 'Failed to search skills hub')
+      return payload
+    },
+  })
+
+  const marketplaceSkills = useMemo<Array<SkillSummary>>(
+    () =>
+      (hubQuery.data?.results || []).map((skill): SkillSummary => {
+        const skillId = skill.id || skill.name
+        const author =
+          skill.author ||
+          (skill.repo ? skill.repo.split('/')[0] : null) ||
+          String((skill.extra as Record<string, unknown>).author || skill.source || 'Community')
+        const homepage =
+          skill.homepage || skill.repo || (skill.extra as Record<string, unknown>).homepage || null
+        const category =
+          skill.category || String((skill.extra as Record<string, unknown>).category || 'Productivity')
+        return {
+          id: skillId,
+          slug: skillId,
+          name: skill.name || skillId,
+          description: skill.description,
+          author: String(author),
+          triggers: skill.tags,
+          tags: skill.tags,
+          homepage: typeof homepage === 'string' ? homepage : null,
+          category: String(category),
+          icon:
+            skill.source === 'github'
+              ? '🐙'
+              : skill.source === 'lobehub'
+                ? '🧊'
+                : skill.source === 'claude-marketplace'
+                  ? '🤖'
+                  : '🧩',
+          content: [skill.description, skill.identifier ? `Identifier: ${skill.identifier}` : '', skill.trust_level ? `Trust: ${skill.trust_level}` : ''].filter(Boolean).join('\n\n'),
+          fileCount: 0,
+          sourcePath: skill.identifier || (typeof homepage === 'string' ? homepage : '') || skill.source,
+          installed: skill.installed,
+          enabled: skill.installed,
+          security: {
+            level: skill.trust_level === 'builtin' || skill.trust_level === 'trusted' ? 'safe' : 'medium',
+            flags: [],
+            score: 0,
+          },
+          origin: 'marketplace' as const,
+        }
+      }),
+    [hubQuery.data?.results],
+  )
 
   const skills = skillsQuery.data?.skills ?? []
   const total = skillsQuery.data?.total ?? 0
@@ -416,7 +500,131 @@ export function SkillsScreen() {
 
         {/* canvas */}
         <div className="sk-canvas">
-          {skillsQuery.isPending ? (
+          {activeStatus === 'marketplace' ? (
+            /* ── Hub / Marketplace view ── */
+            hubQuery.isPending ? (
+              <div className="sk-grid">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="sk-skeleton" />
+                ))}
+              </div>
+            ) : hubQuery.error ? (
+              <div className="sk-empty">
+                <div className="empty-icon">⚠️</div>
+                <h3>Hub search failed</h3>
+                <p>{hubQuery.error instanceof Error ? hubQuery.error.message : 'Failed to load marketplace skills.'}</p>
+              </div>
+            ) : hubQuery.data.source === 'installed-fallback' || hubQuery.data.source === 'error' ? (
+              <div className="sk-empty">
+                <div className="empty-icon">🔌</div>
+                <h3>Skills Hub unavailable</h3>
+                <p>Showing installed skills as fallback. Ensure the Hermes Agent gateway is running.</p>
+              </div>
+            ) : marketplaceSkills.length === 0 ? (
+              <div className="sk-empty">
+                <div className="empty-icon">🔍</div>
+                <h3>{debouncedSearch ? 'No hub skills found' : 'Search the Skills Hub'}</h3>
+                <p>{debouncedSearch ? 'Try a different search term.' : 'Start typing to search Skills Hub and other sources.'}</p>
+              </div>
+            ) : viewMode === 'grid' ? (
+              <div className="sk-grid">
+                {marketplaceSkills.map((skill) => (
+                  <article
+                    key={skill.id}
+                    className="sk-card"
+                    style={{ '--card-accent': '#00d4ff' } as React.CSSProperties}
+                    onClick={() => openDrawer(skill)}
+                  >
+                    <div className="sk-card-body">
+                      <div className="sk-glyph">{initials(skill.name)}</div>
+                      <div className="sk-card-info">
+                        <p className="name">{skill.name}</p>
+                        <p className="author">{skill.author}</p>
+                      </div>
+                    </div>
+                    <p className="sk-card-desc">{skill.description}</p>
+                    <div className="sk-card-tags">
+                      <span className="sk-tag cat">{skill.category}</span>
+                      <span className="sk-tag origin">Community</span>
+                      {skill.security && (
+                        <span className={cn('sk-tag', scanTagClass(skill.security.level))}>
+                          {skill.security.level}
+                        </span>
+                      )}
+                    </div>
+                    <div className="sk-card-meta">
+                      <div className="meta-left">
+                        <span>{skill.installed ? 'Installed' : '—'}</span>
+                      </div>
+                      {!skill.installed && (
+                        <button
+                          type="button"
+                          className="sk-tag cat"
+                          style={{ cursor: 'pointer' }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleToggle(skill.id, true)
+                          }}
+                        >
+                          Install
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <table className="sk-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Source</th>
+                    <th>Trust</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {marketplaceSkills.map((skill) => (
+                    <tr
+                      key={skill.id}
+                      style={{ '--row-accent': '#00d4ff' } as React.CSSProperties}
+                      onClick={() => openDrawer(skill)}
+                    >
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div className="sk-glyph" style={{ width: 28, height: 28, fontSize: 10 }}>
+                            {initials(skill.name)}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: 12 }}>{skill.name}</div>
+                            <div style={{ fontSize: 10, color: 'var(--m-text-faint, var(--theme-muted))' }}>
+                              {skill.author}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>{skill.category}</td>
+                      <td>Community</td>
+                      <td>
+                        {skill.security ? (
+                          <span className={cn('sk-tag', scanTagClass(skill.security.level))} style={{ fontSize: 9 }}>
+                            {skill.security.level}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td>
+                        <span className={`*** ${skill.installed ? 'active' : 'market'}`}>
+                          <span className="dot" />
+                          {skill.installed ? 'Installed' : 'Available'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )
+          ) : skillsQuery.isPending ? (
             <div className="sk-grid">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="sk-skeleton" />
@@ -460,7 +668,7 @@ export function SkillsScreen() {
                     <span className="sk-tag cat">{skill.category}</span>
                     {skill.origin && skill.origin !== 'marketplace' && (
                       <span className="sk-tag origin">
-                        {skill.origin === 'builtin' ? 'Built-in' : skill.origin === 'agent-created' ? 'Hermes Agent' : skill.origin}
+                        {skill.origin === 'builtin' ? 'Built-in' : 'Hermes Agent'}
                       </span>
                     )}
                     {skill.security && (

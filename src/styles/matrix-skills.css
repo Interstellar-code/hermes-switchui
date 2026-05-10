@@ -2,8 +2,8 @@
 
 [data-screen="skills"] {
 
-/* ── shell layout ── */
-.sk-shell {
+/* ── shell layout (applied to same element as data-screen) ── */
+&.sk-shell {
   display: flex;
   flex-direction: row;
   overflow: hidden;
