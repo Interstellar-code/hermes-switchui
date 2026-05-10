@@ -868,6 +868,20 @@ function FilePanel({
     setSaving(true)
     setShowDiff(false)
     try {
+      // Verify the file hasn't changed on disk since it was loaded
+      const liveRes = await fetch(
+        `/api/files?action=read&path=${encodeURIComponent(path)}`,
+      )
+      if (liveRes.ok) {
+        const liveData = (await liveRes.json()) as { content?: string }
+        if (liveData.content !== undefined && liveData.content !== content) {
+          setFileError(
+            'File changed on disk since you opened it. Reload to see the latest, then re-apply your edits.',
+          )
+          setSaving(false)
+          return
+        }
+      }
       const res = await fetch('/api/files', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -883,7 +897,7 @@ function FilePanel({
     } finally {
       setSaving(false)
     }
-  }, [])
+  }, [content])
 
   const handleSave = useCallback(() => {
     if (!selectedEntry || !dirty) return
@@ -1312,6 +1326,7 @@ export function FilesScreen() {
   const [promptState, setPromptState] = useState<PromptState | null>(null)
   const [promptValue, setPromptValue] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState<FileEntry | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const loadTree = useCallback(async () => {
     setTreeLoading(true)
@@ -1388,16 +1403,26 @@ export function FilesScreen() {
 
   const handleDeleteConfirmed = useCallback(async () => {
     if (!deleteConfirm) return
-    await fetch('/api/files', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'delete', path: deleteConfirm.path }),
-    })
-    if (selectedEntry?.path === deleteConfirm.path) {
-      setSelectedEntry(null)
+    setDeleteError(null)
+    try {
+      const res = await fetch('/api/files', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', path: deleteConfirm.path }),
+      })
+      if (!res.ok) {
+        const err = await res.text().catch(() => '')
+        setDeleteError(err || `HTTP ${res.status}`)
+        return
+      }
+      if (selectedEntry?.path === deleteConfirm.path) {
+        setSelectedEntry(null)
+      }
+      setDeleteConfirm(null)
+      await loadTree()
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : String(err))
     }
-    setDeleteConfirm(null)
-    await loadTree()
   }, [deleteConfirm, selectedEntry, loadTree])
 
   const handleDownload = useCallback(async (entry: FileEntry) => {
@@ -1752,7 +1777,7 @@ export function FilesScreen() {
       <DialogRoot
         open={Boolean(deleteConfirm)}
         onOpenChange={(open) => {
-          if (!open) setDeleteConfirm(null)
+          if (!open) { setDeleteConfirm(null); setDeleteError(null) }
         }}
       >
         <DialogContent>
@@ -1767,6 +1792,9 @@ export function FilesScreen() {
                 ' This will delete all contents inside.'}{' '}
               This action cannot be undone.
             </DialogDescription>
+            {deleteError && (
+              <p className="text-sm text-destructive">{deleteError}</p>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <DialogClose render={<Button variant="outline">Cancel</Button>} />
               <Button
