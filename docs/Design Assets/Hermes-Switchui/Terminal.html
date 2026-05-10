@@ -1,0 +1,795 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Hermes · Terminal</title>
+<link rel="stylesheet" href="matrix-system.css"/>
+<link rel="stylesheet" href="primary-nav-v2.css"/>
+<style>.nav { background: transparent !important; border: none !important; padding: 0 !important; }</style>
+<style>
+  html, body { height: 100%; }
+  body { background: var(--m-bg); }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 232px 240px 1fr;
+    height: 100vh; overflow: hidden;
+    transition: grid-template-columns var(--m-dur-base) var(--m-ease-out);
+  }
+  .shell.sidebar-collapsed { grid-template-columns: 232px 44px 1fr; }
+  .nav { display: block; min-width: 0; }
+
+  /* sessions sidebar */
+  .sb { background: var(--m-panel); border-right: 1px solid var(--m-border); display: grid; grid-template-rows: auto auto 1fr auto; overflow: hidden; }
+  .sb-head { display: flex; align-items: center; padding: 12px 14px 10px; border-bottom: 1px solid var(--m-border-subtle); }
+  .sb-head h3 { margin: 0; font: 600 11px var(--m-font-mono); text-transform: uppercase; letter-spacing: .22em; color: var(--m-text-strong); }
+  .sb-head .ct { margin-left: 8px; font: 500 10px var(--m-font-mono); color: var(--m-text-faint); }
+  .sb-head .actions { margin-left: auto; display: flex; gap: 4px; }
+  .ico-btn { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: var(--m-radius-md); color: var(--m-text-muted); cursor: pointer; border: 1px solid transparent; transition: all var(--m-dur-fast) var(--m-ease-out); }
+  .ico-btn:hover { background: var(--m-fill-subtle); color: var(--m-green-500); border-color: var(--m-border-subtle); }
+  .ico-btn.active { background: var(--m-fill); color: var(--m-green-500); border-color: var(--m-border); box-shadow: var(--m-glow-sm); }
+  .ico { width: 14px; height: 14px; flex: none; }
+
+  .sb-body { overflow: auto; padding: 6px 0; }
+  .sb-grp { padding: 10px 10px 4px; }
+  .sb-grp h4 { margin: 0 0 6px; padding: 0 4px; font: 600 10px var(--m-font-mono); text-transform: uppercase; letter-spacing: .22em; color: var(--m-text-faint); display: flex; align-items: center; gap: 6px; }
+  .sb-grp h4 .ct { margin-left: auto; color: var(--m-text-ghost); }
+  .term-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center; gap: 8px;
+    padding: 6px 8px; margin: 0 4px;
+    border-radius: var(--m-radius-md);
+    font: 500 12px var(--m-font-mono);
+    color: var(--m-text-muted);
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .term-row:hover { background: var(--m-fill-subtle); color: var(--m-text); }
+  .term-row.on {
+    background: var(--m-fill); color: var(--m-green-500);
+    border-color: var(--m-border);
+    box-shadow: inset 2px 0 0 var(--m-green-500);
+  }
+  .term-row .d { width: 7px; height: 7px; border-radius: 50%; background: var(--m-text-faint); }
+  .term-row.live .d { background: var(--m-green-500); box-shadow: 0 0 6px var(--m-green-500); animation: m-pulse 2s infinite; }
+  .term-row.warn .d { background: #ffb347; box-shadow: 0 0 6px #ffb347; }
+  .term-row .meta { font-size: 9.5px; color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .14em; }
+  .term-row.on .meta { color: var(--m-green-500); }
+  .term-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .term-row .name .pwd { display: block; font-size: 10px; color: var(--m-text-faint); margin-top: 1px; }
+  @keyframes m-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+
+  .sb-foot { border-top: 1px solid var(--m-border-subtle); padding: 10px 12px; display: grid; gap: 6px; }
+  .sb.is-collapsed { grid-template-rows: auto 1fr auto; }
+  .sb-rail { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 0; }
+  .sb-rail .vlabel { writing-mode: vertical-rl; transform: rotate(180deg); font: 600 10px var(--m-font-mono); text-transform: uppercase; letter-spacing: .3em; color: var(--m-text-faint); margin-top: 14px; }
+  .sb-rail .badge-n { font: 500 10px var(--m-font-mono); color: var(--m-green-500); border: 1px solid var(--m-border); border-radius: 9999px; padding: 1px 6px; }
+
+  /* main */
+  .main { display: grid; grid-template-rows: auto 1fr auto; min-width: 0; overflow: hidden; background: var(--m-bg); }
+
+  /* tab strip */
+  .tabs {
+    display: flex; align-items: stretch;
+    border-bottom: 1px solid var(--m-border);
+    background: var(--m-panel);
+    overflow-x: auto; min-height: 38px;
+  }
+  .tab {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 14px;
+    border-right: 1px solid var(--m-border-subtle);
+    font: 500 12px var(--m-font-mono);
+    color: var(--m-text-muted);
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+  }
+  .tab:hover { color: var(--m-text); background: var(--m-fill-subtle); }
+  .tab.on {
+    color: var(--m-green-500); background: var(--m-bg);
+    box-shadow: inset 0 -2px 0 var(--m-green-500);
+  }
+  .tab .d { width: 6px; height: 6px; border-radius: 50%; background: var(--m-text-faint); }
+  .tab.live .d { background: var(--m-green-500); box-shadow: 0 0 6px var(--m-green-500); animation: m-pulse 2s infinite; }
+  .tab.warn .d { background: #ffb347; box-shadow: 0 0 6px #ffb347; }
+  .tab .ic { width: 14px; height: 14px; color: var(--m-text-faint); }
+  .tab.on .ic { color: var(--m-green-500); }
+  .tab .x { width: 16px; height: 16px; display: inline-grid; place-items: center; border-radius: 3px; color: var(--m-text-faint); margin-left: 4px; }
+  .tab .x:hover { background: var(--m-fill); color: var(--m-text); }
+  .tab .name { font-weight: 500; }
+  .tab .badge { font-size: 9px; color: var(--m-text-faint); padding: 1px 5px; border: 1px solid var(--m-border-subtle); border-radius: 9999px; }
+  .tab.on .badge { color: var(--m-green-500); border-color: var(--m-border); }
+  .tabs .add {
+    display: inline-grid; place-items: center;
+    width: 36px; color: var(--m-text-faint);
+    border-right: 1px solid var(--m-border-subtle);
+    cursor: pointer;
+  }
+  .tabs .add:hover { color: var(--m-green-500); background: var(--m-fill-subtle); }
+  .tabs .right-cluster {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 10px;
+    border-left: 1px solid var(--m-border-subtle);
+  }
+
+  /* terminal canvas area */
+  .term-area {
+    position: relative;
+    overflow: hidden;
+    background: #000;
+    display: grid;
+    grid-template-rows: 1fr;
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  .term-area.split-h { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; gap: 1px; background: var(--m-border); }
+  .term-area.split-v { grid-template-rows: 1fr 1fr; grid-template-columns: 1fr; gap: 1px; background: var(--m-border); }
+
+  .term-pane {
+    position: relative;
+    background: #000;
+    min-height: 0; min-width: 0; height: 100%;
+    overflow: hidden;
+  }
+  .term-pane.focused::before {
+    content: ""; position: absolute; inset: 0;
+    border: 1px solid rgba(0,255,65,.32);
+    pointer-events: none; z-index: 10;
+  }
+  .matrix-bg {
+    position: absolute; inset: 0;
+    pointer-events: none;
+    opacity: .42;
+    z-index: 0;
+  }
+  .matrix-bg::after {
+    /* edge vignette so rain fades at top/bottom of pane */
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,.55) 0%, rgba(0,0,0,0) 18%, rgba(0,0,0,0) 78%, rgba(0,0,0,.65) 100%);
+    pointer-events: none;
+  }
+  .matrix-bg.dim { opacity: .22; }
+
+  .term-content {
+    position: relative; z-index: 1;
+    padding: 14px 18px 56px;
+    height: 100%; overflow: auto;
+    font: 500 13px/1.55 var(--m-font-mono);
+    color: #c5ffd0;
+    text-shadow: 0 0 6px rgba(0,255,65,.18);
+  }
+  .term-content::-webkit-scrollbar { width: 8px; }
+  .term-content::-webkit-scrollbar-track { background: transparent; }
+  .term-content::-webkit-scrollbar-thumb { background: rgba(0,255,65,.18); border-radius: 4px; }
+
+  .ln { display: block; white-space: pre-wrap; word-break: break-word; }
+  .ln.warn { color: #ffb347; }
+  .ln.err  { color: #ff5fa2; }
+  .ln.dim  { color: rgba(197,255,208,.5); }
+  .ln.cmd .pmt { color: var(--m-green-500); font-weight: 700; }
+  .ln.cmd .at { color: #d6ff5f; }
+  .ln.cmd .pwd { color: #5fcfff; }
+  .ln.cmd .pct { color: var(--m-green-500); margin-right: 6px; }
+  .ln.cmd .input { color: #fff; }
+  .ln.ok   { color: var(--m-green-500); }
+  .ln.key  { color: #5fcfff; }
+  .ln.path { color: #5fcfff; }
+
+  .caret {
+    display: inline-block; width: 8px; height: 14px;
+    background: var(--m-green-500);
+    box-shadow: 0 0 8px var(--m-green-500);
+    vertical-align: -2px;
+    animation: m-blink 1.05s steps(2,start) infinite;
+  }
+  @keyframes m-blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+
+  /* hud */
+  .hud {
+    position: absolute; top: 8px; right: 12px; z-index: 5;
+    display: flex; gap: 8px; align-items: center;
+    font: 500 9.5px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase; letter-spacing: .14em;
+    padding: 4px 8px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 9999px;
+    background: rgba(0,8,2,.65);
+    backdrop-filter: blur(2px);
+  }
+  .hud .d { width: 6px; height: 6px; border-radius: 50%; background: var(--m-green-500); box-shadow: 0 0 6px var(--m-green-500); }
+  .hud b { color: var(--m-text-strong); font-weight: 600; }
+
+  /* command input bar pinned to bottom of pane */
+  .cmd-bar {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 4;
+    display: grid; grid-template-columns: auto 1fr auto;
+    align-items: center; gap: 10px;
+    padding: 8px 14px;
+    background: linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.85));
+    border-top: 1px solid rgba(0,255,65,.18);
+    font: 500 13px var(--m-font-mono);
+  }
+  .cmd-bar .pmt { color: var(--m-green-500); font-weight: 700; text-shadow: 0 0 6px rgba(0,255,65,.5); }
+  .cmd-bar input {
+    background: transparent; border: none; outline: none;
+    color: #fff;
+    font: 500 13px var(--m-font-mono);
+    width: 100%;
+  }
+  .cmd-bar .hint { font-size: 10px; color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .14em; }
+  .cmd-bar .hint kbd { font: 500 10px var(--m-font-mono); padding: 1px 5px; border: 1px solid var(--m-border-subtle); border-radius: 3px; background: var(--m-bg); margin-right: 4px; color: var(--m-green-500); }
+
+  /* palette */
+  .palette {
+    position: absolute; left: 50%; top: 18%; transform: translateX(-50%);
+    width: min(560px, 90%);
+    background: rgba(0,12,4,.92);
+    border: 1px solid var(--m-green-500);
+    box-shadow: 0 8px 36px rgba(0,255,65,.22), 0 0 0 1px rgba(0,255,65,.4);
+    border-radius: var(--m-radius-md);
+    z-index: 30;
+    overflow: hidden;
+    display: none;
+  }
+  .palette.open { display: block; animation: m-pop var(--m-dur-base) var(--m-ease-out); }
+  @keyframes m-pop { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translateX(-50%); } }
+  .palette .pinp {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--m-border);
+    font: 500 13px var(--m-font-mono);
+  }
+  .palette .pinp input { flex: 1; background: transparent; border: none; outline: none; color: #fff; font: inherit; }
+  .palette .pinp .pmt { color: var(--m-green-500); }
+  .palette .plist { padding: 6px 0; max-height: 320px; overflow: auto; }
+  .palette .pitem {
+    display: grid; grid-template-columns: auto 1fr auto;
+    gap: 10px; align-items: center;
+    padding: 8px 14px;
+    cursor: pointer;
+    font: 500 12px var(--m-font-mono);
+    color: var(--m-text);
+  }
+  .palette .pitem:hover, .palette .pitem.on { background: rgba(0,255,65,.08); color: var(--m-green-500); }
+  .palette .pitem .ic { color: var(--m-text-faint); }
+  .palette .pitem.on .ic { color: var(--m-green-500); }
+  .palette .pitem .desc { font-size: 11px; color: var(--m-text-muted); margin-top: 2px; }
+  .palette .pitem.on .desc { color: var(--m-green-500); opacity: .8; }
+  .palette .pitem kbd { font: 500 10px var(--m-font-mono); padding: 1px 5px; border: 1px solid var(--m-border-subtle); border-radius: 3px; background: var(--m-bg-deep); color: var(--m-text-faint); }
+
+  /* status footer */
+  .pg-foot {
+    border-top: 1px solid var(--m-border);
+    background: var(--m-sidebar);
+    display: flex; align-items: center; gap: 22px;
+    padding: 0 24px;
+    height: 30px;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  .pg-foot b { color: var(--m-text-strong); font-weight: 600; }
+  .pg-foot .ok { color: var(--m-green-500); }
+  .pg-foot .sep { width: 1px; height: 14px; background: var(--m-border-subtle); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="primary-nav-v2.jsx"></script>
+
+<script type="text/babel">
+const Ico = {
+  search: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="11" cy="11" r="6"/><path d="m20 20-3.5-3.5"/></svg>,
+  fold: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m9 6-6 6 6 6M21 6h-9M21 12h-6M21 18h-9"/></svg>,
+  unfold: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m15 6 6 6-6 6M3 6h9M3 12h6M3 18h9"/></svg>,
+  plus: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 5v14M5 12h14"/></svg>,
+  x: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 6 18 18M18 6 6 18"/></svg>,
+  splitH: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="18" height="16"/><path d="M12 4v16"/></svg>,
+  splitV: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="18" height="16"/><path d="M3 12h18"/></svg>,
+  unsplit: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="18" height="16"/></svg>,
+  term: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="m7 9 3 3-3 3M13 15h4"/></svg>,
+  copy: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M15 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h3"/></svg>,
+  trash: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>,
+  rec: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="6"/></svg>,
+  dl: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 4v12m0 0-5-5m5 5 5-5M4 20h16"/></svg>,
+  cmd: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="3" width="6" height="6" rx="3"/><rect x="15" y="3" width="6" height="6" rx="3"/><rect x="3" y="15" width="6" height="6" rx="3"/><rect x="15" y="15" width="6" height="6" rx="3"/><path d="M9 6h6M6 9v6M18 9v6M9 18h6"/></svg>,
+  bolt: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>,
+  matrix: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 4v16M20 4v16M4 8h2M4 12h2M4 16h2M18 8h2M18 12h2M18 16h2M9 6v3M12 8v4M15 6v4M9 14v4M12 16v3M15 14v3"/></svg>,
+};
+
+/* ── Matrix rain canvas ─────────────────────────────────── */
+function MatrixRain({ density = 1, speed = 0.75, dim = false }) {
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const canvas = ref.current; if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let raf, w = 0, h = 0;
+    const glyphs = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンｱｲｳｴｵｶｷｸｹｺ$#%@&*+=-/\\<>1010101101";
+    const fontSize = 16;
+    let cols = [];
+    let lastT = 0;
+    const parent = canvas.parentElement;
+    function resize() {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const pw = parent.clientWidth || canvas.getBoundingClientRect().width;
+      const ph = parent.clientHeight || canvas.getBoundingClientRect().height;
+      if (!pw || !ph) return;
+      w = canvas.width = Math.max(1, Math.floor(pw * dpr));
+      h = canvas.height = Math.max(1, Math.floor(ph * dpr));
+      canvas.style.width = pw + 'px';
+      canvas.style.height = ph + 'px';
+      const colCount = Math.max(8, Math.floor(pw / 14));
+      cols = Array.from({ length: colCount }, () => ({
+        y: Math.random() * h,
+        speed: (0.6 + Math.random() * 1.4) * speed * dpr,
+        head: Math.random() * 0.4 + 0.3,
+      }));
+    }
+    resize();
+    const ro = new ResizeObserver(resize); ro.observe(parent);
+    const ro2 = new ResizeObserver(resize); ro2.observe(document.body);
+    window.addEventListener('resize', resize);
+    setTimeout(resize, 50); setTimeout(resize, 250); setTimeout(resize, 800);
+
+    function draw(t) {
+      raf = requestAnimationFrame(draw);
+      const dt = Math.min(60, t - (lastT || t));
+      lastT = t;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      // soft trail
+      ctx.fillStyle = 'rgba(0,0,0,0.10)';
+      ctx.fillRect(0, 0, w, h);
+      ctx.font = `${fontSize * dpr}px "JetBrains Mono", ui-monospace, monospace`;
+      const colW = w / cols.length;
+      for (let i = 0; i < cols.length; i++) {
+        const c = cols[i];
+        const x = i * colW + colW / 2;
+        const ch = glyphs[(Math.random() * glyphs.length) | 0];
+        // head
+        ctx.fillStyle = dim ? 'rgba(180,255,200,0.55)' : 'rgba(220,255,230,0.95)';
+        ctx.fillText(ch, x, c.y);
+        // tail
+        ctx.fillStyle = dim ? 'rgba(0,255,65,0.18)' : 'rgba(0,255,65,0.55)';
+        ctx.fillText(glyphs[(Math.random()*glyphs.length)|0], x, c.y - fontSize * dpr);
+        ctx.fillStyle = dim ? 'rgba(0,200,55,0.10)' : 'rgba(0,200,55,0.30)';
+        ctx.fillText(glyphs[(Math.random()*glyphs.length)|0], x, c.y - fontSize * dpr * 2);
+        c.y += c.speed * (dt * 0.5);
+        if (c.y > h + fontSize) {
+          c.y = -Math.random() * 80;
+          c.speed = (0.6 + Math.random() * 1.4) * speed;
+        }
+      }
+    }
+    raf = requestAnimationFrame(draw);
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); ro2.disconnect(); window.removeEventListener('resize', resize); };
+  }, [density, speed, dim]);
+  return <canvas ref={ref} className={`matrix-bg ${dim?'dim':''}`}/>;
+}
+
+/* ── seeded sessions ────────────────────────────────────── */
+const TERMS = [
+  { id:'t1', name:'Terminal 1', pwd:'~', host:'rohits@Rohits-Mac-mini', shell:'zsh', state:'live',
+    history: [
+      { k:'cmd', t:'~', cmd:'cd ~/code/hermes-switchui' },
+      { k:'cmd', t:'~/code/hermes-switchui', cmd:'pnpm dev' },
+      { k:'ok', t:'> hermes-switchui@2.3.0 dev' },
+      { k:'ok', t:'> tanstack-start dev --port 3000' },
+      { k:'',   t:'  ➜  Local:   http://localhost:3000/' },
+      { k:'',   t:'  ➜  Network: http://192.168.0.72:3000/' },
+      { k:'dim',t:'[ready in 412ms]' },
+    ]},
+  { id:'t2', name:'~/.hermes', pwd:'~/.hermes', host:'rohits@Rohits-Mac-mini', shell:'zsh', state:'warn',
+    history: [
+      { k:'cmd', t:'~', cmd:'cd ~/.hermes' },
+      { k:'cmd', t:'~/.hermes', cmd:'source ~/.openclaw/completions/openclaw.zsh' },
+      { k:'warn',t:'/Users/rohits/.openclaw/completions/openclaw.zsh:3568: command not found: compdef' },
+      { k:'cmd', t:'~/.hermes', cmd:'ls -la' },
+      { k:'',   t:'drwxr-xr-x   8 rohits  staff    256 Nov  5 14:02 .' },
+      { k:'',   t:'drwxr-xr-x  64 rohits  staff   2048 Nov  5 14:02 ..' },
+      { k:'',   t:'-rw-------   1 rohits  staff   1842 Nov  5 13:58 config.yaml' },
+      { k:'',   t:'-rw-r--r--   1 rohits  staff  18203 Nov  5 14:02 sessions.db' },
+      { k:'',   t:'drwxr-xr-x   3 rohits  staff     96 Nov  5 11:02 skills' },
+      { k:'',   t:'drwxr-xr-x   5 rohits  staff    160 Nov  5 12:14 cache' },
+    ]},
+  { id:'t3', name:'agent-runtime', pwd:'~/code/hermes-agent', host:'rohits@runner-01', shell:'bash', state:'live',
+    history: [
+      { k:'cmd', t:'~/code/hermes-agent', cmd:'./bin/hermes-agent serve --listen :7331' },
+      { k:'ok',  t:'[hermes] booting agent runtime v0.18.4' },
+      { k:'ok',  t:'[hermes] mounted skills: 142  ·  mcp servers: 3 connected / 12 unknown' },
+      { k:'',    t:'[hermes] worker pool ready (8 workers, 12 GB heap)' },
+      { k:'key', t:'  ↳ listening on http://0.0.0.0:7331' },
+      { k:'dim', t:'  · /healthz  · /api/skills  · /api/mcp  · /api/sessions' },
+      { k:'',    t:'' },
+      { k:'ok',  t:'[14:02:38.412] POST /api/sessions/cmd  →  202 (queued, sid=s_8412c3)' },
+      { k:'ok',  t:'[14:02:38.589] WS  /ws/runtime         →  upgrade ok (peer=ui-3000)' },
+    ]},
+  { id:'t4', name:'sandbox', pwd:'~/sandbox', host:'rohits@Rohits-Mac-mini', shell:'fish', state:'idle',
+    history: [
+      { k:'cmd', t:'~', cmd:'cd sandbox' },
+      { k:'cmd', t:'~/sandbox', cmd:'echo "hello, hermes."' },
+      { k:'',    t:'hello, hermes.' },
+    ]},
+];
+
+const PALETTE_ITEMS = [
+  { id:'split-h',  k:'⌘D', label:'Split right',   desc:'open new pane to the right',          ic:Ico.splitH },
+  { id:'split-v',  k:'⇧⌘D',label:'Split down',    desc:'open new pane below',                  ic:Ico.splitV },
+  { id:'close',    k:'⌘W', label:'Close pane',    desc:'close the focused terminal pane',      ic:Ico.x },
+  { id:'rain-on',  k:'⌃M', label:'Toggle Matrix rain', desc:'show / hide background animation', ic:Ico.matrix },
+  { id:'rain-dim', k:'⌃⇧M',label:'Dim Matrix rain', desc:'subtle mode — half opacity',         ic:Ico.matrix },
+  { id:'rec',      k:'⌘R', label:'Record session', desc:'start asciinema-style recording',     ic:Ico.rec },
+  { id:'export',   k:'⌘E', label:'Export buffer',  desc:'save scrollback to a .log file',      ic:Ico.dl },
+  { id:'send-ai',  k:'⌘L', label:'Send to Hermes', desc:'pipe last command + output into chat', ic:Ico.bolt },
+  { id:'clear',    k:'⌘K', label:'Clear buffer',   desc:'clear screen, keep session',           ic:Ico.trash },
+];
+
+/* ── Canned command sandbox ─────────────────────────────── */
+function evalCommand(cmd, term) {
+  const c = cmd.trim();
+  if (!c) return { lines: [], exit: 0 };
+  const [head, ...rest] = c.split(/\s+/);
+  const arg = rest.join(' ');
+  switch (head) {
+    case 'help':
+      return { exit:0, lines:[
+        { k:'ok', t:'hermes-shell — canned commands:' },
+        { k:'',   t:'  help · clear · pwd · whoami · date · uname · echo <…>' },
+        { k:'',   t:'  ls · cat <file> · ps · hermes <status|skills|mcp>' },
+        { k:'dim',t:'  ↑/↓ for history · ⌘K for palette' },
+      ]};
+    case 'pwd':    return { exit:0, lines:[{ k:'', t: term.pwd.replace('~', '/Users/rohits') }] };
+    case 'whoami': return { exit:0, lines:[{ k:'', t:'rohits' }] };
+    case 'date':   return { exit:0, lines:[{ k:'', t: new Date().toString() }] };
+    case 'uname':  return { exit:0, lines:[{ k:'', t:'Darwin Rohits-Mac-mini 24.1.0 arm64' }] };
+    case 'echo':   return { exit:0, lines:[{ k:'', t: arg }] };
+    case 'clear':  return { exit:0, clear:true, lines:[] };
+    case 'ls':     return { exit:0, lines:[
+      { k:'path', t:'src/        components/   public/      package.json' },
+      { k:'path', t:'tsconfig.json  vite.config.ts  README.md  .env' },
+    ]};
+    case 'cat':
+      if (!arg) return { exit:1, lines:[{ k:'err', t:'cat: missing operand' }] };
+      return { exit:0, lines:[{ k:'dim', t:`# ${arg}` }, { k:'', t:'(canned preview — sandbox mode)' }] };
+    case 'ps':     return { exit:0, lines:[
+      { k:'dim', t:'  PID TTY           TIME CMD' },
+      { k:'',    t:' 1842 ttys001    0:00.21 -zsh' },
+      { k:'',    t:' 7331 ttys002    0:18.04 hermes-agent serve' },
+      { k:'',    t:' 9120 ttys003    0:02.55 node tanstack-start' },
+    ]};
+    case 'hermes': {
+      if (arg === 'status') return { exit:0, lines:[
+        { k:'ok',  t:'● hermes-agent — running (pid 7331, uptime 4h12m)' },
+        { k:'key', t:'  listen   http://0.0.0.0:7331' },
+        { k:'key', t:'  workers  8/8 ready · queue depth 0' },
+      ]};
+      if (arg === 'skills') return { exit:0, lines:[
+        { k:'ok', t:'142 skills mounted · 9 active sessions' },
+        { k:'',   t:'  conductor · operator · tasks · files · terminal · mcp · …' },
+      ]};
+      if (arg === 'mcp') return { exit:0, lines:[
+        { k:'ok',  t:'mcp servers · 3 connected · 12 unknown' },
+        { k:'',   t:'  ✓ context-mode      ✓ claude-mem    ✓ omc-tools' },
+        { k:'warn',t:'  ? gmail (auth required)  ? gdrive (auth required)' },
+      ]};
+      return { exit:1, lines:[{ k:'err', t:`hermes: unknown subcommand "${arg||''}" — try: status · skills · mcp` }] };
+    }
+    default:
+      return { exit:127, lines:[{ k:'err', t:`zsh: command not found: ${head}` }] };
+  }
+}
+
+/* ── Pane ───────────────────────────────────────────────── */
+function TermPane({ term, focused, rain, rainDim, onFocus, onRun }) {
+  const scrollRef = React.useRef(null);
+  const inputRef  = React.useRef(null);
+  const [draft, setDraft] = React.useState('');
+  const [hIdx, setHIdx]   = React.useState(-1);
+
+  React.useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [term.history.length]);
+
+  React.useEffect(() => {
+    if (focused && inputRef.current) inputRef.current.focus();
+  }, [focused, term.id]);
+
+  const cmdHistory = term.history.filter(h => h.k === 'cmd').map(h => h.cmd);
+
+  const onKey = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onRun(term.id, draft);
+      setDraft(''); setHIdx(-1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!cmdHistory.length) return;
+      const next = hIdx < 0 ? cmdHistory.length - 1 : Math.max(0, hIdx - 1);
+      setHIdx(next); setDraft(cmdHistory[next] || '');
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (hIdx < 0) return;
+      const next = hIdx + 1;
+      if (next >= cmdHistory.length) { setHIdx(-1); setDraft(''); }
+      else { setHIdx(next); setDraft(cmdHistory[next]); }
+    }
+  };
+
+  return (
+    <div className={`term-pane ${focused?'focused':''}`} onClick={() => { onFocus(); inputRef.current?.focus(); }}>
+      {rain && <MatrixRain dim={rainDim}/>}
+      <div className="hud">
+        <span className="d"/>
+        <span><b>{term.host}</b></span>
+        <span style={{ color:'var(--m-text-ghost)' }}>·</span>
+        <span>{term.shell}</span>
+        <span style={{ color:'var(--m-text-ghost)' }}>·</span>
+        <span>{term.pwd}</span>
+      </div>
+      <div className="term-content" ref={scrollRef}>
+        {term.history.map((h, i) => h.k === 'cmd' ? (
+          <span key={i} className="ln cmd">
+            <span className="at">{term.host}</span>
+            <span className="dim"> </span>
+            <span className="pwd">{h.t}</span>
+            <span className="pct"> %</span>
+            <span className="input">{h.cmd}</span>
+            {'\n'}
+          </span>
+        ) : (
+          <span key={i} className={`ln ${h.k}`}>{h.t}{'\n'}</span>
+        ))}
+        {focused && (
+          <span className="ln cmd">
+            <span className="at">{term.host}</span>
+            <span className="dim"> </span>
+            <span className="pwd">{term.pwd}</span>
+            <span className="pct"> %</span>
+            <span className="input">{draft}</span>
+            <span className="caret"/>
+          </span>
+        )}
+      </div>
+      <div className="cmd-bar">
+        <span className="pmt">{term.pwd} %</span>
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={e => { setDraft(e.target.value); setHIdx(-1); }}
+          onKeyDown={onKey}
+          placeholder={focused ? "type a command — try 'help' · ↑/↓ history · ⌘K palette" : "click to focus this pane…"}/>
+        <span className="hint"><kbd>⌘K</kbd>palette</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Sessions sidebar ───────────────────────────────────── */
+function Sidebar({ terms, activeId, onActivate, collapsed, setCollapsed, onNew }) {
+  if (collapsed) {
+    return (
+      <aside className="sb is-collapsed">
+        <div className="sb-head" style={{ justifyContent:'center' }}>
+          <span className="ico-btn active" onClick={() => setCollapsed(false)} title="Expand">{Ico.unfold}</span>
+        </div>
+        <div className="sb-rail">
+          <span className="badge-n">{terms.length}</span>
+          <span className="vlabel">Terminals</span>
+        </div>
+        <div/>
+      </aside>
+    );
+  }
+  return (
+    <aside className="sb">
+      <div className="sb-head">
+        <h3>Sessions</h3><span className="ct">{terms.length}</span>
+        <span className="actions">
+          <span className="ico-btn" title="New session" onClick={onNew}>{Ico.plus}</span>
+          <span className="ico-btn" title="Collapse" onClick={() => setCollapsed(true)}>{Ico.fold}</span>
+        </span>
+      </div>
+      <div className="sb-grp" style={{ padding:'10px 14px 6px', borderBottom:'1px solid var(--m-border-subtle)' }}>
+        <div className="m-input" style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px' }}>
+          {Ico.search}
+          <input style={{ flex:1, background:'transparent', border:'none', outline:'none', color:'var(--m-text)', font:'500 12.5px var(--m-font-mono)' }} placeholder="filter sessions…"/>
+        </div>
+      </div>
+      <div className="sb-body">
+        <div className="sb-grp">
+          <h4>Local <span className="ct">3</span></h4>
+          {terms.filter(t => t.host.includes('Mac-mini')).map(t => (
+            <div key={t.id} className={`term-row ${t.state} ${t.id===activeId?'on':''}`} onClick={() => onActivate(t.id)}>
+              <span className="d"/>
+              <span className="name">{t.name}<span className="pwd">{t.pwd} · {t.shell}</span></span>
+              <span className="meta">{t.state==='live'?'live':t.state==='warn'?'warn':'idle'}</span>
+            </div>
+          ))}
+        </div>
+        <div className="sb-grp">
+          <h4>Remote <span className="ct">1</span></h4>
+          {terms.filter(t => !t.host.includes('Mac-mini')).map(t => (
+            <div key={t.id} className={`term-row ${t.state} ${t.id===activeId?'on':''}`} onClick={() => onActivate(t.id)}>
+              <span className="d"/>
+              <span className="name">{t.name}<span className="pwd">{t.host} · {t.shell}</span></span>
+              <span className="meta">{t.state==='live'?'live':t.state==='warn'?'warn':'idle'}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="sb-foot">
+        <button className="m-btn m-btn-sm m-btn-primary" style={{ display:'inline-flex', alignItems:'center', gap:6, justifyContent:'center' }} onClick={onNew}>{Ico.plus} New session</button>
+        <span style={{ font:'500 10px var(--m-font-mono)', color:'var(--m-text-faint)', textAlign:'center', textTransform:'uppercase', letterSpacing:'.18em' }}>⌘T new · ⌘K palette</span>
+      </div>
+    </aside>
+  );
+}
+
+/* ── App ────────────────────────────────────────────────── */
+function App() {
+  const [terms, setTerms] = React.useState(TERMS);
+  const [openIds, setOpenIds] = React.useState(['t1','t2','t3']);  // tabs open
+  const [activeId, setActiveId] = React.useState('t2');
+  const [splitId, setSplitId]   = React.useState('t1'); // pane B
+  const [split, setSplit]       = React.useState('h');  // 'none' | 'h' | 'v'
+  const [lastExit, setLastExit] = React.useState(0);
+  const [focused, setFocused]   = React.useState('A');  // 'A' | 'B'
+  const [collapsed, setCollapsed] = React.useState(false);
+  const [rain, setRain]   = React.useState(true);
+  const [rainDim, setDim] = React.useState(false);
+  const [palette, setPalette] = React.useState(false);
+  const [palQuery, setPalQuery] = React.useState('');
+  const [palSel, setPalSel] = React.useState(0);
+
+  const open = (id) => {
+    setOpenIds(prev => prev.includes(id) ? prev : [...prev, id]);
+    setActiveId(id);
+    setFocused('A');
+  };
+  const close = (id) => {
+    setOpenIds(prev => {
+      const next = prev.filter(x => x !== id);
+      if (id === activeId) setActiveId(next[0] || null);
+      return next;
+    });
+  };
+  const newSession = () => {
+    const id = 't' + Math.floor(Math.random()*9999);
+    const fresh = { id, name:'Terminal '+(terms.length+1), pwd:'~', host:'rohits@Rohits-Mac-mini', shell:'zsh', state:'idle', history:[{k:'dim',t:'[new session — type help]'}] };
+    setTerms(p => [...p, fresh]);
+    setOpenIds(p => [...p, id]); setActiveId(id);
+  };
+  const runCmd = (termId, raw) => {
+    const cmd = (raw || '').trim();
+    if (!cmd) return;
+    setTerms(prev => prev.map(t => {
+      if (t.id !== termId) return t;
+      const res = evalCommand(cmd, t);
+      setLastExit(res.exit ?? 0);
+      const cmdLine = { k:'cmd', t:t.pwd, cmd };
+      const nextHist = res.clear ? [] : [...t.history, cmdLine, ...res.lines];
+      return { ...t, history: nextHist, state: res.exit === 0 ? t.state : 'warn' };
+    }));
+  };
+  const togglePalette = () => { setPalette(p => !p); setPalQuery(''); setPalSel(0); };
+  const runPalette = (id) => {
+    setPalette(false);
+    if (id === 'split-h') { setSplit('h'); setSplitId(activeId === 't2' ? 't1' : 't2'); }
+    if (id === 'split-v') { setSplit('v'); setSplitId(activeId === 't2' ? 't1' : 't2'); }
+    if (id === 'close')   { setSplit('none'); }
+    if (id === 'rain-on') { setRain(r => !r); }
+    if (id === 'rain-dim'){ setDim(d => !d); }
+  };
+  React.useEffect(() => {
+    const onKey = e => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); togglePalette(); }
+      if (e.key === 'Escape' && palette) setPalette(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [palette]);
+
+  const active = terms.find(t => t.id === activeId);
+  const splitTerm = terms.find(t => t.id === splitId);
+
+  const filtered = PALETTE_ITEMS.filter(p => !palQuery || p.label.toLowerCase().includes(palQuery.toLowerCase()) || p.desc.toLowerCase().includes(palQuery.toLowerCase()));
+
+  return (
+    <div className={`shell ${collapsed ? 'sidebar-collapsed' : ''}`}>
+      <nav className="nav"><PrimaryNavV2 active="terminal" sessionsBadge={9} /></nav>
+      <Sidebar terms={terms} activeId={activeId} onActivate={open} collapsed={collapsed} setCollapsed={setCollapsed} onNew={newSession}/>
+      <main className="main">
+        <div className="tabs">
+          {openIds.map(id => {
+            const t = terms.find(x => x.id === id); if (!t) return null;
+            return (
+              <div key={id} className={`tab ${t.state} ${id===activeId?'on':''}`} onClick={() => { setActiveId(id); setFocused('A'); }}>
+                <span className="d"/>
+                <span className="ic">{Ico.term}</span>
+                <span className="name">{t.name}</span>
+                <span className="x" onClick={e => { e.stopPropagation(); close(id); }}>{Ico.x}</span>
+              </div>
+            );
+          })}
+          <span className="add" title="New tab (⌘T)" onClick={newSession}>{Ico.plus}</span>
+          <div className="right-cluster">
+            <span className={`ico-btn ${rain?'active':''}`} title="Toggle Matrix rain (⌃M)" onClick={() => setRain(r => !r)}>{Ico.matrix}</span>
+            <span className={`ico-btn ${rainDim?'active':''}`} title="Dim rain (⌃⇧M)" onClick={() => setDim(d => !d)} style={{ opacity: rain?1:.4 }}>·dim</span>
+            <span className="ico-btn" title="Split right (⌘D)" onClick={() => setSplit('h')}>{Ico.splitH}</span>
+            <span className="ico-btn" title="Split down (⇧⌘D)" onClick={() => setSplit('v')}>{Ico.splitV}</span>
+            <span className="ico-btn" title="Single pane" onClick={() => setSplit('none')}>{Ico.unsplit}</span>
+            <span style={{ width: 1, height: 18, background: 'var(--m-border-subtle)', margin: '0 4px' }}/>
+            <span className="ico-btn" title="Command palette (⌘K)" onClick={togglePalette}>{Ico.cmd}</span>
+            <span className="ico-btn" title="Record session">{Ico.rec}</span>
+            <span className="ico-btn" title="Export buffer">{Ico.dl}</span>
+          </div>
+        </div>
+
+        <div className={`term-area ${split==='h'?'split-h':split==='v'?'split-v':''}`}>
+          {active && (
+            <TermPane term={active} focused={focused==='A'} rain={rain} rainDim={rainDim} onFocus={() => setFocused('A')} onRun={runCmd}/>
+          )}
+          {split !== 'none' && splitTerm && (
+            <TermPane term={splitTerm} focused={focused==='B'} rain={rain} rainDim={rainDim} onFocus={() => setFocused('B')} onRun={runCmd}/>
+          )}
+
+          {/* command palette */}
+          <div className={`palette ${palette?'open':''}`}>
+            <div className="pinp">
+              <span className="pmt">⌘K</span>
+              <input autoFocus={palette} placeholder="run a terminal command, action or skill…" value={palQuery}
+                onChange={e => { setPalQuery(e.target.value); setPalSel(0); }}
+                onKeyDown={e => {
+                  if (e.key === 'ArrowDown') { e.preventDefault(); setPalSel(s => Math.min(filtered.length-1, s+1)); }
+                  if (e.key === 'ArrowUp')   { e.preventDefault(); setPalSel(s => Math.max(0, s-1)); }
+                  if (e.key === 'Enter' && filtered[palSel]) runPalette(filtered[palSel].id);
+                }}/>
+              <span style={{ font:'500 10px var(--m-font-mono)', color:'var(--m-text-faint)', textTransform:'uppercase', letterSpacing:'.14em' }}>{filtered.length} actions</span>
+            </div>
+            <div className="plist">
+              {filtered.map((p, i) => (
+                <div key={p.id} className={`pitem ${i===palSel?'on':''}`} onClick={() => runPalette(p.id)} onMouseEnter={() => setPalSel(i)}>
+                  <span className="ic">{p.ic}</span>
+                  <div>
+                    <div>{p.label}</div>
+                    <div className="desc">{p.desc}</div>
+                  </div>
+                  <kbd>{p.k}</kbd>
+                </div>
+              ))}
+              {filtered.length === 0 && <div style={{ padding:'18px 14px', color:'var(--m-text-faint)', font:'500 12px var(--m-font-mono)', textAlign:'center' }}>no actions match</div>}
+            </div>
+          </div>
+        </div>
+
+        <footer className="pg-foot">
+          <span><b>{openIds.length}</b> tabs open</span>
+          <span className="sep"/>
+          <span>active <b style={{ color:'var(--m-green-500)' }}>{active?.name}</b></span>
+          <span className="sep"/>
+          <span>{active?.shell} · {active?.host}</span>
+          <span className="sep"/>
+          <span>exit <b className={lastExit===0?'ok':''} style={{ color: lastExit===0 ? 'var(--m-green-500)' : '#ff5fa2' }}>{lastExit}</b></span>
+          <span className="sep"/>
+          <span>rain <b className={rain?'ok':''}>{rain?(rainDim?'dim':'on'):'off'}</b></span>
+          <span style={{ marginLeft:'auto' }}>cpu <b>23%</b></span>
+          <span className="sep"/>
+          <span>mem <b>4.1G/16G</b></span>
+        </footer>
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
