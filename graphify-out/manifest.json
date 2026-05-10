@@ -1096,12 +1096,16 @@
     "hash": "05aed906b8753c631a6a1763a6d5bc42"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/src/screens/mcp/mcp-detail-drawer.tsx": {
-    "mtime": 1778408811.1454132,
-    "hash": "69951729f41dea3a8b57771487b4a0e3"
+    "mtime": 1778411461.6930954,
+    "hash": "fffded78bd07405ed0377f0e34cfa744"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/src/screens/mcp/mcp-screen.tsx": {
-    "mtime": 1778409011.562589,
-    "hash": "fa26972272752e4cec6943f3a729f215"
+    "mtime": 1778411461.6939223,
+    "hash": "a5e9aa6851be039f9f6fe21c27a5ed36"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui-a/src/screens/mcp/icons.tsx": {
+    "mtime": 1778411461.69226,
+    "hash": "46c320343bfb47f0986ad082fe12c84e"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/src/screens/mcp/-mcp-oauth.test.ts": {
     "mtime": 1777916346.301358,
@@ -1268,20 +1272,20 @@
     "hash": "52ca25d5795d2b680134d48dc7a76d70"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/src/screens/files/files-screen.tsx": {
-    "mtime": 1778322451.2794323,
-    "hash": "a7a00fd51d9a9411af80b38a8f664d0a"
+    "mtime": 1778431621.2257478,
+    "hash": "295e2fb9c14d2270a35f185c8a545dd7"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/src/screens/skills/workspace-skills-screen.tsx": {
     "mtime": 1777916346.3117723,
     "hash": "06cd7d68dc5a6ac3f5fc85d33c444f2f"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/src/screens/skills/skills-screen.tsx": {
-    "mtime": 1778405567.6292326,
-    "hash": "e2778d18e305ccfcd13e451e52a15a21"
+    "mtime": 1778411461.6968398,
+    "hash": "d7c9a28c51468013d5ea75f2ae2e5dd0"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/src/screens/skills/skill-detail-drawer.tsx": {
-    "mtime": 1778405436.9615657,
-    "hash": "4534595a9a8f33bb4e6fd70e3c86f987"
+    "mtime": 1778411461.6957378,
+    "hash": "e3198fb318dd78d8cc48d588bee87330"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/src/screens/profiles/profiles-screen.tsx": {
     "mtime": 1777916346.310412,
@@ -2392,8 +2396,8 @@
     "hash": "98cae94bc20ac129a985d90c1a16e050"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/src/routes/files.tsx": {
-    "mtime": 1777916346.2607539,
-    "hash": "009daeeb5d84f53f9dd9e45cb28faeec"
+    "mtime": 1778429963.8523004,
+    "hash": "a29064a01a64ce13ff72712babfcf1f9"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/src/routes/terminal.tsx": {
     "mtime": 1777916346.2643995,
@@ -3056,8 +3060,8 @@
     "hash": "f0eab90c587428f18bdebbaed85be3a5"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/AGENTS.md": {
-    "mtime": 1778408651.4018803,
-    "hash": "674f31358ea139ee8b945174f3750f74"
+    "mtime": 1778431570.1251438,
+    "hash": "b9d7f27a5a33100dab9c456a11c1c8e0"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/FEATURES-INVENTORY.md": {
     "mtime": 1777916345.2178895,
@@ -3178,6 +3182,10 @@
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/docs/Design Assets/Hermes-Switchui/Tasks.html": {
     "mtime": 1778327293.8080897,
     "hash": "3669346bfd84ccb2cee136c478f5a7a3"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui-a/docs/Design Assets/Hermes-Switchui/Files.html": {
+    "mtime": 1778411526.5061085,
+    "hash": "24821b2de843f21d979d973aa93d888e"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/docs/Design Assets/Hermes-Switchui/Chat with Sessions Sidebar.html": {
     "mtime": 1778327293.8030548,
