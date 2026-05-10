@@ -237,7 +237,7 @@ export function SkillsScreen() {
   }, [categories])
 
   return (
-    <div className="min-h-full bg-surface text-ink sk-shell" data-screen="skills">
+    <div className="h-screen bg-surface text-ink sk-shell" data-screen="skills">
       {/* ── Column 2: Filter Panel ── */}
       <aside className={cn('sk-filter', filtersCollapsed && 'collapsed')}>
         {/* header */}
@@ -382,7 +382,6 @@ export function SkillsScreen() {
             >
               <option value="name">Name A–Z</option>
               <option value="category">Category</option>
-              <option value="updated">Updated</option>
             </select>
 
             <div className="sk-view-toggle">
@@ -475,9 +474,7 @@ export function SkillsScreen() {
                   </div>
                   <div className="sk-card-meta">
                     <div className="meta-left">
-                      <span>v1.0</span>
-                      <span>•</span>
-                      <span>Updated recently</span>
+                      <span>{skill.installed ? 'Installed' : '—'}</span>
                     </div>
                     <button
                       type="button"
@@ -551,7 +548,10 @@ export function SkillsScreen() {
                       )}
                     </td>
                     <td>
-                      {skill.installed ? (skill.enabled ? 'Active' : 'Disabled') : 'Not installed'}
+                      <span className={`sk-status-pill ${skill.installed ? (skill.enabled ? 'active' : 'disabled') : 'market'}`}>
+                        <span className="dot" />
+                        {skill.installed ? (skill.enabled ? 'Enabled' : 'Disabled') : 'Marketplace'}
+                      </span>
                     </td>
                     <td>
                       <button

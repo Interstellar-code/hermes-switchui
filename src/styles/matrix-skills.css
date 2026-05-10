@@ -398,6 +398,7 @@
 .sk-card:hover {
   border-color: var(--m-border-strong, var(--theme-border));
   box-shadow: 0 0 20px rgba(0,255,65,.08);
+  transform: translateY(-1px);
 }
 .sk-card:hover::before {
   opacity: 1;
@@ -665,16 +666,24 @@
   max-width: 90vw;
   z-index: 901;
   background: var(--m-panel, var(--theme-card));
-  border-left: 1px solid var(--m-border, var(--theme-border));
+  border-left: 1px solid var(--m-green-500, #00ff41);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   animation: sk-drawer-in var(--m-dur-base, 180ms) var(--m-ease-out, ease-out);
-  box-shadow: -10px 0 40px rgba(0, 0, 0, .3);
+  box-shadow: -2px 0 24px rgba(0,255,65,.18), -1px 0 0 rgba(0,255,65,.4), -10px 0 40px rgba(0, 0, 0, .3);
 }
 @keyframes sk-drawer-in {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes sk-drawer-out {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(100%); opacity: 0; }
+}
+@keyframes sk-scrim-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 /* scan line animation */
@@ -1025,6 +1034,43 @@
   text-transform: uppercase;
   letter-spacing: .14em;
   color: var(--m-text-muted, var(--theme-muted));
+}
+
+
+/* ── status pill (grid & table) ── */
+.sk-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 500 9.5px var(--m-font-mono, ui-monospace, monospace);
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  border: 1px solid var(--m-border-subtle, var(--theme-border));
+  color: var(--m-text-muted, var(--theme-muted));
+}
+.sk-status-pill .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.sk-status-pill.active {
+  color: var(--m-green-500, #00ff41);
+  border-color: var(--m-border, var(--theme-border));
+  background: var(--m-fill, var(--theme-hover));
+}
+.sk-status-pill.active .dot {
+  box-shadow: 0 0 6px var(--m-green-500, #00ff41);
+}
+.sk-status-pill.disabled {
+  color: var(--m-text-faint, var(--theme-muted));
+}
+.sk-status-pill.market {
+  color: #5fcfff;
+  border-color: rgba(95,207,255,.35);
+  background: rgba(95,207,255,.06);
 }
 
 } /* end [data-screen="skills"] */
