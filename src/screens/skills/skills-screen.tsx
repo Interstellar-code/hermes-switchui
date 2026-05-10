@@ -1,29 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AnimatePresence, motion } from 'motion/react'
-import { Button } from '@/components/ui/button'
-import { Tabs, TabsList, TabsPanel, TabsTab } from '@/components/ui/tabs'
-import { Switch } from '@/components/ui/switch'
-import {
-  DialogContent,
-  DialogDescription,
-  DialogRoot,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
-  ScrollAreaRoot,
-  ScrollAreaScrollbar,
-  ScrollAreaThumb,
-  ScrollAreaViewport,
-} from '@/components/ui/scroll-area'
-import { Markdown } from '@/components/prompt-kit/markdown'
+'use client'
+
+import '@/styles/matrix-skills.css'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { AnimatePresence } from 'motion/react'
+import { SkillDetailDrawer } from './skill-detail-drawer'
 import { cn } from '@/lib/utils'
-import { writeTextToClipboard } from '@/lib/clipboard'
 import { toast } from '@/components/ui/toast'
 
-type SkillsTab = 'installed' | 'marketplace' | 'featured'
-type SkillsSort = 'name' | 'category'
-
+/* ── types ── */
 type SecurityRisk = {
   level: 'safe' | 'low' | 'medium' | 'high'
   flags: Array<string>
@@ -58,8 +43,6 @@ type SkillsApiResponse = {
   categories: Array<string>
 }
 
-type SkillSearchTier = 0 | 1 | 2 | 3
-
 type HubSkill = {
   id: string
   name: string
@@ -67,27 +50,68 @@ type HubSkill = {
   author: string
   category: string
   tags: Array<string>
-  downloads?: number
-  stars?: number
   source: string
   identifier?: string
   trust_level?: string
-  repo?: string | null
-  installCommand?: string
-  homepage?: string | null
-  installed: boolean
+  repo?: string
+  homepage?: string
   extra?: Record<string, unknown>
+  installed: boolean
 }
 
 type HubSearchResponse = {
   results: Array<HubSkill>
   source: string
-  total?: number
   error?: string
 }
 
-const PAGE_LIMIT = 30
+type StatusFilter = 'installed' | 'marketplace' | 'all'
+type ViewMode = 'grid' | 'table'
+type SortMode = 'name' | 'category' | 'updated'
+type PageSize = 10 | 25 | 50 | 100
 
+/* ── PaginationBar ── */
+function PaginationBar({
+  page,
+  totalPages,
+  total,
+  pageSize,
+  onPage,
+  onPageSize,
+}: {
+  page: number
+  totalPages: number
+  total: number
+  pageSize: PageSize
+  onPage: (p: number) => void
+  onPageSize: (s: PageSize) => void
+}) {
+  return (
+    <div className="sk-pagination">
+      <select
+        value={pageSize}
+        onChange={(e) => onPageSize(Number(e.target.value) as PageSize)}
+        aria-label="Page size"
+        className="sk-pg-size"
+      >
+        {([10, 25, 50, 100] as PageSize[]).map((s) => (
+          <option key={s} value={s}>{s} / page</option>
+        ))}
+      </select>
+      <span className="sk-pg-label">
+        Page {page} of {totalPages} · {total} total
+      </span>
+      <div className="sk-pg-btns">
+        <button type="button" onClick={() => onPage(1)} disabled={page === 1} aria-label="First page">«</button>
+        <button type="button" onClick={() => onPage(page - 1)} disabled={page === 1} aria-label="Previous page">‹</button>
+        <button type="button" onClick={() => onPage(page + 1)} disabled={page === totalPages} aria-label="Next page">›</button>
+        <button type="button" onClick={() => onPage(totalPages)} disabled={page === totalPages} aria-label="Last page">»</button>
+      </div>
+    </div>
+  )
+}
+
+/* ── constants ── */
 const DEFAULT_CATEGORIES = [
   'All',
   'Web & Frontend',
@@ -105,161 +129,129 @@ const DEFAULT_CATEGORIES = [
   'Finance & Crypto',
 ]
 
-function resolveSkillSearchTier(
-  skill: SkillSummary,
-  query: string,
-): SkillSearchTier {
-  const normalizedQuery = query.trim().toLowerCase()
-  if (!normalizedQuery) return 0
+const ORIGIN_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'all', label: 'All origins' },
+  { value: 'builtin', label: 'Built-in' },
+  { value: 'marketplace', label: 'Community' },
+  { value: 'agent-created', label: 'Hermes Agent' },
+  { value: 'private', label: 'Private' },
+]
 
-  if (skill.name.toLowerCase().includes(normalizedQuery)) return 0
-
-  const tagText = skill.tags.join(' ').toLowerCase()
-  const triggerText = skill.triggers.join(' ').toLowerCase()
-  if (
-    tagText.includes(normalizedQuery) ||
-    triggerText.includes(normalizedQuery)
-  ) {
-    return 1
-  }
-
-  if (skill.description.toLowerCase().includes(normalizedQuery)) return 2
-  return 3
+/* ── helpers ── */
+function initials(name: string): string {
+  return name
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
 }
 
+function scanTagClass(level?: SecurityRisk['level']): string {
+  if (!level) return ''
+  if (level === 'safe') return 'scan-safe'
+  if (level === 'low') return 'scan-low'
+  if (level === 'medium') return 'scan-med'
+  return 'scan-high'
+}
+
+function relativeTime(dateStr?: string): string {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return ''
+  const diff = Date.now() - d.getTime()
+  const mins = Math.floor(diff / 60_000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  return `${days}d ago`
+}
+
+/* ── main component ── */
 export function SkillsScreen() {
   const queryClient = useQueryClient()
-  const [tab, setTab] = useState<SkillsTab>('installed')
-  const [searchInput, setSearchInput] = useState('')
-  const [debouncedMarketplaceSearch, setDebouncedMarketplaceSearch] =
-    useState('')
-  const [category, setCategory] = useState('All')
-  const [origin, setOrigin] = useState<string>('All')
-  const [sort, setSort] = useState<SkillsSort>('name')
-  const [page, setPage] = useState(1)
-  const [actionSkillId, setActionSkillId] = useState<string | null>(null)
+
+  /* state */
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [activeStatus, setActiveStatus] = useState<StatusFilter>('installed')
+  const [activeCategory, setActiveCategory] = useState('All')
+  const [activeOrigin, setActiveOrigin] = useState('all')
+  const [sortMode, setSortMode] = useState<SortMode>('name')
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [filtersCollapsed, setFiltersCollapsed] = useState(false)
   const [selectedSkill, setSelectedSkill] = useState<SkillSummary | null>(null)
-  const [actionError, setActionError] = useState<string | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
+  /* pagination — installed/all */
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSize>(25)
+
+  /* pagination — marketplace */
+  const [mktPage, setMktPage] = useState(1)
+  const [mktPageSize, setMktPageSize] = useState<PageSize>(25)
+
+  /* debounce search */
   useEffect(() => {
-    if (tab !== 'marketplace') return
+    const id = setTimeout(() => setDebouncedSearch(searchQuery), 250)
+    return () => clearTimeout(id)
+  }, [searchQuery])
 
-    const timeout = window.setTimeout(() => {
-      setDebouncedMarketplaceSearch(searchInput)
-    }, 250)
+  /* reset pages on filter/search/sort changes */
+  useEffect(() => { setPage(1) }, [debouncedSearch, activeCategory, activeOrigin, activeStatus, sortMode])
+  useEffect(() => { setMktPage(1) }, [debouncedSearch, activeStatus])
 
-    return () => {
-      window.clearTimeout(timeout)
-    }
-  }, [searchInput, tab])
-
+  /* data query */
   const skillsQuery = useQuery({
-    queryKey: ['skills-browser', tab, searchInput, category, origin, page, sort],
-    queryFn: async function fetchSkills(): Promise<SkillsApiResponse> {
+    queryKey: ['skills-browser', activeStatus, debouncedSearch, activeCategory, activeOrigin, sortMode],
+    queryFn: async (): Promise<SkillsApiResponse> => {
       const params = new URLSearchParams()
-      params.set('tab', tab)
-      params.set('search', searchInput)
-      params.set('category', category)
-      params.set('origin', origin)
-      params.set('page', String(page))
-      params.set('limit', String(PAGE_LIMIT))
-      params.set('sort', sort)
+      params.set('tab', activeStatus === 'all' ? 'installed' : activeStatus)
+      params.set('limit', '200')
+      if (debouncedSearch) params.set('search', debouncedSearch)
+      if (activeCategory !== 'All') params.set('category', activeCategory)
+      if (activeOrigin !== 'all') params.set('origin', activeOrigin)
+      params.set('sort', sortMode)
 
-      const response = await fetch(`/api/skills?${params.toString()}`)
-      const payload = (await response.json()) as SkillsApiResponse & {
-        error?: string
-      }
-      if (!response.ok) {
-        throw new Error(payload.error || 'Failed to fetch skills')
-      }
+      const res = await fetch(`/api/skills?${params.toString()}`)
+      const payload = (await res.json()) as SkillsApiResponse & { error?: string }
+      if (!res.ok) throw new Error(payload.error || 'Failed to fetch skills')
       return payload
     },
+    refetchInterval: 30_000,
   })
 
+  /* hub query — marketplace / Hub tab */
   const hubQuery = useQuery({
-    queryKey: ['skills-hub-search', debouncedMarketplaceSearch],
-    enabled: tab === 'marketplace',
-    queryFn: async function fetchHubResults(): Promise<HubSearchResponse> {
+    queryKey: ['skills-hub-search', debouncedSearch],
+    enabled: activeStatus === 'marketplace',
+    queryFn: async (): Promise<HubSearchResponse> => {
       const params = new URLSearchParams()
-      params.set('q', debouncedMarketplaceSearch)
+      params.set('q', debouncedSearch)
       params.set('source', 'all')
       params.set('limit', '20')
-
-      const response = await fetch(
-        `/api/skills/hub-search?${params.toString()}`,
-      )
-      const payload = (await response.json()) as HubSearchResponse
-      if (!response.ok) {
-        throw new Error(payload.error || 'Failed to search skills hub')
-      }
+      const res = await fetch(`/api/skills/hub-search?${params.toString()}`)
+      const payload = (await res.json()) as HubSearchResponse
+      if (!res.ok) throw new Error(payload.error || 'Failed to search skills hub')
       return payload
     },
   })
 
-  const categories = useMemo(
-    function resolveCategories() {
-      const fromApi = skillsQuery.data?.categories
-      if (Array.isArray(fromApi) && fromApi.length > 0) {
-        return fromApi
-      }
-      return DEFAULT_CATEGORIES
-    },
-    [skillsQuery.data?.categories],
-  )
-
-  const totalPages = Math.max(
-    1,
-    Math.ceil((skillsQuery.data?.total || 0) / PAGE_LIMIT),
-  )
-
-  const skills = useMemo(
-    function resolveVisibleSkills() {
-      const sourceSkills = skillsQuery.data?.skills || []
-      const normalizedQuery = searchInput.trim().toLowerCase()
-      if (!normalizedQuery) {
-        return sourceSkills
-      }
-
-      return sourceSkills
-        .map(function mapSkillToTier(skill, index) {
-          return {
-            skill,
-            index,
-            tier: resolveSkillSearchTier(skill, normalizedQuery),
-          }
-        })
-        .sort(function sortByTierThenOriginalOrder(a, b) {
-          if (a.tier !== b.tier) return a.tier - b.tier
-          return a.index - b.index
-        })
-        .map(function unwrapSkill(entry) {
-          return entry.skill
-        })
-    },
-    [searchInput, skillsQuery.data?.skills],
-  )
-
   const marketplaceSkills = useMemo<Array<SkillSummary>>(
-    function resolveMarketplaceSkills() {
-      return (hubQuery.data?.results || []).map(function mapHubSkill(skill) {
-        // Gateway returns: name, description, source, identifier, trust_level, repo, path, tags, extra, installed
+    () =>
+      (hubQuery.data?.results || []).map((skill): SkillSummary => {
         const skillId = skill.id || skill.name
         const author =
           skill.author ||
           (skill.repo ? skill.repo.split('/')[0] : null) ||
-          (skill.extra as Record<string, unknown>)?.author ||
-          skill.source ||
-          'Community'
+          String((skill.extra as Record<string, unknown>).author || skill.source || 'Community')
         const homepage =
-          skill.homepage ||
-          skill.repo ||
-          (skill.extra as Record<string, unknown>)?.homepage ||
-          null
+          skill.homepage || skill.repo || (skill.extra as Record<string, unknown>).homepage || null
         const category =
-          skill.category ||
-          (skill.extra as Record<string, unknown>)?.category ||
-          'Productivity'
-
+          skill.category || String((skill.extra as Record<string, unknown>).category || 'Productivity')
         return {
           id: skillId,
           slug: skillId,
@@ -273,1006 +265,637 @@ export function SkillsScreen() {
           icon:
             skill.source === 'github'
               ? '🐙'
-              : skill.source === 'official' || skill.trust_level === 'builtin'
-                ? '✅'
-                : skill.source === 'skills-sh'
-                  ? '📦'
-                  : skill.source === 'lobehub'
-                    ? '🧊'
-                    : skill.source === 'claude-marketplace'
-                      ? '🤖'
-                      : '🧩',
-          content: [
-            skill.description,
-            skill.identifier ? `Identifier: ${skill.identifier}` : '',
-            skill.trust_level ? `Trust: ${skill.trust_level}` : '',
-          ]
-            .filter(Boolean)
-            .join('\n\n'),
+              : skill.source === 'lobehub'
+                ? '🧊'
+                : skill.source === 'claude-marketplace'
+                  ? '🤖'
+                  : '🧩',
+          content: [skill.description, skill.identifier ? `Identifier: ${skill.identifier}` : '', skill.trust_level ? `Trust: ${skill.trust_level}` : ''].filter(Boolean).join('\n\n'),
           fileCount: 0,
-          sourcePath:
-            skill.identifier ||
-            (typeof homepage === 'string' ? homepage : '') ||
-            skill.source,
+          sourcePath: skill.identifier || (typeof homepage === 'string' ? homepage : '') || skill.source,
           installed: skill.installed,
           enabled: skill.installed,
-          featuredGroup: undefined,
           security: {
-            level:
-              skill.trust_level === 'builtin'
-                ? 'safe'
-                : skill.trust_level === 'trusted'
-                  ? 'safe'
-                  : 'medium',
+            level: skill.trust_level === 'builtin' || skill.trust_level === 'trusted' ? 'safe' : 'medium',
             flags: [],
             score: 0,
           },
           origin: 'marketplace' as const,
         }
-      })
-    },
+      }),
     [hubQuery.data?.results],
   )
 
-  async function copyCommandAndToast(command: string, message: string) {
-    try {
-      await writeTextToClipboard(command)
-      toast(`${message} Copied: ${command}`, {
-        type: 'warning',
-        icon: '📋',
-      })
-    } catch {
-      toast(`${message} ${command}`, {
-        type: 'warning',
-        icon: '📋',
-        duration: 7000,
-      })
+  const skills = skillsQuery.data?.skills ?? []
+  const total = skillsQuery.data?.total ?? 0
+  const enabledCount = skills.filter((s) => s.enabled).length
+  const categories = skillsQuery.data?.categories ?? []
+
+  /* category counts */
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { All: skills.length }
+    for (const s of skills) {
+      counts[s.category] = (counts[s.category] || 0) + 1
     }
-  }
+    return counts
+  }, [skills])
 
-  async function runSkillAction(
-    action: 'install' | 'uninstall' | 'toggle',
-    payload: {
-      skillId: string
-      enabled?: boolean
-      source?: HubSkill['source']
-    },
-  ) {
-    setActionError(null)
-    setActionSkillId(payload.skillId)
+  /* origin counts */
+  const originCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: skills.length }
+    for (const s of skills) {
+      const key = s.origin || 'unknown'
+      counts[key] = (counts[key] || 0) + 1
+    }
+    return counts
+  }, [skills])
 
-    try {
-      const endpoint =
-        action === 'install'
-          ? '/api/skills/install'
-          : action === 'uninstall'
-            ? '/api/skills/uninstall'
-            : '/api/skills/toggle'
+  /* sorted skills */
+  const sortedSkills = useMemo(() => {
+    const list = [...skills]
+    if (sortMode === 'name') list.sort((a, b) => a.name.localeCompare(b.name))
+    else if (sortMode === 'category') list.sort((a, b) => a.category.localeCompare(b.category))
+    return list
+  }, [skills, sortMode])
 
-      const response = await fetch(endpoint, {
+  /* paginated slices */
+  const totalPages = Math.max(1, Math.ceil(sortedSkills.length / pageSize))
+  const clampedPage = Math.min(Math.max(1, page), totalPages)
+  const pagedSkills = sortedSkills.slice((clampedPage - 1) * pageSize, clampedPage * pageSize)
+
+  const mktTotalPages = Math.max(1, Math.ceil(marketplaceSkills.length / mktPageSize))
+  const mktClampedPage = Math.min(Math.max(1, mktPage), mktTotalPages)
+  const pagedMarketplace = marketplaceSkills.slice((mktClampedPage - 1) * mktPageSize, mktClampedPage * mktPageSize)
+
+  /* toggle mutation */
+  const toggleMutation = useMutation({
+    mutationFn: async ({ skillId, enabled }: { skillId: string; enabled: boolean }) => {
+      const res = await fetch('/api/skills/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action,
-          skillId: payload.skillId,
-          name: payload.skillId,
-          identifier: payload.skillId,
-          enabled: payload.enabled,
-          source: payload.source,
-        }),
+        body: JSON.stringify({ action: 'toggle', skillId, name: skillId, identifier: skillId, enabled }),
       })
-
-      const data = (await response.json()) as {
-        error?: string
-        command?: string
-        ok?: boolean
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string }
+        throw new Error(data.error || 'Toggle failed')
       }
-      if (!response.ok) {
-        throw new Error(data.error || 'Action failed')
-      }
+      return res.json() as Promise<unknown>
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['skills-browser'] })
+    },
+    onError: (e) => {
+      toast(e instanceof Error ? e.message : 'Toggle failed', { type: 'error' })
+    },
+  })
 
-      if (
-        (action === 'install' || action === 'uninstall') &&
-        data.ok === false
-      ) {
-        if (data.command) {
-          await copyCommandAndToast(
-            data.command,
-            data.error || 'Gateway action unavailable.',
-          )
-          return
-        }
-        throw new Error(data.error || 'Action failed')
-      }
+  /* handlers */
+  const openDrawer = useCallback((skill: SkillSummary) => {
+    setSelectedSkill(skill)
+    setDrawerOpen(true)
+  }, [])
 
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['skills-browser'] }),
-        queryClient.invalidateQueries({ queryKey: ['skills-hub-search'] }),
-      ])
-      setSelectedSkill(function updateSelectedSkill(current) {
-        if (!current || current.id !== payload.skillId) return current
-        if (action === 'install') {
-          return {
-            ...current,
-            installed: true,
-            enabled: true,
-          }
-        }
-        if (action === 'uninstall') {
-          return {
-            ...current,
-            installed: false,
-            enabled: false,
-          }
-        }
-        return {
-          ...current,
-          enabled: payload.enabled ?? current.enabled,
-        }
-      })
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err)
-      setActionError(errorMessage)
-      toast(errorMessage, { type: 'error', icon: '❌' })
-    } finally {
-      setActionSkillId(null)
-    }
-  }
+  const closeDrawer = useCallback(() => {
+    setDrawerOpen(false)
+    // delay clearing so exit animation can play
+    setTimeout(() => setSelectedSkill(null), 200)
+  }, [])
 
-  function handleTabChange(nextTab: string) {
-    const parsedTab: SkillsTab =
-      nextTab === 'installed' ||
-      nextTab === 'marketplace' ||
-      nextTab === 'featured'
-        ? nextTab
-        : 'installed'
-
-    setTab(parsedTab)
-    setPage(1)
-    if (parsedTab !== 'marketplace') {
-      setCategory('All')
-      setSort('name')
-    }
-  }
-
-  function handleSearchChange(value: string) {
-    setSearchInput(value)
-    setPage(1)
-  }
-
-  function handleCategoryChange(value: string) {
-    setCategory(value)
-    setPage(1)
-  }
-
-  function handleOriginChange(value: string) {
-    setOrigin(value)
-    setPage(1)
-  }
-
-  function handleSortChange(value: SkillsSort) {
-    setSort(value)
-    setPage(1)
-  }
-
-  return (
-    <div className="min-h-full overflow-y-auto bg-surface text-ink">
-      <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-6 pb-[calc(var(--tabbar-h,80px)+1.5rem)] sm:px-6 lg:px-8">
-        <header className="rounded-2xl border border-primary-200 bg-primary-50/85 p-4 backdrop-blur-xl">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="space-y-1.5">
-              <p className="text-xs font-medium uppercase text-primary-500 tabular-nums">
-                Hermes Workspace Marketplace
-              </p>
-              <h1 className="text-2xl font-medium text-ink text-balance sm:text-3xl">
-                Skills Browser
-              </h1>
-              <p className="text-sm text-primary-500 text-pretty sm:text-base">
-                Discover, install, and manage skills across your local workspace
-                and Skills Hub.
-              </p>
-            </div>
-          </div>
-        </header>
-
-        <section className="rounded-2xl border border-primary-200 bg-primary-50/80 p-3 backdrop-blur-xl sm:p-4">
-          <Tabs value={tab} onValueChange={handleTabChange}>
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                value={searchInput}
-                onChange={(event) => handleSearchChange(event.target.value)}
-                placeholder={
-                  tab === 'marketplace'
-                    ? 'Search Skills Hub, GitHub, and local fallback'
-                    : 'Search by name, tags, or description'
-                }
-                className="h-9 w-full min-w-0 flex-1 rounded-lg border border-primary-200 bg-primary-100/60 px-3 text-sm text-ink outline-none transition-colors focus:border-primary sm:min-w-[220px]"
-              />
-
-              {tab === 'installed' ? (
-                <select
-                  value={category}
-                  onChange={(event) =>
-                    handleCategoryChange(event.target.value)
-                  }
-                  className="h-9 rounded-lg border border-primary-200 bg-primary-100/60 px-3 text-sm text-ink outline-none"
-                >
-                  {categories.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-
-              {tab === 'installed' ? (
-                <select
-                  value={origin}
-                  onChange={(event) => handleOriginChange(event.target.value)}
-                  className="h-9 rounded-lg border border-primary-200 bg-primary-100/60 px-3 text-sm text-ink outline-none"
-                >
-                  <option value="All">All Origins</option>
-                  <option value="builtin">Built-in</option>
-                  <option value="agent-created">Agent-created</option>
-                  <option value="marketplace">Marketplace</option>
-                </select>
-              ) : null}
-
-              {tab === 'installed' ? (
-                <select
-                  value={sort}
-                  onChange={(event) =>
-                    handleSortChange(
-                      event.target.value === 'category' ? 'category' : 'name',
-                    )
-                  }
-                  className="h-9 rounded-lg border border-primary-200 bg-primary-100/60 px-3 text-sm text-ink outline-none"
-                >
-                  <option value="name">Name A-Z</option>
-                  <option value="category">Category</option>
-                </select>
-              ) : null}
-
-              <TabsList
-                className="ml-auto rounded-xl border border-primary-200 bg-primary-100/60 p-1"
-                variant="default"
-              >
-                <TabsTab value="installed" className="min-w-[110px]">
-                  Installed
-                </TabsTab>
-                <TabsTab value="marketplace" className="min-w-[120px]">
-                  Marketplace
-                </TabsTab>
-              </TabsList>
-            </div>
-
-            {actionError ? (
-              <p className="rounded-lg border border-primary-200 bg-primary-100/60 px-3 py-2 text-sm text-ink">
-                {actionError}
-              </p>
-            ) : null}
-
-            <TabsPanel value="installed" className="pt-2">
-              <SkillsGrid
-                skills={skills}
-                loading={skillsQuery.isPending}
-                actionSkillId={actionSkillId}
-                tab="installed"
-                onOpenDetails={setSelectedSkill}
-                onInstall={(skillId) => runSkillAction('install', { skillId })}
-                onUninstall={(skillId) =>
-                  runSkillAction('uninstall', { skillId })
-                }
-                onToggle={(skillId, enabled) =>
-                  runSkillAction('toggle', { skillId, enabled })
-                }
-              />
-            </TabsPanel>
-
-            <TabsPanel value="marketplace" className="space-y-3 pt-2">
-              <div className="flex items-center justify-between gap-2">
-                {hubQuery.data?.source ? (
-                  <div className="text-xs text-primary-500">
-                    Source: {hubQuery.data.source}
-                  </div>
-                ) : (
-                  <div />
-                )}
-              </div>
-
-              {hubQuery.error ? (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {hubQuery.error instanceof Error
-                    ? hubQuery.error.message
-                    : 'Failed to load marketplace skills.'}
-                </div>
-              ) : hubQuery.data &&
-                (hubQuery.data.source === 'installed-fallback' ||
-                  hubQuery.data.source === 'error') ? (
-                <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-                  Skills Hub search unavailable — showing installed skills
-                  instead. Ensure the Hermes Agent gateway is running.
-                </div>
-              ) : null}
-
-              <SkillsGrid
-                skills={marketplaceSkills}
-                loading={hubQuery.isPending}
-                actionSkillId={actionSkillId}
-                tab="marketplace"
-                emptyState={{
-                  title: searchInput.trim()
-                    ? 'No hub skills found'
-                    : 'Search the Skills Hub',
-                  description: searchInput.trim()
-                    ? 'Try a different search term. If Skills Hub is unavailable, local installed skills are used as fallback.'
-                    : 'Start typing to search Skills Hub and other skill sources.',
-                }}
-                onOpenDetails={setSelectedSkill}
-                onInstall={(skillId) => {
-                  const skill = hubQuery.data?.results.find(
-                    (entry) => entry.id === skillId,
-                  )
-                  runSkillAction('install', {
-                    skillId,
-                    source: skill?.source,
-                  })
-                }}
-                onUninstall={(skillId) =>
-                  runSkillAction('uninstall', { skillId })
-                }
-                onToggle={(skillId, enabled) =>
-                  runSkillAction('toggle', { skillId, enabled })
-                }
-              />
-            </TabsPanel>
-          </Tabs>
-        </section>
-
-        {tab !== 'marketplace' ? (
-          <footer className="flex items-center justify-between rounded-xl border border-primary-200 bg-primary-50/80 px-3 py-2.5 text-sm text-primary-500 tabular-nums">
-            <span>
-              {(skillsQuery.data?.total || 0).toLocaleString()} total skills
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1 || skillsQuery.isPending}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-              >
-                Previous
-              </Button>
-              <span className="min-w-[82px] text-center">
-                {page} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages || skillsQuery.isPending}
-                onClick={() =>
-                  setPage((current) => Math.min(totalPages, current + 1))
-                }
-              >
-                Next
-              </Button>
-            </div>
-          </footer>
-        ) : null}
-      </div>
-
-      <DialogRoot
-        open={Boolean(selectedSkill)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedSkill(null)
-          }
-        }}
-      >
-        <DialogContent className="w-[min(960px,95vw)] border-primary-200 bg-primary-50/95 backdrop-blur-sm">
-          {selectedSkill ? (
-            <div className="flex max-h-[85vh] flex-col">
-              <div className="border-b border-primary-200 px-5 py-4">
-                <DialogTitle className="text-balance">
-                  {selectedSkill.icon} {selectedSkill.name}
-                </DialogTitle>
-                <DialogDescription className="mt-1 text-pretty">
-                  by {selectedSkill.author} • {selectedSkill.category} •{' '}
-                  {selectedSkill.fileCount.toLocaleString()} files
-                </DialogDescription>
-                {selectedSkill.security && (
-                  <div className="mt-3 rounded-xl border border-primary-200 bg-primary-50/80 overflow-hidden">
-                    <SecurityBadge
-                      security={selectedSkill.security}
-                      compact={false}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <ScrollAreaRoot className="h-[56vh]">
-                <ScrollAreaViewport className="px-5 py-4">
-                  <div className="space-y-3">
-                    {selectedSkill.homepage ? (
-                      <p className="text-sm text-primary-500 text-pretty">
-                        Homepage:{' '}
-                        <a
-                          href={selectedSkill.homepage}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="underline decoration-border underline-offset-4 hover:decoration-primary"
-                        >
-                          {selectedSkill.homepage}
-                        </a>
-                      </p>
-                    ) : null}
-
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedSkill.triggers.length > 0 ? (
-                        selectedSkill.triggers.slice(0, 8).map((trigger) => (
-                          <span
-                            key={trigger}
-                            className="rounded-md border border-primary-200 bg-primary-100/50 px-2 py-0.5 text-xs text-primary-500"
-                          >
-                            {trigger}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="rounded-md border border-primary-200 bg-primary-100/50 px-2 py-0.5 text-xs text-primary-500">
-                          No triggers listed
-                        </span>
-                      )}
-                    </div>
-
-                    <article className="rounded-xl border border-primary-200 bg-primary-100/30 p-4 backdrop-blur-sm">
-                      <Markdown>
-                        {selectedSkill.content ||
-                          `# ${selectedSkill.name}\n\n${selectedSkill.description}`}
-                      </Markdown>
-                    </article>
-                  </div>
-                </ScrollAreaViewport>
-                <ScrollAreaScrollbar>
-                  <ScrollAreaThumb />
-                </ScrollAreaScrollbar>
-              </ScrollAreaRoot>
-
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-primary-200 px-5 py-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  {selectedSkill.origin ? (
-                    <span
-                      className={cn(
-                        'rounded-md border px-2 py-0.5 text-xs tabular-nums',
-                        selectedSkill.origin === 'builtin' &&
-                          'border-primary-200 bg-primary-100/60 text-primary-500',
-                        selectedSkill.origin === 'agent-created' &&
-                          'border-amber-300/70 bg-amber-100/60 text-amber-700 dark:border-amber-700/50 dark:bg-amber-900/30 dark:text-amber-200',
-                        selectedSkill.origin === 'marketplace' &&
-                          'border-emerald-300/70 bg-emerald-100/60 text-emerald-700 dark:border-emerald-700/50 dark:bg-emerald-900/30 dark:text-emerald-200',
-                      )}
-                    >
-                      {selectedSkill.origin === 'builtin'
-                        ? 'Built-in'
-                        : selectedSkill.origin === 'agent-created'
-                          ? 'Agent-created'
-                          : 'Marketplace'}
-                    </span>
-                  ) : null}
-                  <p className="text-sm text-primary-500 text-pretty">
-                    Source:{' '}
-                    <code className="inline-code">
-                      {selectedSkill.sourcePath}
-                    </code>
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {selectedSkill.installed ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={actionSkillId === selectedSkill.id}
-                      onClick={() => {
-                        runSkillAction('uninstall', {
-                          skillId: selectedSkill.id,
-                        })
-                      }}
-                    >
-                      Uninstall
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      disabled={actionSkillId === selectedSkill.id}
-                      onClick={() =>
-                        runSkillAction('install', { skillId: selectedSkill.id })
-                      }
-                    >
-                      Install
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelectedSkill(null)}
-                  >
-                    Close
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </DialogContent>
-      </DialogRoot>
-    </div>
+  const handleToggle = useCallback(
+    (skillId: string, enabled: boolean) => {
+      toggleMutation.mutate({ skillId, enabled })
+    },
+    [toggleMutation],
   )
-}
 
-type SkillsGridProps = {
-  skills: Array<SkillSummary>
-  loading: boolean
-  actionSkillId: string | null
-  tab: 'installed' | 'marketplace'
-  emptyState?: {
-    title: string
-    description: string
-  }
-  onOpenDetails: (skill: SkillSummary) => void
-  onInstall: (skillId: string) => void
-  onUninstall: (skillId: string) => void
-  onToggle: (skillId: string, enabled: boolean) => void
-}
+  /* relative-time ticker */
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30_000)
+    return () => clearInterval(id)
+  }, [])
 
-const SECURITY_BADGE: Record<
-  string,
-  { label: string; badgeClass: string; confidence: string }
-> = {
-  safe: {
-    label: 'Benign',
-    badgeClass: 'bg-green-100 text-green-700 border-green-200',
-    confidence: 'HIGH CONFIDENCE',
-  },
-  low: {
-    label: 'Benign',
-    badgeClass: 'bg-green-100 text-green-700 border-green-200',
-    confidence: 'MODERATE',
-  },
-  medium: {
-    label: 'Caution',
-    badgeClass: 'bg-amber-100 text-amber-700 border-amber-200',
-    confidence: 'REVIEW RECOMMENDED',
-  },
-  high: {
-    label: 'Warning',
-    badgeClass: 'bg-red-100 text-red-700 border-red-200',
-    confidence: 'MANUAL REVIEW',
-  },
-}
-
-function SecurityBadge({
-  security,
-  compact = true,
-}: {
-  security?: SecurityRisk
-  compact?: boolean
-}) {
-  if (!security) return null
-  const config = SECURITY_BADGE[security.level]
-  if (!config) return null
-
-  const [expanded, setExpanded] = useState(false)
-
-  // Compact badge for card grid
-  if (compact) {
-    return (
-      <div className="relative">
-        <button
-          type="button"
-          className={cn(
-            'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium transition-colors',
-            config.badgeClass,
-          )}
-          onMouseEnter={() => setExpanded(true)}
-          onMouseLeave={() => setExpanded(false)}
-          onClick={(e) => {
-            e.stopPropagation()
-            setExpanded((v) => !v)
-          }}
-        >
-          {config.label}
-        </button>
-        {expanded && (
-          <div
-            className="absolute left-0 bottom-[calc(100%+6px)] z-50 w-72 overflow-hidden rounded-xl border border-primary-200 p-0 shadow-xl"
-            style={{ backgroundColor: 'var(--color-primary-50)' }}
-          >
-            <SecurityScanCard security={security} />
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  // Full card for detail dialog
-  return <SecurityScanCard security={security} />
-}
-
-function SecurityScanCard({ security }: { security: SecurityRisk }) {
-  const [showDetails, setShowDetails] = useState(false)
-  const config = SECURITY_BADGE[security.level]
-  if (!config) return null
-
-  const summaryText =
-    security.flags.length === 0
-      ? 'No risky patterns detected. This skill appears safe to install.'
-      : security.level === 'high'
-        ? `Found ${security.flags.length} potential security concern${security.flags.length !== 1 ? 's' : ''}. Review before installing.`
-        : `The skill's code was scanned for common risk patterns. ${security.flags.length} item${security.flags.length !== 1 ? 's' : ''} noted.`
+  /* all categories merged with defaults */
+  const mergedCategories = useMemo(() => {
+    const fromApi = categories.filter((c) => c && c !== 'All')
+    const fromDefaults = DEFAULT_CATEGORIES.filter((c) => c !== 'All')
+    const set = new Set([...fromApi, ...fromDefaults])
+    return ['All', ...Array.from(set).sort()]
+  }, [categories])
 
   return (
-    <div className="text-xs">
-      <div className="px-3 pt-3 pb-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-primary-400 mb-2">
-          Security Scan
-        </p>
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-2">
-            <span className="text-primary-500 font-medium w-16 shrink-0">
-              Hermes Workspace
-            </span>
-            <span
-              className={cn(
-                'rounded-md border px-1.5 py-0.5 text-[10px] font-semibold',
-                config.badgeClass,
-              )}
-            >
-              {config.label}
-            </span>
-            <span className="text-[10px] text-primary-400 uppercase tracking-wide font-medium">
-              {config.confidence}
-            </span>
-          </div>
-        </div>
-      </div>
-      <div className="px-3 pb-2">
-        <p className="text-primary-500 text-pretty leading-relaxed">
-          {summaryText}
-        </p>
-      </div>
-      {security.flags.length > 0 && (
-        <div className="border-t border-primary-100">
+    <div className="h-screen bg-surface text-ink sk-shell" data-screen="skills">
+      {/* ── Column 2: Filter Panel ── */}
+      <aside className={cn('sk-filter', filtersCollapsed && 'collapsed')}>
+        {/* header */}
+        <div className="sk-filter-hdr">
+          <h2>Skills</h2>
+          <span className="ct">{total}</span>
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              setShowDetails((v) => !v)
-            }}
-            className="flex w-full items-center justify-between px-3 py-2 text-accent-500 hover:text-accent-600 transition-colors"
+            className="collapse-btn"
+            onClick={() => setFiltersCollapsed((v) => !v)}
+            title={filtersCollapsed ? 'Expand filters' : 'Collapse filters'}
+            aria-label={filtersCollapsed ? 'Expand filters' : 'Collapse filters'}
           >
-            <span className="text-[11px] font-medium">Details</span>
-            <span className="text-[10px]">{showDetails ? '▲' : '▼'}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+              {filtersCollapsed ? (
+                <path d="M9 18l6-6-6-6" />
+              ) : (
+                <path d="M15 18l-6-6 6-6" />
+              )}
+            </svg>
           </button>
-          {showDetails && (
-            <div className="px-3 pb-3 space-y-1">
-              {security.flags.map((flag) => (
-                <div
-                  key={flag}
-                  className="flex items-start gap-2 text-primary-600"
+        </div>
+
+        {/* search */}
+        <div className="sk-filter-search">
+          <input
+            type="text"
+            placeholder="Search skills…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Search skills"
+          />
+        </div>
+
+        {/* body */}
+        <div className="sk-filter-body">
+          {/* status segment */}
+          <div className="sk-filter-section">
+            <div className="sec-label">Status</div>
+            <div className="sk-segment">
+              <button
+                type="button"
+                className={cn(activeStatus === 'installed' && 'active')}
+                onClick={() => setActiveStatus('installed')}
+              >
+                Installed
+                {total > 0 && <span style={{ marginLeft: 4, fontSize: 9, opacity: .7 }}>{total}</span>}
+              </button>
+              <button
+                type="button"
+                className={cn(activeStatus === 'marketplace' && 'active')}
+                onClick={() => setActiveStatus('marketplace')}
+              >
+                Hub
+              </button>
+              <button
+                type="button"
+                className={cn(activeStatus === 'all' && 'active')}
+                onClick={() => setActiveStatus('all')}
+              >
+                All
+              </button>
+            </div>
+          </div>
+
+          {/* category filter */}
+          <div className="sk-filter-section">
+            <div className="sec-label">Category</div>
+            <div className="sk-filter-list">
+              {mergedCategories.slice(0, 12).map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  className={cn('sk-filter-item', activeCategory === cat && 'active')}
+                  onClick={() => setActiveCategory(cat)}
                 >
-                  <span className="mt-0.5 text-[9px] text-primary-400">●</span>
-                  <span>{flag}</span>
-                </div>
+                  <span>{cat}</span>
+                  <span className="item-ct">{categoryCounts[cat] ?? 0}</span>
+                </button>
               ))}
             </div>
-          )}
+          </div>
+
+          {/* origin filter */}
+          <div className="sk-filter-section">
+            <div className="sec-label">Origin</div>
+            <div className="sk-filter-list">
+              {ORIGIN_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={cn('sk-filter-item', activeOrigin === opt.value && 'active')}
+                  onClick={() => setActiveOrigin(opt.value)}
+                >
+                  <span>{opt.label}</span>
+                  <span className="item-ct">{originCounts[opt.value] ?? 0}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-      )}
-      <div className="border-t border-primary-100 px-3 py-2">
-        <p className="text-[10px] text-primary-400 italic">
-          Like a lobster shell, security has layers — review code before you run
-          it.
-        </p>
-      </div>
-    </div>
-  )
-}
 
-function SkillsGrid({
-  skills,
-  loading,
-  actionSkillId,
-  tab,
-  emptyState,
-  onOpenDetails,
-  onInstall,
-  onUninstall,
-  onToggle,
-}: SkillsGridProps) {
-  if (loading) {
-    return <SkillsSkeleton count={tab === 'installed' ? 6 : 9} />
-  }
+        {/* collapsed rail */}
+        <div className="sk-rail">
+          <span className="rail-label">Skills</span>
+          <span className="rail-badge">{total}</span>
+        </div>
+      </aside>
 
-  if (skills.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-primary-200 bg-primary-100/40 px-4 py-8 text-center">
-        <p className="text-sm font-medium text-primary-700">
-          {emptyState?.title || 'No skills found'}
-        </p>
-        <p className="mt-1 text-xs text-primary-500 text-pretty max-w-sm mx-auto">
-          {emptyState?.description ||
-            'Try adjusting your filters or search term'}
-        </p>
-      </div>
-    )
-  }
+      {/* ── Column 3: Main area ── */}
+      <div className="sk-main">
+        {/* top strip */}
+        <div className="sk-top">
+          <div className="crumbs">
+            <div className="title-group">
+              <h1>Skills</h1>
+              <span className="sub">Workspace / Knowledge / Skills</span>
+            </div>
+          </div>
+          <div className="meta">
+            <div className="stat">
+              <span className="v">{total}</span>
+              <span className="l">Total</span>
+            </div>
+            <div className="stat">
+              <span className="v ok">{enabledCount}</span>
+              <span className="l">Enabled</span>
+            </div>
+          </div>
+        </div>
 
-  return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      <AnimatePresence initial={false}>
-        {skills.map((skill) => {
-          const isActing = actionSkillId === skill.id
-
-          return (
-            <motion.article
-              key={`${tab}-${skill.id}`}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.18 }}
-              className="relative z-0 flex min-h-[220px] flex-col rounded-2xl border border-primary-200 bg-primary-50/85 p-4 shadow-sm backdrop-blur-sm hover:z-20 focus-within:z-20"
+        {/* toolbar */}
+        <div className="sk-toolbar">
+          <span className="result-ct">
+            {sortedSkills.length} result{sortedSkills.length !== 1 ? 's' : ''}
+          </span>
+          <div className="toolbar-right">
+            <select
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value as SortMode)}
+              aria-label="Sort skills"
             >
-              <div className="mb-2 flex items-start justify-between gap-2">
-                <div className="min-w-0 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl leading-none">{skill.icon}</span>
-                    <h3 className="line-clamp-1 min-w-0 text-base font-medium text-ink text-balance">
-                      {skill.name}
-                    </h3>
-                  </div>
-                  {skill.author ? (
-                    <p className="line-clamp-1 text-xs text-primary-500">
-                      by {skill.author}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="flex flex-shrink-0 flex-wrap items-center gap-1.5">
-                  {skill.origin ? (
-                    <span
-                      className={cn(
-                        'rounded-md border px-2 py-0.5 text-xs tabular-nums',
-                        skill.origin === 'builtin' &&
-                          'border-primary-200 bg-primary-100/60 text-primary-500',
-                        skill.origin === 'agent-created' &&
-                          'border-amber-300/70 bg-amber-100/60 text-amber-700 dark:border-amber-700/50 dark:bg-amber-900/30 dark:text-amber-200',
-                        skill.origin === 'marketplace' &&
-                          'border-emerald-300/70 bg-emerald-100/60 text-emerald-700 dark:border-emerald-700/50 dark:bg-emerald-900/30 dark:text-emerald-200',
-                      )}
-                    >
-                      {skill.origin === 'builtin'
-                        ? 'Built-in'
-                        : skill.origin === 'agent-created'
-                          ? 'Agent-created'
-                          : 'Marketplace'}
-                    </span>
-                  ) : null}
-                  <span
-                    className={cn(
-                      'rounded-md border px-2 py-0.5 text-xs tabular-nums',
-                      skill.installed
-                        ? 'border-primary/40 bg-primary/15 text-primary'
-                        : 'border-primary-200 bg-primary-100/60 text-primary-500',
-                    )}
-                  >
-                    {skill.installed ? 'Installed' : 'Available'}
-                  </span>
-                </div>
-              </div>
+              <option value="name">Name A–Z</option>
+              <option value="category">Category</option>
+            </select>
 
-              <p className="line-clamp-3 min-h-[58px] text-sm text-primary-500 text-pretty">
-                {skill.description}
-              </p>
+            <div className="sk-view-toggle">
+              <button
+                type="button"
+                className={cn(viewMode === 'grid' && 'active')}
+                onClick={() => setViewMode('grid')}
+                title="Grid view"
+                aria-label="Grid view"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className={cn(viewMode === 'table' && 'active')}
+                onClick={() => setViewMode('table')}
+                title="Table view"
+                aria-label="Table view"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path d="M3 6h18M3 12h18M3 18h18" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
 
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <SecurityBadge security={skill.security} />
-                <span className="rounded-md border border-primary-200 bg-primary-100/50 px-2 py-0.5 text-xs text-primary-500">
-                  {skill.category}
-                </span>
-                {skill.triggers.slice(0, 2).map((trigger) => (
-                  <span
-                    key={`${skill.id}-${trigger}`}
-                    className="rounded-md border border-primary-200 bg-primary-100/50 px-2 py-0.5 text-xs text-primary-500"
-                  >
-                    {trigger}
-                  </span>
+        {/* canvas */}
+        <div className="sk-canvas">
+          {activeStatus === 'marketplace' ? (
+            /* ── Hub / Marketplace view ── */
+            hubQuery.isPending ? (
+              <div className="sk-grid">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="sk-skeleton" />
                 ))}
               </div>
-
-              <div className="mt-auto flex items-center justify-between gap-2 pt-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onOpenDetails(skill)}
-                >
-                  Details
-                </Button>
-
-                {tab === 'installed' ? (
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 text-xs text-primary-500">
-                      <Switch
-                        checked={skill.enabled}
-                        disabled={isActing}
-                        onCheckedChange={(checked) =>
-                          onToggle(skill.id, checked)
-                        }
-                        aria-label={`Toggle ${skill.name}`}
-                      />
-                      {skill.enabled ? 'Enabled' : 'Disabled'}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={isActing}
-                      onClick={() => onUninstall(skill.id)}
+            ) : hubQuery.error ? (
+              <div className="sk-empty">
+                <div className="empty-icon">⚠️</div>
+                <h3>Hub search failed</h3>
+                <p>{hubQuery.error instanceof Error ? hubQuery.error.message : 'Failed to load marketplace skills.'}</p>
+              </div>
+            ) : hubQuery.data.source === 'installed-fallback' || hubQuery.data.source === 'error' ? (
+              <div className="sk-empty">
+                <div className="empty-icon">🔌</div>
+                <h3>Skills Hub unavailable</h3>
+                <p>Showing installed skills as fallback. Ensure the Hermes Agent gateway is running.</p>
+              </div>
+            ) : marketplaceSkills.length === 0 ? (
+              <div className="sk-empty">
+                <div className="empty-icon">🔍</div>
+                <h3>{debouncedSearch ? 'No hub skills found' : 'Search the Skills Hub'}</h3>
+                <p>{debouncedSearch ? 'Try a different search term.' : 'Start typing to search Skills Hub and other sources.'}</p>
+              </div>
+            ) : viewMode === 'grid' ? (
+              <>
+                <div className="sk-grid">
+                  {pagedMarketplace.map((skill) => (
+                    <article
+                      key={skill.id}
+                      className="sk-card"
+                      style={{ '--card-accent': '#00d4ff' } as React.CSSProperties}
+                      onClick={() => openDrawer(skill)}
                     >
-                      Uninstall
-                    </Button>
-                  </div>
-                ) : skill.installed ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={isActing}
-                    onClick={() => onUninstall(skill.id)}
-                  >
-                    Uninstall
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    disabled={isActing}
-                    onClick={() => onInstall(skill.id)}
-                  >
-                    Install
-                  </Button>
-                )}
-              </div>
-            </motion.article>
-          )
-        })}
-      </AnimatePresence>
-    </div>
-  )
-}
-
-type FeaturedGridProps = {
-  skills: Array<SkillSummary>
-  loading: boolean
-  actionSkillId: string | null
-  onOpenDetails: (skill: SkillSummary) => void
-  onInstall: (skillId: string) => void
-  onUninstall: (skillId: string) => void
-}
-
-function FeaturedGrid({
-  skills,
-  loading,
-  actionSkillId,
-  onOpenDetails,
-  onInstall,
-  onUninstall,
-}: FeaturedGridProps) {
-  if (loading) {
-    return <SkillsSkeleton count={6} large />
-  }
-
-  if (skills.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-primary-200 bg-primary-100/40 px-4 py-10 text-center text-sm text-primary-500 text-pretty">
-        Featured picks are currently unavailable.
-      </div>
-    )
-  }
-
-  return (
-    <div className="grid grid-cols-1 gap-4 pb-2 lg:grid-cols-2">
-      {skills.map((skill) => {
-        const isActing = actionSkillId === skill.id
-        return (
-          <article
-            key={skill.id}
-            className="flex min-h-0 flex-col rounded-2xl border border-primary-200 bg-primary-50/85 p-4 shadow-sm backdrop-blur-sm"
-          >
-            <div className="mb-3 flex items-start justify-between gap-2">
-              <div className="space-y-1">
-                <p className="text-xs font-medium uppercase text-primary-500 tabular-nums">
-                  {skill.featuredGroup || 'Staff Pick'}
-                </p>
-                <h3 className="text-lg font-medium text-ink text-balance">
-                  {skill.icon} {skill.name}
-                </h3>
-                <p className="text-sm text-primary-500">by {skill.author}</p>
-              </div>
-
-              <span
-                className={cn(
-                  'rounded-md border px-2 py-0.5 text-xs tabular-nums',
-                  skill.installed
-                    ? 'border-primary/40 bg-primary/15 text-primary'
-                    : 'border-primary-200 bg-primary-100/60 text-primary-500',
-                )}
-              >
-                {skill.installed ? 'Installed' : 'Staff Pick'}
-              </span>
+                      <div className="sk-card-body">
+                        <div className="sk-glyph">{initials(skill.name)}</div>
+                        <div className="sk-card-info">
+                          <p className="name">{skill.name}</p>
+                          <p className="author">{skill.author}</p>
+                        </div>
+                      </div>
+                      <p className="sk-card-desc">{skill.description}</p>
+                      <div className="sk-card-tags">
+                        <span className="sk-tag cat">{skill.category}</span>
+                        <span className="sk-tag origin">Community</span>
+                        {skill.security && (
+                          <span className={cn('sk-tag', scanTagClass(skill.security.level))}>
+                            {skill.security.level}
+                          </span>
+                        )}
+                      </div>
+                      <div className="sk-card-meta">
+                        <div className="meta-left">
+                          <span>{skill.installed ? 'Installed' : '—'}</span>
+                        </div>
+                        {!skill.installed && (
+                          <button
+                            type="button"
+                            className="sk-tag cat"
+                            style={{ cursor: 'pointer' }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleToggle(skill.id, true)
+                            }}
+                          >
+                            Install
+                          </button>
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                <PaginationBar
+                  page={mktClampedPage}
+                  totalPages={mktTotalPages}
+                  total={marketplaceSkills.length}
+                  pageSize={mktPageSize}
+                  onPage={setMktPage}
+                  onPageSize={setMktPageSize}
+                />
+              </>
+            ) : (
+              <>
+                <table className="sk-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Category</th>
+                      <th>Source</th>
+                      <th>Trust</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagedMarketplace.map((skill) => (
+                      <tr
+                        key={skill.id}
+                        style={{ '--row-accent': '#00d4ff' } as React.CSSProperties}
+                        onClick={() => openDrawer(skill)}
+                      >
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div className="sk-glyph" style={{ width: 28, height: 28, fontSize: 10 }}>
+                              {initials(skill.name)}
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: 12 }}>{skill.name}</div>
+                              <div style={{ fontSize: 10, color: 'var(--m-text-faint, var(--theme-muted))' }}>
+                                {skill.author}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td>{skill.category}</td>
+                        <td>Community</td>
+                        <td>
+                          {skill.security ? (
+                            <span className={cn('sk-tag', scanTagClass(skill.security.level))} style={{ fontSize: 9 }}>
+                              {skill.security.level}
+                            </span>
+                          ) : '—'}
+                        </td>
+                        <td>
+                          <span className={`sk-status-pill ${skill.installed ? 'active' : 'market'}`}>
+                            <span className="dot" />
+                            {skill.installed ? 'Installed' : 'Available'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <PaginationBar
+                  page={mktClampedPage}
+                  totalPages={mktTotalPages}
+                  total={marketplaceSkills.length}
+                  pageSize={mktPageSize}
+                  onPage={setMktPage}
+                  onPageSize={setMktPageSize}
+                />
+              </>
+            )
+          ) : skillsQuery.isPending ? (
+            <div className="sk-grid">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="sk-skeleton" />
+              ))}
             </div>
-
-            <p className="line-clamp-3 mb-3 text-sm text-primary-500 text-pretty">
-              {skill.description}
-            </p>
-
-            <div className="mt-auto flex items-center justify-between gap-2 pt-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onOpenDetails(skill)}
-              >
-                Details
-              </Button>
-              {skill.installed ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={isActing}
-                  onClick={() => onUninstall(skill.id)}
-                >
-                  Uninstall
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  disabled={isActing}
-                  onClick={() => onInstall(skill.id)}
-                >
-                  Install
-                </Button>
-              )}
+          ) : sortedSkills.length === 0 ? (
+            <div className="sk-empty">
+              <div className="empty-icon">🧩</div>
+              <h3>No skills found</h3>
+              <p>
+                {debouncedSearch
+                  ? 'Try adjusting your search or filters.'
+                  : 'Install skills from the Hub or create your own.'}
+              </p>
             </div>
-          </article>
-        )
-      })}
-    </div>
-  )
-}
-
-function SkillsSkeleton({
-  count,
-  large = false,
-}: {
-  count: number
-  large?: boolean
-}) {
-  return (
-    <div
-      className={cn(
-        'grid gap-3',
-        large
-          ? 'grid-cols-1 lg:grid-cols-2'
-          : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3',
-      )}
-    >
-      {Array.from({ length: count }).map((_, index) => (
-        <div
-          key={index}
-          className={cn(
-            'animate-pulse rounded-2xl border border-primary-200 bg-primary-50/70 p-4',
-            large ? 'min-h-[120px]' : 'min-h-[100px]',
+          ) : viewMode === 'grid' ? (
+            <>
+              <div className="sk-grid">
+                {pagedSkills.map((skill) => (
+                  <article
+                    key={skill.id}
+                    className="sk-card"
+                    style={{
+                      '--card-accent':
+                        skill.installed
+                          ? skill.enabled
+                            ? 'var(--m-green-500, #00ff41)'
+                            : 'var(--m-text-ghost, #555)'
+                          : '#00d4ff',
+                    } as React.CSSProperties}
+                    onClick={() => openDrawer(skill)}
+                  >
+                    <div className="sk-card-body">
+                      <div className="sk-glyph">{initials(skill.name)}</div>
+                      <div className="sk-card-info">
+                        <p className="name">{skill.name}</p>
+                        <p className="author">{skill.author}</p>
+                      </div>
+                    </div>
+                    <p className="sk-card-desc">{skill.description}</p>
+                    <div className="sk-card-tags">
+                      <span className="sk-tag cat">{skill.category}</span>
+                      {skill.origin && skill.origin !== 'marketplace' && (
+                        <span className="sk-tag origin">
+                          {skill.origin === 'builtin' ? 'Built-in' : 'Hermes Agent'}
+                        </span>
+                      )}
+                      {skill.security && (
+                        <span className={cn('sk-tag', scanTagClass(skill.security.level))}>
+                          {skill.security.level}
+                        </span>
+                      )}
+                      {skill.origin === 'builtin' && !skill.security && (
+                        <span className="sk-tag builtin">builtin</span>
+                      )}
+                    </div>
+                    <div className="sk-card-meta">
+                      <div className="meta-left">
+                        <span>{skill.installed ? 'Installed' : '—'}</span>
+                      </div>
+                      <button
+                        type="button"
+                        className={cn('sk-toggle', skill.enabled && 'on')}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleToggle(skill.id, !skill.enabled)
+                        }}
+                        aria-label={skill.enabled ? 'Disable skill' : 'Enable skill'}
+                      >
+                        <span className="knob" />
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <PaginationBar
+                page={clampedPage}
+                totalPages={totalPages}
+                total={sortedSkills.length}
+                pageSize={pageSize}
+                onPage={setPage}
+                onPageSize={setPageSize}
+              />
+            </>
+          ) : (
+            /* table view */
+            <>
+              <table className="sk-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Origin</th>
+                    <th>Security</th>
+                    <th>Status</th>
+                    <th style={{ width: 50 }}>Enabled</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagedSkills.map((skill) => (
+                    <tr
+                      key={skill.id}
+                      style={{
+                        '--row-accent':
+                          skill.installed
+                            ? skill.enabled
+                              ? 'var(--m-green-500, #00ff41)'
+                              : 'var(--m-text-ghost, #555)'
+                            : '#00d4ff',
+                      } as React.CSSProperties}
+                      onClick={() => openDrawer(skill)}
+                    >
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div className="sk-glyph" style={{ width: 28, height: 28, fontSize: 10 }}>
+                            {initials(skill.name)}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: 12 }}>{skill.name}</div>
+                            <div style={{ fontSize: 10, color: 'var(--m-text-faint, var(--theme-muted))' }}>
+                              {skill.author}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>{skill.category}</td>
+                      <td style={{ textTransform: 'capitalize' }}>
+                        {skill.origin === 'agent-created' ? 'Hermes Agent' : skill.origin || '—'}
+                      </td>
+                      <td>
+                        {skill.security ? (
+                          <span
+                            className={cn('sk-tag', scanTagClass(skill.security.level))}
+                            style={{ fontSize: 9 }}
+                          >
+                            {skill.security.level}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td>
+                        <span className={`sk-status-pill ${skill.installed ? (skill.enabled ? 'active' : 'disabled') : 'market'}`}>
+                          <span className="dot" />
+                          {skill.installed ? (skill.enabled ? 'Enabled' : 'Disabled') : 'Marketplace'}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className={cn('sk-toggle', skill.enabled && 'on')}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleToggle(skill.id, !skill.enabled)
+                          }}
+                          aria-label={skill.enabled ? 'Disable skill' : 'Enable skill'}
+                        >
+                          <span className="knob" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <PaginationBar
+                page={clampedPage}
+                totalPages={totalPages}
+                total={sortedSkills.length}
+                pageSize={pageSize}
+                onPage={setPage}
+                onPageSize={setPageSize}
+              />
+            </>
           )}
-        >
-          <div className="mb-3 h-5 w-2/5 rounded-md bg-primary-100" />
-          <div className="mb-2 h-4 w-3/4 rounded-md bg-primary-100" />
-          <div className="h-4 w-1/2 rounded-md bg-primary-100" />
-          <div className="mt-4 h-20 rounded-xl bg-primary-100/80" />
-          <div className="mt-4 h-8 w-1/3 rounded-md bg-primary-100" />
         </div>
-      ))}
+      </div>
+
+      {/* ── Detail Drawer ── */}
+      <AnimatePresence>
+        {drawerOpen && selectedSkill && (
+          <SkillDetailDrawer
+            skill={selectedSkill}
+            onClose={closeDrawer}
+            onToggle={handleToggle}
+            toggling={toggleMutation.isPending}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
