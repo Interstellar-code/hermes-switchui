@@ -1,4 +1,12 @@
-import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { usePageTitle } from '@/hooks/use-page-title'
 import {
@@ -17,6 +25,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Markdown } from '@/components/prompt-kit/markdown'
+import '@/styles/matrix-files.css'
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Types
@@ -108,19 +117,24 @@ function isMarkdownFile(name: string): boolean {
   return ext === 'md' || ext === 'mdx'
 }
 
+function isHtmlFile(name: string): boolean {
+  const ext = getExt(name)
+  return ext === 'html' || ext === 'htm'
+}
+
 function isEditableFile(name: string): boolean {
   return !isImageFile(name)
 }
 
-function getFileIcon(entry: FileEntry): string {
-  if (entry.type === 'folder') return '📁'
+function getFileIconClass(entry: FileEntry): string {
+  if (entry.type === 'folder') return 'folder'
   const ext = getExt(entry.name)
-  if (ext === 'md' || ext === 'mdx') return '📄'
-  if (ext === 'json') return '📋'
+  if (ext === 'md' || ext === 'mdx') return 'markdown'
+  if (ext === 'json') return 'json'
   if (ext === 'ts' || ext === 'tsx' || ext === 'js' || ext === 'jsx')
-    return '📜'
-  if (IMAGE_EXTS.has(ext)) return '🖼'
-  return '📃'
+    return 'code'
+  if (IMAGE_EXTS.has(ext)) return 'image'
+  return 'file'
 }
 
 function formatBytes(bytes: number): string {
@@ -144,6 +158,94 @@ function getParentPath(pathValue: string): string {
   const parts = pathValue.replace(/\\/g, '/').split('/').filter(Boolean)
   if (parts.length <= 1) return ''
   return parts.slice(0, -1).join('/')
+}
+
+function getPathParts(pathValue: string): Array<string> {
+  return pathValue ? pathValue.split('/').filter(Boolean) : []
+}
+
+function getEntryKind(entry: FileEntry | null): string {
+  if (!entry) return 'workspace'
+  if (entry.type === 'folder') return 'folder'
+  const ext = getExt(entry.name)
+  if (isMarkdownFile(entry.name)) return 'markdown'
+  if (isImageFile(entry.name)) return 'image'
+  if (isCodeFile(entry.name)) return ext || 'code'
+  return ext || 'text'
+}
+
+function countEntries(entries: Array<FileEntry>): {
+  files: number
+  folders: number
+} {
+  let files = 0
+  let folders = 0
+  const walk = (items: Array<FileEntry>) => {
+    for (const item of items) {
+      if (IGNORED_DIRS.has(item.name)) continue
+      if (item.type === 'folder') {
+        folders += 1
+        if (item.children) walk(item.children)
+      } else {
+        files += 1
+      }
+    }
+  }
+  walk(entries)
+  return { files, folders }
+}
+
+type MarkdownHeading = {
+  id: string
+  text: string
+  level: 2 | 3
+}
+
+function getMarkdownOutline(content: string): Array<MarkdownHeading> {
+  return content
+    .split('\n')
+    .map((line) => {
+      const match = /^(#{2,3})\s+(.+)$/.exec(line.trim())
+      if (!match) return null
+      const text = match[2].replace(/[#*_`]/g, '').trim()
+      if (!text) return null
+      return {
+        id: text
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, ''),
+        text,
+        level: match[1].length as 2 | 3,
+      }
+    })
+    .filter((heading): heading is MarkdownHeading => Boolean(heading))
+    .slice(0, 12)
+}
+
+function buildHtmlPreviewDocument(source: string): string {
+  const withoutScripts = source.replace(
+    /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+    '',
+  )
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<base target="_blank" />
+<style>
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: transparent;
+    color: #d6f8de;
+  }
+</style>
+</head>
+<body>
+${withoutScripts}
+</body>
+</html>`
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -277,7 +379,10 @@ type HighlightToken = {
   kind: HighlightKind
 }
 
-const HIGHLIGHT_CLASS_BY_KIND: Record<Exclude<HighlightKind, 'plain'>, string> = {
+const HIGHLIGHT_CLASS_BY_KIND: Record<
+  Exclude<HighlightKind, 'plain'>,
+  string
+> = {
   comment: 'hl-comment',
   jsonKey: 'hl-key',
   keyword: 'hl-kw',
@@ -286,18 +391,23 @@ const HIGHLIGHT_CLASS_BY_KIND: Record<Exclude<HighlightKind, 'plain'>, string> =
   type: 'hl-type',
 }
 
-function pushHighlightToken(tokens: Array<HighlightToken>, text: string, kind: HighlightKind = 'plain') {
+function pushHighlightToken(
+  tokens: Array<HighlightToken>,
+  text: string,
+  kind: HighlightKind = 'plain',
+) {
   if (!text) return
   tokens.push({ text, kind })
 }
 
 function tokenizeJson(code: string): Array<HighlightToken> {
   const tokens: Array<HighlightToken> = []
-  const pattern = /("(?:[^"\\]|\\.)*")(\s*:)?|-?\d+\.?\d*|\b(?:true|false|null)\b/g
+  const pattern =
+    /("(?:[^"\\]|\\.)*")(\s*:)?|-?\d+\.?\d*|\b(?:true|false|null)\b/g
   let lastIndex = 0
 
   for (const match of code.matchAll(pattern)) {
-    const index = match.index ?? 0
+    const index = match.index
     pushHighlightToken(tokens, code.slice(lastIndex, index))
 
     const [value, stringValue, colon] = match
@@ -324,13 +434,17 @@ function tokenizeCode(code: string): Array<HighlightToken> {
   let lastIndex = 0
 
   for (const match of code.matchAll(pattern)) {
-    const index = match.index ?? 0
+    const index = match.index
     const value = match[0]
     pushHighlightToken(tokens, code.slice(lastIndex, index))
 
     if (value.startsWith('//') || value.startsWith('/*')) {
       pushHighlightToken(tokens, value, 'comment')
-    } else if (value.startsWith('"') || value.startsWith("'") || value.startsWith('`')) {
+    } else if (
+      value.startsWith('"') ||
+      value.startsWith("'") ||
+      value.startsWith('`')
+    ) {
       pushHighlightToken(tokens, value, 'string')
     } else if (/^-?\d+\.?\d*$/.test(value)) {
       pushHighlightToken(tokens, value, 'number')
@@ -549,9 +663,11 @@ type TreeNodeProps = {
   entry: FileEntry
   depth: number
   expanded: Set<string>
+  forceExpanded?: boolean
   selectedPath: string | null
   onToggle: (path: string) => void
   onSelect: (entry: FileEntry) => void
+  onDeleteRequest: (entry: FileEntry) => void
   onContextMenu: (e: React.MouseEvent, entry: FileEntry) => void
 }
 
@@ -559,21 +675,22 @@ function TreeNode({
   entry,
   depth,
   expanded,
+  forceExpanded = false,
   selectedPath,
   onToggle,
   onSelect,
+  onDeleteRequest,
   onContextMenu,
 }: TreeNodeProps) {
-  const isExpanded = expanded.has(entry.path)
+  const isExpanded = forceExpanded || expanded.has(entry.path)
   const isSelected = selectedPath === entry.path
-  const icon = getFileIcon(entry)
+  const iconClass = getFileIconClass(entry)
   const paddingLeft = 12 + depth * 16
 
   const handleClick = () => {
+    onSelect(entry)
     if (entry.type === 'folder') {
       onToggle(entry.path)
-    } else {
-      onSelect(entry)
     }
   }
 
@@ -584,27 +701,38 @@ function TreeNode({
         onClick={handleClick}
         onContextMenu={(e) => onContextMenu(e, entry)}
         className={cn(
-          'flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm transition-colors',
-          isSelected
-            ? 'bg-accent-500/15 text-accent-600 dark:text-accent-400'
-            : 'text-primary-900 dark:text-neutral-200 hover:bg-primary-200 dark:hover:bg-neutral-800',
+          'files-tree-row',
+          entry.type === 'file' ? 'is-leaf' : '',
+          isExpanded ? 'is-expanded' : '',
+          isSelected ? 'is-active' : '',
         )}
         style={{ paddingLeft }}
       >
-        {entry.type === 'folder' ? (
-          <span
-            className={cn(
-              'shrink-0 text-primary-400 transition-transform duration-150 text-xs',
-              isExpanded ? 'rotate-90' : 'rotate-0',
-            )}
-          >
-            ▶
-          </span>
-        ) : (
-          <span className="w-3 shrink-0" />
-        )}
-        <span className="shrink-0 text-base leading-none">{icon}</span>
-        <span className="truncate">{entry.name}</span>
+        <span className="chev">▶</span>
+        <span className={cn('icon', `is-${iconClass}`)} aria-hidden="true" />
+        <span className="name">{entry.name}</span>
+        {entry.type === 'file' && entry.size !== undefined ? (
+          <span className="badge">{formatBytes(entry.size)}</span>
+        ) : null}
+        <span
+          role="button"
+          tabIndex={0}
+          className="row-delete"
+          title={`Delete ${entry.type}`}
+          aria-label={`Delete ${entry.name}`}
+          onClick={(event) => {
+            event.stopPropagation()
+            onDeleteRequest(entry)
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return
+            event.preventDefault()
+            event.stopPropagation()
+            onDeleteRequest(entry)
+          }}
+        >
+          🗑
+        </span>
       </button>
 
       {entry.type === 'folder' && isExpanded && entry.children ? (
@@ -617,9 +745,11 @@ function TreeNode({
                 entry={child}
                 depth={depth + 1}
                 expanded={expanded}
+                forceExpanded={forceExpanded}
                 selectedPath={selectedPath}
                 onToggle={onToggle}
                 onSelect={onSelect}
+                onDeleteRequest={onDeleteRequest}
                 onContextMenu={onContextMenu}
               />
             ))}
@@ -633,27 +763,20 @@ function TreeNode({
 // Breadcrumb
 // ──────────────────────────────────────────────────────────────────────────────
 
-function Breadcrumb({ path }: { path: string }) {
-  const parts = path ? path.split('/').filter(Boolean) : []
+function Breadcrumb({ path, className }: { path: string; className?: string }) {
+  const parts = getPathParts(path)
   return (
-    <div className="flex items-center gap-1 truncate text-xs text-primary-500 dark:text-neutral-400 min-w-0">
-      <span className="shrink-0">workspace</span>
+    <div className={cn('files-preview-crumbs', className)}>
+      <span className="files-seg">workspace</span>
       {parts.map((part, i) => (
-        <span key={i} className="flex items-center gap-1 min-w-0">
-          <span className="shrink-0 text-primary-300 dark:text-neutral-600">
-            /
-          </span>
+        <Fragment key={`${part}-${i}`}>
+          <span className="files-sep">/</span>
           <span
-            className={cn(
-              'truncate',
-              i === parts.length - 1
-                ? 'text-primary-700 dark:text-neutral-300 font-medium'
-                : '',
-            )}
+            className={cn('files-seg', i === parts.length - 1 ? 'current' : '')}
           >
             {part}
           </span>
-        </span>
+        </Fragment>
       ))}
     </div>
   )
@@ -666,9 +789,15 @@ function Breadcrumb({ path }: { path: string }) {
 
 type FilePanelProps = {
   selectedEntry: FileEntry | null
+  onDeleteRequest: (entry: FileEntry) => void
+  onUploadRequest: (targetPath: string) => void
 }
 
-function FilePanel({ selectedEntry }: FilePanelProps) {
+function FilePanel({
+  selectedEntry,
+  onDeleteRequest,
+  onUploadRequest,
+}: FilePanelProps) {
   const [loadingFile, setLoadingFile] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
   const [content, setContent] = useState('')
@@ -677,21 +806,29 @@ function FilePanel({ selectedEntry }: FilePanelProps) {
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedOk, setSavedOk] = useState(false)
-  const [rawMode, setRawMode] = useState(false)
+  const [copiedOk, setCopiedOk] = useState(false)
+  const [activeTab, setActiveTab] = useState<'preview' | 'raw' | 'metadata'>(
+    'preview',
+  )
   const [showDiff, setShowDiff] = useState(false)
   const prevPathRef = useRef<string | null>(null)
 
-  // Derive file type info (safe regardless of selectedEntry nullity)
   const fileName = selectedEntry?.name ?? ''
   const ext = getExt(fileName)
   const isImage = isImageFile(fileName)
   const isMd = isMarkdownFile(fileName)
+  const isHtml = isHtmlFile(fileName)
   const isCode = isCodeFile(fileName)
   const isEditable = isEditableFile(fileName)
+  const kind = getEntryKind(selectedEntry)
 
   const highlighted = useMemo<Array<ReactNode>>(
-    () => (isCode && !isMd && content ? highlightCodeContent(content, ext) : []),
-    [isCode, isMd, content, ext],
+    () => (content ? highlightCodeContent(content, isMd ? 'md' : ext) : []),
+    [content, ext, isMd],
+  )
+  const outline = useMemo(
+    () => (isMd && content ? getMarkdownOutline(content) : []),
+    [isMd, content],
   )
 
   const loadFile = useCallback(async (path: string) => {
@@ -700,7 +837,7 @@ function FilePanel({ selectedEntry }: FilePanelProps) {
     setContent('')
     setDataUrl('')
     setDirty(false)
-    setRawMode(false)
+    setActiveTab('preview')
     try {
       const res = await fetch(
         `/api/files?action=read&path=${encodeURIComponent(path)}`,
@@ -727,7 +864,6 @@ function FilePanel({ selectedEntry }: FilePanelProps) {
     void loadFile(selectedEntry.path)
   }, [selectedEntry, loadFile])
 
-  /** Actually write to disk (called after diff confirmation or if nothing changed) */
   const commitSave = useCallback(async (path: string, value: string) => {
     setSaving(true)
     setShowDiff(false)
@@ -749,18 +885,55 @@ function FilePanel({ selectedEntry }: FilePanelProps) {
     }
   }, [])
 
-  /** Save button handler — shows diff modal when content has changed */
   const handleSave = useCallback(() => {
     if (!selectedEntry || !dirty) return
     if (editValue !== content) {
-      // Show diff first
       setShowDiff(true)
     } else {
       void commitSave(selectedEntry.path, editValue)
     }
   }, [selectedEntry, dirty, editValue, content, commitSave])
 
-  // ── Diff Modal (always rendered so hooks stay consistent) ─────────────────
+  const handleCopyPath = useCallback(async () => {
+    if (!selectedEntry) return
+    const value = `workspace/${selectedEntry.path}`
+    try {
+      await navigator.clipboard.writeText(value)
+    } catch {
+      const textarea = document.createElement('textarea')
+      textarea.value = value
+      textarea.setAttribute('readonly', '')
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
+    setCopiedOk(true)
+    setTimeout(() => setCopiedOk(false), 1400)
+  }, [selectedEntry])
+
+  const handleOpenPreview = useCallback(() => {
+    if (!selectedEntry || selectedEntry.type !== 'file') return
+
+    let blob: Blob
+    if (isImage && dataUrl) {
+      window.open(dataUrl, '_blank', 'noopener,noreferrer')
+      return
+    }
+    if (isHtml) {
+      blob = new Blob([buildHtmlPreviewDocument(content)], {
+        type: 'text/html',
+      })
+    } else {
+      blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+    }
+
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener,noreferrer')
+    setTimeout(() => URL.revokeObjectURL(url), 30_000)
+  }, [content, dataUrl, isHtml, isImage, selectedEntry])
 
   const diffModal = (
     <DiffModal
@@ -775,223 +948,344 @@ function FilePanel({ selectedEntry }: FilePanelProps) {
     />
   )
 
-  // ── Empty / folder states ──────────────────────────────────────────────────
-
-  if (!selectedEntry) {
-    return (
-      <>
-        {diffModal}
-        <div className="flex h-full items-center justify-center text-center text-primary-400 dark:text-neutral-600">
-          <div>
-            <div className="text-5xl mb-3 opacity-40">📂</div>
-            <p className="text-sm">Select a file to preview or edit</p>
-          </div>
-        </div>
-      </>
-    )
-  }
-
-  if (selectedEntry.type === 'folder') {
-    return (
-      <>
-        {diffModal}
-        <div className="flex h-full items-center justify-center text-center text-primary-400 dark:text-neutral-600">
-          <div>
-            <div className="text-5xl mb-3 opacity-40">📁</div>
-            <p className="text-sm font-medium">{selectedEntry.name}</p>
-            <p className="text-xs mt-1 opacity-70">
-              Select a file inside to preview
-            </p>
-          </div>
-        </div>
-      </>
-    )
-  }
-
-  // ── Shared header / footer ─────────────────────────────────────────────────
-
-  const header = (
-    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-primary-200 dark:border-neutral-800 px-4 py-2.5">
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="text-lg">{getFileIcon(selectedEntry)}</span>
-        <span className="truncate text-sm font-semibold text-primary-900 dark:text-neutral-100">
-          {selectedEntry.name}
-        </span>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {isMd && !isImage && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setRawMode((v) => !v)}
-          >
-            {rawMode ? 'Preview' : 'Raw'}
-          </Button>
-        )}
-        {isEditable && (
-          <Button
-            size="sm"
-            variant={savedOk ? 'outline' : 'default'}
-            disabled={!dirty || saving}
-            onClick={handleSave}
-          >
-            {saving ? 'Saving…' : savedOk ? '✓ Saved' : 'Save'}
-          </Button>
-        )}
+  const renderEmpty = (glyph: string, copy: string, subcopy?: string) => (
+    <div className="files-empty-state">
+      <div>
+        <div className="files-empty-glyph">{glyph}</div>
+        <div className="files-empty-copy">{copy}</div>
+        {subcopy ? <div className="files-empty-subcopy">{subcopy}</div> : null}
       </div>
     </div>
   )
 
-  const footer = (
-    <div className="flex shrink-0 items-center gap-4 border-t border-primary-200 dark:border-neutral-800 px-4 py-1.5 text-xs text-primary-400 dark:text-neutral-500">
-      {selectedEntry.size !== undefined && (
-        <span>{formatBytes(selectedEntry.size)}</span>
-      )}
-      {selectedEntry.modifiedAt && (
-        <span>Modified {formatDate(selectedEntry.modifiedAt)}</span>
-      )}
-      {dirty && (
-        <span className="text-accent-500 font-medium">Unsaved changes</span>
-      )}
-    </div>
+  const renderCode = (nodes: Array<ReactNode> | string) => {
+    const source = typeof nodes === 'string' ? nodes : content
+    const lines = source.split('\n')
+    if (typeof nodes === 'string') {
+      return (
+        <div className="files-code-shell">
+          <div className="files-code-grid">
+            {lines.map((line, index) => (
+              <Fragment key={index}>
+                <span className="files-code-line-num">{index + 1}</span>
+                <span className="files-code-line">{line || ' '}</span>
+              </Fragment>
+            ))}
+          </div>
+        </div>
+      )
+    }
+    return (
+      <div className="files-code-shell">
+        <div className="files-code-grid">
+          <span className="files-code-line-num">
+            {lines.map((_, index) => (
+              <Fragment key={index}>{index + 1}\n</Fragment>
+            ))}
+          </span>
+          <pre className="files-code-line">
+            <code>{nodes}</code>
+          </pre>
+        </div>
+      </div>
+    )
+  }
+
+  const renderMetadata = () => {
+    const metaRows = [
+      ['Path', selectedEntry?.path || 'workspace'],
+      ['Kind', kind],
+      [
+        'Size',
+        selectedEntry?.size !== undefined
+          ? formatBytes(selectedEntry.size)
+          : 'unknown',
+      ],
+      [
+        'Modified',
+        selectedEntry?.modifiedAt
+          ? formatDate(selectedEntry.modifiedAt)
+          : 'unknown',
+      ],
+      [
+        'Editable',
+        selectedEntry && selectedEntry.type === 'file'
+          ? isEditable
+            ? 'yes'
+            : 'no'
+          : 'n/a',
+      ],
+      [
+        'Encoding',
+        selectedEntry && selectedEntry.type === 'file' && !isImage
+          ? 'text / utf-8 assumed'
+          : 'unknown',
+      ],
+    ]
+    return (
+      <div className="files-meta-shell">
+        <table>
+          <tbody>
+            {metaRows.map(([label, value]) => (
+              <tr key={label}>
+                <th>{label}</th>
+                <td>{value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
+  const renderEditor = () => (
+    <textarea
+      className="files-textarea"
+      value={editValue}
+      onChange={(e) => {
+        setEditValue(e.target.value)
+        setDirty(e.target.value !== content)
+      }}
+      spellCheck={false}
+    />
   )
 
-  // ── Loading / error ────────────────────────────────────────────────────────
-
-  if (loadingFile) {
-    return (
-      <>
-        {diffModal}
-        <div className="flex h-full flex-col">
-          {header}
-          <div className="flex flex-1 items-center justify-center text-sm text-primary-400 dark:text-neutral-500">
-            Loading…
+  const renderCanvas = () => {
+    if (!selectedEntry) {
+      return renderEmpty(
+        '📂',
+        'Select a file to preview or edit',
+        'Tree actions remain available on the left.',
+      )
+    }
+    if (selectedEntry.type === 'folder') {
+      return renderEmpty(
+        '📁',
+        selectedEntry.name,
+        'Select a file inside this folder to preview it.',
+      )
+    }
+    if (loadingFile) return renderEmpty('…', 'Loading file…')
+    if (fileError) return renderEmpty('⚠', fileError)
+    if (activeTab === 'metadata') return renderMetadata()
+    if (activeTab === 'raw') {
+      if (isImage)
+        return renderEmpty(
+          '🖼',
+          'Raw binary preview is not available',
+          'Use the Preview tab for images.',
+        )
+      return isEditable ? renderEditor() : renderCode(content)
+    }
+    if (isImage) {
+      return dataUrl ? (
+        <div className="files-image-shell">
+          <img src={dataUrl} alt={selectedEntry.name} />
+        </div>
+      ) : (
+        renderEmpty('🖼', 'No preview')
+      )
+    }
+    if (isMd) {
+      return (
+        <div
+          className={cn(
+            'files-canvas-scroll',
+            outline.length > 0 ? 'has-outline' : '',
+          )}
+        >
+          <div className="files-render-wrap">
+            <div className="files-doc-shell markdown-preview">
+              <Markdown className="gap-3">{content}</Markdown>
+            </div>
           </div>
-          {footer}
+          {outline.length > 0 ? (
+            <aside className="files-outline" aria-label="Markdown outline">
+              <h5>Outline</h5>
+              {outline.map((heading) => (
+                <a
+                  key={heading.id}
+                  className={heading.level === 3 ? 'is-h3' : ''}
+                  href={`#${heading.id}`}
+                >
+                  {heading.text}
+                </a>
+              ))}
+            </aside>
+          ) : null}
         </div>
-      </>
-    )
-  }
-
-  if (fileError) {
-    return (
-      <>
-        {diffModal}
-        <div className="flex h-full flex-col">
-          {header}
-          <div className="flex flex-1 items-center justify-center p-4 text-sm text-red-600 dark:text-red-400">
-            {fileError}
-          </div>
-          {footer}
+      )
+    }
+    if (isHtml) {
+      return (
+        <div className="files-html-shell">
+          <iframe
+            title={`${selectedEntry.name} preview`}
+            sandbox=""
+            srcDoc={buildHtmlPreviewDocument(content)}
+          />
         </div>
-      </>
-    )
+      )
+    }
+    if (isCode) return renderCode(highlighted)
+    return isEditable
+      ? renderEditor()
+      : renderEmpty(
+          '⌧',
+          'Preview not available',
+          'Switch to metadata for file details.',
+        )
   }
-
-  // ── Image ──────────────────────────────────────────────────────────────────
-
-  if (isImage) {
-    return (
-      <>
-        {diffModal}
-        <div className="flex h-full flex-col">
-          {header}
-          <div className="flex flex-1 min-h-0 items-center justify-center overflow-auto p-6">
-            {dataUrl ? (
-              <img
-                src={dataUrl}
-                alt={selectedEntry.name}
-                className="max-h-full max-w-full rounded-lg border border-primary-200 dark:border-neutral-800 shadow-sm object-contain"
-              />
-            ) : (
-              <div className="text-sm text-primary-400">No preview</div>
-            )}
-          </div>
-          {footer}
-        </div>
-      </>
-    )
-  }
-
-  // ── Markdown preview ───────────────────────────────────────────────────────
-
-  if (isMd && !rawMode) {
-    return (
-      <>
-        {diffModal}
-        <div className="flex h-full flex-col">
-          {header}
-          <ScrollAreaRoot className="flex-1 min-h-0">
-            <ScrollAreaViewport>
-              <div className="markdown-preview px-6 py-5 text-sm text-primary-900 dark:text-neutral-200">
-                <Markdown className="gap-3">{content}</Markdown>
-              </div>
-            </ScrollAreaViewport>
-            <ScrollAreaScrollbar orientation="vertical">
-              <ScrollAreaThumb />
-            </ScrollAreaScrollbar>
-            <ScrollAreaCorner />
-          </ScrollAreaRoot>
-          {footer}
-        </div>
-      </>
-    )
-  }
-
-  // ── Code viewer (syntax highlighted) — also raw mode for md ───────────────
-
-  if (isCode) {
-    const displayContent = isMd ? highlightCodeContent(content, 'md') : highlighted
-    return (
-      <>
-        {diffModal}
-        <div className="flex h-full flex-col">
-          {header}
-          <ScrollAreaRoot className="flex-1 min-h-0">
-            <ScrollAreaViewport>
-              <pre className="code-viewer px-4 py-4 text-xs font-mono leading-relaxed text-primary-800 dark:text-neutral-300">
-                <code>{displayContent}</code>
-              </pre>
-            </ScrollAreaViewport>
-            <ScrollAreaScrollbar orientation="vertical">
-              <ScrollAreaThumb />
-            </ScrollAreaScrollbar>
-            <ScrollAreaScrollbar orientation="horizontal">
-              <ScrollAreaThumb />
-            </ScrollAreaScrollbar>
-            <ScrollAreaCorner />
-          </ScrollAreaRoot>
-          {footer}
-        </div>
-      </>
-    )
-  }
-
-  // ── Editable textarea (plain text, raw md, etc.) ───────────────────────────
 
   return (
     <>
       {diffModal}
-      <div className="flex h-full flex-col">
-        {header}
-        <div className="flex-1 min-h-0 p-3">
-          <textarea
-            className={cn(
-              'h-full w-full resize-none rounded-lg border border-primary-200 dark:border-neutral-800',
-              'bg-white dark:bg-neutral-900 px-3 py-2 font-mono text-xs leading-relaxed',
-              'text-primary-900 dark:text-neutral-200 placeholder:text-primary-300',
-              'focus:outline-none focus:ring-2 focus:ring-accent-500/30',
-            )}
-            value={editValue}
-            onChange={(e) => {
-              setEditValue(e.target.value)
-              setDirty(e.target.value !== content)
-            }}
-            spellCheck={false}
-          />
+      <section className="files-preview" aria-label="File preview">
+        <div className="files-preview-top">
+          <Breadcrumb path={selectedEntry?.path ?? ''} />
+          <span className="files-preview-kind">{kind}</span>
+          <div className="files-preview-actions">
+            {selectedEntry?.type === 'file' ? (
+              <button
+                type="button"
+                className="files-icon-btn"
+                onClick={() => void handleCopyPath()}
+                title="Copy path"
+              >
+                {copiedOk ? '✓' : '⧉'}
+              </button>
+            ) : null}
+            {isEditable && selectedEntry?.type === 'file' ? (
+              <button
+                type="button"
+                className={cn(
+                  'files-icon-btn',
+                  activeTab === 'raw' ? 'is-active' : '',
+                )}
+                onClick={() => setActiveTab('raw')}
+                title="Edit source"
+              >
+                ✎
+              </button>
+            ) : null}
+            {selectedEntry?.type === 'file' ? (
+              <button
+                type="button"
+                className="files-icon-btn"
+                onClick={handleOpenPreview}
+                title="Open preview in new tab"
+              >
+                ↗
+              </button>
+            ) : null}
+            {selectedEntry?.type === 'file' ? (
+              <a
+                className="files-icon-btn"
+                href={`/api/files?action=download&path=${encodeURIComponent(selectedEntry.path)}`}
+                title="Download"
+              >
+                ⇩
+              </a>
+            ) : null}
+            {selectedEntry ? (
+              <button
+                type="button"
+                className="files-icon-btn danger"
+                onClick={() => onDeleteRequest(selectedEntry)}
+                title={`Delete ${selectedEntry.type}`}
+              >
+                🗑
+              </button>
+            ) : null}
+            {isEditable && selectedEntry?.type === 'file' ? (
+              <button
+                type="button"
+                className="files-icon-btn"
+                disabled={!dirty || saving}
+                onClick={handleSave}
+                title="Save changes"
+              >
+                {saving ? '…' : savedOk ? '✓' : '💾'}
+              </button>
+            ) : null}
+          </div>
         </div>
-        {footer}
-      </div>
+
+        <div className="files-preview-meta">
+          <span className="kv">
+            size{' '}
+            <b>
+              {selectedEntry?.size !== undefined
+                ? formatBytes(selectedEntry.size)
+                : 'unknown'}
+            </b>
+          </span>
+          <span className="dot" />
+          <span className="kv">
+            modified{' '}
+            <b>
+              {selectedEntry?.modifiedAt
+                ? formatDate(selectedEntry.modifiedAt)
+                : 'unknown'}
+            </b>
+          </span>
+          <span className="dot" />
+          <span className="kv">
+            mode <b>{dirty ? 'dirty' : loadingFile ? 'loading' : 'ready'}</b>
+          </span>
+          {dirty ? (
+            <span className="kv">
+              <b>unsaved changes</b>
+            </span>
+          ) : null}
+        </div>
+
+        <div className="files-preview-tabs">
+          {(['preview', 'raw', 'metadata'] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              className={cn('files-tab', activeTab === tab ? 'is-active' : '')}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab}
+            </button>
+          ))}
+          <div className="files-tab-actions">
+            <button
+              type="button"
+              className="files-tab"
+              onClick={() =>
+                onUploadRequest(
+                  selectedEntry?.type === 'folder'
+                    ? selectedEntry.path
+                    : selectedEntry?.path
+                      ? getParentPath(selectedEntry.path)
+                      : '',
+                )
+              }
+            >
+              upload
+            </button>
+          </div>
+        </div>
+
+        <div className="files-preview-canvas">{renderCanvas()}</div>
+
+        <div className="files-preview-foot">
+          <span>
+            tab <b>{activeTab}</b>
+          </span>
+          <span className="files-divider" />
+          <span>{selectedEntry?.path ?? 'workspace root'}</span>
+          {dirty ? (
+            <>
+              <span className="files-divider" />
+              <span>save opens diff confirm</span>
+            </>
+          ) : null}
+        </div>
+      </section>
     </>
   )
 }
@@ -1008,6 +1302,10 @@ export function FilesScreen() {
   const [treeError, setTreeError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   const [selectedEntry, setSelectedEntry] = useState<FileEntry | null>(null)
+  const [treeCollapsed, setTreeCollapsed] = useState(false)
+  const [treeQuery, setTreeQuery] = useState('')
+  const uploadTargetRef = useRef('')
+  const uploadInputRef = useRef<HTMLInputElement | null>(null)
 
   // CRUD state
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
@@ -1130,6 +1428,33 @@ export function FilesScreen() {
     setPromptValue('')
   }, [])
 
+  const openUploadPicker = useCallback((targetPath: string) => {
+    uploadTargetRef.current = targetPath
+    uploadInputRef.current?.click()
+  }, [])
+
+  const handleUploadChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.target.files || [])
+      if (files.length === 0) return
+
+      for (const file of files) {
+        const form = new FormData()
+        form.append('action', 'upload')
+        form.append('path', uploadTargetRef.current)
+        form.append('file', file)
+        const res = await fetch('/api/files', { method: 'POST', body: form })
+        if (!res.ok) {
+          throw new Error(`Upload failed: HTTP ${res.status}`)
+        }
+      }
+
+      event.target.value = ''
+      await loadTree()
+    },
+    [loadTree],
+  )
+
   const handlePromptSubmit = useCallback(async () => {
     if (!promptState) return
     const value = promptValue.trim()
@@ -1165,89 +1490,175 @@ export function FilesScreen() {
   }, [promptState, promptValue, loadTree])
 
   const selectedPath = selectedEntry?.path ?? null
+  const visibleEntries = useMemo(() => {
+    const query = treeQuery.trim().toLowerCase()
+
+    const filterItems = (items: Array<FileEntry>): Array<FileEntry> =>
+      items
+        .filter((entry) => !IGNORED_DIRS.has(entry.name))
+        .map((entry) => {
+          if (!query) return entry
+
+          const children = entry.children
+            ? filterItems(entry.children)
+            : undefined
+          if (
+            entry.name.toLowerCase().includes(query) ||
+            (children && children.length > 0)
+          ) {
+            return { ...entry, children }
+          }
+
+          return null
+        })
+        .filter((entry): entry is FileEntry => Boolean(entry))
+
+    return filterItems(entries)
+  }, [entries, treeQuery])
+  const entryCounts = useMemo(() => countEntries(entries), [entries])
 
   return (
-    <div className="flex h-full min-h-0 overflow-hidden bg-primary-50/95 dark:bg-neutral-950">
-      {/* ── Left panel — directory tree ─────────────────────────────────── */}
-      <aside
-        className={cn(
-          'flex h-full w-[260px] shrink-0 flex-col overflow-hidden',
-          'rounded-xl border border-primary-200 bg-primary-50/95 shadow-sm',
-          'dark:border-neutral-800 dark:bg-neutral-900/80',
-          'm-2 mr-0',
-        )}
-      >
-        {/* Tree header */}
-        <div className="flex h-11 shrink-0 items-center justify-between border-b border-primary-200 dark:border-neutral-800 px-3">
-          <Breadcrumb path={selectedEntry?.path ?? ''} />
-          <div className="flex shrink-0 items-center gap-0.5 ml-2">
-            <button
-              type="button"
-              onClick={openNewFolderPrompt}
-              title="New folder"
-              className="rounded p-1 text-sm text-primary-400 hover:bg-primary-200 dark:hover:bg-neutral-800 hover:text-primary-600 dark:hover:text-neutral-300 transition-colors leading-none"
-            >
-              📁+
-            </button>
-            <button
-              type="button"
-              onClick={() => void loadTree()}
-              title="Refresh"
-              className="rounded p-1 text-lg text-primary-400 hover:bg-primary-200 dark:hover:bg-neutral-800 hover:text-primary-600 dark:hover:text-neutral-300 transition-colors leading-none"
-            >
-              ↺
-            </button>
-          </div>
-        </div>
+    <div
+      data-screen="files"
+      className={cn('files-shell', treeCollapsed ? 'tree-collapsed' : '')}
+    >
+      <aside className={cn('files-tree', treeCollapsed ? 'is-collapsed' : '')}>
+        {treeCollapsed ? (
+          <>
+            <div className="files-tree-head">
+              <button
+                type="button"
+                className="files-icon-btn"
+                onClick={() => setTreeCollapsed(false)}
+                title="Expand tree"
+              >
+                ⇥
+              </button>
+            </div>
+            <div className="files-tree-rail">
+              <span className="count">{entryCounts.files}</span>
+              <span className="label">files</span>
+            </div>
+            <div className="files-tree-foot">{entryCounts.folders} dirs</div>
+          </>
+        ) : (
+          <>
+            <div className="files-tree-head">
+              <div className="min-w-0">
+                <h3>Files</h3>
+                <div className="files-tree-count">
+                  {entryCounts.files} files · {entryCounts.folders} dirs
+                </div>
+              </div>
+              <div className="files-tree-actions">
+                <button
+                  type="button"
+                  className="files-icon-btn"
+                  onClick={() => openUploadPicker('')}
+                  title="Upload to workspace"
+                >
+                  ⤴
+                </button>
+                <button
+                  type="button"
+                  className="files-icon-btn"
+                  onClick={openNewFolderPrompt}
+                  title="New folder"
+                >
+                  ＋
+                </button>
+                <button
+                  type="button"
+                  className="files-icon-btn"
+                  onClick={() => void loadTree()}
+                  title="Refresh"
+                >
+                  ↺
+                </button>
+                <button
+                  type="button"
+                  className="files-icon-btn"
+                  onClick={() => setTreeCollapsed(true)}
+                  title="Collapse tree"
+                >
+                  ⇤
+                </button>
+              </div>
+            </div>
 
-        {/* Tree body */}
-        <ScrollAreaRoot className="flex-1 min-h-0">
-          <ScrollAreaViewport className="px-1 py-1">
-            {treeLoading ? (
-              <div className="px-3 py-2 text-xs text-primary-400 dark:text-neutral-500">
-                Loading…
-              </div>
-            ) : treeError ? (
-              <div className="px-3 py-2 text-xs text-red-500">{treeError}</div>
-            ) : entries.length === 0 ? (
-              <div className="px-3 py-2 text-xs text-primary-400 dark:text-neutral-500">
-                Workspace is empty
-              </div>
-            ) : (
-              entries
-                .filter((e) => !IGNORED_DIRS.has(e.name))
-                .map((entry) => (
+            <div className="files-tree-search">
+              <label className="files-search-shell">
+                <span aria-hidden="true">⌕</span>
+                <input
+                  value={treeQuery}
+                  onChange={(e) => setTreeQuery(e.target.value)}
+                  placeholder="Search workspace"
+                />
+              </label>
+            </div>
+
+            <Breadcrumb
+              path={selectedEntry?.path ?? ''}
+              className="files-tree-breadcrumb"
+            />
+
+            <div className="files-tree-body">
+              {treeLoading ? (
+                <div className="files-tree-loading">Loading…</div>
+              ) : treeError ? (
+                <div className="files-tree-error">{treeError}</div>
+              ) : visibleEntries.length === 0 ? (
+                <div className="files-tree-empty">
+                  {treeQuery ? 'No matches' : 'Workspace is empty'}
+                </div>
+              ) : (
+                visibleEntries.map((entry) => (
                   <TreeNode
                     key={entry.path}
                     entry={entry}
                     depth={0}
                     expanded={expanded}
+                    forceExpanded={Boolean(treeQuery.trim())}
                     selectedPath={selectedPath}
                     onToggle={handleToggle}
                     onSelect={handleSelect}
+                    onDeleteRequest={setDeleteConfirm}
                     onContextMenu={handleContextMenu}
                   />
                 ))
-            )}
-          </ScrollAreaViewport>
-          <ScrollAreaScrollbar orientation="vertical">
-            <ScrollAreaThumb />
-          </ScrollAreaScrollbar>
-          <ScrollAreaCorner />
-        </ScrollAreaRoot>
+              )}
+            </div>
+
+            <div className="files-tree-foot">
+              <span>
+                <b>{entryCounts.files}</b> files
+              </span>
+              <span>
+                <b>{entryCounts.folders}</b> folders
+              </span>
+              {treeQuery ? <span>filter active</span> : null}
+            </div>
+          </>
+        )}
       </aside>
 
-      {/* ── Right panel — file viewer / editor ─────────────────────────── */}
-      <main
-        className={cn(
-          'flex h-full flex-1 min-w-0 flex-col overflow-hidden',
-          'rounded-xl border border-primary-200 bg-primary-50/95 shadow-sm',
-          'dark:border-neutral-800 dark:bg-neutral-900/80',
-          'm-2',
-        )}
-      >
-        <FilePanel selectedEntry={selectedEntry} />
+      <main className="files-preview-host">
+        <FilePanel
+          selectedEntry={selectedEntry}
+          onDeleteRequest={setDeleteConfirm}
+          onUploadRequest={openUploadPicker}
+        />
       </main>
+
+      <input
+        ref={uploadInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(event) => {
+          void handleUploadChange(event)
+        }}
+      />
 
       {/* ── Context menu ──────────────────────────────────────────────────── */}
       {contextMenu ? (
@@ -1323,7 +1734,8 @@ export function FilesScreen() {
               value={promptValue}
               onChange={(e) => setPromptValue(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.nativeEvent.isComposing) void handlePromptSubmit()
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing)
+                  void handlePromptSubmit()
               }}
               className="w-full rounded-md border border-primary-200 dark:border-neutral-700 bg-primary-50 dark:bg-neutral-900 px-3 py-2 text-sm text-primary-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary-300"
               autoFocus
