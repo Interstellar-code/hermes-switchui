@@ -1,6 +1,6 @@
 ---
-id: engineering-devops-automator
-category: engineering
+id: devops-automator
+category: devops
 glyph: DA
 name: DevOps Automator
 description: Automates infrastructure so your team ships faster and sleeps better.

@@ -1,6 +1,6 @@
 ---
-id: engineering-incident-response-commander
-category: engineering
+id: devops-incident-response-commander
+category: devops
 glyph: IR
 name: Incident Response Commander
 description: Turns production chaos into structured resolution with blameless post-mortems.

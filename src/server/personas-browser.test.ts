@@ -9,9 +9,9 @@ import { listPersonas, readPersona } from './personas-browser'
 describe('personas-browser (bundled assets)', () => {
   // ── listPersonas ────────────────────────────────────────────────────────────
 
-  it('loads all 8 bundled personas', () => {
+  it('loads all 16 bundled personas', () => {
     const result = listPersonas()
-    expect(result.length).toBeGreaterThanOrEqual(8)
+    expect(result.length).toBeGreaterThanOrEqual(16)
   })
 
   it('all personas have required fields', () => {
@@ -63,18 +63,20 @@ describe('personas-browser (bundled assets)', () => {
     expect(persona?.glyph).toBe('BA')
   })
 
-  it('finds engineering-devops-automator by id', () => {
-    const persona = readPersona('engineering-devops-automator')
+  it('finds devops-automator by id', () => {
+    const persona = readPersona('devops-automator')
     expect(persona).not.toBeNull()
-    expect(persona?.id).toBe('engineering-devops-automator')
+    expect(persona?.id).toBe('devops-automator')
     expect(persona?.glyph).toBe('DA')
+    expect(persona?.category).toBe('devops')
   })
 
-  it('finds engineering-incident-response-commander by id', () => {
-    const persona = readPersona('engineering-incident-response-commander')
+  it('finds devops-incident-response-commander by id', () => {
+    const persona = readPersona('devops-incident-response-commander')
     expect(persona).not.toBeNull()
-    expect(persona?.id).toBe('engineering-incident-response-commander')
+    expect(persona?.id).toBe('devops-incident-response-commander')
     expect(persona?.glyph).toBe('IR')
+    expect(persona?.category).toBe('devops')
   })
 
   it('finds engineering-security-engineer by id', () => {
@@ -98,6 +100,70 @@ describe('personas-browser (bundled assets)', () => {
     expect(persona?.id).toBe('product-sprint-prioritizer')
     expect(persona?.glyph).toBe('SP')
     expect(persona?.category).toBe('product')
+  })
+
+  it('finds design-ux-architect by id', () => {
+    const persona = readPersona('design-ux-architect')
+    expect(persona).not.toBeNull()
+    expect(persona?.id).toBe('design-ux-architect')
+    expect(persona?.glyph).toBe('UX')
+    expect(persona?.category).toBe('design')
+  })
+
+  it('finds design-system-curator by id', () => {
+    const persona = readPersona('design-system-curator')
+    expect(persona).not.toBeNull()
+    expect(persona?.id).toBe('design-system-curator')
+    expect(persona?.glyph).toBe('DS')
+    expect(persona?.category).toBe('design')
+  })
+
+  it('finds research-researcher by id', () => {
+    const persona = readPersona('research-researcher')
+    expect(persona).not.toBeNull()
+    expect(persona?.id).toBe('research-researcher')
+    expect(persona?.glyph).toBe('RE')
+    expect(persona?.category).toBe('research')
+  })
+
+  it('finds research-data-scientist by id', () => {
+    const persona = readPersona('research-data-scientist')
+    expect(persona).not.toBeNull()
+    expect(persona?.id).toBe('research-data-scientist')
+    expect(persona?.glyph).toBe('DT')
+    expect(persona?.category).toBe('research')
+  })
+
+  it('finds writing-technical-writer by id', () => {
+    const persona = readPersona('writing-technical-writer')
+    expect(persona).not.toBeNull()
+    expect(persona?.id).toBe('writing-technical-writer')
+    expect(persona?.glyph).toBe('TW')
+    expect(persona?.category).toBe('writing')
+  })
+
+  it('finds writing-doc-curator by id', () => {
+    const persona = readPersona('writing-doc-curator')
+    expect(persona).not.toBeNull()
+    expect(persona?.id).toBe('writing-doc-curator')
+    expect(persona?.glyph).toBe('DC')
+    expect(persona?.category).toBe('writing')
+  })
+
+  it('finds testing-qa-engineer by id', () => {
+    const persona = readPersona('testing-qa-engineer')
+    expect(persona).not.toBeNull()
+    expect(persona?.id).toBe('testing-qa-engineer')
+    expect(persona?.glyph).toBe('QA')
+    expect(persona?.category).toBe('testing')
+  })
+
+  it('finds testing-test-strategist by id', () => {
+    const persona = readPersona('testing-test-strategist')
+    expect(persona).not.toBeNull()
+    expect(persona?.id).toBe('testing-test-strategist')
+    expect(persona?.glyph).toBe('TS')
+    expect(persona?.category).toBe('testing')
   })
 
   it('returns null for unknown persona id', () => {
