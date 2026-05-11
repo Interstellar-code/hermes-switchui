@@ -13,11 +13,11 @@
 
   .shell {
     display: grid;
-    grid-template-columns: 232px 240px 1fr;
+    grid-template-columns: 232px 240px minmax(0, 1fr) 320px;
     height: 100vh; overflow: hidden;
     transition: grid-template-columns var(--m-dur-base) var(--m-ease-out);
   }
-  .shell.sidebar-collapsed { grid-template-columns: 232px 44px 1fr; }
+  .shell.sidebar-collapsed { grid-template-columns: 232px 44px minmax(0, 1fr) 320px; }
   .nav { display: block; min-width: 0; }
 
   /* sessions sidebar */
@@ -70,6 +70,61 @@
   /* main */
   .main { display: grid; grid-template-rows: auto 1fr auto; min-width: 0; overflow: hidden; background: var(--m-bg); }
 
+  .workspace-strip {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--m-border-subtle);
+    background:
+      radial-gradient(circle at left top, rgba(0,255,65,.08), transparent 38%),
+      linear-gradient(180deg, rgba(5,28,16,.98), rgba(2,14,8,.92));
+  }
+  .workspace-strip .title {
+    display: flex; align-items: center; gap: 12px; min-width: 0;
+  }
+  .workspace-strip .eyebrow {
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .22em;
+    color: var(--m-text-faint);
+  }
+  .workspace-strip h1 {
+    margin: 2px 0 0;
+    font: 600 18px/1.1 var(--m-font-sans, Inter, system-ui, sans-serif);
+    color: #f0ffe8;
+  }
+  .workspace-strip p {
+    margin: 4px 0 0;
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .signal {
+    width: 10px; height: 10px; border-radius: 9999px;
+    background: var(--m-green-500);
+    box-shadow: 0 0 0 5px rgba(0,255,65,.12), 0 0 14px rgba(0,255,65,.45);
+    animation: m-pulse 2s infinite;
+    flex: none;
+  }
+  .workspace-strip .chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 28px; padding: 0 10px;
+    border-radius: 9999px;
+    border: 1px solid rgba(120,255,170,.14);
+    background: rgba(0,20,10,.78);
+    color: var(--m-text-strong);
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .16em;
+  }
+  .chip b { color: var(--m-green-500); font-weight: 700; }
+  .chip .dot {
+    width: 6px; height: 6px; border-radius: 9999px;
+    background: var(--m-green-500);
+    box-shadow: 0 0 6px rgba(0,255,65,.55);
+  }
+
   /* tab strip */
   .tabs {
     display: flex; align-items: stretch;
@@ -116,6 +171,39 @@
     border-left: 1px solid var(--m-border-subtle);
   }
 
+  .overview {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--m-border-subtle);
+    background: rgba(0,8,2,.78);
+  }
+  .metric {
+    min-width: 0;
+    padding: 12px 12px 10px;
+    border-radius: 12px;
+    border: 1px solid rgba(120,255,170,.1);
+    background: linear-gradient(180deg, rgba(4,18,10,.96), rgba(2,10,6,.92));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .metric .k {
+    font: 600 9px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase; letter-spacing: .22em;
+  }
+  .metric .v {
+    margin-top: 8px;
+    font: 600 19px/1.05 var(--m-font-sans, Inter, system-ui, sans-serif);
+    color: #f5fff0;
+  }
+  .metric .sub {
+    margin-top: 5px;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
   /* terminal canvas area */
   .term-area {
     position: relative;
@@ -140,6 +228,26 @@
     border: 1px solid rgba(0,255,65,.32);
     pointer-events: none; z-index: 10;
   }
+  .pane-meta {
+    position: absolute;
+    top: 12px; left: 14px; z-index: 6;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 9px;
+    border-radius: 9999px;
+    border: 1px solid rgba(0,255,65,.16);
+    background: rgba(0,10,3,.72);
+    backdrop-filter: blur(4px);
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .18em;
+    color: var(--m-text-strong);
+  }
+  .pane-meta .sep {
+    width: 1px; height: 10px; background: rgba(255,255,255,.08);
+  }
+  .pane-meta .live-dot {
+    width: 6px; height: 6px; border-radius: 9999px;
+    background: var(--m-green-500); box-shadow: 0 0 6px rgba(0,255,65,.6);
+  }
   .matrix-bg {
     position: absolute; inset: 0;
     pointer-events: none;
@@ -156,7 +264,7 @@
 
   .term-content {
     position: relative; z-index: 1;
-    padding: 14px 18px 56px;
+    padding: 48px 18px 56px;
     height: 100%; overflow: auto;
     font: 500 13px/1.55 var(--m-font-mono);
     color: #c5ffd0;
@@ -223,6 +331,99 @@
   }
   .cmd-bar .hint { font-size: 10px; color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .14em; }
   .cmd-bar .hint kbd { font: 500 10px var(--m-font-mono); padding: 1px 5px; border: 1px solid var(--m-border-subtle); border-radius: 3px; background: var(--m-bg); margin-right: 4px; color: var(--m-green-500); }
+
+  .intel {
+    display: grid;
+    grid-template-rows: auto auto auto 1fr auto;
+    gap: 10px;
+    padding: 14px;
+    border-left: 1px solid var(--m-border);
+    background:
+      linear-gradient(180deg, rgba(4,14,10,.98), rgba(1,8,6,.98)),
+      var(--m-panel);
+    overflow: auto;
+  }
+  .intel-card {
+    border: 1px solid rgba(120,255,170,.11);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(6,24,14,.96), rgba(4,10,8,.92));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+    overflow: hidden;
+  }
+  .intel-card .head {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding: 12px 12px 10px;
+    border-bottom: 1px solid rgba(255,255,255,.05);
+  }
+  .intel-card .head h3 {
+    margin:0;
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .22em;
+    color: var(--m-text-faint);
+  }
+  .intel-card .body { padding: 12px; }
+  .stack { display:grid; gap:10px; }
+  .inline-stat {
+    display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text);
+  }
+  .inline-stat b { color: var(--m-green-500); font-weight: 700; }
+  .timeline { display:grid; gap:9px; }
+  .timeline .item {
+    display:grid; grid-template-columns:auto 1fr; gap:9px;
+    align-items:flex-start;
+    font: 500 10.5px var(--m-font-mono);
+    color: var(--m-text-muted);
+  }
+  .timeline .item .dot {
+    width: 8px; height: 8px; border-radius: 9999px;
+    margin-top: 4px;
+    background: rgba(0,255,65,.35);
+    box-shadow: 0 0 8px rgba(0,255,65,.25);
+  }
+  .timeline .item strong { color: #efffe8; font-weight: 600; }
+  .skill-list { display:grid; gap:8px; }
+  .skill-pill {
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(120,255,170,.08);
+    background: rgba(0,0,0,.18);
+    font: 500 10.5px var(--m-font-mono);
+    color: var(--m-text);
+  }
+  .skill-pill .tag {
+    color: var(--m-green-500);
+    font-weight: 700;
+    letter-spacing: .08em;
+  }
+  .queue {
+    display:grid; gap:8px;
+  }
+  .queue .row {
+    display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.02);
+    font: 500 10.5px var(--m-font-mono);
+    color: var(--m-text-muted);
+  }
+  .queue .row .badge {
+    padding: 2px 6px;
+    border-radius: 9999px;
+    border: 1px solid rgba(120,255,170,.12);
+    color: var(--m-green-500);
+  }
+  .intel-foot {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px dashed rgba(120,255,170,.16);
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+  }
 
   /* palette */
   .palette {
@@ -312,14 +513,35 @@ function MatrixRain({ density = 1, speed = 0.75, dim = false }) {
   React.useEffect(() => {
     const canvas = ref.current; if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    let raf, w = 0, h = 0;
-    const glyphs = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンｱｲｳｴｵｶｷｸｹｺ$#%@&*+=-/\\<>1010101101";
-    const fontSize = 16;
-    let cols = [];
+    let raf, w = 0, h = 0, dpr = 1;
+    const glyphs = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜｦﾝ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ#$%*+-=<>";
+    const fontSize = 15;
+    const baseTrail = dim ? 18 : 24;
+    let columns = [];
+    let colCount = 0;
+    let rowHeight = fontSize;
+    let colWidth = fontSize * 0.9;
     let lastT = 0;
     const parent = canvas.parentElement;
+
+    function randGlyph() {
+      return glyphs[(Math.random() * glyphs.length) | 0];
+    }
+
+    function makeColumn(totalRows, seeded = false) {
+      const trail = Math.max(10, Math.round(baseTrail + Math.random() * 18));
+      return {
+        row: seeded ? Math.random() * totalRows : -Math.random() * totalRows * 0.7,
+        speed: (0.7 + Math.random() * 1.25) * speed,
+        trail,
+        drift: Math.random() * 0.2,
+        glyphs: Array.from({ length: trail + 10 }, randGlyph),
+        twinkle: Math.random(),
+      };
+    }
+
     function resize() {
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      dpr = Math.min(2, window.devicePixelRatio || 1);
       const pw = parent.clientWidth || canvas.getBoundingClientRect().width;
       const ph = parent.clientHeight || canvas.getBoundingClientRect().height;
       if (!pw || !ph) return;
@@ -327,12 +549,14 @@ function MatrixRain({ density = 1, speed = 0.75, dim = false }) {
       h = canvas.height = Math.max(1, Math.floor(ph * dpr));
       canvas.style.width = pw + 'px';
       canvas.style.height = ph + 'px';
-      const colCount = Math.max(8, Math.floor(pw / 14));
-      cols = Array.from({ length: colCount }, () => ({
-        y: Math.random() * h,
-        speed: (0.6 + Math.random() * 1.4) * speed * dpr,
-        head: Math.random() * 0.4 + 0.3,
-      }));
+      rowHeight = fontSize * dpr;
+      colWidth = Math.max(10 * dpr, fontSize * dpr * 0.78);
+      const totalRows = Math.max(12, Math.ceil(h / rowHeight) + 4);
+      colCount = Math.max(18, Math.floor((w / colWidth) * density));
+      columns = Array.from({ length: colCount }, () => makeColumn(totalRows, true));
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.textBaseline = 'top';
+      ctx.textAlign = 'left';
     }
     resize();
     const ro = new ResizeObserver(resize); ro.observe(parent);
@@ -344,30 +568,71 @@ function MatrixRain({ density = 1, speed = 0.75, dim = false }) {
       raf = requestAnimationFrame(draw);
       const dt = Math.min(60, t - (lastT || t));
       lastT = t;
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
-      // soft trail
-      ctx.fillStyle = 'rgba(0,0,0,0.10)';
+      const totalRows = Math.max(12, Math.ceil(h / rowHeight) + 4);
+      const effectiveColWidth = w / Math.max(1, colCount);
+      ctx.fillStyle = dim ? 'rgba(0,0,0,0.17)' : 'rgba(0,0,0,0.10)';
       ctx.fillRect(0, 0, w, h);
-      ctx.font = `${fontSize * dpr}px "JetBrains Mono", ui-monospace, monospace`;
-      const colW = w / cols.length;
-      for (let i = 0; i < cols.length; i++) {
-        const c = cols[i];
-        const x = i * colW + colW / 2;
-        const ch = glyphs[(Math.random() * glyphs.length) | 0];
-        // head
-        ctx.fillStyle = dim ? 'rgba(180,255,200,0.55)' : 'rgba(220,255,230,0.95)';
-        ctx.fillText(ch, x, c.y);
-        // tail
-        ctx.fillStyle = dim ? 'rgba(0,255,65,0.18)' : 'rgba(0,255,65,0.55)';
-        ctx.fillText(glyphs[(Math.random()*glyphs.length)|0], x, c.y - fontSize * dpr);
-        ctx.fillStyle = dim ? 'rgba(0,200,55,0.10)' : 'rgba(0,200,55,0.30)';
-        ctx.fillText(glyphs[(Math.random()*glyphs.length)|0], x, c.y - fontSize * dpr * 2);
-        c.y += c.speed * (dt * 0.5);
-        if (c.y > h + fontSize) {
-          c.y = -Math.random() * 80;
-          c.speed = (0.6 + Math.random() * 1.4) * speed;
+      ctx.font = `${rowHeight}px "JetBrains Mono", ui-monospace, monospace`;
+
+      const gridAlpha = dim ? 0.018 : 0.03;
+      ctx.strokeStyle = `rgba(0,255,90,${gridAlpha})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = 0; x < w; x += effectiveColWidth) {
+        ctx.moveTo(x + 0.5, 0);
+        ctx.lineTo(x + 0.5, h);
+      }
+      for (let y = 0; y < h; y += rowHeight) {
+        ctx.moveTo(0, y + 0.5);
+        ctx.lineTo(w, y + 0.5);
+      }
+      ctx.stroke();
+
+      for (let i = 0; i < columns.length; i++) {
+        const col = columns[i];
+        const x = Math.floor(i * effectiveColWidth + effectiveColWidth * 0.14);
+        const headRow = col.row;
+        const shimmer = 0.92 + Math.sin((t / 1000) * (0.8 + col.twinkle)) * 0.08;
+
+        for (let tail = 0; tail < col.trail; tail++) {
+          const row = headRow - tail;
+          if (row < -2 || row > totalRows) continue;
+          const y = row * rowHeight;
+          if (y < -rowHeight || y > h + rowHeight) continue;
+
+          const alpha =
+            tail === 0
+              ? (dim ? 0.9 : 1)
+              : Math.max(0.02, (1 - tail / col.trail) * (dim ? 0.16 : 0.38) * shimmer);
+
+          ctx.fillStyle =
+            tail === 0
+              ? `rgba(235,255,240,${alpha})`
+              : tail < 3
+                ? `rgba(120,255,170,${alpha})`
+                : `rgba(0,255,90,${alpha})`;
+          if (Math.random() < 0.075) {
+            col.glyphs[tail] = randGlyph();
+          }
+          ctx.fillText(col.glyphs[tail] || randGlyph(), x, y);
+        }
+
+        col.row += (col.speed * dt) / 18;
+        if (Math.random() < 0.045 + col.drift) {
+          col.trail = Math.max(10, Math.min(38, col.trail + (Math.random() > 0.5 ? 1 : -1)));
+        }
+        if (col.row - col.trail > totalRows) {
+          columns[i] = makeColumn(totalRows, false);
         }
       }
+
+      const fade = ctx.createLinearGradient(0, 0, 0, h);
+      fade.addColorStop(0, 'rgba(0,0,0,0.42)');
+      fade.addColorStop(0.12, 'rgba(0,0,0,0)');
+      fade.addColorStop(0.84, 'rgba(0,0,0,0)');
+      fade.addColorStop(1, 'rgba(0,0,0,0.58)');
+      ctx.fillStyle = fade;
+      ctx.fillRect(0, 0, w, h);
     }
     raf = requestAnimationFrame(draw);
     return () => { cancelAnimationFrame(raf); ro.disconnect(); ro2.disconnect(); window.removeEventListener('resize', resize); };
@@ -430,6 +695,20 @@ const PALETTE_ITEMS = [
   { id:'export',   k:'⌘E', label:'Export buffer',  desc:'save scrollback to a .log file',      ic:Ico.dl },
   { id:'send-ai',  k:'⌘L', label:'Send to Hermes', desc:'pipe last command + output into chat', ic:Ico.bolt },
   { id:'clear',    k:'⌘K', label:'Clear buffer',   desc:'clear screen, keep session',           ic:Ico.trash },
+];
+
+const OPS_LOG = [
+  { t:'14:04:12', title:'Deploy preview stabilized', body:'terminal-01 reattached after SSE reconnect · warm build cached.' },
+  { t:'14:03:48', title:'Hermes memory sync', body:'claude-mem checkpoint written with 3 new notes.' },
+  { t:'14:02:54', title:'Agent runtime healthy', body:'8 workers ready · MCP context-mode and omc-tools connected.' },
+  { t:'14:01:33', title:'Workspace telemetry', body:'CPU steady at 23% · no dropped terminal frames in last 10m.' },
+];
+
+const QUICK_SKILLS = [
+  { tag:'$analyze', desc:'trace a failing command across tabs and server logs' },
+  { tag:'$ralph', desc:'keep one owner on a multi-step repair until verified' },
+  { tag:'$visual-verdict', desc:'compare design output against the intended terminal aesthetic' },
+  { tag:'$note', desc:'persist shell findings into durable OMX memory' },
 ];
 
 /* ── Canned command sandbox ─────────────────────────────── */
@@ -526,6 +805,12 @@ function TermPane({ term, focused, rain, rainDim, onFocus, onRun }) {
   return (
     <div className={`term-pane ${focused?'focused':''}`} onClick={() => { onFocus(); inputRef.current?.focus(); }}>
       {rain && <MatrixRain dim={rainDim}/>}
+      <div className="pane-meta">
+        <span className="live-dot"/>
+        <span>{term.name}</span>
+        <span className="sep"/>
+        <span>{term.state}</span>
+      </div>
       <div className="hud">
         <span className="d"/>
         <span><b>{term.host}</b></span>
@@ -569,6 +854,87 @@ function TermPane({ term, focused, rain, rainDim, onFocus, onRun }) {
         <span className="hint"><kbd>⌘K</kbd>palette</span>
       </div>
     </div>
+  );
+}
+
+function IntelligenceRail({ terms, openIds, active, split, rain, rainDim }) {
+  const liveCount = terms.filter(t => t.state === 'live').length;
+  const warnCount = terms.filter(t => t.state === 'warn').length;
+  return (
+    <aside className="intel">
+      <div className="intel-card">
+        <div className="head">
+          <h3>Workspace pulse</h3>
+          <span className="chip" style={{ height: 22, padding:'0 8px' }}><span className="dot"/> live</span>
+        </div>
+        <div className="body stack">
+          <div className="inline-stat"><span>Open sessions</span><b>{terms.length}</b></div>
+          <div className="inline-stat"><span>Visible tabs</span><b>{openIds.length}</b></div>
+          <div className="inline-stat"><span>Hot terminals</span><b>{liveCount}</b></div>
+          <div className="inline-stat"><span>Attention needed</span><b style={{ color: warnCount ? '#ffb347' : 'var(--m-green-500)' }}>{warnCount}</b></div>
+        </div>
+      </div>
+
+      <div className="intel-card">
+        <div className="head">
+          <h3>Focused lane</h3>
+          <span style={{ font:'600 10px var(--m-font-mono)', color:'var(--m-green-500)', textTransform:'uppercase', letterSpacing:'.16em' }}>{split === 'none' ? 'single' : split === 'h' ? 'split right' : 'split down'}</span>
+        </div>
+        <div className="body stack">
+          <div className="inline-stat"><span>Active terminal</span><b>{active?.name || '—'}</b></div>
+          <div className="inline-stat"><span>Current cwd</span><b>{active?.pwd || '—'}</b></div>
+          <div className="inline-stat"><span>Matrix overlay</span><b>{rain ? (rainDim ? 'dim' : 'on') : 'off'}</b></div>
+          <div className="inline-stat"><span>Primary host</span><b>{active?.host?.split('@')[1] || '—'}</b></div>
+        </div>
+      </div>
+
+      <div className="intel-card">
+        <div className="head">
+          <h3>Suggested skills</h3>
+          <span style={{ font:'600 10px var(--m-font-mono)', color:'var(--m-text-faint)' }}>contextual</span>
+        </div>
+        <div className="body skill-list">
+          {QUICK_SKILLS.map((s) => (
+            <div className="skill-pill" key={s.tag}>
+              <span className="tag">{s.tag}</span>
+              <span style={{ textAlign:'right' }}>{s.desc}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="intel-card">
+        <div className="head">
+          <h3>Ops timeline</h3>
+          <span style={{ font:'600 10px var(--m-font-mono)', color:'var(--m-text-faint)' }}>last 4 events</span>
+        </div>
+        <div className="body timeline">
+          {OPS_LOG.map((item) => (
+            <div className="item" key={item.t + item.title}>
+              <span className="dot"/>
+              <div>
+                <strong>{item.t} · {item.title}</strong>
+                <div style={{ marginTop:4 }}>{item.body}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="intel-card">
+        <div className="head">
+          <h3>Queued automations</h3>
+          <span style={{ font:'600 10px var(--m-font-mono)', color:'var(--m-green-500)' }}>3 pending</span>
+        </div>
+        <div className="body queue">
+          <div className="row"><span className="badge">prep</span><span>Warm route-level screenshot worker for /terminal</span><span>1m</span></div>
+          <div className="row"><span className="badge">sync</span><span>Persist terminal notes into claude-mem + project wiki</span><span>queued</span></div>
+          <div className="row"><span className="badge">ship</span><span>Export buffer + attach preview artifact to design review</span><span>ready</span></div>
+        </div>
+      </div>
+
+      <div className="intel-foot">Hermes terminal workspace · command, memory, and agent telemetry in one view</div>
+    </aside>
   );
 }
 
@@ -637,14 +1003,14 @@ function Sidebar({ terms, activeId, onActivate, collapsed, setCollapsed, onNew }
 function App() {
   const [terms, setTerms] = React.useState(TERMS);
   const [openIds, setOpenIds] = React.useState(['t1','t2','t3']);  // tabs open
-  const [activeId, setActiveId] = React.useState('t2');
-  const [splitId, setSplitId]   = React.useState('t1'); // pane B
+  const [activeId, setActiveId] = React.useState('t1');
+  const [splitId, setSplitId]   = React.useState('t3'); // pane B
   const [split, setSplit]       = React.useState('h');  // 'none' | 'h' | 'v'
   const [lastExit, setLastExit] = React.useState(0);
   const [focused, setFocused]   = React.useState('A');  // 'A' | 'B'
   const [collapsed, setCollapsed] = React.useState(false);
   const [rain, setRain]   = React.useState(true);
-  const [rainDim, setDim] = React.useState(false);
+  const [rainDim, setDim] = React.useState(true);
   const [palette, setPalette] = React.useState(false);
   const [palQuery, setPalQuery] = React.useState('');
   const [palSel, setPalSel] = React.useState(0);
@@ -707,6 +1073,21 @@ function App() {
       <nav className="nav"><PrimaryNavV2 active="terminal" sessionsBadge={9} /></nav>
       <Sidebar terms={terms} activeId={activeId} onActivate={open} collapsed={collapsed} setCollapsed={setCollapsed} onNew={newSession}/>
       <main className="main">
+        <div className="workspace-strip">
+          <div className="title">
+            <span className="signal"/>
+            <div style={{ minWidth:0 }}>
+              <div className="eyebrow">Runtime workspace · /terminal</div>
+              <h1>Persistent operator terminal with live agent context</h1>
+              <p>Split panes, command palette actions, runtime status, and automation queues stay visible without losing the shell-first feel.</p>
+            </div>
+          </div>
+          <div className="chips">
+            <span className="chip"><span className="dot"/> <b>8</b> workers ready</span>
+            <span className="chip"><span className="dot"/> <b>3</b> MCP attached</span>
+            <span className="chip"><span className="dot"/> <b>23%</b> cpu stable</span>
+          </div>
+        </div>
         <div className="tabs">
           {openIds.map(id => {
             const t = terms.find(x => x.id === id); if (!t) return null;
@@ -730,6 +1111,29 @@ function App() {
             <span className="ico-btn" title="Command palette (⌘K)" onClick={togglePalette}>{Ico.cmd}</span>
             <span className="ico-btn" title="Record session">{Ico.rec}</span>
             <span className="ico-btn" title="Export buffer">{Ico.dl}</span>
+          </div>
+        </div>
+
+        <div className="overview">
+          <div className="metric">
+            <div className="k">Active host</div>
+            <div className="v">{active?.host || '—'}</div>
+            <div className="sub">Focused pane pinned to the current operator machine.</div>
+          </div>
+          <div className="metric">
+            <div className="k">Session mode</div>
+            <div className="v">{split === 'none' ? 'Single pane' : split === 'h' ? 'Dual pane' : 'Stacked pane'}</div>
+            <div className="sub">Designed to keep source logs and agent runtime visible together.</div>
+          </div>
+          <div className="metric">
+            <div className="k">Primary command</div>
+            <div className="v">pnpm dev</div>
+            <div className="sub">Local app loop stays foregrounded while support terminals stream side data.</div>
+          </div>
+          <div className="metric">
+            <div className="k">Promptable actions</div>
+            <div className="v">⌘K palette</div>
+            <div className="sub">Run skills, split panes, export logs, or hand output to Hermes.</div>
           </div>
         </div>
 
@@ -785,6 +1189,7 @@ function App() {
           <span>mem <b>4.1G/16G</b></span>
         </footer>
       </main>
+      <IntelligenceRail terms={terms} openIds={openIds} active={active} split={split} rain={rain} rainDim={rainDim}/>
     </div>
   );
 }

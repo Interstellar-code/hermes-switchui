@@ -1272,8 +1272,8 @@
     "hash": "52ca25d5795d2b680134d48dc7a76d70"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/src/screens/files/files-screen.tsx": {
-    "mtime": 1778431621.2257478,
-    "hash": "295e2fb9c14d2270a35f185c8a545dd7"
+    "mtime": 1778433248.8996158,
+    "hash": "bd91d38aa8d95887b70ff3057868c4f6"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/src/screens/skills/workspace-skills-screen.tsx": {
     "mtime": 1777916346.3117723,
@@ -1908,8 +1908,8 @@
     "hash": "adcafa3fea3e7be4b59292ee8e2cf769"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/src/components/terminal/terminal-workspace.tsx": {
-    "mtime": 1777983163.053844,
-    "hash": "9dfac5a346b19eb8ba1cadeb93226644"
+    "mtime": 1778447140.7817755,
+    "hash": "2abf92fc4bdc6b5fa493470d38b1060b"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/src/components/terminal/mobile-terminal-input.tsx": {
     "mtime": 1777916346.204839,
@@ -3060,8 +3060,8 @@
     "hash": "f0eab90c587428f18bdebbaed85be3a5"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/AGENTS.md": {
-    "mtime": 1778431570.1251438,
-    "hash": "b9d7f27a5a33100dab9c456a11c1c8e0"
+    "mtime": 1778447072.5433393,
+    "hash": "f53dedbe71359c5de4d4151ae102dcf6"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/FEATURES-INVENTORY.md": {
     "mtime": 1777916345.2178895,
@@ -3182,6 +3182,10 @@
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/docs/Design Assets/Hermes-Switchui/Tasks.html": {
     "mtime": 1778327293.8080897,
     "hash": "3669346bfd84ccb2cee136c478f5a7a3"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui-a/docs/Design Assets/Hermes-Switchui/Terminal.html": {
+    "mtime": 1778446808.0138419,
+    "hash": "0c6e79e2ffd9d62329d8d5deec4a5797"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/docs/Design Assets/Hermes-Switchui/Files.html": {
     "mtime": 1778411526.5061085,
@@ -3395,6 +3399,10 @@
     "mtime": 1777916345.3256862,
     "hash": "331c809fcce0ac1b7c249068916ccbd8"
   },
+  "/Volumes/Ext-nvme/Development/hermes-switchui-a/docs/screenshots/terminal-redesign-rain-fixed.png": {
+    "mtime": 1778446201.3632689,
+    "hash": "bfcd1dfca2fe0dd28e1577c8242d2512"
+  },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/docs/screenshots/settings.png": {
     "mtime": 1777916345.395808,
     "hash": "21e5129c84fd5230c66df540462b4e27"
@@ -3411,6 +3419,10 @@
     "mtime": 1777916345.4458737,
     "hash": "537716f9b6e81bc1efdd17d5eea3e1ed"
   },
+  "/Volumes/Ext-nvme/Development/hermes-switchui-a/docs/screenshots/terminal-redesign.png": {
+    "mtime": 1778445096.7847905,
+    "hash": "d5080f646e5082bb57c71c903decf83b"
+  },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/docs/screenshots/splash.png": {
     "mtime": 1777916345.4454806,
     "hash": "29fad04c7fc7f8d784e665c0d52b87df"
@@ -3426,6 +3438,10 @@
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/docs/screenshots/memory.png": {
     "mtime": 1777916345.3792443,
     "hash": "d9734b8af41c9b5de067d65809d4bd19"
+  },
+  "/Volumes/Ext-nvme/Development/hermes-switchui-a/docs/screenshots/terminal-redesign-rain-upgraded.png": {
+    "mtime": 1778446836.6224673,
+    "hash": "569b194f4be9f6784939dc5aa44deaa8"
   },
   "/Volumes/Ext-nvme/Development/hermes-switchui-a/docs/screenshots/skills.png": {
     "mtime": 1777916345.4409232,
