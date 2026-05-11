@@ -35,8 +35,10 @@ export const Route = createFileRoute('/api/personas/list')({
           return json({ error: 'Unauthorized' }, { status: 401 })
         }
         try {
+          const url = new URL(request.url)
+          const bust = url.searchParams.get('bust') || url.searchParams.get('nocache')
           const now = Date.now()
-          if (!_cache || _cache.expiresAt < now) {
+          if (!_cache || _cache.expiresAt < now || bust) {
             const personas = listPersonas()
             _cache = {
               personas: personas.map(toListItem),

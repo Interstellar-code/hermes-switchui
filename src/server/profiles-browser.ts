@@ -93,6 +93,7 @@ export type ProfileDetail = {
 }
 
 const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/
+const BUILTIN_PROFILE_NAMES = new Set(['hermes-switch', 'neo', 'trinity', 'morpheus'])
 const TEXT_REWRITE_EXTENSIONS = new Set([
   '.md',
   '.txt',
@@ -137,6 +138,8 @@ function validateProfileName(name: string): string {
   const trimmed = validateProfileIdentifier(name)
   if (trimmed === 'default')
     throw new Error('Default profile cannot be modified here')
+  if (BUILTIN_PROFILE_NAMES.has(trimmed))
+    throw new Error(`Profile name "${trimmed}" is reserved for built-in agents`)
   return trimmed
 }
 

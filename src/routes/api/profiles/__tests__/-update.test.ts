@@ -118,6 +118,29 @@ describe('POST /api/profiles/update — validation', () => {
     expect(res.status).not.toBe(400)
   })
 
+  it('rejects agent_ui.tier patch with 400 (disallowed field)', async () => {
+    // tier is in the denied-key allowlist — should be rejected before writeProfile
+    readFileSync.mockReturnValue('model: auto\nagent_ui:\n  tier: 3\n')
+    const handler = await getHandler()
+    const res = await handler({
+      request: makeRequest({ name: 'myprofile', agent_ui: { tier: 1, role: 'Builder' } }),
+    })
+    expect(res.status).toBe(400)
+    const body = await res.json() as { error: string }
+    expect(body.error).toMatch(/tier/)
+  })
+
+  it('rejects builtin profile name "hermes-switch" with 500 (reserved)', async () => {
+    const handler = await getHandler()
+    const res = await handler({
+      request: makeRequest({ name: 'hermes-switch', description: 'pwned' }),
+    })
+    // validateProfileName throws → caught as 500
+    expect(res.status).toBe(500)
+    const body = await res.json() as { error: string }
+    expect(body.error).toMatch(/reserved/)
+  })
+
   it('rejects empty patch (no fields) with 400', async () => {
     const handler = await getHandler()
     const res = await handler({

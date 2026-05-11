@@ -94,6 +94,8 @@ export const Route = createFileRoute('/api/profiles/update')({
             )
           }
 
+          const AGENT_UI_DENIED_KEYS = new Set(['tier', 'status', 'builtin', 'id'])
+
           const patch: Record<string, unknown> = {}
           if (body.description !== undefined) patch.description = body.description
           if (body.system_prompt !== undefined) patch.system_prompt = body.system_prompt
@@ -102,7 +104,17 @@ export const Route = createFileRoute('/api/profiles/update')({
           if (body.skills !== undefined) patch.skills = body.skills
           if (body.memory !== undefined) patch.memory = body.memory
           if (body.agent !== undefined) patch.agent = body.agent
-          if (body.agent_ui !== undefined) patch.agent_ui = body.agent_ui
+          if (body.agent_ui !== undefined) {
+            const agentUiInput = body.agent_ui as Record<string, unknown>
+            const disallowed = Object.keys(agentUiInput).filter((k) => AGENT_UI_DENIED_KEYS.has(k))
+            if (disallowed.length > 0) {
+              return json(
+                { error: `agent_ui fields not allowed: ${disallowed.join(', ')}` },
+                { status: 400 },
+              )
+            }
+            patch.agent_ui = body.agent_ui
+          }
 
           if (Object.keys(patch).length === 0) {
             return json({ error: 'No fields to update' }, { status: 400 })
