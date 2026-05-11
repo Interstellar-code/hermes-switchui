@@ -1,4 +1,5 @@
-import { useReducer, useCallback } from 'react'
+import { useReducer, useCallback, useState } from 'react'
+import { ConfirmDialog } from './confirm-dialog'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   INITIAL_WIZARD_STATE,
@@ -83,10 +84,19 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
     }
   }
 
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
+
   function handleCancel() {
     if (isDraftDirty(state.draft)) {
-      if (!window.confirm('Discard changes and close the wizard?')) return
+      setConfirmDiscard(true)
+      return
     }
+    dispatch({ type: 'RESET' })
+    onClose()
+  }
+
+  function confirmDiscardClose() {
+    setConfirmDiscard(false)
     dispatch({ type: 'RESET' })
     onClose()
   }
@@ -296,6 +306,17 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDiscard}
+        title="Discard changes?"
+        message="You have unsaved wizard input. Close without saving?"
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        destructive
+        onConfirm={confirmDiscardClose}
+        onCancel={() => setConfirmDiscard(false)}
+      />
     </>
   )
 }

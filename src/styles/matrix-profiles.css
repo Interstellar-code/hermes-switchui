@@ -1902,3 +1902,52 @@
 }
 
 } /* end [data-screen="profiles"] */
+
+/* ── In-app confirm dialog (portaled to document.body — must be global) ── */
+.pf-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(2px);
+  z-index: 9000;
+  display: grid;
+  place-items: center;
+  animation: pf-fade var(--m-dur-base, 160ms) var(--m-ease-out, ease-out);
+}
+.pf-confirm {
+  min-width: 360px;
+  max-width: 480px;
+  padding: 22px 24px 20px;
+  border: 1px solid var(--m-green-500, #00ff41);
+  border-radius: 12px;
+  background: var(--m-panel, #0c1410);
+  box-shadow: 0 24px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(0,255,65,.18);
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+}
+.pf-confirm h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--m-green-500, #00ff41);
+}
+.pf-confirm p {
+  margin: 0 0 18px;
+  color: var(--m-text-muted, #9ab39e);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.pf-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.btn-danger {
+  border-color: #ff5fa2;
+  color: #ff5fa2;
+}
+.btn-danger:hover {
+  background: rgba(255,95,162,.1);
+  border-color: #ff5fa2;
+  color: #ff5fa2;
+}

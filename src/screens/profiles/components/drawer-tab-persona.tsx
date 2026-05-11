@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
+import { ConfirmDialog } from './confirm-dialog'
 import { useQuery } from '@tanstack/react-query'
 import type { AgentRow } from '../profiles-screen'
 
@@ -44,6 +45,8 @@ export function DrawerTabPersona({ agent, personaId, systemPrompt, readonly, onS
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [confirm, setConfirm] = useState<null | 'resnapshot' | 'switch' | 'clear'>(null)
+  const [pendingPersona, setPendingPersona] = useState<PersonaListItem | null>(null)
 
   const personasQuery = useQuery({
     queryKey: ['personas', 'list'],
@@ -66,9 +69,8 @@ export function DrawerTabPersona({ agent, personaId, systemPrompt, readonly, onS
     return true
   })
 
-  async function handleResnapshot() {
+  async function doResnapshot() {
     if (!personaId) return
-    if (!window.confirm('Re-snapshot will overwrite the current system prompt with the latest persona text. Continue?')) return
     setBusy(true)
     try {
       const prompt = await fetchPersonaPrompt(personaId)
@@ -81,8 +83,12 @@ export function DrawerTabPersona({ agent, personaId, systemPrompt, readonly, onS
     }
   }
 
-  async function handleSwitchPersona(p: PersonaListItem) {
-    if (!window.confirm(`Switch to "${p.name}"? This will overwrite the current system prompt.`)) return
+  function handleResnapshot() {
+    if (!personaId) return
+    setConfirm('resnapshot')
+  }
+
+  async function doSwitchPersona(p: PersonaListItem) {
     setBusy(true)
     try {
       const prompt = await fetchPersonaPrompt(p.id)
@@ -96,8 +102,12 @@ export function DrawerTabPersona({ agent, personaId, systemPrompt, readonly, onS
     }
   }
 
-  async function handleClearPersonaLink() {
-    if (!window.confirm('Clear persona link? The current system prompt will be kept but the persona reference removed.')) return
+  function handleSwitchPersona(p: PersonaListItem) {
+    setPendingPersona(p)
+    setConfirm('switch')
+  }
+
+  async function doClearPersonaLink() {
     setBusy(true)
     try {
       await onSave({ system_prompt: promptEdit, agent_ui: { persona_id: null } })
@@ -107,6 +117,19 @@ export function DrawerTabPersona({ agent, personaId, systemPrompt, readonly, onS
       setBusy(false)
     }
   }
+
+  function handleClearPersonaLink() {
+    setConfirm('clear')
+  }
+
+  const handleConfirm = useCallback(() => {
+    const kind = confirm
+    setConfirm(null)
+    if (kind === 'resnapshot') void doResnapshot()
+    else if (kind === 'switch' && pendingPersona) { void doSwitchPersona(pendingPersona); setPendingPersona(null) }
+    else if (kind === 'clear') void doClearPersonaLink()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirm, pendingPersona])
 
   async function handleSavePrompt() {
     setBusy(true)
@@ -120,7 +143,20 @@ export function DrawerTabPersona({ agent, personaId, systemPrompt, readonly, onS
     }
   }
 
+  const confirmProps = confirm === 'resnapshot'
+    ? { title: 'Re-snapshot system prompt?', message: 'Re-snapshot will overwrite the current system_prompt with the latest persona text.', confirmLabel: 'Re-snapshot', destructive: false }
+    : confirm === 'switch'
+    ? { title: `Switch to "${pendingPersona?.name ?? ''}"?`, message: 'This will overwrite the current system prompt.', confirmLabel: 'Switch', destructive: false }
+    : { title: 'Clear persona link?', message: 'Removes the persona reference. The current system_prompt is preserved.', confirmLabel: 'Clear link', destructive: false }
+
   return (
+    <>
+    <ConfirmDialog
+      open={confirm !== null}
+      {...confirmProps}
+      onConfirm={handleConfirm}
+      onCancel={() => { setConfirm(null); setPendingPersona(null) }}
+    />
     <div>
       {/* Inline error banner */}
       {errorMsg && (
@@ -268,5 +304,6 @@ export function DrawerTabPersona({ agent, personaId, systemPrompt, readonly, onS
         </div>
       )}
     </div>
+    </>
   )
 }

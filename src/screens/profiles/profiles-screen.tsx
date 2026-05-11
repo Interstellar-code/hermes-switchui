@@ -6,6 +6,7 @@ import { ProfilePager } from './components/profile-pager'
 import { ProfileTableRow } from './components/profile-table-row'
 import { AgentWizard } from './components/agent-wizard'
 import { AgentDetailDrawer } from './components/agent-detail-drawer'
+import { ConfirmDialog } from './components/confirm-dialog'
 import type { BuiltinAgent } from '@/lib/builtin-agents'
 import type { AgentUIMetadata, ProfileSummary } from '@/server/profiles-browser'
 import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
@@ -123,6 +124,7 @@ export function ProfilesScreen() {
   const [busyName, setBusyName] = useState<string | null>(null)
   const [wizardOpen, setWizardOpen] = useState(false)
   const [drawerAgent, setDrawerAgent] = useState<AgentRow | null>(null)
+  const [deleteConfirmName, setDeleteConfirmName] = useState<string | null>(null)
   const newProfileRef = useRef<string | null>(null)
 
   const profilesQuery = useQuery({
@@ -229,8 +231,11 @@ export function ProfilesScreen() {
     }
   }
 
-  async function handleDelete(profileName: string) {
-    if (typeof window !== 'undefined' && !window.confirm(`Delete agent ${profileName}?`)) return
+  function handleDelete(profileName: string) {
+    setDeleteConfirmName(profileName)
+  }
+
+  async function doDelete(profileName: string) {
     setBusyName(profileName)
     try {
       await postJson('/api/profiles/delete', { name: profileName })
@@ -504,6 +509,16 @@ export function ProfilesScreen() {
           </div>
         </DialogContent>
       </DialogRoot>
+
+      <ConfirmDialog
+        open={deleteConfirmName !== null}
+        title="Delete agent?"
+        message="Move profile to ~/.hermes/trash? This can be restored manually but won't appear in the UI."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => { const n = deleteConfirmName!; setDeleteConfirmName(null); void doDelete(n) }}
+        onCancel={() => setDeleteConfirmName(null)}
+      />
     </div>
   )
 }
