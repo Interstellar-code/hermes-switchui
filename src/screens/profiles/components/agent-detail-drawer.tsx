@@ -145,6 +145,7 @@ export function AgentDetailDrawer({
   const memoryProvider: MemoryProvider = config.memory?.provider ?? 'hindsight'
   const maxTurns: number = config.agent?.max_turns ?? 200
   const reasoningEffort: 'low' | 'medium' | 'high' = config.agent?.reasoning_effort ?? 'medium'
+  const disabledToolsets: string[] = config.agent?.disabled_toolsets ?? []
   const configPath = detail ? `${detail.path}/config.yaml` : ''
 
   const legacy = detail ? isLegacyProfile(config) : false
@@ -152,22 +153,25 @@ export function AgentDetailDrawer({
   // Status colors
   const statusColor: Record<string, string> = { active: '#00ff41', idle: '#888', draft: '#f59e0b' }
 
-  if (!open || !agent) return null
+  if (!agent) return null
 
   return (
     <>
       {/* Backdrop */}
-      <div
-        className="pf-drawer-backdrop"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      {open && (
+        <div
+          className="pf-drawer-backdrop"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
 
-      {/* Drawer panel */}
+      {/* Drawer panel — always mounted so transition plays */}
       <div
         role="dialog"
         aria-label={`Agent details: ${agent.name}`}
-        className="pf-drawer"
+        className={`pf-drawer${open ? ' is-open' : ''}`}
+        aria-hidden={!open}
       >
         {/* Header */}
         <div className="pf-drawer-header">
@@ -239,6 +243,7 @@ export function AgentDetailDrawer({
               {tab === 'overview' && (
                 <DrawerTabOverview
                   agent={agent}
+                  description={typeof config.description === 'string' ? config.description : ''}
                   readonly={readonly}
                   isLegacy={legacy}
                   onSave={(patch) => handleSavePatch(patch as Record<string, unknown>)}
@@ -279,6 +284,7 @@ export function AgentDetailDrawer({
                   skillDirs={skillDirs}
                   maxTurns={maxTurns}
                   reasoningEffort={reasoningEffort}
+                  disabledToolsets={disabledToolsets}
                   readonly={readonly}
                   onSave={(patch) => handleSavePatch(patch as Record<string, unknown>)}
                 />

@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { AgentRow } from '../profiles-screen'
 import type { AgentUIMetadata } from '@/server/profiles-browser'
+import { GlyphPicker } from './glyph-picker'
 
 type Props = {
   agent: AgentRow
+  description: string
   readonly: boolean
   onSave: (patch: { description?: string; agent_ui?: Partial<AgentUIMetadata> }) => Promise<void>
   onActivate?: () => void
@@ -15,6 +17,7 @@ type Props = {
 
 export function DrawerTabOverview({
   agent,
+  description,
   readonly,
   onSave,
   onActivate,
@@ -24,21 +27,36 @@ export function DrawerTabOverview({
   isLegacy,
 }: Props) {
   const [role, setRole] = useState(agent.role === '—' ? '' : agent.role)
+  const [desc, setDesc] = useState(description)
+  const [glyph, setGlyph] = useState(agent.glyph ?? '')
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<string[]>(agent.tags)
   const [busy, setBusy] = useState(false)
   const [upgradeBusy, setUpgradeBusy] = useState(false)
 
+  // B9: resync local state when agent prop changes after refetch
+  useEffect(() => {
+    setRole(agent.role === '—' ? '' : agent.role)
+    setGlyph(agent.glyph ?? '')
+    setTags(agent.tags)
+  }, [agent])
+
+  useEffect(() => {
+    setDesc(description)
+  }, [description])
+
   const dirty =
     (role !== (agent.role === '—' ? '' : agent.role)) ||
+    desc !== description ||
+    glyph !== (agent.glyph ?? '') ||
     JSON.stringify(tags) !== JSON.stringify(agent.tags)
 
   async function handleSave() {
     setBusy(true)
     try {
       await onSave({
-        description: role || undefined,
-        agent_ui: { role: role || undefined, tags },
+        description: desc || undefined,
+        agent_ui: { role: role || undefined, glyph: glyph || undefined, tags },
       })
     } finally {
       setBusy(false)
@@ -147,6 +165,19 @@ export function DrawerTabOverview({
         </div>
       </div>
 
+      {/* Editable: description */}
+      <div style={{ marginBottom: 16 }}>
+        <p className="pf-drawer-section-title">Description</p>
+        <input
+          className="pf-drawer-input"
+          value={desc}
+          onChange={(e) => setDesc(e.target.value)}
+          placeholder="Short description of this agent"
+          disabled={readonly}
+          maxLength={160}
+        />
+      </div>
+
       {/* Editable: role */}
       <div style={{ marginBottom: 16 }}>
         <p className="pf-drawer-section-title">Role</p>
@@ -159,6 +190,18 @@ export function DrawerTabOverview({
           maxLength={80}
         />
       </div>
+
+      {/* Editable: glyph */}
+      {!isLegacy && (
+        <div style={{ marginBottom: 16 }}>
+          <p className="pf-drawer-section-title">Glyph</p>
+          {readonly ? (
+            <span style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 700 }}>{glyph || '—'}</span>
+          ) : (
+            <GlyphPicker value={glyph} onChange={setGlyph} name={agent.name} role={role} />
+          )}
+        </div>
+      )}
 
       {/* Editable: tags */}
       <div style={{ marginBottom: 20 }}>
@@ -210,7 +253,7 @@ export function DrawerTabOverview({
             <button
               type="button"
               className="pf-drawer-btn-cancel"
-              onClick={() => { setRole(agent.role === '—' ? '' : agent.role); setTags(agent.tags) }}
+              onClick={() => { setRole(agent.role === '—' ? '' : agent.role); setDesc(description); setGlyph(agent.glyph ?? ''); setTags(agent.tags) }}
             >
               Reset
             </button>

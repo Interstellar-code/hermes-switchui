@@ -1,25 +1,36 @@
 import { useState } from 'react'
 import type { SkillsConfig, AgentRuntime } from '@/server/profiles-browser'
 
+const ALL_TOOLSETS = ['core', 'files', 'web', 'bash', 'terminal', 'vision'] as const
+
 type Props = {
   skillDirs: string[]
   maxTurns: number
   reasoningEffort: 'low' | 'medium' | 'high'
+  disabledToolsets: string[]
   readonly: boolean
   onSave: (patch: { skills?: SkillsConfig; agent?: Partial<AgentRuntime> }) => Promise<void>
 }
 
-export function DrawerTabSkills({ skillDirs, maxTurns, reasoningEffort, readonly, onSave }: Props) {
+export function DrawerTabSkills({ skillDirs, maxTurns, reasoningEffort, disabledToolsets, readonly, onSave }: Props) {
   const [dirs, setDirs] = useState<string[]>(skillDirs)
   const [dirInput, setDirInput] = useState('')
   const [turns, setTurns] = useState(maxTurns)
   const [effort, setEffort] = useState<'low' | 'medium' | 'high'>(reasoningEffort)
+  const [disabled, setDisabled] = useState<string[]>(disabledToolsets)
   const [busy, setBusy] = useState(false)
 
   const dirty =
     JSON.stringify(dirs) !== JSON.stringify(skillDirs) ||
     turns !== maxTurns ||
-    effort !== reasoningEffort
+    effort !== reasoningEffort ||
+    JSON.stringify([...disabled].sort()) !== JSON.stringify([...disabledToolsets].sort())
+
+  function toggleToolset(name: string) {
+    setDisabled((prev) =>
+      prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name],
+    )
+  }
 
   function addDir() {
     const d = dirInput.trim()
@@ -36,7 +47,7 @@ export function DrawerTabSkills({ skillDirs, maxTurns, reasoningEffort, readonly
     try {
       await onSave({
         skills: { external_dirs: dirs },
-        agent: { max_turns: turns, reasoning_effort: effort },
+        agent: { max_turns: turns, reasoning_effort: effort, disabled_toolsets: disabled },
       })
     } finally {
       setBusy(false)
@@ -46,6 +57,31 @@ export function DrawerTabSkills({ skillDirs, maxTurns, reasoningEffort, readonly
   return (
     <div>
       {/* Toolsets section */}
+      <div style={{ marginBottom: 24 }}>
+        <p className="pf-drawer-section-title">Toolsets</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {ALL_TOOLSETS.map((ts) => {
+            const enabled = !disabled.includes(ts)
+            return (
+              <button
+                key={ts}
+                type="button"
+                className={`skill${enabled ? ' on' : ''}`}
+                onClick={() => !readonly && toggleToolset(ts)}
+                style={{ cursor: readonly ? 'default' : 'pointer', opacity: readonly ? .7 : 1, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <div className="chk" />
+                <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{ts}</span>
+              </button>
+            )
+          })}
+        </div>
+        <div style={{ fontFamily: 'monospace', fontSize: 10, opacity: .5, marginBottom: 4 }}>
+          Unchecked toolsets are added to <code>disabled_toolsets</code>.
+        </div>
+      </div>
+
+      {/* Skill Directories section */}
       <div style={{ marginBottom: 24 }}>
         <p className="pf-drawer-section-title">Skill Directories</p>
         <div className="wiz-info-note" style={{ marginBottom: 14, display: 'flex', gap: 8, alignItems: 'flex-start', padding: '8px 12px', background: 'var(--m-bg-deep,#000802)', border: '1px solid var(--m-border,var(--theme-border))', borderRadius: 6, fontFamily: 'monospace', fontSize: 11, lineHeight: 1.6, color: 'var(--m-text-faint,var(--theme-muted))' }}>
@@ -142,7 +178,7 @@ export function DrawerTabSkills({ skillDirs, maxTurns, reasoningEffort, readonly
             {busy ? 'Saving…' : 'Save Changes'}
           </button>
           {dirty && (
-            <button type="button" className="pf-drawer-btn-cancel" onClick={() => { setDirs(skillDirs); setTurns(maxTurns); setEffort(reasoningEffort) }}>
+            <button type="button" className="pf-drawer-btn-cancel" onClick={() => { setDirs(skillDirs); setTurns(maxTurns); setEffort(reasoningEffort); setDisabled(disabledToolsets) }}>
               Reset
             </button>
           )}

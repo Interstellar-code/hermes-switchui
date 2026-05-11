@@ -1249,6 +1249,11 @@
   border-left: 1px solid var(--m-border, var(--theme-border));
   overflow: hidden;
   box-shadow: -8px 0 40px rgba(0,0,0,.5);
+  transform: translateX(100%);
+  transition: transform 200ms ease-out;
+}
+.pf-drawer.is-open {
+  transform: translateX(0);
 }
 
 /* header */
@@ -1348,17 +1353,7 @@
 .pf-drawer-body::-webkit-scrollbar-track { background: transparent; }
 .pf-drawer-body::-webkit-scrollbar-thumb { background: var(--m-border, var(--theme-border)); border-radius: 3px; }
 
-/* footer */
-.pf-drawer-footer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  justify-content: flex-end;
-  padding: 12px 20px;
-  border-top: 1px solid var(--m-border, var(--theme-border));
-  flex-shrink: 0;
-  background: var(--m-bg, var(--theme-bg));
-}
+
 .pf-drawer-btn-save {
   padding: 8px 18px;
   background: var(--m-green-500, #00ff41);

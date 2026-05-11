@@ -43,6 +43,7 @@ export function DrawerTabPersona({ agent, personaId, systemPrompt, readonly, onS
   const [pickerCat, setPickerCat] = useState('all')
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const personasQuery = useQuery({
     queryKey: ['personas', 'list'],
@@ -74,7 +75,7 @@ export function DrawerTabPersona({ agent, personaId, systemPrompt, readonly, onS
       await onSave({ system_prompt: prompt, agent_ui: { persona_id: personaId } })
       setPromptEdit(prompt)
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed')
+      setErrorMsg(e instanceof Error ? e.message : 'Failed')
     } finally {
       setBusy(false)
     }
@@ -89,7 +90,7 @@ export function DrawerTabPersona({ agent, personaId, systemPrompt, readonly, onS
       setPromptEdit(prompt)
       setPickerOpen(false)
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed')
+      setErrorMsg(e instanceof Error ? e.message : 'Failed')
     } finally {
       setBusy(false)
     }
@@ -101,7 +102,7 @@ export function DrawerTabPersona({ agent, personaId, systemPrompt, readonly, onS
     try {
       await onSave({ system_prompt: promptEdit, agent_ui: { persona_id: null } })
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed')
+      setErrorMsg(e instanceof Error ? e.message : 'Failed')
     } finally {
       setBusy(false)
     }
@@ -113,7 +114,7 @@ export function DrawerTabPersona({ agent, personaId, systemPrompt, readonly, onS
       await onSave({ system_prompt: promptEdit, agent_ui: { persona_id: personaId } })
       setPromptEditing(false)
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Failed')
+      setErrorMsg(e instanceof Error ? e.message : 'Failed')
     } finally {
       setBusy(false)
     }
@@ -121,6 +122,17 @@ export function DrawerTabPersona({ agent, personaId, systemPrompt, readonly, onS
 
   return (
     <div>
+      {/* Inline error banner */}
+      {errorMsg && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '8px 12px', background: 'rgba(255,68,68,.1)', border: '1px solid rgba(255,68,68,.4)', borderRadius: 6, fontFamily: 'monospace', fontSize: 11, color: 'var(--m-red,#ff4444)' }}>
+          <span style={{ flex: 1 }}>{errorMsg}</span>
+          <button type="button" onClick={() => setErrorMsg(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: 0, display: 'flex' }} aria-label="Dismiss error">
+            <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 10, height: 10 }}>
+              <line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/>
+            </svg>
+          </button>
+        </div>
+      )}
       {/* Persona badge */}
       <div style={{ marginBottom: 16 }}>
         <p className="pf-drawer-section-title">Persona</p>

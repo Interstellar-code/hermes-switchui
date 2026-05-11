@@ -44,11 +44,17 @@ function serverToConfig(s: McpServer): McpServerConfig {
   return cfg
 }
 
+// Env vars required per server name
+const ENV_REQUIREMENTS: Record<string, Array<{ key: string; label: string }>> = {
+  'github': [{ key: 'GITHUB_TOKEN', label: 'GitHub Token' }],
+  'brave-search': [{ key: 'BRAVE_API_KEY', label: 'Brave API Key' }],
+}
+
 export function DrawerTabMcp({ mcpServers, readonly, onSave }: Props) {
-  const [selected, setSelected] = useState<Record<string, McpServerConfig>>({ ...mcpServers })
+  const [selected, setSelected] = useState<Record<string, McpServerConfig>>(() => JSON.parse(JSON.stringify(mcpServers)) as Record<string, McpServerConfig>)
   const [busy, setBusy] = useState(false)
 
-  const dirty = JSON.stringify(Object.keys(selected).sort()) !== JSON.stringify(Object.keys(mcpServers).sort())
+  const dirty = JSON.stringify(selected) !== JSON.stringify(mcpServers)
 
   const mcpQuery = useQuery({
     queryKey: ['mcp', 'catalog'],
@@ -64,6 +70,16 @@ export function DrawerTabMcp({ mcpServers, readonly, onSave }: Props) {
       delete next[s.name]
     } else {
       next[s.name] = serverToConfig(s)
+    }
+    setSelected(next)
+  }
+
+  function setEnv(serverName: string, key: string, value: string) {
+    const next = { ...selected }
+    if (!next[serverName]) return
+    next[serverName] = {
+      ...next[serverName],
+      env: { ...(next[serverName].env ?? {}), [key]: value },
     }
     setSelected(next)
   }
@@ -88,27 +104,46 @@ export function DrawerTabMcp({ mcpServers, readonly, onSave }: Props) {
       <div className="skill-grid" style={{ marginBottom: 16 }}>
         {servers.map((s) => {
           const on = Boolean(selected[s.name])
+          const envReqs = ENV_REQUIREMENTS[s.name] ?? []
           return (
-            <div
-              key={s.name}
-              className={`skill${on ? ' on' : ''}`}
-              onClick={() => toggle(s)}
-              style={{ cursor: readonly ? 'default' : 'pointer', opacity: readonly ? .7 : 1 }}
-            >
-              <div className="chk" />
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 12 }}>{s.name}</div>
-                {s.url && (
-                  <div style={{ fontSize: 10, opacity: .6, marginTop: 2 }}>
-                    {s.url.replace(/^https?:\/\//, '').slice(0, 40)}
-                  </div>
-                )}
-                {s.command && (
-                  <div style={{ fontSize: 10, opacity: .6, marginTop: 2 }}>
-                    {s.command} {(s.args ?? []).join(' ').slice(0, 30)}
-                  </div>
-                )}
+            <div key={s.name}>
+              <div
+                className={`skill${on ? ' on' : ''}`}
+                onClick={() => toggle(s)}
+                style={{ cursor: readonly ? 'default' : 'pointer', opacity: readonly ? .7 : 1 }}
+              >
+                <div className="chk" />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 12 }}>{s.name}</div>
+                  {s.url && (
+                    <div style={{ fontSize: 10, opacity: .6, marginTop: 2 }}>
+                      {s.url.replace(/^https?:\/\//, '').slice(0, 40)}
+                    </div>
+                  )}
+                  {s.command && (
+                    <div style={{ fontSize: 10, opacity: .6, marginTop: 2 }}>
+                      {s.command} {(s.args ?? []).join(' ').slice(0, 30)}
+                    </div>
+                  )}
+                </div>
               </div>
+              {on && envReqs.length > 0 && !readonly && (
+                <div style={{ marginTop: 6, padding: '8px 10px', background: 'var(--m-bg-deep,#000802)', border: '1px solid var(--m-border,var(--theme-border))', borderRadius: 5 }}>
+                  {envReqs.map(({ key, label }) => (
+                    <div key={key} style={{ marginBottom: 6 }}>
+                      <label style={{ fontFamily: 'monospace', fontSize: 10, display: 'block', marginBottom: 3, opacity: .7 }}>{label}</label>
+                      <input
+                        className="pf-drawer-input"
+                        style={{ fontSize: 11 }}
+                        type="password"
+                        placeholder={key}
+                        value={selected[s.name]?.env?.[key] ?? ''}
+                        onChange={(e) => setEnv(s.name, key, e.target.value)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )
         })}
@@ -126,7 +161,7 @@ export function DrawerTabMcp({ mcpServers, readonly, onSave }: Props) {
             {busy ? 'Saving…' : 'Save Changes'}
           </button>
           {dirty && (
-            <button type="button" className="pf-drawer-btn-cancel" onClick={() => setSelected({ ...mcpServers })}>
+            <button type="button" className="pf-drawer-btn-cancel" onClick={() => setSelected(JSON.parse(JSON.stringify(mcpServers)) as Record<string, McpServerConfig>)}>
               Reset
             </button>
           )}
