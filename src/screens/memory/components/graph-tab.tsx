@@ -56,7 +56,7 @@ function initNodes(
   nodes: KnowledgeGraph['nodes'],
   width: number,
   height: number,
-): SimNode[] {
+): Array<SimNode> {
   return nodes.map((n, i) => {
     const angle = (i / nodes.length) * Math.PI * 2
     const rad = Math.min(width, height) * 0.35
@@ -74,12 +74,12 @@ function initNodes(
 }
 
 function runLayout(
-  nodes: SimNode[],
+  nodes: Array<SimNode>,
   edges: KnowledgeGraph['edges'],
   width: number,
   height: number,
   ticks = 80,
-): SimNode[] {
+): Array<SimNode> {
   const idxById = new Map(nodes.map((n, i) => [n.id, i]))
   const sim = nodes.map((n) => ({ ...n }))
 
@@ -89,8 +89,8 @@ function runLayout(
     // repulsion
     for (let i = 0; i < sim.length; i++) {
       for (let j = i + 1; j < sim.length; j++) {
-        const a = sim[i]!
-        const b = sim[j]!
+        const a = sim[i]
+        const b = sim[j]
         const dx = b.x - a.x || 0.01
         const dy = b.y - a.y || 0.01
         const dist = Math.sqrt(dx * dx + dy * dy) || 1
@@ -107,8 +107,8 @@ function runLayout(
       const si = idxById.get(edge.source)
       const ti = idxById.get(edge.target)
       if (si == null || ti == null) continue
-      const a = sim[si]!
-      const b = sim[ti]!
+      const a = sim[si]
+      const b = sim[ti]
       const dx = b.x - a.x
       const dy = b.y - a.y
       const dist = Math.sqrt(dx * dx + dy * dy) || 1
@@ -148,7 +148,7 @@ type SvgGraphProps = {
 
 function SvgGraph({ graph, selectedId, onSelect }: SvgGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null)
-  const [nodes, setNodes] = useState<SimNode[]>([])
+  const [nodes, setNodes] = useState<Array<SimNode>>([])
 
   useEffect(() => {
     const el = svgRef.current
@@ -176,8 +176,8 @@ function SvgGraph({ graph, selectedId, onSelect }: SvgGraphProps) {
         const si = idxById.get(edge.source)
         const ti = idxById.get(edge.target)
         if (si == null || ti == null) return null
-        const s = nodes[si]!
-        const t = nodes[ti]!
+        const s = nodes[si]
+        const t = nodes[ti]
         const isHighlighted =
           selectedId === edge.source || selectedId === edge.target
         return (

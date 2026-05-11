@@ -5,10 +5,10 @@
  * Active tab persisted to localStorage via useMemoryScreenStore.
  */
 
-import { lazy, Suspense } from 'react'
+import { Suspense, lazy } from 'react'
+import type { MemoryTab } from '@/stores/memory-screen-store'
 import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
 import { useMemoryScreenStore } from '@/stores/memory-screen-store'
-import type { MemoryTab } from '@/stores/memory-screen-store'
 import '@/styles/matrix-memory.css'
 
 const AgentMemoryTab = lazy(async () => {
@@ -24,6 +24,16 @@ const WikiTab = lazy(async () => {
 const GraphTab = lazy(async () => {
   const m = await import('./components/graph-tab')
   return { default: m.GraphTab }
+})
+
+const SettingsTab = lazy(async () => {
+  const m = await import('./components/settings-tab')
+  return { default: m.SettingsTab }
+})
+
+const ChatTab = lazy(async () => {
+  const m = await import('./components/chat-tab')
+  return { default: m.ChatTab }
 })
 
 // ── icons (inline svg paths — same pattern as mockup) ─────────────────────
@@ -73,18 +83,6 @@ function IconChat() {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
       <path d="M2 2h12v9H9l-3 3v-3H2V2z" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
-  )
-}
-
-// ── stub placeholder for unimplemented tabs ───────────────────────────────
-
-function StubTab({ label, phase }: { label: string; phase: string }) {
-  return (
-    <div className="mem-stub">
-      <IconBook />
-      <span>{label}</span>
-      <span className="mem-stub-badge">Coming in {phase}</span>
-    </div>
   )
 }
 
@@ -165,8 +163,16 @@ export function MemoryScreen() {
             <GraphTab />
           </Suspense>
         )}
-        {activeTab === 'settings' && <StubTab label="Settings" phase="P5" />}
-        {activeTab === 'chat' && <StubTab label="Chat with Wiki" phase="P5" />}
+        {activeTab === 'settings' && (
+          <Suspense fallback={<div className="mem-loading">Loading…</div>}>
+            <SettingsTab />
+          </Suspense>
+        )}
+        {activeTab === 'chat' && (
+          <Suspense fallback={<div className="mem-loading">Loading…</div>}>
+            <ChatTab />
+          </Suspense>
+        )}
       </div>
 
       {/* Footer */}

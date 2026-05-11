@@ -11,9 +11,10 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { MemoryDetailDrawer } from './memory-detail-drawer'
+import type { WikiPageMeta } from '@/server/knowledge-browser'
 import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 import { toast as showToast } from '@/components/ui/toast'
-import type { WikiPageMeta } from '@/server/knowledge-browser'
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 
@@ -50,7 +51,7 @@ async function apiDelete(url: string, body: Record<string, unknown>): Promise<vo
 
 function renderMarkdown(md: string): string {
   const lines = md.split('\n')
-  const out: string[] = []
+  const out: Array<string> = []
   let inList = false
   for (const ln of lines) {
     const esc = ln.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -169,8 +170,8 @@ function PageModal({ initialPath, initialContent, onClose, onSaved }: PageModalP
 
 // ── WikiTab ───────────────────────────────────────────────────────────────────
 
-type ListResponse = { pages: WikiPageMeta[]; exists: boolean; source: unknown }
-type ReadResponse = { page: WikiPageMeta; content: string; backlinks: string[] }
+type ListResponse = { pages: Array<WikiPageMeta>; exists: boolean; source: unknown }
+type ReadResponse = { page: WikiPageMeta; content: string; backlinks: Array<string> }
 
 export function WikiTab() {
   const qc = useQueryClient()
@@ -179,6 +180,8 @@ export function WikiTab() {
   const [showAdd, setShowAdd] = useState(false)
   const [editTarget, setEditTarget] = useState<{ path: string; content: string } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [drawerPath, setDrawerPath] = useState<string | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   const listQuery = useQuery<ListResponse>({
     queryKey: ['knowledge', 'list'],
@@ -232,8 +235,8 @@ export function WikiTab() {
   const backlinks = pageQuery.data?.backlinks ?? []
 
   // group pages by directory
-  type Group = { dir: string; pages: WikiPageMeta[]; open: boolean }
-  const groups: Group[] = []
+  type Group = { dir: string; pages: Array<WikiPageMeta>; open: boolean }
+  const groups: Array<Group> = []
   const dirMap = new Map<string, Group>()
   for (const p of filtered) {
     const slash = p.path.indexOf('/')
@@ -309,6 +312,21 @@ export function WikiTab() {
                 {backlinks.length > 0 && p.path === selectedPath && (
                   <span className="wiki-page-ct">{backlinks.length}↗</span>
                 )}
+                <svg
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  className="mem-file-detail-icon"
+                  aria-hidden="true"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setDrawerPath(p.path)
+                    setDrawerOpen(true)
+                  }}
+                >
+                  <path d="M6 3H3v10h10V9M9 2h5v5M14 2l-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </button>
             ))}
           </div>
@@ -334,7 +352,7 @@ export function WikiTab() {
             <div className="meta">
               {page.type && <span>type <b>{page.type}</b></span>}
               {page.updated && <span>updated <b>{page.updated.slice(0, 10)}</b></span>}
-              {page.size != null && <span>size <b>{page.size}B</b></span>}
+              {page.size > 0 && <span>size <b>{page.size}B</b></span>}
               {page.tags.length > 0 && <span>tags <b>{page.tags.join(', ')}</b></span>}
             </div>
 
@@ -401,6 +419,17 @@ export function WikiTab() {
         destructive
         onConfirm={() => void handleDelete()}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <MemoryDetailDrawer
+        item={drawerPath ? { kind: 'wiki-page', path: drawerPath } : null}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onDeleted={() => {
+          void qc.invalidateQueries({ queryKey: ['knowledge', 'list'] })
+          if (selectedPath === drawerPath) setSelectedPath(null)
+          setDrawerPath(null)
+        }}
       />
     </div>
   )

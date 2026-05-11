@@ -10,10 +10,10 @@
 
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
-import { toast as showToast } from '@/components/ui/toast'
 import type { WikiPageMeta } from '@/server/knowledge-browser'
 import type { AgentFileReadResponse } from '@/routes/api/memory/agent-files'
+import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
+import { toast as showToast } from '@/components/ui/toast'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -22,7 +22,7 @@ export type DrawerItem =
   | { kind: 'wiki-page'; path: string }
 
 type DrawerTab = 'overview' | 'body' | 'metadata' | 'raw'
-const TABS: { id: DrawerTab; label: string }[] = [
+const TABS: Array<{ id: DrawerTab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'body', label: 'Body' },
   { id: 'metadata', label: 'Metadata' },
@@ -71,7 +71,7 @@ async function apiDelete(url: string, body: Record<string, unknown>): Promise<vo
 
 function renderMarkdown(md: string): string {
   const lines = md.split('\n')
-  const out: string[] = []
+  const out: Array<string> = []
   let inList = false
   for (const ln of lines) {
     const esc = ln.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -120,7 +120,7 @@ function useAgentFileData(item: DrawerItem | null) {
   })
 }
 
-type WikiReadResponse = { page: WikiPageMeta; content: string; backlinks: string[] }
+type WikiReadResponse = { page: WikiPageMeta; content: string; backlinks: Array<string> }
 
 function useWikiPageData(item: DrawerItem | null) {
   return useQuery<WikiReadResponse>({
@@ -230,7 +230,7 @@ function DrawerBody({ item, tab, onClose, onDeleted }: {
 
   // ── Overview ──────────────────────────────────────────────────────────────
   if (tab === 'overview') {
-    const name = isAgent ? item.filename : (item as Extract<DrawerItem, { kind: 'wiki-page' }>).path
+    const name = isAgent ? item.filename : (item).path
     const size = isAgent ? agentQuery.data?.sizeBytes : wikiQuery.data?.page.size
     const modified = isAgent ? agentQuery.data?.modifiedAt : wikiQuery.data?.page.modified
     const title = isAgent ? item.filename : (wikiQuery.data?.page.title ?? name)

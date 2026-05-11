@@ -9,11 +9,13 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { MemoryDetailDrawer } from './memory-detail-drawer'
+import type { DrawerItem } from './memory-detail-drawer'
+import type { AgentFileReadResponse, AgentFilesListResponse } from '@/routes/api/memory/agent-files'
 import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
 import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 import { toast as showToast } from '@/components/ui/toast'
 import { useMemoryAgentStore } from '@/stores/memory-screen-store'
-import type { AgentFilesListResponse, AgentFileReadResponse } from '@/routes/api/memory/agent-files'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -155,6 +157,8 @@ function FilePane({ agentId, agentName, agentGlyph, agentRole, agentTier }: File
   const [saving, setSaving] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [drawerItem, setDrawerItem] = useState<DrawerItem | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   // List files for this agent
   const listQuery = useQuery<AgentFilesListResponse>({
@@ -309,9 +313,29 @@ function FilePane({ agentId, agentName, agentGlyph, agentRole, agentTier }: File
                 type="button"
                 className={`mem-file-tab ${f.filename === activeFile ? 'is-active' : ''}`}
                 onClick={() => handleFileSelect(f.filename)}
+                onDoubleClick={() => {
+                  setDrawerItem({ kind: 'agent-file', agentId, agentName, filename: f.filename })
+                  setDrawerOpen(true)
+                }}
+                title="Click to select · Double-click to open detail drawer"
               >
                 {f.filename}
                 <span className="mem-file-sz">{formatSize(f.sizeBytes)}</span>
+                <svg
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  className="mem-file-detail-icon"
+                  aria-hidden="true"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setDrawerItem({ kind: 'agent-file', agentId, agentName, filename: f.filename })
+                    setDrawerOpen(true)
+                  }}
+                >
+                  <path d="M6 3H3v10h10V9M9 2h5v5M14 2l-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </button>
             ))}
           </div>
@@ -376,6 +400,17 @@ function FilePane({ agentId, agentName, agentGlyph, agentRole, agentTier }: File
         destructive
         onConfirm={() => void handleDelete()}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      {/* Detail drawer */}
+      <MemoryDetailDrawer
+        item={drawerItem}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onDeleted={() => {
+          void qc.invalidateQueries({ queryKey: ['agent-files', agentId] })
+          setActiveFile(null)
+        }}
       />
     </>
   )
