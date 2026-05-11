@@ -3,6 +3,7 @@ import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
   writeProfile,
+  readProfile,
   type AgentRuntime,
   type AgentUIMetadata,
   type MemoryConfig,
@@ -65,12 +66,17 @@ export const Route = createFileRoute('/api/profiles/update')({
             return json({ ok: true, profile })
           }
 
-          // Guard: cannot update agent_ui.tier
+          // Guard: cannot update agent_ui.tier once already set (allow initial
+          // set for legacy upgrade path where existing config has no agent_ui).
           if (body.agent_ui?.tier !== undefined) {
-            return json(
-              { error: 'agent_ui.tier cannot be updated after creation' },
-              { status: 400 },
-            )
+            const existing = readProfile(name)
+            const existingTier = existing?.config?.agent_ui?.tier
+            if (existingTier !== undefined && existingTier !== body.agent_ui.tier) {
+              return json(
+                { error: 'agent_ui.tier cannot be updated after creation' },
+                { status: 400 },
+              )
+            }
           }
 
           // Guard: cannot update agent_ui.persona_id without a non-empty system_prompt
