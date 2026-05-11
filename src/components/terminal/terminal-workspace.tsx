@@ -2,9 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Add01Icon,
-  ArrowLeft01Icon,
   ArrowRight01Icon,
-  ArrowUp02Icon,
   Cancel01Icon,
   ComputerTerminal01Icon,
   Copy01Icon,
@@ -18,9 +16,11 @@ import type * as WebLinksAddonModule from 'xterm-addon-web-links'
 import type { DebugAnalysis } from '@/components/terminal/debug-panel'
 import type { TerminalTab } from '@/stores/terminal-panel-store'
 import { DebugPanel } from '@/components/terminal/debug-panel'
+import { MatrixRainCanvas } from '@/components/terminal/matrix-rain-canvas'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useTerminalPanelStore } from '@/stores/terminal-panel-store'
+import '@/styles/matrix-terminal.css'
 
 // Dynamic imports to avoid SSR crash (xterm uses `self` which doesn't exist on server)
 let xtermLoaded = false
@@ -62,8 +62,9 @@ type TerminalSessionResponse = {
   sessionId?: string
 }
 
+type SplitMode = 'single' | 'horizontal' | 'vertical'
+
 const DEFAULT_TERMINAL_CWD = '~/.hermes'
-const TERMINAL_BG = '#0d0d0d'
 
 function toDebugAnalysis(value: unknown): DebugAnalysis | null {
   if (!value || typeof value !== 'object') return null
@@ -135,6 +136,10 @@ export function TerminalWorkspace({
   const [debugAnalysis, setDebugAnalysis] = useState<DebugAnalysis | null>(null)
   const [debugLoading, setDebugLoading] = useState(false)
   const [showDebugPanel, setShowDebugPanel] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sessionFilter, setSessionFilter] = useState('')
+  const [splitMode, setSplitMode] = useState<SplitMode>('single')
+  const [copiedOutput, setCopiedOutput] = useState(false)
 
   const containerMapRef = useRef(new Map<string, HTMLDivElement>())
   const terminalMapRef = useRef(new Map<string, Terminal>())
@@ -151,6 +156,18 @@ export function TerminalWorkspace({
     },
     [activeTabId, tabs],
   )
+  const filteredTabs = useMemo(() => {
+    const query = sessionFilter.trim().toLowerCase()
+    if (!query) return tabs
+    return tabs.filter((tab) =>
+      `${tab.title} ${tab.cwd} ${tab.status}`.toLowerCase().includes(query),
+    )
+  }, [sessionFilter, tabs])
+  const visibleTerminalTabs = useMemo(() => {
+    if (splitMode === 'single') return [activeTab]
+    const secondary = tabs.find((tab) => tab.id !== activeTab.id) ?? activeTab
+    return secondary.id === activeTab.id ? [activeTab] : [activeTab, secondary]
+  }, [activeTab, splitMode, tabs])
 
   const sendInput = useCallback(function sendInput(
     tabId: string,
@@ -262,6 +279,28 @@ export function TerminalWorkspace({
     [activeTab, sendInput],
   )
 
+  const handleCopyOutput = useCallback(
+    async function handleCopyOutput() {
+      const output = captureRecentTerminalOutput(activeTab.id)
+      if (!output) return
+      await navigator.clipboard.writeText(output).catch(function fallback() {
+        return undefined
+      })
+      setCopiedOutput(true)
+      window.setTimeout(function resetCopied() {
+        setCopiedOutput(false)
+      }, 1400)
+    },
+    [activeTab.id, captureRecentTerminalOutput],
+  )
+
+  const handleClearActiveTerminal = useCallback(
+    function handleClearActiveTerminal() {
+      terminalMapRef.current.get(activeTab.id)?.clear()
+    },
+    [activeTab.id],
+  )
+
   const handleCloseDebugPanel = useCallback(function handleCloseDebugPanel() {
     setShowDebugPanel(false)
   }, [])
@@ -367,11 +406,11 @@ export function TerminalWorkspace({
 
       // Throttled terminal writes — yields to input events between flushes
       let writeBuf = ''
-      let flushTimer: ReturnType<typeof setTimeout> | null = null
+      let flushTimer: ReturnType<typeof setTimeout> | undefined
       const FLUSH_MS = 80 // ~12fps — generous gaps for input
       const MAX_BUF = 8192 // drop old data if buffer overflows (screen redraws)
       function flushWrites() {
-        flushTimer = null
+        flushTimer = undefined
         if (writeBuf && terminal) {
           const chunk = writeBuf
           writeBuf = ''
@@ -460,7 +499,7 @@ export function TerminalWorkspace({
       }
 
       // Flush any remaining buffered writes
-      if (flushTimer) clearTimeout(flushTimer)
+      clearTimeout(flushTimer)
       flushWrites()
 
       const latestTab = useTerminalPanelStore
@@ -542,10 +581,27 @@ export function TerminalWorkspace({
         fontSize: isMobile ? 11 : 13,
         fontFamily: 'JetBrains Mono, Menlo, Monaco, Consolas, monospace',
         theme: {
-          background: TERMINAL_BG,
-          foreground: '#e6e6e6',
-          cursor: '#ea580c',
-          selectionBackground: '#2b2b2b',
+          background: '#020603',
+          foreground: '#c5ffd0',
+          cursor: '#00ff41',
+          cursorAccent: '#001b08',
+          selectionBackground: '#064718',
+          black: '#001006',
+          red: '#ff5fa2',
+          green: '#00ff41',
+          yellow: '#ffb347',
+          blue: '#5fcfff',
+          magenta: '#ff8ae2',
+          cyan: '#5fcfff',
+          white: '#d6f8de',
+          brightBlack: '#31573a',
+          brightRed: '#ff7aa8',
+          brightGreen: '#9effb2',
+          brightYellow: '#f5d07a',
+          brightBlue: '#7be8ff',
+          brightMagenta: '#ff9ee7',
+          brightCyan: '#9eefff',
+          brightWhite: '#f0fff3',
         },
       })
       const fitAddon = new FitAddonCtor()
@@ -690,6 +746,21 @@ export function TerminalWorkspace({
     [resizeSession],
   )
 
+  useEffect(
+    function refitAfterLayoutModeChange() {
+      window.setTimeout(() => {
+        for (const fitAddon of fitMapRef.current.values()) {
+          try {
+            fitAddon.fit()
+          } catch {
+            /* ignore */
+          }
+        }
+      }, 80)
+    },
+    [sidebarCollapsed, splitMode],
+  )
+
   useEffect(function disposeOnUnmount() {
     return function cleanup() {
       for (const reader of readerMapRef.current.values()) {
@@ -710,191 +781,334 @@ export function TerminalWorkspace({
 
   return (
     <div
-      className="relative flex min-h-0 flex-col bg-primary-50"
+      data-screen="terminal"
+      className={cn('term-shell', sidebarCollapsed ? 'sidebar-collapsed' : '')}
       style={
         termHeight
           ? { height: termHeight, maxHeight: termHeight }
           : { height: '100%' }
       }
     >
-      {/* fullscreen header removed — tab bar handles everything */}
+      <aside
+        className={cn('term-sessions', sidebarCollapsed ? 'is-collapsed' : '')}
+      >
+        {/* header */}
+        <div className="term-sessions-head">
+          <h3>Sessions</h3>
+          <span className="ct">{tabs.length}</span>
+          <button
+            type="button"
+            className="term-ico-btn collapse-btn"
+            onClick={() => setSidebarCollapsed((v) => !v)}
+            title={sidebarCollapsed ? 'Expand sessions' : 'Collapse sessions'}
+            aria-label={sidebarCollapsed ? 'Expand sessions' : 'Collapse sessions'}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+              {sidebarCollapsed ? (
+                <path d="M9 18l6-6-6-6" />
+              ) : (
+                <path d="M15 18l-6-6 6-6" />
+              )}
+            </svg>
+          </button>
+        </div>
 
-      <div className="flex h-8 items-center border-b border-primary-300 bg-primary-100 px-1">
-        <div className="flex min-w-0 flex-1 items-center overflow-x-auto">
-          {tabs.map(function renderTab(tab) {
+        {/* search */}
+        <div className="term-filter-search">
+          <input
+            type="text"
+            value={sessionFilter}
+            onChange={(event) => setSessionFilter(event.target.value)}
+            placeholder="Filter sessions…"
+            aria-label="Filter sessions"
+          />
+        </div>
+
+        {/* body */}
+        <div className="term-session-body">
+          <div className="term-session-group">
+            <div className="sec-label">Active</div>
+            {filteredTabs.map(function renderSessionRow(tab) {
+              const isActive = tab.id === activeTab.id
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={cn(
+                    'term-row',
+                    tab.status === 'active' ? 'live' : '',
+                    isActive ? 'on' : '',
+                  )}
+                  onClick={() => {
+                    setActiveTab(tab.id)
+                    window.setTimeout(function focusCurrent() {
+                      terminalMapRef.current.get(tab.id)?.focus()
+                    }, 0)
+                  }}
+                >
+                  <span className="d" />
+                  <span className="name">
+                    {tab.title}
+                    <span className="pwd">
+                      {tab.cwd || DEFAULT_TERMINAL_CWD}
+                    </span>
+                  </span>
+                  <span className="item-ct">{tab.status}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* foot */}
+        <div className="term-sessions-foot">
+          <Button
+            className="term-new-session"
+            size="sm"
+            onClick={handleCreateTab}
+          >
+            <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={1.7} />
+            New session
+          </Button>
+        </div>
+
+        {/* collapsed rail */}
+        <div className="term-rail">
+          <span className="rail-label">Sessions</span>
+          <span className="rail-badge">{tabs.length}</span>
+        </div>
+      </aside>
+
+      <main className="term-main">
+        <div className="term-tabs">
+          <div className="term-tabs-scroll">
+            {tabs.map(function renderTab(tab) {
+              // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
+              const isActive = tab.id === activeTab?.id
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={function onClick() {
+                    setActiveTab(tab.id)
+                    window.setTimeout(function focusCurrent() {
+                      terminalMapRef.current.get(tab.id)?.focus()
+                    }, 0)
+                  }}
+                  onContextMenu={function onContextMenu(event) {
+                    event.preventDefault()
+                    setContextMenu({
+                      tabId: tab.id,
+                      x: event.clientX,
+                      y: event.clientY,
+                    })
+                  }}
+                  className={cn(
+                    'term-tab',
+                    tab.status === 'active' ? 'live' : '',
+                    isActive ? 'on' : '',
+                  )}
+                >
+                  <span className="d" />
+                  <HugeiconsIcon
+                    icon={ComputerTerminal01Icon}
+                    size={20}
+                    strokeWidth={1.5}
+                    className="ic"
+                  />
+                  <span className="name">{tab.title}</span>
+                  <span className="badge">{tab.status}</span>
+                  {tabs.length > 1 ? (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={function onClose(event) {
+                        event.stopPropagation()
+                        handleCloseTab(tab)
+                      }}
+                      onKeyDown={function onCloseByKeyboard(event) {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          handleCloseTab(tab)
+                        }
+                      }}
+                      className="x"
+                    >
+                      <HugeiconsIcon
+                        icon={Cancel01Icon}
+                        size={20}
+                        strokeWidth={1.5}
+                      />
+                    </span>
+                  ) : null}
+                </button>
+              )
+            })}
+          </div>
+          <button
+            type="button"
+            className="add"
+            onClick={handleCreateTab}
+            title="New tab"
+          >
+            <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.7} />
+          </button>
+
+          <div className="right-cluster">
+            <button
+              type="button"
+              className={cn(
+                'term-ico-btn',
+                splitMode === 'single' ? 'active' : '',
+              )}
+              onClick={() => setSplitMode('single')}
+              title="Single pane"
+            >
+              ▣
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'term-ico-btn',
+                splitMode === 'horizontal' ? 'active' : '',
+              )}
+              onClick={() => setSplitMode('horizontal')}
+              title="Split right"
+            >
+              ◫
+            </button>
+            <button
+              type="button"
+              className={cn(
+                'term-ico-btn',
+                splitMode === 'vertical' ? 'active' : '',
+              )}
+              onClick={() => setSplitMode('vertical')}
+              title="Split down"
+            >
+              ⊟
+            </button>
+            <span className="term-toolbar-sep" />
+            <button
+              type="button"
+              className="term-ico-btn"
+              onClick={() => void handleCopyOutput()}
+              title="Copy recent output"
+            >
+              {copiedOutput ? (
+                '✓'
+              ) : (
+                <HugeiconsIcon icon={Copy01Icon} size={16} strokeWidth={1.6} />
+              )}
+            </button>
+            {mode === 'panel' ? (
+              <>
+                <button
+                  type="button"
+                  className="term-ico-btn"
+                  onClick={onMinimizePanel}
+                  aria-label="Minimize"
+                >
+                  <HugeiconsIcon
+                    icon={SidebarLeft01Icon}
+                    size={20}
+                    strokeWidth={1.5}
+                  />
+                </button>
+                <button
+                  type="button"
+                  className="term-ico-btn"
+                  onClick={onMaximizePanel}
+                  aria-label="Maximize"
+                >
+                  <HugeiconsIcon
+                    icon={ArrowRight01Icon}
+                    size={20}
+                    strokeWidth={1.5}
+                  />
+                </button>
+                <button
+                  type="button"
+                  className="term-ico-btn"
+                  onClick={handleClosePanel}
+                  aria-label="Close"
+                >
+                  <HugeiconsIcon
+                    icon={Cancel01Icon}
+                    size={20}
+                    strokeWidth={1.5}
+                  />
+                </button>
+              </>
+            ) : null}
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            'term-area',
+            splitMode === 'horizontal' ? 'split-h' : '',
+            splitMode === 'vertical' ? 'split-v' : '',
+          )}
+        >
+          {tabs.map(function renderTerminal(tab) {
             // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
             const isActive = tab.id === activeTab?.id
+            const isVisible = visibleTerminalTabs.some(
+              (visibleTab) => visibleTab.id === tab.id,
+            )
             return (
-              <button
+              <div
                 key={tab.id}
-                type="button"
-                onClick={function onClick() {
-                  setActiveTab(tab.id)
-                  window.setTimeout(function focusCurrent() {
-                    terminalMapRef.current.get(tab.id)?.focus()
-                  }, 0)
-                }}
-                onContextMenu={function onContextMenu(event) {
-                  event.preventDefault()
-                  setContextMenu({
-                    tabId: tab.id,
-                    x: event.clientX,
-                    y: event.clientY,
-                  })
-                }}
                 className={cn(
-                  'group relative flex h-8 max-w-[220px] items-center gap-2 px-3 text-xs text-primary-700 transition-colors',
-                  isActive
-                    ? 'bg-primary-50 text-primary-900'
-                    : 'hover:bg-primary-200/70',
+                  'term-pane',
+                  isActive ? 'focused' : '',
+                  isVisible ? '' : 'hidden',
                 )}
               >
-                <span
-                  className={cn(
-                    'size-2 rounded-full',
-                    isActive || tab.status === 'active'
-                      ? 'bg-emerald-400'
-                      : 'bg-primary-500',
-                  )}
-                />
-                <HugeiconsIcon
-                  icon={ComputerTerminal01Icon}
-                  size={20}
-                  strokeWidth={1.5}
-                  className="shrink-0"
-                />
-                <span className="truncate text-left tabular-nums">
-                  {tab.title}
-                </span>
-                {tabs.length > 1 ? (
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    onClick={function onClose(event) {
-                      event.stopPropagation()
-                      handleCloseTab(tab)
-                    }}
-                    onKeyDown={function onCloseByKeyboard(event) {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        handleCloseTab(tab)
-                      }
-                    }}
-                    className="hidden rounded p-0.5 text-primary-600 hover:bg-primary-300 hover:text-primary-900 group-hover:inline-flex"
-                  >
-                    <HugeiconsIcon
-                      icon={Cancel01Icon}
-                      size={20}
-                      strokeWidth={1.5}
-                    />
+                <MatrixRainCanvas className="matrix-rain-canvas" />
+                <div className="term-hud">
+                  <span className="d" />
+                  <span>
+                    <b>{tab.status}</b>
                   </span>
-                ) : null}
-                <span
-                  className={cn(
-                    'pointer-events-none absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#ea580c] transition-opacity',
-                    isActive ? 'opacity-100' : 'opacity-0',
-                  )}
+                  <span>{tab.cwd || DEFAULT_TERMINAL_CWD}</span>
+                  <span>{tab.sessionId ? 'attached' : 'starting'}</span>
+                </div>
+                <div
+                  ref={function assignContainer(node) {
+                    if (node) {
+                      containerMapRef.current.set(tab.id, node)
+                      ensureTerminalForTab(tab)
+                      return
+                    }
+                    containerMapRef.current.delete(tab.id)
+                  }}
+                  onClick={function tapToFocus() {
+                    terminalMapRef.current.get(tab.id)?.focus()
+                  }}
+                  className="term-xterm"
                 />
-              </button>
+              </div>
             )
           })}
         </div>
 
-        <div className="flex items-center gap-0.5">
-          {/* Debug — AI analyzes terminal output to suggest fixes */}
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={handleAnalyzeDebug}
-            disabled={debugLoading}
-            aria-label="AI Debug analysis"
-            title="AI Debug — analyze terminal output"
-          >
-            🔍
-          </Button>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={handleCreateTab}
-            aria-label="New terminal tab"
-            title="New tab"
-          >
-            <HugeiconsIcon icon={Add01Icon} size={20} strokeWidth={1.5} />
-          </Button>
-          {mode === 'panel' ? (
-            <>
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                onClick={onMinimizePanel}
-                aria-label="Minimize"
-              >
-                <HugeiconsIcon
-                  icon={SidebarLeft01Icon}
-                  size={20}
-                  strokeWidth={1.5}
-                />
-              </Button>
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                onClick={onMaximizePanel}
-                aria-label="Maximize"
-              >
-                <HugeiconsIcon
-                  icon={ArrowRight01Icon}
-                  size={20}
-                  strokeWidth={1.5}
-                />
-              </Button>
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                onClick={handleClosePanel}
-                aria-label="Close"
-              >
-                <HugeiconsIcon
-                  icon={Cancel01Icon}
-                  size={20}
-                  strokeWidth={1.5}
-                />
-              </Button>
-            </>
-          ) : null}
-        </div>
-      </div>
-
-      <div
-        className="relative flex-1 overflow-hidden bg-primary-50"
-        style={{ backgroundColor: TERMINAL_BG }}
-      >
-        {tabs.map(function renderTerminal(tab) {
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
-          const isActive = tab.id === activeTab?.id
-          return (
-            <div
-              key={tab.id}
-              className={cn('absolute inset-0', isActive ? 'block' : 'hidden')}
-            >
-              <div
-                ref={function assignContainer(node) {
-                  if (node) {
-                    containerMapRef.current.set(tab.id, node)
-                    ensureTerminalForTab(tab)
-                    return
-                  }
-                  containerMapRef.current.delete(tab.id)
-                }}
-                onClick={function tapToFocus() {
-                  terminalMapRef.current.get(tab.id)?.focus()
-                }}
-                className="h-full w-full bg-primary-50 font-mono text-primary-900"
-                style={{ backgroundColor: TERMINAL_BG }}
-              />
-            </div>
-          )
-        })}
-      </div>
+        <footer className="term-foot">
+          <span>
+            <b>{tabs.length}</b> tabs open
+          </span>
+          <span className="sep" />
+          <span>
+            active <b>{activeTab.title}</b>
+          </span>
+          <span className="sep" />
+          <span>
+            workspace <b>{DEFAULT_TERMINAL_CWD}</b>
+          </span>
+          <span className="ok">terminal ready</span>
+        </footer>
+      </main>
 
       {/* Mobile input bar moved to WorkspaceShell as a sibling to prevent re-render freeze */}
 
@@ -909,7 +1123,7 @@ export function TerminalWorkspace({
 
       {contextMenu ? (
         <div
-          className="fixed z-50 min-w-36 rounded-md border border-primary-300 bg-primary-100 p-1 shadow-lg"
+          className="term-context-menu"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={function stop(event) {
             event.stopPropagation()
@@ -917,7 +1131,7 @@ export function TerminalWorkspace({
         >
           <button
             type="button"
-            className="flex w-full items-center rounded px-2 py-1.5 text-left text-xs text-primary-900 hover:bg-primary-200"
+            className="term-context-item"
             onClick={function renameTabFromMenu() {
               const menuTab = tabs.find((tab) => tab.id === contextMenu.tabId)
               setContextMenu(null)
@@ -934,7 +1148,7 @@ export function TerminalWorkspace({
           </button>
           <button
             type="button"
-            className="flex w-full items-center rounded px-2 py-1.5 text-left text-xs text-primary-900 hover:bg-primary-200"
+            className="term-context-item"
             onClick={function closeTabFromMenu() {
               const menuTab = tabs.find((tab) => tab.id === contextMenu.tabId)
               setContextMenu(null)

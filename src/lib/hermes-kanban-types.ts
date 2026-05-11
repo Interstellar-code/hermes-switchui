@@ -29,7 +29,7 @@ export const HERMES_KANBAN_ALL_STATUSES: Array<HermesKanbanStatus> = [
 ]
 
 export const HERMES_KANBAN_STATUS_LABELS: Record<HermesKanbanStatus, string> = {
-  triage: 'Backlog / Triage',
+  triage: 'Backlog',
   todo: 'Todo',
   ready: 'Ready',
   running: 'Running',
@@ -208,6 +208,8 @@ export type BulkKanbanInput = {
   assignee?: string | null
   priority?: number
   archive?: boolean
+  /** Hard-delete each task. Only valid for tasks already in 'archived' status. */
+  delete?: boolean
 }
 
 // ── Priority helpers ──────────────────────────────────────────────────────────

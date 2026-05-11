@@ -179,6 +179,29 @@ export function TasksScreen() {
       return typeof raw.blocked === 'boolean' ? raw.blocked : true
     } catch { return true }
   })
+  // ── Date range filter — persisted to localStorage ─────────────────────
+  const DATE_FILTER_KEY = 'switchui-tasks-date-filter'
+  const [dateRange, setDateRange] = useState<'all' | 'today' | '7d' | '30d' | 'custom'>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(DATE_FILTER_KEY) ?? '{}') as Record<string, unknown>
+      const v = raw.dateRange
+      if (v === 'today' || v === '7d' || v === '30d' || v === 'custom') return v
+      return 'all'
+    } catch { return 'all' }
+  })
+  const [dateStart, setDateStart] = useState<string>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(DATE_FILTER_KEY) ?? '{}') as Record<string, unknown>
+      return typeof raw.dateStart === 'string' ? raw.dateStart : ''
+    } catch { return '' }
+  })
+  const [dateEnd, setDateEnd] = useState<string>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(DATE_FILTER_KEY) ?? '{}') as Record<string, unknown>
+      return typeof raw.dateEnd === 'string' ? raw.dateEnd : ''
+    } catch { return '' }
+  })
+
   const [showViewDropdown, setShowViewDropdown] = useState(false)
   // Ref to the trigger button so we can measure its position for fixed-panel placement
   const colsButtonRef = useRef<HTMLButtonElement>(null)
@@ -191,6 +214,46 @@ export function TasksScreen() {
     }
     setShowViewDropdown(v => !v)
   }
+  // ── Archive Done / Purge Archived popovers ────────────────────────────────
+  const archiveDoneBtnRef = useRef<HTMLButtonElement>(null)
+  const purgeArchivedBtnRef = useRef<HTMLButtonElement>(null)
+  const [showArchiveDonePopover, setShowArchiveDonePopover] = useState(false)
+  const [archiveDonePanelPos, setArchiveDonePanelPos] = useState<{ top: number; right: number } | null>(null)
+  const [archiveDoneRange, setArchiveDoneRange] = useState<'today' | '7d' | '30d' | 'all'>('7d')
+  const [showPurgePopover, setShowPurgePopover] = useState(false)
+  const [purgePanelPos, setPurgePanelPos] = useState<{ top: number; right: number } | null>(null)
+  const [purgeRange, setPurgeRange] = useState<'today' | '7d' | '30d' | 'all'>('7d')
+  const [purgeConfirmStep, setPurgeConfirmStep] = useState(false)
+
+  function openArchiveDonePopover() {
+    if (archiveDoneBtnRef.current) {
+      const r = archiveDoneBtnRef.current.getBoundingClientRect()
+      setArchiveDonePanelPos({ top: r.bottom + 6, right: window.innerWidth - r.right })
+    }
+    setPurgeConfirmStep(false)
+    setShowArchiveDonePopover(v => !v)
+    setShowPurgePopover(false)
+  }
+
+  function openPurgePopover() {
+    if (purgeArchivedBtnRef.current) {
+      const r = purgeArchivedBtnRef.current.getBoundingClientRect()
+      setPurgePanelPos({ top: r.bottom + 6, right: window.innerWidth - r.right })
+    }
+    setPurgeConfirmStep(false)
+    setShowPurgePopover(v => !v)
+    setShowArchiveDonePopover(false)
+  }
+
+  /** ms cutoff for a date range label */
+  function rangeCutoffMs(range: 'today' | '7d' | '30d' | 'all'): number | null {
+    const now = Date.now()
+    if (range === 'today') return now - 24 * 60 * 60 * 1000
+    if (range === '7d') return now - 7 * 24 * 60 * 60 * 1000
+    if (range === '30d') return now - 30 * 24 * 60 * 60 * 1000
+    return null // all
+  }
+
   const [blockedPending, setBlockedPending] = useState<BlockedDropPending>(null)
   const [blockedReason, setBlockedReason] = useState('')
   const [runningMovePending, setRunningMovePending] = useState<RunningMovePending>(null)
@@ -212,6 +275,13 @@ export function TasksScreen() {
       }))
     } catch { /* storage quota / private-mode — silently ignore */ }
   }, [showDone, showArchived, showTriage, showBlocked])
+
+  // Persist date filter to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(DATE_FILTER_KEY, JSON.stringify({ dateRange, dateStart, dateEnd }))
+    } catch { /* ignore */ }
+  }, [dateRange, dateStart, dateEnd])
 
   // Footer relative-time: tick every 10s so "Updated N ago" stays fresh
   useEffect(() => {
@@ -264,6 +334,19 @@ export function TasksScreen() {
     refetchInterval: 30_000,
   })
 
+  // Gateway /stats omits archived from by_status. Derive it by fetching
+  // include_archived=true and counting the archived bucket. Slower path —
+  // long stale to avoid hammering the gateway.
+  const archivedCountQuery = useQuery({
+    queryKey: ['claude', 'tasks', 'archived-count'],
+    queryFn: async () => {
+      const all = await fetchTasks({ include_archived: true })
+      return all.filter((t) => t.status === 'archived').length
+    },
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  })
+
   const assignees: Array<TaskAssignee> = assigneesQuery.data?.assignees ?? []
   const profilesQuery = useQuery({
     queryKey: ['profiles', 'list'],
@@ -289,6 +372,17 @@ export function TasksScreen() {
 
   // Group tasks by Agent status
   const tasksByStatus = useMemo(() => {
+    // Compute date cutoff for board visibility filter
+    let dateCutoffMs: number | null = null
+    let dateEndMs: number | null = null
+    if (dateRange === 'today') dateCutoffMs = Date.now() - 24 * 60 * 60 * 1000
+    else if (dateRange === '7d') dateCutoffMs = Date.now() - 7 * 24 * 60 * 60 * 1000
+    else if (dateRange === '30d') dateCutoffMs = Date.now() - 30 * 24 * 60 * 60 * 1000
+    else if (dateRange === 'custom') {
+      if (dateStart) dateCutoffMs = new Date(dateStart).setHours(0, 0, 0, 0)
+      if (dateEnd) dateEndMs = new Date(dateEnd).setHours(23, 59, 59, 999)
+    }
+
     const map: Record<HermesKanbanStatus, Array<ClaudeTask>> = {
       triage: [],
       todo: [],
@@ -301,10 +395,12 @@ export function TasksScreen() {
     for (const t of tasks) {
       const status = t.status
       if (assigneeFilter && t.assignee !== assigneeFilter) continue
+      if (dateCutoffMs !== null && t.created_at * 1000 < dateCutoffMs) continue
+      if (dateEndMs !== null && t.created_at * 1000 > dateEndMs) continue
       map[status].push(t)
     }
     return map
-  }, [tasks, assigneeFilter])
+  }, [tasks, assigneeFilter, dateRange, dateStart, dateEnd])
 
   const stats = useMemo(() => {
     const total = tasks.length
@@ -371,11 +467,16 @@ export function TasksScreen() {
     mutationFn: async ({
       status,
       archive,
+      delete: hardDelete,
+      ids: explicitIds,
     }: {
       status?: HermesKanbanStatus
       archive?: boolean
+      delete?: boolean
+      /** When provided, operates on these ids instead of selectedIds. */
+      ids?: Array<string>
     }) => {
-      const ids = Array.from(selectedIds)
+      const ids = explicitIds ?? Array.from(selectedIds)
       const res = await fetch(`${KANBAN_BASE}/bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -383,6 +484,7 @@ export function TasksScreen() {
           ids,
           ...(status ? { status } : {}),
           ...(archive ? { archive: true } : {}),
+          ...(hardDelete ? { delete: true } : {}),
         }),
       })
       if (!res.ok) throw new Error(`Bulk update failed: ${res.status}`)
@@ -390,14 +492,15 @@ export function TasksScreen() {
         results: Array<{ id: string; ok: boolean; error?: string }>
       }>
     },
-    onSuccess: (data) => {
+    onSuccess: (data, vars) => {
       const failed = data.results.filter((r) => !r.ok)
       if (failed.length > 0)
-        toast(`${failed.length} tasks failed to update`, { type: 'error' })
-      else toast(`${data.results.length} tasks updated`)
+        toast(`${failed.length} tasks failed to ${vars.delete ? 'delete' : 'update'}`, { type: 'error' })
+      else toast(vars.delete ? `${data.results.length} tasks deleted` : `${data.results.length} tasks updated`)
       setSelectedIds(new Set())
       invalidate()
       void queryClient.invalidateQueries({ queryKey: ['claude', 'tasks', 'stats'] })
+      void queryClient.invalidateQueries({ queryKey: ['claude', 'tasks', 'archived-count'] })
     },
     onError: (e) =>
       toast(e instanceof Error ? e.message : 'Bulk update failed', {
@@ -527,50 +630,35 @@ export function TasksScreen() {
             <button
               type="button"
               className="stat clickable"
+              style={{ '--col-color': COLUMN_COLORS.done } as React.CSSProperties}
               aria-label={`Show ${stats.done} done tasks`}
               title="Click to view done tasks"
               onClick={() => setShowDoneList(true)}
             >
-              <span className="v ok">{stats.done}</span>
+              <span className="pip" />
               <span className="l">Done</span>
+              <span className="ct">{stats.done}</span>
             </button>
-            <div className="stat">
-              <span className="v warn">{stats.running}</span>
+            <div className="stat" style={{ '--col-color': COLUMN_COLORS.running } as React.CSSProperties}>
+              <span className="pip" />
               <span className="l">Running</span>
+              <span className="ct">{stats.running}</span>
             </div>
-            <div className="stat">
-              <span className="v">{tasksByStatus.todo.length}</span>
+            <div className="stat" style={{ '--col-color': COLUMN_COLORS.todo } as React.CSSProperties}>
+              <span className="pip" />
               <span className="l">Todo</span>
+              <span className="ct">{tasksByStatus.todo.length}</span>
             </div>
-            <div className="stat">
-              <span className="v">{tasksByStatus.triage.length}</span>
+            <div className="stat" style={{ '--col-color': COLUMN_COLORS.triage } as React.CSSProperties}>
+              <span className="pip" />
               <span className="l">Backlog</span>
+              <span className="ct">{tasksByStatus.triage.length}</span>
             </div>
-            <div className="stat">
-              <span className="v">{stats.total}</span>
+            <div className="stat" style={{ '--col-color': 'var(--m-green-500, #00ff41)' } as React.CSSProperties}>
+              <span className="pip" />
               <span className="l">Total</span>
+              <span className="ct">{stats.total}</span>
             </div>
-          </div>
-          {/* TS-03: refresh + filter icobtns */}
-          <div className="right-actions">
-            <button
-              type="button"
-              className="icobtn"
-              aria-label="Refresh board"
-              title="Refresh"
-              onClick={invalidate}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M3 21v-5h5"/></svg>
-            </button>
-            <button
-              type="button"
-              className="icobtn"
-              aria-label="Filters"
-              title="Filters (coming soon)"
-              onClick={() => toast('Filter UI coming soon — use the profile selector + columns popover for now')}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
-            </button>
           </div>
         </div>
       </header>
@@ -583,6 +671,19 @@ export function TasksScreen() {
 
           {/* AB-03: right — tools row */}
           <div className="tools">
+            {/* Dispatch (AB-03 btn-sec) */}
+            <button
+              type="button"
+              className="btn-sec"
+              onClick={() => void dispatchMutation.mutate()}
+              disabled={dispatchMutation.isPending}
+              title="Dispatch ready tasks to workers (max 8)"
+              aria-label="Dispatch ready tasks"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="m13 2-9 12h7l-1 8 9-12h-7z"/></svg>
+              {dispatchMutation.isPending ? 'Dispatching…' : (dispatchResult ?? 'Dispatch')}
+            </button>
+
             {/* Segmented view toggle */}
             <div className="seg" role="tablist" aria-label="Task view">
               {(['board', 'swim', 'time'] as const).map((v) => (
@@ -605,7 +706,7 @@ export function TasksScreen() {
               ))}
             </div>
 
-          {/* Columns pill */}
+          {/* Filters pill */}
           {(() => {
             const anyHidden = !showTriage || !showBlocked || !showDone || !showArchived
             const cols = [
@@ -615,26 +716,39 @@ export function TasksScreen() {
               { key: 'archived', label: 'Archived', checked: showArchived, toggle: () => setShowArchived(v => !v) },
             ]
             const hiddenCount = cols.filter(c => !c.checked).length
+            const dateActive = dateRange !== 'all'
+            const pillActive = showViewDropdown || anyHidden || dateActive
+            const DATE_RANGE_LABELS: Record<string, string> = { all: 'All time', today: 'Today', '7d': 'Last 7 days', '30d': 'Last 30 days', custom: 'Custom range' }
+            const dateChipLabel = dateRange === 'today' ? 'Today' : dateRange === '7d' ? '7d' : dateRange === '30d' ? '30d' : dateRange === 'custom' ? 'Custom' : ''
             return (
               <>
                 <button
                   ref={colsButtonRef}
                   onClick={openColsDropdown}
-                  className={cn('pill', (showViewDropdown || anyHidden) ? 'pill-active' : '')}
-                  title="Configure columns"
-                  aria-label="Configure visible columns"
+                  className={cn('pill', pillActive ? 'pill-active' : '')}
+                  title="Configure filters"
+                  aria-label="Configure filters and visible columns"
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="5" height="16"/><rect x="10" y="4" width="5" height="16"/><rect x="17" y="4" width="4" height="16"/></svg>
-                  Columns
-                  <span className="ct">{anyHidden ? `${5 - hiddenCount}/5` : '5'}</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 4h18l-7 8v6l-4 2v-8z"/></svg>
+                  Filters
+                  {dateActive && (
+                    <span className="ct" style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ width: 9, height: 9 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                      {dateChipLabel}
+                    </span>
+                  )}
+                  {anyHidden && (
+                    <span className="ct">{hiddenCount}c</span>
+                  )}
                 </button>
                 {showViewDropdown && colsPanelPos && createPortal(
                   <>
                     <div className="fixed inset-0 z-[9998]" onClick={() => setShowViewDropdown(false)} />
                     <div
-                      className="fixed z-[9999] w-52 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] shadow-2xl p-1.5"
+                      className="fixed z-[9999] w-72 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] shadow-2xl p-1.5"
                       style={{ top: colsPanelPos.top, right: colsPanelPos.right, backgroundColor: 'var(--theme-card)' }}
                     >
+                      {/* Section: Visible columns */}
                       <p className="px-3 pt-1.5 pb-1 text-[9px] uppercase tracking-widest text-[var(--theme-muted)] font-medium">
                         Visible columns
                       </p>
@@ -657,6 +771,73 @@ export function TasksScreen() {
                           </span>
                         </button>
                       ))}
+
+                      {/* Divider */}
+                      <div className="border-t border-[var(--theme-border)] my-1.5 mx-1" />
+
+                      {/* Section: Date range */}
+                      <p className="px-3 pt-0.5 pb-1 text-[9px] uppercase tracking-widest text-[var(--theme-muted)] font-medium">
+                        Date range
+                      </p>
+                      {(['all', 'today', '7d', '30d', 'custom'] as const).map((r) => (
+                        <button
+                          key={r}
+                          onClick={() => setDateRange(r)}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs hover:bg-[var(--theme-hover)] transition-colors"
+                        >
+                          <span className={cn(
+                            'w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-colors',
+                            dateRange === r
+                              ? 'border-[var(--theme-accent)] bg-[var(--theme-accent)]'
+                              : 'border-[var(--theme-border)] bg-transparent',
+                          )}>
+                            {dateRange === r && <span className="w-1.5 h-1.5 rounded-full bg-white block" />}
+                          </span>
+                          <span className={dateRange === r ? 'text-[var(--theme-text)]' : 'text-[var(--theme-muted)]'}>
+                            {DATE_RANGE_LABELS[r]}
+                          </span>
+                        </button>
+                      ))}
+                      {dateRange === 'custom' && (
+                        <div className="px-3 pb-2 pt-1 flex flex-col gap-1.5">
+                          <input
+                            type="date"
+                            value={dateStart}
+                            onChange={(e) => setDateStart(e.target.value)}
+                            className="w-full rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] text-xs px-2 py-1"
+                            style={{ colorScheme: 'dark' }}
+                            placeholder="Start date"
+                          />
+                          <input
+                            type="date"
+                            value={dateEnd}
+                            onChange={(e) => setDateEnd(e.target.value)}
+                            className="w-full rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] text-xs px-2 py-1"
+                            style={{ colorScheme: 'dark' }}
+                            placeholder="End date"
+                          />
+                        </div>
+                      )}
+
+                      {/* Clear filters */}
+                      {(anyHidden || dateActive) && (
+                        <div className="border-t border-[var(--theme-border)] mt-1 pt-1 px-1.5 pb-1">
+                          <button
+                            onClick={() => {
+                              setShowTriage(true)
+                              setShowBlocked(true)
+                              setShowDone(false)
+                              setShowArchived(false)
+                              setDateRange('all')
+                              setDateStart('')
+                              setDateEnd('')
+                            }}
+                            className="w-full px-3 py-1.5 rounded-lg text-xs text-[var(--theme-muted)] hover:bg-[var(--theme-hover)] transition-colors text-left"
+                          >
+                            ✕ Clear filters
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </>,
                   document.body,
@@ -664,9 +845,6 @@ export function TasksScreen() {
               </>
             )
           })()}
-
-          {/* Settings */}
-          <KanbanSettingsButton />
 
           {/* Agent profile select (AB-03 selbox) */}
           {assigneeOptions.length > 0 && (
@@ -703,40 +881,202 @@ export function TasksScreen() {
             </select>
           )}
 
-          {/* Dispatch (AB-03 btn-sec) */}
-          <button
-            type="button"
-            className="btn-sec"
-            onClick={() => void dispatchMutation.mutate()}
-            disabled={dispatchMutation.isPending}
-            title="Dispatch ready tasks to workers (max 8)"
-            aria-label="Dispatch ready tasks"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="m13 2-9 12h7l-1 8 9-12h-7z"/></svg>
-            {dispatchMutation.isPending ? 'Dispatching…' : (dispatchResult ?? 'Dispatch')}
-          </button>
+          {/* Archive Done — bulk-archive all done tasks in date range */}
+          {(() => {
+            // Use completed_at (unix seconds) for done tasks; fall back to created_at.
+            const cutoffMs = rangeCutoffMs(archiveDoneRange)
+            const doneTasks = tasks.filter((t) => {
+              if (t.status !== 'done') return false
+              if (assigneeFilter && t.assignee !== assigneeFilter) return false
+              if (!cutoffMs) return true
+              const ts = t.completed_at != null ? t.completed_at * 1000 : t.created_at * 1000
+              return ts >= cutoffMs
+            })
+            const RANGE_LABELS = { today: 'Today', '7d': 'Last 7 days', '30d': 'Last 30 days', all: 'All time' } as const
+            return (
+              <>
+                <button
+                  ref={archiveDoneBtnRef}
+                  type="button"
+                  className="btn-sec"
+                  onClick={openArchiveDonePopover}
+                  title="Archive all done tasks in a date range"
+                  aria-label="Archive done tasks"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 4h18v4H3z"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"/><path d="M10 12h4"/></svg>
+                </button>
+                {showArchiveDonePopover && archiveDonePanelPos && createPortal(
+                  <>
+                    <div className="fixed inset-0 z-[9998]" onClick={() => setShowArchiveDonePopover(false)} />
+                    <div
+                      className="fixed z-[9999] w-60 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] shadow-2xl p-1.5"
+                      style={{ top: archiveDonePanelPos.top, right: archiveDonePanelPos.right }}
+                    >
+                      <p className="px-3 pt-1.5 pb-1 text-[9px] uppercase tracking-widest text-[var(--theme-muted)] font-medium">
+                        Archive done tasks from…
+                      </p>
+                      {(['today', '7d', '30d', 'all'] as const).map((r) => {
+                        const count = (() => {
+                          const c = rangeCutoffMs(r)
+                          return tasks.filter((t) => {
+                            if (t.status !== 'done') return false
+                            if (!c) return true
+                            const ts = t.completed_at != null ? t.completed_at * 1000 : t.created_at * 1000
+                            return ts >= c
+                          }).length
+                        })()
+                        return (
+                          <button
+                            key={r}
+                            onClick={() => setArchiveDoneRange(r)}
+                            className={cn(
+                              'w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors',
+                              archiveDoneRange === r
+                                ? 'bg-[var(--theme-accent)] text-white'
+                                : 'hover:bg-[var(--theme-hover)] text-[var(--theme-text)]',
+                            )}
+                          >
+                            <span>{RANGE_LABELS[r]}</span>
+                            <span className="opacity-70">{count} tasks</span>
+                          </button>
+                        )
+                      })}
+                      <div className="border-t border-[var(--theme-border)] mt-1 pt-1 px-1.5 pb-1">
+                        <p className="px-2 py-1 text-[10px] text-[var(--theme-muted)]">
+                          Archive {doneTasks.length} done task{doneTasks.length !== 1 ? 's' : ''} from {RANGE_LABELS[archiveDoneRange].toLowerCase()}
+                        </p>
+                        <button
+                          onClick={() => {
+                            if (doneTasks.length === 0) { toast('No done tasks in that range', { type: 'error' }); return }
+                            setShowArchiveDonePopover(false)
+                            void bulkMutation.mutate({ archive: true, ids: doneTasks.map((t) => t.id) })
+                          }}
+                          disabled={bulkMutation.isPending || doneTasks.length === 0}
+                          className="w-full px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--theme-accent)] text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
+                        >
+                          Confirm Archive
+                        </button>
+                      </div>
+                    </div>
+                  </>,
+                  document.body,
+                )}
+              </>
+            )
+          })()}
 
-          {/* Refresh icobtn (AB-03) */}
-          <button
-            type="button"
-            className="icobtn"
-            aria-label="Refresh board"
-            title="Refresh"
-            onClick={invalidate}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M3 21v-5h5"/></svg>
-          </button>
+          {/* Purge Archived — hard-delete archived tasks in date range */}
+          {(() => {
+            const RANGE_LABELS = { today: 'Today', '7d': 'Last 7 days', '30d': 'Last 30 days', all: 'All time' } as const
+            return (
+              <>
+                <button
+                  ref={purgeArchivedBtnRef}
+                  type="button"
+                  className="btn-danger"
+                  onClick={openPurgePopover}
+                  title="Permanently delete all archived tasks in a date range"
+                  aria-label="Purge archived tasks"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                </button>
+                {showPurgePopover && purgePanelPos && createPortal(
+                  <>
+                    <div className="fixed inset-0 z-[9998]" onClick={() => { setShowPurgePopover(false); setPurgeConfirmStep(false) }} />
+                    <div
+                      className="fixed z-[9999] w-64 rounded-xl border border-red-500/40 bg-[var(--theme-card)] shadow-2xl p-1.5"
+                      style={{ top: purgePanelPos.top, right: purgePanelPos.right }}
+                    >
+                      {!purgeConfirmStep ? (
+                        <>
+                          <p className="px-3 pt-1.5 pb-1 text-[9px] uppercase tracking-widest text-red-400 font-medium">
+                            Purge archived tasks from…
+                          </p>
+                          {(['today', '7d', '30d', 'all'] as const).map((r) => (
+                            <button
+                              key={r}
+                              onClick={() => setPurgeRange(r)}
+                              className={cn(
+                                'w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors',
+                                purgeRange === r
+                                  ? 'bg-red-500/20 text-red-300 border border-red-500/30'
+                                  : 'hover:bg-[var(--theme-hover)] text-[var(--theme-text)]',
+                              )}
+                            >
+                              <span>{RANGE_LABELS[r]}</span>
+                            </button>
+                          ))}
+                          <div className="border-t border-red-500/20 mt-1 pt-1 px-1.5 pb-1">
+                            <button
+                              onClick={async () => {
+                                // One-shot fetch archived tasks, then show confirm step
+                                const cutoffMs = rangeCutoffMs(purgeRange)
+                                // archived tasks may not be in current `tasks` (only when showArchived=true)
+                                // do a targeted fetch
+                                const allWithArchived = await fetchTasks({ include_done: true, include_archived: true })
+                                const matching = allWithArchived.filter((t) => {
+                                  if (t.status !== 'archived') return false
+                                  if (assigneeFilter && t.assignee !== assigneeFilter) return false
+                                  if (!cutoffMs) return true
+                                  const ts = t.completed_at != null ? t.completed_at * 1000 : t.created_at * 1000
+                                  return ts >= cutoffMs
+                                })
+                                if (matching.length === 0) { toast('No archived tasks in that range', { type: 'error' }); return }
+                                // stash ids for confirm step via a closure ref
+                                ;(purgeArchivedBtnRef.current as HTMLButtonElement & { _purgeIds?: string[] })._purgeIds = matching.map((t) => t.id)
+                                setPurgeConfirmStep(true)
+                              }}
+                              className="w-full px-3 py-1.5 rounded-lg text-xs font-medium border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors"
+                            >
+                              Next →
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p className="px-3 pt-2 pb-1 text-[9px] uppercase tracking-widest text-red-400 font-medium">
+                            Confirm permanent delete
+                          </p>
+                          <p className="px-3 py-2 text-xs text-[var(--theme-muted)]">
+                            This permanently deletes{' '}
+                            <span className="text-red-400 font-semibold">
+                              {((purgeArchivedBtnRef.current as HTMLButtonElement & { _purgeIds?: string[] })?._purgeIds ?? []).length}
+                            </span>{' '}
+                            archived tasks. This cannot be undone.
+                          </p>
+                          <div className="flex gap-1.5 px-1.5 pb-1.5">
+                            <button
+                              onClick={() => setPurgeConfirmStep(false)}
+                              className="flex-1 px-2 py-1.5 rounded-lg text-xs text-[var(--theme-muted)] hover:bg-[var(--theme-hover)] transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => {
+                                const ids = ((purgeArchivedBtnRef.current as HTMLButtonElement & { _purgeIds?: string[] })?._purgeIds ?? [])
+                                setShowPurgePopover(false)
+                                setPurgeConfirmStep(false)
+                                void bulkMutation.mutate({ delete: true, ids })
+                              }}
+                              disabled={bulkMutation.isPending}
+                              className="flex-1 px-2 py-1.5 rounded-lg text-xs font-medium bg-red-600 text-white hover:bg-red-500 disabled:opacity-40 transition-colors"
+                            >
+                              Delete Forever
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </>,
+                  document.body,
+                )}
+              </>
+            )
+          })()}
 
-          {/* New Task (AB-04 btn-prim) */}
-          <button
-            type="button"
-            className="btn-prim"
-            onClick={() => { setCreateColumn('triage'); setShowCreate(true) }}
-            aria-label="Create new task"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
-            New Task
-          </button>
+          {/* Settings */}
+          <KanbanSettingsButton />
+
         </div>
         </div>
 
@@ -751,6 +1091,7 @@ export function TasksScreen() {
           const globalTodo = typeof counts.todo === 'number' ? counts.todo : 0
           const globalBacklog = (typeof counts.triage === 'number' ? counts.triage : 0) + (typeof counts.ready === 'number' ? counts.ready : 0)
           const globalBlocked = typeof counts.blocked === 'number' ? counts.blocked : 0
+          const globalArchived = archivedCountQuery.data ?? (typeof counts.archived === 'number' ? counts.archived : 0)
           const globalPct = globalTotal > 0 ? Math.round((globalDone / globalTotal) * 1000) / 10 : 0
           return (
             <div className="actbar-stripe">
@@ -761,6 +1102,7 @@ export function TasksScreen() {
                 <span className="gs-pip-item"><span className="pip todo" /><span className="pip-ct">{globalTodo}</span>&nbsp;Todo</span>
                 <span className="gs-pip-item"><span className="pip bk" /><span className="pip-ct">{globalBacklog}</span>&nbsp;Backlog</span>
                 <span className="gs-pip-item"><span className="pip bl" /><span className="pip-ct">{globalBlocked}</span>&nbsp;Blocked</span>
+                <span className="gs-pip-item"><span className="pip ar" /><span className="pip-ct">{globalArchived}</span>&nbsp;Archived</span>
               </div>
               <div className="gs-right">
                 <span className="gs-pct">{globalPct}%</span>

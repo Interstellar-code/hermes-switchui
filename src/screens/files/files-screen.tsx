@@ -1548,123 +1548,114 @@ export function FilesScreen() {
       className={cn('files-shell', treeCollapsed ? 'tree-collapsed' : '')}
     >
       <aside className={cn('files-tree', treeCollapsed ? 'is-collapsed' : '')}>
-        {treeCollapsed ? (
-          <>
-            <div className="files-tree-head">
-              <button
-                type="button"
-                className="files-icon-btn"
-                onClick={() => setTreeCollapsed(false)}
-                title="Expand tree"
-              >
-                ⇥
-              </button>
-            </div>
-            <div className="files-tree-rail">
-              <span className="count">{entryCounts.files}</span>
-              <span className="label">files</span>
-            </div>
-            <div className="files-tree-foot">{entryCounts.folders} dirs</div>
-          </>
-        ) : (
-          <>
-            <div className="files-tree-head">
-              <div className="min-w-0">
-                <h3>Files</h3>
-                <div className="files-tree-count">
-                  {entryCounts.files} files · {entryCounts.folders} dirs
-                </div>
-              </div>
-              <div className="files-tree-actions">
-                <button
-                  type="button"
-                  className="files-icon-btn"
-                  onClick={() => openUploadPicker('')}
-                  title="Upload to workspace"
-                >
-                  ⤴
-                </button>
-                <button
-                  type="button"
-                  className="files-icon-btn"
-                  onClick={openNewFolderPrompt}
-                  title="New folder"
-                >
-                  ＋
-                </button>
-                <button
-                  type="button"
-                  className="files-icon-btn"
-                  onClick={() => void loadTree()}
-                  title="Refresh"
-                >
-                  ↺
-                </button>
-                <button
-                  type="button"
-                  className="files-icon-btn"
-                  onClick={() => setTreeCollapsed(true)}
-                  title="Collapse tree"
-                >
-                  ⇤
-                </button>
-              </div>
-            </div>
-
-            <div className="files-tree-search">
-              <label className="files-search-shell">
-                <span aria-hidden="true">⌕</span>
-                <input
-                  value={treeQuery}
-                  onChange={(e) => setTreeQuery(e.target.value)}
-                  placeholder="Search workspace"
-                />
-              </label>
-            </div>
-
-            <Breadcrumb
-              path={selectedEntry?.path ?? ''}
-              className="files-tree-breadcrumb"
-            />
-
-            <div className="files-tree-body">
-              {treeLoading ? (
-                <div className="files-tree-loading">Loading…</div>
-              ) : treeError ? (
-                <div className="files-tree-error">{treeError}</div>
-              ) : visibleEntries.length === 0 ? (
-                <div className="files-tree-empty">
-                  {treeQuery ? 'No matches' : 'Workspace is empty'}
-                </div>
+        {/* header */}
+        <div className="files-tree-head">
+          <h3>Files</h3>
+          <span className="ct">{entryCounts.files + entryCounts.folders}</span>
+          <div className="files-tree-actions">
+            <button
+              type="button"
+              className="files-icon-btn"
+              onClick={() => openUploadPicker('')}
+              title="Upload to workspace"
+            >
+              ⤴
+            </button>
+            <button
+              type="button"
+              className="files-icon-btn"
+              onClick={openNewFolderPrompt}
+              title="New folder"
+            >
+              ＋
+            </button>
+            <button
+              type="button"
+              className="files-icon-btn"
+              onClick={() => void loadTree()}
+              title="Refresh"
+            >
+              ↺
+            </button>
+          </div>
+          <button
+            type="button"
+            className="files-icon-btn collapse-btn"
+            onClick={() => setTreeCollapsed((v) => !v)}
+            title={treeCollapsed ? 'Expand tree' : 'Collapse tree'}
+            aria-label={treeCollapsed ? 'Expand tree' : 'Collapse tree'}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+              {treeCollapsed ? (
+                <path d="M9 18l6-6-6-6" />
               ) : (
-                visibleEntries.map((entry) => (
-                  <TreeNode
-                    key={entry.path}
-                    entry={entry}
-                    depth={0}
-                    expanded={expanded}
-                    forceExpanded={Boolean(treeQuery.trim())}
-                    selectedPath={selectedPath}
-                    onToggle={handleToggle}
-                    onSelect={handleSelect}
-                    onDeleteRequest={setDeleteConfirm}
-                    onContextMenu={handleContextMenu}
-                  />
-                ))
+                <path d="M15 18l-6-6 6-6" />
               )}
-            </div>
+            </svg>
+          </button>
+        </div>
 
-            <div className="files-tree-foot">
-              <span>
-                <b>{entryCounts.files}</b> files
-              </span>
-              <span>
-                <b>{entryCounts.folders}</b> folders
-              </span>
-              {treeQuery ? <span>filter active</span> : null}
+        {/* search */}
+        <div className="files-tree-search">
+          <input
+            type="text"
+            value={treeQuery}
+            onChange={(e) => setTreeQuery(e.target.value)}
+            placeholder="Search workspace…"
+            aria-label="Search files"
+          />
+        </div>
+
+        {/* breadcrumb */}
+        <Breadcrumb
+          path={selectedEntry?.path ?? ''}
+          className="files-tree-breadcrumb"
+        />
+
+        {/* body */}
+        <div className="files-tree-body">
+          {treeLoading ? (
+            <div className="files-tree-loading">Loading…</div>
+          ) : treeError ? (
+            <div className="files-tree-error">{treeError}</div>
+          ) : visibleEntries.length === 0 ? (
+            <div className="files-tree-empty">
+              {treeQuery ? 'No matches' : 'Workspace is empty'}
             </div>
-          </>
-        )}
+          ) : (
+            visibleEntries.map((entry) => (
+              <TreeNode
+                key={entry.path}
+                entry={entry}
+                depth={0}
+                expanded={expanded}
+                forceExpanded={Boolean(treeQuery.trim())}
+                selectedPath={selectedPath}
+                onToggle={handleToggle}
+                onSelect={handleSelect}
+                onDeleteRequest={setDeleteConfirm}
+                onContextMenu={handleContextMenu}
+              />
+            ))
+          )}
+        </div>
+
+        {/* foot */}
+        <div className="files-tree-foot">
+          <span>
+            <b>{entryCounts.files}</b> files
+          </span>
+          <span>
+            <b>{entryCounts.folders}</b> folders
+          </span>
+          {treeQuery ? <span>filter active</span> : null}
+        </div>
+
+        {/* collapsed rail */}
+        <div className="files-rail">
+          <span className="rail-label">Files</span>
+          <span className="rail-badge">{entryCounts.files}</span>
+        </div>
       </aside>
 
       <main className="files-preview-host">
