@@ -36,7 +36,7 @@ import { SwimView } from './swim-view'
 import { TimelineView } from './timeline-view'
 import type { TaskDialogSubmit } from './task-dialog'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
-import type { HermesKanbanStatus } from '@/lib/hermes-kanban-types'
+import type { BulkResponse, HermesKanbanStatus } from '@/lib/hermes-kanban-types'
 import type { ClaudeTask, TaskAssignee, TaskColumn } from '@/lib/tasks-api'
 import { HERMES_KANBAN_VISIBLE_STATUS_ORDER } from '@/lib/hermes-kanban-types'
 import {
@@ -212,6 +212,8 @@ export function TasksScreen() {
       const r = colsButtonRef.current.getBoundingClientRect()
       setColsPanelPos({ top: r.bottom + 6, right: window.innerWidth - r.right })
     }
+    setShowArchiveDonePopover(false)
+    setShowPurgePopover(false)
     setShowViewDropdown(v => !v)
   }
   // ── Archive Done / Purge Archived popovers ────────────────────────────────
@@ -231,6 +233,7 @@ export function TasksScreen() {
       setArchiveDonePanelPos({ top: r.bottom + 6, right: window.innerWidth - r.right })
     }
     setPurgeConfirmStep(false)
+    setShowViewDropdown(false)
     setShowArchiveDonePopover(v => !v)
     setShowPurgePopover(false)
   }
@@ -241,6 +244,7 @@ export function TasksScreen() {
       setPurgePanelPos({ top: r.bottom + 6, right: window.innerWidth - r.right })
     }
     setPurgeConfirmStep(false)
+    setShowViewDropdown(false)
     setShowPurgePopover(v => !v)
     setShowArchiveDonePopover(false)
   }
@@ -488,9 +492,7 @@ export function TasksScreen() {
         }),
       })
       if (!res.ok) throw new Error(`Bulk update failed: ${res.status}`)
-      return res.json() as Promise<{
-        results: Array<{ id: string; ok: boolean; error?: string }>
-      }>
+      return res.json() as Promise<BulkResponse>
     },
     onSuccess: (data, vars) => {
       const failed = data.results.filter((r) => !r.ok)

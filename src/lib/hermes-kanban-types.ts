@@ -212,6 +212,11 @@ export type BulkKanbanInput = {
   delete?: boolean
 }
 
+/** Shape returned by POST /api/hermes-kanban/bulk */
+export type BulkResponse = {
+  results: Array<{ id: string; ok: boolean; error?: string }>
+}
+
 // ── Priority helpers ──────────────────────────────────────────────────────────
 
 export function kanbanPriorityLabel(priority: number): string {
