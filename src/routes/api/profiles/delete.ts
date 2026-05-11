@@ -15,7 +15,11 @@ export const Route = createFileRoute('/api/profiles/delete')({
         if (csrfCheck) return csrfCheck
         try {
           const body = (await request.json()) as { name?: string }
-          deleteProfile(body.name || '')
+          const name = (body.name || '').trim()
+          if (name === 'default') {
+            return json({ error: 'Default profile cannot be deleted' }, { status: 403 })
+          }
+          deleteProfile(name)
           return json({ ok: true })
         } catch (error) {
           return json(
