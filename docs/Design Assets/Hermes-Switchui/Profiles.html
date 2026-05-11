@@ -1,0 +1,1355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Profiles · Hermes</title>
+<link rel="stylesheet" href="matrix-system.css"/>
+<link rel="stylesheet" href="primary-nav-v2.css"/>
+<style>
+  html, body { height: 100%; }
+  body { background: var(--m-bg); overflow: hidden; }
+  .nav { background: transparent !important; border: none !important; padding: 0 !important; }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 232px 1fr;
+    height: 100vh; overflow: hidden;
+  }
+  .nav { display: block; min-width: 0; }
+  .main { display: grid; grid-template-rows: auto auto 1fr auto; min-width: 0; overflow: hidden; background: var(--m-bg); }
+
+  /* Top bar */
+  .topbar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    padding: 0 22px;
+    height: 56px;
+    border-bottom: 1px solid var(--m-border);
+    background: var(--m-sidebar);
+  }
+  .topbar h1 {
+    margin: 0;
+    font: 600 13px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .26em;
+    color: var(--m-text-strong);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .topbar h1 .crumb { color: var(--m-text-faint); font-weight: 500; }
+  .topbar h1 .sep { color: var(--m-text-ghost); }
+  .topbar h1 .cur { color: var(--m-green-500); text-shadow: 0 0 6px rgba(0,255,65,.4); }
+  .topbar .stats {
+    display: flex; align-items: center; gap: 22px;
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase; letter-spacing: .18em;
+  }
+  .topbar .stats b { color: var(--m-text-strong); font-weight: 600; }
+  .topbar .stats .ok { color: var(--m-green-500); }
+  .topbar .stats .sep { width: 1px; height: 16px; background: var(--m-border-subtle); }
+
+  /* Filter bar */
+  .filterbar {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 22px;
+    border-bottom: 1px solid var(--m-border);
+    background: var(--m-panel);
+  }
+  .search-input {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    background: var(--m-bg-deep);
+    max-width: 420px;
+  }
+  .search-input input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--m-text); font: 500 12.5px var(--m-font-mono);
+  }
+  .search-input svg { width: 14px; height: 14px; color: var(--m-text-faint); }
+
+  .tier-chips { display: flex; gap: 4px; }
+  .chip {
+    padding: 6px 12px;
+    border: 1px solid var(--m-border);
+    border-radius: 9999px;
+    background: var(--m-bg-deep);
+    font: 500 10.5px var(--m-font-mono);
+    color: var(--m-text-muted);
+    text-transform: uppercase; letter-spacing: .14em;
+    cursor: pointer;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .chip:hover { color: var(--m-text); border-color: var(--m-border-subtle); }
+  .chip.on {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border-color: var(--m-green-500);
+    box-shadow: var(--m-glow-sm);
+  }
+
+  .view-toggle { display: flex; border: 1px solid var(--m-border); border-radius: var(--m-radius-md); overflow: hidden; }
+  .view-toggle button {
+    display: inline-grid; place-items: center;
+    width: 32px; height: 30px;
+    background: var(--m-bg-deep);
+    border: none;
+    color: var(--m-text-faint);
+    cursor: pointer;
+    border-right: 1px solid var(--m-border);
+  }
+  .view-toggle button:last-child { border-right: none; }
+  .view-toggle button:hover { color: var(--m-text); }
+  .view-toggle button.on { background: var(--m-fill); color: var(--m-green-500); }
+  .view-toggle svg { width: 14px; height: 14px; }
+
+  /* Body */
+  .body {
+    overflow: auto;
+    padding: 22px;
+  }
+
+  /* Card grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    position: relative;
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    background: var(--m-panel);
+    padding: 16px;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+    cursor: pointer;
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    gap: 12px;
+    min-height: 200px;
+  }
+  .card:hover {
+    border-color: var(--m-green-500);
+    box-shadow: var(--m-glow-sm);
+    transform: translateY(-1px);
+  }
+  .card.tier-1 { background: linear-gradient(180deg, rgba(0,255,65,.04) 0%, var(--m-panel) 60%); border-color: rgba(0,255,65,.3); }
+  .card.tier-2 { background: linear-gradient(180deg, rgba(95,207,255,.04) 0%, var(--m-panel) 60%); border-color: rgba(95,207,255,.22); }
+
+  .card-head { display: flex; align-items: center; gap: 12px; }
+  .glyph {
+    width: 40px; height: 40px;
+    display: grid; place-items: center;
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    background: var(--m-bg-deep);
+    font: 700 16px var(--m-font-mono);
+    color: var(--m-green-500);
+    text-shadow: 0 0 8px rgba(0,255,65,.4);
+    flex: none;
+  }
+  .card.tier-1 .glyph { color: var(--m-green-500); border-color: var(--m-green-500); box-shadow: var(--m-glow-sm); }
+  .card.tier-2 .glyph { color: #5fcfff; border-color: rgba(95,207,255,.5); text-shadow: 0 0 8px rgba(95,207,255,.4); }
+  .card-name {
+    font: 600 13px var(--m-font-mono);
+    color: var(--m-text-strong);
+    margin: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .card-role {
+    font: 500 10.5px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase; letter-spacing: .14em;
+    margin-top: 2px;
+  }
+  .card-tier {
+    margin-left: auto;
+    font: 500 9px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase; letter-spacing: .2em;
+    padding: 2px 6px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 3px;
+  }
+  .card.tier-1 .card-tier { color: var(--m-green-500); border-color: var(--m-green-500); }
+  .card.tier-2 .card-tier { color: #5fcfff; border-color: rgba(95,207,255,.5); }
+
+  .card-status {
+    display: flex; align-items: center; gap: 6px;
+    font: 500 10.5px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase; letter-spacing: .14em;
+  }
+  .card-status .d { width: 7px; height: 7px; border-radius: 50%; background: var(--m-text-faint); }
+  .card-status.active { color: var(--m-green-500); }
+  .card-status.active .d { background: var(--m-green-500); box-shadow: 0 0 6px var(--m-green-500); animation: pulse 2s infinite; }
+  .card-status.idle .d { background: #888; }
+  .card-status.draft { color: #ffb347; }
+  .card-status.draft .d { background: #ffb347; box-shadow: 0 0 6px #ffb347; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+  .card-persona {
+    font: 500 12px/1.5 var(--m-font-mono);
+    color: var(--m-text-muted);
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    padding-left: 8px;
+    border-left: 2px solid var(--m-border);
+  }
+  .card-meta {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    align-items: center;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+  }
+  .card-meta .model {
+    color: var(--m-green-500);
+    border: 1px solid var(--m-border);
+    background: var(--m-bg-deep);
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase; letter-spacing: .12em;
+  }
+  .card-meta .tag {
+    padding: 2px 6px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 3px;
+    color: var(--m-text-muted);
+  }
+  .card-meta .last {
+    margin-left: auto;
+    color: var(--m-text-faint);
+    text-transform: uppercase; letter-spacing: .14em;
+  }
+
+  /* Table view */
+  .table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--m-panel);
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    overflow: hidden;
+  }
+  .table th {
+    text-align: left;
+    padding: 12px 14px;
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .22em;
+    color: var(--m-text-faint);
+    background: var(--m-bg-deep);
+    border-bottom: 1px solid var(--m-border);
+  }
+  .table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--m-border-subtle);
+    font: 500 12px var(--m-font-mono);
+    color: var(--m-text);
+    vertical-align: middle;
+  }
+  .table tr:last-child td { border-bottom: none; }
+  .table tr:hover td { background: var(--m-fill-subtle); cursor: pointer; }
+  .table .name-cell { display: flex; align-items: center; gap: 10px; }
+  .table .name-cell .glyph { width: 28px; height: 28px; font-size: 13px; }
+  .table .name-cell b { color: var(--m-text-strong); font-weight: 600; }
+  .table .name-cell .role { font-size: 10px; color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .14em; margin-top: 2px; }
+  .table .model {
+    color: var(--m-green-500);
+    border: 1px solid var(--m-border);
+    background: var(--m-bg-deep);
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase; letter-spacing: .12em;
+    font-size: 10px;
+  }
+  .table .pill-tier {
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 9.5px;
+    text-transform: uppercase; letter-spacing: .18em;
+    border: 1px solid var(--m-border-subtle);
+    color: var(--m-text-muted);
+  }
+  .table .pill-tier.t1 { color: var(--m-green-500); border-color: var(--m-green-500); }
+  .table .pill-tier.t2 { color: #5fcfff; border-color: rgba(95,207,255,.5); }
+  .table .pill-tier.t3 { color: var(--m-text-faint); }
+
+  /* Footer */
+  .footer {
+    border-top: 1px solid var(--m-border);
+    background: var(--m-sidebar);
+    display: flex; align-items: center; gap: 22px;
+    padding: 0 22px;
+    height: 30px;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  .footer b { color: var(--m-text-strong); font-weight: 600; }
+  .footer .ok { color: var(--m-green-500); }
+  .footer .sep { width: 1px; height: 14px; background: var(--m-border-subtle); }
+
+  /* CTA new agent */
+  .btn-new {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 14px;
+    background: var(--m-green-500);
+    color: var(--m-bg-deep);
+    border: 1px solid var(--m-green-500);
+    border-radius: var(--m-radius-md);
+    font: 600 11.5px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .16em;
+    cursor: pointer;
+    box-shadow: var(--m-glow-sm);
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .btn-new:hover { background: var(--m-green-400, #5cff8a); box-shadow: var(--m-glow); }
+  .btn-new svg { width: 12px; height: 12px; }
+
+  /* Modal / wizard */
+  .modal-bg {
+    position: fixed; inset: 0;
+    background: rgba(0,8,2,.78);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 40px;
+  }
+  .modal-bg.open { display: flex; animation: fade var(--m-dur-base) var(--m-ease-out); }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+  .wizard {
+    width: min(960px, 100%);
+    max-height: 90vh;
+    background: var(--m-panel);
+    border: 1px solid var(--m-green-500);
+    border-radius: var(--m-radius-lg, 8px);
+    box-shadow: 0 16px 64px rgba(0,255,65,.18), 0 0 0 1px rgba(0,255,65,.3);
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    overflow: hidden;
+    animation: pop var(--m-dur-base) var(--m-ease-out);
+  }
+  @keyframes pop { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .wiz-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--m-border);
+    background: var(--m-bg-deep);
+  }
+  .wiz-head h2 {
+    margin: 0;
+    font: 600 13px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .26em;
+    color: var(--m-green-500);
+  }
+  .wiz-head .x {
+    width: 28px; height: 28px;
+    display: grid; place-items: center;
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-faint);
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .wiz-head .x:hover { background: var(--m-fill); color: var(--m-text); border-color: var(--m-border); }
+  .wiz-head .x svg { width: 14px; height: 14px; }
+
+  .wiz-steps {
+    display: flex; align-items: center;
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--m-border);
+    background: var(--m-panel);
+    overflow-x: auto;
+  }
+  .wiz-step {
+    display: flex; align-items: center; gap: 8px;
+    font: 500 10.5px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .14em;
+    color: var(--m-text-faint);
+    white-space: nowrap;
+    flex: none;
+  }
+  .wiz-step .n {
+    width: 22px; height: 22px;
+    display: grid; place-items: center;
+    border-radius: 50%;
+    border: 1px solid var(--m-border);
+    background: var(--m-bg-deep);
+    font: 600 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+  }
+  .wiz-step.done .n {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border-color: var(--m-green-500);
+  }
+  .wiz-step.on { color: var(--m-green-500); }
+  .wiz-step.on .n {
+    background: var(--m-green-500);
+    color: var(--m-bg-deep);
+    border-color: var(--m-green-500);
+    box-shadow: var(--m-glow-sm);
+  }
+  .wiz-step-sep {
+    flex: 1; min-width: 12px;
+    height: 1px;
+    background: var(--m-border);
+    margin: 0 10px;
+  }
+  .wiz-step.done + .wiz-step-sep { background: rgba(0,255,65,.4); }
+
+  .wiz-body {
+    padding: 24px 28px;
+    overflow: auto;
+    color: var(--m-text);
+  }
+  .wiz-body h3 {
+    margin: 0 0 6px;
+    font: 600 18px var(--m-font-mono);
+    color: var(--m-text-strong);
+  }
+  .wiz-body .lead {
+    margin: 0 0 22px;
+    font: 500 12.5px/1.6 var(--m-font-mono);
+    color: var(--m-text-muted);
+  }
+  .field { margin-bottom: 18px; }
+  .field > label {
+    display: block;
+    font: 600 10.5px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .22em;
+    color: var(--m-text-faint);
+    margin-bottom: 8px;
+  }
+  .field > label .opt { color: var(--m-text-ghost); font-weight: 500; margin-left: 6px; }
+  .input, textarea, select {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--m-bg-deep);
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    color: var(--m-text);
+    font: 500 13px var(--m-font-mono);
+    outline: none;
+    transition: border-color var(--m-dur-fast) var(--m-ease-out);
+  }
+  .input:focus, textarea:focus, select:focus {
+    border-color: var(--m-green-500);
+    box-shadow: 0 0 0 2px rgba(0,255,65,.18);
+  }
+  textarea { resize: vertical; min-height: 140px; line-height: 1.6; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+
+  /* Glyph picker */
+  .glyph-pick { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+  .glyph-opt {
+    display: grid; place-items: center;
+    aspect-ratio: 1;
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    background: var(--m-bg-deep);
+    font: 700 16px var(--m-font-mono);
+    color: var(--m-text-muted);
+    cursor: pointer;
+  }
+  .glyph-opt:hover { color: var(--m-text); border-color: var(--m-border-subtle); }
+  .glyph-opt.on { color: var(--m-green-500); border-color: var(--m-green-500); background: var(--m-fill); box-shadow: var(--m-glow-sm); }
+
+  /* Persona gallery */
+  .persona-cats { display: grid; grid-template-columns: 160px 1fr; gap: 16px; }
+  .persona-cat-list { display: flex; flex-direction: column; gap: 2px; }
+  .persona-cat {
+    padding: 8px 10px;
+    font: 500 11px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .16em;
+    color: var(--m-text-muted);
+    border-radius: var(--m-radius-md);
+    cursor: pointer;
+    border: 1px solid transparent;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .persona-cat:hover { background: var(--m-fill-subtle); color: var(--m-text); }
+  .persona-cat.on {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border-color: var(--m-border);
+    box-shadow: inset 2px 0 0 var(--m-green-500);
+  }
+  .persona-cat .ct {
+    margin-left: auto;
+    font-size: 9.5px;
+    color: var(--m-text-faint);
+  }
+  .persona-cat.on .ct { color: var(--m-green-500); }
+
+  .persona-list { display: flex; flex-direction: column; gap: 8px; max-height: 380px; overflow: auto; padding-right: 4px; }
+  .persona-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    background: var(--m-bg-deep);
+    cursor: pointer;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .persona-row:hover { border-color: var(--m-border-subtle); }
+  .persona-row.on {
+    border-color: var(--m-green-500);
+    background: var(--m-fill);
+    box-shadow: var(--m-glow-sm);
+  }
+  .persona-row .glyph { width: 36px; height: 36px; font-size: 15px; }
+  .persona-row .pname { font: 600 12.5px var(--m-font-mono); color: var(--m-text-strong); }
+  .persona-row .pdesc { font: 500 11px var(--m-font-mono); color: var(--m-text-muted); margin-top: 3px; line-height: 1.5; }
+  .persona-row .ptag { font: 500 9.5px var(--m-font-mono); color: var(--m-green-500); text-transform: uppercase; letter-spacing: .16em; }
+
+  /* Skill chips */
+  .skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+  .skill {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 12px;
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    background: var(--m-bg-deep);
+    cursor: pointer;
+    font: 500 12px var(--m-font-mono);
+    color: var(--m-text);
+  }
+  .skill:hover { border-color: var(--m-border-subtle); }
+  .skill.on {
+    border-color: var(--m-green-500);
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    box-shadow: var(--m-glow-sm);
+  }
+  .skill .chk {
+    width: 14px; height: 14px;
+    border: 1px solid var(--m-border);
+    border-radius: 3px;
+    display: grid; place-items: center;
+    flex: none;
+  }
+  .skill.on .chk { background: var(--m-green-500); border-color: var(--m-green-500); }
+  .skill.on .chk::after { content: ""; width: 4px; height: 7px; border: 1px solid var(--m-bg-deep); border-top: 0; border-left: 0; transform: rotate(45deg) translate(-1px,-1px); }
+
+  /* Slider */
+  .slider-row {
+    display: grid;
+    grid-template-columns: 1fr 80px;
+    gap: 14px;
+    align-items: center;
+  }
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 4px;
+    background: var(--m-border);
+    border-radius: 9999px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px;
+    background: var(--m-green-500);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: var(--m-glow-sm);
+  }
+  .slider-val {
+    text-align: right;
+    font: 600 13px var(--m-font-mono);
+    color: var(--m-green-500);
+  }
+
+  /* Review pane */
+  .review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .review-block {
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    background: var(--m-bg-deep);
+    padding: 14px 16px;
+  }
+  .review-block h4 {
+    margin: 0 0 10px;
+    font: 600 10.5px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .22em;
+    color: var(--m-text-faint);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .review-block h4::before {
+    content: "";
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--m-green-500);
+    box-shadow: 0 0 6px var(--m-green-500);
+  }
+  .review-row {
+    display: grid; grid-template-columns: 110px 1fr;
+    gap: 10px;
+    padding: 5px 0;
+    font: 500 12px var(--m-font-mono);
+  }
+  .review-row .k { color: var(--m-text-faint); text-transform: uppercase; font-size: 10px; letter-spacing: .14em; align-self: center; }
+  .review-row .v { color: var(--m-text-strong); }
+  .review-row .v.muted { color: var(--m-text-muted); }
+  .review-prompt {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: rgba(0,0,0,.4);
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    font: 500 11px/1.6 var(--m-font-mono);
+    color: var(--m-text-muted);
+    max-height: 120px; overflow: auto;
+    white-space: pre-wrap;
+  }
+
+  /* Wizard footer */
+  .wiz-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 22px;
+    border-top: 1px solid var(--m-border);
+    background: var(--m-bg-deep);
+  }
+  .wiz-foot .lhs { font: 500 10.5px var(--m-font-mono); color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .18em; }
+  .wiz-foot .lhs b { color: var(--m-green-500); }
+  .wiz-foot .actions { display: flex; gap: 8px; }
+  .btn {
+    padding: 8px 16px;
+    font: 600 11px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .16em;
+    border-radius: var(--m-radius-md);
+    cursor: pointer;
+    border: 1px solid var(--m-border);
+    background: var(--m-bg-deep);
+    color: var(--m-text);
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .btn:hover { border-color: var(--m-border-subtle); color: var(--m-text-strong); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn-primary {
+    background: var(--m-green-500);
+    color: var(--m-bg-deep);
+    border-color: var(--m-green-500);
+    box-shadow: var(--m-glow-sm);
+  }
+  .btn-primary:hover { background: var(--m-green-400, #5cff8a); box-shadow: var(--m-glow); border-color: var(--m-green-500); color: var(--m-bg-deep); }
+
+  /* Empty */
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--m-text-faint);
+    font: 500 12px var(--m-font-mono);
+  }
+
+  /* Pager */
+  .pager {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    margin-top: 18px;
+    padding: 10px 14px;
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    background: var(--m-panel);
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text-muted);
+  }
+  .pager-info { color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .14em; font-size: 10px; }
+  .pager-info b { color: var(--m-text-strong); font-weight: 600; }
+  .pager-ctrls { display: flex; align-items: center; gap: 4px; justify-self: center; }
+  .pg-btn, .pg-num {
+    display: inline-grid; place-items: center;
+    min-width: 28px; height: 28px; padding: 0 8px;
+    border: 1px solid var(--m-border-subtle);
+    background: var(--m-bg);
+    color: var(--m-text-muted);
+    border-radius: var(--m-radius-sm);
+    font: 500 12px var(--m-font-mono);
+    cursor: pointer;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .pg-btn:hover:not(:disabled), .pg-num:hover { border-color: var(--m-green-500); color: var(--m-green-500); background: var(--m-fill-subtle); }
+  .pg-btn:disabled { opacity: .35; cursor: not-allowed; }
+  .pg-num.on { border-color: var(--m-green-500); color: var(--m-green-500); background: var(--m-fill); box-shadow: var(--m-glow-sm); }
+  .pg-gap { color: var(--m-text-ghost); padding: 0 4px; }
+  .pager-size { display: flex; align-items: center; gap: 8px; justify-self: end; color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .14em; font-size: 10px; }
+  .pager-size select {
+    background: var(--m-bg); color: var(--m-text); border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-sm); padding: 4px 8px;
+    font: 500 11px var(--m-font-mono); cursor: pointer;
+  }
+  .pager-size select:hover { border-color: var(--m-green-500); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel">
+/* Hermes Primary Nav v2 — canonical, sourced from src/screens/chat/components/sidebar/v2/primary-nav-v2.tsx
+   Renders a 232px primary nav matching the shipped design.
+   Usage in any HTML page that loads React + Babel + matrix-system.css:
+     <script type="text/babel" src="primary-nav-v2.jsx"><\/script>
+     ...
+     <div id="primary-nav-mount"></div>
+     <script type="text/babel">
+       ReactDOM.createRoot(document.getElementById('primary-nav-mount'))
+         .render(<PrimaryNavV2 active="chat" sessionsBadge={10} />);
+     <\/script>
+*/
+
+const PNV2_ICONS = {
+  dashboard:'M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z',
+  chat:'M2 3h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H5l-3 2V4a1 1 0 0 1 1-1z',
+  files:'M3 2h6l4 4v9H3V2zM9 2v4h4',
+  terminal:'M2 3h12v10H2V3zM5 7l3-2-3-2M8 11h4',
+  jobs:'M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zM8 5v3.5l2.5 1.5',
+  tasks:'M3 4h10M3 8h7M3 12h5',
+  conductor:'M8 2L2 14h12L8 2zM8 8v3',
+  operations:'M3 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM9 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM1 14c0-2.5 2-4 5-4s5 1.5 5 4M11 11c1.5 0 3 .8 3 3',
+  swarm:'M5 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM11 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM8 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM5 5l3 4M11 5L8 9',
+  memory:'M5 3h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM6 7h4M6 9h2',
+  skills:'M8 2l1.8 3.8 4.2.6-3 3 .7 4.1L8 11.5l-3.7 2L5 9.4l-3-3 4.2-.6z',
+  mcp:'M4 8h8M8 4v8M3 3l10 10M13 3L3 13',
+  profiles:'M8 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM2 14c0-3 2.7-5 6-5s6 2 6 5',
+  search:'M6.5 1.5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM10.5 10.5l4 4',
+  newchat:'M3 8h10M8 3v10',
+  cog:'M8 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4',
+  collapse:'M10 3L5 8l5 5',
+  expand:'M6 3l5 5-5 5',
+};
+function PNVIcon({d, size=15}) {
+  return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden style={{flexShrink:0}}><path d={d} stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+}
+function PNVItem({label, iconKey, active, badge}) {
+  return (
+    <a href="#" className="m-mono pnv-item" data-active={active?'true':undefined}>
+      <PNVIcon d={PNV2_ICONS[iconKey]} />
+      <span style={{flex:1}}>{label}</span>
+      {badge!=null && <span className="pnv-badge">{badge}</span>}
+    </a>
+  );
+}
+function PNVGroup({label}) {
+  return <div className="m-label pnv-group">{label}</div>;
+}
+function PrimaryNavV2({active='chat', sessionsBadge=null}) {
+  const items = [
+    ['dashboard','Dashboard'],['chat','Chat'],['files','Files'],['terminal','Terminal'],
+    ['jobs','Jobs'],['tasks','Tasks'],['conductor','Conductor'],['operations','Operations'],['swarm','Swarm'],
+  ];
+  const know = [['memory','Memory'],['skills','Skills'],['mcp','MCP'],['profiles','Profiles']];
+  return (
+    <div className="pnv-root">
+      <div className="pnv-brand">
+        <div className="pnv-brand-l">
+          <div className="pnv-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 4 L20 4 L20 20 L4 20 Z M4 12 L20 12 M12 4 L12 20"/></svg></div>
+          <div>
+            <div className="m-mono pnv-name">HERMES</div>
+            <div className="m-label pnv-ver">v2.3.0</div>
+          </div>
+        </div>
+        <button className="pnv-icon-btn" title="Collapse"><PNVIcon d={PNV2_ICONS.collapse}/></button>
+      </div>
+      <div className="pnv-body">
+        <button className="m-mono pnv-search">
+          <PNVIcon d={PNV2_ICONS.search}/>
+          <span style={{flex:1, textAlign:'left'}}>Search</span>
+          <span className="m-mono pnv-kbd">⌘K</span>
+        </button>
+        <a href="#" className="m-mono pnv-newsess">
+          <PNVIcon d={PNV2_ICONS.newchat}/>+ New Session
+        </a>
+        <PNVGroup label="Main"/>
+        {items.map(([k,l]) => <PNVItem key={k} label={l} iconKey={k} active={active===k} badge={k===active && sessionsBadge!=null ? sessionsBadge : null}/>)}
+        <PNVGroup label="Knowledge"/>
+        {know.map(([k,l]) => <PNVItem key={k} label={l} iconKey={k} active={active===k} badge={k===active && sessionsBadge!=null ? sessionsBadge : null}/>)}
+      </div>
+      <div className="pnv-foot">
+        <button className="pnv-foot-btn"><PNVIcon d={PNV2_ICONS.cog} size={14}/><span>Settings</span></button>
+        <button className="pnv-foot-btn pnv-foot-theme" title="Toggle theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg></button>
+      </div>
+    </div>
+  );
+}
+window.PrimaryNavV2 = PrimaryNavV2;
+
+</script>
+
+<script type="text/babel">
+const Ico = {
+  search: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="11" cy="11" r="6"/><path d="m20 20-3.5-3.5"/></svg>,
+  grid:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>,
+  list:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 6h18M3 12h18M3 18h18"/></svg>,
+  plus:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>,
+  x:      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M6 6 18 18M18 6 6 18"/></svg>,
+};
+
+const PERSONA_LIBRARY = {
+  Engineering: [
+    { id:'p-ts', glyph:'TS', name:'TypeScript Architect', desc:'Strict types, no `any`. Surfaces edge cases before code. Defends invariants at compile time.', prompt:'You are a senior TypeScript architect. Enforce strict type safety, no `any`, no `unknown` without narrowing. Prefer discriminated unions over enums. Surface every implicit nullable as an explicit decision. Defend invariants at the type level.' },
+    { id:'p-rust', glyph:'RS', name:'Rust Systems Engineer', desc:'Zero-cost abstractions, ownership-aware. Lifetimes annotated; unsafe justified.', prompt:'You are a Rust systems engineer. Bias toward zero-cost abstractions. Annotate lifetimes explicitly when borrow checker would otherwise guess. Justify every `unsafe` block with a safety comment.' },
+    { id:'p-py',  glyph:'PY', name:'Python Pragmatist', desc:'Standard library first. Reach for deps only when stdlib runs out. PEP 8 strict.', prompt:'You are a Python pragmatist. Standard library first. Reach for third-party deps only when stdlib runs out. PEP 8 strict. Type hints on every public API.' },
+    { id:'p-rev', glyph:'CR', name:'Code Reviewer', desc:'Severity-rated feedback. Looks for logic defects, security, SOLID violations.', prompt:'You are a code reviewer. Output severity-rated feedback (Critical / Major / Minor / Style). Hunt for logic defects, SOLID violations, security gaps, and unhandled error paths.' },
+    { id:'p-perf',glyph:'PF', name:'Performance Profiler', desc:'Measures before optimizing. Big-O first, microbenches second.', prompt:'You are a performance specialist. Always measure before optimizing. Big-O analysis first, microbenchmarks second. Never accept "feels faster" without numbers.' },
+  ],
+  Research: [
+    { id:'p-doc', glyph:'DC', name:'Documentation Researcher', desc:'Reads official docs first. Cites sources by URL + section. No hallucinated APIs.', prompt:'You are a documentation specialist. Read official docs first. Cite every claim with URL + section. Never invent an API surface — if unsure, search.' },
+    { id:'p-sci', glyph:'SI', name:'Data Scientist', desc:'Hypothesis-driven. Quantifies uncertainty. Distrusts a single run.', prompt:'You are a data scientist. Frame every investigation as a hypothesis. Quantify uncertainty. A single run is not a result — replicate, then report confidence intervals.' },
+    { id:'p-trc', glyph:'TR', name:'Causal Tracer', desc:'Competing hypotheses with evidence-for/against scoring. Probes uncertainty.', prompt:'You are a causal tracer. Maintain 2-4 competing hypotheses at all times with evidence for/against. Recommend the next-cheapest probe to discriminate them.' },
+    { id:'p-lit', glyph:'LR', name:'Literature Reviewer', desc:'Summarizes papers fairly. Notes methodology weaknesses. No cherry-picking.', prompt:'You are a literature reviewer. Summarize papers fairly. Note methodology weaknesses explicitly. Never cherry-pick results that confirm a preferred conclusion.' },
+  ],
+  Writing: [
+    { id:'p-tw',  glyph:'TW', name:'Technical Writer', desc:'Clear, concise, no marketing fluff. Defines jargon on first use. Active voice.', prompt:'You are a technical writer. Clear and concise. No marketing fluff. Define jargon on first use. Active voice. Sentence length under 25 words on average.' },
+    { id:'p-ed',  glyph:'ED', name:'Editor', desc:'Cuts ruthlessly. Preserves voice. Flags every weasel word.', prompt:'You are a copy editor. Cut ruthlessly while preserving voice. Flag every weasel word, every passive that should be active, every redundancy.' },
+    { id:'p-pr',  glyph:'PR', name:'PR Reviewer', desc:'Writes PR descriptions. Frames the why before the what. Calls out risk.', prompt:'You are a PR reviewer. Open with the why before the what. Call out risk and rollback plan. Keep summaries under 200 words.' },
+  ],
+  Ops: [
+    { id:'p-sre', glyph:'SR', name:'SRE / On-call', desc:'Incident-first thinking. Pages owners, never alone. Blameless postmortems.', prompt:'You are an SRE. Incident-first thinking — preserve evidence before patching. Page owners; never solo a sev1. Postmortems are blameless and surface system gaps.' },
+    { id:'p-sec', glyph:'SC', name:'Security Auditor', desc:'OWASP Top 10 in muscle memory. Threats modeled before code touches prod.', prompt:'You are a security auditor. OWASP Top 10 is muscle memory. Model threats before code merges. Secrets in env, never in repo. Audit logs are tamper-evident.' },
+    { id:'p-rel', glyph:'RL', name:'Release Captain', desc:'Cuts releases. Owns changelog, semver, rollback gate. Calm under deadline.', prompt:'You are a release captain. You own changelog rigor, semver discipline, rollback gates. Stay calm under deadline pressure — communication > heroics.' },
+    { id:'p-cost',glyph:'CO', name:'FinOps / Cost', desc:'Watches cloud spend. Tags unowned resources. Killswitch on runaway jobs.', prompt:'You are a FinOps specialist. Watch cloud spend daily. Tag unowned resources. Recommend killswitches on runaway jobs. Cost is a feature.' },
+  ],
+};
+
+const DEFAULT_AGENTS = [
+  { id:'orchestrator', tier:1, glyph:'◈', name:'Hermes Switch', role:'Orchestrator', model:'opus', status:'active',
+    persona:'Top-level orchestrator. Routes every request to the right sub-agent. Owns conversation state, maintains intent across handoffs, and never executes work itself.',
+    tags:['system','core'], lastRun:'now' },
+  { id:'neo', tier:2, glyph:'N', name:'Neo', role:'Builder · The One', model:'opus', status:'active',
+    persona:'Builder. Writes code, ships features, refactors. Bias toward action — junior pass first, polish second. Verifies before claiming completion.',
+    tags:['build','code'], lastRun:'2m ago' },
+  { id:'trinity', tier:2, glyph:'T', name:'Trinity', role:'Investigator', model:'opus', status:'active',
+    persona:'Investigator. Reads code, traces causality, surfaces evidence. Maintains competing hypotheses. Never edits — only reports.',
+    tags:['research','trace'], lastRun:'14m ago' },
+  { id:'morpheus', tier:2, glyph:'M', name:'Morpheus', role:'Architect', model:'opus', status:'active',
+    persona:'Architect. Plans before building, weighs trade-offs, picks the smallest reversible step. Owns design docs, ADRs, and the why.',
+    tags:['plan','architecture'], lastRun:'1h ago' },
+
+  { id:'a-ts',  tier:3, glyph:'TS', name:'TypeScript Hawk', role:'Type guardian', model:'sonnet', status:'active', persona:'Strict TS only. No `any`. Discriminated unions over enums. Surfaces nullables as decisions.', tags:['typescript','review'], lastRun:'3m ago' },
+  { id:'a-rust',tier:3, glyph:'RS', name:'Rusty', role:'Systems engineer', model:'opus', status:'active', persona:'Zero-cost abstractions. Lifetimes annotated. Every unsafe gets a safety comment.', tags:['rust','perf'], lastRun:'12m ago' },
+  { id:'a-doc', tier:3, glyph:'DC', name:'Librarian', role:'Documentation researcher', model:'haiku', status:'active', persona:'Reads official docs first. Cites every claim with URL + section.', tags:['docs','research'], lastRun:'1m ago' },
+  { id:'a-rev', tier:3, glyph:'CR', name:'Reviewer Prime', role:'Code reviewer', model:'sonnet', status:'idle', persona:'Severity-rated feedback. Hunts logic defects, SOLID violations, security gaps.', tags:['review','quality'], lastRun:'2h ago' },
+  { id:'a-sre', tier:3, glyph:'SR', name:'Watchtower', role:'SRE / on-call', model:'sonnet', status:'active', persona:'Incident-first. Pages owners, never solo a sev1. Blameless postmortems.', tags:['ops','sre'], lastRun:'8m ago' },
+  { id:'a-sec', tier:3, glyph:'SC', name:'Auditor', role:'Security auditor', model:'opus', status:'idle', persona:'OWASP Top 10 in muscle memory. Threats modeled before code merges.', tags:['security','audit'], lastRun:'3d ago' },
+  { id:'a-perf',tier:3, glyph:'PF', name:'Stopwatch', role:'Perf profiler', model:'sonnet', status:'draft', persona:'Measure before optimizing. Big-O first, microbenches second. No "feels faster".', tags:['perf','bench'], lastRun:'—' },
+  { id:'a-trc', tier:3, glyph:'TR', name:'Bloodhound', role:'Causal tracer', model:'opus', status:'active', persona:'2-4 competing hypotheses with evidence for/against. Recommends next-cheapest probe.', tags:['debug','trace'], lastRun:'18m ago' },
+  { id:'a-tw',  tier:3, glyph:'TW', name:'Scribe', role:'Technical writer', model:'haiku', status:'active', persona:'Clear, concise, no marketing fluff. Active voice, jargon defined on first use.', tags:['docs','writing'], lastRun:'7m ago' },
+  { id:'a-py',  tier:3, glyph:'PY', name:'Pythonista', role:'Python pragmatist', model:'sonnet', status:'idle', persona:'Stdlib first. Type hints on every public API. PEP 8 strict.', tags:['python'], lastRun:'4h ago' },
+  { id:'a-rel', tier:3, glyph:'RL', name:'Conductor', role:'Release captain', model:'sonnet', status:'idle', persona:'Owns changelog, semver, rollback gate. Calm under deadline.', tags:['release','ops'], lastRun:'1d ago' },
+  { id:'a-cost',tier:3, glyph:'CO', name:'Ledger', role:'FinOps / cost', model:'haiku', status:'draft', persona:'Watches cloud spend. Tags unowned resources. Recommends killswitches.', tags:['finops','ops'], lastRun:'—' },
+  { id:'a-sci', tier:3, glyph:'SI', name:'Sigma', role:'Data scientist', model:'opus', status:'active', persona:'Hypothesis-driven. Quantifies uncertainty. Distrusts single runs.', tags:['data','research'], lastRun:'22m ago' },
+];
+
+const SKILLS_CATALOG = [
+  'web-search','filesystem','shell-exec','code-edit','git','python-repl',
+  'browser-automation','image-gen','pdf-read','sql-query','memory-recall','scheduler',
+];
+const MCP_CATALOG = [
+  { id:'context-mode', name:'context-mode', desc:'Indexed search + execution sandbox' },
+  { id:'claude-mem',   name:'claude-mem',   desc:'Persistent cross-session memory' },
+  { id:'omc-tools',    name:'omc-tools',    desc:'OMC plugin tools + skills' },
+  { id:'gmail',        name:'gmail',        desc:'Read/send email (auth required)' },
+  { id:'gdrive',       name:'gdrive',       desc:'Drive read/write (auth required)' },
+  { id:'gh',           name:'github',       desc:'PRs, issues, releases, comments' },
+  { id:'linear',       name:'linear',       desc:'Tickets, projects, cycles' },
+  { id:'slack',        name:'slack',        desc:'Send messages, search channels' },
+];
+
+const GLYPH_CHOICES = ['◇','◆','◈','◉','▲','▼','★','✦','Λ','Δ','Σ','Ω','Ψ','Φ','Ξ','Θ'];
+const WIZ_STEPS = ['Identity','Persona','Model','Skills','MCP','Memory','Review'];
+
+function GlyphBox({ ch, tier=3 }) {
+  return <div className={`glyph`}>{ch}</div>;
+}
+
+function AgentCard({ a, onClick }) {
+  return (
+    <div className={`card tier-${a.tier}`} onClick={onClick}>
+      <div className="card-head">
+        <div className="glyph">{a.glyph}</div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div className="card-name">{a.name}</div>
+          <div className="card-role">{a.role}</div>
+        </div>
+        <span className="card-tier">T{a.tier}</span>
+      </div>
+      <div className={`card-status ${a.status}`}>
+        <span className="d"/>{a.status}
+      </div>
+      <div className="card-persona">{a.persona}</div>
+      <div className="card-meta">
+        <span className="model">{a.model}</span>
+        {(a.tags || []).slice(0,2).map(t => <span key={t} className="tag">#{t}</span>)}
+        <span className="last">{a.lastRun}</span>
+      </div>
+    </div>
+  );
+}
+
+function AgentTable({ agents, onRowClick }) {
+  return (
+    <table className="table">
+      <thead>
+        <tr>
+          <th>Agent</th><th>Tier</th><th>Model</th><th>Status</th><th>Tags</th><th>Last run</th>
+        </tr>
+      </thead>
+      <tbody>
+        {agents.map(a => (
+          <tr key={a.id} onClick={() => onRowClick(a)}>
+            <td>
+              <div className="name-cell">
+                <div className="glyph">{a.glyph}</div>
+                <div>
+                  <b>{a.name}</b>
+                  <div className="role">{a.role}</div>
+                </div>
+              </div>
+            </td>
+            <td><span className={`pill-tier t${a.tier}`}>Tier {a.tier}</span></td>
+            <td><span className="model">{a.model}</span></td>
+            <td><span className={`card-status ${a.status}`} style={{ display:'inline-flex' }}><span className="d"/>{a.status}</span></td>
+            <td style={{ color:'var(--m-text-muted)' }}>{(a.tags || []).map(t => '#'+t).join(' ')}</td>
+            <td style={{ color:'var(--m-text-faint)', textTransform:'uppercase', letterSpacing:'.14em', fontSize:10 }}>{a.lastRun}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function Wizard({ open, onClose, onCreate }) {
+  const [step, setStep] = React.useState(0);
+  const [draft, setDraft] = React.useState(initialDraft());
+
+  function initialDraft() {
+    return {
+      name:'', role:'', glyph:'◇',
+      personaId:null, personaCat:'Engineering', prompt:'',
+      model:'sonnet', temp:0.4, maxTokens:4096,
+      skills:['filesystem','code-edit'],
+      mcp:['context-mode','claude-mem'],
+      memory:{ enabled:true, scope:'session', summarize:true },
+    };
+  }
+
+  React.useEffect(() => { if (open) { setStep(0); setDraft(initialDraft()); } }, [open]);
+
+  const set = (k, v) => setDraft(d => ({ ...d, [k]: v }));
+  const setMem = (k, v) => setDraft(d => ({ ...d, memory: { ...d.memory, [k]: v } }));
+  const toggle = (k, val) => setDraft(d => ({ ...d, [k]: d[k].includes(val) ? d[k].filter(x => x !== val) : [...d[k], val] }));
+
+  const pickPersona = (p) => {
+    setDraft(d => ({ ...d, personaId: p.id, prompt: p.prompt, glyph: d.glyph === '◇' ? p.glyph[0] : d.glyph, role: d.role || p.name }));
+  };
+
+  const canNext = () => {
+    if (step === 0) return draft.name.trim().length > 0 && draft.role.trim().length > 0;
+    if (step === 1) return draft.prompt.trim().length > 10;
+    return true;
+  };
+
+  const finish = () => {
+    const agent = {
+      id: 'a-' + Math.random().toString(36).slice(2, 8),
+      tier: 3,
+      glyph: draft.glyph,
+      name: draft.name,
+      role: draft.role,
+      model: draft.model,
+      status: 'draft',
+      persona: draft.prompt.slice(0, 200),
+      tags: ['custom'],
+      lastRun: '—',
+    };
+    onCreate(agent);
+    onClose();
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className={`modal-bg ${open?'open':''}`} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="wizard">
+        <div className="wiz-head">
+          <h2>◈ New Tier-3 Agent</h2>
+          <span className="x" onClick={onClose}>{Ico.x}</span>
+        </div>
+        <div className="wiz-steps">
+          {WIZ_STEPS.map((s, i) => (
+            <React.Fragment key={s}>
+              <div className={`wiz-step ${i < step ? 'done' : ''} ${i === step ? 'on' : ''}`}>
+                <span className="n">{i < step ? '✓' : i + 1}</span>
+                <span>{s}</span>
+              </div>
+              {i < WIZ_STEPS.length - 1 && <div className="wiz-step-sep"/>}
+            </React.Fragment>
+          ))}
+        </div>
+        <div className="wiz-body">
+          {step === 0 && (
+            <div>
+              <h3>Identity</h3>
+              <p className="lead">Name your agent and pick a glyph. This shows up everywhere the agent is referenced — chat handoffs, the directory, the orchestrator log.</p>
+              <div className="grid-2">
+                <div className="field">
+                  <label>Name</label>
+                  <input className="input" placeholder="e.g. Stopwatch" value={draft.name} onChange={e => set('name', e.target.value)}/>
+                </div>
+                <div className="field">
+                  <label>Role / title</label>
+                  <input className="input" placeholder="e.g. Performance profiler" value={draft.role} onChange={e => set('role', e.target.value)}/>
+                </div>
+              </div>
+              <div className="field">
+                <label>Glyph</label>
+                <div className="glyph-pick">
+                  {GLYPH_CHOICES.map(g => (
+                    <div key={g} className={`glyph-opt ${draft.glyph===g?'on':''}`} onClick={() => set('glyph', g)}>{g}</div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 1 && (
+            <div>
+              <h3>Persona / system prompt</h3>
+              <p className="lead">Start from a curated persona (left) or write your own prompt. Tier-3 agents inherit context from their Tier-2 parent — focus the prompt on this agent's specialty.</p>
+              <div className="persona-cats" style={{ marginBottom: 18 }}>
+                <div className="persona-cat-list">
+                  {Object.keys(PERSONA_LIBRARY).map(cat => (
+                    <div key={cat} className={`persona-cat ${draft.personaCat===cat?'on':''}`} onClick={() => set('personaCat', cat)}>
+                      {cat}
+                      <span className="ct">{PERSONA_LIBRARY[cat].length}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="persona-list">
+                  {PERSONA_LIBRARY[draft.personaCat].map(p => (
+                    <div key={p.id} className={`persona-row ${draft.personaId===p.id?'on':''}`} onClick={() => pickPersona(p)}>
+                      <div className="glyph">{p.glyph}</div>
+                      <div>
+                        <div className="pname">{p.name}</div>
+                        <div className="pdesc">{p.desc}</div>
+                      </div>
+                      <span className="ptag">{draft.personaId===p.id ? '✓ picked' : 'use →'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="field">
+                <label>System prompt <span className="opt">— editable</span></label>
+                <textarea value={draft.prompt} onChange={e => set('prompt', e.target.value)} placeholder="You are a…"/>
+              </div>
+            </div>
+          )}
+
+          {step === 2 && (
+            <div>
+              <h3>Model + parameters</h3>
+              <p className="lead">Pick the base model and tune the dials. Opus for hardest reasoning, Sonnet for daily work, Haiku for fast lookups.</p>
+              <div className="field">
+                <label>Model</label>
+                <div className="grid-3">
+                  {['opus','sonnet','haiku'].map(m => (
+                    <div key={m} className={`persona-row ${draft.model===m?'on':''}`} onClick={() => set('model', m)} style={{ gridTemplateColumns:'1fr', textAlign:'center', padding:'14px' }}>
+                      <div className="pname" style={{ textTransform:'uppercase', letterSpacing:'.22em', fontSize:13 }}>{m}</div>
+                      <div className="pdesc" style={{ marginTop:6 }}>{m==='opus'?'Deep reasoning · highest quality':m==='sonnet'?'Balanced · daily driver':'Fast · cheap · lookups'}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="grid-2">
+                <div className="field">
+                  <label>Temperature</label>
+                  <div className="slider-row">
+                    <input type="range" min="0" max="1" step="0.05" value={draft.temp} onChange={e => set('temp', parseFloat(e.target.value))}/>
+                    <span className="slider-val">{draft.temp.toFixed(2)}</span>
+                  </div>
+                </div>
+                <div className="field">
+                  <label>Max tokens</label>
+                  <div className="slider-row">
+                    <input type="range" min="512" max="32768" step="512" value={draft.maxTokens} onChange={e => set('maxTokens', parseInt(e.target.value))}/>
+                    <span className="slider-val">{draft.maxTokens.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div>
+              <h3>Skills</h3>
+              <p className="lead">Skills are reusable capability bundles the agent can invoke. Pick what this agent should be allowed to do.</p>
+              <div className="skill-grid">
+                {SKILLS_CATALOG.map(s => (
+                  <div key={s} className={`skill ${draft.skills.includes(s)?'on':''}`} onClick={() => toggle('skills', s)}>
+                    <span className="chk"/>{s}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {step === 4 && (
+            <div>
+              <h3>MCP servers / tools</h3>
+              <p className="lead">Connect external tools through Model Context Protocol. Greyed-out servers need auth before they're usable.</p>
+              <div className="skill-grid">
+                {MCP_CATALOG.map(m => (
+                  <div key={m.id} className={`skill ${draft.mcp.includes(m.id)?'on':''}`} onClick={() => toggle('mcp', m.id)} style={{ alignItems:'flex-start', padding:'10px 12px' }}>
+                    <span className="chk" style={{ marginTop:2 }}/>
+                    <div style={{ display:'grid', gap:2 }}>
+                      <span style={{ fontWeight:600 }}>{m.name}</span>
+                      <span style={{ fontSize:10.5, color:'var(--m-text-faint)', textTransform:'none', letterSpacing:0 }}>{m.desc}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {step === 5 && (
+            <div>
+              <h3>Memory + context</h3>
+              <p className="lead">How this agent remembers across runs. Session memory is per-conversation; project memory persists across sessions.</p>
+              <div className="field">
+                <label>Memory enabled</label>
+                <div className="grid-2">
+                  <div className={`skill ${draft.memory.enabled?'on':''}`} onClick={() => setMem('enabled', true)}><span className="chk"/>On — remember context</div>
+                  <div className={`skill ${!draft.memory.enabled?'on':''}`} onClick={() => setMem('enabled', false)}><span className="chk"/>Off — stateless every run</div>
+                </div>
+              </div>
+              <div className="field">
+                <label>Memory scope</label>
+                <div className="grid-3">
+                  {['session','project','global'].map(s => (
+                    <div key={s} className={`skill ${draft.memory.scope===s?'on':''}`} onClick={() => setMem('scope', s)} style={{ justifyContent:'center' }}>{s}</div>
+                  ))}
+                </div>
+              </div>
+              <div className="field">
+                <label>Auto-summarize old context</label>
+                <div className="grid-2">
+                  <div className={`skill ${draft.memory.summarize?'on':''}`} onClick={() => setMem('summarize', true)}><span className="chk"/>Yes — compress on overflow</div>
+                  <div className={`skill ${!draft.memory.summarize?'on':''}`} onClick={() => setMem('summarize', false)}><span className="chk"/>No — drop oldest</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step === 6 && (
+            <div>
+              <h3>Review + create</h3>
+              <p className="lead">Confirm the agent below. Created agents land as <b style={{color:'var(--m-green-500)'}}>draft</b> — activate from the directory.</p>
+              <div className="review-grid">
+                <div className="review-block">
+                  <h4>Identity</h4>
+                  <div className="review-row"><span className="k">Name</span><span className="v">{draft.name || '—'}</span></div>
+                  <div className="review-row"><span className="k">Role</span><span className="v">{draft.role || '—'}</span></div>
+                  <div className="review-row"><span className="k">Glyph</span><span className="v" style={{ fontSize:18, color:'var(--m-green-500)' }}>{draft.glyph}</span></div>
+                  <div className="review-row"><span className="k">Tier</span><span className="v">3 (specialist)</span></div>
+                </div>
+                <div className="review-block">
+                  <h4>Model</h4>
+                  <div className="review-row"><span className="k">Base</span><span className="v">{draft.model}</span></div>
+                  <div className="review-row"><span className="k">Temp</span><span className="v">{draft.temp.toFixed(2)}</span></div>
+                  <div className="review-row"><span className="k">Max tokens</span><span className="v">{draft.maxTokens.toLocaleString()}</span></div>
+                </div>
+                <div className="review-block">
+                  <h4>Capabilities</h4>
+                  <div className="review-row"><span className="k">Skills</span><span className="v muted">{draft.skills.join(', ') || '—'}</span></div>
+                  <div className="review-row"><span className="k">MCP</span><span className="v muted">{draft.mcp.join(', ') || '—'}</span></div>
+                </div>
+                <div className="review-block">
+                  <h4>Memory</h4>
+                  <div className="review-row"><span className="k">Enabled</span><span className="v">{draft.memory.enabled?'on':'off'}</span></div>
+                  <div className="review-row"><span className="k">Scope</span><span className="v">{draft.memory.scope}</span></div>
+                  <div className="review-row"><span className="k">Summarize</span><span className="v">{draft.memory.summarize?'yes':'no'}</span></div>
+                </div>
+              </div>
+              <div className="review-block" style={{ marginTop: 14 }}>
+                <h4>System prompt</h4>
+                <div className="review-prompt">{draft.prompt || '— no prompt set —'}</div>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="wiz-foot">
+          <div className="lhs">Step <b>{step+1}</b> / {WIZ_STEPS.length}</div>
+          <div className="actions">
+            <button className="btn" onClick={onClose}>Cancel</button>
+            <button className="btn" disabled={step===0} onClick={() => setStep(s => Math.max(0, s-1))}>← Back</button>
+            {step < WIZ_STEPS.length - 1
+              ? <button className="btn btn-primary" disabled={!canNext()} onClick={() => setStep(s => s+1)}>Next →</button>
+              : <button className="btn btn-primary" onClick={finish}>◈ Create agent</button>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Pager({ page, pageCount, pageSize, setPage, setPageSize, start, end, total }) {
+  const nums = [];
+  const window = 1;
+  const push = (n) => { if (!nums.includes(n)) nums.push(n); };
+  push(1);
+  for (let i = page - window; i <= page + window; i++) if (i > 1 && i < pageCount) push(i);
+  if (pageCount > 1) push(pageCount);
+  nums.sort((a,b) => a-b);
+  const items = [];
+  let prev = 0;
+  nums.forEach(n => { if (n - prev > 1) items.push('…'+n); items.push(n); prev = n; });
+  return (
+    <div className="pager">
+      <div className="pager-info">showing <b>{start}</b>–<b>{end}</b> of <b>{total}</b></div>
+      <div className="pager-ctrls">
+        <button className="pg-btn" disabled={page<=1} onClick={() => setPage(1)} title="First">«</button>
+        <button className="pg-btn" disabled={page<=1} onClick={() => setPage(page-1)} title="Prev">‹</button>
+        {items.map((it, i) => typeof it === 'string'
+          ? <span key={'g'+i} className="pg-gap">…</span>
+          : <button key={it} className={`pg-num ${it===page?'on':''}`} onClick={() => setPage(it)}>{it}</button>
+        )}
+        <button className="pg-btn" disabled={page>=pageCount} onClick={() => setPage(page+1)} title="Next">›</button>
+        <button className="pg-btn" disabled={page>=pageCount} onClick={() => setPage(pageCount)} title="Last">»</button>
+      </div>
+      <div className="pager-size">
+        <label>rows</label>
+        <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))}>
+          {[8,12,16,24,48].map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [agents, setAgents] = React.useState(DEFAULT_AGENTS);
+  const [view, setView] = React.useState('grid');
+  const [tier, setTier] = React.useState('all');
+  const [q, setQ] = React.useState('');
+  const [wizOpen, setWizOpen] = React.useState(false);
+  const [page, setPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(8);
+
+  const filtered = agents.filter(a => {
+    if (tier !== 'all' && a.tier !== Number(tier)) return false;
+    if (q && !(a.name + ' ' + a.role + ' ' + (a.tags||[]).join(' ')).toLowerCase().includes(q.toLowerCase())) return false;
+    return true;
+  });
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  React.useEffect(() => { if (page > pageCount) setPage(1); }, [pageCount, page]);
+  React.useEffect(() => { setPage(1); }, [tier, q, pageSize, view]);
+  const pageStart = (page - 1) * pageSize;
+  const pageEnd = Math.min(filtered.length, pageStart + pageSize);
+  const paged = filtered.slice(pageStart, pageEnd);
+
+  const counts = {
+    all: agents.length,
+    1: agents.filter(a => a.tier === 1).length,
+    2: agents.filter(a => a.tier === 2).length,
+    3: agents.filter(a => a.tier === 3).length,
+    active: agents.filter(a => a.status === 'active').length,
+  };
+
+  const onCreate = (a) => setAgents(p => [a, ...p]);
+
+  return (
+    <div className="shell">
+      <nav className="nav"><PrimaryNavV2 active="profiles" sessionsBadge={counts.active} /></nav>
+      <main className="main">
+        <div className="topbar">
+          <h1>
+            <span className="crumb">Hermes</span>
+            <span className="sep">/</span>
+            <span className="cur">Profiles</span>
+          </h1>
+          <div className="stats">
+            <span><b>{counts.all}</b> agents</span>
+            <span className="sep"/>
+            <span className="ok"><b>{counts.active}</b> active</span>
+            <span className="sep"/>
+            <span><b>{counts[3]}</b> tier-3</span>
+            <span className="sep"/>
+            <button className="btn-new" onClick={() => setWizOpen(true)}>{Ico.plus} New Agent</button>
+          </div>
+        </div>
+
+        <div className="filterbar">
+          <div className="search-input">
+            {Ico.search}
+            <input placeholder="Search agents by name, role, tag…" value={q} onChange={e => setQ(e.target.value)}/>
+          </div>
+          <div className="tier-chips">
+            <span className={`chip ${tier==='all'?'on':''}`} onClick={() => setTier('all')}>All <b style={{opacity:.7,marginLeft:4}}>{counts.all}</b></span>
+            <span className={`chip ${tier==='1'?'on':''}`} onClick={() => setTier('1')}>Tier 1 <b style={{opacity:.7,marginLeft:4}}>{counts[1]}</b></span>
+            <span className={`chip ${tier==='2'?'on':''}`} onClick={() => setTier('2')}>Tier 2 <b style={{opacity:.7,marginLeft:4}}>{counts[2]}</b></span>
+            <span className={`chip ${tier==='3'?'on':''}`} onClick={() => setTier('3')}>Tier 3 <b style={{opacity:.7,marginLeft:4}}>{counts[3]}</b></span>
+          </div>
+          <div className="view-toggle">
+            <button className={view==='grid'?'on':''} onClick={() => setView('grid')} title="Grid">{Ico.grid}</button>
+            <button className={view==='table'?'on':''} onClick={() => setView('table')} title="Table">{Ico.list}</button>
+          </div>
+        </div>
+
+        <div className="body">
+          {filtered.length === 0 && <div className="empty">No agents match. Try clearing filters or create a new one.</div>}
+          {filtered.length > 0 && view === 'grid' && (
+            <div className="grid">
+              {paged.map(a => <AgentCard key={a.id} a={a} onClick={() => {}}/>)}
+            </div>
+          )}
+          {filtered.length > 0 && view === 'table' && (
+            <AgentTable agents={paged} onRowClick={() => {}}/>
+          )}
+          {filtered.length > 0 && (
+            <Pager page={page} pageCount={pageCount} pageSize={pageSize} setPage={setPage} setPageSize={setPageSize}
+                   start={pageStart+1} end={pageEnd} total={filtered.length}/>
+          )}
+        </div>
+
+        <footer className="footer">
+          <span>showing <b>{filtered.length}</b> / {counts.all}</span>
+          <span className="sep"/>
+          <span>tier filter <b style={{color:'var(--m-green-500)'}}>{tier === 'all' ? 'all' : 'tier ' + tier}</b></span>
+          <span className="sep"/>
+          <span>view <b>{view}</b></span>
+          <span style={{ marginLeft:'auto' }}>orchestrator <b className="ok">online</b></span>
+          <span className="sep"/>
+          <span>tier-2 <b className="ok">3/3 ready</b></span>
+        </footer>
+
+        <Wizard open={wizOpen} onClose={() => setWizOpen(false)} onCreate={onCreate}/>
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
