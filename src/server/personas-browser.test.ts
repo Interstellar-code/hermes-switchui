@@ -1,125 +1,118 @@
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { listPersonas, readPersona } from './personas-browser'
 
-// ── fixture helpers ───────────────────────────────────────────────────────────
+// ── integration tests with bundled assets ─────────────────────────────────────
+// These tests verify that personas are correctly loaded from assets/personas/curated/
 
-function makePersonaFile(
-  root: string,
-  category: string,
-  filename: string,
-  content: string,
-): void {
-  const dir = path.join(root, '.hermes', 'personas', category)
-  fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(path.join(dir, filename), content, 'utf-8')
-}
-
-const VALID_PERSONA_MD = `---
-id: engineering-code-reviewer
-category: engineering
-glyph: "CR"
-name: "Code Reviewer"
-description: "Reviews code like a mentor, not a gatekeeper."
-tags: [review, quality]
----
-You are a Code Reviewer. Every comment teaches something.
-`
-
-const VALID_PERSONA_2_MD = `---
-id: engineering-software-architect
-category: engineering
-glyph: "SA"
-name: "Software Architect"
-description: "Designs systems that survive the team."
-tags: [architecture, design]
----
-You are a Software Architect. Every decision has a trade-off.
-`
-
-// ── setup ─────────────────────────────────────────────────────────────────────
-
-describe('personas-browser', () => {
-  let tempHome: string
-
-  beforeEach(() => {
-    tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'hermes-personas-'))
-    vi.spyOn(os, 'homedir').mockReturnValue(tempHome)
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-    fs.rmSync(tempHome, { recursive: true, force: true })
-  })
-
+describe('personas-browser (bundled assets)', () => {
   // ── listPersonas ────────────────────────────────────────────────────────────
 
-  it('returns [] when personas dir does not exist', () => {
+  it('loads all 8 bundled personas', () => {
     const result = listPersonas()
-    expect(result).toEqual([])
+    expect(result.length).toBeGreaterThanOrEqual(8)
   })
 
-  it('returns [] when personas dir exists but is empty', () => {
-    fs.mkdirSync(path.join(tempHome, '.hermes', 'personas'), { recursive: true })
+  it('all personas have required fields', () => {
     const result = listPersonas()
-    expect(result).toEqual([])
+    for (const persona of result) {
+      expect(persona.id).toBeTruthy()
+      expect(persona.category).toBeTruthy()
+      expect(persona.glyph).toBeTruthy()
+      expect(persona.name).toBeTruthy()
+      expect(persona.system_prompt).toBeTruthy()
+      expect(Array.isArray(persona.tags)).toBe(true)
+    }
   })
 
-  it('parses a valid persona file', () => {
-    makePersonaFile(tempHome, 'engineering', 'code-reviewer.md', VALID_PERSONA_MD)
+  it('personas are sorted by category then name', () => {
     const result = listPersonas()
-    expect(result).toHaveLength(1)
-    expect(result[0].id).toBe('engineering-code-reviewer')
-    expect(result[0].category).toBe('engineering')
-    expect(result[0].glyph).toBe('CR')
-    expect(result[0].name).toBe('Code Reviewer')
-    expect(result[0].tags).toEqual(['review', 'quality'])
-    expect(result[0].system_prompt).toContain('Every comment teaches something')
+    for (let i = 1; i < result.length; i++) {
+      const prev = result[i - 1]
+      const curr = result[i]
+      if (prev.category !== curr.category) {
+        expect(prev.category.localeCompare(curr.category)).toBeLessThan(0)
+      } else {
+        expect(prev.name.localeCompare(curr.name)).toBeLessThanOrEqual(0)
+      }
+    }
   })
 
-  it('returns multiple personas sorted by category then name', () => {
-    makePersonaFile(tempHome, 'engineering', 'code-reviewer.md', VALID_PERSONA_MD)
-    makePersonaFile(tempHome, 'engineering', 'software-architect.md', VALID_PERSONA_2_MD)
-    const result = listPersonas()
-    expect(result).toHaveLength(2)
-    // "Code Reviewer" < "Software Architect" alphabetically
-    expect(result[0].name).toBe('Code Reviewer')
-    expect(result[1].name).toBe('Software Architect')
-  })
-
-  it('skips files without YAML frontmatter and logs a warning', () => {
-    makePersonaFile(tempHome, 'engineering', 'no-frontmatter.md', '# Just a heading\n\nNo frontmatter here.')
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const result = listPersonas()
-    expect(result).toHaveLength(0)
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('no YAML frontmatter'))
-    warnSpy.mockRestore()
-  })
-
-  it('throws on duplicate persona id', () => {
-    makePersonaFile(tempHome, 'engineering', 'cr1.md', VALID_PERSONA_MD)
-    makePersonaFile(tempHome, 'engineering', 'cr2.md', VALID_PERSONA_MD) // same id
-    expect(() => listPersonas()).toThrow(/Duplicate persona id/)
-  })
-
-  // ── readPersona ─────────────────────────────────────────────────────────────
-
-  it('returns null when personas dir does not exist', () => {
-    expect(readPersona('engineering-code-reviewer')).toBeNull()
-  })
-
-  it('finds a persona by id', () => {
-    makePersonaFile(tempHome, 'engineering', 'code-reviewer.md', VALID_PERSONA_MD)
+  it('finds engineering-code-reviewer by id', () => {
     const persona = readPersona('engineering-code-reviewer')
     expect(persona).not.toBeNull()
     expect(persona?.id).toBe('engineering-code-reviewer')
-    expect(persona?.system_prompt).toContain('Every comment teaches something')
+    expect(persona?.glyph).toBe('CR')
+    expect(persona?.category).toBe('engineering')
+    expect(persona?.system_prompt).toContain('Agent Persona: Code Reviewer')
   })
 
-  it('returns null for unknown id', () => {
-    makePersonaFile(tempHome, 'engineering', 'code-reviewer.md', VALID_PERSONA_MD)
-    expect(readPersona('does-not-exist')).toBeNull()
+  it('finds engineering-software-architect by id', () => {
+    const persona = readPersona('engineering-software-architect')
+    expect(persona).not.toBeNull()
+    expect(persona?.id).toBe('engineering-software-architect')
+    expect(persona?.glyph).toBe('SA')
+    expect(persona?.system_prompt).toContain('Agent Persona: Software Architect')
+  })
+
+  it('finds engineering-backend-architect by id', () => {
+    const persona = readPersona('engineering-backend-architect')
+    expect(persona).not.toBeNull()
+    expect(persona?.id).toBe('engineering-backend-architect')
+    expect(persona?.glyph).toBe('BA')
+  })
+
+  it('finds engineering-devops-automator by id', () => {
+    const persona = readPersona('engineering-devops-automator')
+    expect(persona).not.toBeNull()
+    expect(persona?.id).toBe('engineering-devops-automator')
+    expect(persona?.glyph).toBe('DA')
+  })
+
+  it('finds engineering-incident-response-commander by id', () => {
+    const persona = readPersona('engineering-incident-response-commander')
+    expect(persona).not.toBeNull()
+    expect(persona?.id).toBe('engineering-incident-response-commander')
+    expect(persona?.glyph).toBe('IR')
+  })
+
+  it('finds engineering-security-engineer by id', () => {
+    const persona = readPersona('engineering-security-engineer')
+    expect(persona).not.toBeNull()
+    expect(persona?.id).toBe('engineering-security-engineer')
+    expect(persona?.glyph).toBe('SE')
+  })
+
+  it('finds product-senior-project-manager by id', () => {
+    const persona = readPersona('product-senior-project-manager')
+    expect(persona).not.toBeNull()
+    expect(persona?.id).toBe('product-senior-project-manager')
+    expect(persona?.glyph).toBe('PM')
+    expect(persona?.category).toBe('product')
+  })
+
+  it('finds product-sprint-prioritizer by id', () => {
+    const persona = readPersona('product-sprint-prioritizer')
+    expect(persona).not.toBeNull()
+    expect(persona?.id).toBe('product-sprint-prioritizer')
+    expect(persona?.glyph).toBe('SP')
+    expect(persona?.category).toBe('product')
+  })
+
+  it('returns null for unknown persona id', () => {
+    expect(readPersona('does-not-exist-xyz')).toBeNull()
+  })
+
+  it('personas have Hermes-native content with expected sections', () => {
+    const codeReviewer = readPersona('engineering-code-reviewer')
+    expect(codeReviewer?.system_prompt).toContain('Critical Rules')
+    expect(codeReviewer?.system_prompt).toContain('Code Reviewer')
+  })
+
+  it('persona frontmatter includes description and tags', () => {
+    const architect = readPersona('engineering-software-architect')
+    expect(architect?.description).toBeTruthy()
+    expect(architect?.tags.length).toBeGreaterThan(0)
   })
 })

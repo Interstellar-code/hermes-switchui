@@ -36,8 +36,8 @@ vi.mock('../../../../server/auth-middleware', () => ({
 // ── fixtures ──────────────────────────────────────────────────────────────────
 
 const SHORT_BODY = 'You are a Code Reviewer. Every comment teaches something.'
-// 201 chars — just over the 200-char preview limit
-const LONG_BODY = 'A'.repeat(201)
+// 501 chars — just over the 500-char preview limit (PR-04 raised cap)
+const LONG_BODY = 'A'.repeat(501)
 
 const SHORT_MD = `---
 id: engineering-code-reviewer
@@ -59,17 +59,9 @@ tags: [architecture]
 ---
 ${LONG_BODY}`
 
-// ── dirent helpers ────────────────────────────────────────────────────────────
-
-function makeDir(name: string) {
-  return { name, isDirectory: () => true, isFile: () => false } as unknown as import('node:fs').Dirent
-}
-
 function makeFile(name: string) {
   return { name, isDirectory: () => false, isFile: () => true } as unknown as import('node:fs').Dirent
 }
-
-// ── handler factory ───────────────────────────────────────────────────────────
 
 function makeRequest(url = 'http://localhost/api/personas/list'): Request {
   return new Request(url, { method: 'GET' })
@@ -85,8 +77,6 @@ async function getHandler() {
   ).Route.server.handlers.GET
 }
 
-// ── tests ─────────────────────────────────────────────────────────────────────
-
 describe('GET /api/personas/list', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -94,10 +84,7 @@ describe('GET /api/personas/list', () => {
   })
 
   it('returns { personas: [...] } array', async () => {
-    readdirSync.mockImplementation((p: string) => {
-      if (typeof p === 'string' && p.endsWith('/personas')) return [makeDir('engineering')]
-      return [makeFile('code-reviewer.md')]
-    })
+    readdirSync.mockReturnValue([makeFile('code-reviewer.md')])
     readFileSync.mockReturnValue(SHORT_MD)
 
     const handler = await getHandler()
@@ -109,10 +96,7 @@ describe('GET /api/personas/list', () => {
   })
 
   it('each persona has required fields', async () => {
-    readdirSync.mockImplementation((p: string) => {
-      if (typeof p === 'string' && p.endsWith('/personas')) return [makeDir('engineering')]
-      return [makeFile('code-reviewer.md')]
-    })
+    readdirSync.mockReturnValue([makeFile('code-reviewer.md')])
     readFileSync.mockReturnValue(SHORT_MD)
 
     const handler = await getHandler()
@@ -129,11 +113,8 @@ describe('GET /api/personas/list', () => {
     expect(persona).toHaveProperty('has_more_prompt')
   })
 
-  it('has_more_prompt is true when system_prompt body > 200 chars', async () => {
-    readdirSync.mockImplementation((p: string) => {
-      if (typeof p === 'string' && p.endsWith('/personas')) return [makeDir('engineering')]
-      return [makeFile('software-architect.md')]
-    })
+  it('has_more_prompt is true when system_prompt body > 500 chars', async () => {
+    readdirSync.mockReturnValue([makeFile('software-architect.md')])
     readFileSync.mockReturnValue(LONG_MD)
 
     const handler = await getHandler()
@@ -142,11 +123,8 @@ describe('GET /api/personas/list', () => {
     expect(body.personas[0].has_more_prompt).toBe(true)
   })
 
-  it('has_more_prompt is false when system_prompt body ≤ 200 chars', async () => {
-    readdirSync.mockImplementation((p: string) => {
-      if (typeof p === 'string' && p.endsWith('/personas')) return [makeDir('engineering')]
-      return [makeFile('code-reviewer.md')]
-    })
+  it('has_more_prompt is false when system_prompt body ≤ 500 chars', async () => {
+    readdirSync.mockReturnValue([makeFile('code-reviewer.md')])
     readFileSync.mockReturnValue(SHORT_MD)
 
     const handler = await getHandler()
@@ -157,10 +135,7 @@ describe('GET /api/personas/list', () => {
 
   it('empty personas directory returns { personas: [] }', async () => {
     existsSync.mockReturnValue(true)
-    readdirSync.mockImplementation((p: string) => {
-      if (typeof p === 'string' && p.endsWith('/personas')) return []
-      return []
-    })
+    readdirSync.mockReturnValue([])
 
     const handler = await getHandler()
     const res = await handler({ request: makeRequest() })
@@ -179,20 +154,13 @@ describe('GET /api/personas/list', () => {
   })
 
   it('response has Cache-Control header set to 30 seconds', async () => {
-    readdirSync.mockImplementation((p: string) => {
-      if (typeof p === 'string' && p.endsWith('/personas')) return [makeDir('engineering')]
-      return [makeFile('code-reviewer.md')]
-    })
+    readdirSync.mockReturnValue([makeFile('code-reviewer.md')])
     readFileSync.mockReturnValue(SHORT_MD)
 
     const handler = await getHandler()
     const res = await handler({ request: makeRequest() })
     const cacheControl = res.headers.get('Cache-Control')
-    // The route itself doesn't set Cache-Control headers — it uses a module-level cache.
-    // Verify at minimum the response is 200 and the in-memory cache serves personas.
     expect(res.status).toBe(200)
-    // Cache-Control may or may not be present; what matters is the 30s module-level TTL.
-    // If the header IS present it should mention max-age=30 or s-maxage=30.
     if (cacheControl) {
       expect(cacheControl).toMatch(/30/)
     }

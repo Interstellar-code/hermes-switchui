@@ -18,6 +18,22 @@ export type Persona = {
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Get bundled personas directory (assets/personas/curated/).
+ * Uses import.meta.dirname for proper path resolution in both dev and production builds.
+ * Exported for testing purposes.
+ */
+export function getBundledPersonasRoot(): string {
+  // import.meta.dirname is available in Node.js 20.11+ and Bun
+  // It resolves to the directory containing the current module
+  const moduleDir = typeof import.meta !== 'undefined' && 'dirname' in import.meta
+    ? (import.meta.dirname as string)
+    : __dirname || path.dirname(new URL(import.meta.url).pathname)
+
+  // Navigate from src/server/ → assets/personas/curated/
+  return path.join(moduleDir, '../../assets/personas/curated')
+}
+
 function getPersonasRoot(): string {
   const hermesRoot =
     process.env.HERMES_HOME ??
@@ -86,45 +102,34 @@ function parsePersonaFile(filePath: string): Persona | null {
 }
 
 export function listPersonas(): Persona[] {
-  const root = getPersonasRoot()
-  if (!fs.existsSync(root)) return []
+  // Read from bundled assets (assets/personas/curated/)
+  const bundledRoot = getBundledPersonasRoot()
+  if (!fs.existsSync(bundledRoot)) return []
 
   const personas: Persona[] = []
   const seenIds = new Map<string, string>() // id → filePath
 
-  let categoryEntries: fs.Dirent[]
+  let fileEntries: fs.Dirent[]
   try {
-    categoryEntries = fs.readdirSync(root, { withFileTypes: true })
+    fileEntries = fs.readdirSync(bundledRoot, { withFileTypes: true })
   } catch {
     return []
   }
 
-  for (const categoryEntry of categoryEntries) {
-    if (!categoryEntry.isDirectory()) continue
-    const categoryDir = path.join(root, categoryEntry.name)
+  for (const fileEntry of fileEntries) {
+    if (!fileEntry.isFile() || !fileEntry.name.endsWith('.md')) continue
+    const filePath = path.join(bundledRoot, fileEntry.name)
+    const persona = parsePersonaFile(filePath)
+    if (!persona) continue
 
-    let fileEntries: fs.Dirent[]
-    try {
-      fileEntries = fs.readdirSync(categoryDir, { withFileTypes: true })
-    } catch {
-      continue
+    // Duplicate id check
+    if (seenIds.has(persona.id)) {
+      throw new Error(
+        `[personas] Duplicate persona id "${persona.id}" found in:\n  ${seenIds.get(persona.id)}\n  ${filePath}`,
+      )
     }
-
-    for (const fileEntry of fileEntries) {
-      if (!fileEntry.isFile() || !fileEntry.name.endsWith('.md')) continue
-      const filePath = path.join(categoryDir, fileEntry.name)
-      const persona = parsePersonaFile(filePath)
-      if (!persona) continue
-
-      // Duplicate id check
-      if (seenIds.has(persona.id)) {
-        throw new Error(
-          `[personas] Duplicate persona id "${persona.id}" found in:\n  ${seenIds.get(persona.id)}\n  ${filePath}`,
-        )
-      }
-      seenIds.set(persona.id, filePath)
-      personas.push(persona)
-    }
+    seenIds.set(persona.id, filePath)
+    personas.push(persona)
   }
 
   return personas.sort((a, b) =>
@@ -135,33 +140,22 @@ export function listPersonas(): Persona[] {
 }
 
 export function readPersona(id: string): Persona | null {
-  const root = getPersonasRoot()
-  if (!fs.existsSync(root)) return null
+  // Read from bundled assets
+  const bundledRoot = getBundledPersonasRoot()
+  if (!fs.existsSync(bundledRoot)) return null
 
-  let categoryEntries: fs.Dirent[]
+  let fileEntries: fs.Dirent[]
   try {
-    categoryEntries = fs.readdirSync(root, { withFileTypes: true })
+    fileEntries = fs.readdirSync(bundledRoot, { withFileTypes: true })
   } catch {
     return null
   }
 
-  for (const categoryEntry of categoryEntries) {
-    if (!categoryEntry.isDirectory()) continue
-    const categoryDir = path.join(root, categoryEntry.name)
-
-    let fileEntries: fs.Dirent[]
-    try {
-      fileEntries = fs.readdirSync(categoryDir, { withFileTypes: true })
-    } catch {
-      continue
-    }
-
-    for (const fileEntry of fileEntries) {
-      if (!fileEntry.isFile() || !fileEntry.name.endsWith('.md')) continue
-      const filePath = path.join(categoryDir, fileEntry.name)
-      const persona = parsePersonaFile(filePath)
-      if (persona && persona.id === id) return persona
-    }
+  for (const fileEntry of fileEntries) {
+    if (!fileEntry.isFile() || !fileEntry.name.endsWith('.md')) continue
+    const filePath = path.join(bundledRoot, fileEntry.name)
+    const persona = parsePersonaFile(filePath)
+    if (persona && persona.id === id) return persona
   }
 
   return null
