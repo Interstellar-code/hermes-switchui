@@ -1,0 +1,1263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Cron Jobs · Hermes</title>
+<link rel="stylesheet" href="matrix-system.css"/>
+<link rel="stylesheet" href="primary-nav-v2.css"/>
+<style>
+  html, body { height: 100%; }
+  body { background: var(--m-bg); overflow: hidden; }
+  .nav { background: transparent !important; border: none !important; padding: 0 !important; }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 232px 1fr;
+    height: 100vh; overflow: hidden;
+  }
+  .nav { display: block; min-width: 0; }
+  .main { display: grid; grid-template-rows: auto auto 1fr auto; min-width: 0; overflow: hidden; background: var(--m-bg); }
+
+  /* Top bar */
+  .topbar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    padding: 0 22px;
+    height: 56px;
+    border-bottom: 1px solid var(--m-border);
+    background: var(--m-sidebar);
+  }
+  .topbar h1 {
+    margin: 0;
+    font: 600 13px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .26em;
+    color: var(--m-text-strong);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .topbar h1 .crumb { color: var(--m-text-faint); font-weight: 500; }
+  .topbar h1 .sep { color: var(--m-text-ghost); }
+  .topbar h1 .cur { color: var(--m-green-500); text-shadow: 0 0 6px rgba(0,255,65,.4); }
+  .topbar .stats {
+    display: flex; align-items: center; gap: 22px;
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase; letter-spacing: .18em;
+  }
+  .topbar .stats b { color: var(--m-text-strong); font-weight: 600; }
+  .topbar .stats .ok { color: var(--m-green-500); }
+  .topbar .stats .sep { width: 1px; height: 16px; background: var(--m-border-subtle); }
+
+  /* Filter bar */
+  .filterbar {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 22px;
+    border-bottom: 1px solid var(--m-border);
+    background: var(--m-panel);
+  }
+  .search-input {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    background: var(--m-bg-deep);
+    max-width: 420px;
+  }
+  .search-input input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--m-text); font: 500 12.5px var(--m-font-mono);
+  }
+  .search-input svg { width: 14px; height: 14px; color: var(--m-text-faint); }
+
+  .tier-chips { display: flex; gap: 4px; }
+  .chip {
+    padding: 6px 12px;
+    border: 1px solid var(--m-border);
+    border-radius: 9999px;
+    background: var(--m-bg-deep);
+    font: 500 10.5px var(--m-font-mono);
+    color: var(--m-text-muted);
+    text-transform: uppercase; letter-spacing: .14em;
+    cursor: pointer;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .chip:hover { color: var(--m-text); border-color: var(--m-border-subtle); }
+  .chip.on {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border-color: var(--m-green-500);
+    box-shadow: var(--m-glow-sm);
+  }
+
+  .view-toggle { display: flex; border: 1px solid var(--m-border); border-radius: var(--m-radius-md); overflow: hidden; }
+  .view-toggle button {
+    display: inline-grid; place-items: center;
+    width: 32px; height: 30px;
+    background: var(--m-bg-deep);
+    border: none;
+    color: var(--m-text-faint);
+    cursor: pointer;
+    border-right: 1px solid var(--m-border);
+  }
+  .view-toggle button:last-child { border-right: none; }
+  .view-toggle button:hover { color: var(--m-text); }
+  .view-toggle button.on { background: var(--m-fill); color: var(--m-green-500); }
+  .view-toggle svg { width: 14px; height: 14px; }
+
+  /* Body */
+  .body {
+    overflow: auto;
+    padding: 22px;
+  }
+
+  /* Card grid */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    position: relative;
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    background: var(--m-panel);
+    padding: 16px;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+    cursor: pointer;
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    gap: 12px;
+    min-height: 200px;
+  }
+  .card:hover {
+    border-color: var(--m-green-500);
+    box-shadow: var(--m-glow-sm);
+    transform: translateY(-1px);
+  }
+  .card.tier-1 { background: linear-gradient(180deg, rgba(0,255,65,.04) 0%, var(--m-panel) 60%); border-color: rgba(0,255,65,.3); }
+  .card.tier-2 { background: linear-gradient(180deg, rgba(95,207,255,.04) 0%, var(--m-panel) 60%); border-color: rgba(95,207,255,.22); }
+
+  .card-head { display: flex; align-items: center; gap: 12px; }
+  .glyph {
+    width: 40px; height: 40px;
+    display: grid; place-items: center;
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    background: var(--m-bg-deep);
+    font: 700 16px var(--m-font-mono);
+    color: var(--m-green-500);
+    text-shadow: 0 0 8px rgba(0,255,65,.4);
+    flex: none;
+  }
+  .card.tier-1 .glyph { color: var(--m-green-500); border-color: var(--m-green-500); box-shadow: var(--m-glow-sm); }
+  .card.tier-2 .glyph { color: #5fcfff; border-color: rgba(95,207,255,.5); text-shadow: 0 0 8px rgba(95,207,255,.4); }
+  .card-name {
+    font: 600 13px var(--m-font-mono);
+    color: var(--m-text-strong);
+    margin: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .card-role {
+    font: 500 10.5px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase; letter-spacing: .14em;
+    margin-top: 2px;
+  }
+  .card-tier {
+    margin-left: auto;
+    font: 500 9px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase; letter-spacing: .2em;
+    padding: 2px 6px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 3px;
+  }
+  .card.tier-1 .card-tier { color: var(--m-green-500); border-color: var(--m-green-500); }
+  .card.tier-2 .card-tier { color: #5fcfff; border-color: rgba(95,207,255,.5); }
+
+  .card-status {
+    display: flex; align-items: center; gap: 6px;
+    font: 500 10.5px var(--m-font-mono);
+    color: var(--m-text-faint);
+    text-transform: uppercase; letter-spacing: .14em;
+  }
+  .card-status .d { width: 7px; height: 7px; border-radius: 50%; background: var(--m-text-faint); }
+  .card-status.active { color: var(--m-green-500); }
+  .card-status.active .d { background: var(--m-green-500); box-shadow: 0 0 6px var(--m-green-500); animation: pulse 2s infinite; }
+  .card-status.idle .d { background: #888; }
+  .card-status.draft { color: #ffb347; }
+  .card-status.draft .d { background: #ffb347; box-shadow: 0 0 6px #ffb347; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+  .card-persona {
+    font: 500 12px/1.5 var(--m-font-mono);
+    color: var(--m-text-muted);
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    padding-left: 8px;
+    border-left: 2px solid var(--m-border);
+  }
+  .card-meta {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    align-items: center;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+  }
+  .card-meta .model {
+    color: var(--m-green-500);
+    border: 1px solid var(--m-border);
+    background: var(--m-bg-deep);
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase; letter-spacing: .12em;
+  }
+  .card-meta .tag {
+    padding: 2px 6px;
+    border: 1px solid var(--m-border-subtle);
+    border-radius: 3px;
+    color: var(--m-text-muted);
+  }
+  .card-meta .last {
+    margin-left: auto;
+    color: var(--m-text-faint);
+    text-transform: uppercase; letter-spacing: .14em;
+  }
+
+  /* Table view */
+  .table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--m-panel);
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    overflow: hidden;
+  }
+  .table th {
+    text-align: left;
+    padding: 12px 14px;
+    font: 600 10px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .22em;
+    color: var(--m-text-faint);
+    background: var(--m-bg-deep);
+    border-bottom: 1px solid var(--m-border);
+  }
+  .table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--m-border-subtle);
+    font: 500 12px var(--m-font-mono);
+    color: var(--m-text);
+    vertical-align: middle;
+  }
+  .table tr:last-child td { border-bottom: none; }
+  .table tr:hover td { background: var(--m-fill-subtle); cursor: pointer; }
+  .table .name-cell { display: flex; align-items: center; gap: 10px; }
+  .table .name-cell .glyph { width: 28px; height: 28px; font-size: 13px; }
+  .table .name-cell b { color: var(--m-text-strong); font-weight: 600; }
+  .table .name-cell .role { font-size: 10px; color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .14em; margin-top: 2px; }
+  .table .model {
+    color: var(--m-green-500);
+    border: 1px solid var(--m-border);
+    background: var(--m-bg-deep);
+    padding: 2px 6px;
+    border-radius: 3px;
+    text-transform: uppercase; letter-spacing: .12em;
+    font-size: 10px;
+  }
+  .table .pill-tier {
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 9.5px;
+    text-transform: uppercase; letter-spacing: .18em;
+    border: 1px solid var(--m-border-subtle);
+    color: var(--m-text-muted);
+  }
+  .table .pill-tier.t1 { color: var(--m-green-500); border-color: var(--m-green-500); }
+  .table .pill-tier.t2 { color: #5fcfff; border-color: rgba(95,207,255,.5); }
+  .table .pill-tier.t3 { color: var(--m-text-faint); }
+
+  /* Footer */
+  .footer {
+    border-top: 1px solid var(--m-border);
+    background: var(--m-sidebar);
+    display: flex; align-items: center; gap: 22px;
+    padding: 0 22px;
+    height: 30px;
+    font: 500 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+    letter-spacing: .14em; text-transform: uppercase;
+  }
+  .footer b { color: var(--m-text-strong); font-weight: 600; }
+  .footer .ok { color: var(--m-green-500); }
+  .footer .sep { width: 1px; height: 14px; background: var(--m-border-subtle); }
+
+  /* CTA new agent */
+  .btn-new {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 14px;
+    background: var(--m-green-500);
+    color: var(--m-bg-deep);
+    border: 1px solid var(--m-green-500);
+    border-radius: var(--m-radius-md);
+    font: 600 11.5px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .16em;
+    cursor: pointer;
+    box-shadow: var(--m-glow-sm);
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .btn-new:hover { background: var(--m-green-400, #5cff8a); box-shadow: var(--m-glow); }
+  .btn-new svg { width: 12px; height: 12px; }
+
+  /* Modal / wizard */
+  .modal-bg {
+    position: fixed; inset: 0;
+    background: rgba(0,8,2,.78);
+    backdrop-filter: blur(4px);
+    z-index: 100;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 40px;
+  }
+  .modal-bg.open { display: flex; animation: fade var(--m-dur-base) var(--m-ease-out); }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+  .wizard {
+    width: min(960px, 100%);
+    max-height: 90vh;
+    background: var(--m-panel);
+    border: 1px solid var(--m-green-500);
+    border-radius: var(--m-radius-lg, 8px);
+    box-shadow: 0 16px 64px rgba(0,255,65,.18), 0 0 0 1px rgba(0,255,65,.3);
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    overflow: hidden;
+    animation: pop var(--m-dur-base) var(--m-ease-out);
+  }
+  @keyframes pop { from { transform: translateY(8px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .wiz-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--m-border);
+    background: var(--m-bg-deep);
+  }
+  .wiz-head h2 {
+    margin: 0;
+    font: 600 13px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .26em;
+    color: var(--m-green-500);
+  }
+  .wiz-head .x {
+    width: 28px; height: 28px;
+    display: grid; place-items: center;
+    border-radius: var(--m-radius-md);
+    color: var(--m-text-faint);
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .wiz-head .x:hover { background: var(--m-fill); color: var(--m-text); border-color: var(--m-border); }
+  .wiz-head .x svg { width: 14px; height: 14px; }
+
+  .wiz-steps {
+    display: flex; align-items: center;
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--m-border);
+    background: var(--m-panel);
+    overflow-x: auto;
+  }
+  .wiz-step {
+    display: flex; align-items: center; gap: 8px;
+    font: 500 10.5px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .14em;
+    color: var(--m-text-faint);
+    white-space: nowrap;
+    flex: none;
+  }
+  .wiz-step .n {
+    width: 22px; height: 22px;
+    display: grid; place-items: center;
+    border-radius: 50%;
+    border: 1px solid var(--m-border);
+    background: var(--m-bg-deep);
+    font: 600 10px var(--m-font-mono);
+    color: var(--m-text-faint);
+  }
+  .wiz-step.done .n {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border-color: var(--m-green-500);
+  }
+  .wiz-step.on { color: var(--m-green-500); }
+  .wiz-step.on .n {
+    background: var(--m-green-500);
+    color: var(--m-bg-deep);
+    border-color: var(--m-green-500);
+    box-shadow: var(--m-glow-sm);
+  }
+  .wiz-step-sep {
+    flex: 1; min-width: 12px;
+    height: 1px;
+    background: var(--m-border);
+    margin: 0 10px;
+  }
+  .wiz-step.done + .wiz-step-sep { background: rgba(0,255,65,.4); }
+
+  .wiz-body {
+    padding: 24px 28px;
+    overflow: auto;
+    color: var(--m-text);
+  }
+  .wiz-body h3 {
+    margin: 0 0 6px;
+    font: 600 18px var(--m-font-mono);
+    color: var(--m-text-strong);
+  }
+  .wiz-body .lead {
+    margin: 0 0 22px;
+    font: 500 12.5px/1.6 var(--m-font-mono);
+    color: var(--m-text-muted);
+  }
+  .field { margin-bottom: 18px; }
+  .field > label {
+    display: block;
+    font: 600 10.5px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .22em;
+    color: var(--m-text-faint);
+    margin-bottom: 8px;
+  }
+  .field > label .opt { color: var(--m-text-ghost); font-weight: 500; margin-left: 6px; }
+  .input, textarea, select {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--m-bg-deep);
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    color: var(--m-text);
+    font: 500 13px var(--m-font-mono);
+    outline: none;
+    transition: border-color var(--m-dur-fast) var(--m-ease-out);
+  }
+  .input:focus, textarea:focus, select:focus {
+    border-color: var(--m-green-500);
+    box-shadow: 0 0 0 2px rgba(0,255,65,.18);
+  }
+  textarea { resize: vertical; min-height: 140px; line-height: 1.6; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+
+  /* Glyph picker */
+  .glyph-pick { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+  .glyph-opt {
+    display: grid; place-items: center;
+    aspect-ratio: 1;
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    background: var(--m-bg-deep);
+    font: 700 16px var(--m-font-mono);
+    color: var(--m-text-muted);
+    cursor: pointer;
+  }
+  .glyph-opt:hover { color: var(--m-text); border-color: var(--m-border-subtle); }
+  .glyph-opt.on { color: var(--m-green-500); border-color: var(--m-green-500); background: var(--m-fill); box-shadow: var(--m-glow-sm); }
+
+  /* Persona gallery */
+  .persona-cats { display: grid; grid-template-columns: 160px 1fr; gap: 16px; }
+  .persona-cat-list { display: flex; flex-direction: column; gap: 2px; }
+  .persona-cat {
+    padding: 8px 10px;
+    font: 500 11px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .16em;
+    color: var(--m-text-muted);
+    border-radius: var(--m-radius-md);
+    cursor: pointer;
+    border: 1px solid transparent;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .persona-cat:hover { background: var(--m-fill-subtle); color: var(--m-text); }
+  .persona-cat.on {
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    border-color: var(--m-border);
+    box-shadow: inset 2px 0 0 var(--m-green-500);
+  }
+  .persona-cat .ct {
+    margin-left: auto;
+    font-size: 9.5px;
+    color: var(--m-text-faint);
+  }
+  .persona-cat.on .ct { color: var(--m-green-500); }
+
+  .persona-list { display: flex; flex-direction: column; gap: 8px; max-height: 380px; overflow: auto; padding-right: 4px; }
+  .persona-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    background: var(--m-bg-deep);
+    cursor: pointer;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .persona-row:hover { border-color: var(--m-border-subtle); }
+  .persona-row.on {
+    border-color: var(--m-green-500);
+    background: var(--m-fill);
+    box-shadow: var(--m-glow-sm);
+  }
+  .persona-row .glyph { width: 36px; height: 36px; font-size: 15px; }
+  .persona-row .pname { font: 600 12.5px var(--m-font-mono); color: var(--m-text-strong); }
+  .persona-row .pdesc { font: 500 11px var(--m-font-mono); color: var(--m-text-muted); margin-top: 3px; line-height: 1.5; }
+  .persona-row .ptag { font: 500 9.5px var(--m-font-mono); color: var(--m-green-500); text-transform: uppercase; letter-spacing: .16em; }
+
+  /* Skill chips */
+  .skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+  .skill {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 12px;
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    background: var(--m-bg-deep);
+    cursor: pointer;
+    font: 500 12px var(--m-font-mono);
+    color: var(--m-text);
+  }
+  .skill:hover { border-color: var(--m-border-subtle); }
+  .skill.on {
+    border-color: var(--m-green-500);
+    background: var(--m-fill);
+    color: var(--m-green-500);
+    box-shadow: var(--m-glow-sm);
+  }
+  .skill .chk {
+    width: 14px; height: 14px;
+    border: 1px solid var(--m-border);
+    border-radius: 3px;
+    display: grid; place-items: center;
+    flex: none;
+  }
+  .skill.on .chk { background: var(--m-green-500); border-color: var(--m-green-500); }
+  .skill.on .chk::after { content: ""; width: 4px; height: 7px; border: 1px solid var(--m-bg-deep); border-top: 0; border-left: 0; transform: rotate(45deg) translate(-1px,-1px); }
+
+  /* Slider */
+  .slider-row {
+    display: grid;
+    grid-template-columns: 1fr 80px;
+    gap: 14px;
+    align-items: center;
+  }
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 4px;
+    background: var(--m-border);
+    border-radius: 9999px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 14px; height: 14px;
+    background: var(--m-green-500);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: var(--m-glow-sm);
+  }
+  .slider-val {
+    text-align: right;
+    font: 600 13px var(--m-font-mono);
+    color: var(--m-green-500);
+  }
+
+  /* Review pane */
+  .review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .review-block {
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    background: var(--m-bg-deep);
+    padding: 14px 16px;
+  }
+  .review-block h4 {
+    margin: 0 0 10px;
+    font: 600 10.5px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .22em;
+    color: var(--m-text-faint);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .review-block h4::before {
+    content: "";
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--m-green-500);
+    box-shadow: 0 0 6px var(--m-green-500);
+  }
+  .review-row {
+    display: grid; grid-template-columns: 110px 1fr;
+    gap: 10px;
+    padding: 5px 0;
+    font: 500 12px var(--m-font-mono);
+  }
+  .review-row .k { color: var(--m-text-faint); text-transform: uppercase; font-size: 10px; letter-spacing: .14em; align-self: center; }
+  .review-row .v { color: var(--m-text-strong); }
+  .review-row .v.muted { color: var(--m-text-muted); }
+  .review-prompt {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: rgba(0,0,0,.4);
+    border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-md);
+    font: 500 11px/1.6 var(--m-font-mono);
+    color: var(--m-text-muted);
+    max-height: 120px; overflow: auto;
+    white-space: pre-wrap;
+  }
+
+  /* Wizard footer */
+  .wiz-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 22px;
+    border-top: 1px solid var(--m-border);
+    background: var(--m-bg-deep);
+  }
+  .wiz-foot .lhs { font: 500 10.5px var(--m-font-mono); color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .18em; }
+  .wiz-foot .lhs b { color: var(--m-green-500); }
+  .wiz-foot .actions { display: flex; gap: 8px; }
+  .btn {
+    padding: 8px 16px;
+    font: 600 11px var(--m-font-mono);
+    text-transform: uppercase; letter-spacing: .16em;
+    border-radius: var(--m-radius-md);
+    cursor: pointer;
+    border: 1px solid var(--m-border);
+    background: var(--m-bg-deep);
+    color: var(--m-text);
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .btn:hover { border-color: var(--m-border-subtle); color: var(--m-text-strong); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn-primary {
+    background: var(--m-green-500);
+    color: var(--m-bg-deep);
+    border-color: var(--m-green-500);
+    box-shadow: var(--m-glow-sm);
+  }
+  .btn-primary:hover { background: var(--m-green-400, #5cff8a); box-shadow: var(--m-glow); border-color: var(--m-green-500); color: var(--m-bg-deep); }
+
+  /* Empty */
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--m-text-faint);
+    font: 500 12px var(--m-font-mono);
+  }
+
+  /* Pager */
+  .pager {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    margin-top: 18px;
+    padding: 10px 14px;
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    background: var(--m-panel);
+    font: 500 11px var(--m-font-mono);
+    color: var(--m-text-muted);
+  }
+  .pager-info { color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .14em; font-size: 10px; }
+  .pager-info b { color: var(--m-text-strong); font-weight: 600; }
+  .pager-ctrls { display: flex; align-items: center; gap: 4px; justify-self: center; }
+  .pg-btn, .pg-num {
+    display: inline-grid; place-items: center;
+    min-width: 28px; height: 28px; padding: 0 8px;
+    border: 1px solid var(--m-border-subtle);
+    background: var(--m-bg);
+    color: var(--m-text-muted);
+    border-radius: var(--m-radius-sm);
+    font: 500 12px var(--m-font-mono);
+    cursor: pointer;
+    transition: all var(--m-dur-fast) var(--m-ease-out);
+  }
+  .pg-btn:hover:not(:disabled), .pg-num:hover { border-color: var(--m-green-500); color: var(--m-green-500); background: var(--m-fill-subtle); }
+  .pg-btn:disabled { opacity: .35; cursor: not-allowed; }
+  .pg-num.on { border-color: var(--m-green-500); color: var(--m-green-500); background: var(--m-fill); box-shadow: var(--m-glow-sm); }
+  .pg-gap { color: var(--m-text-ghost); padding: 0 4px; }
+  .pager-size { display: flex; align-items: center; gap: 8px; justify-self: end; color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .14em; font-size: 10px; }
+  .pager-size select {
+    background: var(--m-bg); color: var(--m-text); border: 1px solid var(--m-border-subtle);
+    border-radius: var(--m-radius-sm); padding: 4px 8px;
+    font: 500 11px var(--m-font-mono); cursor: pointer;
+  }
+  .pager-size select:hover { border-color: var(--m-green-500); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel">
+/* Hermes Primary Nav v2 — canonical, sourced from src/screens/chat/components/sidebar/v2/primary-nav-v2.tsx
+   Renders a 232px primary nav matching the shipped design.
+   Usage in any HTML page that loads React + Babel + matrix-system.css:
+     <script type="text/babel" src="primary-nav-v2.jsx"><\/script>
+     ...
+     <div id="primary-nav-mount"></div>
+     <script type="text/babel">
+       ReactDOM.createRoot(document.getElementById('primary-nav-mount'))
+         .render(<PrimaryNavV2 active="chat" sessionsBadge={10} />);
+     <\/script>
+*/
+
+const PNV2_ICONS = {
+  dashboard:'M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z',
+  chat:'M2 3h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H5l-3 2V4a1 1 0 0 1 1-1z',
+  files:'M3 2h6l4 4v9H3V2zM9 2v4h4',
+  terminal:'M2 3h12v10H2V3zM5 7l3-2-3-2M8 11h4',
+  jobs:'M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zM8 5v3.5l2.5 1.5',
+  tasks:'M3 4h10M3 8h7M3 12h5',
+  conductor:'M8 2L2 14h12L8 2zM8 8v3',
+  operations:'M3 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM9 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM1 14c0-2.5 2-4 5-4s5 1.5 5 4M11 11c1.5 0 3 .8 3 3',
+  swarm:'M5 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM11 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM8 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM5 5l3 4M11 5L8 9',
+  memory:'M5 3h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM6 7h4M6 9h2',
+  skills:'M8 2l1.8 3.8 4.2.6-3 3 .7 4.1L8 11.5l-3.7 2L5 9.4l-3-3 4.2-.6z',
+  mcp:'M4 8h8M8 4v8M3 3l10 10M13 3L3 13',
+  profiles:'M8 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM2 14c0-3 2.7-5 6-5s6 2 6 5',
+  search:'M6.5 1.5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM10.5 10.5l4 4',
+  newchat:'M3 8h10M8 3v10',
+  cog:'M8 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4',
+  collapse:'M10 3L5 8l5 5',
+  expand:'M6 3l5 5-5 5',
+};
+function PNVIcon({d, size=15}) {
+  return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden style={{flexShrink:0}}><path d={d} stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+}
+function PNVItem({label, iconKey, active, badge}) {
+  return (
+    <a href="#" className="m-mono pnv-item" data-active={active?'true':undefined}>
+      <PNVIcon d={PNV2_ICONS[iconKey]} />
+      <span style={{flex:1}}>{label}</span>
+      {badge!=null && <span className="pnv-badge">{badge}</span>}
+    </a>
+  );
+}
+function PNVGroup({label}) {
+  return <div className="m-label pnv-group">{label}</div>;
+}
+function PrimaryNavV2({active='chat', sessionsBadge=null}) {
+  const items = [
+    ['dashboard','Dashboard'],['chat','Chat'],['files','Files'],['terminal','Terminal'],
+    ['jobs','Jobs'],['tasks','Tasks'],['conductor','Conductor'],['operations','Operations'],['swarm','Swarm'],
+  ];
+  const know = [['memory','Memory'],['skills','Skills'],['mcp','MCP'],['profiles','Profiles']];
+  return (
+    <div className="pnv-root">
+      <div className="pnv-brand">
+        <div className="pnv-brand-l">
+          <div className="pnv-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 4 L20 4 L20 20 L4 20 Z M4 12 L20 12 M12 4 L12 20"/></svg></div>
+          <div>
+            <div className="m-mono pnv-name">HERMES</div>
+            <div className="m-label pnv-ver">v2.3.0</div>
+          </div>
+        </div>
+        <button className="pnv-icon-btn" title="Collapse"><PNVIcon d={PNV2_ICONS.collapse}/></button>
+      </div>
+      <div className="pnv-body">
+        <button className="m-mono pnv-search">
+          <PNVIcon d={PNV2_ICONS.search}/>
+          <span style={{flex:1, textAlign:'left'}}>Search</span>
+          <span className="m-mono pnv-kbd">⌘K</span>
+        </button>
+        <a href="#" className="m-mono pnv-newsess">
+          <PNVIcon d={PNV2_ICONS.newchat}/>+ New Session
+        </a>
+        <PNVGroup label="Main"/>
+        {items.map(([k,l]) => <PNVItem key={k} label={l} iconKey={k} active={active===k} badge={k===active && sessionsBadge!=null ? sessionsBadge : null}/>)}
+        <PNVGroup label="Knowledge"/>
+        {know.map(([k,l]) => <PNVItem key={k} label={l} iconKey={k} active={active===k} badge={k===active && sessionsBadge!=null ? sessionsBadge : null}/>)}
+      </div>
+      <div className="pnv-foot">
+        <button className="pnv-foot-btn"><PNVIcon d={PNV2_ICONS.cog} size={14}/><span>Settings</span></button>
+        <button className="pnv-foot-btn pnv-foot-theme" title="Toggle theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg></button>
+      </div>
+    </div>
+  );
+}
+window.PrimaryNavV2 = PrimaryNavV2;
+
+</script>
+
+<script type="text/babel">
+const Ico = {
+  search: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="11" cy="11" r="6"/><path d="m20 20-3.5-3.5"/></svg>,
+  grid:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>,
+  list:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 6h18M3 12h18M3 18h18"/></svg>,
+  plus:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>,
+  x:      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6 18 18M18 6 6 18"/></svg>,
+  play:   <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>,
+  pause:  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>,
+  clock:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>,
+  refresh:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg>,
+};
+
+const CRON_PRESETS = [
+  { id:'5m',  label:'Every 5 minutes',  expr:'*/5 * * * *',  desc:'High-frequency polling — log scans, health pings' },
+  { id:'15m', label:'Every 15 minutes', expr:'*/15 * * * *', desc:'Standard polling cadence — PR babysit, queue drain' },
+  { id:'1h',  label:'Hourly',           expr:'0 * * * *',    desc:'Top of every hour — rollups, metric snapshots' },
+  { id:'4h',  label:'Every 4 hours',    expr:'0 */4 * * *',  desc:'Light recurring tasks' },
+  { id:'daily',label:'Daily @ 9am UTC', expr:'0 9 * * *',    desc:'Morning digest, standup summary' },
+  { id:'biz', label:'Weekday biz hours',expr:'0 9-17 * * 1-5',desc:'Mon-Fri, every hour 9-17 UTC' },
+  { id:'wkly',label:'Weekly · Sun 3am', expr:'0 3 * * 0',    desc:'Cleanup, archival, weekly reports' },
+  { id:'mnth',label:'Monthly · 1st 0am',expr:'0 0 1 * *',    desc:'Long-cycle maintenance' },
+];
+
+const AGENT_OPTIONS = [
+  { id:'hermes-switch', name:'Hermes Switch', tier:1, glyph:'Λ' },
+  { id:'neo',       name:'Neo',       tier:2, glyph:'Ν' },
+  { id:'trinity',   name:'Trinity',   tier:2, glyph:'Τ' },
+  { id:'morpheus',  name:'Morpheus',  tier:2, glyph:'Μ' },
+  { id:'operator',  name:'operator',  tier:3, glyph:'◇' },
+  { id:'notation',  name:'notation',  tier:3, glyph:'◆' },
+  { id:'admin',     name:'admin',     tier:3, glyph:'◈' },
+  { id:'archivist', name:'archivist', tier:3, glyph:'★' },
+  { id:'sentinel',  name:'sentinel',  tier:3, glyph:'▲' },
+  { id:'scribe',    name:'scribe',    tier:3, glyph:'Ψ' },
+  { id:'analyst',   name:'analyst',   tier:3, glyph:'Σ' },
+  { id:'courier',   name:'courier',   tier:3, glyph:'Φ' },
+];
+
+const SEED_JOBS = [
+  { id:'j-babysit',   name:'babysit-prs',           agent:'operator',  glyph:'◇', cron:'*/15 * * * *',   tz:'UTC', status:'active', nextRunIn:'7m 41s', lastRunAgo:'12 min ago', totalRuns:1284, tags:['production','pr-review'],
+    prompt:'Babysit open pull requests. Check CI status, surface review comments needing reply, ping reviewers when stale.' },
+  { id:'j-log',       name:'log-monitor',           agent:'notation',  glyph:'◆', cron:'*/5 * * * *',    tz:'UTC', status:'active', nextRunIn:'2m 04s', lastRunAgo:'3 min ago',  totalRuns:8392, tags:['observability','alerts'],
+    prompt:'Scan production logs for error spikes. Page on-call if ERROR rate > 50/min for 3 consecutive windows.' },
+  { id:'j-weekly',    name:'weekly-cleanup',        agent:'admin',     glyph:'◈', cron:'0 3 * * 0',      tz:'UTC', status:'paused', nextRunIn:'Sun 03:00', lastRunAgo:'6 days ago', totalRuns:47, tags:['housekeeping'],
+    prompt:'Archive sessions older than 30d, vacuum SQLite stores, rotate logs.' },
+  { id:'j-standup',   name:'daily-standup-digest',  agent:'scribe',    glyph:'Ψ', cron:'0 9 * * 1-5',    tz:'UTC', status:'active', nextRunIn:'10h 32m', lastRunAgo:'yesterday', totalRuns:212, tags:['team','digest'],
+    prompt:'Generate standup digest from yesterday\'s commits, closed PRs, and resolved issues. Post to #standup.' },
+  { id:'j-deploy',    name:'weekend-deploy-guard',  agent:'sentinel',  glyph:'▲', cron:'0 0 * * 6,0',    tz:'UTC', status:'active', nextRunIn:'Sat 00:00', lastRunAgo:'5 days ago', totalRuns:38, tags:['safety','deploy'],
+    prompt:'Block weekend deploys unless emergency tag present. Notify deploy channel.' },
+  { id:'j-backup',    name:'nightly-backup',        agent:'archivist', glyph:'★', cron:'30 2 * * *',     tz:'UTC', status:'active', nextRunIn:'4h 17m',  lastRunAgo:'21h ago',   totalRuns:512, tags:['backup','infra'],
+    prompt:'Snapshot postgres + object store. Verify checksums. Email summary on completion.' },
+  { id:'j-security',  name:'security-scan',         agent:'sentinel',  glyph:'▲', cron:'0 */6 * * *',    tz:'UTC', status:'active', nextRunIn:'1h 22m',  lastRunAgo:'4h ago',    totalRuns:1843, tags:['security'],
+    prompt:'Run dependency CVE scan + secret scan across repos. Open issues for any HIGH or CRITICAL findings.' },
+  { id:'j-deps',      name:'dependency-update-check', agent:'operator',glyph:'◇', cron:'0 8 * * 1',      tz:'UTC', status:'paused', nextRunIn:'Mon 08:00', lastRunAgo:'2 weeks ago', totalRuns:24, tags:['maintenance'],
+    prompt:'List outdated dependencies grouped by severity. Open PR with safe minor/patch bumps.' },
+  { id:'j-triage',    name:'pr-triage',             agent:'operator',  glyph:'◇', cron:'0 10,14 * * 1-5',tz:'UTC', status:'active', nextRunIn:'2h 11m',  lastRunAgo:'18m ago',   totalRuns:692, tags:['pr-review'],
+    prompt:'Auto-label, request reviewers, and set priority on newly opened PRs based on file paths touched.' },
+  { id:'j-changelog', name:'changelog-builder',     agent:'scribe',    glyph:'Ψ', cron:'0 17 * * 5',     tz:'UTC', status:'active', nextRunIn:'Fri 17:00', lastRunAgo:'6 days ago', totalRuns:31, tags:['release'],
+    prompt:'Compile weekly changelog from merged PRs with the changelog: label. Post draft to release notes doc.' },
+  { id:'j-metric',    name:'metric-rollup',         agent:'analyst',   glyph:'Σ', cron:'10 * * * *',     tz:'UTC', status:'active', nextRunIn:'42m',     lastRunAgo:'18m ago',   totalRuns:2104, tags:['analytics'],
+    prompt:'Roll up event stream → hourly aggregates. Write to warehouse. Page if lag > 15m.' },
+  { id:'j-inbox',     name:'inbox-zero',            agent:'courier',   glyph:'Φ', cron:'0 8,17 * * *',   tz:'UTC', status:'draft',  nextRunIn:'(draft)',  lastRunAgo:'never',     totalRuns:0, tags:['email','personal'],
+    prompt:'Triage gmail inbox: archive newsletters, label invoices, draft replies for last 24h unread threads.' },
+  { id:'j-cert',      name:'cert-renewal',          agent:'admin',     glyph:'◈', cron:'0 4 1 * *',      tz:'UTC', status:'active', nextRunIn:'21d 4h',  lastRunAgo:'9 days ago', totalRuns:14, tags:['infra','tls'],
+    prompt:'Renew TLS certs nearing expiry. Verify chain. Reload load balancers. Page on failure.' },
+  { id:'j-uptime',    name:'uptime-report',         agent:'analyst',   glyph:'Σ', cron:'0 9 * * 1',      tz:'UTC', status:'active', nextRunIn:'Mon 09:00',lastRunAgo:'6 days ago', totalRuns:42, tags:['analytics','sla'],
+    prompt:'Generate weekly uptime / SLO compliance report. Post to #status with regressions called out.' },
+];
+
+const STATUS_FILTERS = [
+  { id:'all',    label:'All' },
+  { id:'active', label:'Active' },
+  { id:'paused', label:'Paused' },
+  { id:'draft',  label:'Draft' },
+];
+
+const WIZ_STEPS = ['Identity','Schedule','Agent','Prompt','Tags','Review'];
+
+function humanizeCron(expr) {
+  const m = CRON_PRESETS.find(p => p.expr === expr);
+  if (m) return m.label;
+  return 'custom schedule';
+}
+
+function StatusPill({ s }) {
+  return (
+    <span className={`card-status ${s}`} style={{ display:'inline-flex' }}>
+      <span className="d"/>{s}
+    </span>
+  );
+}
+
+function JobCard({ j, onClick, onToggle, onRun }) {
+  return (
+    <div className="card" onClick={onClick}>
+      <div className="card-head">
+        <div className="glyph">{j.glyph}</div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <h3 className="card-name">{j.name}</h3>
+          <div className="card-role">{j.agent} · {j.tz}</div>
+        </div>
+        <StatusPill s={j.status}/>
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', gap:6, padding:'8px 10px', background:'var(--m-bg-deep)', border:'1px solid var(--m-border-subtle)', borderRadius:'var(--m-radius-md)' }}>
+        <div style={{ font:'700 13px var(--m-font-mono)', color:'var(--m-green-500)', letterSpacing:'.04em' }}>{j.cron}</div>
+        <div style={{ font:'500 10.5px var(--m-font-mono)', color:'var(--m-text-faint)', textTransform:'uppercase', letterSpacing:'.14em' }}>{humanizeCron(j.cron)}</div>
+      </div>
+      <div className="card-persona" style={{ WebkitLineClamp: 2 }}>{j.prompt}</div>
+      <div className="card-meta">
+        <span className="tag">next · {j.nextRunIn}</span>
+        <span className="tag">{j.totalRuns.toLocaleString()} runs</span>
+        <span className="last">{j.lastRunAgo}</span>
+      </div>
+      <div style={{ display:'flex', gap:6, marginTop:2 }}>
+        <button className="btn" style={{ flex:1, padding:'6px 10px', fontSize:10 }} onClick={e => { e.stopPropagation(); onRun(j.id); }}>{j.status === 'paused' ? 'Resume' : 'Run now'}</button>
+        <button className="btn" style={{ flex:1, padding:'6px 10px', fontSize:10 }} onClick={e => { e.stopPropagation(); onToggle(j.id); }}>{j.status === 'paused' ? 'Activate' : 'Pause'}</button>
+      </div>
+    </div>
+  );
+}
+
+function JobTable({ jobs, onRowClick, onToggle }) {
+  return (
+    <table className="table">
+      <thead>
+        <tr>
+          <th>Job</th><th>Agent</th><th>Cron</th><th>Schedule</th><th>Next run</th><th>Last run</th><th>Runs</th><th>Status</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {jobs.map(j => (
+          <tr key={j.id} onClick={() => onRowClick(j)}>
+            <td>
+              <div className="name-cell">
+                <div className="glyph">{j.glyph}</div>
+                <div><b>{j.name}</b><div className="role">{j.tags.join(' · ')}</div></div>
+              </div>
+            </td>
+            <td>{j.agent}</td>
+            <td><span style={{ color:'var(--m-green-500)', fontWeight:700 }}>{j.cron}</span></td>
+            <td style={{ color:'var(--m-text-muted)' }}>{humanizeCron(j.cron)}</td>
+            <td>{j.nextRunIn}</td>
+            <td style={{ color:'var(--m-text-muted)' }}>{j.lastRunAgo}</td>
+            <td style={{ fontVariantNumeric:'tabular-nums' }}>{j.totalRuns.toLocaleString()}</td>
+            <td><StatusPill s={j.status}/></td>
+            <td>
+              <button className="btn" style={{ padding:'4px 10px', fontSize:10 }} onClick={e => { e.stopPropagation(); onToggle(j.id); }}>{j.status === 'paused' ? 'Resume' : 'Pause'}</button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function Wizard({ open, onClose, onCreate }) {
+  const [step, setStep] = React.useState(0);
+  const [draft, setDraft] = React.useState({
+    name:'', glyph:'◇', tags:'', agent:'operator',
+    cron:'*/15 * * * *', tz:'UTC', preset:'15m',
+    prompt:'', status:'active',
+  });
+  React.useEffect(() => { if (!open) { setStep(0); setDraft(d => ({ ...d, name:'', prompt:'', tags:'' })); } }, [open]);
+  if (!open) return null;
+  const set = (k,v) => setDraft(d => ({ ...d, [k]:v }));
+  const valid = step === 0 ? draft.name.trim().length > 1
+              : step === 1 ? draft.cron.trim().length > 0
+              : step === 2 ? !!draft.agent
+              : step === 3 ? draft.prompt.trim().length > 5
+              : true;
+
+  return (
+    <div className="modal-bg open" onClick={onClose}>
+      <div className="wizard" onClick={e => e.stopPropagation()}>
+        <div className="wiz-head">
+          <h2>New cron job</h2>
+          <div className="x" onClick={onClose}>{Ico.x}</div>
+        </div>
+        <div className="wiz-steps">
+          {WIZ_STEPS.map((s,i) => (
+            <React.Fragment key={s}>
+              <div className={`wiz-step ${i===step?'on':i<step?'done':''}`} onClick={() => i<=step && setStep(i)}>
+                <span className="n">{i+1}</span>{s}
+              </div>
+              {i < WIZ_STEPS.length-1 && <div className="wiz-step-sep"/>}
+            </React.Fragment>
+          ))}
+        </div>
+        <div className="wiz-body">
+          {step === 0 && (<>
+            <h3>Identity</h3>
+            <p className="lead">Give the job a short, machine-friendly name. Pick a glyph for the list view.</p>
+            <div className="field">
+              <label>Job name</label>
+              <input className="input" placeholder="e.g. nightly-backup" value={draft.name} onChange={e => set('name', e.target.value.replace(/[^a-z0-9-_]/gi,'-').toLowerCase())}/>
+            </div>
+            <div className="field">
+              <label>Glyph</label>
+              <div className="glyph-pick">
+                {['◇','◆','◈','◉','▲','▼','★','✦','Λ','Δ','Σ','Ω','Ψ','Φ','Ξ','Θ'].map(g => (
+                  <div key={g} className={`glyph-opt ${draft.glyph===g?'on':''}`} onClick={() => set('glyph', g)}>{g}</div>
+                ))}
+              </div>
+            </div>
+            <div className="field">
+              <label>Status on create</label>
+              <div style={{ display:'flex', gap:8 }}>
+                {['active','paused','draft'].map(s => (
+                  <div key={s} className={`chip ${draft.status===s?'on':''}`} onClick={() => set('status', s)}>{s}</div>
+                ))}
+              </div>
+            </div>
+          </>)}
+          {step === 1 && (<>
+            <h3>Schedule</h3>
+            <p className="lead">Pick a preset or write a raw cron expression. UTC unless overridden.</p>
+            <div className="field">
+              <label>Presets</label>
+              <div className="persona-list" style={{ maxHeight: 220 }}>
+                {CRON_PRESETS.map(p => (
+                  <div key={p.id} className={`persona-row ${draft.preset===p.id?'on':''}`} onClick={() => { set('preset', p.id); set('cron', p.expr); }}>
+                    <span className="glyph">{Ico.clock}</span>
+                    <div><div className="pname">{p.label}</div><div className="pdesc">{p.desc}</div></div>
+                    <span className="ptag" style={{ fontFamily:'var(--m-font-mono)', color:'var(--m-green-500)' }}>{p.expr}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="grid-2">
+              <div className="field" style={{ margin:0 }}>
+                <label>Cron expression</label>
+                <input className="input" value={draft.cron} onChange={e => { set('cron', e.target.value); set('preset','custom'); }}/>
+              </div>
+              <div className="field" style={{ margin:0 }}>
+                <label>Timezone</label>
+                <select className="input" value={draft.tz} onChange={e => set('tz', e.target.value)}>
+                  {['UTC','America/New_York','America/Los_Angeles','Europe/Berlin','Asia/Tokyo','Asia/Kolkata'].map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+          </>)}
+          {step === 2 && (<>
+            <h3>Run as agent</h3>
+            <p className="lead">Pick which Hermes agent will execute this job each tick.</p>
+            <div className="persona-list">
+              {AGENT_OPTIONS.map(a => (
+                <div key={a.id} className={`persona-row ${draft.agent===a.id?'on':''}`} onClick={() => set('agent', a.id)}>
+                  <div className="glyph" style={{ color: a.tier===1?'var(--m-green-500)': a.tier===2?'#5fcfff':'var(--m-text-muted)' }}>{a.glyph}</div>
+                  <div>
+                    <div className="pname">{a.name}</div>
+                    <div className="pdesc">Tier {a.tier} {a.tier===1?'orchestrator': a.tier===2?'sub-agent':'specialist persona'}</div>
+                  </div>
+                  <span className="ptag">T{a.tier}</span>
+                </div>
+              ))}
+            </div>
+          </>)}
+          {step === 3 && (<>
+            <h3>Prompt</h3>
+            <p className="lead">What should the agent do each time the cron fires? Write it like a prompt — first principles, no template required.</p>
+            <div className="field">
+              <textarea placeholder="e.g. Scan production logs for error spikes. Page on-call if ERROR rate exceeds 50/min for 3 consecutive windows..." value={draft.prompt} onChange={e => set('prompt', e.target.value)}/>
+            </div>
+          </>)}
+          {step === 4 && (<>
+            <h3>Tags</h3>
+            <p className="lead">Comma-separated tags for filtering and grouping. Optional.</p>
+            <div className="field">
+              <input className="input" placeholder="e.g. observability, alerts, infra" value={draft.tags} onChange={e => set('tags', e.target.value)}/>
+            </div>
+          </>)}
+          {step === 5 && (<>
+            <h3>Review</h3>
+            <p className="lead">Confirm and create. You can edit anything after.</p>
+            <div className="review-grid">
+              <div className="review-block">
+                <h4>Identity</h4>
+                <div className="review-row"><span className="k">Name</span><span className="v">{draft.name || '—'}</span></div>
+                <div className="review-row"><span className="k">Glyph</span><span className="v">{draft.glyph}</span></div>
+                <div className="review-row"><span className="k">Status</span><span className="v">{draft.status}</span></div>
+                <div className="review-row"><span className="k">Tags</span><span className="v muted">{draft.tags || '—'}</span></div>
+              </div>
+              <div className="review-block">
+                <h4>Schedule</h4>
+                <div className="review-row"><span className="k">Cron</span><span className="v" style={{ color:'var(--m-green-500)', fontWeight:700 }}>{draft.cron}</span></div>
+                <div className="review-row"><span className="k">Human</span><span className="v muted">{humanizeCron(draft.cron)}</span></div>
+                <div className="review-row"><span className="k">Timezone</span><span className="v">{draft.tz}</span></div>
+                <div className="review-row"><span className="k">Agent</span><span className="v">{draft.agent}</span></div>
+              </div>
+            </div>
+            <div className="review-block" style={{ marginTop: 14 }}>
+              <h4>Prompt</h4>
+              <div className="review-prompt">{draft.prompt || '(empty)'}</div>
+            </div>
+          </>)}
+        </div>
+        <div className="wiz-foot">
+          <div className="lhs">Step <b>{step+1}</b> / {WIZ_STEPS.length}</div>
+          <div className="actions">
+            <button className="btn" onClick={onClose}>Cancel</button>
+            <button className="btn" disabled={step===0} onClick={() => setStep(s => Math.max(0, s-1))}>Back</button>
+            {step < WIZ_STEPS.length - 1 ? (
+              <button className="btn btn-primary" disabled={!valid} onClick={() => setStep(s => s+1)}>Next</button>
+            ) : (
+              <button className="btn btn-primary" disabled={!valid} onClick={() => {
+                const ag = AGENT_OPTIONS.find(a => a.id === draft.agent) || AGENT_OPTIONS[0];
+                onCreate({
+                  id: 'j-' + Math.random().toString(36).slice(2,7),
+                  name: draft.name,
+                  agent: ag.name,
+                  glyph: draft.glyph,
+                  cron: draft.cron,
+                  tz: draft.tz,
+                  status: draft.status,
+                  nextRunIn: draft.status === 'active' ? 'queued' : '(paused)',
+                  lastRunAgo: 'never',
+                  totalRuns: 0,
+                  tags: draft.tags.split(',').map(t => t.trim()).filter(Boolean),
+                  prompt: draft.prompt,
+                });
+              }}>Create cron job</button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Pager({ page, pageCount, pageSize, setPage, setPageSize, start, end, total }) {
+  if (pageCount <= 1 && total <= pageSize) return null;
+  const nums = [];
+  for (let i = 1; i <= pageCount; i++) {
+    if (i === 1 || i === pageCount || Math.abs(i - page) <= 1) nums.push(i);
+    else if (nums[nums.length-1] !== '…') nums.push('…');
+  }
+  return (
+    <div className="pager">
+      <div className="pager-info">Showing <b>{start}</b>–<b>{end}</b> of <b>{total}</b></div>
+      <div className="pager-ctrls">
+        <button className="pg-btn" disabled={page===1} onClick={() => setPage(1)}>«</button>
+        <button className="pg-btn" disabled={page===1} onClick={() => setPage(p => Math.max(1,p-1))}>‹</button>
+        {nums.map((n,i) => n === '…' ? <span key={i} className="pg-gap">…</span> :
+          <button key={i} className={`pg-num ${n===page?'on':''}`} onClick={() => setPage(n)}>{n}</button>
+        )}
+        <button className="pg-btn" disabled={page===pageCount} onClick={() => setPage(p => Math.min(pageCount,p+1))}>›</button>
+        <button className="pg-btn" disabled={page===pageCount} onClick={() => setPage(pageCount)}>»</button>
+      </div>
+      <div className="pager-size">Rows
+        <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))}>
+          {[8,12,16,24,48].map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [jobs, setJobs]     = React.useState(SEED_JOBS);
+  const [filter, setFilter] = React.useState('all');
+  const [query, setQuery]   = React.useState('');
+  const [view, setView]     = React.useState('grid');
+  const [wizOpen, setWizOpen] = React.useState(false);
+  const [page, setPage]     = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(8);
+
+  const filtered = jobs.filter(j => {
+    if (filter !== 'all' && j.status !== filter) return false;
+    if (query) {
+      const q = query.toLowerCase();
+      if (!j.name.toLowerCase().includes(q) && !j.agent.toLowerCase().includes(q) && !j.tags.join(' ').toLowerCase().includes(q) && !j.cron.includes(q)) return false;
+    }
+    return true;
+  });
+
+  React.useEffect(() => { setPage(1); }, [filter, query, view, pageSize]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const start = filtered.length ? (page - 1) * pageSize + 1 : 0;
+  const end   = Math.min(filtered.length, page * pageSize);
+  const paged = filtered.slice((page-1)*pageSize, page*pageSize);
+
+  const counts = {
+    all: jobs.length,
+    active: jobs.filter(j => j.status==='active').length,
+    paused: jobs.filter(j => j.status==='paused').length,
+    draft:  jobs.filter(j => j.status==='draft').length,
+  };
+
+  const toggleJob = (id) => setJobs(prev => prev.map(j => j.id === id ? { ...j, status: j.status === 'active' ? 'paused' : 'active' } : j));
+  const runJob = (id) => setJobs(prev => prev.map(j => j.id === id ? { ...j, lastRunAgo:'just now', totalRuns: j.totalRuns + 1 } : j));
+
+  return (
+    <div className="shell">
+      <nav className="nav"><PrimaryNavV2 active="jobs" sessionsBadge={9} /></nav>
+      <main className="main">
+        <div className="topbar">
+          <h1>
+            <span className="crumb">Hermes</span>
+            <span className="sep">/</span>
+            <span className="cur">Cron Jobs</span>
+          </h1>
+          <div className="stats">
+            <span><b>{counts.all}</b> routines</span>
+            <span className="sep"/>
+            <span className="ok"><b>{counts.active}</b> active</span>
+            <span className="sep"/>
+            <span><b>{counts.paused}</b> paused</span>
+            <span className="sep"/>
+            <span>last sync <b>12s</b> ago</span>
+          </div>
+        </div>
+
+        <div className="filterbar">
+          <div className="search-input">
+            {Ico.search}
+            <input placeholder="filter routines, agents, tags, cron…" value={query} onChange={e => setQuery(e.target.value)}/>
+          </div>
+          <div className="tier-chips">
+            {STATUS_FILTERS.map(s => (
+              <div key={s.id} className={`chip ${filter===s.id?'on':''}`} onClick={() => setFilter(s.id)}>
+                {s.label} <span style={{ opacity:.6, marginLeft:4 }}>{counts[s.id]}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <div className="view-toggle">
+              <button className={view==='grid'?'on':''} onClick={() => setView('grid')} title="Grid">{Ico.grid}</button>
+              <button className={view==='table'?'on':''} onClick={() => setView('table')} title="Table">{Ico.list}</button>
+            </div>
+            <button className="btn-new" onClick={() => setWizOpen(true)}>{Ico.plus}New cron job</button>
+          </div>
+        </div>
+
+        <div className="body">
+          {filtered.length === 0 ? (
+            <div className="empty">No jobs match — clear filter or try a different query.</div>
+          ) : view === 'grid' ? (
+            <div className="grid">
+              {paged.map(j => <JobCard key={j.id} j={j} onClick={() => {}} onToggle={toggleJob} onRun={runJob}/>)}
+            </div>
+          ) : (
+            <JobTable jobs={paged} onRowClick={() => {}} onToggle={toggleJob}/>
+          )}
+          <Pager page={page} pageCount={pageCount} pageSize={pageSize} setPage={setPage} setPageSize={setPageSize} start={start} end={end} total={filtered.length}/>
+        </div>
+
+        <footer className="footer">
+          <span><b>{counts.all}</b> routines</span><span className="sep"/>
+          <span className="ok"><b>{counts.active}</b> active</span><span className="sep"/>
+          <span><b>{counts.paused}</b> paused</span><span className="sep"/>
+          <span>uptime <b>14d 4h</b></span>
+          <span style={{ marginLeft:'auto' }}>UTC <b>{new Date().toUTCString().slice(17,25)}</b></span>
+        </footer>
+
+        <Wizard open={wizOpen} onClose={() => setWizOpen(false)} onCreate={(j) => { setJobs(p => [j, ...p]); setWizOpen(false); }}/>
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

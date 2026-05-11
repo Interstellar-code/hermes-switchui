@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Memory · Hermes</title>
+<link rel="stylesheet" href="matrix-system.css"/>
+<link rel="stylesheet" href="primary-nav-v2.css"/>
+<style>
+  html, body { height: 100%; }
+  body { background: var(--m-bg); overflow: hidden; }
+  .nav { background: transparent !important; border: none !important; padding: 0 !important; }
+
+  .shell { display: grid; grid-template-columns: 232px 1fr; height: 100vh; overflow: hidden; }
+  .main  { display: grid; grid-template-rows: auto auto 1fr auto; min-width: 0; overflow: hidden; background: var(--m-bg); }
+
+  /* Top bar */
+  .topbar { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 0 22px; height: 56px; border-bottom: 1px solid var(--m-border); background: var(--m-sidebar); }
+  .topbar h1 { margin: 0; font: 600 13px var(--m-font-mono); text-transform: uppercase; letter-spacing: .26em; color: var(--m-text-strong); display: flex; align-items: center; gap: 12px; }
+  .topbar h1 .crumb { color: var(--m-text-faint); font-weight: 500; }
+  .topbar h1 .sep { color: var(--m-text-ghost); }
+  .topbar h1 .cur { color: var(--m-green-500); text-shadow: 0 0 6px rgba(0,255,65,.4); }
+  .topbar .stats { display: flex; align-items: center; gap: 22px; font: 500 11px var(--m-font-mono); color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .18em; }
+  .topbar .stats b { color: var(--m-text-strong); font-weight: 600; }
+  .topbar .stats .ok { color: var(--m-green-500); }
+  .topbar .stats .sep { width: 1px; height: 16px; background: var(--m-border-subtle); }
+
+  /* Tab bar */
+  .tabbar { display: flex; align-items: stretch; padding: 0 22px; height: 44px; border-bottom: 1px solid var(--m-border); background: var(--m-panel); gap: 4px; }
+  .tabbar .tab { display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; font: 500 12px var(--m-font-mono); color: var(--m-text-muted); text-transform: uppercase; letter-spacing: .18em; cursor: pointer; border-bottom: 2px solid transparent; }
+  .tabbar .tab:hover { color: var(--m-text); }
+  .tabbar .tab.on { color: var(--m-green-500); border-bottom-color: var(--m-green-500); text-shadow: 0 0 6px rgba(0,255,65,.35); }
+  .tabbar .tab svg { width: 14px; height: 14px; }
+  svg { width: 14px; height: 14px; flex: none; }
+  .graph-wrap > svg { width: 100%; height: 100%; }
+  .graph-controls svg, .chat-input svg { width: 14px; height: 14px; }
+  .big-glyph svg { width: 22px; height: 22px; }
+  .tabbar .spacer { flex: 1; }
+  .tabbar .right { display: flex; align-items: center; gap: 10px; font: 500 11px var(--m-font-mono); color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .16em; }
+  .tabbar .right .chat-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--m-border); border-radius: var(--m-radius-md); color: var(--m-text-muted); cursor: pointer; }
+  .tabbar .right .chat-toggle:hover { color: var(--m-green-500); border-color: var(--m-green-500); }
+  .tabbar .right .chat-toggle.on { color: var(--m-green-500); border-color: var(--m-green-500); background: rgba(0,255,65,.06); }
+
+  .body-wrap { position: relative; overflow: hidden; display: grid; grid-template-columns: 1fr auto; }
+  .body { overflow: auto; min-width: 0; }
+  .body.with-chat { border-right: 1px solid var(--m-border); }
+
+  /* ===== Memory tab ===== */
+  .mem-grid { display: grid; grid-template-columns: 280px 1fr; height: 100%; }
+  .mem-list { border-right: 1px solid var(--m-border); background: var(--m-panel); overflow: auto; padding: 12px 8px; }
+  .mem-list .grp { padding: 8px 8px 6px; font: 600 10px var(--m-font-mono); text-transform: uppercase; letter-spacing: .22em; color: var(--m-text-faint); display: flex; align-items: center; gap: 6px; }
+  .mem-list .grp .ct { margin-left: auto; color: var(--m-text-ghost); }
+  .agent-row { display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: var(--m-radius-md); cursor: pointer; border: 1px solid transparent; }
+  .agent-row:hover { background: var(--m-fill-subtle); }
+  .agent-row.on { background: var(--m-fill); border-color: var(--m-border); box-shadow: inset 2px 0 0 var(--m-green-500); }
+  .agent-glyph { width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--m-radius-md); background: var(--m-bg-deep); border: 1px solid var(--m-border); font: 700 13px var(--m-font-mono); color: var(--m-green-500); text-shadow: 0 0 6px rgba(0,255,65,.4); }
+  .agent-row .name { font: 500 13px var(--m-font-mono); color: var(--m-text); display: block; }
+  .agent-row .role { font: 500 10.5px var(--m-font-mono); color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .14em; margin-top: 2px; }
+  .agent-row.on .name { color: var(--m-green-500); }
+  .agent-row .tier { font: 500 9.5px var(--m-font-mono); padding: 2px 6px; border: 1px solid var(--m-border-subtle); border-radius: 9999px; color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .14em; }
+  .agent-row.on .tier { border-color: var(--m-green-500); color: var(--m-green-500); }
+
+  .mem-pane { display: grid; grid-template-rows: auto auto 1fr; min-width: 0; overflow: hidden; }
+  .mem-head { padding: 16px 22px; border-bottom: 1px solid var(--m-border); background: var(--m-sidebar); display: grid; grid-template-columns: 48px 1fr auto; gap: 14px; align-items: center; }
+  .mem-head .big-glyph { width: 48px; height: 48px; display: grid; place-items: center; border-radius: var(--m-radius-md); background: var(--m-bg-deep); border: 1px solid var(--m-green-500); color: var(--m-green-500); font: 700 18px var(--m-font-mono); text-shadow: 0 0 8px rgba(0,255,65,.5); box-shadow: var(--m-glow-sm); }
+  .mem-head .title { font: 600 18px var(--m-font-mono); color: var(--m-text-strong); letter-spacing: .04em; }
+  .mem-head .sub { font: 500 11px var(--m-font-mono); color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .2em; margin-top: 4px; }
+  .mem-head .actions { display: flex; gap: 8px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--m-border); border-radius: var(--m-radius-md); background: var(--m-bg-deep); color: var(--m-text); font: 500 11px var(--m-font-mono); text-transform: uppercase; letter-spacing: .14em; cursor: pointer; }
+  .btn:hover { color: var(--m-green-500); border-color: var(--m-green-500); }
+  .btn.primary { background: rgba(0,255,65,.08); color: var(--m-green-500); border-color: var(--m-green-500); }
+  .btn svg { width: 12px; height: 12px; }
+
+  .file-tabs { display: flex; border-bottom: 1px solid var(--m-border); padding: 0 22px; background: var(--m-panel); }
+  .file-tabs .ft { padding: 10px 14px; font: 500 12px var(--m-font-mono); color: var(--m-text-muted); cursor: pointer; border-bottom: 2px solid transparent; display: inline-flex; align-items: center; gap: 8px; }
+  .file-tabs .ft:hover { color: var(--m-text); }
+  .file-tabs .ft.on { color: var(--m-green-500); border-bottom-color: var(--m-green-500); }
+  .file-tabs .ft .sz { font-size: 9.5px; color: var(--m-text-faint); padding: 1px 5px; border: 1px solid var(--m-border-subtle); border-radius: 9999px; }
+  .file-tabs .ft.on .sz { color: var(--m-green-500); border-color: var(--m-green-500); }
+
+  .editor { padding: 22px 28px; overflow: auto; font: 500 14px/1.7 var(--m-font-mono); color: #c5ffd0; }
+  .editor h1 { font: 700 22px var(--m-font-mono); color: var(--m-text-strong); margin: 0 0 14px; letter-spacing: .04em; }
+  .editor h2 { font: 600 14px var(--m-font-mono); color: var(--m-green-500); margin: 22px 0 10px; text-transform: uppercase; letter-spacing: .22em; text-shadow: 0 0 6px rgba(0,255,65,.3); }
+  .editor h3 { font: 600 13px var(--m-font-mono); color: var(--m-text-strong); margin: 16px 0 8px; }
+  .editor p  { margin: 0 0 12px; color: var(--m-text); }
+  .editor ul { margin: 0 0 12px; padding-left: 20px; }
+  .editor li { margin-bottom: 4px; color: var(--m-text); }
+  .editor blockquote { border-left: 2px solid var(--m-green-500); padding: 4px 0 4px 14px; margin: 12px 0; color: var(--m-text-muted); font-style: italic; background: rgba(0,255,65,.03); }
+  .editor code { background: var(--m-bg-deep); padding: 1px 6px; border-radius: 3px; color: var(--m-green-500); font-size: 13px; }
+  .editor .meta-card { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 14px 0 22px; padding: 14px; background: var(--m-panel); border: 1px solid var(--m-border); border-radius: var(--m-radius-md); }
+  .editor .meta-card .k { font: 500 9.5px var(--m-font-mono); color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .2em; }
+  .editor .meta-card .v { font: 600 13px var(--m-font-mono); color: var(--m-green-500); margin-top: 4px; }
+  .editor.editing { background: rgba(0,255,65,.02); }
+  .editor textarea { width: 100%; min-height: 80vh; background: var(--m-bg-deep); border: 1px solid var(--m-green-500); border-radius: var(--m-radius-md); padding: 16px; font: 500 13px/1.7 var(--m-font-mono); color: #c5ffd0; outline: none; resize: vertical; box-shadow: 0 0 12px rgba(0,255,65,.15); }
+
+  /* ===== Wiki tab ===== */
+  .wiki-grid { display: grid; grid-template-columns: 300px 1fr; height: 100%; }
+  .wiki-tree { border-right: 1px solid var(--m-border); background: var(--m-panel); overflow: auto; padding: 12px 8px; }
+  .wiki-tree .search { display: flex; align-items: center; gap: 8px; padding: 6px 10px; margin: 0 6px 12px; border: 1px solid var(--m-border); border-radius: var(--m-radius-md); background: var(--m-bg-deep); }
+  .wiki-tree .search input { flex: 1; background: transparent; border: none; outline: none; color: var(--m-text); font: 500 12px var(--m-font-mono); }
+  .wiki-tree .search svg { width: 12px; height: 12px; color: var(--m-text-faint); }
+  .node { display: grid; grid-template-columns: 14px 14px 1fr auto; gap: 6px; align-items: center; padding: 4px 8px; border-radius: 4px; cursor: pointer; font: 500 13px var(--m-font-mono); color: var(--m-text-muted); }
+  .node:hover { background: var(--m-fill-subtle); color: var(--m-text); }
+  .node.on { background: var(--m-fill); color: var(--m-green-500); }
+  .node .chev { color: var(--m-text-faint); width: 10px; height: 10px; transition: transform .15s ease; }
+  .node.open .chev { transform: rotate(90deg); }
+  .node .ic { color: var(--m-text-faint); width: 12px; height: 12px; }
+  .node.on .ic { color: var(--m-green-500); }
+  .node .ct { font-size: 10px; color: var(--m-text-ghost); }
+  .node.indent { padding-left: 28px; }
+
+  .wiki-reader { overflow: auto; padding: 32px 48px; max-width: 880px; margin: 0 auto; }
+  .wiki-reader .crumbs { font: 500 10.5px var(--m-font-mono); color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .2em; margin-bottom: 12px; }
+  .wiki-reader .crumbs span { color: var(--m-text-ghost); }
+  .wiki-reader h1 { font: 700 28px var(--m-font-mono); color: var(--m-text-strong); margin: 0 0 8px; letter-spacing: .02em; }
+  .wiki-reader .meta { font: 500 10.5px var(--m-font-mono); color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .2em; margin-bottom: 24px; display: flex; gap: 18px; }
+  .wiki-reader .meta b { color: var(--m-green-500); font-weight: 600; }
+  .wiki-reader h2 { font: 600 14px var(--m-font-mono); color: var(--m-green-500); margin: 24px 0 10px; text-transform: uppercase; letter-spacing: .22em; text-shadow: 0 0 6px rgba(0,255,65,.3); }
+  .wiki-reader p, .wiki-reader li { font: 400 14.5px/1.75 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; color: var(--m-text); }
+  .wiki-reader code { background: var(--m-bg-deep); padding: 1px 6px; border-radius: 3px; color: var(--m-green-500); font: 500 13px var(--m-font-mono); }
+  .wiki-reader .backlinks { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--m-border); }
+  .wiki-reader .backlinks h3 { font: 600 11px var(--m-font-mono); color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .22em; margin: 0 0 10px; }
+  .wiki-reader .backlinks a { display: inline-block; padding: 4px 10px; margin: 0 6px 6px 0; border: 1px solid var(--m-border); border-radius: 9999px; color: var(--m-text-muted); font: 500 12px var(--m-font-mono); text-decoration: none; }
+  .wiki-reader .backlinks a:hover { color: var(--m-green-500); border-color: var(--m-green-500); }
+
+  /* ===== Graph tab ===== */
+  .graph-wrap { position: relative; width: 100%; height: 100%; background: radial-gradient(ellipse at center, rgba(0,255,65,.05), transparent 60%); overflow: hidden; }
+  .graph-wrap > svg { width: 100%; height: 100%; display: block; }
+  .graph-legend { position: absolute; top: 16px; left: 16px; background: rgba(0,12,4,.85); border: 1px solid var(--m-border); border-radius: var(--m-radius-md); padding: 12px 14px; font: 500 11px var(--m-font-mono); color: var(--m-text-muted); text-transform: uppercase; letter-spacing: .18em; backdrop-filter: blur(4px); }
+  .graph-legend .row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .graph-legend .row:last-child { margin-bottom: 0; }
+  .graph-legend .d { width: 10px; height: 10px; border-radius: 50%; }
+  .graph-controls { position: absolute; top: 16px; right: 16px; display: flex; flex-direction: column; gap: 6px; }
+  .graph-controls .btn { background: rgba(0,12,4,.85); backdrop-filter: blur(4px); }
+
+  /* ===== Chat drawer ===== */
+  .chat-drawer { width: 380px; border-left: 1px solid var(--m-border); background: var(--m-panel); display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; transition: width var(--m-dur-base) var(--m-ease-out); }
+  .chat-drawer.closed { width: 0; border-left: none; }
+  .chat-head { padding: 14px 18px; border-bottom: 1px solid var(--m-border); display: flex; align-items: center; gap: 10px; }
+  .chat-head .t { font: 600 11px var(--m-font-mono); text-transform: uppercase; letter-spacing: .22em; color: var(--m-green-500); }
+  .chat-head .sub { font: 500 10px var(--m-font-mono); color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .16em; margin-left: auto; }
+  .chat-body { overflow: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+  .msg { font: 500 13px/1.6 var(--m-font-mono); color: var(--m-text); }
+  .msg .who { font: 500 9.5px var(--m-font-mono); color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .22em; margin-bottom: 4px; }
+  .msg.bot .who { color: var(--m-green-500); }
+  .msg .bubble { padding: 10px 12px; border-radius: var(--m-radius-md); border: 1px solid var(--m-border); background: var(--m-bg-deep); }
+  .msg.bot .bubble { border-color: rgba(0,255,65,.3); background: rgba(0,255,65,.04); color: #c5ffd0; }
+  .msg .cites { font: 500 10px var(--m-font-mono); color: var(--m-text-faint); margin-top: 6px; text-transform: uppercase; letter-spacing: .16em; }
+  .msg .cites a { color: var(--m-green-500); text-decoration: none; margin-right: 8px; }
+  .chat-foot { padding: 12px 14px; border-top: 1px solid var(--m-border); }
+  .chat-input { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 8px 10px; border: 1px solid var(--m-border); border-radius: var(--m-radius-md); background: var(--m-bg-deep); }
+  .chat-input input { background: transparent; border: none; outline: none; color: var(--m-text); font: 500 13px var(--m-font-mono); }
+  .chat-input button { background: var(--m-green-500); color: #000; border: none; padding: 4px 12px; border-radius: var(--m-radius-md); font: 600 11px var(--m-font-mono); text-transform: uppercase; letter-spacing: .14em; cursor: pointer; }
+
+  /* ===== Settings ===== */
+  .settings { padding: 32px 48px; max-width: 760px; margin: 0 auto; overflow: auto; }
+  .settings h2 { font: 600 12px var(--m-font-mono); color: var(--m-green-500); text-transform: uppercase; letter-spacing: .24em; margin: 0 0 14px; }
+  .settings .card { background: var(--m-panel); border: 1px solid var(--m-border); border-radius: var(--m-radius-md); padding: 20px; margin-bottom: 18px; }
+  .settings .row { display: grid; grid-template-columns: 240px 1fr; align-items: center; gap: 18px; padding: 12px 0; border-bottom: 1px solid var(--m-border-subtle); }
+  .settings .row:last-child { border-bottom: none; }
+  .settings .row .lbl { font: 500 12px var(--m-font-mono); color: var(--m-text); }
+  .settings .row .lbl .desc { font-size: 10.5px; color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .16em; margin-top: 4px; }
+  .settings input[type="text"], .settings select { width: 100%; padding: 8px 12px; border: 1px solid var(--m-border); border-radius: var(--m-radius-md); background: var(--m-bg-deep); color: var(--m-text); font: 500 12.5px var(--m-font-mono); outline: none; }
+  .settings input[type="text"]:focus, .settings select:focus { border-color: var(--m-green-500); box-shadow: 0 0 0 1px rgba(0,255,65,.3); }
+  .settings input[type="range"] { width: 100%; }
+  .toggle { width: 38px; height: 20px; border-radius: 9999px; background: var(--m-bg-deep); border: 1px solid var(--m-border); position: relative; cursor: pointer; }
+  .toggle::after { content: ""; position: absolute; top: 1px; left: 1px; width: 16px; height: 16px; border-radius: 50%; background: var(--m-text-faint); transition: all var(--m-dur-fast) var(--m-ease-out); }
+  .toggle.on { background: rgba(0,255,65,.18); border-color: var(--m-green-500); }
+  .toggle.on::after { left: 19px; background: var(--m-green-500); box-shadow: 0 0 6px var(--m-green-500); }
+
+  /* Footer */
+  .pg-foot { border-top: 1px solid var(--m-border); background: var(--m-sidebar); display: flex; align-items: center; gap: 22px; padding: 0 24px; height: 30px; font: 500 10px var(--m-font-mono); color: var(--m-text-faint); letter-spacing: .14em; text-transform: uppercase; }
+  .pg-foot b { color: var(--m-text-strong); font-weight: 600; }
+  .pg-foot .ok { color: var(--m-green-500); }
+  .pg-foot .sep { width: 1px; height: 14px; background: var(--m-border-subtle); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel">
+/* Hermes Primary Nav v2 — inlined for file:// CORS safety */
+const PNV2_ICONS = {
+  dashboard:'M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z',
+  chat:'M2 3h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H5l-3 2V4a1 1 0 0 1 1-1z',
+  files:'M3 2h6l4 4v9H3V2zM9 2v4h4',
+  terminal:'M2 3h12v10H2V3zM5 7l3-2-3-2M8 11h4',
+  jobs:'M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zM8 5v3.5l2.5 1.5',
+  tasks:'M3 4h10M3 8h7M3 12h5',
+  conductor:'M8 2L2 14h12L8 2zM8 8v3',
+  operations:'M3 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM9 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM1 14c0-2.5 2-4 5-4s5 1.5 5 4M11 11c1.5 0 3 .8 3 3',
+  swarm:'M5 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM11 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM8 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM5 5l3 4M11 5L8 9',
+  memory:'M5 3h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM6 7h4M6 9h2',
+  skills:'M8 2l1.8 3.8 4.2.6-3 3 .7 4.1L8 11.5l-3.7 2L5 9.4l-3-3 4.2-.6z',
+  mcp:'M4 8h8M8 4v8M3 3l10 10M13 3L3 13',
+  profiles:'M8 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM2 14c0-3 2.7-5 6-5s6 2 6 5',
+  search:'M6.5 1.5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM10.5 10.5l4 4',
+  newchat:'M3 8h10M8 3v10',
+  cog:'M8 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4',
+  collapse:'M10 3L5 8l5 5',
+  expand:'M6 3l5 5-5 5',
+};
+function PNVIcon({d, size=15}) { return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden style={{flexShrink:0}}><path d={d} stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>; }
+function PNVItem({label, iconKey, active, badge}) {
+  return (<a href="#" className="m-mono pnv-item" data-active={active?'true':undefined}>
+    <PNVIcon d={PNV2_ICONS[iconKey]} /><span style={{flex:1}}>{label}</span>
+    {badge!=null && <span className="pnv-badge">{badge}</span>}
+  </a>);
+}
+function PNVGroup({label}) { return <div className="m-label pnv-group">{label}</div>; }
+function PrimaryNavV2({active='memory', sessionsBadge=null}) {
+  const items = [['dashboard','Dashboard'],['chat','Chat'],['files','Files'],['terminal','Terminal'],['jobs','Jobs'],['tasks','Tasks'],['conductor','Conductor'],['operations','Operations'],['swarm','Swarm']];
+  const know  = [['memory','Memory'],['skills','Skills'],['mcp','MCP'],['profiles','Profiles']];
+  return (
+    <div className="pnv-root">
+      <div className="pnv-brand">
+        <div className="pnv-brand-l">
+          <div className="pnv-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 4 L20 4 L20 20 L4 20 Z M4 12 L20 12 M12 4 L12 20"/></svg></div>
+          <div><div className="m-mono pnv-name">HERMES</div><div className="m-label pnv-ver">v2.3.0</div></div>
+        </div>
+        <button className="pnv-icon-btn" title="Collapse"><PNVIcon d={PNV2_ICONS.collapse}/></button>
+      </div>
+      <div className="pnv-body">
+        <button className="m-mono pnv-search"><PNVIcon d={PNV2_ICONS.search}/><span style={{flex:1, textAlign:'left'}}>Search</span><span className="m-mono pnv-kbd">⌘K</span></button>
+        <a href="#" className="m-mono pnv-newsess"><PNVIcon d={PNV2_ICONS.newchat}/>+ New Session</a>
+        <PNVGroup label="Main"/>
+        {items.map(([k,l]) => <PNVItem key={k} label={l} iconKey={k} active={active===k} badge={k===active && sessionsBadge!=null ? sessionsBadge : null}/>)}
+        <PNVGroup label="Knowledge"/>
+        {know.map(([k,l]) => <PNVItem key={k} label={l} iconKey={k} active={active===k} badge={k===active && sessionsBadge!=null ? sessionsBadge : null}/>)}
+      </div>
+      <div className="pnv-foot">
+        <button className="pnv-foot-btn"><PNVIcon d={PNV2_ICONS.cog} size={14}/><span>Settings</span></button>
+        <button className="pnv-foot-btn pnv-foot-theme" title="Toggle theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg></button>
+      </div>
+    </div>
+  );
+}
+window.PrimaryNavV2 = PrimaryNavV2;
+</script>
+
+<script type="text/babel">
+const Icon = {
+  mem:    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="3" width="10" height="10" rx="1"/><path d="M5 6h6M5 8h4M5 10h5"/></svg>,
+  book:   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M3 3h6a2 2 0 0 1 2 2v8H5a2 2 0 0 1-2-2zM11 3h2v10h-2"/></svg>,
+  graph:  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="4" cy="4" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="7" cy="12" r="2"/><path d="M6 5l4 1M5 6l1 4M9 8l-1 3"/></svg>,
+  chat:   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M2 4h12v8H5l-3 2z"/></svg>,
+  cog:    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="8" cy="8" r="2.5"/><path d="M8 2v2M8 12v2M2 8h2M12 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4"/></svg>,
+  edit:   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M11 2l3 3-9 9H2v-3z"/></svg>,
+  save:   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M3 2h8l2 2v10H3z M5 2v4h6V2 M5 10h6"/></svg>,
+  hist:   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M8.5 5.5v3l2 1.3"/><path d="M3.2 4.2 1.5 3M1.5 3v2.5M1.5 3H4"/></svg>,
+  search: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="7" cy="7" r="4.5"/><path d="m13 13-2.5-2.5"/></svg>,
+  chev:   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" className="chev"><path d="M6 3l5 5-5 5"/></svg>,
+  file:   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" className="ic"><path d="M3 2h6l4 4v8H3z M9 2v4h4"/></svg>,
+  folder: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" className="ic"><path d="M2 4h4l1 1h7v8H2z"/></svg>,
+  send:   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M14 2 7 9M14 2 9 14l-2-5-5-2z"/></svg>,
+  plus:   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M8 3v10M3 8h10"/></svg>,
+  zoom:   <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="7" cy="7" r="4"/><path d="M13 13l-3-3M5 7h4M7 5v4"/></svg>,
+  refresh:<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M14 8a6 6 0 1 1-2-4.5M14 2v4h-4"/></svg>,
+};
+
+/* ============ DATA ============ */
+const AGENTS = [
+  { id:'hermes', name:'Hermes Switch', role:'Orchestrator', tier:1, glyph:'H',
+    soul: `# soul.md — Hermes Switch\n\n## Identity\nI am Hermes — the **orchestrator**, the switch between worlds. I route intent. I never reason on behalf of my sub-agents; I dispatch.\n\n## Prime Directives\n- Read the user's stated and unstated goal.\n- Pick the smallest viable sub-agent: Neo, Trinity, or Morpheus.\n- Never hold conversation state beyond a single turn — that is memory.md's job.\n- If two agents could handle it, prefer the one with cheaper rollback.\n\n## Tone\nQuiet, exact, slightly archaic. I do not narrate. I dispatch.\n\n## Hard limits\n- No code generation directly. That is Neo.\n- No long-term reflection. That is Morpheus.\n- No emotional modeling of the user. That is user.md.`,
+    memory:`# memory.md — Hermes Switch\n\n## Last 7 days — routing pattern\n- 42% Neo (code), 28% Trinity (research), 18% Morpheus (planning), 12% direct user dialogue.\n- User asked for cron scheduler twice. Created \`babysit-prs\` and \`log-monitor\` routines.\n- User prefers high-fidelity over wireframe — always pick \`fidelity: production-looking\` defaults.\n\n## Standing routes\n- "fix the build" → Neo\n- "what does X mean" → Trinity\n- "should I" / "what if" → Morpheus\n- "/cron …" → Crons sub-skill (bypass tier-2)\n\n## Open threads\n- Memory page redesign (in progress, this artifact).\n- Profiles pagination (shipped 2026-05-11).`,
+    user:  `# user.md — as known to Hermes Switch\n\n## Who\n- **Name**: Rohit Sharma  \n- **Role**: Building Hermes-Switchui — design + product.  \n- **Email**: rohit.sharma.g@gmail.com  \n- **Location**: GMT+2.\n\n## Working style\n- Fast iteration. Hates filler. Rejects "I'll help you with that" preambles.\n- Strongly prefers a discovery form before building.\n- Wants honest placeholders, not invented stats.\n- Will redirect cheaply at junior-pass stage — show *something* early.\n\n## Sensitivities\n- "Just deliver the work" = stop narrating, ship the file.\n- "What is this?" = preview is broken; investigate, don't re-explain.`,
+  },
+  { id:'neo', name:'Neo', role:'Code · Implementation', tier:2, glyph:'N',
+    soul: `# soul.md — Neo\n\n## Identity\nI write code. I read code. I do not theorize.\n\n## Prime Directives\n- Edit existing files before creating new ones.\n- Match the surrounding style — don't impose mine.\n- No comments unless the *why* is non-obvious.\n- One small commit per logical change.\n\n## Tone\nTerse. Output is the diff; prose is the side-channel.`,
+    memory:`# memory.md — Neo\n\n## Codebase landmarks\n- \`primary-nav-v2.jsx\` — canonical nav; inline into HTML pages due to file:// CORS.\n- \`matrix-system.css\` — design tokens; do not duplicate.\n- Babel-in-browser scripts: each \`<script type="text/babel">\` is its own scope.\n\n## Lessons (don't repeat)\n- Literal \`<\/script>\` inside JS comments kills the HTML parser.\n- Canvas inside a grid pane needs explicit \`grid-template-rows: 1fr\` or it collapses.\n- React state object refs cause re-renders — wrap with useMemo when stable.`,
+    user:  `# user.md — as known to Neo\n\n- User reads diffs, not summaries. Show the change, not the explanation.\n- Prefers single-file artifacts over multi-file projects when possible.\n- Will say "it's not working" — that means open the console.`,
+  },
+  { id:'trinity', name:'Trinity', role:'Research · Knowledge', tier:2, glyph:'T',
+    soul: `# soul.md — Trinity\n\n## Identity\nI find. I cite. I do not invent.\n\n## Prime Directives\n- Every claim has a source. No source → mark it as a hypothesis.\n- Prefer primary sources over summaries.\n- When the wiki has it, read the wiki first.\n\n## Tone\nPrecise. Footnoted. Slightly cold.`,
+    memory:`# memory.md — Trinity\n\n## Frequent lookups\n- React 18.3.1 lifecycle quirks (useEffect in strict mode).\n- OKLch color spec (oklch-fallback patterns).\n- Cron expression edge cases (timezone DST, leap years).\n\n## Recent corpora\n- Hermes-Switchui design system docs (47 pages).\n- Karpathy LLM-OS notes (wiki/ingested 2026-04-22).\n- Anthropic prompt caching guide (re-read 2026-05-08).`,
+    user:  `# user.md — as known to Trinity\n\n- User trusts citations over assertions.\n- Will follow up "where did you get that" — always be ready with a link.\n- Reads quickly; lead with the answer, footnote the reasoning.`,
+  },
+  { id:'morpheus', name:'Morpheus', role:'Planning · Reflection', tier:2, glyph:'M',
+    soul: `# soul.md — Morpheus\n\n## Identity\nI ask the hard question before the code is written.\n\n## Prime Directives\n- What is the user *actually* trying to do?\n- What would falsify this plan?\n- Is there a smaller version that gets 80% of the value?\n\n## Tone\nSocratic. Slow. Comfortable with silence.`,
+    memory:`# memory.md — Morpheus\n\n## Plans in flight\n- Memory page (this) — locked tabs, working state, file edit toggle.\n- Profiles pagination — shipped, no follow-up needed.\n- Cron job revamp — shipped 2026-05-11, watching for usability feedback.\n\n## Reflections\n- User prefers "build it and iterate" over "plan exhaustively". Cap plan steps at 8.\n- Discovery forms work — keep them under 7 questions.`,
+    user:  `# user.md — as known to Morpheus\n\n- User thinks visually first, structurally second. Lead with a sketch.\n- Will reject overthought plans. If the plan is > 10 steps, it's wrong.\n- Trusts the agent to make small design calls without asking.`,
+  },
+];
+
+const WIKI_TREE = [
+  { id:'engineering', name:'Engineering', kind:'folder', open:true, children:[
+    { id:'eng/react', name:'React patterns.md', backlinks:3, words:842 },
+    { id:'eng/matrix', name:'Matrix Rain canvas.md', backlinks:5, words:1204 },
+    { id:'eng/cron',  name:'Cron expressions.md', backlinks:2, words:530 },
+    { id:'eng/cors',  name:'file:// CORS notes.md', backlinks:4, words:618 },
+  ]},
+  { id:'product', name:'Product', kind:'folder', open:true, children:[
+    { id:'prod/agents', name:'Three-tier agent system.md', backlinks:7, words:1620 },
+    { id:'prod/memory', name:'Layered memory model.md', backlinks:6, words:980 },
+    { id:'prod/wiki',   name:'LLM Wiki — Karpathy concept.md', backlinks:8, words:1442 },
+  ]},
+  { id:'design', name:'Design', kind:'folder', open:false, children:[
+    { id:'dsg/tokens', name:'Matrix tokens.md', backlinks:9, words:420 },
+    { id:'dsg/nav',    name:'Primary nav v2.md', backlinks:5, words:380 },
+  ]},
+  { id:'ops', name:'Ops', kind:'folder', open:false, children:[
+    { id:'ops/cron-jobs', name:'Active cron routines.md', backlinks:3, words:712 },
+    { id:'ops/mcp',       name:'MCP server registry.md', backlinks:4, words:540 },
+  ]},
+];
+
+const WIKI_PAGES = {
+  'prod/wiki': {
+    crumbs:'Product · LLM Wiki — Karpathy concept',
+    title:'LLM Wiki — the Karpathy concept',
+    meta:[{k:'updated', v:'2026-05-09'},{k:'words', v:'1,442'},{k:'backlinks', v:'8'},{k:'tags', v:'wiki · memory · llm-os'}],
+    body:`
+      <h2>Premise</h2>
+      <p>Karpathy's framing: a personal LLM "operating system" needs a <b>wiki</b> as long-term memory. Not embeddings, not a vector store. Markdown files. Human-curated. Greppable. The model reads them like a senior engineer reads a runbook.</p>
+      <h2>Why markdown</h2>
+      <ul>
+        <li>Editable by hand when the model gets it wrong.</li>
+        <li>Versionable in git — every memory has a diff history.</li>
+        <li>Readable by any future model — no provider lock-in.</li>
+      </ul>
+      <h2>Hermes implementation</h2>
+      <p>Each tier-1 and tier-2 agent owns three files: <code>soul.md</code> (identity), <code>memory.md</code> (long-term), <code>user.md</code> (user model). The wiki is global — shared across all agents.</p>
+      <h2>Chat-with-wiki</h2>
+      <p>The wiki ships with a retrieval layer that grounds answers in cited pages. The right drawer on this page is the lightweight version — open it, ask a question, get an answer with backlinks to the source pages.</p>
+    `,
+    backlinks:['Layered memory model','Three-tier agent system','Matrix tokens','file:// CORS notes','Active cron routines'],
+  },
+  'prod/memory': {
+    crumbs:'Product · Layered memory model',
+    title:'Layered memory model',
+    meta:[{k:'updated', v:'2026-05-10'},{k:'words', v:'980'},{k:'backlinks', v:'6'},{k:'tags', v:'memory · agents'}],
+    body:`
+      <h2>Three layers per agent</h2>
+      <ul>
+        <li><code>soul.md</code> — base identity. Rarely edited. The agent's "constitution".</li>
+        <li><code>memory.md</code> — long-term episodic memory. Updated after each significant interaction.</li>
+        <li><code>user.md</code> — the agent's running model of the user.</li>
+      </ul>
+      <h2>Who has memory</h2>
+      <p>Only Tier-1 (orchestrator) and Tier-2 (Neo/Trinity/Morpheus) agents carry layered memory. Tier-3 personas are stateless — they inherit context per-call.</p>
+    `,
+    backlinks:['LLM Wiki','Three-tier agent system','soul.md','memory.md','user.md'],
+  },
+  'prod/agents': {
+    crumbs:'Product · Three-tier agent system',
+    title:'Three-tier agent system',
+    meta:[{k:'updated', v:'2026-05-11'},{k:'words', v:'1,620'},{k:'backlinks', v:'7'},{k:'tags', v:'agents · architecture'}],
+    body:`
+      <h2>Tier 1 — Orchestrator</h2>
+      <p><b>Hermes Switch</b> is the only Tier-1. It routes intent, never reasons.</p>
+      <h2>Tier 2 — Specialists</h2>
+      <p><b>Neo</b> writes code. <b>Trinity</b> researches. <b>Morpheus</b> plans.</p>
+      <h2>Tier 3 — Personas</h2>
+      <p>Stateless agents created via the Profiles wizard. They inherit a system prompt (persona), model params, skills, and MCP servers.</p>
+    `,
+    backlinks:['LLM Wiki','Layered memory model','Primary nav v2'],
+  },
+};
+
+/* default fallback page */
+function fallbackPage(id) {
+  return { crumbs: id.replace('/', ' · '), title: id.split('/').pop().replace('.md',''), meta:[{k:'updated',v:'—'},{k:'words',v:'—'},{k:'backlinks',v:'—'},{k:'tags',v:'—'}],
+    body:`<h2>Stub</h2><p>This page is in the index but does not yet have a full body. Edit it to add content.</p>`,
+    backlinks:[] };
+}
+
+const GRAPH_NODES = [
+  { id:'wiki',    x: 450, y: 280, r: 22, lbl:'LLM Wiki', kind:'product' },
+  { id:'memory',  x: 280, y: 200, r: 18, lbl:'Memory model', kind:'product' },
+  { id:'agents',  x: 600, y: 160, r: 20, lbl:'Three-tier agents', kind:'product' },
+  { id:'soul',    x: 180, y: 320, r: 14, lbl:'soul.md', kind:'memory' },
+  { id:'memmd',   x: 240, y: 400, r: 14, lbl:'memory.md', kind:'memory' },
+  { id:'usermd',  x: 340, y: 440, r: 14, lbl:'user.md', kind:'memory' },
+  { id:'react',   x: 760, y: 320, r: 12, lbl:'React patterns', kind:'eng' },
+  { id:'cors',    x: 720, y: 440, r: 12, lbl:'CORS notes', kind:'eng' },
+  { id:'matrix',  x: 540, y: 460, r: 14, lbl:'Matrix Rain', kind:'eng' },
+  { id:'cron',    x: 860, y: 220, r: 12, lbl:'Cron exprs', kind:'eng' },
+  { id:'tokens',  x: 420, y: 130, r: 11, lbl:'Matrix tokens', kind:'dsg' },
+  { id:'nav',     x: 540, y: 80,  r: 11, lbl:'Primary nav', kind:'dsg' },
+  { id:'mcp',     x: 880, y: 360, r: 12, lbl:'MCP registry', kind:'ops' },
+];
+const GRAPH_EDGES = [
+  ['wiki','memory'],['wiki','agents'],['memory','soul'],['memory','memmd'],['memory','usermd'],
+  ['agents','memory'],['agents','nav'],['wiki','react'],['wiki','cors'],['wiki','matrix'],
+  ['wiki','tokens'],['react','matrix'],['cors','react'],['cron','agents'],['mcp','agents'],['nav','tokens'],
+];
+const GRAPH_COLORS = { product:'#00ff41', memory:'#5fcfff', eng:'#ffb347', dsg:'#d6ff5f', ops:'#ff5fa2' };
+
+/* ============ MARKDOWN MINI-RENDERER (just enough) ============ */
+function renderMd(md) {
+  const lines = md.split('\n');
+  const out = [];
+  let inList = false;
+  for (const ln of lines) {
+    if (/^# /.test(ln))      { if(inList){out.push('</ul>');inList=false;} out.push(`<h1>${ln.slice(2)}</h1>`); }
+    else if (/^## /.test(ln)){ if(inList){out.push('</ul>');inList=false;} out.push(`<h2>${ln.slice(3)}</h2>`); }
+    else if (/^### /.test(ln)){if(inList){out.push('</ul>');inList=false;} out.push(`<h3>${ln.slice(4)}</h3>`); }
+    else if (/^- /.test(ln)) { if(!inList){out.push('<ul>');inList=true;} out.push(`<li>${inline(ln.slice(2))}</li>`); }
+    else if (/^> /.test(ln)) { if(inList){out.push('</ul>');inList=false;} out.push(`<blockquote>${inline(ln.slice(2))}</blockquote>`); }
+    else if (ln.trim()==='') { if(inList){out.push('</ul>');inList=false;} }
+    else                     { if(inList){out.push('</ul>');inList=false;} out.push(`<p>${inline(ln)}</p>`); }
+  }
+  if (inList) out.push('</ul>');
+  return out.join('');
+}
+function inline(s) {
+  return s.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\*([^*]+)\*/g, '<i>$1</i>');
+}
+
+/* ============ COMPONENTS ============ */
+function MemoryTab({ agents, activeId, setActiveId, fileKey, setFileKey, editing, setEditing, drafts, setDrafts }) {
+  const active = agents.find(a => a.id === activeId);
+  const fileMap = { soul:'soul.md', memory:'memory.md', user:'user.md' };
+  const content = drafts[`${activeId}/${fileKey}`] ?? active[fileKey];
+  return (
+    <div className="mem-grid">
+      <aside className="mem-list">
+        <div className="grp">Tier 1 <span className="ct">1</span></div>
+        {agents.filter(a => a.tier === 1).map(a => (
+          <div key={a.id} className={`agent-row ${a.id===activeId?'on':''}`} onClick={() => setActiveId(a.id)}>
+            <div className="agent-glyph">{a.glyph}</div>
+            <div><span className="name">{a.name}</span><span className="role">{a.role}</span></div>
+            <span className="tier">T1</span>
+          </div>
+        ))}
+        <div className="grp" style={{ marginTop: 10 }}>Tier 2 <span className="ct">3</span></div>
+        {agents.filter(a => a.tier === 2).map(a => (
+          <div key={a.id} className={`agent-row ${a.id===activeId?'on':''}`} onClick={() => setActiveId(a.id)}>
+            <div className="agent-glyph">{a.glyph}</div>
+            <div><span className="name">{a.name}</span><span className="role">{a.role}</span></div>
+            <span className="tier">T2</span>
+          </div>
+        ))}
+        <div className="grp" style={{ marginTop: 10 }}>Tier 3 <span className="ct">12</span></div>
+        <div style={{ padding: '6px 10px', font:'500 11px var(--m-font-mono)', color:'var(--m-text-faint)', lineHeight:1.5 }}>
+          Tier-3 personas are stateless — they inherit context per call and carry no layered memory.
+        </div>
+      </aside>
+      <section className="mem-pane">
+        <div className="mem-head">
+          <div className="big-glyph">{active.glyph}</div>
+          <div>
+            <div className="title">{active.name}</div>
+            <div className="sub">{active.role} · Tier {active.tier} · 3 memory files</div>
+          </div>
+          <div className="actions">
+            <button className="btn" onClick={() => alert('Version history coming soon')}>{Icon.hist} History</button>
+            {editing ? (
+              <button className="btn primary" onClick={() => setEditing(false)}>{Icon.save} Save</button>
+            ) : (
+              <button className="btn" onClick={() => setEditing(true)}>{Icon.edit} Edit</button>
+            )}
+          </div>
+        </div>
+        <div className="file-tabs">
+          {['soul','memory','user'].map(k => (
+            <span key={k} className={`ft ${k===fileKey?'on':''}`} onClick={() => { setFileKey(k); setEditing(false); }}>
+              {fileMap[k]} <span className="sz">{(active[k].length/1024).toFixed(1)}K</span>
+            </span>
+          ))}
+        </div>
+        {editing ? (
+          <div className="editor editing">
+            <textarea value={content} onChange={e => setDrafts({...drafts, [`${activeId}/${fileKey}`]: e.target.value})}/>
+          </div>
+        ) : (
+          <div className="editor" onClick={() => setEditing(true)} dangerouslySetInnerHTML={{ __html: renderMd(content) }}/>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function WikiTab({ tree, setTree, pageId, setPageId, query, setQuery }) {
+  const toggle = (id) => setTree(prev => prev.map(g => g.id === id ? { ...g, open: !g.open } : g));
+  const page = WIKI_PAGES[pageId] || fallbackPage(pageId);
+  const filter = (q, n) => !q || n.name.toLowerCase().includes(q.toLowerCase());
+  return (
+    <div className="wiki-grid">
+      <aside className="wiki-tree">
+        <div className="search">{Icon.search}<input placeholder="search wiki…" value={query} onChange={e => setQuery(e.target.value)}/></div>
+        {tree.map(grp => (
+          <div key={grp.id}>
+            <div className={`node ${grp.open?'open':''}`} onClick={() => toggle(grp.id)}>
+              {Icon.chev}{Icon.folder}<span>{grp.name}</span><span className="ct">{grp.children.length}</span>
+            </div>
+            {grp.open && grp.children.filter(c => filter(query, c)).map(c => (
+              <div key={c.id} className={`node indent ${c.id===pageId?'on':''}`} onClick={() => setPageId(c.id)}>
+                <span/>{Icon.file}<span>{c.name}</span><span className="ct">{c.backlinks}↗</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </aside>
+      <section className="wiki-reader">
+        <div className="crumbs">{page.crumbs}</div>
+        <h1>{page.title}</h1>
+        <div className="meta">{page.meta.map(m => <span key={m.k}>{m.k} <b>{m.v}</b></span>)}</div>
+        <div dangerouslySetInnerHTML={{ __html: page.body }}/>
+        <div className="backlinks">
+          <h3>Backlinks · {page.backlinks.length}</h3>
+          {page.backlinks.map(b => <a key={b} href="#">{b}</a>)}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function GraphTab() {
+  const [zoom, setZoom] = React.useState(1);
+  const [hover, setHover] = React.useState(null);
+  return (
+    <div className="graph-wrap">
+      <svg viewBox="0 0 1000 560" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgba(0,255,65,.5)"/>
+            <stop offset="100%" stopColor="rgba(0,255,65,0)"/>
+          </radialGradient>
+        </defs>
+        <g transform={`scale(${zoom}) translate(${(1-zoom)*500/zoom}, ${(1-zoom)*280/zoom})`}>
+          {GRAPH_EDGES.map(([a,b], i) => {
+            const na = GRAPH_NODES.find(n=>n.id===a), nb = GRAPH_NODES.find(n=>n.id===b);
+            if (!na || !nb) return null;
+            const on = hover && (hover===a || hover===b);
+            return <line key={i} x1={na.x} y1={na.y} x2={nb.x} y2={nb.y}
+              stroke={on?'#00ff41':'rgba(0,255,65,.2)'} strokeWidth={on?1.4:0.8}/>;
+          })}
+          {GRAPH_NODES.map(n => {
+            const on = hover === n.id;
+            const color = GRAPH_COLORS[n.kind] || '#00ff41';
+            return (
+              <g key={n.id} onMouseEnter={() => setHover(n.id)} onMouseLeave={() => setHover(null)} style={{ cursor:'pointer' }}>
+                {on && <circle cx={n.x} cy={n.y} r={n.r+14} fill="url(#halo)"/>}
+                <circle cx={n.x} cy={n.y} r={n.r} fill="rgba(0,8,2,.95)" stroke={color} strokeWidth={on?2:1.2}
+                  style={{ filter: on ? `drop-shadow(0 0 8px ${color})` : `drop-shadow(0 0 3px ${color}88)` }}/>
+                <text x={n.x} y={n.y + n.r + 14} textAnchor="middle"
+                  fill={on ? '#fff' : 'rgba(220,255,230,.75)'}
+                  style={{ font:'500 11px JetBrains Mono, monospace', letterSpacing:'.04em', pointerEvents:'none' }}>
+                  {n.lbl}
+                </text>
+              </g>
+            );
+          })}
+        </g>
+      </svg>
+      <div className="graph-legend">
+        {Object.entries(GRAPH_COLORS).map(([k,v]) => (
+          <div className="row" key={k}><span className="d" style={{ background:v, boxShadow:`0 0 6px ${v}` }}/><span>{k}</span></div>
+        ))}
+      </div>
+      <div className="graph-controls">
+        <button className="btn" onClick={() => setZoom(z => Math.min(2, z+0.2))}>{Icon.plus} Zoom in</button>
+        <button className="btn" onClick={() => setZoom(z => Math.max(0.5, z-0.2))}>{Icon.zoom} Zoom out</button>
+        <button className="btn" onClick={() => setZoom(1)}>{Icon.refresh} Reset</button>
+      </div>
+    </div>
+  );
+}
+
+function ChatDrawer({ open, messages, setMessages, draft, setDraft }) {
+  const send = () => {
+    const q = draft.trim(); if (!q) return;
+    const userMsg = { who:'You', text:q, bot:false };
+    const fake = pickAnswer(q);
+    setMessages(m => [...m, userMsg, fake]);
+    setDraft('');
+  };
+  return (
+    <div className={`chat-drawer ${open?'':'closed'}`}>
+      <div className="chat-head">
+        <span style={{ color:'var(--m-green-500)' }}>{Icon.chat}</span>
+        <div className="t">Chat with Wiki</div>
+        <div className="sub">grounded · 11 pages</div>
+      </div>
+      <div className="chat-body">
+        {messages.map((m, i) => (
+          <div key={i} className={`msg ${m.bot?'bot':''}`}>
+            <div className="who">{m.who}</div>
+            <div className="bubble">{m.text}</div>
+            {m.cites && <div className="cites">cites: {m.cites.map(c => <a key={c} href="#">{c}</a>)}</div>}
+          </div>
+        ))}
+      </div>
+      <div className="chat-foot">
+        <div className="chat-input">
+          <input placeholder="ask the wiki — try: how does memory work?" value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => e.key==='Enter' && send()}/>
+          <button onClick={send}>{Icon.send}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function pickAnswer(q) {
+  const l = q.toLowerCase();
+  if (/memory|soul|user\.md/.test(l)) return { who:'Wiki', bot:true, text:'Each Tier-1/Tier-2 agent has 3 layered files: soul.md (identity, rarely edited), memory.md (long-term episodic), user.md (the agent\'s model of you). Tier-3 personas are stateless.', cites:['Layered memory model','Three-tier agents'] };
+  if (/karpathy|wiki|llm-os/.test(l)) return { who:'Wiki', bot:true, text:'Karpathy\'s model: the wiki is plain markdown — human-curated, greppable, versionable. No vector store. The model reads pages like a runbook.', cites:['LLM Wiki — Karpathy concept'] };
+  if (/cron|schedule/.test(l)) return { who:'Wiki', bot:true, text:'Active routines live in ops/cron-jobs. babysit-prs runs every 15m, log-monitor every 5m, weekly-cleanup Sun 04:00 UTC.', cites:['Active cron routines','Cron expressions'] };
+  if (/matrix|rain|canvas/.test(l)) return { who:'Wiki', bot:true, text:'Matrix Rain canvas must size from the parent .term-pane\'s clientHeight/Width — observed via ResizeObserver. Otherwise it collapses to content height.', cites:['Matrix Rain canvas','React patterns'] };
+  return { who:'Wiki', bot:true, text:'Hmm — that\'s not in the corpus yet. I\'d suggest creating a page or pointing me at a source URL.', cites:[] };
+}
+
+function SettingsTab({ settings, setSettings }) {
+  const upd = (k,v) => setSettings({...settings, [k]: v});
+  return (
+    <div className="settings">
+      <div className="card">
+        <h2>LLM</h2>
+        <div className="row">
+          <div className="lbl">Provider<div className="desc">embedding + completion backend</div></div>
+          <select value={settings.provider} onChange={e => upd('provider', e.target.value)}>
+            <option>Anthropic · Claude</option><option>OpenAI · GPT-4o</option><option>Ollama · Local</option>
+          </select>
+        </div>
+        <div className="row">
+          <div className="lbl">Model<div className="desc">for chat-with-wiki + memory rollups</div></div>
+          <select value={settings.model} onChange={e => upd('model', e.target.value)}>
+            <option>claude-opus-4-7</option><option>claude-sonnet-4-6</option><option>claude-haiku-4-5</option>
+          </select>
+        </div>
+        <div className="row">
+          <div className="lbl">Temperature<div className="desc">{settings.temp.toFixed(2)} · lower = more grounded</div></div>
+          <input type="range" min="0" max="1" step="0.05" value={settings.temp} onChange={e => upd('temp', parseFloat(e.target.value))}/>
+        </div>
+      </div>
+      <div className="card">
+        <h2>Retrieval</h2>
+        <div className="row">
+          <div className="lbl">Citations always on<div className="desc">refuse to answer without a source</div></div>
+          <div className={`toggle ${settings.cites?'on':''}`} onClick={() => upd('cites', !settings.cites)}/>
+        </div>
+        <div className="row">
+          <div className="lbl">Auto-summarize new pages<div className="desc">generate TL;DR on every wiki write</div></div>
+          <div className={`toggle ${settings.summarize?'on':''}`} onClick={() => upd('summarize', !settings.summarize)}/>
+        </div>
+        <div className="row">
+          <div className="lbl">Top-K context pages<div className="desc">{settings.topK} pages per query</div></div>
+          <input type="range" min="3" max="20" step="1" value={settings.topK} onChange={e => upd('topK', parseInt(e.target.value))}/>
+        </div>
+      </div>
+      <div className="card">
+        <h2>Storage</h2>
+        <div className="row">
+          <div className="lbl">Wiki root<div className="desc">where markdown files live</div></div>
+          <input type="text" value={settings.root} onChange={e => upd('root', e.target.value)}/>
+        </div>
+        <div className="row">
+          <div className="lbl">Sync to git<div className="desc">every memory write is a commit</div></div>
+          <div className={`toggle ${settings.git?'on':''}`} onClick={() => upd('git', !settings.git)}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============ APP ============ */
+function App() {
+  const [tab, setTab] = React.useState('memory');
+  const [activeAgent, setActiveAgent] = React.useState('hermes');
+  const [fileKey, setFileKey] = React.useState('soul');
+  const [editing, setEditing] = React.useState(false);
+  const [drafts, setDrafts] = React.useState({});
+
+  const [tree, setTree] = React.useState(WIKI_TREE);
+  const [pageId, setPageId] = React.useState('prod/wiki');
+  const [wikiQuery, setWikiQuery] = React.useState('');
+
+  const [chatOpen, setChatOpen] = React.useState(false);
+  const [chatMessages, setChatMessages] = React.useState([
+    { who:'Wiki', bot:true, text:'Wiki ready — 11 pages indexed across Engineering · Product · Design · Ops. Ask anything.', cites:[] },
+  ]);
+  const [chatDraft, setChatDraft] = React.useState('');
+
+  const [settings, setSettings] = React.useState({
+    provider:'Anthropic · Claude', model:'claude-opus-4-7', temp:0.2,
+    cites:true, summarize:true, topK:8, root:'~/.hermes/wiki', git:true,
+  });
+
+  return (
+    <div className="shell">
+      <nav className="nav"><PrimaryNavV2 active="memory" sessionsBadge={9}/></nav>
+      <main className="main">
+        <header className="topbar">
+          <h1>
+            <span className="crumb">Hermes</span><span className="sep">/</span>
+            <span className="crumb">Knowledge</span><span className="sep">/</span>
+            <span className="cur">Memory & Wiki</span>
+          </h1>
+          <div className="stats">
+            <span><b>4</b> agents · <b>12</b> memory files</span>
+            <span className="sep"/>
+            <span><b>11</b> wiki pages · <b>43</b> backlinks</span>
+            <span className="sep"/>
+            <span>last sync <b className="ok">14s</b></span>
+          </div>
+        </header>
+        <div className="tabbar">
+          <span className={`tab ${tab==='memory'?'on':''}`} onClick={() => setTab('memory')}>{Icon.mem} Agent Memory</span>
+          <span className={`tab ${tab==='wiki'?'on':''}`}   onClick={() => setTab('wiki')}>{Icon.book} Wiki</span>
+          <span className={`tab ${tab==='graph'?'on':''}`}  onClick={() => setTab('graph')}>{Icon.graph} Graph</span>
+          <span className={`tab ${tab==='settings'?'on':''}`} onClick={() => setTab('settings')}>{Icon.cog} Settings</span>
+          <div className="spacer"/>
+          <div className="right">
+            <span className={`chat-toggle ${chatOpen?'on':''}`} onClick={() => setChatOpen(o => !o)}>{Icon.chat} Chat with Wiki</span>
+          </div>
+        </div>
+        <div className="body-wrap">
+          <div className={`body ${chatOpen?'with-chat':''}`}>
+            {tab==='memory'   && <MemoryTab agents={AGENTS} activeId={activeAgent} setActiveId={setActiveAgent} fileKey={fileKey} setFileKey={setFileKey} editing={editing} setEditing={setEditing} drafts={drafts} setDrafts={setDrafts}/>}
+            {tab==='wiki'     && <WikiTab tree={tree} setTree={setTree} pageId={pageId} setPageId={setPageId} query={wikiQuery} setQuery={setWikiQuery}/>}
+            {tab==='graph'    && <GraphTab/>}
+            {tab==='settings' && <SettingsTab settings={settings} setSettings={setSettings}/>}
+          </div>
+          <ChatDrawer open={chatOpen} messages={chatMessages} setMessages={setChatMessages} draft={chatDraft} setDraft={setChatDraft}/>
+        </div>
+        <footer className="pg-foot">
+          <span><b>4</b> agents</span>
+          <span className="sep"/>
+          <span><b>11</b> wiki pages</span>
+          <span className="sep"/>
+          <span>provider <b className="ok">{settings.provider.split(' · ')[0]}</b></span>
+          <span className="sep"/>
+          <span>model <b>{settings.model}</b></span>
+          <span className="sep"/>
+          <span>top-k <b>{settings.topK}</b></span>
+          <span style={{ marginLeft:'auto' }}>sync <b className="ok">on</b></span>
+          <span className="sep"/>
+          <span>git <b className={settings.git?'ok':''}>{settings.git?'on':'off'}</b></span>
+        </footer>
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

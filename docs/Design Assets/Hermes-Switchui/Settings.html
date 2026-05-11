@@ -1,0 +1,970 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Settings · Hermes</title>
+<link rel="stylesheet" href="matrix-system.css"/>
+<link rel="stylesheet" href="primary-nav-v2.css"/>
+<style>
+  html, body { height: 100%; }
+  body { background: var(--m-bg); overflow: hidden; }
+  .nav { background: transparent !important; border: none !important; padding: 0 !important; }
+
+  .shell { display: grid; grid-template-columns: 232px 1fr; height: 100vh; overflow: hidden; }
+  .main  { display: grid; grid-template-rows: auto auto 1fr auto; min-width: 0; overflow: hidden; background: var(--m-bg); }
+
+  /* Top bar */
+  .topbar { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 0 22px; height: 56px; border-bottom: 1px solid var(--m-border); background: var(--m-sidebar); }
+  .topbar h1 { margin: 0; font: 600 13px var(--m-font-mono); text-transform: uppercase; letter-spacing: .26em; color: var(--m-text-strong); display: flex; align-items: center; gap: 12px; }
+  .topbar h1 .crumb { color: var(--m-text-faint); font-weight: 500; }
+  .topbar h1 .sep { color: var(--m-text-ghost); }
+  .topbar h1 .cur { color: var(--m-green-500); text-shadow: 0 0 6px rgba(0,255,65,.4); }
+  .topbar .stats { display: flex; align-items: center; gap: 14px; font: 500 11px var(--m-font-mono); color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .18em; }
+  .topbar .stats b { color: var(--m-text-strong); font-weight: 600; }
+  .topbar .stats .ok { color: var(--m-green-500); }
+  .topbar .stats .warn { color: #ffb347; }
+  .topbar .stats .sep { width: 1px; height: 16px; background: var(--m-border-subtle); }
+
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--m-border); border-radius: var(--m-radius-md); background: var(--m-bg-deep); color: var(--m-text); font: 500 11px var(--m-font-mono); text-transform: uppercase; letter-spacing: .14em; cursor: pointer; }
+  .btn:hover { color: var(--m-green-500); border-color: var(--m-green-500); }
+  .btn.primary { background: rgba(0,255,65,.08); color: var(--m-green-500); border-color: var(--m-green-500); }
+  .btn.danger { color: #ff5fa2; border-color: rgba(255,95,162,.4); }
+  .btn.danger:hover { background: rgba(255,95,162,.06); border-color: #ff5fa2; }
+  .btn svg { width: 12px; height: 12px; }
+  svg { width: 14px; height: 14px; flex: none; }
+  .big-glyph svg { width: 22px; height: 22px; }
+
+  /* Tab bar */
+  .tabbar { display: flex; align-items: stretch; padding: 0 22px; height: 44px; border-bottom: 1px solid var(--m-border); background: var(--m-panel); gap: 4px; }
+  .tabbar .tab { display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; font: 500 12px var(--m-font-mono); color: var(--m-text-muted); text-transform: uppercase; letter-spacing: .18em; cursor: pointer; border-bottom: 2px solid transparent; }
+  .tabbar .tab:hover { color: var(--m-text); }
+  .tabbar .tab.on { color: var(--m-green-500); border-bottom-color: var(--m-green-500); text-shadow: 0 0 6px rgba(0,255,65,.35); }
+  .tabbar .tab .ct { font-size: 9.5px; color: var(--m-text-faint); padding: 1px 6px; border: 1px solid var(--m-border-subtle); border-radius: 9999px; }
+  .tabbar .tab.on .ct { color: var(--m-green-500); border-color: var(--m-green-500); }
+  .tabbar .spacer { flex: 1; }
+  .tabbar .right { display: flex; align-items: center; gap: 8px; }
+
+  /* Two-col body */
+  .body { display: grid; grid-template-columns: 260px 1fr; overflow: hidden; }
+
+  /* Sidebar tree */
+  .side { border-right: 1px solid var(--m-border); background: var(--m-panel); overflow: auto; padding: 12px 6px; }
+  .side .search { display: flex; align-items: center; gap: 8px; padding: 6px 10px; margin: 4px 6px 10px; border: 1px solid var(--m-border); border-radius: var(--m-radius-md); background: var(--m-bg-deep); }
+  .side .search input { flex: 1; background: transparent; border: none; outline: none; color: var(--m-text); font: 500 12px var(--m-font-mono); }
+  .side .grp { padding: 10px 12px 4px; font: 600 10px var(--m-font-mono); text-transform: uppercase; letter-spacing: .22em; color: var(--m-text-faint); display: flex; align-items: center; gap: 6px; }
+  .side .grp .ct { margin-left: auto; color: var(--m-text-ghost); }
+  .side .item { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; align-items: center; padding: 7px 10px; margin: 0 4px; border-radius: var(--m-radius-md); cursor: pointer; font: 500 12.5px var(--m-font-mono); color: var(--m-text-muted); border: 1px solid transparent; }
+  .side .item:hover { background: var(--m-fill-subtle); color: var(--m-text); }
+  .side .item.on { background: var(--m-fill); color: var(--m-green-500); border-color: var(--m-border); box-shadow: inset 2px 0 0 var(--m-green-500); }
+  .side .item .badge { font: 500 9.5px var(--m-font-mono); padding: 1px 6px; border: 1px solid var(--m-border-subtle); border-radius: 9999px; color: var(--m-text-faint); }
+  .side .item.on .badge { color: var(--m-green-500); border-color: var(--m-green-500); }
+  .side .item.dirty .badge { color: #ffb347; border-color: rgba(255,179,71,.5); }
+
+  /* Content */
+  .content { overflow: auto; padding: 22px 26px 80px; }
+  .section-head { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 12px; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--m-border-subtle); }
+  .section-head h2 { margin: 0; font: 600 18px var(--m-font-mono); color: var(--m-text-strong); letter-spacing: .04em; }
+  .section-head .desc { margin-top: 4px; font: 500 12px var(--m-font-mono); color: var(--m-text-faint); }
+  .section-head .meta { font: 500 10.5px var(--m-font-mono); color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .18em; }
+  .section-head .meta b { color: var(--m-green-500); }
+
+  .card { border: 1px solid var(--m-border); border-radius: var(--m-radius-md); background: var(--m-panel); margin-bottom: 16px; overflow: hidden; }
+  .card > h3 { margin: 0; padding: 14px 18px 10px; font: 600 13px var(--m-font-mono); color: var(--m-text-strong); text-transform: uppercase; letter-spacing: .2em; border-bottom: 1px solid var(--m-border-subtle); display: flex; align-items: center; gap: 8px; }
+  .card > h3 .ic { color: var(--m-green-500); }
+  .card > h3 .sub { margin-left: auto; font: 500 10.5px var(--m-font-mono); color: var(--m-text-faint); letter-spacing: .16em; }
+
+  .row { display: grid; grid-template-columns: 1fr 320px; gap: 22px; align-items: start; padding: 14px 18px; border-bottom: 1px solid var(--m-border-subtle); }
+  .row:last-child { border-bottom: none; }
+  .row .lbl { font: 500 13px var(--m-font-mono); color: var(--m-text); }
+  .row .lbl .desc { display: block; margin-top: 4px; font: 500 11.5px var(--m-font-mono); color: var(--m-text-faint); line-height: 1.5; }
+  .row .lbl .pill { display: inline-block; margin-left: 6px; font: 500 9px var(--m-font-mono); padding: 1px 5px; border: 1px solid var(--m-border-subtle); border-radius: 9999px; color: var(--m-text-faint); text-transform: uppercase; letter-spacing: .12em; vertical-align: 2px; }
+  .row .lbl .pill.dirty { color: #ffb347; border-color: rgba(255,179,71,.5); }
+  .row .lbl .pill.req { color: #ff5fa2; border-color: rgba(255,95,162,.5); }
+  .row .ctl { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+  .row .ctl.row-end { align-items: flex-end; }
+
+  /* Inputs */
+  input[type=text], input[type=number], input[type=password], textarea, select {
+    width: 100%; padding: 8px 10px; background: var(--m-bg-deep); border: 1px solid var(--m-border); color: var(--m-text);
+    font: 500 12.5px var(--m-font-mono); border-radius: var(--m-radius-md); outline: none;
+  }
+  input:focus, textarea:focus, select:focus { border-color: var(--m-green-500); box-shadow: 0 0 0 3px rgba(0,255,65,.08); }
+  textarea { resize: vertical; min-height: 90px; line-height: 1.55; }
+  .hint { font: 500 10.5px var(--m-font-mono); color: var(--m-text-faint); }
+  .err { font: 500 10.5px var(--m-font-mono); color: #ff5fa2; }
+
+  /* Toggle */
+  .toggle { width: 38px; height: 22px; border-radius: 9999px; background: var(--m-bg-deep); border: 1px solid var(--m-border); position: relative; cursor: pointer; transition: all .15s; }
+  .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--m-text-faint); transition: all .15s; }
+  .toggle.on { background: rgba(0,255,65,.15); border-color: var(--m-green-500); }
+  .toggle.on::after { left: 18px; background: var(--m-green-500); box-shadow: 0 0 8px var(--m-green-500); }
+
+  /* Slider */
+  input[type=range] { -webkit-appearance: none; width: 100%; height: 4px; background: var(--m-border); border-radius: 2px; outline: none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: var(--m-green-500); cursor: pointer; box-shadow: 0 0 6px var(--m-green-500); }
+
+  /* Chip group */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { padding: 4px 10px; border: 1px solid var(--m-border); border-radius: 9999px; font: 500 11px var(--m-font-mono); color: var(--m-text-muted); cursor: pointer; background: var(--m-bg-deep); }
+  .chip:hover { color: var(--m-text); }
+  .chip.on { color: var(--m-green-500); border-color: var(--m-green-500); background: rgba(0,255,65,.08); }
+
+  /* Mini table */
+  .mini-table { width: 100%; border-collapse: collapse; font: 500 12px var(--m-font-mono); }
+  .mini-table th { text-align: left; padding: 8px 10px; font: 600 10px var(--m-font-mono); text-transform: uppercase; letter-spacing: .18em; color: var(--m-text-faint); border-bottom: 1px solid var(--m-border-subtle); }
+  .mini-table td { padding: 8px 10px; border-bottom: 1px solid var(--m-border-subtle); color: var(--m-text); }
+  .mini-table tr:last-child td { border-bottom: none; }
+  .mini-table .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 8px; vertical-align: 1px; }
+  .mini-table .dot.ok { background: var(--m-green-500); box-shadow: 0 0 6px var(--m-green-500); }
+  .mini-table .dot.warn { background: #ffb347; box-shadow: 0 0 6px #ffb347; }
+  .mini-table .dot.off { background: var(--m-text-faint); }
+  .mini-table .act { color: var(--m-text-faint); cursor: pointer; }
+  .mini-table .act:hover { color: var(--m-green-500); }
+
+  .kv { font: 500 11.5px var(--m-font-mono); color: var(--m-text-muted); }
+  .kv code { color: var(--m-green-500); }
+  .path { font: 500 11.5px var(--m-font-mono); color: #5fcfff; }
+
+  .danger-zone { border-color: rgba(255,95,162,.35); }
+  .danger-zone > h3 .ic { color: #ff5fa2; }
+
+  /* Footer */
+  .pg-foot { border-top: 1px solid var(--m-border); background: var(--m-sidebar); display: flex; align-items: center; gap: 22px; padding: 0 24px; height: 30px; font: 500 10px var(--m-font-mono); color: var(--m-text-faint); letter-spacing: .14em; text-transform: uppercase; }
+  .pg-foot b { color: var(--m-text-strong); font-weight: 600; }
+  .pg-foot .ok { color: var(--m-green-500); }
+  .pg-foot .warn { color: #ffb347; }
+  .pg-foot .sep { width: 1px; height: 14px; background: var(--m-border-subtle); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel">
+/* Hermes Primary Nav v2 — inlined for file:// CORS safety */
+const PNV2_ICONS = {
+  dashboard:'M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z',
+  chat:'M2 3h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H5l-3 2V4a1 1 0 0 1 1-1z',
+  files:'M3 2h6l4 4v9H3V2zM9 2v4h4',
+  terminal:'M2 3h12v10H2V3zM5 7l3-2-3-2M8 11h4',
+  jobs:'M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zM8 5v3.5l2.5 1.5',
+  tasks:'M3 4h10M3 8h7M3 12h5',
+  conductor:'M8 2L2 14h12L8 2zM8 8v3',
+  operations:'M3 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM9 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM1 14c0-2.5 2-4 5-4s5 1.5 5 4M11 11c1.5 0 3 .8 3 3',
+  swarm:'M5 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM11 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM8 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM5 5l3 4M11 5L8 9',
+  memory:'M5 3h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM6 7h4M6 9h2',
+  skills:'M8 2l1.8 3.8 4.2.6-3 3 .7 4.1L8 11.5l-3.7 2L5 9.4l-3-3 4.2-.6z',
+  mcp:'M4 8h8M8 4v8M3 3l10 10M13 3L3 13',
+  profiles:'M8 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM2 14c0-3 2.7-5 6-5s6 2 6 5',
+  search:'M6.5 1.5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM10.5 10.5l4 4',
+  newchat:'M3 8h10M8 3v10',
+  cog:'M8 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4',
+  collapse:'M10 3L5 8l5 5',
+  expand:'M6 3l5 5-5 5',
+};
+function PNVIcon({d, size=15}) { return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden style={{flexShrink:0}}><path d={d} stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>; }
+function PNVItem({label, iconKey, active, badge}) {
+  return (<a href="#" className="m-mono pnv-item" data-active={active?'true':undefined}>
+    <PNVIcon d={PNV2_ICONS[iconKey]} /><span style={{flex:1}}>{label}</span>
+    {badge!=null && <span className="pnv-badge">{badge}</span>}
+  </a>);
+}
+function PNVGroup({label}) { return <div className="m-label pnv-group">{label}</div>; }
+function PrimaryNavV2({active='memory', sessionsBadge=null}) {
+  const items = [['dashboard','Dashboard'],['chat','Chat'],['files','Files'],['terminal','Terminal'],['jobs','Jobs'],['tasks','Tasks'],['conductor','Conductor'],['operations','Operations'],['swarm','Swarm']];
+  const know  = [['memory','Memory'],['skills','Skills'],['mcp','MCP'],['profiles','Profiles']];
+  return (
+    <div className="pnv-root">
+      <div className="pnv-brand">
+        <div className="pnv-brand-l">
+          <div className="pnv-glyph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 4 L20 4 L20 20 L4 20 Z M4 12 L20 12 M12 4 L12 20"/></svg></div>
+          <div><div className="m-mono pnv-name">HERMES</div><div className="m-label pnv-ver">v2.3.0</div></div>
+        </div>
+        <button className="pnv-icon-btn" title="Collapse"><PNVIcon d={PNV2_ICONS.collapse}/></button>
+      </div>
+      <div className="pnv-body">
+        <button className="m-mono pnv-search"><PNVIcon d={PNV2_ICONS.search}/><span style={{flex:1, textAlign:'left'}}>Search</span><span className="m-mono pnv-kbd">⌘K</span></button>
+        <a href="#" className="m-mono pnv-newsess"><PNVIcon d={PNV2_ICONS.newchat}/>+ New Session</a>
+        <PNVGroup label="Main"/>
+        {items.map(([k,l]) => <PNVItem key={k} label={l} iconKey={k} active={active===k} badge={k===active && sessionsBadge!=null ? sessionsBadge : null}/>)}
+        <PNVGroup label="Knowledge"/>
+        {know.map(([k,l]) => <PNVItem key={k} label={l} iconKey={k} active={active===k} badge={k===active && sessionsBadge!=null ? sessionsBadge : null}/>)}
+      </div>
+      <div className="pnv-foot">
+        <button className="pnv-foot-btn" data-active="true"><PNVIcon d={PNV2_ICONS.cog} size={14}/><span>Settings</span></button>
+        <button className="pnv-foot-btn pnv-foot-theme" title="Toggle theme"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.4"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg></button>
+      </div>
+    </div>
+  );
+}
+window.PrimaryNavV2 = PrimaryNavV2;
+</script>
+
+<script type="text/babel">
+/* ============ ICONS ============ */
+const Ic = {
+  save:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M5 3h11l3 3v15H5zM8 3v6h8V3M8 14h8v7H8z"/></svg>,
+  undo:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 12a8 8 0 1 0 3-6.5M3 4v5h5"/></svg>,
+  dl:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 4v12m0 0-5-5m5 5 5-5M4 20h16"/></svg>,
+  imp:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 20V8m0 0-5 5m5-5 5 5M4 4h16"/></svg>,
+  search:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="11" cy="11" r="6"/><path d="m20 20-3.5-3.5"/></svg>,
+  gen:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.5 4.5l2 2M17.5 17.5l2 2M4.5 19.5l2-2M17.5 6.5l2-2"/></svg>,
+  brain: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M9 3a3 3 0 0 0-3 3v1a3 3 0 0 0-2 5 3 3 0 0 0 2 5v1a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3v-1a3 3 0 0 0 2-5 3 3 0 0 0-2-5V6a3 3 0 0 0-3-3z"/></svg>,
+  mod:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 6h16M4 12h10M4 18h16"/></svg>,
+  mcp:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 12h16M12 4v16M5 5l14 14M19 5 5 19"/></svg>,
+  sk:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 3l2.7 5.5 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.8 1-6.1L3.2 9.4l6.1-.9z"/></svg>,
+  tel:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 17h4l3-10 4 16 3-10h4"/></svg>,
+  adv:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2 4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6z"/></svg>,
+  acc:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>,
+  pal:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="9" r="1.4"/><circle cx="15" cy="9" r="1.4"/><circle cx="16" cy="13" r="1.4"/></svg>,
+  key:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="8" cy="14" r="4"/><path d="M11 11l9-9M18 4l2 2M16 6l2 2"/></svg>,
+  net:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>,
+  sh:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 3 4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6zM9 12l2 2 4-4"/></svg>,
+  not:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 8a6 6 0 0 1 12 0v5l2 3H4l2-3zM9 19a3 3 0 0 0 6 0"/></svg>,
+  trash: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>,
+  plus:  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 5v14M5 12h14"/></svg>,
+  eye:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>,
+  chk:   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M5 12l5 5 9-12"/></svg>,
+  x:     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M6 6 18 18M18 6 6 18"/></svg>,
+};
+
+/* ============ NAV TREE ============ */
+const GROUPS = [
+  { id:'g_general', label:'General', items:[
+    { id:'general',       label:'General',         ic:Ic.gen,  ct:6 },
+    { id:'account',       label:'Account',         ic:Ic.acc,  ct:4 },
+    { id:'appearance',    label:'Appearance',      ic:Ic.pal,  ct:5 },
+    { id:'notifications', label:'Notifications',   ic:Ic.not,  ct:6, dirty:true },
+  ]},
+  { id:'g_intel', label:'Intelligence', items:[
+    { id:'models',        label:'Models',          ic:Ic.mod,  ct:9 },
+    { id:'agents',        label:'Agent runtime',   ic:Ic.brain,ct:8 },
+    { id:'memory',        label:'Memory',          ic:Ic.brain,ct:7 },
+    { id:'skills',        label:'Skills',          ic:Ic.sk,   ct:5 },
+    { id:'mcp',           label:'MCP servers',     ic:Ic.mcp,  ct:6, dirty:true },
+  ]},
+  { id:'g_data', label:'Data & privacy', items:[
+    { id:'storage',       label:'Storage',         ic:Ic.adv,  ct:5 },
+    { id:'privacy',       label:'Privacy',         ic:Ic.sh,   ct:6 },
+    { id:'telemetry',     label:'Telemetry',       ic:Ic.tel,  ct:4 },
+    { id:'keys',          label:'API keys',        ic:Ic.key,  ct:3, dirty:true },
+  ]},
+  { id:'g_sys', label:'System', items:[
+    { id:'network',       label:'Network',         ic:Ic.net,  ct:5 },
+    { id:'perf',          label:'Performance',     ic:Ic.tel,  ct:4 },
+    { id:'shortcuts',     label:'Keyboard',        ic:Ic.gen,  ct:6 },
+    { id:'advanced',      label:'Advanced',        ic:Ic.adv,  ct:5 },
+    { id:'danger',        label:'Danger zone',     ic:Ic.trash,ct:3 },
+  ]},
+];
+
+const TABS = [
+  { id:'all',      label:'All',      groups:GROUPS.map(g=>g.id) },
+  { id:'general',  label:'General',  groups:['g_general'] },
+  { id:'models',   label:'Models',   groups:['g_intel'] },
+  { id:'data',     label:'Data',     groups:['g_data'] },
+  { id:'system',   label:'System',   groups:['g_sys'] },
+];
+
+/* ============ INITIAL STATE ============ */
+const INITIAL = {
+  /* General */
+  workspace_name: 'Hermes — Rohit',
+  workspace_id:   'ws_8412c3',
+  language:       'en-US',
+  timezone:       'Europe/Berlin',
+  dateFormat:     'YYYY-MM-DD',
+  startupView:    'Dashboard',
+  /* Account */
+  display_name:   'Rohit Sharma',
+  email:          'rohit.sharma.g@gmail.com',
+  org:            'Independent',
+  twofa:          true,
+  /* Appearance */
+  theme:          'matrix',
+  density:        'cozy',
+  monoFont:       'JetBrains Mono',
+  rainBg:         true,
+  rainDim:        false,
+  /* Notifications */
+  notif_desktop:  true,
+  notif_sound:    true,
+  notif_email:    false,
+  notif_slack:    true,
+  notif_done:     true,
+  notif_error:    true,
+  /* Models */
+  provider:       'Anthropic · Claude',
+  defaultModel:   'claude-opus-4-7',
+  fallbackModel:  'claude-sonnet-4-6',
+  temp:           0.2,
+  topP:           0.95,
+  maxTokens:      8192,
+  reasoning:      true,
+  cache:          true,
+  streamOutputs:  true,
+  /* Agent runtime */
+  workerPool:     8,
+  queueDepth:     32,
+  taskTimeout:    600,
+  retryCount:     2,
+  parallelTasks:  4,
+  autoCommit:     false,
+  verifyBeforeShip: true,
+  agentLogs:      true,
+  /* Memory */
+  memEnabled:     true,
+  memScope:       'agent',
+  autoSummarize:  true,
+  topK:           8,
+  citesAlwaysOn:  true,
+  memRoot:        '~/.hermes/wiki',
+  gitSync:        true,
+  /* Skills */
+  skillsAutoload: true,
+  skillsRoot:     '~/.hermes/skills',
+  hooksEnabled:   true,
+  permPrompt:     true,
+  permTimeout:    30,
+  /* MCP */
+  mcpEnabled:     true,
+  mcpAutoStart:   true,
+  mcpTimeout:     5,
+  mcpLogVerbose:  false,
+  /* Storage */
+  cachePath:      '~/.hermes/cache',
+  cacheMaxGB:     5,
+  exportPath:     '~/Downloads/hermes',
+  attachmentCap:  100,
+  /* Privacy */
+  shareAnon:      false,
+  shareCrash:     true,
+  shareUsage:     false,
+  scrubSecrets:   true,
+  redactPaths:    true,
+  retention:      30,
+  /* Telemetry */
+  metricsEnabled: true,
+  tracesEnabled:  true,
+  metricsHost:    'https://otel.local:4318',
+  sampleRate:     0.1,
+  /* Keys */
+  anthropicKey:   '••••••••••••••••••••8YxK',
+  openaiKey:      '',
+  /* Network */
+  proxy:          '',
+  allowInsecure:  false,
+  reqTimeout:     30,
+  /* Perf */
+  hwAccel:        true,
+  prefetch:       true,
+  backgroundIdle: 'pause',
+  /* Shortcuts */
+  shortcut_search:'⌘K',
+  shortcut_newsess:'⌘T',
+  shortcut_term:'⌘`',
+  shortcut_palette:'⌘⇧P',
+  shortcut_save:'⌘S',
+  shortcut_chat:'⌘L',
+  /* Advanced */
+  experimental:   false,
+  devTools:       true,
+  cliBin:         '/usr/local/bin/hermes',
+  logLevel:       'info',
+};
+
+/* ============ FIELD HELPERS ============ */
+function Toggle({ on, set }) { return <div className={`toggle ${on?'on':''}`} onClick={() => set(!on)}/>; }
+
+function Field({ label, desc, pill, children }) {
+  return (
+    <div className="row">
+      <div className="lbl">{label}{pill && <span className={`pill ${pill.k||''}`}>{pill.t}</span>}<span className="desc">{desc}</span></div>
+      <div className="ctl">{children}</div>
+    </div>
+  );
+}
+
+/* ============ SECTIONS ============ */
+function S_general({ s, set, mark }) {
+  return <>
+    <div className="card">
+      <h3><span className="ic">{Ic.gen}</span> Workspace<span className="sub">6 settings</span></h3>
+      <Field label="Workspace name" desc="Shown in the title bar and in shared links.">
+        <input type="text" value={s.workspace_name} onChange={e => set('workspace_name', e.target.value)}/>
+      </Field>
+      <Field label="Workspace ID" desc="Read-only — used in API calls and Slack links." pill={{t:'read-only'}}>
+        <input type="text" value={s.workspace_id} readOnly style={{ opacity:.7 }}/>
+      </Field>
+      <Field label="Language" desc="Affects UI strings and the model's default reply language.">
+        <select value={s.language} onChange={e => set('language', e.target.value)}>
+          <option>en-US</option><option>en-GB</option><option>de-DE</option><option>fr-FR</option><option>ja-JP</option>
+        </select>
+      </Field>
+      <Field label="Timezone" desc="Used for cron expressions, timestamps, and history rollups.">
+        <select value={s.timezone} onChange={e => set('timezone', e.target.value)}>
+          <option>Europe/Berlin</option><option>America/Los_Angeles</option><option>America/New_York</option><option>UTC</option><option>Asia/Kolkata</option><option>Asia/Tokyo</option>
+        </select>
+      </Field>
+      <Field label="Date format" desc="ISO is recommended for filenames and logs.">
+        <div className="chips">
+          {['YYYY-MM-DD','DD/MM/YYYY','MM/DD/YYYY','D MMM YYYY'].map(f => (
+            <span key={f} className={`chip ${s.dateFormat===f?'on':''}`} onClick={() => set('dateFormat', f)}>{f}</span>
+          ))}
+        </div>
+      </Field>
+      <Field label="Startup view" desc="Where Hermes opens on launch.">
+        <select value={s.startupView} onChange={e => set('startupView', e.target.value)}>
+          <option>Dashboard</option><option>Chat</option><option>Terminal</option><option>Conductor</option><option>Last session</option>
+        </select>
+      </Field>
+    </div>
+  </>;
+}
+
+function S_account({ s, set }) {
+  return <div className="card">
+    <h3><span className="ic">{Ic.acc}</span> Account<span className="sub">4 settings</span></h3>
+    <Field label="Display name" desc="Used by agents that address you by name.">
+      <input value={s.display_name} onChange={e => set('display_name', e.target.value)}/>
+    </Field>
+    <Field label="Email" desc="For sign-in and recovery." pill={{t:'verified', k:''}}>
+      <input value={s.email} onChange={e => set('email', e.target.value)}/>
+    </Field>
+    <Field label="Organisation" desc="Shown on shared exports and billing.">
+      <input value={s.org} onChange={e => set('org', e.target.value)}/>
+    </Field>
+    <Field label="Two-factor auth" desc="Recommended. Uses your authenticator app.">
+      <Toggle on={s.twofa} set={v => set('twofa', v)}/>
+    </Field>
+  </div>;
+}
+
+function S_appearance({ s, set }) {
+  return <div className="card">
+    <h3><span className="ic">{Ic.pal}</span> Appearance<span className="sub">5 settings</span></h3>
+    <Field label="Theme" desc="Matrix is the default; light is high-contrast.">
+      <div className="chips">
+        {['matrix','dark','light','high-contrast'].map(t => (
+          <span key={t} className={`chip ${s.theme===t?'on':''}`} onClick={() => set('theme', t)}>{t}</span>
+        ))}
+      </div>
+    </Field>
+    <Field label="Density" desc="Tighter rows for power users.">
+      <div className="chips">
+        {['compact','cozy','comfortable'].map(d => (
+          <span key={d} className={`chip ${s.density===d?'on':''}`} onClick={() => set('density', d)}>{d}</span>
+        ))}
+      </div>
+    </Field>
+    <Field label="Mono font" desc="Used for terminals, code, IDs.">
+      <select value={s.monoFont} onChange={e => set('monoFont', e.target.value)}>
+        <option>JetBrains Mono</option><option>IBM Plex Mono</option><option>Fira Code</option><option>Menlo</option><option>SF Mono</option>
+      </select>
+    </Field>
+    <Field label="Matrix rain background" desc="Animated glyphs behind terminals and dashboards.">
+      <Toggle on={s.rainBg} set={v => set('rainBg', v)}/>
+    </Field>
+    <Field label="Dim rain" desc="Subtle mode — half opacity." pill={s.rainBg?null:{t:'disabled'}}>
+      <Toggle on={s.rainDim} set={v => set('rainDim', v)}/>
+    </Field>
+  </div>;
+}
+
+function S_notifications({ s, set }) {
+  return <div className="card">
+    <h3><span className="ic">{Ic.not}</span> Notifications<span className="sub">6 settings</span></h3>
+    <Field label="Desktop notifications" desc="System banner when agents finish."><Toggle on={s.notif_desktop} set={v => set('notif_desktop', v)}/></Field>
+    <Field label="Sound" desc="Soft chime on completion."><Toggle on={s.notif_sound} set={v => set('notif_sound', v)}/></Field>
+    <Field label="Email digest" desc="Daily summary at 18:00 local time."><Toggle on={s.notif_email} set={v => set('notif_email', v)}/></Field>
+    <Field label="Slack" desc="Posts to #hermes-runs on completion." pill={{t:'connected'}}><Toggle on={s.notif_slack} set={v => set('notif_slack', v)}/></Field>
+    <Field label="Notify on task done" desc=""><Toggle on={s.notif_done} set={v => set('notif_done', v)}/></Field>
+    <Field label="Notify on error" desc=""><Toggle on={s.notif_error} set={v => set('notif_error', v)}/></Field>
+  </div>;
+}
+
+function S_models({ s, set }) {
+  return <>
+    <div className="card">
+      <h3><span className="ic">{Ic.mod}</span> Provider & defaults<span className="sub">9 settings</span></h3>
+      <Field label="Provider" desc="Backend used for chat + completion calls.">
+        <select value={s.provider} onChange={e => set('provider', e.target.value)}>
+          <option>Anthropic · Claude</option><option>OpenAI · GPT-4o</option><option>Ollama · Local</option><option>Mixed (route per-agent)</option>
+        </select>
+      </Field>
+      <Field label="Default model" desc="Used unless an agent overrides it.">
+        <select value={s.defaultModel} onChange={e => set('defaultModel', e.target.value)}>
+          <option>claude-opus-4-7</option><option>claude-sonnet-4-6</option><option>claude-haiku-4-5</option><option>gpt-4o</option><option>llama-3.1-70b</option>
+        </select>
+      </Field>
+      <Field label="Fallback model" desc="Used when the default returns an error or rate-limit.">
+        <select value={s.fallbackModel} onChange={e => set('fallbackModel', e.target.value)}>
+          <option>claude-sonnet-4-6</option><option>claude-haiku-4-5</option><option>gpt-4o</option>
+        </select>
+      </Field>
+      <Field label="Temperature" desc={`${s.temp.toFixed(2)} · 0 = deterministic, 1 = creative`}>
+        <input type="range" min="0" max="1" step="0.05" value={s.temp} onChange={e => set('temp', parseFloat(e.target.value))}/>
+      </Field>
+      <Field label="Top-P" desc={`${s.topP.toFixed(2)} · nucleus sampling cutoff`}>
+        <input type="range" min="0.1" max="1" step="0.01" value={s.topP} onChange={e => set('topP', parseFloat(e.target.value))}/>
+      </Field>
+      <Field label="Max tokens" desc="Per-call output cap. Higher = longer responses.">
+        <input type="number" min="256" max="32768" step="256" value={s.maxTokens} onChange={e => set('maxTokens', parseInt(e.target.value||0))}/>
+      </Field>
+      <Field label="Extended thinking" desc="Allow the model to reason before replying. Slower but better."><Toggle on={s.reasoning} set={v => set('reasoning', v)}/></Field>
+      <Field label="Prompt caching" desc="Reuses prefix tokens across calls. ~75% cost savings."><Toggle on={s.cache} set={v => set('cache', v)}/></Field>
+      <Field label="Stream outputs" desc="Show tokens as they arrive."><Toggle on={s.streamOutputs} set={v => set('streamOutputs', v)}/></Field>
+    </div>
+    <div className="card">
+      <h3><span className="ic">{Ic.mod}</span> Model registry<span className="sub">5 mounted</span></h3>
+      <table className="mini-table">
+        <thead><tr><th>Model</th><th>Provider</th><th>Context</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          <tr><td><span className="dot ok"/>claude-opus-4-7</td><td>Anthropic</td><td>200k</td><td>ready</td><td className="act">edit</td></tr>
+          <tr><td><span className="dot ok"/>claude-sonnet-4-6</td><td>Anthropic</td><td>200k</td><td>ready</td><td className="act">edit</td></tr>
+          <tr><td><span className="dot ok"/>claude-haiku-4-5</td><td>Anthropic</td><td>200k</td><td>ready</td><td className="act">edit</td></tr>
+          <tr><td><span className="dot warn"/>gpt-4o</td><td>OpenAI</td><td>128k</td><td>key required</td><td className="act">configure</td></tr>
+          <tr><td><span className="dot off"/>llama-3.1-70b</td><td>Ollama (local)</td><td>32k</td><td>not pulled</td><td className="act">pull</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </>;
+}
+
+function S_agents({ s, set }) {
+  return <div className="card">
+    <h3><span className="ic">{Ic.brain}</span> Agent runtime<span className="sub">8 settings</span></h3>
+    <Field label="Worker pool size" desc="Concurrent agent slots. Each takes ~1.5 GB RAM.">
+      <input type="number" min="1" max="32" value={s.workerPool} onChange={e => set('workerPool', parseInt(e.target.value||1))}/>
+    </Field>
+    <Field label="Queue depth" desc="Max queued tasks before backpressure.">
+      <input type="number" min="1" max="500" value={s.queueDepth} onChange={e => set('queueDepth', parseInt(e.target.value||1))}/>
+    </Field>
+    <Field label="Task timeout" desc={`${s.taskTimeout}s — kill long-running agent calls.`}>
+      <input type="range" min="60" max="3600" step="30" value={s.taskTimeout} onChange={e => set('taskTimeout', parseInt(e.target.value))}/>
+    </Field>
+    <Field label="Retry count" desc="On transient failures (rate-limit, network).">
+      <input type="number" min="0" max="10" value={s.retryCount} onChange={e => set('retryCount', parseInt(e.target.value||0))}/>
+    </Field>
+    <Field label="Parallel sub-tasks" desc="Per orchestrator call — independent branches.">
+      <input type="number" min="1" max="16" value={s.parallelTasks} onChange={e => set('parallelTasks', parseInt(e.target.value||1))}/>
+    </Field>
+    <Field label="Auto-commit on success" desc="Stage and commit changes after a clean run." pill={{t:'danger', k:'req'}}><Toggle on={s.autoCommit} set={v => set('autoCommit', v)}/></Field>
+    <Field label="Verify before ship" desc="Run checklist + verifier pass before declaring done."><Toggle on={s.verifyBeforeShip} set={v => set('verifyBeforeShip', v)}/></Field>
+    <Field label="Capture agent logs" desc="Stream per-agent stdout/stderr to .hermes/logs."><Toggle on={s.agentLogs} set={v => set('agentLogs', v)}/></Field>
+  </div>;
+}
+
+function S_memory({ s, set }) {
+  return <div className="card">
+    <h3><span className="ic">{Ic.brain}</span> Memory & wiki<span className="sub">7 settings</span></h3>
+    <Field label="Memory enabled" desc="Tier-1 and Tier-2 agents read/write layered memory."><Toggle on={s.memEnabled} set={v => set('memEnabled', v)}/></Field>
+    <Field label="Default scope" desc="Where new entries land first.">
+      <div className="chips">
+        {['agent','user','workspace','global'].map(o => (
+          <span key={o} className={`chip ${s.memScope===o?'on':''}`} onClick={() => set('memScope', o)}>{o}</span>
+        ))}
+      </div>
+    </Field>
+    <Field label="Auto-summarize new pages" desc="Generate TL;DR on every wiki write."><Toggle on={s.autoSummarize} set={v => set('autoSummarize', v)}/></Field>
+    <Field label="Top-K retrieval" desc={`${s.topK} pages of context per query.`}>
+      <input type="range" min="3" max="20" step="1" value={s.topK} onChange={e => set('topK', parseInt(e.target.value))}/>
+    </Field>
+    <Field label="Citations always on" desc="Refuse to answer without a source page."><Toggle on={s.citesAlwaysOn} set={v => set('citesAlwaysOn', v)}/></Field>
+    <Field label="Wiki root" desc="Filesystem path for markdown corpus.">
+      <input value={s.memRoot} onChange={e => set('memRoot', e.target.value)}/>
+    </Field>
+    <Field label="Sync to git" desc="Every memory write becomes a commit." pill={{t:'recommended'}}><Toggle on={s.gitSync} set={v => set('gitSync', v)}/></Field>
+  </div>;
+}
+
+function S_skills({ s, set }) {
+  return <div className="card">
+    <h3><span className="ic">{Ic.sk}</span> Skills<span className="sub">5 settings</span></h3>
+    <Field label="Auto-load skills" desc="Discover skills on startup."><Toggle on={s.skillsAutoload} set={v => set('skillsAutoload', v)}/></Field>
+    <Field label="Skills root" desc="Folder scanned for skill manifests.">
+      <input value={s.skillsRoot} onChange={e => set('skillsRoot', e.target.value)}/>
+    </Field>
+    <Field label="Hooks enabled" desc="Allow PreToolUse / PostToolUse hooks."><Toggle on={s.hooksEnabled} set={v => set('hooksEnabled', v)}/></Field>
+    <Field label="Permission prompt" desc="Ask before running new skills/commands." pill={{t:'security', k:'req'}}><Toggle on={s.permPrompt} set={v => set('permPrompt', v)}/></Field>
+    <Field label="Permission timeout" desc={`${s.permTimeout}s — auto-deny after this.`}>
+      <input type="range" min="5" max="120" step="5" value={s.permTimeout} onChange={e => set('permTimeout', parseInt(e.target.value))}/>
+    </Field>
+  </div>;
+}
+
+function S_mcp({ s, set }) {
+  return <>
+    <div className="card">
+      <h3><span className="ic">{Ic.mcp}</span> MCP servers<span className="sub">6 settings</span></h3>
+      <Field label="MCP enabled" desc="Master switch for all MCP integrations."><Toggle on={s.mcpEnabled} set={v => set('mcpEnabled', v)}/></Field>
+      <Field label="Auto-start on launch" desc="Spawn registered servers when Hermes boots."><Toggle on={s.mcpAutoStart} set={v => set('mcpAutoStart', v)}/></Field>
+      <Field label="Connect timeout" desc={`${s.mcpTimeout}s — kill slow handshakes.`}>
+        <input type="range" min="1" max="30" step="1" value={s.mcpTimeout} onChange={e => set('mcpTimeout', parseInt(e.target.value))}/>
+      </Field>
+      <Field label="Verbose logging" desc="Log every MCP request/response (large)."><Toggle on={s.mcpLogVerbose} set={v => set('mcpLogVerbose', v)}/></Field>
+    </div>
+    <div className="card">
+      <h3><span className="ic">{Ic.mcp}</span> Registered servers<span className="sub">7 entries</span></h3>
+      <table className="mini-table">
+        <thead><tr><th>Server</th><th>Transport</th><th>Status</th><th>Tools</th><th></th></tr></thead>
+        <tbody>
+          <tr><td><span className="dot ok"/>context-mode</td><td>stdio</td><td>connected</td><td>14</td><td className="act">edit</td></tr>
+          <tr><td><span className="dot ok"/>claude-mem</td><td>stdio</td><td>connected</td><td>9</td><td className="act">edit</td></tr>
+          <tr><td><span className="dot ok"/>omc-tools</td><td>stdio</td><td>connected</td><td>32</td><td className="act">edit</td></tr>
+          <tr><td><span className="dot warn"/>Gmail</td><td>http</td><td>auth required</td><td>—</td><td className="act">authorize</td></tr>
+          <tr><td><span className="dot warn"/>Google Drive</td><td>http</td><td>auth required</td><td>—</td><td className="act">authorize</td></tr>
+          <tr><td><span className="dot off"/>Calendar</td><td>http</td><td>disabled</td><td>—</td><td className="act">enable</td></tr>
+          <tr><td><span className="dot off"/>Linear</td><td>http</td><td>not configured</td><td>—</td><td className="act">configure</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </>;
+}
+
+function S_storage({ s, set }) {
+  return <div className="card">
+    <h3><span className="ic">{Ic.adv}</span> Storage<span className="sub">5 settings</span></h3>
+    <Field label="Cache path" desc="Where Hermes stores transient files.">
+      <input value={s.cachePath} onChange={e => set('cachePath', e.target.value)}/>
+    </Field>
+    <Field label="Cache cap" desc={`${s.cacheMaxGB} GB — oldest entries evicted first.`}>
+      <input type="range" min="1" max="50" step="1" value={s.cacheMaxGB} onChange={e => set('cacheMaxGB', parseInt(e.target.value))}/>
+    </Field>
+    <Field label="Export folder" desc="Default destination for ZIPs and PDFs.">
+      <input value={s.exportPath} onChange={e => set('exportPath', e.target.value)}/>
+    </Field>
+    <Field label="Attachment size cap" desc={`${s.attachmentCap} MB per upload.`}>
+      <input type="number" min="1" max="500" value={s.attachmentCap} onChange={e => set('attachmentCap', parseInt(e.target.value||1))}/>
+    </Field>
+    <Field label="Current usage" desc="Live snapshot of disk usage." pill={{t:'live'}}>
+      <div className="kv">cache <code>1.8 GB</code> · sessions <code>412 MB</code> · wiki <code>92 MB</code> · logs <code>56 MB</code></div>
+    </Field>
+  </div>;
+}
+
+function S_privacy({ s, set }) {
+  return <div className="card">
+    <h3><span className="ic">{Ic.sh}</span> Privacy<span className="sub">6 settings</span></h3>
+    <Field label="Share anonymous metrics" desc="Counts of feature use. No content."><Toggle on={s.shareAnon} set={v => set('shareAnon', v)}/></Field>
+    <Field label="Share crash reports" desc="Send stack traces on hard failures."><Toggle on={s.shareCrash} set={v => set('shareCrash', v)}/></Field>
+    <Field label="Share usage analytics" desc="Aggregate latency + token counts."><Toggle on={s.shareUsage} set={v => set('shareUsage', v)}/></Field>
+    <Field label="Scrub secrets from logs" desc="Replace API keys + tokens with •••." pill={{t:'recommended'}}><Toggle on={s.scrubSecrets} set={v => set('scrubSecrets', v)}/></Field>
+    <Field label="Redact filesystem paths" desc="Replace $HOME with ~ in logs and shares."><Toggle on={s.redactPaths} set={v => set('redactPaths', v)}/></Field>
+    <Field label="History retention" desc={`${s.retention} days — older sessions auto-purge.`}>
+      <input type="range" min="7" max="365" step="1" value={s.retention} onChange={e => set('retention', parseInt(e.target.value))}/>
+    </Field>
+  </div>;
+}
+
+function S_telemetry({ s, set }) {
+  return <div className="card">
+    <h3><span className="ic">{Ic.tel}</span> Telemetry<span className="sub">4 settings</span></h3>
+    <Field label="Metrics enabled" desc="Emit OpenTelemetry counters."><Toggle on={s.metricsEnabled} set={v => set('metricsEnabled', v)}/></Field>
+    <Field label="Traces enabled" desc="Per-call spans (slower)."><Toggle on={s.tracesEnabled} set={v => set('tracesEnabled', v)}/></Field>
+    <Field label="OTLP endpoint" desc="HTTP receiver URL.">
+      <input value={s.metricsHost} onChange={e => set('metricsHost', e.target.value)}/>
+    </Field>
+    <Field label="Sample rate" desc={`${(s.sampleRate*100).toFixed(0)}% of spans exported.`}>
+      <input type="range" min="0" max="1" step="0.05" value={s.sampleRate} onChange={e => set('sampleRate', parseFloat(e.target.value))}/>
+    </Field>
+  </div>;
+}
+
+function S_keys({ s, set }) {
+  const [reveal, setReveal] = React.useState(false);
+  return <div className="card">
+    <h3><span className="ic">{Ic.key}</span> API keys<span className="sub">3 secrets · stored in OS keychain</span></h3>
+    <Field label="Anthropic API key" desc="Used for all Claude calls." pill={{t:'set', k:''}}>
+      <div style={{ display:'flex', gap:6 }}>
+        <input type={reveal?'text':'password'} value={s.anthropicKey} onChange={e => set('anthropicKey', e.target.value)}/>
+        <button className="btn" onClick={() => setReveal(r => !r)}>{Ic.eye}</button>
+      </div>
+    </Field>
+    <Field label="OpenAI API key" desc="Optional — enables GPT-4o fallback." pill={{t:'missing', k:'dirty'}}>
+      <input type="password" placeholder="sk-…" value={s.openaiKey} onChange={e => set('openaiKey', e.target.value)}/>
+    </Field>
+    <Field label="Rotate keys" desc="Generate fresh local tokens for hooks + daemon.">
+      <button className="btn">{Ic.undo} Rotate now</button>
+    </Field>
+  </div>;
+}
+
+function S_network({ s, set }) {
+  return <div className="card">
+    <h3><span className="ic">{Ic.net}</span> Network<span className="sub">5 settings</span></h3>
+    <Field label="HTTP proxy" desc="e.g. http://proxy.local:8080. Leave empty for direct.">
+      <input value={s.proxy} placeholder="(none)" onChange={e => set('proxy', e.target.value)}/>
+    </Field>
+    <Field label="Allow insecure TLS" desc="Skip cert verification. Dev only." pill={{t:'danger', k:'req'}}><Toggle on={s.allowInsecure} set={v => set('allowInsecure', v)}/></Field>
+    <Field label="Request timeout" desc={`${s.reqTimeout}s — outbound HTTP calls.`}>
+      <input type="range" min="5" max="120" step="5" value={s.reqTimeout} onChange={e => set('reqTimeout', parseInt(e.target.value))}/>
+    </Field>
+    <Field label="Local daemon" desc="Used by skills and the CLI." pill={{t:'live'}}>
+      <div className="kv"><code>http://127.0.0.1:64302</code> · uptime <code>4h 12m</code></div>
+    </Field>
+    <Field label="Offline mode" desc="Block all outbound calls. Useful on flights.">
+      <Toggle on={false} set={()=>{}}/>
+    </Field>
+  </div>;
+}
+
+function S_perf({ s, set }) {
+  return <div className="card">
+    <h3><span className="ic">{Ic.tel}</span> Performance<span className="sub">4 settings</span></h3>
+    <Field label="Hardware acceleration" desc="GPU-backed rendering. Restart required." pill={{t:'restart req'}}><Toggle on={s.hwAccel} set={v => set('hwAccel', v)}/></Field>
+    <Field label="Prefetch on hover" desc="Warm caches before you click."><Toggle on={s.prefetch} set={v => set('prefetch', v)}/></Field>
+    <Field label="Background behavior" desc="When the window isn't focused.">
+      <div className="chips">
+        {['keep-running','pause','suspend-after-5m'].map(o => (
+          <span key={o} className={`chip ${s.backgroundIdle===o?'on':''}`} onClick={() => set('backgroundIdle', o)}>{o}</span>
+        ))}
+      </div>
+    </Field>
+    <Field label="Process snapshot" desc="" pill={{t:'live'}}>
+      <div className="kv">cpu <code>23%</code> · mem <code>4.1 / 16 GB</code> · workers <code>8/8</code></div>
+    </Field>
+  </div>;
+}
+
+function S_shortcuts({ s, set }) {
+  const rows = [
+    ['shortcut_search','Global search'],
+    ['shortcut_newsess','New session'],
+    ['shortcut_term','Toggle terminal'],
+    ['shortcut_palette','Command palette'],
+    ['shortcut_save','Save changes'],
+    ['shortcut_chat','Chat with wiki'],
+  ];
+  return <div className="card">
+    <h3><span className="ic">{Ic.gen}</span> Keyboard shortcuts<span className="sub">6 bindings</span></h3>
+    {rows.map(([k, l]) => (
+      <Field key={k} label={l} desc="Click to rebind. Modifier + key.">
+        <input value={s[k]} onChange={e => set(k, e.target.value)}/>
+      </Field>
+    ))}
+  </div>;
+}
+
+function S_advanced({ s, set }) {
+  return <div className="card">
+    <h3><span className="ic">{Ic.adv}</span> Advanced<span className="sub">5 settings</span></h3>
+    <Field label="Experimental features" desc="Opt-in to unstable workflows." pill={{t:'beta'}}><Toggle on={s.experimental} set={v => set('experimental', v)}/></Field>
+    <Field label="Developer tools" desc="Show DevTools menu + JS console."><Toggle on={s.devTools} set={v => set('devTools', v)}/></Field>
+    <Field label="CLI binary path" desc="Symlink target for the `hermes` command.">
+      <input value={s.cliBin} onChange={e => set('cliBin', e.target.value)}/>
+    </Field>
+    <Field label="Log level" desc="">
+      <select value={s.logLevel} onChange={e => set('logLevel', e.target.value)}>
+        <option>error</option><option>warn</option><option>info</option><option>debug</option><option>trace</option>
+      </select>
+    </Field>
+    <Field label="Open config folder" desc="Reveal ~/.hermes in Finder.">
+      <button className="btn">{Ic.dl} Open folder</button>
+    </Field>
+  </div>;
+}
+
+function S_danger() {
+  return <div className="card danger-zone">
+    <h3><span className="ic">{Ic.trash}</span> Danger zone<span className="sub">irreversible</span></h3>
+    <Field label="Clear all caches" desc="Drop transient files. Sessions and memory are preserved.">
+      <button className="btn">{Ic.trash} Clear caches</button>
+    </Field>
+    <Field label="Reset settings to defaults" desc="All values revert. Keys and memory stay.">
+      <button className="btn danger">{Ic.undo} Reset settings</button>
+    </Field>
+    <Field label="Delete workspace" desc="Removes all sessions, memory, wiki, and keys. This cannot be undone." pill={{t:'irreversible', k:'req'}}>
+      <button className="btn danger">{Ic.trash} Delete workspace…</button>
+    </Field>
+  </div>;
+}
+
+/* ============ APP ============ */
+const SECTION_RENDERERS = {
+  general: S_general, account: S_account, appearance: S_appearance, notifications: S_notifications,
+  models: S_models, agents: S_agents, memory: S_memory, skills: S_skills, mcp: S_mcp,
+  storage: S_storage, privacy: S_privacy, telemetry: S_telemetry, keys: S_keys,
+  network: S_network, perf: S_perf, shortcuts: S_shortcuts, advanced: S_advanced, danger: S_danger,
+};
+const SECTION_TITLES = {
+  general:'General · Workspace', account:'General · Account', appearance:'General · Appearance', notifications:'General · Notifications',
+  models:'Intelligence · Models', agents:'Intelligence · Agent runtime', memory:'Intelligence · Memory & wiki',
+  skills:'Intelligence · Skills', mcp:'Intelligence · MCP servers',
+  storage:'Data · Storage', privacy:'Data · Privacy', telemetry:'Data · Telemetry', keys:'Data · API keys',
+  network:'System · Network', perf:'System · Performance', shortcuts:'System · Keyboard', advanced:'System · Advanced', danger:'System · Danger zone',
+};
+const SECTION_DESCS = {
+  general:'Workspace identity, language, timezone, defaults.',
+  account:'Sign-in, identity, security.',
+  appearance:'Theme, density, fonts, motion.',
+  notifications:'Where Hermes pings you and how loud.',
+  models:'Provider, defaults, sampling, registry.',
+  agents:'Concurrency, retries, verification gates.',
+  memory:'Layered memory, retrieval, wiki sync.',
+  skills:'Skill discovery, hooks, permissions.',
+  mcp:'Model Context Protocol — external tool servers.',
+  storage:'Where files live. How much disk is used.',
+  privacy:'What leaves the machine and what doesn’t.',
+  telemetry:'Metrics and traces for power users.',
+  keys:'Provider tokens stored in your OS keychain.',
+  network:'Proxy, TLS, daemon, offline.',
+  perf:'Acceleration, prefetch, idle behavior.',
+  shortcuts:'Rebind global hotkeys.',
+  advanced:'Developer toggles. Be careful.',
+  danger:'Irreversible operations.',
+};
+
+function App() {
+  const [tab, setTab]     = React.useState('all');
+  const [active, setActive] = React.useState('general');
+  const [query, setQuery] = React.useState('');
+  const [state, setState] = React.useState(INITIAL);
+  const [saved, setSaved] = React.useState(INITIAL);
+  const [dirty, setDirty] = React.useState(new Set());
+
+  const set = (k, v) => {
+    setState(s => ({ ...s, [k]: v }));
+    setDirty(d => { const n = new Set(d); if (saved[k] !== v) n.add(k); else n.delete(k); return n; });
+  };
+  const save = () => { setSaved(state); setDirty(new Set()); };
+  const reset = () => { setState(saved); setDirty(new Set()); };
+  const exportCfg = () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type:'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'hermes-settings.json'; a.click();
+  };
+
+  const visibleGroups = React.useMemo(() => {
+    const tabRow = TABS.find(t => t.id === tab);
+    const allowed = new Set(tabRow.groups);
+    return GROUPS.filter(g => allowed.has(g.id)).map(g => ({
+      ...g,
+      items: g.items.filter(it => !query || it.label.toLowerCase().includes(query.toLowerCase())),
+    })).filter(g => g.items.length > 0);
+  }, [tab, query]);
+
+  React.useEffect(() => {
+    const exists = visibleGroups.some(g => g.items.some(i => i.id === active));
+    if (!exists && visibleGroups[0]) setActive(visibleGroups[0].items[0].id);
+  }, [visibleGroups]);
+
+  const Renderer = SECTION_RENDERERS[active] || (() => <div className="card"><h3>—</h3></div>);
+
+  return (
+    <div className="shell">
+      <nav className="nav"><PrimaryNavV2 active="settings"/></nav>
+      <main className="main">
+        <header className="topbar">
+          <h1>
+            <span className="crumb">Hermes</span><span className="sep">/</span>
+            <span className="cur">Settings</span>
+          </h1>
+          <div className="stats">
+            <span><b>{Object.keys(state).length}</b> settings</span>
+            <span className="sep"/>
+            <span>dirty <b className={dirty.size>0?'warn':'ok'}>{dirty.size}</b></span>
+            <span className="sep"/>
+            <span>last save <b className="ok">just now</b></span>
+            <span className="sep"/>
+            <button className="btn" onClick={exportCfg}>{Ic.dl} Export</button>
+            <button className="btn">{Ic.imp} Import</button>
+            <button className="btn" onClick={reset} disabled={dirty.size===0}>{Ic.undo} Reset</button>
+            <button className="btn primary" onClick={save} disabled={dirty.size===0}>{Ic.save} Save changes</button>
+          </div>
+        </header>
+        <div className="tabbar">
+          {TABS.map(t => (
+            <span key={t.id} className={`tab ${tab===t.id?'on':''}`} onClick={() => setTab(t.id)}>
+              {t.label} <span className="ct">{
+                GROUPS.filter(g => t.groups.includes(g.id)).reduce((sum,g)=>sum+g.items.length,0)
+              }</span>
+            </span>
+          ))}
+          <div className="spacer"/>
+          <div className="right">
+            <span style={{ font:'500 10.5px var(--m-font-mono)', color:'var(--m-text-faint)', textTransform:'uppercase', letterSpacing:'.16em' }}>
+              v2.3.0 · build 4127
+            </span>
+          </div>
+        </div>
+        <div className="body">
+          <aside className="side">
+            <div className="search">{Ic.search}<input placeholder="filter settings…" value={query} onChange={e => setQuery(e.target.value)}/></div>
+            {visibleGroups.map(g => (
+              <div key={g.id}>
+                <div className="grp">{g.label}<span className="ct">{g.items.length}</span></div>
+                {g.items.map(it => {
+                  const isDirty = [...dirty].some(k => ITEM_KEYS[it.id]?.includes(k));
+                  return (
+                    <div key={it.id} className={`item ${active===it.id?'on':''} ${isDirty?'dirty':''}`} onClick={() => setActive(it.id)}>
+                      <span style={{ display:'grid', placeItems:'center', color: active===it.id?'var(--m-green-500)':'var(--m-text-faint)' }}>{it.ic}</span>
+                      <span>{it.label}</span>
+                      <span className="badge">{isDirty ? '•' : it.ct}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </aside>
+          <section className="content">
+            <div className="section-head">
+              <div>
+                <h2>{SECTION_TITLES[active] || active}</h2>
+                <div className="desc">{SECTION_DESCS[active] || ''}</div>
+              </div>
+              <div className="meta">
+                {dirty.size>0 && <>unsaved <b>{dirty.size}</b> · </>}auto-saves to <b>~/.hermes/config.yaml</b>
+              </div>
+            </div>
+            <Renderer s={state} set={set} mark={() => {}}/>
+          </section>
+        </div>
+        <footer className="pg-foot">
+          <span><b>{Object.keys(state).length}</b> settings</span>
+          <span className="sep"/>
+          <span>dirty <b className={dirty.size>0?'warn':'ok'}>{dirty.size}</b></span>
+          <span className="sep"/>
+          <span>provider <b className="ok">{state.provider.split(' · ')[0]}</b></span>
+          <span className="sep"/>
+          <span>model <b>{state.defaultModel}</b></span>
+          <span className="sep"/>
+          <span>theme <b>{state.theme}</b></span>
+          <span style={{ marginLeft:'auto' }}>sync <b className="ok">on</b></span>
+          <span className="sep"/>
+          <span>build <b>4127</b></span>
+        </footer>
+      </main>
+    </div>
+  );
+}
+
+/* map of section -> setting keys (used to highlight sidebar dirty state) */
+const ITEM_KEYS = {
+  general: ['workspace_name','workspace_id','language','timezone','dateFormat','startupView'],
+  account: ['display_name','email','org','twofa'],
+  appearance: ['theme','density','monoFont','rainBg','rainDim'],
+  notifications: ['notif_desktop','notif_sound','notif_email','notif_slack','notif_done','notif_error'],
+  models: ['provider','defaultModel','fallbackModel','temp','topP','maxTokens','reasoning','cache','streamOutputs'],
+  agents: ['workerPool','queueDepth','taskTimeout','retryCount','parallelTasks','autoCommit','verifyBeforeShip','agentLogs'],
+  memory: ['memEnabled','memScope','autoSummarize','topK','citesAlwaysOn','memRoot','gitSync'],
+  skills: ['skillsAutoload','skillsRoot','hooksEnabled','permPrompt','permTimeout'],
+  mcp: ['mcpEnabled','mcpAutoStart','mcpTimeout','mcpLogVerbose'],
+  storage: ['cachePath','cacheMaxGB','exportPath','attachmentCap'],
+  privacy: ['shareAnon','shareCrash','shareUsage','scrubSecrets','redactPaths','retention'],
+  telemetry: ['metricsEnabled','tracesEnabled','metricsHost','sampleRate'],
+  keys: ['anthropicKey','openaiKey'],
+  network: ['proxy','allowInsecure','reqTimeout'],
+  perf: ['hwAccel','prefetch','backgroundIdle'],
+  shortcuts: ['shortcut_search','shortcut_newsess','shortcut_term','shortcut_palette','shortcut_save','shortcut_chat'],
+  advanced: ['experimental','devTools','cliBin','logLevel'],
+  danger: [],
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
