@@ -9,7 +9,7 @@ import { AgentDetailDrawer } from './components/agent-detail-drawer'
 import type { BuiltinAgent } from '@/lib/builtin-agents'
 import type { AgentUIMetadata, ProfileSummary } from '@/server/profiles-browser'
 import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
-import { useProfilesFilterStore, useProfilesViewStore } from '@/stores/profiles-screen-store'
+import { useProfilesFilterStore, useProfilesViewStore, usePageSize } from '@/stores/profiles-screen-store'
 import { Button } from '@/components/ui/button'
 import { DialogContent, DialogRoot, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -112,8 +112,9 @@ export function ProfilesScreen() {
   const queryClient = useQueryClient()
   const { search, tierFilter, statusFilter, modelFilter, tagFilter, page } =
     useProfilesFilterStore()
-  const { viewMode, pageSize } = useProfilesViewStore()
-  const debouncedSearch = useDebounced(search, 200)
+  const { viewMode } = useProfilesViewStore()
+  const pageSize = usePageSize()
+  const debouncedSearch = useDebounced(search, 150)
 
   const [sortKey, setSortKey] = useState<SortKey>('tier')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
@@ -272,17 +273,18 @@ export function ProfilesScreen() {
   function handleWizardSuccess(profileName: string) {
     newProfileRef.current = profileName
     toast(`Agent "${profileName}" created`, { type: 'success' })
-    void refreshProfiles()
-    // Scroll new card into view + highlight after refetch settles
-    setTimeout(() => {
-      const el = document.querySelector(`[data-profile="${profileName}"]`)
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-        el.classList.add('pf-card--new')
-        setTimeout(() => el.classList.remove('pf-card--new'), 1600)
-      }
-      newProfileRef.current = null
-    }, 600)
+    void refreshProfiles().then(() => {
+      // Scroll new card/row into view + highlight after refetch resolves
+      setTimeout(() => {
+        const el = document.querySelector(`[data-profile="${profileName}"]`)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+          el.classList.add('pf-card--new')
+          setTimeout(() => el.classList.remove('pf-card--new'), 1600)
+        }
+        newProfileRef.current = null
+      }, 100)
+    })
   }
 
   return (
@@ -389,6 +391,7 @@ export function ProfilesScreen() {
                 <th className={sortClass('tier')} onClick={() => toggleSort('tier')}>
                   Tier <span className="sort-arrow">{sortArrow('tier')}</span>
                 </th>
+                <th>Role</th>
                 <th>Model</th>
                 <th className={sortClass('status')} onClick={() => toggleSort('status')}>
                   Status <span className="sort-arrow">{sortArrow('status')}</span>
@@ -397,6 +400,7 @@ export function ProfilesScreen() {
                 <th className={sortClass('last_run')} onClick={() => toggleSort('last_run')}>
                   Last Run <span className="sort-arrow">{sortArrow('last_run')}</span>
                 </th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -405,11 +409,14 @@ export function ProfilesScreen() {
                   key={agent.id}
                   agent={agent}
                   onClick={() => handleCardClick(agent)}
+                  onActivate={(profileName) => void handleActivate(profileName)}
+                  onRename={(a) => { setRenameTarget(a); setRenameValue(a.name) }}
+                  onDelete={(profileName) => void handleDelete(profileName)}
                 />
               ))}
               {paginated.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '48px 0', opacity: 0.4, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.18em' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '48px 0', opacity: 0.4, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.18em' }}>
                     {allRows.filter((r) => r.tier === 3).length === 0
                       ? 'No agents yet — click "New Agent" to create one'
                       : 'No agents match these filters'}

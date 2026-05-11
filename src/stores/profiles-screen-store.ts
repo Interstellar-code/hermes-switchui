@@ -10,7 +10,8 @@ export type ProfilesViewMode = 'grid' | 'table'
 
 type ProfilesPersistedState = {
   viewMode: ProfilesViewMode
-  pageSize: number
+  pageSizeGrid: number
+  pageSizeTable: number
 }
 
 type ProfilesEphemeralState = {
@@ -43,20 +44,35 @@ const defaultEphemeral: ProfilesEphemeralState = {
   page: 1,
 }
 
-// Persisted slice — view mode + page size
+export const PAGE_SIZES_GRID = [12, 24, 48, 96] as const
+export const PAGE_SIZES_TABLE = [25, 50, 100, 200] as const
+export const DEFAULT_PAGE_SIZE_GRID = 24
+export const DEFAULT_PAGE_SIZE_TABLE = 50
+
+// Persisted slice — view mode + page sizes per view
 export const useProfilesViewStore = create<
   ProfilesPersistedState & Pick<ProfilesActions, 'setViewMode' | 'setPageSize'>
 >()(
   persist(
     (set) => ({
-      viewMode: 'grid',
-      pageSize: 25,
+      viewMode: 'grid' as ProfilesViewMode,
+      pageSizeGrid: DEFAULT_PAGE_SIZE_GRID,
+      pageSizeTable: DEFAULT_PAGE_SIZE_TABLE,
       setViewMode: (viewMode) => set({ viewMode }),
-      setPageSize: (pageSize) => set({ pageSize }),
+      setPageSize: (n) =>
+        set((s) =>
+          s.viewMode === 'grid' ? { pageSizeGrid: n } : { pageSizeTable: n },
+        ),
     }),
     { name: 'switchui-profiles-view' },
   ),
 )
+
+// Derived selector — current page size based on active view
+export function usePageSize(): number {
+  const { viewMode, pageSizeGrid, pageSizeTable } = useProfilesViewStore()
+  return viewMode === 'grid' ? pageSizeGrid : pageSizeTable
+}
 
 // Ephemeral slice — filters + page (not persisted)
 export const useProfilesFilterStore = create<

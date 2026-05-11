@@ -136,6 +136,9 @@ export function validateStep(
     if (!draft.persona_id) {
       errs.push('Please select a persona')
     }
+    if (!draft.system_prompt?.trim()) {
+      errs.push('System prompt is required')
+    }
   } else if (step === 3) {
     if (!draft.model) errs.push('Model is required')
     if (!draft.provider) errs.push('Provider is required')
@@ -167,6 +170,9 @@ export function isDraftDirty(draft: NewAgentDraft): boolean {
     draft.persona_id !== null ||
     draft.system_prompt !== '' ||
     draft.model !== '' ||
+    draft.provider !== '' ||
+    draft.max_turns !== INITIAL_DRAFT.max_turns ||
+    draft.reasoning_effort !== INITIAL_DRAFT.reasoning_effort ||
     draft.skill_dirs.length > 0 ||
     Object.keys(draft.mcp_servers).length > 0 ||
     draft.memory_enabled

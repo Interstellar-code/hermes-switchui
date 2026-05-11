@@ -1,6 +1,12 @@
 import type { ProfilesViewMode } from '@/stores/profiles-screen-store'
 import { useProfilesFilterStore, useProfilesViewStore } from '@/stores/profiles-screen-store'
 
+const DEFAULT_SEARCH = ''
+const DEFAULT_TIER = 'all'
+const DEFAULT_STATUS = 'all'
+const DEFAULT_MODEL = 'all'
+const DEFAULT_TAG = 'all'
+
 type Props = {
   models: Array<string>
   tags: Array<string>
@@ -22,9 +28,17 @@ const STATUS_OPTIONS = [
 
 export function ProfileFilters({ models, tags }: Props) {
   const { tierFilter, statusFilter, modelFilter, tagFilter,
-          setTierFilter, setStatusFilter, setModelFilter, setTagFilter, setSearch, search } =
+          setTierFilter, setStatusFilter, setModelFilter, setTagFilter, setSearch, search,
+          resetFilters } =
     useProfilesFilterStore()
   const { viewMode, setViewMode } = useProfilesViewStore()
+
+  const hasActiveFilters =
+    search !== DEFAULT_SEARCH ||
+    tierFilter !== DEFAULT_TIER ||
+    statusFilter !== DEFAULT_STATUS ||
+    modelFilter !== DEFAULT_MODEL ||
+    tagFilter !== DEFAULT_TAG
 
   return (
     <div className="pf-filter-bar">
@@ -127,6 +141,17 @@ export function ProfileFilters({ models, tags }: Props) {
           </>
         )}
       </div>
+
+      {/* Clear filters */}
+      {hasActiveFilters && (
+        <button
+          type="button"
+          className="pf-clear-filters"
+          onClick={resetFilters}
+        >
+          Clear filters
+        </button>
+      )}
 
       {/* View toggle */}
       <div className="pf-view-toggle">

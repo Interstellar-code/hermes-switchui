@@ -9,10 +9,17 @@ type Props = {
 
 export function WizardStepSkills({ draft, errors, onChange }: Props) {
   const [dirInput, setDirInput] = useState('')
+  const [pathError, setPathError] = useState<string | null>(null)
 
   function addDir() {
     const d = dirInput.trim()
-    if (d && !draft.skill_dirs.includes(d)) {
+    if (!d) return
+    if (!d.startsWith('/') && !d.startsWith('~/')) {
+      setPathError('Path must be absolute (start with / or ~/)')
+      return
+    }
+    setPathError(null)
+    if (!draft.skill_dirs.includes(d)) {
       onChange({ skill_dirs: [...draft.skill_dirs, d] })
     }
     setDirInput('')

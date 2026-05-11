@@ -1,18 +1,19 @@
-import { useProfilesFilterStore, useProfilesViewStore } from '@/stores/profiles-screen-store'
+import { useProfilesFilterStore, useProfilesViewStore, usePageSize, PAGE_SIZES_GRID, PAGE_SIZES_TABLE } from '@/stores/profiles-screen-store'
 
 type Props = {
   total: number
 }
 
-const PAGE_SIZES = [10, 25, 50]
-
 export function ProfilePager({ total }: Props) {
   const { page, setPage } = useProfilesFilterStore()
-  const { pageSize, setPageSize } = useProfilesViewStore()
+  const { setPageSize, viewMode } = useProfilesViewStore()
+  const pageSize = usePageSize()
+  const pageSizeOptions = viewMode === 'grid' ? PAGE_SIZES_GRID : PAGE_SIZES_TABLE
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const start = Math.min((page - 1) * pageSize + 1, total)
-  const end = Math.min(page * pageSize, total)
+  const safePage = Math.min(Math.max(1, page), totalPages)
+  const start = Math.min((safePage - 1) * pageSize + 1, total)
+  const end = Math.min(safePage * pageSize, total)
 
   function go(p: number) {
     if (p < 1 || p > totalPages) return
@@ -21,7 +22,7 @@ export function ProfilePager({ total }: Props) {
 
   const pages: Array<number> = []
   const range = 2
-  for (let i = Math.max(1, page - range); i <= Math.min(totalPages, page + range); i++) {
+  for (let i = Math.max(1, safePage - range); i <= Math.min(totalPages, safePage + range); i++) {
     pages.push(i)
   }
 
@@ -42,14 +43,14 @@ export function ProfilePager({ total }: Props) {
           setPage(1)
         }}
       >
-        {PAGE_SIZES.map((n) => (
+        {pageSizeOptions.map((n) => (
           <option key={n} value={n}>{n}</option>
         ))}
       </select>
 
       <div className="pf-pager-nav">
-        <button type="button" className="pf-pager-btn" onClick={() => go(1)} disabled={page === 1}>«</button>
-        <button type="button" className="pf-pager-btn" onClick={() => go(page - 1)} disabled={page === 1}>‹</button>
+        <button type="button" className="pf-pager-btn" onClick={() => go(1)} disabled={safePage === 1}>«</button>
+        <button type="button" className="pf-pager-btn" onClick={() => go(safePage - 1)} disabled={safePage === 1}>‹</button>
 
         {pages.length > 0 && (pages[0] ?? 0) > 1 && (
           <>
@@ -62,7 +63,7 @@ export function ProfilePager({ total }: Props) {
           <button
             key={p}
             type="button"
-            className={`pf-pager-btn${p === page ? ' on' : ''}`}
+            className={`pf-pager-btn${p === safePage ? ' on' : ''}`}
             onClick={() => go(p)}
           >
             {p}
@@ -78,8 +79,8 @@ export function ProfilePager({ total }: Props) {
           </>
         )}
 
-        <button type="button" className="pf-pager-btn" onClick={() => go(page + 1)} disabled={page === totalPages}>›</button>
-        <button type="button" className="pf-pager-btn" onClick={() => go(totalPages)} disabled={page === totalPages}>»</button>
+        <button type="button" className="pf-pager-btn" onClick={() => go(safePage + 1)} disabled={safePage === totalPages}>›</button>
+        <button type="button" className="pf-pager-btn" onClick={() => go(totalPages)} disabled={safePage === totalPages}>»</button>
       </div>
     </div>
   )

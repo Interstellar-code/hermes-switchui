@@ -6,7 +6,7 @@ export type BuiltinAgent = {
   role: string
   description: string
   tags: Array<string>
-  status: 'active'
+  status: 'active' | 'idle'
   builtin: true
 }
 

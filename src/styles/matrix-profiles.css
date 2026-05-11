@@ -170,6 +170,28 @@
   margin: 0 4px;
 }
 
+/* ── clear filters ── */
+.pf-clear-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  height: 30px;
+  background: none;
+  border: 1px solid var(--m-border, var(--theme-border));
+  border-radius: var(--m-radius-md, 6px);
+  color: var(--m-text-faint, var(--theme-muted));
+  font-size: 11px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color var(--m-dur-fast, 120ms) var(--m-ease-out, ease-out),
+              border-color var(--m-dur-fast, 120ms) var(--m-ease-out, ease-out);
+}
+.pf-clear-filters:hover {
+  color: var(--m-green-500, #00ff41);
+  border-color: var(--m-green-500, #00ff41);
+}
+
 /* ── view toggle ── */
 .pf-view-toggle {
   display: flex;
@@ -644,6 +666,8 @@
   margin: 0 10px;
 }
 .wiz-step.done + .wiz-step-sep { background: rgba(0,255,65,.4); }
+.wiz-step.locked { opacity: 0.4; }
+.wiz-step.locked .n { filter: grayscale(1); }
 
 .wiz-body {
   padding: 24px 28px;
@@ -1662,6 +1686,43 @@
   text-transform: uppercase;
   letter-spacing: .14em;
   cursor: pointer;
+}
+
+/* ── table action buttons ── */
+.pf-tbl-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pf-tbl-action-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--m-radius-sm, 4px);
+  color: var(--m-text-faint, var(--theme-muted));
+  cursor: pointer;
+  transition: color var(--m-dur-fast, 120ms) var(--m-ease-out, ease-out),
+              border-color var(--m-dur-fast, 120ms) var(--m-ease-out, ease-out),
+              background var(--m-dur-fast, 120ms) var(--m-ease-out, ease-out);
+}
+.pf-tbl-action-btn:hover {
+  color: var(--m-green-500, #00ff41);
+  border-color: var(--m-border, var(--theme-border));
+  background: var(--m-fill, rgba(0,255,65,.06));
+}
+.pf-tbl-action-btn--danger:hover {
+  color: var(--m-red, #ff4444);
+  border-color: var(--m-red, #ff4444);
+  background: rgba(255,68,68,.06);
+}
+.pf-tbl-lock {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
 }
 
 } /* end [data-screen="profiles"] */

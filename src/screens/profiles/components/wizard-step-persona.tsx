@@ -38,6 +38,7 @@ export function WizardStepPersona({ draft, errors, onChange }: Props) {
   const [search, setSearch] = useState('')
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [loadingId, setLoadingId] = useState<string | null>(null)
+  const [pickError, setPickError] = useState<string | null>(null)
 
   const personasQuery = useQuery({
     queryKey: ['personas', 'list'],
@@ -70,6 +71,7 @@ export function WizardStepPersona({ draft, errors, onChange }: Props) {
   async function pickPersona(p: PersonaListItem) {
     if (draft.persona_id === p.id) return
     setLoadingId(p.id)
+    setPickError(null)
     try {
       const prompt = await fetchPersonaPrompt(p.id)
       onChange({
@@ -79,7 +81,7 @@ export function WizardStepPersona({ draft, errors, onChange }: Props) {
         role: draft.role || p.name,
       })
     } catch {
-      onChange({ persona_id: p.id })
+      setPickError(`Failed to load persona "${p.name}". Please try again.`)
     } finally {
       setLoadingId(null)
     }
@@ -99,6 +101,10 @@ export function WizardStepPersona({ draft, errors, onChange }: Props) {
             <div key={e} className="wiz-error">{e}</div>
           ))}
         </div>
+      )}
+
+      {pickError && (
+        <div className="wiz-error" style={{ marginBottom: 12 }}>{pickError}</div>
       )}
 
       {personasQuery.isLoading && (

@@ -244,7 +244,7 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
             return (
               <div key={s} style={{ display: 'contents' }}>
                 <div
-                  className={`wiz-step${isDone ? ' done' : ''}${isCurrent ? ' on' : ''}`}
+                  className={`wiz-step${isDone ? ' done' : ''}${isCurrent ? ' on' : ''}${!isDone && !isCurrent ? ' locked' : ''}`}
                   style={{ cursor: isDone ? 'pointer' : 'default' }}
                   onClick={() => { if (isDone) handleJumpTo(sNum) }}
                 >
@@ -278,6 +278,7 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
               <button
                 type="button"
                 className={`btn btn-primary${canAdvance() ? '' : ' disabled'}`}
+                disabled={!canAdvance()}
                 onClick={handleNext}
               >
                 Next →

@@ -11,7 +11,7 @@ type PersonaListItem = Omit<Persona, 'system_prompt' | 'path'> & {
   system_prompt_preview: string
 }
 
-const PREVIEW_LENGTH = 200
+const PREVIEW_LENGTH = 500
 
 function toListItem(persona: Persona): PersonaListItem {
   const preview = persona.system_prompt.slice(0, PREVIEW_LENGTH)
