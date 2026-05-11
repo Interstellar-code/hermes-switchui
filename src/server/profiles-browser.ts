@@ -3,6 +3,68 @@ import os from 'node:os'
 import path from 'node:path'
 import YAML from 'yaml'
 
+// ── New types for the Profiles Revamp (PR-04) ──────────────────────────────
+
+export type MemoryProvider =
+  | 'hindsight'
+  | 'mem0'
+  | 'openviking'
+  | 'holographic'
+  | 'retaindb'
+  | 'byterover'
+
+export type MemoryConfig = {
+  memory_enabled?: boolean
+  provider?: MemoryProvider
+}
+
+export type SkillsConfig = {
+  external_dirs?: Array<string>
+}
+
+export type McpServerConfig = {
+  url?: string
+  command?: string
+  args?: Array<string>
+  env?: Record<string, string>
+  headers?: Record<string, string>
+}
+
+export type AgentRuntime = {
+  max_turns?: number
+  reasoning_effort?: 'low' | 'medium' | 'high'
+  disabled_toolsets?: Array<string>
+}
+
+export type AgentUIMetadata = {
+  tier?: 1 | 2 | 3
+  glyph?: string
+  role?: string
+  status?: 'draft' | 'idle' | 'active'
+  tags?: Array<string>
+  persona_id?: string | null
+  last_run?: number | null
+}
+
+export type ModelConfig = {
+  default?: string
+  provider?: string
+}
+
+// ── ProfileConfig: typed shape for a profile's config.yaml ────────────────
+
+export type ProfileConfig = {
+  description?: string
+  system_prompt?: string
+  model?: ModelConfig | string
+  mcp_servers?: Record<string, McpServerConfig>
+  skills?: SkillsConfig
+  memory?: MemoryConfig
+  agent?: AgentRuntime
+  agent_ui?: AgentUIMetadata
+  [key: string]: unknown
+}
+
 export type ProfileSummary = {
   name: string
   path: string
@@ -14,13 +76,16 @@ export type ProfileSummary = {
   sessionCount: number
   hasEnv: boolean
   updatedAt?: string
+  // P2 additions — agent_ui metadata + description surfaced for the grid/table
+  description?: string
+  agent_ui?: AgentUIMetadata
 }
 
 export type ProfileDetail = {
   name: string
   path: string
   active: boolean
-  config: Record<string, unknown>
+  config: ProfileConfig
   envPath?: string
   hasEnv: boolean
   sessionsDir?: string
@@ -96,12 +161,12 @@ function safeReadText(filePath: string): string {
   return fs.readFileSync(filePath, 'utf-8')
 }
 
-function readYamlConfig(configPath: string): Record<string, unknown> {
+function readYamlConfig(configPath: string): ProfileConfig {
   if (!fs.existsSync(configPath)) return {}
   try {
     const parsed = YAML.parse(safeReadText(configPath)) as unknown
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
+      ? (parsed as ProfileConfig)
       : {}
   } catch {
     return {}
@@ -230,6 +295,8 @@ export function listProfiles(): Array<ProfileSummary> {
           skillsDir,
           sessionsDir,
         ]),
+        description: typeof config.description === 'string' ? config.description : undefined,
+        agent_ui: config.agent_ui,
       })
     }
   }
@@ -386,9 +453,21 @@ export function deleteProfile(name: string): void {
   fs.renameSync(profilePath, path.join(trashDir, trashName))
 }
 
+export function writeProfile(
+  name: string,
+  patch: Partial<ProfileConfig>,
+): ProfileDetail {
+  return updateProfileConfig(name, patch as Record<string, unknown>)
+}
+
+// NOTE(yaml-comments): updateProfileConfig round-trips config through YAML.parse → YAML.stringify,
+// which discards comments. Preserving comments via the yaml CST/Document API is deferred — the
+// config.yaml files are generated/managed by this tool, not hand-authored in normal usage.
+// If comment preservation becomes critical, replace the YAML.stringify(current) call below with
+// a YAML.parseDocument(rawText) + doc.setIn([key], value) + doc.toString() flow.
 export function updateProfileConfig(
   name: string,
-  patch: Record<string, unknown>,
+  patch: Partial<ProfileConfig> | Record<string, unknown>,
 ): ProfileDetail {
   const normalized = name.trim() || 'default'
   const profilePath =
