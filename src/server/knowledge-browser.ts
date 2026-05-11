@@ -526,6 +526,38 @@ export function searchKnowledgePages(
   return matches
 }
 
+export function writeKnowledgePage(
+  relativePath: string,
+  content: string,
+): WikiPageMeta {
+  const config = readKnowledgeBaseConfig()
+  if (config.source.type === 'github') {
+    throw new Error('Cannot write to GitHub-backed knowledge base')
+  }
+  const { fullPath, relativePath: safeRelativePath } =
+    resolveKnowledgeFilePath(relativePath)
+  const dir = path.dirname(fullPath)
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
+  }
+  fs.writeFileSync(fullPath, content, 'utf-8')
+  const stats = fs.statSync(fullPath)
+  const parsed = buildPageMeta(safeRelativePath, stats, content)
+  return parsed.meta
+}
+
+export function deleteKnowledgePage(relativePath: string): void {
+  const config = readKnowledgeBaseConfig()
+  if (config.source.type === 'github') {
+    throw new Error('Cannot delete from GitHub-backed knowledge base')
+  }
+  const { fullPath } = resolveKnowledgeFilePath(relativePath)
+  if (!fs.existsSync(fullPath)) {
+    throw new Error(`ENOENT: Knowledge page not found: ${relativePath}`)
+  }
+  fs.unlinkSync(fullPath)
+}
+
 export function buildKnowledgeGraph(): KnowledgeGraph {
   const pages = getParsedKnowledgePages()
   const resolveLink = createWikilinkResolver(pages)
