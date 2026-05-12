@@ -9,7 +9,6 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from '@/components/ui/toast'
-import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 import { fetchJobOutput } from '@/lib/jobs-api'
 import type { ClaudeJob, JobOutput } from '@/lib/jobs-api'
 
@@ -343,7 +342,6 @@ export function CronDetailDrawer({
   onDelete,
 }: Props) {
   const [tab, setTab] = useState<Tab>('overview')
-  const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   useEffect(() => {
     if (job) setTab('overview')
@@ -408,26 +406,12 @@ export function CronDetailDrawer({
             onTrigger={() => onTrigger(job.id)}
             onPause={() => onPause(job.id)}
             onResume={() => onResume(job.id)}
-            onDelete={() => setDeleteConfirm(true)}
+            onDelete={() => onDelete(job)}
           />
         )}
         {tab === 'prompt' && <TabPrompt job={job} />}
         {tab === 'history' && <TabHistory job={job} />}
       </div>
-
-      <ConfirmDialog
-        open={deleteConfirm}
-        title="Delete cron job?"
-        message={`Delete "${job.name}"? This action cannot be undone.`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={() => {
-          setDeleteConfirm(false)
-          onDelete(job)
-          onClose()
-        }}
-        onCancel={() => setDeleteConfirm(false)}
-      />
     </>,
     document.body,
   )

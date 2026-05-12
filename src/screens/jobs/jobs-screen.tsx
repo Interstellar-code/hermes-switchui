@@ -240,7 +240,8 @@ function CronTableRow({
           <span className="cr-agent-badge">{(job.skills ?? []).join(', ')}</span>
         )}
       </td>
-      <td className="cr-td-actions">
+      <td>
+        <div className="cr-td-actions">
         <button type="button" className="cr-action-btn" title="Run now" onClick={(e) => { e.stopPropagation(); onTrigger(job.id) }}>
           <svg viewBox="0 0 16 16" fill="currentColor"><path d="M5 3.5l8 4.5-8 4.5V3.5z" /></svg>
         </button>
@@ -269,6 +270,7 @@ function CronTableRow({
             <path d="M3 4h10M6 4V2.5h4V4M5 4l.5 9.5h5L11 4" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
+        </div>
       </td>
     </tr>
   )
@@ -689,7 +691,7 @@ export function JobsScreen() {
         onTrigger={(id) => triggerMutation.mutate(id)}
         onPause={(id) => pauseMutation.mutate(id)}
         onResume={(id) => resumeMutation.mutate(id)}
-        onDelete={(job) => { setDeleteTarget(job) }}
+        onDelete={(job) => { setDeleteTarget(job); setDrawerOpen(false) }}
       />
     </div>
   )

@@ -393,6 +393,8 @@ export function MemoryDetailDrawer({ item, open, onClose, onDeleted }: Props) {
         : null,
   ])
 
+  if (!open) return null
+
   const title = !item
     ? ''
     : item.kind === 'agent-file'
@@ -401,19 +403,17 @@ export function MemoryDetailDrawer({ item, open, onClose, onDeleted }: Props) {
 
   return (
     <>
-      {open && (
-        <div
-          className="pf-drawer-backdrop"
-          onClick={onClose}
-          aria-hidden="true"
-        />
-      )}
+      <div
+        className="pf-drawer-backdrop"
+        onClick={onClose}
+        aria-hidden="true"
+      />
 
       <div
         role="dialog"
         aria-label={item ? `Details: ${title}` : 'Details'}
-        className={`pf-drawer${open ? ' is-open' : ''}`}
-        aria-hidden={!open}
+        className="pf-drawer is-open"
+        aria-hidden={false}
       >
         {/* Header */}
         <div className="pf-drawer-header">

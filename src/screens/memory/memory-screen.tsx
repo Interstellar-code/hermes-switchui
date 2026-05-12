@@ -10,6 +10,7 @@ import type { MemoryTab } from '@/stores/memory-screen-store'
 import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
 import { useMemoryScreenStore } from '@/stores/memory-screen-store'
 import '@/styles/matrix-memory.css'
+import '@/styles/matrix-profiles.css'
 
 const AgentMemoryTab = lazy(async () => {
   const m = await import('./components/agent-memory-tab')

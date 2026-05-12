@@ -6,10 +6,18 @@
  * Falls back to a node/edge list if the graph endpoint returns no data.
  *
  * Data source: GET /api/knowledge/graph → { nodes, edges }
+ *
+ * Tier-1 UX improvements:
+ *  1. Hover tooltip (full title, type chip, degree count)
+ *  2. Progressive label density (selected/hovered/high-degree only)
+ *  3. Interactive legend (isolate / mute per category)
+ *  4. Clickable neighbor links in detail panel
+ *  5. 1-hop / 2-hop / all toggle
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { create } from 'zustand'
 import type { KnowledgeGraph } from '@/server/knowledge-browser'
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -38,6 +46,25 @@ function nodeColor(type?: string): string {
   const key = type.toLowerCase()
   return TYPE_COLORS[key] ?? '#00ff41'
 }
+
+// ── Zustand store for graph UI state ─────────────────────────────────────────
+
+type HopMode = '1' | '2' | 'all'
+type CategoryFilterMode = 'isolate' | 'mute'
+
+interface GraphStore {
+  graphCategoryFilter: { category: string; mode: CategoryFilterMode } | null
+  setGraphCategoryFilter: (f: { category: string; mode: CategoryFilterMode } | null) => void
+  hopMode: HopMode
+  setHopMode: (m: HopMode) => void
+}
+
+const useGraphStore = create<GraphStore>((set) => ({
+  graphCategoryFilter: null,
+  setGraphCategoryFilter: (f) => set({ graphCategoryFilter: f }),
+  hopMode: 'all',
+  setHopMode: (m) => set({ hopMode: m }),
+}))
 
 // ── Spring layout ─────────────────────────────────────────────────────────────
 
@@ -119,24 +146,125 @@ function runLayout(
       b.vy -= (dy / dist) * force
     }
 
-    // gravity to centre
+    // gravity to centre — degree-weighted so isolated nodes get pulled in harder
+    const degMap = new Map<string, number>()
+    for (const e of edges) {
+      degMap.set(e.source, (degMap.get(e.source) ?? 0) + 1)
+      degMap.set(e.target, (degMap.get(e.target) ?? 0) + 1)
+    }
     for (const n of sim) {
-      n.vx += (width / 2 - n.x) * 0.01 * alpha
-      n.vy += (height / 2 - n.y) * 0.01 * alpha
+      const deg = degMap.get(n.id) ?? 0
+      // Low-degree nodes (orphans, leaves) get much stronger gravity
+      const gravityCoef = deg === 0 ? 0.08 : deg === 1 ? 0.04 : 0.02
+      n.vx += (width / 2 - n.x) * gravityCoef * alpha
+      n.vy += (height / 2 - n.y) * gravityCoef * alpha
     }
 
-    // integrate
+    // integrate — clamp inside a margin-cropped area so outliers can't park at the wall
+    const margin = Math.min(width, height) * 0.12
     for (const n of sim) {
       n.vx *= 0.85
       n.vy *= 0.85
       n.x += n.vx
       n.y += n.vy
-      n.x = Math.max(n.r + 8, Math.min(width - n.r - 8, n.x))
-      n.y = Math.max(n.r + 8, Math.min(height - n.r - 8, n.y))
+      n.x = Math.max(n.r + margin, Math.min(width - n.r - margin, n.x))
+      n.y = Math.max(n.r + margin, Math.min(height - n.r - margin, n.y))
     }
   }
   return sim
 }
+
+// ── Post-layout centering pass ────────────────────────────────────────────────
+
+function recenterGraph(nodes: Array<SimNode>, width: number, height: number): Array<SimNode> {
+  if (nodes.length === 0) return nodes
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+  for (const n of nodes) {
+    if (n.x < minX) minX = n.x
+    if (n.x > maxX) maxX = n.x
+    if (n.y < minY) minY = n.y
+    if (n.y > maxY) maxY = n.y
+  }
+  const bbW = maxX - minX
+  const bbH = maxY - minY
+  const targetW = width * 0.70
+  const targetH = height * 0.70
+  const scaleX = bbW > targetW ? targetW / bbW : 1
+  const scaleY = bbH > targetH ? targetH / bbH : 1
+  const scale = Math.min(scaleX, scaleY)
+  if (scale >= 1) return nodes
+  const cx = (minX + maxX) / 2
+  const cy = (minY + maxY) / 2
+  return nodes.map((n) => ({
+    ...n,
+    x: cx + (n.x - cx) * scale,
+    y: cy + (n.y - cy) * scale,
+  }))
+}
+
+// ── Degree helpers ────────────────────────────────────────────────────────────
+
+function computeDegrees(
+  nodes: Array<SimNode>,
+  edges: KnowledgeGraph['edges'],
+): Map<string, number> {
+  const deg = new Map<string, number>()
+  for (const n of nodes) deg.set(n.id, 0)
+  for (const e of edges) {
+    deg.set(e.source, (deg.get(e.source) ?? 0) + 1)
+    deg.set(e.target, (deg.get(e.target) ?? 0) + 1)
+  }
+  return deg
+}
+
+function computeHighDegreeThreshold(degrees: Map<string, number>): number {
+  const vals = Array.from(degrees.values()).sort((a, b) => a - b)
+  if (vals.length === 0) return 3
+  const p75idx = Math.floor(vals.length * 0.75)
+  return Math.max(3, vals[p75idx] ?? 3)
+}
+
+// ── Hop visibility ────────────────────────────────────────────────────────────
+
+function computeVisibleIds(
+  selectedId: string | null,
+  hopMode: HopMode,
+  edges: KnowledgeGraph['edges'],
+): Set<string> | null {
+  if (!selectedId || hopMode === 'all') return null
+
+  const neighbors1 = new Set<string>()
+  for (const e of edges) {
+    if (e.source === selectedId) neighbors1.add(e.target)
+    if (e.target === selectedId) neighbors1.add(e.source)
+  }
+
+  if (hopMode === '1') {
+    const s = new Set(neighbors1)
+    s.add(selectedId)
+    return s
+  }
+
+  // 2-hop
+  const neighbors2 = new Set(neighbors1)
+  for (const e of edges) {
+    if (neighbors1.has(e.source)) neighbors2.add(e.target)
+    if (neighbors1.has(e.target)) neighbors2.add(e.source)
+  }
+  neighbors2.add(selectedId)
+  return neighbors2
+}
+
+// ── Tooltip ───────────────────────────────────────────────────────────────────
+
+type TooltipState = {
+  nodeId: string
+  title: string
+  type?: string
+  degree: number
+  x: number
+  y: number
+} | null
 
 // ── SVG Graph ─────────────────────────────────────────────────────────────────
 
@@ -144,32 +272,222 @@ type SvgGraphProps = {
   graph: KnowledgeGraph
   selectedId: string | null
   onSelect: (id: string) => void
+  categoryFilter: { category: string; mode: CategoryFilterMode } | null
+  hopMode: HopMode
 }
 
-function SvgGraph({ graph, selectedId, onSelect }: SvgGraphProps) {
+function SvgGraph({ graph, selectedId, onSelect, categoryFilter, hopMode }: SvgGraphProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const [nodes, setNodes] = useState<Array<SimNode>>([])
+  const [size, setSize] = useState({ width: 800, height: 500 })
+  const [tooltip, setTooltip] = useState<TooltipState>(null)
+  const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const dragRef = useRef<{ startX: number; startY: number; panX: number; panY: number; moved: boolean } | null>(null)
 
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const updateSize = () => {
+      const rect = el.getBoundingClientRect()
+      const nextW = Math.max(Math.round(rect.width), 1)
+      const nextH = Math.max(Math.round(rect.height), 1)
+      setSize((prev) =>
+        prev.width === nextW && prev.height === nextH
+          ? prev
+          : { width: nextW, height: nextH },
+      )
+    }
+    updateSize()
+    const observer = new ResizeObserver(updateSize)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const { width, height } = size
+    if (width <= 1 || height <= 1) return
+    const initial = initNodes(graph.nodes, width, height)
+    const laid = runLayout(initial, graph.edges, width, height)
+    setNodes(recenterGraph(laid, width, height))
+  }, [graph, size])
+
+  // Reset zoom/pan when graph data changes
+  useEffect(() => {
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+  }, [graph])
+
+  // Wheel zoom (non-passive so we can preventDefault)
   useEffect(() => {
     const el = svgRef.current
     if (!el) return
-    const { width, height } = el.getBoundingClientRect()
-    const w = width || 800
-    const h = height || 500
-    const initial = initNodes(graph.nodes, w, h)
-    const laid = runLayout(initial, graph.edges, w, h)
-    setNodes(laid)
-  }, [graph])
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const step = e.deltaY < 0 ? 1.15 : 1 / 1.15
+      setZoom((prev) => {
+        const next = Math.min(4, Math.max(0.3, prev * step))
+        // Zoom around cursor position
+        const rect = el.getBoundingClientRect()
+        const mx = e.clientX - rect.left
+        const my = e.clientY - rect.top
+        setPan((p) => ({
+          x: mx - (mx - p.x) * (next / prev),
+          y: my - (my - p.y) * (next / prev),
+        }))
+        return next
+      })
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
+  // Drag to pan (mousedown on SVG canvas, not on nodes)
+  const handleSvgMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    // Only primary button, only on the SVG background (target is svg or the transform group)
+    if (e.button !== 0) return
+    const target = e.target as Element
+    // If the click is directly on a node group or its children, skip
+    if (target.closest('[data-node]')) return
+    dragRef.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y, moved: false }
+    e.currentTarget.style.cursor = 'grabbing'
+  }, [pan])
+
+  const handleSvgMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    const drag = dragRef.current
+    if (!drag) return
+    const dx = e.clientX - drag.startX
+    const dy = e.clientY - drag.startY
+    if (!drag.moved && Math.abs(dx) < 4 && Math.abs(dy) < 4) return
+    drag.moved = true
+    setPan({ x: drag.panX + dx, y: drag.panY + dy })
+  }, [])
+
+  const handleSvgMouseUp = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (dragRef.current) {
+      e.currentTarget.style.cursor = ''
+      dragRef.current = null
+    }
+  }, [])
+
+  const handleSvgMouseLeave = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (dragRef.current) {
+      e.currentTarget.style.cursor = ''
+      dragRef.current = null
+    }
+  }, [])
+
+  // Escape to dismiss tooltip
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTooltip(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const idxById = new Map(nodes.map((n, i) => [n.id, i]))
+  const degrees = computeDegrees(nodes, graph.edges)
+  const degThreshold = computeHighDegreeThreshold(degrees)
+  const visibleIds = computeVisibleIds(selectedId, hopMode, graph.edges)
+
+  const handleMouseEnter = useCallback(
+    (n: SimNode, svgX: number, svgY: number) => {
+      if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current)
+      setHoveredId(n.id)
+      const deg = degrees.get(n.id) ?? 0
+      // Convert SVG coords (pre-transform) → container-relative screen coords
+      // by applying the zoom/pan transform then scaling for viewBox→CSS pixels
+      const el = containerRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      const scaleX = rect.width / size.width
+      const scaleY = rect.height / size.height
+      setTooltip({
+        nodeId: n.id,
+        title: n.title,
+        type: n.type,
+        degree: deg,
+        x: (svgX * zoom + pan.x) * scaleX,
+        y: (svgY * zoom + pan.y) * scaleY,
+      })
+    },
+    [degrees, size, zoom, pan],
+  )
+
+  const handleMouseLeave = useCallback(() => {
+    tooltipTimerRef.current = setTimeout(() => {
+      setTooltip(null)
+      setHoveredId(null)
+    }, 80)
+  }, [])
+
+  const handleZoomIn = useCallback(() => {
+    setZoom((z) => Math.min(4, z * 1.15))
+  }, [])
+
+  const handleZoomOut = useCallback(() => {
+    setZoom((z) => Math.max(0.3, z / 1.15))
+  }, [])
+
+  const handleZoomReset = useCallback(() => {
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+  }, [])
 
   return (
-    <svg ref={svgRef} className="graph-svg" aria-label="Knowledge graph">
+    <div ref={containerRef} className="graph-svg" aria-label="Knowledge graph" style={{ position: 'relative' }}>
+      {/* Zoom controls */}
+      <div className="graph-zoom-controls">
+        <button type="button" className="mem-btn graph-controls-btn graph-zoom-btn" title="Zoom in" onClick={handleZoomIn}>
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M7 3v8M3 7h8" strokeLinecap="round"/>
+          </svg>
+        </button>
+        <button type="button" className="mem-btn graph-controls-btn graph-zoom-btn" title="Zoom out" onClick={handleZoomOut}>
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M3 7h8" strokeLinecap="round"/>
+          </svg>
+        </button>
+        <button type="button" className="mem-btn graph-controls-btn graph-zoom-btn" title="Reset view" onClick={handleZoomReset}>
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="7" cy="7" r="4"/><circle cx="7" cy="7" r="1.5" fill="currentColor" stroke="none"/>
+          </svg>
+        </button>
+      </div>
+
+      {/* Tooltip */}
+      {tooltip && (
+        <GraphTooltip
+          tooltip={tooltip}
+          containerWidth={size.width}
+          containerHeight={size.height}
+          onMouseEnter={() => { if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current) }}
+          onMouseLeave={handleMouseLeave}
+        />
+      )}
+
+      <svg
+        ref={svgRef}
+        width={size.width}
+        height={size.height}
+        viewBox={`0 0 ${size.width} ${size.height}`}
+        style={{ cursor: 'grab' }}
+        onMouseDown={handleSvgMouseDown}
+        onMouseMove={handleSvgMouseMove}
+        onMouseUp={handleSvgMouseUp}
+        onMouseLeave={handleSvgMouseLeave}
+      >
       <defs>
         <marker id="arrow" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto">
           <path d="M0 0L6 3L0 6" fill="none" stroke="rgba(0,255,65,0.4)" strokeWidth="1"/>
         </marker>
       </defs>
+
+      <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
 
       {/* Edges */}
       {graph.edges.map((edge, i) => {
@@ -178,6 +496,20 @@ function SvgGraph({ graph, selectedId, onSelect }: SvgGraphProps) {
         if (si == null || ti == null) return null
         const s = nodes[si]
         const t = nodes[ti]
+
+        // Category filter
+        if (categoryFilter?.mode === 'mute') {
+          const cat = categoryFilter.category
+          if (s.type?.toLowerCase() === cat || t.type?.toLowerCase() === cat) return null
+        }
+        if (categoryFilter?.mode === 'isolate') {
+          const cat = categoryFilter.category
+          if (s.type?.toLowerCase() !== cat && t.type?.toLowerCase() !== cat) return null
+        }
+
+        // Hop filter
+        if (visibleIds && !visibleIds.has(edge.source) && !visibleIds.has(edge.target)) return null
+
         const isHighlighted =
           selectedId === edge.source || selectedId === edge.target
         return (
@@ -197,52 +529,159 @@ function SvgGraph({ graph, selectedId, onSelect }: SvgGraphProps) {
       {/* Nodes */}
       {nodes.map((n) => {
         const isSelected = n.id === selectedId
+        const isHovered = n.id === hoveredId
         const color = nodeColor(n.type)
+        const deg = degrees.get(n.id) ?? 0
         const isConnected =
           selectedId != null &&
-          graph.edges.some((e) => e.source === selectedId && e.target === n.id || e.target === selectedId && e.source === n.id)
+          graph.edges.some((e) => (e.source === selectedId && e.target === n.id) || (e.target === selectedId && e.source === n.id))
         const dimmed = selectedId != null && !isSelected && !isConnected
+
+        // Category filter
+        const nodeCategory = n.type?.toLowerCase() ?? ''
+        if (categoryFilter?.mode === 'mute' && nodeCategory === categoryFilter.category) return null
+        if (categoryFilter?.mode === 'isolate' && nodeCategory !== categoryFilter.category) {
+          // render dimmed version
+          return (
+            <g
+              key={n.id}
+              data-node="1"
+              transform={`translate(${n.x},${n.y})`}
+              style={{ cursor: 'pointer', opacity: 0.08 }}
+              onClick={() => onSelect(n.id)}
+            >
+              <circle r={n.r} fill="rgba(0,12,4,0.9)" stroke={color} strokeWidth={1.5} />
+            </g>
+          )
+        }
+
+        // Hop visibility
+        if (visibleIds && !visibleIds.has(n.id)) {
+          return (
+            <g
+              key={n.id}
+              data-node="1"
+              transform={`translate(${n.x},${n.y})`}
+              style={{ cursor: 'pointer', opacity: 0.08 }}
+              onClick={() => onSelect(n.id)}
+            >
+              <circle r={n.r} fill="rgba(0,12,4,0.9)" stroke={color} strokeWidth={1.5} />
+            </g>
+          )
+        }
+
+        // Progressive label: show if selected, hovered, or high-degree
+        const showLabel = isSelected || isHovered || deg >= degThreshold
 
         return (
           <g
             key={n.id}
+            data-node="1"
             transform={`translate(${n.x},${n.y})`}
             style={{ cursor: 'pointer', opacity: dimmed ? 0.3 : 1 }}
-            onClick={() => onSelect(n.id)}
+            onClick={(e) => { if (dragRef.current?.moved) { e.stopPropagation(); return; } onSelect(n.id) }}
+            onMouseEnter={() => handleMouseEnter(n, n.x, n.y)}
+            onMouseLeave={handleMouseLeave}
             role="button"
             aria-label={n.title}
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === 'Enter') onSelect(n.id) }}
+            onFocus={() => handleMouseEnter(n, n.x, n.y)}
+            onBlur={handleMouseLeave}
           >
             {isSelected && (
-              <circle r={n.r + 5} fill="none" stroke={color} strokeWidth={1.5} opacity={0.4} />
+              <>
+                <circle r={n.r + 10} fill="none" stroke="#ffb454" strokeWidth={2} opacity={0.35} />
+                <circle r={n.r + 5} fill="none" stroke="#ffb454" strokeWidth={1.5} opacity={0.7} />
+              </>
+            )}
+            {isHovered && !isSelected && (
+              <circle r={n.r + 6} fill="none" stroke={color} strokeWidth={1} opacity={0.4} />
             )}
             <circle
               r={n.r}
-              fill={isSelected ? color : 'rgba(0,12,4,0.9)'}
-              stroke={color}
+              fill={isSelected ? '#ffb454' : 'rgba(0,12,4,0.9)'}
+              stroke={isSelected ? '#ffb454' : color}
               strokeWidth={isSelected ? 0 : 1.5}
+              style={isSelected ? { filter: 'drop-shadow(0 0 8px #ffb454)' } : undefined}
             />
-            <text
-              textAnchor="middle"
-              dy={n.r + 13}
-              fontSize={10}
-              fill={isSelected ? color : 'rgba(0,255,65,0.7)'}
-              fontFamily="ui-monospace, monospace"
-              style={{ pointerEvents: 'none', userSelect: 'none' }}
-            >
-              {n.title.length > 18 ? `${n.title.slice(0, 16)}…` : n.title}
-            </text>
+            {showLabel && (
+              <text
+                textAnchor="middle"
+                dy={n.r + 13}
+                fontSize={isSelected ? 12 : 10}
+                fontWeight={isSelected ? 700 : 400}
+                fill={isSelected ? '#ffd58c' : isHovered ? color : 'rgba(0,255,65,0.7)'}
+                fontFamily="ui-monospace, monospace"
+                style={{ pointerEvents: 'none', userSelect: 'none' }}
+              >
+                {n.title.length > 18 ? `${n.title.slice(0, 16)}…` : n.title}
+              </text>
+            )}
           </g>
         )
       })}
-    </svg>
+      </g>
+      </svg>
+    </div>
+  )
+}
+
+// ── Tooltip component ─────────────────────────────────────────────────────────
+
+type GraphTooltipProps = {
+  tooltip: NonNullable<TooltipState>
+  containerWidth: number
+  containerHeight: number
+  onMouseEnter: () => void
+  onMouseLeave: () => void
+}
+
+function GraphTooltip({ tooltip, containerWidth, containerHeight, onMouseEnter, onMouseLeave }: GraphTooltipProps) {
+  const tipW = 200
+  const tipH = 76
+  const offset = 14
+
+  let left = tooltip.x + offset
+  let top = tooltip.y - tipH / 2
+
+  // Clamp to container
+  if (left + tipW > containerWidth - 8) left = tooltip.x - tipW - offset
+  if (top < 8) top = 8
+  if (top + tipH > containerHeight - 8) top = containerHeight - tipH - 8
+
+  return (
+    <div
+      className="graph-tooltip"
+      style={{ left, top }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      <div className="graph-tooltip-title">{tooltip.title}</div>
+      <div className="graph-tooltip-row">
+        {tooltip.type && (
+          <span
+            className="graph-tooltip-chip"
+            style={{ borderColor: nodeColor(tooltip.type), color: nodeColor(tooltip.type) }}
+          >
+            {tooltip.type.toUpperCase()}
+          </span>
+        )}
+        <span className="graph-tooltip-degree">{tooltip.degree} link{tooltip.degree !== 1 ? 's' : ''}</span>
+      </div>
+    </div>
   )
 }
 
 // ── Fallback list view ────────────────────────────────────────────────────────
 
-function FallbackList({ graph, selectedId, onSelect }: SvgGraphProps) {
+type SvgGraphBaseProps = {
+  graph: KnowledgeGraph
+  selectedId: string | null
+  onSelect: (id: string) => void
+}
+
+function FallbackList({ graph, selectedId, onSelect }: SvgGraphBaseProps) {
   return (
     <div className="graph-fallback">
       <div className="graph-fallback-nodes">
@@ -277,11 +716,71 @@ function FallbackList({ graph, selectedId, onSelect }: SvgGraphProps) {
   )
 }
 
+// ── Interactive Legend ────────────────────────────────────────────────────────
+
+type LegendProps = {
+  categoryFilter: { category: string; mode: CategoryFilterMode } | null
+  onSetFilter: (f: { category: string; mode: CategoryFilterMode } | null) => void
+}
+
+function GraphLegend({ categoryFilter, onSetFilter }: LegendProps) {
+  const handleClick = (kind: string, e: React.MouseEvent) => {
+    const isShift = e.shiftKey
+    const mode: CategoryFilterMode = isShift ? 'mute' : 'isolate'
+
+    if (categoryFilter?.category === kind && categoryFilter.mode === mode) {
+      onSetFilter(null) // toggle off
+    } else {
+      onSetFilter({ category: kind, mode })
+    }
+  }
+
+  return (
+    <div className="graph-legend">
+      {Object.entries(TYPE_COLORS).map(([kind, color]) => {
+        const isIsolated = categoryFilter?.category === kind && categoryFilter.mode === 'isolate'
+        const isMuted = categoryFilter?.category === kind && categoryFilter.mode === 'mute'
+        return (
+          <button
+            key={kind}
+            type="button"
+            className={`graph-legend-row ${isIsolated ? 'is-isolated' : ''} ${isMuted ? 'is-muted' : ''}`}
+            title={`Click to isolate · Shift+click to mute`}
+            onClick={(e) => handleClick(kind, e)}
+          >
+            <span
+              className="graph-legend-pip"
+              style={
+                isIsolated
+                  ? { background: color, boxShadow: `0 0 6px ${color}` }
+                  : { background: 'transparent', borderColor: color }
+              }
+            />
+            <span className="graph-legend-label">{kind}</span>
+            {isMuted && <span className="graph-legend-badge">muted</span>}
+          </button>
+        )
+      })}
+      {categoryFilter && (
+        <button
+          type="button"
+          className="graph-legend-reset"
+          onClick={() => onSetFilter(null)}
+        >
+          reset
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ── GraphTab ──────────────────────────────────────────────────────────────────
 
 export function GraphTab() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [useFallback, setUseFallback] = useState(false)
+
+  const { graphCategoryFilter, setGraphCategoryFilter, hopMode, setHopMode } = useGraphStore()
 
   const graphQuery = useQuery<KnowledgeGraph>({
     queryKey: ['knowledge', 'graph'],
@@ -291,9 +790,15 @@ export function GraphTab() {
 
   const graph = graphQuery.data ?? { nodes: [], edges: [] }
   const selectedNode = graph.nodes.find((n) => n.id === selectedId) ?? null
+
+  // Build neighbor info for detail panel
   const connectedEdges = graph.edges.filter(
     (e) => e.source === selectedId || e.target === selectedId,
   )
+  const neighborIds = connectedEdges.map((e) =>
+    e.source === selectedId ? e.target : e.source,
+  )
+  const neighborNodes = neighborIds.map((nid) => graph.nodes.find((n) => n.id === nid)).filter(Boolean) as KnowledgeGraph['nodes']
 
   return (
     <div className="graph-wrap">
@@ -308,23 +813,42 @@ export function GraphTab() {
         <div className="mem-loading">No wiki pages found — graph is empty</div>
       )}
 
+      {/* Hop toggle — shown when a node is selected and using SVG view */}
+      {graph.nodes.length > 0 && !useFallback && selectedId && (
+        <div className="graph-hop-toggle">
+          <span className="graph-hop-label">Show:</span>
+          {(['1', '2', 'all'] as HopMode[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={`graph-hop-btn ${hopMode === m ? 'is-active' : ''}`}
+              onClick={() => setHopMode(m)}
+            >
+              {m === '1' ? '1-hop' : m === '2' ? '2-hop' : 'all'}
+            </button>
+          ))}
+        </div>
+      )}
+
       {graph.nodes.length > 0 && !useFallback && (
-        <SvgGraph graph={graph} selectedId={selectedId} onSelect={setSelectedId} />
+        <SvgGraph
+          graph={graph}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          categoryFilter={graphCategoryFilter}
+          hopMode={hopMode}
+        />
       )}
       {graph.nodes.length > 0 && useFallback && (
         <FallbackList graph={graph} selectedId={selectedId} onSelect={setSelectedId} />
       )}
 
-      {/* Legend */}
+      {/* Interactive Legend */}
       {graph.nodes.length > 0 && (
-        <div className="graph-legend">
-          {Object.entries(TYPE_COLORS).map(([kind, color]) => (
-            <div key={kind} className="row">
-              <span className="d" style={{ background: color }} />
-              {kind}
-            </div>
-          ))}
-        </div>
+        <GraphLegend
+          categoryFilter={graphCategoryFilter}
+          onSetFilter={setGraphCategoryFilter}
+        />
       )}
 
       {/* Controls */}
@@ -352,7 +876,7 @@ export function GraphTab() {
             type="button"
             className="mem-btn graph-controls-btn"
             title="Clear selection"
-            onClick={() => setSelectedId(null)}
+            onClick={() => { setSelectedId(null); setHopMode('all') }}
           >
             <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M2 2l10 10M12 2L2 12" strokeLinecap="round"/>
@@ -379,18 +903,32 @@ export function GraphTab() {
               ))}
             </div>
           )}
-          {connectedEdges.length > 0 && (
+          {neighborNodes.length > 0 && (
             <div className="graph-detail-edges">
-              <div className="graph-detail-edges-label">Links ({connectedEdges.length})</div>
-              {connectedEdges.map((e, i) => (
-                <div key={i} className="graph-detail-edge">
-                  {e.source === selectedId ? (
-                    <><span className="graph-detail-arrow">→</span> {e.target}</>
-                  ) : (
-                    <><span className="graph-detail-arrow">←</span> {e.source}</>
-                  )}
-                </div>
-              ))}
+              <div className="graph-detail-edges-label">Links ({neighborNodes.length})</div>
+              {connectedEdges.map((e, i) => {
+                const neighborId = e.source === selectedId ? e.target : e.source
+                const neighbor = graph.nodes.find((n) => n.id === neighborId)
+                const dir = e.source === selectedId ? '→' : '←'
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    className="graph-detail-neighbor-btn"
+                    onClick={() => setSelectedId(neighborId)}
+                    title={neighborId}
+                  >
+                    <span
+                      className="graph-detail-neighbor-dot"
+                      style={{ background: nodeColor(neighbor?.type) }}
+                    />
+                    <span className="graph-detail-arrow">{dir}</span>
+                    <span className="graph-detail-neighbor-name">
+                      {neighbor?.title ?? neighborId}
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>

@@ -1024,6 +1024,78 @@
   color: var(--m-red, #ff4444);
 }
 
+/* ── Shared confirm dialog (portaled to document.body — must be global) ── */
+
+.btn {
+  padding: 8px 16px;
+  font: 600 11px var(--m-font-mono, ui-monospace, monospace);
+  text-transform: uppercase;
+  letter-spacing: .16em;
+  border-radius: var(--m-radius-md, 6px);
+  cursor: pointer;
+  border: 1px solid var(--m-border, var(--theme-border));
+  background: var(--m-bg-deep, #000802);
+  color: var(--m-text, var(--theme-text));
+  transition: all var(--m-dur-fast, 120ms) var(--m-ease-out, ease-out);
+}
+.btn:hover { border-color: var(--m-border-subtle, var(--theme-border)); color: var(--m-text-strong, var(--theme-text)); }
+.btn:disabled { opacity: .35; cursor: not-allowed; }
+.btn.btn-primary {
+  background: var(--m-green-500, #00ff41);
+  color: var(--m-bg-deep, #000802);
+  border-color: var(--m-green-500, #00ff41);
+  box-shadow: var(--m-glow-sm, 0 0 8px rgba(0,255,65,.3));
+}
+.btn.btn-primary:hover { background: #5cff8a; box-shadow: var(--m-glow, 0 0 16px rgba(0,255,65,.5)); }
+
+.pf-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(2px);
+  z-index: 9000;
+  display: grid;
+  place-items: center;
+  animation: pf-fade var(--m-dur-base, 160ms) var(--m-ease-out, ease-out);
+}
+.pf-confirm {
+  min-width: 360px;
+  max-width: 480px;
+  padding: 22px 24px 20px;
+  border: 1px solid var(--m-green-500, #00ff41);
+  border-radius: 12px;
+  background: var(--m-panel, #0c1410);
+  box-shadow: 0 24px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(0,255,65,.18);
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+}
+.pf-confirm h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--m-green-500, #00ff41);
+}
+.pf-confirm p {
+  margin: 0 0 18px;
+  color: var(--m-text-muted, #9ab39e);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.pf-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.btn-danger {
+  border-color: #ff5fa2;
+  color: #ff5fa2;
+}
+.btn-danger:hover {
+  background: rgba(255,95,162,.1);
+  border-color: #ff5fa2;
+  color: #ff5fa2;
+}
+
 /* ── Drawer (portal — not scoped to [data-screen]) ──────────────────────── */
 
 .cr-drawer-backdrop {
@@ -1366,4 +1438,3 @@
   text-decoration: underline;
   padding: 0;
 }
-

@@ -451,8 +451,16 @@ function createWikilinkResolver(
   }
 }
 
+// Pages under `raw/` are auto-generated source ingest, not curated wiki content.
+// Exclude them from the wiki list + graph so the user only sees curated pages.
+function isCuratedPage(p: string): boolean {
+  return !p.startsWith('raw/') && !p.startsWith('raw\\')
+}
+
 export function listKnowledgePages(): Array<WikiPageMeta> {
-  return getParsedKnowledgePages().map((page) => page.meta)
+  return getParsedKnowledgePages()
+    .filter((page) => isCuratedPage(page.meta.path))
+    .map((page) => page.meta)
 }
 
 export function resolveWikilink(linkText: string): string | null {
@@ -559,14 +567,15 @@ export function deleteKnowledgePage(relativePath: string): void {
 }
 
 export function buildKnowledgeGraph(): KnowledgeGraph {
-  const pages = getParsedKnowledgePages()
+  // Exclude raw/ pages — only curated wiki contributes to the graph.
+  const pages = getParsedKnowledgePages().filter((p) => isCuratedPage(p.meta.path))
   const resolveLink = createWikilinkResolver(pages)
   const edges = new Map<string, WikiLink>()
 
   for (const page of pages) {
     for (const wikilink of page.meta.wikilinks) {
       const target = resolveLink(wikilink)
-      if (!target) continue
+      if (!target || !isCuratedPage(target)) continue
       const key = `${page.meta.path}=>${target}`
       if (!edges.has(key)) {
         edges.set(key, { source: page.meta.path, target })
