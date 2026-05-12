@@ -21,13 +21,9 @@ import { createFileRoute } from '@tanstack/react-router'
 import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
+import { BUILTIN_AGENTS } from '../../../lib/builtin-agents'
 
-const BUILTIN_AGENT_IDS = new Set([
-  'hermes-switch',
-  'neo',
-  'trinity',
-  'morpheus',
-])
+const BUILTIN_AGENT_IDS = new Set(BUILTIN_AGENTS.map((a) => a.id))
 
 function getHermesRoot(): string {
   const envHome = (process.env.HERMES_HOME ?? process.env.CLAUDE_HOME)?.trim()

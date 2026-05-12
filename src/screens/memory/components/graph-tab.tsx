@@ -315,6 +315,13 @@ function SvgGraph({ graph, selectedId, onSelect, categoryFilter, hopMode }: SvgG
     setNodes(recenterGraph(laid, width, height))
   }, [graph, size])
 
+  // Cancel pending tooltip timer on unmount
+  useEffect(() => {
+    return () => {
+      if (tooltipTimerRef.current) clearTimeout(tooltipTimerRef.current)
+    }
+  }, [])
+
   // Reset zoom/pan when graph data changes
   useEffect(() => {
     setZoom(1)

@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
+import { requireJsonContentType } from '../../../server/rate-limit'
 import { writeKnowledgePage, deleteKnowledgePage } from '../../../server/knowledge-browser'
 
 export const Route = createFileRoute('/api/knowledge/write')({
@@ -11,6 +12,8 @@ export const Route = createFileRoute('/api/knowledge/write')({
         if (!isAuthenticated(request)) {
           return json({ error: 'Unauthorized' }, { status: 401 })
         }
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
         let body: { path?: string; content?: string }
         try {
           body = (await request.json()) as { path?: string; content?: string }

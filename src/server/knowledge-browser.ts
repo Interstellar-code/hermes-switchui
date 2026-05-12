@@ -544,6 +544,9 @@ export function writeKnowledgePage(
   }
   const { fullPath, relativePath: safeRelativePath } =
     resolveKnowledgeFilePath(relativePath)
+  if (!isCuratedPage(safeRelativePath)) {
+    throw new Error('Writes to raw/ are not allowed')
+  }
   const dir = path.dirname(fullPath)
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true })
@@ -559,7 +562,10 @@ export function deleteKnowledgePage(relativePath: string): void {
   if (config.source.type === 'github') {
     throw new Error('Cannot delete from GitHub-backed knowledge base')
   }
-  const { fullPath } = resolveKnowledgeFilePath(relativePath)
+  const { fullPath, relativePath: safeRelativePath } = resolveKnowledgeFilePath(relativePath)
+  if (!isCuratedPage(safeRelativePath)) {
+    throw new Error('Writes to raw/ are not allowed')
+  }
   if (!fs.existsSync(fullPath)) {
     throw new Error(`ENOENT: Knowledge page not found: ${relativePath}`)
   }
