@@ -61,7 +61,7 @@ const ICONS = {
   tasks: 'M3 4h10M3 8h7M3 12h5',
   conductor: 'M8 2L2 14h12L8 2zM8 8v3',
   operations: 'M3 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM9 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM1 14c0-2.5 2-4 5-4s5 1.5 5 4M11 11c1.5 0 3 .8 3 3',
-  swarm: 'M5 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM11 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM8 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM5 5l3 4M11 5L8 9',
+
   memory: 'M5 3h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM6 7h4M6 9h2',
   skills: 'M8 2l1.8 3.8 4.2.6-3 3 .7 4.1L8 11.5l-3.7 2L5 9.4l-3-3 4.2-.6z',
   mcp: 'M4 8h8M8 4v8M3 3l10 10M13 3L3 13',
@@ -291,7 +291,7 @@ export function PrimaryNavV2() {
   const isTasks = pathname.startsWith('/tasks')
   const isConductor = pathname.startsWith('/conductor')
   const isOperations = pathname.startsWith('/operations')
-  const isSwarm = pathname === '/swarm' || pathname.startsWith('/swarm')
+
   const isMemory = pathname.startsWith('/memory')
   const isSkills = pathname.startsWith('/skills')
   const isMcp = pathname.startsWith('/mcp')
@@ -496,7 +496,6 @@ export function PrimaryNavV2() {
         <NavItem label="Tasks" iconKey="tasks" to="/tasks" active={isTasks} collapsed={collapsed} />
         <NavItem label="Conductor" iconKey="conductor" to="/conductor" active={isConductor} collapsed={collapsed} />
         <NavItem label="Operations" iconKey="operations" to="/operations" active={isOperations} collapsed={collapsed} />
-        <NavItem label="Swarm" iconKey="swarm" to="/swarm" active={isSwarm} collapsed={collapsed} />
 
         {/* KNOWLEDGE group */}
         {!collapsed && <GroupLabel label="Knowledge" />}

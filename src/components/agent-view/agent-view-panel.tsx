@@ -591,7 +591,7 @@ export function AgentViewPanel() {
     activeCount,
   } = useAgentView()
 
-  // Transcript modal removed — View button now navigates to /agent-swarm
+  // Transcript modal removed — View button now navigates to agent session
   const [selectedAgentChat, setSelectedAgentChat] = useState<{
     sessionKey: string
     agentName: string

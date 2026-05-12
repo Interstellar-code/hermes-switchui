@@ -7,7 +7,7 @@ const MIGRATION_GUARD = 'hermes:orchestrator-migration-done'
 const LEGACY_KEYS = [
   'operations:orchestrator:name',
   'hermes-workspace-agent-name',
-  'swarm2:orchestrator:name',
+  'conductor:orchestrator:name',
 ] as const
 
 async function fetchDashboardConfig(): Promise<Record<string, unknown>> {

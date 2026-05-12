@@ -10,20 +10,14 @@ describe('workspace shell sidebar backdrop', () => {
   })
 })
 
-describe('swarm2 navigation alias handling', () => {
-  it('keeps /swarm as the only user-visible swarm entry in the mobile hamburger menu', () => {
+describe('swarm nav items removed', () => {
+  it('has no swarm entry in the mobile hamburger menu', () => {
     const swarm = MOBILE_HAMBURGER_NAV_ITEMS.find((item) => item.id === 'swarm')
-    const swarm2 = MOBILE_HAMBURGER_NAV_ITEMS.find((item) => item.id === 'swarm2')
-
-    expect(swarm?.to).toBe('/swarm')
-    expect(swarm2).toBeUndefined()
+    expect(swarm).toBeUndefined()
   })
 
-  it('keeps /swarm as the only user-visible swarm tab', () => {
+  it('has no swarm tab in the mobile tab bar', () => {
     const swarm = MOBILE_NAV_TABS.find((item) => item.id === 'swarm')
-    const swarm2 = MOBILE_NAV_TABS.find((item) => item.id === 'swarm2')
-
-    expect(swarm?.to).toBe('/swarm')
-    expect(swarm2).toBeUndefined()
+    expect(swarm).toBeUndefined()
   })
 })
