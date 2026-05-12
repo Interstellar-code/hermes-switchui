@@ -200,8 +200,9 @@
 
 [data-screen="settings"] .body {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 1fr;
   overflow: hidden;
+  min-width: 0;
 }
 
 /* ── Sidebar tree ────────────────────────────────────────────────────────── */
