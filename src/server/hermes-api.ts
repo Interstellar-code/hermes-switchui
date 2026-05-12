@@ -124,9 +124,24 @@ async function claudeDeleteReq(path: string): Promise<void> {
 }
 
 // ── Dashboard helpers (targets port 9119, not gateway) ────────────
+//
+// Uses same-origin `/api/dashboard-proxy` when running in the browser to avoid
+// CORS. The proxy route injects the dashboard bearer token server-side.
+// On SSR (Node), falls back to direct dashboardFetch so the server-to-server
+// call goes straight to port 9119 without an HTTP round-trip through itself.
+
+function _dashboardProxyFetch(path: string, init?: RequestInit): Promise<Response> {
+  if (typeof window !== 'undefined') {
+    // Browser: call same-origin proxy, no CORS issue
+    const proxyPath = `/api/dashboard-proxy${path.startsWith('/') ? path : `/${path}`}`
+    return fetch(proxyPath, init)
+  }
+  // SSR / server-side: call dashboard directly with auth
+  return dashboardFetch(path, init)
+}
 
 async function dashboardGet<T>(path: string): Promise<T> {
-  const res = await dashboardFetch(path)
+  const res = await _dashboardProxyFetch(path)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`Hermes Dashboard API ${path}: ${res.status} ${body}`)
@@ -135,7 +150,7 @@ async function dashboardGet<T>(path: string): Promise<T> {
 }
 
 async function dashboardSend<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await dashboardFetch(path, {
+  const res = await _dashboardProxyFetch(path, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
@@ -148,7 +163,7 @@ async function dashboardSend<T>(method: string, path: string, body?: unknown): P
 }
 
 async function dashboardDelete(path: string): Promise<void> {
-  const res = await dashboardFetch(path, { method: 'DELETE' })
+  const res = await _dashboardProxyFetch(path, { method: 'DELETE' })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new Error(`Hermes Dashboard API DELETE ${path}: ${res.status} ${text}`)
@@ -696,7 +711,7 @@ export async function getEnv(): Promise<Record<string, EnvVarInfo>> {
 }
 
 export async function putEnv(key: string, value: string): Promise<void> {
-  const res = await dashboardFetch('/api/env', {
+  const res = await _dashboardProxyFetch('/api/env', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key, value }),
@@ -708,7 +723,7 @@ export async function putEnv(key: string, value: string): Promise<void> {
 }
 
 export async function deleteEnv(key: string): Promise<void> {
-  const res = await dashboardFetch('/api/env', {
+  const res = await _dashboardProxyFetch('/api/env', {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key }),
@@ -720,7 +735,7 @@ export async function deleteEnv(key: string): Promise<void> {
 }
 
 export async function revealEnv(key: string): Promise<{ key: string; value: string }> {
-  const res = await dashboardFetch('/api/env/reveal', {
+  const res = await _dashboardProxyFetch('/api/env/reveal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key }),
