@@ -958,7 +958,7 @@ export function AgentViewPanel() {
                     </div>
                   </div>
 
-                  <LayoutGroup id="agent-swarm-grid">
+                  <LayoutGroup id="agent-roster-grid">
                     {activeNodes.length > 0 ||
                     spawningNodes.length > 0 ||
                     queuedNodes.length > 0 ? (

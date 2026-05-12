@@ -230,7 +230,7 @@ function isAgentSession(session: GatewaySession): boolean {
   // Never show them in the agent sidebar.
   if (kind === 'chat') return false
 
-  return ['agent', 'worker', 'delegate', 'swarm', 'subagent'].includes(kind)
+  return ['agent', 'worker', 'delegate', 'subagent'].includes(kind)
 }
 
 function readTaskText(session: GatewaySession): string {
