@@ -1,528 +1,698 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AnimatePresence, motion } from 'motion/react'
-import { HugeiconsIcon } from '@hugeicons/react'
-import {
-  Add01Icon,
-  ArrowDown01Icon,
-  ArrowUp01Icon,
-  Clock01Icon,
-  Delete01Icon,
-  PauseIcon,
-  PencilEdit02Icon,
-  PlayIcon,
-  RefreshIcon,
-  Search01Icon,
-} from '@hugeicons/core-free-icons'
-import { CreateJobDialog } from './create-job-dialog'
-import { EditJobDialog } from './edit-job-dialog'
+import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 import type { ClaudeJob } from '@/lib/jobs-api'
-import { toast } from '@/components/ui/toast'
-import { cn } from '@/lib/utils'
 import {
-  createJob,
   deleteJob,
-  fetchJobOutput,
   fetchJobs,
   pauseJob,
   resumeJob,
   triggerJob,
-  updateJob,
 } from '@/lib/jobs-api'
+import { toast } from '@/components/ui/toast'
+import {
+  useCronsFilterStore,
+  useCronsViewStore,
+  useCronsPageSize,
+  PAGE_SIZES_GRID,
+  PAGE_SIZES_TABLE,
+} from '@/stores/crons-screen-store'
+import { CronsWizard } from './components/crons-wizard'
+import { CronDetailDrawer } from './components/cron-detail-drawer'
+import '@/styles/matrix-crons.css'
 
-const QUERY_KEY = ['claude', 'jobs'] as const
+const QUERY_KEY = ['crons', 'list'] as const
 
-function formatNextRun(nextRun?: string | null): string {
-  if (!nextRun) return '—'
-  try {
-    const d = new Date(nextRun)
-    const now = new Date()
-    const diffMs = d.getTime() - now.getTime()
-    if (diffMs < 0) return 'overdue'
-    if (diffMs < 60_000) return 'in < 1m'
-    if (diffMs < 3_600_000) return `in ${Math.round(diffMs / 60_000)}m`
-    if (diffMs < 86_400_000) return `in ${Math.round(diffMs / 3_600_000)}h`
-    return d.toLocaleDateString()
-  } catch {
-    return nextRun
-  }
+// ── Debounce hook ────────────────────────────────────────────────────────────
+function useDebounced<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), ms)
+    return () => clearTimeout(id)
+  }, [value, ms])
+  return debounced
 }
 
-function formatRunTimestamp(value?: string | null): string {
-  if (!value) return 'Never run'
+// ── Time helpers ─────────────────────────────────────────────────────────────
+function relativeTime(value?: string | null): string {
+  if (!value) return 'Never'
   try {
-    return new Date(value).toLocaleString()
+    const diffMs = Date.now() - new Date(value).getTime()
+    if (diffMs < 0) return 'just now'
+    if (diffMs < 60_000) return `${Math.round(diffMs / 1000)}s ago`
+    if (diffMs < 3_600_000) return `${Math.round(diffMs / 60_000)}m ago`
+    if (diffMs < 86_400_000) return `${Math.round(diffMs / 3_600_000)}h ago`
+    return `${Math.round(diffMs / 86_400_000)}d ago`
   } catch {
     return value
   }
 }
 
-function getOutputPreview(content: string): string {
-  const normalized = content.replace(/\s+/g, ' ').trim()
-  if (normalized.length <= 200) return normalized
-  return `${normalized.slice(0, 200).trimEnd()}…`
+function friendlySchedule(job: ClaudeJob): string {
+  if (job.schedule_display) return job.schedule_display
+  const s = job.schedule
+  if (!s || typeof s !== 'object') return 'custom'
+  const expr = (s as Record<string, unknown>).cron_expression as string | undefined
+  if (!expr) return 'custom'
+  const parts = expr.trim().split(/\s+/)
+  if (parts.length < 5) return expr
+  const [min, hour, dom, , dow] = parts
+  if (min === '*' && hour === '*') return 'every minute'
+  if (min !== '*' && hour === '*') return `every hour at :${min.padStart(2, '0')}`
+  if (dom === '*' && dow === '*') return `daily at ${hour}:${String(min).padStart(2, '0')}`
+  if (dom === '*') return `weekly`
+  return expr
 }
 
-function getLastRunStatus(job: ClaudeJob): {
-  label: string
-  color: string
-} {
-  if (!job.last_run_at) {
-    return {
-      label: 'Never run',
-      color: 'var(--theme-muted)',
-    }
-  }
-  if (job.last_run_success === true) {
-    return {
-      label: 'Last run succeeded',
-      color: 'var(--theme-success)',
-    }
-  }
-  if (job.last_run_success === false) {
-    return {
-      label: 'Last run failed',
-      color: 'var(--theme-danger)',
-    }
-  }
-  return {
-    label: 'Last run unknown',
-    color: 'var(--theme-muted)',
-  }
+function cronExpr(job: ClaudeJob): string {
+  const s = job.schedule
+  if (!s || typeof s !== 'object') return ''
+  return ((s as Record<string, unknown>).cron_expression as string) ?? ''
 }
 
-function JobCard({
+function jobStatus(job: ClaudeJob): 'active' | 'paused' | 'error' | 'idle' {
+  if (job.state === 'failed' || job.state === 'error' || job.last_run_success === false) return 'error'
+  if (job.state === 'paused' || !job.enabled) return 'paused'
+  if (job.state === 'running' || job.state === 'active') return 'active'
+  if (job.last_run_at) return 'active'
+  return 'idle'
+}
+
+// ── Status pill ───────────────────────────────────────────────────────────────
+function StatusPill({ status }: { status: ReturnType<typeof jobStatus> }) {
+  return (
+    <span className={`cr-status-pill cr-status-pill--${status}`}>
+      <span className="dot" />
+      {status}
+    </span>
+  )
+}
+
+// ── Cron card (grid view) ─────────────────────────────────────────────────────
+function CronCard({
   job,
   onPause,
   onResume,
   onTrigger,
   onDelete,
   onEdit,
+  onOpen,
 }: {
   job: ClaudeJob
   onPause: (id: string) => void
   onResume: (id: string) => void
   onTrigger: (id: string) => void
-  onDelete: (id: string) => void
+  onDelete: (job: ClaudeJob) => void
   onEdit: (job: ClaudeJob) => void
+  onOpen: (job: ClaudeJob) => void
 }) {
-  const [expanded, setExpanded] = useState(false)
-  const isPaused = job.state === 'paused' || !job.enabled
-  const isCompleted = job.state === 'completed'
-  const lastRunStatus = getLastRunStatus(job)
-  const outputQuery = useQuery({
-    queryKey: ['claude', 'jobs', job.id, 'output'],
-    queryFn: () => fetchJobOutput(job.id),
-    enabled: expanded,
-    staleTime: 30_000,
-  })
+  const status = jobStatus(job)
+  const expr = cronExpr(job)
+  const friendly = friendlySchedule(job)
+  const owner = (job.skills ?? []).join(', ') || null
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      className={cn(
-        'rounded-xl border p-4 transition-colors',
-        'bg-[var(--theme-card)] border-[var(--theme-border)]',
-        isPaused && 'opacity-60',
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="mb-1 flex items-center gap-2">
-            <span
-              className="inline-block h-2 w-2 shrink-0 rounded-full"
-              style={{
-                background: isPaused
-                  ? 'var(--theme-muted)'
-                  : isCompleted
-                    ? 'var(--theme-accent)'
-                    : 'var(--theme-text)',
-              }}
-            />
-            <h3 className="truncate text-sm font-medium text-[var(--theme-text)]">
-              {job.name || '(unnamed)'}
-            </h3>
-          </div>
-          <p className="mb-2 line-clamp-2 text-xs text-[var(--theme-muted)]">
-            {job.prompt}
-          </p>
-          <div className="mb-2 flex flex-wrap items-center gap-3 text-[10px] text-[var(--theme-muted)]">
-            <span>{job.schedule_display || 'custom'}</span>
-            <span>·</span>
-            <span>Next: {formatNextRun(job.next_run_at)}</span>
-            <span>·</span>
-            <span>Last: {formatRunTimestamp(job.last_run_at)}</span>
-            {job.skills && job.skills.length > 0 && (
-              <>
-                <span>·</span>
-                <span>
-                  {job.skills.length} skill{job.skills.length !== 1 ? 's' : ''}
-                </span>
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-2 text-[11px] text-[var(--theme-muted)]">
-            <span
-              className="inline-block h-2.5 w-2.5 rounded-full"
-              style={{ background: lastRunStatus.color }}
-            />
-            <span>{lastRunStatus.label}</span>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <button
-            onClick={() => onTrigger(job.id)}
-            className="rounded-lg p-1.5 transition-colors hover:bg-[var(--theme-hover)]"
-            title="Run now"
-          >
-            <HugeiconsIcon
-              icon={PlayIcon}
-              size={14}
-              className="text-[var(--theme-accent)]"
-            />
-          </button>
-          <button
-            onClick={() => (isPaused ? onResume(job.id) : onPause(job.id))}
-            className="rounded-lg p-1.5 transition-colors hover:bg-[var(--theme-hover)]"
-            title={isPaused ? 'Resume' : 'Pause'}
-          >
-            <HugeiconsIcon
-              icon={isPaused ? PlayIcon : PauseIcon}
-              size={14}
-              className="text-[var(--theme-muted)]"
-            />
-          </button>
-          <button
-            onClick={() => onEdit(job)}
-            className="rounded-lg p-1.5 transition-colors hover:bg-[var(--theme-hover)]"
-            title="Edit"
-          >
-            <HugeiconsIcon
-              icon={PencilEdit02Icon}
-              size={14}
-              className="text-[var(--theme-muted)]"
-            />
-          </button>
-          <button
-            onClick={() => setExpanded((current) => !current)}
-            className="rounded-lg p-1.5 transition-colors hover:bg-[var(--theme-hover)]"
-            title={expanded ? 'Hide run history' : 'Show run history'}
-          >
-            <HugeiconsIcon
-              icon={expanded ? ArrowUp01Icon : ArrowDown01Icon}
-              size={14}
-              className="text-[var(--theme-muted)]"
-            />
-          </button>
-          <button
-            onClick={() => onDelete(job.id)}
-            className="rounded-lg p-1.5 transition-colors hover:bg-[var(--theme-hover)]"
-            title="Delete"
-          >
-            <HugeiconsIcon
-              icon={Delete01Icon}
-              size={14}
-              style={{ color: 'var(--theme-danger)' }}
-            />
-          </button>
-        </div>
+    <div className="cr-card" data-status={status} onClick={() => onOpen(job)} style={{ cursor: 'pointer' }}>
+      <div className="cr-card-top">
+        <div className="cr-card-name">{job.name || '(unnamed)'}</div>
+        <StatusPill status={status} />
       </div>
 
-      <AnimatePresence initial={false}>
-        {expanded ? (
-          <motion.div
-            layout
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="mt-3 border-t border-[var(--theme-border)] pt-3">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-xs font-medium text-[var(--theme-text)]">
-                  Run history
-                </p>
-                <p className="text-[10px] text-[var(--theme-muted)]">
-                  Showing recent outputs
-                </p>
-              </div>
-              {outputQuery.isLoading ? (
-                <div className="rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-3 text-xs text-[var(--theme-muted)]">
-                  Loading outputs...
-                </div>
-              ) : outputQuery.isError ? (
-                <div className="rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-3 text-xs text-[var(--theme-muted)]">
-                  Failed to load outputs.
-                </div>
-              ) : outputQuery.data && outputQuery.data.length > 0 ? (
-                <div className="space-y-2">
-                  {outputQuery.data.map((output) => (
-                    <div
-                      key={`${output.filename}-${output.timestamp}`}
-                      className="rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-3"
-                    >
-                      <div className="mb-1 flex items-center justify-between gap-2 text-[10px] text-[var(--theme-muted)]">
-                        <span>{formatRunTimestamp(output.timestamp)}</span>
-                        <span className="truncate">{output.filename}</span>
-                      </div>
-                      <p className="text-xs leading-5 text-[var(--theme-text)]">
-                        {getOutputPreview(output.content) ||
-                          'No output content'}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-3 text-xs text-[var(--theme-muted)]">
-                  No run outputs yet.
-                </div>
-              )}
-            </div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-    </motion.div>
+      <div className="cr-card-schedule">
+        {/* clock icon */}
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <circle cx="8" cy="8" r="6.5" />
+          <path d="M8 4.5v3.75L10 10" strokeLinecap="round" />
+        </svg>
+        <span>{friendly}</span>
+        {expr && expr !== friendly && (
+          <span className="cr-schedule-expr">{expr}</span>
+        )}
+      </div>
+
+      <div className="cr-card-meta">
+        <span className="cr-last-run">{relativeTime(job.last_run_at)}</span>
+        {owner && (
+          <span className="cr-agent-badge">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="8" cy="5.5" r="2.5" />
+              <path d="M2.5 14c0-3 2.5-5 5.5-5s5.5 2 5.5 5" strokeLinecap="round" />
+            </svg>
+            {owner}
+          </span>
+        )}
+      </div>
+
+      <div className="cr-card-actions">
+        {/* Run now */}
+        <button
+          type="button"
+          className="cr-action-btn"
+          title="Run now"
+          onClick={(e) => { e.stopPropagation(); onTrigger(job.id) }}
+        >
+          <svg viewBox="0 0 16 16" fill="currentColor">
+            <path d="M5 3.5l8 4.5-8 4.5V3.5z" />
+          </svg>
+        </button>
+        {/* Pause / Resume */}
+        <button
+          type="button"
+          className="cr-action-btn"
+          title={status === 'paused' ? 'Resume' : 'Pause'}
+          onClick={(e) => { e.stopPropagation(); status === 'paused' ? onResume(job.id) : onPause(job.id) }}
+        >
+          {status === 'paused' ? (
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <path d="M5 3.5l8 4.5-8 4.5V3.5z" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <rect x="4" y="3" width="3" height="10" rx="1" />
+              <rect x="9" y="3" width="3" height="10" rx="1" />
+            </svg>
+          )}
+        </button>
+        {/* Edit */}
+        <button
+          type="button"
+          className="cr-action-btn"
+          title="Edit"
+          onClick={(e) => { e.stopPropagation(); onEdit(job) }}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M11.5 2.5a1.414 1.414 0 0 1 2 2L5 13H3v-2L11.5 2.5z" strokeLinejoin="round" />
+          </svg>
+        </button>
+        {/* Delete */}
+        <button
+          type="button"
+          className="cr-action-btn cr-action-btn--danger"
+          title="Delete"
+          onClick={(e) => { e.stopPropagation(); onDelete(job) }}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M3 4h10M6 4V2.5h4V4M5 4l.5 9.5h5L11 4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
+    </div>
   )
 }
 
+// ── Cron table row ────────────────────────────────────────────────────────────
+function CronTableRow({
+  job,
+  onPause,
+  onResume,
+  onTrigger,
+  onDelete,
+  onEdit,
+  onOpen,
+}: {
+  job: ClaudeJob
+  onPause: (id: string) => void
+  onResume: (id: string) => void
+  onTrigger: (id: string) => void
+  onDelete: (job: ClaudeJob) => void
+  onEdit: (job: ClaudeJob) => void
+  onOpen: (job: ClaudeJob) => void
+}) {
+  const status = jobStatus(job)
+  const expr = cronExpr(job)
+  const friendly = friendlySchedule(job)
+
+  return (
+    <tr onClick={() => onOpen(job)} style={{ cursor: 'pointer' }}>
+      <td className="cr-td-name">{job.name || '(unnamed)'}</td>
+      <td className="cr-td-schedule">
+        <div>{friendly}</div>
+        {expr && <div style={{ opacity: 0.5, fontSize: 10 }}>{expr}</div>}
+      </td>
+      <td><StatusPill status={status} /></td>
+      <td style={{ color: 'var(--m-text-faint,var(--theme-muted))', fontSize: 11 }}>
+        {relativeTime(job.last_run_at)}
+      </td>
+      <td>
+        {(job.skills ?? []).length > 0 && (
+          <span className="cr-agent-badge">{(job.skills ?? []).join(', ')}</span>
+        )}
+      </td>
+      <td>
+        <div className="cr-td-actions">
+        <button type="button" className="cr-action-btn" title="Run now" onClick={(e) => { e.stopPropagation(); onTrigger(job.id) }}>
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M5 3.5l8 4.5-8 4.5V3.5z" /></svg>
+        </button>
+        <button
+          type="button"
+          className="cr-action-btn"
+          title={status === 'paused' ? 'Resume' : 'Pause'}
+          onClick={(e) => { e.stopPropagation(); status === 'paused' ? onResume(job.id) : onPause(job.id) }}
+        >
+          {status === 'paused' ? (
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M5 3.5l8 4.5-8 4.5V3.5z" /></svg>
+          ) : (
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <rect x="4" y="3" width="3" height="10" rx="1" />
+              <rect x="9" y="3" width="3" height="10" rx="1" />
+            </svg>
+          )}
+        </button>
+        <button type="button" className="cr-action-btn" title="Edit" onClick={(e) => { e.stopPropagation(); onEdit(job) }}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M11.5 2.5a1.414 1.414 0 0 1 2 2L5 13H3v-2L11.5 2.5z" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <button type="button" className="cr-action-btn cr-action-btn--danger" title="Delete" onClick={(e) => { e.stopPropagation(); onDelete(job) }}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M3 4h10M6 4V2.5h4V4M5 4l.5 9.5h5L11 4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+// ── Skeleton grid ─────────────────────────────────────────────────────────────
+function SkeletonGrid() {
+  return (
+    <div className="cr-grid">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="cr-skeleton">
+          <div className="cr-skeleton-line" style={{ width: '55%' }} />
+          <div className="cr-skeleton-badge" />
+          <div className="cr-skeleton-line" style={{ width: '80%' }} />
+          <div className="cr-skeleton-line" style={{ width: '40%', marginTop: 8 }} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Filter pills component ────────────────────────────────────────────────────
+function FilterPill<T extends string>({
+  label,
+  value,
+  active,
+  onClick,
+}: {
+  label: string
+  value: T
+  active: boolean
+  onClick: (v: T) => void
+}) {
+  return (
+    <button
+      type="button"
+      className={`filter-pill${active ? ' filter-pill--active' : ''}`}
+      onClick={() => onClick(value)}
+    >
+      {label}
+    </button>
+  )
+}
+
+// ── Main screen ───────────────────────────────────────────────────────────────
 export function JobsScreen() {
   const queryClient = useQueryClient()
-  const [search, setSearch] = useState('')
-  const [showCreate, setShowCreate] = useState(false)
-  const [editingJob, setEditingJob] = useState<ClaudeJob | null>(null)
+  const { viewMode, pageSizeGrid, pageSizeTable, setViewMode, setPageSize } = useCronsViewStore()
+  const {
+    search, statusFilter, cadenceFilter, page,
+    setSearch, setStatusFilter, setCadenceFilter, setPage, resetFilters,
+  } = useCronsFilterStore()
+  const pageSize = useCronsPageSize()
 
-  const jobsQuery = useQuery({
+  const rawSearch = search
+  const debouncedSearch = useDebounced(rawSearch, 150)
+
+  const [deleteTarget, setDeleteTarget] = useState<ClaudeJob | null>(null)
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const [editJob, setEditJob] = useState<ClaudeJob | null>(null)
+  const [drawerJob, setDrawerJob] = useState<ClaudeJob | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+
+  function openWizardNew() { setEditJob(null); setWizardOpen(true) }
+  function openWizardEdit(job: ClaudeJob) { setEditJob(job); setWizardOpen(true) }
+  function openDrawer(job: ClaudeJob) { setDrawerJob(job); setDrawerOpen(true) }
+
+  const cronsQuery = useQuery({
     queryKey: QUERY_KEY,
     queryFn: fetchJobs,
     refetchInterval: 30_000,
   })
 
+  const invalidate = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+  }, [queryClient])
+
   const pauseMutation = useMutation({
     mutationFn: pauseJob,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-      toast('Job paused')
-    },
+    onSuccess: () => { invalidate(); toast('Cron paused') },
+    onError: (e) => toast(e instanceof Error ? e.message : 'Failed to pause', { type: 'error' }),
   })
   const resumeMutation = useMutation({
     mutationFn: resumeJob,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-      toast('Job resumed')
-    },
+    onSuccess: () => { invalidate(); toast('Cron resumed') },
+    onError: (e) => toast(e instanceof Error ? e.message : 'Failed to resume', { type: 'error' }),
   })
   const triggerMutation = useMutation({
     mutationFn: triggerJob,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-      toast('Job triggered')
-    },
+    onSuccess: () => { invalidate(); toast('Cron triggered') },
+    onError: (e) => toast(e instanceof Error ? e.message : 'Failed to trigger', { type: 'error' }),
   })
   const deleteMutation = useMutation({
     mutationFn: deleteJob,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-      toast('Job deleted')
-    },
+    onSuccess: () => { invalidate(); toast('Cron deleted') },
+    onError: (e) => toast(e instanceof Error ? e.message : 'Failed to delete', { type: 'error' }),
   })
-  const createMutation = useMutation({
-    mutationFn: createJob,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-      toast('Job created')
-      setShowCreate(false)
-    },
-    onError: (error) => {
-      toast(error instanceof Error ? error.message : 'Failed to create job', {
-        type: 'error',
-      })
-    },
-  })
-  const updateMutation = useMutation({
-    mutationFn: async (payload: {
-      jobId: string
-      updates: {
-        name: string
-        schedule: string
-        prompt: string
-        deliver?: Array<string>
-        skills?: Array<string>
-        repeat?: number
+
+  const allJobs = cronsQuery.data ?? []
+
+  // counts
+  const totalCount = allJobs.length
+  const activeCount = allJobs.filter((j) => jobStatus(j) === 'active').length
+  const pausedCount = allJobs.filter((j) => jobStatus(j) === 'paused').length
+  const errorCount  = allJobs.filter((j) => jobStatus(j) === 'error').length
+
+  // filter + search
+  const filtered = useMemo(() => {
+    const q = debouncedSearch.toLowerCase()
+    return allJobs.filter((job) => {
+      if (q && !job.name?.toLowerCase().includes(q) && !job.prompt?.toLowerCase().includes(q)) return false
+      if (statusFilter !== 'all' && jobStatus(job) !== statusFilter) return false
+      if (cadenceFilter !== 'all') {
+        const friendly = friendlySchedule(job).toLowerCase()
+        const expr = cronExpr(job)
+        if (cadenceFilter === 'hourly' && !friendly.includes('hour') && !expr.startsWith('0 *')) return false
+        if (cadenceFilter === 'daily' && !friendly.includes('daily') && !/^[\d*]+ \d+ \* \* \*/.test(expr)) return false
+        if (cadenceFilter === 'weekly' && !friendly.includes('week') && !/^[\d*]+ \d+ \* \* \d/.test(expr)) return false
+        if (cadenceFilter === 'custom' && (friendly.includes('hour') || friendly.includes('daily') || friendly.includes('week'))) return false
       }
-    }) => updateJob(payload.jobId, payload.updates),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-      toast('Job updated')
-      setEditingJob(null)
-    },
-    onError: (error) => {
-      toast(error instanceof Error ? error.message : 'Failed to update job', {
-        type: 'error',
-      })
-    },
-  })
+      return true
+    })
+  }, [allJobs, debouncedSearch, statusFilter, cadenceFilter])
 
-  const filteredJobs = useMemo(() => {
-    const jobs = jobsQuery.data ?? []
-    if (!search.trim()) return jobs
-    const q = search.toLowerCase()
-    return jobs.filter(
-      (j) =>
-        j.name?.toLowerCase().includes(q) ||
-        j.prompt?.toLowerCase().includes(q),
-    )
-  }, [jobsQuery.data, search])
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const safePage   = Math.min(page, totalPages)
+  const paginated  = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
 
-  const handleCreate = useCallback(
-    async (input: {
-      name: string
-      schedule: string
-      prompt: string
-      deliver?: Array<string>
-      skills?: Array<string>
-      repeat?: number
-    }) => {
-      await createMutation.mutateAsync(input)
-    },
-    [createMutation],
-  )
+  const hasActiveFilters = debouncedSearch || statusFilter !== 'all' || cadenceFilter !== 'all'
+
+  // keep page in bounds when filters change
+  const prevFiltered = useRef(filtered.length)
+  useEffect(() => {
+    if (filtered.length !== prevFiltered.current) {
+      prevFiltered.current = filtered.length
+      setPage(1)
+    }
+  }, [filtered.length, setPage])
 
   return (
-    <div className="min-h-full overflow-y-auto bg-surface text-ink">
-      <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 py-6 pb-[calc(var(--tabbar-h,80px)+1.5rem)] sm:px-6 lg:px-8">
-      <header className="rounded-2xl border border-primary-200 bg-primary-50/85 p-4 backdrop-blur-xl">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <HugeiconsIcon
-            icon={Clock01Icon}
-            size={18}
-            className="text-[var(--theme-accent)]"
-          />
-          <h1 className="text-base font-semibold text-[var(--theme-text)]">
-            Jobs
-          </h1>
-          {jobsQuery.data && (
-            <span className="ml-1 text-xs text-[var(--theme-muted)]">
-              ({jobsQuery.data.length})
-            </span>
-          )}
+    <div data-screen="crons" className="cr-shell">
+      {/* ── Header ── */}
+      <div className="cr-header">
+        <div className="cr-header-left">
+          <h1>Cron Jobs</h1>
+          <div className="cr-header-stats">
+            <span><b>{totalCount}</b> Total</span>
+            <div className="sep" />
+            <span><b className="ok">{activeCount}</b> Active</span>
+            <div className="sep" />
+            <span><b>{pausedCount}</b> Paused</span>
+            {errorCount > 0 && (
+              <>
+                <div className="sep" />
+                <span><b className="err">{errorCount}</b> Error</span>
+              </>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() =>
-              void queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-            }
-            className="rounded-lg p-1.5 transition-colors hover:bg-[var(--theme-hover)]"
-            title="Refresh"
-          >
-            <HugeiconsIcon
-              icon={RefreshIcon}
-              size={16}
-              className="text-[var(--theme-muted)]"
-            />
-          </button>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
-            style={{ background: 'var(--theme-accent)' }}
-          >
-            <HugeiconsIcon icon={Add01Icon} size={14} />
-            New Job
-          </button>
-        </div>
+        <button
+          type="button"
+          className="btn-new-cron"
+          onClick={openWizardNew}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          New Cron
+        </button>
       </div>
-      </header>
 
-      <div className="rounded-2xl border border-primary-200 bg-primary-50/85 p-4 backdrop-blur-xl">
-        <div className="relative">
-          <HugeiconsIcon
-            icon={Search01Icon}
-            size={14}
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--theme-muted)]"
-          />
+      {/* ── Filter bar ── */}
+      <div className="cr-filter-bar">
+        {/* Search */}
+        <div className="cr-search">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="7" cy="7" r="5" />
+            <line x1="10.5" y1="10.5" x2="14" y2="14" strokeLinecap="round" />
+          </svg>
           <input
             type="text"
-            placeholder="Search jobs..."
+            placeholder="Search crons..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-[var(--theme-border)] bg-[var(--theme-input)] py-1.5 pl-8 pr-3 text-xs text-[var(--theme-text)] placeholder:text-[var(--theme-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-accent)]"
           />
+        </div>
+
+        <div className="cr-pills-row">
+          {/* Status pills */}
+          <div className="cr-pill-group">
+            <span className="cr-pill-label">Status</span>
+            {(['all', 'active', 'paused', 'error'] as const).map((s) => (
+              <FilterPill key={s} label={s === 'all' ? 'All' : s} value={s} active={statusFilter === s} onClick={setStatusFilter} />
+            ))}
+          </div>
+
+          <div className="cr-pills-divider" />
+
+          {/* Cadence pills */}
+          <div className="cr-pill-group">
+            <span className="cr-pill-label">Cadence</span>
+            {(['all', 'hourly', 'daily', 'weekly', 'custom'] as const).map((c) => (
+              <FilterPill key={c} label={c === 'all' ? 'All' : c} value={c} active={cadenceFilter === c} onClick={setCadenceFilter} />
+            ))}
+          </div>
+        </div>
+
+        {/* Clear filters */}
+        {hasActiveFilters && (
+          <button type="button" className="cr-clear-filters" onClick={resetFilters}>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ width: 12, height: 12 }}>
+              <line x1="3" y1="3" x2="13" y2="13" /><line x1="13" y1="3" x2="3" y2="13" />
+            </svg>
+            Clear
+          </button>
+        )}
+
+        {/* View toggle */}
+        <div className="cr-view-toggle">
+          <button
+            type="button"
+            className={viewMode === 'grid' ? 'on' : ''}
+            title="Grid view"
+            onClick={() => setViewMode('grid')}
+          >
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <rect x="2" y="2" width="5" height="5" rx="1" />
+              <rect x="9" y="2" width="5" height="5" rx="1" />
+              <rect x="2" y="9" width="5" height="5" rx="1" />
+              <rect x="9" y="9" width="5" height="5" rx="1" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className={viewMode === 'table' ? 'on' : ''}
+            title="Table view"
+            onClick={() => setViewMode('table')}
+          >
+            <svg viewBox="0 0 16 16" fill="currentColor">
+              <rect x="2" y="3" width="12" height="2" rx="1" />
+              <rect x="2" y="7" width="12" height="2" rx="1" />
+              <rect x="2" y="11" width="12" height="2" rx="1" />
+            </svg>
+          </button>
         </div>
       </div>
 
-      <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
-        {jobsQuery.isLoading ? (
-          <div className="flex items-center justify-center py-12 text-sm text-[var(--theme-muted)]">
-            Loading jobs...
+      {/* ── Canvas ── */}
+      <div className="cr-canvas">
+        {cronsQuery.isLoading ? (
+          <SkeletonGrid />
+        ) : cronsQuery.isError ? (
+          <div className="cr-error-banner">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="8" cy="8" r="6.5" />
+              <line x1="8" y1="5" x2="8" y2="8.5" />
+              <circle cx="8" cy="11" r=".6" fill="currentColor" stroke="none" />
+            </svg>
+            <span>
+              Failed to load cron jobs.{' '}
+              {cronsQuery.error instanceof Error ? cronsQuery.error.message : ''}
+            </span>
+            <button type="button" onClick={() => void cronsQuery.refetch()}>Retry</button>
           </div>
-        ) : jobsQuery.isError ? (
-          <div
-            className="flex items-center justify-center py-12 text-sm"
-            style={{ color: 'var(--theme-danger)' }}
-          >
-            Failed to load jobs:{' '}
-            {jobsQuery.error instanceof Error
-              ? jobsQuery.error.message
-              : 'Unknown error'}
+        ) : filtered.length === 0 ? (
+          <div className="cr-empty">
+            <div className="cr-empty-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5.25L15 14" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div className="cr-empty-title">
+              {allJobs.length === 0 ? 'No cron jobs yet' : 'No crons match'}
+            </div>
+            <div className="cr-empty-desc">
+              {allJobs.length === 0
+                ? 'Get started — create your first cron job.'
+                : 'Try a different search or clear the filters.'}
+            </div>
+            {allJobs.length === 0 && (
+              <button
+                type="button"
+                className="btn-new-cron"
+                style={{ marginTop: 12 }}
+                onClick={openWizardNew}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Create your first cron
+              </button>
+            )}
           </div>
-        ) : filteredJobs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-[var(--theme-muted)]">
-            <HugeiconsIcon
-              icon={Clock01Icon}
-              size={32}
-              className="mb-3 opacity-40"
-            />
-            <p className="text-sm font-medium">No scheduled jobs</p>
-            <p className="mt-1 text-xs">Create one to get started</p>
-          </div>
-        ) : (
-          <AnimatePresence mode="popLayout">
-            {filteredJobs.map((job) => (
-              <JobCard
+        ) : viewMode === 'grid' ? (
+          <div className="cr-grid">
+            {paginated.map((job) => (
+              <CronCard
                 key={job.id}
                 job={job}
                 onPause={(id) => pauseMutation.mutate(id)}
                 onResume={(id) => resumeMutation.mutate(id)}
                 onTrigger={(id) => triggerMutation.mutate(id)}
-                onEdit={(job) => setEditingJob(job)}
-                onDelete={(id) => {
-                  if (confirm(`Delete job "${job.name}"?`)) {
-                    deleteMutation.mutate(id)
-                  }
-                }}
+                onDelete={setDeleteTarget}
+                onEdit={openWizardEdit}
+                onOpen={openDrawer}
               />
             ))}
-          </AnimatePresence>
+          </div>
+        ) : (
+          <table className="cr-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Schedule</th>
+                <th>Status</th>
+                <th>Last Run</th>
+                <th>Agent</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginated.map((job) => (
+                <CronTableRow
+                  key={job.id}
+                  job={job}
+                  onPause={(id) => pauseMutation.mutate(id)}
+                  onResume={(id) => resumeMutation.mutate(id)}
+                  onTrigger={(id) => triggerMutation.mutate(id)}
+                  onDelete={setDeleteTarget}
+                  onEdit={openWizardEdit}
+                  onOpen={openDrawer}
+                />
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
 
-      <CreateJobDialog
-        open={showCreate}
-        onOpenChange={setShowCreate}
-        onSubmit={handleCreate}
-        isSubmitting={createMutation.isPending}
-      />
-      <EditJobDialog
-        job={editingJob}
-        open={editingJob !== null}
-        onOpenChange={(open) => {
-          if (!open) setEditingJob(null)
+      {/* ── Paginator ── */}
+      {!cronsQuery.isLoading && filtered.length > 0 && (
+        <div className="cr-pager">
+          <span className="cr-pager-info">
+            {filtered.length} cron{filtered.length !== 1 ? 's' : ''}
+            {hasActiveFilters ? ' (filtered)' : ''}
+          </span>
+
+          <div className="cr-pager-controls">
+            <button
+              type="button"
+              className="cr-pager-btn"
+              disabled={safePage <= 1}
+              onClick={() => setPage(safePage - 1)}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M10 12L6 8l4-4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <span className="cr-pager-page">{safePage} / {totalPages}</span>
+            <button
+              type="button"
+              className="cr-pager-btn"
+              disabled={safePage >= totalPages}
+              onClick={() => setPage(safePage + 1)}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M6 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="cr-pager-size">
+            Per page
+            <select
+              value={viewMode === 'grid' ? pageSizeGrid : pageSizeTable}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+            >
+              {(viewMode === 'grid' ? PAGE_SIZES_GRID : PAGE_SIZES_TABLE).map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete confirm ── */}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete cron job?"
+        message={`Delete "${deleteTarget?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => {
+          if (deleteTarget) {
+            deleteMutation.mutate(deleteTarget.id)
+            setDeleteTarget(null)
+          }
         }}
-        onSubmit={async (updates) => {
-          if (!editingJob) return
-          await updateMutation.mutateAsync({
-            jobId: editingJob.id,
-            updates,
-          })
-        }}
-        isSubmitting={updateMutation.isPending}
+        onCancel={() => setDeleteTarget(null)}
       />
-    </div>
+
+      {/* ── Wizard (create / edit) ── */}
+      <CronsWizard
+        open={wizardOpen}
+        editJob={editJob}
+        onClose={() => setWizardOpen(false)}
+        onSuccess={invalidate}
+      />
+
+      {/* ── Detail drawer ── */}
+      <CronDetailDrawer
+        job={drawerJob}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onEdit={(job) => { setDrawerOpen(false); openWizardEdit(job) }}
+        onTrigger={(id) => triggerMutation.mutate(id)}
+        onPause={(id) => pauseMutation.mutate(id)}
+        onResume={(id) => resumeMutation.mutate(id)}
+        onDelete={(job) => { setDeleteTarget(job); setDrawerOpen(false) }}
+      />
     </div>
   )
 }
