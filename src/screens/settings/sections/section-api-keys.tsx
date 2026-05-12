@@ -17,7 +17,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { PasswordField } from '../components/controls'
-import type { EnvVarInfo, OAuthProvider } from '@/server/hermes-api'
+import type { EnvVarInfo, OAuthProvider } from '@/lib/hermes-client'
 import {
   deleteEnv,
   deleteOAuth,
@@ -25,7 +25,7 @@ import {
   listOAuthProviders,
   putEnv,
   revealEnv,
-} from '@/server/hermes-api'
+} from '@/lib/hermes-client'
 import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 import { toast } from '@/components/ui/toast'
 

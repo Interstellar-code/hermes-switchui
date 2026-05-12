@@ -12,7 +12,7 @@ import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { Toggle, NumberSlider } from '../components/controls'
 import { useSettingsStore } from '@/stores/settings-store'
-import { listSkills } from '@/server/hermes-api'
+import { listSkills } from '@/lib/hermes-client'
 
 type SkillEntry = {
   name: string

@@ -8,7 +8,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { SettingCard } from '../components/setting-card'
-import { modelOptions, modelAuxiliary, analyticsModels } from '@/server/hermes-api'
+import { modelOptions, modelAuxiliary, analyticsModels } from '@/lib/hermes-client'
 
 export default function SectionModelRegistry() {
   const navigate = useNavigate()

@@ -7,7 +7,7 @@ import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 import { toast } from '@/components/ui/toast'
-import { gatewayRestart } from '@/server/hermes-api'
+import { gatewayRestart } from '@/lib/hermes-client'
 
 export default function SectionDanger() {
   const [resetOpen, setResetOpen] = useState(false)

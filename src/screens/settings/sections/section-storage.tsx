@@ -12,7 +12,7 @@ import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { Toggle, NumberSlider } from '../components/controls'
 import { useSettingsStore } from '@/stores/settings-store'
-import { analyticsUsage } from '@/server/hermes-api'
+import { analyticsUsage } from '@/lib/hermes-client'
 
 export default function SectionStorage() {
   const { draft, set } = useSettingsStore()

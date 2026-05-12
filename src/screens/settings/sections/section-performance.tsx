@@ -17,7 +17,7 @@ import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { Segmented, Toggle } from '../components/controls'
 import { useSettingsStore } from '@/stores/settings-store'
-import { gatewayStatus } from '@/server/hermes-api'
+import { gatewayStatus } from '@/lib/hermes-client'
 
 const BG_OPTIONS = [
   { value: 'pause', label: 'Pause' },

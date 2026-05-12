@@ -13,7 +13,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { useSettingsStore } from '@/stores/settings-store'
-import { modelInfo, modelOptions, setModelAssignment } from '@/server/hermes-api'
+import { modelInfo, modelOptions, setModelAssignment } from '@/lib/hermes-client'
 import { toast } from '@/components/ui/toast'
 
 export default function SectionProvider() {

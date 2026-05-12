@@ -7,7 +7,7 @@ import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { useSettingsStore } from '@/stores/settings-store'
 import { toast } from '@/components/ui/toast'
-import { getLogs } from '@/server/hermes-api'
+import { getLogs } from '@/lib/hermes-client'
 
 // Maps to DEFAULT_CONFIG logging.level (DEBUG | INFO | WARNING)
 const LOG_LEVEL_OPTIONS = ['DEBUG', 'INFO', 'WARNING']

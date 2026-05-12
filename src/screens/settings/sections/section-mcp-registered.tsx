@@ -9,7 +9,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { SettingCard } from '../components/setting-card'
-import { listDashboardPlugins } from '@/server/hermes-api'
+import { listDashboardPlugins } from '@/lib/hermes-client'
 import { toast } from '@/components/ui/toast'
 
 type PluginEntry = {

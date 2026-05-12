@@ -10,7 +10,7 @@
  * is shown but the saver does not throw.
  */
 
-import { patchConfig } from '@/server/hermes-api'
+import { patchConfig } from '@/lib/hermes-client'
 import { toast } from '@/components/ui/toast'
 
 const CONFIG_PREFIXES = ['workspace.', 'config.', 'agent.']

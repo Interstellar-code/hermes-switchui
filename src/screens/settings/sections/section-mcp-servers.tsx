@@ -8,7 +8,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { SettingCard } from '../components/setting-card'
-import { listToolsets } from '@/server/hermes-api'
+import { listToolsets } from '@/lib/hermes-client'
 
 type ToolsetEntry = {
   name: string
