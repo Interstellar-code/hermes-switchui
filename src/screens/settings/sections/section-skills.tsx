@@ -9,6 +9,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
+import { Toggle } from '../components/controls'
 import { useSettingsStore } from '@/stores/settings-store'
 import { listSkills, toggleSkill } from '@/server/hermes-api'
 import { toast } from '@/components/ui/toast'
@@ -60,14 +61,7 @@ export default function SectionSkills() {
 
       <SettingCard title="Loading">
         <SettingRow label="Auto-load skills" desc="Automatically load all skills on agent startup">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={autoload}
-              onChange={(e) => set('config.skills.autoload', e.target.checked)}
-            />
-            <span className="slider" />
-          </label>
+          <Toggle on={autoload} set={(v) => set('config.skills.autoload', v)} />
         </SettingRow>
         <SettingRow label="Skills root" desc="Directory to scan for skill definitions">
           <input
@@ -82,24 +76,10 @@ export default function SectionSkills() {
 
       <SettingCard title="Hooks & permissions">
         <SettingRow label="Hooks enabled" desc="Run skill lifecycle hooks (before/after execution)">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={hooksEnabled}
-              onChange={(e) => set('config.skills.hooks_enabled', e.target.checked)}
-            />
-            <span className="slider" />
-          </label>
+          <Toggle on={hooksEnabled} set={(v) => set('config.skills.hooks_enabled', v)} />
         </SettingRow>
         <SettingRow label="Permission prompt" pill={{ t: 'security' }} desc="Prompt user before executing skills with elevated permissions">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={permissionPrompt}
-              onChange={(e) => set('config.skills.permission_prompt', e.target.checked)}
-            />
-            <span className="slider" />
-          </label>
+          <Toggle on={permissionPrompt} set={(v) => set('config.skills.permission_prompt', v)} />
         </SettingRow>
         <SettingRow label="Permission timeout" desc={`${permissionTimeout}s — seconds before prompt auto-dismisses`}>
           <input
@@ -138,14 +118,10 @@ export default function SectionSkills() {
                     <td style={{ font: '12px var(--m-font-mono)' }}>{skill.name}</td>
                     <td style={{ color: 'var(--m-text-faint)' }}>{skill.description ?? '—'}</td>
                     <td>
-                      <label className="toggle">
-                        <input
-                          type="checkbox"
-                          checked={skill.enabled ?? false}
-                          onChange={() => void handleToggleSkill(skill.name, skill.enabled ?? false)}
-                        />
-                        <span className="slider" />
-                      </label>
+                      <Toggle
+                        on={skill.enabled ?? false}
+                        set={() => void handleToggleSkill(skill.name, skill.enabled ?? false)}
+                      />
                     </td>
                   </tr>
                 ))}
