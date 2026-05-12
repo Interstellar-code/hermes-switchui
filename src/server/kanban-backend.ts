@@ -3,15 +3,104 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { getClaudeRoot, getWorkspaceClaudeHome } from './claude-paths'
-import {
-  SWARM_KANBAN_FILE,
-  type CreateSwarmKanbanCardInput,
-  createSwarmKanbanCard,
-  listSwarmKanbanCards,
-  type SwarmKanbanCard,
-  updateSwarmKanbanCard,
-  type UpdateSwarmKanbanCardInput,
-} from './swarm-kanban-store'
+
+// ── Inline kanban card types (formerly swarm-kanban-store) ───────────────────
+
+export type KanbanCardStatus = 'backlog' | 'ready' | 'running' | 'review' | 'blocked' | 'done' | 'archived'
+
+export type LocalKanbanCard = {
+  id: string
+  title: string
+  spec: string
+  acceptanceCriteria: string[]
+  assignedWorker: string | null
+  reviewer: string | null
+  status: KanbanCardStatus
+  missionId: string | null
+  reportPath: string | null
+  createdBy: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type CreateLocalKanbanCardInput = {
+  title: string
+  spec?: string
+  acceptanceCriteria?: string[]
+  assignedWorker?: string | null
+  reviewer?: string | null
+  status?: KanbanCardStatus
+  missionId?: string | null
+  reportPath?: string | null
+  createdBy?: string
+}
+
+export type UpdateLocalKanbanCardInput = Partial<Omit<LocalKanbanCard, 'id' | 'createdAt' | 'createdBy'>>
+
+const KANBAN_FILE_NAME = 'kanban-board.json'
+
+function getLocalKanbanFile(): string {
+  try {
+    const home = getWorkspaceClaudeHome()
+    return path.join(home, KANBAN_FILE_NAME)
+  } catch {
+    return path.join(process.env.HOME ?? '/tmp', '.hermes', KANBAN_FILE_NAME)
+  }
+}
+
+export const LOCAL_KANBAN_FILE = getLocalKanbanFile()
+
+function readLocalCards(): LocalKanbanCard[] {
+  const file = getLocalKanbanFile()
+  if (!fs.existsSync(file)) return []
+  try {
+    const raw = fs.readFileSync(file, 'utf8')
+    const parsed = JSON.parse(raw) as unknown
+    return Array.isArray(parsed) ? (parsed as LocalKanbanCard[]) : []
+  } catch {
+    return []
+  }
+}
+
+function writeLocalCards(cards: LocalKanbanCard[]): void {
+  const file = getLocalKanbanFile()
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, JSON.stringify(cards, null, 2), 'utf8')
+}
+
+function listLocalKanbanCards(): LocalKanbanCard[] {
+  return readLocalCards()
+}
+
+function createLocalKanbanCard(input: CreateLocalKanbanCardInput): LocalKanbanCard {
+  const cards = readLocalCards()
+  const card: LocalKanbanCard = {
+    id: `k_${randomUUID().replace(/-/g, '').slice(0, 8)}`,
+    title: input.title,
+    spec: input.spec ?? '',
+    acceptanceCriteria: input.acceptanceCriteria ?? [],
+    assignedWorker: input.assignedWorker ?? null,
+    reviewer: input.reviewer ?? null,
+    status: input.status ?? 'backlog',
+    missionId: input.missionId ?? null,
+    reportPath: input.reportPath ?? null,
+    createdBy: input.createdBy ?? 'claude-kanban',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  }
+  cards.push(card)
+  writeLocalCards(cards)
+  return card
+}
+
+function updateLocalKanbanCard(cardId: string, updates: UpdateLocalKanbanCardInput): LocalKanbanCard | null {
+  const cards = readLocalCards()
+  const idx = cards.findIndex((c) => c.id === cardId)
+  if (idx === -1) return null
+  cards[idx] = { ...cards[idx], ...updates, updatedAt: Date.now() }
+  writeLocalCards(cards)
+  return cards[idx]
+}
 
 export type KanbanBackendId = 'local' | 'claude'
 
@@ -26,9 +115,9 @@ export type KanbanBackendMeta = {
 
 type KanbanBackend = {
   meta(): KanbanBackendMeta
-  list(): SwarmKanbanCard[]
-  create(input: CreateSwarmKanbanCardInput): SwarmKanbanCard
-  update(cardId: string, updates: UpdateSwarmKanbanCardInput): SwarmKanbanCard | null
+  list(): LocalKanbanCard[]
+  create(input: CreateLocalKanbanCardInput): LocalKanbanCard
+  update(cardId: string, updates: UpdateLocalKanbanCardInput): LocalKanbanCard | null
 }
 
 type ClaudeTaskRow = {
@@ -98,7 +187,7 @@ function detectClaudeKanban(): ClaudeDetection {
       cliPath: null,
       dbPath,
       workspacePath,
-      reason: 'Hermes Kanban storage not found; using the local Swarm Board fallback.',
+      reason: 'Hermes Kanban storage not found; using the local board fallback.',
     }
   }
 
@@ -197,7 +286,7 @@ function normalizeTimestamp(value: unknown): number {
   return Date.now()
 }
 
-function mapClaudeStatus(status: string | null | undefined): SwarmKanbanCard['status'] {
+function mapClaudeStatus(status: string | null | undefined): LocalKanbanCard['status'] {
   switch ((status ?? '').toLowerCase()) {
     case 'queued':
     case 'todo':
@@ -222,7 +311,7 @@ function mapClaudeStatus(status: string | null | undefined): SwarmKanbanCard['st
   }
 }
 
-function mapBoardStatus(status: SwarmKanbanCard['status'] | null | undefined): string {
+function mapBoardStatus(status: LocalKanbanCard['status'] | null | undefined): string {
   switch (status) {
     case 'backlog':
       return 'triage'
@@ -241,7 +330,7 @@ function mapBoardStatus(status: SwarmKanbanCard['status'] | null | undefined): s
   }
 }
 
-function claudeTaskToCard(task: ClaudeTaskRow): SwarmKanbanCard {
+function claudeTaskToCard(task: ClaudeTaskRow): LocalKanbanCard {
   const createdAt = normalizeTimestamp(task.created_at)
   const updatedAt = normalizeTimestamp(task.updated_at ?? task.created_at)
   return {
@@ -267,18 +356,18 @@ const localBackend: KanbanBackend = {
       label: 'Local board',
       detected: true,
       writable: true,
-      path: SWARM_KANBAN_FILE,
-      details: 'Using local Swarm board JSON store.',
+      path: LOCAL_KANBAN_FILE,
+      details: 'Using local board JSON store.',
     }
   },
   list() {
-    return listSwarmKanbanCards()
+    return listLocalKanbanCards()
   },
   create(input) {
-    return createSwarmKanbanCard(input)
+    return createLocalKanbanCard(input)
   },
   update(cardId, updates) {
-    return updateSwarmKanbanCard(cardId, updates)
+    return updateLocalKanbanCard(cardId, updates)
   },
 }
 
@@ -316,7 +405,7 @@ const claudeBackend: KanbanBackend = {
         input.assignedWorker?.trim() ? sqliteQuote(input.assignedWorker.trim()) : 'NULL',
         sqliteQuote(status),
         '0',
-        sqliteQuote(input.createdBy?.trim() || 'swarm2-kanban'),
+        sqliteQuote(input.createdBy?.trim() || 'claude-kanban'),
         String(nowSeconds),
         sqliteQuote('scratch'),
         sqliteQuote(path.join(detection.workspacePath, 'workspaces', taskId)),
@@ -364,14 +453,14 @@ export function getKanbanBackendMeta(): KanbanBackendMeta {
   return resolveKanbanBackend().meta()
 }
 
-export function listKanbanCards(): SwarmKanbanCard[] {
+export function listKanbanCards(): LocalKanbanCard[] {
   return resolveKanbanBackend().list()
 }
 
-export function createKanbanCard(input: CreateSwarmKanbanCardInput): SwarmKanbanCard {
+export function createKanbanCard(input: CreateLocalKanbanCardInput): LocalKanbanCard {
   return resolveKanbanBackend().create(input)
 }
 
-export function updateKanbanCard(cardId: string, updates: UpdateSwarmKanbanCardInput): SwarmKanbanCard | null {
+export function updateKanbanCard(cardId: string, updates: UpdateLocalKanbanCardInput): LocalKanbanCard | null {
   return resolveKanbanBackend().update(cardId, updates)
 }

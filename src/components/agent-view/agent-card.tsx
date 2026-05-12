@@ -18,10 +18,8 @@ import { KillConfirmDialog } from './kill-confirm-dialog'
 import { SteerModal } from './steer-modal'
 import { Button } from '@/components/ui/button'
 import { AgentAvatar } from '@/components/agent-avatar'
-import {
-  PERSONA_COLORS,
-  PixelAvatar,
-} from '@/components/agent-swarm/pixel-avatar'
+import { PERSONA_COLORS, PixelAvatar } from '@/components/avatars'
+
 import {
   MenuContent,
   MenuItem,
@@ -89,8 +87,7 @@ function getModelBadgeClassName(model: string): string {
   if (model === 'sonnet') return 'bg-sky-500/20 text-sky-200 ring-sky-500/40'
   if (model === 'codex')
     return 'bg-accent-500/20 text-accent-200 ring-accent-500/40'
-  if (model === 'swarm')
-    return 'bg-primary-300/70 text-primary-800 ring-primary-400/50'
+
   return 'bg-primary-300/70 text-primary-800 ring-primary-400/50'
 }
 

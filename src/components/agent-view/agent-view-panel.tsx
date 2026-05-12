@@ -591,7 +591,7 @@ export function AgentViewPanel() {
     activeCount,
   } = useAgentView()
 
-  // Transcript modal removed — View button now navigates to /agent-swarm
+  // Transcript modal removed — View button now navigates to agent session
   const [selectedAgentChat, setSelectedAgentChat] = useState<{
     sessionKey: string
     agentName: string
@@ -958,7 +958,7 @@ export function AgentViewPanel() {
                     </div>
                   </div>
 
-                  <LayoutGroup id="agent-swarm-grid">
+                  <LayoutGroup id="agent-roster-grid">
                     {activeNodes.length > 0 ||
                     spawningNodes.length > 0 ||
                     queuedNodes.length > 0 ? (

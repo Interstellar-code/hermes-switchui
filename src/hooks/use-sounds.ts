@@ -1,11 +1,9 @@
 /**
  * React hook for sound notifications in ClawSuite
- * Integrates with the agent swarm store to auto-play sounds on state changes
  */
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useMemo } from 'react'
 
 import type { SoundEvent } from '@/lib/sounds'
-import type { SwarmSession } from '@/stores/agent-swarm-store'
 
 import {
   getSoundVolume,
@@ -21,7 +19,6 @@ import {
   setSoundEnabled,
   setSoundVolume,
 } from '@/lib/sounds'
-import { useSwarmStore } from '@/stores/agent-swarm-store'
 
 interface UseSoundsOptions {
   /** Auto-play sounds when agent states change (default: true) */
@@ -49,80 +46,9 @@ interface UseSoundsReturn {
 }
 
 /**
- * Hook that provides sound functions and optionally auto-plays
- * based on agent swarm state changes.
+ * Hook that provides sound functions and control.
  */
-export function useSounds(options: UseSoundsOptions = {}): UseSoundsReturn {
-  const { autoPlay = true, thinkingThrottleMs = 2000 } = options
-
-  // Track previous session states to detect changes
-  const prevSessionsRef = useRef<Map<string, SwarmSession['swarmStatus']>>(
-    new Map(),
-  )
-  const lastThinkingSoundRef = useRef<number>(0)
-
-  // Subscribe to swarm store
-  const sessions = useSwarmStore((state) => state.sessions)
-
-  // Detect state changes and play appropriate sounds
-  useEffect(() => {
-    if (!autoPlay) return
-
-    const prevMap = prevSessionsRef.current
-    const now = Date.now()
-    let hasNewThinking = false
-
-    for (const session of sessions) {
-      const sessionId = String(session.key ?? session.friendlyId ?? '')
-      const prevStatus = prevMap.get(sessionId)
-      const currentStatus = session.swarmStatus
-
-      // New session (spawned)
-      if (!prevStatus && currentStatus === 'running') {
-        playAgentSpawned()
-      }
-      // Status changed
-      else if (prevStatus && prevStatus !== currentStatus) {
-        switch (currentStatus) {
-          case 'complete':
-            playAgentComplete()
-            break
-          case 'failed':
-            playAgentFailed()
-            break
-          case 'thinking':
-            hasNewThinking = true
-            break
-        }
-      }
-      // Currently thinking (throttled)
-      else if (currentStatus === 'thinking') {
-        hasNewThinking = true
-      }
-
-      // Update tracking
-      prevMap.set(sessionId, currentStatus)
-    }
-
-    // Play thinking sound (throttled)
-    if (
-      hasNewThinking &&
-      now - lastThinkingSoundRef.current > thinkingThrottleMs
-    ) {
-      playThinking()
-      lastThinkingSoundRef.current = now
-    }
-
-    // Clean up old sessions from tracking
-    const currentIds = new Set(sessions.map((s) => s.id ?? s.key ?? ''))
-    for (const id of prevMap.keys()) {
-      if (!currentIds.has(id)) {
-        prevMap.delete(id)
-      }
-    }
-  }, [sessions, autoPlay, thinkingThrottleMs])
-
-  // Stable callbacks
+export function useSounds(_options: UseSoundsOptions = {}): UseSoundsReturn {
   const setVolume = useCallback((vol: number) => {
     setSoundVolume(vol)
   }, [])
@@ -131,7 +57,6 @@ export function useSounds(options: UseSoundsOptions = {}): UseSoundsReturn {
     setSoundEnabled(enabled)
   }, [])
 
-  // Return memoized object for stable reference
   return useMemo(
     () => ({
       // Play functions (stable references from module)

@@ -424,7 +424,7 @@ export function OfficeView({
   onNewMission,
   selectedOutputAgentId,
   activeTemplateName: _activeTemplateName,
-  companyName = 'Swarm',
+  companyName = 'Hermes',
   agentTasks = {},
   remoteSessions = [],
   onViewRemoteOutput,

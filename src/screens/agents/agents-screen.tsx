@@ -39,7 +39,7 @@ export function AgentsScreen() {
                   title: 'Typical flow',
                   bullets: [
                     'Repair or configure agents here first.',
-                    'Then use Conductor for mission-style dispatch and Swarm for coordinated multi-worker runs.',
+                    'Then use Conductor for mission-style dispatch across worker agents.',
                   ],
                 },
                 {

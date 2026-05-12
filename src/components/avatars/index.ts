@@ -1,2 +1,5 @@
 export { AssistantAvatar } from './assistant-avatar'
 export { UserAvatar } from './user-avatar'
+export { PixelAvatar } from './pixel-avatar'
+export type { PixelAvatarProps, PixelAvatarStatus } from './pixel-avatar'
+export { PERSONA_COLORS } from './pixel-avatar'
