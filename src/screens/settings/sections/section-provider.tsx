@@ -41,7 +41,7 @@ export default function SectionProvider() {
 
   const providerList = options?.providers ?? []
   const modelsForProvider: string[] =
-    providerList.find((p) => p.id === currentProvider)?.models ?? []
+    providerList.find((p) => p.slug === currentProvider)?.models ?? []
 
   const caps = info?.capabilities as Record<string, unknown> | undefined
   const contextWindow = caps?.context_window as number | undefined
@@ -151,7 +151,7 @@ export default function SectionProvider() {
               <option value={currentProvider}>{currentProvider || 'Loading…'}</option>
             )}
             {providerList.map((p) => (
-              <option key={p.id} value={p.id}>{p.id}</option>
+              <option key={p.slug} value={p.slug}>{p.name ?? p.slug}</option>
             ))}
           </select>
         </SettingRow>

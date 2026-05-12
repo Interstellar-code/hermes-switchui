@@ -620,8 +620,11 @@ export type ModelInfo = {
 
 export type ModelOptions = {
   providers: Array<{
-    id: string
+    slug: string
+    name?: string
+    is_current?: boolean
     models: string[]
+    total_models?: number
     [key: string]: unknown
   }>
   model: string
