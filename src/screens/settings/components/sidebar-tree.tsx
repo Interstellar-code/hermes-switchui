@@ -48,8 +48,7 @@ export function SidebarTree({ groups, activeId, onSelect }: SidebarTreeProps) {
 
   return (
     <nav className="side" aria-label="Settings navigation">
-      {/* Search */}
-      <div className="search">
+      <div className="sk-filter-search search">
         <IconSearch />
         <input
           type="text"
@@ -60,29 +59,28 @@ export function SidebarTree({ groups, activeId, onSelect }: SidebarTreeProps) {
         />
       </div>
 
-      {/* Groups */}
       {filtered.map((group) => (
-        <div key={group.label}>
-          <div className="grp">
-            {group.label}
+        <div key={group.label} className="sk-filter-section">
+          <div className="grp sec-label">
+            <span>{group.label}</span>
             <span className="ct">{group.items.length}</span>
           </div>
-          {group.items.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`item${activeId === item.id ? ' on' : ''}${item.dirty ? ' dirty' : ''}`}
-              onClick={() => onSelect(item.id)}
-              aria-current={activeId === item.id ? 'page' : undefined}
-            >
-              {/* icon placeholder — 18px column */}
-              <span aria-hidden="true" />
-              <span>{item.label}</span>
-              {(item.badge !== undefined || item.dirty) && (
-                <span className="badge">{item.dirty ? '●' : item.badge}</span>
-              )}
-            </button>
-          ))}
+          <div className="sk-filter-list">
+            {group.items.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`sk-filter-item item${activeId === item.id ? ' on' : ''}${item.dirty ? ' dirty' : ''}`}
+                onClick={() => onSelect(item.id)}
+                aria-current={activeId === item.id ? 'page' : undefined}
+              >
+                <span>{item.label}</span>
+                {(item.badge !== undefined || item.dirty) && (
+                  <span className="badge item-ct">{item.dirty ? '●' : item.badge}</span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
       ))}
     </nav>
