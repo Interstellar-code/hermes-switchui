@@ -37,7 +37,7 @@ export default function SectionProvider() {
   const currentModel = committedModel ?? info?.model ?? ''
 
   const providerList = options?.providers ?? []
-  const modelsForProvider =
+  const modelsForProvider: string[] =
     providerList.find((p) => p.id === currentProvider)?.models ?? []
 
   async function handleProviderChange(provider: string) {
@@ -103,7 +103,7 @@ export default function SectionProvider() {
               <option value={currentModel}>{currentModel || 'Loading…'}</option>
             )}
             {modelsForProvider.map((m) => (
-              <option key={m.id} value={m.id}>{m.id}</option>
+              <option key={m} value={m}>{m}</option>
             ))}
           </select>
         </SettingRow>

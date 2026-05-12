@@ -574,7 +574,7 @@ export type ModelInfo = {
 export type ModelOptions = {
   providers: Array<{
     id: string
-    models: Array<{ id: string; base_url?: string; [key: string]: unknown }>
+    models: string[]
     [key: string]: unknown
   }>
   model: string

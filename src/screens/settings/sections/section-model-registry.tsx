@@ -36,15 +36,15 @@ export default function SectionModelRegistry() {
     for (const m of prov.models) {
       // Check if this model is assigned as an auxiliary task
       const auxMatch = auxiliary?.tasks.find(
-        (t) => t.provider === prov.id && t.model === m.id,
+        (t) => t.provider === prov.id && t.model === m,
       )
       const isMain =
-        auxiliary?.main.provider === prov.id && auxiliary.main.model === m.id
+        auxiliary?.main.provider === prov.id && auxiliary.main.model === m
       const status = isMain ? 'main' : auxMatch ? `aux:${auxMatch.task}` : 'mounted'
       rows.push({
         provider: prov.id,
-        model: m.id,
-        base_url: (m.base_url) ?? '—',
+        model: m,
+        base_url: '—',
         status,
       })
     }
