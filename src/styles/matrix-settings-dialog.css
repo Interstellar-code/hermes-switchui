@@ -1,50 +1,346 @@
 /**
- * matrix-settings-dialog.css — Overrides for settings-dialog modal to use Matrix theme.
+ * matrix-settings-dialog.css — Matrix theme for settings-dialog modal.
  * Applied to DialogContent with [data-screen="settings"] attribute.
+ * Inherits typography and component styles from matrix-settings.css.
  */
 
-/* DialogContent itself — match Matrix panel styling */
+/* ── DialogContent container ──────────────────────────────────────────────── */
+
 [data-screen="settings"] {
-  display: flex;
+  display: flex !important;
   flex-direction: column;
-  background: var(--m-bg);
+  background: var(--m-bg) !important;
   color: var(--m-text);
+  border: none !important;
 }
 
-/* Ensure grid layout works */
+/* ── Main flex layout ────────────────────────────────────────────────────── */
+
 [data-screen="settings"] .body {
   display: grid;
   grid-template-columns: auto 1fr;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
-/* Override Dialog styling */
-[data-screen="settings"] [role="dialog"] {
+/* ── Topbar ──────────────────────────────────────────────────────────────── */
+
+[data-screen="settings"] .topbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 0 22px;
+  height: 56px;
+  border-bottom: 1px solid var(--m-border);
+  background: var(--m-sidebar);
+  flex-shrink: 0;
+}
+
+[data-screen="settings"] .topbar h1,
+[data-screen="settings"] .topbar h2,
+[data-screen="settings"] [role="dialog"] > div > div:first-child {
+  margin: 0;
+  font: 600 13px var(--m-font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.26em;
+  color: var(--m-text-strong);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+
+[data-screen="settings"] .side {
+  border-right: 1px solid var(--m-border);
+  background: var(--m-panel);
+  overflow: auto;
+  padding: 6px 0;
+  display: flex;
+  flex-direction: column;
+  width: 232px;
+  flex-shrink: 0;
+}
+
+[data-screen="settings"] .side nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+[data-screen="settings"] .side .item {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 8px;
+  margin: 0 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font: 500 11px var(--m-font-sans, system-ui, sans-serif);
+  color: var(--m-text-muted);
+  border: none;
+  background: transparent;
+  width: auto;
+  text-align: left;
+  transition: background var(--m-dur-fast, 100ms), color var(--m-dur-fast, 100ms);
+  gap: 8px;
+}
+
+[data-screen="settings"] .side .item:hover {
+  background: var(--m-fill-subtle);
+  color: var(--m-text);
+}
+
+[data-screen="settings"] .side .item.on {
+  background: color-mix(in srgb, var(--m-green-500) 10%, transparent);
+  color: var(--m-green-500);
+}
+
+/* ── Content area ────────────────────────────────────────────────────────── */
+
+[data-screen="settings"] .content {
+  overflow: auto;
+  padding: 22px 26px 80px;
+  flex: 1;
+  min-width: 0;
   background: var(--m-bg);
-  border-color: var(--m-border);
 }
 
-/* Inputs and selects inherit from matrix-settings.css */
+[data-screen="settings"] .section-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--m-border-subtle);
+}
+
+[data-screen="settings"] .section-head h2 {
+  margin: 0;
+  font: 600 18px var(--m-font-mono);
+  color: var(--m-text-strong);
+  letter-spacing: 0.04em;
+}
+
+[data-screen="settings"] .section-head .desc {
+  margin-top: 4px;
+  font: 500 12px var(--m-font-mono);
+  color: var(--m-text-faint);
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+
+[data-screen="settings"] .card {
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-md);
+  background: var(--m-panel);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+[data-screen="settings"] .card > h3 {
+  margin: 0;
+  padding: 14px 18px 10px;
+  font: 600 13px var(--m-font-mono);
+  color: var(--m-text-strong);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  border-bottom: 1px solid var(--m-border-subtle);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-screen="settings"] .card > h3 .ic {
+  color: var(--m-green-500);
+}
+
+[data-screen="settings"] .card > h3 .sub {
+  margin-left: auto;
+  font: 500 10.5px var(--m-font-mono);
+  color: var(--m-text-faint);
+  letter-spacing: 0.16em;
+}
+
+/* ── Rows ────────────────────────────────────────────────────────────────── */
+
+[data-screen="settings"] .row {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 22px;
+  align-items: start;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--m-border-subtle);
+}
+
+[data-screen="settings"] .row:last-child {
+  border-bottom: none;
+}
+
+[data-screen="settings"] .row .lbl {
+  font: 500 13px var(--m-font-mono);
+  color: var(--m-text);
+}
+
+[data-screen="settings"] .row .lbl p {
+  margin: 0;
+}
+
+[data-screen="settings"] .row .lbl .desc {
+  display: block;
+  margin-top: 4px;
+  font: 500 11.5px var(--m-font-mono);
+  color: var(--m-text-faint);
+  line-height: 1.5;
+}
+
+[data-screen="settings"] .row .ctl {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+}
+
+[data-screen="settings"] .row .ctl.row-end {
+  align-items: flex-end;
+}
+
+/* ── Inputs ──────────────────────────────────────────────────────────────── */
+
 [data-screen="settings"] input[type="text"],
 [data-screen="settings"] input[type="password"],
 [data-screen="settings"] input[type="url"],
 [data-screen="settings"] input[type="number"],
+[data-screen="settings"] input[type="file"],
+[data-screen="settings"] textarea,
 [data-screen="settings"] select {
+  width: 100%;
+  padding: 8px 10px;
   background: var(--m-bg-deep);
   border: 1px solid var(--m-border);
   color: var(--m-text);
   font: 500 12.5px var(--m-font-mono);
   border-radius: var(--m-radius-md);
-  padding: 8px 10px;
   outline: none;
+  box-sizing: border-box;
+}
+
+[data-screen="settings"] input::placeholder,
+[data-screen="settings"] textarea::placeholder {
+  color: var(--m-text-ghost);
 }
 
 [data-screen="settings"] input:focus,
+[data-screen="settings"] textarea:focus,
 [data-screen="settings"] select:focus {
   border-color: var(--m-green-500);
   box-shadow: 0 0 0 3px rgba(0, 255, 65, 0.08);
 }
 
-/* Status message boxes */
+[data-screen="settings"] textarea {
+  resize: vertical;
+  min-height: 90px;
+  line-height: 1.55;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+[data-screen="settings"] .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--m-border);
+  border-radius: var(--m-radius-md);
+  background: var(--m-bg-deep);
+  color: var(--m-text);
+  font: 500 11px var(--m-font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+
+[data-screen="settings"] .btn:hover {
+  color: var(--m-green-500);
+  border-color: var(--m-green-500);
+}
+
+[data-screen="settings"] .btn.primary {
+  background: rgba(0, 255, 65, 0.08);
+  color: var(--m-green-500);
+  border-color: var(--m-green-500);
+}
+
+[data-screen="settings"] .btn.danger {
+  color: #ff5fa2;
+  border-color: rgba(255, 95, 162, 0.4);
+}
+
+[data-screen="settings"] .btn.danger:hover {
+  background: rgba(255, 95, 162, 0.06);
+  border-color: #ff5fa2;
+}
+
+[data-screen="settings"] .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+[data-screen="settings"] .btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ── Chips ───────────────────────────────────────────────────────────────── */
+
+[data-screen="settings"] .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+[data-screen="settings"] .chip {
+  padding: 4px 10px;
+  border: 1px solid var(--m-border);
+  border-radius: 9999px;
+  font: 500 11px var(--m-font-mono);
+  color: var(--m-text-muted);
+  cursor: pointer;
+  background: var(--m-bg-deep);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+[data-screen="settings"] .chip:hover {
+  color: var(--m-text);
+}
+
+[data-screen="settings"] .chip.on {
+  color: var(--m-green-500);
+  border-color: var(--m-green-500);
+  background: rgba(0, 255, 65, 0.08);
+}
+
+[data-screen="settings"] .chip .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+[data-screen="settings"] .chip .dot.ok {
+  background: var(--m-green-500);
+  box-shadow: 0 0 4px var(--m-green-500);
+}
+
+/* ── Status messages ─────────────────────────────────────────────────────── */
+
 [data-screen="settings"] .message-success {
   background: rgba(0, 255, 65, 0.08);
   border: 1px solid rgba(0, 255, 65, 0.3);
@@ -63,7 +359,6 @@
   font: 500 12px var(--m-font-mono);
 }
 
-/* Warning boxes */
 [data-screen="settings"] .warning-box {
   background: rgba(255, 179, 71, 0.08);
   border: 1px solid rgba(255, 179, 71, 0.3);
@@ -73,9 +368,153 @@
   font: 500 12px var(--m-font-mono);
 }
 
-/* Custom endpoint section */
-[data-screen="settings"] .custom-endpoint input {
+[data-screen="settings"] .warning-box code {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+/* ── Save bar / footer ───────────────────────────────────────────────────── */
+
+[data-screen="settings"] .save-bar {
+  border-top: 1px solid var(--m-border);
+  background: var(--m-sidebar);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 24px;
+  height: 48px;
+  font: 500 11px var(--m-font-mono);
+  color: var(--m-text-faint);
+  letter-spacing: 0.14em;
+  flex-shrink: 0;
+}
+
+[data-screen="settings"] .save-bar a {
+  color: var(--m-green-500);
+  text-decoration: none;
+  transition: color 0.12s;
+}
+
+[data-screen="settings"] .save-bar a:hover {
+  color: var(--m-green-400, #3fff6d);
+}
+
+[data-screen="settings"] .save-bar .spacer {
+  flex: 1;
+}
+
+/* ── Mini table ──────────────────────────────────────────────────────────── */
+
+[data-screen="settings"] .mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 500 12px var(--m-font-mono);
+}
+
+[data-screen="settings"] .mini-table th {
+  text-align: left;
+  padding: 8px 10px;
+  font: 600 10px var(--m-font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--m-text-faint);
+  border-bottom: 1px solid var(--m-border-subtle);
+}
+
+[data-screen="settings"] .mini-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--m-border-subtle);
+  color: var(--m-text);
+}
+
+[data-screen="settings"] .mini-table tr:last-child td {
+  border-bottom: none;
+}
+
+[data-screen="settings"] .mini-table .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 8px;
+  vertical-align: 1px;
+}
+
+[data-screen="settings"] .mini-table .dot.ok {
+  background: var(--m-green-500);
+  box-shadow: 0 0 6px var(--m-green-500);
+}
+
+/* ── Space utilities ─────────────────────────────────────────────────────── */
+
+[data-screen="settings"] .space-y-4 {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+[data-screen="settings"] .space-y-5 {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+[data-screen="settings"] .space-y-1\.5 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+/* ── Text utilities ──────────────────────────────────────────────────────── */
+
+[data-screen="settings"] .text-xs {
+  font-size: 11px;
+}
+
+[data-screen="settings"] .text-sm {
+  font-size: 13px;
+}
+
+[data-screen="settings"] .font-semibold {
+  font-weight: 600;
+}
+
+[data-screen="settings"] .font-medium {
+  font-weight: 500;
+}
+
+[data-screen="settings"] .uppercase {
+  text-transform: uppercase;
+}
+
+[data-screen="settings"] .tracking-wider {
+  letter-spacing: 0.18em;
+}
+
+[data-screen="settings"] .mb-1 {
+  margin-bottom: 0.25rem;
+}
+
+[data-screen="settings"] .mb-2 {
+  margin-bottom: 0.5rem;
+}
+
+[data-screen="settings"] .mb-3 {
+  margin-bottom: 0.75rem;
+}
+
+/* ── Dialog close button override ────────────────────────────────────────── */
+
+[data-screen="settings"] button[aria-label="Close"] {
+  color: var(--m-text-faint);
   background: transparent;
   border: none;
-  padding: 0;
+  cursor: pointer;
+  padding: 4px;
+  transition: color 0.12s;
+}
+
+[data-screen="settings"] button[aria-label="Close"]:hover {
+  color: var(--m-text);
 }
