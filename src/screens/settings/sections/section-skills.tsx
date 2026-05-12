@@ -1,29 +1,30 @@
 /**
- * section-skills.tsx — Skills settings (P4).
+ * section-skills.tsx — Skills settings summary + config.
  *
- * Config rows go through the settings store / saver.
- * Installed skills table uses react-query; toggle calls toggleSkill() directly
- * with toast feedback + query invalidation.
+ * Summary card: enabled count, source paths, top categories.
+ * Full skill management is at /skills.
+ * Config rows: external dirs, template vars, inline shell, timeout.
  */
 
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { Toggle, NumberSlider } from '../components/controls'
 import { useSettingsStore } from '@/stores/settings-store'
-import { listSkills, toggleSkill } from '@/server/hermes-api'
-import { toast } from '@/components/ui/toast'
+import { listSkills } from '@/server/hermes-api'
 
 type SkillEntry = {
   name: string
   description?: string
   enabled?: boolean
+  category?: string
   [key: string]: unknown
 }
 
 export default function SectionSkills() {
   const { draft, set } = useSettingsStore()
-  const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
   // Skill sources
   const externalDirs = (draft['config.skills.external_dirs'] as string[] | string | undefined) ?? []
@@ -45,23 +46,33 @@ export default function SectionSkills() {
     set('config.skills.external_dirs', dirs)
   }
 
-  const { data: skillsRaw, isLoading } = useQuery({
+  const { data: skillsRaw, isLoading, isError } = useQuery({
     queryKey: ['skills-list'],
     queryFn: listSkills,
     staleTime: 30_000,
+    retry: 1,
   })
 
   const skills = (Array.isArray(skillsRaw) ? skillsRaw : []) as Array<SkillEntry>
+  const notDetected = isError || (!isLoading && skills.length === 0)
+  const enabledCount = skills.filter(s => s.enabled).length
+  const totalCount = skills.length
 
-  async function handleToggleSkill(name: string, currentEnabled: boolean) {
-    try {
-      await toggleSkill(name, !currentEnabled)
-      toast(`Skill "${name}" ${!currentEnabled ? 'enabled' : 'disabled'}`, { type: 'success' })
-      await queryClient.invalidateQueries({ queryKey: ['skills-list'] })
-    } catch {
-      toast(`Failed to toggle skill "${name}"`, { type: 'error' })
-    }
+  // External dirs summary
+  const externalDirsArr = Array.isArray(externalDirs) ? externalDirs : externalDirs ? [externalDirs] : []
+  const extSummary = externalDirsArr.length > 0
+    ? `${externalDirsArr.length} ${externalDirsArr.length === 1 ? 'dir' : 'dirs'} · ${externalDirsArr[0]}`
+    : 'None configured'
+
+  // Top categories (up to 5)
+  const categoryMap: Record<string, number> = {}
+  for (const skill of skills) {
+    const cat = skill.category ?? 'Uncategorized'
+    categoryMap[cat] = (categoryMap[cat] ?? 0) + 1
   }
+  const topCategories = Object.entries(categoryMap)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
 
   return (
     <div>
@@ -73,16 +84,67 @@ export default function SectionSkills() {
         <div className="meta">Section · <b>skills</b></div>
       </div>
 
+      <SettingCard title="Status">
+        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--m-text)' }}>
+                ⭐ Skills
+              </span>
+              {isLoading ? (
+                <span style={{ fontSize: '11px', color: 'var(--m-text-faint)', fontFamily: 'var(--m-font-mono)' }}>loading…</span>
+              ) : notDetected ? (
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-danger, #e05)' }}>⚠ Not detected</span>
+              ) : (
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-accent)' }}>
+                  ✓ {enabledCount}/{totalCount} enabled
+                </span>
+              )}
+            </div>
+            <button
+              className="btn"
+              style={{ fontSize: '11px', padding: '4px 10px' }}
+              onClick={() => void navigate({ to: '/skills' })}
+            >
+              Open Manager →
+            </button>
+          </div>
+
+          <div className="kv" style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-text-faint)' }}>
+            <div>
+              <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>Built-in · </span>
+              <span>~/.hermes/skills</span>
+            </div>
+            <div>
+              <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>External · </span>
+              <span>{extSummary}</span>
+            </div>
+          </div>
+
+          {topCategories.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px' }}>
+              {topCategories.map(([cat, count]) => (
+                <span
+                  key={cat}
+                  style={{
+                    fontSize: '11px',
+                    fontFamily: 'var(--m-font-mono)',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    background: 'var(--m-bg-alt, var(--m-surface))',
+                    border: '1px solid var(--m-border)',
+                    color: 'var(--m-text-faint)',
+                  }}
+                >
+                  {cat} · {count}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </SettingCard>
+
       <SettingCard title="Skill sources">
-        <SettingRow label="Built-in skills" pill={{ t: 'read-only' }} desc="Hardcoded skill directory">
-          <input
-            type="text"
-            className="text-input"
-            value="~/.hermes/skills"
-            readOnly
-            disabled
-          />
-        </SettingRow>
         <SettingRow label="External skill dirs" desc="One path per line (e.g. ~/.agents/skills, /shared/team-skills)">
           <textarea
             className="text-input"
@@ -110,44 +172,6 @@ export default function SectionSkills() {
             onChange={(v) => set('config.skills.inline_shell_timeout', v)}
           />
         </SettingRow>
-      </SettingCard>
-
-      <SettingCard title="Installed skills">
-        {isLoading ? (
-          <div style={{ padding: '16px', color: 'var(--m-text-faint)', font: '12px var(--m-font-mono)' }}>
-            Loading…
-          </div>
-        ) : skills.length === 0 ? (
-          <div style={{ padding: '16px', color: 'var(--m-text-faint)', font: '12px var(--m-font-mono)' }}>
-            No skills found.
-          </div>
-        ) : (
-          <div className="mini-table-wrap">
-            <table className="mini-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Description</th>
-                  <th>Enabled</th>
-                </tr>
-              </thead>
-              <tbody>
-                {skills.map((skill) => (
-                  <tr key={skill.name}>
-                    <td style={{ font: '12px var(--m-font-mono)' }}>{skill.name}</td>
-                    <td style={{ color: 'var(--m-text-faint)' }}>{skill.description ?? '—'}</td>
-                    <td>
-                      <Toggle
-                        on={skill.enabled ?? false}
-                        set={() => void handleToggleSkill(skill.name, skill.enabled ?? false)}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </SettingCard>
     </div>
   )
