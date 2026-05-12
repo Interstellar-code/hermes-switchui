@@ -359,8 +359,15 @@ function HermesContent() {
     )
   }
 
+  const cardStyle: React.CSSProperties = {
+    backgroundColor: 'var(--m-panel)',
+    border: '1px solid var(--m-border)',
+    color: 'var(--m-text)',
+  }
+  const mutedStyle: React.CSSProperties = { color: 'var(--m-text-faint)' }
+
   return (
-    <div className="section-stack">
+    <div className="space-y-5">
       {msg && (
         <div
           className={cn(
@@ -372,121 +379,146 @@ function HermesContent() {
       )}
 
       {/* Provider Selection */}
-      <div className="card">
-        <h3><span className="ic">◈</span> Provider <span className="sub">Select AI backend</span></h3>
-        <div style={{ padding: '14px 18px' }}>
-          <div className="providers-grid">
-            {PROVIDER_CARDS.map((p) => {
-              const isActive = activeProvider === p.id
-              const localOnline =
-                localDiscovery?.providers.find((lp) => lp.id === p.id)?.online ===
-                true
-              const verified =
-                (p.authType === 'none' && localOnline) ||
-                (p.authType === 'api_key' &&
-                  !!p.envKey &&
-                  !!configuredKeys[p.envKey])
-              const missingKey = p.authType === 'api_key' && !verified && p.id !== 'custom'
-              const hasKey =
-                p.authType === 'none' || p.authType === 'oauth' || verified || p.id === 'custom'
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => {
-                    if (hasKey) selectProvider(p.id)
-                  }}
-                  className={cn(
-                    'provider-tile',
-                    isActive && 'on',
-                    missingKey && 'dim',
-                  )}
-                >
-                  <div className="tile-top">
-                    <ProviderLogo provider={p.id} size={28} />
-                    {isActive ? (
-                      <span className="dot ok" />
-                    ) : missingKey ? (
-                      <span className="dot" style={{ background: '#ff5fa2' }} />
-                    ) : verified ? (
-                      <span className="dot" style={{ background: 'var(--m-green-500)', opacity: 0.5 }} />
-                    ) : null}
-                  </div>
-                  <span className="tile-name">{p.name}</span>
-                  <span className="tile-sub">
-                    {(() => {
-                      const disc = localDiscovery?.providers.find((lp) => lp.id === p.id)
-                      if (disc?.online) return 'Detected'
-                      if (p.authType === 'oauth') return 'OAuth'
-                      if (p.authType === 'none') return 'Local'
-                      return hasKey ? 'Key set' : 'Key required'
-                    })()}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+      <div>
+        <p
+          className="mb-1 text-xs font-semibold uppercase tracking-wider"
+          style={mutedStyle}
+        >
+          Provider
+        </p>
+        <p className="mb-3 text-[11px]" style={mutedStyle}>
+          Select your AI provider. OAuth providers authenticate via browser.
+        </p>
+        <div className="chips">
+          {PROVIDER_CARDS.map((p) => {
+            const isActive = activeProvider === p.id
+            const localOnline =
+              localDiscovery?.providers.find((lp) => lp.id === p.id)?.online ===
+              true
+            // verified = truly available right now. OAuth status isn't tracked
+            // here, so OAuth providers stay neutral until an actual session
+            // check is wired. Local providers require live discovery hit.
+            const verified =
+              (p.authType === 'none' && localOnline) ||
+              (p.authType === 'api_key' &&
+                !!p.envKey &&
+                !!configuredKeys[p.envKey])
+            const missingKey = p.authType === 'api_key' && !verified && p.id !== 'custom'
+            // hasKey gates click — keep OAuth + local clickable (existing
+            // behaviour) so users can still authenticate via the card.
+            const hasKey =
+              p.authType === 'none' || p.authType === 'oauth' || verified || p.id === 'custom'
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => {
+                  if (hasKey) selectProvider(p.id)
+                }}
+                className={cn(
+                  'chip',
+                  isActive && 'on',
+                  missingKey && 'opacity-60',
+                )}
+                style={cardStyle}
+              >
+                <div className="flex w-full items-center justify-between">
+                  <ProviderLogo provider={p.id} size={32} />
+                  {/* Single-dot precedence: active > missing-key > verified > none */}
+                  {isActive ? (
+                    <span className="dot ok" />
+                  ) : missingKey ? (
+                    <span className="dot" style={{ background: '#ff5fa2' }} />
+                  ) : verified ? (
+                    <span className="dot" style={{ background: 'var(--m-green-500)', opacity: 0.4 }} />
+                  ) : null}
+                </div>
+                <span style={{ fontSize: '11px', fontWeight: 500 }}>{p.name}</span>
+                <span className="text-[9px]" style={mutedStyle}>
+                  {(() => {
+                    const disc = localDiscovery?.providers.find((lp) => lp.id === p.id)
+                    if (disc?.online) return '🟢 Detected'
+                    if (p.authType === 'oauth') return 'OAuth'
+                    if (p.authType === 'none') return 'Local'
+                    return hasKey ? 'Key set' : 'Key required'
+                  })()}
+                </span>
+              </button>
+            )
+          })}
         </div>
       </div>
 
       {/* Model Selection for active provider */}
       {activeProvider && (
-        <div className="card">
-          <h3><span className="ic">◈</span> Model</h3>
-          <div style={{ padding: '14px 18px' }}>
-            <div className="model-chips">
-              {(() => {
-                if (availableModels.length > 0) return availableModels
-                const discovered = localDiscovery?.models
-                  .filter((m) => m.provider === activeProvider)
-                  .map((m) => m.id)
-                if (discovered && discovered.length > 0) return discovered
-                return PROVIDER_CARDS.find((p) => p.id === activeProvider)?.models || []
-              })().map((model) => (
-                <button
-                  key={model}
-                  type="button"
-                  onClick={() => selectProvider(activeProvider, model)}
-                  className={cn('model-chip', activeModel === model && 'on')}
-                >
-                  {model}
-                </button>
-              ))}
-            </div>
+        <div>
+          <p
+            className="mb-1 text-xs font-semibold uppercase tracking-wider"
+            style={mutedStyle}
+          >
+            Model
+          </p>
+          <div className="chips">
+            {(() => {
+              if (availableModels.length > 0) return availableModels
+              // Use auto-discovered models for local providers
+              const discovered = localDiscovery?.models
+                .filter((m) => m.provider === activeProvider)
+                .map((m) => m.id)
+              if (discovered && discovered.length > 0) return discovered
+              return PROVIDER_CARDS.find((p) => p.id === activeProvider)?.models || []
+            })().map((model) => (
+              <button
+                key={model}
+                type="button"
+                onClick={() => selectProvider(activeProvider, model)}
+                className={cn(
+                  'chip',
+                  activeModel === model && 'on',
+                )}
+                style={cardStyle}
+              >
+                {model}
+              </button>
+            ))}
           </div>
         </div>
       )}
 
       {/* Custom OpenAI-compatible endpoint fields — Base URL only; API key lives in API Keys section */}
       {activeProvider === 'custom' && (
-        <div className="card">
-          <h3><span className="ic">◈</span> Custom Endpoint</h3>
-          <div>
+        <div>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wider" style={mutedStyle}>
+            Custom Endpoint
+          </p>
+          <div className="space-y-1.5">
             {(() => {
               const isEditing = editingKey === 'custom_base_url'
               const hasValue = !!customBaseUrl
               return (
                 <div className="row">
-                  <div className="lbl">
-                    <p>Base URL</p>
-                    {isEditing ? (
-                      <input
-                        type="url"
-                        value={customBaseUrl}
-                        onChange={(e) => setCustomBaseUrl(e.target.value)}
-                        placeholder="http://127.0.0.1:38238/v1"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            save({ config: { model: { provider: 'manifest' }, providers: { manifest: { type: 'openai', base_url: customBaseUrl, key_env: 'CUSTOM_API_KEY' } } } })
-                              .then(() => setEditingKey(null))
-                          }
-                          if (e.key === 'Escape') setEditingKey(null)
-                        }}
-                      />
-                    ) : (
-                      <span className="desc">{hasValue ? customBaseUrl : 'Not configured'}</span>
-                    )}
+                  <div className="flex-1 min-w-0">
+                    <div>Base URL</div>
+                    <div style={mutedStyle}>
+                      {isEditing ? (
+                        <input
+                          type="url"
+                          value={customBaseUrl}
+                          onChange={(e) => setCustomBaseUrl(e.target.value)}
+                          placeholder="http://127.0.0.1:38238/v1"
+                          className="w-full"
+                          style={{ color: 'var(--m-text)' }}
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              save({ config: { model: { provider: 'manifest' }, providers: { manifest: { type: 'openai', base_url: customBaseUrl, key_env: 'CUSTOM_API_KEY' } } } })
+                                .then(() => setEditingKey(null))
+                            }
+                            if (e.key === 'Escape') setEditingKey(null)
+                          }}
+                        />
+                      ) : hasValue ? customBaseUrl : 'Not configured'}
+                    </div>
                   </div>
                   <div className="ctl">
                     {isEditing ? (
@@ -512,15 +544,20 @@ function HermesContent() {
         if (!disc || !disc.needsRestart) return null
         return (
           <div className="warning-box">
-            Gateway restart needed to use {disc.name}. Run <code>hermes gateway restart</code> in your terminal.
+            ⚠️ Gateway restart needed to use {disc.name}. Run <code className="rounded bg-black/30 px-1">hermes gateway restart</code> in your terminal.
           </div>
         )
       })()}
 
       {/* API Keys */}
-      <div className="card">
-        <h3><span className="ic">◈</span> API Keys</h3>
-        <div>
+      <div>
+        <p
+          className="mb-1 text-xs font-semibold uppercase tracking-wider"
+          style={mutedStyle}
+        >
+          API Keys
+        </p>
+        <div className="space-y-1.5">
           {PROVIDER_CARDS.filter((p) => p.envKey).map((p) => {
             const key = p.envKey!
             const hasKey = !!configuredKeys[key]
@@ -529,34 +566,43 @@ function HermesContent() {
               <div
                 key={p.id}
                 className="row"
+                style={cardStyle}
               >
-                <div className="lbl">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                    <ProviderLogo provider={p.id} size={20} />
-                    <p>{p.name}</p>
+                <div>
+                  <ProviderLogo
+                    provider={p.id}
+                    size={28}
+                    className="rounded-md"
+                  />
+                  <div>{p.name}</div>
+                  <div style={mutedStyle}>
+                    {isEditing ? (
+                      <input
+                        type="password"
+                        value={keyInput}
+                        onChange={(e) => setKeyInput(e.target.value)}
+                        placeholder={`Paste ${key}`}
+                        className="w-full"
+                        style={{ color: 'var(--m-text)' }}
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && keyInput) {
+                            save({ env: { [key]: keyInput } })
+                            setEditingKey(null)
+                            setKeyInput('')
+                          }
+                          if (e.key === 'Escape') {
+                            setEditingKey(null)
+                            setKeyInput('')
+                          }
+                        }}
+                      />
+                    ) : hasKey ? (
+                      configuredKeys[key]
+                    ) : (
+                      'Not configured'
+                    )}
                   </div>
-                  {isEditing ? (
-                    <input
-                      type="password"
-                      value={keyInput}
-                      onChange={(e) => setKeyInput(e.target.value)}
-                      placeholder={`Paste ${key}`}
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && keyInput) {
-                          save({ env: { [key]: keyInput } })
-                          setEditingKey(null)
-                          setKeyInput('')
-                        }
-                        if (e.key === 'Escape') {
-                          setEditingKey(null)
-                          setKeyInput('')
-                        }
-                      }}
-                    />
-                  ) : (
-                    <span className="desc">{hasKey ? configuredKeys[key] : 'Not configured'}</span>
-                  )}
                 </div>
                 <div className="ctl row-end">
                   {isEditing ? (
@@ -605,51 +651,61 @@ function HermesContent() {
       </div>
 
       {/* Memory */}
-      <div className="card">
-        <h3><span className="ic">◈</span> Memory</h3>
-        <div className="row">
-          <div className="lbl">
-            <p>Memory</p>
-            <p className="desc">Store &amp; recall memories across sessions</p>
-          </div>
-          <div className="ctl">
-            <Switch
-              checked={memEnabled}
-              onCheckedChange={(c) => {
-                setMemEnabled(c)
-                save({ config: { memory: { memory_enabled: c } } })
-              }}
-            />
-          </div>
-        </div>
-        <div className="row">
-          <div className="lbl">
-            <p>User Profile</p>
-            <p className="desc">Remember preferences &amp; context</p>
-          </div>
-          <div className="ctl">
-            <Switch
-              checked={userProfileEnabled}
-              onCheckedChange={(c) => {
-                setUserProfileEnabled(c)
-                save({ config: { memory: { user_profile_enabled: c } } })
-              }}
-            />
+      <div>
+        <p style={mutedStyle}>
+          Memory
+        </p>
+        <div className="space-y-1.5">
+          <div className="card">
+            <div className="row">
+              <div className="lbl">
+                <p>Memory</p>
+                <p className="desc">
+                  Store & recall memories across sessions
+                </p>
+              </div>
+              <div className="ctl">
+                <Switch
+                  checked={memEnabled}
+                  onCheckedChange={(c) => {
+                    setMemEnabled(c)
+                    save({ config: { memory: { memory_enabled: c } } })
+                  }}
+                />
+              </div>
+            </div>
+            <div className="row">
+              <div className="lbl">
+                <p>User Profile</p>
+                <p className="desc">
+                  Remember preferences & context
+                </p>
+              </div>
+              <div className="ctl">
+                <Switch
+                  checked={userProfileEnabled}
+                  onCheckedChange={(c) => {
+                    setUserProfileEnabled(c)
+                    save({ config: { memory: { user_profile_enabled: c } } })
+                  }}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Runtime Info */}
       <div className="card">
-        <h3><span className="ic">◈</span> Runtime</h3>
-        <table className="mini-table">
+        <h3><span className="dot ok" /> Runtime</h3>
+        <div className="mini-table">
           <tbody>
             <tr>
-              <td style={{ color: 'var(--m-text-faint)' }}>Model</td>
+              <td style={mutedStyle}>Model</td>
               <td>{activeModel || '—'}</td>
             </tr>
             <tr>
-              <td style={{ color: 'var(--m-text-faint)' }}>Provider</td>
+              <td style={mutedStyle}>Provider</td>
               <td>
                 {PROVIDER_CARDS.find((p) => p.id === activeProvider)?.name ||
                   activeProvider ||
@@ -657,11 +713,11 @@ function HermesContent() {
               </td>
             </tr>
             <tr>
-              <td style={{ color: 'var(--m-text-faint)' }}>Config</td>
+              <td style={mutedStyle}>Config</td>
               <td>~/.hermes/config.yaml</td>
             </tr>
           </tbody>
-        </table>
+        </div>
       </div>
     </div>
   )
@@ -732,19 +788,19 @@ function _ProfileContent() {
   const errorId = 'profile-name-error'
 
   return (
-    <div className="section-stack">
+    <div className="space-y-4">
       <SectionHeader
         title="Profile"
         description="Your display identity in chat."
       />
       <div className={SETTINGS_CARD_CLASS}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 18px' }}>
+        <div className="flex items-center gap-3">
           <UserAvatar size={44} src={cs.avatarDataUrl} alt={displayName} />
           <div>
-            <p style={{ fontFamily: 'var(--m-font-mono)', fontWeight: 600, fontSize: '13px', color: 'var(--m-text-strong)', margin: 0 }}>
+            <p className="text-sm font-medium text-primary-900 dark:text-neutral-100">
               {displayName}
             </p>
-            <p style={{ fontFamily: 'var(--m-font-mono)', fontSize: '11px', color: 'var(--m-text-faint)', margin: 0 }}>
+            <p className="text-xs text-primary-500 dark:text-neutral-400">
               No email connected
             </p>
           </div>
@@ -752,11 +808,12 @@ function _ProfileContent() {
       </div>
       <div className={SETTINGS_CARD_CLASS}>
         <Row label="Display name" description="Shown in chat and sidebar">
-          <div>
+          <div className="w-full max-w-xs">
             <Input
               value={cs.displayName}
               onChange={(e) => handleNameChange(e.target.value)}
               placeholder="User"
+              className="h-8 w-full rounded-lg border-primary-200 text-sm"
               maxLength={50}
               aria-label="Display name"
               aria-invalid={!!nameError}
@@ -765,7 +822,7 @@ function _ProfileContent() {
             {nameError && (
               <p
                 id={errorId}
-                className="mt-1 text-xs message-error" style={{ padding: '4px 8px', marginTop: '4px' }}
+                className="mt-1 text-xs text-red-600"
                 role="alert"
               >
                 {nameError}
@@ -774,15 +831,15 @@ function _ProfileContent() {
           </div>
         </Row>
         <Row label="Avatar">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <label>
+          <div className="flex items-center gap-2">
+            <label className="block">
               <input
                 type="file"
                 accept="image/*"
                 onChange={handleAvatarUpload}
                 disabled={processing}
                 aria-label="Upload profile picture"
-                className="btn"
+                className="block max-w-[13rem] cursor-pointer text-xs text-primary-700 dark:text-neutral-300 file:mr-2 file:cursor-pointer file:rounded-lg file:border file:border-primary-200 file:bg-primary-100 file:px-2.5 file:py-1.5 file:text-xs file:font-medium file:text-primary-900 file:transition-colors hover:file:bg-primary-200 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </label>
             <Button
@@ -790,13 +847,13 @@ function _ProfileContent() {
               size="sm"
               onClick={() => updateCS({ avatarDataUrl: null })}
               disabled={!cs.avatarDataUrl || processing}
-              className="btn"
+              className="h-8 rounded-lg border-primary-200 px-3"
             >
               Remove
             </Button>
           </div>
           {profileError && (
-            <p className="text-xs message-error" style={{ padding: '4px 8px', marginTop: '4px' }} role="alert">
+            <p className="text-xs text-red-600" role="alert">
               {profileError}
             </p>
           )}
@@ -833,45 +890,44 @@ function AppearanceContent() {
   }
 
   return (
-    <div className="section-stack">
+    <div className="space-y-4">
       <SectionHeader
         title="Appearance"
         description="Theme and color accents."
       />
       <div className={SETTINGS_CARD_CLASS}>
-        <h3><span className="ic">◈</span> Theme Mode</h3>
-        <div className="row">
-          <div className="lbl">
-            <p>Mode</p>
-            <span className="desc">Light, dark, or follow system preference.</span>
-          </div>
-          <div className="ctl">
-            <div style={{ display: 'flex', gap: '4px' }}>
-              {[
-                { value: 'light', label: 'Light', icon: Sun01Icon },
-                { value: 'dark', label: 'Dark', icon: Moon01Icon },
-                { value: 'system', label: 'System', icon: ComputerIcon },
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => handleThemeChange(option.value)}
-                  className={cn('btn', settings.theme === option.value && 'primary')}
-                >
-                  <HugeiconsIcon icon={option.icon} size={14} strokeWidth={1.5} />
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary-500">
+          Theme Mode
+        </p>
+        <div className="inline-flex rounded-lg border border-primary-200 p-1">
+          {[
+            { value: 'light', label: 'Light', icon: Sun01Icon },
+            { value: 'dark', label: 'Dark', icon: Moon01Icon },
+            { value: 'system', label: 'System', icon: ComputerIcon },
+          ].map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => handleThemeChange(option.value)}
+              className={cn(
+                'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors',
+                settings.theme === option.value
+                  ? 'bg-accent-500 text-white'
+                  : 'text-primary-600 hover:bg-primary-100',
+              )}
+            >
+              <HugeiconsIcon icon={option.icon} size={16} strokeWidth={1.5} />
+              {option.label}
+            </button>
+          ))}
         </div>
       </div>
       {/* Accent color removed — themes control accent */}
       <div className={SETTINGS_CARD_CLASS}>
-        <h3><span className="ic">◈</span> Theme Family</h3>
-        <div style={{ padding: '14px 18px' }}>
-          <EnterpriseThemePicker />
-        </div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary-500">
+          Matrix Theme
+        </p>
+        <EnterpriseThemePicker />
       </div>
       <div className={SETTINGS_CARD_CLASS}>
         <Row
@@ -1056,33 +1112,36 @@ function EnterpriseThemePicker() {
   ).filter(Boolean) as typeof ENTERPRISE_THEMES
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-      <div className="row" style={{ borderBottom: '1px solid var(--m-border-subtle)' }}>
-        <div className="lbl">
-          <p>{currentMode === 'dark' ? 'Dark mode' : 'Light mode'}</p>
-          <span className="desc">Toggle between light and dark variants.</span>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between rounded-lg border border-primary-200 px-3 py-2">
+        <div>
+          <p className="text-xs font-semibold text-primary-900 dark:text-neutral-100">
+            {currentMode === 'dark' ? 'Dark mode' : 'Light mode'}
+          </p>
+          <p className="text-[11px] text-primary-500 dark:text-neutral-400">
+            Toggle the current theme family between paired light and dark
+            variants.
+          </p>
         </div>
-        <div className="ctl row-end">
-          <button
-            type="button"
-            onClick={toggleEnterpriseThemeMode}
-            className="btn"
-            aria-label={
-              currentMode === 'dark'
-                ? 'Switch matrix theme to light mode'
-                : 'Switch matrix theme to dark mode'
-            }
-          >
-            <HugeiconsIcon
-              icon={currentMode === 'dark' ? Sun01Icon : Moon01Icon}
-              size={14}
-              strokeWidth={1.5}
-            />
-            {currentMode === 'dark' ? 'Light' : 'Dark'}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={toggleEnterpriseThemeMode}
+          className="inline-flex items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-medium text-primary-900 transition-colors hover:bg-primary-100"
+          aria-label={
+            currentMode === 'dark'
+              ? 'Switch matrix theme to light mode'
+              : 'Switch matrix theme to dark mode'
+          }
+        >
+          <HugeiconsIcon
+            icon={currentMode === 'dark' ? Sun01Icon : Moon01Icon}
+            size={16}
+            strokeWidth={1.5}
+          />
+          {currentMode === 'dark' ? 'Light' : 'Dark'}
+        </button>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+      <div className="grid w-full grid-cols-2 gap-2">
         {visibleThemes.map((t) => {
           const isActive = current === t.id
           return (
@@ -1090,32 +1149,26 @@ function EnterpriseThemePicker() {
               key={t.id}
               type="button"
               onClick={() => applyEnterpriseTheme(t.id)}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '6px',
-                borderRadius: 'var(--m-radius-md)',
-                border: isActive ? '1px solid var(--m-green-500)' : '1px solid var(--m-border)',
-                background: isActive ? 'rgba(0,255,65,0.06)' : 'var(--m-bg-deep)',
-                padding: '8px',
-                textAlign: 'left',
-                cursor: 'pointer',
-                transition: 'border-color 0.12s, background 0.12s',
-              }}
+              className={cn(
+                'flex flex-col gap-1.5 rounded-lg border p-2 text-left transition-colors',
+                isActive
+                  ? 'border-accent-500 bg-accent-50 text-accent-700'
+                  : 'border-primary-200 bg-primary-50/80 hover:bg-primary-100',
+              )}
             >
               <ThemeSwatch colors={t.preview} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ fontSize: '11px' }}>{t.icon}</span>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--m-text)', fontFamily: 'var(--m-font-mono)' }}>
+              <div className="flex items-center gap-1">
+                <span className="text-xs">{t.icon}</span>
+                <span className="text-xs font-semibold text-primary-900 dark:text-neutral-100">
                   {t.label}
                 </span>
                 {isActive && (
-                  <span style={{ marginLeft: 'auto', fontSize: '9px', fontWeight: 700, color: 'var(--m-green-500)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                  <span className="ml-auto text-[9px] font-bold text-accent-600 uppercase tracking-wide">
                     Active
                   </span>
                 )}
               </div>
-              <p style={{ fontSize: '10px', color: 'var(--m-text-faint)', lineHeight: 1.4, margin: 0 }}>
+              <p className="text-[10px] text-primary-500 dark:text-neutral-400 leading-tight">
                 {t.desc}
               </p>
             </button>
@@ -1159,7 +1212,7 @@ function _LoaderContent() {
         preset={p}
         size={16}
         speed={120}
-        color="var(--m-text-faint)"
+        className="text-primary-500"
       />
     ) : (
       <ThreeDotsSpinner />
@@ -1167,19 +1220,27 @@ function _LoaderContent() {
   }
   return (
     <div>
-      <div className="loader-grid">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary-500">
+        Loading animation
+      </p>
+      <div className="grid grid-cols-4 gap-2">
         {styles.map((o) => (
           <button
             key={o.value}
             type="button"
             onClick={() => updateCS({ loaderStyle: o.value })}
-            className={cn('loader-chip', cs.loaderStyle === o.value && 'on')}
+            className={cn(
+              'flex min-h-14 flex-col items-center justify-center gap-1.5 rounded-lg border px-1.5 py-1.5 transition-colors',
+              cs.loaderStyle === o.value
+                ? 'border-accent-500 bg-accent-50 text-accent-700'
+                : 'border-primary-200 bg-primary-50/80 text-primary-700 hover:bg-primary-100',
+            )}
             aria-pressed={cs.loaderStyle === o.value}
           >
-            <span style={{ display: 'flex', height: '16px', alignItems: 'center', justifyContent: 'center' }}>
+            <span className="flex h-4 items-center justify-center">
               <Preview style={o.value} />
             </span>
-            <span>{o.label}</span>
+            <span className="text-[10px] font-medium leading-3">{o.label}</span>
           </button>
         ))}
       </div>
@@ -1190,7 +1251,7 @@ function _LoaderContent() {
 function ChatContent() {
   const { settings: cs, updateSettings: updateCS } = useChatSettingsStore()
   return (
-    <div className="section-stack">
+    <div className="space-y-4">
       <SectionHeader
         title="Chat"
         description="Message visibility and response loader style."
@@ -1256,6 +1317,7 @@ function ChatContent() {
                   | 'full',
               })
             }
+            className="h-8 rounded-md border border-primary-200 bg-primary-50 px-2 text-sm text-primary-900 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary-400"
             aria-label="Chat content width"
           >
             <option value="comfortable">Comfortable (900px)</option>
@@ -1286,7 +1348,7 @@ function ChatContent() {
 function NotificationsContent() {
   const { settings, updateSettings } = useSettings()
   return (
-    <div className="section-stack">
+    <div className="space-y-4">
       <SectionHeader
         title="Notifications"
         description="Simple alerts and threshold controls."
@@ -1300,7 +1362,7 @@ function NotificationsContent() {
           />
         </Row>
         <Row label="Usage threshold">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="flex w-full max-w-[14rem] items-center gap-2">
             <input
               type="range"
               min={50}
@@ -1309,13 +1371,14 @@ function NotificationsContent() {
               onChange={(e) =>
                 updateSettings({ usageThreshold: Number(e.target.value) })
               }
+              className="w-full accent-primary-900 dark:accent-primary-400 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={!settings.notificationsEnabled}
               aria-label={`Usage threshold: ${settings.usageThreshold} percent`}
               aria-valuemin={50}
               aria-valuemax={100}
               aria-valuenow={settings.usageThreshold}
             />
-            <span style={{ fontFamily: 'var(--m-font-mono)', fontSize: '12px', color: 'var(--m-text)', minWidth: '36px', textAlign: 'right' }}>
+            <span className="w-10 text-right text-sm tabular-nums text-primary-700 dark:text-neutral-300">
               {settings.usageThreshold}%
             </span>
           </div>
@@ -1360,19 +1423,20 @@ function _AdvancedContent() {
   const urlErrorId = 'claude-url-error'
 
   return (
-    <div className="section-stack">
+    <div className="space-y-4">
       <SectionHeader
         title="Advanced"
         description="Hermes Agent endpoint and connectivity."
       />
       <div className={SETTINGS_CARD_CLASS}>
         <Row label="Hermes Agent URL" description="Used for API requests from Studio">
-          <div>
+          <div className="w-full max-w-sm">
             <Input
               type="url"
               placeholder="http://127.0.0.1:8642"
               value={settings.claudeUrl}
               onChange={(e) => validateAndUpdateUrl(e.target.value)}
+              className="h-8 w-full rounded-lg border-primary-200 text-sm"
               aria-label="Hermes Agent URL"
               aria-invalid={!!urlError}
               aria-describedby={urlError ? urlErrorId : undefined}
@@ -1380,7 +1444,7 @@ function _AdvancedContent() {
             {urlError && (
               <p
                 id={urlErrorId}
-                className="mt-1 text-xs message-error" style={{ padding: '4px 8px', marginTop: '4px' }}
+                className="mt-1 text-xs text-red-600"
                 role="alert"
               >
                 {urlError}
@@ -1390,21 +1454,17 @@ function _AdvancedContent() {
         </Row>
         <Row label="Connection status">
           <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              borderRadius: '9999px',
-              border: '1px solid',
-              padding: '2px 8px',
-              fontSize: '11px',
-              fontWeight: 500,
-              fontFamily: 'var(--m-font-mono)',
-              ...(connectionStatus === 'connected' ? { borderColor: 'var(--m-green-500)', background: 'rgba(0,255,65,0.08)', color: 'var(--m-green-500)' } :
-                 connectionStatus === 'failed' ? { borderColor: 'rgba(255,95,162,0.4)', background: 'rgba(255,95,162,0.08)', color: '#ff5fa2' } :
-                 connectionStatus === 'testing' ? { borderColor: 'var(--m-border)', background: 'var(--m-bg-deep)', color: 'var(--m-text-muted)' } :
-                 { borderColor: 'var(--m-border)', background: 'var(--m-bg-deep)', color: 'var(--m-text-faint)' }),
-            }}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium',
+              connectionStatus === 'connected' &&
+                'border-green-500/35 bg-green-500/10 text-green-600',
+              connectionStatus === 'failed' &&
+                'border-red-500/35 bg-red-500/10 text-red-600',
+              connectionStatus === 'testing' &&
+                'border-accent-500/35 bg-accent-500/10 text-accent-600',
+              connectionStatus === 'idle' &&
+                'border-primary-300 bg-primary-100 text-primary-700',
+            )}
           >
             {connectionStatus === 'idle'
               ? 'Not tested'
@@ -1419,7 +1479,7 @@ function _AdvancedContent() {
             size="sm"
             onClick={() => void testConnection()}
             disabled={connectionStatus === 'testing' || !!urlError}
-            className="btn"
+            className="h-8 rounded-lg border-primary-200 px-3"
           >
             <HugeiconsIcon
               icon={CheckmarkCircle02Icon}
@@ -1451,12 +1511,12 @@ class SettingsErrorBoundary extends Component<
       return (
         <div className="flex h-full items-center justify-center p-8 text-center">
           <div>
-            <p className="mb-2 text-sm font-medium" style={{ color: '#ff5fa2' }}>
+            <p className="mb-2 text-sm font-medium text-red-500">
               Settings failed to load
             </p>
             <button
               onClick={() => this.setState({ error: null })}
-              className="text-xs underline" style={{ color: 'var(--m-green-500)' }}
+              className="text-xs text-primary-600 underline hover:text-primary-900"
             >
               Try again
             </button>
@@ -1500,7 +1560,7 @@ function AgentBehaviorContent() {
   }
 
   return (
-    <div className="section-stack">
+    <div className="space-y-4">
       <SectionHeader
         title="Agent Behavior"
         description="Execution limits and tool access."
@@ -1542,7 +1602,7 @@ function AgentBehaviorContent() {
           <select
             value={String(config.tool_use_enforcement || 'auto')}
             onChange={(e) => save('tool_use_enforcement', e.target.value)}
-            className="h-8 rounded-md px-2 text-sm outline-none"
+            className="h-8 rounded-lg border border-primary-200 bg-primary-50 px-2 text-sm text-primary-900 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
           >
             <option value="auto">Auto</option>
             <option value="required">Required</option>
@@ -1597,7 +1657,7 @@ function SmartRoutingContent() {
   }
 
   return (
-    <div className="section-stack">
+    <div className="space-y-4">
       <SectionHeader
         title="Smart Routing"
         description="Route simple queries to cheaper models."
@@ -1715,7 +1775,7 @@ function VoiceContent() {
   const ttsProvider = String(tts.provider || 'edge')
 
   return (
-    <div className="section-stack">
+    <div className="space-y-4">
       <SectionHeader
         title="Voice"
         description="Text-to-speech and speech-to-text."
@@ -1730,12 +1790,14 @@ function VoiceContent() {
         </div>
       )}
       <div className={SETTINGS_CARD_CLASS}>
-        <h3><span className="ic">◈</span> Text-to-Speech</h3>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary-500">
+          Text-to-Speech
+        </p>
         <Row label="TTS Provider">
           <select
             value={ttsProvider}
             onChange={(e) => saveTts('provider', e.target.value)}
-            className="h-8 rounded-md px-2 text-sm outline-none"
+            className="h-8 rounded-lg border border-primary-200 bg-primary-50 px-2 text-sm text-primary-900 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
           >
             <option value="edge">Edge TTS</option>
             <option value="elevenlabs">ElevenLabs</option>
@@ -1755,7 +1817,7 @@ function VoiceContent() {
                   voice: e.target.value,
                 })
               }
-              className="h-8 rounded-md px-2 text-sm outline-none"
+              className="h-8 rounded-lg border border-primary-200 bg-primary-50 px-2 text-sm text-primary-900 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
             >
               {['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'].map(
                 (v) => (
@@ -1769,7 +1831,9 @@ function VoiceContent() {
         )}
       </div>
       <div className={SETTINGS_CARD_CLASS}>
-        <h3><span className="ic">◈</span> Speech-to-Text</h3>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary-500">
+          Speech-to-Text
+        </p>
         <Row label="Enable STT">
           <Switch
             checked={stt.enabled !== false}
@@ -1780,7 +1844,7 @@ function VoiceContent() {
           <select
             value={String(stt.provider || 'local')}
             onChange={(e) => saveStt('provider', e.target.value)}
-            className="h-8 rounded-md px-2 text-sm outline-none"
+            className="h-8 rounded-lg border border-primary-200 bg-primary-50 px-2 text-sm text-primary-900 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
           >
             <option value="local">Local (Whisper)</option>
             <option value="openai">OpenAI Whisper</option>
@@ -1823,7 +1887,7 @@ function DisplayContent() {
   }
 
   return (
-    <div className="section-stack">
+    <div className="space-y-4">
       <SectionHeader
         title="Display"
         description="Agent response style and output preferences."
@@ -1842,7 +1906,7 @@ function DisplayContent() {
           <select
             value={String(config.personality || 'default')}
             onChange={(e) => save('personality', e.target.value)}
-            className="h-8 rounded-md px-2 text-sm outline-none"
+            className="h-8 rounded-lg border border-primary-200 bg-primary-50 px-2 text-sm text-primary-900 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
           >
             <option value="default">Default</option>
             <option value="concise">Concise</option>
@@ -1888,7 +1952,7 @@ import { getLocale, setLocale, LOCALE_LABELS, type LocaleId } from '@/lib/i18n'
 
 function LanguageContent() {
   return (
-    <div className="section-stack">
+    <div className="space-y-4">
       <SectionHeader
         title="Language"
         description="Choose the display language for the workspace UI."
@@ -1900,7 +1964,7 @@ function LanguageContent() {
             setLocale(e.target.value as LocaleId)
             window.location.reload()
           }}
-          style={{ maxWidth: '260px' }}
+          className="h-9 w-full rounded-lg border border-primary-200 dark:border-neutral-700 bg-primary-50 dark:bg-neutral-800 px-3 text-sm text-primary-900 dark:text-neutral-100 outline-none md:max-w-xs"
         >
           {(Object.entries(LOCALE_LABELS) as Array<[LocaleId, string]>).map(([id, label]) => (
             <option key={id} value={id}>{label}</option>
@@ -1956,7 +2020,7 @@ export function SettingsDialog({
     <DialogRoot open={open} onOpenChange={onOpenChange}>
       <DialogContent
         data-screen="settings"
-        className="inset-0 h-full w-full max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-none border-0 p-0 shadow-xl md:inset-auto md:left-1/2 md:top-1/2 md:h-[min(88dvh,740px)] md:min-h-[520px] md:w-full md:max-w-3xl md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:border bg-[var(--m-bg)]">
+        className="inset-0 h-full w-full max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-none border-0 p-0 shadow-xl md:inset-auto md:left-1/2 md:top-1/2 md:h-[min(88dvh,740px)] md:min-h-[520px] md:w-full md:max-w-3xl md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:border md:border-primary-200 bg-[var(--m-bg)]">
         <div className="flex h-full min-h-0 flex-col">
           <div className="topbar">
             <div>
