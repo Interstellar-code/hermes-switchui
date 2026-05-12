@@ -211,60 +211,93 @@
   border-right: 1px solid var(--m-border);
   background: var(--m-panel);
   overflow: auto;
-  padding: 12px 6px;
+  padding: 6px 0;
+  display: flex;
+  flex-direction: column;
 }
 
 [data-screen="settings"] .side .search {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
-  margin: 4px 6px 10px;
-  border: 1px solid var(--m-border);
-  border-radius: var(--m-radius-md);
-  background: var(--m-bg-deep);
+  padding: 10px 14px;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  flex-shrink: 0;
+  position: relative;
+}
+
+[data-screen="settings"] .side .search svg {
+  position: absolute;
+  left: 18px;
+  width: 14px;
+  height: 14px;
+  color: var(--m-text-ghost);
+  pointer-events: none;
 }
 
 [data-screen="settings"] .side .search input {
   flex: 1;
-  background: transparent;
-  border: none;
+  background: var(--m-bg);
+  border: 1px solid var(--m-border-subtle);
+  border-radius: var(--m-radius-md);
   outline: none;
   color: var(--m-text);
-  font: 500 12px var(--m-font-mono);
+  font: 400 11.5px var(--m-font-mono);
+  padding: 0 10px 0 30px;
+  height: 32px;
+  transition: border-color var(--m-dur-fast, 100ms);
+}
+
+[data-screen="settings"] .side .search input::placeholder {
+  color: var(--m-text-ghost);
+}
+
+[data-screen="settings"] .side .search input:focus {
+  border-color: var(--m-green-500);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--m-green-500) 15%, transparent);
 }
 
 [data-screen="settings"] .side .grp {
-  padding: 10px 12px 4px;
-  font: 600 10px var(--m-font-mono);
+  font: 600 9.5px var(--m-font-mono);
   text-transform: uppercase;
-  letter-spacing: 0.22em;
+  letter-spacing: .18em;
   color: var(--m-text-faint);
   display: flex;
   align-items: center;
   gap: 6px;
+  padding: 4px 14px 6px;
+  margin: 0;
 }
 
 [data-screen="settings"] .side .grp .ct {
   margin-left: auto;
   color: var(--m-text-ghost);
+  font: 600 10px var(--m-font-mono);
+  background: var(--m-fill-subtle);
+  border: 1px solid var(--m-border-subtle);
+  padding: 1px 6px;
+  border-radius: 999px;
 }
 
 [data-screen="settings"] .side .item {
-  display: grid;
-  grid-template-columns: 18px 1fr auto;
-  gap: 8px;
+  display: flex;
   align-items: center;
-  padding: 7px 10px;
-  margin: 0 4px;
-  border-radius: var(--m-radius-md);
+  height: 28px;
+  padding: 0 8px;
+  margin: 0 6px;
+  border-radius: 4px;
   cursor: pointer;
-  font: 500 12.5px var(--m-font-mono);
+  font: 500 11px var(--m-font-sans, system-ui, sans-serif);
   color: var(--m-text-muted);
-  border: 1px solid transparent;
-  background: none;
-  width: 100%;
+  border: none;
+  background: transparent;
+  width: auto;
   text-align: left;
+  transition: background var(--m-dur-fast, 100ms), color var(--m-dur-fast, 100ms);
+  gap: 8px;
 }
 
 [data-screen="settings"] .side .item:hover {
@@ -273,28 +306,31 @@
 }
 
 [data-screen="settings"] .side .item.on {
-  background: var(--m-fill);
+  background: color-mix(in srgb, var(--m-green-500) 10%, transparent);
   color: var(--m-green-500);
-  border-color: var(--m-border);
-  box-shadow: inset 2px 0 0 var(--m-green-500);
+}
+
+[data-screen="settings"] .side .item span:first-child {
+  display: none;
+}
+
+[data-screen="settings"] .side .item span:nth-child(2) {
+  flex: 1;
 }
 
 [data-screen="settings"] .side .item .badge {
   font: 500 9.5px var(--m-font-mono);
-  padding: 1px 6px;
-  border: 1px solid var(--m-border-subtle);
-  border-radius: 9999px;
-  color: var(--m-text-faint);
+  color: var(--m-text-ghost);
+  min-width: 18px;
+  text-align: right;
 }
 
 [data-screen="settings"] .side .item.on .badge {
   color: var(--m-green-500);
-  border-color: var(--m-green-500);
 }
 
 [data-screen="settings"] .side .item.dirty .badge {
   color: #ffb347;
-  border-color: rgba(255, 179, 71, 0.5);
 }
 
 /* ── Content area ────────────────────────────────────────────────────────── */
