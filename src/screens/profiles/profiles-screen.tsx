@@ -36,29 +36,33 @@ export type AgentRow = {
 
 type SortKey = 'name' | 'tier' | 'last_run' | 'status'
 
-// ── Helper: derive AgentRow from ProfileSummary ──────────────────────────────
-function profileToRow(p: ProfileSummary): AgentRow {
+// ── Helper: derive AgentRow from ProfileSummary or hermes-agent profile ──────
+function profileToRow(p: any): AgentRow {
+  // Support both local ProfileSummary and hermes-agent profiles API response
+  const name = p.name || ''
   const ui: AgentUIMetadata = p.agent_ui ?? {}
-  const glyph = ui.glyph ?? p.name.slice(0, 2).toUpperCase()
+  const glyph = ui.glyph ?? name.slice(0, 2).toUpperCase()
   const role = ui.role ?? p.description ?? '—'
   const description = p.description ?? ''
   const tags = ui.tags ?? []
   const status: AgentRow['status'] = ui.status ?? 'idle'
   const last_run = ui.last_run ?? null
+  const model = p.model ?? ''
+  const isDefault = p.is_default === true || p.active === true
   return {
-    id: `profile:${p.name}`,
-    name: p.name,
+    id: `profile:${name}`,
+    name,
     tier: 3,
     glyph,
     role,
     description,
-    model: p.model,
+    model: model || undefined,
     tags,
     status,
     last_run,
     builtin: false,
-    profileName: p.name,
-    active: p.active,
+    profileName: name,
+    active: isDefault,
   }
 }
 
@@ -129,10 +133,21 @@ export function ProfilesScreen() {
 
   const profilesQuery = useQuery({
     queryKey: ['profiles', 'list'],
-    queryFn: () =>
-      readJson<{ profiles: Array<ProfileSummary>; activeProfile: string }>(
-        '/api/profiles/list',
-      ),
+    queryFn: async () => {
+      const data = await readJson<{ profiles: Array<any> }>(
+        '/api/dashboard-proxy/api/profiles',
+      )
+      // Deduplicate: if a disk profile has the same name as a builtin, keep only the disk one
+      const builtinNames = new Set(BUILTIN_AGENTS.map(b => b.name.toLowerCase()))
+      const seen = new Set<string>()
+      const deduped = (data.profiles || []).filter(p => {
+        const key = (p.name || '').toLowerCase()
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      return { profiles: deduped }
+    },
   })
 
   const profiles = profilesQuery.data?.profiles ?? []
