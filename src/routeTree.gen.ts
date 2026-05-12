@@ -11,8 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TerminalRouteImport } from './routes/terminal'
 import { Route as TasksRouteImport } from './routes/tasks'
-import { Route as Swarm2RouteImport } from './routes/swarm2'
-import { Route as SwarmRouteImport } from './routes/swarm'
 import { Route as SkillsRouteImport } from './routes/skills'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ProfilesRouteImport } from './routes/profiles'
@@ -36,25 +34,6 @@ import { Route as ApiTerminalResizeRouteImport } from './routes/api/terminal-res
 import { Route as ApiTerminalInputRouteImport } from './routes/api/terminal-input'
 import { Route as ApiTerminalCloseRouteImport } from './routes/api/terminal-close'
 import { Route as ApiSystemMetricsRouteImport } from './routes/api/system-metrics'
-import { Route as ApiSwarmTmuxStopRouteImport } from './routes/api/swarm-tmux-stop'
-import { Route as ApiSwarmTmuxStartRouteImport } from './routes/api/swarm-tmux-start'
-import { Route as ApiSwarmTmuxScrollRouteImport } from './routes/api/swarm-tmux-scroll'
-import { Route as ApiSwarmRuntimeRouteImport } from './routes/api/swarm-runtime'
-import { Route as ApiSwarmRosterRouteImport } from './routes/api/swarm-roster'
-import { Route as ApiSwarmReportsRouteImport } from './routes/api/swarm-reports'
-import { Route as ApiSwarmProjectRouteImport } from './routes/api/swarm-project'
-import { Route as ApiSwarmOrchestratorLoopRouteImport } from './routes/api/swarm-orchestrator-loop'
-import { Route as ApiSwarmMissionsRouteImport } from './routes/api/swarm-missions'
-import { Route as ApiSwarmMemoryRouteImport } from './routes/api/swarm-memory'
-import { Route as ApiSwarmLifecycleRouteImport } from './routes/api/swarm-lifecycle'
-import { Route as ApiSwarmKanbanRouteImport } from './routes/api/swarm-kanban'
-import { Route as ApiSwarmHealthRouteImport } from './routes/api/swarm-health'
-import { Route as ApiSwarmEnvironmentRouteImport } from './routes/api/swarm-environment'
-import { Route as ApiSwarmDispatchRouteImport } from './routes/api/swarm-dispatch'
-import { Route as ApiSwarmDirectChatRouteImport } from './routes/api/swarm-direct-chat'
-import { Route as ApiSwarmDecomposeRouteImport } from './routes/api/swarm-decompose'
-import { Route as ApiSwarmCheckpointRouteImport } from './routes/api/swarm-checkpoint'
-import { Route as ApiSwarmChatRouteImport } from './routes/api/swarm-chat'
 import { Route as ApiStartClaudeRouteImport } from './routes/api/start-claude'
 import { Route as ApiStartAgentRouteImport } from './routes/api/start-agent'
 import { Route as ApiSkillsRouteImport } from './routes/api/skills'
@@ -98,7 +77,6 @@ import { Route as ApiArtifactsRouteImport } from './routes/api/artifacts'
 import { Route as ApiUpdateWorkspaceRouteImport } from './routes/api/update/workspace'
 import { Route as ApiUpdateStatusRouteImport } from './routes/api/update/status'
 import { Route as ApiUpdateAgentRouteImport } from './routes/api/update/agent'
-import { Route as ApiSwarmMemorySearchRouteImport } from './routes/api/swarm-memory/search'
 import { Route as ApiSkillsUninstallRouteImport } from './routes/api/skills/uninstall'
 import { Route as ApiSkillsToggleRouteImport } from './routes/api/skills/toggle'
 import { Route as ApiSkillsInstallRouteImport } from './routes/api/skills/install'
@@ -170,16 +148,6 @@ const TerminalRoute = TerminalRouteImport.update({
 const TasksRoute = TasksRouteImport.update({
   id: '/tasks',
   path: '/tasks',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const Swarm2Route = Swarm2RouteImport.update({
-  id: '/swarm2',
-  path: '/swarm2',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SwarmRoute = SwarmRouteImport.update({
-  id: '/swarm',
-  path: '/swarm',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SkillsRoute = SkillsRouteImport.update({
@@ -295,102 +263,6 @@ const ApiTerminalCloseRoute = ApiTerminalCloseRouteImport.update({
 const ApiSystemMetricsRoute = ApiSystemMetricsRouteImport.update({
   id: '/api/system-metrics',
   path: '/api/system-metrics',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmTmuxStopRoute = ApiSwarmTmuxStopRouteImport.update({
-  id: '/api/swarm-tmux-stop',
-  path: '/api/swarm-tmux-stop',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmTmuxStartRoute = ApiSwarmTmuxStartRouteImport.update({
-  id: '/api/swarm-tmux-start',
-  path: '/api/swarm-tmux-start',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmTmuxScrollRoute = ApiSwarmTmuxScrollRouteImport.update({
-  id: '/api/swarm-tmux-scroll',
-  path: '/api/swarm-tmux-scroll',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmRuntimeRoute = ApiSwarmRuntimeRouteImport.update({
-  id: '/api/swarm-runtime',
-  path: '/api/swarm-runtime',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmRosterRoute = ApiSwarmRosterRouteImport.update({
-  id: '/api/swarm-roster',
-  path: '/api/swarm-roster',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmReportsRoute = ApiSwarmReportsRouteImport.update({
-  id: '/api/swarm-reports',
-  path: '/api/swarm-reports',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmProjectRoute = ApiSwarmProjectRouteImport.update({
-  id: '/api/swarm-project',
-  path: '/api/swarm-project',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmOrchestratorLoopRoute =
-  ApiSwarmOrchestratorLoopRouteImport.update({
-    id: '/api/swarm-orchestrator-loop',
-    path: '/api/swarm-orchestrator-loop',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiSwarmMissionsRoute = ApiSwarmMissionsRouteImport.update({
-  id: '/api/swarm-missions',
-  path: '/api/swarm-missions',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmMemoryRoute = ApiSwarmMemoryRouteImport.update({
-  id: '/api/swarm-memory',
-  path: '/api/swarm-memory',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmLifecycleRoute = ApiSwarmLifecycleRouteImport.update({
-  id: '/api/swarm-lifecycle',
-  path: '/api/swarm-lifecycle',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmKanbanRoute = ApiSwarmKanbanRouteImport.update({
-  id: '/api/swarm-kanban',
-  path: '/api/swarm-kanban',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmHealthRoute = ApiSwarmHealthRouteImport.update({
-  id: '/api/swarm-health',
-  path: '/api/swarm-health',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmEnvironmentRoute = ApiSwarmEnvironmentRouteImport.update({
-  id: '/api/swarm-environment',
-  path: '/api/swarm-environment',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmDispatchRoute = ApiSwarmDispatchRouteImport.update({
-  id: '/api/swarm-dispatch',
-  path: '/api/swarm-dispatch',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmDirectChatRoute = ApiSwarmDirectChatRouteImport.update({
-  id: '/api/swarm-direct-chat',
-  path: '/api/swarm-direct-chat',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmDecomposeRoute = ApiSwarmDecomposeRouteImport.update({
-  id: '/api/swarm-decompose',
-  path: '/api/swarm-decompose',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmCheckpointRoute = ApiSwarmCheckpointRouteImport.update({
-  id: '/api/swarm-checkpoint',
-  path: '/api/swarm-checkpoint',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmChatRoute = ApiSwarmChatRouteImport.update({
-  id: '/api/swarm-chat',
-  path: '/api/swarm-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiStartClaudeRoute = ApiStartClaudeRouteImport.update({
@@ -607,11 +479,6 @@ const ApiUpdateAgentRoute = ApiUpdateAgentRouteImport.update({
   id: '/api/update/agent',
   path: '/api/update/agent',
   getParentRoute: () => rootRouteImport,
-} as any)
-const ApiSwarmMemorySearchRoute = ApiSwarmMemorySearchRouteImport.update({
-  id: '/search',
-  path: '/search',
-  getParentRoute: () => ApiSwarmMemoryRoute,
 } as any)
 const ApiSkillsUninstallRoute = ApiSkillsUninstallRouteImport.update({
   id: '/uninstall',
@@ -948,8 +815,6 @@ export interface FileRoutesByFullPath {
   '/profiles': typeof ProfilesRoute
   '/settings': typeof SettingsRouteWithChildren
   '/skills': typeof SkillsRoute
-  '/swarm': typeof SwarmRoute
-  '/swarm2': typeof Swarm2Route
   '/tasks': typeof TasksRoute
   '/terminal': typeof TerminalRoute
   '/api/artifacts': typeof ApiArtifactsRouteWithChildren
@@ -992,25 +857,6 @@ export interface FileRoutesByFullPath {
   '/api/skills': typeof ApiSkillsRouteWithChildren
   '/api/start-agent': typeof ApiStartAgentRoute
   '/api/start-claude': typeof ApiStartClaudeRoute
-  '/api/swarm-chat': typeof ApiSwarmChatRoute
-  '/api/swarm-checkpoint': typeof ApiSwarmCheckpointRoute
-  '/api/swarm-decompose': typeof ApiSwarmDecomposeRoute
-  '/api/swarm-direct-chat': typeof ApiSwarmDirectChatRoute
-  '/api/swarm-dispatch': typeof ApiSwarmDispatchRoute
-  '/api/swarm-environment': typeof ApiSwarmEnvironmentRoute
-  '/api/swarm-health': typeof ApiSwarmHealthRoute
-  '/api/swarm-kanban': typeof ApiSwarmKanbanRoute
-  '/api/swarm-lifecycle': typeof ApiSwarmLifecycleRoute
-  '/api/swarm-memory': typeof ApiSwarmMemoryRouteWithChildren
-  '/api/swarm-missions': typeof ApiSwarmMissionsRoute
-  '/api/swarm-orchestrator-loop': typeof ApiSwarmOrchestratorLoopRoute
-  '/api/swarm-project': typeof ApiSwarmProjectRoute
-  '/api/swarm-reports': typeof ApiSwarmReportsRoute
-  '/api/swarm-roster': typeof ApiSwarmRosterRoute
-  '/api/swarm-runtime': typeof ApiSwarmRuntimeRoute
-  '/api/swarm-tmux-scroll': typeof ApiSwarmTmuxScrollRoute
-  '/api/swarm-tmux-start': typeof ApiSwarmTmuxStartRoute
-  '/api/swarm-tmux-stop': typeof ApiSwarmTmuxStopRoute
   '/api/system-metrics': typeof ApiSystemMetricsRoute
   '/api/terminal-close': typeof ApiTerminalCloseRoute
   '/api/terminal-input': typeof ApiTerminalInputRoute
@@ -1075,7 +921,6 @@ export interface FileRoutesByFullPath {
   '/api/skills/install': typeof ApiSkillsInstallRoute
   '/api/skills/toggle': typeof ApiSkillsToggleRoute
   '/api/skills/uninstall': typeof ApiSkillsUninstallRoute
-  '/api/swarm-memory/search': typeof ApiSwarmMemorySearchRoute
   '/api/update/agent': typeof ApiUpdateAgentRoute
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
@@ -1101,8 +946,6 @@ export interface FileRoutesByTo {
   '/operations': typeof OperationsRoute
   '/profiles': typeof ProfilesRoute
   '/skills': typeof SkillsRoute
-  '/swarm': typeof SwarmRoute
-  '/swarm2': typeof Swarm2Route
   '/tasks': typeof TasksRoute
   '/terminal': typeof TerminalRoute
   '/api/artifacts': typeof ApiArtifactsRouteWithChildren
@@ -1145,25 +988,6 @@ export interface FileRoutesByTo {
   '/api/skills': typeof ApiSkillsRouteWithChildren
   '/api/start-agent': typeof ApiStartAgentRoute
   '/api/start-claude': typeof ApiStartClaudeRoute
-  '/api/swarm-chat': typeof ApiSwarmChatRoute
-  '/api/swarm-checkpoint': typeof ApiSwarmCheckpointRoute
-  '/api/swarm-decompose': typeof ApiSwarmDecomposeRoute
-  '/api/swarm-direct-chat': typeof ApiSwarmDirectChatRoute
-  '/api/swarm-dispatch': typeof ApiSwarmDispatchRoute
-  '/api/swarm-environment': typeof ApiSwarmEnvironmentRoute
-  '/api/swarm-health': typeof ApiSwarmHealthRoute
-  '/api/swarm-kanban': typeof ApiSwarmKanbanRoute
-  '/api/swarm-lifecycle': typeof ApiSwarmLifecycleRoute
-  '/api/swarm-memory': typeof ApiSwarmMemoryRouteWithChildren
-  '/api/swarm-missions': typeof ApiSwarmMissionsRoute
-  '/api/swarm-orchestrator-loop': typeof ApiSwarmOrchestratorLoopRoute
-  '/api/swarm-project': typeof ApiSwarmProjectRoute
-  '/api/swarm-reports': typeof ApiSwarmReportsRoute
-  '/api/swarm-roster': typeof ApiSwarmRosterRoute
-  '/api/swarm-runtime': typeof ApiSwarmRuntimeRoute
-  '/api/swarm-tmux-scroll': typeof ApiSwarmTmuxScrollRoute
-  '/api/swarm-tmux-start': typeof ApiSwarmTmuxStartRoute
-  '/api/swarm-tmux-stop': typeof ApiSwarmTmuxStopRoute
   '/api/system-metrics': typeof ApiSystemMetricsRoute
   '/api/terminal-close': typeof ApiTerminalCloseRoute
   '/api/terminal-input': typeof ApiTerminalInputRoute
@@ -1228,7 +1052,6 @@ export interface FileRoutesByTo {
   '/api/skills/install': typeof ApiSkillsInstallRoute
   '/api/skills/toggle': typeof ApiSkillsToggleRoute
   '/api/skills/uninstall': typeof ApiSkillsUninstallRoute
-  '/api/swarm-memory/search': typeof ApiSwarmMemorySearchRoute
   '/api/update/agent': typeof ApiUpdateAgentRoute
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
@@ -1256,8 +1079,6 @@ export interface FileRoutesById {
   '/profiles': typeof ProfilesRoute
   '/settings': typeof SettingsRouteWithChildren
   '/skills': typeof SkillsRoute
-  '/swarm': typeof SwarmRoute
-  '/swarm2': typeof Swarm2Route
   '/tasks': typeof TasksRoute
   '/terminal': typeof TerminalRoute
   '/api/artifacts': typeof ApiArtifactsRouteWithChildren
@@ -1300,25 +1121,6 @@ export interface FileRoutesById {
   '/api/skills': typeof ApiSkillsRouteWithChildren
   '/api/start-agent': typeof ApiStartAgentRoute
   '/api/start-claude': typeof ApiStartClaudeRoute
-  '/api/swarm-chat': typeof ApiSwarmChatRoute
-  '/api/swarm-checkpoint': typeof ApiSwarmCheckpointRoute
-  '/api/swarm-decompose': typeof ApiSwarmDecomposeRoute
-  '/api/swarm-direct-chat': typeof ApiSwarmDirectChatRoute
-  '/api/swarm-dispatch': typeof ApiSwarmDispatchRoute
-  '/api/swarm-environment': typeof ApiSwarmEnvironmentRoute
-  '/api/swarm-health': typeof ApiSwarmHealthRoute
-  '/api/swarm-kanban': typeof ApiSwarmKanbanRoute
-  '/api/swarm-lifecycle': typeof ApiSwarmLifecycleRoute
-  '/api/swarm-memory': typeof ApiSwarmMemoryRouteWithChildren
-  '/api/swarm-missions': typeof ApiSwarmMissionsRoute
-  '/api/swarm-orchestrator-loop': typeof ApiSwarmOrchestratorLoopRoute
-  '/api/swarm-project': typeof ApiSwarmProjectRoute
-  '/api/swarm-reports': typeof ApiSwarmReportsRoute
-  '/api/swarm-roster': typeof ApiSwarmRosterRoute
-  '/api/swarm-runtime': typeof ApiSwarmRuntimeRoute
-  '/api/swarm-tmux-scroll': typeof ApiSwarmTmuxScrollRoute
-  '/api/swarm-tmux-start': typeof ApiSwarmTmuxStartRoute
-  '/api/swarm-tmux-stop': typeof ApiSwarmTmuxStopRoute
   '/api/system-metrics': typeof ApiSystemMetricsRoute
   '/api/terminal-close': typeof ApiTerminalCloseRoute
   '/api/terminal-input': typeof ApiTerminalInputRoute
@@ -1383,7 +1185,6 @@ export interface FileRoutesById {
   '/api/skills/install': typeof ApiSkillsInstallRoute
   '/api/skills/toggle': typeof ApiSkillsToggleRoute
   '/api/skills/uninstall': typeof ApiSkillsUninstallRoute
-  '/api/swarm-memory/search': typeof ApiSwarmMemorySearchRoute
   '/api/update/agent': typeof ApiUpdateAgentRoute
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
@@ -1412,8 +1213,6 @@ export interface FileRouteTypes {
     | '/profiles'
     | '/settings'
     | '/skills'
-    | '/swarm'
-    | '/swarm2'
     | '/tasks'
     | '/terminal'
     | '/api/artifacts'
@@ -1456,25 +1255,6 @@ export interface FileRouteTypes {
     | '/api/skills'
     | '/api/start-agent'
     | '/api/start-claude'
-    | '/api/swarm-chat'
-    | '/api/swarm-checkpoint'
-    | '/api/swarm-decompose'
-    | '/api/swarm-direct-chat'
-    | '/api/swarm-dispatch'
-    | '/api/swarm-environment'
-    | '/api/swarm-health'
-    | '/api/swarm-kanban'
-    | '/api/swarm-lifecycle'
-    | '/api/swarm-memory'
-    | '/api/swarm-missions'
-    | '/api/swarm-orchestrator-loop'
-    | '/api/swarm-project'
-    | '/api/swarm-reports'
-    | '/api/swarm-roster'
-    | '/api/swarm-runtime'
-    | '/api/swarm-tmux-scroll'
-    | '/api/swarm-tmux-start'
-    | '/api/swarm-tmux-stop'
     | '/api/system-metrics'
     | '/api/terminal-close'
     | '/api/terminal-input'
@@ -1539,7 +1319,6 @@ export interface FileRouteTypes {
     | '/api/skills/install'
     | '/api/skills/toggle'
     | '/api/skills/uninstall'
-    | '/api/swarm-memory/search'
     | '/api/update/agent'
     | '/api/update/status'
     | '/api/update/workspace'
@@ -1565,8 +1344,6 @@ export interface FileRouteTypes {
     | '/operations'
     | '/profiles'
     | '/skills'
-    | '/swarm'
-    | '/swarm2'
     | '/tasks'
     | '/terminal'
     | '/api/artifacts'
@@ -1609,25 +1386,6 @@ export interface FileRouteTypes {
     | '/api/skills'
     | '/api/start-agent'
     | '/api/start-claude'
-    | '/api/swarm-chat'
-    | '/api/swarm-checkpoint'
-    | '/api/swarm-decompose'
-    | '/api/swarm-direct-chat'
-    | '/api/swarm-dispatch'
-    | '/api/swarm-environment'
-    | '/api/swarm-health'
-    | '/api/swarm-kanban'
-    | '/api/swarm-lifecycle'
-    | '/api/swarm-memory'
-    | '/api/swarm-missions'
-    | '/api/swarm-orchestrator-loop'
-    | '/api/swarm-project'
-    | '/api/swarm-reports'
-    | '/api/swarm-roster'
-    | '/api/swarm-runtime'
-    | '/api/swarm-tmux-scroll'
-    | '/api/swarm-tmux-start'
-    | '/api/swarm-tmux-stop'
     | '/api/system-metrics'
     | '/api/terminal-close'
     | '/api/terminal-input'
@@ -1692,7 +1450,6 @@ export interface FileRouteTypes {
     | '/api/skills/install'
     | '/api/skills/toggle'
     | '/api/skills/uninstall'
-    | '/api/swarm-memory/search'
     | '/api/update/agent'
     | '/api/update/status'
     | '/api/update/workspace'
@@ -1719,8 +1476,6 @@ export interface FileRouteTypes {
     | '/profiles'
     | '/settings'
     | '/skills'
-    | '/swarm'
-    | '/swarm2'
     | '/tasks'
     | '/terminal'
     | '/api/artifacts'
@@ -1763,25 +1518,6 @@ export interface FileRouteTypes {
     | '/api/skills'
     | '/api/start-agent'
     | '/api/start-claude'
-    | '/api/swarm-chat'
-    | '/api/swarm-checkpoint'
-    | '/api/swarm-decompose'
-    | '/api/swarm-direct-chat'
-    | '/api/swarm-dispatch'
-    | '/api/swarm-environment'
-    | '/api/swarm-health'
-    | '/api/swarm-kanban'
-    | '/api/swarm-lifecycle'
-    | '/api/swarm-memory'
-    | '/api/swarm-missions'
-    | '/api/swarm-orchestrator-loop'
-    | '/api/swarm-project'
-    | '/api/swarm-reports'
-    | '/api/swarm-roster'
-    | '/api/swarm-runtime'
-    | '/api/swarm-tmux-scroll'
-    | '/api/swarm-tmux-start'
-    | '/api/swarm-tmux-stop'
     | '/api/system-metrics'
     | '/api/terminal-close'
     | '/api/terminal-input'
@@ -1846,7 +1582,6 @@ export interface FileRouteTypes {
     | '/api/skills/install'
     | '/api/skills/toggle'
     | '/api/skills/uninstall'
-    | '/api/swarm-memory/search'
     | '/api/update/agent'
     | '/api/update/status'
     | '/api/update/workspace'
@@ -1874,8 +1609,6 @@ export interface RootRouteChildren {
   ProfilesRoute: typeof ProfilesRoute
   SettingsRoute: typeof SettingsRouteWithChildren
   SkillsRoute: typeof SkillsRoute
-  SwarmRoute: typeof SwarmRoute
-  Swarm2Route: typeof Swarm2Route
   TasksRoute: typeof TasksRoute
   TerminalRoute: typeof TerminalRoute
   ApiArtifactsRoute: typeof ApiArtifactsRouteWithChildren
@@ -1918,25 +1651,6 @@ export interface RootRouteChildren {
   ApiSkillsRoute: typeof ApiSkillsRouteWithChildren
   ApiStartAgentRoute: typeof ApiStartAgentRoute
   ApiStartClaudeRoute: typeof ApiStartClaudeRoute
-  ApiSwarmChatRoute: typeof ApiSwarmChatRoute
-  ApiSwarmCheckpointRoute: typeof ApiSwarmCheckpointRoute
-  ApiSwarmDecomposeRoute: typeof ApiSwarmDecomposeRoute
-  ApiSwarmDirectChatRoute: typeof ApiSwarmDirectChatRoute
-  ApiSwarmDispatchRoute: typeof ApiSwarmDispatchRoute
-  ApiSwarmEnvironmentRoute: typeof ApiSwarmEnvironmentRoute
-  ApiSwarmHealthRoute: typeof ApiSwarmHealthRoute
-  ApiSwarmKanbanRoute: typeof ApiSwarmKanbanRoute
-  ApiSwarmLifecycleRoute: typeof ApiSwarmLifecycleRoute
-  ApiSwarmMemoryRoute: typeof ApiSwarmMemoryRouteWithChildren
-  ApiSwarmMissionsRoute: typeof ApiSwarmMissionsRoute
-  ApiSwarmOrchestratorLoopRoute: typeof ApiSwarmOrchestratorLoopRoute
-  ApiSwarmProjectRoute: typeof ApiSwarmProjectRoute
-  ApiSwarmReportsRoute: typeof ApiSwarmReportsRoute
-  ApiSwarmRosterRoute: typeof ApiSwarmRosterRoute
-  ApiSwarmRuntimeRoute: typeof ApiSwarmRuntimeRoute
-  ApiSwarmTmuxScrollRoute: typeof ApiSwarmTmuxScrollRoute
-  ApiSwarmTmuxStartRoute: typeof ApiSwarmTmuxStartRoute
-  ApiSwarmTmuxStopRoute: typeof ApiSwarmTmuxStopRoute
   ApiSystemMetricsRoute: typeof ApiSystemMetricsRoute
   ApiTerminalCloseRoute: typeof ApiTerminalCloseRoute
   ApiTerminalInputRoute: typeof ApiTerminalInputRoute
@@ -1997,20 +1711,6 @@ declare module '@tanstack/react-router' {
       path: '/tasks'
       fullPath: '/tasks'
       preLoaderRoute: typeof TasksRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/swarm2': {
-      id: '/swarm2'
-      path: '/swarm2'
-      fullPath: '/swarm2'
-      preLoaderRoute: typeof Swarm2RouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/swarm': {
-      id: '/swarm'
-      path: '/swarm'
-      fullPath: '/swarm'
-      preLoaderRoute: typeof SwarmRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/skills': {
@@ -2172,139 +1872,6 @@ declare module '@tanstack/react-router' {
       path: '/api/system-metrics'
       fullPath: '/api/system-metrics'
       preLoaderRoute: typeof ApiSystemMetricsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-tmux-stop': {
-      id: '/api/swarm-tmux-stop'
-      path: '/api/swarm-tmux-stop'
-      fullPath: '/api/swarm-tmux-stop'
-      preLoaderRoute: typeof ApiSwarmTmuxStopRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-tmux-start': {
-      id: '/api/swarm-tmux-start'
-      path: '/api/swarm-tmux-start'
-      fullPath: '/api/swarm-tmux-start'
-      preLoaderRoute: typeof ApiSwarmTmuxStartRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-tmux-scroll': {
-      id: '/api/swarm-tmux-scroll'
-      path: '/api/swarm-tmux-scroll'
-      fullPath: '/api/swarm-tmux-scroll'
-      preLoaderRoute: typeof ApiSwarmTmuxScrollRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-runtime': {
-      id: '/api/swarm-runtime'
-      path: '/api/swarm-runtime'
-      fullPath: '/api/swarm-runtime'
-      preLoaderRoute: typeof ApiSwarmRuntimeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-roster': {
-      id: '/api/swarm-roster'
-      path: '/api/swarm-roster'
-      fullPath: '/api/swarm-roster'
-      preLoaderRoute: typeof ApiSwarmRosterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-reports': {
-      id: '/api/swarm-reports'
-      path: '/api/swarm-reports'
-      fullPath: '/api/swarm-reports'
-      preLoaderRoute: typeof ApiSwarmReportsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-project': {
-      id: '/api/swarm-project'
-      path: '/api/swarm-project'
-      fullPath: '/api/swarm-project'
-      preLoaderRoute: typeof ApiSwarmProjectRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-orchestrator-loop': {
-      id: '/api/swarm-orchestrator-loop'
-      path: '/api/swarm-orchestrator-loop'
-      fullPath: '/api/swarm-orchestrator-loop'
-      preLoaderRoute: typeof ApiSwarmOrchestratorLoopRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-missions': {
-      id: '/api/swarm-missions'
-      path: '/api/swarm-missions'
-      fullPath: '/api/swarm-missions'
-      preLoaderRoute: typeof ApiSwarmMissionsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-memory': {
-      id: '/api/swarm-memory'
-      path: '/api/swarm-memory'
-      fullPath: '/api/swarm-memory'
-      preLoaderRoute: typeof ApiSwarmMemoryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-lifecycle': {
-      id: '/api/swarm-lifecycle'
-      path: '/api/swarm-lifecycle'
-      fullPath: '/api/swarm-lifecycle'
-      preLoaderRoute: typeof ApiSwarmLifecycleRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-kanban': {
-      id: '/api/swarm-kanban'
-      path: '/api/swarm-kanban'
-      fullPath: '/api/swarm-kanban'
-      preLoaderRoute: typeof ApiSwarmKanbanRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-health': {
-      id: '/api/swarm-health'
-      path: '/api/swarm-health'
-      fullPath: '/api/swarm-health'
-      preLoaderRoute: typeof ApiSwarmHealthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-environment': {
-      id: '/api/swarm-environment'
-      path: '/api/swarm-environment'
-      fullPath: '/api/swarm-environment'
-      preLoaderRoute: typeof ApiSwarmEnvironmentRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-dispatch': {
-      id: '/api/swarm-dispatch'
-      path: '/api/swarm-dispatch'
-      fullPath: '/api/swarm-dispatch'
-      preLoaderRoute: typeof ApiSwarmDispatchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-direct-chat': {
-      id: '/api/swarm-direct-chat'
-      path: '/api/swarm-direct-chat'
-      fullPath: '/api/swarm-direct-chat'
-      preLoaderRoute: typeof ApiSwarmDirectChatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-decompose': {
-      id: '/api/swarm-decompose'
-      path: '/api/swarm-decompose'
-      fullPath: '/api/swarm-decompose'
-      preLoaderRoute: typeof ApiSwarmDecomposeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-checkpoint': {
-      id: '/api/swarm-checkpoint'
-      path: '/api/swarm-checkpoint'
-      fullPath: '/api/swarm-checkpoint'
-      preLoaderRoute: typeof ApiSwarmCheckpointRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-chat': {
-      id: '/api/swarm-chat'
-      path: '/api/swarm-chat'
-      fullPath: '/api/swarm-chat'
-      preLoaderRoute: typeof ApiSwarmChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/start-claude': {
@@ -2607,13 +2174,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/update/agent'
       preLoaderRoute: typeof ApiUpdateAgentRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/api/swarm-memory/search': {
-      id: '/api/swarm-memory/search'
-      path: '/search'
-      fullPath: '/api/swarm-memory/search'
-      preLoaderRoute: typeof ApiSwarmMemorySearchRouteImport
-      parentRoute: typeof ApiSwarmMemoryRoute
     }
     '/api/skills/uninstall': {
       id: '/api/skills/uninstall'
@@ -3204,18 +2764,6 @@ const ApiSkillsRouteWithChildren = ApiSkillsRoute._addFileChildren(
   ApiSkillsRouteChildren,
 )
 
-interface ApiSwarmMemoryRouteChildren {
-  ApiSwarmMemorySearchRoute: typeof ApiSwarmMemorySearchRoute
-}
-
-const ApiSwarmMemoryRouteChildren: ApiSwarmMemoryRouteChildren = {
-  ApiSwarmMemorySearchRoute: ApiSwarmMemorySearchRoute,
-}
-
-const ApiSwarmMemoryRouteWithChildren = ApiSwarmMemoryRoute._addFileChildren(
-  ApiSwarmMemoryRouteChildren,
-)
-
 interface ApiHermesKanbanTasksTaskIdRouteChildren {
   ApiHermesKanbanTasksTaskIdCommentsRoute: typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   ApiHermesKanbanTasksTaskIdLogRoute: typeof ApiHermesKanbanTasksTaskIdLogRoute
@@ -3261,8 +2809,6 @@ const rootRouteChildren: RootRouteChildren = {
   ProfilesRoute: ProfilesRoute,
   SettingsRoute: SettingsRouteWithChildren,
   SkillsRoute: SkillsRoute,
-  SwarmRoute: SwarmRoute,
-  Swarm2Route: Swarm2Route,
   TasksRoute: TasksRoute,
   TerminalRoute: TerminalRoute,
   ApiArtifactsRoute: ApiArtifactsRouteWithChildren,
@@ -3305,25 +2851,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSkillsRoute: ApiSkillsRouteWithChildren,
   ApiStartAgentRoute: ApiStartAgentRoute,
   ApiStartClaudeRoute: ApiStartClaudeRoute,
-  ApiSwarmChatRoute: ApiSwarmChatRoute,
-  ApiSwarmCheckpointRoute: ApiSwarmCheckpointRoute,
-  ApiSwarmDecomposeRoute: ApiSwarmDecomposeRoute,
-  ApiSwarmDirectChatRoute: ApiSwarmDirectChatRoute,
-  ApiSwarmDispatchRoute: ApiSwarmDispatchRoute,
-  ApiSwarmEnvironmentRoute: ApiSwarmEnvironmentRoute,
-  ApiSwarmHealthRoute: ApiSwarmHealthRoute,
-  ApiSwarmKanbanRoute: ApiSwarmKanbanRoute,
-  ApiSwarmLifecycleRoute: ApiSwarmLifecycleRoute,
-  ApiSwarmMemoryRoute: ApiSwarmMemoryRouteWithChildren,
-  ApiSwarmMissionsRoute: ApiSwarmMissionsRoute,
-  ApiSwarmOrchestratorLoopRoute: ApiSwarmOrchestratorLoopRoute,
-  ApiSwarmProjectRoute: ApiSwarmProjectRoute,
-  ApiSwarmReportsRoute: ApiSwarmReportsRoute,
-  ApiSwarmRosterRoute: ApiSwarmRosterRoute,
-  ApiSwarmRuntimeRoute: ApiSwarmRuntimeRoute,
-  ApiSwarmTmuxScrollRoute: ApiSwarmTmuxScrollRoute,
-  ApiSwarmTmuxStartRoute: ApiSwarmTmuxStartRoute,
-  ApiSwarmTmuxStopRoute: ApiSwarmTmuxStopRoute,
   ApiSystemMetricsRoute: ApiSystemMetricsRoute,
   ApiTerminalCloseRoute: ApiTerminalCloseRoute,
   ApiTerminalInputRoute: ApiTerminalInputRoute,
