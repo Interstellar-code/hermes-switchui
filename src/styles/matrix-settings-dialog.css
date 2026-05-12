@@ -1,0 +1,81 @@
+/**
+ * matrix-settings-dialog.css — Overrides for settings-dialog modal to use Matrix theme.
+ * Applied to DialogContent with [data-screen="settings"] attribute.
+ */
+
+/* DialogContent itself — match Matrix panel styling */
+[data-screen="settings"] {
+  display: flex;
+  flex-direction: column;
+  background: var(--m-bg);
+  color: var(--m-text);
+}
+
+/* Ensure grid layout works */
+[data-screen="settings"] .body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+}
+
+/* Override Dialog styling */
+[data-screen="settings"] [role="dialog"] {
+  background: var(--m-bg);
+  border-color: var(--m-border);
+}
+
+/* Inputs and selects inherit from matrix-settings.css */
+[data-screen="settings"] input[type="text"],
+[data-screen="settings"] input[type="password"],
+[data-screen="settings"] input[type="url"],
+[data-screen="settings"] input[type="number"],
+[data-screen="settings"] select {
+  background: var(--m-bg-deep);
+  border: 1px solid var(--m-border);
+  color: var(--m-text);
+  font: 500 12.5px var(--m-font-mono);
+  border-radius: var(--m-radius-md);
+  padding: 8px 10px;
+  outline: none;
+}
+
+[data-screen="settings"] input:focus,
+[data-screen="settings"] select:focus {
+  border-color: var(--m-green-500);
+  box-shadow: 0 0 0 3px rgba(0, 255, 65, 0.08);
+}
+
+/* Status message boxes */
+[data-screen="settings"] .message-success {
+  background: rgba(0, 255, 65, 0.08);
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  color: var(--m-green-500);
+  border-radius: var(--m-radius-md);
+  padding: 10px 12px;
+  font: 500 12px var(--m-font-mono);
+}
+
+[data-screen="settings"] .message-error {
+  background: rgba(255, 95, 162, 0.08);
+  border: 1px solid rgba(255, 95, 162, 0.3);
+  color: #ff5fa2;
+  border-radius: var(--m-radius-md);
+  padding: 10px 12px;
+  font: 500 12px var(--m-font-mono);
+}
+
+/* Warning boxes */
+[data-screen="settings"] .warning-box {
+  background: rgba(255, 179, 71, 0.08);
+  border: 1px solid rgba(255, 179, 71, 0.3);
+  color: #ffb347;
+  border-radius: var(--m-radius-md);
+  padding: 10px 12px;
+  font: 500 12px var(--m-font-mono);
+}
+
+/* Custom endpoint section */
+[data-screen="settings"] .custom-endpoint input {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
