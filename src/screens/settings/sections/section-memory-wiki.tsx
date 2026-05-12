@@ -87,6 +87,10 @@ function HindsightEnvRow({
       setRevealTimer(null)
       return
     }
+    if (!isSet) {
+      toast(`${envKey} is not configured`, { type: 'warning' })
+      return
+    }
     try {
       const result = await revealEnv(envKey)
       setRevealedValue(result.value)
@@ -277,7 +281,7 @@ function HindsightEnvRow({
               onChange={() => undefined}
               disabled
             />
-            <button type="button" className="btn btn-sm" onClick={() => void handleReveal()}>
+            <button type="button" className="btn btn-sm" onClick={() => void handleReveal()} disabled={!isSet && revealedValue === null}>
               {revealedValue !== null ? 'Hide' : 'Reveal'}
             </button>
             <button
