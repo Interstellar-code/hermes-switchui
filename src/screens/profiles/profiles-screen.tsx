@@ -36,23 +36,27 @@ export type AgentRow = {
 
 type SortKey = 'name' | 'tier' | 'last_run' | 'status'
 
+// ── Builtin metadata lookup by id (profile name) ─────────────────────────────
+const BUILTIN_BY_ID = new Map(BUILTIN_AGENTS.map((b) => [b.id, b]))
+
 // ── Helper: derive AgentRow from ProfileSummary or hermes-agent profile ──────
 function profileToRow(p: any): AgentRow {
   // Support both local ProfileSummary and hermes-agent profiles API response
   const name = p.name || ''
+  const builtin = BUILTIN_BY_ID.get(name)
   const ui: AgentUIMetadata = p.agent_ui ?? {}
-  const glyph = ui.glyph ?? name.slice(0, 2).toUpperCase()
-  const role = ui.role ?? p.description ?? '—'
-  const description = p.description ?? ''
-  const tags = ui.tags ?? []
-  const status: AgentRow['status'] = ui.status ?? 'idle'
+  const glyph = ui.glyph ?? builtin?.glyph ?? name.slice(0, 2).toUpperCase()
+  const role = ui.role ?? builtin?.role ?? p.description ?? '—'
+  const description = p.description ?? builtin?.description ?? ''
+  const tags = ui.tags ?? builtin?.tags ?? []
+  const status: AgentRow['status'] = ui.status ?? builtin?.status ?? 'idle'
   const last_run = ui.last_run ?? null
   const model = p.model ?? ''
   const isDefault = p.is_default === true || p.active === true
   return {
     id: `profile:${name}`,
-    name,
-    tier: 3,
+    name: builtin?.name ?? name,
+    tier: (ui.tier as AgentRow['tier']) ?? builtin?.tier ?? 3,
     glyph,
     role,
     description,
@@ -60,7 +64,7 @@ function profileToRow(p: any): AgentRow {
     tags,
     status,
     last_run,
-    builtin: false,
+    builtin: builtin !== undefined,
     profileName: name,
     active: isDefault,
   }
@@ -153,9 +157,7 @@ export function ProfilesScreen() {
   const profiles = profilesQuery.data?.profiles ?? []
 
   const allRows = useMemo<Array<AgentRow>>(() => {
-    const builtins = BUILTIN_AGENTS.map(builtinToRow)
-    const user = profiles.map(profileToRow)
-    return [...builtins, ...user]
+    return profiles.map(profileToRow)
   }, [profiles])
 
   const allModels = useMemo<Array<string>>(() => {

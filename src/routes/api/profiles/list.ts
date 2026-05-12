@@ -5,6 +5,7 @@ import {
   getActiveProfileName,
   listProfiles,
 } from '../../../server/profiles-browser'
+import { ensureBuiltinProfiles } from '../../../server/profiles-bootstrap'
 
 export const Route = createFileRoute('/api/profiles/list')({
   server: {
@@ -14,6 +15,7 @@ export const Route = createFileRoute('/api/profiles/list')({
           return json({ error: 'Unauthorized' }, { status: 401 })
         }
         try {
+          ensureBuiltinProfiles()
           return json({
             profiles: listProfiles(),
             activeProfile: getActiveProfileName(),
