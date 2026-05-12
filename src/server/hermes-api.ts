@@ -765,7 +765,9 @@ export type OAuthProvider = {
 }
 
 export async function listOAuthProviders(): Promise<Array<OAuthProvider>> {
-  return dashboardGet('/api/providers/oauth')
+  const res = await dashboardGet<{ providers?: Array<OAuthProvider> } | Array<OAuthProvider>>('/api/providers/oauth')
+  if (Array.isArray(res)) return res
+  return res.providers ?? []
 }
 
 export async function deleteOAuth(providerId: string): Promise<void> {
