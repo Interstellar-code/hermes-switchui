@@ -12,7 +12,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
-import { PasswordField } from '../components/controls'
+import { PasswordField, Toggle } from '../components/controls'
 import type { KnowledgeBaseConfig } from '@/server/knowledge-config'
 import type { EnvVarInfo } from '@/server/hermes-api'
 import { getEnv, putEnv, revealEnv } from '@/server/hermes-api'
@@ -575,25 +575,11 @@ export default function SectionMemoryWiki() {
 
       <SettingCard title="Memory">
         <SettingRow label="Memory enabled" desc="Enable long-term memory retrieval for sessions">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={memoryEnabled}
-              onChange={(e) => set('config.memory.memory_enabled', e.target.checked)}
-            />
-            <span className="slider" />
-          </label>
+          <Toggle on={memoryEnabled} set={(v) => set('config.memory.memory_enabled', v)} />
         </SettingRow>
 
         <SettingRow label="User profile enabled" desc="Build and use a persistent user profile for personalization">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={userProfileEnabled}
-              onChange={(e) => set('config.memory.user_profile_enabled', e.target.checked)}
-            />
-            <span className="slider" />
-          </label>
+          <Toggle on={userProfileEnabled} set={(v) => set('config.memory.user_profile_enabled', v)} />
         </SettingRow>
 
         <SettingRow label="Provider" desc="Memory backend provider">

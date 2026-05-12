@@ -8,6 +8,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
+import { Toggle } from '../components/controls'
 import { useSettingsStore } from '@/stores/settings-store'
 import { listToolsets } from '@/server/hermes-api'
 
@@ -46,24 +47,10 @@ export default function SectionMcpServers() {
 
       <SettingCard title="Connection">
         <SettingRow label="MCP enabled" desc="Enable the Model Context Protocol subsystem">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={mcpEnabled}
-              onChange={(e) => set('config.mcp.enabled', e.target.checked)}
-            />
-            <span className="slider" />
-          </label>
+          <Toggle on={mcpEnabled} set={(v) => set('config.mcp.enabled', v)} />
         </SettingRow>
         <SettingRow label="Auto-start on launch" desc="Start MCP servers automatically when the agent launches">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={autostart}
-              onChange={(e) => set('config.mcp.autostart', e.target.checked)}
-            />
-            <span className="slider" />
-          </label>
+          <Toggle on={autostart} set={(v) => set('config.mcp.autostart', v)} />
         </SettingRow>
         <SettingRow label="Connect timeout" desc={`${connectTimeout}s — seconds to wait for MCP server connection`}>
           <input
@@ -76,14 +63,7 @@ export default function SectionMcpServers() {
           />
         </SettingRow>
         <SettingRow label="Verbose logging" desc="Log all MCP protocol messages to the agent log">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={verboseLogging}
-              onChange={(e) => set('config.mcp.verbose', e.target.checked)}
-            />
-            <span className="slider" />
-          </label>
+          <Toggle on={verboseLogging} set={(v) => set('config.mcp.verbose', v)} />
         </SettingRow>
       </SettingCard>
 

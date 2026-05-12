@@ -7,6 +7,7 @@
 
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
+import { Toggle } from '../components/controls'
 import { useSettingsStore } from '@/stores/settings-store'
 
 export default function SectionAgentRuntime() {
@@ -89,34 +90,13 @@ export default function SectionAgentRuntime() {
 
       <SettingCard title="Safety & logging">
         <SettingRow label="Auto-commit on success" pill={{ t: 'danger' }} desc="Automatically commit changes when a task succeeds">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={autoCommit}
-              onChange={(e) => set('config.agent.auto_commit', e.target.checked)}
-            />
-            <span className="slider" />
-          </label>
+          <Toggle on={autoCommit} set={(v) => set('config.agent.auto_commit', v)} />
         </SettingRow>
         <SettingRow label="Verify before ship" desc="Run verification step before finalising output">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={verifyBeforeShip}
-              onChange={(e) => set('config.agent.verify_before_ship', e.target.checked)}
-            />
-            <span className="slider" />
-          </label>
+          <Toggle on={verifyBeforeShip} set={(v) => set('config.agent.verify_before_ship', v)} />
         </SettingRow>
         <SettingRow label="Capture agent logs" desc="Persist agent stdout/stderr to log files">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={captureLogs}
-              onChange={(e) => set('config.agent.capture_logs', e.target.checked)}
-            />
-            <span className="slider" />
-          </label>
+          <Toggle on={captureLogs} set={(v) => set('config.agent.capture_logs', v)} />
         </SettingRow>
       </SettingCard>
     </div>

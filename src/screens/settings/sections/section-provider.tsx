@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
+import { Toggle } from '../components/controls'
 import { useSettingsStore } from '@/stores/settings-store'
 import { modelInfo, modelOptions, setModelAssignment } from '@/server/hermes-api'
 import { toast } from '@/components/ui/toast'
@@ -152,34 +153,13 @@ export default function SectionProvider() {
 
       <SettingCard title="Capabilities">
         <SettingRow label="Extended thinking" desc="Enable extended reasoning mode">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={reasoning}
-              onChange={(e) => set('config.reasoning', e.target.checked)}
-            />
-            <span className="slider" />
-          </label>
+          <Toggle on={reasoning} set={(v) => set('config.reasoning', v)} />
         </SettingRow>
         <SettingRow label="Prompt caching" desc="Cache prompt prefixes to reduce latency">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={promptCaching}
-              onChange={(e) => set('config.prompt_caching', e.target.checked)}
-            />
-            <span className="slider" />
-          </label>
+          <Toggle on={promptCaching} set={(v) => set('config.prompt_caching', v)} />
         </SettingRow>
         <SettingRow label="Stream outputs" desc="Stream tokens as they are generated">
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={streamOutputs}
-              onChange={(e) => set('config.stream_outputs', e.target.checked)}
-            />
-            <span className="slider" />
-          </label>
+          <Toggle on={streamOutputs} set={(v) => set('config.stream_outputs', v)} />
         </SettingRow>
       </SettingCard>
     </div>
