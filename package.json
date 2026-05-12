@@ -99,7 +99,7 @@
     "eslint": "^10.2.0",
     "jsdom": "^27.0.0",
     "prettier": "^3.5.3",
-    "react-grab": "^0.1.32",
+    "react-grab": "^0.1.34",
     "tsx": "^4.21.0",
     "typescript": "^5.7.2",
     "vite": "^7.3.2",
