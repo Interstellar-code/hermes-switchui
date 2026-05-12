@@ -8,7 +8,7 @@
  *  - Top: HERMES brand glyph + name + version
  *  - Search row (⌘K hotkey hint)
  *  - New Session row
- *  - MAIN group: Dashboard, Chat, Files, Terminal, Jobs, Tasks, Conductor, Operations, Swarm
+ *  - MAIN group: Dashboard, Chat, Files, Terminal, Jobs, Tasks, Conductor, Operations
  *  - KNOWLEDGE group: Memory, Skills, MCP, Profiles
  *  - Footer: connected dot + "connected" text + cog icon
  *

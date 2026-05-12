@@ -18,10 +18,7 @@ import { KillConfirmDialog } from './kill-confirm-dialog'
 import { SteerModal } from './steer-modal'
 import { Button } from '@/components/ui/button'
 import { AgentAvatar } from '@/components/agent-avatar'
-import {
-  PERSONA_COLORS,
-  PixelAvatar,
-} from '@/components/agent-swarm/pixel-avatar'
+import { PERSONA_COLORS, PixelAvatar } from '@/components/avatars'
 
 import {
   MenuContent,

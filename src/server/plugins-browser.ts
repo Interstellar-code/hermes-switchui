@@ -8,7 +8,7 @@ import { getClaudeRoot, getWorkspaceClaudeHome } from './claude-paths'
 export type PluginBoundary = 'workspace-only' | 'worker-only' | 'both'
 export type PluginScope = string
 
-export type SwarmPluginDescriptor = {
+export type PluginDescriptor = {
   name: string
   version: string
   description: string
@@ -51,7 +51,7 @@ type RawManifest = {
   }
 }
 
-function parseSwarmPluginManifest({ manifestPath, source }: { manifestPath: string; source: string }): SwarmPluginDescriptor {
+function parsePluginManifest({ manifestPath, source }: { manifestPath: string; source: string }): PluginDescriptor {
   const raw = fs.readFileSync(manifestPath, 'utf8')
   const manifest = parseYaml(raw) as RawManifest
   const validationErrors: Array<string> = []
@@ -94,7 +94,7 @@ function parseSwarmPluginManifest({ manifestPath, source }: { manifestPath: stri
   }
 }
 
-export type WorkspacePluginInfo = SwarmPluginDescriptor
+export type WorkspacePluginInfo = PluginDescriptor
 
 export function listWorkspacePlugins(): Array<WorkspacePluginInfo> {
   const items: Array<WorkspacePluginInfo> = []
@@ -112,7 +112,7 @@ export function listWorkspacePlugins(): Array<WorkspacePluginInfo> {
           : ''
       if (!manifestPath) continue
       try {
-        items.push(parseSwarmPluginManifest({ manifestPath, source }))
+        items.push(parsePluginManifest({ manifestPath, source }))
       } catch (error) {
         items.push({
           name: entry.name,

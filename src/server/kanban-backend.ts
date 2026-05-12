@@ -8,7 +8,7 @@ import { getClaudeRoot, getWorkspaceClaudeHome } from './claude-paths'
 
 export type KanbanCardStatus = 'backlog' | 'ready' | 'running' | 'review' | 'blocked' | 'done' | 'archived'
 
-export type SwarmKanbanCard = {
+export type LocalKanbanCard = {
   id: string
   title: string
   spec: string
@@ -23,7 +23,7 @@ export type SwarmKanbanCard = {
   updatedAt: number
 }
 
-export type CreateSwarmKanbanCardInput = {
+export type CreateLocalKanbanCardInput = {
   title: string
   spec?: string
   acceptanceCriteria?: string[]
@@ -35,7 +35,7 @@ export type CreateSwarmKanbanCardInput = {
   createdBy?: string
 }
 
-export type UpdateSwarmKanbanCardInput = Partial<Omit<SwarmKanbanCard, 'id' | 'createdAt' | 'createdBy'>>
+export type UpdateLocalKanbanCardInput = Partial<Omit<LocalKanbanCard, 'id' | 'createdAt' | 'createdBy'>>
 
 const KANBAN_FILE_NAME = 'kanban-board.json'
 
@@ -48,33 +48,33 @@ function getLocalKanbanFile(): string {
   }
 }
 
-export const SWARM_KANBAN_FILE = getLocalKanbanFile()
+export const LOCAL_KANBAN_FILE = getLocalKanbanFile()
 
-function readLocalCards(): SwarmKanbanCard[] {
+function readLocalCards(): LocalKanbanCard[] {
   const file = getLocalKanbanFile()
   if (!fs.existsSync(file)) return []
   try {
     const raw = fs.readFileSync(file, 'utf8')
     const parsed = JSON.parse(raw) as unknown
-    return Array.isArray(parsed) ? (parsed as SwarmKanbanCard[]) : []
+    return Array.isArray(parsed) ? (parsed as LocalKanbanCard[]) : []
   } catch {
     return []
   }
 }
 
-function writeLocalCards(cards: SwarmKanbanCard[]): void {
+function writeLocalCards(cards: LocalKanbanCard[]): void {
   const file = getLocalKanbanFile()
   fs.mkdirSync(path.dirname(file), { recursive: true })
   fs.writeFileSync(file, JSON.stringify(cards, null, 2), 'utf8')
 }
 
-function listSwarmKanbanCards(): SwarmKanbanCard[] {
+function listLocalKanbanCards(): LocalKanbanCard[] {
   return readLocalCards()
 }
 
-function createSwarmKanbanCard(input: CreateSwarmKanbanCardInput): SwarmKanbanCard {
+function createLocalKanbanCard(input: CreateLocalKanbanCardInput): LocalKanbanCard {
   const cards = readLocalCards()
-  const card: SwarmKanbanCard = {
+  const card: LocalKanbanCard = {
     id: `k_${randomUUID().replace(/-/g, '').slice(0, 8)}`,
     title: input.title,
     spec: input.spec ?? '',
@@ -93,7 +93,7 @@ function createSwarmKanbanCard(input: CreateSwarmKanbanCardInput): SwarmKanbanCa
   return card
 }
 
-function updateSwarmKanbanCard(cardId: string, updates: UpdateSwarmKanbanCardInput): SwarmKanbanCard | null {
+function updateLocalKanbanCard(cardId: string, updates: UpdateLocalKanbanCardInput): LocalKanbanCard | null {
   const cards = readLocalCards()
   const idx = cards.findIndex((c) => c.id === cardId)
   if (idx === -1) return null
@@ -115,9 +115,9 @@ export type KanbanBackendMeta = {
 
 type KanbanBackend = {
   meta(): KanbanBackendMeta
-  list(): SwarmKanbanCard[]
-  create(input: CreateSwarmKanbanCardInput): SwarmKanbanCard
-  update(cardId: string, updates: UpdateSwarmKanbanCardInput): SwarmKanbanCard | null
+  list(): LocalKanbanCard[]
+  create(input: CreateLocalKanbanCardInput): LocalKanbanCard
+  update(cardId: string, updates: UpdateLocalKanbanCardInput): LocalKanbanCard | null
 }
 
 type ClaudeTaskRow = {
@@ -187,7 +187,7 @@ function detectClaudeKanban(): ClaudeDetection {
       cliPath: null,
       dbPath,
       workspacePath,
-      reason: 'Hermes Kanban storage not found; using the local Swarm Board fallback.',
+      reason: 'Hermes Kanban storage not found; using the local board fallback.',
     }
   }
 
@@ -286,7 +286,7 @@ function normalizeTimestamp(value: unknown): number {
   return Date.now()
 }
 
-function mapClaudeStatus(status: string | null | undefined): SwarmKanbanCard['status'] {
+function mapClaudeStatus(status: string | null | undefined): LocalKanbanCard['status'] {
   switch ((status ?? '').toLowerCase()) {
     case 'queued':
     case 'todo':
@@ -311,7 +311,7 @@ function mapClaudeStatus(status: string | null | undefined): SwarmKanbanCard['st
   }
 }
 
-function mapBoardStatus(status: SwarmKanbanCard['status'] | null | undefined): string {
+function mapBoardStatus(status: LocalKanbanCard['status'] | null | undefined): string {
   switch (status) {
     case 'backlog':
       return 'triage'
@@ -330,7 +330,7 @@ function mapBoardStatus(status: SwarmKanbanCard['status'] | null | undefined): s
   }
 }
 
-function claudeTaskToCard(task: ClaudeTaskRow): SwarmKanbanCard {
+function claudeTaskToCard(task: ClaudeTaskRow): LocalKanbanCard {
   const createdAt = normalizeTimestamp(task.created_at)
   const updatedAt = normalizeTimestamp(task.updated_at ?? task.created_at)
   return {
@@ -356,18 +356,18 @@ const localBackend: KanbanBackend = {
       label: 'Local board',
       detected: true,
       writable: true,
-      path: SWARM_KANBAN_FILE,
-      details: 'Using local Swarm board JSON store.',
+      path: LOCAL_KANBAN_FILE,
+      details: 'Using local board JSON store.',
     }
   },
   list() {
-    return listSwarmKanbanCards()
+    return listLocalKanbanCards()
   },
   create(input) {
-    return createSwarmKanbanCard(input)
+    return createLocalKanbanCard(input)
   },
   update(cardId, updates) {
-    return updateSwarmKanbanCard(cardId, updates)
+    return updateLocalKanbanCard(cardId, updates)
   },
 }
 
@@ -453,14 +453,14 @@ export function getKanbanBackendMeta(): KanbanBackendMeta {
   return resolveKanbanBackend().meta()
 }
 
-export function listKanbanCards(): SwarmKanbanCard[] {
+export function listKanbanCards(): LocalKanbanCard[] {
   return resolveKanbanBackend().list()
 }
 
-export function createKanbanCard(input: CreateSwarmKanbanCardInput): SwarmKanbanCard {
+export function createKanbanCard(input: CreateLocalKanbanCardInput): LocalKanbanCard {
   return resolveKanbanBackend().create(input)
 }
 
-export function updateKanbanCard(cardId: string, updates: UpdateSwarmKanbanCardInput): SwarmKanbanCard | null {
+export function updateKanbanCard(cardId: string, updates: UpdateLocalKanbanCardInput): LocalKanbanCard | null {
   return resolveKanbanBackend().update(cardId, updates)
 }
