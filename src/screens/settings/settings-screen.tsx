@@ -6,13 +6,16 @@
  * All section bodies are stubs for P1; content filled in P2–P7.
  */
 
-import { Suspense, lazy, useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import '@/styles/matrix-settings.css'
+import { useQuery } from '@tanstack/react-query'
 import { SidebarTree } from './components/sidebar-tree'
 import { SaveBar } from './components/save-bar'
 import { settingsSaver } from './lib/saver'
+import { flattenConfig } from './lib/flatten-config'
 import type { SidebarGroup } from './components/sidebar-tree'
 import { useDirtyCount, useSettingsStore } from '@/stores/settings-store'
+import { getConfig } from '@/lib/hermes-client'
 
 // ── Lazy section components ───────────────────────────────────────────────
 const SectionWorkspace = lazy(() => import('./sections/section-workspace'))
@@ -160,7 +163,9 @@ export function SettingsScreen() {
   const dirty = useSettingsStore((s) => s.dirty)
   const reset = useSettingsStore((s) => s.reset)
   const save = useSettingsStore((s) => s.save)
+  const loaded = useSettingsStore((s) => s.loaded)
   const dirtyCount = useDirtyCount()
+  const seedOnceRef = useRef(false)
 
   const [activeId, setActiveId] = useState<string>(() => {
     try {
@@ -169,6 +174,20 @@ export function SettingsScreen() {
       return DEFAULT_SECTION
     }
   })
+
+  // Fetch server config and seed store on mount
+  const { data: serverConfig } = useQuery({
+    queryKey: ['config'],
+    queryFn: getConfig,
+    staleTime: 60_000,
+  })
+
+  useEffect(() => {
+    if (!serverConfig || seedOnceRef.current || loaded) return
+    seedOnceRef.current = true
+    const flat = flattenConfig(serverConfig as Record<string, unknown>)
+    useSettingsStore.getState().load(flat)
+  }, [serverConfig, loaded])
 
   // Persist active section to localStorage
   useEffect(() => {

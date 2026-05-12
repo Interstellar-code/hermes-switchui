@@ -57,7 +57,7 @@ export default function SectionWorkspace() {
     if (seeded.current) return
     seeded.current = true
 
-    // Seed localStorage-backed keys
+    // Seed localStorage-backed keys (only local overrides; global config seeded in settings-screen)
     for (const [key, defaultVal] of Object.entries(LS_KEYS)) {
       if (draft[key] === undefined) {
         const stored = localStorage.getItem(key)
