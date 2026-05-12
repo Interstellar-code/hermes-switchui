@@ -1,22 +1,30 @@
 /**
- * section-api-keys.tsx — API Keys & OAuth section (P5).
+ * section-api-keys.tsx — API Keys & OAuth section.
+ *
+ * Correctly wired to real endpoints:
+ *   GET/PUT/DELETE /api/env        — environment credentials
+ *   POST /api/env/reveal           — reveal masked value
+ *   GET /api/providers/oauth       — OAuth provider list
+ *   DELETE /api/providers/oauth/:id — revoke OAuth token
+ *
+ * Added: summary card with env-var count + "Open Keys →" nav to /settings/providers.
+ * Trimmed: standalone "Local tokens" card (no rotate endpoint exists).
  */
 
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { PasswordField } from '../components/controls'
-import type {EnvVarInfo, OAuthProvider} from '@/server/hermes-api';
+import type { EnvVarInfo, OAuthProvider } from '@/server/hermes-api'
 import {
-  
-  
   deleteEnv,
   deleteOAuth,
   getEnv,
   listOAuthProviders,
   putEnv,
-  revealEnv
+  revealEnv,
 } from '@/server/hermes-api'
 import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 import { toast } from '@/components/ui/toast'
@@ -42,7 +50,6 @@ function EnvRow({ envKey, info }: { envKey: string; info: EnvVarInfo }) {
 
   async function handleReveal() {
     if (revealedValue !== null) {
-      // re-mask
       setRevealedValue(null)
       if (revealTimer) clearTimeout(revealTimer)
       setRevealTimer(null)
@@ -206,6 +213,8 @@ function OAuthRow({ provider }: { provider: OAuthProvider }) {
 // ── SectionApiKeys ────────────────────────────────────────────────
 
 export default function SectionApiKeys() {
+  const navigate = useNavigate()
+
   const { data: envVars, isLoading: envLoading } = useQuery({
     queryKey: ['env'],
     queryFn: getEnv,
@@ -222,6 +231,10 @@ export default function SectionApiKeys() {
     ? Object.entries(envVars).filter(([, info]) => info.is_password === true)
     : []
 
+  const setCount = passwordEntries.filter(([, info]) => info.is_set).length
+  const totalCount = passwordEntries.length
+  const oauthConnected = (oauthProviders ?? []).filter((p) => p.logged_in).length
+
   return (
     <div>
       <div className="section-head">
@@ -231,6 +244,34 @@ export default function SectionApiKeys() {
         </div>
         <div className="meta">Section · <b>api-keys</b></div>
       </div>
+
+      {/* Summary card */}
+      <SettingCard title="Keys overview">
+        <div style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div
+            className="kv"
+            style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-text-faint)' }}
+          >
+            <div>
+              <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>Env keys</span>
+              {' · '}
+              <b style={{ color: 'var(--m-text)' }}>{setCount}/{totalCount} set</b>
+            </div>
+            <div>
+              <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>OAuth</span>
+              {' · '}
+              <b style={{ color: 'var(--m-text)' }}>{oauthConnected} connected</b>
+            </div>
+          </div>
+          <button
+            className="btn"
+            style={{ fontSize: '11px', padding: '4px 10px' }}
+            onClick={() => void navigate({ to: '/settings/providers' })}
+          >
+            Open Providers →
+          </button>
+        </div>
+      </SettingCard>
 
       <SettingCard title="Environment variables">
         {envLoading && (
@@ -274,18 +315,6 @@ export default function SectionApiKeys() {
             </table>
           </div>
         )}
-      </SettingCard>
-
-      <SettingCard title="Local tokens">
-        <SettingRow label="Rotate local tokens" desc="Generate new local authentication tokens">
-          <button
-            type="button"
-            className="btn"
-            onClick={() => toast('Token rotation is not yet available', { type: 'info' })}
-          >
-            Rotate tokens
-          </button>
-        </SettingRow>
       </SettingCard>
     </div>
   )

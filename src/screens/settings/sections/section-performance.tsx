@@ -1,5 +1,14 @@
 /**
- * section-performance.tsx — Performance settings section (P5).
+ * section-performance.tsx — Performance settings section.
+ *
+ * localStorage-backed UI prefs (no gateway config keys):
+ *   hermes.perf.hw_accel   — hardware acceleration
+ *   hermes.perf.prefetch   — model prefetch
+ *   hermes.perf.bg         — background tab behaviour
+ *
+ * Gateway snapshot uses real GatewayStatus fields: gateway_running, pid.
+ * cpu/rss are in GatewayStatus but not currently exposed by the gateway —
+ * rendered only when present.
  */
 
 import { useEffect, useRef } from 'react'
@@ -49,6 +58,8 @@ export default function SectionPerformance() {
   const prefetch = (draft[LS_PREFETCH] as boolean | undefined) ?? true
   const bg = (draft[LS_BG] as string | undefined) ?? 'normal'
 
+  const daemonRunning = status?.gateway_running
+  const daemonPid = status?.pid
   const cpu = status?.cpu
   const rss = status?.rss
 
@@ -84,14 +95,32 @@ export default function SectionPerformance() {
       <SettingCard title="Process snapshot">
         <SettingRow label="Gateway process" pill={{ t: 'live' }}>
           <span style={{ display: 'flex', gap: 12, fontSize: 12, fontFamily: 'var(--m-font-mono)' }}>
-            {cpu !== undefined ? (
-              <>
-                <span>CPU <b>{typeof cpu === 'number' ? cpu.toFixed(1) : cpu}%</b></span>
-                <span style={{ color: 'var(--m-text-faint)' }}>·</span>
-                <span>RSS <b>{typeof rss === 'number' ? (rss / 1024 / 1024).toFixed(1) : rss} MB</b></span>
-              </>
-            ) : (
+            {daemonRunning === undefined ? (
               <span style={{ color: 'var(--m-text-faint)' }}>—</span>
+            ) : !daemonRunning ? (
+              <span style={{ color: '#e05' }}>stopped</span>
+            ) : (
+              <>
+                <span style={{ color: 'var(--m-accent)' }}>running</span>
+                {daemonPid !== undefined && (
+                  <>
+                    <span style={{ color: 'var(--m-text-faint)' }}>·</span>
+                    <span>PID <b>{daemonPid}</b></span>
+                  </>
+                )}
+                {cpu !== undefined && (
+                  <>
+                    <span style={{ color: 'var(--m-text-faint)' }}>·</span>
+                    <span>CPU <b>{typeof cpu === 'number' ? cpu.toFixed(1) : cpu}%</b></span>
+                  </>
+                )}
+                {rss !== undefined && (
+                  <>
+                    <span style={{ color: 'var(--m-text-faint)' }}>·</span>
+                    <span>RSS <b>{typeof rss === 'number' ? (rss / 1024 / 1024).toFixed(1) : rss} MB</b></span>
+                  </>
+                )}
+              </>
             )}
           </span>
         </SettingRow>

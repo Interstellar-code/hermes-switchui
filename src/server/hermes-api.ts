@@ -727,11 +727,35 @@ export async function deleteOAuth(providerId: string): Promise<void> {
 export type AnalyticsUsage = {
   total_tokens?: number
   total_calls?: number
+  total_input?: number
+  total_output?: number
+  total_sessions?: number
+  total_api_calls?: number
+  total_estimated_cost?: number
   [key: string]: unknown
 }
 
 export async function analyticsUsage(days = 30): Promise<AnalyticsUsage> {
   return claudeGet(`/api/analytics/usage?days=${days}`)
+}
+
+export type AnalyticsModelRow = {
+  model: string
+  input_tokens?: number
+  output_tokens?: number
+  sessions?: number
+  api_calls?: number
+  estimated_cost?: number
+  [key: string]: unknown
+}
+
+export type AnalyticsModels = {
+  models: Array<AnalyticsModelRow>
+  [key: string]: unknown
+}
+
+export async function analyticsModels(days = 30): Promise<AnalyticsModels> {
+  return claudeGet(`/api/analytics/models?days=${days}`)
 }
 
 // ── Gateway status ────────────────────────────────────────────────

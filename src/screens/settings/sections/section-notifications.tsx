@@ -1,5 +1,6 @@
 /**
  * section-notifications.tsx — Notifications settings section (P2).
+ * In-app only — no email/Slack backend in hermes-agent.
  */
 
 import { useEffect, useRef } from 'react'
@@ -11,8 +12,6 @@ import { useSettingsStore } from '@/stores/settings-store'
 const LS_KEYS: Record<string, string> = {
   'hermes.notif.desktop': 'false',
   'hermes.notif.sound': 'false',
-  'hermes.notif.email': 'false',
-  'hermes.notif.slack': 'false',
   'hermes.notif.taskDone': 'false',
   'hermes.notif.error': 'false',
 }
@@ -44,8 +43,6 @@ export default function SectionNotifications() {
 
   const desktop = boolDraft(draft['hermes.notif.desktop'])
   const sound = boolDraft(draft['hermes.notif.sound'])
-  const email = boolDraft(draft['hermes.notif.email'])
-  const slack = boolDraft(draft['hermes.notif.slack'])
   const taskDone = boolDraft(draft['hermes.notif.taskDone'])
   const error = boolDraft(draft['hermes.notif.error'])
 
@@ -63,22 +60,12 @@ export default function SectionNotifications() {
         <div className="meta">Section · <b>notifications</b></div>
       </div>
 
-      <SettingCard title="Channels">
+      <SettingCard title="Channels" sub="in-app only">
         <SettingRow label="Desktop notifications" rowEnd>
           <Toggle on={desktop} set={(v) => toggle('hermes.notif.desktop', v)} />
         </SettingRow>
         <SettingRow label="Sound" rowEnd>
           <Toggle on={sound} set={(v) => toggle('hermes.notif.sound', v)} />
-        </SettingRow>
-        <SettingRow label="Email digest" rowEnd>
-          <Toggle on={email} set={(v) => toggle('hermes.notif.email', v)} />
-        </SettingRow>
-        <SettingRow
-          label="Slack"
-          pill={{ t: slack ? 'connected' : 'local-only' }}
-          rowEnd
-        >
-          <Toggle on={slack} set={(v) => toggle('hermes.notif.slack', v)} />
         </SettingRow>
       </SettingCard>
 

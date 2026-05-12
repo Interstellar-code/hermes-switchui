@@ -1,57 +1,82 @@
 /**
- * section-telemetry.tsx — Telemetry settings section (P5).
+ * section-telemetry.tsx — Telemetry settings section.
+ *
+ * No `telemetry.*` keys exist in DEFAULT_CONFIG.
+ * Logging config lives under `logging.*`:
+ *   logging.level        — DEBUG | INFO | WARNING
+ *   logging.max_size_mb  — max log file size before rotation
+ *   logging.backup_count — number of rotated backup files
+ *
+ * Dropped ghost keys (not in DEFAULT_CONFIG):
+ *   telemetry.metrics, telemetry.traces, telemetry.otlp_endpoint,
+ *   telemetry.sample_rate
  */
 
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
-import { Toggle } from '../components/controls'
+import { Segmented, NumberSlider } from '../components/controls'
 import { useSettingsStore } from '@/stores/settings-store'
+
+const LOG_LEVELS = [
+  { value: 'DEBUG', label: 'Debug' },
+  { value: 'INFO', label: 'Info' },
+  { value: 'WARNING', label: 'Warning' },
+]
 
 export default function SectionTelemetry() {
   const { draft, set } = useSettingsStore()
 
-  const metrics = (draft['config.telemetry.metrics'] as boolean | undefined) ?? false
-  const traces = (draft['config.telemetry.traces'] as boolean | undefined) ?? false
-  const otlpEndpoint = (draft['config.telemetry.otlp_endpoint'] as string | undefined) ?? ''
-  const sampleRate = (draft['config.telemetry.sample_rate'] as number | undefined) ?? 0.1
+  // logging.* — real DEFAULT_CONFIG keys
+  const logLevel = (draft['config.logging.level'] as string | undefined) ?? 'INFO'
+  const maxSizeMb = (draft['config.logging.max_size_mb'] as number | undefined) ?? 5
+  const backupCount = (draft['config.logging.backup_count'] as number | undefined) ?? 3
 
   return (
     <div>
       <div className="section-head">
         <div>
           <h2>Telemetry</h2>
-          <div className="desc">OpenTelemetry metrics, traces, and sampling configuration.</div>
+          <div className="desc">File logging level, rotation, and backup policy.</div>
         </div>
-        <div className="meta">Section · <b>telemetry</b></div>
+        <div className="meta">Section · <b>logging</b></div>
       </div>
 
-      <SettingCard title="Collection">
-        <SettingRow label="Metrics enabled" desc="Collect and export metrics via OTLP">
-          <Toggle on={metrics} set={(v) => set('config.telemetry.metrics', v)} />
-        </SettingRow>
-        <SettingRow label="Traces enabled" desc="Collect and export distributed traces via OTLP">
-          <Toggle on={traces} set={(v) => set('config.telemetry.traces', v)} />
+      <SettingCard title="Log level">
+        <SettingRow
+          label="Minimum log level"
+          desc="Controls verbosity of ~/.hermes/logs/agent.log"
+        >
+          <Segmented
+            options={LOG_LEVELS}
+            value={logLevel}
+            onChange={(v) => set('config.logging.level', v)}
+          />
         </SettingRow>
       </SettingCard>
 
-      <SettingCard title="Export">
-        <SettingRow label="OTLP endpoint" desc="Collector endpoint URL (e.g. http://localhost:4318)">
-          <input
-            type="text"
-            className="text-input"
-            value={otlpEndpoint}
-            placeholder="http://localhost:4318"
-            onChange={(e) => set('config.telemetry.otlp_endpoint', e.target.value)}
+      <SettingCard title="Log rotation">
+        <SettingRow
+          label="Max file size (MB)"
+          desc={`Rotate agent.log after ${maxSizeMb} MB`}
+        >
+          <NumberSlider
+            min={1}
+            max={100}
+            step={1}
+            value={maxSizeMb}
+            onChange={(v) => set('config.logging.max_size_mb', v)}
           />
         </SettingRow>
-        <SettingRow label="Sample rate" desc={`${sampleRate.toFixed(2)} (0 = off, 1 = all)`}>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={sampleRate}
-            onChange={(e) => set('config.telemetry.sample_rate', parseFloat(e.target.value))}
+        <SettingRow
+          label="Backup files to keep"
+          desc={`Retain ${backupCount} rotated log files`}
+        >
+          <NumberSlider
+            min={1}
+            max={20}
+            step={1}
+            value={backupCount}
+            onChange={(v) => set('config.logging.backup_count', v)}
           />
         </SettingRow>
       </SettingCard>

@@ -1,23 +1,26 @@
 /**
- * section-provider.tsx — Provider & model defaults (P3).
+ * section-provider.tsx — Provider & model defaults.
  *
- * Provider / default-model rows use local state + direct API calls (setModelAssignment)
- * so they are not deferred to Save. All other rows go through the settings store/saver.
+ * Summary card: active provider + model from modelInfo(), capabilities chips,
+ * context-window kv, "Open Providers →" button.
+ * Provider / default-model rows use local state + direct API calls (setModelAssignment).
+ * Generation-param rows dropped — keys don't exist in DEFAULT_CONFIG.
  */
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
-import { Toggle } from '../components/controls'
 import { useSettingsStore } from '@/stores/settings-store'
 import { modelInfo, modelOptions, setModelAssignment } from '@/server/hermes-api'
 import { toast } from '@/components/ui/toast'
 
 export default function SectionProvider() {
   const { draft, set } = useSettingsStore()
+  const navigate = useNavigate()
 
-  const { data: info } = useQuery({
+  const { data: info, isLoading: infoLoading } = useQuery({
     queryKey: ['model-info'],
     queryFn: modelInfo,
     staleTime: 30_000,
@@ -40,6 +43,14 @@ export default function SectionProvider() {
   const modelsForProvider: string[] =
     providerList.find((p) => p.id === currentProvider)?.models ?? []
 
+  const caps = info?.capabilities as Record<string, unknown> | undefined
+  const contextWindow = caps?.context_window as number | undefined
+  const supportsTools = caps?.supports_tools as boolean | undefined
+  const supportsVision = caps?.supports_vision as boolean | undefined
+  const supportsReasoning = caps?.supports_reasoning as boolean | undefined
+
+  const fallbackModel = (draft['config.fallback_model'] as string | undefined) ?? ''
+
   async function handleProviderChange(provider: string) {
     try {
       await setModelAssignment({ scope: 'main', provider, model: currentModel })
@@ -60,23 +71,74 @@ export default function SectionProvider() {
     }
   }
 
-  const temperature = (draft['config.temperature'] as number | undefined) ?? 1.0
-  const topP = (draft['config.top_p'] as number | undefined) ?? 1.0
-  const maxTokens = (draft['config.max_tokens'] as number | undefined) ?? 4096
-  const fallbackModel = (draft['config.fallback_model'] as string | undefined) ?? ''
-  const reasoning = (draft['config.reasoning'] as boolean | undefined) ?? false
-  const promptCaching = (draft['config.prompt_caching'] as boolean | undefined) ?? true
-  const streamOutputs = (draft['config.stream_outputs'] as boolean | undefined) ?? true
-
   return (
     <div>
       <div className="section-head">
         <div>
           <h2>Provider</h2>
-          <div className="desc">Default provider, model, and generation parameters.</div>
+          <div className="desc">Default provider, model, and capabilities.</div>
         </div>
         <div className="meta">Section · <b>provider</b></div>
       </div>
+
+      {/* Summary status card */}
+      <SettingCard title="Status">
+        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {infoLoading ? (
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-text-faint)' }}>
+                  Loading…
+                </span>
+              ) : info ? (
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-accent)' }}>
+                  ✓ {info.provider} / {info.model}
+                </span>
+              ) : (
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-danger, #e05)' }}>
+                  ⚠ Not detected
+                </span>
+              )}
+            </div>
+            <button
+              className="btn"
+              style={{ fontSize: '11px', padding: '4px 10px' }}
+              onClick={() => void navigate({ to: '/settings/providers' })}
+            >
+              Open Providers →
+            </button>
+          </div>
+
+          {info && (
+            <div className="kv" style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-text-faint)' }}>
+              {contextWindow != null && (
+                <div>
+                  <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>context window</span>
+                  {' · '}
+                  {contextWindow.toLocaleString()} tokens
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                {supportsTools && (
+                  <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'var(--m-surface-2)', color: 'var(--m-text-dim, var(--m-text-faint))' }}>
+                    tools
+                  </span>
+                )}
+                {supportsVision && (
+                  <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'var(--m-surface-2)', color: 'var(--m-text-dim, var(--m-text-faint))' }}>
+                    vision
+                  </span>
+                )}
+                {supportsReasoning && (
+                  <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'var(--m-surface-2)', color: 'var(--m-text-dim, var(--m-text-faint))' }}>
+                    reasoning
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </SettingCard>
 
       <SettingCard title="Provider & model">
         <SettingRow label="Provider" desc="Active backend provider">
@@ -115,51 +177,6 @@ export default function SectionProvider() {
             placeholder="e.g. claude-3-haiku-20240307"
             onChange={(e) => set('config.fallback_model', e.target.value)}
           />
-        </SettingRow>
-      </SettingCard>
-
-      <SettingCard title="Generation parameters">
-        <SettingRow label="Temperature" desc={`${temperature.toFixed(2)}`}>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={temperature}
-            onChange={(e) => set('config.temperature', parseFloat(e.target.value))}
-          />
-        </SettingRow>
-        <SettingRow label="Top-P" desc={`${topP.toFixed(2)}`}>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={topP}
-            onChange={(e) => set('config.top_p', parseFloat(e.target.value))}
-          />
-        </SettingRow>
-        <SettingRow label="Max tokens">
-          <input
-            type="number"
-            className="text-input"
-            value={maxTokens}
-            min={1}
-            max={200000}
-            onChange={(e) => set('config.max_tokens', parseInt(e.target.value, 10))}
-          />
-        </SettingRow>
-      </SettingCard>
-
-      <SettingCard title="Capabilities">
-        <SettingRow label="Extended thinking" desc="Enable extended reasoning mode">
-          <Toggle on={reasoning} set={(v) => set('config.reasoning', v)} />
-        </SettingRow>
-        <SettingRow label="Prompt caching" desc="Cache prompt prefixes to reduce latency">
-          <Toggle on={promptCaching} set={(v) => set('config.prompt_caching', v)} />
-        </SettingRow>
-        <SettingRow label="Stream outputs" desc="Stream tokens as they are generated">
-          <Toggle on={streamOutputs} set={(v) => set('config.stream_outputs', v)} />
         </SettingRow>
       </SettingCard>
     </div>

@@ -1,24 +1,15 @@
 /**
- * section-mcp-registered.tsx — Registered MCP / dashboard plugins (P4).
+ * section-mcp-registered.tsx — Registered dashboard plugins summary card.
  *
- * Fetches plugins via listDashboardPlugins(), renders an action table.
- * Enable/Disable/Update/Delete actions call API helpers directly with toast feedback.
- * Delete uses ConfirmDialog. Install modal uses local state + installAgentPlugin().
- * Rescan button calls GET /api/dashboard/plugins/rescan.
+ * Summary card: total plugins, enabled count, "Open Plugins page →" button.
+ * Preview list: top 3 plugins by name + Rescan button.
+ * Full install/enable/disable/update/delete is handled on the plugins page.
  */
 
-import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { SettingCard } from '../components/setting-card'
-import {
-  deleteAgentPlugin,
-  disableAgentPlugin,
-  enableAgentPlugin,
-  installAgentPlugin,
-  listDashboardPlugins,
-  updateAgentPlugin,
-} from '@/server/hermes-api'
-import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
+import { listDashboardPlugins } from '@/server/hermes-api'
 import { toast } from '@/components/ui/toast'
 
 type PluginEntry = {
@@ -30,91 +21,28 @@ type PluginEntry = {
 }
 
 export default function SectionMcpRegistered() {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
-  const [installOpen, setInstallOpen] = useState(false)
-  const [installIdentifier, setInstallIdentifier] = useState('')
-  const [installBusy, setInstallBusy] = useState(false)
-
-  const { data: pluginsRaw, isLoading } = useQuery({
+  const { data: pluginsRaw, isLoading, isError } = useQuery({
     queryKey: ['dashboard-plugins'],
     queryFn: listDashboardPlugins,
     staleTime: 30_000,
+    retry: 1,
   })
 
   const plugins = (Array.isArray(pluginsRaw) ? pluginsRaw : []) as Array<PluginEntry>
-
-  async function refetch() {
-    await queryClient.invalidateQueries({ queryKey: ['dashboard-plugins'] })
-  }
-
-  async function handleEnable(name: string) {
-    try {
-      await enableAgentPlugin(name)
-      toast(`Plugin "${name}" enabled`, { type: 'success' })
-      await refetch()
-    } catch {
-      toast(`Failed to enable "${name}"`, { type: 'error' })
-    }
-  }
-
-  async function handleDisable(name: string) {
-    try {
-      await disableAgentPlugin(name)
-      toast(`Plugin "${name}" disabled`, { type: 'success' })
-      await refetch()
-    } catch {
-      toast(`Failed to disable "${name}"`, { type: 'error' })
-    }
-  }
-
-  async function handleUpdate(name: string) {
-    try {
-      await updateAgentPlugin(name)
-      toast(`Plugin "${name}" updated`, { type: 'success' })
-      await refetch()
-    } catch {
-      toast(`Failed to update "${name}"`, { type: 'error' })
-    }
-  }
-
-  async function handleDeleteConfirm() {
-    if (!deleteTarget) return
-    const name = deleteTarget
-    setDeleteTarget(null)
-    try {
-      await deleteAgentPlugin(name)
-      toast(`Plugin "${name}" deleted`, { type: 'success' })
-      await refetch()
-    } catch {
-      toast(`Failed to delete "${name}"`, { type: 'error' })
-    }
-  }
-
-  async function handleInstall() {
-    const id = installIdentifier.trim()
-    if (!id) return
-    setInstallBusy(true)
-    try {
-      await installAgentPlugin({ identifier: id, enable: true })
-      toast(`Plugin "${id}" installed`, { type: 'success' })
-      setInstallOpen(false)
-      setInstallIdentifier('')
-      await refetch()
-    } catch {
-      toast(`Failed to install "${id}"`, { type: 'error' })
-    } finally {
-      setInstallBusy(false)
-    }
-  }
+  const notDetected = isError || (!isLoading && plugins.length === 0)
+  const enabledCount = plugins.filter(p => p.enabled).length
+  const totalCount = plugins.length
+  const preview = plugins.slice(0, 3)
 
   async function handleRescan() {
     try {
       const resp = await fetch('/api/dashboard/plugins/rescan')
       if (!resp.ok) throw new Error(resp.statusText)
       toast('Plugin rescan complete', { type: 'success' })
-      await refetch()
+      await queryClient.invalidateQueries({ queryKey: ['dashboard-plugins'] })
     } catch {
       toast('Rescan failed', { type: 'error' })
     }
@@ -130,138 +58,79 @@ export default function SectionMcpRegistered() {
         <div className="meta">Section · <b>mcp-registered</b></div>
       </div>
 
-      <SettingCard title="Plugins">
-        {isLoading ? (
-          <div style={{ padding: '16px', color: 'var(--m-text-faint)', font: '12px var(--m-font-mono)' }}>
-            Loading…
+      <SettingCard title="Status">
+        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--m-text)' }}>
+                Plugins
+              </span>
+              {isLoading ? (
+                <span style={{ fontSize: '11px', color: 'var(--m-text-faint)', fontFamily: 'var(--m-font-mono)' }}>loading…</span>
+              ) : notDetected ? (
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-text-faint)' }}>None installed</span>
+              ) : (
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-accent)' }}>
+                  ✓ {totalCount} {totalCount === 1 ? 'plugin' : 'plugins'} · {enabledCount} enabled
+                </span>
+              )}
+            </div>
+            <button
+              className="btn"
+              style={{ fontSize: '11px', padding: '4px 10px' }}
+              onClick={() => void navigate({ to: '/mcp' })}
+            >
+              Open Plugins page →
+            </button>
           </div>
-        ) : plugins.length === 0 ? (
-          <div style={{ padding: '16px', color: 'var(--m-text-faint)', font: '12px var(--m-font-mono)' }}>
-            No plugins installed.
-          </div>
-        ) : (
-          <div className="mini-table-wrap">
-            <table className="mini-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Version</th>
-                  <th>Description</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plugins.map((plugin) => (
-                  <tr key={plugin.name}>
-                    <td style={{ font: '12px var(--m-font-mono)' }}>{plugin.name}</td>
-                    <td style={{ color: 'var(--m-text-faint)' }}>{plugin.version ?? '—'}</td>
-                    <td style={{ color: 'var(--m-text-faint)' }}>{plugin.description ?? '—'}</td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '4px' }}>
-                        {plugin.enabled ? (
-                          <button
-                            className="btn"
-                            style={{ fontSize: '11px', padding: '2px 8px' }}
-                            onClick={() => void handleDisable(plugin.name)}
-                          >
-                            Disable
-                          </button>
-                        ) : (
-                          <button
-                            className="btn btn-primary"
-                            style={{ fontSize: '11px', padding: '2px 8px' }}
-                            onClick={() => void handleEnable(plugin.name)}
-                          >
-                            Enable
-                          </button>
-                        )}
-                        <button
-                          className="btn"
-                          style={{ fontSize: '11px', padding: '2px 8px' }}
-                          onClick={() => void handleUpdate(plugin.name)}
-                        >
-                          Update
-                        </button>
-                        <button
-                          className="btn btn-danger"
-                          style={{ fontSize: '11px', padding: '2px 8px' }}
-                          onClick={() => setDeleteTarget(plugin.name)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
 
-        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--m-border)', display: 'flex', gap: '8px' }}>
-          <button className="btn btn-primary" onClick={() => setInstallOpen(true)}>
-            Install
-          </button>
-          <button className="btn" onClick={() => void handleRescan()}>
-            Rescan
-          </button>
+          {!isLoading && preview.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-text-faint)' }}>
+              {preview.map((p) => (
+                <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      background: p.enabled ? 'var(--m-accent)' : 'var(--m-text-faint)',
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ color: 'var(--m-text)' }}>{p.name}</span>
+                  {p.version && <span>{p.version}</span>}
+                  {p.description && (
+                    <span style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      maxWidth: '200px',
+                    }}>
+                      {p.description}
+                    </span>
+                  )}
+                </div>
+              ))}
+              {totalCount > 3 && (
+                <div style={{ color: 'var(--m-text-faint)', paddingLeft: '14px' }}>
+                  +{totalCount - 3} more
+                </div>
+              )}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '8px', marginTop: '2px' }}>
+            <button
+              className="btn"
+              style={{ fontSize: '11px', padding: '4px 10px' }}
+              onClick={() => void handleRescan()}
+            >
+              Rescan
+            </button>
+          </div>
         </div>
       </SettingCard>
-
-      {/* Install modal */}
-      {installOpen && (
-        <div className="pf-confirm-backdrop" onClick={() => setInstallOpen(false)}>
-          <div
-            className="pf-confirm"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-          >
-            <h3>Install Plugin</h3>
-            <p>Enter the plugin identifier (e.g. package name, git URL, or registry slug).</p>
-            <input
-              type="text"
-              className="text-input"
-              style={{ width: '100%', marginBottom: '12px' }}
-              placeholder="e.g. hermes-mcp-filesystem"
-              value={installIdentifier}
-              onChange={(e) => setInstallIdentifier(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void handleInstall()
-                if (e.key === 'Escape') setInstallOpen(false)
-              }}
-              autoFocus
-            />
-            <div className="pf-confirm-actions">
-              <button
-                type="button"
-                className="btn"
-                onClick={() => setInstallOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={installBusy || !installIdentifier.trim()}
-                onClick={() => void handleInstall()}
-              >
-                {installBusy ? 'Installing…' : 'Install'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <ConfirmDialog
-        open={deleteTarget !== null}
-        title="Delete plugin"
-        message={`Delete "${deleteTarget ?? ''}"? This cannot be undone.`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={() => void handleDeleteConfirm()}
-        onCancel={() => setDeleteTarget(null)}
-      />
     </div>
   )
 }

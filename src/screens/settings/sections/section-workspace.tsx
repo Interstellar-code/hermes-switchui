@@ -7,9 +7,9 @@ import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { Segmented } from '../components/controls'
 import { useSettingsStore } from '@/stores/settings-store'
-import { getConfig } from '@/server/hermes-api'
 
 const LS_KEYS: Record<string, string> = {
+  'hermes.workspaceName': '',
   'hermes.lang': 'en',
   'hermes.tz': Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
   'hermes.dateFmt': 'ISO',
@@ -67,31 +67,10 @@ export default function SectionWorkspace() {
         })
       }
     }
-
-    // Seed workspace name from gateway config
-    if (draft['workspace.name'] === undefined) {
-      getConfig()
-        .then((cfg) => {
-          const name = (cfg as Record<string, Record<string, unknown>>).workspace.name as string | undefined
-          const fallback = (localStorage.getItem('hermes.workspaceName') ?? '')
-          const value = name ?? fallback
-          useSettingsStore.getState().load({
-            ...useSettingsStore.getState().committed,
-            'workspace.name': value,
-          })
-        })
-        .catch(() => {
-          const fallback = localStorage.getItem('hermes.workspaceName') ?? ''
-          useSettingsStore.getState().load({
-            ...useSettingsStore.getState().committed,
-            'workspace.name': fallback,
-          })
-        })
-    }
   }, [draft])
 
-  const workspaceName = (draft['workspace.name'] as string | undefined) ?? ''
-  const workspaceId = (draft['workspace.id'] as string | undefined) ?? '—'
+  const workspaceName = (draft['hermes.workspaceName'] as string | undefined) ?? ''
+  const workspaceId = (draft['hermes.workspaceId'] as string | undefined) ?? '—'
   const lang = (draft['hermes.lang'] as string | undefined) ?? 'en'
   const tz = (draft['hermes.tz'] as string | undefined) ?? 'UTC'
   const dateFmt = (draft['hermes.dateFmt'] as string | undefined) ?? 'ISO'
@@ -107,14 +86,14 @@ export default function SectionWorkspace() {
         <div className="meta">Section · <b>workspace</b></div>
       </div>
 
-      <SettingCard title="Identity">
+      <SettingCard title="Identity" sub="local-only">
         <SettingRow label="Workspace name" desc="Display name shown in the UI">
           <input
             type="text"
             className="text-input"
             value={workspaceName}
             placeholder="My Workspace"
-            onChange={(e) => set('workspace.name', e.target.value)}
+            onChange={(e) => set('hermes.workspaceName', e.target.value)}
           />
         </SettingRow>
         <SettingRow label="Workspace ID" pill={{ t: 'read-only' }}>

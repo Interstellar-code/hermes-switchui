@@ -1,5 +1,14 @@
 /**
- * section-privacy.tsx — Privacy settings section (P5).
+ * section-privacy.tsx — Privacy settings section.
+ *
+ * Real DEFAULT_CONFIG keys:
+ *   privacy.redact_pii           — hash user IDs / strip phone numbers from LLM context
+ *   security.redact_secrets      — strip *_API_KEY/*_TOKEN/*_SECRET from logs
+ *   security.allow_private_urls  — allow requests to private/internal IPs
+ *
+ * Dropped ghost keys (not in DEFAULT_CONFIG):
+ *   privacy.share_anon, privacy.share_crash, privacy.share_usage,
+ *   privacy.scrub_secrets, privacy.redact_paths, privacy.retention_days
  */
 
 import { SettingCard } from '../components/setting-card'
@@ -10,54 +19,46 @@ import { useSettingsStore } from '@/stores/settings-store'
 export default function SectionPrivacy() {
   const { draft, set } = useSettingsStore()
 
-  const shareAnon = (draft['config.privacy.share_anon'] as boolean | undefined) ?? false
-  const shareCrash = (draft['config.privacy.share_crash'] as boolean | undefined) ?? false
-  const shareUsage = (draft['config.privacy.share_usage'] as boolean | undefined) ?? false
-  const scrubSecrets = (draft['config.privacy.scrub_secrets'] as boolean | undefined) ?? true
-  const redactPaths = (draft['config.privacy.redact_paths'] as boolean | undefined) ?? false
-  const retentionDays = (draft['config.privacy.retention_days'] as number | undefined) ?? 90
+  // privacy.*
+  const redactPii = (draft['config.privacy.redact_pii'] as boolean | undefined) ?? false
+
+  // security.* — surfaced here for discoverability
+  const redactSecrets = (draft['config.security.redact_secrets'] as boolean | undefined) ?? true
+  const allowPrivateUrls = (draft['config.security.allow_private_urls'] as boolean | undefined) ?? false
 
   return (
     <div>
       <div className="section-head">
         <div>
           <h2>Privacy</h2>
-          <div className="desc">Data sharing, log scrubbing, and history retention.</div>
+          <div className="desc">PII redaction, secret scrubbing, and network trust policy.</div>
         </div>
-        <div className="meta">Section · <b>privacy</b></div>
+        <div className="meta">Section · <b>privacy · security</b></div>
       </div>
 
-      <SettingCard title="Data sharing">
-        <SettingRow label="Share anonymous metrics" desc="Send anonymous usage metrics to improve the product">
-          <Toggle on={shareAnon} set={(v) => set('config.privacy.share_anon', v)} />
+      <SettingCard title="Data redaction">
+        <SettingRow
+          label="Redact PII from context"
+          desc="Hash user IDs and strip phone numbers before sending to the LLM"
+        >
+          <Toggle on={redactPii} set={(v) => set('config.privacy.redact_pii', v)} />
         </SettingRow>
-        <SettingRow label="Share crash reports" desc="Automatically send crash reports">
-          <Toggle on={shareCrash} set={(v) => set('config.privacy.share_crash', v)} />
-        </SettingRow>
-        <SettingRow label="Share usage analytics" desc="Share feature usage analytics">
-          <Toggle on={shareUsage} set={(v) => set('config.privacy.share_usage', v)} />
-        </SettingRow>
-      </SettingCard>
-
-      <SettingCard title="Security">
-        <SettingRow label="Scrub secrets from logs" pill={{ t: 'recommended' }} desc="Redact API keys and tokens from log output">
-          <Toggle on={scrubSecrets} set={(v) => set('config.privacy.scrub_secrets', v)} />
-        </SettingRow>
-        <SettingRow label="Redact filesystem paths" desc="Hide full paths in logs and error messages">
-          <Toggle on={redactPaths} set={(v) => set('config.privacy.redact_paths', v)} />
+        <SettingRow
+          label="Redact secrets from logs"
+          pill={{ t: 'recommended' }}
+          desc="Strip *_API_KEY, *_TOKEN, *_SECRET values from log output"
+        >
+          <Toggle on={redactSecrets} set={(v) => set('config.security.redact_secrets', v)} />
         </SettingRow>
       </SettingCard>
 
-      <SettingCard title="Retention">
-        <SettingRow label="History retention (days)" desc={`${retentionDays} days`}>
-          <input
-            type="range"
-            min={1}
-            max={365}
-            step={1}
-            value={retentionDays}
-            onChange={(e) => set('config.privacy.retention_days', parseInt(e.target.value, 10))}
-          />
+      <SettingCard title="Network trust">
+        <SettingRow
+          label="Allow private / internal URLs"
+          pill={{ t: 'danger' }}
+          desc="Permit requests to RFC-1918 addresses (OpenWrt, proxies, VPNs)"
+        >
+          <Toggle on={allowPrivateUrls} set={(v) => set('config.security.allow_private_urls', v)} />
         </SettingRow>
       </SettingCard>
     </div>

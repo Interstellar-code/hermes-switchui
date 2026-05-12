@@ -7,7 +7,7 @@ import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 import { toast } from '@/components/ui/toast'
-import { analyticsUsage, gatewayRestart } from '@/server/hermes-api'
+import { gatewayRestart } from '@/server/hermes-api'
 
 export default function SectionDanger() {
   const [resetOpen, setResetOpen] = useState(false)
@@ -15,12 +15,7 @@ export default function SectionDanger() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
 
-  async function handleClearCaches() {
-    try {
-      await analyticsUsage()
-    } catch {
-      // ignore
-    }
+  function handleClearCaches() {
     toast('Cache management not available on this gateway', { type: 'warning' })
   }
 
@@ -69,7 +64,7 @@ export default function SectionDanger() {
 
       <SettingCard title="Destructive actions" danger>
         <SettingRow label="Clear all caches" desc="Flush all cached data and query results">
-          <button type="button" className="btn" onClick={() => { void handleClearCaches() }}>
+          <button type="button" className="btn" onClick={handleClearCaches}>
             Clear caches
           </button>
         </SettingRow>

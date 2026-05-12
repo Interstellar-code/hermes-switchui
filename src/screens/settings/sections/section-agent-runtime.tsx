@@ -1,102 +1,87 @@
 /**
- * section-agent-runtime.tsx — Agent runtime settings (P3).
+ * section-agent-runtime.tsx — Agent runtime settings.
  *
- * All keys go through the settings store / saver (dotted-path config patch).
- * Keys are prefixed `config.agent.*` so saver.ts builds nested patch objects.
+ * Keys verified against DEFAULT_CONFIG.agent in hermes_cli/config.py.
+ * Dropped ghosts: worker_pool, queue_depth, task_timeout_s, retries,
+ *   parallel_subtasks, auto_commit, verify_before_ship, capture_logs.
+ * Real keys: max_turns, gateway_timeout, api_max_retries, service_tier,
+ *   tool_use_enforcement.
  */
 
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
-import { Toggle } from '../components/controls'
+import { NumberSlider } from '../components/controls'
 import { useSettingsStore } from '@/stores/settings-store'
 
 export default function SectionAgentRuntime() {
   const { draft, set } = useSettingsStore()
 
-  const workerPool = (draft['config.agent.worker_pool'] as number | undefined) ?? 4
-  const queueDepth = (draft['config.agent.queue_depth'] as number | undefined) ?? 32
-  const taskTimeout = (draft['config.agent.task_timeout_s'] as number | undefined) ?? 300
-  const retries = (draft['config.agent.retries'] as number | undefined) ?? 3
-  const parallelSubtasks = (draft['config.agent.parallel_subtasks'] as number | undefined) ?? 4
-  const autoCommit = (draft['config.agent.auto_commit'] as boolean | undefined) ?? false
-  const verifyBeforeShip = (draft['config.agent.verify_before_ship'] as boolean | undefined) ?? true
-  const captureLogs = (draft['config.agent.capture_logs'] as boolean | undefined) ?? true
+  const maxTurns = (draft['config.agent.max_turns'] as number | undefined) ?? 90
+  const gatewayTimeout = (draft['config.agent.gateway_timeout'] as number | undefined) ?? 1800
+  const apiMaxRetries = (draft['config.agent.api_max_retries'] as number | undefined) ?? 3
+  const serviceTier = (draft['config.agent.service_tier'] as string | undefined) ?? ''
+  const toolUseEnforcement = (draft['config.agent.tool_use_enforcement'] as string | undefined) ?? 'auto'
 
   return (
     <div>
       <div className="section-head">
         <div>
           <h2>Agent Runtime</h2>
-          <div className="desc">Worker pool, queue, task execution, and safety settings.</div>
+          <div className="desc">Turn limits, gateway timeouts, and tool enforcement.</div>
         </div>
         <div className="meta">Section · <b>agent-runtime</b></div>
       </div>
 
-      <SettingCard title="Worker pool">
-        <SettingRow label="Worker pool size" desc="Number of concurrent agent workers">
-          <input
-            type="number"
-            className="text-input"
-            value={workerPool}
+      <SettingCard title="Execution limits">
+        <SettingRow label="Max turns" desc="Maximum conversation turns before agent stops">
+          <NumberSlider
             min={1}
-            max={64}
-            onChange={(e) => set('config.agent.worker_pool', parseInt(e.target.value, 10))}
+            max={500}
+            step={1}
+            value={maxTurns}
+            onChange={(v) => set('config.agent.max_turns', v)}
           />
         </SettingRow>
-        <SettingRow label="Queue depth" desc="Maximum number of queued tasks">
-          <input
-            type="number"
-            className="text-input"
-            value={queueDepth}
-            min={1}
-            max={1024}
-            onChange={(e) => set('config.agent.queue_depth', parseInt(e.target.value, 10))}
+        <SettingRow label="Gateway timeout" desc={`${gatewayTimeout}s — max seconds for gateway response`}>
+          <NumberSlider
+            min={60}
+            max={7200}
+            step={60}
+            value={gatewayTimeout}
+            onChange={(v) => set('config.agent.gateway_timeout', v)}
           />
         </SettingRow>
-        <SettingRow label="Parallel sub-tasks" desc="Max sub-tasks running in parallel per agent">
-          <input
-            type="number"
-            className="text-input"
-            value={parallelSubtasks}
-            min={1}
-            max={32}
-            onChange={(e) => set('config.agent.parallel_subtasks', parseInt(e.target.value, 10))}
-          />
-        </SettingRow>
-      </SettingCard>
-
-      <SettingCard title="Execution">
-        <SettingRow label="Task timeout" desc={`${taskTimeout}s — max seconds before a task is cancelled`}>
-          <input
-            type="range"
-            min={30}
-            max={3600}
-            step={30}
-            value={taskTimeout}
-            onChange={(e) => set('config.agent.task_timeout_s', parseInt(e.target.value, 10))}
-          />
-        </SettingRow>
-        <SettingRow label="Retry count" desc="Times to retry a failed task before giving up">
-          <input
-            type="number"
-            className="text-input"
-            value={retries}
+        <SettingRow label="API max retries" desc="Times to retry a failed API call">
+          <NumberSlider
             min={0}
             max={10}
-            onChange={(e) => set('config.agent.retries', parseInt(e.target.value, 10))}
+            step={1}
+            value={apiMaxRetries}
+            onChange={(v) => set('config.agent.api_max_retries', v)}
           />
         </SettingRow>
       </SettingCard>
 
-      <SettingCard title="Safety & logging">
-        <SettingRow label="Auto-commit on success" pill={{ t: 'danger' }} desc="Automatically commit changes when a task succeeds">
-          <Toggle on={autoCommit} set={(v) => set('config.agent.auto_commit', v)} />
+      <SettingCard title="Service">
+        <SettingRow label="Service tier" desc="Provider service tier (leave blank for default)">
+          <input
+            type="text"
+            className="text-input"
+            value={serviceTier}
+            placeholder="default"
+            onChange={(e) => set('config.agent.service_tier', e.target.value)}
+          />
         </SettingRow>
-        <SettingRow label="Verify before ship" desc="Run verification step before finalising output">
-          <Toggle on={verifyBeforeShip} set={(v) => set('config.agent.verify_before_ship', v)} />
-        </SettingRow>
-        <SettingRow label="Capture agent logs" desc="Persist agent stdout/stderr to log files">
-          <Toggle on={captureLogs} set={(v) => set('config.agent.capture_logs', v)} />
+        <SettingRow label="Tool use enforcement" desc="How tool use is enforced: auto, required, or none">
+          <select
+            className="select-input"
+            value={toolUseEnforcement}
+            onChange={(e) => set('config.agent.tool_use_enforcement', e.target.value)}
+          >
+            <option value="auto">auto</option>
+            <option value="required">required</option>
+            <option value="none">none</option>
+          </select>
         </SettingRow>
       </SettingCard>
     </div>

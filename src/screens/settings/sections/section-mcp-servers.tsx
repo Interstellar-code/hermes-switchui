@@ -1,15 +1,13 @@
 /**
- * section-mcp-servers.tsx — MCP servers config + toolsets table (P4).
+ * section-mcp-servers.tsx — MCP runtime config summary card + toolsets count.
  *
- * Config rows go through the settings store / saver.
- * Toolsets table is read-only, fetched via react-query.
+ * Summary card: toolsets count from listToolsets(), "Open MCP page →" button.
+ * No config rows — mcp.* keys do not exist in DEFAULT_CONFIG.
  */
 
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { SettingCard } from '../components/setting-card'
-import { SettingRow } from '../components/setting-row'
-import { Toggle } from '../components/controls'
-import { useSettingsStore } from '@/stores/settings-store'
 import { listToolsets } from '@/server/hermes-api'
 
 type ToolsetEntry = {
@@ -20,20 +18,19 @@ type ToolsetEntry = {
 }
 
 export default function SectionMcpServers() {
-  const { draft, set } = useSettingsStore()
+  const navigate = useNavigate()
 
-  const mcpEnabled = (draft['config.mcp.enabled'] as boolean | undefined) ?? true
-  const autostart = (draft['config.mcp.autostart'] as boolean | undefined) ?? true
-  const connectTimeout = (draft['config.mcp.connect_timeout_s'] as number | undefined) ?? 15
-  const verboseLogging = (draft['config.mcp.verbose'] as boolean | undefined) ?? false
-
-  const { data: toolsetsRaw, isLoading } = useQuery({
+  const { data: toolsetsRaw, isLoading, isError } = useQuery({
     queryKey: ['toolsets-list'],
     queryFn: listToolsets,
     staleTime: 30_000,
+    retry: 1,
   })
 
   const toolsets = (Array.isArray(toolsetsRaw) ? toolsetsRaw : []) as Array<ToolsetEntry>
+  const notDetected = isError || (!isLoading && toolsets.length === 0)
+  const enabledCount = toolsets.filter(ts => ts.enabled).length
+  const totalCount = toolsets.length
 
   return (
     <div>
@@ -45,64 +42,53 @@ export default function SectionMcpServers() {
         <div className="meta">Section · <b>mcp-servers</b></div>
       </div>
 
-      <SettingCard title="Connection">
-        <SettingRow label="MCP enabled" desc="Enable the Model Context Protocol subsystem">
-          <Toggle on={mcpEnabled} set={(v) => set('config.mcp.enabled', v)} />
-        </SettingRow>
-        <SettingRow label="Auto-start on launch" desc="Start MCP servers automatically when the agent launches">
-          <Toggle on={autostart} set={(v) => set('config.mcp.autostart', v)} />
-        </SettingRow>
-        <SettingRow label="Connect timeout" desc={`${connectTimeout}s — seconds to wait for MCP server connection`}>
-          <input
-            type="range"
-            min={5}
-            max={60}
-            step={5}
-            value={connectTimeout}
-            onChange={(e) => set('config.mcp.connect_timeout_s', parseInt(e.target.value, 10))}
-          />
-        </SettingRow>
-        <SettingRow label="Verbose logging" desc="Log all MCP protocol messages to the agent log">
-          <Toggle on={verboseLogging} set={(v) => set('config.mcp.verbose', v)} />
-        </SettingRow>
-      </SettingCard>
+      <SettingCard title="Status">
+        <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--m-text)' }}>
+                MCP Toolsets
+              </span>
+              {isLoading ? (
+                <span style={{ fontSize: '11px', color: 'var(--m-text-faint)', fontFamily: 'var(--m-font-mono)' }}>loading…</span>
+              ) : notDetected ? (
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-danger, #e05)' }}>⚠ Not detected</span>
+              ) : (
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-accent)' }}>
+                  ✓ {totalCount} {totalCount === 1 ? 'toolset' : 'toolsets'} · {enabledCount} enabled
+                </span>
+              )}
+            </div>
+            <button
+              className="btn"
+              style={{ fontSize: '11px', padding: '4px 10px' }}
+              onClick={() => void navigate({ to: '/mcp' })}
+            >
+              Open MCP page →
+            </button>
+          </div>
 
-      <SettingCard
-        title="Mounted toolsets"
-        sub="Mounted toolsets — config above controls runtime behavior"
-      >
-        {isLoading ? (
-          <div style={{ padding: '16px', color: 'var(--m-text-faint)', font: '12px var(--m-font-mono)' }}>
-            Loading…
-          </div>
-        ) : toolsets.length === 0 ? (
-          <div style={{ padding: '16px', color: 'var(--m-text-faint)', font: '12px var(--m-font-mono)' }}>
-            No toolsets mounted.
-          </div>
-        ) : (
-          <div className="mini-table-wrap">
-            <table className="mini-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Label</th>
-                  <th>Enabled</th>
-                </tr>
-              </thead>
-              <tbody>
-                {toolsets.map((ts) => (
-                  <tr key={ts.name}>
-                    <td style={{ font: '12px var(--m-font-mono)' }}>{ts.name}</td>
-                    <td style={{ color: 'var(--m-text-faint)' }}>{ts.label ?? ts.name}</td>
-                    <td style={{ color: ts.enabled ? 'var(--m-accent)' : 'var(--m-text-faint)' }}>
-                      {ts.enabled ? 'Yes' : 'No'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+          {!isLoading && !notDetected && toolsets.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '2px' }}>
+              {toolsets.slice(0, 5).map((ts) => (
+                <span
+                  key={ts.name}
+                  style={{
+                    fontSize: '11px',
+                    fontFamily: 'var(--m-font-mono)',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    background: 'var(--m-bg-alt, var(--m-surface))',
+                    border: '1px solid var(--m-border)',
+                    color: ts.enabled ? 'var(--m-accent)' : 'var(--m-text-faint)',
+                  }}
+                >
+                  {ts.label ?? ts.name}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </SettingCard>
     </div>
   )
