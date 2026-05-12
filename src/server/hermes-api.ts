@@ -509,6 +509,48 @@ export async function getSkillCategories(): Promise<unknown> {
   return claudeGet('/api/skills/categories')
 }
 
+export async function toggleSkill(name: string, enabled: boolean): Promise<unknown> {
+  return claudePost('/api/skills/toggle', { name, enabled })
+}
+
+export async function listToolsets(): Promise<unknown> {
+  return claudeGet('/api/tools/toolsets')
+}
+
+// ── Dashboard plugins ─────────────────────────────────────────────
+
+export async function listDashboardPlugins(): Promise<unknown> {
+  return claudeGet('/api/dashboard/plugins')
+}
+
+export async function installAgentPlugin(body: {
+  identifier: string
+  force?: boolean
+  enable?: boolean
+}): Promise<unknown> {
+  return claudePost('/api/dashboard/agent-plugins/install', body)
+}
+
+export async function enableAgentPlugin(name: string): Promise<unknown> {
+  return claudePost(`/api/dashboard/agent-plugins/${encodeURIComponent(name)}/enable`)
+}
+
+export async function disableAgentPlugin(name: string): Promise<unknown> {
+  return claudePost(`/api/dashboard/agent-plugins/${encodeURIComponent(name)}/disable`)
+}
+
+export async function updateAgentPlugin(name: string): Promise<unknown> {
+  return claudePost(`/api/dashboard/agent-plugins/${encodeURIComponent(name)}/update`)
+}
+
+export async function deleteAgentPlugin(name: string): Promise<void> {
+  return claudeDeleteReq(`/api/dashboard/agent-plugins/${encodeURIComponent(name)}`)
+}
+
+export async function setPluginVisibility(name: string, hidden: boolean): Promise<unknown> {
+  return claudePost(`/api/dashboard/plugins/${encodeURIComponent(name)}/visibility`, { hidden })
+}
+
 // ── Config ───────────────────────────────────────────────────────
 
 export async function getConfig(): Promise<ClaudeConfig> {
@@ -519,6 +561,62 @@ export async function patchConfig(
   patch: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   return claudePatch<Record<string, unknown>>('/api/config', patch)
+}
+
+// ── Model / Provider APIs ────────────────────────────────────────
+
+export type ModelInfo = {
+  model: string
+  provider: string
+  [key: string]: unknown
+}
+
+export type ModelOptions = {
+  providers: Array<{
+    id: string
+    models: Array<{ id: string; base_url?: string; [key: string]: unknown }>
+    [key: string]: unknown
+  }>
+  model: string
+  provider: string
+  [key: string]: unknown
+}
+
+export type ModelAuxiliary = {
+  tasks: Array<{ task: string; provider: string; model: string; base_url?: string }>
+  main: { provider: string; model: string }
+  [key: string]: unknown
+}
+
+export type ConfigSchema = {
+  fields: Record<string, unknown>
+  category_order: Array<string>
+  [key: string]: unknown
+}
+
+export async function getConfigSchema(): Promise<ConfigSchema> {
+  return claudeGet<ConfigSchema>('/api/config/schema')
+}
+
+export async function modelInfo(): Promise<ModelInfo> {
+  return claudeGet<ModelInfo>('/api/model/info')
+}
+
+export async function modelOptions(): Promise<ModelOptions> {
+  return claudeGet<ModelOptions>('/api/model/options')
+}
+
+export async function modelAuxiliary(): Promise<ModelAuxiliary> {
+  return claudeGet<ModelAuxiliary>('/api/model/auxiliary')
+}
+
+export async function setModelAssignment(body: {
+  scope: 'main' | string
+  provider: string
+  model: string
+  task?: string
+}): Promise<Record<string, unknown>> {
+  return claudePost<Record<string, unknown>>('/api/model/set', body)
 }
 
 // ── Models ───────────────────────────────────────────────────────
@@ -547,6 +645,115 @@ export async function isClaudeAvailable(): Promise<boolean> {
     await probeGateway({ force: true }).catch(() => undefined)
     return false
   }
+}
+
+// ── Env vars ─────────────────────────────────────────────────────
+
+export type EnvVarInfo = {
+  is_set: boolean
+  redacted_value: string
+  description?: string
+  category?: string
+  is_password?: boolean
+  advanced?: boolean
+  url?: string
+}
+
+export async function getEnv(): Promise<Record<string, EnvVarInfo>> {
+  return claudeGet('/api/env')
+}
+
+export async function putEnv(key: string, value: string): Promise<void> {
+  const res = await fetch(`${CLAUDE_API}/api/env`, {
+    method: 'PUT',
+    headers: { ..._authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, value }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Hermes Agent API PUT /api/env: ${res.status} ${text}`)
+  }
+}
+
+export async function deleteEnv(key: string): Promise<void> {
+  const res = await fetch(`${CLAUDE_API}/api/env`, {
+    method: 'DELETE',
+    headers: { ..._authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Hermes Agent API DELETE /api/env: ${res.status} ${text}`)
+  }
+}
+
+export async function revealEnv(key: string): Promise<{ key: string; value: string }> {
+  const res = await fetch(`${CLAUDE_API}/api/env/reveal`, {
+    method: 'POST',
+    headers: { ..._authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key }),
+  })
+  if (res.status === 429) {
+    throw new Error('Rate limited. Please wait before revealing again.')
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Hermes Agent API POST /api/env/reveal: ${res.status} ${text}`)
+  }
+  return res.json() as Promise<{ key: string; value: string }>
+}
+
+// ── OAuth providers ───────────────────────────────────────────────
+
+export type OAuthProvider = {
+  id: string
+  name: string
+  logged_in: boolean
+  token_preview?: string
+  expires_at?: string
+  status?: string
+}
+
+export async function listOAuthProviders(): Promise<Array<OAuthProvider>> {
+  return claudeGet('/api/providers/oauth')
+}
+
+export async function deleteOAuth(providerId: string): Promise<void> {
+  return claudeDeleteReq(`/api/providers/oauth/${providerId}`)
+}
+
+// ── Analytics ─────────────────────────────────────────────────────
+
+export type AnalyticsUsage = {
+  total_tokens?: number
+  total_calls?: number
+  [key: string]: unknown
+}
+
+export async function analyticsUsage(days = 30): Promise<AnalyticsUsage> {
+  return claudeGet(`/api/analytics/usage?days=${days}`)
+}
+
+// ── Gateway status ────────────────────────────────────────────────
+
+export type GatewayStatus = {
+  gateway_running?: boolean
+  pid?: number
+  cpu?: number
+  rss?: number
+  [key: string]: unknown
+}
+
+export async function gatewayStatus(): Promise<GatewayStatus> {
+  return claudeGet('/api/status')
+}
+
+export async function gatewayRestart(): Promise<unknown> {
+  return claudePost('/api/gateway/restart')
+}
+
+export async function getLogs(): Promise<unknown> {
+  return claudeGet('/api/logs')
 }
 
 export {
