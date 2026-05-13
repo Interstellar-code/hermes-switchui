@@ -220,6 +220,7 @@
 
 /* ── Sidebar tree ────────────────────────────────────────────────────────── */
 
+/* Sidebar shell layout only — sk-filter-* visual rules come from matrix-skills.css */
 [data-screen="settings"].settings-shell .side.sk-filter {
   border-right: 1px solid var(--m-border);
   background: var(--m-panel);
@@ -229,114 +230,6 @@
   flex-direction: column;
   min-width: 0;
   height: 100%;
-}
-
-[data-screen="settings"] .side.sk-filter .sk-filter-search {
-  padding: 10px 14px;
-  flex-shrink: 0;
-  position: relative;
-}
-
-[data-screen="settings"] .side.sk-filter .search svg {
-  position: absolute;
-  left: 18px;
-  width: 14px;
-  height: 14px;
-  color: var(--m-text-ghost);
-  pointer-events: none;
-}
-
-[data-screen="settings"] .side.sk-filter .sk-filter-search input {
-  width: 100%;
-  height: 32px;
-  background: var(--m-bg);
-  border: 1px solid var(--m-border-subtle);
-  border-radius: var(--m-radius-md, 6px);
-  padding: 0 10px 0 30px;
-  font: 400 11.5px var(--m-font-mono, ui-monospace, monospace);
-  color: var(--m-text);
-  outline: none;
-  transition: border-color var(--m-dur-fast, 100ms);
-}
-
-[data-screen="settings"] .side.sk-filter .sk-filter-search input::placeholder {
-  color: var(--m-text-ghost);
-}
-
-[data-screen="settings"] .side.sk-filter .sk-filter-search input:focus {
-  border-color: var(--m-green-500);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--m-green-500) 15%, transparent);
-}
-
-[data-screen="settings"] .side.sk-filter .sk-filter-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 6px 0;
-}
-
-[data-screen="settings"] .side.sk-filter .sk-filter-section {
-  padding: 4px 14px 8px;
-}
-
-[data-screen="settings"] .side.sk-filter .grp {
-  font: 600 9.5px var(--m-font-mono, ui-monospace, monospace);
-  text-transform: uppercase;
-  letter-spacing: .18em;
-  color: var(--m-text-faint, var(--theme-muted));
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 6px;
-}
-
-[data-screen="settings"] .side.sk-filter .grp .ct {
-  margin-left: auto;
-  color: var(--m-text-ghost, var(--theme-muted));
-  font: 600 10px var(--m-font-mono, ui-monospace, monospace);
-  background: var(--m-fill-subtle, var(--theme-hover));
-  border: 1px solid var(--m-border-subtle, var(--theme-border));
-  padding: 1px 6px;
-  border-radius: 999px;
-}
-
-[data-screen="settings"] .side.sk-filter .sk-filter-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-[data-screen="settings"] .side.sk-filter .sk-filter-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 28px;
-  padding: 0 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  background: transparent;
-  border: none;
-  width: 100%;
-  text-align: left;
-  font: 500 11px var(--m-font-sans, system-ui, sans-serif);
-  color: var(--m-text-muted, var(--theme-muted));
-  transition: background var(--m-dur-fast, 100ms), color var(--m-dur-fast, 100ms);
-}
-
-[data-screen="settings"] .side.sk-filter .sk-filter-item:hover {
-  background: var(--m-fill-subtle, var(--theme-hover));
-  color: var(--m-text);
-}
-
-[data-screen="settings"] .side.sk-filter .sk-filter-item.active {
-  background: color-mix(in srgb, var(--m-green-500, #00ff41) 10%, transparent);
-  color: var(--m-green-500, #00ff41);
-}
-
-[data-screen="settings"] .side.sk-filter .sk-filter-item .item-ct {
-  font: 500 9.5px var(--m-font-mono, ui-monospace, monospace);
-  color: var(--m-text-ghost, var(--theme-muted));
-  min-width: 18px;
-  text-align: right;
 }
 
 /* ── Content area ────────────────────────────────────────────────────────── */
