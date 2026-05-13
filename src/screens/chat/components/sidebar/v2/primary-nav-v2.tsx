@@ -20,10 +20,9 @@
  */
 
 import { useCallback, useState } from 'react'
-import { Link, useRouterState } from '@tanstack/react-router'
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useSearchModal } from '@/hooks/use-search-modal'
 import { getTheme, getThemeVariant, isDarkTheme, setTheme } from '@/lib/theme'
-import { SettingsDialog } from '@/components/settings-dialog'
 
 // ── Nav item types ────────────────────────────────────────────────────────────
 
@@ -180,7 +179,7 @@ function GroupLabel({ label }: { label: string }) {
 // ── Connected footer dot ──────────────────────────────────────────────────────
 
 function ConnectedFooter({ collapsed }: { collapsed?: boolean }) {
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const navigate = useNavigate()
   const [isDark, setIsDark] = useState(() => isDarkTheme(getTheme()))
   const handleToggleTheme = useCallback(() => {
     const current = getTheme()
@@ -190,7 +189,6 @@ function ConnectedFooter({ collapsed }: { collapsed?: boolean }) {
   }, [])
   return (
     <>
-    <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     <div
       style={{
         display: 'flex',
@@ -204,7 +202,7 @@ function ConnectedFooter({ collapsed }: { collapsed?: boolean }) {
     >
       <button
         type="button"
-        onClick={() => setSettingsOpen(true)}
+        onClick={() => void navigate({ to: '/settings' })}
         aria-label="Settings"
         className="m-mono"
         style={{
