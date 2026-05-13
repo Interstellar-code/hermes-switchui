@@ -40,10 +40,10 @@ All board endpoints live under the kanban dashboard plugin router, prefixed `/ap
 | Method | Path | Request Body | Response | Notes |
 |--------|------|-------------|----------|-------|
 | `GET` | `/boards` | `?include_archived=false` | `{ boards: BoardMeta[], current: string }` | Each item includes `is_current`, `counts: {status: n}`, `total` |
-| `POST` | `/boards` | `{ slug, name?, description?, icon?, color?, switch?: bool }` | `{ board: BoardMeta, current: string }` | Idempotent on slug collision; `switch:true` sets as active |
+| `POST` | `/boards` | `{ slug (required), name?, description?, icon?, color?, switch?: bool }` | `{ board: BoardMeta, current: string }` | **`slug` is required in body — server does NOT derive it from `name`.** Slug regex: `^[a-z0-9_-]{1,64}$` (lowercase alnum + `-` or `_`, 1-64 chars). **Idempotent**: same-slug POST returns the existing board (NOT 409). `switch:true` sets as active. |
 | `PATCH` | `/boards/{slug}` | `{ name?, description?, icon?, color? }` | `{ board: BoardMeta }` | Slug is immutable |
-| `DELETE` | `/boards/{slug}` | `?delete=false` | `{ result: {slug,action,new_path}, current: string }` | Default: archive; `?delete=true` = hard delete |
-| `POST` | `/boards/{slug}/switch` | — | `{ current: string }` | Sets active board for CLI/slash parity; UI uses `localStorage` per drawer comment |
+| `DELETE` | `/boards/{slug}` | `?delete=false` | `{ result: {slug,action,new_path}, current: string }` | Default: archive; `?delete=true` = hard delete. **Unknown slug returns 400** (ValueError), NOT 404. |
+| `POST` | `/boards/{slug}/switch` | — | `{ current: string }` | **Process-global, disk-persisted**: writes `<hermes-root>/kanban/current`. Affects CLI, slash commands, all UI clients connecting to this gateway. Survives restart. NOT per-user/session. |
 
 ### Board Data Model (from `kanban_db.py` lines 362–426)
 
@@ -103,17 +103,16 @@ A `default` board is always bootstrapped (`kanban_db.py:480`): `list_boards()` p
 - Create dialog — simplified 2-step wizard: Identity (name, description, color, slug preview) → Review + Create
 - Board drawer (3 tabs: Overview, Columns read-only, Settings with inline edit + danger zone)
 - Delete confirm dialog (archive default; hard-delete behind `?delete=true` query param)
-- Empty state (zero boards)
+- Empty state (filter-empty only — true zero-boards is unreachable because `default` board is always present)
 - Loading skeleton + error boundary for dashboard-unavailable (503 pattern from existing routes)
 - Navigation: add "Boards" entry to primary nav pointing at `/boards`
-- "Open Board" in drawer footer navigates to `/tasks` (no board scoping change in this plan)
+- "Open Board" in drawer footer calls `POST /boards/{slug}/switch` then navigates to `/tasks`. **This is the canonical mechanism for board scoping** — once `/switch` is called, `/tasks` opens the selected board on its next request because all task endpoints default to the current board pointer. localStorage alone does NOT achieve this.
 - Tests for BFF routes and client API functions
 
 **Out of scope (deferred):**
-- Cross-page board propagation: `/tasks` board-slug param, `/conductor`, `/operations` board awareness
+- Cross-page board-slug props (`/conductor`, `/operations` board awareness). `/tasks` integration is NOT deferred — it works automatically via the `/switch` pointer (no slug-prop work needed; `/tasks` reads current board from the on-disk pointer set by `/switch`).
 - Column management (add/remove/reorder columns) — the agent's status set is fixed; wizard step 3 is deferred
 - Board path / working directory fields (Step 2 of wizard) — storage is agent-controlled
-- `POST /boards/{slug}/switch` syncing agent-side active board (localStorage is sufficient for UI; agent CLI sync is a follow-up)
 - Board permissions / multi-tenant auth
 - Board-scoped SSE event stream (tasks screen already subscribes; boards page uses polling via TanStack Query)
 - Archived board restore (unarchive) — the danger zone button exists in mockup but is deferred; archive/unarchive can be a fast follow
@@ -133,7 +132,7 @@ A `default` board is always bootstrapped (`kanban_db.py:480`): `list_boards()` p
 8. Grid and list view toggle persists in `localStorage` across page refreshes.
 9. "Open Board" in the drawer footer navigates to `/tasks`.
 10. When the hermes-agent dashboard is unreachable, the page renders a 503 error state matching the pattern in `src/routes/api/hermes-kanban/stats.ts`.
-11. BFF route unit tests cover: 200 list response shape, 400 on malformed slug, 404 on unknown slug for PATCH/DELETE, 503 passthrough when dashboard is down.
+11. BFF route unit tests cover: 200 list response shape, 400 on malformed slug, **400 on unknown slug for PATCH/DELETE** (server returns 400, not 404), 503 passthrough when dashboard is down, **idempotent same-slug POST returns existing board (not 409)**, **deleting the active non-default board causes server to fall back to `default` as current** (verified via `GET /boards`).
 12. The boards count badge in primary nav reflects the live count from `GET /boards`.
 
 ---
@@ -263,7 +262,10 @@ A `default` board is always bootstrapped (`kanban_db.py:480`): `list_boards()` p
 3. Edit name via drawer Settings; confirm card updates.
 4. Archive via danger zone; confirm board moves to Archived tab.
 5. Delete via confirm dialog; confirm board is removed.
-6. Click "Open Board" in drawer; confirm navigation to `/tasks`.
+6. Click "Open Board" in drawer; confirm `POST /boards/{slug}/switch` fires (verify in network tab) AND `/tasks` opens showing that board's tasks (verify by creating a task on the new board first, then confirming it appears on /tasks after navigation).
+6b. Delete the currently-active non-default board; confirm `GET /boards` now returns `current: "default"` (server fallback behavior).
+6c. POST same `slug` twice; confirm second call returns 200 with the existing board (idempotency, no 409).
+6d. DELETE unknown slug `nonexistent`; confirm 400, not 404.
 7. `pnpm build` — confirm no type errors or dead imports.
 
 ---
@@ -271,11 +273,11 @@ A `default` board is always bootstrapped (`kanban_db.py:480`): `list_boards()` p
 ## 8. Risks & Open Questions
 
 - **Default board protection**: The agent guards `default` from hard-delete (`kanban_db.py:509+`). The UI must disable or hide the Delete button for the default board (check `board.slug === 'default'`). The Archive button for default should also be suppressed or warned.
-- **`/tasks` board isolation**: After MVP, `/tasks` still shows the default/current board; users may be confused if they create a new board and navigate to tasks without seeing it scoped. This is documented as a known gap — cross-page board prop is the first follow-up.
-- **`POST /boards/{slug}/switch` vs localStorage**: The agent comment (`plugin_api.py:1491`) says the UI uses `localStorage` for the active board pointer while the endpoint serves CLI parity. For MVP, Switch UI will call the endpoint on board switch to keep CLI and UI in sync.
+- **`/tasks` board integration**: Calling `POST /boards/{slug}/switch` from the Boards page is the ONLY mechanism that makes `/tasks` open a different board. Task endpoints all default to the current board pointer on disk; without `/switch` being called, `/tasks` keeps showing whatever was current. This means the MVP MUST wire `/switch` on every board selection — no localStorage shortcut.
+- **`POST /boards/{slug}/switch` is process-global, not per-user**: Writes `<hermes-root>/kanban/current` on disk. Affects this gateway's CLI, slash commands, and every UI client connecting to it. Survives restart. Two users sharing a gateway will see each other's board switches.
 - **Dispatcher mid-task board switch**: If a user switches the active board while the dispatcher is running tasks on the previous board, claimed tasks remain on the old board (the zombie worker issue noted in project memory applies here). No mitigation in MVP — document in the screen tooltip.
 - **Migration for single-board users**: Existing users have only the `default` board. The first load of `/boards` will show one board card. No migration needed — the default board always exists.
-- **Slug validation**: The agent normalises slugs (`_normalize_board_slug` in `plugin_api.py:76`). The UI should slugify on the client (name → lowercase, non-alphanumeric → `-`, trim dashes) and show the resolved slug before submit to avoid surprises.
+- **Slug validation**: Server requires `slug` in the POST body — does NOT auto-derive it from `name`. Regex: `^[a-z0-9_-]{1,64}$` (lowercase alnum + hyphen OR underscore, 1-64 chars). The UI must include a slug field in the wizard with client-side validation matching this regex, plus a "Suggest from name" helper that lowercases + replaces non-alnum with `-` (but allows the user to override and use `_`).
 - **Board type field**: The mockup has a `type` field (project/research/sprint/ops) but the agent's `BoardMeta` has no `type` field — it's a UI-only concept in the mockup. For MVP, omit the type selector; store it in `description` or drop it.
 - **Color picker**: The mockup uses 6 hex swatches matching Matrix palette. These can be hardcoded constants in the component.
 
@@ -295,15 +297,29 @@ Dependencies: Tasks 1 → 2 → 3 → 4 → 5 → 6 are sequential. Within Task 
 
 ---
 
-## 10. Codex Review Hooks
+## 10. Codex Review Findings (Applied 2026-05-13)
 
-Pre-emptive flags for Codex gap review:
+Codex vetted this plan and returned "NEEDS MAJOR REWORK" against the original draft. Corrections applied inline above:
 
-- **API contract compliance**: Verify every BFF handler passes the correct `?include_archived`, `?delete` query params. Confirm `PATCH` body uses `name/description/icon/color` (not camelCase — the agent uses snake-case field names in JSON).
-- **Error handling**: All five BFF routes must return `{ error: string, mode: 'dashboard-unavailable' }` with 503 when `dashboardFetch` throws, matching the pattern in `board.ts:20–21`. The client layer must surface these as user-visible error states, not unhandled promise rejections.
-- **Slug immutability**: Editing a board must never send the `slug` field in the `PATCH` body — the agent ignores it, but the UI must not suggest renaming via slug is possible.
+| # | Original claim | Corrected to | Cite |
+|---|---|---|---|
+| 1 | Switch is `localStorage` per UI comment | Process-global, disk-persisted at `<hermes-root>/kanban/current`, survives restart | `plugin_api.py:1490-1505`, `kanban_db.py:176-239` |
+| 2 | Slug auto-derived from name | Server requires `slug` in body; regex `^[a-z0-9_-]{1,64}$` (allows `_` too) | `plugin_api.py:1394-1400`, `kanban_db.py:124-139` |
+| 3 | Delete unknown slug → 404 | Returns 400 (ValueError) | `plugin_api.py:1480-1487`, `kanban_db.py:520-527` |
+| 4 | Cross-page deferral via localStorage | localStorage alone does nothing — must call `/switch`; `/tasks` follows the on-disk pointer | `tasks-api.ts:66-100`, `plugin_api.py:329-345` |
+| 5 | Empty state for "zero boards" | True zero-boards unreachable (`default` always present); only filter-empty state | `kanban_db.py:479-480` |
+| 6 | Create on collision → 409 | Idempotent — same-slug POST returns existing board | `kanban_db.py:444-449` |
+| 7 | Test coverage smoke-only | Add: collision idempotency, delete-active fallback, unknown-slug 400, auth/error states | — |
+| 8 | Board has `id, tenant, type, default, columns, updated_at` | Actual fields: `slug, name, description, icon, color, created_at, archived, db_path` + injected `is_current, counts, total` on list | `kanban_db.py:362-392` |
+
+Pre-emptive flags for future Codex re-review:
+
+- **API contract compliance**: BFF handlers use snake-case field names (`name/description/icon/color/created_at`) — never camelCase.
+- **Error handling**: All five BFF routes return `{ error: string, mode: 'dashboard-unavailable' }` with 503 when `dashboardFetch` throws, matching the pattern in `board.ts:20-21`.
+- **Slug immutability**: `PATCH` body never includes `slug`.
 - **Default board guard**: `board.slug === 'default'` check before rendering Delete and Archive buttons.
-- **Path-safe slug validation**: Client-side `slugify()` must reject empty strings and strings that normalise to empty. Show inline error before Step 2 if slug resolves to empty.
-- **Accessibility**: Wizard modal and drawer must be `role="dialog"` with `aria-label`, focus-trapped, and closeable with Escape. Confirm dialog must be `role="alertdialog"`.
-- **Mobile responsiveness**: The two-panel layout (sidebar + canvas) must collapse to single-column on narrow viewports. The mockup is desktop-first; add a breakpoint at `768px` where the sidebar becomes a top filter bar.
-- **Query invalidation**: After `createBoard`, `deleteBoard`, `updateBoard` mutations, `boardsKeys.all` must be invalidated so the sidebar count and main canvas both refresh without stale data.
+- **Slug validation**: Client regex matches server: `^[a-z0-9_-]{1,64}$`. "Suggest from name" helper produces hyphenated form but user can override and use `_`. Empty/invalid → inline error before submit.
+- **Accessibility**: Wizard modal + drawer = `role="dialog"` with `aria-label`, focus trap, Escape close. Delete confirm = `role="alertdialog"`. Design mockup is thin on a11y — implementer must add focus trap explicitly.
+- **Mobile responsiveness**: Sidebar + canvas collapse to single-column under 768px viewport.
+- **Query invalidation**: After mutations, `boardsKeys.all` is invalidated so sidebar count + main canvas refresh.
+- **Memory note**: Add a project memory entry tracking that `/conductor` and `/operations` board awareness is deferred — easy to forget once /boards ships, and may produce confusing UX if a user creates a new board and the other pages remain on the old current pointer. (Cross-page propagation through `/switch` works for `/tasks` automatically; conductor + operations need explicit board awareness when they're revamped.)
