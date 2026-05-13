@@ -1,46 +1,17 @@
 <claude-mem-context>
 # Memory Context
 
-# [hermes-switchui/hermes-switchui-a] recent context, 2026-05-13 12:50pm GMT+2
+# [hermes-switchui/hermes-switchui-a] recent context, 2026-05-13 4:27pm GMT+2
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (18,036t read) | 725,726t work | 98% savings
+Stats: 50 obs (16,097t read) | 809,499t work | 98% savings
 
 ### May 13, 2026
-5154 10:29a 🔵 Duplicate commit — raw config section pushed twice as different hashes
-5155 10:33a 🟣 hermes-switchui-a feat/next-2: three settings features shipped this session
-5156 " 🔵 SettingsDialog entry point located in primary-nav-v2.tsx
-5157 " 🔵 primary-nav-v2.tsx has duplicate useNavigate import and uses Link/useRouterState not useNavigate
-5158 10:34a ✅ useNavigate added to primary-nav-v2.tsx router import
-5159 " ✅ SettingsDialog import removed from primary-nav-v2.tsx
-5160 10:38a 🔵 SettingsDialog on main is 2162-line full-featured modal, not a stub
-5161 10:47a 🟣 New matrix-settings-dialog.css: safe Matrix overlay for SettingsDialog modal
-5162 10:48a 🟣 Matrix CSS overlay wired to SettingsDialog via data-mset="dialog" attribute
-5163 " 🔄 matrix-settings.css: all hardcoded #00FF41 green replaced with theme-token fallbacks
-5164 " 🔵 A2A Plugin MVP Plan Gap Review Requested
-5165 10:49a 🔵 A2A Plugin MVP Plan — Full Content Read
-5166 " 🔵 Hermes Runtime Bridge Entry Point Confirmed: AIAgent.run_conversation()
-5167 " 🔵 Hermes Plugin System Architecture Fully Mapped for A2A Integration
-5168 10:50a 🔵 Dashboard Plugin HTTP Mounting Mechanism Fully Confirmed
-5169 10:51a 🔵 Plugin API Route Mounting: dashboard/plugin_api.py Convention Confirmed in Detail
-5170 " 🔵 APIServerAdapter _create_agent() and _handle_runs() Full Pattern Confirmed for A2A Bridging
-5171 10:52a 🔵 Dashboard Plugin Discovery Requires dashboard/manifest.json — Two Independent Enable Systems
-5172 " 🔵 Dashboard Plugin manifest.json Fields Fully Documented
-5173 " 🔵 matrix-terminal.css discovered as next fallback target
-5174 11:26a 🔄 CSS theme token hardcoded rgba values replaced with color-mix and CSS variable fallbacks
-5175 11:28a 🔄 Migrate hardcoded colors to CSS variables in matrix-files.css
-5176 11:29a 🔄 Refactor accent colors to CSS variables with color-mix in matrix-files.css
-5177 " 🔵 CSS variable refactoring verified type-safe and complete
-5178 " 🟣 Theme fallback tokens applied to matrix-mcp and matrix-files CSS
-S1165 Refactor matrix UI CSS files to support theme fallbacks, enabling non-matrix themes (claude-classic amber, slate) to render correctly via cascading CSS variable tokens. (May 13 at 11:29 AM)
-S1167 Open PR for feat/next-2 branch covering Settings page revamp, profiles bootstrap, and theme-token fallbacks. (May 13 at 11:30 AM)
 5179 11:34a ✅ Commit f3150f28 pushed: theme-token fallbacks for MCP and Files pages
-5180 " 🔵 feat/next-2 branch scope: 45 commits, 161 files, 32K+ line additions
 5181 " 🟣 PR #18 opened: Settings page, profiles bootstrap, nav, theme-token fallbacks
-S1168 Reset worktree to origin/main and create new branch for conductor/operations cleanout plan work (May 13 at 11:34 AM)
 5182 12:24p 🔵 Pre-Deletion Audit of Conductor and Operations Cleanup Plans
 5183 " 🔵 Conductor Cleanout Plan Content — Full Inventory
 5184 " 🔵 Operations Cleanout Plan Content — Full Inventory
@@ -54,10 +25,7 @@ S1168 Reset worktree to origin/main and create new branch for conductor/operatio
 5192 12:27p 🔵 Cross-Plan Preservation Overlap: gateway-api.ts and history.ts in Both Keep Lists
 5193 12:38p ✅ Git Worktree Reset to Remote Main + New Branch for Cleanout Plans
 5194 " 🔵 Repo State: 45 Commits Ahead of origin/main on feat/next-2
-S1169 Reset worktree to origin/main and create new branch for conductor/operations cleanout plan work — COMPLETED (May 13 at 12:39 PM)
 5195 12:39p ✅ New Branch feat/conductor-ops-cleanout Created from origin/main
-S1170 Awaiting user choice on which cleanout plan to tackle first (May 13 at 12:39 PM)
-S1171 Conductor cleanout waves 1-3 executed — all pre-revamp safe dead code deleted (May 13 at 12:42 PM)
 5196 12:43p 🔵 Conductor Cleanout Plan: Full Inventory, Dead Code, and Deletion Waves
 5197 " 🔵 Wave 1 Dead Code Verified: Zero External Callers Confirmed
 5198 " ✅ Wave 1 Dead Code Deleted: 6 Files, ~1,911 LOC Removed
@@ -65,32 +33,45 @@ S1171 Conductor cleanout waves 1-3 executed — all pre-revamp safe dead code de
 5200 " 🔵 Wave 3 Symbol Check: OverviewTab Name Collision, LiveActivityPanel Comment-Only Reference
 5201 12:44p 🔵 agent-hub-layout and conductor.tsx Have No Imports of Wave 3 Targets
 5202 " ✅ Wave 3 Deleted: live-activity-panel and overview-tab Removed
-S1174 Execute conductor-cleanout.md — delete all dead code waves including backend routes, TSC verify clean (May 13 at 12:44 PM)
 5203 " ✅ conductor.tsx Monolith Replaced with 8-Line Placeholder
-S1172 Execute conductor-cleanout.md and operations-cleanout.md plans on feat/conductor-ops-cleanout branch (May 13 at 12:45 PM)
-S1173 Execute conductor-cleanout.md plan — delete dead code waves 1-4, replace conductor.tsx with placeholder, confirm TSC clean (May 13 at 12:45 PM)
-S1175 Execute conductor-cleanout.md fully — all waves including backend routes, verify TSC + routeTree clean (May 13 at 12:49 PM)
-**Investigated**: - Backend caller grep confirmed only routeTree.gen.ts and gateway-capabilities.ts (/api/conductor/missions — different endpoint) reference conductor routes
-    - routeTree.gen.ts checked after backend deletion: grep for conductor-spawn/stop/preview-file returns 0 — auto-regenerated clean
-    - Full TSC run (excluding text-shimmer) returns empty — zero errors
+5208 12:49p ⚖️ Branch feat/conductor-ops-cleanout for dual cleanout plans
+5204 12:50p 🔄 Conductor Page Full Cleanout — commit b9364412
+5205 " 🔵 Conductor Cleanout Post-Commit Verification Results
+5206 " 🔵 Hard-No-Touch File Paths Differ From Expected — All Files Actually Present
+5207 12:52p 🔵 TSC Clean After Conductor Cleanout — Only Pre-Existing text-shimmer Errors
+5209 12:53p 🔄 conductor-cleanout.md fully executed — commit b9364412
+5210 12:56p ✅ Remove stale LiveActivityPanel reference from agent-output-panel.tsx
+5211 " 🔄 Rename local OverviewTab to TaskOverviewTab in task-detail-drawer.tsx
+5212 " 🔵 OverviewTab rename did not persist in task-detail-drawer.tsx
+5213 1:00p 🔵 hermes-switchui-a: operations page full cleanout verified (commit 6877f9b9)
+5214 1:01p 🔵 operations cleanout stale-ref check: zero hits; OrchestratorCard local-only confirmed
+5215 " 🔵 TSC clean pass; orchestrator-identity only imported by agent-view-panel (not dashboard-config route)
+5216 1:02p 🔵 TSC exits 2 with only pre-existing text-shimmer errors — cleanout introduced zero new type errors
+5217 " 🔵 operations-screen.tsx stub confirmed: 8-line placeholder, zero imports
+5218 1:03p ⚖️ Branch feat/conductor-ops-cleanout created for dual cleanout plans
+5219 1:07p 🔄 PR #19 opened: conductor + operations page cleanout (~12,900 LOC removed)
+5220 1:08p 🔵 Design HTML mockups found for conductor and operations revamp
+5221 1:11p ⚖️ Matrix UI revamp starting for conductor and operations pages
+5222 1:12p 🔵 Conductor design HTML is 1,436 lines; screenshot is 924x540 JPEG
+5223 " 🔵 Conductor design screenshot loaded — shows dark-theme matrix-style agent dashboard UI
+S1184 Conductor + Operations UI revamp — reset to remote main, confirm cleanout plan files, begin fresh implementation branch (May 13 at 1:12 PM)
+5224 1:14p ⚖️ New branch from fresh main for conductor + operations cleanout work
+S1185 Conductor UI — architect review repeatedly blocked by hook; M1 implementation starting directly (May 13 at 1:14 PM)
+S1183 Conductor UI revamp — reset worktree from main, confirm plan files, start fresh branch; planner+architect review cycle completed (May 13 at 1:15 PM)
+S1186 Conductor UI — skipping architect review (hook blocked), reading M1 spec to begin implementation (May 13 at 3:27 PM)
+S1189 Conductor Matrix UI revamp M2–M4 — autopilot stuck in M1 loop, QA phase attempting screenshot verification (May 13 at 3:29 PM)
+5225 3:29p 🔵 Conductor.html CSS structure mapped — all selectors start at line 10, cnd-history at L491
+5227 " 🔵 CSS import pattern confirmed — screen imports own matrix-*.css at top of screen file
+5226 3:30p 🔵 Existing matrix-*.css pattern confirmed — scoped to data-screen attribute, dual-token fallbacks
+S1190 Implement M2–M4 of Conductor Matrix UI revamp (now-playing strip, DAG canvas, worker lanes, mission history rail) in hermes-switchui-a on branch feat/conductor-ops-cleanout (May 13 at 3:30 PM)
+S1187 Conductor page Matrix UI revamp — M1 static shell implementation (grid layout, top bar KPIs, CSS scoping) (May 13 at 3:30 PM)
+S1188 Conductor Matrix UI revamp M2–M4 implementation — now-playing strip, DAG canvas, worker lanes, mission history rail (May 13 at 3:30 PM)
+S1191 Conductor Matrix UI M2–M4 implementation in hermes-switchui-a — primary session active, researching design assets for M2 implementation (May 13 at 3:37 PM)
+5228 4:00p ✅ User pivot: reset worktree and switch to cleanout branch
+S1192 Conductor Matrix UI revamp M2–M4 implementation on feat/conductor-ops-cleanout branch (May 13 at 4:00 PM)
+5229 4:24p 🟣 M2 Conductor Matrix UI revamp complete — now-playing strip, phase pills, DAG canvas
 
-**Learned**: - TanStack Router's routeTree.gen.ts auto-regenerated correctly after deleting the 3 route files — no stale refs remain
-    - gateway-capabilities.ts /api/conductor/missions is a completely separate dashboard endpoint, unaffected
-    - TSC stays clean even with routeTree.gen.ts referencing deleted files — because it regenerated before TSC ran
-
-**Completed**: - conductor-cleanout.md fully executed:
-      - 12 frontend files deleted (components, hooks, lib)
-      - conductor.tsx → 8-line placeholder stub
-      - 5 backend files deleted: conductor-spawn.ts, conductor-stop.ts, preview-file.ts, conductor-mission-sanitize.ts, conductor-mission-sanitize.test.ts
-    - routeTree.gen.ts auto-regenerated, zero stale conductor route refs
-    - TSC clean (only pre-existing text-shimmer errors)
-    - All changes unstaged on feat/conductor-ops-cleanout, awaiting commit
-
-**Next Steps**: - Commit conductor cleanout with descriptive message
-    - Read and execute docs/plans/operations-cleanout.md (212 lines)
-
-
-Access 726k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 809k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>
 
 ## graphify
