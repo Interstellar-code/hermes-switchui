@@ -33,7 +33,7 @@ export type AgentOutputPanelProps = {
   modelId?: string
   /** Optional runtime status label shown in the header badge. */
   statusLabel?: string
-  /** Compact mode: no outer border/padding and no internal header. Use inside LiveActivityPanel. */
+  /** Compact mode: no outer border/padding and no internal header. */
   compact?: boolean
   /**
    * When true, skip opening an internal SSE connection.

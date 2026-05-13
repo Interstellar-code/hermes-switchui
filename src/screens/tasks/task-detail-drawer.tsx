@@ -353,7 +353,7 @@ export function TaskDetailDrawer({ task: taskProp, onClose, mode = 'detail', lis
 
           {detail && (
             <>
-              {activeTab === 'overview' && <OverviewTab task={task} detail={detail} />}
+              {activeTab === 'overview' && <TaskOverviewTab task={task} detail={detail} />}
               {activeTab === 'comments' && <CommentsTab detail={detail} taskId={task.id} />}
               {activeTab === 'dependencies' && <DepsTab task={task} detail={detail} />}
               {activeTab === 'runs' && <RunsTab detail={detail} />}
@@ -459,7 +459,7 @@ function SkillsCombobox({
   )
 }
 
-function OverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesKanbanTaskDetail }) {
+function TaskOverviewTab({ task, detail }: { task: HermesKanbanTask; detail: HermesKanbanTaskDetail }) {
   const td = detail.task
   const queryClient = useQueryClient()
 
