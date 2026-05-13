@@ -89,6 +89,10 @@ import { Route as ApiProfilesCreateRouteImport } from './routes/api/profiles/cre
 import { Route as ApiProfilesActivateRouteImport } from './routes/api/profiles/activate'
 import { Route as ApiPersonasReadRouteImport } from './routes/api/personas/read'
 import { Route as ApiPersonasListRouteImport } from './routes/api/personas/list'
+import { Route as ApiOperationsStateRouteImport } from './routes/api/operations/state'
+import { Route as ApiOperationsOutputsRouteImport } from './routes/api/operations/outputs'
+import { Route as ApiOperationsDispatchRouteImport } from './routes/api/operations/dispatch'
+import { Route as ApiOperationsAgentsRouteImport } from './routes/api/operations/agents'
 import { Route as ApiOauthPollTokenRouteImport } from './routes/api/oauth.poll-token'
 import { Route as ApiOauthDeviceCodeRouteImport } from './routes/api/oauth.device-code'
 import { Route as ApiModelInfoRouteImport } from './routes/api/model/info'
@@ -134,10 +138,14 @@ import { Route as ApiClaudeJobsJobIdRouteImport } from './routes/api/claude-jobs
 import { Route as ApiArtifactsArtifactIdRouteImport } from './routes/api/artifacts.$artifactId'
 import { Route as ApiSessionsSessionKeyStatusRouteImport } from './routes/api/sessions/$sessionKey.status'
 import { Route as ApiSessionsSessionKeyActiveRunRouteImport } from './routes/api/sessions/$sessionKey.active-run'
+import { Route as ApiOperationsDispatchPreviewRouteImport } from './routes/api/operations/dispatch.preview'
+import { Route as ApiOperationsAgentsIdRouteImport } from './routes/api/operations/agents.$id'
 import { Route as ApiMcpHubSourcesIdRouteImport } from './routes/api/mcp/hub-sources.$id'
 import { Route as ApiMcpNameLogsRouteImport } from './routes/api/mcp/$name.logs'
 import { Route as ApiHermesKanbanTasksTaskIdRouteImport } from './routes/api/hermes-kanban/tasks.$taskId'
 import { Route as ApiConductorMissionsIdRouteImport } from './routes/api/conductor/missions.$id'
+import { Route as ApiOperationsAgentsIdResumeRouteImport } from './routes/api/operations/agents.$id.resume'
+import { Route as ApiOperationsAgentsIdPauseRouteImport } from './routes/api/operations/agents.$id.pause'
 import { Route as ApiHermesKanbanTasksTaskIdLogRouteImport } from './routes/api/hermes-kanban/tasks.$taskId.log'
 import { Route as ApiHermesKanbanTasksTaskIdCommentsRouteImport } from './routes/api/hermes-kanban/tasks.$taskId.comments'
 import { Route as ApiConductorMissionsIdAbortRouteImport } from './routes/api/conductor/missions.$id.abort'
@@ -543,6 +551,26 @@ const ApiPersonasListRoute = ApiPersonasListRouteImport.update({
   path: '/api/personas/list',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOperationsStateRoute = ApiOperationsStateRouteImport.update({
+  id: '/api/operations/state',
+  path: '/api/operations/state',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOperationsOutputsRoute = ApiOperationsOutputsRouteImport.update({
+  id: '/api/operations/outputs',
+  path: '/api/operations/outputs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOperationsDispatchRoute = ApiOperationsDispatchRouteImport.update({
+  id: '/api/operations/dispatch',
+  path: '/api/operations/dispatch',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOperationsAgentsRoute = ApiOperationsAgentsRouteImport.update({
+  id: '/api/operations/agents',
+  path: '/api/operations/agents',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOauthPollTokenRoute = ApiOauthPollTokenRouteImport.update({
   id: '/api/oauth/poll-token',
   path: '/api/oauth/poll-token',
@@ -774,6 +802,17 @@ const ApiSessionsSessionKeyActiveRunRoute =
     path: '/$sessionKey/active-run',
     getParentRoute: () => ApiSessionsRoute,
   } as any)
+const ApiOperationsDispatchPreviewRoute =
+  ApiOperationsDispatchPreviewRouteImport.update({
+    id: '/preview',
+    path: '/preview',
+    getParentRoute: () => ApiOperationsDispatchRoute,
+  } as any)
+const ApiOperationsAgentsIdRoute = ApiOperationsAgentsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiOperationsAgentsRoute,
+} as any)
 const ApiMcpHubSourcesIdRoute = ApiMcpHubSourcesIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -795,6 +834,18 @@ const ApiConductorMissionsIdRoute = ApiConductorMissionsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ApiConductorMissionsRoute,
 } as any)
+const ApiOperationsAgentsIdResumeRoute =
+  ApiOperationsAgentsIdResumeRouteImport.update({
+    id: '/resume',
+    path: '/resume',
+    getParentRoute: () => ApiOperationsAgentsIdRoute,
+  } as any)
+const ApiOperationsAgentsIdPauseRoute =
+  ApiOperationsAgentsIdPauseRouteImport.update({
+    id: '/pause',
+    path: '/pause',
+    getParentRoute: () => ApiOperationsAgentsIdRoute,
+  } as any)
 const ApiHermesKanbanTasksTaskIdLogRoute =
   ApiHermesKanbanTasksTaskIdLogRouteImport.update({
     id: '/log',
@@ -927,6 +978,10 @@ export interface FileRoutesByFullPath {
   '/api/model/info': typeof ApiModelInfoRoute
   '/api/oauth/device-code': typeof ApiOauthDeviceCodeRoute
   '/api/oauth/poll-token': typeof ApiOauthPollTokenRoute
+  '/api/operations/agents': typeof ApiOperationsAgentsRouteWithChildren
+  '/api/operations/dispatch': typeof ApiOperationsDispatchRouteWithChildren
+  '/api/operations/outputs': typeof ApiOperationsOutputsRoute
+  '/api/operations/state': typeof ApiOperationsStateRoute
   '/api/personas/list': typeof ApiPersonasListRoute
   '/api/personas/read': typeof ApiPersonasReadRoute
   '/api/profiles/activate': typeof ApiProfilesActivateRoute
@@ -948,11 +1003,15 @@ export interface FileRoutesByFullPath {
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
+  '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
+  '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
+  '/api/operations/agents/$id/pause': typeof ApiOperationsAgentsIdPauseRoute
+  '/api/operations/agents/$id/resume': typeof ApiOperationsAgentsIdResumeRoute
   '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform': typeof ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute
 }
 export interface FileRoutesByTo {
@@ -1061,6 +1120,10 @@ export interface FileRoutesByTo {
   '/api/model/info': typeof ApiModelInfoRoute
   '/api/oauth/device-code': typeof ApiOauthDeviceCodeRoute
   '/api/oauth/poll-token': typeof ApiOauthPollTokenRoute
+  '/api/operations/agents': typeof ApiOperationsAgentsRouteWithChildren
+  '/api/operations/dispatch': typeof ApiOperationsDispatchRouteWithChildren
+  '/api/operations/outputs': typeof ApiOperationsOutputsRoute
+  '/api/operations/state': typeof ApiOperationsStateRoute
   '/api/personas/list': typeof ApiPersonasListRoute
   '/api/personas/read': typeof ApiPersonasReadRoute
   '/api/profiles/activate': typeof ApiProfilesActivateRoute
@@ -1082,11 +1145,15 @@ export interface FileRoutesByTo {
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
+  '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
+  '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
+  '/api/operations/agents/$id/pause': typeof ApiOperationsAgentsIdPauseRoute
+  '/api/operations/agents/$id/resume': typeof ApiOperationsAgentsIdResumeRoute
   '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform': typeof ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute
 }
 export interface FileRoutesById {
@@ -1197,6 +1264,10 @@ export interface FileRoutesById {
   '/api/model/info': typeof ApiModelInfoRoute
   '/api/oauth/device-code': typeof ApiOauthDeviceCodeRoute
   '/api/oauth/poll-token': typeof ApiOauthPollTokenRoute
+  '/api/operations/agents': typeof ApiOperationsAgentsRouteWithChildren
+  '/api/operations/dispatch': typeof ApiOperationsDispatchRouteWithChildren
+  '/api/operations/outputs': typeof ApiOperationsOutputsRoute
+  '/api/operations/state': typeof ApiOperationsStateRoute
   '/api/personas/list': typeof ApiPersonasListRoute
   '/api/personas/read': typeof ApiPersonasReadRoute
   '/api/profiles/activate': typeof ApiProfilesActivateRoute
@@ -1218,11 +1289,15 @@ export interface FileRoutesById {
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
+  '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
+  '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
+  '/api/operations/agents/$id/pause': typeof ApiOperationsAgentsIdPauseRoute
+  '/api/operations/agents/$id/resume': typeof ApiOperationsAgentsIdResumeRoute
   '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform': typeof ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute
 }
 export interface FileRouteTypes {
@@ -1334,6 +1409,10 @@ export interface FileRouteTypes {
     | '/api/model/info'
     | '/api/oauth/device-code'
     | '/api/oauth/poll-token'
+    | '/api/operations/agents'
+    | '/api/operations/dispatch'
+    | '/api/operations/outputs'
+    | '/api/operations/state'
     | '/api/personas/list'
     | '/api/personas/read'
     | '/api/profiles/activate'
@@ -1355,11 +1434,15 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
+    | '/api/operations/agents/$id'
+    | '/api/operations/dispatch/preview'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
     | '/api/conductor/missions/$id/abort'
     | '/api/hermes-kanban/tasks/$taskId/comments'
     | '/api/hermes-kanban/tasks/$taskId/log'
+    | '/api/operations/agents/$id/pause'
+    | '/api/operations/agents/$id/resume'
     | '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -1468,6 +1551,10 @@ export interface FileRouteTypes {
     | '/api/model/info'
     | '/api/oauth/device-code'
     | '/api/oauth/poll-token'
+    | '/api/operations/agents'
+    | '/api/operations/dispatch'
+    | '/api/operations/outputs'
+    | '/api/operations/state'
     | '/api/personas/list'
     | '/api/personas/read'
     | '/api/profiles/activate'
@@ -1489,11 +1576,15 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
+    | '/api/operations/agents/$id'
+    | '/api/operations/dispatch/preview'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
     | '/api/conductor/missions/$id/abort'
     | '/api/hermes-kanban/tasks/$taskId/comments'
     | '/api/hermes-kanban/tasks/$taskId/log'
+    | '/api/operations/agents/$id/pause'
+    | '/api/operations/agents/$id/resume'
     | '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform'
   id:
     | '__root__'
@@ -1603,6 +1694,10 @@ export interface FileRouteTypes {
     | '/api/model/info'
     | '/api/oauth/device-code'
     | '/api/oauth/poll-token'
+    | '/api/operations/agents'
+    | '/api/operations/dispatch'
+    | '/api/operations/outputs'
+    | '/api/operations/state'
     | '/api/personas/list'
     | '/api/personas/read'
     | '/api/profiles/activate'
@@ -1624,11 +1719,15 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
+    | '/api/operations/agents/$id'
+    | '/api/operations/dispatch/preview'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
     | '/api/conductor/missions/$id/abort'
     | '/api/hermes-kanban/tasks/$taskId/comments'
     | '/api/hermes-kanban/tasks/$taskId/log'
+    | '/api/operations/agents/$id/pause'
+    | '/api/operations/agents/$id/resume'
     | '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform'
   fileRoutesById: FileRoutesById
 }
@@ -1721,6 +1820,10 @@ export interface RootRouteChildren {
   ApiModelInfoRoute: typeof ApiModelInfoRoute
   ApiOauthDeviceCodeRoute: typeof ApiOauthDeviceCodeRoute
   ApiOauthPollTokenRoute: typeof ApiOauthPollTokenRoute
+  ApiOperationsAgentsRoute: typeof ApiOperationsAgentsRouteWithChildren
+  ApiOperationsDispatchRoute: typeof ApiOperationsDispatchRouteWithChildren
+  ApiOperationsOutputsRoute: typeof ApiOperationsOutputsRoute
+  ApiOperationsStateRoute: typeof ApiOperationsStateRoute
   ApiPersonasListRoute: typeof ApiPersonasListRoute
   ApiPersonasReadRoute: typeof ApiPersonasReadRoute
   ApiProfilesActivateRoute: typeof ApiProfilesActivateRoute
@@ -2297,6 +2400,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPersonasListRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/operations/state': {
+      id: '/api/operations/state'
+      path: '/api/operations/state'
+      fullPath: '/api/operations/state'
+      preLoaderRoute: typeof ApiOperationsStateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/operations/outputs': {
+      id: '/api/operations/outputs'
+      path: '/api/operations/outputs'
+      fullPath: '/api/operations/outputs'
+      preLoaderRoute: typeof ApiOperationsOutputsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/operations/dispatch': {
+      id: '/api/operations/dispatch'
+      path: '/api/operations/dispatch'
+      fullPath: '/api/operations/dispatch'
+      preLoaderRoute: typeof ApiOperationsDispatchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/operations/agents': {
+      id: '/api/operations/agents'
+      path: '/api/operations/agents'
+      fullPath: '/api/operations/agents'
+      preLoaderRoute: typeof ApiOperationsAgentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/oauth/poll-token': {
       id: '/api/oauth/poll-token'
       path: '/api/oauth/poll-token'
@@ -2612,6 +2743,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSessionsSessionKeyActiveRunRouteImport
       parentRoute: typeof ApiSessionsRoute
     }
+    '/api/operations/dispatch/preview': {
+      id: '/api/operations/dispatch/preview'
+      path: '/preview'
+      fullPath: '/api/operations/dispatch/preview'
+      preLoaderRoute: typeof ApiOperationsDispatchPreviewRouteImport
+      parentRoute: typeof ApiOperationsDispatchRoute
+    }
+    '/api/operations/agents/$id': {
+      id: '/api/operations/agents/$id'
+      path: '/$id'
+      fullPath: '/api/operations/agents/$id'
+      preLoaderRoute: typeof ApiOperationsAgentsIdRouteImport
+      parentRoute: typeof ApiOperationsAgentsRoute
+    }
     '/api/mcp/hub-sources/$id': {
       id: '/api/mcp/hub-sources/$id'
       path: '/$id'
@@ -2639,6 +2784,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/conductor/missions/$id'
       preLoaderRoute: typeof ApiConductorMissionsIdRouteImport
       parentRoute: typeof ApiConductorMissionsRoute
+    }
+    '/api/operations/agents/$id/resume': {
+      id: '/api/operations/agents/$id/resume'
+      path: '/resume'
+      fullPath: '/api/operations/agents/$id/resume'
+      preLoaderRoute: typeof ApiOperationsAgentsIdResumeRouteImport
+      parentRoute: typeof ApiOperationsAgentsIdRoute
+    }
+    '/api/operations/agents/$id/pause': {
+      id: '/api/operations/agents/$id/pause'
+      path: '/pause'
+      fullPath: '/api/operations/agents/$id/pause'
+      preLoaderRoute: typeof ApiOperationsAgentsIdPauseRouteImport
+      parentRoute: typeof ApiOperationsAgentsIdRoute
     }
     '/api/hermes-kanban/tasks/$taskId/log': {
       id: '/api/hermes-kanban/tasks/$taskId/log'
@@ -2879,6 +3038,45 @@ const ApiHermesKanbanTasksRouteChildren: ApiHermesKanbanTasksRouteChildren = {
 const ApiHermesKanbanTasksRouteWithChildren =
   ApiHermesKanbanTasksRoute._addFileChildren(ApiHermesKanbanTasksRouteChildren)
 
+interface ApiOperationsAgentsIdRouteChildren {
+  ApiOperationsAgentsIdPauseRoute: typeof ApiOperationsAgentsIdPauseRoute
+  ApiOperationsAgentsIdResumeRoute: typeof ApiOperationsAgentsIdResumeRoute
+}
+
+const ApiOperationsAgentsIdRouteChildren: ApiOperationsAgentsIdRouteChildren = {
+  ApiOperationsAgentsIdPauseRoute: ApiOperationsAgentsIdPauseRoute,
+  ApiOperationsAgentsIdResumeRoute: ApiOperationsAgentsIdResumeRoute,
+}
+
+const ApiOperationsAgentsIdRouteWithChildren =
+  ApiOperationsAgentsIdRoute._addFileChildren(
+    ApiOperationsAgentsIdRouteChildren,
+  )
+
+interface ApiOperationsAgentsRouteChildren {
+  ApiOperationsAgentsIdRoute: typeof ApiOperationsAgentsIdRouteWithChildren
+}
+
+const ApiOperationsAgentsRouteChildren: ApiOperationsAgentsRouteChildren = {
+  ApiOperationsAgentsIdRoute: ApiOperationsAgentsIdRouteWithChildren,
+}
+
+const ApiOperationsAgentsRouteWithChildren =
+  ApiOperationsAgentsRoute._addFileChildren(ApiOperationsAgentsRouteChildren)
+
+interface ApiOperationsDispatchRouteChildren {
+  ApiOperationsDispatchPreviewRoute: typeof ApiOperationsDispatchPreviewRoute
+}
+
+const ApiOperationsDispatchRouteChildren: ApiOperationsDispatchRouteChildren = {
+  ApiOperationsDispatchPreviewRoute: ApiOperationsDispatchPreviewRoute,
+}
+
+const ApiOperationsDispatchRouteWithChildren =
+  ApiOperationsDispatchRoute._addFileChildren(
+    ApiOperationsDispatchRouteChildren,
+  )
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
@@ -2969,6 +3167,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiModelInfoRoute: ApiModelInfoRoute,
   ApiOauthDeviceCodeRoute: ApiOauthDeviceCodeRoute,
   ApiOauthPollTokenRoute: ApiOauthPollTokenRoute,
+  ApiOperationsAgentsRoute: ApiOperationsAgentsRouteWithChildren,
+  ApiOperationsDispatchRoute: ApiOperationsDispatchRouteWithChildren,
+  ApiOperationsOutputsRoute: ApiOperationsOutputsRoute,
+  ApiOperationsStateRoute: ApiOperationsStateRoute,
   ApiPersonasListRoute: ApiPersonasListRoute,
   ApiPersonasReadRoute: ApiPersonasReadRoute,
   ApiProfilesActivateRoute: ApiProfilesActivateRoute,
