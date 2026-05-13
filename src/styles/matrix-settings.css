@@ -63,8 +63,8 @@
 }
 
 [data-screen="settings"] .topbar h1 .cur {
-  color: var(--m-green-500);
-  text-shadow: 0 0 6px rgba(0, 255, 65, 0.4);
+  color: var(--m-green-500, var(--theme-accent));
+  text-shadow: 0 0 6px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 40%, transparent);
 }
 
 [data-screen="settings"] .topbar .stats {
@@ -83,7 +83,7 @@
 }
 
 [data-screen="settings"] .topbar .stats .ok {
-  color: var(--m-green-500);
+  color: var(--m-green-500, var(--theme-accent));
 }
 
 [data-screen="settings"] .topbar .stats .warn {
@@ -105,7 +105,7 @@
   padding: 6px 12px;
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius-md);
-  background: var(--m-bg-deep);
+  background: var(--m-bg-deep, var(--theme-bg));
   color: var(--m-text);
   font: 500 11px var(--m-font-mono);
   text-transform: uppercase;
@@ -115,14 +115,14 @@
 }
 
 [data-screen="settings"] .btn:hover {
-  color: var(--m-green-500);
-  border-color: var(--m-green-500);
+  color: var(--m-green-500, var(--theme-accent));
+  border-color: var(--m-green-500, var(--theme-accent));
 }
 
 [data-screen="settings"] .btn.primary {
-  background: rgba(0, 255, 65, 0.08);
-  color: var(--m-green-500);
-  border-color: var(--m-green-500);
+  background: color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 8%, transparent);
+  color: var(--m-green-500, var(--theme-accent));
+  border-color: var(--m-green-500, var(--theme-accent));
 }
 
 [data-screen="settings"] .btn.danger {
@@ -180,9 +180,9 @@
 }
 
 [data-screen="settings"] .tabbar .tab.on {
-  color: var(--m-green-500);
-  border-bottom-color: var(--m-green-500);
-  text-shadow: 0 0 6px rgba(0, 255, 65, 0.35);
+  color: var(--m-green-500, var(--theme-accent));
+  border-bottom-color: var(--m-green-500, var(--theme-accent));
+  text-shadow: 0 0 6px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 35%, transparent);
 }
 
 [data-screen="settings"] .tabbar .ct {
@@ -194,8 +194,8 @@
 }
 
 [data-screen="settings"] .tabbar .tab.on .ct {
-  color: var(--m-green-500);
-  border-color: var(--m-green-500);
+  color: var(--m-green-500, var(--theme-accent));
+  border-color: var(--m-green-500, var(--theme-accent));
 }
 
 [data-screen="settings"] .tabbar .spacer {
@@ -252,8 +252,8 @@
 }
 
 [data-screen="settings"] .side.sk-filter .collapse-btn:hover {
-  color: var(--m-green-500);
-  border-color: var(--m-green-500);
+  color: var(--m-green-500, var(--theme-accent));
+  border-color: var(--m-green-500, var(--theme-accent));
 }
 
 [data-screen="settings"] .side.sk-filter.collapsed .sk-filter-hdr {
@@ -290,7 +290,7 @@
   text-orientation: mixed;
   letter-spacing: .14em;
   text-transform: uppercase;
-  color: var(--m-green-500);
+  color: var(--m-green-500, var(--theme-accent));
 }
 
 [data-screen="settings"] .side.sk-filter .sk-rail .rail-badge {
@@ -316,7 +316,7 @@
   font: 700 12px var(--m-font-mono);
   letter-spacing: .14em;
   text-transform: uppercase;
-  color: var(--m-green-500);
+  color: var(--m-green-500, var(--theme-accent));
 }
 
 [data-screen="settings"] .side.sk-filter .sk-filter-hdr .ct {
@@ -369,8 +369,8 @@
 }
 
 [data-screen="settings"] .side.sk-filter .sk-filter-search input:focus {
-  border-color: var(--m-green-500);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--m-green-500) 15%, transparent);
+  border-color: var(--m-green-500, var(--theme-accent));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 15%, transparent);
 }
 
 [data-screen="settings"] .side.sk-filter .sk-filter-body {
@@ -483,7 +483,7 @@
 }
 
 [data-screen="settings"] .section-head .meta b {
-  color: var(--m-green-500);
+  color: var(--m-green-500, var(--theme-accent));
 }
 
 /* ── Cards ───────────────────────────────────────────────────────────────── */
@@ -510,7 +510,7 @@
 }
 
 [data-screen="settings"] .card > h3 .ic {
-  color: var(--m-green-500);
+  color: var(--m-green-500, var(--theme-accent));
 }
 
 [data-screen="settings"] .card > h3 .sub {
@@ -591,7 +591,7 @@
 [data-screen="settings"] select {
   width: 100%;
   padding: 8px 10px;
-  background: var(--m-bg-deep);
+  background: var(--m-bg-deep, var(--theme-bg));
   border: 1px solid var(--m-border);
   color: var(--m-text);
   font: 500 12.5px var(--m-font-mono);
@@ -603,8 +603,8 @@
 [data-screen="settings"] input:focus,
 [data-screen="settings"] textarea:focus,
 [data-screen="settings"] select:focus {
-  border-color: var(--m-green-500);
-  box-shadow: 0 0 0 3px rgba(0, 255, 65, 0.08);
+  border-color: var(--m-green-500, var(--theme-accent));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 8%, transparent);
 }
 
 [data-screen="settings"] textarea {
@@ -629,7 +629,7 @@
   width: 38px;
   height: 22px;
   border-radius: 9999px;
-  background: var(--m-bg-deep);
+  background: var(--m-bg-deep, var(--theme-bg));
   border: 1px solid var(--m-border);
   position: relative;
   cursor: pointer;
@@ -650,14 +650,14 @@
 }
 
 [data-screen="settings"] .toggle.on {
-  background: rgba(0, 255, 65, 0.15);
-  border-color: var(--m-green-500);
+  background: color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 15%, transparent);
+  border-color: var(--m-green-500, var(--theme-accent));
 }
 
 [data-screen="settings"] .toggle.on::after {
   left: 18px;
-  background: var(--m-green-500);
-  box-shadow: 0 0 8px var(--m-green-500);
+  background: var(--m-green-500, var(--theme-accent));
+  box-shadow: 0 0 8px var(--m-green-500, var(--theme-accent));
 }
 
 /* ── Range slider ────────────────────────────────────────────────────────── */
@@ -680,18 +680,18 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--m-green-500);
+  background: var(--m-green-500, var(--theme-accent));
   cursor: pointer;
-  box-shadow: 0 0 6px var(--m-green-500);
+  box-shadow: 0 0 6px var(--m-green-500, var(--theme-accent));
 }
 
 [data-screen="settings"] input[type='range']::-moz-range-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--m-green-500);
+  background: var(--m-green-500, var(--theme-accent));
   cursor: pointer;
-  box-shadow: 0 0 6px var(--m-green-500);
+  box-shadow: 0 0 6px var(--m-green-500, var(--theme-accent));
   border: none;
 }
 
@@ -702,7 +702,7 @@
   border: 1px solid var(--m-border);
   border-radius: var(--m-radius-md);
   overflow: hidden;
-  background: var(--m-bg-deep);
+  background: var(--m-bg-deep, var(--theme-bg));
 }
 
 [data-screen="settings"] .segmented .seg-opt {
@@ -729,8 +729,8 @@
 }
 
 [data-screen="settings"] .segmented .seg-opt.on {
-  background: rgba(0, 255, 65, 0.1);
-  color: var(--m-green-500);
+  background: color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 10%, transparent);
+  color: var(--m-green-500, var(--theme-accent));
 }
 
 /* ── Chip group ──────────────────────────────────────────────────────────── */
@@ -748,7 +748,7 @@
   font: 500 11px var(--m-font-mono);
   color: var(--m-text-muted);
   cursor: pointer;
-  background: var(--m-bg-deep);
+  background: var(--m-bg-deep, var(--theme-bg));
 }
 
 [data-screen="settings"] .chip:hover {
@@ -756,9 +756,9 @@
 }
 
 [data-screen="settings"] .chip.on {
-  color: var(--m-green-500);
-  border-color: var(--m-green-500);
-  background: rgba(0, 255, 65, 0.08);
+  color: var(--m-green-500, var(--theme-accent));
+  border-color: var(--m-green-500, var(--theme-accent));
+  background: color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 8%, transparent);
 }
 
 /* ── Mini table ──────────────────────────────────────────────────────────── */
@@ -799,8 +799,8 @@
 }
 
 [data-screen="settings"] .mini-table .dot.ok {
-  background: var(--m-green-500);
-  box-shadow: 0 0 6px var(--m-green-500);
+  background: var(--m-green-500, var(--theme-accent));
+  box-shadow: 0 0 6px var(--m-green-500, var(--theme-accent));
 }
 
 [data-screen="settings"] .mini-table .dot.warn {
@@ -860,7 +860,7 @@
 }
 
 [data-screen="settings"] .kv code {
-  color: var(--m-green-500);
+  color: var(--m-green-500, var(--theme-accent));
 }
 
 [data-screen="settings"] .path {
@@ -904,7 +904,7 @@
 }
 
 [data-screen="settings"] .pw-wrap .eye-btn:hover {
-  color: var(--m-green-500);
+  color: var(--m-green-500, var(--theme-accent));
 }
 
 /* ── Number slider combo ─────────────────────────────────────────────────── */
