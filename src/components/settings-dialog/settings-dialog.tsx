@@ -1,6 +1,5 @@
 'use client'
 
-import '@/styles/matrix-settings-dialog.css'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   ArrowLeft01Icon,
@@ -105,11 +104,16 @@ function SectionHeader({
   description: string
 }) {
   return (
-    <div className="section-head">
-      <div>
-        <h2>{title}</h2>
-        <p className="desc">{description}</p>
-      </div>
+    <div className="mb-2">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary-500">
+        Settings
+      </p>
+      <h3 className="text-base font-semibold text-primary-900 dark:text-neutral-100">
+        {title}
+      </h3>
+      <p className="text-xs text-primary-500 dark:text-neutral-400">
+        {description}
+      </p>
     </div>
   )
 }
@@ -124,20 +128,24 @@ function Row({
   children: React.ReactNode
 }) {
   return (
-    <div className="row">
-      <div className="lbl">
-        <p>{label}</p>
+    <div className="flex flex-wrap items-center justify-between gap-4 py-1.5">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-primary-900 dark:text-neutral-100">
+          {label}
+        </p>
         {description && (
-          <p className="desc">{description}</p>
+          <p className="text-xs text-primary-500 dark:text-neutral-400">
+            {description}
+          </p>
         )}
       </div>
-      <div className="ctl">{children}</div>
+      <div className="flex items-center gap-2">{children}</div>
     </div>
   )
 }
 
 const SETTINGS_CARD_CLASS =
-  'card'
+  'rounded-xl border border-primary-200 bg-primary-50/80 px-4 py-3 shadow-sm'
 
 // ── Section components ──────────────────────────────────────────────────
 
@@ -360,18 +368,21 @@ function HermesContent() {
   }
 
   const cardStyle: React.CSSProperties = {
-    backgroundColor: 'var(--m-panel)',
-    border: '1px solid var(--m-border)',
-    color: 'var(--m-text)',
+    backgroundColor: 'var(--theme-card)',
+    border: '1px solid var(--theme-border)',
+    color: 'var(--theme-text)',
   }
-  const mutedStyle: React.CSSProperties = { color: 'var(--m-text-faint)' }
+  const mutedStyle: React.CSSProperties = { color: 'var(--theme-muted)' }
 
   return (
     <div className="space-y-5">
       {msg && (
         <div
           className={cn(
-            msg.includes('Failed') ? 'message-error' : 'message-success'
+            'rounded-lg px-3 py-2 text-sm font-medium',
+            msg.includes('Failed')
+              ? 'bg-red-500/15 text-red-400'
+              : 'bg-green-500/15 text-green-400',
           )}
         >
           {msg}
@@ -389,7 +400,7 @@ function HermesContent() {
         <p className="mb-3 text-[11px]" style={mutedStyle}>
           Select your AI provider. OAuth providers authenticate via browser.
         </p>
-        <div className="chips">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {PROVIDER_CARDS.map((p) => {
             const isActive = activeProvider === p.id
             const localOnline =
@@ -416,8 +427,10 @@ function HermesContent() {
                   if (hasKey) selectProvider(p.id)
                 }}
                 className={cn(
-                  'chip',
-                  isActive && 'on',
+                  'flex flex-col items-start gap-1 rounded-xl px-3 py-2.5 text-left transition-all',
+                  isActive
+                    ? 'ring-2 ring-accent-500 shadow-md'
+                    : 'hover:brightness-110',
                   missingKey && 'opacity-60',
                 )}
                 style={cardStyle}
@@ -426,14 +439,14 @@ function HermesContent() {
                   <ProviderLogo provider={p.id} size={32} />
                   {/* Single-dot precedence: active > missing-key > verified > none */}
                   {isActive ? (
-                    <span className="dot ok" />
+                    <span className="size-2 rounded-full bg-green-500" />
                   ) : missingKey ? (
-                    <span className="dot" style={{ background: '#ff5fa2' }} />
+                    <span className="size-2 rounded-full bg-red-500/60" />
                   ) : verified ? (
-                    <span className="dot" style={{ background: 'var(--m-green-500)', opacity: 0.4 }} />
+                    <span className="size-2 rounded-full bg-green-500/40" />
                   ) : null}
                 </div>
-                <span style={{ fontSize: '11px', fontWeight: 500 }}>{p.name}</span>
+                <span className="text-xs font-semibold mt-1">{p.name}</span>
                 <span className="text-[9px]" style={mutedStyle}>
                   {(() => {
                     const disc = localDiscovery?.providers.find((lp) => lp.id === p.id)
@@ -458,7 +471,7 @@ function HermesContent() {
           >
             Model
           </p>
-          <div className="chips">
+          <div className="flex flex-wrap gap-2">
             {(() => {
               if (availableModels.length > 0) return availableModels
               // Use auto-discovered models for local providers
@@ -473,8 +486,10 @@ function HermesContent() {
                 type="button"
                 onClick={() => selectProvider(activeProvider, model)}
                 className={cn(
-                  'chip',
-                  activeModel === model && 'on',
+                  'rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
+                  activeModel === model
+                    ? 'ring-2 ring-accent-500'
+                    : 'hover:brightness-110',
                 )}
                 style={cardStyle}
               >
@@ -496,18 +511,18 @@ function HermesContent() {
               const isEditing = editingKey === 'custom_base_url'
               const hasValue = !!customBaseUrl
               return (
-                <div className="row">
+                <div className="flex items-center gap-3 rounded-xl px-3 py-2.5" style={cardStyle}>
                   <div className="flex-1 min-w-0">
-                    <div>Base URL</div>
-                    <div style={mutedStyle}>
+                    <div className="text-sm font-medium">Base URL</div>
+                    <div className="text-[11px] font-mono" style={mutedStyle}>
                       {isEditing ? (
                         <input
                           type="url"
                           value={customBaseUrl}
                           onChange={(e) => setCustomBaseUrl(e.target.value)}
                           placeholder="http://127.0.0.1:38238/v1"
-                          className="w-full"
-                          style={{ color: 'var(--m-text)' }}
+                          className="w-full rounded border-0 bg-transparent py-0.5 text-[11px] outline-none"
+                          style={{ color: 'var(--theme-text)' }}
                           autoFocus
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
@@ -520,14 +535,15 @@ function HermesContent() {
                       ) : hasValue ? customBaseUrl : 'Not configured'}
                     </div>
                   </div>
-                  <div className="ctl">
+                  <div className="flex items-center gap-2">
+                    <span className={cn('size-2 rounded-full', hasValue ? 'bg-green-500' : 'bg-neutral-500')} />
                     {isEditing ? (
                       <>
-                        <button type="button" onClick={() => { save({ config: { model: { provider: 'manifest' }, providers: { manifest: { type: 'openai', base_url: customBaseUrl, key_env: 'CUSTOM_API_KEY' } } } }).then(() => setEditingKey(null)) }} className="btn primary">Save</button>
-                        <button type="button" onClick={() => setEditingKey(null)} className="btn">Cancel</button>
+                        <button type="button" onClick={() => { save({ config: { model: { provider: 'manifest' }, providers: { manifest: { type: 'openai', base_url: customBaseUrl, key_env: 'CUSTOM_API_KEY' } } } }).then(() => setEditingKey(null)) }} className="text-xs font-medium text-green-400">Save</button>
+                        <button type="button" onClick={() => setEditingKey(null)} className="text-xs" style={mutedStyle}>Cancel</button>
                       </>
                     ) : (
-                      <button type="button" onClick={() => setEditingKey('custom_base_url')} className="btn">
+                      <button type="button" onClick={() => setEditingKey('custom_base_url')} className="text-xs font-medium" style={{ color: 'var(--theme-accent)' }}>
                         {hasValue ? 'Edit' : 'Add'}
                       </button>
                     )}
@@ -543,7 +559,7 @@ function HermesContent() {
         const disc = localDiscovery?.providers.find((lp) => lp.id === activeProvider)
         if (!disc || !disc.needsRestart) return null
         return (
-          <div className="warning-box">
+          <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200">
             ⚠️ Gateway restart needed to use {disc.name}. Run <code className="rounded bg-black/30 px-1">hermes gateway restart</code> in your terminal.
           </div>
         )
@@ -565,25 +581,25 @@ function HermesContent() {
             return (
               <div
                 key={p.id}
-                className="row"
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5"
                 style={cardStyle}
               >
-                <div>
-                  <ProviderLogo
-                    provider={p.id}
-                    size={28}
-                    className="rounded-md"
-                  />
-                  <div>{p.name}</div>
-                  <div style={mutedStyle}>
+                <ProviderLogo
+                  provider={p.id}
+                  size={28}
+                  className="rounded-md"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium">{p.name}</div>
+                  <div className="text-[11px] font-mono" style={mutedStyle}>
                     {isEditing ? (
                       <input
                         type="password"
                         value={keyInput}
                         onChange={(e) => setKeyInput(e.target.value)}
                         placeholder={`Paste ${key}`}
-                        className="w-full"
-                        style={{ color: 'var(--m-text)' }}
+                        className="w-full rounded border-0 bg-transparent py-0.5 text-[11px] outline-none"
+                        style={{ color: 'var(--theme-text)' }}
                         autoFocus
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && keyInput) {
@@ -604,7 +620,13 @@ function HermesContent() {
                     )}
                   </div>
                 </div>
-                <div className="ctl row-end">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      'size-2 rounded-full',
+                      hasKey ? 'bg-green-500' : 'bg-neutral-500',
+                    )}
+                  />
                   {isEditing ? (
                     <>
                       <button
@@ -616,7 +638,7 @@ function HermesContent() {
                           setEditingKey(null)
                           setKeyInput('')
                         }}
-                        className="btn primary"
+                        className="rounded-lg px-2 py-1 text-[11px] font-medium bg-accent-500 text-white"
                       >
                         Save
                       </button>
@@ -626,7 +648,8 @@ function HermesContent() {
                           setEditingKey(null)
                           setKeyInput('')
                         }}
-                        className="btn"
+                        className="rounded-lg px-2 py-1 text-[11px] font-medium"
+                        style={{ color: 'var(--theme-muted)' }}
                       >
                         Cancel
                       </button>
@@ -638,7 +661,10 @@ function HermesContent() {
                         setEditingKey(key)
                         setKeyInput('')
                       }}
-                      className="btn"
+                      className="rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors hover:bg-accent-500/10"
+                      style={{
+                        color: 'var(--theme-accent, var(--theme-text))',
+                      }}
                     >
                       {hasKey ? 'Update' : 'Add'}
                     </button>
@@ -652,71 +678,74 @@ function HermesContent() {
 
       {/* Memory */}
       <div>
-        <p style={mutedStyle}>
+        <p
+          className="mb-1 text-xs font-semibold uppercase tracking-wider"
+          style={mutedStyle}
+        >
           Memory
         </p>
         <div className="space-y-1.5">
-          <div className="card">
-            <div className="row">
-              <div className="lbl">
-                <p>Memory</p>
-                <p className="desc">
-                  Store & recall memories across sessions
-                </p>
-              </div>
-              <div className="ctl">
-                <Switch
-                  checked={memEnabled}
-                  onCheckedChange={(c) => {
-                    setMemEnabled(c)
-                    save({ config: { memory: { memory_enabled: c } } })
-                  }}
-                />
+          <div
+            className="flex items-center justify-between rounded-xl px-3 py-2.5"
+            style={cardStyle}
+          >
+            <div>
+              <div className="text-sm font-medium">Memory</div>
+              <div className="text-[11px]" style={mutedStyle}>
+                Store & recall memories across sessions
               </div>
             </div>
-            <div className="row">
-              <div className="lbl">
-                <p>User Profile</p>
-                <p className="desc">
-                  Remember preferences & context
-                </p>
-              </div>
-              <div className="ctl">
-                <Switch
-                  checked={userProfileEnabled}
-                  onCheckedChange={(c) => {
-                    setUserProfileEnabled(c)
-                    save({ config: { memory: { user_profile_enabled: c } } })
-                  }}
-                />
+            <Switch
+              checked={memEnabled}
+              onCheckedChange={(c) => {
+                setMemEnabled(c)
+                save({ config: { memory: { memory_enabled: c } } })
+              }}
+            />
+          </div>
+          <div
+            className="flex items-center justify-between rounded-xl px-3 py-2.5"
+            style={cardStyle}
+          >
+            <div>
+              <div className="text-sm font-medium">User Profile</div>
+              <div className="text-[11px]" style={mutedStyle}>
+                Remember preferences & context
               </div>
             </div>
+            <Switch
+              checked={userProfileEnabled}
+              onCheckedChange={(c) => {
+                setUserProfileEnabled(c)
+                save({ config: { memory: { user_profile_enabled: c } } })
+              }}
+            />
           </div>
         </div>
       </div>
 
       {/* Runtime Info */}
-      <div className="card">
-        <h3><span className="dot ok" /> Runtime</h3>
-        <div className="mini-table">
-          <tbody>
-            <tr>
-              <td style={mutedStyle}>Model</td>
-              <td>{activeModel || '—'}</td>
-            </tr>
-            <tr>
-              <td style={mutedStyle}>Provider</td>
-              <td>
-                {PROVIDER_CARDS.find((p) => p.id === activeProvider)?.name ||
-                  activeProvider ||
-                  '—'}
-              </td>
-            </tr>
-            <tr>
-              <td style={mutedStyle}>Config</td>
-              <td>~/.hermes/config.yaml</td>
-            </tr>
-          </tbody>
+      <div className="rounded-xl px-3 py-2.5" style={cardStyle}>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="size-2 rounded-full bg-green-500 animate-pulse" />
+          <span
+            className="text-xs font-semibold uppercase tracking-wider"
+            style={mutedStyle}
+          >
+            Runtime
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+          <span style={mutedStyle}>Model</span>
+          <span className="font-mono font-medium">{activeModel || '—'}</span>
+          <span style={mutedStyle}>Provider</span>
+          <span className="font-mono font-medium">
+            {PROVIDER_CARDS.find((p) => p.id === activeProvider)?.name ||
+              activeProvider ||
+              '—'}
+          </span>
+          <span style={mutedStyle}>Config</span>
+          <span className="font-mono font-medium">~/.hermes/config.yaml</span>
         </div>
       </div>
     </div>
@@ -1568,7 +1597,10 @@ function AgentBehaviorContent() {
       {msg && (
         <div
           className={cn(
-            msg === 'Saved' ? 'message-success' : 'message-error'
+            'rounded-lg px-3 py-1.5 text-xs font-medium',
+            msg === 'Saved'
+              ? 'bg-green-500/15 text-green-400'
+              : 'bg-red-500/15 text-red-400',
           )}
         >
           {msg}
@@ -1585,7 +1617,7 @@ function AgentBehaviorContent() {
             max={100}
             value={Number(config.max_turns) || 50}
             onChange={(e) => save('max_turns', Number(e.target.value))}
-            style={{ width: '80px', textAlign: 'center' }}
+            className="h-8 w-20 rounded-lg border border-primary-200 bg-primary-50 px-2 text-sm text-center text-primary-900 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
           />
         </Row>
         <Row label="Gateway timeout" description="Seconds before timeout">
@@ -1595,7 +1627,7 @@ function AgentBehaviorContent() {
             max={600}
             value={Number(config.gateway_timeout) || 120}
             onChange={(e) => save('gateway_timeout', Number(e.target.value))}
-            style={{ width: '80px', textAlign: 'center' }}
+            className="h-8 w-20 rounded-lg border border-primary-200 bg-primary-50 px-2 text-sm text-center text-primary-900 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
           />
         </Row>
         <Row label="Tool enforcement" description="When agent must use tools">
@@ -1665,7 +1697,10 @@ function SmartRoutingContent() {
       {msg && (
         <div
           className={cn(
-            msg === 'Saved' ? 'message-success' : 'message-error'
+            'rounded-lg px-3 py-1.5 text-xs font-medium',
+            msg === 'Saved'
+              ? 'bg-green-500/15 text-green-400'
+              : 'bg-red-500/15 text-red-400',
           )}
         >
           {msg}
@@ -1685,7 +1720,7 @@ function SmartRoutingContent() {
           <select
             value={String(config.cheap_model || '')}
             onChange={(e) => save('cheap_model', e.target.value)}
-            style={{ maxWidth: '192px' }}
+            className="h-8 max-w-[12rem] rounded-lg border border-primary-200 bg-primary-50 px-2 text-sm text-primary-900 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
           >
             <option value="">Auto</option>
             {models.map((m) => (
@@ -1702,7 +1737,7 @@ function SmartRoutingContent() {
             max={2000}
             value={Number(config.max_simple_chars) || 200}
             onChange={(e) => save('max_simple_chars', Number(e.target.value))}
-            style={{ width: '80px', textAlign: 'center' }}
+            className="h-8 w-20 rounded-lg border border-primary-200 bg-primary-50 px-2 text-sm text-center text-primary-900 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
           />
         </Row>
         <Row
@@ -1715,7 +1750,7 @@ function SmartRoutingContent() {
             max={500}
             value={Number(config.max_simple_words) || 30}
             onChange={(e) => save('max_simple_words', Number(e.target.value))}
-            style={{ width: '80px', textAlign: 'center' }}
+            className="h-8 w-20 rounded-lg border border-primary-200 bg-primary-50 px-2 text-sm text-center text-primary-900 outline-none dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
           />
         </Row>
       </div>
@@ -1783,7 +1818,10 @@ function VoiceContent() {
       {msg && (
         <div
           className={cn(
-            msg === 'Saved' ? 'message-success' : 'message-error'
+            'rounded-lg px-3 py-1.5 text-xs font-medium',
+            msg === 'Saved'
+              ? 'bg-green-500/15 text-green-400'
+              : 'bg-red-500/15 text-red-400',
           )}
         >
           {msg}
@@ -1895,7 +1933,10 @@ function DisplayContent() {
       {msg && (
         <div
           className={cn(
-            msg === 'Saved' ? 'message-success' : 'message-error'
+            'rounded-lg px-3 py-1.5 text-xs font-medium',
+            msg === 'Saved'
+              ? 'bg-green-500/15 text-green-400'
+              : 'bg-red-500/15 text-red-400',
           )}
         >
           {msg}
@@ -2018,13 +2059,11 @@ export function SettingsDialog({
 
   return (
     <DialogRoot open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        data-screen="settings"
-        className="inset-0 h-full w-full max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-none border-0 p-0 shadow-xl md:inset-auto md:left-1/2 md:top-1/2 md:h-[min(88dvh,740px)] md:min-h-[520px] md:w-full md:max-w-3xl md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:border md:border-primary-200 bg-[var(--m-bg)]">
+      <DialogContent className="inset-0 h-full w-full max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-none border-0 p-0 shadow-xl md:inset-auto md:left-1/2 md:top-1/2 md:h-[min(88dvh,740px)] md:min-h-[520px] md:w-full md:max-w-3xl md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:border md:border-primary-200 bg-[var(--theme-bg)]">
         <div className="flex h-full min-h-0 flex-col">
-          <div className="topbar">
+          <div className="flex items-center justify-between border-b border-primary-200 bg-primary-50/80 px-4 py-4 md:rounded-t-2xl md:px-5">
             <div>
-              <DialogTitle className="font-semibold">
+              <DialogTitle className="text-base font-semibold text-primary-900 dark:text-neutral-100">
                 Settings
               </DialogTitle>
               <DialogDescription className="sr-only">
@@ -2036,8 +2075,7 @@ export function SettingsDialog({
                 <Button
                   size="icon-sm"
                   variant="ghost"
-                  className="rounded-full"
-                  style={{ color: 'var(--m-text-faint)' }}
+                  className="rounded-full text-primary-500 hover:bg-primary-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
                   aria-label="Close"
                 >
                   <HugeiconsIcon
@@ -2051,22 +2089,23 @@ export function SettingsDialog({
           </div>
 
           <SettingsErrorBoundary>
-            <div className="body">
+            <div className="flex min-h-0 flex-1 flex-col md:flex-row">
               <aside
                 className={cn(
-                  'side',
+                  'w-full bg-primary-50/60 p-2 md:w-44 md:shrink-0 md:border-r md:border-primary-200',
                   mobileView === 'content' && 'hidden md:block',
                 )}
               >
-                <nav>
+                <nav className="space-y-1">
                   {SECTIONS.map((s) => (
                     <button
                       key={s.id}
                       type="button"
                       onClick={() => handleSectionSelect(s.id)}
                       className={cn(
-                        'item',
-                        active === s.id && 'on',
+                        'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-primary-600 transition-colors hover:bg-primary-100',
+                        active === s.id &&
+                          'bg-accent-50 font-medium text-accent-700',
                       )}
                     >
                       <HugeiconsIcon
@@ -2074,22 +2113,24 @@ export function SettingsDialog({
                         size={16}
                         strokeWidth={1.5}
                       />
-                      <span>{s.label}</span>
+                      {s.label}
                     </button>
                   ))}
                 </nav>
               </aside>
               <div
                 className={cn(
-                  'content',
+                  'min-w-0 flex-1 overflow-y-auto p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] md:p-5 md:pb-5',
                   mobileView === 'nav' && 'hidden md:block',
                 )}
               >
                 <div className="mb-3 md:hidden">
-                  <button
+                  <Button
                     type="button"
-                    className="btn"
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setMobileView('nav')}
+                    className="h-8 gap-1.5 rounded-lg px-2 text-primary-600 hover:bg-primary-100"
                   >
                     <HugeiconsIcon
                       icon={ArrowLeft01Icon}
@@ -2097,20 +2138,18 @@ export function SettingsDialog({
                       strokeWidth={1.5}
                     />
                     Back
-                  </button>
+                  </Button>
                 </div>
                 <ActiveContent />
               </div>
             </div>
           </SettingsErrorBoundary>
 
-          <div className="save-bar">
-            <span>Changes saved automatically.</span>
-            <span className="spacer"></span>
+          <div className="sticky bottom-0 z-10 border-t border-primary-200 bg-primary-50/60 px-4 py-3 text-xs text-primary-500 dark:text-neutral-400 md:rounded-b-2xl md:px-5">
+            Changes saved automatically.{' '}
             <a
               href="/settings"
-              className="font-medium underline underline-offset-2"
-              style={{ color: 'var(--m-green-500)' }}
+              className="ml-2 font-medium underline underline-offset-2 hover:text-primary-700 dark:hover:text-neutral-200"
             >
               All settings →
             </a>
