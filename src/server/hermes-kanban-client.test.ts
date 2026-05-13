@@ -58,6 +58,53 @@ describe('hermes-kanban-client', () => {
     })
   })
 
+  describe('board CRUD', () => {
+    it('listBoards calls /api/plugins/kanban/boards with include_archived when requested', async () => {
+      mockDashboardFetch.mockResolvedValueOnce(makeOkResponse({ boards: [], current: 'default' }))
+      const { listBoards } = await import('./hermes-kanban-client')
+      await listBoards(true)
+      const calledPath: string = mockDashboardFetch.mock.calls[0][0]
+      expect(calledPath).toContain('/api/plugins/kanban/boards')
+      expect(calledPath).toContain('include_archived=true')
+    })
+
+    it('createBoard posts the slug-driven payload', async () => {
+      mockDashboardFetch.mockResolvedValueOnce(
+        makeOkResponse({ board: { slug: 'ops' }, current: 'ops' }),
+      )
+      const { createBoard } = await import('./hermes-kanban-client')
+      const result = await createBoard({ slug: 'ops', name: 'Ops', switch: true })
+      expect(result.current).toBe('ops')
+      expect(mockDashboardFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/plugins/kanban/boards'),
+        expect.objectContaining({ method: 'POST' }),
+      )
+      const body = JSON.parse(mockDashboardFetch.mock.calls[0][1].body as string)
+      expect(body).toMatchObject({ slug: 'ops', name: 'Ops', switch: true })
+    })
+
+    it('deleteBoard sends ?delete=true for hard delete', async () => {
+      mockDashboardFetch.mockResolvedValueOnce(
+        makeOkResponse({ result: { slug: 'ops' }, current: 'default' }),
+      )
+      const { deleteBoard } = await import('./hermes-kanban-client')
+      await deleteBoard('ops', true)
+      const calledPath: string = mockDashboardFetch.mock.calls[0][0]
+      expect(calledPath).toContain('/api/plugins/kanban/boards/ops?delete=true')
+      expect(mockDashboardFetch.mock.calls[0][1]).toMatchObject({ method: 'DELETE' })
+    })
+
+    it('switchBoard posts to /boards/:slug/switch', async () => {
+      mockDashboardFetch.mockResolvedValueOnce(makeOkResponse({ current: 'research' }))
+      const { switchBoard } = await import('./hermes-kanban-client')
+      const result = await switchBoard('research')
+      expect(result.current).toBe('research')
+      const calledPath: string = mockDashboardFetch.mock.calls[0][0]
+      expect(calledPath).toContain('/api/plugins/kanban/boards/research/switch')
+      expect(mockDashboardFetch.mock.calls[0][1]).toMatchObject({ method: 'POST' })
+    })
+  })
+
   describe('createKanbanTask', () => {
     it('sends POST to /api/plugins/kanban/tasks with Agent-native fields', async () => {
       mockDashboardFetch.mockResolvedValueOnce(makeOkResponse({ task: { id: 't_001', title: 'Test', status: 'triage' } }))

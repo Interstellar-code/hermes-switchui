@@ -14,6 +14,10 @@ import type {
   CreateKanbanTaskInput,
   UpdateKanbanTaskInput,
   BulkKanbanInput,
+  BoardMeta,
+  CreateBoardInput,
+  UpdateBoardInput,
+  KanbanBoardsListResponse,
 } from '../lib/hermes-kanban-types'
 
 const BASE = '/api/plugins/kanban'
@@ -31,7 +35,7 @@ async function kanbanFetch<T>(path: string, init: RequestInit = {}): Promise<T> 
     } catch {
       // ignore parse failure
     }
-    throw new Error(detail)
+    throw new Error(`Kanban API error ${res.status}: ${detail}`)
   }
   return res.json() as Promise<T>
 }
@@ -49,6 +53,55 @@ export async function getKanbanBoard(params?: {
 
 export async function getKanbanTask(taskId: string): Promise<HermesKanbanTaskDetail> {
   return kanbanFetch<HermesKanbanTaskDetail>(`${BASE}/tasks/${taskId}`, {})
+}
+
+export async function listBoards(
+  includeArchived = false,
+): Promise<KanbanBoardsListResponse> {
+  const q = new URLSearchParams()
+  if (includeArchived) q.set('include_archived', 'true')
+  const qs = q.toString()
+  return kanbanFetch<KanbanBoardsListResponse>(`${BASE}/boards${qs ? `?${qs}` : ''}`, {})
+}
+
+export async function createBoard(
+  input: CreateBoardInput,
+): Promise<{ board: BoardMeta; current: string }> {
+  return kanbanFetch<{ board: BoardMeta; current: string }>(`${BASE}/boards`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export async function updateBoard(
+  slug: string,
+  input: UpdateBoardInput,
+): Promise<{ board: BoardMeta }> {
+  return kanbanFetch<{ board: BoardMeta }>(`${BASE}/boards/${encodeURIComponent(slug)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export async function deleteBoard(
+  slug: string,
+  hardDelete = false,
+): Promise<{ result: Record<string, unknown>; current: string }> {
+  const q = new URLSearchParams({ delete: hardDelete ? 'true' : 'false' })
+  return kanbanFetch<{ result: Record<string, unknown>; current: string }>(
+    `${BASE}/boards/${encodeURIComponent(slug)}?${q.toString()}`,
+    {
+      method: 'DELETE',
+    },
+  )
+}
+
+export async function switchBoard(slug: string): Promise<{ current: string }> {
+  return kanbanFetch<{ current: string }>(`${BASE}/boards/${encodeURIComponent(slug)}/switch`, {
+    method: 'POST',
+  })
 }
 
 export async function createKanbanTask(

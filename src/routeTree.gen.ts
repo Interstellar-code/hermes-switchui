@@ -23,6 +23,7 @@ import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as FilesRouteImport } from './routes/files'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ConductorRouteImport } from './routes/conductor'
+import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as AgoraRouteImport } from './routes/agora'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
@@ -135,6 +136,7 @@ import { Route as ApiHermesKanbanEventsRouteImport } from './routes/api/hermes-k
 import { Route as ApiHermesKanbanDispatchRouteImport } from './routes/api/hermes-kanban/dispatch'
 import { Route as ApiHermesKanbanConfigRouteImport } from './routes/api/hermes-kanban/config'
 import { Route as ApiHermesKanbanBulkRouteImport } from './routes/api/hermes-kanban/bulk'
+import { Route as ApiHermesKanbanBoardsRouteImport } from './routes/api/hermes-kanban/boards'
 import { Route as ApiHermesKanbanBoardRouteImport } from './routes/api/hermes-kanban/board'
 import { Route as ApiHermesKanbanAssigneesRouteImport } from './routes/api/hermes-kanban/assignees'
 import { Route as ApiDashboardOverviewRouteImport } from './routes/api/dashboard/overview'
@@ -154,11 +156,13 @@ import { Route as ApiOperationsAgentsIdRouteImport } from './routes/api/operatio
 import { Route as ApiMcpHubSourcesIdRouteImport } from './routes/api/mcp/hub-sources.$id'
 import { Route as ApiMcpNameLogsRouteImport } from './routes/api/mcp/$name.logs'
 import { Route as ApiHermesKanbanTasksTaskIdRouteImport } from './routes/api/hermes-kanban/tasks.$taskId'
+import { Route as ApiHermesKanbanBoardsSlugRouteImport } from './routes/api/hermes-kanban/boards.$slug'
 import { Route as ApiConductorMissionsIdRouteImport } from './routes/api/conductor/missions.$id'
 import { Route as ApiOperationsAgentsIdResumeRouteImport } from './routes/api/operations/agents.$id.resume'
 import { Route as ApiOperationsAgentsIdPauseRouteImport } from './routes/api/operations/agents.$id.pause'
 import { Route as ApiHermesKanbanTasksTaskIdLogRouteImport } from './routes/api/hermes-kanban/tasks.$taskId.log'
 import { Route as ApiHermesKanbanTasksTaskIdCommentsRouteImport } from './routes/api/hermes-kanban/tasks.$taskId.comments'
+import { Route as ApiHermesKanbanBoardsSlugSwitchRouteImport } from './routes/api/hermes-kanban/boards.$slug.switch'
 import { Route as ApiConductorMissionsIdAbortRouteImport } from './routes/api/conductor/missions.$id.abort'
 import { Route as ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRouteImport } from './routes/api/hermes-kanban/tasks.$taskId.home-subscribe.$platform'
 
@@ -230,6 +234,11 @@ const DashboardRoute = DashboardRouteImport.update({
 const ConductorRoute = ConductorRouteImport.update({
   id: '/conductor',
   path: '/conductor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BoardsRoute = BoardsRouteImport.update({
+  id: '/boards',
+  path: '/boards',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AgoraRoute = AgoraRouteImport.update({
@@ -796,6 +805,11 @@ const ApiHermesKanbanBulkRoute = ApiHermesKanbanBulkRouteImport.update({
   path: '/api/hermes-kanban/bulk',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHermesKanbanBoardsRoute = ApiHermesKanbanBoardsRouteImport.update({
+  id: '/api/hermes-kanban/boards',
+  path: '/api/hermes-kanban/boards',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHermesKanbanBoardRoute = ApiHermesKanbanBoardRouteImport.update({
   id: '/api/hermes-kanban/board',
   path: '/api/hermes-kanban/board',
@@ -898,6 +912,12 @@ const ApiHermesKanbanTasksTaskIdRoute =
     path: '/$taskId',
     getParentRoute: () => ApiHermesKanbanTasksRoute,
   } as any)
+const ApiHermesKanbanBoardsSlugRoute =
+  ApiHermesKanbanBoardsSlugRouteImport.update({
+    id: '/$slug',
+    path: '/$slug',
+    getParentRoute: () => ApiHermesKanbanBoardsRoute,
+  } as any)
 const ApiConductorMissionsIdRoute = ApiConductorMissionsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -927,6 +947,12 @@ const ApiHermesKanbanTasksTaskIdCommentsRoute =
     path: '/comments',
     getParentRoute: () => ApiHermesKanbanTasksTaskIdRoute,
   } as any)
+const ApiHermesKanbanBoardsSlugSwitchRoute =
+  ApiHermesKanbanBoardsSlugSwitchRouteImport.update({
+    id: '/switch',
+    path: '/switch',
+    getParentRoute: () => ApiHermesKanbanBoardsSlugRoute,
+  } as any)
 const ApiConductorMissionsIdAbortRoute =
   ApiConductorMissionsIdAbortRouteImport.update({
     id: '/abort',
@@ -944,6 +970,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/agora': typeof AgoraRoute
+  '/boards': typeof BoardsRoute
   '/conductor': typeof ConductorRoute
   '/dashboard': typeof DashboardRoute
   '/files': typeof FilesRoute
@@ -1020,6 +1047,7 @@ export interface FileRoutesByFullPath {
   '/api/dashboard/overview': typeof ApiDashboardOverviewRoute
   '/api/hermes-kanban/assignees': typeof ApiHermesKanbanAssigneesRoute
   '/api/hermes-kanban/board': typeof ApiHermesKanbanBoardRoute
+  '/api/hermes-kanban/boards': typeof ApiHermesKanbanBoardsRouteWithChildren
   '/api/hermes-kanban/bulk': typeof ApiHermesKanbanBulkRoute
   '/api/hermes-kanban/config': typeof ApiHermesKanbanConfigRoute
   '/api/hermes-kanban/dispatch': typeof ApiHermesKanbanDispatchRoute
@@ -1078,6 +1106,7 @@ export interface FileRoutesByFullPath {
   '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
   '/api/workspace/agents': typeof ApiWorkspaceAgentsRoute
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
+  '/api/hermes-kanban/boards/$slug': typeof ApiHermesKanbanBoardsSlugRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
@@ -1088,6 +1117,7 @@ export interface FileRoutesByFullPath {
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
+  '/api/hermes-kanban/boards/$slug/switch': typeof ApiHermesKanbanBoardsSlugSwitchRoute
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
   '/api/operations/agents/$id/pause': typeof ApiOperationsAgentsIdPauseRoute
@@ -1098,6 +1128,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/agora': typeof AgoraRoute
+  '/boards': typeof BoardsRoute
   '/conductor': typeof ConductorRoute
   '/dashboard': typeof DashboardRoute
   '/files': typeof FilesRoute
@@ -1173,6 +1204,7 @@ export interface FileRoutesByTo {
   '/api/dashboard/overview': typeof ApiDashboardOverviewRoute
   '/api/hermes-kanban/assignees': typeof ApiHermesKanbanAssigneesRoute
   '/api/hermes-kanban/board': typeof ApiHermesKanbanBoardRoute
+  '/api/hermes-kanban/boards': typeof ApiHermesKanbanBoardsRouteWithChildren
   '/api/hermes-kanban/bulk': typeof ApiHermesKanbanBulkRoute
   '/api/hermes-kanban/config': typeof ApiHermesKanbanConfigRoute
   '/api/hermes-kanban/dispatch': typeof ApiHermesKanbanDispatchRoute
@@ -1231,6 +1263,7 @@ export interface FileRoutesByTo {
   '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
   '/api/workspace/agents': typeof ApiWorkspaceAgentsRoute
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
+  '/api/hermes-kanban/boards/$slug': typeof ApiHermesKanbanBoardsSlugRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
@@ -1241,6 +1274,7 @@ export interface FileRoutesByTo {
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
+  '/api/hermes-kanban/boards/$slug/switch': typeof ApiHermesKanbanBoardsSlugSwitchRoute
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
   '/api/operations/agents/$id/pause': typeof ApiOperationsAgentsIdPauseRoute
@@ -1252,6 +1286,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/agora': typeof AgoraRoute
+  '/boards': typeof BoardsRoute
   '/conductor': typeof ConductorRoute
   '/dashboard': typeof DashboardRoute
   '/files': typeof FilesRoute
@@ -1328,6 +1363,7 @@ export interface FileRoutesById {
   '/api/dashboard/overview': typeof ApiDashboardOverviewRoute
   '/api/hermes-kanban/assignees': typeof ApiHermesKanbanAssigneesRoute
   '/api/hermes-kanban/board': typeof ApiHermesKanbanBoardRoute
+  '/api/hermes-kanban/boards': typeof ApiHermesKanbanBoardsRouteWithChildren
   '/api/hermes-kanban/bulk': typeof ApiHermesKanbanBulkRoute
   '/api/hermes-kanban/config': typeof ApiHermesKanbanConfigRoute
   '/api/hermes-kanban/dispatch': typeof ApiHermesKanbanDispatchRoute
@@ -1386,6 +1422,7 @@ export interface FileRoutesById {
   '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
   '/api/workspace/agents': typeof ApiWorkspaceAgentsRoute
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
+  '/api/hermes-kanban/boards/$slug': typeof ApiHermesKanbanBoardsSlugRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
@@ -1396,6 +1433,7 @@ export interface FileRoutesById {
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
+  '/api/hermes-kanban/boards/$slug/switch': typeof ApiHermesKanbanBoardsSlugSwitchRoute
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
   '/api/operations/agents/$id/pause': typeof ApiOperationsAgentsIdPauseRoute
@@ -1408,6 +1446,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/agora'
+    | '/boards'
     | '/conductor'
     | '/dashboard'
     | '/files'
@@ -1484,6 +1523,7 @@ export interface FileRouteTypes {
     | '/api/dashboard/overview'
     | '/api/hermes-kanban/assignees'
     | '/api/hermes-kanban/board'
+    | '/api/hermes-kanban/boards'
     | '/api/hermes-kanban/bulk'
     | '/api/hermes-kanban/config'
     | '/api/hermes-kanban/dispatch'
@@ -1542,6 +1582,7 @@ export interface FileRouteTypes {
     | '/api/workflow-runs/$runId'
     | '/api/workspace/agents'
     | '/api/conductor/missions/$id'
+    | '/api/hermes-kanban/boards/$slug'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
@@ -1552,6 +1593,7 @@ export interface FileRouteTypes {
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-runs/$runId/approve'
     | '/api/conductor/missions/$id/abort'
+    | '/api/hermes-kanban/boards/$slug/switch'
     | '/api/hermes-kanban/tasks/$taskId/comments'
     | '/api/hermes-kanban/tasks/$taskId/log'
     | '/api/operations/agents/$id/pause'
@@ -1562,6 +1604,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/agora'
+    | '/boards'
     | '/conductor'
     | '/dashboard'
     | '/files'
@@ -1637,6 +1680,7 @@ export interface FileRouteTypes {
     | '/api/dashboard/overview'
     | '/api/hermes-kanban/assignees'
     | '/api/hermes-kanban/board'
+    | '/api/hermes-kanban/boards'
     | '/api/hermes-kanban/bulk'
     | '/api/hermes-kanban/config'
     | '/api/hermes-kanban/dispatch'
@@ -1695,6 +1739,7 @@ export interface FileRouteTypes {
     | '/api/workflow-runs/$runId'
     | '/api/workspace/agents'
     | '/api/conductor/missions/$id'
+    | '/api/hermes-kanban/boards/$slug'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
@@ -1705,6 +1750,7 @@ export interface FileRouteTypes {
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-runs/$runId/approve'
     | '/api/conductor/missions/$id/abort'
+    | '/api/hermes-kanban/boards/$slug/switch'
     | '/api/hermes-kanban/tasks/$taskId/comments'
     | '/api/hermes-kanban/tasks/$taskId/log'
     | '/api/operations/agents/$id/pause'
@@ -1715,6 +1761,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/agora'
+    | '/boards'
     | '/conductor'
     | '/dashboard'
     | '/files'
@@ -1791,6 +1838,7 @@ export interface FileRouteTypes {
     | '/api/dashboard/overview'
     | '/api/hermes-kanban/assignees'
     | '/api/hermes-kanban/board'
+    | '/api/hermes-kanban/boards'
     | '/api/hermes-kanban/bulk'
     | '/api/hermes-kanban/config'
     | '/api/hermes-kanban/dispatch'
@@ -1849,6 +1897,7 @@ export interface FileRouteTypes {
     | '/api/workflow-runs/$runId'
     | '/api/workspace/agents'
     | '/api/conductor/missions/$id'
+    | '/api/hermes-kanban/boards/$slug'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
@@ -1859,6 +1908,7 @@ export interface FileRouteTypes {
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-runs/$runId/approve'
     | '/api/conductor/missions/$id/abort'
+    | '/api/hermes-kanban/boards/$slug/switch'
     | '/api/hermes-kanban/tasks/$taskId/comments'
     | '/api/hermes-kanban/tasks/$taskId/log'
     | '/api/operations/agents/$id/pause'
@@ -1870,6 +1920,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
   AgoraRoute: typeof AgoraRoute
+  BoardsRoute: typeof BoardsRoute
   ConductorRoute: typeof ConductorRoute
   DashboardRoute: typeof DashboardRoute
   FilesRoute: typeof FilesRoute
@@ -1941,6 +1992,7 @@ export interface RootRouteChildren {
   ApiDashboardOverviewRoute: typeof ApiDashboardOverviewRoute
   ApiHermesKanbanAssigneesRoute: typeof ApiHermesKanbanAssigneesRoute
   ApiHermesKanbanBoardRoute: typeof ApiHermesKanbanBoardRoute
+  ApiHermesKanbanBoardsRoute: typeof ApiHermesKanbanBoardsRouteWithChildren
   ApiHermesKanbanBulkRoute: typeof ApiHermesKanbanBulkRoute
   ApiHermesKanbanConfigRoute: typeof ApiHermesKanbanConfigRoute
   ApiHermesKanbanDispatchRoute: typeof ApiHermesKanbanDispatchRoute
@@ -2077,6 +2129,13 @@ declare module '@tanstack/react-router' {
       path: '/conductor'
       fullPath: '/conductor'
       preLoaderRoute: typeof ConductorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/boards': {
+      id: '/boards'
+      path: '/boards'
+      fullPath: '/boards'
+      preLoaderRoute: typeof BoardsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/agora': {
@@ -2863,6 +2922,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHermesKanbanBulkRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/hermes-kanban/boards': {
+      id: '/api/hermes-kanban/boards'
+      path: '/api/hermes-kanban/boards'
+      fullPath: '/api/hermes-kanban/boards'
+      preLoaderRoute: typeof ApiHermesKanbanBoardsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/hermes-kanban/board': {
       id: '/api/hermes-kanban/board'
       path: '/api/hermes-kanban/board'
@@ -2996,6 +3062,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHermesKanbanTasksTaskIdRouteImport
       parentRoute: typeof ApiHermesKanbanTasksRoute
     }
+    '/api/hermes-kanban/boards/$slug': {
+      id: '/api/hermes-kanban/boards/$slug'
+      path: '/$slug'
+      fullPath: '/api/hermes-kanban/boards/$slug'
+      preLoaderRoute: typeof ApiHermesKanbanBoardsSlugRouteImport
+      parentRoute: typeof ApiHermesKanbanBoardsRoute
+    }
     '/api/conductor/missions/$id': {
       id: '/api/conductor/missions/$id'
       path: '/$id'
@@ -3030,6 +3103,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/hermes-kanban/tasks/$taskId/comments'
       preLoaderRoute: typeof ApiHermesKanbanTasksTaskIdCommentsRouteImport
       parentRoute: typeof ApiHermesKanbanTasksTaskIdRoute
+    }
+    '/api/hermes-kanban/boards/$slug/switch': {
+      id: '/api/hermes-kanban/boards/$slug/switch'
+      path: '/switch'
+      fullPath: '/api/hermes-kanban/boards/$slug/switch'
+      preLoaderRoute: typeof ApiHermesKanbanBoardsSlugSwitchRouteImport
+      parentRoute: typeof ApiHermesKanbanBoardsSlugRoute
     }
     '/api/conductor/missions/$id/abort': {
       id: '/api/conductor/missions/$id/abort'
@@ -3288,6 +3368,33 @@ const ApiConductorMissionsRouteChildren: ApiConductorMissionsRouteChildren = {
 const ApiConductorMissionsRouteWithChildren =
   ApiConductorMissionsRoute._addFileChildren(ApiConductorMissionsRouteChildren)
 
+interface ApiHermesKanbanBoardsSlugRouteChildren {
+  ApiHermesKanbanBoardsSlugSwitchRoute: typeof ApiHermesKanbanBoardsSlugSwitchRoute
+}
+
+const ApiHermesKanbanBoardsSlugRouteChildren: ApiHermesKanbanBoardsSlugRouteChildren =
+  {
+    ApiHermesKanbanBoardsSlugSwitchRoute: ApiHermesKanbanBoardsSlugSwitchRoute,
+  }
+
+const ApiHermesKanbanBoardsSlugRouteWithChildren =
+  ApiHermesKanbanBoardsSlugRoute._addFileChildren(
+    ApiHermesKanbanBoardsSlugRouteChildren,
+  )
+
+interface ApiHermesKanbanBoardsRouteChildren {
+  ApiHermesKanbanBoardsSlugRoute: typeof ApiHermesKanbanBoardsSlugRouteWithChildren
+}
+
+const ApiHermesKanbanBoardsRouteChildren: ApiHermesKanbanBoardsRouteChildren = {
+  ApiHermesKanbanBoardsSlugRoute: ApiHermesKanbanBoardsSlugRouteWithChildren,
+}
+
+const ApiHermesKanbanBoardsRouteWithChildren =
+  ApiHermesKanbanBoardsRoute._addFileChildren(
+    ApiHermesKanbanBoardsRouteChildren,
+  )
+
 interface ApiHermesKanbanTasksTaskIdRouteChildren {
   ApiHermesKanbanTasksTaskIdCommentsRoute: typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   ApiHermesKanbanTasksTaskIdLogRoute: typeof ApiHermesKanbanTasksTaskIdLogRoute
@@ -3362,6 +3469,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
   AgoraRoute: AgoraRoute,
+  BoardsRoute: BoardsRoute,
   ConductorRoute: ConductorRoute,
   DashboardRoute: DashboardRoute,
   FilesRoute: FilesRoute,
@@ -3433,6 +3541,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDashboardOverviewRoute: ApiDashboardOverviewRoute,
   ApiHermesKanbanAssigneesRoute: ApiHermesKanbanAssigneesRoute,
   ApiHermesKanbanBoardRoute: ApiHermesKanbanBoardRoute,
+  ApiHermesKanbanBoardsRoute: ApiHermesKanbanBoardsRouteWithChildren,
   ApiHermesKanbanBulkRoute: ApiHermesKanbanBulkRoute,
   ApiHermesKanbanConfigRoute: ApiHermesKanbanConfigRoute,
   ApiHermesKanbanDispatchRoute: ApiHermesKanbanDispatchRoute,
