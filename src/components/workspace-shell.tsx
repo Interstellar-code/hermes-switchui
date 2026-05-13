@@ -96,6 +96,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
     if (path.startsWith('/files')) return 2
     if (path.startsWith('/terminal')) return 3
     if (path.startsWith('/jobs')) return 4
+    if (path.startsWith('/matrix3d')) return 5
 
     if (path.startsWith('/memory')) return 6
     if (path.startsWith('/skills')) return 7

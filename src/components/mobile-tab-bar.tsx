@@ -82,6 +82,13 @@ export const MOBILE_NAV_TABS: Array<TabItem> = [
     match: (p) => p.startsWith('/jobs'),
   },
   {
+    id: 'matrix3d',
+    label: 'Matrix3D',
+    icon: Building01Icon,
+    to: '/matrix3d',
+    match: (p) => p.startsWith('/matrix3d'),
+  },
+  {
     id: 'memory',
     label: 'Memory',
     icon: BrainIcon,

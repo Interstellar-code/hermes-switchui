@@ -17,6 +17,7 @@ import { Route as ProfilesRouteImport } from './routes/profiles'
 import { Route as OperationsRouteImport } from './routes/operations'
 import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as McpRouteImport } from './routes/mcp'
+import { Route as Matrix3dRouteImport } from './routes/matrix3d'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as FilesRouteImport } from './routes/files'
 import { Route as DashboardRouteImport } from './routes/dashboard'
@@ -178,6 +179,11 @@ const MemoryRoute = MemoryRouteImport.update({
 const McpRoute = McpRouteImport.update({
   id: '/mcp',
   path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Matrix3dRoute = Matrix3dRouteImport.update({
+  id: '/matrix3d',
+  path: '/matrix3d',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JobsRoute = JobsRouteImport.update({
@@ -809,6 +815,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/files': typeof FilesRoute
   '/jobs': typeof JobsRoute
+  '/matrix3d': typeof Matrix3dRoute
   '/mcp': typeof McpRoute
   '/memory': typeof MemoryRoute
   '/operations': typeof OperationsRoute
@@ -941,6 +948,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/files': typeof FilesRoute
   '/jobs': typeof JobsRoute
+  '/matrix3d': typeof Matrix3dRoute
   '/mcp': typeof McpRoute
   '/memory': typeof MemoryRoute
   '/operations': typeof OperationsRoute
@@ -1073,6 +1081,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/files': typeof FilesRoute
   '/jobs': typeof JobsRoute
+  '/matrix3d': typeof Matrix3dRoute
   '/mcp': typeof McpRoute
   '/memory': typeof MemoryRoute
   '/operations': typeof OperationsRoute
@@ -1207,6 +1216,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/files'
     | '/jobs'
+    | '/matrix3d'
     | '/mcp'
     | '/memory'
     | '/operations'
@@ -1339,6 +1349,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/files'
     | '/jobs'
+    | '/matrix3d'
     | '/mcp'
     | '/memory'
     | '/operations'
@@ -1470,6 +1481,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/files'
     | '/jobs'
+    | '/matrix3d'
     | '/mcp'
     | '/memory'
     | '/operations'
@@ -1603,6 +1615,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   FilesRoute: typeof FilesRoute
   JobsRoute: typeof JobsRoute
+  Matrix3dRoute: typeof Matrix3dRoute
   McpRoute: typeof McpRoute
   MemoryRoute: typeof MemoryRoute
   OperationsRoute: typeof OperationsRoute
@@ -1753,6 +1766,13 @@ declare module '@tanstack/react-router' {
       path: '/mcp'
       fullPath: '/mcp'
       preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/matrix3d': {
+      id: '/matrix3d'
+      path: '/matrix3d'
+      fullPath: '/matrix3d'
+      preLoaderRoute: typeof Matrix3dRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/jobs': {
@@ -2803,6 +2823,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   FilesRoute: FilesRoute,
   JobsRoute: JobsRoute,
+  Matrix3dRoute: Matrix3dRoute,
   McpRoute: McpRoute,
   MemoryRoute: MemoryRoute,
   OperationsRoute: OperationsRoute,
