@@ -126,6 +126,8 @@ import { Route as ApiHermesKanbanBoardRouteImport } from './routes/api/hermes-ka
 import { Route as ApiHermesKanbanAssigneesRouteImport } from './routes/api/hermes-kanban/assignees'
 import { Route as ApiDashboardOverviewRouteImport } from './routes/api/dashboard/overview'
 import { Route as ApiDashboardProxySplatRouteImport } from './routes/api/dashboard-proxy/$'
+import { Route as ApiConductorStateRouteImport } from './routes/api/conductor/state'
+import { Route as ApiConductorMissionsRouteImport } from './routes/api/conductor/missions'
 import { Route as ApiClaudeTasksTaskIdRouteImport } from './routes/api/claude-tasks.$taskId'
 import { Route as ApiClaudeProxySplatRouteImport } from './routes/api/claude-proxy/$'
 import { Route as ApiClaudeJobsJobIdRouteImport } from './routes/api/claude-jobs.$jobId'
@@ -135,8 +137,10 @@ import { Route as ApiSessionsSessionKeyActiveRunRouteImport } from './routes/api
 import { Route as ApiMcpHubSourcesIdRouteImport } from './routes/api/mcp/hub-sources.$id'
 import { Route as ApiMcpNameLogsRouteImport } from './routes/api/mcp/$name.logs'
 import { Route as ApiHermesKanbanTasksTaskIdRouteImport } from './routes/api/hermes-kanban/tasks.$taskId'
+import { Route as ApiConductorMissionsIdRouteImport } from './routes/api/conductor/missions.$id'
 import { Route as ApiHermesKanbanTasksTaskIdLogRouteImport } from './routes/api/hermes-kanban/tasks.$taskId.log'
 import { Route as ApiHermesKanbanTasksTaskIdCommentsRouteImport } from './routes/api/hermes-kanban/tasks.$taskId.comments'
+import { Route as ApiConductorMissionsIdAbortRouteImport } from './routes/api/conductor/missions.$id.abort'
 import { Route as ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRouteImport } from './routes/api/hermes-kanban/tasks.$taskId.home-subscribe.$platform'
 
 const TerminalRoute = TerminalRouteImport.update({
@@ -728,6 +732,16 @@ const ApiDashboardProxySplatRoute = ApiDashboardProxySplatRouteImport.update({
   path: '/api/dashboard-proxy/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiConductorStateRoute = ApiConductorStateRouteImport.update({
+  id: '/api/conductor/state',
+  path: '/api/conductor/state',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConductorMissionsRoute = ApiConductorMissionsRouteImport.update({
+  id: '/api/conductor/missions',
+  path: '/api/conductor/missions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiClaudeTasksTaskIdRoute = ApiClaudeTasksTaskIdRouteImport.update({
   id: '/$taskId',
   path: '/$taskId',
@@ -776,6 +790,11 @@ const ApiHermesKanbanTasksTaskIdRoute =
     path: '/$taskId',
     getParentRoute: () => ApiHermesKanbanTasksRoute,
   } as any)
+const ApiConductorMissionsIdRoute = ApiConductorMissionsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiConductorMissionsRoute,
+} as any)
 const ApiHermesKanbanTasksTaskIdLogRoute =
   ApiHermesKanbanTasksTaskIdLogRouteImport.update({
     id: '/log',
@@ -787,6 +806,12 @@ const ApiHermesKanbanTasksTaskIdCommentsRoute =
     id: '/comments',
     path: '/comments',
     getParentRoute: () => ApiHermesKanbanTasksTaskIdRoute,
+  } as any)
+const ApiConductorMissionsIdAbortRoute =
+  ApiConductorMissionsIdAbortRouteImport.update({
+    id: '/abort',
+    path: '/abort',
+    getParentRoute: () => ApiConductorMissionsIdRoute,
   } as any)
 const ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute =
   ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRouteImport.update({
@@ -863,6 +888,8 @@ export interface FileRoutesByFullPath {
   '/api/claude-jobs/$jobId': typeof ApiClaudeJobsJobIdRoute
   '/api/claude-proxy/$': typeof ApiClaudeProxySplatRoute
   '/api/claude-tasks/$taskId': typeof ApiClaudeTasksTaskIdRoute
+  '/api/conductor/missions': typeof ApiConductorMissionsRouteWithChildren
+  '/api/conductor/state': typeof ApiConductorStateRoute
   '/api/dashboard-proxy/$': typeof ApiDashboardProxySplatRoute
   '/api/dashboard/overview': typeof ApiDashboardOverviewRoute
   '/api/hermes-kanban/assignees': typeof ApiHermesKanbanAssigneesRoute
@@ -917,11 +944,13 @@ export interface FileRoutesByFullPath {
   '/api/update/agent': typeof ApiUpdateAgentRoute
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
+  '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
+  '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
   '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform': typeof ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute
@@ -993,6 +1022,8 @@ export interface FileRoutesByTo {
   '/api/claude-jobs/$jobId': typeof ApiClaudeJobsJobIdRoute
   '/api/claude-proxy/$': typeof ApiClaudeProxySplatRoute
   '/api/claude-tasks/$taskId': typeof ApiClaudeTasksTaskIdRoute
+  '/api/conductor/missions': typeof ApiConductorMissionsRouteWithChildren
+  '/api/conductor/state': typeof ApiConductorStateRoute
   '/api/dashboard-proxy/$': typeof ApiDashboardProxySplatRoute
   '/api/dashboard/overview': typeof ApiDashboardOverviewRoute
   '/api/hermes-kanban/assignees': typeof ApiHermesKanbanAssigneesRoute
@@ -1047,11 +1078,13 @@ export interface FileRoutesByTo {
   '/api/update/agent': typeof ApiUpdateAgentRoute
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
+  '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
+  '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
   '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform': typeof ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute
@@ -1125,6 +1158,8 @@ export interface FileRoutesById {
   '/api/claude-jobs/$jobId': typeof ApiClaudeJobsJobIdRoute
   '/api/claude-proxy/$': typeof ApiClaudeProxySplatRoute
   '/api/claude-tasks/$taskId': typeof ApiClaudeTasksTaskIdRoute
+  '/api/conductor/missions': typeof ApiConductorMissionsRouteWithChildren
+  '/api/conductor/state': typeof ApiConductorStateRoute
   '/api/dashboard-proxy/$': typeof ApiDashboardProxySplatRoute
   '/api/dashboard/overview': typeof ApiDashboardOverviewRoute
   '/api/hermes-kanban/assignees': typeof ApiHermesKanbanAssigneesRoute
@@ -1179,11 +1214,13 @@ export interface FileRoutesById {
   '/api/update/agent': typeof ApiUpdateAgentRoute
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
+  '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
+  '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
   '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform': typeof ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute
@@ -1258,6 +1295,8 @@ export interface FileRouteTypes {
     | '/api/claude-jobs/$jobId'
     | '/api/claude-proxy/$'
     | '/api/claude-tasks/$taskId'
+    | '/api/conductor/missions'
+    | '/api/conductor/state'
     | '/api/dashboard-proxy/$'
     | '/api/dashboard/overview'
     | '/api/hermes-kanban/assignees'
@@ -1312,11 +1351,13 @@ export interface FileRouteTypes {
     | '/api/update/agent'
     | '/api/update/status'
     | '/api/update/workspace'
+    | '/api/conductor/missions/$id'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
+    | '/api/conductor/missions/$id/abort'
     | '/api/hermes-kanban/tasks/$taskId/comments'
     | '/api/hermes-kanban/tasks/$taskId/log'
     | '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform'
@@ -1388,6 +1429,8 @@ export interface FileRouteTypes {
     | '/api/claude-jobs/$jobId'
     | '/api/claude-proxy/$'
     | '/api/claude-tasks/$taskId'
+    | '/api/conductor/missions'
+    | '/api/conductor/state'
     | '/api/dashboard-proxy/$'
     | '/api/dashboard/overview'
     | '/api/hermes-kanban/assignees'
@@ -1442,11 +1485,13 @@ export interface FileRouteTypes {
     | '/api/update/agent'
     | '/api/update/status'
     | '/api/update/workspace'
+    | '/api/conductor/missions/$id'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
+    | '/api/conductor/missions/$id/abort'
     | '/api/hermes-kanban/tasks/$taskId/comments'
     | '/api/hermes-kanban/tasks/$taskId/log'
     | '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform'
@@ -1519,6 +1564,8 @@ export interface FileRouteTypes {
     | '/api/claude-jobs/$jobId'
     | '/api/claude-proxy/$'
     | '/api/claude-tasks/$taskId'
+    | '/api/conductor/missions'
+    | '/api/conductor/state'
     | '/api/dashboard-proxy/$'
     | '/api/dashboard/overview'
     | '/api/hermes-kanban/assignees'
@@ -1573,11 +1620,13 @@ export interface FileRouteTypes {
     | '/api/update/agent'
     | '/api/update/status'
     | '/api/update/workspace'
+    | '/api/conductor/missions/$id'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
+    | '/api/conductor/missions/$id/abort'
     | '/api/hermes-kanban/tasks/$taskId/comments'
     | '/api/hermes-kanban/tasks/$taskId/log'
     | '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform'
@@ -1646,6 +1695,8 @@ export interface RootRouteChildren {
   ChatSessionKeyRoute: typeof ChatSessionKeyRoute
   ChatIndexRoute: typeof ChatIndexRoute
   ApiClaudeProxySplatRoute: typeof ApiClaudeProxySplatRoute
+  ApiConductorMissionsRoute: typeof ApiConductorMissionsRouteWithChildren
+  ApiConductorStateRoute: typeof ApiConductorStateRoute
   ApiDashboardProxySplatRoute: typeof ApiDashboardProxySplatRoute
   ApiDashboardOverviewRoute: typeof ApiDashboardOverviewRoute
   ApiHermesKanbanAssigneesRoute: typeof ApiHermesKanbanAssigneesRoute
@@ -2505,6 +2556,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDashboardProxySplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/conductor/state': {
+      id: '/api/conductor/state'
+      path: '/api/conductor/state'
+      fullPath: '/api/conductor/state'
+      preLoaderRoute: typeof ApiConductorStateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/conductor/missions': {
+      id: '/api/conductor/missions'
+      path: '/api/conductor/missions'
+      fullPath: '/api/conductor/missions'
+      preLoaderRoute: typeof ApiConductorMissionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/claude-tasks/$taskId': {
       id: '/api/claude-tasks/$taskId'
       path: '/$taskId'
@@ -2568,6 +2633,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHermesKanbanTasksTaskIdRouteImport
       parentRoute: typeof ApiHermesKanbanTasksRoute
     }
+    '/api/conductor/missions/$id': {
+      id: '/api/conductor/missions/$id'
+      path: '/$id'
+      fullPath: '/api/conductor/missions/$id'
+      preLoaderRoute: typeof ApiConductorMissionsIdRouteImport
+      parentRoute: typeof ApiConductorMissionsRoute
+    }
     '/api/hermes-kanban/tasks/$taskId/log': {
       id: '/api/hermes-kanban/tasks/$taskId/log'
       path: '/log'
@@ -2581,6 +2653,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/hermes-kanban/tasks/$taskId/comments'
       preLoaderRoute: typeof ApiHermesKanbanTasksTaskIdCommentsRouteImport
       parentRoute: typeof ApiHermesKanbanTasksTaskIdRoute
+    }
+    '/api/conductor/missions/$id/abort': {
+      id: '/api/conductor/missions/$id/abort'
+      path: '/abort'
+      fullPath: '/api/conductor/missions/$id/abort'
+      preLoaderRoute: typeof ApiConductorMissionsIdAbortRouteImport
+      parentRoute: typeof ApiConductorMissionsIdRoute
     }
     '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform': {
       id: '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform'
@@ -2744,6 +2823,31 @@ const ApiSkillsRouteWithChildren = ApiSkillsRoute._addFileChildren(
   ApiSkillsRouteChildren,
 )
 
+interface ApiConductorMissionsIdRouteChildren {
+  ApiConductorMissionsIdAbortRoute: typeof ApiConductorMissionsIdAbortRoute
+}
+
+const ApiConductorMissionsIdRouteChildren: ApiConductorMissionsIdRouteChildren =
+  {
+    ApiConductorMissionsIdAbortRoute: ApiConductorMissionsIdAbortRoute,
+  }
+
+const ApiConductorMissionsIdRouteWithChildren =
+  ApiConductorMissionsIdRoute._addFileChildren(
+    ApiConductorMissionsIdRouteChildren,
+  )
+
+interface ApiConductorMissionsRouteChildren {
+  ApiConductorMissionsIdRoute: typeof ApiConductorMissionsIdRouteWithChildren
+}
+
+const ApiConductorMissionsRouteChildren: ApiConductorMissionsRouteChildren = {
+  ApiConductorMissionsIdRoute: ApiConductorMissionsIdRouteWithChildren,
+}
+
+const ApiConductorMissionsRouteWithChildren =
+  ApiConductorMissionsRoute._addFileChildren(ApiConductorMissionsRouteChildren)
+
 interface ApiHermesKanbanTasksTaskIdRouteChildren {
   ApiHermesKanbanTasksTaskIdCommentsRoute: typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   ApiHermesKanbanTasksTaskIdLogRoute: typeof ApiHermesKanbanTasksTaskIdLogRoute
@@ -2838,6 +2942,8 @@ const rootRouteChildren: RootRouteChildren = {
   ChatSessionKeyRoute: ChatSessionKeyRoute,
   ChatIndexRoute: ChatIndexRoute,
   ApiClaudeProxySplatRoute: ApiClaudeProxySplatRoute,
+  ApiConductorMissionsRoute: ApiConductorMissionsRouteWithChildren,
+  ApiConductorStateRoute: ApiConductorStateRoute,
   ApiDashboardProxySplatRoute: ApiDashboardProxySplatRoute,
   ApiDashboardOverviewRoute: ApiDashboardOverviewRoute,
   ApiHermesKanbanAssigneesRoute: ApiHermesKanbanAssigneesRoute,
