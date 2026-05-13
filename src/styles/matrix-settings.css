@@ -231,6 +231,40 @@
   height: 100%;
 }
 
+[data-screen="settings"] .side.sk-filter .sk-filter-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--m-border-subtle);
+  flex-shrink: 0;
+}
+
+[data-screen="settings"] .side.sk-filter .sk-filter-hdr h2 {
+  margin: 0;
+  font: 700 12px var(--m-font-mono);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--m-green-500);
+}
+
+[data-screen="settings"] .side.sk-filter .sk-filter-hdr .ct {
+  font: 600 10px var(--m-font-mono);
+  color: var(--m-text-muted);
+  background: var(--m-fill-subtle);
+  border: 1px solid var(--m-border-subtle);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+[data-screen="settings"] .side.sk-filter .sec-label {
+  font: 600 9.5px var(--m-font-mono);
+  text-transform: uppercase;
+  letter-spacing: .18em;
+  color: var(--m-text-muted);
+  margin-bottom: 6px;
+}
+
 [data-screen="settings"] .side.sk-filter .sk-filter-search {
   padding: 10px 14px;
   flex-shrink: 0;

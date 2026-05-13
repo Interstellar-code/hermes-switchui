@@ -23,15 +23,6 @@ type SidebarTreeProps = {
   onSelect: (id: string) => void
 }
 
-function IconSearch() {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-      <circle cx="6.5" cy="6.5" r="4.5" strokeLinecap="round"/>
-      <path d="M10 10l3.5 3.5" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
 export function SidebarTree({ groups, activeId, onSelect }: SidebarTreeProps) {
   const [query, setQuery] = useState('')
 
@@ -46,13 +37,18 @@ export function SidebarTree({ groups, activeId, onSelect }: SidebarTreeProps) {
         .filter((g) => g.items.length > 0)
     : groups
 
+  const totalCount = groups.reduce((sum, g) => sum + g.items.length, 0)
+
   return (
     <nav className="side sk-filter" aria-label="Settings navigation">
-      <div className="sk-filter-search search">
-        <IconSearch />
+      <div className="sk-filter-hdr">
+        <h2>Settings</h2>
+        <span className="ct">{totalCount}</span>
+      </div>
+      <div className="sk-filter-search">
         <input
           type="text"
-          placeholder="Filter…"
+          placeholder="Search settings…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           aria-label="Filter settings sections"
@@ -62,10 +58,7 @@ export function SidebarTree({ groups, activeId, onSelect }: SidebarTreeProps) {
       <div className="sk-filter-body">
         {filtered.map((group) => (
           <div key={group.label} className="sk-filter-section">
-            <div className="grp sec-label">
-              <span>{group.label}</span>
-              <span className="ct">{group.items.length}</span>
-            </div>
+            <div className="sec-label">{group.label}</div>
             <div className="sk-filter-list">
               {group.items.map((item) => (
                 <button
@@ -76,9 +69,7 @@ export function SidebarTree({ groups, activeId, onSelect }: SidebarTreeProps) {
                   aria-current={activeId === item.id ? 'page' : undefined}
                 >
                   <span>{item.label}</span>
-                  {(item.badge !== undefined || item.dirty) && (
-                    <span className="item-ct">{item.dirty ? '●' : item.badge}</span>
-                  )}
+                  {item.dirty && <span className="item-ct">●</span>}
                 </button>
               ))}
             </div>
