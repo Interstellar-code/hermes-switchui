@@ -338,3 +338,106 @@
 - **SSE drives real-time updates.** A.1.2 bridges Archon's `WorkflowEventEmitter` → Switch UI's SSE channel. Both Conductor and Operations subscribe.
 - **Provider types ported in A.1, not deferred.** `IAgentProvider` types from `@archon/providers/types.ts` are imported by `deps.ts` — the engine's DI layer. These must be ported alongside A.1, not after.
 - **Pi provider excluded.** Community/pi provider (11 files, ~20 LLM backends) is not needed. Hermes already provides LLM access.
+
+---
+
+## Conductor Phase Model — Relationship to Archon
+
+The Conductor operates a 5-phase orchestration flow for all missions:
+
+**plan → route → execute → review → report**
+
+### Phase Boundary: Conductor vs Archon
+
+Archon workflows are a **specialist execution engine** invoked *during the execute phase* when the mission is a coding task. The Conductor's own phase model is the general-purpose orchestration layer that handles anything — coding, research, content, data pipelines, operational workflows.
+
+```
+┌──────────────────────────────────────────────────────┐
+│  CONDUCTOR (general-purpose orchestration)            │
+│                                                       │
+│  1. PLAN     ── iterative user-Hermes conversation    │
+│  2. ROUTE    ── classify mission, select executor     │
+│       │                                               │
+│       ├── coding task? ──► ARCHON WORKFLOW (specialist)│
+│       │                     (plan-to-pr, fix-issue,   │
+│       │                      review, refactor, etc.)  │
+│       │                                               │
+│       └── other task?  ──► HERMES KANBAN (native)     │
+│                            (delegate_task, cron,      │
+│                             subagents, scripts)       │
+│       │                                               │
+│  3. EXECUTE  ── chosen executor runs                  │
+│  4. REVIEW   ── server-side AI evaluation of outputs  │
+│  5. REPORT   ── summary delivered to user             │
+└──────────────────────────────────────────────────────┘
+```
+
+### Plan Phase: SwitchUI-Native, Not Archon
+
+The plan phase is an **interactive conversation** between the user and Hermes — variable length, backtracking, refinement loops, user-driven termination. This is fundamentally not a DAG and must not be modeled as an Archon workflow.
+
+**What Archon does instead:**
+- `archon-create-plan` is a monolithic 690-line prompt that runs autonomously (no user interaction)
+- `archon-confirm-plan` is an automated verification step (not user chat)
+- `archon-interactive-prd` and `archon-piv-loop` have multi-round human interaction but use structured loop/await DAG semantics — still less flexible than free-form chat
+
+**Routing logic during the route phase:**
+1. Mission classified → is this a coding task matching an Archon workflow?
+2. **Yes** → invoke the relevant Archon workflow. Plan output becomes input to `archon-plan-to-pr` or whichever workflow fits.
+3. **No** → continue through Conductor's own 5-phase pipeline using Hermes Kanban. No Archon involved.
+
+### Why This Boundary Matters
+
+- Archon is a DAG-based workflow engine for **multi-step coding processes** with dependencies and parallel execution
+- Simple Hermes patterns (single task, delegate_task) are better for one-shot, single-session operations
+- Archon workflows should be triggered for: multi-step code changes, parallel research + synthesis, human-in-the-loop with approval gates, scheduled maintenance pipelines (cron-triggered), cross-provider workflows
+- The Conductor's plan phase produces a mission spec that becomes *input* to whichever executor gets selected — Archon is one executor option, not the foundation
+
+---
+
+## Archon Built-In Workflow Inventory
+
+Archon ships with 20 default workflows, all coding-specific. These are the specialist workflows available to the Conductor's route phase when classifying a coding mission.
+
+| Workflow | Purpose | When to Route To It |
+|---|---|---|
+| `archon-idea-to-pr` | Idea → autonomous plan → implement → PR → review → merge | End-to-end new feature from scratch |
+| `archon-plan-to-pr` | Existing plan → implement → PR → review → merge | Plan already exists, needs execution |
+| `archon-fix-github-issue` | Classify issue → investigate → fix → PR → review | GitHub issue needs resolution |
+| `archon-feature-development` | Implement from existing plan → validate → PR | Simpler feature implementation |
+| `archon-comprehensive-pr-review` | 5 parallel review agents → synthesize → fix | Thorough PR code review |
+| `archon-smart-pr-review` | Complexity-adaptive review (skip irrelevant agents) | Efficient PR review |
+| `archon-validate-pr` | Parallel test on main vs feature branch | PR validation with testing |
+| `archon-issue-review-full` | Full investigate → fix → comprehensive review | Deep issue analysis + fix pipeline |
+| `archon-interactive-prd` | Guided multi-round PRD creation | PRD needs interactive development |
+| `archon-piv-loop` | Plan-Implement-Validate loop with human-in-the-loop | Guided development with checkpoints |
+| `archon-ralph-dag` | Story-based implementation loop (PRD → stories → implement) | Story-driven feature implementation |
+| `archon-create-issue` | Bug reproduction → GitHub issue creation | Bug report needs filing |
+| `archon-refactor-safely` | Safe refactoring with continuous validation | Code restructuring needed |
+| `archon-resolve-conflicts` | Merge conflict analysis + auto-resolution | PR has merge conflicts |
+| `archon-architect` | Architecture sweep, complexity reduction | Codebase health improvement |
+| `archon-adversarial-dev` | GAN-style: planner vs builder vs evaluator | Full application build from scratch |
+| `archon-assist` | Catch-all: questions, debugging, exploration | Nothing else matches |
+| `archon-workflow-builder` | Generates new custom workflow YAML | User wants to create a new workflow |
+| `archon-remotion-generate` | Remotion video generation | Video/animation creation |
+| `archon-test-loop-dag` | Test DAG loop functionality | Demo/testing of loop nodes |
+
+### Workflow Categories
+
+**End-to-end coding pipelines (invoke as full missions):**
+- `archon-idea-to-pr`, `archon-plan-to-pr`, `archon-fix-github-issue`, `archon-feature-development`, `archon-issue-review-full`
+
+**Review and validation (invoke as sub-steps or standalone):**
+- `archon-comprehensive-pr-review`, `archon-smart-pr-review`, `archon-validate-pr`
+
+**Interactive / human-in-the-loop:**
+- `archon-interactive-prd`, `archon-piv-loop`
+
+**Specialist coding operations:**
+- `archon-refactor-safely`, `archon-resolve-conflicts`, `archon-architect`, `archon-create-issue`
+
+**Implementation patterns:**
+- `archon-ralph-dag`, `archon-adversarial-dev`
+
+**Utility:**
+- `archon-assist` (fallback), `archon-workflow-builder` (meta), `archon-remotion-generate` (video), `archon-test-loop-dag` (testing)
