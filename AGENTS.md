@@ -1,78 +1,86 @@
 <claude-mem-context>
 # Memory Context
 
-# [hermes-switchui/hermes-switchui-a] recent context, 2026-05-11 10:06pm GMT+2
+# [hermes-switchui/hermes-switchui-a] recent context, 2026-05-13 8:21am GMT+2
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (20,723t read) | 1,122,570t work | 98% savings
+Stats: 50 obs (16,340t read) | 942,383t work | 98% savings
 
-### May 10, 2026
-S1033 Tasks kanban full redo — match design team Tasks.html exactly, analyze + SDD first, then Ralph execution (May 10 at 11:41 AM)
-S1034 Review and merge incoming PR from worktree branch to main — PR #11 (skills pagination + drawer extraction) (May 10 at 11:42 AM)
-S1035 Fix 4 post-merge issues from PR #11 + revamp MCP pages (May 10 at 11:43 AM)
-S1036 Fix 4 post-PR #11 issues now vs bundling with MCP revamp (May 10 at 12:24 PM)
-S1037 Merge PR #12 (feat: Matrix-themed Skills + MCP page revamps) into main (May 10 at 12:24 PM)
-S1038 Merge PR #12 (Matrix-themed MCP page revamp) into main (May 10 at 12:56 PM)
-S1039 Fix all 5 post-PR#12 MCP code review follow-ups and commit (May 10 at 1:00 PM)
-S1048 Terminal page Matrix UI revamp — transform existing TerminalWorkspace to match Terminal.html mockup design (May 10 at 1:08 PM)
-S1049 Terminal page Matrix design revamp — commit, push, PR creation (May 10 at 7:39 PM)
-S1050 Generate image mockup for terminal.html (May 10 at 10:22 PM)
-### May 11, 2026
-4747 8:46p 🔵 types.ts: State Machine and Validation Implementation Verified
-4748 " 🔵 agent-wizard.tsx: WIZ-10 Payload Matches Plan Exactly
-4749 " 🔵 glyph-picker.tsx: Generates Up to 12 Suggestions, Seed Stable Per name+role
-4750 " 🔵 wizard-step-persona.tsx: Preview Uses List Payload, Not Full Prompt Fetch
-4751 8:47p 🔵 wizard-step-model.tsx: No Temperature Sliders, Advanced Panel Correct
-4752 " 🔵 wizard-step-skills.tsx: No Path Existence Validation
-4753 " 🔵 wizard-step-mcp.tsx: Fallback Catalog Has Wrong MCP URL for context-mode
-4754 " 🔵 wizard-step-memory.tsx: All 6 Providers Present with Help Text
-4755 " 🔵 wizard-step-review.tsx: Missing system_prompt Editability and No Edit Link for Step 2
-4756 " 🔵 profiles-screen.tsx: Wizard Integration Correct, Scroll+Highlight Uses 600ms Delay
-4757 " 🔵 personas/list.ts: Preview Truncated at 200 Chars, Not 500
-4758 " 🔵 /api/mcp Returns { servers: [] } Shape — wizard-step-mcp.tsx Reads Wrong Key
-4759 " 🔵 profiles/create.ts: Server-Side persona_id+system_prompt Coherence Check Present
-4760 " 🔵 profile-card.tsx: data-profile Attribute Forwarded Correctly to DOM
-4761 " 🔵 CSS: Wizard Selectors NOT Under [data-screen=profiles] Scope
-4762 8:48p 🔵 Z-Index Stacking: Wizard (100/101) Correctly Above Drawer (80/81)
-4763 " 🔵 personas-browser.ts: readPersona Does Full Directory Scan Per Call — No Cache
-4764 8:49p 🔵 profiles-browser.ts: PROFILE_NAME_RE Differs From Wizard NAME_RE
-4765 9:22p 🔵 P4 Profiles Detail/Edit Drawer Code Review — Branch feat/ui-revamp-next PR #15
-4766 9:25p 🔵 Phase P4 Detail/Edit Drawer Code Review — hermes-switchui-a
-4767 9:28p 🔵 Phase P4 Detail/Edit Drawer Code Review — hermes-switchui-a
-4768 9:29p 🔵 hermes-switchui P4 Profiles Drawer Code Review Initiated
-4772 " 🔵 P4 Drawer Shell (DRW-01): Tier Badge Inline, Not TierBadge Component — POL-05 Violation
-4773 " 🔵 DRW-04 Capabilities Tab: WIZ-09a Toolsets MISSING — Silently Skipped
-4774 " 🔵 DRW-06 Raw Tab: Show-Path Uses alert() Not Toast — UX Regression vs Plan
-4775 " 🔵 DRW-05 MCP Tab: env-var Inline Inputs for Required Secrets MISSING
-4776 " 🔵 update.ts Tier-Guard Relaxation: Correct — Allows Initial Set, Blocks Post-Creation Mutation
-4777 " 🔵 profiles-screen.tsx Delta: Old Drawer Stub Replaced, AgentRow Type Exported, Rename Dialog Intact
-4778 " 🔵 hermes-switchui P4 Plan Architecture: Key Design Decisions Confirmed
-4769 " 🔵 hermes-switchui-a profiles-revamp.md — Architecture & Phase Plan
-4771 " 🔵 P4 Drawer — Full Component Audit Complete, Persona Tab & Screen Integration Confirmed
-4770 9:30p 🟣 P4 Drawer Implementation — Full Component Suite Reviewed
-4779 9:33p 🔵 Phase P4 Detail/Edit Drawer Code Review — hermes-switchui-a
-4780 9:42p 🔵 P4 Detail Drawer Code Review — hermes-switchui-a feat/ui-revamp-next
-4781 " 🔵 P4 Detail/Edit Drawer Code Review Initiated — feat/ui-revamp-next
-4782 9:43p 🔵 Profiles Revamp Plan Structure — DRW-01..DRW-06 Spec Details Confirmed
-4783 " 🟣 P4 Drawer Shell (DRW-01) — agent-detail-drawer.tsx Implemented
-4784 " 🟣 P4 Overview Tab (DRW-02) — drawer-tab-overview.tsx Implemented
-4785 " 🟣 PATCH /api/profiles/update Route — Guards and Deep-Merge Logic
-4786 " 🟣 profiles-screen.tsx Fully Replaced — Drawer Wired, Old Detail Query Removed
-4787 9:44p 🔵 P4 Detail/Edit Drawer Code Review — hermes-switchui-a feat/ui-revamp-next
-4788 9:45p 🔵 Reviewer Session on feat/ui-revamp-next, Not feat/terminal-matrix-revamp
-4789 " 🔵 P4 Drawer Shell (agent-detail-drawer.tsx) — Structure & Key Findings
-4790 " 🔵 DrawerTabOverview — Glyph Edit Missing, POL-02 Banner Present, State Stale After Save
-4791 " 🔵 DrawerTabPersona — DRW-03 Mostly Compliant; Uses window.confirm/alert Instead of Modal
-4792 9:46p 🔵 hermes-switchui P4 drawer code review initiated on feat/ui-revamp-next
-4793 9:47p 🟣 P4 Agent Detail/Edit Drawer — Full Implementation on feat/ui-revamp-next
-4794 " 🔵 P4 Detail/Edit Drawer Code Review Requested for hermes-switchui
-4795 9:51p 🔵 Three Concrete Bugs Found in P4 Drawer Implementation
-4796 " 🔵 last_run Timestamp Unit Inconsistency in Drawer Overview Tab
+### May 12, 2026
+5076 6:09p 🟣 Settings added as routed NavItem in primary-nav-v2.tsx with dedicated group label
+5077 " 🟣 Committed f7f1f5a0: Settings nav group shipped to feat/next-2
+5078 6:11p 🔵 Skills screen and CSS file inventory for hermes-switchui-a
+5079 " 🔵 SkillsScreen architecture: 3-column layout with collapsible sk-filter panel
+5080 " 🔄 matrix-settings.css sidebar (.side) restyled to match matrix-skills.css filter panel pattern
+5081 " 🔄 matrix-settings.css sidebar items: hide icon placeholder span, fix group padding, item margin
+5082 " 🔄 matrix-settings.css sidebar CSS finalized; tsc clean confirmed
+5083 6:13p 🔵 Profiles screen API architecture and data flow
+5084 6:20p 🔵 /api/profiles/list is a TanStack Start server route, not a Python backend endpoint
+5085 " 🔵 Profiles page shows 2 rows because only 2 disk profiles exist — not a bug
+5086 6:21p 🔵 Python backend /api/profiles returns only 2 profiles (default + neo) — confirmed via live curl
+5087 " 🔵 Profiles screen confirmed: 6 total rows (4 builtin + 2 disk), "only 2 showing" caused by active Zustand filter
+5088 6:38p 🟣 Bootstrap expanded to seed full profile layout — committed and pushed
+5089 6:43p 🔵 Dev server started successfully via background task — hermes-agent already running
+5090 6:44p 🔵 Port 3000 conflict — dev server restarted on port 3001
+5091 6:45p 🔵 Dev server confirmed on port 3001 with fresh process
+5092 6:51p 🔵 Bootstrap verified: hermes-switch full profile layout created on disk at 18:45
+5093 " 🔵 profiles-browser.ts: BUILTIN_PROFILE_NAMES set protects reserved names from user mutation
+5094 6:54p 🔵 Settings dialog architecture: two parallel implementations
+5095 7:27p 🔵 settings-dialog.tsx full architecture mapped: sections, content components, dialog shell
+5096 " ✅ Settings dialog provider/model cards refactored to semantic chip classes
+5097 7:28p 🔄 Custom endpoint Base URL row migrated to semantic row/btn/ctl classes
+5098 " 🔄 SettingsDialog DOM structure simplified — wrapper div removed
+S1132 Matrix theme CSS refactor for settings dialog — commit, push, and restart clean dev server (May 12 at 7:34 PM)
+S1133 Matrix theme CSS refactor for settings dialog — commit pushed, dev server clean restart confirmed (May 12 at 7:36 PM)
+S1134 Matrix theme CSS refactor for hermes-switchui-a settings dialog — all work committed, dev server live (May 12 at 7:40 PM)
+S1135 Continue CSS variable refactoring of settings-dialog.tsx & audit TypeScript compilation; async agent rebuilding dialog for Matrix theme consistency (May 12 at 7:41 PM)
+5099 7:42p 🔄 Settings dialog migrated from Tailwind color utilities to CSS variables
+5100 7:44p 🔄 EnterpriseThemePicker converted to inline styles and CSS variables
+5101 7:45p 🔄 Connection status badge converted to inline styles with CSS variables
+5102 7:46p 🔵 TypeScript error: BrailleSpinner component does not accept style prop
+S1136 Refactor settings-dialog.tsx from Tailwind CSS to CSS custom properties for Matrix theme integration (May 12 at 7:46 PM)
+S1137 Tailwind→inline style migration for settings-dialog.tsx in hermes-switchui-a (May 12 at 7:46 PM)
+5103 7:48p ✅ Settings dialog UI polish: border-radius and subsection heading style
+5104 7:49p ✅ Settings dialog full UI normalization pass
+S1138 Settings dialog CSS refactor — replace Tailwind with matrix design system classes; settings sidebar visual alignment with Skills sidebar (May 12 at 7:49 PM)
+5105 7:50p 🔴 Fixed mutedStyle undefined TS error in Custom Endpoint section (second session)
+5106 " ✅ Reverted Tailwind→matrix CSS migration commit f2c4740d
+5114 7:51p 🔵 Tool Permission Blockade in Skill Context
+5107 8:01p 🔄 Settings Sidebar Styled to Match Skills Sidebar
+5108 " 🔵 Settings vs Skills Sidebar Structure Mapped
+5109 " 🔵 Settings Sidebar CSS Already Matches Skills Sidebar Pixel Values
+5110 8:02p 🔵 Skills Sidebar Search Has No Icon; Settings Has Positioned SVG
+5111 " 🔄 sidebar-tree.tsx JSX Updated to Use sk-filter-* Class Names
+5112 " 🔄 matrix-settings.css Sidebar Rules Updated to Match Skills Sidebar
+5113 8:04p 🔵 Both Files Updated Successfully; tsc Check Failed Due to Wrong Command Syntax
+S1139 Settings page visual refactor — align sidebar to Skills filter pattern, CSS-only dialog changes (May 12 at 8:05 PM)
+5115 8:05p 🟣 Settings Sidebar CSS Aligned to Skills Sidebar
+S1140 Settings screen visual refactor — sidebar aligned to Skills pattern, layout bugs fixed, CSS-only approach enforced (May 12 at 8:05 PM)
+5116 8:12p ⚖️ CSS-Only Rule for Settings Dialog Changes
+5117 8:13p 🔵 Settings Sidebar Class Structure After Codex Refactor
+5118 " 🔵 matrix-settings.css Sidebar CSS Scoping Pattern
+5119 " 🔵 matrix-settings.css Root Layout Structure
+5120 " 🔵 Active State Class Mismatch in Sidebar CSS
+5121 " 🔴 Sidebar Active/Hover/Dirty CSS Rules Fixed
+5122 8:14p 🔴 Settings Grid Root Layout Fixed for Nested Container
+5123 " 🔴 Sidebar Width Deduplication — Removed Explicit 280px from .side Rule
+5124 8:15p 🔴 Settings 2-Col Layout Fix Committed and Pushed
+### May 13, 2026
+5125 8:17a ⚖️ Session Resume — Settings CSS Refactor Ongoing
+S1141 Session resume — dev server restart for visual verification of settings screen changes (May 13 at 8:17 AM)
+**Investigated**: Dev server status, localhost:3001 availability, app root HTML to confirm app is running
 
-Access 1123k tokens of past work via get_observations([IDs]) or mem-search skill.
+**Learned**: Dev server uses Vite v7.3.2, runs on localhost:3001. App nav includes Settings, Skills, Memory, Themes, Log. hermes-agent process reuses existing process on restart.
+
+**Completed**: Dev server restarted clean (pkill vite + rm routeTree.gen.ts + PORT=3001 pnpm dev). Server confirmed up at localhost:3001.
+
+**Next Steps**: Visual verification of /settings page — check 2-col layout restored (572c2934 fix) and sidebar matches Skills filter style. Outstanding: mutedStyle TypeScript bug in settings-dialog.tsx still needs minimal fix.
+
+
+Access 942k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>
 
 ## graphify

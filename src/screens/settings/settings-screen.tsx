@@ -218,7 +218,7 @@ export function SettingsScreen() {
   }
 
   return (
-    <div data-screen="settings">
+    <div className="settings-shell" data-screen="settings">
       {/* Sidebar tree */}
       <SidebarTree
         groups={sidebarGroups}
