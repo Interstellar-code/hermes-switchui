@@ -39,6 +39,7 @@ const SectionNetwork = lazy(() => import('./sections/section-network'))
 const SectionPerformance = lazy(() => import('./sections/section-performance'))
 const SectionShortcuts = lazy(() => import('./sections/section-shortcuts'))
 const SectionAdvanced = lazy(() => import('./sections/section-advanced'))
+const SectionRawConfig = lazy(() => import('./sections/section-raw-config'))
 const SectionDanger = lazy(() => import('./sections/section-danger'))
 
 const SECTION_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
@@ -61,6 +62,7 @@ const SECTION_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   performance: SectionPerformance,
   shortcuts: SectionShortcuts,
   advanced: SectionAdvanced,
+  'raw-config': SectionRawConfig,
   danger: SectionDanger,
 }
 
@@ -101,6 +103,7 @@ const SECTIONS: Array<SectionDef> = [
   // Other
   { id: 'shortcuts', label: 'Shortcuts', group: 'Shortcuts', p: 6 },
   { id: 'advanced', label: 'Advanced', group: 'Advanced', p: 7 },
+  { id: 'raw-config', label: 'Raw config', group: 'Advanced', p: 6 },
   { id: 'danger', label: 'Danger Zone', group: 'Danger', p: 7 },
 ]
 

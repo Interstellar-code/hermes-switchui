@@ -236,6 +236,14 @@ export async function getConfigSchema(): Promise<ConfigSchema> {
   return proxyGet<ConfigSchema>('/api/config/schema')
 }
 
+export async function getConfigRaw(): Promise<{ yaml: string }> {
+  return proxyGet<{ yaml: string }>('/api/config/raw')
+}
+
+export async function putConfigRaw(yamlText: string): Promise<{ yaml: string }> {
+  return proxySend<{ yaml: string }>('PUT', '/api/config/raw', { yaml: yamlText })
+}
+
 // ── Model / Provider APIs ────────────────────────────────────────
 
 export async function modelInfo(): Promise<ModelInfo> {
