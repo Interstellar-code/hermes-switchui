@@ -7,6 +7,7 @@
  */
 
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import '@/styles/matrix-skills.css'
 import '@/styles/matrix-settings.css'
 import { useQuery } from '@tanstack/react-query'
 import { SidebarTree } from './components/sidebar-tree'
