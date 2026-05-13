@@ -1,16 +1,16 @@
 /* Matrix Terminal page — scoped to the active persistent TerminalWorkspace. */
 
 [data-screen='terminal'] {
-  --t-bg: var(--m-bg, #020603);
-  --t-panel: var(--m-panel, #07110b);
-  --t-panel-2: var(--m-panel-2, #0b160f);
-  --t-border: var(--m-border, rgba(0, 255, 65, 0.24));
-  --t-border-subtle: var(--m-border-subtle, rgba(0, 255, 65, 0.12));
-  --t-text: var(--m-text, #d6f8de);
-  --t-muted: var(--m-text-muted, #7ec78c);
-  --t-faint: var(--m-text-faint, #4a7c56);
-  --t-accent: var(--m-green-500, #00ff41);
-  --t-fill: rgba(0, 255, 65, 0.1);
+  --t-bg: var(--m-bg, var(--theme-bg));
+  --t-panel: var(--m-panel, var(--theme-card));
+  --t-panel-2: var(--m-panel-2, var(--theme-card));
+  --t-border: var(--m-border, var(--theme-border));
+  --t-border-subtle: var(--m-border-subtle, var(--theme-border));
+  --t-text: var(--m-text, var(--theme-text));
+  --t-muted: var(--m-text-muted, var(--theme-muted));
+  --t-faint: var(--m-text-faint, var(--theme-muted));
+  --t-accent: var(--m-green-500, var(--theme-accent));
+  --t-fill: color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 10%, transparent);
   --t-warn: #ffb347;
   --t-danger: #ff5fa2;
 
@@ -36,7 +36,7 @@
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  background: var(--t-panel, var(--theme-card));
+  background: var(--t-panel);
   border-right: 1px solid var(--t-border);
   transition: width 180ms ease-out, min-width 180ms ease-out;
 }
@@ -81,7 +81,7 @@
   background: var(--t-fill);
   border: 1px solid var(--t-border-subtle);
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: 6px;
 }
 
 /* search */
@@ -98,7 +98,7 @@
 [data-screen='terminal'] .term-filter-search input {
   width: 100%;
   height: 32px;
-  background: var(--t-bg, var(--theme-hover));
+  background: var(--t-bg);
   border: 1px solid var(--t-border-subtle);
   border-radius: 6px;
   padding: 0 10px 0 10px;
@@ -287,7 +287,7 @@
   font: 800 10px var(--m-font-mono, ui-monospace, monospace);
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  box-shadow: 0 0 18px rgba(0, 255, 65, 0.22);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 22%, transparent);
 }
 
 /* collapsed rail — matches .sk-rail pattern */
@@ -318,7 +318,7 @@
   background: var(--t-fill);
   border: 1px solid var(--t-border-subtle);
   padding: 1px 5px;
-  border-radius: 999px;
+  border-radius: 6px;
 }
 
 [data-screen='terminal'] .term-main {
@@ -384,7 +384,7 @@
 [data-screen='terminal'] .term-tab .badge {
   padding: 1px 5px;
   border: 1px solid var(--t-border-subtle);
-  border-radius: 999px;
+  border-radius: 6px;
   color: var(--t-faint);
   font-size: 9px;
   text-transform: uppercase;
@@ -482,7 +482,7 @@
   position: absolute;
   inset: 0;
   z-index: 4;
-  border: 1px solid rgba(0, 255, 65, 0.32);
+  border: 1px solid color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 32%, transparent);
   pointer-events: none;
   content: '';
 }
@@ -501,8 +501,8 @@
   inset: 0;
   z-index: -1;
   background:
-    linear-gradient(rgba(0, 255, 65, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 255, 65, 0.022) 1px, transparent 1px);
+    linear-gradient(color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 3.5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 2.2%, transparent) 1px, transparent 1px);
   background-size:
     100% 18px,
     18px 100%;
@@ -555,8 +555,8 @@
   font: 500 var(--rain-size, 14px) / 1 var(--m-font-mono, ui-monospace, monospace);
   opacity: var(--rain-opacity, 0.22);
   text-shadow:
-    0 0 6px rgba(0, 255, 65, 0.3),
-    0 0 12px rgba(0, 255, 65, 0.12);
+    0 0 6px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 30%, transparent),
+    0 0 12px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 12%, transparent);
   writing-mode: vertical-rl;
   will-change: top, transform;
   animation: terminal-rain var(--rain-duration, 10s) linear infinite;

@@ -123,6 +123,53 @@ async function claudeDeleteReq(path: string): Promise<void> {
   }
 }
 
+// ── Dashboard helpers (targets port 9119, not gateway) ────────────
+//
+// Uses same-origin `/api/dashboard-proxy` when running in the browser to avoid
+// CORS. The proxy route injects the dashboard bearer token server-side.
+// On SSR (Node), falls back to direct dashboardFetch so the server-to-server
+// call goes straight to port 9119 without an HTTP round-trip through itself.
+
+function _dashboardProxyFetch(path: string, init?: RequestInit): Promise<Response> {
+  if (typeof window !== 'undefined') {
+    // Browser: call same-origin proxy, no CORS issue
+    const proxyPath = `/api/dashboard-proxy${path.startsWith('/') ? path : `/${path}`}`
+    return fetch(proxyPath, init)
+  }
+  // SSR / server-side: call dashboard directly with auth
+  return dashboardFetch(path, init)
+}
+
+async function dashboardGet<T>(path: string): Promise<T> {
+  const res = await _dashboardProxyFetch(path)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Hermes Dashboard API ${path}: ${res.status} ${body}`)
+  }
+  return res.json() as Promise<T>
+}
+
+async function dashboardSend<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const res = await _dashboardProxyFetch(path, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Hermes Dashboard API ${method} ${path}: ${res.status} ${text}`)
+  }
+  return res.json() as Promise<T>
+}
+
+async function dashboardDelete(path: string): Promise<void> {
+  const res = await _dashboardProxyFetch(path, { method: 'DELETE' })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Hermes Dashboard API DELETE ${path}: ${res.status} ${text}`)
+  }
+}
+
 // ── Health ────────────────────────────────────────────────────────
 
 export async function checkHealth(): Promise<{ status: string }> {
@@ -492,33 +539,134 @@ export async function sendChat(
 // ── Memory ───────────────────────────────────────────────────────
 
 export async function getMemory(): Promise<unknown> {
-  return claudeGet('/api/memory')
+  return dashboardGet('/api/memory')
 }
 
 // ── Skills ───────────────────────────────────────────────────────
 
 export async function listSkills(): Promise<unknown> {
-  return claudeGet('/api/skills')
+  return dashboardGet('/api/skills')
 }
 
 export async function getSkill(name: string): Promise<unknown> {
-  return claudeGet(`/api/skills/${encodeURIComponent(name)}`)
+  return dashboardGet(`/api/skills/${encodeURIComponent(name)}`)
 }
 
 export async function getSkillCategories(): Promise<unknown> {
-  return claudeGet('/api/skills/categories')
+  return dashboardGet('/api/skills/categories')
+}
+
+export async function toggleSkill(name: string, enabled: boolean): Promise<unknown> {
+  return dashboardSend('POST', '/api/skills/toggle', { name, enabled })
+}
+
+export async function listToolsets(): Promise<unknown> {
+  return dashboardGet('/api/tools/toolsets')
+}
+
+// ── Dashboard plugins ─────────────────────────────────────────────
+
+export async function listDashboardPlugins(): Promise<unknown> {
+  return dashboardGet('/api/dashboard/plugins')
+}
+
+export async function installAgentPlugin(body: {
+  identifier: string
+  force?: boolean
+  enable?: boolean
+}): Promise<unknown> {
+  return dashboardSend('POST', '/api/dashboard/agent-plugins/install', body)
+}
+
+export async function enableAgentPlugin(name: string): Promise<unknown> {
+  return dashboardSend('POST', `/api/dashboard/agent-plugins/${encodeURIComponent(name)}/enable`)
+}
+
+export async function disableAgentPlugin(name: string): Promise<unknown> {
+  return dashboardSend('POST', `/api/dashboard/agent-plugins/${encodeURIComponent(name)}/disable`)
+}
+
+export async function updateAgentPlugin(name: string): Promise<unknown> {
+  return dashboardSend('POST', `/api/dashboard/agent-plugins/${encodeURIComponent(name)}/update`)
+}
+
+export async function deleteAgentPlugin(name: string): Promise<void> {
+  return dashboardDelete(`/api/dashboard/agent-plugins/${encodeURIComponent(name)}`)
+}
+
+export async function setPluginVisibility(name: string, hidden: boolean): Promise<unknown> {
+  return dashboardSend('POST', `/api/dashboard/plugins/${encodeURIComponent(name)}/visibility`, { hidden })
 }
 
 // ── Config ───────────────────────────────────────────────────────
 
 export async function getConfig(): Promise<ClaudeConfig> {
-  return claudeGet<ClaudeConfig>('/api/config')
+  return dashboardGet<ClaudeConfig>('/api/config')
 }
 
 export async function patchConfig(
   patch: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  return claudePatch<Record<string, unknown>>('/api/config', patch)
+  return dashboardSend<Record<string, unknown>>('PATCH', '/api/config', patch)
+}
+
+// ── Model / Provider APIs ────────────────────────────────────────
+
+export type ModelInfo = {
+  model: string
+  provider: string
+  [key: string]: unknown
+}
+
+export type ModelOptions = {
+  providers: Array<{
+    slug: string
+    name?: string
+    is_current?: boolean
+    models: string[]
+    total_models?: number
+    [key: string]: unknown
+  }>
+  model: string
+  provider: string
+  [key: string]: unknown
+}
+
+export type ModelAuxiliary = {
+  tasks: Array<{ task: string; provider: string; model: string; base_url?: string }>
+  main: { provider: string; model: string }
+  [key: string]: unknown
+}
+
+export type ConfigSchema = {
+  fields: Record<string, unknown>
+  category_order: Array<string>
+  [key: string]: unknown
+}
+
+export async function getConfigSchema(): Promise<ConfigSchema> {
+  return dashboardGet<ConfigSchema>('/api/config/schema')
+}
+
+export async function modelInfo(): Promise<ModelInfo> {
+  return dashboardGet<ModelInfo>('/api/model/info')
+}
+
+export async function modelOptions(): Promise<ModelOptions> {
+  return dashboardGet<ModelOptions>('/api/model/options')
+}
+
+export async function modelAuxiliary(): Promise<ModelAuxiliary> {
+  return dashboardGet<ModelAuxiliary>('/api/model/auxiliary')
+}
+
+export async function setModelAssignment(body: {
+  scope: 'main' | string
+  provider: string
+  model: string
+  task?: string
+}): Promise<Record<string, unknown>> {
+  return dashboardSend<Record<string, unknown>>('POST', '/api/model/set', body)
 }
 
 // ── Models ───────────────────────────────────────────────────────
@@ -547,6 +695,141 @@ export async function isClaudeAvailable(): Promise<boolean> {
     await probeGateway({ force: true }).catch(() => undefined)
     return false
   }
+}
+
+// ── Env vars ─────────────────────────────────────────────────────
+
+export type EnvVarInfo = {
+  is_set: boolean
+  redacted_value: string
+  description?: string
+  category?: string
+  is_password?: boolean
+  advanced?: boolean
+  url?: string
+}
+
+export async function getEnv(): Promise<Record<string, EnvVarInfo>> {
+  return dashboardGet('/api/env')
+}
+
+export async function putEnv(key: string, value: string): Promise<void> {
+  const res = await _dashboardProxyFetch('/api/env', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, value }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Hermes Dashboard API PUT /api/env: ${res.status} ${text}`)
+  }
+}
+
+export async function deleteEnv(key: string): Promise<void> {
+  const res = await _dashboardProxyFetch('/api/env', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Hermes Dashboard API DELETE /api/env: ${res.status} ${text}`)
+  }
+}
+
+export async function revealEnv(key: string): Promise<{ key: string; value: string }> {
+  const res = await _dashboardProxyFetch('/api/env/reveal', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key }),
+  })
+  if (res.status === 429) {
+    throw new Error('Rate limited. Please wait before revealing again.')
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Hermes Dashboard API POST /api/env/reveal: ${res.status} ${text}`)
+  }
+  return res.json() as Promise<{ key: string; value: string }>
+}
+
+// ── OAuth providers ───────────────────────────────────────────────
+
+export type OAuthProvider = {
+  id: string
+  name: string
+  logged_in: boolean
+  token_preview?: string
+  expires_at?: string
+  status?: string
+}
+
+export async function listOAuthProviders(): Promise<Array<OAuthProvider>> {
+  const res = await dashboardGet<{ providers?: Array<OAuthProvider> } | Array<OAuthProvider>>('/api/providers/oauth')
+  if (Array.isArray(res)) return res
+  return res.providers ?? []
+}
+
+export async function deleteOAuth(providerId: string): Promise<void> {
+  return dashboardDelete(`/api/providers/oauth/${providerId}`)
+}
+
+// ── Analytics ─────────────────────────────────────────────────────
+
+export type AnalyticsUsage = {
+  total_tokens?: number
+  total_calls?: number
+  total_input?: number
+  total_output?: number
+  total_sessions?: number
+  total_api_calls?: number
+  total_estimated_cost?: number
+  [key: string]: unknown
+}
+
+export async function analyticsUsage(days = 30): Promise<AnalyticsUsage> {
+  return dashboardGet(`/api/analytics/usage?days=${days}`)
+}
+
+export type AnalyticsModelRow = {
+  model: string
+  input_tokens?: number
+  output_tokens?: number
+  sessions?: number
+  api_calls?: number
+  estimated_cost?: number
+  [key: string]: unknown
+}
+
+export type AnalyticsModels = {
+  models: Array<AnalyticsModelRow>
+  [key: string]: unknown
+}
+
+export async function analyticsModels(days = 30): Promise<AnalyticsModels> {
+  return dashboardGet(`/api/analytics/models?days=${days}`)
+}
+
+// ── Gateway status ────────────────────────────────────────────────
+
+export type GatewayStatus = {
+  gateway_running?: boolean
+  pid?: number
+  cpu?: number
+  rss?: number
+  [key: string]: unknown
+}
+
+export async function gatewayStatus(): Promise<GatewayStatus> {
+  return dashboardGet('/api/status')
+}
+
+export async function gatewayRestart(): Promise<unknown> {
+  return dashboardSend('POST', '/api/gateway/restart')
+}
+
+export async function getLogs(): Promise<unknown> {
+  return dashboardGet('/api/logs')
 }
 
 export {

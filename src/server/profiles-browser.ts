@@ -352,20 +352,38 @@ export function listProfiles(): Array<ProfileSummary> {
 export function readProfile(name: string): ProfileDetail {
   const active = getActiveProfileName()
   const normalized = name.trim() || 'default'
-  const profilePath =
-    normalized === 'default'
-      ? getClaudeRoot()
-      : path.join(getProfilesRoot(), validateProfileName(normalized))
+
+  // Allow reading builtin profiles even though they can't be edited
+  let isBuiltin = false
+  let profilePath: string
+  if (normalized === 'default') {
+    profilePath = getClaudeRoot()
+  } else if (BUILTIN_PROFILE_NAMES.has(normalized)) {
+    // Builtin profiles are read-only
+    isBuiltin = true
+    profilePath = path.join(getProfilesRoot(), normalized)
+  } else {
+    profilePath = path.join(getProfilesRoot(), validateProfileName(normalized))
+  }
+
   if (!fs.existsSync(profilePath)) throw new Error('Profile not found')
   const configPath = path.join(profilePath, 'config.yaml')
   const envPath = path.join(profilePath, '.env')
   const sessionsDir = path.join(profilePath, 'sessions')
   const skillsDir = path.join(profilePath, 'skills')
+  const config = readYamlConfig(configPath)
+
+  // Mark builtin profiles as readonly
+  const returnConfig: ProfileConfig & { readonly?: boolean; builtin?: boolean } = {
+    ...config,
+    ...(isBuiltin && { readonly: true, builtin: true }),
+  }
+
   return {
     name: normalized,
     path: profilePath,
     active: normalized === active,
-    config: readYamlConfig(configPath),
+    config: returnConfig as ProfileConfig,
     envPath: fs.existsSync(envPath) ? envPath : undefined,
     hasEnv: fs.existsSync(envPath),
     sessionsDir: fs.existsSync(sessionsDir) ? sessionsDir : undefined,

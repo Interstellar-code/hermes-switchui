@@ -1,0 +1,154 @@
+/**
+ * matrix-settings-dialog.css — Matrix theme overlay for the settings modal.
+ * Scoped to [data-mset="dialog"] — only colors/borders/fonts, no layout changes.
+ * Uses var(--m-*) with theme-token fallbacks so non-matrix themes still look correct.
+ */
+
+/* ── Container ──────────────────────────────────────────────────────────── */
+
+[data-mset="dialog"] {
+  background: var(--m-panel, var(--theme-bg)) !important;
+  border-color: var(--m-border, var(--theme-border));
+  color: var(--m-text, var(--theme-text));
+  font-family: var(--m-font-sans, inherit);
+}
+
+/* ── Header bar ─────────────────────────────────────────────────────────── */
+
+[data-mset="dialog"] > div > div:first-child {
+  background: var(--m-sidebar, var(--theme-card));
+  border-bottom-color: var(--m-border, var(--theme-border));
+}
+
+[data-mset="dialog"] [data-slot="dialog-title"] {
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--m-green-500, var(--theme-accent));
+}
+
+/* ── Sidebar nav ────────────────────────────────────────────────────────── */
+
+[data-mset="dialog"] nav,
+[data-mset="dialog"] [role="navigation"] {
+  background: var(--m-panel, var(--theme-card));
+  border-right-color: var(--m-border, var(--theme-border));
+}
+
+/* Nav items */
+[data-mset="dialog"] nav button,
+[data-mset="dialog"] [role="navigation"] button {
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--m-text-muted, var(--theme-muted));
+  border-radius: 4px;
+  transition: background 0.1s, color 0.1s;
+}
+
+[data-mset="dialog"] nav button:hover,
+[data-mset="dialog"] [role="navigation"] button:hover {
+  color: var(--m-text, var(--theme-text));
+  background: var(--m-fill-subtle, var(--theme-hover));
+}
+
+[data-mset="dialog"] nav button[data-active="true"],
+[data-mset="dialog"] nav button[aria-selected="true"],
+[data-mset="dialog"] nav button.active {
+  color: var(--m-green-500, var(--theme-accent));
+  background: color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 10%, transparent);
+}
+
+/* ── Content area ───────────────────────────────────────────────────────── */
+
+[data-mset="dialog"] .overflow-y-auto,
+[data-mset="dialog"] .overflow-auto {
+  background: var(--m-bg, var(--theme-bg));
+}
+
+/* ── Section headers ────────────────────────────────────────────────────── */
+
+[data-mset="dialog"] h3 {
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--m-text-strong, var(--theme-text));
+}
+
+[data-mset="dialog"] p.text-xs.font-semibold.uppercase {
+  color: var(--m-green-500, var(--theme-accent));
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+}
+
+/* ── Cards / sub-sections ───────────────────────────────────────────────── */
+
+[data-mset="dialog"] .rounded-xl,
+[data-mset="dialog"] .rounded-lg {
+  background: var(--m-panel, var(--theme-card));
+  border-color: var(--m-border, var(--theme-border));
+}
+
+/* ── Provider tiles ─────────────────────────────────────────────────────── */
+
+[data-mset="dialog"] [data-active="true"] [class*="rounded"],
+[data-mset="dialog"] button.ring-2 {
+  border-color: var(--m-green-500, var(--theme-accent));
+}
+
+/* ── Inputs / selects ───────────────────────────────────────────────────── */
+
+[data-mset="dialog"] input[type="text"],
+[data-mset="dialog"] input[type="number"],
+[data-mset="dialog"] input[type="password"],
+[data-mset="dialog"] input[type="email"],
+[data-mset="dialog"] textarea,
+[data-mset="dialog"] select {
+  background: var(--m-bg-deep, var(--theme-bg));
+  border-color: var(--m-border, var(--theme-border));
+  color: var(--m-text, var(--theme-text));
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+}
+
+[data-mset="dialog"] input:focus,
+[data-mset="dialog"] textarea:focus,
+[data-mset="dialog"] select:focus {
+  border-color: var(--m-green-500, var(--theme-accent));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 12%, transparent);
+  outline: none;
+}
+
+/* ── Buttons (non-role, i.e. not nav/close) ─────────────────────────────── */
+
+[data-mset="dialog"] button:not([role]):not([data-slot]) {
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+
+/* ── Row separators ─────────────────────────────────────────────────────── */
+
+[data-mset="dialog"] [class*="border-b"],
+[data-mset="dialog"] [class*="border-primary"] {
+  border-color: var(--m-border-subtle, var(--theme-border));
+}
+
+/* ── Muted / description text ───────────────────────────────────────────── */
+
+[data-mset="dialog"] .text-primary-500,
+[data-mset="dialog"] .text-neutral-400,
+[data-mset="dialog"] [class*="text-primary-4"] {
+  color: var(--m-text-faint, var(--theme-muted));
+}
+
+/* ── Strong / heading text ──────────────────────────────────────────────── */
+
+[data-mset="dialog"] .text-primary-900,
+[data-mset="dialog"] .dark\:text-neutral-100 {
+  color: var(--m-text-strong, var(--theme-text));
+}

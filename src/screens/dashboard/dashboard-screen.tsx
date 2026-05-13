@@ -37,7 +37,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { ReactNode } from 'react'
-import type { ClaudeSession } from '@/server/hermes-api'
+import type { ClaudeSession } from '@/lib/hermes-client'
 import { getUnavailableReason } from '@/lib/feature-gates'
 import { useFeatureAvailable } from '@/hooks/use-feature-available'
 import { cn } from '@/lib/utils'

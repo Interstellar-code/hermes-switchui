@@ -96,6 +96,7 @@ export function AgentDetailDrawer({
   const readonly =
     !agent ||
     agent.builtin ||
+    (config as Record<string, unknown>)?.readonly === true ||
     agent.profileName === 'default' ||
     agent.tier === 1 ||
     agent.tier === 2

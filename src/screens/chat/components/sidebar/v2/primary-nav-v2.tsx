@@ -298,6 +298,7 @@ export function PrimaryNavV2() {
   const isSkills = pathname.startsWith('/skills')
   const isMcp = pathname.startsWith('/mcp')
   const isProfiles = pathname.startsWith('/profiles')
+  const isSettings = pathname.startsWith('/settings')
   const isNewSession = pathname === '/new' || pathname.startsWith('/chat/new')
 
   const w = collapsed ? NAV_COLLAPSED_WIDTH : NAV_WIDTH
@@ -503,6 +504,10 @@ export function PrimaryNavV2() {
         {/* KNOWLEDGE group */}
         {!collapsed && <GroupLabel label="Knowledge" />}
         <NavItem label="Memory" iconKey="memory" to="/memory" active={isMemory} collapsed={collapsed} />
+
+        {/* SETTINGS group */}
+        {!collapsed && <GroupLabel label="Settings" />}
+        <NavItem label="Settings" iconKey="cog" to="/settings" active={isSettings} collapsed={collapsed} />
         <NavItem label="Skills" iconKey="skills" to="/skills" active={isSkills} collapsed={collapsed} />
         <NavItem label="MCP" iconKey="mcp" to="/mcp" active={isMcp} collapsed={collapsed} />
         <NavItem label="Profiles" iconKey="profiles" to="/profiles" active={isProfiles} collapsed={collapsed} />

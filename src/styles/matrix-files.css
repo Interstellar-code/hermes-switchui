@@ -3,19 +3,19 @@
 */
 
 [data-screen='files'] {
-  --f-bg: var(--m-bg, #07110b);
-  --f-panel: var(--m-panel, #0d1711);
+  --f-bg: var(--m-bg, var(--theme-bg, #07110b));
+  --f-panel: var(--m-panel, var(--theme-card, #0d1711));
   --f-panel-2: var(--m-panel-2, #0a130e);
-  --f-border: var(--m-border, rgba(51, 255, 102, 0.18));
-  --f-border-subtle: var(--m-border-subtle, rgba(51, 255, 102, 0.09));
-  --f-text: var(--m-text, #d6f8de);
-  --f-text-2: var(--m-text-muted, #7ec78c);
-  --f-text-3: var(--m-text-faint, #4a7c56);
-  --f-accent: var(--m-green-500, #37ff63);
-  --f-accent-soft: rgba(55, 255, 99, 0.12);
+  --f-border: var(--m-border, var(--theme-border, rgba(51, 255, 102, 0.18)));
+  --f-border-subtle: var(--m-border-subtle, var(--theme-border, rgba(51, 255, 102, 0.09)));
+  --f-text: var(--m-text, var(--theme-text, #d6f8de));
+  --f-text-2: var(--m-text-muted, var(--theme-muted, #7ec78c));
+  --f-text-3: var(--m-text-faint, var(--theme-muted, #4a7c56));
+  --f-accent: var(--m-green-500, var(--theme-accent, #37ff63));
+  --f-accent-soft: color-mix(in srgb, var(--m-green-500, var(--theme-accent, #37ff63)) 12%, transparent);
   --f-danger: #ff6b8f;
   --f-shadow:
-    0 0 0 1px rgba(55, 255, 99, 0.05), 0 18px 48px rgba(0, 0, 0, 0.28);
+    0 0 0 1px color-mix(in srgb, var(--m-green-500, var(--theme-accent, #37ff63)) 5%, transparent), 0 18px 48px rgba(0, 0, 0, 0.28);
 
   &.files-shell {
     display: flex;
@@ -159,7 +159,7 @@
     color: var(--f-accent);
     border-color: var(--f-border);
     background: var(--f-accent-soft);
-    box-shadow: 0 0 12px rgba(55, 255, 99, 0.16);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--m-green-500, var(--theme-accent, #37ff63)) 16%, transparent);
   }
 
   .files-icon-btn.danger:hover {
@@ -340,7 +340,7 @@
     height: 5px;
     border-left: 1.4px solid currentColor;
     border-bottom: 1.4px solid currentColor;
-    background: rgba(7, 17, 11, 0.98);
+    background: var(--m-bg, var(--theme-bg, rgba(7, 17, 11, 0.98)));
   }
 
   .files-tree-row .icon.is-markdown::before {
@@ -466,8 +466,8 @@
     overflow: hidden;
     background: linear-gradient(
       180deg,
-      rgba(7, 17, 11, 0.98),
-      rgba(6, 12, 9, 0.98)
+      var(--m-bg, var(--theme-bg, rgba(7, 17, 11, 0.98))),
+      var(--m-bg, var(--theme-bg, rgba(6, 12, 9, 0.98)))
     );
   }
 
@@ -613,7 +613,7 @@
     background:
       radial-gradient(
         circle at 20% 0%,
-        rgba(55, 255, 99, 0.08),
+        color-mix(in srgb, var(--m-green-500, var(--theme-accent, #37ff63)) 8%, transparent),
         transparent 34%
       ),
       rgba(0, 0, 0, 0.18);
@@ -758,7 +758,7 @@
   }
 
   .files-textarea:focus {
-    box-shadow: 0 0 0 2px rgba(55, 255, 99, 0.16);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--m-green-500, var(--theme-accent, #37ff63)) 16%, transparent);
   }
 
   .files-image-shell {
