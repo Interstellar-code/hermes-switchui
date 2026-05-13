@@ -5,7 +5,7 @@
 
 [data-screen="settings"].settings-shell {
   display: grid !important;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -221,14 +221,85 @@
 /* ── Sidebar tree ────────────────────────────────────────────────────────── */
 
 [data-screen="settings"].settings-shell .side.sk-filter {
+  width: 280px;
+  min-width: 280px;
   border-right: 1px solid var(--m-border);
   background: var(--m-panel);
   overflow: hidden;
   padding: 0;
   display: flex;
   flex-direction: column;
-  min-width: 0;
   height: 100%;
+  transition: width 180ms ease-out, min-width 180ms ease-out;
+}
+
+[data-screen="settings"].settings-shell .side.sk-filter.collapsed {
+  width: 44px;
+  min-width: 44px;
+}
+
+[data-screen="settings"] .side.sk-filter .collapse-btn {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--m-border-subtle);
+  background: transparent;
+  border-radius: 4px;
+  color: var(--m-text-muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: color 120ms, border-color 120ms;
+}
+
+[data-screen="settings"] .side.sk-filter .collapse-btn:hover {
+  color: var(--m-green-500);
+  border-color: var(--m-green-500);
+}
+
+[data-screen="settings"] .side.sk-filter.collapsed .sk-filter-hdr {
+  flex-direction: column;
+  padding: 10px 4px;
+  gap: 8px;
+}
+
+[data-screen="settings"] .side.sk-filter.collapsed .sk-filter-hdr h2,
+[data-screen="settings"] .side.sk-filter.collapsed .sk-filter-hdr .ct {
+  display: none;
+}
+
+[data-screen="settings"] .side.sk-filter.collapsed .sk-filter-search,
+[data-screen="settings"] .side.sk-filter.collapsed .sk-filter-body {
+  display: none;
+}
+
+[data-screen="settings"] .side.sk-filter .sk-rail {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 0;
+  gap: 6px;
+}
+
+[data-screen="settings"] .side.sk-filter.collapsed .sk-rail {
+  display: flex;
+}
+
+[data-screen="settings"] .side.sk-filter .sk-rail .rail-label {
+  font: 700 9px var(--m-font-mono);
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--m-green-500);
+}
+
+[data-screen="settings"] .side.sk-filter .sk-rail .rail-badge {
+  font: 600 9px var(--m-font-mono);
+  color: var(--m-text-muted);
+  background: var(--m-fill-subtle);
+  border: 1px solid var(--m-border-subtle);
+  padding: 1px 5px;
+  border-radius: 999px;
 }
 
 [data-screen="settings"] .side.sk-filter .sk-filter-hdr {
