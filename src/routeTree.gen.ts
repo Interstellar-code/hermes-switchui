@@ -45,7 +45,6 @@ import { Route as ApiSessionHistoryRouteImport } from './routes/api/session-hist
 import { Route as ApiSendStreamRouteImport } from './routes/api/send-stream'
 import { Route as ApiSendRouteImport } from './routes/api/send'
 import { Route as ApiProviderUsageRouteImport } from './routes/api/provider-usage'
-import { Route as ApiPreviewFileRouteImport } from './routes/api/preview-file'
 import { Route as ApiPluginsRouteImport } from './routes/api/plugins'
 import { Route as ApiPingRouteImport } from './routes/api/ping'
 import { Route as ApiPathsRouteImport } from './routes/api/paths'
@@ -64,8 +63,6 @@ import { Route as ApiCrewStatusRouteImport } from './routes/api/crew-status'
 import { Route as ApiContextUsageRouteImport } from './routes/api/context-usage'
 import { Route as ApiConnectionStatusRouteImport } from './routes/api/connection-status'
 import { Route as ApiConnectionSettingsRouteImport } from './routes/api/connection-settings'
-import { Route as ApiConductorStopRouteImport } from './routes/api/conductor-stop'
-import { Route as ApiConductorSpawnRouteImport } from './routes/api/conductor-spawn'
 import { Route as ApiClaudeUpdateRouteImport } from './routes/api/claude-update'
 import { Route as ApiClaudeTasksAssigneesRouteImport } from './routes/api/claude-tasks-assignees'
 import { Route as ApiClaudeTasksRouteImport } from './routes/api/claude-tasks'
@@ -322,11 +319,6 @@ const ApiProviderUsageRoute = ApiProviderUsageRouteImport.update({
   path: '/api/provider-usage',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPreviewFileRoute = ApiPreviewFileRouteImport.update({
-  id: '/api/preview-file',
-  path: '/api/preview-file',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPluginsRoute = ApiPluginsRouteImport.update({
   id: '/api/plugins',
   path: '/api/plugins',
@@ -415,16 +407,6 @@ const ApiConnectionStatusRoute = ApiConnectionStatusRouteImport.update({
 const ApiConnectionSettingsRoute = ApiConnectionSettingsRouteImport.update({
   id: '/api/connection-settings',
   path: '/api/connection-settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiConductorStopRoute = ApiConductorStopRouteImport.update({
-  id: '/api/conductor-stop',
-  path: '/api/conductor-stop',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiConductorSpawnRoute = ApiConductorSpawnRouteImport.update({
-  id: '/api/conductor-spawn',
-  path: '/api/conductor-spawn',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiClaudeUpdateRoute = ApiClaudeUpdateRouteImport.update({
@@ -839,8 +821,6 @@ export interface FileRoutesByFullPath {
   '/api/claude-tasks': typeof ApiClaudeTasksRouteWithChildren
   '/api/claude-tasks-assignees': typeof ApiClaudeTasksAssigneesRoute
   '/api/claude-update': typeof ApiClaudeUpdateRoute
-  '/api/conductor-spawn': typeof ApiConductorSpawnRoute
-  '/api/conductor-stop': typeof ApiConductorStopRoute
   '/api/connection-settings': typeof ApiConnectionSettingsRoute
   '/api/connection-status': typeof ApiConnectionStatusRoute
   '/api/context-usage': typeof ApiContextUsageRoute
@@ -859,7 +839,6 @@ export interface FileRoutesByFullPath {
   '/api/paths': typeof ApiPathsRoute
   '/api/ping': typeof ApiPingRoute
   '/api/plugins': typeof ApiPluginsRoute
-  '/api/preview-file': typeof ApiPreviewFileRoute
   '/api/provider-usage': typeof ApiProviderUsageRoute
   '/api/send': typeof ApiSendRoute
   '/api/send-stream': typeof ApiSendStreamRoute
@@ -972,8 +951,6 @@ export interface FileRoutesByTo {
   '/api/claude-tasks': typeof ApiClaudeTasksRouteWithChildren
   '/api/claude-tasks-assignees': typeof ApiClaudeTasksAssigneesRoute
   '/api/claude-update': typeof ApiClaudeUpdateRoute
-  '/api/conductor-spawn': typeof ApiConductorSpawnRoute
-  '/api/conductor-stop': typeof ApiConductorStopRoute
   '/api/connection-settings': typeof ApiConnectionSettingsRoute
   '/api/connection-status': typeof ApiConnectionStatusRoute
   '/api/context-usage': typeof ApiContextUsageRoute
@@ -992,7 +969,6 @@ export interface FileRoutesByTo {
   '/api/paths': typeof ApiPathsRoute
   '/api/ping': typeof ApiPingRoute
   '/api/plugins': typeof ApiPluginsRoute
-  '/api/preview-file': typeof ApiPreviewFileRoute
   '/api/provider-usage': typeof ApiProviderUsageRoute
   '/api/send': typeof ApiSendRoute
   '/api/send-stream': typeof ApiSendStreamRoute
@@ -1107,8 +1083,6 @@ export interface FileRoutesById {
   '/api/claude-tasks': typeof ApiClaudeTasksRouteWithChildren
   '/api/claude-tasks-assignees': typeof ApiClaudeTasksAssigneesRoute
   '/api/claude-update': typeof ApiClaudeUpdateRoute
-  '/api/conductor-spawn': typeof ApiConductorSpawnRoute
-  '/api/conductor-stop': typeof ApiConductorStopRoute
   '/api/connection-settings': typeof ApiConnectionSettingsRoute
   '/api/connection-status': typeof ApiConnectionStatusRoute
   '/api/context-usage': typeof ApiContextUsageRoute
@@ -1127,7 +1101,6 @@ export interface FileRoutesById {
   '/api/paths': typeof ApiPathsRoute
   '/api/ping': typeof ApiPingRoute
   '/api/plugins': typeof ApiPluginsRoute
-  '/api/preview-file': typeof ApiPreviewFileRoute
   '/api/provider-usage': typeof ApiProviderUsageRoute
   '/api/send': typeof ApiSendRoute
   '/api/send-stream': typeof ApiSendStreamRoute
@@ -1243,8 +1216,6 @@ export interface FileRouteTypes {
     | '/api/claude-tasks'
     | '/api/claude-tasks-assignees'
     | '/api/claude-update'
-    | '/api/conductor-spawn'
-    | '/api/conductor-stop'
     | '/api/connection-settings'
     | '/api/connection-status'
     | '/api/context-usage'
@@ -1263,7 +1234,6 @@ export interface FileRouteTypes {
     | '/api/paths'
     | '/api/ping'
     | '/api/plugins'
-    | '/api/preview-file'
     | '/api/provider-usage'
     | '/api/send'
     | '/api/send-stream'
@@ -1376,8 +1346,6 @@ export interface FileRouteTypes {
     | '/api/claude-tasks'
     | '/api/claude-tasks-assignees'
     | '/api/claude-update'
-    | '/api/conductor-spawn'
-    | '/api/conductor-stop'
     | '/api/connection-settings'
     | '/api/connection-status'
     | '/api/context-usage'
@@ -1396,7 +1364,6 @@ export interface FileRouteTypes {
     | '/api/paths'
     | '/api/ping'
     | '/api/plugins'
-    | '/api/preview-file'
     | '/api/provider-usage'
     | '/api/send'
     | '/api/send-stream'
@@ -1510,8 +1477,6 @@ export interface FileRouteTypes {
     | '/api/claude-tasks'
     | '/api/claude-tasks-assignees'
     | '/api/claude-update'
-    | '/api/conductor-spawn'
-    | '/api/conductor-stop'
     | '/api/connection-settings'
     | '/api/connection-status'
     | '/api/context-usage'
@@ -1530,7 +1495,6 @@ export interface FileRouteTypes {
     | '/api/paths'
     | '/api/ping'
     | '/api/plugins'
-    | '/api/preview-file'
     | '/api/provider-usage'
     | '/api/send'
     | '/api/send-stream'
@@ -1645,8 +1609,6 @@ export interface RootRouteChildren {
   ApiClaudeTasksRoute: typeof ApiClaudeTasksRouteWithChildren
   ApiClaudeTasksAssigneesRoute: typeof ApiClaudeTasksAssigneesRoute
   ApiClaudeUpdateRoute: typeof ApiClaudeUpdateRoute
-  ApiConductorSpawnRoute: typeof ApiConductorSpawnRoute
-  ApiConductorStopRoute: typeof ApiConductorStopRoute
   ApiConnectionSettingsRoute: typeof ApiConnectionSettingsRoute
   ApiConnectionStatusRoute: typeof ApiConnectionStatusRoute
   ApiContextUsageRoute: typeof ApiContextUsageRoute
@@ -1665,7 +1627,6 @@ export interface RootRouteChildren {
   ApiPathsRoute: typeof ApiPathsRoute
   ApiPingRoute: typeof ApiPingRoute
   ApiPluginsRoute: typeof ApiPluginsRoute
-  ApiPreviewFileRoute: typeof ApiPreviewFileRoute
   ApiProviderUsageRoute: typeof ApiProviderUsageRoute
   ApiSendRoute: typeof ApiSendRoute
   ApiSendStreamRoute: typeof ApiSendStreamRoute
@@ -1977,13 +1938,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProviderUsageRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/preview-file': {
-      id: '/api/preview-file'
-      path: '/api/preview-file'
-      fullPath: '/api/preview-file'
-      preLoaderRoute: typeof ApiPreviewFileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/plugins': {
       id: '/api/plugins'
       path: '/api/plugins'
@@ -2108,20 +2062,6 @@ declare module '@tanstack/react-router' {
       path: '/api/connection-settings'
       fullPath: '/api/connection-settings'
       preLoaderRoute: typeof ApiConnectionSettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/conductor-stop': {
-      id: '/api/conductor-stop'
-      path: '/api/conductor-stop'
-      fullPath: '/api/conductor-stop'
-      preLoaderRoute: typeof ApiConductorStopRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/conductor-spawn': {
-      id: '/api/conductor-spawn'
-      path: '/api/conductor-spawn'
-      fullPath: '/api/conductor-spawn'
-      preLoaderRoute: typeof ApiConductorSpawnRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/claude-update': {
@@ -2861,8 +2801,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiClaudeTasksRoute: ApiClaudeTasksRouteWithChildren,
   ApiClaudeTasksAssigneesRoute: ApiClaudeTasksAssigneesRoute,
   ApiClaudeUpdateRoute: ApiClaudeUpdateRoute,
-  ApiConductorSpawnRoute: ApiConductorSpawnRoute,
-  ApiConductorStopRoute: ApiConductorStopRoute,
   ApiConnectionSettingsRoute: ApiConnectionSettingsRoute,
   ApiConnectionStatusRoute: ApiConnectionStatusRoute,
   ApiContextUsageRoute: ApiContextUsageRoute,
@@ -2881,7 +2819,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPathsRoute: ApiPathsRoute,
   ApiPingRoute: ApiPingRoute,
   ApiPluginsRoute: ApiPluginsRoute,
-  ApiPreviewFileRoute: ApiPreviewFileRoute,
   ApiProviderUsageRoute: ApiProviderUsageRoute,
   ApiSendRoute: ApiSendRoute,
   ApiSendStreamRoute: ApiSendStreamRoute,
