@@ -17,6 +17,7 @@ import { flattenConfig } from './lib/flatten-config'
 import type { SidebarGroup } from './components/sidebar-tree'
 import { useDirtyCount, useSettingsStore } from '@/stores/settings-store'
 import { getConfig } from '@/lib/hermes-client'
+import { toast } from '@/components/ui/toast'
 
 // ── Lazy section components ───────────────────────────────────────────────
 const SectionWorkspace = lazy(() => import('./sections/section-workspace'))
@@ -218,6 +219,36 @@ export function SettingsScreen() {
     URL.revokeObjectURL(url)
   }
 
+  function handleImport() {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'application/json,.json'
+    input.onchange = () => {
+      const file = input.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = () => {
+        try {
+          const text = String(reader.result ?? '')
+          const parsed = JSON.parse(text) as Record<string, unknown>
+          if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+            throw new Error('Expected a JSON object')
+          }
+          const committed = useSettingsStore.getState().committed
+          useSettingsStore.getState().load({ ...committed, ...parsed })
+          // Re-flag every imported key as dirty so user can review + Save
+          const setKey = useSettingsStore.getState().set
+          for (const [k, v] of Object.entries(parsed)) setKey(k, v)
+          toast(`Imported ${Object.keys(parsed).length} settings`, { type: 'success' })
+        } catch (err) {
+          toast(err instanceof Error ? err.message : 'Import failed', { type: 'error' })
+        }
+      }
+      reader.readAsText(file)
+    }
+    input.click()
+  }
+
   return (
     <div className="settings-shell" data-screen="settings">
       {/* Sidebar tree */}
@@ -274,6 +305,7 @@ export function SettingsScreen() {
           onSave={handleSave}
           onReset={reset}
           onExport={handleExport}
+          onImport={handleImport}
         />
       </div>
     </div>
