@@ -1,23 +1,15 @@
 <claude-mem-context>
 # Memory Context
 
-# [hermes-switchui/hermes-switchui-a] recent context, 2026-05-13 8:21am GMT+2
+# [hermes-switchui/hermes-switchui-a] recent context, 2026-05-13 8:26am GMT+2
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (16,340t read) | 942,383t work | 98% savings
+Stats: 50 obs (16,499t read) | 959,805t work | 98% savings
 
 ### May 12, 2026
-5076 6:09p 🟣 Settings added as routed NavItem in primary-nav-v2.tsx with dedicated group label
-5077 " 🟣 Committed f7f1f5a0: Settings nav group shipped to feat/next-2
-5078 6:11p 🔵 Skills screen and CSS file inventory for hermes-switchui-a
-5079 " 🔵 SkillsScreen architecture: 3-column layout with collapsible sk-filter panel
-5080 " 🔄 matrix-settings.css sidebar (.side) restyled to match matrix-skills.css filter panel pattern
-5081 " 🔄 matrix-settings.css sidebar items: hide icon placeholder span, fix group padding, item margin
-5082 " 🔄 matrix-settings.css sidebar CSS finalized; tsc clean confirmed
-5083 6:13p 🔵 Profiles screen API architecture and data flow
 5084 6:20p 🔵 /api/profiles/list is a TanStack Start server route, not a Python backend endpoint
 5085 " 🔵 Profiles page shows 2 rows because only 2 disk profiles exist — not a bug
 5086 6:21p 🔵 Python backend /api/profiles returns only 2 profiles (default + neo) — confirmed via live curl
@@ -33,7 +25,6 @@ Stats: 50 obs (16,340t read) | 942,383t work | 98% savings
 5096 " ✅ Settings dialog provider/model cards refactored to semantic chip classes
 5097 7:28p 🔄 Custom endpoint Base URL row migrated to semantic row/btn/ctl classes
 5098 " 🔄 SettingsDialog DOM structure simplified — wrapper div removed
-S1132 Matrix theme CSS refactor for settings dialog — commit, push, and restart clean dev server (May 12 at 7:34 PM)
 S1133 Matrix theme CSS refactor for settings dialog — commit pushed, dev server clean restart confirmed (May 12 at 7:36 PM)
 S1134 Matrix theme CSS refactor for hermes-switchui-a settings dialog — all work committed, dev server live (May 12 at 7:40 PM)
 S1135 Continue CSS variable refactoring of settings-dialog.tsx & audit TypeScript compilation; async agent rebuilding dialog for Matrix theme consistency (May 12 at 7:41 PM)
@@ -68,19 +59,33 @@ S1140 Settings screen visual refactor — sidebar aligned to Skills pattern, lay
 5122 8:14p 🔴 Settings Grid Root Layout Fixed for Nested Container
 5123 " 🔴 Sidebar Width Deduplication — Removed Explicit 280px from .side Rule
 5124 8:15p 🔴 Settings 2-Col Layout Fix Committed and Pushed
+S1141 Session resume — dev server restart for visual verification of settings screen changes (May 12 at 8:15 PM)
 ### May 13, 2026
 5125 8:17a ⚖️ Session Resume — Settings CSS Refactor Ongoing
-S1141 Session resume — dev server restart for visual verification of settings screen changes (May 13 at 8:17 AM)
-**Investigated**: Dev server status, localhost:3001 availability, app root HTML to confirm app is running
+5132 " 🔴 mutedStyle TypeScript Error Fixed
+5133 " 🔴 Settings 2-Col Layout Root Cause Found and Fixed
+5126 8:21a 🔵 Settings 2-col grid layout broken — root cause investigation started
+5127 " 🔵 Settings grid root cause: workspace-shell uses flex-col, child height chain needs tracing
+5128 8:22a 🔵 Root cause confirmed: settings grid missing height anchor class vs skills using h-screen
+5129 " 🔵 CSS conflict: matrix-settings-dialog.css overrides grid with display:flex !important
+5130 " 🔴 Settings 2-col grid layout fixed via settings-shell class scoping
+5131 8:23a 🔴 TypeScript check passes: 0 errors after settings layout fix
+S1142 Settings 2-col layout fix — dialog CSS collision with page shell grid resolved (May 13 at 8:24 AM)
+**Investigated**: matrix-settings-dialog.css global selectors, settings-screen.tsx root element class, workspace-shell.tsx parent layout, skills-screen.tsx reference 2-col pattern, matrix-settings.css grid rules
 
-**Learned**: Dev server uses Vite v7.3.2, runs on localhost:3001. App nav includes Settings, Skills, Memory, Themes, Log. hermes-agent process reuses existing process on restart.
+**Learned**: matrix-settings-dialog.css had `[data-screen="settings"] { display: flex !important; flex-direction: column }` — same attribute selector as page shell grid, overriding it with !important. Page CSS and dialog CSS must never share the same root selector. Skills screen works because its data-screen value ("skills") has no dialog stylesheet collision.
 
-**Completed**: Dev server restarted clean (pkill vite + rm routeTree.gen.ts + PORT=3001 pnpm dev). Server confirmed up at localhost:3001.
+**Completed**: - mutedStyle bug fixed: `style={mutedStyle}` removed from settings-dialog.tsx line 472, tsc clean
+    - settings-screen.tsx root element given `settings-shell` class in addition to data-screen attribute
+    - matrix-settings.css 2-col grid + .side/.main/.body/.content rules re-scoped to `.settings-shell` class
+    - min-height: 0 added on grid children for full-height scrolling
+    - Committed f891b467 on feat/next-2: 4 files, 94 insertions, 74 deletions
+    - Pushed to origin
 
-**Next Steps**: Visual verification of /settings page — check 2-col layout restored (572c2934 fix) and sidebar matches Skills filter style. Outstanding: mutedStyle TypeScript bug in settings-dialog.tsx still needs minimal fix.
+**Next Steps**: Visual verification at localhost:3001/settings — sidebar should be in column 1, main panel in column 2, both full height. Dev server running on port 3001.
 
 
-Access 942k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 960k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>
 
 ## graphify

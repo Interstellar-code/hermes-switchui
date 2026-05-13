@@ -47,7 +47,7 @@ export function SidebarTree({ groups, activeId, onSelect }: SidebarTreeProps) {
     : groups
 
   return (
-    <nav className="side" aria-label="Settings navigation">
+    <nav className="side sk-filter" aria-label="Settings navigation">
       <div className="sk-filter-search search">
         <IconSearch />
         <input
@@ -59,30 +59,32 @@ export function SidebarTree({ groups, activeId, onSelect }: SidebarTreeProps) {
         />
       </div>
 
-      {filtered.map((group) => (
-        <div key={group.label} className="sk-filter-section">
-          <div className="grp sec-label">
-            <span>{group.label}</span>
-            <span className="ct">{group.items.length}</span>
+      <div className="sk-filter-body">
+        {filtered.map((group) => (
+          <div key={group.label} className="sk-filter-section">
+            <div className="grp sec-label">
+              <span>{group.label}</span>
+              <span className="ct">{group.items.length}</span>
+            </div>
+            <div className="sk-filter-list">
+              {group.items.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`sk-filter-item${activeId === item.id ? ' active' : ''}${item.dirty ? ' dirty' : ''}`}
+                  onClick={() => onSelect(item.id)}
+                  aria-current={activeId === item.id ? 'page' : undefined}
+                >
+                  <span>{item.label}</span>
+                  {(item.badge !== undefined || item.dirty) && (
+                    <span className="item-ct">{item.dirty ? '●' : item.badge}</span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="sk-filter-list">
-            {group.items.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={`sk-filter-item item${activeId === item.id ? ' on' : ''}${item.dirty ? ' dirty' : ''}`}
-                onClick={() => onSelect(item.id)}
-                aria-current={activeId === item.id ? 'page' : undefined}
-              >
-                <span>{item.label}</span>
-                {(item.badge !== undefined || item.dirty) && (
-                  <span className="badge item-ct">{item.dirty ? '●' : item.badge}</span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </nav>
   )
 }

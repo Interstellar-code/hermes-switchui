@@ -220,24 +220,24 @@
 
 /* ── Sidebar tree ────────────────────────────────────────────────────────── */
 
-[data-screen="settings"].settings-shell .side {
+[data-screen="settings"].settings-shell .side.sk-filter {
   border-right: 1px solid var(--m-border);
   background: var(--m-panel);
-  overflow: auto;
-  padding: 6px 0;
+  overflow: hidden;
+  padding: 0;
   display: flex;
   flex-direction: column;
   min-width: 0;
   height: 100%;
 }
 
-[data-screen="settings"] .side .sk-filter-search {
+[data-screen="settings"] .side.sk-filter .sk-filter-search {
   padding: 10px 14px;
   flex-shrink: 0;
   position: relative;
 }
 
-[data-screen="settings"] .side .search svg {
+[data-screen="settings"] .side.sk-filter .search svg {
   position: absolute;
   left: 18px;
   width: 14px;
@@ -246,7 +246,7 @@
   pointer-events: none;
 }
 
-[data-screen="settings"] .side .sk-filter-search input {
+[data-screen="settings"] .side.sk-filter .sk-filter-search input {
   width: 100%;
   height: 32px;
   background: var(--m-bg);
@@ -259,20 +259,26 @@
   transition: border-color var(--m-dur-fast, 100ms);
 }
 
-[data-screen="settings"] .side .sk-filter-search input::placeholder {
+[data-screen="settings"] .side.sk-filter .sk-filter-search input::placeholder {
   color: var(--m-text-ghost);
 }
 
-[data-screen="settings"] .side .sk-filter-search input:focus {
+[data-screen="settings"] .side.sk-filter .sk-filter-search input:focus {
   border-color: var(--m-green-500);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--m-green-500) 15%, transparent);
 }
 
-[data-screen="settings"] .side .sk-filter-section {
+[data-screen="settings"] .side.sk-filter .sk-filter-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+[data-screen="settings"] .side.sk-filter .sk-filter-section {
   padding: 4px 14px 8px;
 }
 
-[data-screen="settings"] .side .grp {
+[data-screen="settings"] .side.sk-filter .grp {
   font: 600 9.5px var(--m-font-mono, ui-monospace, monospace);
   text-transform: uppercase;
   letter-spacing: .18em;
@@ -283,7 +289,7 @@
   margin-bottom: 6px;
 }
 
-[data-screen="settings"] .side .grp .ct {
+[data-screen="settings"] .side.sk-filter .grp .ct {
   margin-left: auto;
   color: var(--m-text-ghost, var(--theme-muted));
   font: 600 10px var(--m-font-mono, ui-monospace, monospace);
@@ -293,14 +299,13 @@
   border-radius: 999px;
 }
 
-[data-screen="settings"] .side .sk-filter-list {
+[data-screen="settings"] .side.sk-filter .sk-filter-list {
   display: flex;
   flex-direction: column;
   gap: 1px;
 }
 
-[data-screen="settings"] .side .item,
-[data-screen="settings"] .side .sk-filter-item {
+[data-screen="settings"] .side.sk-filter .sk-filter-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -317,37 +322,21 @@
   transition: background var(--m-dur-fast, 100ms), color var(--m-dur-fast, 100ms);
 }
 
-[data-screen="settings"] .side .item:hover,
-[data-screen="settings"] .side .sk-filter-item:hover {
+[data-screen="settings"] .side.sk-filter .sk-filter-item:hover {
   background: var(--m-fill-subtle, var(--theme-hover));
   color: var(--m-text);
 }
 
-[data-screen="settings"] .side .item.on,
-[data-screen="settings"] .side .sk-filter-item.active {
+[data-screen="settings"] .side.sk-filter .sk-filter-item.active {
   background: color-mix(in srgb, var(--m-green-500, #00ff41) 10%, transparent);
   color: var(--m-green-500, #00ff41);
 }
 
-[data-screen="settings"] .side .sk-filter-item .item-ct,
-[data-screen="settings"] .side .item .badge {
+[data-screen="settings"] .side.sk-filter .sk-filter-item .item-ct {
   font: 500 9.5px var(--m-font-mono, ui-monospace, monospace);
   color: var(--m-text-ghost, var(--theme-muted));
   min-width: 18px;
   text-align: right;
-}
-
-[data-screen="settings"] .side .item.on .badge,
-[data-screen="settings"] .side .sk-filter-item.active .item-ct {
-  color: var(--m-green-500, #00ff41);
-}
-
-[data-screen="settings"] .side .item.on .badge {
-  color: var(--m-green-500, #00ff41);
-}
-
-[data-screen="settings"] .side .item.dirty .badge {
-  color: #ffb347;
 }
 
 /* ── Content area ────────────────────────────────────────────────────────── */
