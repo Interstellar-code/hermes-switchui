@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WorkflowsRouteImport } from './routes/workflows'
 import { Route as TerminalRouteImport } from './routes/terminal'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as SkillsRouteImport } from './routes/skills'
@@ -153,6 +154,11 @@ import { Route as ApiHermesKanbanTasksTaskIdCommentsRouteImport } from './routes
 import { Route as ApiConductorMissionsIdAbortRouteImport } from './routes/api/conductor/missions.$id.abort'
 import { Route as ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRouteImport } from './routes/api/hermes-kanban/tasks.$taskId.home-subscribe.$platform'
 
+const WorkflowsRoute = WorkflowsRouteImport.update({
+  id: '/workflows',
+  path: '/workflows',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TerminalRoute = TerminalRouteImport.update({
   id: '/terminal',
   path: '/terminal',
@@ -900,6 +906,7 @@ export interface FileRoutesByFullPath {
   '/skills': typeof SkillsRoute
   '/tasks': typeof TasksRoute
   '/terminal': typeof TerminalRoute
+  '/workflows': typeof WorkflowsRoute
   '/api/artifacts': typeof ApiArtifactsRouteWithChildren
   '/api/auth': typeof ApiAuthRoute
   '/api/auth-check': typeof ApiAuthCheckRoute
@@ -1044,6 +1051,7 @@ export interface FileRoutesByTo {
   '/skills': typeof SkillsRoute
   '/tasks': typeof TasksRoute
   '/terminal': typeof TerminalRoute
+  '/workflows': typeof WorkflowsRoute
   '/api/artifacts': typeof ApiArtifactsRouteWithChildren
   '/api/auth': typeof ApiAuthRoute
   '/api/auth-check': typeof ApiAuthCheckRoute
@@ -1190,6 +1198,7 @@ export interface FileRoutesById {
   '/skills': typeof SkillsRoute
   '/tasks': typeof TasksRoute
   '/terminal': typeof TerminalRoute
+  '/workflows': typeof WorkflowsRoute
   '/api/artifacts': typeof ApiArtifactsRouteWithChildren
   '/api/auth': typeof ApiAuthRoute
   '/api/auth-check': typeof ApiAuthCheckRoute
@@ -1337,6 +1346,7 @@ export interface FileRouteTypes {
     | '/skills'
     | '/tasks'
     | '/terminal'
+    | '/workflows'
     | '/api/artifacts'
     | '/api/auth'
     | '/api/auth-check'
@@ -1481,6 +1491,7 @@ export interface FileRouteTypes {
     | '/skills'
     | '/tasks'
     | '/terminal'
+    | '/workflows'
     | '/api/artifacts'
     | '/api/auth'
     | '/api/auth-check'
@@ -1626,6 +1637,7 @@ export interface FileRouteTypes {
     | '/skills'
     | '/tasks'
     | '/terminal'
+    | '/workflows'
     | '/api/artifacts'
     | '/api/auth'
     | '/api/auth-check'
@@ -1772,6 +1784,7 @@ export interface RootRouteChildren {
   SkillsRoute: typeof SkillsRoute
   TasksRoute: typeof TasksRoute
   TerminalRoute: typeof TerminalRoute
+  WorkflowsRoute: typeof WorkflowsRoute
   ApiArtifactsRoute: typeof ApiArtifactsRouteWithChildren
   ApiAuthRoute: typeof ApiAuthRoute
   ApiAuthCheckRoute: typeof ApiAuthCheckRoute
@@ -1865,6 +1878,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/workflows': {
+      id: '/workflows'
+      path: '/workflows'
+      fullPath: '/workflows'
+      preLoaderRoute: typeof WorkflowsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/terminal': {
       id: '/terminal'
       path: '/terminal'
@@ -3145,6 +3165,7 @@ const rootRouteChildren: RootRouteChildren = {
   SkillsRoute: SkillsRoute,
   TasksRoute: TasksRoute,
   TerminalRoute: TerminalRoute,
+  WorkflowsRoute: WorkflowsRoute,
   ApiArtifactsRoute: ApiArtifactsRouteWithChildren,
   ApiAuthRoute: ApiAuthRoute,
   ApiAuthCheckRoute: ApiAuthCheckRoute,
