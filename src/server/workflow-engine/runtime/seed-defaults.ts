@@ -32,7 +32,11 @@ export function seedBundledWorkflows(store: SwitchUiWorkflowStore): SeedResult {
 
     const id = idFromFilename(filename);
     const existing = store.getWorkflowDefinition(id);
-    const checksum = createHash('sha256').update(yaml).digest('hex');
+    // Codex Bundle 3 Q6 fix: normalize CRLF→LF before hashing so the same
+    // YAML content produces the same checksum regardless of git autocrlf or
+    // Windows tooling. Storage retains the original bytes.
+    const normalized = yaml.replace(/\r\n/g, '\n');
+    const checksum = createHash('sha256').update(normalized).digest('hex');
     if (existing && existing.checksum === checksum) {
       skipped += 1;
       continue;
