@@ -633,6 +633,34 @@ export class SwitchUiWorkflowStore {
   }
 
   // ----------------------------------------------------------
+  // A.5 Q1 — atomic approval claim (compare-and-swap)
+  // ----------------------------------------------------------
+
+  /**
+   * Atomically claim an approval decision using UPDATE … WHERE status='paused'.
+   *
+   * Returns { claimed: true } if the row was actually updated (this caller wins
+   * the race). Returns { claimed: false } if another request already processed
+   * the approval (status was no longer 'paused' when we ran the UPDATE).
+   */
+  tryClaimApprovalForResume(
+    nodeRunId: string,
+    decision: 'approved' | 'rejected',
+    approvalResponse: string,
+  ): { claimed: boolean; terminalStatus: 'completed' | 'failed' } {
+    const terminalStatus = decision === 'approved' ? 'completed' : 'failed';
+    const now = Date.now();
+    const result = this.db
+      .prepare(
+        `UPDATE node_runs
+            SET status=?, approval_response=?, completed_at=?
+          WHERE id=? AND status='paused'`
+      )
+      .run(terminalStatus, approvalResponse, now, nodeRunId);
+    return { claimed: result.changes === 1, terminalStatus };
+  }
+
+  // ----------------------------------------------------------
   // 6 Additional Helpers
   // ----------------------------------------------------------
 
