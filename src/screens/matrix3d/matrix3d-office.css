@@ -274,6 +274,11 @@
 .matrix3d-rain {
   position: absolute;
   inset: 0;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 100%;
+  min-height: 100%;
   pointer-events: none;
   opacity: 0.45;
 }
