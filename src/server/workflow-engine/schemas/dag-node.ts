@@ -162,6 +162,13 @@ export const dagNodeBaseSchema = z.object({
   fallbackModel: z.string().min(1).optional(),
   betas: z.array(z.string().min(1)).nonempty("'betas' must be a non-empty array").optional(),
   sandbox: sandboxSettingsSchema.optional(),
+  hermes_task: z
+    .object({
+      skills: z.array(z.string()).optional(),
+      agent_hint: z.string().optional(),
+      model_hint: z.string().optional(),
+    })
+    .optional(),
 });
 
 export type DagNodeBase = z.infer<typeof dagNodeBaseSchema>;
@@ -563,6 +570,7 @@ export const dagNodeSchema = dagNodeBaseSchema
       ...(data.fallbackModel !== undefined ? { fallbackModel: data.fallbackModel } : {}),
       ...(data.betas !== undefined ? { betas: data.betas } : {}),
       ...(data.sandbox !== undefined ? { sandbox: data.sandbox } : {}),
+      ...(data.hermes_task !== undefined ? { hermes_task: data.hermes_task } : {}),
     };
 
     if (data.command !== undefined && data.command.trim().length > 0) {
@@ -599,7 +607,11 @@ export const dagNodeSchema = dagNodeBaseSchema
     }
     // loop — guaranteed by superRefine to be defined at this point
     if (!data.loop) throw new Error('unreachable: loop must be defined after superRefine');
-    return { ...base, loop: data.loop } as LoopNode;
+    return {
+      ...base,
+      loop: data.loop,
+      ...(data.hermes_task !== undefined ? { hermes_task: data.hermes_task } : {}),
+    } as LoopNode;
   })
   .openapi('DagNode');
 
