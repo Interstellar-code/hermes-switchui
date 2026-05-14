@@ -30,6 +30,15 @@ export interface LaunchInput {
   codebaseId?: string;
   /** Optional parent conversation id. */
   parentConversationId?: string;
+  /**
+   * A.5 resume re-entry flag.
+   *
+   * When true, launchWorkflowRun skips the plan→route and route→execute
+   * recordPhaseTransition calls (they already exist from the first launch).
+   * Only the status='running' update and the DAG IIFE are executed, allowing
+   * the executor's preCreatedRun path to continue from where it paused.
+   */
+  resumeMode?: boolean;
 }
 
 /**
@@ -54,21 +63,25 @@ export async function launchWorkflowRun(
   }
   const workflow = parsed.workflow;
 
-  // 2. plan → route (system — launch wizard pre-collected all route info)
-  await store.recordPhaseTransition({
-    runId: input.runId,
-    toPhase: 'route',
-    decidedBy: 'system',
-    decisionData: { reason: 'launch-wizard-precollected' },
-  });
+  if (!input.resumeMode) {
+    // 2. plan → route (system — launch wizard pre-collected all route info)
+    await store.recordPhaseTransition({
+      runId: input.runId,
+      toPhase: 'route',
+      decidedBy: 'system',
+      decisionData: { reason: 'launch-wizard-precollected' },
+    });
 
-  // 3. route → execute (engine — no human routing needed for v1)
-  await store.recordPhaseTransition({
-    runId: input.runId,
-    toPhase: 'execute',
-    decidedBy: 'engine',
-    decisionData: { workflow_id: input.workflowId },
-  });
+    // 3. route → execute (engine — no human routing needed for v1)
+    await store.recordPhaseTransition({
+      runId: input.runId,
+      toPhase: 'execute',
+      decidedBy: 'engine',
+      decisionData: { workflow_id: input.workflowId },
+    });
+  }
+  // resumeMode=true: skip phase transitions (already recorded on first launch).
+  // The DAG executor picks up existing state via preCreatedRun + getCompletedDagNodeOutputs.
 
   // 4. Mark run as running.
   await store.updateWorkflowRun(input.runId, { status: 'running' });

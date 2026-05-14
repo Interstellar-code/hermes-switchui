@@ -68,6 +68,8 @@ export interface WorkflowEngine {
     seededDefinitions: number;
     seedErrors: number;
     manifestWritten: number;
+    /** A.5: runs still in 'paused' state after orphan reaping — awaiting user approval. */
+    pausedAwaitingApproval: number;
   };
   /** Stop the consumer and close the store. Safe to call multiple times. */
   shutdown(): Promise<void>;
@@ -170,6 +172,14 @@ async function _buildEngine(
   // 3. Fail orphaned workflow_runs from the previous boot.
   const { count: orphanedRuns } = await store.failOrphanedRuns(orphanThresholdMs);
 
+  // 3a. A.5: surface paused runs awaiting approval (not auto-resumed — explicit user action required).
+  const pausedRows = store.listWorkflowRuns({ statuses: ['paused'], limit: 100 });
+  const pausedAwaitingApproval = pausedRows.length;
+  if (pausedAwaitingApproval > 0) {
+    // eslint-disable-next-line no-console
+    console.warn(`[engine] ${pausedAwaitingApproval} workflow_run(s) in 'paused' state — awaiting approval`);
+  }
+
   // 3. Build consumer (no dispatcher wired yet — order matters because
   //    dispatcher needs consumer to call .track() in its onTaskCreated hook).
   const consumer = new TaskEventConsumer({
@@ -256,7 +266,7 @@ async function _buildEngine(
     deps,
     projector,
     cronPoller,
-    boot: { orphanedRuns, recoveredDispatches, seededDefinitions, seedErrors, manifestWritten: manifestResult.entriesWritten },
+    boot: { orphanedRuns, recoveredDispatches, seededDefinitions, seedErrors, manifestWritten: manifestResult.entriesWritten, pausedAwaitingApproval },
     async shutdown() {
       cronPoller.stop();
       projector.stop();
