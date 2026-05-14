@@ -54,14 +54,14 @@ describe("TaskEventConsumer", () => {
     expect(consumer.size()).toBe(0);
   });
 
-  it("flips to 'paused' on blocked, keeps tracking", async () => {
+  it("flips to 'failed' on blocked (canonical mapping)", async () => {
     const store = stubStore();
     const fetchTask = vi.fn().mockResolvedValue(task("blocked"));
     const consumer = new TaskEventConsumer({ store, fetchTask });
     consumer.track({ kanbanTaskId: "k-1", nodeRunId: "n-1", workflowRunId: "w-1" });
     await consumer.tick();
-    expect(store.updateNodeRun).toHaveBeenCalledWith("n-1", expect.objectContaining({ status: "paused" }));
-    expect(consumer.size()).toBe(0); // paused is terminal-for-tracking
+    expect(store.updateNodeRun).toHaveBeenCalledWith("n-1", expect.objectContaining({ status: "failed" }));
+    expect(consumer.size()).toBe(0); // failed is terminal-for-tracking
   });
 
   it("leaves in-flight statuses (running/ready/etc.) untouched", async () => {
@@ -99,7 +99,7 @@ describe("TaskEventConsumer", () => {
 describe("mapTerminalStatus", () => {
   it("maps Kanban terminal statuses correctly", () => {
     expect(mapTerminalStatus("done")).toBe("completed");
-    expect(mapTerminalStatus("blocked")).toBe("paused");
+    expect(mapTerminalStatus("blocked")).toBe("failed");
     expect(mapTerminalStatus("archived")).toBe("cancelled");
     expect(mapTerminalStatus("running")).toBeNull();
     expect(mapTerminalStatus("ready")).toBeNull();

@@ -15,6 +15,7 @@ import type {
   ProviderCapabilities,
   SendQueryOptions,
 } from '../stubs/providers-types';
+import { TERMINAL_KANBAN_STATUSES } from './kanban-status';
 
 export type CreateKanbanTaskFn = (
   input: CreateKanbanTaskInput,
@@ -40,9 +41,13 @@ export interface KanbanDispatcherOpts {
   fetchTask?: FetchKanbanTaskFn;
   /** Poll interval ms. Default 3_000. */
   pollIntervalMs?: number;
+  /**
+   * Hard cap on how long sendQuery will poll before throwing. Default 1_800_000
+   * (30 min). Bounds dispatcher.sendQuery wall time independent of dag-executor
+   * idle-timeout. Codex Bundle 2 Q1 fix.
+   */
+  maxWallTimeMs?: number;
 }
-
-const TERMINAL_KANBAN_STATUSES = new Set<HermesKanbanStatus>(['done', 'blocked', 'archived']);
 
 const KANBAN_CAPABILITIES: ProviderCapabilities = {
   sessionResume: false,
@@ -65,10 +70,12 @@ export class KanbanDispatcher implements IAgentProvider {
   private readonly createTaskFn: CreateKanbanTaskFn;
   private readonly fetchTaskFn: FetchKanbanTaskFn;
   private readonly pollIntervalMs: number;
+  private readonly maxWallTimeMs: number;
 
   constructor(opts: KanbanDispatcherOpts = {}) {
     this.onTaskCreated = opts.onTaskCreated;
     this.pollIntervalMs = opts.pollIntervalMs ?? 3_000;
+    this.maxWallTimeMs = opts.maxWallTimeMs ?? 1_800_000;
     if (opts.createTask) {
       this.createTaskFn = opts.createTask;
     } else {
@@ -139,32 +146,75 @@ export class KanbanDispatcher implements IAgentProvider {
     // node-complete, so blocking here is what gives node_runs the correct
     // lifecycle: pending → running (during poll) → completed/failed when
     // the Kanban worker finishes.
+    //
+    // Codex Bundle 2 Q1 + Q5 fixes:
+    //   - maxWallTimeMs hard-caps total poll wall time (default 30 min)
+    //   - try/finally clears pending sleep timer if the consumer calls
+    //     generator.return() mid-poll (e.g. dag-executor idle-timeout fires).
+    //     The in-flight fetchTask promise still resolves naturally — we can't
+    //     abort fetch from here without an AbortController plumbed through
+    //     fetchTaskFn, which is gateway-client work outside this slice.
     let lastStatus: HermesKanbanStatus | null = null;
     let terminalDetail: HermesKanbanTaskDetail | null = null;
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      await new Promise((r) => setTimeout(r, this.pollIntervalMs));
-      let detail: HermesKanbanTaskDetail;
-      try {
-        detail = await this.fetchTaskFn(kanbanTaskId);
-      } catch {
-        // Transient gateway failure — keep polling. Persistent outages are
-        // bounded by the dag-executor's idle-timeout wrapper around
-        // sendQuery, which will tear down the generator.
-        continue;
+    const deadline = Date.now() + this.maxWallTimeMs;
+    let activeSleepTimer: ReturnType<typeof setTimeout> | null = null;
+    let activeSleepReject: ((err: Error) => void) | null = null;
+
+    function cancellableSleep(ms: number): Promise<void> {
+      return new Promise<void>((resolve, reject) => {
+        activeSleepReject = reject;
+        activeSleepTimer = setTimeout(() => {
+          activeSleepTimer = null;
+          activeSleepReject = null;
+          resolve();
+        }, ms);
+      });
+    }
+
+    function clearActiveSleep(): void {
+      if (activeSleepTimer !== null) {
+        clearTimeout(activeSleepTimer);
+        activeSleepTimer = null;
       }
-      const status = detail.task.status;
-      if (status !== lastStatus) {
-        lastStatus = status;
-        yield {
-          type: 'assistant',
-          content: `[kanban] task ${kanbanTaskId} → ${status}`,
-        } satisfies MessageChunk;
+      activeSleepReject = null;
+    }
+
+    try {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        if (Date.now() >= deadline) {
+          throw new Error(
+            `Kanban task ${kanbanTaskId} exceeded ${this.maxWallTimeMs}ms wall-time cap before reaching terminal status (last=${lastStatus ?? 'none'}).`,
+          );
+        }
+        await cancellableSleep(this.pollIntervalMs);
+        let detail: HermesKanbanTaskDetail;
+        try {
+          detail = await this.fetchTaskFn(kanbanTaskId);
+        } catch {
+          // Transient gateway failure — keep polling until the deadline.
+          continue;
+        }
+        const status = detail.task.status;
+        if (status !== lastStatus) {
+          lastStatus = status;
+          yield {
+            type: 'assistant',
+            content: `[kanban] task ${kanbanTaskId} → ${status}`,
+          } satisfies MessageChunk;
+        }
+        if (TERMINAL_KANBAN_STATUSES.has(status)) {
+          terminalDetail = detail;
+          break;
+        }
       }
-      if (TERMINAL_KANBAN_STATUSES.has(status)) {
-        terminalDetail = detail;
-        break;
-      }
+    } finally {
+      // Cancel any pending setTimeout if the consumer abandons the generator.
+      clearActiveSleep();
+    }
+    // Guard against unreachable state (TS narrowing): break sets terminalDetail.
+    if (terminalDetail === null) {
+      throw new Error(`Kanban task ${kanbanTaskId} poll loop exited without a terminal detail.`);
     }
 
     const terminalStatus = terminalDetail.task.status;
