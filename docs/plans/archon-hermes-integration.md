@@ -1,7 +1,7 @@
 # Archon-Hermes Integration Plan
 
 > **Status:** Planning doc — split into two workstreams. Reviewed by Codex (via Neo). Reviewed by Switch (May 13). Gaps closed.
-> **Implementation status (May 15, 2026):** Runtime core complete (A.0–A.4, A.6, A.8, A.11 shipped) + 6-bundle Codex audit cycle cleared (14 findings, 14 fixes). Branch: `feat/conductor-ops-wiring`. 30 commits ahead of `b7d140d4`. 125 vitest passing, 0 tsc errors. See § Implementation Status below.
+> **Implementation status (May 15, 2026):** Workstream A complete except A.7 (workflow-content polish). Runtime + content shipped: A.0–A.6, A.8–A.11. 6-bundle Codex audit cycle cleared (14 findings, 14 fixes). Branch: `feat/conductor-ops-wiring`. 33 commits ahead of `b7d140d4`. 135 vitest passing, 0 tsc errors. See § Implementation Status below.
 
 ---
 
@@ -17,12 +17,12 @@
 | **A.2.3** Task event consumer | ✅ shipped | Per-task polling. Cold-start reconciliation re-tracks in-flight dispatches. (Live dispatches now resolve inline via dispatcher polling — see A.3.) |
 | **A.3** Kanban dispatcher | ✅ shipped | `IAgentProvider` impl. Inline polling until terminal (done/blocked/archived). Provider aliases: hermes-kanban, claude, codex. |
 | **A.4** Cron triggers | ✅ shipped | PULL-based. `payload.switchui_workflow_id` convention. Per-job cursor in `gateway_event_cursor`. Zero gateway changes. |
-| **A.5** Resume semantics | ⏳ partial | Cancel/resume API + `pauseWorkflowRun` + `findResumableRun` shipped; mid-loop / approval-pause end-to-end not exercised. |
+| **A.5** Resume semantics | ✅ shipped | Approval API + `resumeMode` re-entry. `POST /api/workflow-runs/:runId/approve` flips node_run, resumes the run, re-launches DAG. Engine boot warns on lingering paused runs. End-to-end integration tested. |
 | **A.6** Port 20 bundled YAMLs | ✅ shipped | Auto-seeded on engine boot via `seedBundledWorkflows()`. All 20 parse + insert. |
 | **A.7** v1 subset polish (8 flows + 5-agent review subgraph) | ⏳ pending | YAMLs ship unmodified from upstream archon. |
 | **A.8** 5-phase wrapper | ✅ shipped | `plan → route → execute → review → report`. `recordPhaseTransition` sole writer of `workflow_runs.current_phase`. `launchWorkflowRun` orchestrates the lifecycle. |
-| **A.9** Annotate 8 v1 YAMLs with `hermes_task:` | ⏳ pending | No `hermes_task:` blocks added yet. |
-| **A.10** Launch surfaces + Hermes manifest | ⏳ partial | UI Launch Wizard + cron trigger paths shipped. Manifest at `~/.hermes/switchui-workflows.json` (chat-based launch) not. |
+| **A.9** Annotate 8 v1 YAMLs with `hermes_task:` | ✅ shipped | 23 `hermes_task:` blocks across the 8 v1 YAMLs in `bundled-defaults.generated.ts`. Zod schema extended with optional `hermes_task` field on `dagNodeBaseSchema`. |
+| **A.10** Launch surfaces + Hermes manifest | ✅ shipped | `writeWorkflowsManifest()` writes `~/.hermes/switchui-workflows.json` on every engine boot. Surfaces id/name/description/source/version/tags/node_count/has_loop/has_approval/when_to_use/checksum for every workflow definition. Cron trigger path also shipped (A.4). |
 | **A.11** Reliability contract | ✅ shipped | Single-instance lock (A.1.1), cold-start orphan reaper, cold-start dispatch reconciliation, idempotency key threading via `node_run.id` + Kanban `idempotency_key`. |
 | **B.0** API client layer | ✅ shipped | `src/screens/workflows/api-client.ts` + `use-workflows.ts` (TanStack Query hooks). |
 | **B.1** Conductor page wiring | ⏳ pending | Still on mock data. |
@@ -33,7 +33,7 @@
 | **Bonus** node_runs projector | ✅ shipped | Subscribes to emitter, materialises `node_runs` rows from `node_started/completed/failed/skipped/loop_iteration_*` events. |
 | **Bonus** Parsed-YAML endpoint | ✅ shipped | `GET /api/workflow-definitions/:id/parsed` returns `{ definition, parsed: { nodes[], edges[], has_loop, has_approval, ... } }`. |
 
-**Tests:** 125 passing across 17 vitest files. 0 tsc errors in workflow-engine + routes.
+**Tests:** 135 passing across 20 vitest files. 0 tsc errors in workflow-engine + routes.
 
 **Codex audit cycle (May 14-15, 2026):** 6 bundle audits completed; 14 findings resolved.
 
@@ -47,12 +47,10 @@
 | 6 | UI wiring (B.0 + B.4 + run-detail) | 1 important | d012f2f5 — Q3 double-submit guard |
 
 **Open gaps (priority order):**
-1. **A.5 resume** — exercise mid-loop / approval-pause end-to-end.
-2. **A.9** — annotate the 8 v1 YAMLs with `hermes_task:` blocks (skills/agent_hint/model_hint).
-3. **A.10 manifest** — emit `~/.hermes/switchui-workflows.json` for chat-based launch routing.
-4. **B.1 Conductor page** — replace mock with live engine data.
-5. **B.2 Operations page** — same.
-6. **B.3 Settings page** — dispatcher health + worker pool surfaces.
+1. **B.1 Conductor page** — bridge engine workflow_runs into the existing Mission concept (Conductor is NOT mocked — has own `/api/conductor/*` backend; integration is a design decision).
+2. **B.2 Operations page** — same model question.
+3. **B.3 Settings page** — dispatcher health + worker pool surfaces.
+4. **A.7 v1 subset polish** — 5-agent review subgraph + workflow-content design for the 8 v1 flows. Not engine work; YAML iteration.
 
 ---
 
