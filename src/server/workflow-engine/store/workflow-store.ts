@@ -679,6 +679,14 @@ export class SwitchUiWorkflowStore {
     return row ? rowToNodeRun(row) : null;
   }
 
+  /** Helper: find a node_run by primary key. Sync — used in idempotency guards. */
+  findNodeRunById(id: string): import('./types.js').NodeRun | null {
+    const row = this.db
+      .prepare(`SELECT * FROM node_runs WHERE id=? LIMIT 1`)
+      .get(id) as NodeRunRow | undefined;
+    return row ? rowToNodeRun(row) : null;
+  }
+
   /** Helper -2: list node_runs for a workflow_run, ordered for UI. */
   listNodeRuns(workflowRunId: string): unknown[] {
     return this.db

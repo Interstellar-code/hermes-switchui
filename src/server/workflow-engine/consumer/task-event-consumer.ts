@@ -9,14 +9,19 @@
  * v1 strategy: per-task polling via getKanbanTask(taskId). The gateway has no
  * bulk task_events stream client yet; A.4 / A.11 may switch to true SSE later.
  *
- * Status mapping (Kanban → node_runs):
+ * Status mapping (canonical — shared with the inline dispatcher via
+ * dispatcher/kanban-status.ts):
  *   done       → completed
- *   blocked    → paused
+ *   blocked    → failed
  *   archived   → cancelled
  *   running / ready / todo / triage → no change (still in flight)
  */
 import type { SwitchUiWorkflowStore } from "../store/workflow-store";
 import type { HermesKanbanStatus, HermesKanbanTaskDetail } from "../../../lib/hermes-kanban-types";
+import {
+  kanbanStatusToNodeRunStatus,
+  type TerminalNodeStatus as CanonicalTerminalNodeStatus,
+} from "../dispatcher/kanban-status";
 
 export type TaskFetcher = (taskId: string) => Promise<HermesKanbanTaskDetail>;
 
@@ -29,7 +34,7 @@ export interface TaskEventConsumerOptions {
   onResolved?: (nodeRunId: string, terminalStatus: TerminalNodeStatus) => void;
 }
 
-export type TerminalNodeStatus = "completed" | "paused" | "cancelled" | "failed";
+export type TerminalNodeStatus = CanonicalTerminalNodeStatus;
 
 interface TrackedDispatch {
   kanbanTaskId: string;
@@ -117,6 +122,22 @@ export class TaskEventConsumer {
     terminal: TerminalNodeStatus,
     detail: HermesKanbanTaskDetail,
   ): Promise<void> {
+    // Codex Bundle 2 Q2 idempotency guard: if the projector (or a prior
+    // resumed dispatcher invocation) already marked this node_run terminal,
+    // skip the write. Otherwise the cold-start consumer would clobber a
+    // fresh result with stale summary text.
+    //
+    // SwitchUiWorkflowStore exposes findNodeRun via dag_node_id lookup; we
+    // only have nodeRunId here so use the raw row fetch path via
+    // listNodeRuns (cheap — one workflow's node_runs is a small set).
+    const peer = this.opts.store.findNodeRunById?.(entry.nodeRunId);
+    if (peer && (peer.status === "completed" || peer.status === "failed" || peer.status === "cancelled")) {
+      // Already resolved by the live dispatcher / projector. Drop tracking,
+      // do not double-write.
+      this.tracked.delete(entry.kanbanTaskId);
+      return;
+    }
+
     // Keep the orphan reaper from sweeping this run while children resolve.
     await this.opts.store.heartbeatWorkflowRun(entry.workflowRunId);
     await this.opts.store.updateNodeRun(entry.nodeRunId, {
@@ -137,23 +158,13 @@ export class TaskEventConsumer {
   }
 }
 
-/** Map Kanban terminal statuses to node_run terminal statuses. */
+/**
+ * @deprecated Use kanbanStatusToNodeRunStatus from ../dispatcher/kanban-status.
+ * Kept as a re-export so existing callers / tests resolve to the canonical
+ * mapping (now blocked→failed, not blocked→paused).
+ */
 export function mapTerminalStatus(status: HermesKanbanStatus): TerminalNodeStatus | null {
-  switch (status) {
-    case "done":
-      return "completed";
-    case "blocked":
-      return "paused";
-    case "archived":
-      return "cancelled";
-    case "triage":
-    case "todo":
-    case "ready":
-    case "running":
-      return null;
-    default:
-      return null;
-  }
+  return kanbanStatusToNodeRunStatus(status);
 }
 
 function extractSummary(detail: HermesKanbanTaskDetail): string {
