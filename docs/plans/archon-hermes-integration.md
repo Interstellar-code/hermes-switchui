@@ -47,7 +47,22 @@
 | 6 | UI wiring (B.0 + B.4 + run-detail) | 1 important | d012f2f5 — Q3 double-submit guard |
 | 7 | A.5 + A.9 + A.10 follow-up | 8 important | 882702ed — A5.Q1 atomic claim, A5.Q2 resume-safe parse, A5.Q4 SSE emitter call, A9.Q1 transform fix, A9.Q3 77 new annotations (23→100), A10.Q1 manifest refresh on upsert, A10.Q2 outputPath sanitization, A10.Q3 real YAML parse for when_to_use |
 
-**Open gaps (priority order):**
+**Open gaps (priority order — revised May 15):**
+
+> **Priority shift:** /workflows page is the core surface for everything we just built. Tighten it end-to-end BEFORE touching Conductor/Operations. Only after /workflows is polished + tested do we tackle the Mission-bridge design decisions for Conductor.
+
+### B.4-extended — /workflows page deep wiring (NEXT)
+
+1. **Approval action in Run-Detail Panel** — when run.status === 'paused' AND a node_run has approval_message set, show Approve / Reject buttons calling `POST /api/workflow-runs/:runId/approve`. Surface approval_message + capture optional response text. Critical UX: currently A.5 backend is wired but no UI to drive it.
+2. **Definition CRUD UI** — "+ New Workflow" button currently logs to console. Build: YAML editor modal → POST /api/workflow-definitions → reload list. "Import YAML" button similar with file picker. Add delete confirm (backend currently 501 — also implement the DELETE on store + route).
+3. **Per-workflow run history** — Editor's "History" tab (currently shows live events for the active conversation) should also list ALL runs of THIS workflow_id. Add `GET /api/workflow-runs?workflow_id=X` already works; wire a hook + table.
+4. **Library card stats** — `last_used_at`, `run_count` are zero today. Need a stats endpoint OR include aggregate in list response.
+5. **Launch Wizard variable form** — `required_inputs` / `optional_inputs` from parsed endpoint are empty arrays today. Either ship a `vars:` schema extension on workflow YAML and parse it OR leave wizard with the free-form "user message" only (current).
+6. **YAML editor UX** — syntax highlighting + inline validation feedback (call POST /api/workflow-definitions with a "validate-only" mode that returns parse errors without writing).
+7. **Cron schedule UI** — schedule a workflow from /workflows. Surfaces the A.4 cron triggers feature.
+
+### Workstream B continued (AFTER /workflows lock-in)
+
 1. **B.1 Conductor page** — bridge engine workflow_runs into the existing Mission concept (Conductor is NOT mocked — has own `/api/conductor/*` backend; integration is a design decision).
 2. **B.2 Operations page** — same model question.
 3. **B.3 Settings page** — dispatcher health + worker pool surfaces.
