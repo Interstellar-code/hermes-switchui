@@ -6,31 +6,8 @@ import type { StudioGatewayAdapterType } from '@/lib/studio/settings'
 import type { WorkspaceAgentDirectory } from '@/lib/workspace-agents'
 import { useAgentView } from '@/hooks/use-agent-view'
 import { createDefaultAgentAvatarProfile } from '@/lib/avatars/profile'
-import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
 import { gatewayStatus as fetchGatewayStatus } from '@/lib/hermes-client'
 import { listWorkspaceAgents } from '@/lib/workspace-agents'
-
-const HERMES_FALLBACK_AGENTS: Array<OfficeAgent> = BUILTIN_AGENTS.map(
-  (agent) => {
-    const mapped = {
-      id: agent.id,
-      name: agent.name,
-      task: agent.role,
-      model: agent.role,
-      status: agent.status,
-    }
-
-    return {
-      id: agent.id,
-      name: agent.name,
-      subtitle: `${agent.role} • builtin`,
-      status: agent.status === 'active' ? 'working' : 'idle',
-      color: toOfficeColor(mapped),
-      item: toOfficeItem(mapped),
-      avatarProfile: createDefaultAgentAvatarProfile(agent.id),
-    }
-  },
-)
 
 type AgentLike = {
   id: string
@@ -50,14 +27,6 @@ function toLiveOfficeStatus(status: string): OfficeAgent['status'] {
   if (status === 'paused' || status === 'idle' || status === 'away')
     return 'idle'
   return 'error'
-}
-
-function toRosterOfficeStatus(
-  status: WorkspaceAgentDirectory['status'],
-): OfficeAgent['status'] {
-  if (status === 'online') return 'working'
-  if (status === 'offline') return 'error'
-  return 'idle'
 }
 
 function toOfficeColor(agent: AgentLike): string {
@@ -92,12 +61,6 @@ function buildLiveOfficeSubtitle(
   return parts.filter(Boolean).join(' • ')
 }
 
-function buildRosterOfficeSubtitle(agent: WorkspaceAgentDirectory): string {
-  const parts = [agent.role || agent.provider, agent.status]
-
-  return parts.filter(Boolean).join(' • ')
-}
-
 function toLiveOfficeAgent(
   agent: AgentLike & {
     progress?: number
@@ -110,26 +73,6 @@ function toLiveOfficeAgent(
     status: toLiveOfficeStatus(agent.status),
     color: toOfficeColor(agent),
     item: toOfficeItem(agent),
-    avatarProfile: createDefaultAgentAvatarProfile(agent.id),
-  }
-}
-
-function toRosterOfficeAgent(agent: WorkspaceAgentDirectory): OfficeAgent {
-  const mapped: AgentLike = {
-    id: agent.id,
-    name: agent.name,
-    task: agent.role || agent.description,
-    model: agent.model ?? agent.provider,
-    status: agent.status,
-  }
-
-  return {
-    id: agent.id,
-    name: agent.name,
-    subtitle: buildRosterOfficeSubtitle(agent),
-    status: toRosterOfficeStatus(agent.status),
-    color: toOfficeColor(mapped),
-    item: toOfficeItem(mapped),
     avatarProfile: createDefaultAgentAvatarProfile(agent.id),
   }
 }
@@ -163,6 +106,7 @@ export type Matrix3DOfficeData = {
   gatewayStatus: string
   selectedAdapterType: StudioGatewayAdapterType
   activeAdapterType: StudioGatewayAdapterType
+  agentSource: 'live' | 'none'
   onAgentChatSelect: (agentId: string) => void
 }
 
@@ -192,23 +136,19 @@ export function useMatrix3DOfficeData(): Matrix3DOfficeData {
   const hasHermesData = hasLiveAgents || hasRosterAgents
 
   const agents = useMemo(() => {
-    if (hasLiveAgents) {
-      return agentView.activeAgents.map((agent) =>
-        toLiveOfficeAgent({
-          id: agent.id,
-          name: agent.name,
-          task: agent.task,
-          model: agent.model,
-          status: agent.status,
-          progress: agent.progress,
-        }),
-      )
-    }
+    if (!hasLiveAgents) return []
 
-    if (hasRosterAgents) return rosterAgents.map(toRosterOfficeAgent)
-
-    return HERMES_FALLBACK_AGENTS
-  }, [agentView.activeAgents, hasLiveAgents, hasRosterAgents, rosterAgents])
+    return agentView.activeAgents.map((agent) =>
+      toLiveOfficeAgent({
+        id: agent.id,
+        name: agent.name,
+        task: agent.task,
+        model: agent.model,
+        status: agent.status,
+        progress: agent.progress,
+      }),
+    )
+  }, [agentView.activeAgents, hasLiveAgents])
 
   const selectedAdapterType = useMemo<StudioGatewayAdapterType>(
     () => pickAdapterType(hasLiveAgents, rosterAgents),
@@ -247,6 +187,7 @@ export function useMatrix3DOfficeData(): Matrix3DOfficeData {
     gatewayStatus: formatGatewayStatus(gatewayStatusQuery.data, hasHermesData),
     selectedAdapterType,
     activeAdapterType,
+    agentSource: hasLiveAgents ? 'live' : 'none',
     onAgentChatSelect: handleAgentChatSelect,
   }
 }

@@ -373,16 +373,22 @@ export function Matrix3DScreen() {
           <div className="matrix3d-roster">
             <div className="matrix3d-roster-bar">
               <div className="matrix3d-roster-pulse" />
-              <span className="matrix3d-roster-label">Agents</span>
+              <span className="matrix3d-roster-label">Active agents</span>
               <span className="matrix3d-roster-summary">
-                {cardAgents.length} online · {working} working · {errors} error
+                {cardAgents.length} live · {working} working · {errors} error
               </span>
             </div>
-            <div className="matrix3d-roster-rail">
-              {cardAgents.map((agent) => (
-                <Matrix3DAgentCard key={agent.id} agent={agent} />
-              ))}
-            </div>
+            {cardAgents.length > 0 ? (
+              <div className="matrix3d-roster-rail">
+                {cardAgents.map((agent) => (
+                  <Matrix3DAgentCard key={agent.id} agent={agent} />
+                ))}
+              </div>
+            ) : (
+              <div className="matrix3d-roster-empty">
+                No active delegated Hermes agents. Workspace profiles are not shown here as live agents.
+              </div>
+            )}
           </div>
           <Matrix3DConsole entries={entries} isLoading={logsQuery.isLoading} isError={logsQuery.isError} />
         </section>

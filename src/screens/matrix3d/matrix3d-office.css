@@ -444,3 +444,11 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
+
+.matrix3d-roster-empty {
+  padding: 14px;
+  color: var(--m-text-ghost);
+  font: 500 10px var(--m-font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
