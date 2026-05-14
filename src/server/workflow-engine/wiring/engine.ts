@@ -19,7 +19,7 @@ import type { SwitchUiWorkflowStore } from '../store/workflow-store';
 import { KanbanDispatcher } from '../dispatcher/kanban-dispatcher';
 import { TaskEventConsumer } from '../consumer/task-event-consumer';
 import { getKanbanTask } from '../../hermes-kanban-client';
-import { WorkflowEventEmitter } from '../emitter/event-emitter';
+import { WorkflowEventEmitter, getWorkflowEventEmitter } from '../emitter/event-emitter';
 import { EngineWorkflowPlatform } from '../runtime/platform';
 import { loadWorkflowConfig } from '../runtime/load-config';
 import { seedBundledWorkflows } from '../runtime/seed-defaults';
@@ -120,7 +120,9 @@ export async function createWorkflowEngine(
   }
 
   // 7. A.8: build emitter, platform, deps.
-  const emitter = new WorkflowEventEmitter();
+  // Use the module singleton so executor.ts (which calls getWorkflowEventEmitter())
+  // and the projector subscriber share the same instance.
+  const emitter = getWorkflowEventEmitter();
   const platform = new EngineWorkflowPlatform(emitter);
   const deps: WorkflowDeps = {
     // store/types.ts::WorkflowRun and schemas::WorkflowRun differ only in
