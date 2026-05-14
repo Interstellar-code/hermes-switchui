@@ -70,6 +70,7 @@ function makeEngine(store: SwitchUiWorkflowStore): WorkflowEngine {
     platform,
     deps,
     projector: { stop: () => {} },
+    cronPoller: { start: () => {}, stop: () => {}, tick: async () => {}, size: () => 0 },
     boot: { orphanedRuns: 0, recoveredDispatches: 0, seededDefinitions: 0, seedErrors: 0 },
     shutdown: async () => {},
   };
