@@ -31,6 +31,8 @@ import { Route as ChatIndexRouteImport } from './routes/chat/index'
 import { Route as SettingsProvidersRouteImport } from './routes/settings/providers'
 import { Route as ChatSessionKeyRouteImport } from './routes/chat/$sessionKey'
 import { Route as ApiWorkspaceRouteImport } from './routes/api/workspace'
+import { Route as ApiWorkflowRunsRouteImport } from './routes/api/workflow-runs'
+import { Route as ApiWorkflowDefinitionsRouteImport } from './routes/api/workflow-definitions'
 import { Route as ApiTerminalStreamRouteImport } from './routes/api/terminal-stream'
 import { Route as ApiTerminalResizeRouteImport } from './routes/api/terminal-resize'
 import { Route as ApiTerminalInputRouteImport } from './routes/api/terminal-input'
@@ -73,6 +75,8 @@ import { Route as ApiChatEventsRouteImport } from './routes/api/chat-events'
 import { Route as ApiAuthCheckRouteImport } from './routes/api/auth-check'
 import { Route as ApiAuthRouteImport } from './routes/api/auth'
 import { Route as ApiArtifactsRouteImport } from './routes/api/artifacts'
+import { Route as ApiWorkflowRunsRunIdRouteImport } from './routes/api/workflow-runs.$runId'
+import { Route as ApiWorkflowDefinitionsIdRouteImport } from './routes/api/workflow-definitions.$id'
 import { Route as ApiUpdateWorkspaceRouteImport } from './routes/api/update/workspace'
 import { Route as ApiUpdateStatusRouteImport } from './routes/api/update/status'
 import { Route as ApiUpdateAgentRouteImport } from './routes/api/update/agent'
@@ -260,6 +264,16 @@ const ChatSessionKeyRoute = ChatSessionKeyRouteImport.update({
 const ApiWorkspaceRoute = ApiWorkspaceRouteImport.update({
   id: '/api/workspace',
   path: '/api/workspace',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWorkflowRunsRoute = ApiWorkflowRunsRouteImport.update({
+  id: '/api/workflow-runs',
+  path: '/api/workflow-runs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWorkflowDefinitionsRoute = ApiWorkflowDefinitionsRouteImport.update({
+  id: '/api/workflow-definitions',
+  path: '/api/workflow-definitions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTerminalStreamRoute = ApiTerminalStreamRouteImport.update({
@@ -472,6 +486,17 @@ const ApiArtifactsRoute = ApiArtifactsRouteImport.update({
   path: '/api/artifacts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWorkflowRunsRunIdRoute = ApiWorkflowRunsRunIdRouteImport.update({
+  id: '/$runId',
+  path: '/$runId',
+  getParentRoute: () => ApiWorkflowRunsRoute,
+} as any)
+const ApiWorkflowDefinitionsIdRoute =
+  ApiWorkflowDefinitionsIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => ApiWorkflowDefinitionsRoute,
+  } as any)
 const ApiUpdateWorkspaceRoute = ApiUpdateWorkspaceRouteImport.update({
   id: '/api/update/workspace',
   path: '/api/update/workspace',
@@ -937,6 +962,8 @@ export interface FileRoutesByFullPath {
   '/api/terminal-input': typeof ApiTerminalInputRoute
   '/api/terminal-resize': typeof ApiTerminalResizeRoute
   '/api/terminal-stream': typeof ApiTerminalStreamRoute
+  '/api/workflow-definitions': typeof ApiWorkflowDefinitionsRouteWithChildren
+  '/api/workflow-runs': typeof ApiWorkflowRunsRouteWithChildren
   '/api/workspace': typeof ApiWorkspaceRoute
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
   '/settings/providers': typeof SettingsProvidersRoute
@@ -1006,6 +1033,8 @@ export interface FileRoutesByFullPath {
   '/api/update/agent': typeof ApiUpdateAgentRoute
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
+  '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRoute
+  '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRoute
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
@@ -1080,6 +1109,8 @@ export interface FileRoutesByTo {
   '/api/terminal-input': typeof ApiTerminalInputRoute
   '/api/terminal-resize': typeof ApiTerminalResizeRoute
   '/api/terminal-stream': typeof ApiTerminalStreamRoute
+  '/api/workflow-definitions': typeof ApiWorkflowDefinitionsRouteWithChildren
+  '/api/workflow-runs': typeof ApiWorkflowRunsRouteWithChildren
   '/api/workspace': typeof ApiWorkspaceRoute
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
   '/settings/providers': typeof SettingsProvidersRoute
@@ -1149,6 +1180,8 @@ export interface FileRoutesByTo {
   '/api/update/agent': typeof ApiUpdateAgentRoute
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
+  '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRoute
+  '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRoute
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
@@ -1225,6 +1258,8 @@ export interface FileRoutesById {
   '/api/terminal-input': typeof ApiTerminalInputRoute
   '/api/terminal-resize': typeof ApiTerminalResizeRoute
   '/api/terminal-stream': typeof ApiTerminalStreamRoute
+  '/api/workflow-definitions': typeof ApiWorkflowDefinitionsRouteWithChildren
+  '/api/workflow-runs': typeof ApiWorkflowRunsRouteWithChildren
   '/api/workspace': typeof ApiWorkspaceRoute
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
   '/settings/providers': typeof SettingsProvidersRoute
@@ -1294,6 +1329,8 @@ export interface FileRoutesById {
   '/api/update/agent': typeof ApiUpdateAgentRoute
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
+  '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRoute
+  '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRoute
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
@@ -1371,6 +1408,8 @@ export interface FileRouteTypes {
     | '/api/terminal-input'
     | '/api/terminal-resize'
     | '/api/terminal-stream'
+    | '/api/workflow-definitions'
+    | '/api/workflow-runs'
     | '/api/workspace'
     | '/chat/$sessionKey'
     | '/settings/providers'
@@ -1440,6 +1479,8 @@ export interface FileRouteTypes {
     | '/api/update/agent'
     | '/api/update/status'
     | '/api/update/workspace'
+    | '/api/workflow-definitions/$id'
+    | '/api/workflow-runs/$runId'
     | '/api/conductor/missions/$id'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/mcp/$name/logs'
@@ -1514,6 +1555,8 @@ export interface FileRouteTypes {
     | '/api/terminal-input'
     | '/api/terminal-resize'
     | '/api/terminal-stream'
+    | '/api/workflow-definitions'
+    | '/api/workflow-runs'
     | '/api/workspace'
     | '/chat/$sessionKey'
     | '/settings/providers'
@@ -1583,6 +1626,8 @@ export interface FileRouteTypes {
     | '/api/update/agent'
     | '/api/update/status'
     | '/api/update/workspace'
+    | '/api/workflow-definitions/$id'
+    | '/api/workflow-runs/$runId'
     | '/api/conductor/missions/$id'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/mcp/$name/logs'
@@ -1658,6 +1703,8 @@ export interface FileRouteTypes {
     | '/api/terminal-input'
     | '/api/terminal-resize'
     | '/api/terminal-stream'
+    | '/api/workflow-definitions'
+    | '/api/workflow-runs'
     | '/api/workspace'
     | '/chat/$sessionKey'
     | '/settings/providers'
@@ -1727,6 +1774,8 @@ export interface FileRouteTypes {
     | '/api/update/agent'
     | '/api/update/status'
     | '/api/update/workspace'
+    | '/api/workflow-definitions/$id'
+    | '/api/workflow-runs/$runId'
     | '/api/conductor/missions/$id'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/mcp/$name/logs'
@@ -1803,6 +1852,8 @@ export interface RootRouteChildren {
   ApiTerminalInputRoute: typeof ApiTerminalInputRoute
   ApiTerminalResizeRoute: typeof ApiTerminalResizeRoute
   ApiTerminalStreamRoute: typeof ApiTerminalStreamRoute
+  ApiWorkflowDefinitionsRoute: typeof ApiWorkflowDefinitionsRouteWithChildren
+  ApiWorkflowRunsRoute: typeof ApiWorkflowRunsRouteWithChildren
   ApiWorkspaceRoute: typeof ApiWorkspaceRoute
   ChatSessionKeyRoute: typeof ChatSessionKeyRoute
   ChatIndexRoute: typeof ChatIndexRoute
@@ -2005,6 +2056,20 @@ declare module '@tanstack/react-router' {
       path: '/api/workspace'
       fullPath: '/api/workspace'
       preLoaderRoute: typeof ApiWorkspaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workflow-runs': {
+      id: '/api/workflow-runs'
+      path: '/api/workflow-runs'
+      fullPath: '/api/workflow-runs'
+      preLoaderRoute: typeof ApiWorkflowRunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workflow-definitions': {
+      id: '/api/workflow-definitions'
+      path: '/api/workflow-definitions'
+      fullPath: '/api/workflow-definitions'
+      preLoaderRoute: typeof ApiWorkflowDefinitionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/terminal-stream': {
@@ -2300,6 +2365,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/artifacts'
       preLoaderRoute: typeof ApiArtifactsRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/workflow-runs/$runId': {
+      id: '/api/workflow-runs/$runId'
+      path: '/$runId'
+      fullPath: '/api/workflow-runs/$runId'
+      preLoaderRoute: typeof ApiWorkflowRunsRunIdRouteImport
+      parentRoute: typeof ApiWorkflowRunsRoute
+    }
+    '/api/workflow-definitions/$id': {
+      id: '/api/workflow-definitions/$id'
+      path: '/$id'
+      fullPath: '/api/workflow-definitions/$id'
+      preLoaderRoute: typeof ApiWorkflowDefinitionsIdRouteImport
+      parentRoute: typeof ApiWorkflowDefinitionsRoute
     }
     '/api/update/workspace': {
       id: '/api/update/workspace'
@@ -3002,6 +3081,32 @@ const ApiSkillsRouteWithChildren = ApiSkillsRoute._addFileChildren(
   ApiSkillsRouteChildren,
 )
 
+interface ApiWorkflowDefinitionsRouteChildren {
+  ApiWorkflowDefinitionsIdRoute: typeof ApiWorkflowDefinitionsIdRoute
+}
+
+const ApiWorkflowDefinitionsRouteChildren: ApiWorkflowDefinitionsRouteChildren =
+  {
+    ApiWorkflowDefinitionsIdRoute: ApiWorkflowDefinitionsIdRoute,
+  }
+
+const ApiWorkflowDefinitionsRouteWithChildren =
+  ApiWorkflowDefinitionsRoute._addFileChildren(
+    ApiWorkflowDefinitionsRouteChildren,
+  )
+
+interface ApiWorkflowRunsRouteChildren {
+  ApiWorkflowRunsRunIdRoute: typeof ApiWorkflowRunsRunIdRoute
+}
+
+const ApiWorkflowRunsRouteChildren: ApiWorkflowRunsRouteChildren = {
+  ApiWorkflowRunsRunIdRoute: ApiWorkflowRunsRunIdRoute,
+}
+
+const ApiWorkflowRunsRouteWithChildren = ApiWorkflowRunsRoute._addFileChildren(
+  ApiWorkflowRunsRouteChildren,
+)
+
 interface ApiConductorMissionsIdRouteChildren {
   ApiConductorMissionsIdAbortRoute: typeof ApiConductorMissionsIdAbortRoute
 }
@@ -3157,6 +3262,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTerminalInputRoute: ApiTerminalInputRoute,
   ApiTerminalResizeRoute: ApiTerminalResizeRoute,
   ApiTerminalStreamRoute: ApiTerminalStreamRoute,
+  ApiWorkflowDefinitionsRoute: ApiWorkflowDefinitionsRouteWithChildren,
+  ApiWorkflowRunsRoute: ApiWorkflowRunsRouteWithChildren,
   ApiWorkspaceRoute: ApiWorkspaceRoute,
   ChatSessionKeyRoute: ChatSessionKeyRoute,
   ChatIndexRoute: ChatIndexRoute,
