@@ -117,6 +117,8 @@ export interface FindMarkdownOptions {
 export interface MarkdownEntry {
   path: string;
   relativePath: string;
+  /** Command name derived from filename (without .md extension), matching Archon's convention. */
+  commandName: string;
 }
 
 export async function findMarkdownFilesRecursive(
@@ -142,7 +144,8 @@ export async function findMarkdownFilesRecursive(
       if (entry.isDirectory()) {
         await walk(fullPath, relPath, depth + 1);
       } else if (entry.isFile() && name.endsWith(".md")) {
-        results.push({ path: fullPath, relativePath: prefix ? `${prefix}/${relPath}` : relPath });
+        const commandName = name.slice(0, -3); // strip .md
+        results.push({ path: fullPath, relativePath: prefix ? `${prefix}/${relPath}` : relPath, commandName });
       }
     }
   }
