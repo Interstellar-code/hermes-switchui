@@ -32,6 +32,21 @@ export async function listWorkflowDefinitions(params?: {
   return body.definitions
 }
 
+import type { ParsedWorkflow } from './types'
+
+export interface WorkflowDefinitionParsedResponse {
+  definition: WorkflowDefinitionRow
+  parsed: ParsedWorkflow
+}
+
+export async function getWorkflowDefinitionParsed(id: string): Promise<WorkflowDefinitionParsedResponse> {
+  const res = await fetch(`/api/workflow-definitions/${encodeURIComponent(id)}/parsed`)
+  if (!res.ok) {
+    throw new Error(`getWorkflowDefinitionParsed failed (${res.status})`)
+  }
+  return (await res.json()) as WorkflowDefinitionParsedResponse
+}
+
 export interface LaunchWorkflowInput {
   workflow_id: string
   conversation_id: string

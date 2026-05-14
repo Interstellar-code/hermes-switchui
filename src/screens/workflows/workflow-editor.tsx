@@ -1,6 +1,9 @@
 import type React from 'react'
 import { useState } from 'react'
-import { MOCK_WORKFLOWS, relativeTime, type MockWorkflow, type NodeType } from './mock-workflows'
+import { useWorkflowParsed } from './use-workflows'
+import { relativeTime, type NodeType, type WorkflowDagNode } from './types'
+import type { WorkflowDefinitionRow } from './api-client'
+import type { ParsedWorkflow } from './types'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -26,14 +29,73 @@ const MOCK_HISTORY = [
   { id: 'run-m3n4', started_at: '2026-05-08 10:03', status: 'success', duration: '3m 50s', triggered_by: 'rohit', phase: 'merge' },
 ]
 
+// ── Topological layout ────────────────────────────────────────────────────────
+
+/** Kahn's algorithm: returns map of nodeId -> {cx, cy} using horizontal depth layout */
+function computeLayout(
+  nodes: WorkflowDagNode[],
+  edges: [string, string][],
+): Record<string, { cx: number; cy: number }> {
+  const NODE_W = 110
+  const NODE_H = 34
+  const GAP_X = 50
+  const GAP_Y = 16
+  const PAD = 40
+
+  // Build adjacency + in-degree
+  const inDeg: Record<string, number> = {}
+  const adj: Record<string, string[]> = {}
+  for (const n of nodes) {
+    inDeg[n.id] = 0
+    adj[n.id] = []
+  }
+  for (const [a, b] of edges) {
+    adj[a] = adj[a] ?? []
+    adj[a].push(b)
+    inDeg[b] = (inDeg[b] ?? 0) + 1
+  }
+
+  // Kahn BFS — assign depth
+  const depth: Record<string, number> = {}
+  const queue: string[] = []
+  for (const n of nodes) {
+    if ((inDeg[n.id] ?? 0) === 0) queue.push(n.id)
+  }
+  while (queue.length > 0) {
+    const id = queue.shift()!
+    for (const nb of adj[id] ?? []) {
+      depth[nb] = Math.max(depth[nb] ?? 0, (depth[id] ?? 0) + 1)
+      inDeg[nb]--
+      if (inDeg[nb] === 0) queue.push(nb)
+    }
+  }
+
+  // Group by depth
+  const byDepth: Record<number, string[]> = {}
+  for (const n of nodes) {
+    const d = depth[n.id] ?? 0
+    byDepth[d] = byDepth[d] ?? []
+    byDepth[d].push(n.id)
+  }
+
+  const pos: Record<string, { cx: number; cy: number }> = {}
+  for (const [d, ids] of Object.entries(byDepth)) {
+    const depthNum = Number(d)
+    const cx = PAD + depthNum * (NODE_W + GAP_X) + NODE_W / 2
+    ids.forEach((id, rank) => {
+      const cy = PAD + rank * (NODE_H + GAP_Y) + NODE_H / 2
+      pos[id] = { cx, cy }
+    })
+  }
+  return pos
+}
+
 // ── YAML syntax highlighter ───────────────────────────────────────────────────
 
 function yamlLine(line: string, idx: number): React.ReactElement {
-  // comment
   if (/^\s*#/.test(line)) {
     return <span key={idx} className="yl-line"><span className="yt-comment">{line}</span>{'\n'}</span>
   }
-  // key: value
   const kvMatch = line.match(/^(\s*)([^:\s][^:]*?)(\s*:\s*)(.*)$/)
   if (kvMatch) {
     const [, indent, key, colon, value] = kvMatch
@@ -55,7 +117,6 @@ function yamlLine(line: string, idx: number): React.ReactElement {
       </span>
     )
   }
-  // list item
   if (/^\s*-\s/.test(line)) {
     const m = line.match(/^(\s*-\s)(.*)$/)
     if (m) {
@@ -71,7 +132,7 @@ function yamlLine(line: string, idx: number): React.ReactElement {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function SourceBadge({ source }: { source: MockWorkflow['source'] }) {
+function SourceBadge({ source }: { source: string }) {
   return <span className={`wfl-src-badge wfl-src-${source}`}>{source}</span>
 }
 
@@ -82,18 +143,17 @@ function RunStatusBadge({ status }: { status: string }) {
 
 // ── Overview Tab ─────────────────────────────────────────────────────────────
 
-function OverviewTab({ wf }: { wf: MockWorkflow }) {
-  // Compute node breakdown from dag
+function OverviewTab({ def, parsed }: { def: WorkflowDefinitionRow; parsed: ParsedWorkflow }) {
   const nodeBreakdown: Record<string, number> = {}
-  for (const n of wf.dag) {
-    nodeBreakdown[n.type] = (nodeBreakdown[n.type] ?? 0) + 1
+  for (const n of parsed.nodes) {
+    const t = n.type ?? 'prompt'
+    nodeBreakdown[t] = (nodeBreakdown[t] ?? 0) + 1
   }
-  // If no dag nodes, use node_count as total prompt nodes
-  if (wf.dag.length === 0) {
-    nodeBreakdown['prompt'] = wf.node_count
+  if (parsed.nodes.length === 0) {
+    nodeBreakdown['prompt'] = parsed.node_count
   }
 
-  const initials = wf.name
+  const initials = parsed.name
     .split(' ')
     .map((w) => w[0])
     .join('')
@@ -105,23 +165,21 @@ function OverviewTab({ wf }: { wf: MockWorkflow }) {
       <div className="ov-hero">
         <div className="ov-icon">{initials}</div>
         <div className="ov-title-block">
-          <h2 className="ov-name">{wf.name}</h2>
+          <h2 className="ov-name">{parsed.name}</h2>
           <div className="ov-meta">
-            <SourceBadge source={wf.source} />
+            <SourceBadge source={def.source} />
             <span className="ov-sep">·</span>
-            <span className="ov-tier">{wf.version_tier}</span>
+            <span className="ov-tier">{def.version ?? 'v1'}</span>
           </div>
         </div>
       </div>
 
-      <p className="ov-desc">{wf.description}</p>
+      <p className="ov-desc">{parsed.description}</p>
 
       <div className="ov-stat-row">
         {([
-          ['Nodes', wf.node_count, ''],
-          ['DAG Depth', wf.dag_depth, ''],
-          ['Parallelism', wf.max_parallelism, ''],
-          ['Runs', wf.run_count, 'ok'],
+          ['Nodes', parsed.node_count, ''],
+          ['Inputs', parsed.required_inputs.length, ''],
         ] as const).map(([label, value, cls]) => (
           <div key={label} className="ov-stat">
             <span className={`ov-sv${cls ? ' ' + cls : ''}`}>{value}</span>
@@ -129,27 +187,27 @@ function OverviewTab({ wf }: { wf: MockWorkflow }) {
           </div>
         ))}
         <div className="ov-stat">
-          <span className="ov-sv">{relativeTime(wf.last_used_at)}</span>
-          <span className="ov-sl">Last used</span>
+          <span className="ov-sv">{relativeTime(def.updated_at)}</span>
+          <span className="ov-sl">Last updated</span>
         </div>
       </div>
 
       <div className="panel-card">
         <div className="pc-head">Inputs</div>
         <div className="pc-body">
-          {wf.required_inputs.map((r) => (
+          {parsed.required_inputs.map((r) => (
             <div key={r} className="input-row req">
               <span className="ir-name">{r}</span>
               <span className="ir-badge req">required</span>
             </div>
           ))}
-          {wf.optional_inputs.map((o) => (
+          {parsed.optional_inputs.map((o) => (
             <div key={o} className="input-row">
               <span className="ir-name">{o}</span>
               <span className="ir-badge">optional</span>
             </div>
           ))}
-          {wf.required_inputs.length === 0 && wf.optional_inputs.length === 0 && (
+          {parsed.required_inputs.length === 0 && parsed.optional_inputs.length === 0 && (
             <span className="pc-empty">No inputs defined</span>
           )}
         </div>
@@ -177,11 +235,11 @@ function OverviewTab({ wf }: { wf: MockWorkflow }) {
         <div className="panel-card">
           <div className="pc-head">Tags</div>
           <div className="pc-body tag-list">
-            {wf.tags.map((t) => (
-              <span key={t} className="tag-chip">{t}</span>
-            ))}
-            {wf.has_loop && <span className="tag-chip tag-loop">has-loop</span>}
-            {wf.has_approval && <span className="tag-chip tag-approval">has-approval</span>}
+            {parsed.has_loop && <span className="tag-chip tag-loop">has-loop</span>}
+            {parsed.has_approval && <span className="tag-chip tag-approval">has-approval</span>}
+            {!parsed.has_loop && !parsed.has_approval && (
+              <span className="pc-empty">No flags</span>
+            )}
           </div>
         </div>
       </div>
@@ -191,10 +249,18 @@ function OverviewTab({ wf }: { wf: MockWorkflow }) {
 
 // ── Visual DAG Tab ────────────────────────────────────────────────────────────
 
-function DagSvgTab({ wf }: { wf: MockWorkflow }) {
-  const [tooltip, setTooltip] = useState<{ id: string; x: number; y: number } | null>(null)
+function DagSvgTab({ parsed }: { parsed: ParsedWorkflow }) {
+  const [tooltip, setTooltip] = useState<{ id: string; cx: number; cy: number } | null>(null)
 
-  if (wf.dag.length === 0) {
+  // Map backend nodes to WorkflowDagNode
+  const dagNodes: WorkflowDagNode[] = parsed.nodes.map((n) => ({
+    id: n.id,
+    label: n.label ?? n.id,
+    type: (n.type ?? 'prompt') as NodeType,
+    config: n.config,
+  }))
+
+  if (dagNodes.length === 0) {
     return (
       <div className="dag-placeholder">
         <svg
@@ -213,7 +279,7 @@ function DagSvgTab({ wf }: { wf: MockWorkflow }) {
           <path d="M9 12H9M15 12H15M9 7.5h-3M15 7.5h3M9 16.5h-3M15 16.5h3" />
         </svg>
         <div className="dag-ph-title">Visual DAG — view only</div>
-        <div className="dag-ph-sub">No DAG defined for this workflow</div>
+        <div className="dag-ph-sub">No nodes defined for this workflow</div>
       </div>
     )
   }
@@ -223,13 +289,14 @@ function DagSvgTab({ wf }: { wf: MockWorkflow }) {
   const R = 5
   const PAD = 20
 
-  const posMap: Record<string, { x: number; y: number }> = {}
-  for (const n of wf.dag) posMap[n.id] = { x: n.cx, y: n.cy }
+  const posMap = computeLayout(dagNodes, parsed.edges)
 
-  const svgW = Math.max(...wf.dag.map((n) => n.cx + W / 2)) + PAD
-  const svgH = Math.max(...wf.dag.map((n) => n.cy + H / 2)) + PAD
+  const allCx = Object.values(posMap).map((p) => p.cx)
+  const allCy = Object.values(posMap).map((p) => p.cy)
+  const svgW = Math.max(...allCx) + W / 2 + PAD
+  const svgH = Math.max(...allCy) + H / 2 + PAD
 
-  const tooltipNode = tooltip ? wf.dag.find((n) => n.id === tooltip.id) : null
+  const tooltipNode = tooltip ? dagNodes.find((n) => n.id === tooltip.id) : null
 
   return (
     <div className="dag-canvas" style={{ position: 'relative' }}>
@@ -258,14 +325,14 @@ function DagSvgTab({ wf }: { wf: MockWorkflow }) {
         </defs>
 
         {/* edges */}
-        {wf.dag_edges.map(([a, b], i) => {
+        {parsed.edges.map(([a, b], i) => {
           const s = posMap[a]
           const t = posMap[b]
           if (!s || !t) return null
-          const sx = s.x + W / 2
-          const sy = s.y
-          const tx = t.x - W / 2
-          const ty = t.y
+          const sx = s.cx + W / 2
+          const sy = s.cy
+          const tx = t.cx - W / 2
+          const ty = t.cy
           const mx = (sx + tx) / 2
           return (
             <path
@@ -280,19 +347,21 @@ function DagSvgTab({ wf }: { wf: MockWorkflow }) {
         })}
 
         {/* nodes */}
-        {wf.dag.map((n) => {
+        {dagNodes.map((n) => {
+          const pos = posMap[n.id]
+          if (!pos) return null
           const c = NODE_COLOR[n.type] ?? '#00ff41'
           return (
             <g
               key={n.id}
               className="dag-node"
               style={{ cursor: 'default' }}
-              onMouseEnter={() => setTooltip({ id: n.id, x: n.cx, y: n.cy })}
+              onMouseEnter={() => setTooltip({ id: n.id, cx: pos.cx, cy: pos.cy })}
               onMouseLeave={() => setTooltip(null)}
             >
               <rect
-                x={n.cx - W / 2}
-                y={n.cy - H / 2}
+                x={pos.cx - W / 2}
+                y={pos.cy - H / 2}
                 width={W}
                 height={H}
                 rx={R}
@@ -302,8 +371,8 @@ function DagSvgTab({ wf }: { wf: MockWorkflow }) {
                 filter={`url(#glow-${n.type})`}
               />
               <text
-                x={n.cx}
-                y={n.cy - 3}
+                x={pos.cx}
+                y={pos.cy - 3}
                 textAnchor="middle"
                 style={{
                   font: '600 10px var(--m-font-mono, ui-monospace, monospace)',
@@ -314,8 +383,8 @@ function DagSvgTab({ wf }: { wf: MockWorkflow }) {
                 {n.label}
               </text>
               <text
-                x={n.cx}
-                y={n.cy + 10}
+                x={pos.cx}
+                y={pos.cy + 10}
                 textAnchor="middle"
                 style={{
                   font: '500 8px var(--m-font-mono, ui-monospace, monospace)',
@@ -332,18 +401,18 @@ function DagSvgTab({ wf }: { wf: MockWorkflow }) {
       </svg>
 
       {/* tooltip */}
-      {tooltipNode && (
+      {tooltipNode && tooltip && (
         <div
           className="dag-tooltip"
           style={{
             position: 'absolute',
-            top: `${tooltip!.y + H / 2 + 6}px`,
-            left: `${tooltip!.x}px`,
+            top: `${tooltip.cy + H / 2 + 6}px`,
+            left: `${tooltip.cx}px`,
             transform: 'translateX(-50%)',
           }}
         >
           <div className="dag-tt-id">{tooltipNode.id}</div>
-          <div className="dag-tt-type" style={{ color: NODE_COLOR[tooltipNode.type] }}>
+          <div className="dag-tt-type" style={{ color: NODE_COLOR[tooltipNode.type] ?? '#00ff41' }}>
             {tooltipNode.type}
           </div>
           {tooltipNode.config && <div className="dag-tt-cfg">{tooltipNode.config}</div>}
@@ -379,11 +448,9 @@ function detectYamlErrors(yaml: string): string[] {
   const errors: string[] = []
   const lines = yaml.split('\n')
   lines.forEach((line, i) => {
-    // unbalanced braces
     const opens = (line.match(/\{/g) ?? []).length
     const closes = (line.match(/\}/g) ?? []).length
     if (opens !== closes) errors.push(`Line ${i + 1}: unbalanced braces — '${line.trim()}'`)
-    // key without colon (bare word on its own line that looks like a key)
     if (/^[a-zA-Z_][a-zA-Z0-9_]+ [^:=]/.test(line.trim())) {
       errors.push(`Line ${i + 1}: missing colon after key — '${line.trim()}'`)
     }
@@ -391,10 +458,10 @@ function detectYamlErrors(yaml: string): string[] {
   return errors
 }
 
-function YamlTab({ wf }: { wf: MockWorkflow }) {
-  const lines = wf.yaml.split('\n')
-  const isEditable = wf.source !== 'bundled'
-  const yamlErrors = detectYamlErrors(wf.yaml)
+function YamlTab({ def }: { def: WorkflowDefinitionRow }) {
+  const lines = def.yaml.split('\n')
+  const isEditable = def.source !== 'bundled'
+  const yamlErrors = detectYamlErrors(def.yaml)
   return (
     <div className="yaml-tab">
       <div className="yaml-toolbar">
@@ -454,7 +521,7 @@ function YamlTab({ wf }: { wf: MockWorkflow }) {
 
 // ── When-to-Use Tab ───────────────────────────────────────────────────────────
 
-function WhenToUseTab({ wf }: { wf: MockWorkflow }) {
+function WhenToUseTab({ def, parsed }: { def: WorkflowDefinitionRow; parsed: ParsedWorkflow }) {
   return (
     <div className="wtu-tab">
       <div className="wtu-info">
@@ -476,27 +543,18 @@ function WhenToUseTab({ wf }: { wf: MockWorkflow }) {
         </span>
       </div>
       <div className="panel-card">
-        <div className="pc-head">
-          when_to_use
-          <span className="pc-head-tag">MARKDOWN</span>
-        </div>
-        <div className="pc-body">
-          <textarea className="wtu-editor" defaultValue={wf.when_to_use} readOnly={wf.source === 'bundled'} />
-        </div>
-      </div>
-      <div className="panel-card">
         <div className="pc-head">Required Inputs Preview</div>
         <div className="pc-body">
           <div className="wtu-hint">
             These are surfaced to the user during the plan phase when this workflow is proposed.
           </div>
-          {wf.required_inputs.map((r) => (
+          {parsed.required_inputs.map((r) => (
             <div key={r} className="input-row req">
               <span className="ir-name">{r}</span>
               <span className="ir-badge req">required</span>
             </div>
           ))}
-          {wf.required_inputs.length === 0 && (
+          {parsed.required_inputs.length === 0 && (
             <span className="pc-empty">No required inputs</span>
           )}
         </div>
@@ -507,13 +565,13 @@ function WhenToUseTab({ wf }: { wf: MockWorkflow }) {
 
 // ── History Tab ───────────────────────────────────────────────────────────────
 
-function HistoryTab({ wf }: { wf: MockWorkflow }) {
+function HistoryTab({ name }: { name: string }) {
   return (
     <div className="history-tab">
       <div className="history-header">
         <span className="hist-subtitle">
           Showing last {MOCK_HISTORY.length} runs of{' '}
-          <strong style={{ color: 'var(--m-text, var(--theme-fg))' }}>{wf.name}</strong>
+          <strong style={{ color: 'var(--m-text, var(--theme-fg))' }}>{name}</strong>
         </span>
         <a href="/conductor" className="link-out">View all in Conductor →</a>
       </div>
@@ -555,6 +613,26 @@ function HistoryTab({ wf }: { wf: MockWorkflow }) {
   )
 }
 
+// ── Loading / Error states ────────────────────────────────────────────────────
+
+function EditorSkeleton() {
+  return (
+    <div className="wf-editor-empty">
+      <div className="es-title" style={{ opacity: 0.5 }}>Loading workflow…</div>
+    </div>
+  )
+}
+
+function EditorError({ id, onRetry }: { id: string; onRetry: () => void }) {
+  return (
+    <div className="wf-editor-empty">
+      <div className="es-title">Failed to load workflow</div>
+      <div className="es-sub" style={{ marginBottom: 12 }}>Could not fetch parsed data for <code>{id}</code></div>
+      <button className="btn-mini prim" onClick={onRetry}>Retry</button>
+    </div>
+  )
+}
+
 // ── Empty state ───────────────────────────────────────────────────────────────
 
 function EditorEmptyState() {
@@ -589,11 +667,21 @@ interface WorkflowEditorProps {
 
 export function WorkflowEditor({ selectedId }: WorkflowEditorProps) {
   const [activeTab, setActiveTab] = useState<Tab>('Overview')
-  const wf = selectedId ? MOCK_WORKFLOWS.find((w) => w.id === selectedId) ?? null : null
+  const { data, isLoading, isError, refetch } = useWorkflowParsed(selectedId)
 
-  if (!wf) {
+  if (!selectedId) {
     return <EditorEmptyState />
   }
+
+  if (isLoading) {
+    return <EditorSkeleton />
+  }
+
+  if (isError || !data) {
+    return <EditorError id={selectedId} onRetry={() => void refetch()} />
+  }
+
+  const { definition: def, parsed } = data
 
   return (
     <>
@@ -602,7 +690,7 @@ export function WorkflowEditor({ selectedId }: WorkflowEditorProps) {
         <div className="ed-crumbs">
           <span>Workflows</span>
           <span className="ed-sep">/</span>
-          <span className="ed-cur">{wf.name}</span>
+          <span className="ed-cur">{parsed.name}</span>
         </div>
         <div className="ed-tabs">
           {TABS.map((t) => (
@@ -619,11 +707,11 @@ export function WorkflowEditor({ selectedId }: WorkflowEditorProps) {
 
       {/* scrollable body */}
       <div className="ed-body">
-        {activeTab === 'Overview' && <OverviewTab wf={wf} />}
-        {activeTab === 'Visual DAG' && <DagSvgTab wf={wf} />}
-        {activeTab === 'YAML' && <YamlTab wf={wf} />}
-        {activeTab === 'When-to-Use' && <WhenToUseTab wf={wf} />}
-        {activeTab === 'History' && <HistoryTab wf={wf} />}
+        {activeTab === 'Overview' && <OverviewTab def={def} parsed={parsed} />}
+        {activeTab === 'Visual DAG' && <DagSvgTab parsed={parsed} />}
+        {activeTab === 'YAML' && <YamlTab def={def} />}
+        {activeTab === 'When-to-Use' && <WhenToUseTab def={def} parsed={parsed} />}
+        {activeTab === 'History' && <HistoryTab name={parsed.name} />}
       </div>
     </>
   )

@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
-import { relativeTime, type MockWorkflow } from './mock-workflows'
+import { relativeTime, type WorkflowSummary } from './types'
 
 type SortKey = 'alpha' | 'last-used'
 
 interface WorkflowGridProps {
-  workflows: MockWorkflow[]
+  workflows: WorkflowSummary[]
   onSelect: (id: string) => void
 }
 
@@ -92,7 +92,7 @@ export function WorkflowGrid({ workflows, onSelect }: WorkflowGridProps) {
   )
 }
 
-function GridCard({ wf, onSelect }: { wf: MockWorkflow; onSelect: (id: string) => void }) {
+function GridCard({ wf, onSelect }: { wf: WorkflowSummary; onSelect: (id: string) => void }) {
   const srcLabel = wf.source === 'bundled' ? 'built-in' : wf.source
   const srcCls = `wfg-src-badge wfg-src-${wf.source}`
 

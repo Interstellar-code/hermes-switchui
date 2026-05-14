@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { type MockWorkflow } from './mock-workflows'
+import { type WorkflowSummary } from './types'
 
 const ORIGIN_OPTIONS = [
   { value: 'all', label: 'All origins' },
@@ -15,9 +15,9 @@ export interface WorkflowLibraryProps {
   onSelectWorkflow: (id: string) => void
   collapsed: boolean
   onToggleCollapse: () => void
-  onFilteredChange?: (workflows: MockWorkflow[]) => void
+  onFilteredChange?: (workflows: WorkflowSummary[]) => void
   /** B.4: live workflow definitions (adapted from /api/workflow-definitions). */
-  workflows: MockWorkflow[]
+  workflows: WorkflowSummary[]
 }
 
 export function WorkflowLibrary({
@@ -50,7 +50,7 @@ export function WorkflowLibrary({
     return counts
   }, [])
 
-  const filtered = useMemo<MockWorkflow[]>(() => {
+  const filtered = useMemo<WorkflowSummary[]>(() => {
     return workflows.filter((w) => {
       if (originFilter !== 'all' && w.source !== originFilter) return false
       if (normalizedSearch) {

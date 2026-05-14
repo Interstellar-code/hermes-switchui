@@ -1,19 +1,15 @@
 /**
  * TanStack Query hooks for the /workflows page.
- *
- * B.4 Path A: only Library + Grid consume live data. Editor + Launch Wizard
- * continue using mock-workflows.ts (rich DagNode structure not exposed by the
- * backend yet — comes later via a parsed-YAML endpoint).
- *
- * Adapter: WorkflowDefinitionRow → MockWorkflow with safe defaults for fields
- * the backend doesn't surface (node_count=0, has_loop=false, run_count=0,
- * last_used_at=null, etc.). The Library + Grid render correctly with these
- * defaults; the Editor + Wizard fall back to mock data when picking a
- * specific id.
  */
-import { useQuery } from '@tanstack/react-query'
-import { listWorkflowDefinitions, type WorkflowDefinitionRow } from './api-client'
-import type { MockWorkflow, VersionTier, WorkflowSource } from './mock-workflows'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  getWorkflowDefinitionParsed,
+  launchWorkflowRun,
+  listWorkflowDefinitions,
+  type LaunchWorkflowInput,
+  type WorkflowDefinitionRow,
+} from './api-client'
+import { type VersionTier, type WorkflowSource, type WorkflowSummary } from './types'
 
 function parseTags(raw: string | null): string[] {
   if (!raw) return []
@@ -25,7 +21,7 @@ function parseTags(raw: string | null): string[] {
   }
 }
 
-function adaptDefinition(row: WorkflowDefinitionRow): MockWorkflow {
+function adaptDefinition(row: WorkflowDefinitionRow): WorkflowSummary {
   return {
     id: row.id,
     name: row.name,
@@ -57,5 +53,25 @@ export function useWorkflowDefinitions() {
       return rows.map(adaptDefinition)
     },
     staleTime: 30_000,
+  })
+}
+
+export function useWorkflowParsed(id: string | null) {
+  return useQuery({
+    queryKey: ['workflow-definitions', id, 'parsed'],
+    queryFn: () => getWorkflowDefinitionParsed(id!),
+    enabled: !!id,
+    staleTime: 30_000,
+  })
+}
+
+export function useLaunchWorkflowRun() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: LaunchWorkflowInput) => launchWorkflowRun(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['workflow-definitions'] })
+      void queryClient.invalidateQueries({ queryKey: ['workflow-runs'] })
+    },
   })
 }
