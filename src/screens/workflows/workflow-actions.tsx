@@ -1,4 +1,4 @@
-import { MOCK_WORKFLOWS } from './mock-workflows'
+import { useWorkflowParsed } from './use-workflows'
 
 interface WorkflowActionsProps {
   selectedId: string | null
@@ -43,6 +43,8 @@ function SourceBadge({ source }: { source: string }) {
 }
 
 export function WorkflowActions({ selectedId, onOpenLaunchWizard }: WorkflowActionsProps) {
+  const { data, isLoading } = useWorkflowParsed(selectedId)
+
   if (!selectedId) {
     return (
       <div className="wfa-root wfa-empty">
@@ -51,19 +53,25 @@ export function WorkflowActions({ selectedId, onOpenLaunchWizard }: WorkflowActi
     )
   }
 
-  const wf = MOCK_WORKFLOWS.find((w) => w.id === selectedId)
-  if (!wf) return null
+  if (isLoading) {
+    return (
+      <div className="wfa-root wfa-empty">
+        <span className="wfa-empty-msg">Loading…</span>
+      </div>
+    )
+  }
 
-  const isBundled = wf.source === 'bundled'
-  const runCount = activeRunCount(wf.id)
-  const checksum = mockSha256(wf.id)
-  const version = mockVersion(wf.id)
-  const filePath = `~/.archon/workflows/defaults/${wf.id}.yaml`
+  if (!data) return null
 
-  const wfId = wf.id
+  const def = data.definition
+  const isBundled = def.source === 'bundled'
+  const runCount = activeRunCount(def.id)
+  const checksum = def.checksum || mockSha256(def.id)
+  const version = def.version || mockVersion(def.id)
+  const filePath = `~/.archon/workflows/defaults/${def.id}.yaml`
+
   function handleLaunch() {
-    console.log('[WorkflowActions] onOpenLaunchWizard', wfId)
-    onOpenLaunchWizard(wfId)
+    onOpenLaunchWizard(def.id)
   }
 
   return (
@@ -87,7 +95,7 @@ export function WorkflowActions({ selectedId, onOpenLaunchWizard }: WorkflowActi
 
         <button
           className="wfa-action-btn"
-          onClick={() => console.log('[WorkflowActions] duplicate', wf.id)}
+          onClick={() => console.log('[WorkflowActions] duplicate', def.id)}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="12" height="12">
             <rect x="9" y="9" width="13" height="13" rx="2" />
@@ -98,7 +106,7 @@ export function WorkflowActions({ selectedId, onOpenLaunchWizard }: WorkflowActi
 
         <button
           className="wfa-action-btn"
-          onClick={() => console.log('[WorkflowActions] export-yaml', wf.id)}
+          onClick={() => console.log('[WorkflowActions] export-yaml', def.id)}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="12" height="12">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -112,7 +120,7 @@ export function WorkflowActions({ selectedId, onOpenLaunchWizard }: WorkflowActi
           <button
             className={`wfa-action-btn wfa-action-danger${isBundled ? ' wfa-disabled' : ''}`}
             disabled={isBundled}
-            onClick={() => !isBundled && console.log('[WorkflowActions] delete', wf.id)}
+            onClick={() => !isBundled && console.log('[WorkflowActions] delete', def.id)}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="12" height="12">
               <polyline points="3 6 5 6 21 6" />
@@ -124,7 +132,7 @@ export function WorkflowActions({ selectedId, onOpenLaunchWizard }: WorkflowActi
 
         <button
           className="wfa-action-btn"
-          onClick={() => console.log('[WorkflowActions] set-default', wf.id)}
+          onClick={() => console.log('[WorkflowActions] set-default', def.id)}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="12" height="12">
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
@@ -145,7 +153,7 @@ export function WorkflowActions({ selectedId, onOpenLaunchWizard }: WorkflowActi
               {runCount === 0 ? 'No active runs' : `${runCount} run${runCount > 1 ? 's' : ''} active`}
             </span>
             <a
-              href={`/conductor?workflow=${encodeURIComponent(wf.id)}`}
+              href={`/conductor?workflow=${encodeURIComponent(def.id)}`}
               className="wfa-conductor-link"
             >
               View in Conductor →
@@ -169,7 +177,7 @@ export function WorkflowActions({ selectedId, onOpenLaunchWizard }: WorkflowActi
         </div>
         <div className="wfa-meta-kv">
           <span className="wfa-mk">Source</span>
-          <span className="wfa-mv"><SourceBadge source={wf.source} /></span>
+          <span className="wfa-mv"><SourceBadge source={def.source} /></span>
         </div>
         <div className="wfa-meta-kv">
           <span className="wfa-mk">Path</span>

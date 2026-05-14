@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { MOCK_WORKFLOWS, type MockWorkflow } from './mock-workflows'
 import { useWorkflowDefinitions } from './use-workflows'
+import type { WorkflowSummary } from './types'
 import { WorkflowsTopBar } from './workflows-top-bar'
 import { WorkflowLibrary } from './workflow-library'
 import { WorkflowActions } from './workflow-actions'
@@ -14,18 +14,13 @@ export function WorkflowsLayout() {
   const [railCollapsed, setRailCollapsed] = useState(false)
 
   // B.4: Library + Grid consume live data from /api/workflow-definitions.
-  // Editor + Launch Wizard still consume mock-workflows.ts for the rich
-  // DagNode structure (parsed-YAML endpoint will land later).
-  const { data: liveWorkflows, isLoading } = useWorkflowDefinitions()
-  const workflows = useMemo<MockWorkflow[]>(() => {
-    // While loading OR if the engine has no defs yet, fall back to the mock
-    // catalog so the page is usable for dev / first-run experience.
-    if (isLoading) return MOCK_WORKFLOWS
-    if (!liveWorkflows || liveWorkflows.length === 0) return MOCK_WORKFLOWS
-    return liveWorkflows
-  }, [liveWorkflows, isLoading])
+  // B.4 Path B: Editor + Launch Wizard now load via useWorkflowParsed (parsed endpoint).
+  const { data: liveWorkflows } = useWorkflowDefinitions()
+  const workflows = useMemo<WorkflowSummary[]>(() => {
+    return liveWorkflows ?? []
+  }, [liveWorkflows])
 
-  const [filteredWorkflows, setFilteredWorkflows] = useState<MockWorkflow[]>(workflows)
+  const [filteredWorkflows, setFilteredWorkflows] = useState<WorkflowSummary[]>(workflows)
 
   // Auto-open wizard when ?wizard=<id> query param present
   useEffect(() => {
@@ -38,7 +33,7 @@ export function WorkflowsLayout() {
     setWizardOpenForId(workflowId)
   }
 
-  const handleFilteredChange = useCallback((workflows: MockWorkflow[]) => {
+  const handleFilteredChange = useCallback((workflows: WorkflowSummary[]) => {
     setFilteredWorkflows(workflows)
   }, [])
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { MOCK_WORKFLOWS, type MockWorkflow, type NodeType } from './mock-workflows'
+import { useWorkflowParsed, useLaunchWorkflowRun } from './use-workflows'
+import type { NodeType, WorkflowDagNode } from './types'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,56 @@ function agentForNode(nodeId: string): Agent {
   return AGENTS[h % 4]
 }
 
+/** Kahn topological layout for wizard DAG (horizontal) */
+function computeWizardLayout(
+  nodes: WorkflowDagNode[],
+  edges: [string, string][],
+): Record<string, { x: number; y: number }> {
+  const NODE_W = 110
+  const NODE_H = 44
+  const GAP_X = 50
+  const GAP_Y = 16
+  const PAD = 24
+
+  const inDeg: Record<string, number> = {}
+  const adj: Record<string, string[]> = {}
+  for (const n of nodes) { inDeg[n.id] = 0; adj[n.id] = [] }
+  for (const [a, b] of edges) {
+    adj[a] = adj[a] ?? []
+    adj[a].push(b)
+    inDeg[b] = (inDeg[b] ?? 0) + 1
+  }
+
+  const depth: Record<string, number> = {}
+  const queue: string[] = []
+  for (const n of nodes) if ((inDeg[n.id] ?? 0) === 0) queue.push(n.id)
+  while (queue.length > 0) {
+    const id = queue.shift()!
+    for (const nb of adj[id] ?? []) {
+      depth[nb] = Math.max(depth[nb] ?? 0, (depth[id] ?? 0) + 1)
+      inDeg[nb]--
+      if (inDeg[nb] === 0) queue.push(nb)
+    }
+  }
+
+  const byDepth: Record<number, string[]> = {}
+  for (const n of nodes) {
+    const d = depth[n.id] ?? 0
+    byDepth[d] = byDepth[d] ?? []
+    byDepth[d].push(n.id)
+  }
+
+  const pos: Record<string, { x: number; y: number }> = {}
+  for (const [d, ids] of Object.entries(byDepth)) {
+    const depthNum = Number(d)
+    const cx = PAD + depthNum * (NODE_W + GAP_X) + NODE_W / 2
+    ids.forEach((id, rank) => {
+      pos[id] = { x: cx - NODE_W / 2, y: PAD + rank * (NODE_H + GAP_Y) }
+    })
+  }
+  return pos
+}
+
 // ── Step 1 — Plan ─────────────────────────────────────────────────────────────
 
 interface ChatMsg {
@@ -30,7 +81,27 @@ interface ChatMsg {
   text: string
 }
 
-function Step1Plan({ wf, onUserSent }: { wf: MockWorkflow; onUserSent: (sent: boolean) => void }) {
+interface WizardData {
+  id: string
+  name: string
+  description: string
+  required_inputs: string[]
+  optional_inputs: string[]
+  nodes: WorkflowDagNode[]
+  edges: [string, string][]
+}
+
+function Step1Plan({
+  wf,
+  onUserSent,
+  userMessage,
+  setUserMessage,
+}: {
+  wf: WizardData
+  onUserSent: (sent: boolean) => void
+  userMessage: string
+  setUserMessage: (m: string) => void
+}) {
   const [msgs, setMsgs] = useState<ChatMsg[]>([
     {
       role: 'switch',
@@ -53,6 +124,7 @@ function Step1Plan({ wf, onUserSent }: { wf: MockWorkflow; onUserSent: (sent: bo
       },
     ]
     setMsgs(newMsgs)
+    setUserMessage(text)
     setDraft('')
     if (!hasSent) {
       setHasSent(true)
@@ -124,7 +196,7 @@ function Step2Route({
   agentMap,
   setAgentMap,
 }: {
-  wf: MockWorkflow
+  wf: WizardData
   agentMap: Record<string, Agent>
   setAgentMap: React.Dispatch<React.SetStateAction<Record<string, Agent>>>
 }) {
@@ -135,13 +207,13 @@ function Step2Route({
   const R = 5
   const PAD = 24
 
-  const hasDag = wf.dag.length > 0
+  const hasDag = wf.nodes.length > 0
+  const posMap = hasDag ? computeWizardLayout(wf.nodes, wf.edges) : {}
 
-  const posMap: Record<string, { x: number; y: number }> = {}
-  for (const n of wf.dag) posMap[n.id] = { x: n.cx, y: n.cy }
-
-  const svgW = hasDag ? Math.max(...wf.dag.map((n) => n.cx + W / 2)) + PAD : 400
-  const svgH = hasDag ? Math.max(...wf.dag.map((n) => n.cy + H / 2 + 20)) + PAD : 120
+  const allX = Object.values(posMap).map((p) => p.x)
+  const allY = Object.values(posMap).map((p) => p.y)
+  const svgW = hasDag ? Math.max(...allX) + W + PAD : 400
+  const svgH = hasDag ? Math.max(...allY) + H + 20 + PAD : 120
 
   function handleNodeClick(nodeId: string) {
     setPopupNode(popupNode === nodeId ? null : nodeId)
@@ -167,14 +239,14 @@ function Step2Route({
                 <path d="M 0 2 L 8 5 L 0 8 z" fill="rgba(0,255,65,.35)" />
               </marker>
             </defs>
-            {wf.dag_edges.map(([a, b], i) => {
+            {wf.edges.map(([a, b], i) => {
               const s = posMap[a]
               const t = posMap[b]
               if (!s || !t) return null
-              const sx = s.x + W / 2
-              const sy = s.y
-              const tx = t.x - W / 2
-              const ty = t.y
+              const sx = s.x + W
+              const sy = s.y + H / 2
+              const tx = t.x
+              const ty = t.y + H / 2
               const mx = (sx + tx) / 2
               return (
                 <path
@@ -187,7 +259,9 @@ function Step2Route({
                 />
               )
             })}
-            {wf.dag.map((n) => {
+            {wf.nodes.map((n) => {
+              const pos = posMap[n.id]
+              if (!pos) return null
               const c = NODE_COLOR[n.type] ?? '#00ff41'
               const agent = agentMap[n.id] ?? agentForNode(n.id)
               return (
@@ -197,8 +271,8 @@ function Step2Route({
                   onClick={() => handleNodeClick(n.id)}
                 >
                   <rect
-                    x={n.cx - W / 2}
-                    y={n.cy - H / 2}
+                    x={pos.x}
+                    y={pos.y}
                     width={W}
                     height={H}
                     rx={R}
@@ -207,24 +281,24 @@ function Step2Route({
                     strokeWidth="1"
                   />
                   <text
-                    x={n.cx}
-                    y={n.cy - 8}
+                    x={pos.x + W / 2}
+                    y={pos.y + H / 2 - 8}
                     textAnchor="middle"
                     style={{ font: '600 10px var(--m-font-mono, ui-monospace, monospace)', fill: '#e8ffe8', letterSpacing: '.04em' }}
                   >
                     {n.label}
                   </text>
                   <text
-                    x={n.cx}
-                    y={n.cy + 4}
+                    x={pos.x + W / 2}
+                    y={pos.y + H / 2 + 4}
                     textAnchor="middle"
                     style={{ font: '500 8px var(--m-font-mono, ui-monospace, monospace)', fill: c, letterSpacing: '.1em', textTransform: 'uppercase' }}
                   >
                     {n.type}
                   </text>
                   <text
-                    x={n.cx}
-                    y={n.cy + 16}
+                    x={pos.x + W / 2}
+                    y={pos.y + H / 2 + 16}
                     textAnchor="middle"
                     style={{ font: '500 8px var(--m-font-mono, ui-monospace, monospace)', fill: '#00c832', letterSpacing: '.04em' }}
                   >
@@ -383,11 +457,13 @@ function Step4Confirm({
   agentMap,
   schedule,
   onSubmit,
+  isSubmitting,
 }: {
-  wf: MockWorkflow
+  wf: WizardData
   agentMap: Record<string, Agent>
   schedule: ScheduleState
   onSubmit: () => void
+  isSubmitting: boolean
 }) {
   const scheduleLabel =
     schedule.mode === 'now'
@@ -403,7 +479,6 @@ function Step4Confirm({
           <div className="wfw-cc-title">Workflow</div>
           <div className="wfw-cc-row"><span>ID</span><span>{wf.id}</span></div>
           <div className="wfw-cc-row"><span>Name</span><span>{wf.name}</span></div>
-          <div className="wfw-cc-row"><span>Version</span><span>{wf.version_tier}</span></div>
         </div>
         <div className="wfw-confirm-card">
           <div className="wfw-cc-title">Execution</div>
@@ -411,10 +486,10 @@ function Step4Confirm({
           <div className="wfw-cc-row"><span>Priority</span><span>{schedule.priority}</span></div>
           <div className="wfw-cc-row"><span>Max runtime</span><span>{schedule.maxRuntime}s</span></div>
         </div>
-        {wf.dag.length > 0 && (
+        {wf.nodes.length > 0 && (
           <div className="wfw-confirm-card">
             <div className="wfw-cc-title">Agent Assignments</div>
-            {wf.dag.map((n) => (
+            {wf.nodes.map((n) => (
               <div key={n.id} className="wfw-cc-row">
                 <span>{n.label}</span>
                 <span className="wfw-agent-tag">{agentMap[n.id] ?? agentForNode(n.id)}</span>
@@ -439,8 +514,8 @@ function Step4Confirm({
         )}
       </div>
 
-      <button className="wfw-submit-btn" onClick={onSubmit}>
-        Submit as Workflow Run
+      <button className="wfw-submit-btn" onClick={onSubmit} disabled={isSubmitting}>
+        {isSubmitting ? 'Launching…' : 'Submit as Workflow Run'}
       </button>
     </div>
   )
@@ -457,6 +532,7 @@ export function LaunchWizard({ workflowId, onClose }: LaunchWizardProps) {
   const [step, setStep] = useState(1)
   const [canAdvance, setCanAdvance] = useState(false)
   const [agentMap, setAgentMap] = useState<Record<string, Agent>>({})
+  const [userMessage, setUserMessage] = useState('')
   const [schedule, setSchedule] = useState<ScheduleState>({
     mode: 'now',
     datetime: '',
@@ -465,40 +541,101 @@ export function LaunchWizard({ workflowId, onClose }: LaunchWizardProps) {
     maxRuntime: 3600,
   })
 
-  const wf = workflowId ? MOCK_WORKFLOWS.find((w) => w.id === workflowId) ?? null : null
+  const { data, isLoading } = useWorkflowParsed(workflowId)
+  const launchMutation = useLaunchWorkflowRun()
 
   // Reset state when workflow changes
   useEffect(() => {
     setStep(1)
     setCanAdvance(false)
     setAgentMap({})
+    setUserMessage('')
     setSchedule({ mode: 'now', datetime: '', cron: '', priority: 'normal', maxRuntime: 3600 })
   }, [workflowId])
 
   // Keyboard dismiss
   useEffect(() => {
-    if (!wf) return
+    if (!workflowId) return
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [wf, onClose])
+  }, [workflowId, onClose])
+
+  if (!workflowId) return null
+
+  // Build wizard data from parsed response
+  let wf: WizardData | null = null
+  if (data) {
+    const { definition: def, parsed } = data
+    wf = {
+      id: def.id,
+      name: parsed.name,
+      description: parsed.description,
+      required_inputs: parsed.required_inputs,
+      optional_inputs: parsed.optional_inputs,
+      nodes: parsed.nodes.map((n) => ({
+        id: n.id,
+        label: n.label ?? n.id,
+        type: (n.type ?? 'prompt') as NodeType,
+        config: n.config,
+      })),
+      edges: parsed.edges,
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="wfw-backdrop" onClick={onClose}>
+        <div className="wfw-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="wfw-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
+            <span style={{ opacity: 0.5 }}>Loading workflow…</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (!wf) return null
 
   function next() {
     if (step < 4) {
       setStep((s) => s + 1)
-      if (step + 1 !== 1) setCanAdvance(true) // steps 2-4 always advanceable
+      if (step + 1 !== 1) setCanAdvance(true)
     }
   }
   function back() {
     if (step > 1) setStep((s) => s - 1)
   }
   function submit() {
-    window.dispatchEvent(new CustomEvent('wf-toast', { detail: { msg: 'Workflow Run created' } }))
-    onClose()
+    if (!wf) return
+    const conversationId = crypto.randomUUID()
+    const summary = userMessage || `Launch ${wf.name}`
+    launchMutation.mutate(
+      {
+        workflow_id: wf.id,
+        conversation_id: conversationId,
+        user_message: summary,
+      },
+      {
+        onSuccess: (result) => {
+          window.dispatchEvent(
+            new CustomEvent('wf-toast', {
+              detail: { msg: `Workflow Run created: ${result.run.id}` },
+            }),
+          )
+          onClose()
+        },
+        onError: (err) => {
+          window.dispatchEvent(
+            new CustomEvent('wf-toast', {
+              detail: { msg: `Launch failed: ${(err as Error).message}` },
+            }),
+          )
+        },
+      },
+    )
   }
 
   const isLast = step === 4
@@ -534,6 +671,8 @@ export function LaunchWizard({ workflowId, onClose }: LaunchWizardProps) {
             <Step1Plan
               wf={wf}
               onUserSent={(sent) => setCanAdvance(sent)}
+              userMessage={userMessage}
+              setUserMessage={setUserMessage}
             />
           )}
           {step === 2 && (
@@ -543,7 +682,13 @@ export function LaunchWizard({ workflowId, onClose }: LaunchWizardProps) {
             <Step3Schedule schedule={schedule} setSchedule={setSchedule} />
           )}
           {step === 4 && (
-            <Step4Confirm wf={wf} agentMap={agentMap} schedule={schedule} onSubmit={submit} />
+            <Step4Confirm
+              wf={wf}
+              agentMap={agentMap}
+              schedule={schedule}
+              onSubmit={submit}
+              isSubmitting={launchMutation.isPending}
+            />
           )}
         </div>
 
