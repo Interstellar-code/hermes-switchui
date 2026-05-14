@@ -7,6 +7,9 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import appCss from '../styles.css?url'
+import { getRootSurfaceState } from './-root-layout-state'
+import type { AuthStatus } from '@/lib/claude-auth'
+import { fetchClaudeAuthStatus } from '@/lib/claude-auth'
 import { SearchModal } from '@/components/search/search-modal'
 import { TerminalShortcutListener } from '@/components/terminal-shortcut-listener'
 import { GlobalShortcutListener } from '@/components/global-shortcut-listener'
@@ -25,8 +28,6 @@ import {
 } from '@/components/onboarding/claude-onboarding'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { LoginScreen } from '@/components/auth/login-screen'
-import { fetchClaudeAuthStatus, type AuthStatus } from '@/lib/claude-auth'
-import { getRootSurfaceState } from './-root-layout-state'
 
 const APP_CSP = [
   "default-src 'self'",
@@ -34,11 +35,12 @@ const APP_CSP = [
   "object-src 'none'",
   "form-action 'self'",
   // frame-ancestors is ignored in meta CSP and must be sent as an HTTP header.
-  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval' blob: https://cdn.jsdelivr.net",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://fonts.gstatic.com",
   "connect-src 'self' ws: wss: http: https:",
+  "child-src 'self' blob:",
   "worker-src 'self' blob:",
   "media-src 'self' blob: data:",
   "frame-src 'self' http: https:",
@@ -301,7 +303,7 @@ function RootLayout() {
             modelConfigured?: boolean
           } | null,
         ) => {
-          if (status?.ok || (status?.chatReady && status?.modelConfigured)) {
+          if (status && (status.ok || (status.chatReady && status.modelConfigured))) {
             localStorage.setItem(ONBOARDING_KEY, 'true')
             syncOnboardingCompletion()
           }
