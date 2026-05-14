@@ -69,7 +69,7 @@ function makeEngine(store: SwitchUiWorkflowStore): WorkflowEngine {
     emitter,
     platform,
     deps,
-    boot: { orphanedRuns: 0, recoveredDispatches: 0 },
+    boot: { orphanedRuns: 0, recoveredDispatches: 0, seededDefinitions: 0, seedErrors: 0 },
     shutdown: async () => {},
   };
 }
