@@ -55,6 +55,73 @@ export interface LaunchWorkflowInput {
   variables?: Record<string, unknown>
 }
 
+export interface PhaseTransition {
+  id: string
+  from_phase: string | null
+  to_phase: string
+  decided_by: string
+  decision_data: Record<string, unknown> | null
+  at: number
+}
+
+export interface WorkflowRunRow {
+  id: string
+  workflow_id: string
+  conversation_id: string
+  status: string
+  current_phase: string
+  user_message: string
+  working_path: string
+  started_at: string | number
+  completed_at: string | number | null
+  error: string | null
+}
+
+export interface NodeRunRow {
+  id: string
+  workflow_run_id: string
+  dag_node_id: string
+  node_type: string
+  status: string
+  kanban_task_id: string | null
+  started_at: string | number | null
+  completed_at: string | number | null
+  summary: string | null
+  error: string | null
+}
+
+export interface WorkflowEventRow {
+  id: string
+  workflow_run_id: string
+  event_type: string
+  data: string | null
+  created_at: number
+}
+
+export interface WorkflowRunDetail {
+  run: WorkflowRunRow
+  nodeRuns: NodeRunRow[]
+  events: WorkflowEventRow[]
+  phaseTransitions: PhaseTransition[]
+}
+
+export async function getWorkflowRun(runId: string): Promise<WorkflowRunDetail> {
+  const res = await fetch(`/api/workflow-runs/${encodeURIComponent(runId)}`)
+  if (!res.ok) {
+    throw new Error(`getWorkflowRun failed (${res.status})`)
+  }
+  return (await res.json()) as WorkflowRunDetail
+}
+
+export async function cancelWorkflowRun(runId: string): Promise<void> {
+  const res = await fetch(`/api/workflow-runs/${encodeURIComponent(runId)}?action=cancel`, {
+    method: 'POST',
+  })
+  if (!res.ok) {
+    throw new Error(`cancelWorkflowRun failed (${res.status})`)
+  }
+}
+
 export async function launchWorkflowRun(input: LaunchWorkflowInput): Promise<{ run: { id: string } }> {
   const res = await fetch(`/api/workflow-runs`, {
     method: 'POST',

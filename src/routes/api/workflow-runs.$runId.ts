@@ -28,7 +28,8 @@ export const Route = createFileRoute('/api/workflow-runs/$runId')({
 
         const nodeRuns = store.listNodeRuns(params.runId);
         const events = store.listRecentWorkflowEvents(params.runId);
-        return json({ run, nodeRuns, events });
+        const phaseTransitions = store.listPhaseTransitions(params.runId);
+        return json({ run, nodeRuns, events, phaseTransitions });
       },
       POST: async ({ request, params }) => {
         if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);

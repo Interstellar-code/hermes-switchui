@@ -7,10 +7,12 @@ import { WorkflowActions } from './workflow-actions'
 import { WorkflowEditor } from './workflow-editor'
 import { WorkflowGrid } from './workflow-grid'
 import { LaunchWizard } from './launch-wizard'
+import { RunDetailPanel } from './run-detail-panel'
 
 export function WorkflowsLayout() {
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null)
   const [wizardOpenForId, setWizardOpenForId] = useState<string | null>(null)
+  const [activeRunId, setActiveRunId] = useState<string | null>(null)
   const [railCollapsed, setRailCollapsed] = useState(false)
 
   // B.4: Library + Grid consume live data from /api/workflow-definitions.
@@ -22,15 +24,31 @@ export function WorkflowsLayout() {
 
   const [filteredWorkflows, setFilteredWorkflows] = useState<WorkflowSummary[]>(workflows)
 
-  // Auto-open wizard when ?wizard=<id> query param present
+  // Read ?wizard=<id> and ?run=<id> query params on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const id = params.get('wizard')
-    if (id) setWizardOpenForId(id)
+    const wizardId = params.get('wizard')
+    if (wizardId) setWizardOpenForId(wizardId)
+    const runId = params.get('run')
+    if (runId) setActiveRunId(runId)
   }, [])
 
   function handleOpenLaunchWizard(workflowId: string) {
     setWizardOpenForId(workflowId)
+  }
+
+  function handleOpenRunPanel(runId: string) {
+    setActiveRunId(runId)
+    const url = new URL(window.location.href)
+    url.searchParams.set('run', runId)
+    window.history.pushState(null, '', url.toString())
+  }
+
+  function handleCloseRunPanel() {
+    setActiveRunId(null)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('run')
+    window.history.pushState(null, '', url.toString())
   }
 
   const handleFilteredChange = useCallback((workflows: WorkflowSummary[]) => {
@@ -52,7 +70,9 @@ export function WorkflowsLayout() {
           />
         </aside>
         <main className="wf-editor">
-          {selectedWorkflowId ? (
+          {activeRunId ? (
+            <RunDetailPanel runId={activeRunId} onClose={handleCloseRunPanel} />
+          ) : selectedWorkflowId ? (
             <WorkflowEditor selectedId={selectedWorkflowId} />
           ) : (
             <WorkflowGrid
@@ -68,7 +88,11 @@ export function WorkflowsLayout() {
           />
         </aside>
       </div>
-      <LaunchWizard workflowId={wizardOpenForId} onClose={() => setWizardOpenForId(null)} />
+      <LaunchWizard
+        workflowId={wizardOpenForId}
+        onClose={() => setWizardOpenForId(null)}
+        onRunLaunched={handleOpenRunPanel}
+      />
     </>
   )
 }
