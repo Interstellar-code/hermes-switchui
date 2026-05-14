@@ -342,6 +342,7 @@ export function Matrix3DScreen() {
     retry: false,
   })
   const entries = useMemo(() => buildLogEntries(logsQuery.data), [logsQuery.data])
+  const isLiveRoster = officeData.agentSource === 'live'
   const working = cardAgents.filter((agent) => agent.status === 'working').length
   const errors = cardAgents.filter((agent) => agent.status === 'error').length
   const idle = Math.max(0, cardAgents.length - working - errors)
@@ -375,7 +376,7 @@ export function Matrix3DScreen() {
               <div className="matrix3d-roster-pulse" />
               <span className="matrix3d-roster-label">Active agents</span>
               <span className="matrix3d-roster-summary">
-                {cardAgents.length} live · {working} working · {errors} error
+                {cardAgents.length} {isLiveRoster ? 'live' : 'configured'} · {working} working · {errors} error
               </span>
             </div>
             {cardAgents.length > 0 ? (
@@ -386,7 +387,7 @@ export function Matrix3DScreen() {
               </div>
             ) : (
               <div className="matrix3d-roster-empty">
-                No active delegated Hermes agents. Workspace profiles are not shown here as live agents.
+                No Hermes agents returned by the workspace or gateway yet.
               </div>
             )}
           </div>
