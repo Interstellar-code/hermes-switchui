@@ -15,8 +15,8 @@ import { SwitchUiWorkflowStore } from "./workflow-store.js";
 import { runMigrations } from "../db/migrate.js";
 import { openDb } from "../db/client.js";
 
-export function createWorkflowStore(options: { dbPath: string }): SwitchUiWorkflowStore {
-  const db = openDb(options.dbPath);
+export function createWorkflowStore(options: { dbPath?: string } = {}): SwitchUiWorkflowStore {
+  const db = options.dbPath ? openDb(options.dbPath) : openDb();
   runMigrations(db);
   return new SwitchUiWorkflowStore(db);
 }
