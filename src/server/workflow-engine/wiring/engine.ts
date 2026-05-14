@@ -19,6 +19,10 @@ import type { SwitchUiWorkflowStore } from '../store/workflow-store';
 import { KanbanDispatcher } from '../dispatcher/kanban-dispatcher';
 import { TaskEventConsumer } from '../consumer/task-event-consumer';
 import { getKanbanTask } from '../../hermes-kanban-client';
+import { WorkflowEventEmitter } from '../emitter/event-emitter';
+import { EngineWorkflowPlatform } from '../runtime/platform';
+import { loadWorkflowConfig } from '../runtime/load-config';
+import type { IWorkflowPlatform, WorkflowDeps } from './deps';
 
 export interface WorkflowEngineOptions {
   /** SQLite path. Default ~/.hermes/switchui-workflows.db (via openDb). */
@@ -35,6 +39,12 @@ export interface WorkflowEngine {
   store: SwitchUiWorkflowStore;
   dispatcher: KanbanDispatcher;
   consumer: TaskEventConsumer;
+  /** A.8: event emitter — subscribe for observability / SSE bridge (A.1.2). */
+  emitter: WorkflowEventEmitter;
+  /** A.8: platform adapter — bridges executor messages to emitter. */
+  platform: IWorkflowPlatform;
+  /** A.8: dependency bundle passed to executeWorkflow. */
+  deps: WorkflowDeps;
   /** Cold-start stats from boot reconciliation. */
   boot: {
     orphanedRuns: number;
@@ -91,10 +101,25 @@ export async function createWorkflowEngine(
     consumer.start();
   }
 
+  // 7. A.8: build emitter, platform, deps.
+  const emitter = new WorkflowEventEmitter();
+  const platform = new EngineWorkflowPlatform(emitter);
+  const deps: WorkflowDeps = {
+    // store/types.ts::WorkflowRun and schemas::WorkflowRun differ only in
+    // last_activity_at / workflow_name (upstream fields). The executor never
+    // reads last_activity_at; structurally compatible at runtime.
+    store: store as unknown as WorkflowDeps['store'],
+    getAgentProvider: (_type: string) => dispatcher,
+    loadConfig: loadWorkflowConfig,
+  };
+
   return {
     store,
     dispatcher,
     consumer,
+    emitter,
+    platform,
+    deps,
     boot: { orphanedRuns, recoveredDispatches },
     async shutdown() {
       consumer.stop();
