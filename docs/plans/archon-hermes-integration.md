@@ -1,6 +1,49 @@
 # Archon-Hermes Integration Plan
 
 > **Status:** Planning doc — split into two workstreams. Reviewed by Codex (via Neo). Reviewed by Switch (May 13). Gaps closed.
+> **Implementation status (May 14, 2026):** Runtime core complete (A.0–A.4, A.6, A.8, A.11 shipped). Branch: `feat/conductor-ops-wiring`. 22 commits ahead of `b7d140d4`. 125 vitest passing. See § Implementation Status below.
+
+---
+
+## Implementation Status (auto-tracked)
+
+| Item | Status | Notes |
+|---|---|---|
+| **A.0** Dependency stubs | ✅ shipped | `src/server/workflow-engine/stubs/{paths,git,providers,providers-types}.ts`. tsconfig path aliases. |
+| **A.1** Engine port (~8800 LOC) | ✅ shipped | `core/` + `schemas/` + `validation/` + `discovery/` + `emitter/` + `routing/` + `wiring/` + `utils/` + `defaults/`. 30 files, archon SHA 78d32cfb. |
+| **A.1.1** SQLite store | ✅ shipped | `~/.hermes/switchui-workflows.db`. 7 tables. Single-instance file lock. 17 IWorkflowStore methods + helpers. |
+| **A.1.2** SSE bridge | ✅ shipped | `GET /api/workflow-events?conversation_id=X`. Per-conversation filtering. Heartbeat at 25s. |
+| **A.2.1** Boot factory | ✅ shipped | `createWorkflowEngine()` singleton. Wires store + dispatcher + consumer + emitter + platform + deps + projector + cron poller. |
+| **A.2.3** Task event consumer | ✅ shipped | Per-task polling. Cold-start reconciliation re-tracks in-flight dispatches. (Live dispatches now resolve inline via dispatcher polling — see A.3.) |
+| **A.3** Kanban dispatcher | ✅ shipped | `IAgentProvider` impl. Inline polling until terminal (done/blocked/archived). Provider aliases: hermes-kanban, claude, codex. |
+| **A.4** Cron triggers | ✅ shipped | PULL-based. `payload.switchui_workflow_id` convention. Per-job cursor in `gateway_event_cursor`. Zero gateway changes. |
+| **A.5** Resume semantics | ⏳ partial | Cancel/resume API + `pauseWorkflowRun` + `findResumableRun` shipped; mid-loop / approval-pause end-to-end not exercised. |
+| **A.6** Port 20 bundled YAMLs | ✅ shipped | Auto-seeded on engine boot via `seedBundledWorkflows()`. All 20 parse + insert. |
+| **A.7** v1 subset polish (8 flows + 5-agent review subgraph) | ⏳ pending | YAMLs ship unmodified from upstream archon. |
+| **A.8** 5-phase wrapper | ✅ shipped | `plan → route → execute → review → report`. `recordPhaseTransition` sole writer of `workflow_runs.current_phase`. `launchWorkflowRun` orchestrates the lifecycle. |
+| **A.9** Annotate 8 v1 YAMLs with `hermes_task:` | ⏳ pending | No `hermes_task:` blocks added yet. |
+| **A.10** Launch surfaces + Hermes manifest | ⏳ partial | UI Launch Wizard + cron trigger paths shipped. Manifest at `~/.hermes/switchui-workflows.json` (chat-based launch) not. |
+| **A.11** Reliability contract | ✅ shipped | Single-instance lock (A.1.1), cold-start orphan reaper, cold-start dispatch reconciliation, idempotency key threading via `node_run.id` + Kanban `idempotency_key`. |
+| **B.0** API client layer | ✅ shipped | `src/screens/workflows/api-client.ts` + `use-workflows.ts` (TanStack Query hooks). |
+| **B.1** Conductor page wiring | ⏳ pending | Still on mock data. |
+| **B.2** Operations page wiring | ⏳ pending | Still on mock data. |
+| **B.3** Settings page (dispatcher/worker status) | ⏳ pending | — |
+| **B.4** Workflows page wiring | ✅ shipped | Library/Grid (Path A) + Editor/Wizard/RunDetail (Path B). `mock-workflows.ts` deleted. |
+| **Bonus** Run-detail panel | ✅ shipped | `?run=<id>` URL → live status + phase timeline + node_runs table + SSE feed. |
+| **Bonus** node_runs projector | ✅ shipped | Subscribes to emitter, materialises `node_runs` rows from `node_started/completed/failed/skipped/loop_iteration_*` events. |
+| **Bonus** Parsed-YAML endpoint | ✅ shipped | `GET /api/workflow-definitions/:id/parsed` returns `{ definition, parsed: { nodes[], edges[], has_loop, has_approval, ... } }`. |
+
+**Tests:** 125 passing across 16 vitest files. 0 tsc errors in workflow-engine + routes.
+
+**Open gaps (priority order):**
+1. **A.5 resume** — exercise mid-loop / approval-pause end-to-end.
+2. **A.9** — annotate the 8 v1 YAMLs with `hermes_task:` blocks (skills/agent_hint/model_hint).
+3. **A.10 manifest** — emit `~/.hermes/switchui-workflows.json` for chat-based launch routing.
+4. **B.1 Conductor page** — replace mock with live engine data.
+5. **B.2 Operations page** — same.
+6. **B.3 Settings page** — dispatcher health + worker pool surfaces.
+
+---
 
 **Goal:** Port the Archon workflow engine into Hermes Switch UI as a native subsystem. Strip what we don't need (platform adapters, chat UI, layout shell, dashboard, **Claude Code / Codex providers**, **upstream DAG builder UI**). Keep only: the YAML DAG engine + schemas + validators. Providers are replaced by a thin `kanban-dispatcher.ts` that routes execute-phase AI work to Hermes Kanban; Hermes Agent already drives `claude` / `codex` CLIs natively. Conductor + Workflows CRUD UI is built in Switch UI's existing Matrix-themed design system, not ported.
 
