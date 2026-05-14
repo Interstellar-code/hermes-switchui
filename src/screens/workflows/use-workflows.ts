@@ -3,7 +3,9 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  cancelWorkflowRun,
   getWorkflowDefinitionParsed,
+  getWorkflowRun,
   launchWorkflowRun,
   listWorkflowDefinitions,
   type LaunchWorkflowInput,
@@ -72,6 +74,32 @@ export function useLaunchWorkflowRun() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['workflow-definitions'] })
       void queryClient.invalidateQueries({ queryKey: ['workflow-runs'] })
+    },
+  })
+}
+
+const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled'])
+
+export function useWorkflowRun(runId: string | null) {
+  return useQuery({
+    queryKey: ['workflow-runs', runId],
+    queryFn: () => getWorkflowRun(runId!),
+    enabled: !!runId,
+    staleTime: 0,
+    refetchInterval: (query) => {
+      const status = query.state.data?.run.status
+      if (!status) return 2_000
+      return TERMINAL_STATUSES.has(status) ? false : 2_000
+    },
+  })
+}
+
+export function useCancelRun(runId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => cancelWorkflowRun(runId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['workflow-runs', runId] })
     },
   })
 }

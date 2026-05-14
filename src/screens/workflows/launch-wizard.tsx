@@ -526,9 +526,10 @@ function Step4Confirm({
 interface LaunchWizardProps {
   workflowId: string | null
   onClose: () => void
+  onRunLaunched?: (runId: string) => void
 }
 
-export function LaunchWizard({ workflowId, onClose }: LaunchWizardProps) {
+export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizardProps) {
   const [step, setStep] = useState(1)
   const [canAdvance, setCanAdvance] = useState(false)
   const [agentMap, setAgentMap] = useState<Record<string, Agent>>({})
@@ -620,12 +621,16 @@ export function LaunchWizard({ workflowId, onClose }: LaunchWizardProps) {
       },
       {
         onSuccess: (result) => {
-          window.dispatchEvent(
-            new CustomEvent('wf-toast', {
-              detail: { msg: `Workflow Run created: ${result.run.id}` },
-            }),
-          )
           onClose()
+          if (onRunLaunched) {
+            onRunLaunched(result.run.id)
+          } else {
+            window.dispatchEvent(
+              new CustomEvent('wf-toast', {
+                detail: { msg: `Workflow Run created: ${result.run.id}` },
+              }),
+            )
+          }
         },
         onError: (err) => {
           window.dispatchEvent(
