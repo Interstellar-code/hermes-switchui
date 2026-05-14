@@ -1,7 +1,7 @@
 # Archon-Hermes Integration Plan
 
 > **Status:** Planning doc — split into two workstreams. Reviewed by Codex (via Neo). Reviewed by Switch (May 13). Gaps closed.
-> **Implementation status (May 15, 2026):** Workstream A complete except A.7 (workflow-content polish). Runtime + content shipped: A.0–A.6, A.8–A.11. 6-bundle Codex audit cycle cleared (14 findings, 14 fixes). Branch: `feat/conductor-ops-wiring`. 33 commits ahead of `b7d140d4`. 135 vitest passing, 0 tsc errors. See § Implementation Status below.
+> **Implementation status (May 15, 2026):** Workstream A complete except A.7 (workflow-content polish). Runtime + content shipped: A.0–A.6, A.8–A.11. **7-bundle Codex audit cycle cleared** (22 findings, 22 fixes). Branch: `feat/conductor-ops-wiring`. 36 commits ahead of `b7d140d4`. 135 vitest passing, 0 tsc errors. See § Implementation Status below.
 
 ---
 
@@ -45,6 +45,7 @@
 | 4 | Boot + reliability (A.2.1 + A.11 + A.4) | 1 blocker + 3 important | 9887ddb0 — Q6 lock-on-fail try/catch, Q5 deterministic cron conversation_id, Q4 disabled-interval suppression |
 | 5 | HTTP API surface | 5 important | 57890ff9 — Q3 upsert validation, Q4 launch security, Q6 ETag/Cache-Control, Q7 array caps |
 | 6 | UI wiring (B.0 + B.4 + run-detail) | 1 important | d012f2f5 — Q3 double-submit guard |
+| 7 | A.5 + A.9 + A.10 follow-up | 8 important | 882702ed — A5.Q1 atomic claim, A5.Q2 resume-safe parse, A5.Q4 SSE emitter call, A9.Q1 transform fix, A9.Q3 77 new annotations (23→100), A10.Q1 manifest refresh on upsert, A10.Q2 outputPath sanitization, A10.Q3 real YAML parse for when_to_use |
 
 **Open gaps (priority order):**
 1. **B.1 Conductor page** — bridge engine workflow_runs into the existing Mission concept (Conductor is NOT mocked — has own `/api/conductor/*` backend; integration is a design decision).
