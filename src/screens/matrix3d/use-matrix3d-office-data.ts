@@ -5,47 +5,29 @@ import type { StudioGatewayAdapterType } from '@/lib/studio/settings'
 import type { WorkspaceAgentDirectory } from '@/lib/workspace-agents'
 import { useAgentView } from '@/hooks/use-agent-view'
 import { createDefaultAgentAvatarProfile } from '@/lib/avatars/profile'
+import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
 import { gatewayStatus as fetchGatewayStatus } from '@/lib/hermes-client'
 import { listWorkspaceAgents } from '@/lib/workspace-agents'
 
-const DEMO_AGENTS: Array<OfficeAgent> = [
-  {
-    id: 'main',
-    name: 'Claude',
-    subtitle: 'Claw3D Demo',
-    status: 'working',
-    color: '#34d399',
-    item: 'laptop',
-    avatarProfile: createDefaultAgentAvatarProfile('main'),
-  },
-  {
-    id: 'research',
-    name: 'Luna',
-    subtitle: 'Research Analyst',
+const HERMES_FALLBACK_AGENTS: Array<OfficeAgent> = BUILTIN_AGENTS.map((agent) => {
+  const mapped = {
+    id: agent.id,
+    name: agent.name,
+    task: agent.role,
+    model: agent.model,
     status: 'idle',
-    color: '#38bdf8',
-    item: 'globe',
-    avatarProfile: createDefaultAgentAvatarProfile('research'),
-  },
-  {
-    id: 'builder',
-    name: 'Roger',
-    subtitle: 'Frontend Developer',
-    status: 'working',
-    color: '#a78bfa',
-    item: 'palette',
-    avatarProfile: createDefaultAgentAvatarProfile('builder'),
-  },
-  {
-    id: 'qa',
-    name: 'Ada',
-    subtitle: 'QA Engineer',
+  }
+
+  return {
+    id: agent.id,
+    name: agent.name,
+    subtitle: [agent.role, agent.model].filter(Boolean).join(' • '),
     status: 'idle',
-    color: '#fbbf24',
-    item: 'shield',
-    avatarProfile: createDefaultAgentAvatarProfile('qa'),
-  },
-]
+    color: toOfficeColor(mapped),
+    item: toOfficeItem(mapped),
+    avatarProfile: createDefaultAgentAvatarProfile(agent.id),
+  }
+})
 
 type AgentLike = {
   id: string
@@ -125,7 +107,7 @@ function formatGatewayStatus(status: { status?: string; gateway_running?: boolea
   if (status?.gateway_running === true) return 'connected'
   if (status?.gateway_running === false) return 'disconnected'
   if (typeof status?.status === 'string' && status.status.trim()) return status.status.trim().toLowerCase()
-  return hasHermesData ? 'connected' : 'demo'
+  return hasHermesData ? 'connected' : 'local'
 }
 
 function pickAdapterType(
@@ -133,7 +115,7 @@ function pickAdapterType(
   rosterAgents: Array<WorkspaceAgentDirectory>,
 ): StudioGatewayAdapterType {
   if (hasLiveAgents) return 'openclaw'
-  return rosterAgents[0]?.adapter_type ?? 'demo'
+  return rosterAgents[0]?.adapter_type ?? 'local'
 }
 
 export type Matrix3DOfficeData = {
@@ -187,7 +169,7 @@ export function useMatrix3DOfficeData(): Matrix3DOfficeData {
 
     if (hasRosterAgents) return rosterAgents.map(toRosterOfficeAgent)
 
-    return DEMO_AGENTS
+    return HERMES_FALLBACK_AGENTS
   }, [agentView.activeAgents, hasLiveAgents, hasRosterAgents, rosterAgents])
 
   const selectedAdapterType = useMemo<StudioGatewayAdapterType>(
@@ -203,7 +185,7 @@ export function useMatrix3DOfficeData(): Matrix3DOfficeData {
   return {
     agents,
     readOnly: true,
-    storageNamespace: hasHermesData ? 'matrix3d-hermes' : 'matrix3d-demo',
+    storageNamespace: 'matrix3d-hermes',
     layoutPreset: 'office',
     officeTitle: 'Matrix3D Office',
     officeTitleLoaded: true,
