@@ -24,6 +24,8 @@ import { EngineWorkflowPlatform } from '../runtime/platform';
 import { loadWorkflowConfig } from '../runtime/load-config';
 import { seedBundledWorkflows } from '../runtime/seed-defaults';
 import { createNodeRunsProjector, type NodeRunsProjector } from '../projector/node-runs-projector';
+import { createCronTriggerPoller, type CronTriggerPoller } from '../cron/cron-trigger-poller';
+import { dashboardFetch } from '../../gateway-capabilities';
 import type { IWorkflowPlatform, WorkflowDeps } from './deps';
 
 export interface WorkflowEngineOptions {
@@ -37,6 +39,10 @@ export interface WorkflowEngineOptions {
   autoStartConsumer?: boolean;
   /** Seed the 20 bundled Archon workflow YAMLs into workflow_definitions. Default true. */
   seedBundled?: boolean;
+  /** Enable cron trigger poller (polls /api/cron/jobs). Default true. Tests opt out with false. */
+  enableCronTriggers?: boolean;
+  /** Cron poller interval in ms. Default 60_000. */
+  cronPollIntervalMs?: number;
 }
 
 export interface WorkflowEngine {
@@ -51,6 +57,8 @@ export interface WorkflowEngine {
   deps: WorkflowDeps;
   /** Node-runs projector — subscribes to emitter and writes node_runs rows. */
   projector: NodeRunsProjector;
+  /** A.4: cron trigger poller — polls /api/cron/jobs and fires launchWorkflowRun. */
+  cronPoller: CronTriggerPoller;
   /** Cold-start stats from boot reconciliation. */
   boot: {
     orphanedRuns: number;
@@ -71,6 +79,8 @@ export async function createWorkflowEngine(
     orphanThresholdMs = 300_000,
     autoStartConsumer = true,
     seedBundled = true,
+    enableCronTriggers = true,
+    cronPollIntervalMs = 60_000,
   } = options;
 
   // 1. Open DB + run migrations. openDb enforces the single-instance lock.
@@ -136,7 +146,30 @@ export async function createWorkflowEngine(
   // 8. Node-runs projector — projects engine events into node_runs rows.
   const projector = createNodeRunsProjector({ store, emitter });
 
-  return {
+  // 9. A.4: Cron trigger poller. fetchJobs wraps dashboardFetch so the engine
+  //    boots even when the gateway is offline (returns [] on any error).
+  const engineRef = {} as WorkflowEngine; // forward ref — filled below
+  const cronPoller = createCronTriggerPoller({
+    store,
+    engine: engineRef,
+    fetchJobs: async () => {
+      try {
+        const res = await dashboardFetch('/api/cron/jobs');
+        if (!res.ok) return [];
+        const data = await res.json() as unknown;
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
+    },
+    pollIntervalMs: cronPollIntervalMs,
+  });
+
+  if (enableCronTriggers) {
+    cronPoller.start();
+  }
+
+  Object.assign(engineRef, {
     store,
     dispatcher,
     consumer,
@@ -144,12 +177,14 @@ export async function createWorkflowEngine(
     platform,
     deps,
     projector,
+    cronPoller,
     boot: { orphanedRuns, recoveredDispatches, seededDefinitions, seedErrors },
     async shutdown() {
+      cronPoller.stop();
       projector.stop();
       consumer.stop();
-      // Store closes via process exit handler in openDb. No explicit close API
-      // here — every shutdown path should let the process exit handler run.
     },
-  };
+  });
+
+  return engineRef;
 }
