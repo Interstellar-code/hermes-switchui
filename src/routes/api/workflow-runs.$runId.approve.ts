@@ -10,6 +10,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { getWorkflowEngine } from '../../server/workflow-engine';
 import { launchWorkflowRun } from '../../server/workflow-engine/runtime';
+import type { ApprovalReceivedEvent } from '../../server/workflow-engine/emitter/event-emitter';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -60,26 +61,32 @@ export const Route = createFileRoute('/api/workflow-runs/$runId/approve')({
         if (nodeRun.workflow_run_id !== runId) {
           return json({ error: 'node_run does not belong to this workflow_run' }, 400);
         }
-        if (nodeRun.status !== 'paused') {
-          return json({ error: `node_run status is '${nodeRun.status}', expected 'paused'` }, 409);
+        // 3b. Atomic compare-and-swap: UPDATE WHERE status='paused'.
+        //     Prevents double-click race: only one caller can claim the row.
+        const claim = store.tryClaimApprovalForResume(node_run_id, decision, approvalResponse);
+        if (!claim.claimed) {
+          return json({ error: 'approval already processed' }, 409);
         }
 
-        const now = Date.now();
-
-        // 4. Update node_run with decision.
-        await store.updateNodeRun(node_run_id, {
-          status: decision === 'approved' ? 'completed' : 'failed',
-          approval_response: approvalResponse,
-          completed_at: now,
-        });
-
-        // 5. Emit approval_received event.
+        // 4. Emit approval_received event to DB (audit trail).
         await store.appendWorkflowEvent({
           workflow_run_id: runId,
           node_run_id,
           event_type: 'approval_received',
           data: { decision, response: approvalResponse },
         });
+
+        // 5. Forward to in-memory SSE emitter so subscribers see it in real time.
+        //    (appendWorkflowEvent is DB-only; the emitter is the live broadcast bus.)
+        const approvalEvent: ApprovalReceivedEvent = {
+          type: 'approval_received',
+          runId,
+          conversationId: run.conversation_id,
+          nodeRunId: node_run_id,
+          decision,
+          response: approvalResponse,
+        };
+        engine.emitter.emit(approvalEvent);
 
         // 6. Flip run back to running.
         await store.resumeWorkflowRun(runId);

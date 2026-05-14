@@ -600,10 +600,20 @@ export const dagNodeSchema = dagNodeBaseSchema
       } as ScriptNode;
     }
     if (data.approval !== undefined) {
-      return { ...base, ...shared, approval: data.approval } as ApprovalNode;
+      return {
+        ...base,
+        ...shared,
+        approval: data.approval,
+        ...(data.hermes_task !== undefined ? { hermes_task: data.hermes_task } : {}),
+      } as ApprovalNode;
     }
     if (data.cancel !== undefined && data.cancel.trim().length > 0) {
-      return { ...base, ...shared, cancel: data.cancel.trim() } as CancelNode;
+      return {
+        ...base,
+        ...shared,
+        cancel: data.cancel.trim(),
+        ...(data.hermes_task !== undefined ? { hermes_task: data.hermes_task } : {}),
+      } as CancelNode;
     }
     // loop — guaranteed by superRefine to be defined at this point
     if (!data.loop) throw new Error('unreachable: loop must be defined after superRefine');

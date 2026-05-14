@@ -171,6 +171,16 @@ export interface PlatformRetractEvent {
   conversationId: string;
 }
 
+// A.5 Q4 — approval decision received from the user (emitted by approve route so SSE sees it)
+export interface ApprovalReceivedEvent {
+  type: 'approval_received';
+  runId: string;
+  conversationId: string;
+  nodeRunId: string;
+  decision: 'approved' | 'rejected';
+  response: string;
+}
+
 export type WorkflowEmitterEvent =
   | WorkflowStartedEvent
   | WorkflowCompletedEvent
@@ -189,7 +199,8 @@ export type WorkflowEmitterEvent =
   | WorkflowCancelledEvent
   | PlatformMessageEvent
   | PlatformChunkEvent
-  | PlatformRetractEvent;
+  | PlatformRetractEvent
+  | ApprovalReceivedEvent;
 
 // ---------------------------------------------------------------------------
 // Emitter class

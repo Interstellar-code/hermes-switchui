@@ -58,6 +58,12 @@ export async function launchWorkflowRun(
   //    rather than the misleading 'execute' phase the previous order produced.
   const parsed = parseWorkflow(input.workflowYaml, `${input.workflowId}.yaml`);
   if (parsed.error) {
+    if (input.resumeMode) {
+      // A.5 Q2: YAML rot during resume must NOT kill the paused run — leave it as-is.
+      // eslint-disable-next-line no-console
+      console.error('[runner] resume failed: YAML parse error', parsed.error.error);
+      return;
+    }
     await store.failWorkflowRun(input.runId, parsed.error.error);
     return;
   }

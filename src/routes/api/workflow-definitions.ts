@@ -5,6 +5,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { getWorkflowEngine } from '../../server/workflow-engine';
+import { writeWorkflowsManifest } from '../../server/workflow-engine/runtime/manifest';
 import { createHash } from 'node:crypto';
 
 function json(body: unknown, status = 200): Response {
@@ -98,6 +99,15 @@ export const Route = createFileRoute('/api/workflow-definitions')({
           tags,
         });
         const def = store.getWorkflowDefinition(body.id);
+
+        // A.10 Q1 — refresh manifest after upsert so it stays current.
+        try {
+          writeWorkflowsManifest({ store });
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error('[workflow-definitions] manifest refresh failed after upsert:', err);
+        }
+
         return json({ definition: def });
       },
     },

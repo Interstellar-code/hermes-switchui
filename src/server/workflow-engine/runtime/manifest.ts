@@ -8,6 +8,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { parse as parseYamlLib } from 'yaml';
 import { parseWorkflow } from '../discovery/loader';
 import { isLoopNode, isApprovalNode } from '../schemas';
 import type { SwitchUiWorkflowStore } from '../store/workflow-store';
@@ -56,16 +57,27 @@ const DEFAULT_MANIFEST_FILENAME = 'switchui-workflows.json';
  *   2. `x-hermes.when_to_use:` extension block
  * Returns empty string if absent.
  */
-function extractWhenToUse(yaml: string): string {
-  // Top-level: "when_to_use: <value>" (single-line string)
-  const topLevel = /^when_to_use:\s*["']?(.+?)["']?\s*$/m.exec(yaml);
-  if (topLevel && topLevel[1].trim()) {
-    return topLevel[1].trim();
-  }
-  // x-hermes block: indented "when_to_use: <value>" after "x-hermes:"
-  const xHermes = /^x-hermes:\s*\n(?:[ \t]+\S[^\n]*\n)*?[ \t]+when_to_use:\s*["']?(.+?)["']?\s*$/m.exec(yaml);
-  if (xHermes && xHermes[1].trim()) {
-    return xHermes[1].trim();
+function extractWhenToUse(yamlText: string): string {
+  // A.10 Q3 — use real YAML parse to handle multi-line block scalars correctly.
+  try {
+    const doc = parseYamlLib(yamlText) as Record<string, unknown> | null;
+    if (!doc || typeof doc !== 'object') return '';
+
+    // 1. Top-level `when_to_use:`
+    if (typeof doc['when_to_use'] === 'string' && doc['when_to_use'].trim()) {
+      return doc['when_to_use'].trim();
+    }
+
+    // 2. `x-hermes.when_to_use:`
+    const xHermes = doc['x-hermes'];
+    if (xHermes && typeof xHermes === 'object') {
+      const nested = (xHermes as Record<string, unknown>)['when_to_use'];
+      if (typeof nested === 'string' && nested.trim()) {
+        return nested.trim();
+      }
+    }
+  } catch {
+    // Parse failure — caller records parseErrors separately; return empty string.
   }
   return '';
 }
@@ -96,6 +108,17 @@ export function writeWorkflowsManifest(opts: WriteManifestOpts): {
   parseErrors: Array<{ id: string; error: string }>;
 } {
   const { store } = opts;
+
+  // A.10 Q2 — path traversal guard for caller-supplied outputPath.
+  if (opts.outputPath !== undefined) {
+    if (!opts.outputPath.startsWith('/')) {
+      throw new Error(`writeWorkflowsManifest: outputPath must be absolute, got: ${opts.outputPath}`);
+    }
+    if (opts.outputPath.includes('..')) {
+      throw new Error(`writeWorkflowsManifest: outputPath must not contain '..', got: ${opts.outputPath}`);
+    }
+  }
+
   const outputDir = opts.outputPath ?? DEFAULT_MANIFEST_DIR;
   const outputFile = join(outputDir, DEFAULT_MANIFEST_FILENAME);
 
