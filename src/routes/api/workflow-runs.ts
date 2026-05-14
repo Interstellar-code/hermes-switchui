@@ -5,6 +5,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { getWorkflowEngine } from '../../server/workflow-engine';
+import { launchWorkflowRun } from '../../server/workflow-engine/runtime';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -32,7 +33,8 @@ export const Route = createFileRoute('/api/workflow-runs')({
       },
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
-        const { store } = await getWorkflowEngine();
+        const engine = await getWorkflowEngine();
+        const { store } = engine;
         const body = (await request.json()) as {
           workflow_id: string;
           conversation_id: string;
@@ -70,9 +72,20 @@ export const Route = createFileRoute('/api/workflow-runs')({
           codebase_id: body.codebase_id,
         });
 
-        // v1: run is created in 'pending'/'plan' state. DAG executor wiring will
-        // pick it up and advance phases. Engine-side advance is wired when the
-        // 5-phase wrapper (A.8) ships; for now, the run sits idle until A.8.
+        // A.8: kick off the 5-phase orchestration wrapper (fire-and-forget).
+        // launchWorkflowRun returns immediately; the DAG runs async.
+        void launchWorkflowRun(engine, {
+          runId: run.id,
+          workflowYaml: def.yaml,
+          workflowId: body.workflow_id,
+          conversationId: body.conversation_id,
+          cwd: body.working_path ?? process.cwd(),
+          userMessage: body.user_message,
+          conversationDbId: body.conversation_id,
+          codebaseId: body.codebase_id,
+          parentConversationId: body.parent_conversation_id,
+        });
+
         return json({ run }, 201);
       },
     },

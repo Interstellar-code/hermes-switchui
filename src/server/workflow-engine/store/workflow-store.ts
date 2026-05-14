@@ -10,6 +10,12 @@ import {
   ListWorkflowDefinitionsFilter,
   ApprovalContext,
 } from "./types.js";
+import {
+  Phase,
+  DecidedBy,
+  VALID_TRANSITIONS,
+  InvalidPhaseTransitionError,
+} from "../phases/phase-machine.js";
 
 // ============================================================
 // Helpers
@@ -796,6 +802,92 @@ export class SwitchUiWorkflowStore {
     return this.db
       .prepare(`SELECT * FROM workflow_definitions ${where} ORDER BY created_at ASC`)
       .all(...params) as WorkflowDefinitionRow[];
+  }
+
+  // ----------------------------------------------------------
+  // A.8: recordPhaseTransition — SOLE path for current_phase updates
+  // ----------------------------------------------------------
+
+  async recordPhaseTransition(input: {
+    runId: string;
+    toPhase: Phase;
+    decidedBy: DecidedBy;
+    decisionData?: Record<string, unknown>;
+  }): Promise<{ from: Phase; to: Phase }> {
+    const row = this.db
+      .prepare('SELECT current_phase FROM workflow_runs WHERE id=?')
+      .get(input.runId) as { current_phase: Phase } | undefined;
+    if (!row) throw new Error(`WorkflowRun not found: ${input.runId}`);
+
+    const from = row.current_phase;
+    const to = input.toPhase;
+
+    // Idempotent same-phase: return without writing.
+    if (from === to) return { from, to };
+
+    // Validate transition.
+    if (!VALID_TRANSITIONS[from].includes(to)) {
+      throw new InvalidPhaseTransitionError(from, to);
+    }
+
+    const transitionId = randomUUID();
+    const now = nowMs();
+
+    this.db.transaction(() => {
+      this.db
+        .prepare('UPDATE workflow_runs SET current_phase=? WHERE id=?')
+        .run(to, input.runId);
+      this.db
+        .prepare(
+          `INSERT INTO phase_transitions
+             (id, workflow_run_id, from_phase, to_phase, decided_by, decision_data, at)
+           VALUES (?,?,?,?,?,?,?)`
+        )
+        .run(
+          transitionId,
+          input.runId,
+          from,
+          to,
+          input.decidedBy,
+          input.decisionData ? JSON.stringify(input.decisionData) : null,
+          now
+        );
+    })();
+
+    return { from, to };
+  }
+
+  // ----------------------------------------------------------
+  // A.8: listPhaseTransitions
+  // ----------------------------------------------------------
+
+  listPhaseTransitions(runId: string): Array<{
+    id: string;
+    from_phase: string | null;
+    to_phase: string;
+    decided_by: string;
+    decision_data: Record<string, unknown> | null;
+    at: number;
+  }> {
+    const rows = this.db
+      .prepare(
+        `SELECT id, from_phase, to_phase, decided_by, decision_data, at
+           FROM phase_transitions
+          WHERE workflow_run_id=?
+          ORDER BY at ASC`
+      )
+      .all(runId) as Array<{
+        id: string;
+        from_phase: string | null;
+        to_phase: string;
+        decided_by: string;
+        decision_data: string | null;
+        at: number;
+      }>;
+    return rows.map((r) => ({
+      ...r,
+      decision_data: r.decision_data ? (JSON.parse(r.decision_data) as Record<string, unknown>) : null,
+    }));
   }
 
   // ----------------------------------------------------------

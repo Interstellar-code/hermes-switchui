@@ -142,6 +142,35 @@ interface WorkflowCancelledEvent {
   reason: string;
 }
 
+// ---------------------------------------------------------------------------
+// Platform bridge events (A.8) — emitted by EngineWorkflowPlatform so that
+// future SSE consumers (A.1.2) can forward messages to the UI without coupling
+// the executor to HTTP. These carry no runId because the platform receives a
+// conversationId; callers that need runId must correlate via registerRun().
+// ---------------------------------------------------------------------------
+
+export interface PlatformMessageEvent {
+  type: 'platform_message';
+  /** Platform events are conversation-scoped. runId is not present (use conversationId). */
+  runId?: undefined;
+  conversationId: string;
+  message: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface PlatformChunkEvent {
+  type: 'platform_chunk';
+  runId?: undefined;
+  conversationId: string;
+  event: unknown;
+}
+
+export interface PlatformRetractEvent {
+  type: 'platform_retract';
+  runId?: undefined;
+  conversationId: string;
+}
+
 export type WorkflowEmitterEvent =
   | WorkflowStartedEvent
   | WorkflowCompletedEvent
@@ -157,7 +186,10 @@ export type WorkflowEmitterEvent =
   | ToolStartedEvent
   | ToolCompletedEvent
   | ApprovalPendingEvent
-  | WorkflowCancelledEvent;
+  | WorkflowCancelledEvent
+  | PlatformMessageEvent
+  | PlatformChunkEvent
+  | PlatformRetractEvent;
 
 // ---------------------------------------------------------------------------
 // Emitter class
@@ -167,7 +199,7 @@ type Listener = (event: WorkflowEmitterEvent) => void;
 
 const WORKFLOW_EVENT = 'workflow_event';
 
-class WorkflowEventEmitter {
+export class WorkflowEventEmitter {
   private emitter = new EventEmitter();
   private conversationMap = new Map<string, string>(); // runId -> conversationId
 
@@ -232,7 +264,12 @@ class WorkflowEventEmitter {
    */
   subscribeForConversation(conversationId: string, listener: Listener): () => void {
     return this.subscribe((event: WorkflowEmitterEvent) => {
-      const eventConversationId = this.conversationMap.get(event.runId);
+      // Platform events (platform_message, platform_chunk, platform_retract) have
+      // no runId — they're conversation-scoped. Skip run-map lookup for them.
+      const runId = event.runId;
+      const eventConversationId = runId != null
+        ? this.conversationMap.get(runId)
+        : (event as { conversationId?: string }).conversationId;
       if (eventConversationId === conversationId) {
         listener(event);
       }
