@@ -40,6 +40,27 @@ export type WorkspaceAgentStats = {
   avg_response_ms: number | null
 }
 
+export type CrewStatusAgent = {
+  id: string
+  displayName: string
+  role: string
+  profileFound: boolean
+  gatewayState: string
+  processAlive: boolean
+  platforms: Record<string, unknown>
+  model: string
+  provider: string
+  lastSessionTitle: string | null
+  lastSessionAt: number | null
+  sessionCount: number
+  messageCount: number
+  toolCallCount: number
+  totalTokens: number
+  estimatedCostUsd: number | null
+  cronJobCount: number
+  assignedTaskCount: number
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   return value as Record<string, unknown>
@@ -146,21 +167,36 @@ const BUILTIN_AGENT_BY_ID = new Map(
   BUILTIN_AGENTS.map((agent) => [agent.id, agent]),
 )
 
-type CrewStatusMember = {
-  id: string
-  displayName: string
-  role: string
-  profileFound: boolean
-  gatewayState: string
-  processAlive: boolean
-  model: string
-  provider: string
-  lastSessionTitle: string | null
-  lastSessionAt: number | null
-  sessionCount: number
-  totalTokens: number
-  cronJobCount: number
-  assignedTaskCount: number
+function normalizeCrewStatusAgent(value: unknown): CrewStatusAgent | null {
+  const record = asRecord(value)
+  const id = asString(record?.id)
+  const displayName = asString(record?.displayName)
+  if (!id || !displayName) return null
+
+  return {
+    id,
+    displayName,
+    role: asString(record?.role) ?? 'Profile',
+    profileFound: asBoolean(record?.profileFound),
+    gatewayState: asString(record?.gatewayState) ?? 'unknown',
+    processAlive: asBoolean(record?.processAlive),
+    platforms: asRecord(record?.platforms) ?? {},
+    model: asString(record?.model) ?? 'unknown',
+    provider: asString(record?.provider) ?? 'Hermes',
+    lastSessionTitle: asString(record?.lastSessionTitle) ?? null,
+    lastSessionAt:
+      typeof record?.lastSessionAt === 'number' ? record.lastSessionAt : null,
+    sessionCount: asNumber(record?.sessionCount),
+    messageCount: asNumber(record?.messageCount),
+    toolCallCount: asNumber(record?.toolCallCount),
+    totalTokens: asNumber(record?.totalTokens),
+    estimatedCostUsd:
+      typeof record?.estimatedCostUsd === 'number' && Number.isFinite(record.estimatedCostUsd)
+        ? record.estimatedCostUsd
+        : null,
+    cronJobCount: asNumber(record?.cronJobCount),
+    assignedTaskCount: asNumber(record?.assignedTaskCount),
+  }
 }
 
 function normalizeTimestamp(value: unknown): string {
@@ -202,7 +238,7 @@ function normalizeCrewMember(value: unknown): CrewStatusMember | null {
 }
 
 function crewStatusToWorkspaceStatus(
-  member: CrewStatusMember,
+  member: CrewStatusAgent,
 ): WorkspaceAgentDirectory['status'] {
   if (!member.profileFound) return 'offline'
   if (
@@ -216,7 +252,7 @@ function crewStatusToWorkspaceStatus(
 }
 
 function crewMemberToWorkspaceAgent(
-  member: CrewStatusMember,
+  member: CrewStatusAgent,
 ): WorkspaceAgentDirectory {
   const builtin = BUILTIN_AGENT_BY_ID.get(member.id)
   const role = builtin?.role ?? member.role
@@ -264,12 +300,15 @@ function crewMemberToWorkspaceAgent(
 }
 
 function extractCrewAgents(payload: unknown): Array<WorkspaceAgentDirectory> {
+  return extractCrewStatusAgents(payload).map(crewMemberToWorkspaceAgent)
+}
+
+export function extractCrewStatusAgents(payload: unknown): Array<CrewStatusAgent> {
   const record = asRecord(payload)
   if (!Array.isArray(record?.crew)) return []
   return record.crew
-    .map(normalizeCrewMember)
-    .filter((member): member is CrewStatusMember => Boolean(member))
-    .map(crewMemberToWorkspaceAgent)
+    .map(normalizeCrewStatusAgent)
+    .filter((member): member is CrewStatusAgent => Boolean(member))
 }
 
 export function normalizeWorkspaceAgentStats(
@@ -291,12 +330,16 @@ export function normalizeWorkspaceAgentStats(
   }
 }
 
+export async function listCrewStatusAgents(): Promise<Array<CrewStatusAgent>> {
+  const payload = await workspaceRequestJson('/api/crew-status')
+  return extractCrewStatusAgents(payload)
+}
+
 export async function listWorkspaceAgents(): Promise<
   Array<WorkspaceAgentDirectory>
 > {
-  const crewPayload = await workspaceRequestJson('/api/crew-status')
-  const crewAgents = extractCrewAgents(crewPayload)
-  if (crewAgents.length > 0) return crewAgents
+  const crewAgents = await listCrewStatusAgents()
+  if (crewAgents.length > 0) return crewAgents.map(crewMemberToWorkspaceAgent)
 
   const payload = await workspaceRequestJson('/api/workspace/agents')
   return extractWorkspaceAgents(payload)

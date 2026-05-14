@@ -452,3 +452,11 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
+
+.matrix3d-agent-meta {
+  color: var(--m-text-faint);
+  font: 400 7.75px var(--m-font-mono);
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+}

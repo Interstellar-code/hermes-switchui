@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Matrix3DCanvas } from './components/matrix3d-canvas'
 import { useMatrix3DOfficeData } from './use-matrix3d-office-data'
 import type { OfficeAgent } from '@/features/retro-office/core/types'
+import type { Matrix3DAgentPresence } from './use-matrix3d-office-data'
 import { getLogs } from '@/lib/hermes-client'
 import './matrix3d-office.css'
 
@@ -34,6 +35,7 @@ type Matrix3DAgentCardModel = {
   dark: string
   bubble: string
   tier: 1 | 2
+  meta: string
 }
 
 const FALLBACK_CARD_NAMES = ['HERMES', 'NEO', 'TRINITY', 'MORPHEUS']
@@ -74,16 +76,23 @@ function statusColor(status: OfficeAgent['status']): string {
   return 'rgba(216,255,227,.28)'
 }
 
-function toCardAgent(agent: OfficeAgent, index: number): Matrix3DAgentCardModel {
+function toCardAgent(
+  agent: OfficeAgent,
+  presence: Matrix3DAgentPresence | undefined,
+  index: number,
+): Matrix3DAgentCardModel {
   return {
     id: agent.id,
     name: compactName(agent.name, index),
-    role: agent.subtitle?.split(/[•·]/)[0]?.trim() || agent.item || 'agent',
+    role: presence?.role || agent.subtitle?.split(/[•·]/)[0]?.trim() || agent.item || 'agent',
     status: agent.status,
     color: agent.color || ['#00ff41', '#a78bfa', '#5fcfff', '#d6ff5f'][index % 4],
     dark: darkenColor(agent.color || '#00ff41'),
-    bubble: agent.subtitle || `${agent.status} · ${agent.item || 'office'}`,
+    bubble: presence?.lastActivity || agent.subtitle || `${agent.status} · ${agent.item || 'office'}`,
     tier: index === 0 ? 1 : 2,
+    meta: presence
+      ? `${presence.provider} • ${presence.rosterStatus}${presence.assignedTaskCount > 0 ? ` • ${presence.assignedTaskCount} task` : ''}`
+      : 'office',
   }
 }
 
@@ -275,6 +284,7 @@ function Matrix3DAgentCard({ agent }: { agent: Matrix3DAgentCardModel }) {
         {agent.name}
       </div>
       <div className="matrix3d-agent-role">{agent.role}</div>
+      <div className="matrix3d-agent-meta">{agent.meta}</div>
       <div className="matrix3d-agent-status">
         <div className="matrix3d-agent-status-dot" style={{ background: dot, boxShadow: agent.status !== 'idle' ? `0 0 6px ${dot}` : '' }} />
         <div className="matrix3d-agent-status-label" style={{ color: dot }}>
@@ -333,7 +343,17 @@ function Matrix3DConsole({ entries, isLoading, isError }: { entries: Array<Matri
 
 export function Matrix3DScreen() {
   const officeData = useMatrix3DOfficeData()
-  const cardAgents = useMemo(() => officeData.agents.map(toCardAgent), [officeData.agents])
+  const cardAgents = useMemo(
+    () =>
+      officeData.agents.map((agent, index) =>
+        toCardAgent(
+          agent,
+          officeData.presence.find((presence) => presence.id === agent.id),
+          index,
+        ),
+      ),
+    [officeData.agents, officeData.presence],
+  )
   const logsQuery = useQuery({
     queryKey: ['matrix3d', 'gateway-logs'],
     queryFn: () => getLogs({ lines: 80 }),
@@ -376,7 +396,7 @@ export function Matrix3DScreen() {
               <div className="matrix3d-roster-pulse" />
               <span className="matrix3d-roster-label">Active agents</span>
               <span className="matrix3d-roster-summary">
-                {cardAgents.length} {isLiveRoster ? 'live' : 'configured'} · {working} working · {errors} error
+                {cardAgents.length} {isLiveRoster ? 'live' : 'roster'} · {working} working · {errors} error
               </span>
             </div>
             {cardAgents.length > 0 ? (

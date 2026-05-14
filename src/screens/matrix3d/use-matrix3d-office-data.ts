@@ -3,11 +3,11 @@ import { useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import type { OfficeAgent } from '@/features/retro-office/core/types'
 import type { StudioGatewayAdapterType } from '@/lib/studio/settings'
-import type { WorkspaceAgentDirectory } from '@/lib/workspace-agents'
+import type { CrewStatusAgent, WorkspaceAgentDirectory } from '@/lib/workspace-agents'
+import { listCrewStatusAgents, listWorkspaceAgents } from '@/lib/workspace-agents'
 import { useAgentView } from '@/hooks/use-agent-view'
 import { createDefaultAgentAvatarProfile } from '@/lib/avatars/profile'
 import { gatewayStatus as fetchGatewayStatus } from '@/lib/hermes-client'
-import { listWorkspaceAgents } from '@/lib/workspace-agents'
 
 type AgentLike = {
   id: string
@@ -15,6 +15,21 @@ type AgentLike = {
   task: string
   model: string
   status: string
+}
+
+export type Matrix3DAgentPresence = {
+  id: string
+  name: string
+  role: string
+  model: string
+  provider: string
+  source: 'crew' | 'live-unmatched' | 'workspace'
+  rosterStatus: 'online' | 'away' | 'offline' | 'unknown'
+  effectiveStatus: OfficeAgent['status']
+  lastActivity: string | null
+  sessionCount: number
+  assignedTaskCount: number
+  activeSessionKey: string | null
 }
 
 function normalizeText(value: string): string {
@@ -61,46 +76,155 @@ function buildLiveOfficeSubtitle(
   return parts.filter(Boolean).join(' • ')
 }
 
-function buildRosterOfficeSubtitle(agent: WorkspaceAgentDirectory): string {
-  const parts = [agent.role || agent.provider, agent.status]
+function buildRosterOfficeSubtitle(
+  agent: CrewStatusAgent | WorkspaceAgentDirectory,
+  rosterStatus: string,
+): string {
+  const lead = 'role' in agent ? agent.role : agent.provider
+  const parts = [lead || agent.provider, rosterStatus]
 
   return parts.filter(Boolean).join(' • ')
 }
 
-function toRosterOfficeAgent(agent: WorkspaceAgentDirectory): OfficeAgent {
+function crewRosterStatus(agent: CrewStatusAgent): Matrix3DAgentPresence['rosterStatus'] {
+  if (!agent.profileFound) return 'offline'
+  if (agent.processAlive || agent.gatewayState === 'running') return 'online'
+  if (agent.assignedTaskCount > 0 || agent.sessionCount > 0) return 'away'
+  return 'away'
+}
+
+function inferLiveMatch(
+  rosterAgent: CrewStatusAgent,
+  activeAgents: ReturnType<typeof useAgentView>['activeAgents'],
+): (ReturnType<typeof useAgentView>['activeAgents'][number]) | null {
+  const id = normalizeText(rosterAgent.id)
+  const display = normalizeText(rosterAgent.displayName)
+
+  for (const agent of activeAgents) {
+    const key = normalizeText(agent.id)
+    const name = normalizeText(agent.name)
+    const task = normalizeText(agent.task)
+
+    if (key === id || key.includes(id)) return agent
+    if (display && (name.includes(display) || task.includes(display))) return agent
+  }
+
+  return null
+}
+
+function toOfficeAgent(
+  presence: Matrix3DAgentPresence,
+): OfficeAgent {
   const mapped: AgentLike = {
-    id: agent.id,
-    name: agent.name,
-    task: agent.role || agent.description,
-    model: agent.model ?? agent.provider,
-    status: agent.status,
+    id: presence.id,
+    name: presence.name,
+    task: presence.role,
+    model: presence.model,
+    status: presence.effectiveStatus,
   }
 
   return {
-    id: agent.id,
-    name: agent.name,
-    subtitle: buildRosterOfficeSubtitle(agent),
-    status: 'idle',
+    id: presence.id,
+    name: presence.name,
+    subtitle: presence.lastActivity || `${presence.role} • ${presence.rosterStatus}`,
+    status: presence.effectiveStatus,
     color: toOfficeColor(mapped),
     item: toOfficeItem(mapped),
-    avatarProfile: createDefaultAgentAvatarProfile(agent.id),
+    avatarProfile: createDefaultAgentAvatarProfile(presence.id),
   }
 }
 
-function toLiveOfficeAgent(
-  agent: AgentLike & {
-    progress?: number
-  },
-): OfficeAgent {
+function toLivePresence(
+  agent: ReturnType<typeof useAgentView>['activeAgents'][number],
+): Matrix3DAgentPresence {
   return {
     id: agent.id,
     name: agent.name,
-    subtitle: buildLiveOfficeSubtitle(agent),
-    status: toLiveOfficeStatus(agent.status),
-    color: toOfficeColor(agent),
-    item: toOfficeItem(agent),
-    avatarProfile: createDefaultAgentAvatarProfile(agent.id),
+    role: agent.task,
+    model: agent.model,
+    provider: 'Hermes',
+    source: 'live-unmatched',
+    rosterStatus: 'unknown',
+    effectiveStatus: toLiveOfficeStatus(agent.status),
+    lastActivity: buildLiveOfficeSubtitle({
+      id: agent.id,
+      name: agent.name,
+      task: agent.task,
+      model: agent.model,
+      status: agent.status,
+      progress: agent.progress,
+    }),
+    sessionCount: 0,
+    assignedTaskCount: 0,
+    activeSessionKey: agent.id,
   }
+}
+
+function mergePresence(
+  crewAgents: Array<CrewStatusAgent>,
+  fallbackAgents: Array<WorkspaceAgentDirectory>,
+  activeAgents: ReturnType<typeof useAgentView>['activeAgents'],
+): Array<Matrix3DAgentPresence> {
+  if (crewAgents.length > 0) {
+    const matchedSessionIds = new Set<string>()
+    const merged = crewAgents.map((agent) => {
+      const live = inferLiveMatch(agent, activeAgents)
+      if (live) matchedSessionIds.add(live.id)
+
+      const rosterStatus = crewRosterStatus(agent)
+      const effectiveStatus = live
+        ? toLiveOfficeStatus(live.status)
+        : rosterStatus === 'offline'
+          ? 'error'
+          : 'idle'
+
+      return {
+        id: agent.id,
+        name: agent.displayName,
+        role: agent.role,
+        model: agent.model,
+        provider: agent.provider,
+        source: 'crew',
+        rosterStatus,
+        effectiveStatus,
+        lastActivity: live
+          ? buildLiveOfficeSubtitle({
+              id: live.id,
+              name: live.name,
+              task: live.task,
+              model: live.model,
+              status: live.status,
+              progress: live.progress,
+            })
+          : agent.lastSessionTitle ||
+            buildRosterOfficeSubtitle(agent, rosterStatus),
+        sessionCount: agent.sessionCount,
+        assignedTaskCount: agent.assignedTaskCount,
+        activeSessionKey: live?.id ?? null,
+      } satisfies Matrix3DAgentPresence
+    })
+
+    const unmatched = activeAgents
+      .filter((agent) => !matchedSessionIds.has(agent.id))
+      .map(toLivePresence)
+
+    return [...merged, ...unmatched]
+  }
+
+  return fallbackAgents.map((agent) => ({
+    id: agent.id,
+    name: agent.name,
+    role: agent.role,
+    model: agent.model ?? 'unknown',
+    provider: agent.provider,
+    source: 'workspace',
+    rosterStatus: agent.status,
+    effectiveStatus: agent.status === 'offline' ? 'error' : 'idle',
+    lastActivity: buildRosterOfficeSubtitle(agent, agent.status),
+    sessionCount: 0,
+    assignedTaskCount: 0,
+    activeSessionKey: null,
+  }))
 }
 
 function formatGatewayStatus(
@@ -133,12 +257,21 @@ export type Matrix3DOfficeData = {
   selectedAdapterType: StudioGatewayAdapterType
   activeAdapterType: StudioGatewayAdapterType
   agentSource: 'live' | 'roster' | 'none'
+  presence: Array<Matrix3DAgentPresence>
   onAgentChatSelect: (agentId: string) => void
 }
 
 export function useMatrix3DOfficeData(): Matrix3DOfficeData {
   const navigate = useNavigate()
   const agentView = useAgentView()
+
+  const crewStatusQuery = useQuery({
+    queryKey: ['matrix3d', 'crew-status'],
+    queryFn: listCrewStatusAgents,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+    retry: false,
+  })
 
   const workspaceAgentsQuery = useQuery({
     queryKey: ['matrix3d', 'workspace-agents'],
@@ -156,27 +289,21 @@ export function useMatrix3DOfficeData(): Matrix3DOfficeData {
     retry: false,
   })
 
+  const crewAgents = crewStatusQuery.data ?? []
   const rosterAgents = workspaceAgentsQuery.data ?? []
   const hasLiveAgents = agentView.activeAgents.length > 0
-  const hasRosterAgents = rosterAgents.length > 0
+  const hasRosterAgents = crewAgents.length > 0 || rosterAgents.length > 0
   const hasHermesData = hasLiveAgents || hasRosterAgents
 
-  const agents = useMemo(() => {
-    if (hasLiveAgents) {
-      return agentView.activeAgents.map((agent) =>
-        toLiveOfficeAgent({
-          id: agent.id,
-          name: agent.name,
-          task: agent.task,
-          model: agent.model,
-          status: agent.status,
-          progress: agent.progress,
-        }),
-      )
-    }
+  const presence = useMemo(
+    () => mergePresence(crewAgents, rosterAgents, agentView.activeAgents),
+    [agentView.activeAgents, crewAgents, rosterAgents],
+  )
 
-    return rosterAgents.map(toRosterOfficeAgent)
-  }, [agentView.activeAgents, hasLiveAgents, rosterAgents])
+  const agents = useMemo(
+    () => presence.map(toOfficeAgent),
+    [presence],
+  )
 
   const selectedAdapterType = useMemo<StudioGatewayAdapterType>(
     () => pickAdapterType(hasLiveAgents, rosterAgents),
@@ -216,6 +343,7 @@ export function useMatrix3DOfficeData(): Matrix3DOfficeData {
     selectedAdapterType,
     activeAdapterType,
     agentSource: hasLiveAgents ? 'live' : hasRosterAgents ? 'roster' : 'none',
+    presence,
     onAgentChatSelect: handleAgentChatSelect,
   }
 }
