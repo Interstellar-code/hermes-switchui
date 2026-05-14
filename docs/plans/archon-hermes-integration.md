@@ -34,7 +34,7 @@ Hermes Agent Gateway (:9119)
 - Workflow engine: ~30 non-test files from `packages/workflows/src/`
 - Internal deps: ~18 utility/hook/store files to port or bridge
 - **Providers: NOT PORTED.** Hermes Agent already drives `claude` CLI + `codex` CLI + other agentic coding tools. Execute-phase AI nodes go through Hermes Kanban tasks; Hermes workers shell out to the CLIs. Strips ~2,700 LOC of provider code + parallel-mechanism complexity. Engine import sites that referenced `@archon/providers` are rewritten to call a thin `kanban-dispatcher.ts` instead.
-- **UI: NOT PORTED.** Switch UI already has its own Conductor page, Operations page, and Matrix-themed design system. No Archon React components, DAG builder, workflow store, or design tokens are ported. Workstream B covers wiring existing Switch UI pages to Workstream A APIs — not building new UI from Archon source.
+- **UI: NOT PORTED.** Switch UI already has its own Conductor page, Operations page, **Workflows page** (`/workflows` — Library rail + Grid + Editor + Launch Wizard, shipped on `feat/conductor-ops-wiring` as `src/routes/workflows.tsx` + `src/screens/workflows/`, currently mock-data only), and Matrix-themed design system. No Archon React components, DAG builder, workflow store, or design tokens are ported. Workstream B covers wiring existing Switch UI pages to Workstream A APIs — not building new UI from Archon source.
 
 **Codex review outcome:** The old JSON Kanban store was identified as a gap — this is a non-issue. Hermes Kanban is SQLite with `task_links` (199 rows), `task_runs` (1,671 rows), `task_events` (6,981 rows), `task_comments`, and `tasks` (186 rows). The DAG execution layer, event streaming, and run lifecycle tracking already exist. The review's practical findings (dependency stubs, component count, routing migration) are folded in below.
 
@@ -598,9 +598,14 @@ Locked invariants the engine MUST guarantee. Implementation cannot start until t
 ## Workstream B: API Wiring for Existing Switch UI Pages
 
 **Owner:** Switch (Tier 1) + Trinity (Tier 2)
-**Location:** `hermes-switchui/src/components/conductor/` and `operations/`
+**Location:** `hermes-switchui/src/components/conductor/`, `operations/`, and `hermes-switchui/src/screens/workflows/`.
 
-**Goal:** Wire the existing Switch UI Conductor and Operations pages to the Workstream A backend APIs. No Archon UI components are ported — Switch UI has its own fully developed frontend. This workstream covers creating API client modules, SSE subscriptions, and connecting page components to real workflow engine data.
+**Goal:** Wire the existing Switch UI Conductor, Operations, and **Workflows** pages to the Workstream A backend APIs. No Archon UI components are ported — Switch UI has its own fully developed frontend. This workstream covers creating API client modules, SSE subscriptions, and connecting page components to real workflow engine data.
+
+**Existing pages in scope (all already built, mock-data only):**
+- **Conductor** (`/conductor`) — flow tab, org tab, now-playing strip, mission history
+- **Operations** (`/operations`) — team roster, focus panel, dispatch, outputs strip
+- **Workflows** (`/workflows`) — Library rail (search/filter/source/status), Workflow Grid (cards w/ last-used + run-count), Workflow Editor (metadata + YAML), Launch Wizard (variables → run). Shipped in commit `b7d140d4`, files: `src/routes/workflows.tsx`, `src/screens/workflows/{workflows-screen,workflows-layout,workflows-top-bar,workflow-library,workflow-grid,workflow-editor,workflow-actions,launch-wizard,mock-workflows}.tsx`.
 
 ### B.0: API Client Layer
 
@@ -644,6 +649,25 @@ Locked invariants the engine MUST guarantee. Implementation cannot start until t
 - **Bundled workflows list:** read-only catalog of the 20 ported Archon YAMLs with their adjusted `hermes_task:` annotations
 - Save to Hermes-side settings via gateway API
 
+### B.4: Workflows Page API Wiring (`/workflows`)
+
+**Goal:** Replace the mock data in `src/screens/workflows/mock-workflows.ts` with live engine-backed data, and wire the Editor + Launch Wizard to A.1 / A.8 endpoints. UI is already built — this is data + actions integration only.
+
+- **Library rail** (`workflow-library.tsx`): wire to `GET /api/workflow-definitions` — populate list, search, source filter (bundled/global/project), v1/v1.1 status badge derived from A.6/A.9 manifest.
+- **Workflow Grid** (`workflow-grid.tsx`): cards reflect real defs.
+  - `last_used_at` ← `MAX(workflow_runs.created_at)` per `workflow_id` (engine DB).
+  - `run_count` ← `COUNT(workflow_runs)` per `workflow_id`.
+  - Sort comparators (last-used / name / runs) consume live values; existing null-safe sort retained.
+- **Workflow Editor** (`workflow-editor.tsx`):
+  - Load: `GET /api/workflow-definitions/:id` (metadata + raw YAML).
+  - Save: `PUT /api/workflow-definitions/:id` — engine re-validates via ported schema validators (A.1) before persisting; surface validation errors inline.
+  - Bundled defs are read-only (source=`bundled`); project/global defs are editable.
+- **Launch Wizard** (`launch-wizard.tsx`): wire to `POST /api/workflow-runs` with `{ workflow_id, variables, source: 'workflows-page' }` → engine begins **plan** phase (A.8) → redirect to Conductor run-detail view. Variable form is driven by `workflow_definitions.variables_schema`.
+- **Workflow actions** (`workflow-actions.tsx`): duplicate (`POST /api/workflow-definitions` w/ copy), delete (`DELETE /api/workflow-definitions/:id` — project/global only), export YAML.
+- **Delete `mock-workflows.ts`** once live data is wired; until then it remains the dev fixture.
+
+**Dependencies:** B.0 (API client), A.1 (engine + definition CRUD endpoints), A.6 (YAMLs to populate the catalog), A.8 (run creation enters plan phase).
+
 ---
 
 ## Implementation Order
@@ -666,6 +690,7 @@ Locked invariants the engine MUST guarantee. Implementation cannot start until t
 | **P1** | A | A.9 Adjust 8 YAMLs for Hermes Triggers | A.6, A.8 | Add `hermes_task:` blocks to v1 subset (8 workflows only; rest deferred to v1.1) |
 | **P1** | A | A.7 v1 Workflow Subset (8 flows + shared subgraphs) | A.6, A.9, A.3 | Ship 5-agent review subgraph first |
 | **P1** | A | A.10 Launch Surfaces + Hermes Manifest | A.1, A.8, A.11 | Three v1 trigger paths (subworkflow/schedule deferred to v1.1); manifest at `~/.hermes/switchui-workflows.json` |
+| **P1** | B | B.4 Workflows Page API Wiring | B.0, A.1, A.6, A.8 | Replace `mock-workflows.ts`; wire Library/Grid/Editor/Launch Wizard to engine |
 | **P2** | B | B.3 Settings Page | A.3 | Dispatcher health + worker pool status |
 | **P3** | A | A.4 Cron / Event Trigger | A.2 | Adapter must be working |
 
@@ -684,7 +709,7 @@ Locked invariants the engine MUST guarantee. Implementation cannot start until t
 - **Engine has its own SQLite DB; Hermes Agent gateway stays untouched.** Engine state at `~/.hermes/switchui-workflows.db` with workflow-engine-owned tables (`workflow_definitions`, `workflow_runs`, `node_runs`, `workflow_events`, `phase_transitions`). Anything Hermes Kanban already owns (tasks, task_events, task_links, task_runs, task_comments) is read via the existing gateway HTTP API. Reads span both DB-backed systems; most writes land in `switchui-workflows.db`, while execution-side writes still happen in Kanban through the gateway when tasks are created, updated, cancelled, or completed. `archon.db` is replaced outright by `switchui-workflows.db`; there is no separate Archon DB in the final design. No new RPC into the gateway, no engine code inside the gateway. `node_runs.kanban_task_id` is the join column. Rationale: no upstream gateway forks, no Python re-implementation of engine concepts, Hermes Agent can absorb upstream changes cleanly.
 - **Archon = engine, not adapter.** Switch UI's workflow capability IS the ported Archon engine, period. Not a generic Conductor engine with Archon as one ProviderAdapter among many. Trade: faster to v1 + reuse of Archon's 30-file engine + 20 YAMLs; cost: Switch UI Conductor inherits Archon's DAG-and-YAML semantics. Path B (generic engine + Archon-as-adapter) explicitly rejected as premature abstraction.
 - **5-phase orchestration wrapper.** Every workflow run flows through `plan → route → execute → review → report` (A.8). The Archon DAG runs INSIDE the execute phase. Plan phase is a conversational chat (not a DAG). Route phase translates chat output → workflow instantiation. Review may loop back to execute.
-- **No Archon UI port.** Switch UI has its own fully developed Conductor page, Operations page, and Matrix-themed design system. No Archon React components, DAG builder, workflow store, or design tokens are ported. Workstream B wires existing Switch UI pages to Workstream A APIs — it does not build new UI from Archon source.
+- **No Archon UI port.** Switch UI has its own fully developed Conductor page, Operations page, Workflows page (`/workflows` — Library + Grid + Editor + Launch Wizard, shipped in `b7d140d4`, mock-data only), and Matrix-themed design system. No Archon React components, DAG builder, workflow store, or design tokens are ported. Workstream B wires existing Switch UI pages to Workstream A APIs — it does not build new UI from Archon source.
 - **No provider port. Hermes Kanban is the only execution channel.** `ClaudeProvider` and `CodexProvider` (~2,700 LOC) explicitly NOT ported. Hermes Agent already drives `claude` CLI + `codex` CLI + other coding tools — porting providers into the engine creates a parallel CLI-spawning mechanism with no product value. Engine ships a thin `kanban-dispatcher.ts` (~200 LOC) implementing the `IAgentProvider` shape; all execute-phase AI work goes through Hermes Kanban tasks; Hermes workers decide which CLI to drive per their plugin/skill config. Saves ~2,700 LOC + binary-resolution / auth-mode / SDK-upgrade churn.
 - **20 Archon YAMLs are templates, not contracts.** They get edited in A.9 to add `hermes_task:` blocks where execute-phase nodes should run on Hermes workers (Kanban). Switch UI ships its own flavor of these workflows — upstream Archon YAMLs are the starting point, not the deployed artifact.
 - **YAML is the source of truth** for workflow definitions. Hermes Kanban DB (SQLite with 6 tables, 8K+ rows) owns task execution. Two sync points: the Engine Workflow Store (A.1.1) + gateway HTTP API.
