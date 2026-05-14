@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import type { OfficeAgent } from '@/features/retro-office/core/types'
@@ -7,7 +7,7 @@ import type { CrewStatusAgent, WorkspaceAgentDirectory } from '@/lib/workspace-a
 import { listCrewStatusAgents, listWorkspaceAgents } from '@/lib/workspace-agents'
 import { useAgentView } from '@/hooks/use-agent-view'
 import { createDefaultAgentAvatarProfile } from '@/lib/avatars/profile'
-import { gatewayStatus as fetchGatewayStatus } from '@/lib/hermes-client'
+import { gatewayStatus as fetchGatewayStatus, getLogs } from '@/lib/hermes-client'
 
 type AgentLike = {
   id: string
@@ -30,6 +30,7 @@ export type Matrix3DAgentPresence = {
   sessionCount: number
   assignedTaskCount: number
   activeSessionKey: string | null
+  activityScore: number
 }
 
 function normalizeText(value: string): string {
@@ -157,6 +158,7 @@ function toLivePresence(
     sessionCount: 0,
     assignedTaskCount: 0,
     activeSessionKey: agent.id,
+    activityScore: 5,
   }
 }
 
@@ -164,6 +166,7 @@ function mergePresence(
   crewAgents: Array<CrewStatusAgent>,
   fallbackAgents: Array<WorkspaceAgentDirectory>,
   activeAgents: ReturnType<typeof useAgentView>['activeAgents'],
+  activityBoosts: Record<string, number>,
 ): Array<Matrix3DAgentPresence> {
   if (crewAgents.length > 0) {
     const matchedSessionIds = new Set<string>()
@@ -172,11 +175,14 @@ function mergePresence(
       if (live) matchedSessionIds.add(live.id)
 
       const rosterStatus = crewRosterStatus(agent)
+      const boost = activityBoosts[agent.id] ?? 0
       const effectiveStatus = live
         ? toLiveOfficeStatus(live.status)
         : rosterStatus === 'offline'
           ? 'error'
-          : 'idle'
+          : boost >= 3
+            ? 'working'
+            : 'idle'
 
       return {
         id: agent.id,
@@ -201,6 +207,7 @@ function mergePresence(
         sessionCount: agent.sessionCount,
         assignedTaskCount: agent.assignedTaskCount,
         activeSessionKey: live?.id ?? null,
+        activityScore: boost,
       } satisfies Matrix3DAgentPresence
     })
 
@@ -224,7 +231,66 @@ function mergePresence(
     sessionCount: 0,
     assignedTaskCount: 0,
     activeSessionKey: null,
+    activityScore: 0,
   }))
+}
+
+
+type CrewActivitySnapshot = {
+  totalTokens: number
+  toolCallCount: number
+  messageCount: number
+  sessionCount: number
+  lastSessionAt: number | null
+  assignedTaskCount: number
+}
+
+function snapshotCrewActivity(agent: CrewStatusAgent): CrewActivitySnapshot {
+  return {
+    totalTokens: agent.totalTokens,
+    toolCallCount: agent.toolCallCount,
+    messageCount: agent.messageCount,
+    sessionCount: agent.sessionCount,
+    lastSessionAt: agent.lastSessionAt,
+    assignedTaskCount: agent.assignedTaskCount,
+  }
+}
+
+function parseLogText(raw: unknown): string {
+  if (!raw || typeof raw !== 'object') return ''
+  const rec = raw as Record<string, unknown>
+  const lines = Array.isArray(rec.lines)
+    ? rec.lines.filter((x): x is string => typeof x === 'string')
+    : []
+  return lines.join('\n').toLowerCase()
+}
+
+function computeActivityScore(
+  agent: CrewStatusAgent,
+  previous: CrewActivitySnapshot | undefined,
+  logText: string,
+  nowMs: number,
+): number {
+  let score = 0
+  const current = snapshotCrewActivity(agent)
+  if (previous) {
+    if (current.totalTokens > previous.totalTokens) score += 3
+    if (current.toolCallCount > previous.toolCallCount) score += 3
+    if (current.messageCount > previous.messageCount) score += 2
+    if (current.sessionCount > previous.sessionCount) score += 2
+    if ((current.lastSessionAt ?? 0) > (previous.lastSessionAt ?? 0)) score += 2
+    if (current.assignedTaskCount > previous.assignedTaskCount) score += 1
+  }
+
+  const recentSessionAge = current.lastSessionAt ? nowMs - current.lastSessionAt * 1000 : Number.POSITIVE_INFINITY
+  if (recentSessionAge < 120_000) score += 2
+  if (current.assignedTaskCount > 0) score += 1
+
+  const id = agent.id.toLowerCase()
+  const display = agent.displayName.toLowerCase()
+  if (logText.includes(`[${id}]`) || logText.includes(` ${id} `) || logText.includes(display)) score += 1
+
+  return score
 }
 
 function formatGatewayStatus(
@@ -289,15 +355,45 @@ export function useMatrix3DOfficeData(): Matrix3DOfficeData {
     retry: false,
   })
 
+  const logsQuery = useQuery({
+    queryKey: ['matrix3d', 'presence-logs'],
+    queryFn: () => getLogs({ lines: 200, file: 'agent.log' }),
+    staleTime: 5_000,
+    refetchInterval: 5_000,
+    retry: false,
+  })
+
+  const previousCrewRef = useRef<Record<string, CrewActivitySnapshot>>({})
+  const [activityBoosts, setActivityBoosts] = useState<Record<string, number>>({})
+
   const crewAgents = crewStatusQuery.data ?? []
   const rosterAgents = workspaceAgentsQuery.data ?? []
   const hasLiveAgents = agentView.activeAgents.length > 0
   const hasRosterAgents = crewAgents.length > 0 || rosterAgents.length > 0
   const hasHermesData = hasLiveAgents || hasRosterAgents
 
+  useEffect(() => {
+    if (crewAgents.length === 0) return
+    const logText = parseLogText(logsQuery.data)
+    const nowMs = Date.now()
+    const nextSnapshots: Record<string, CrewActivitySnapshot> = {}
+    const nextBoosts: Record<string, number> = {}
+
+    for (const agent of crewAgents) {
+      const previous = previousCrewRef.current[agent.id]
+      const snapshot = snapshotCrewActivity(agent)
+      nextSnapshots[agent.id] = snapshot
+      const score = computeActivityScore(agent, previous, logText, nowMs)
+      if (score > 0) nextBoosts[agent.id] = score
+    }
+
+    previousCrewRef.current = nextSnapshots
+    setActivityBoosts(nextBoosts)
+  }, [crewAgents, logsQuery.data])
+
   const presence = useMemo(
-    () => mergePresence(crewAgents, rosterAgents, agentView.activeAgents),
-    [agentView.activeAgents, crewAgents, rosterAgents],
+    () => mergePresence(crewAgents, rosterAgents, agentView.activeAgents, activityBoosts),
+    [activityBoosts, agentView.activeAgents, crewAgents, rosterAgents],
   )
 
   const agents = useMemo(
