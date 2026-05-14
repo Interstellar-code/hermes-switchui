@@ -1,0 +1,80 @@
+/**
+ * GET  /api/workflow-runs   — list runs (filter via ?workflow_id, ?status comma-list)
+ * POST /api/workflow-runs   — launch a run (Launch Wizard target)
+ */
+import { createFileRoute } from '@tanstack/react-router';
+import { isAuthenticated } from '../../server/auth-middleware';
+import { getWorkflowEngine } from '../../server/workflow-engine';
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+export const Route = createFileRoute('/api/workflow-runs')({
+  server: {
+    handlers: {
+      GET: async ({ request }) => {
+        if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
+        const { store } = await getWorkflowEngine();
+        const url = new URL(request.url);
+        const workflowId = url.searchParams.get('workflow_id');
+        const statusCsv = url.searchParams.get('status');
+        const statuses = statusCsv ? statusCsv.split(',') : null;
+
+        const rows = store.listWorkflowRuns({
+          workflowId: workflowId ?? undefined,
+          statuses: statuses ?? undefined,
+        });
+        return json({ runs: rows });
+      },
+      POST: async ({ request }) => {
+        if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
+        const { store } = await getWorkflowEngine();
+        const body = (await request.json()) as {
+          workflow_id: string;
+          conversation_id: string;
+          working_path?: string;
+          user_message: string;
+          variables?: Record<string, unknown>;
+          parent_conversation_id?: string;
+          codebase_id?: string;
+        };
+        if (!body?.workflow_id || !body?.conversation_id || !body?.user_message) {
+          return json({ error: 'workflow_id, conversation_id, user_message required' }, 400);
+        }
+        // Definition must exist (FK on workflow_runs.workflow_id).
+        const def = store.getWorkflowDefinition(body.workflow_id);
+        if (!def) return json({ error: `unknown workflow_id '${body.workflow_id}'` }, 404);
+
+        // Split-brain guard: refuse if an active run already owns this working_path.
+        if (body.working_path) {
+          const active = await store.getActiveWorkflowRunByPath(body.working_path);
+          if (active) {
+            return json(
+              { error: 'an active workflow run already exists for this working_path', activeRunId: active.id },
+              409,
+            );
+          }
+        }
+
+        const run = await store.createWorkflowRun({
+          workflow_name: body.workflow_id,
+          conversation_id: body.conversation_id,
+          working_path: body.working_path,
+          user_message: body.user_message,
+          metadata: body.variables ? { variables: body.variables } : undefined,
+          parent_conversation_id: body.parent_conversation_id,
+          codebase_id: body.codebase_id,
+        });
+
+        // v1: run is created in 'pending'/'plan' state. DAG executor wiring will
+        // pick it up and advance phases. Engine-side advance is wired when the
+        // 5-phase wrapper (A.8) ships; for now, the run sits idle until A.8.
+        return json({ run }, 201);
+      },
+    },
+  },
+});

@@ -631,6 +631,38 @@ export class SwitchUiWorkflowStore {
   // ----------------------------------------------------------
 
   /**
+   * Helper -3 (route layer): list workflow_runs with optional filters.
+   */
+  listWorkflowRuns(filter?: { workflowId?: string; statuses?: string[]; limit?: number }): unknown[] {
+    const clauses: string[] = [];
+    const params: unknown[] = [];
+    if (filter?.workflowId) { clauses.push('workflow_id=?'); params.push(filter.workflowId); }
+    if (filter?.statuses && filter.statuses.length > 0) {
+      clauses.push(`status IN (${filter.statuses.map(() => '?').join(',')})`);
+      params.push(...filter.statuses);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+    const limit = filter?.limit ?? 200;
+    return this.db
+      .prepare(`SELECT * FROM workflow_runs ${where} ORDER BY started_at DESC LIMIT ${limit}`)
+      .all(...params);
+  }
+
+  /** Helper -2: list node_runs for a workflow_run, ordered for UI. */
+  listNodeRuns(workflowRunId: string): unknown[] {
+    return this.db
+      .prepare('SELECT * FROM node_runs WHERE workflow_run_id=? ORDER BY started_at ASC, id ASC')
+      .all(workflowRunId);
+  }
+
+  /** Helper -1: list recent workflow_events for a run (latest first). */
+  listRecentWorkflowEvents(workflowRunId: string, limit = 200): unknown[] {
+    return this.db
+      .prepare('SELECT * FROM workflow_events WHERE workflow_run_id=? ORDER BY created_at DESC LIMIT ?')
+      .all(workflowRunId, limit);
+  }
+
+  /**
    * Helper 0 (A.11 cold-start reconciliation): list node_runs that were
    * dispatched to Kanban but haven't reached a terminal status yet. Used by
    * the engine boot path to repopulate the task-event consumer's in-memory
