@@ -22,8 +22,16 @@ const DISABLED_CAPS: ProviderCapabilities = {
   sandbox: false,
 };
 
+/**
+ * Switch UI accepts the upstream Archon provider names ('claude', 'codex') as
+ * aliases of the single 'hermes-kanban' dispatcher. Hermes workers decide
+ * which CLI binary to drive based on Kanban task skills/labels; the YAML
+ * `provider:` field becomes a Kanban routing hint, not a separate channel.
+ */
+const KANBAN_ALIASES = new Set(['hermes-kanban', 'claude', 'codex']);
+
 export function isRegisteredProvider(type: string): boolean {
-  return type === 'hermes-kanban';
+  return KANBAN_ALIASES.has(type);
 }
 
 /**
@@ -54,7 +62,7 @@ export function getProvider(_type: string): IAgentProvider {
  * Always returns a valid ProviderCapabilities — callers use fields directly.
  */
 export function getProviderCapabilities(id: string): ProviderCapabilities {
-  return id === 'hermes-kanban' ? dispatcher.getCapabilities() : DISABLED_CAPS;
+  return KANBAN_ALIASES.has(id) ? dispatcher.getCapabilities() : DISABLED_CAPS;
 }
 
 // No-ops: hermes-kanban is auto-registered via the singleton above.

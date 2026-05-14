@@ -22,6 +22,16 @@ function releaseLock(): void {
 }
 
 export function openDb(dbPath: string = DEFAULT_DB_PATH): Database.Database {
+  // :memory: paths skip the singleton — each call creates a fresh DB so
+  // multiple test fixtures in the same test file don't share state.
+  if (dbPath === ":memory:") {
+    const memDb = new Database(":memory:");
+    memDb.pragma("journal_mode = WAL");
+    memDb.pragma("foreign_keys = ON");
+    memDb.pragma("busy_timeout = 5000");
+    return memDb;
+  }
+
   if (dbInstance) return dbInstance;
 
   const hermesDir = join(homedir(), ".hermes");

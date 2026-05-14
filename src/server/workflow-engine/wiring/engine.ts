@@ -22,6 +22,7 @@ import { getKanbanTask } from '../../hermes-kanban-client';
 import { WorkflowEventEmitter } from '../emitter/event-emitter';
 import { EngineWorkflowPlatform } from '../runtime/platform';
 import { loadWorkflowConfig } from '../runtime/load-config';
+import { seedBundledWorkflows } from '../runtime/seed-defaults';
 import type { IWorkflowPlatform, WorkflowDeps } from './deps';
 
 export interface WorkflowEngineOptions {
@@ -33,6 +34,8 @@ export interface WorkflowEngineOptions {
   orphanThresholdMs?: number;
   /** Skip consumer.start() — useful for tests or one-shot boot checks. */
   autoStartConsumer?: boolean;
+  /** Seed the 20 bundled Archon workflow YAMLs into workflow_definitions. Default true. */
+  seedBundled?: boolean;
 }
 
 export interface WorkflowEngine {
@@ -49,6 +52,8 @@ export interface WorkflowEngine {
   boot: {
     orphanedRuns: number;
     recoveredDispatches: number;
+    seededDefinitions: number;
+    seedErrors: number;
   };
   /** Stop the consumer and close the store. Safe to call multiple times. */
   shutdown(): Promise<void>;
@@ -62,12 +67,22 @@ export async function createWorkflowEngine(
     pollIntervalMs = 5_000,
     orphanThresholdMs = 300_000,
     autoStartConsumer = true,
+    seedBundled = true,
   } = options;
 
   // 1. Open DB + run migrations. openDb enforces the single-instance lock.
   const store = createWorkflowStore({ dbPath: dbPath ?? '' });
 
-  // 2. Fail orphaned workflow_runs from the previous boot.
+  // 2. Seed bundled workflow YAMLs (idempotent — checksum short-circuit).
+  let seededDefinitions = 0;
+  let seedErrors = 0;
+  if (seedBundled) {
+    const seed = seedBundledWorkflows(store);
+    seededDefinitions = seed.inserted;
+    seedErrors = seed.errors.length;
+  }
+
+  // 3. Fail orphaned workflow_runs from the previous boot.
   const { count: orphanedRuns } = await store.failOrphanedRuns(orphanThresholdMs);
 
   // 3. Build consumer (no dispatcher wired yet — order matters because
@@ -120,7 +135,7 @@ export async function createWorkflowEngine(
     emitter,
     platform,
     deps,
-    boot: { orphanedRuns, recoveredDispatches },
+    boot: { orphanedRuns, recoveredDispatches, seededDefinitions, seedErrors },
     async shutdown() {
       consumer.stop();
       // Store closes via process exit handler in openDb. No explicit close API
