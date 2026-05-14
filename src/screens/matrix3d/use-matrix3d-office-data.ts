@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import type { OfficeAgent } from '@/features/retro-office/core/types'
 import type { StudioGatewayAdapterType } from '@/lib/studio/settings'
@@ -14,14 +15,14 @@ const HERMES_FALLBACK_AGENTS: Array<OfficeAgent> = BUILTIN_AGENTS.map((agent) =>
     id: agent.id,
     name: agent.name,
     task: agent.role,
-    model: agent.model,
+    model: agent.description,
     status: 'idle',
   }
 
   return {
     id: agent.id,
     name: agent.name,
-    subtitle: [agent.role, agent.model].filter(Boolean).join(' • '),
+    subtitle: [agent.role, agent.description].filter(Boolean).join(' • '),
     status: 'idle',
     color: toOfficeColor(mapped),
     item: toOfficeItem(mapped),
@@ -39,6 +40,26 @@ type AgentLike = {
 
 function normalizeText(value: string): string {
   return value.toLowerCase()
+}
+
+function formatCompactNumber(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(value)
+}
+
+function formatAgeLabel(updatedAtIso: string): string {
+  const updatedAtMs = Date.parse(updatedAtIso)
+  if (Number.isNaN(updatedAtMs)) return 'prompt age unknown'
+
+  const ageMinutes = Math.max(0, (Date.now() - updatedAtMs) / 60_000)
+  if (ageMinutes < 60) return `${Math.max(1, Math.round(ageMinutes))}m prompt age`
+
+  const ageHours = ageMinutes / 60
+  if (ageHours < 24) return `${Math.round(ageHours)}h prompt age`
+
+  return `${Math.round(ageHours / 24)}d prompt age`
 }
 
 function toLiveOfficeStatus(status: string): OfficeAgent['status'] {
@@ -69,11 +90,60 @@ function toOfficeItem(agent: AgentLike): OfficeAgent['item'] {
   return 'laptop'
 }
 
-function toLiveOfficeAgent(agent: AgentLike): OfficeAgent {
+function formatProgress(progress: number | undefined): string | null {
+  if (typeof progress !== 'number' || !Number.isFinite(progress)) return null
+  return `${Math.round(progress)}%`
+}
+
+function formatElapsedLabel(startedAtMs: number | undefined): string | null {
+  if (typeof startedAtMs !== 'number' || !Number.isFinite(startedAtMs)) return null
+
+  const elapsedMinutes = Math.max(0, (Date.now() - startedAtMs) / 60_000)
+  if (elapsedMinutes < 1) return '<1m live'
+  if (elapsedMinutes < 60) return `${Math.round(elapsedMinutes)}m live`
+
+  const elapsedHours = elapsedMinutes / 60
+  if (elapsedHours < 24) return `${Math.round(elapsedHours)}h live`
+
+  return `${Math.round(elapsedHours / 24)}d live`
+}
+
+function buildLiveOfficeSubtitle(agent: AgentLike & { progress?: number; startedAtMs?: number; tokenCount?: number }): string {
+  const parts = [
+    agent.task,
+    agent.model,
+    formatProgress(agent.progress),
+    typeof agent.tokenCount === 'number' ? `${formatCompactNumber(agent.tokenCount)} tok` : null,
+    formatElapsedLabel(agent.startedAtMs),
+  ]
+
+  return parts.filter(Boolean).join(' • ')
+}
+
+function buildRosterOfficeSubtitle(agent: WorkspaceAgentDirectory): string {
+  const parts = [
+    agent.role || agent.description,
+    agent.model ?? agent.provider,
+    agent.provider,
+    agent.adapter_type,
+    agent.status,
+    formatAgeLabel(agent.prompt_updated_at),
+  ]
+
+  return parts.filter(Boolean).join(' • ')
+}
+
+function toLiveOfficeAgent(
+  agent: AgentLike & {
+    progress?: number
+    startedAtMs?: number
+    tokenCount?: number
+  },
+): OfficeAgent {
   return {
     id: agent.id,
     name: agent.name,
-    subtitle: [agent.task, agent.model].filter(Boolean).join(' • '),
+    subtitle: buildLiveOfficeSubtitle(agent),
     status: toLiveOfficeStatus(agent.status),
     color: toOfficeColor(agent),
     item: toOfficeItem(agent),
@@ -93,9 +163,7 @@ function toRosterOfficeAgent(agent: WorkspaceAgentDirectory): OfficeAgent {
   return {
     id: agent.id,
     name: agent.name,
-    subtitle: [agent.role, agent.model ?? agent.provider, agent.status]
-      .filter(Boolean)
-      .join(' • '),
+    subtitle: buildRosterOfficeSubtitle(agent),
     status: toRosterOfficeStatus(agent.status),
     color: toOfficeColor(mapped),
     item: toOfficeItem(mapped),
@@ -128,9 +196,11 @@ export type Matrix3DOfficeData = {
   gatewayStatus: string
   selectedAdapterType: StudioGatewayAdapterType
   activeAdapterType: StudioGatewayAdapterType
+  onAgentChatSelect: (agentId: string) => void
 }
 
 export function useMatrix3DOfficeData(): Matrix3DOfficeData {
+  const navigate = useNavigate()
   const agentView = useAgentView()
 
   const workspaceAgentsQuery = useQuery({
@@ -163,6 +233,9 @@ export function useMatrix3DOfficeData(): Matrix3DOfficeData {
           task: agent.task,
           model: agent.model,
           status: agent.status,
+          progress: agent.progress,
+          startedAtMs: agent.startedAtMs,
+          tokenCount: agent.tokenCount,
         }),
       )
     }
@@ -182,6 +255,23 @@ export function useMatrix3DOfficeData(): Matrix3DOfficeData {
     [hasLiveAgents, rosterAgents],
   )
 
+  const liveSessionIds = useMemo(
+    () => new Set(agentView.activeAgents.map((agent) => agent.id)),
+    [agentView.activeAgents],
+  )
+
+  const handleAgentChatSelect = useCallback(
+    (agentId: string) => {
+      if (!liveSessionIds.has(agentId)) return
+
+      void navigate({
+        to: '/chat/$sessionKey',
+        params: { sessionKey: agentId },
+      })
+    },
+    [liveSessionIds, navigate],
+  )
+
   return {
     agents,
     readOnly: true,
@@ -192,5 +282,6 @@ export function useMatrix3DOfficeData(): Matrix3DOfficeData {
     gatewayStatus: formatGatewayStatus(gatewayStatusQuery.data, hasHermesData),
     selectedAdapterType,
     activeAdapterType,
+    onAgentChatSelect: handleAgentChatSelect,
   }
 }
