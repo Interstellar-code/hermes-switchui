@@ -1,6 +1,7 @@
 import type React from 'react'
 import { useState } from 'react'
 import { useWorkflowParsed } from './use-workflows'
+import { useWorkflowEvents } from './use-workflow-events'
 import { relativeTime, type NodeType, type WorkflowDagNode } from './types'
 import type { WorkflowDefinitionRow } from './api-client'
 import type { ParsedWorkflow } from './types'
@@ -563,6 +564,41 @@ function WhenToUseTab({ def, parsed }: { def: WorkflowDefinitionRow; parsed: Par
   )
 }
 
+// ── Live Events Panel (A.1.2 smoke harness) ───────────────────────────────────
+
+function LiveEventsPanel({ conversationId }: { conversationId: string }) {
+  const { events, status } = useWorkflowEvents(conversationId)
+  const last10 = events.slice(-10)
+  return (
+    <div className="panel-card" style={{ marginTop: 16 }}>
+      <div className="pc-head" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        Live SSE events
+        <span
+          style={{
+            fontSize: 9,
+            letterSpacing: '.1em',
+            color: status === 'open' ? '#00ff41' : status === 'error' ? '#ff6b6b' : '#888',
+          }}
+        >
+          [{status.toUpperCase()}]
+        </span>
+      </div>
+      <div className="pc-body" style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 10, lineHeight: 1.6 }}>
+        {last10.length === 0 && (
+          <span className="pc-empty">No events yet — launch a workflow to see real-time updates.</span>
+        )}
+        {last10.map((evt, i) => (
+          <div key={i} style={{ borderBottom: '1px solid rgba(0,255,65,.07)', paddingBottom: 2, marginBottom: 2 }}>
+            <span style={{ color: '#00ff41' }}>{evt.type}</span>
+            <span style={{ color: '#555', marginLeft: 8 }}>{new Date(evt.receivedAt).toISOString().slice(11, 23)}</span>
+            <span style={{ color: '#888', marginLeft: 8 }}>{JSON.stringify(evt.data).slice(0, 80)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── History Tab ───────────────────────────────────────────────────────────────
 
 function HistoryTab({ name }: { name: string }) {
@@ -711,7 +747,12 @@ export function WorkflowEditor({ selectedId }: WorkflowEditorProps) {
         {activeTab === 'Visual DAG' && <DagSvgTab parsed={parsed} />}
         {activeTab === 'YAML' && <YamlTab def={def} />}
         {activeTab === 'When-to-Use' && <WhenToUseTab def={def} parsed={parsed} />}
-        {activeTab === 'History' && <HistoryTab name={parsed.name} />}
+        {activeTab === 'History' && (
+          <>
+            <HistoryTab name={parsed.name} />
+            <LiveEventsPanel conversationId={selectedId} />
+          </>
+        )}
       </div>
     </>
   )
