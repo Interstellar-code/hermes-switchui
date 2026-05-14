@@ -20,6 +20,8 @@ type Matrix3DConsoleEntry = {
   id: string
   time: string
   agent: string
+  agentKey: string | null
+  source: 'agent' | 'gateway'
   color: string
   type: Matrix3DConsoleType
   message: string
@@ -140,7 +142,12 @@ function extractLogLines(raw: unknown): Array<string> {
     : []
 }
 
-function parseLogLine(line: string, index: number): Matrix3DConsoleEntry {
+function parseLogLine(
+  line: string,
+  index: number,
+  source: 'agent' | 'gateway',
+  agentMatchers: Array<{ id: string; name: string }>,
+): Matrix3DConsoleEntry {
   const type = readLogLevel(line)
   const timestamp =
     line.match(/\b\d{2}:\d{2}:\d{2}(?:\.\d+)?\b/)?.[0]?.slice(0, 8) ||
@@ -153,19 +160,43 @@ function parseLogLine(line: string, index: number): Matrix3DConsoleEntry {
     .replace(/^\s*\d{2}:\d{2}:\d{2}(?:\.\d+)?\s*/, '')
     .trim()
 
+  const normalizedMessage = message || line
   return {
-    id: `log-${index}-${line.slice(0, 24)}`,
+    id: `log-${source}-${index}-${line.slice(0, 24)}`,
     time: timestamp,
     agent,
+    agentKey: inferAgentKey(agent, normalizedMessage, agentMatchers),
+    source,
     color: colorForType(type),
     type,
-    message: message || line,
+    message: normalizedMessage,
     duration: '',
   }
 }
 
-function buildLogEntries(raw: unknown): Array<Matrix3DConsoleEntry> {
-  return extractLogLines(raw).slice(-80).map(parseLogLine)
+
+function inferAgentKey(
+  agentLabel: string,
+  message: string,
+  agentMatchers: Array<{ id: string; name: string }>,
+): string | null {
+  const haystack = `${agentLabel} ${message}`.toLowerCase()
+  for (const matcher of agentMatchers) {
+    const id = matcher.id.toLowerCase()
+    const name = matcher.name.toLowerCase()
+    if (haystack.includes(id) || haystack.includes(name)) return matcher.id
+  }
+  return null
+}
+
+function buildLogEntries(
+  raw: unknown,
+  source: 'agent' | 'gateway',
+  agentMatchers: Array<{ id: string; name: string }>,
+): Array<Matrix3DConsoleEntry> {
+  return extractLogLines(raw)
+    .slice(-80)
+    .map((line, index) => parseLogLine(line, index, source, agentMatchers))
 }
 
 
@@ -295,22 +326,25 @@ function Matrix3DAgentCard({ agent }: { agent: Matrix3DAgentCardModel }) {
   )
 }
 
-function Matrix3DConsole({ entries, isLoading, isError }: { entries: Array<Matrix3DConsoleEntry>; isLoading: boolean; isError: boolean }) {
+function Matrix3DConsole({ entries, isLoading, isError, agentTabs }: { entries: Array<Matrix3DConsoleEntry>; isLoading: boolean; isError: boolean; agentTabs: Array<{ id: string; label: string }> }) {
   const [tab, setTab] = useState('ALL')
-  const tabs = useMemo(
-    () => ['ALL', ...Array.from(new Set(entries.map((entry) => entry.agent).filter((agent) => agent !== 'SYS'))).slice(0, 4)],
-    [entries],
-  )
-  const filtered = tab === 'ALL' ? entries : entries.filter((entry) => entry.agent === tab || entry.agent === 'SYS')
+  const tabs = useMemo(() => ['ALL', 'AGENTS', 'GATEWAY', ...agentTabs.map((agent) => agent.id)], [agentTabs])
+  const filtered = useMemo(() => {
+    if (tab === 'ALL') return entries
+    if (tab === 'AGENTS') return entries.filter((entry) => entry.source === 'agent' || entry.agentKey)
+    if (tab === 'GATEWAY') return entries.filter((entry) => entry.source === 'gateway')
+    return entries.filter((entry) => entry.agentKey === tab)
+  }, [entries, tab])
+  const tabLabel = (value: string) => agentTabs.find((agent) => agent.id === value)?.label || value
 
   return (
     <div className="matrix3d-console">
       <MatrixRain />
       <div className="matrix3d-console-head">
-        <span className="matrix3d-console-label">Gateway logs</span>
+        <span className="matrix3d-console-label">Runtime logs</span>
         {tabs.map((item) => (
           <button key={item} className={`matrix3d-console-tab${tab === item ? ' is-on' : ''}`} type="button" onClick={() => setTab(item)}>
-            {item}
+            {tabLabel(item)}
           </button>
         ))}
         <div className="matrix3d-live">
@@ -354,14 +388,38 @@ export function Matrix3DScreen() {
       ),
     [officeData.agents, officeData.presence],
   )
-  const logsQuery = useQuery({
-    queryKey: ['matrix3d', 'gateway-logs'],
-    queryFn: () => getLogs({ lines: 80 }),
+  const agentLogsQuery = useQuery({
+    queryKey: ['matrix3d', 'agent-logs-console'],
+    queryFn: () => getLogs({ lines: 120, file: 'agent.log' }),
     staleTime: 5_000,
     refetchInterval: 5_000,
     retry: false,
   })
-  const entries = useMemo(() => buildLogEntries(logsQuery.data), [logsQuery.data])
+  const gatewayLogsQuery = useQuery({
+    queryKey: ['matrix3d', 'gateway-logs-console'],
+    queryFn: () => getLogs({ lines: 120, file: 'gateway.log' }),
+    staleTime: 5_000,
+    refetchInterval: 5_000,
+    retry: false,
+  })
+  const agentMatchers = useMemo(
+    () => officeData.presence.map((presence) => ({ id: presence.id, name: presence.name })),
+    [officeData.presence],
+  )
+  const entries = useMemo(
+    () => [
+      ...buildLogEntries(agentLogsQuery.data, 'agent', agentMatchers),
+      ...buildLogEntries(gatewayLogsQuery.data, 'gateway', agentMatchers),
+    ].sort((a, b) => a.time.localeCompare(b.time)),
+    [agentLogsQuery.data, agentMatchers, gatewayLogsQuery.data],
+  )
+  const consoleAgentTabs = useMemo(
+    () =>
+      officeData.presence
+        .filter((presence) => entries.some((entry) => entry.agentKey === presence.id))
+        .map((presence) => ({ id: presence.id, label: compactName(presence.name, 0) })),
+    [entries, officeData.presence],
+  )
   const isLiveRoster = officeData.agentSource === 'live'
   const working = cardAgents.filter((agent) => agent.status === 'working').length
   const errors = cardAgents.filter((agent) => agent.status === 'error').length
@@ -411,7 +469,7 @@ export function Matrix3DScreen() {
               </div>
             )}
           </div>
-          <Matrix3DConsole entries={entries} isLoading={logsQuery.isLoading} isError={logsQuery.isError} />
+          <Matrix3DConsole entries={entries} isLoading={agentLogsQuery.isLoading || gatewayLogsQuery.isLoading} isError={Boolean(agentLogsQuery.isError && gatewayLogsQuery.isError)} agentTabs={consoleAgentTabs} />
         </section>
       </div>
     </div>
