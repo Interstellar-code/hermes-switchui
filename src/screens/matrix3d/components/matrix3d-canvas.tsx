@@ -8,7 +8,7 @@ type Matrix3DCanvasProps = {
 export function Matrix3DCanvas({ officeData }: Matrix3DCanvasProps) {
   return (
     <div className="relative z-[1] h-full overflow-hidden bg-[#020617]">
-      <RetroOffice3D {...officeData} />
+      <RetroOffice3D {...officeData} showViewportHud={false} />
     </div>
   )
 }

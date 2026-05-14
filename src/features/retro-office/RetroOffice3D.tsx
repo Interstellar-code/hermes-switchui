@@ -2270,6 +2270,7 @@ export function RetroOffice3D({
   soundclawEnabled = false,
   officeTitle = "Luke Headquarters",
   officeTitleLoaded = false,
+  showViewportHud = true,
   remoteOfficeEnabled = false,
   remoteOfficeSourceKind = "presence_endpoint",
   remoteOfficeLabel = "Remote Office",
@@ -2384,6 +2385,7 @@ export function RetroOffice3D({
   soundclawEnabled?: boolean;
   officeTitle?: string;
   officeTitleLoaded?: boolean;
+  showViewportHud?: boolean;
   remoteOfficeEnabled?: boolean;
   remoteOfficeSourceKind?: "presence_endpoint" | "openclaw_gateway";
   remoteOfficeLabel?: string;
@@ -5905,7 +5907,7 @@ export function RetroOffice3D({
       ) : null}
 
       {/* Title — top center overlay. */}
-      {!immersiveOverlayActive ? (
+      {showViewportHud && !immersiveOverlayActive ? (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none select-none z-10">
           <div className="flex items-center gap-3">
             <div className="h-px w-12 bg-gradient-to-r from-transparent to-amber-500/40" />
@@ -7156,7 +7158,7 @@ export function RetroOffice3D({
         </div>
       ) : null}
 
-      {!immersiveOverlayActive ? (
+      {showViewportHud && !immersiveOverlayActive ? (
         <>
           {/* Ideas 3 + 6 + 8: Mini status bar — bottom left. */}
           <div className="absolute bottom-3 left-3 flex flex-col items-start gap-1.5 z-10 pointer-events-none select-none">
