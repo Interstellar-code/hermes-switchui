@@ -352,5 +352,10 @@ export async function getLogs(params?: { lines?: number; file?: string; level?: 
   if (params?.level) search.set('level', params.level)
   if (params?.component) search.set('component', params.component)
   const suffix = search.toString()
-  return proxyGet(`/api/logs${suffix ? `?${suffix}` : ''}`)
+  const res = await fetch(`/api/logs${suffix ? `?${suffix}` : ''}`)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Hermes Logs API /api/logs: ${res.status} ${body}`)
+  }
+  return res.json() as Promise<unknown>
 }

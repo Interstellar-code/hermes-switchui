@@ -8,6 +8,7 @@ import { listCrewStatusAgents, listWorkspaceAgents } from '@/lib/workspace-agent
 import { useAgentView } from '@/hooks/use-agent-view'
 import { createDefaultAgentAvatarProfile } from '@/lib/avatars/profile'
 import { gatewayStatus as fetchGatewayStatus, getLogs } from '@/lib/hermes-client'
+import { resolveCrewEffectiveStatus } from './matrix3d-presence-status'
 
 type AgentLike = {
   id: string
@@ -81,7 +82,7 @@ function buildRosterOfficeSubtitle(
   agent: CrewStatusAgent | WorkspaceAgentDirectory,
   rosterStatus: string,
 ): string {
-  const lead = 'role' in agent ? agent.role : agent.provider
+  const lead = agent.role || agent.provider
   const parts = [lead || agent.provider, rosterStatus]
 
   return parts.filter(Boolean).join(' • ')
@@ -176,13 +177,13 @@ function mergePresence(
 
       const rosterStatus = crewRosterStatus(agent)
       const boost = activityBoosts[agent.id] ?? 0
-      const effectiveStatus = live
-        ? toLiveOfficeStatus(live.status)
-        : rosterStatus === 'offline'
-          ? 'error'
-          : boost >= 3
-            ? 'working'
-            : 'idle'
+      const effectiveStatus = resolveCrewEffectiveStatus({
+        liveStatus: live?.status ?? null,
+        rosterStatus,
+        activityBoost: boost,
+        processAlive: agent.processAlive,
+        gatewayState: agent.gatewayState,
+      })
 
       return {
         id: agent.id,
@@ -289,6 +290,8 @@ function computeActivityScore(
   const id = agent.id.toLowerCase()
   const display = agent.displayName.toLowerCase()
   if (logText.includes(`[${id}]`) || logText.includes(` ${id} `) || logText.includes(display)) score += 1
+  if (logText.includes(`delegate to ${display}`) || logText.includes(`delegated to ${display}`)) score += 3
+  if (logText.includes(`handover to ${display}`) || logText.includes(`assign ${display}`)) score += 2
 
   return score
 }
@@ -327,6 +330,10 @@ export type Matrix3DOfficeData = {
   onAgentChatSelect: (agentId: string) => void
 }
 
+function shouldShowMatrix3DAgent(presence: Matrix3DAgentPresence): boolean {
+  return presence.id !== 'workspace'
+}
+
 export function useMatrix3DOfficeData(): Matrix3DOfficeData {
   const navigate = useNavigate()
   const agentView = useAgentView()
@@ -357,7 +364,15 @@ export function useMatrix3DOfficeData(): Matrix3DOfficeData {
 
   const logsQuery = useQuery({
     queryKey: ['matrix3d', 'presence-logs'],
-    queryFn: () => getLogs({ lines: 200, file: 'agent.log' }),
+    queryFn: () => getLogs({ lines: 200, file: 'agent' }),
+    staleTime: 5_000,
+    refetchInterval: 5_000,
+    retry: false,
+  })
+
+  const gatewayLogsQuery = useQuery({
+    queryKey: ['matrix3d', 'presence-gateway-logs'],
+    queryFn: () => getLogs({ lines: 200, file: 'gateway' }),
     staleTime: 5_000,
     refetchInterval: 5_000,
     retry: false,
@@ -374,7 +389,8 @@ export function useMatrix3DOfficeData(): Matrix3DOfficeData {
 
   useEffect(() => {
     if (crewAgents.length === 0) return
-    const logText = parseLogText(logsQuery.data)
+    const logText = `${parseLogText(logsQuery.data)}
+${parseLogText(gatewayLogsQuery.data)}`
     const nowMs = Date.now()
     const nextSnapshots: Record<string, CrewActivitySnapshot> = {}
     const nextBoosts: Record<string, number> = {}
@@ -389,10 +405,13 @@ export function useMatrix3DOfficeData(): Matrix3DOfficeData {
 
     previousCrewRef.current = nextSnapshots
     setActivityBoosts(nextBoosts)
-  }, [crewAgents, logsQuery.data])
+  }, [crewAgents, gatewayLogsQuery.data, logsQuery.data])
 
   const presence = useMemo(
-    () => mergePresence(crewAgents, rosterAgents, agentView.activeAgents, activityBoosts),
+    () =>
+      mergePresence(crewAgents, rosterAgents, agentView.activeAgents, activityBoosts).filter(
+        shouldShowMatrix3DAgent,
+      ),
     [activityBoosts, agentView.activeAgents, crewAgents, rosterAgents],
   )
 

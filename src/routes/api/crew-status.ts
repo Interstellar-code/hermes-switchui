@@ -122,6 +122,13 @@ out = {
 conn = sqlite3.connect(path)
 conn.row_factory = sqlite3.Row
 cur = conn.cursor()
+has_sessions = cur.execute(
+  "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sessions' LIMIT 1"
+).fetchone()
+if has_sessions is None:
+  conn.close()
+  print(json.dumps(out))
+  raise SystemExit(0)
 agg = cur.execute("""
 SELECT
   COUNT(*) as session_count,

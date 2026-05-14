@@ -1,32 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Matrix3DCanvas } from './components/matrix3d-canvas'
+import { buildLogEntries, TYPE_LABELS, type Matrix3DConsoleEntry } from './matrix3d-console-log'
 import { useMatrix3DOfficeData } from './use-matrix3d-office-data'
 import type { OfficeAgent } from '@/features/retro-office/core/types'
 import type { Matrix3DAgentPresence } from './use-matrix3d-office-data'
 import { getLogs } from '@/lib/hermes-client'
 import './matrix3d-office.css'
-
-type Matrix3DConsoleType =
-  | 'sys'
-  | 'route'
-  | 'tool'
-  | 'trace'
-  | 'review'
-  | 'dispatch'
-  | 'err'
-
-type Matrix3DConsoleEntry = {
-  id: string
-  time: string
-  agent: string
-  agentKey: string | null
-  source: 'agent' | 'gateway'
-  color: string
-  type: Matrix3DConsoleType
-  message: string
-  duration: string
-}
 
 type Matrix3DAgentCardModel = {
   id: string
@@ -41,15 +21,6 @@ type Matrix3DAgentCardModel = {
 }
 
 const FALLBACK_CARD_NAMES = ['HERMES', 'NEO', 'TRINITY', 'MORPHEUS']
-const TYPE_LABELS: Record<Matrix3DConsoleType, string> = {
-  sys: 'SYS',
-  route: 'ROUTE',
-  tool: 'TOOL',
-  trace: 'TRACE',
-  review: 'REVIEW',
-  dispatch: 'DISP',
-  err: 'ERR',
-}
 
 function darkenColor(color: string): string {
   if (!color.startsWith('#') || color.length !== 7) return '#04250f'
@@ -78,6 +49,10 @@ function statusColor(status: OfficeAgent['status']): string {
   return 'rgba(216,255,227,.28)'
 }
 
+function pluralize(count: number, singular: string, plural = `${singular}s`): string {
+  return `${count} ${count === 1 ? singular : plural}`
+}
+
 function toCardAgent(
   agent: OfficeAgent,
   presence: Matrix3DAgentPresence | undefined,
@@ -97,108 +72,6 @@ function toCardAgent(
       : 'office',
   }
 }
-
-function readLogLevel(line: string): Matrix3DConsoleType {
-  const lower = line.toLowerCase()
-  if (/\b(error|exception|traceback|failed|fatal)\b/.test(lower)) return 'err'
-  if (/\b(warn|warning|deprecated)\b/.test(lower)) return 'review'
-  if (/\b(tool|exec|command|shell)\b/.test(lower)) return 'tool'
-  if (/\b(route|request|http|api)\b/.test(lower)) return 'route'
-  if (/\b(trace|debug|stream)\b/.test(lower)) return 'trace'
-  return 'sys'
-}
-
-function colorForType(type: Matrix3DConsoleType): string {
-  if (type === 'err') return '#ff5f6d'
-  if (type === 'review') return '#a78bfa'
-  if (type === 'tool') return '#d6ff5f'
-  if (type === 'route') return '#00ff41'
-  if (type === 'trace') return '#5fcfff'
-  return 'rgba(216,255,227,.58)'
-}
-
-function extractLogLines(raw: unknown): Array<string> {
-  if (Array.isArray(raw)) {
-    return raw
-      .map((entry) => {
-        if (typeof entry === 'string') return entry
-        if (entry && typeof entry === 'object') {
-          const record = entry as Record<string, unknown>
-          return typeof record.message === 'string'
-            ? record.message
-            : typeof record.line === 'string'
-              ? record.line
-              : JSON.stringify(record)
-        }
-        return ''
-      })
-      .filter(Boolean)
-  }
-
-  if (!raw || typeof raw !== 'object') return []
-  const record = raw as Record<string, unknown>
-  return Array.isArray(record.lines)
-    ? record.lines.filter((line): line is string => typeof line === 'string')
-    : []
-}
-
-function parseLogLine(
-  line: string,
-  index: number,
-  source: 'agent' | 'gateway',
-  agentMatchers: Array<{ id: string; name: string }>,
-): Matrix3DConsoleEntry {
-  const type = readLogLevel(line)
-  const timestamp =
-    line.match(/\b\d{2}:\d{2}:\d{2}(?:\.\d+)?\b/)?.[0]?.slice(0, 8) ||
-    line.match(/T(\d{2}:\d{2}:\d{2})/)?.[1] ||
-    '—'
-  const bracket = line.match(/\[([^\]\s]{2,24})\]/)?.[1]
-  const agent = (bracket || (type === 'route' ? 'API' : type === 'tool' ? 'TOOL' : 'GATEWAY')).toUpperCase()
-  const message = line
-    .replace(/^\s*\d{4}-\d{2}-\d{2}T?/, '')
-    .replace(/^\s*\d{2}:\d{2}:\d{2}(?:\.\d+)?\s*/, '')
-    .trim()
-
-  const normalizedMessage = message || line
-  return {
-    id: `log-${source}-${index}-${line.slice(0, 24)}`,
-    time: timestamp,
-    agent,
-    agentKey: inferAgentKey(agent, normalizedMessage, agentMatchers),
-    source,
-    color: colorForType(type),
-    type,
-    message: normalizedMessage,
-    duration: '',
-  }
-}
-
-
-function inferAgentKey(
-  agentLabel: string,
-  message: string,
-  agentMatchers: Array<{ id: string; name: string }>,
-): string | null {
-  const haystack = `${agentLabel} ${message}`.toLowerCase()
-  for (const matcher of agentMatchers) {
-    const id = matcher.id.toLowerCase()
-    const name = matcher.name.toLowerCase()
-    if (haystack.includes(id) || haystack.includes(name)) return matcher.id
-  }
-  return null
-}
-
-function buildLogEntries(
-  raw: unknown,
-  source: 'agent' | 'gateway',
-  agentMatchers: Array<{ id: string; name: string }>,
-): Array<Matrix3DConsoleEntry> {
-  return extractLogLines(raw)
-    .slice(-80)
-    .map((line, index) => parseLogLine(line, index, source, agentMatchers))
-}
-
 
 function MatrixRain() {
   const ref = useRef<HTMLCanvasElement | null>(null)
@@ -427,10 +300,25 @@ export function Matrix3DScreen() {
         .map((presence) => ({ id: presence.id, label: compactName(presence.name, 0) })),
     [entries, officeData.presence],
   )
-  const isLiveRoster = officeData.agentSource === 'live'
+  const liveSessionCount = useMemo(
+    () => officeData.presence.filter((presence) => Boolean(presence.activeSessionKey)).length,
+    [officeData.presence],
+  )
   const working = cardAgents.filter((agent) => agent.status === 'working').length
   const errors = cardAgents.filter((agent) => agent.status === 'error').length
   const idle = Math.max(0, cardAgents.length - working - errors)
+  const rosterLabel =
+    officeData.agentSource === 'live'
+      ? 'Active agents'
+      : officeData.agentSource === 'roster'
+        ? 'Workspace roster'
+        : 'Agent roster'
+  const rosterSummary =
+    officeData.agentSource === 'live'
+      ? `${pluralize(cardAgents.length, 'live agent')} · ${working} working · ${errors} error`
+      : officeData.agentSource === 'roster'
+        ? `${pluralize(cardAgents.length, 'local profile')} · ${pluralize(liveSessionCount, 'live session')} · ${working} working`
+        : '0 agents'
 
   return (
     <div className="matrix3d-office-page">
@@ -459,10 +347,8 @@ export function Matrix3DScreen() {
           <div className="matrix3d-roster">
             <div className="matrix3d-roster-bar">
               <div className="matrix3d-roster-pulse" />
-              <span className="matrix3d-roster-label">Active agents</span>
-              <span className="matrix3d-roster-summary">
-                {cardAgents.length} {isLiveRoster ? 'live' : 'roster'} · {working} working · {errors} error
-              </span>
+              <span className="matrix3d-roster-label">{rosterLabel}</span>
+              <span className="matrix3d-roster-summary">{rosterSummary}</span>
             </div>
             {cardAgents.length > 0 ? (
               <div className="matrix3d-roster-rail">
@@ -472,7 +358,7 @@ export function Matrix3DScreen() {
               </div>
             ) : (
               <div className="matrix3d-roster-empty">
-                No Hermes agents returned by the workspace or gateway yet.
+                No Hermes profiles or live sessions returned by the workspace yet.
               </div>
             )}
           </div>
