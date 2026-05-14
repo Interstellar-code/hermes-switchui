@@ -630,6 +630,27 @@ export class SwitchUiWorkflowStore {
   // 6 Additional Helpers
   // ----------------------------------------------------------
 
+  /**
+   * Helper 0 (A.11 cold-start reconciliation): list node_runs that were
+   * dispatched to Kanban but haven't reached a terminal status yet. Used by
+   * the engine boot path to repopulate the task-event consumer's in-memory
+   * tracking map after a Switch UI server restart.
+   */
+  listInFlightDispatches(): Array<{
+    nodeRunId: string;
+    workflowRunId: string;
+    kanbanTaskId: string;
+  }> {
+    return this.db
+      .prepare(
+        `SELECT id AS nodeRunId, workflow_run_id AS workflowRunId, kanban_task_id AS kanbanTaskId
+           FROM node_runs
+          WHERE kanban_task_id IS NOT NULL
+            AND status IN ('running', 'ready')`
+      )
+      .all() as Array<{ nodeRunId: string; workflowRunId: string; kanbanTaskId: string }>;
+  }
+
   // Helper 1: getLoopChildOutputs
   getLoopChildOutputs(
     parentNodeRunId: string
