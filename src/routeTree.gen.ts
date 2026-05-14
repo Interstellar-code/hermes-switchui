@@ -142,6 +142,7 @@ import { Route as ApiClaudeTasksTaskIdRouteImport } from './routes/api/claude-ta
 import { Route as ApiClaudeProxySplatRouteImport } from './routes/api/claude-proxy/$'
 import { Route as ApiClaudeJobsJobIdRouteImport } from './routes/api/claude-jobs.$jobId'
 import { Route as ApiArtifactsArtifactIdRouteImport } from './routes/api/artifacts.$artifactId'
+import { Route as ApiWorkflowRunsRunIdApproveRouteImport } from './routes/api/workflow-runs.$runId.approve'
 import { Route as ApiWorkflowDefinitionsIdParsedRouteImport } from './routes/api/workflow-definitions.$id.parsed'
 import { Route as ApiSessionsSessionKeyStatusRouteImport } from './routes/api/sessions/$sessionKey.status'
 import { Route as ApiSessionsSessionKeyActiveRunRouteImport } from './routes/api/sessions/$sessionKey.active-run'
@@ -828,6 +829,12 @@ const ApiArtifactsArtifactIdRoute = ApiArtifactsArtifactIdRouteImport.update({
   path: '/$artifactId',
   getParentRoute: () => ApiArtifactsRoute,
 } as any)
+const ApiWorkflowRunsRunIdApproveRoute =
+  ApiWorkflowRunsRunIdApproveRouteImport.update({
+    id: '/approve',
+    path: '/approve',
+    getParentRoute: () => ApiWorkflowRunsRunIdRoute,
+  } as any)
 const ApiWorkflowDefinitionsIdParsedRoute =
   ApiWorkflowDefinitionsIdParsedRouteImport.update({
     id: '/parsed',
@@ -1048,7 +1055,7 @@ export interface FileRoutesByFullPath {
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
   '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRouteWithChildren
-  '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRoute
+  '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
@@ -1058,6 +1065,7 @@ export interface FileRoutesByFullPath {
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
+  '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
@@ -1197,7 +1205,7 @@ export interface FileRoutesByTo {
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
   '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRouteWithChildren
-  '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRoute
+  '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
@@ -1207,6 +1215,7 @@ export interface FileRoutesByTo {
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
+  '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
@@ -1348,7 +1357,7 @@ export interface FileRoutesById {
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
   '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRouteWithChildren
-  '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRoute
+  '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
@@ -1358,6 +1367,7 @@ export interface FileRoutesById {
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
+  '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
@@ -1510,6 +1520,7 @@ export interface FileRouteTypes {
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
     | '/api/workflow-definitions/$id/parsed'
+    | '/api/workflow-runs/$runId/approve'
     | '/api/conductor/missions/$id/abort'
     | '/api/hermes-kanban/tasks/$taskId/comments'
     | '/api/hermes-kanban/tasks/$taskId/log'
@@ -1659,6 +1670,7 @@ export interface FileRouteTypes {
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
     | '/api/workflow-definitions/$id/parsed'
+    | '/api/workflow-runs/$runId/approve'
     | '/api/conductor/missions/$id/abort'
     | '/api/hermes-kanban/tasks/$taskId/comments'
     | '/api/hermes-kanban/tasks/$taskId/log'
@@ -1809,6 +1821,7 @@ export interface FileRouteTypes {
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
     | '/api/workflow-definitions/$id/parsed'
+    | '/api/workflow-runs/$runId/approve'
     | '/api/conductor/missions/$id/abort'
     | '/api/hermes-kanban/tasks/$taskId/comments'
     | '/api/hermes-kanban/tasks/$taskId/log'
@@ -2861,6 +2874,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiArtifactsArtifactIdRouteImport
       parentRoute: typeof ApiArtifactsRoute
     }
+    '/api/workflow-runs/$runId/approve': {
+      id: '/api/workflow-runs/$runId/approve'
+      path: '/approve'
+      fullPath: '/api/workflow-runs/$runId/approve'
+      preLoaderRoute: typeof ApiWorkflowRunsRunIdApproveRouteImport
+      parentRoute: typeof ApiWorkflowRunsRunIdRoute
+    }
     '/api/workflow-definitions/$id/parsed': {
       id: '/api/workflow-definitions/$id/parsed'
       path: '/parsed'
@@ -3149,12 +3169,23 @@ const ApiWorkflowDefinitionsRouteWithChildren =
     ApiWorkflowDefinitionsRouteChildren,
   )
 
+interface ApiWorkflowRunsRunIdRouteChildren {
+  ApiWorkflowRunsRunIdApproveRoute: typeof ApiWorkflowRunsRunIdApproveRoute
+}
+
+const ApiWorkflowRunsRunIdRouteChildren: ApiWorkflowRunsRunIdRouteChildren = {
+  ApiWorkflowRunsRunIdApproveRoute: ApiWorkflowRunsRunIdApproveRoute,
+}
+
+const ApiWorkflowRunsRunIdRouteWithChildren =
+  ApiWorkflowRunsRunIdRoute._addFileChildren(ApiWorkflowRunsRunIdRouteChildren)
+
 interface ApiWorkflowRunsRouteChildren {
-  ApiWorkflowRunsRunIdRoute: typeof ApiWorkflowRunsRunIdRoute
+  ApiWorkflowRunsRunIdRoute: typeof ApiWorkflowRunsRunIdRouteWithChildren
 }
 
 const ApiWorkflowRunsRouteChildren: ApiWorkflowRunsRouteChildren = {
-  ApiWorkflowRunsRunIdRoute: ApiWorkflowRunsRunIdRoute,
+  ApiWorkflowRunsRunIdRoute: ApiWorkflowRunsRunIdRouteWithChildren,
 }
 
 const ApiWorkflowRunsRouteWithChildren = ApiWorkflowRunsRoute._addFileChildren(
