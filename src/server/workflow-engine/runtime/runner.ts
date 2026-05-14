@@ -44,7 +44,17 @@ export async function launchWorkflowRun(
 ): Promise<void> {
   const { store, deps, platform } = engine;
 
-  // 1. plan → route (system — launch wizard pre-collected all route info)
+  // 1. Parse and validate the YAML BEFORE advancing phases (Codex Bundle 3 Q4
+  //    fix). A parse failure leaves the run in 'plan' phase with status=failed
+  //    rather than the misleading 'execute' phase the previous order produced.
+  const parsed = parseWorkflow(input.workflowYaml, `${input.workflowId}.yaml`);
+  if (parsed.error) {
+    await store.failWorkflowRun(input.runId, parsed.error.error);
+    return;
+  }
+  const workflow = parsed.workflow;
+
+  // 2. plan → route (system — launch wizard pre-collected all route info)
   await store.recordPhaseTransition({
     runId: input.runId,
     toPhase: 'route',
@@ -52,21 +62,13 @@ export async function launchWorkflowRun(
     decisionData: { reason: 'launch-wizard-precollected' },
   });
 
-  // 2. route → execute (engine — no human routing needed for v1)
+  // 3. route → execute (engine — no human routing needed for v1)
   await store.recordPhaseTransition({
     runId: input.runId,
     toPhase: 'execute',
     decidedBy: 'engine',
     decisionData: { workflow_id: input.workflowId },
   });
-
-  // 3. Parse and validate the YAML.
-  const parsed = parseWorkflow(input.workflowYaml, `${input.workflowId}.yaml`);
-  if (parsed.error) {
-    await store.failWorkflowRun(input.runId, parsed.error.error);
-    return;
-  }
-  const workflow = parsed.workflow;
 
   // 4. Mark run as running.
   await store.updateWorkflowRun(input.runId, { status: 'running' });
@@ -105,7 +107,21 @@ export async function launchWorkflowRun(
       await store.completeWorkflowRun(input.runId);
     } catch (err) {
       // 6b. Failure — mark run failed; phase stays in execute (terminal-failed).
-      await store.failWorkflowRun(input.runId, (err as Error).message);
+      // Codex Bundle 3 Q3 guard: failWorkflowRun itself may throw (DB closed,
+      // disk full, etc.). Without a nested catch the rejection escapes the
+      // IIFE and becomes an unhandled promise rejection, crashing the
+      // Node process under default settings.
+      try {
+        await store.failWorkflowRun(input.runId, (err as Error).message);
+      } catch (failErr) {
+        // eslint-disable-next-line no-console
+        console.error(
+          `[runner] failWorkflowRun threw while handling DAG error for run ${input.runId}:`,
+          failErr,
+          'original:',
+          err,
+        );
+      }
     }
   })();
 }
