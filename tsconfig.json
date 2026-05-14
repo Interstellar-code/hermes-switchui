@@ -31,7 +31,10 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@archon/paths": ["./src/server/workflow-engine/stubs/paths.ts"],
+      "@archon/git": ["./src/server/workflow-engine/stubs/git.ts"],
+      "@archon/providers/types": ["./src/server/workflow-engine/stubs/providers-types.ts"]
     }
   }
 }
