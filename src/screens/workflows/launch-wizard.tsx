@@ -611,6 +611,9 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
   }
   function submit() {
     if (!wf) return
+    // Codex Bundle 6 Q3 — guard against double-submit before React flushes
+    // the button's disabled state on rapid clicks.
+    if (launchMutation.isPending) return
     const conversationId = crypto.randomUUID()
     const summary = userMessage || `Launch ${wf.name}`
     launchMutation.mutate(
