@@ -10,25 +10,27 @@ import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
 import { gatewayStatus as fetchGatewayStatus } from '@/lib/hermes-client'
 import { listWorkspaceAgents } from '@/lib/workspace-agents'
 
-const HERMES_FALLBACK_AGENTS: Array<OfficeAgent> = BUILTIN_AGENTS.map((agent) => {
-  const mapped = {
-    id: agent.id,
-    name: agent.name,
-    task: agent.role,
-    model: agent.description,
-    status: 'idle',
-  }
+const HERMES_FALLBACK_AGENTS: Array<OfficeAgent> = BUILTIN_AGENTS.map(
+  (agent) => {
+    const mapped = {
+      id: agent.id,
+      name: agent.name,
+      task: agent.role,
+      model: agent.role,
+      status: agent.status,
+    }
 
-  return {
-    id: agent.id,
-    name: agent.name,
-    subtitle: [agent.role, agent.description].filter(Boolean).join(' • '),
-    status: 'idle',
-    color: toOfficeColor(mapped),
-    item: toOfficeItem(mapped),
-    avatarProfile: createDefaultAgentAvatarProfile(agent.id),
-  }
-})
+    return {
+      id: agent.id,
+      name: agent.name,
+      subtitle: `${agent.role} • builtin`,
+      status: agent.status === 'active' ? 'working' : 'idle',
+      color: toOfficeColor(mapped),
+      item: toOfficeItem(mapped),
+      avatarProfile: createDefaultAgentAvatarProfile(agent.id),
+    }
+  },
+)
 
 type AgentLike = {
   id: string
@@ -42,33 +44,18 @@ function normalizeText(value: string): string {
   return value.toLowerCase()
 }
 
-function formatCompactNumber(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    notation: 'compact',
-    maximumFractionDigits: 1,
-  }).format(value)
-}
-
-function formatAgeLabel(updatedAtIso: string): string {
-  const updatedAtMs = Date.parse(updatedAtIso)
-  if (Number.isNaN(updatedAtMs)) return 'prompt age unknown'
-
-  const ageMinutes = Math.max(0, (Date.now() - updatedAtMs) / 60_000)
-  if (ageMinutes < 60) return `${Math.max(1, Math.round(ageMinutes))}m prompt age`
-
-  const ageHours = ageMinutes / 60
-  if (ageHours < 24) return `${Math.round(ageHours)}h prompt age`
-
-  return `${Math.round(ageHours / 24)}d prompt age`
-}
-
 function toLiveOfficeStatus(status: string): OfficeAgent['status'] {
-  if (status === 'running' || status === 'thinking' || status === 'online') return 'working'
-  if (status === 'paused' || status === 'idle' || status === 'away') return 'idle'
+  if (status === 'running' || status === 'thinking' || status === 'online')
+    return 'working'
+  if (status === 'paused' || status === 'idle' || status === 'away')
+    return 'idle'
   return 'error'
 }
 
-function toRosterOfficeStatus(status: WorkspaceAgentDirectory['status']): OfficeAgent['status'] {
+function toRosterOfficeStatus(
+  status: WorkspaceAgentDirectory['status'],
+): OfficeAgent['status'] {
+  if (status === 'online') return 'working'
   if (status === 'offline') return 'error'
   return 'idle'
 }
@@ -78,7 +65,8 @@ function toOfficeColor(agent: AgentLike): string {
   if (text.includes('qa') || text.includes('test')) return '#fbbf24'
   if (text.includes('research') || text.includes('analyst')) return '#38bdf8'
   if (agent.status === 'failed' || agent.status === 'offline') return '#f87171'
-  if (text.includes('build') || text.includes('code') || text.includes('dev')) return '#a78bfa'
+  if (text.includes('build') || text.includes('code') || text.includes('dev'))
+    return '#a78bfa'
   return '#34d399'
 }
 
@@ -86,7 +74,8 @@ function toOfficeItem(agent: AgentLike): OfficeAgent['item'] {
   const text = normalizeText(`${agent.name} ${agent.task} ${agent.model}`)
   if (text.includes('qa') || text.includes('test')) return 'shield'
   if (text.includes('research') || text.includes('analyst')) return 'globe'
-  if (text.includes('build') || text.includes('code') || text.includes('dev')) return 'palette'
+  if (text.includes('build') || text.includes('code') || text.includes('dev'))
+    return 'palette'
   return 'laptop'
 }
 
@@ -95,40 +84,16 @@ function formatProgress(progress: number | undefined): string | null {
   return `${Math.round(progress)}%`
 }
 
-function formatElapsedLabel(startedAtMs: number | undefined): string | null {
-  if (typeof startedAtMs !== 'number' || !Number.isFinite(startedAtMs)) return null
-
-  const elapsedMinutes = Math.max(0, (Date.now() - startedAtMs) / 60_000)
-  if (elapsedMinutes < 1) return '<1m live'
-  if (elapsedMinutes < 60) return `${Math.round(elapsedMinutes)}m live`
-
-  const elapsedHours = elapsedMinutes / 60
-  if (elapsedHours < 24) return `${Math.round(elapsedHours)}h live`
-
-  return `${Math.round(elapsedHours / 24)}d live`
-}
-
-function buildLiveOfficeSubtitle(agent: AgentLike & { progress?: number; startedAtMs?: number; tokenCount?: number }): string {
-  const parts = [
-    agent.task,
-    agent.model,
-    formatProgress(agent.progress),
-    typeof agent.tokenCount === 'number' ? `${formatCompactNumber(agent.tokenCount)} tok` : null,
-    formatElapsedLabel(agent.startedAtMs),
-  ]
+function buildLiveOfficeSubtitle(
+  agent: AgentLike & { progress?: number },
+): string {
+  const parts = [agent.model, agent.status, formatProgress(agent.progress)]
 
   return parts.filter(Boolean).join(' • ')
 }
 
 function buildRosterOfficeSubtitle(agent: WorkspaceAgentDirectory): string {
-  const parts = [
-    agent.role || agent.description,
-    agent.model ?? agent.provider,
-    agent.provider,
-    agent.adapter_type,
-    agent.status,
-    formatAgeLabel(agent.prompt_updated_at),
-  ]
+  const parts = [agent.role || agent.provider, agent.status]
 
   return parts.filter(Boolean).join(' • ')
 }
@@ -136,8 +101,6 @@ function buildRosterOfficeSubtitle(agent: WorkspaceAgentDirectory): string {
 function toLiveOfficeAgent(
   agent: AgentLike & {
     progress?: number
-    startedAtMs?: number
-    tokenCount?: number
   },
 ): OfficeAgent {
   return {
@@ -171,10 +134,14 @@ function toRosterOfficeAgent(agent: WorkspaceAgentDirectory): OfficeAgent {
   }
 }
 
-function formatGatewayStatus(status: { status?: string; gateway_running?: boolean } | undefined, hasHermesData: boolean): string {
+function formatGatewayStatus(
+  status: { status?: string; gateway_running?: boolean } | undefined,
+  hasHermesData: boolean,
+): string {
   if (status?.gateway_running === true) return 'connected'
   if (status?.gateway_running === false) return 'disconnected'
-  if (typeof status?.status === 'string' && status.status.trim()) return status.status.trim().toLowerCase()
+  if (typeof status?.status === 'string' && status.status.trim())
+    return status.status.trim().toLowerCase()
   return hasHermesData ? 'connected' : 'local'
 }
 
@@ -234,8 +201,6 @@ export function useMatrix3DOfficeData(): Matrix3DOfficeData {
           model: agent.model,
           status: agent.status,
           progress: agent.progress,
-          startedAtMs: agent.startedAtMs,
-          tokenCount: agent.tokenCount,
         }),
       )
     }
