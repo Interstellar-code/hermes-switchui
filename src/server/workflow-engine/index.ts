@@ -15,10 +15,19 @@ let engineInstance: WorkflowEngine | null = null;
 export async function getWorkflowEngine(options?: WorkflowEngineOptions): Promise<WorkflowEngine> {
   if (engineInstance) return engineInstance;
   if (!enginePromise) {
-    enginePromise = createWorkflowEngine(options).then((eng) => {
-      engineInstance = eng;
-      return eng;
-    });
+    enginePromise = createWorkflowEngine(options).then(
+      (eng) => {
+        engineInstance = eng;
+        return eng;
+      },
+      (err) => {
+        // Codex Bundle 4 Q6 fix: a rejected boot must clear the cached
+        // promise so the next caller can retry instead of receiving the
+        // same rejection forever.
+        enginePromise = null;
+        throw err;
+      },
+    );
   }
   return enginePromise;
 }

@@ -133,7 +133,7 @@ describe('CronTriggerPoller', () => {
     expect(poller.size()).toBe(0);
   });
 
-  it('4. job with enabled=false → ignored', async () => {
+  it('4. job with enabled=false → cursor advances, no fire (no disabled-interval backfill)', async () => {
     const store = makeStore();
     seedDefinition(store);
 
@@ -146,8 +146,12 @@ describe('CronTriggerPoller', () => {
     });
 
     await poller.tick();
+    // No workflow run created (fire suppressed for disabled job).
     expect(createSpy).not.toHaveBeenCalled();
-    expect(poller.size()).toBe(0);
+    // Job IS tracked (size counts relevant jobs); cursor advances so that a
+    // future re-enable doesn't backfill the disabled-interval fire.
+    expect(poller.size()).toBe(1);
+    expect(store.getCursor('workflow-engine.cron-triggers')).toContain('2026-05-14T20:00:00Z');
   });
 
   it('5. job with last_status=error → ignored (cron failed, skip)', async () => {

@@ -679,6 +679,14 @@ export class SwitchUiWorkflowStore {
     return row ? rowToNodeRun(row) : null;
   }
 
+  /** Helper: find a workflow_run by conversation_id — used by cron dedup. */
+  findRunByConversationId(conversationId: string): WorkflowRun | null {
+    const row = this.db
+      .prepare(`SELECT * FROM workflow_runs WHERE conversation_id=? LIMIT 1`)
+      .get(conversationId) as WorkflowRunRow | undefined;
+    return row ? rowToWorkflowRun(row) : null;
+  }
+
   /** Helper: find a node_run by primary key. Sync — used in idempotency guards. */
   findNodeRunById(id: string): import('./types.js').NodeRun | null {
     const row = this.db

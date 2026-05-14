@@ -15,6 +15,7 @@
  *      graceful shutdown.
  */
 import { createWorkflowStore } from '../store';
+import { closeDb } from '../db/client';
 import type { SwitchUiWorkflowStore } from '../store/workflow-store';
 import { KanbanDispatcher } from '../dispatcher/kanban-dispatcher';
 import { TaskEventConsumer } from '../consumer/task-event-consumer';
@@ -83,8 +84,77 @@ export async function createWorkflowEngine(
     cronPollIntervalMs = 60_000,
   } = options;
 
+  // Codex Bundle 4 Q6 fix: wrap construction in try/catch so a partial boot
+  // failure (after DB open) releases the file lock instead of leaving the
+  // engine in a half-initialised state that bricks the process.
+  return _createWorkflowEngineInner({
+    dbPath, pollIntervalMs, orphanThresholdMs,
+    autoStartConsumer, seedBundled,
+    enableCronTriggers, cronPollIntervalMs,
+  });
+}
+
+async function _createWorkflowEngineInner(opts: {
+  dbPath?: string;
+  pollIntervalMs: number;
+  orphanThresholdMs: number;
+  autoStartConsumer: boolean;
+  seedBundled: boolean;
+  enableCronTriggers: boolean;
+  cronPollIntervalMs: number;
+}): Promise<WorkflowEngine> {
+  const {
+    dbPath,
+    pollIntervalMs,
+    orphanThresholdMs,
+    autoStartConsumer,
+    seedBundled,
+    enableCronTriggers,
+    cronPollIntervalMs,
+  } = opts;
+
   // 1. Open DB + run migrations. openDb enforces the single-instance lock.
   const store = createWorkflowStore({ dbPath: dbPath ?? '' });
+  const isMemory = dbPath === ':memory:';
+
+  try {
+    return await _buildEngine(store, {
+      pollIntervalMs,
+      orphanThresholdMs,
+      autoStartConsumer,
+      seedBundled,
+      enableCronTriggers,
+      cronPollIntervalMs,
+    });
+  } catch (err) {
+    // Release the lock + close the DB so the next boot attempt isn't blocked.
+    // :memory: paths never registered with the singleton — skip closeDb.
+    if (!isMemory) {
+      try { closeDb(); } catch { /* ignore */ }
+    }
+    throw err;
+  }
+}
+
+async function _buildEngine(
+  store: SwitchUiWorkflowStore,
+  opts: {
+    pollIntervalMs: number;
+    orphanThresholdMs: number;
+    autoStartConsumer: boolean;
+    seedBundled: boolean;
+    enableCronTriggers: boolean;
+    cronPollIntervalMs: number;
+  },
+): Promise<WorkflowEngine> {
+  const {
+    pollIntervalMs,
+    orphanThresholdMs,
+    autoStartConsumer,
+    seedBundled,
+    enableCronTriggers,
+    cronPollIntervalMs,
+  } = opts;
 
   // 2. Seed bundled workflow YAMLs (idempotent — checksum short-circuit).
   let seededDefinitions = 0;
