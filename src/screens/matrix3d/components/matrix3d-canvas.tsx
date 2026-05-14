@@ -1,11 +1,13 @@
-import { useMatrix3DOfficeData } from '../use-matrix3d-office-data'
+import type { Matrix3DOfficeData } from '../use-matrix3d-office-data'
 import { RetroOffice3D } from '@/features/retro-office/RetroOffice3D'
 
-export function Matrix3DCanvas() {
-  const officeData = useMatrix3DOfficeData()
+type Matrix3DCanvasProps = {
+  officeData: Matrix3DOfficeData
+}
 
+export function Matrix3DCanvas({ officeData }: Matrix3DCanvasProps) {
   return (
-    <div className="h-full min-h-[520px] overflow-hidden rounded-[22px] border border-emerald-500/15 bg-[#020617]">
+    <div className="relative z-[1] h-full overflow-hidden bg-[#020617]">
       <RetroOffice3D {...officeData} />
     </div>
   )
