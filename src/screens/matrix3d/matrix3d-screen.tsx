@@ -215,13 +215,19 @@ function MatrixRain() {
     const chars = '01アイウエカキサシスタチナニハヒ<>{}[]|∑∆∇∂'
 
     const resize = () => {
-      canvas.width = canvas.offsetWidth
-      canvas.height = canvas.offsetHeight
+      const width = canvas.parentElement?.clientWidth ?? canvas.offsetWidth
+      const height = canvas.parentElement?.clientHeight ?? canvas.offsetHeight
+      if (width <= 0 || height <= 0) return
+      canvas.width = width
+      canvas.height = height
       drops = Array.from(
         { length: Math.max(1, Math.floor(canvas.width / 13)) },
         () => Math.random() * (canvas.height / 13),
       )
     }
+
+    const observer = new ResizeObserver(() => resize())
+    if (canvas.parentElement) observer.observe(canvas.parentElement)
 
     const draw = () => {
       frame += 1
@@ -245,6 +251,7 @@ function MatrixRain() {
 
     return () => {
       cancelAnimationFrame(animation)
+      observer.disconnect()
       window.removeEventListener('resize', resize)
     }
   }, [])
@@ -367,7 +374,7 @@ function Matrix3DConsole({ entries, isLoading, isError, agentTabs }: { entries: 
           ))
         ) : (
           <div className="matrix3d-console-empty">
-            {isError ? 'Could not load /api/logs from Hermes gateway.' : 'No Hermes gateway log lines returned yet.'}
+            {isError ? 'Could not load agent/gateway logs from Hermes.' : 'No runtime log lines returned yet.'}
           </div>
         )}
       </div>
@@ -390,14 +397,14 @@ export function Matrix3DScreen() {
   )
   const agentLogsQuery = useQuery({
     queryKey: ['matrix3d', 'agent-logs-console'],
-    queryFn: () => getLogs({ lines: 120, file: 'agent.log' }),
+    queryFn: () => getLogs({ lines: 120, file: 'agent' }),
     staleTime: 5_000,
     refetchInterval: 5_000,
     retry: false,
   })
   const gatewayLogsQuery = useQuery({
     queryKey: ['matrix3d', 'gateway-logs-console'],
-    queryFn: () => getLogs({ lines: 120, file: 'gateway.log' }),
+    queryFn: () => getLogs({ lines: 120, file: 'gateway' }),
     staleTime: 5_000,
     refetchInterval: 5_000,
     retry: false,
