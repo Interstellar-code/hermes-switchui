@@ -69,6 +69,18 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
         const def = store.getWorkflowDefinition(params.id);
         if (!def) return json({ error: 'not found' }, 404);
 
+        // Codex Bundle 5 Q6 — ETag based on YAML checksum lets the UI's
+        // TanStack Query staleTime have server-side backing. Saves the
+        // per-request parseWorkflow cost on unchanged definitions.
+        const etag = `"${def.checksum}"`;
+        const ifNoneMatch = request.headers.get('if-none-match');
+        if (ifNoneMatch && ifNoneMatch === etag) {
+          return new Response(null, {
+            status: 304,
+            headers: { ETag: etag, 'Cache-Control': 'private, max-age=30' },
+          });
+        }
+
         const parsed = parseWorkflow(def.yaml, def.id);
         if (parsed.error !== null) {
           return json(
@@ -103,7 +115,7 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
           };
         });
 
-        return json({
+        const payload = {
           definition: def,
           parsed: {
             name: wf.name,
@@ -116,6 +128,14 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
             // required_inputs / optional_inputs: not in v1 schema; empty arrays.
             required_inputs: [] as string[],
             optional_inputs: [] as string[],
+          },
+        };
+        return new Response(JSON.stringify(payload), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            ETag: etag,
+            'Cache-Control': 'private, max-age=30',
           },
         });
       },

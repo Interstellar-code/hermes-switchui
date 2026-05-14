@@ -30,29 +30,72 @@ export const Route = createFileRoute('/api/workflow-definitions')({
         if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
         const { store } = await getWorkflowEngine();
         const body = (await request.json()) as {
-          id: string;
-          name: string;
-          description?: string;
-          source?: 'bundled' | 'user' | 'project';
-          scope_path?: string;
-          yaml: string;
-          version?: string;
-          tags?: string[];
+          id?: unknown;
+          name?: unknown;
+          description?: unknown;
+          source?: unknown;
+          scope_path?: unknown;
+          yaml?: unknown;
+          version?: unknown;
+          tags?: unknown;
         };
-        if (!body?.id || !body?.name || !body?.yaml) {
-          return json({ error: 'id, name, yaml required' }, 400);
+
+        // Codex Bundle 5 Q3 — Input validation.
+        // id: slug-only (letters, digits, dash, underscore, colon). Max 128 chars.
+        // yaml: max 1 MiB.
+        // source: enum.
+        // scope_path: must be absolute + no '..' segments.
+        // tags: array of strings if provided.
+        if (typeof body.id !== 'string' || !/^[A-Za-z0-9_:.-]{1,128}$/.test(body.id)) {
+          return json({ error: 'id must be 1-128 chars of [A-Za-z0-9_:.-]' }, 400);
         }
-        const checksum = createHash('sha256').update(body.yaml).digest('hex');
+        if (typeof body.name !== 'string' || body.name.length < 1 || body.name.length > 256) {
+          return json({ error: 'name must be a string 1-256 chars' }, 400);
+        }
+        if (typeof body.yaml !== 'string' || body.yaml.length === 0) {
+          return json({ error: 'yaml must be a non-empty string' }, 400);
+        }
+        const MAX_YAML_BYTES = 1024 * 1024;
+        if (Buffer.byteLength(body.yaml, 'utf8') > MAX_YAML_BYTES) {
+          return json({ error: `yaml exceeds ${MAX_YAML_BYTES} bytes` }, 413);
+        }
+        const source = body.source ?? 'project';
+        if (source !== 'project' && source !== 'user' && source !== 'bundled') {
+          return json({ error: "source must be 'project' | 'user' | 'bundled'" }, 400);
+        }
+        if (source === 'bundled') {
+          return json({ error: "source='bundled' is read-only" }, 403);
+        }
+        if (body.scope_path !== undefined) {
+          if (typeof body.scope_path !== 'string' || !body.scope_path.startsWith('/') || body.scope_path.includes('..')) {
+            return json({ error: 'scope_path must be absolute and contain no .. segments' }, 400);
+          }
+        }
+        if (body.description !== undefined && typeof body.description !== 'string') {
+          return json({ error: 'description must be a string when provided' }, 400);
+        }
+        if (body.version !== undefined && typeof body.version !== 'string') {
+          return json({ error: 'version must be a string when provided' }, 400);
+        }
+        let tags: string[] | undefined;
+        if (body.tags !== undefined) {
+          if (!Array.isArray(body.tags) || !body.tags.every((t) => typeof t === 'string')) {
+            return json({ error: 'tags must be a string[] when provided' }, 400);
+          }
+          tags = body.tags as string[];
+        }
+
+        const checksum = createHash('sha256').update(body.yaml.replace(/\r\n/g, '\n')).digest('hex');
         store.upsertWorkflowDefinition({
           id: body.id,
           name: body.name,
-          description: body.description,
-          source: body.source ?? 'project',
-          scope_path: body.scope_path,
+          description: body.description as string | undefined,
+          source: source as 'user' | 'project',
+          scope_path: body.scope_path as string | undefined,
           yaml: body.yaml,
           checksum,
-          version: body.version,
-          tags: body.tags,
+          version: body.version as string | undefined,
+          tags,
         });
         const def = store.getWorkflowDefinition(body.id);
         return json({ definition: def });
