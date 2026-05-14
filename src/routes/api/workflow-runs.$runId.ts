@@ -26,10 +26,25 @@ export const Route = createFileRoute('/api/workflow-runs/$runId')({
         const run = await store.getWorkflowRun(params.runId);
         if (!run) return json({ error: 'not found' }, 404);
 
-        const nodeRuns = store.listNodeRuns(params.runId);
+        // Codex Bundle 5 Q7 — cap unbounded arrays at the route layer so
+        // long-running workflows don't ship 10k node_runs / 1k phase
+        // transitions in a single response.
+        const RUN_DETAIL_LIMIT = 500;
+        const allNodeRuns = store.listNodeRuns(params.runId);
+        const allPhaseTransitions = store.listPhaseTransitions(params.runId);
+        const nodeRuns = allNodeRuns.slice(-RUN_DETAIL_LIMIT);
+        const phaseTransitions = allPhaseTransitions.slice(-RUN_DETAIL_LIMIT);
         const events = store.listRecentWorkflowEvents(params.runId);
-        const phaseTransitions = store.listPhaseTransitions(params.runId);
-        return json({ run, nodeRuns, events, phaseTransitions });
+        return json({
+          run,
+          nodeRuns,
+          events,
+          phaseTransitions,
+          truncated: {
+            nodeRuns: allNodeRuns.length > nodeRuns.length,
+            phaseTransitions: allPhaseTransitions.length > phaseTransitions.length,
+          },
+        });
       },
       POST: async ({ request, params }) => {
         if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
