@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Matrix3DCanvas } from './components/matrix3d-canvas'
 import { useMatrix3DOfficeData } from './use-matrix3d-office-data'
 import type { OfficeAgent } from '@/features/retro-office/core/types'
+import { getLogs } from '@/lib/hermes-client'
 import './matrix3d-office.css'
 
 type Matrix3DConsoleType =
@@ -85,65 +87,78 @@ function toCardAgent(agent: OfficeAgent, index: number): Matrix3DAgentCardModel 
   }
 }
 
-function buildConsoleEntries(
-  agents: Array<Matrix3DAgentCardModel>,
-  gatewayStatus: string,
-): Array<Matrix3DConsoleEntry> {
-  const now = new Date()
-  const at = (offsetSeconds: number) => {
-    const d = new Date(now.getTime() - offsetSeconds * 1000)
-    return d.toLocaleTimeString('en-US', { hour12: false })
+function readLogLevel(line: string): Matrix3DConsoleType {
+  const lower = line.toLowerCase()
+  if (/\b(error|exception|traceback|failed|fatal)\b/.test(lower)) return 'err'
+  if (/\b(warn|warning|deprecated)\b/.test(lower)) return 'review'
+  if (/\b(tool|exec|command|shell)\b/.test(lower)) return 'tool'
+  if (/\b(route|request|http|api)\b/.test(lower)) return 'route'
+  if (/\b(trace|debug|stream)\b/.test(lower)) return 'trace'
+  return 'sys'
+}
+
+function colorForType(type: Matrix3DConsoleType): string {
+  if (type === 'err') return '#ff5f6d'
+  if (type === 'review') return '#a78bfa'
+  if (type === 'tool') return '#d6ff5f'
+  if (type === 'route') return '#00ff41'
+  if (type === 'trace') return '#5fcfff'
+  return 'rgba(216,255,227,.58)'
+}
+
+function extractLogLines(raw: unknown): Array<string> {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((entry) => {
+        if (typeof entry === 'string') return entry
+        if (entry && typeof entry === 'object') {
+          const record = entry as Record<string, unknown>
+          return typeof record.message === 'string'
+            ? record.message
+            : typeof record.line === 'string'
+              ? record.line
+              : JSON.stringify(record)
+        }
+        return ''
+      })
+      .filter(Boolean)
   }
 
-  const entries: Array<Matrix3DConsoleEntry> = [
-    {
-      id: 'route',
-      time: at(45),
-      agent: 'HERMES',
-      color: '#00ff41',
-      type: 'route',
-      message: `/matrix3d mounted · gateway ${gatewayStatus}`,
-      duration: 'live',
-    },
-    {
-      id: 'sync',
-      time: at(32),
-      agent: 'SYS',
-      color: 'rgba(216,255,227,.34)',
-      type: 'sys',
-      message: `${agents.length} Hermes agents mapped into Matrix3D Office`,
-      duration: '30s',
-    },
-    {
-      id: 'renderer',
-      time: at(20),
-      agent: 'OFFICE',
-      color: '#d6ff5f',
-      type: 'tool',
-      message: 'RetroOffice3D renderer active inside top viewport',
-      duration: 'r184',
-    },
-  ]
-
-  agents.slice(0, 8).forEach((agent, index) => {
-    entries.push({
-      id: `agent-${agent.id}`,
-      time: at(Math.max(0, 12 - index * 2)),
-      agent: agent.name,
-      color: agent.color,
-      type: agent.status === 'error' ? 'err' : agent.status === 'working' ? 'trace' : 'review',
-      message:
-        agent.status === 'working'
-          ? `${agent.role} activity stream linked to office avatar`
-          : agent.status === 'error'
-            ? `${agent.role} requires attention`
-            : `${agent.role} standing by`,
-      duration: agent.status,
-    })
-  })
-
-  return entries
+  if (!raw || typeof raw !== 'object') return []
+  const record = raw as Record<string, unknown>
+  return Array.isArray(record.lines)
+    ? record.lines.filter((line): line is string => typeof line === 'string')
+    : []
 }
+
+function parseLogLine(line: string, index: number): Matrix3DConsoleEntry {
+  const type = readLogLevel(line)
+  const timestamp =
+    line.match(/\b\d{2}:\d{2}:\d{2}(?:\.\d+)?\b/)?.[0]?.slice(0, 8) ||
+    line.match(/T(\d{2}:\d{2}:\d{2})/)?.[1] ||
+    '—'
+  const bracket = line.match(/\[([^\]\s]{2,24})\]/)?.[1]
+  const agent = (bracket || (type === 'route' ? 'API' : type === 'tool' ? 'TOOL' : 'GATEWAY')).toUpperCase()
+  const message = line
+    .replace(/^\s*\d{4}-\d{2}-\d{2}T?/, '')
+    .replace(/^\s*\d{2}:\d{2}:\d{2}(?:\.\d+)?\s*/, '')
+    .trim()
+
+  return {
+    id: `log-${index}-${line.slice(0, 24)}`,
+    time: timestamp,
+    agent,
+    color: colorForType(type),
+    type,
+    message: message || line,
+    duration: '',
+  }
+}
+
+function buildLogEntries(raw: unknown): Array<Matrix3DConsoleEntry> {
+  return extractLogLines(raw).slice(-80).map(parseLogLine)
+}
+
 
 function MatrixRain() {
   const ref = useRef<HTMLCanvasElement | null>(null)
@@ -270,16 +285,19 @@ function Matrix3DAgentCard({ agent }: { agent: Matrix3DAgentCardModel }) {
   )
 }
 
-function Matrix3DConsole({ entries }: { entries: Array<Matrix3DConsoleEntry> }) {
+function Matrix3DConsole({ entries, isLoading, isError }: { entries: Array<Matrix3DConsoleEntry>; isLoading: boolean; isError: boolean }) {
   const [tab, setTab] = useState('ALL')
-  const tabs = useMemo(() => ['ALL', ...entries.map((entry) => entry.agent).filter((agent) => agent !== 'SYS').slice(0, 4)], [entries])
+  const tabs = useMemo(
+    () => ['ALL', ...Array.from(new Set(entries.map((entry) => entry.agent).filter((agent) => agent !== 'SYS'))).slice(0, 4)],
+    [entries],
+  )
   const filtered = tab === 'ALL' ? entries : entries.filter((entry) => entry.agent === tab || entry.agent === 'SYS')
 
   return (
     <div className="matrix3d-console">
       <MatrixRain />
       <div className="matrix3d-console-head">
-        <span className="matrix3d-console-label">Console</span>
+        <span className="matrix3d-console-label">Gateway logs</span>
         {tabs.map((item) => (
           <button key={item} className={`matrix3d-console-tab${tab === item ? ' is-on' : ''}`} type="button" onClick={() => setTab(item)}>
             {item}
@@ -287,21 +305,27 @@ function Matrix3DConsole({ entries }: { entries: Array<Matrix3DConsoleEntry> }) 
         ))}
         <div className="matrix3d-live">
           <div className="matrix3d-live-dot" />
-          <span>Live</span>
+          <span>{isLoading ? 'Sync' : isError ? 'Offline' : 'Live'}</span>
         </div>
       </div>
       <div className="matrix3d-console-body">
-        {filtered.map((entry) => (
-          <div key={entry.id} className="matrix3d-console-row">
-            <span className="matrix3d-console-time">{entry.time}</span>
-            <span className="matrix3d-console-agent" style={{ color: entry.color }}>
-              {entry.agent}
-            </span>
-            <span className={`matrix3d-console-type matrix3d-type-${entry.type}`}>{TYPE_LABELS[entry.type]}</span>
-            <span className="matrix3d-console-message">{entry.message}</span>
-            <span className="matrix3d-console-duration">{entry.duration}</span>
+        {filtered.length > 0 ? (
+          filtered.map((entry) => (
+            <div key={entry.id} className="matrix3d-console-row">
+              <span className="matrix3d-console-time">{entry.time}</span>
+              <span className="matrix3d-console-agent" style={{ color: entry.color }}>
+                {entry.agent}
+              </span>
+              <span className={`matrix3d-console-type matrix3d-type-${entry.type}`}>{TYPE_LABELS[entry.type]}</span>
+              <span className="matrix3d-console-message">{entry.message}</span>
+              <span className="matrix3d-console-duration">{entry.duration}</span>
+            </div>
+          ))
+        ) : (
+          <div className="matrix3d-console-empty">
+            {isError ? 'Could not load /api/logs from Hermes gateway.' : 'No Hermes gateway log lines returned yet.'}
           </div>
-        ))}
+        )}
       </div>
     </div>
   )
@@ -310,7 +334,14 @@ function Matrix3DConsole({ entries }: { entries: Array<Matrix3DConsoleEntry> }) 
 export function Matrix3DScreen() {
   const officeData = useMatrix3DOfficeData()
   const cardAgents = useMemo(() => officeData.agents.map(toCardAgent), [officeData.agents])
-  const entries = useMemo(() => buildConsoleEntries(cardAgents, officeData.gatewayStatus), [cardAgents, officeData.gatewayStatus])
+  const logsQuery = useQuery({
+    queryKey: ['matrix3d', 'gateway-logs'],
+    queryFn: () => getLogs({ lines: 80 }),
+    staleTime: 5_000,
+    refetchInterval: 5_000,
+    retry: false,
+  })
+  const entries = useMemo(() => buildLogEntries(logsQuery.data), [logsQuery.data])
   const working = cardAgents.filter((agent) => agent.status === 'working').length
   const errors = cardAgents.filter((agent) => agent.status === 'error').length
   const idle = Math.max(0, cardAgents.length - working - errors)
@@ -353,7 +384,7 @@ export function Matrix3DScreen() {
               ))}
             </div>
           </div>
-          <Matrix3DConsole entries={entries} />
+          <Matrix3DConsole entries={entries} isLoading={logsQuery.isLoading} isError={logsQuery.isError} />
         </section>
       </div>
     </div>

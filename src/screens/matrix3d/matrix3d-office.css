@@ -434,3 +434,13 @@
     display: none;
   }
 }
+
+.matrix3d-console-empty {
+  position: relative;
+  z-index: 1;
+  padding: 22px 14px;
+  color: var(--m-text-ghost);
+  font: 500 10px var(--m-font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
