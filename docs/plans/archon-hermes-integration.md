@@ -1,7 +1,7 @@
 # Archon-Hermes Integration Plan
 
 > **Status:** Planning doc — split into two workstreams. Reviewed by Codex (via Neo). Reviewed by Switch (May 13). Gaps closed.
-> **Implementation status (May 14, 2026):** Runtime core complete (A.0–A.4, A.6, A.8, A.11 shipped). Branch: `feat/conductor-ops-wiring`. 22 commits ahead of `b7d140d4`. 125 vitest passing. See § Implementation Status below.
+> **Implementation status (May 15, 2026):** Runtime core complete (A.0–A.4, A.6, A.8, A.11 shipped) + 6-bundle Codex audit cycle cleared (14 findings, 14 fixes). Branch: `feat/conductor-ops-wiring`. 30 commits ahead of `b7d140d4`. 125 vitest passing, 0 tsc errors. See § Implementation Status below.
 
 ---
 
@@ -33,7 +33,18 @@
 | **Bonus** node_runs projector | ✅ shipped | Subscribes to emitter, materialises `node_runs` rows from `node_started/completed/failed/skipped/loop_iteration_*` events. |
 | **Bonus** Parsed-YAML endpoint | ✅ shipped | `GET /api/workflow-definitions/:id/parsed` returns `{ definition, parsed: { nodes[], edges[], has_loop, has_approval, ... } }`. |
 
-**Tests:** 125 passing across 16 vitest files. 0 tsc errors in workflow-engine + routes.
+**Tests:** 125 passing across 17 vitest files. 0 tsc errors in workflow-engine + routes.
+
+**Codex audit cycle (May 14-15, 2026):** 6 bundle audits completed; 14 findings resolved.
+
+| Bundle | Scope | Findings | Fixes (commits) |
+|---|---|---|---|
+| 1 | Engine foundation (A.0 + A.1 + A.1.1) | 1 important | 6e311930 — stale DB lock reap on PID check |
+| 2 | Execution path (A.3 + A.2.3 + projector) | 4 important | bf2a79ac — Q1 wall-time cap, Q2 idempotency guard, Q4 canonical Kanban→node status mapper, Q5 cancellable poll sleep |
+| 3 | 5-phase wrapper (A.8 + runtime) | 3 important | 1d017084 — Q3 nested catch, Q4 parse-before-phase, Q6 CRLF checksum |
+| 4 | Boot + reliability (A.2.1 + A.11 + A.4) | 1 blocker + 3 important | 9887ddb0 — Q6 lock-on-fail try/catch, Q5 deterministic cron conversation_id, Q4 disabled-interval suppression |
+| 5 | HTTP API surface | 5 important | 57890ff9 — Q3 upsert validation, Q4 launch security, Q6 ETag/Cache-Control, Q7 array caps |
+| 6 | UI wiring (B.0 + B.4 + run-detail) | 1 important | d012f2f5 — Q3 double-submit guard |
 
 **Open gaps (priority order):**
 1. **A.5 resume** — exercise mid-loop / approval-pause end-to-end.
