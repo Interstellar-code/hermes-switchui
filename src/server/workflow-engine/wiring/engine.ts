@@ -23,6 +23,7 @@ import { WorkflowEventEmitter } from '../emitter/event-emitter';
 import { EngineWorkflowPlatform } from '../runtime/platform';
 import { loadWorkflowConfig } from '../runtime/load-config';
 import { seedBundledWorkflows } from '../runtime/seed-defaults';
+import { createNodeRunsProjector, type NodeRunsProjector } from '../projector/node-runs-projector';
 import type { IWorkflowPlatform, WorkflowDeps } from './deps';
 
 export interface WorkflowEngineOptions {
@@ -48,6 +49,8 @@ export interface WorkflowEngine {
   platform: IWorkflowPlatform;
   /** A.8: dependency bundle passed to executeWorkflow. */
   deps: WorkflowDeps;
+  /** Node-runs projector — subscribes to emitter and writes node_runs rows. */
+  projector: NodeRunsProjector;
   /** Cold-start stats from boot reconciliation. */
   boot: {
     orphanedRuns: number;
@@ -128,6 +131,9 @@ export async function createWorkflowEngine(
     loadConfig: loadWorkflowConfig,
   };
 
+  // 8. Node-runs projector — projects engine events into node_runs rows.
+  const projector = createNodeRunsProjector({ store, emitter });
+
   return {
     store,
     dispatcher,
@@ -135,8 +141,10 @@ export async function createWorkflowEngine(
     emitter,
     platform,
     deps,
+    projector,
     boot: { orphanedRuns, recoveredDispatches, seededDefinitions, seedErrors },
     async shutdown() {
+      projector.stop();
       consumer.stop();
       // Store closes via process exit handler in openDb. No explicit close API
       // here — every shutdown path should let the process exit handler run.

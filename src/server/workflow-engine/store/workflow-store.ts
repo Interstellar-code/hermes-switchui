@@ -654,6 +654,31 @@ export class SwitchUiWorkflowStore {
       .all(...params);
   }
 
+  /** Helper: find a single node_run by (workflowRunId, dagNodeId, loopIteration). */
+  async findNodeRun(
+    workflowRunId: string,
+    dagNodeId: string,
+    loopIteration: number | null
+  ): Promise<import('./types.js').NodeRun | null> {
+    const row =
+      loopIteration === null
+        ? (this.db
+            .prepare(
+              `SELECT * FROM node_runs
+               WHERE workflow_run_id=? AND dag_node_id=? AND loop_iteration IS NULL
+               LIMIT 1`
+            )
+            .get(workflowRunId, dagNodeId) as NodeRunRow | undefined)
+        : (this.db
+            .prepare(
+              `SELECT * FROM node_runs
+               WHERE workflow_run_id=? AND dag_node_id=? AND loop_iteration=?
+               LIMIT 1`
+            )
+            .get(workflowRunId, dagNodeId, loopIteration) as NodeRunRow | undefined);
+    return row ? rowToNodeRun(row) : null;
+  }
+
   /** Helper -2: list node_runs for a workflow_run, ordered for UI. */
   listNodeRuns(workflowRunId: string): unknown[] {
     return this.db
