@@ -1,7 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { MOCK_WORKFLOWS, type MockWorkflow } from './mock-workflows'
-
-const TOTAL = MOCK_WORKFLOWS.length
+import { type MockWorkflow } from './mock-workflows'
 
 const ORIGIN_OPTIONS = [
   { value: 'all', label: 'All origins' },
@@ -18,6 +16,8 @@ export interface WorkflowLibraryProps {
   collapsed: boolean
   onToggleCollapse: () => void
   onFilteredChange?: (workflows: MockWorkflow[]) => void
+  /** B.4: live workflow definitions (adapted from /api/workflow-definitions). */
+  workflows: MockWorkflow[]
 }
 
 export function WorkflowLibrary({
@@ -26,7 +26,9 @@ export function WorkflowLibrary({
   collapsed,
   onToggleCollapse,
   onFilteredChange,
+  workflows,
 }: WorkflowLibraryProps) {
+  const TOTAL = workflows.length
   const [, setSkeleton] = useState(true)
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search)
@@ -42,14 +44,14 @@ export function WorkflowLibrary({
   // origin counts (unfiltered)
   const originCounts = useMemo(() => {
     const counts: Record<string, number> = { all: TOTAL }
-    for (const w of MOCK_WORKFLOWS) {
+    for (const w of workflows) {
       counts[w.source] = (counts[w.source] || 0) + 1
     }
     return counts
   }, [])
 
   const filtered = useMemo<MockWorkflow[]>(() => {
-    return MOCK_WORKFLOWS.filter((w) => {
+    return workflows.filter((w) => {
       if (originFilter !== 'all' && w.source !== originFilter) return false
       if (normalizedSearch) {
         if (
