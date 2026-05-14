@@ -100,10 +100,24 @@ export function createCronTriggerPoller(opts: CronTriggerPollerOpts): CronTrigge
   async function processJob(job: CronJob, cursor: Record<string, string>): Promise<void> {
     const workflowId = job.payload?.switchui_workflow_id;
     if (!workflowId) return;
-    if (!job.enabled) return;
     if (!job.last_run_at) return;
-    if (job.last_status === 'error') return;
     if (cursor[job.id] === job.last_run_at) return;
+
+    // Codex Bundle 4 Q4 fix: disabled jobs advance cursor without firing.
+    // Previously the cursor froze during disabled windows and the most-recent
+    // disabled-interval run was backfilled on re-enable. Now disabled fires
+    // are explicitly suppressed and the cursor advances to "current" so a
+    // future re-enable only fires for runs that happen post-enable.
+    if (job.enabled === false) {
+      cursor[job.id] = job.last_run_at;
+      return;
+    }
+
+    if (job.last_status === 'error') {
+      // Cron didn't actually succeed — don't fire workflow.
+      cursor[job.id] = job.last_run_at;
+      return;
+    }
 
     // Resolve workflow definition
     const def = store.getWorkflowDefinition(workflowId);
@@ -117,7 +131,18 @@ export function createCronTriggerPoller(opts: CronTriggerPollerOpts): CronTrigge
     }
 
     const input = job.payload?.switchui_input ?? null;
-    const conversationId = `cron-${job.id}-${Date.now()}`;
+    // Codex Bundle 4 Q5 fix: deterministic conversation_id = cron-{jobId}-{lastRunAt}.
+    // Two Switch UI instances polling the same gateway will both compute the
+    // same value for a given fire, so the duplicate check below short-circuits
+    // the second invocation.
+    const conversationId = `cron-${job.id}-${job.last_run_at}`;
+
+    // Cross-instance dedup: if another Switch UI instance already created
+    // the run for this exact fire, skip + advance cursor.
+    if (store.findRunByConversationId?.(conversationId)) {
+      cursor[job.id] = job.last_run_at;
+      return;
+    }
 
     // Create run row
     let run: Awaited<ReturnType<SwitchUiWorkflowStore['createWorkflowRun']>>;
@@ -126,7 +151,7 @@ export function createCronTriggerPoller(opts: CronTriggerPollerOpts): CronTrigge
         workflow_name: workflowId,
         conversation_id: conversationId,
         user_message: 'cron trigger',
-        metadata: { trigger: 'cron', jobId: job.id, input },
+        metadata: { trigger: 'cron', jobId: job.id, input, last_run_at: job.last_run_at },
       });
     } catch (err) {
       console.error(
@@ -174,10 +199,9 @@ export function createCronTriggerPoller(opts: CronTriggerPollerOpts): CronTrigge
       return;
     }
 
-    // Only consider jobs that have the switchui_workflow_id marker and are enabled
-    const relevant = jobs.filter(
-      (j) => j.enabled !== false && j.payload?.switchui_workflow_id
-    );
+    // Consider all jobs marked with switchui_workflow_id, regardless of enabled.
+    // processJob() handles disabled jobs by advancing the cursor without firing.
+    const relevant = jobs.filter((j) => j.payload?.switchui_workflow_id);
     trackedJobCount = relevant.length;
 
     for (const job of relevant) {
