@@ -265,8 +265,10 @@ const SMS_CONTACT_SEED_NAMES = [
   "Zoe",
 ] as const;
 
-const normalizeSmsContactName = (value: string): string =>
-  value.replace(/\s+/g, " ").trim() || "Joseph";
+const normalizeSmsContactName = (value: unknown): string =>
+  typeof value === "string"
+    ? value.replace(/\s+/g, " ").trim() || "Joseph"
+    : "Joseph";
 
 const buildSmsContactList = (
   recipient: string,
@@ -2998,7 +3000,7 @@ export function RetroOffice3D({
     if (!effectivePhoneBoothAgentId || !effectivePhoneCallScenario) return null;
     return [
       effectivePhoneBoothAgentId,
-      effectivePhoneCallScenario.dialNumber,
+      effectivePhoneCallScenario.dialNumber ?? "",
       effectivePhoneCallScenario.spokenText ?? "",
       effectivePhoneCallScenario.recipientReply ?? "",
     ].join("|");
@@ -3021,7 +3023,7 @@ export function RetroOffice3D({
     if (!effectiveSmsBoothAgentId || !effectiveTextMessageScenario) return null;
     return [
       effectiveSmsBoothAgentId,
-      effectiveTextMessageScenario.recipient,
+      effectiveTextMessageScenario.recipient ?? "Joseph",
       effectiveTextMessageScenario.messageText ?? "",
       effectiveTextMessageScenario.confirmationText ?? "",
     ].join("|");
@@ -3990,7 +3992,7 @@ export function RetroOffice3D({
     if (!scenario || !boothAgentId) {
       return;
     }
-    const digits = scenario.dialNumber.replace(/\s+/g, "");
+    const digits = (scenario.dialNumber ?? "").replace(/\s+/g, "");
     const initTimer = window.setTimeout(() => {
       setPhoneCallStep("dialing");
       setDialedDigits("");
