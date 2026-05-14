@@ -26,6 +26,7 @@ import { loadWorkflowConfig } from '../runtime/load-config';
 import { seedBundledWorkflows } from '../runtime/seed-defaults';
 import { createNodeRunsProjector, type NodeRunsProjector } from '../projector/node-runs-projector';
 import { createCronTriggerPoller, type CronTriggerPoller } from '../cron/cron-trigger-poller';
+import { writeWorkflowsManifest } from '../runtime/manifest';
 import { dashboardFetch } from '../../gateway-capabilities';
 import type { IWorkflowPlatform, WorkflowDeps } from './deps';
 
@@ -66,6 +67,7 @@ export interface WorkflowEngine {
     recoveredDispatches: number;
     seededDefinitions: number;
     seedErrors: number;
+    manifestWritten: number;
   };
   /** Stop the consumer and close the store. Safe to call multiple times. */
   shutdown(): Promise<void>;
@@ -216,6 +218,12 @@ async function _buildEngine(
   // 8. Node-runs projector — projects engine events into node_runs rows.
   const projector = createNodeRunsProjector({ store, emitter });
 
+  // 8.5 A.10: emit manifest for Hermes chat-based launch routing.
+  const manifestResult = writeWorkflowsManifest({ store });
+  if (manifestResult.parseErrors.length > 0) {
+    console.warn(`[engine] manifest written with ${manifestResult.parseErrors.length} parse errors:`, manifestResult.parseErrors);
+  }
+
   // 9. A.4: Cron trigger poller. fetchJobs wraps dashboardFetch so the engine
   //    boots even when the gateway is offline (returns [] on any error).
   const engineRef = {} as WorkflowEngine; // forward ref — filled below
@@ -248,7 +256,7 @@ async function _buildEngine(
     deps,
     projector,
     cronPoller,
-    boot: { orphanedRuns, recoveredDispatches, seededDefinitions, seedErrors },
+    boot: { orphanedRuns, recoveredDispatches, seededDefinitions, seedErrors, manifestWritten: manifestResult.entriesWritten },
     async shutdown() {
       cronPoller.stop();
       projector.stop();
