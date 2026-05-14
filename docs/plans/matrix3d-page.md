@@ -142,23 +142,20 @@ src/screens/matrix3d/
 - Shows: agent name, session key, current task, tool usage, status
 - Reuses existing drawer patterns from `task-detail-drawer.tsx`
 
-### Phase 3: Multi-Agent Orchestration (Heritage from Hermes Adapter)
+### Phase 3: Multi-Agent Orchestration — Detailed Plan
 
-**3.1 — Agent orchestration API routes**
-Port the Hermes adapter's multi-agent logic into SwitchUI API routes:
-- `src/routes/api/matrix3d/agents.ts` — list, create, dismiss agents
-- `src/routes/api/matrix3d/delegate.ts` — delegate task to sub-agent
-- These call Hermes API internally (like existing `hermes-api.ts`)
+**Full plan:** `docs/plans/matrix3d-phase3-orchestration.md`
 
-**3.2 — Agent spawn panel**
-- UI in the Matrix3D page to spawn/configure sub-agents
-- Role selection, instructions input, resource boundaries
-- Agent appears in the 3D office immediately after spawn
+Key insight: no new backend routes needed. SwitchUI already has `/api/sessions` (CRUD), `/api/session-send` (fire-and-forget messaging), `/api/chat-events` (SSE). Phase 3 is entirely frontend.
 
-**3.3 — Real-time event bridge**
-- Connect to `chat-event-bus.ts` for live session updates
-- Agent avatars animate when their session is processing
-- Tool calls trigger visual effects (particle burst, screen glow on desk)
+**5 Milestones (sequential):**
+- **M1** — Agent spawn modal: create session from 3D page, spawn-in animation
+- **M2** — Agent dismiss: end session with confirm flow, fade-out animation
+- **M3** — Message delegation: send messages to sessions from detail panel, session history preview
+- **M4** — Right-click context menu: View Session / Send Message / End Session
+- **M5** — Live activity visuals: processing pulse, tool-call flash, error state
+
+**Files:** 4 new, 6 modified, 0 new API routes. Zustand store extended with spawn, dismiss, messaging, context menu, and activity state.
 
 ### Phase 4: Polish & Office Customization
 
