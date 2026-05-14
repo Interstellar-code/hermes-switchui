@@ -5719,7 +5719,7 @@ export function RetroOffice3D({
                   key={agent.id}
                   agentId={agent.id}
                   name={agent.name}
-                  subtitle={"subtitle" in agent ? agent.subtitle ?? null : null}
+                  subtitle={null}
                   status={agent.status}
                   color={agentColorMap.get(agent.id) ?? "#888"}
                   appearance={
