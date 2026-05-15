@@ -34,12 +34,13 @@ export function createNodeRunsProjector({
     try {
       switch (event.type) {
         case 'node_started': {
-          const { runId, nodeId } = event;
+          const { runId, nodeId, nodeRunId } = event;
           try {
             await store.createNodeRun({
               workflow_run_id: runId,
               dag_node_id: nodeId,
               node_type: 'prompt',
+              ...(nodeRunId ? { id: nodeRunId } : {}),
             });
           } catch (err) {
             if (err instanceof DuplicateNodeRunError) {

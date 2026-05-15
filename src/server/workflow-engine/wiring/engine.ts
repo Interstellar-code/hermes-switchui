@@ -188,12 +188,18 @@ async function _buildEngine(
     pollIntervalMs,
   });
 
-  // 4. Build dispatcher. The dispatcher exposes onTaskCreated(idempotencyKey,
-  //    kanbanTaskId); the DAG executor binds the per-call nodeRunId /
-  //    workflowRunId via SendQueryOptions.nodeConfig and is responsible for
-  //    calling consumer.track() with that context after dispatch.
-  //    Engine-side glue lives in the ported dag-executor.ts (A.1).
-  const dispatcher = new KanbanDispatcher();
+  // 4. Build dispatcher with onTaskCreated hook that persists kanban_task_id
+  //    and registers the task with the consumer for live polling.
+  const dispatcher = new KanbanDispatcher({
+    onTaskCreated: async ({ kanbanTaskId, nodeRunId, workflowRunId }) => {
+      if (nodeRunId) {
+        store.setNodeRunKanbanTaskId(nodeRunId, kanbanTaskId);
+      }
+      if (nodeRunId && workflowRunId) {
+        consumer.track({ nodeRunId, kanbanTaskId, workflowRunId });
+      }
+    },
+  });
 
   // 5. Cold-start dispatch reconciliation — re-track every node_run that the
   //    previous Switch UI process had dispatched but not yet resolved. This

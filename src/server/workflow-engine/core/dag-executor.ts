@@ -5,6 +5,7 @@
  * Independent nodes within the same layer run concurrently via Promise.allSettled.
  * Captures all assistant output regardless of streaming mode for $node_id.output substitution.
  */
+import { randomUUID } from 'node:crypto';
 import { readFile } from 'fs/promises';
 import { isAbsolute, resolve as resolvePath } from 'path';
 import { execFileAsync } from '@archon/git';
@@ -586,6 +587,12 @@ async function executeNodeInternal(
   const nodeStartTime = Date.now();
   const nodeContext: SendMessageContext = { workflowId: workflowRun.id, nodeName: node.id };
 
+  // Pre-generate the node_run UUID so the dispatcher's onTaskCreated callback
+  // can call store.setNodeRunKanbanTaskId without a separate DB lookup.
+  // The same ID is forwarded in the node_started emitter event so the projector
+  // creates the row with this ID rather than generating a fresh one.
+  const nodeRunId = randomUUID();
+
   const configuredMcpNames = await loadConfiguredMcpServerNames(node.mcp, cwd);
 
   getLog().info({ nodeId: node.id, provider }, 'dag_node_started');
@@ -611,6 +618,7 @@ async function executeNodeInternal(
     runId: workflowRun.id,
     nodeId: node.id,
     nodeName: node.command ?? node.id,
+    nodeRunId,
   });
 
   // Load prompt
@@ -698,6 +706,13 @@ async function executeNodeInternal(
     ...nodeOptions,
     abortSignal: nodeAbortController.signal,
     ...(shouldForkSession ? { forkSession: true } : {}),
+    // Inject routing IDs so the dispatcher's onTaskCreated callback can persist
+    // kanban_task_id without an extra DB lookup.
+    nodeConfig: {
+      ...nodeOptions?.nodeConfig,
+      node_run_id: nodeRunId,
+      workflow_run_id: workflowRun.id,
+    },
   };
   let nodeIdleTimedOut = false;
   const effectiveIdleTimeout = node.idle_timeout ?? STEP_IDLE_TIMEOUT_MS;

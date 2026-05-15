@@ -470,6 +470,8 @@ export class SwitchUiWorkflowStore {
     workflow_run_id: string;
     dag_node_id: string;
     node_type: string;
+    /** Pre-generated UUID. If omitted, a random UUID is generated. */
+    id?: string;
     depends_on?: string[];
     loop_iteration?: number;
     loop_parent_node_run_id?: string;
@@ -488,7 +490,7 @@ export class SwitchUiWorkflowStore {
     approval_target?: string;
     metadata?: Record<string, unknown>;
   }): Promise<NodeRun> {
-    const id = randomUUID();
+    const id = input.id ?? randomUUID();
     // SQLite UNIQUE constraints treat NULL != NULL, so two rows with
     // loop_iteration=NULL on the same (workflow_run_id, dag_node_id) don't
     // conflict at the DB level. We do an explicit pre-check for this case.
@@ -736,6 +738,17 @@ export class SwitchUiWorkflowStore {
     return this.db
       .prepare('SELECT * FROM workflow_events WHERE workflow_run_id=? ORDER BY created_at DESC LIMIT ?')
       .all(workflowRunId, limit);
+  }
+
+  /**
+   * Write kanban_task_id onto a node_run row after a successful dispatch.
+   * Called by the engine's onTaskCreated hook. Overwrites any existing value
+   * (re-dispatch re-links to the new task).
+   */
+  setNodeRunKanbanTaskId(nodeRunId: string, kanbanTaskId: string): void {
+    this.db
+      .prepare(`UPDATE node_runs SET kanban_task_id=? WHERE id=?`)
+      .run(kanbanTaskId, nodeRunId);
   }
 
   /**
