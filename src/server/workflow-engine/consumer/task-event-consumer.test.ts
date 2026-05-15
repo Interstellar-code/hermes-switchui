@@ -96,6 +96,47 @@ describe("TaskEventConsumer", () => {
   });
 });
 
+describe("extractSummary field priority", () => {
+  it("prefers task.result over task.summary and task.body", async () => {
+    const store = stubStore();
+    const detail: HermesKanbanTaskDetail = {
+      task: { id: "k-1", status: "done", result: "from result", summary: "from summary", body: "from body" },
+      comments: [], events: [], links: { parents: [], children: [] }, runs: [],
+    } as unknown as HermesKanbanTaskDetail;
+    const consumer = new TaskEventConsumer({ store, fetchTask: vi.fn().mockResolvedValue(detail) });
+    consumer.track({ kanbanTaskId: "k-1", nodeRunId: "n-1", workflowRunId: "w-1" });
+    await consumer.tick();
+    expect(store.updateNodeRun).toHaveBeenCalledWith("n-1",
+      expect.objectContaining({ summary: "from result" }));
+  });
+
+  it("falls back to task.summary when task.result is absent", async () => {
+    const store = stubStore();
+    const detail: HermesKanbanTaskDetail = {
+      task: { id: "k-1", status: "done", result: null, summary: "from summary", body: "from body" },
+      comments: [], events: [], links: { parents: [], children: [] }, runs: [],
+    } as unknown as HermesKanbanTaskDetail;
+    const consumer = new TaskEventConsumer({ store, fetchTask: vi.fn().mockResolvedValue(detail) });
+    consumer.track({ kanbanTaskId: "k-1", nodeRunId: "n-1", workflowRunId: "w-1" });
+    await consumer.tick();
+    expect(store.updateNodeRun).toHaveBeenCalledWith("n-1",
+      expect.objectContaining({ summary: "from summary" }));
+  });
+
+  it("falls back to task.body when result and summary are absent", async () => {
+    const store = stubStore();
+    const detail: HermesKanbanTaskDetail = {
+      task: { id: "k-1", status: "done", result: null, summary: null, body: "from body" },
+      comments: [], events: [], links: { parents: [], children: [] }, runs: [],
+    } as unknown as HermesKanbanTaskDetail;
+    const consumer = new TaskEventConsumer({ store, fetchTask: vi.fn().mockResolvedValue(detail) });
+    consumer.track({ kanbanTaskId: "k-1", nodeRunId: "n-1", workflowRunId: "w-1" });
+    await consumer.tick();
+    expect(store.updateNodeRun).toHaveBeenCalledWith("n-1",
+      expect.objectContaining({ summary: "from body" }));
+  });
+});
+
 describe("mapTerminalStatus", () => {
   it("maps Kanban terminal statuses correctly", () => {
     expect(mapTerminalStatus("done")).toBe("completed");
