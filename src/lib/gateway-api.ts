@@ -27,6 +27,8 @@ export type GatewaySession = {
   friendlyId?: string
   kind?: string
   status?: string
+  is_active?: boolean
+  parentSessionId?: string | null
   model?: string
   label?: string
   title?: string

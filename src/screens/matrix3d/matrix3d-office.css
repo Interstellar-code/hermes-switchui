@@ -16,6 +16,7 @@
   --m-text-ghost: rgba(216, 255, 227, 0.18);
   --m-border-sub: rgba(0, 255, 65, 0.13);
   --m-border-faint: rgba(0, 255, 65, 0.06);
+  --m-border-strong: rgba(0, 255, 65, 0.5);
   --m-fill-sub: rgba(0, 255, 65, 0.06);
   --m-font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
 
@@ -132,15 +133,27 @@
 
 .matrix3d-bottom-zone {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 356px;
+  gap: 10px;
   min-height: 0;
   flex: 1;
-  flex-direction: column;
   margin: 8px 14px 10px;
   overflow: hidden;
   border: 1px solid var(--m-border-sub);
   border-radius: 14px;
   background: var(--m-card);
+}
+
+.matrix3d-bottom-zone.is-side-collapsed {
+  grid-template-columns: 1fr;
+}
+
+.matrix3d-bottom-main {
+  min-width: 0;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
 }
 
 .matrix3d-roster {
@@ -183,8 +196,8 @@
 
 .matrix3d-agent-card {
   position: relative;
+  width: 116px;
   display: flex;
-  flex: 0 0 116px;
   user-select: none;
   flex-direction: column;
   align-items: center;
@@ -193,12 +206,20 @@
   border-radius: 10px;
   background: var(--m-card-2);
   padding: 7px 6px 8px;
+  color: inherit;
+  cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
 }
 
 .matrix3d-agent-card:hover {
   border-color: var(--m-border-sub);
   background: var(--m-card-3);
+}
+
+.matrix3d-agent-card.is-selected {
+  border-color: var(--m-border-strong);
+  background: rgba(0, 255, 65, 0.09);
+  box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.12) inset;
 }
 
 .matrix3d-agent-tier {
@@ -321,6 +342,11 @@
   color: var(--m-green-500);
 }
 
+.matrix3d-console-toggle {
+  margin-left: 4px;
+  color: rgba(216, 255, 227, 0.58);
+}
+
 .matrix3d-live {
   display: flex;
   align-items: center;
@@ -396,6 +422,234 @@
 .matrix3d-type-dispatch { color: var(--m-pink); background: rgba(255, 95, 162, 0.10); }
 .matrix3d-type-err { color: var(--m-danger); background: rgba(255, 95, 109, 0.10); }
 
+.matrix3d-side-panel {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid var(--m-border-sub);
+  background: linear-gradient(180deg, rgba(4, 16, 8, 0.98), rgba(3, 10, 6, 0.98));
+}
+
+.matrix3d-bottom-zone.is-side-collapsed .matrix3d-side-panel {
+  display: none;
+}
+
+.matrix3d-side-accent {
+  height: 2px;
+  flex-shrink: 0;
+}
+
+.matrix3d-side-hdr {
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 13px 14px 11px;
+  border-bottom: 1px solid var(--m-border-sub);
+}
+
+.matrix3d-side-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--m-border-sub);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--m-text-faint);
+  cursor: pointer;
+  font: 600 16px/1 var(--m-font-mono);
+}
+
+.matrix3d-side-close:hover {
+  border-color: var(--m-border);
+  color: var(--m-text-muted);
+}
+
+.matrix3d-side-avatar {
+  position: relative;
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border: 1px solid;
+  border-radius: 10px;
+  background: var(--m-fill-sub);
+}
+
+.matrix3d-side-avatar-glyph {
+  font: 700 17px var(--m-font-mono);
+}
+
+.matrix3d-side-avatar-pulse {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--m-card);
+  border-radius: 50%;
+}
+
+.matrix3d-side-title {
+  min-width: 0;
+}
+
+.matrix3d-side-name {
+  margin-bottom: 3px;
+  color: var(--m-text-strong);
+  font: 700 15px var(--m-font-mono);
+  letter-spacing: -0.2px;
+  line-height: 1.1;
+}
+
+.matrix3d-side-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 3px;
+  padding: 2px 7px;
+  border: 1px solid;
+  border-radius: 999px;
+  font: 600 8.5px var(--m-font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.matrix3d-side-model {
+  color: var(--m-text-ghost);
+  font: 400 9px var(--m-font-mono);
+}
+
+.matrix3d-side-body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  padding: 12px 14px;
+  scrollbar-color: rgba(0, 255, 65, 0.1) transparent;
+  scrollbar-width: thin;
+}
+
+.matrix3d-side-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.matrix3d-side-stat {
+  border: 1px solid var(--m-border-faint);
+  border-radius: 7px;
+  background: var(--m-card);
+  padding: 8px 10px;
+}
+
+.matrix3d-side-stat-v {
+  color: var(--m-text-strong);
+  font: 700 13px var(--m-font-mono);
+  letter-spacing: -0.2px;
+}
+
+.matrix3d-side-stat-l,
+.matrix3d-side-sec-lbl {
+  color: var(--m-text-ghost);
+  font: 500 8px var(--m-font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.matrix3d-side-stat-l {
+  margin-top: 1px;
+}
+
+.matrix3d-side-task {
+  border: 1px solid var(--m-border-faint);
+  border-radius: 7px;
+  background: var(--m-card);
+  padding: 9px 11px;
+  color: var(--m-text-muted);
+  font: 400 10.5px/1.5 var(--m-font-mono);
+}
+
+.matrix3d-side-task::before {
+  content: '▸ ';
+  color: var(--m-green-500);
+}
+
+.matrix3d-side-tl {
+  display: flex;
+  flex-direction: column;
+}
+
+.matrix3d-side-tl-row {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 0;
+}
+
+.matrix3d-side-tl-dot {
+  width: 7px;
+  height: 7px;
+  margin-top: 4px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.matrix3d-side-tl-msg {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--m-text-muted);
+  font: 400 10.5px/1.4 var(--m-font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.matrix3d-side-tl-ts {
+  color: var(--m-text-ghost);
+  font: 400 9px var(--m-font-mono);
+  white-space: nowrap;
+}
+
+.matrix3d-side-empty {
+  color: var(--m-text-ghost);
+  font: 400 10px var(--m-font-mono);
+}
+
+.matrix3d-side-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+}
+
+.matrix3d-side-details > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--m-border-faint);
+  border-radius: 7px;
+  background: var(--m-card);
+  padding: 7px 9px;
+}
+
+.matrix3d-side-details span {
+  color: var(--m-text-ghost);
+  font: 500 8px var(--m-font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.matrix3d-side-details b {
+  color: var(--m-text-muted);
+  font: 600 10px var(--m-font-mono);
+}
+
 .matrix3d-sprite-idle { animation: matrix3d-sprite-idle 3s ease-in-out infinite; }
 .matrix3d-sprite-working { animation: matrix3d-sprite-work 0.85s ease-in-out infinite; }
 .matrix3d-sprite-error { animation: matrix3d-sprite-error 1.1s ease-in-out infinite; }
@@ -428,7 +682,13 @@
   }
 
   .matrix3d-bottom-zone {
+    grid-template-columns: 1fr;
     margin-inline: 10px;
+  }
+
+  .matrix3d-side-panel {
+    border-left: none;
+    border-top: 1px solid var(--m-border-sub);
   }
 
   .matrix3d-console-row {

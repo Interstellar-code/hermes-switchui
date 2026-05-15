@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Matrix3DCanvas } from './components/matrix3d-canvas'
-import { buildLogEntries, TYPE_LABELS, type Matrix3DConsoleEntry } from './matrix3d-console-log'
+import { TYPE_LABELS, buildLogEntries } from './matrix3d-console-log'
 import { useMatrix3DOfficeData } from './use-matrix3d-office-data'
 import type { OfficeAgent } from '@/features/retro-office/core/types'
+import type { Matrix3DConsoleEntry } from './matrix3d-console-log'
 import type { Matrix3DAgentPresence } from './use-matrix3d-office-data'
 import { getLogs } from '@/lib/hermes-client'
 import './matrix3d-office.css'
@@ -18,6 +19,11 @@ type Matrix3DAgentCardModel = {
   bubble: string
   tier: 1 | 2
   meta: string
+}
+
+type Matrix3DSelectedAgent = {
+  card: Matrix3DAgentCardModel
+  presence?: Matrix3DAgentPresence
 }
 
 const FALLBACK_CARD_NAMES = ['HERMES', 'NEO', 'TRINITY', 'MORPHEUS']
@@ -53,6 +59,55 @@ function pluralize(count: number, singular: string, plural = `${singular}s`): st
   return `${count} ${count === 1 ? singular : plural}`
 }
 
+function normalizeLabel(value: string | null | undefined): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function isGenericProfileRole(value: string | null | undefined): boolean {
+  return normalizeLabel(value).toLowerCase() === 'profile'
+}
+
+function readableModel(value: string | null | undefined): string {
+  const model = normalizeLabel(value)
+  if (!model || model.toLowerCase() === 'unknown') return ''
+  return model
+}
+
+function cardBubbleLabel(agent: OfficeAgent, presence: Matrix3DAgentPresence | undefined): string {
+  const model = readableModel(presence?.model)
+  if (model) return model
+  const bubble = normalizeLabel(presence?.lastActivity || agent.subtitle)
+  return bubble || 'Hermes'
+}
+
+function cardRoleLabel(agent: OfficeAgent, presence: Matrix3DAgentPresence | undefined): string {
+  const explicitRole = normalizeLabel(presence?.role)
+  if (explicitRole && !isGenericProfileRole(explicitRole)) return explicitRole
+  const provider = normalizeLabel(presence?.provider)
+  if (provider) return `${provider} profile`
+  return agent.item || 'agent'
+}
+
+function cardMetaLabel(presence: Matrix3DAgentPresence | undefined): string {
+  if (!presence) return 'profile ready'
+  const details = [
+    readableModel(presence.model),
+    presence.assignedTaskCount > 0
+      ? pluralize(presence.assignedTaskCount, 'task')
+      : null,
+    presence.activeSessionKey ? 'live session' : null,
+    presence.sessionCount > 0 ? pluralize(presence.sessionCount, 'session') : null,
+  ].filter(Boolean)
+  return details.length > 0 ? details.join(' • ') : 'profile ready'
+}
+
+function formatPanelValue(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '—'
+  const text = value.trim()
+  return text || '—'
+}
+
 function toCardAgent(
   agent: OfficeAgent,
   presence: Matrix3DAgentPresence | undefined,
@@ -61,15 +116,13 @@ function toCardAgent(
   return {
     id: agent.id,
     name: compactName(agent.name, index),
-    role: presence?.role || agent.subtitle?.split(/[•·]/)[0]?.trim() || agent.item || 'agent',
+    role: cardRoleLabel(agent, presence),
     status: agent.status,
     color: agent.color || ['#00ff41', '#a78bfa', '#5fcfff', '#d6ff5f'][index % 4],
     dark: darkenColor(agent.color || '#00ff41'),
-    bubble: presence?.lastActivity || agent.subtitle || `${agent.status} · ${agent.item || 'office'}`,
+    bubble: cardBubbleLabel(agent, presence),
     tier: index === 0 ? 1 : 2,
-    meta: presence
-      ? `${presence.provider} • ${presence.rosterStatus}${presence.assignedTaskCount > 0 ? ` • ${presence.assignedTaskCount} task` : ''}`
-      : 'office',
+    meta: cardMetaLabel(presence),
   }
 }
 
@@ -175,17 +228,32 @@ function Matrix3DSprite({ agent }: { agent: Matrix3DAgentCardModel }) {
   )
 }
 
-function Matrix3DAgentCard({ agent }: { agent: Matrix3DAgentCardModel }) {
+function Matrix3DAgentCard({
+  agent,
+  selected = false,
+  onClick,
+}: {
+  agent: Matrix3DAgentCardModel
+  selected?: boolean
+  onClick?: () => void
+}) {
   const dot = statusColor(agent.status)
 
   return (
-    <div className="matrix3d-agent-card" style={{ borderColor: `${agent.color}40` }}>
+    <button
+      type="button"
+      className={`matrix3d-agent-card${selected ? ' is-selected' : ''}`}
+      style={{ borderColor: selected ? agent.color : `${agent.color}40` }}
+      onClick={onClick}
+      aria-pressed={selected}
+      aria-label={`${agent.name} — ${agent.role}`}
+    >
       {agent.tier === 1 ? (
         <span className="matrix3d-agent-tier" style={{ color: agent.color, textShadow: `0 0 6px ${agent.color}88` }}>
           T1
         </span>
       ) : null}
-      <div className="matrix3d-agent-bubble" style={{ borderColor: `${agent.color}35`, color: agent.color, textShadow: `0 0 6px ${agent.color}44` }}>
+      <div className="matrix3d-agent-bubble" style={{ borderColor: `${dot}35`, color: dot, textShadow: `0 0 6px ${dot}44` }}>
         {agent.bubble}
       </div>
       <div className="matrix3d-agent-sprite">
@@ -202,19 +270,28 @@ function Matrix3DAgentCard({ agent }: { agent: Matrix3DAgentCardModel }) {
           {agent.status}
         </div>
       </div>
-    </div>
+    </button>
   )
 }
 
 function Matrix3DConsole({ entries, isLoading, isError, agentTabs }: { entries: Array<Matrix3DConsoleEntry>; isLoading: boolean; isError: boolean; agentTabs: Array<{ id: string; label: string }> }) {
   const [tab, setTab] = useState('ALL')
+  const [showNoise, setShowNoise] = useState(false)
   const tabs = useMemo(() => ['ALL', 'AGENTS', 'GATEWAY', ...agentTabs.map((agent) => agent.id)], [agentTabs])
+  const visibleEntries = useMemo(
+    () => (showNoise ? entries : entries.filter((entry) => !entry.noisy)),
+    [entries, showNoise],
+  )
+  const hiddenNoiseCount = useMemo(
+    () => entries.filter((entry) => entry.noisy).length,
+    [entries],
+  )
   const filtered = useMemo(() => {
-    if (tab === 'ALL') return entries
-    if (tab === 'AGENTS') return entries.filter((entry) => entry.source === 'agent' || entry.agentKey)
-    if (tab === 'GATEWAY') return entries.filter((entry) => entry.source === 'gateway')
-    return entries.filter((entry) => entry.agentKey === tab)
-  }, [entries, tab])
+    if (tab === 'ALL') return visibleEntries
+    if (tab === 'AGENTS') return visibleEntries.filter((entry) => entry.source === 'agent' || entry.agentKey)
+    if (tab === 'GATEWAY') return visibleEntries.filter((entry) => entry.source === 'gateway')
+    return visibleEntries.filter((entry) => entry.agentKey === tab)
+  }, [visibleEntries, tab])
   const tabLabel = (value: string) => agentTabs.find((agent) => agent.id === value)?.label || value
 
   return (
@@ -227,6 +304,19 @@ function Matrix3DConsole({ entries, isLoading, isError, agentTabs }: { entries: 
             {tabLabel(item)}
           </button>
         ))}
+        <button
+          className={`matrix3d-console-tab matrix3d-console-toggle${showNoise ? ' is-on' : ''}`}
+          type="button"
+          onClick={() => setShowNoise((value) => !value)}
+        >
+          {showNoise
+            ? hiddenNoiseCount > 0
+              ? `NOISE ON · ${hiddenNoiseCount}`
+              : 'NOISE ON'
+            : hiddenNoiseCount > 0
+              ? `NOISE OFF · ${hiddenNoiseCount}`
+              : 'NOISE OFF'}
+        </button>
         <div className="matrix3d-live">
           <div className="matrix3d-live-dot" />
           <span>{isLoading ? 'Sync' : isError ? 'Offline' : 'Live'}</span>
@@ -257,6 +347,8 @@ function Matrix3DConsole({ entries, isLoading, isError, agentTabs }: { entries: 
 
 export function Matrix3DScreen() {
   const officeData = useMatrix3DOfficeData()
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
+  const [isSidePanelOpen, setIsSidePanelOpen] = useState(true)
   const cardAgents = useMemo(
     () =>
       officeData.agents.map((agent, index) =>
@@ -265,9 +357,24 @@ export function Matrix3DScreen() {
           officeData.presence.find((presence) => presence.id === agent.id),
           index,
         ),
-      ),
+    ),
     [officeData.agents, officeData.presence],
   )
+  useEffect(() => {
+    if (!selectedAgentId && cardAgents[0]) setSelectedAgentId(cardAgents[0].id)
+    if (selectedAgentId && !cardAgents.some((agent) => agent.id === selectedAgentId)) {
+      setSelectedAgentId(cardAgents[0]?.id ?? null)
+    }
+  }, [cardAgents, selectedAgentId])
+  const selectedAgent = useMemo<Matrix3DSelectedAgent | null>(() => {
+    if (!selectedAgentId) return null
+    const card = cardAgents.find((agent) => agent.id === selectedAgentId)
+    if (!card) return null
+    return {
+      card,
+      presence: officeData.presence.find((presence) => presence.id === selectedAgentId),
+    }
+  }, [cardAgents, officeData.presence, selectedAgentId])
   const agentLogsQuery = useQuery({
     queryKey: ['matrix3d', 'agent-logs-console'],
     queryFn: () => getLogs({ lines: 120, file: 'agent' }),
@@ -288,8 +395,12 @@ export function Matrix3DScreen() {
   )
   const entries = useMemo(
     () => [
-      ...buildLogEntries(agentLogsQuery.data, 'agent', agentMatchers),
-      ...buildLogEntries(gatewayLogsQuery.data, 'gateway', agentMatchers),
+      ...buildLogEntries(agentLogsQuery.data, 'agent', agentMatchers, {
+        includeNoise: true,
+      }),
+      ...buildLogEntries(gatewayLogsQuery.data, 'gateway', agentMatchers, {
+        includeNoise: true,
+      }),
     ].sort((a, b) => a.time.localeCompare(b.time)),
     [agentLogsQuery.data, agentMatchers, gatewayLogsQuery.data],
   )
@@ -319,6 +430,13 @@ export function Matrix3DScreen() {
       : officeData.agentSource === 'roster'
         ? `${pluralize(cardAgents.length, 'local profile')} · ${pluralize(liveSessionCount, 'live session')} · ${working} working`
         : '0 agents'
+  const selectedEntries = useMemo(
+    () =>
+      selectedAgent
+        ? entries.filter((entry) => entry.agentKey === selectedAgent.card.id).slice(-5).reverse()
+        : [],
+    [entries, selectedAgent],
+  )
 
   return (
     <div className="matrix3d-office-page">
@@ -343,26 +461,115 @@ export function Matrix3DScreen() {
           </div>
         </section>
 
-        <section className="matrix3d-bottom-zone" aria-label="Matrix3D Office agents and console">
-          <div className="matrix3d-roster">
-            <div className="matrix3d-roster-bar">
-              <div className="matrix3d-roster-pulse" />
-              <span className="matrix3d-roster-label">{rosterLabel}</span>
-              <span className="matrix3d-roster-summary">{rosterSummary}</span>
+        <section
+          className={`matrix3d-bottom-zone${isSidePanelOpen ? '' : ' is-side-collapsed'}`}
+          aria-label="Matrix3D Office agents and console"
+        >
+          <div className="matrix3d-bottom-main">
+            <div className="matrix3d-roster">
+              <div className="matrix3d-roster-bar">
+                <div className="matrix3d-roster-pulse" />
+                <span className="matrix3d-roster-label">{rosterLabel}</span>
+                <span className="matrix3d-roster-summary">{rosterSummary}</span>
+              </div>
+              {cardAgents.length > 0 ? (
+                <div className="matrix3d-roster-rail">
+                  {cardAgents.map((agent) => (
+                    <Matrix3DAgentCard
+                      key={agent.id}
+                      agent={agent}
+                      selected={agent.id === selectedAgent?.card.id}
+                      onClick={() => {
+                        setSelectedAgentId(agent.id)
+                        setIsSidePanelOpen(true)
+                      }}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="matrix3d-roster-empty">
+                  No Hermes profiles or live sessions returned by the workspace yet.
+                </div>
+              )}
             </div>
-            {cardAgents.length > 0 ? (
-              <div className="matrix3d-roster-rail">
-                {cardAgents.map((agent) => (
-                  <Matrix3DAgentCard key={agent.id} agent={agent} />
-                ))}
-              </div>
-            ) : (
-              <div className="matrix3d-roster-empty">
-                No Hermes profiles or live sessions returned by the workspace yet.
-              </div>
-            )}
+            <Matrix3DConsole
+              entries={entries}
+              isLoading={agentLogsQuery.isLoading || gatewayLogsQuery.isLoading}
+              isError={Boolean(agentLogsQuery.isError && gatewayLogsQuery.isError)}
+              agentTabs={consoleAgentTabs}
+            />
           </div>
-          <Matrix3DConsole entries={entries} isLoading={agentLogsQuery.isLoading || gatewayLogsQuery.isLoading} isError={Boolean(agentLogsQuery.isError && gatewayLogsQuery.isError)} agentTabs={consoleAgentTabs} />
+          <aside className="matrix3d-side-panel" aria-label="Selected agent details">
+            {selectedAgent ? (
+              <>
+                <div className="matrix3d-side-accent" style={{ background: selectedAgent.card.color }} />
+                <div className="matrix3d-side-hdr">
+                  <div className="matrix3d-side-avatar" style={{ borderColor: selectedAgent.card.color, color: selectedAgent.card.color }}>
+                    <div className="matrix3d-side-avatar-glyph">{selectedAgent.card.name.slice(0, 2).toUpperCase()}</div>
+                    <div className="matrix3d-side-avatar-pulse" style={{ background: selectedAgent.card.color, boxShadow: `0 0 6px ${selectedAgent.card.color}` }} />
+                  </div>
+                  <div className="matrix3d-side-title">
+                    <div className="matrix3d-side-name">{selectedAgent.card.name}</div>
+                    <div className="matrix3d-side-badge" style={{ background: `${selectedAgent.card.color}15`, color: selectedAgent.card.color, borderColor: `${selectedAgent.card.color}35` }}>
+                      {selectedAgent.presence?.provider || 'Hermes'} · {selectedAgent.card.role}
+                    </div>
+                    <div className="matrix3d-side-model">{formatPanelValue(selectedAgent.presence?.model)}</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="matrix3d-side-close"
+                    aria-label="Close agent details"
+                    onClick={() => setIsSidePanelOpen(false)}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="matrix3d-side-body">
+                  <div className="matrix3d-side-stats">
+                    {[
+                      ['Sessions', selectedAgent.presence?.sessionCount ?? 0],
+                      ['Tasks', selectedAgent.presence?.assignedTaskCount ?? 0],
+                      ['Tier', `T${selectedAgent.card.tier}`],
+                    ].map(([label, value]) => (
+                      <div key={String(label)} className="matrix3d-side-stat">
+                        <div className="matrix3d-side-stat-v" style={{ color: selectedAgent.card.color }}>{value}</div>
+                        <div className="matrix3d-side-stat-l">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="matrix3d-side-sec">
+                    <div className="matrix3d-side-sec-lbl">Current Task</div>
+                    <div className="matrix3d-side-task">{selectedAgent.presence?.lastActivity || selectedAgent.card.bubble}</div>
+                  </div>
+                  <div className="matrix3d-side-sec">
+                    <div className="matrix3d-side-sec-lbl">Recent Activity</div>
+                    <div className="matrix3d-side-tl">
+                      {selectedEntries.length > 0 ? (
+                        selectedEntries.map((entry) => (
+                          <div key={entry.id} className="matrix3d-side-tl-row">
+                            <div className="matrix3d-side-tl-dot" style={{ background: entry.color, boxShadow: `0 0 5px ${entry.color}70` }} />
+                            <div className="matrix3d-side-tl-msg">{entry.message}</div>
+                            <div className="matrix3d-side-tl-ts">{entry.time}</div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="matrix3d-side-empty">No recent agent-specific activity.</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="matrix3d-side-sec">
+                    <div className="matrix3d-side-sec-lbl">Profile Details</div>
+                    <div className="matrix3d-side-details">
+                      <div><span>Source</span><b>{selectedAgent.presence?.source || 'workspace'}</b></div>
+                      <div><span>Status</span><b>{selectedAgent.presence?.effectiveStatus || selectedAgent.card.status}</b></div>
+                      <div><span>Roster</span><b>{selectedAgent.presence?.rosterStatus || 'unknown'}</b></div>
+                      <div><span>Active</span><b>{selectedAgent.presence?.activeSessionKey ? 'yes' : 'no'}</b></div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </aside>
         </section>
       </div>
     </div>

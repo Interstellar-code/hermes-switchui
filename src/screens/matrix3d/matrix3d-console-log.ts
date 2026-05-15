@@ -17,6 +17,7 @@ export type Matrix3DConsoleEntry = {
   type: Matrix3DConsoleType
   message: string
   duration: string
+  noisy: boolean
 }
 
 export const TYPE_LABELS: Record<Matrix3DConsoleType, string> = {
@@ -30,12 +31,7 @@ export const TYPE_LABELS: Record<Matrix3DConsoleType, string> = {
 }
 
 const QUIET_GATEWAY_ACCESS_PATHS = [
-  /^\/api\/agents\b/i,
-  /^\/api\/crew-status\b/i,
-  /^\/api\/health\b/i,
-  /^\/api\/jobs\b/i,
-  /^\/api\/logs\b/i,
-  /^\/api\/sessions\b/i,
+  /^\/api\/.+/i,
   /^\/health\b/i,
 ]
 
@@ -51,7 +47,7 @@ function isRoutineGatewayAccessLog(line: string): boolean {
   const access = readGatewayAccessLog(line)
   if (!access) return false
   if (!QUIET_GATEWAY_ACCESS_PATHS.some((pattern) => pattern.test(access.path))) return false
-  return ['200', '204', '304', '401'].includes(access.status)
+  return ['200', '204', '304', '401', '404'].includes(access.status)
 }
 
 export function shouldSuppressConsoleLine(line: string, source: 'agent' | 'gateway'): boolean {
@@ -131,6 +127,7 @@ export function parseLogLine(
   agentMatchers: Array<{ id: string; name: string }>,
 ): Matrix3DConsoleEntry {
   const type = readLogLevel(line)
+  const noisy = shouldSuppressConsoleLine(line, source)
   const timestamp =
     line.match(/\b\d{2}:\d{2}:\d{2}(?:\.\d+)?\b/)?.[0]?.slice(0, 8) ||
     line.match(/T(\d{2}:\d{2}:\d{2})/)?.[1] ||
@@ -153,6 +150,7 @@ export function parseLogLine(
     type,
     message: normalizedMessage,
     duration: '',
+    noisy,
   }
 }
 
@@ -160,9 +158,11 @@ export function buildLogEntries(
   raw: unknown,
   source: 'agent' | 'gateway',
   agentMatchers: Array<{ id: string; name: string }>,
+  options?: { includeNoise?: boolean },
 ): Array<Matrix3DConsoleEntry> {
+  const includeNoise = options?.includeNoise === true
   return extractLogLines(raw)
-    .filter((line) => !shouldSuppressConsoleLine(line, source))
-    .slice(-80)
     .map((line, index) => parseLogLine(line, index, source, agentMatchers))
+    .filter((entry) => includeNoise || !entry.noisy)
+    .slice(-80)
 }

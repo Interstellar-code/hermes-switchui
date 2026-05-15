@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Matrix3D Office · Hermes</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+/* ── MATRIX DESIGN TOKENS ─────────────────────────────── */
+:root {
+  --m-bg:           #020804;
+  --m-bg-deep:      #010402;
+  --m-sidebar:      #030d06;
+  --m-panel:        #041008;
+  --m-card:         #07130a;
+  --m-card-2:       #0a1c0f;
+  --m-card-3:       #0e2614;
+  --m-green-500:    #00ff41;
+  --m-green-300:    #7cff9b;
+  --m-text:         #d8ffe3;
+  --m-text-strong:  #eaffef;
+  --m-text-muted:   rgba(216,255,227,.58);
+  --m-text-faint:   rgba(216,255,227,.34);
+  --m-text-ghost:   rgba(216,255,227,.18);
+  --m-border:       rgba(0,255,65,.28);
+  --m-border-sub:   rgba(0,255,65,.13);
+  --m-border-faint: rgba(0,255,65,.06);
+  --m-border-strong:rgba(0,255,65,.50);
+  --m-fill-sub:     rgba(0,255,65,.06);
+  --m-fill:         rgba(0,255,65,.11);
+  --m-fill-strong:  rgba(0,255,65,.20);
+  --m-info:         #5fcfff;
+  --m-warning:      #d6ff5f;
+  --m-danger:       #ff5f6d;
+  --m-pink:         #ff5fa2;
+  --m-purple:       #a78bfa;
+  --m-amber:        #d6ff5f;
+  --m-font-mono:    'JetBrains Mono', ui-monospace, monospace;
+  --m-font-sans:    'Inter', ui-sans-serif, sans-serif;
+  --m-glow-sm:      0 0 8px  rgba(0,255,65,.35);
+  --m-glow-md:      0 0 16px rgba(0,255,65,.45);
+  --m-text-glow:    0 0 8px  rgba(0,255,65,.6);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--m-bg); color: var(--m-text); font-family: var(--m-font-sans); -webkit-font-smoothing: antialiased; overflow: hidden; height: 100vh; }
+
+/* ── SHELL ─────────────────────────────────────────────── */
+.shell { display: grid; grid-template-columns: 196px 1fr; height: 100vh; overflow: hidden; }
+
+/* ── SIDEBAR ──────────────────────────────────────────── */
+.sb { display: flex; flex-direction: column; background: var(--m-sidebar); border-right: 1px solid var(--m-border-sub); height: 100vh; overflow: hidden; }
+.sb-hdr { display: flex; align-items: center; justify-content: space-between; padding: 11px 12px 8px; border-bottom: 1px solid var(--m-border-faint); flex-shrink: 0; }
+.sb-brand { display: flex; align-items: center; gap: 8px; }
+.sb-logo { width: 26px; height: 26px; border: 1px solid var(--m-border-sub); border-radius: 5px; display: grid; place-items: center; background: var(--m-fill-sub); color: var(--m-green-500); font: 700 11px var(--m-font-mono); text-shadow: var(--m-text-glow); }
+.sb-info { display: flex; flex-direction: column; }
+.sb-name { font: 700 10px var(--m-font-mono); text-transform: uppercase; letter-spacing: .2em; color: var(--m-text-strong); line-height: 1.1; }
+.sb-ver  { font: 400 9px var(--m-font-mono); color: var(--m-text-ghost); }
+.sb-chevron { width: 20px; height: 20px; border: 1px solid var(--m-border-faint); border-radius: 4px; display: grid; place-items: center; color: var(--m-text-ghost); cursor: pointer; background: transparent; font-size: 11px; }
+.sb-search { margin: 6px 10px; display: flex; align-items: center; gap: 6px; background: var(--m-card); border: 1px solid var(--m-border-faint); border-radius: 5px; padding: 5px 8px; }
+.sb-search input { background: transparent; border: none; outline: none; font: 400 11px var(--m-font-mono); color: var(--m-text); flex: 1; min-width: 0; }
+.sb-search input::placeholder { color: var(--m-text-ghost); }
+.sb-search-ico { font-size: 12px; color: var(--m-text-ghost); }
+.sb-search-cmd { font: 500 8.5px var(--m-font-mono); color: var(--m-text-ghost); border: 1px solid var(--m-border-faint); border-radius: 3px; padding: 1px 4px; }
+.sb-new { margin: 2px 10px 6px; display: flex; align-items: center; gap: 5px; padding: 6px 10px; background: var(--m-fill); border: 1px solid var(--m-border-sub); border-radius: 5px; color: var(--m-green-500); font: 600 10px var(--m-font-mono); text-transform: uppercase; letter-spacing: .1em; cursor: pointer; transition: background .12s, box-shadow .12s; }
+.sb-new:hover { background: var(--m-fill-strong); box-shadow: var(--m-glow-sm); }
+.sb-nav { flex: 1; overflow-y: auto; padding: 0 0 6px; scrollbar-width: none; }
+.sb-nav::-webkit-scrollbar { display: none; }
+.sb-section { padding: 9px 12px 3px; font: 600 8px var(--m-font-mono); text-transform: uppercase; letter-spacing: .28em; color: var(--m-text-ghost); }
+.sb-item { display: flex; align-items: center; gap: 8px; padding: 5px 12px; cursor: pointer; border-left: 2px solid transparent; transition: background .1s, color .1s; }
+.sb-item:hover { background: var(--m-fill-sub); color: var(--m-text-strong); }
+.sb-item.active { color: var(--m-green-500); background: var(--m-fill); border-left-color: var(--m-green-500); }
+.sb-item-ico { font-size: 13px; opacity: .75; flex-shrink: 0; width: 16px; }
+.sb-item-lbl { font: 500 11.5px var(--m-font-mono); color: inherit; }
+.sb-footer { border-top: 1px solid var(--m-border-faint); padding: 6px 10px; display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
+.sb-stat { font: 500 9px var(--m-font-mono); color: var(--m-text-ghost); white-space: nowrap; }
+.sb-stat b { font-weight: 600; }
+
+/* ── MAIN ─────────────────────────────────────────────── */
+.main { display: flex; flex-direction: column; overflow: hidden; height: 100vh; }
+
+/* ── CANVAS ZONE ─────────────────────────────────────── */
+.canvas-zone { flex: 0 0 auto; height: calc((100vh - 20px) * 0.46); min-height: 250px; margin: 10px 14px 0; border-radius: 22px; overflow: hidden; position: relative; border: 1px solid rgba(0,255,65,.15); background: #020617; }
+.canvas-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(0,255,65,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,65,.03) 1px, transparent 1px); background-size: 44px 44px; }
+.canvas-glow { position: absolute; inset: 0; background: radial-gradient(ellipse 80% 60% at 50% 35%, rgba(0,255,65,.04) 0%, transparent 70%); }
+.canvas-title-bar { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: center; gap: 14px; padding: 11px 20px; z-index: 2; }
+.canvas-title { font: 500 10.5px var(--m-font-mono); text-transform: uppercase; letter-spacing: .38em; color: var(--m-warning); text-shadow: 0 0 14px rgba(214,255,95,.5); white-space: nowrap; }
+.canvas-title-line { flex: 1; max-width: 100px; height: 1px; background: linear-gradient(90deg, transparent, var(--m-border-sub)); }
+.canvas-title-line.r { background: linear-gradient(270deg, transparent, var(--m-border-sub)); }
+.canvas-bottom-bar { position: absolute; bottom: 0; left: 0; right: 0; display: flex; align-items: center; gap: 7px; padding: 8px 16px; font: 500 10px var(--m-font-mono); color: var(--m-text-ghost); background: linear-gradient(0deg, rgba(2,6,23,.95) 0%, transparent 100%); z-index: 2; }
+.canvas-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--m-green-500); box-shadow: 0 0 6px var(--m-green-500); }
+.canvas-sep { opacity: .25; margin: 0 2px; }
+.canvas-ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.canvas-ph-ico { opacity: .1; }
+
+/* ── BOTTOM ZONE ──────────────────────────────────────── */
+.bottom-zone { flex: 1; min-height: 0; margin: 8px 14px 10px; border-radius: 14px; border: 1px solid var(--m-border-sub); background: var(--m-card); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+
+/* ── ROSTER ──────────────────────────────────────────── */
+.roster { flex: 0 0 auto; }
+.roster-bar { display: flex; align-items: center; gap: 8px; padding: 6px 14px 4px; border-bottom: 1px solid var(--m-border-faint); }
+.roster-pulse { width: 5px; height: 5px; border-radius: 50%; background: var(--m-green-500); box-shadow: 0 0 6px var(--m-green-500); animation: m-pulse 2s ease-in-out infinite; }
+.roster-lbl { font: 600 9px var(--m-font-mono); text-transform: uppercase; letter-spacing: .26em; color: var(--m-text-faint); }
+.roster-summary { font: 400 9.5px var(--m-font-mono); color: var(--m-text-ghost); }
+.roster-rail { display: flex; gap: 8px; padding: 7px 14px 9px; overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--m-border-faint) transparent; }
+.roster-rail::-webkit-scrollbar { height: 3px; }
+.roster-rail::-webkit-scrollbar-thumb { background: var(--m-border-faint); border-radius: 2px; }
+
+/* ── AGENT CARD ──────────────────────────────────────── */
+.acard { flex: 0 0 116px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 7px 6px 8px; border-radius: 10px; border: 1px solid var(--m-border-faint); background: var(--m-card-2); cursor: pointer; position: relative; transition: border-color .15s, box-shadow .15s, background .15s; user-select: none; }
+.acard:hover { background: var(--m-card-3); border-color: var(--m-border-sub); }
+.acard.sel { background: var(--m-card-3); }
+.acard-t1 { position: absolute; top: 5px; right: 7px; font: 700 7.5px var(--m-font-mono); letter-spacing: .1em; opacity: .7; }
+.acard-bubble { max-width: 104px; background: rgba(7,19,10,.92); border: 1px solid; border-radius: 7px 7px 7px 2px; padding: 3px 7px; font: 400 8.5px var(--m-font-mono); line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; text-align: left; }
+.acard-sprite { width: 44px; height: 52px; display: flex; align-items: flex-end; justify-content: center; }
+.acard-name { font: 600 10px var(--m-font-mono); text-transform: uppercase; letter-spacing: .1em; margin-top: 3px; text-align: center; }
+.acard-role { font: 400 8.5px var(--m-font-mono); color: var(--m-text-ghost); text-transform: uppercase; letter-spacing: .1em; }
+.acard-status { display: flex; align-items: center; gap: 4px; margin-top: 1px; }
+.acard-sdot { width: 5px; height: 5px; border-radius: 50%; }
+.acard-slbl { font: 400 8.5px var(--m-font-mono); text-transform: uppercase; letter-spacing: .12em; }
+
+/* ── SPRITE ANIMATIONS ───────────────────────────────── */
+@keyframes m-pulse  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.45;transform:scale(1.2)} }
+@keyframes sp-idle  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+@keyframes sp-work  { 0%,100%{transform:translateY(0) rotate(0deg)} 30%{transform:translateY(-5px) rotate(-2deg)} 70%{transform:translateY(-3px) rotate(1.5deg)} }
+@keyframes sp-err   { 0%,100%{filter:none} 50%{filter:hue-rotate(150deg) brightness(1.4)} }
+@keyframes sp-glow  { 0%,100%{opacity:.6} 50%{opacity:1} }
+
+.sp-idle { animation: sp-idle 3s ease-in-out infinite; }
+.sp-working { animation: sp-work .85s ease-in-out infinite; }
+.sp-error { animation: sp-err 1.1s ease-in-out infinite; }
+
+/* ── CONSOLE ──────────────────────────────────────────── */
+.console { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--m-border-faint); position: relative; overflow: hidden; }
+.c-rain { position: absolute; inset: 0; pointer-events: none; opacity: .45; }
+.c-head { flex: 0 0 auto; display: flex; align-items: center; gap: 5px; padding: 5px 14px; border-bottom: 1px solid var(--m-border-faint); background: linear-gradient(180deg, rgba(4,16,8,.9) 0%, transparent 100%); position: relative; z-index: 2; }
+.c-head-lbl { font: 600 9px var(--m-font-mono); text-transform: uppercase; letter-spacing: .26em; color: var(--m-text-ghost); margin-right: 4px; }
+.c-tab { font: 500 8.5px var(--m-font-mono); text-transform: uppercase; letter-spacing: .12em; padding: 2px 7px; border-radius: 999px; border: 1px solid transparent; color: var(--m-text-ghost); cursor: pointer; transition: all .1s; background: transparent; }
+.c-tab:hover { color: var(--m-text-muted); border-color: var(--m-border-faint); }
+.c-tab.on { color: var(--m-green-500); border-color: var(--m-border-sub); background: var(--m-fill-sub); }
+.c-live { display: flex; align-items: center; gap: 4px; margin-left: auto; font: 500 8.5px var(--m-font-mono); color: var(--m-green-500); text-transform: uppercase; letter-spacing: .16em; }
+.c-live-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--m-green-500); animation: m-pulse 1.6s ease-in-out infinite; }
+.c-body { flex: 1; overflow-y: auto; position: relative; z-index: 1; scrollbar-width: thin; scrollbar-color: rgba(0,255,65,.12) transparent; }
+.c-body::-webkit-scrollbar { width: 4px; }
+.c-body::-webkit-scrollbar-thumb { background: rgba(0,255,65,.12); border-radius: 2px; }
+.c-row { display: grid; grid-template-columns: 56px 72px 46px 1fr auto; gap: 0 9px; align-items: baseline; padding: 2px 14px; font: 400 10px var(--m-font-mono); line-height: 1.65; transition: background .08s; }
+.c-row:hover { background: rgba(0,255,65,.04); }
+.c-ts { color: var(--m-text-ghost); white-space: nowrap; font-size: 9.5px; }
+.c-who { font-weight: 600; white-space: nowrap; font-size: 10px; }
+.c-type { font: 600 8.5px var(--m-font-mono); text-transform: uppercase; letter-spacing: .1em; padding: 1px 5px; border-radius: 3px; white-space: nowrap; align-self: center; }
+.c-msg  { color: var(--m-text-muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; }
+.c-dur  { color: var(--m-text-ghost); font-size: 9px; white-space: nowrap; }
+.c-type.sys     { color: var(--m-text-faint);  background: rgba(216,255,227,.04); }
+.c-type.route   { color: var(--m-green-500);   background: rgba(0,255,65,.10); }
+.c-type.tool    { color: var(--m-warning);      background: rgba(214,255,95,.10); }
+.c-type.trace   { color: var(--m-info);         background: rgba(95,207,255,.10); }
+.c-type.review  { color: var(--m-purple);       background: rgba(167,139,250,.10); }
+.c-type.msg     { color: var(--m-text-muted);   background: rgba(216,255,227,.04); }
+.c-type.err     { color: var(--m-danger);       background: rgba(255,95,109,.10); }
+.c-type.dispatch{ color: var(--m-pink);         background: rgba(255,95,162,.10); }
+@keyframes c-in { from { opacity:0; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
+.c-row.new { animation: c-in .18s ease-out both; }
+
+/* ── SIDE PANEL ──────────────────────────────────────── */
+.sp { position: absolute; top: 0; right: 0; bottom: 0; width: 356px; background: var(--m-panel); border-left: 1px solid var(--m-border-sub); z-index: 20; display: flex; flex-direction: column; transform: translateX(100%); transition: transform .26s cubic-bezier(.22,1,.36,1); box-shadow: -8px 0 40px rgba(0,0,0,.7); }
+.sp.open { transform: translateX(0); }
+.sp-accent-bar { height: 2px; flex-shrink: 0; }
+.sp-hdr { display: grid; grid-template-columns: 52px 1fr auto; gap: 12px; align-items: center; padding: 13px 14px 11px; border-bottom: 1px solid var(--m-border-sub); flex-shrink: 0; }
+.sp-av { width: 52px; height: 52px; border-radius: 10px; border: 1px solid; display: flex; align-items: center; justify-content: center; position: relative; }
+.sp-av-glyph { font: 700 17px var(--m-font-mono); }
+.sp-av-pulse { position: absolute; bottom: -3px; right: -3px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--m-panel); }
+.sp-title { }
+.sp-name { font: 700 15px var(--m-font-mono); color: var(--m-text-strong); line-height: 1.1; margin-bottom: 3px; letter-spacing: -.2px; }
+.sp-badge { display: inline-flex; align-items: center; gap: 4px; font: 600 8.5px var(--m-font-mono); text-transform: uppercase; letter-spacing: .14em; padding: 2px 7px; border-radius: 999px; margin-bottom: 3px; }
+.sp-model { font: 400 9px var(--m-font-mono); color: var(--m-text-ghost); }
+.sp-close { width: 26px; height: 26px; border: 1px solid var(--m-border-sub); border-radius: 5px; display: grid; place-items: center; color: var(--m-text-faint); cursor: pointer; background: transparent; font-size: 11px; align-self: flex-start; transition: all .1s; }
+.sp-close:hover { color: var(--m-text-muted); border-color: var(--m-border); }
+.sp-body { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; scrollbar-width: thin; scrollbar-color: rgba(0,255,65,.1) transparent; }
+.sp-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 5px; }
+.sp-stat-cell { background: var(--m-card); border: 1px solid var(--m-border-faint); border-radius: 7px; padding: 8px 10px; }
+.sp-stat-v { font: 700 13px var(--m-font-mono); color: var(--m-text-strong); letter-spacing: -.2px; }
+.sp-stat-l { font: 500 8px var(--m-font-mono); text-transform: uppercase; letter-spacing: .18em; color: var(--m-text-ghost); margin-top: 1px; }
+.sp-sec { }
+.sp-sec-lbl { font: 600 8.5px var(--m-font-mono); text-transform: uppercase; letter-spacing: .22em; color: var(--m-text-ghost); margin-bottom: 6px; }
+.sp-task { background: var(--m-card); border: 1px solid var(--m-border-faint); border-radius: 7px; padding: 9px 11px; font: 400 10.5px/1.5 var(--m-font-mono); color: var(--m-text-muted); }
+.sp-task::before { content: "▸ "; color: var(--m-green-500); }
+.sp-tl { display: flex; flex-direction: column; }
+.sp-tl-row { display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: baseline; padding: 3px 0; }
+.sp-tl-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+.sp-tl-msg { font: 400 10.5px/1.4 var(--m-font-mono); color: var(--m-text-muted); }
+.sp-tl-ts  { font: 400 9px var(--m-font-mono); color: var(--m-text-ghost); white-space: nowrap; }
+.sp-quick { display: flex; gap: 4px; }
+.sp-qbtn { flex: 1; padding: 6px 0; background: var(--m-card); border: 1px solid var(--m-border-faint); border-radius: 6px; font: 500 9px var(--m-font-mono); text-transform: uppercase; letter-spacing: .1em; color: var(--m-text-faint); cursor: pointer; transition: all .12s; text-align: center; }
+.sp-qbtn:hover { color: var(--m-text-muted); border-color: var(--m-border-sub); background: var(--m-card-2); }
+.sp-footer { flex-shrink: 0; padding: 9px 14px; border-top: 1px solid var(--m-border-sub); background: rgba(4,16,8,.6); }
+.sp-textarea { width: 100%; height: 64px; background: var(--m-card); border: 1px solid var(--m-border-sub); border-radius: 7px; padding: 8px 10px; font: 400 10.5px var(--m-font-mono); color: var(--m-text); resize: none; outline: none; line-height: 1.5; transition: border-color .12s; }
+.sp-textarea::placeholder { color: var(--m-text-ghost); }
+.sp-textarea:focus { border-color: var(--m-border); }
+.sp-send-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+.sp-hint { font: 400 9px var(--m-font-mono); color: var(--m-text-ghost); text-transform: uppercase; letter-spacing: .1em; }
+.sp-send { display: flex; align-items: center; gap: 5px; padding: 6px 13px; background: var(--m-green-500); color: #010402; font: 700 9.5px var(--m-font-mono); text-transform: uppercase; letter-spacing: .12em; border: none; border-radius: 5px; cursor: pointer; transition: box-shadow .15s; }
+.sp-send:hover { box-shadow: var(--m-glow-sm); }
+
+/* ── TWEAKS ──────────────────────────────────────────── */
+.tw-fab { position: fixed; bottom: 14px; right: 14px; width: 32px; height: 32px; border-radius: 7px; background: var(--m-card-2); border: 1px solid var(--m-border-sub); color: var(--m-text-faint); cursor: pointer; display: grid; place-items: center; z-index: 100; transition: all .15s; }
+.tw-fab:hover { color: var(--m-green-500); border-color: var(--m-border); box-shadow: var(--m-glow-sm); }
+.tw-panel { position: fixed; bottom: 52px; right: 14px; width: 210px; background: var(--m-panel); border: 1px solid var(--m-border); border-radius: 10px; padding: 11px 13px; z-index: 100; box-shadow: 0 8px 36px rgba(0,0,0,.75); }
+.tw-title { font: 600 9.5px var(--m-font-mono); text-transform: uppercase; letter-spacing: .22em; color: var(--m-text-ghost); margin-bottom: 10px; }
+.tw-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+.tw-lbl { font: 500 10px var(--m-font-mono); color: var(--m-text-muted); }
+.tw-seg { display: flex; border: 1px solid var(--m-border-sub); border-radius: 5px; overflow: hidden; }
+.tw-seg button { flex: 1; padding: 3px 5px; background: transparent; border: none; border-right: 1px solid var(--m-border-faint); font: 500 8.5px var(--m-font-mono); color: var(--m-text-ghost); cursor: pointer; text-transform: uppercase; letter-spacing: .06em; transition: all .1s; }
+.tw-seg button:last-child { border-right: none; }
+.tw-seg button.on { background: var(--m-fill); color: var(--m-green-500); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+/* ── DATA ──────────────────────────────────────────────── */
+const AGENTS = [
+  { id:'hermes-switch', glyph:'HS', name:'Hermes Switch', role:'Orchestrator',
+    model:'claude-opus-4', tier:1, color:'#00ff41', dark:'#007a20', status:'idle',
+    uptime:'3h 42m', tokens:'128.4K',
+    task:'Monitoring agent pool. Awaiting task dispatch from session.',
+    lastMsg:'All systems nominal.',
+    activity:[
+      {msg:'Routed task #049 → Neo', ts:'14:23', type:'route'},
+      {msg:'Agent pool health check: OK', ts:'14:18', type:'sys'},
+      {msg:'Gateway connected — openclaw', ts:'14:10', type:'sys'},
+      {msg:'Session matrix3d-hermes opened', ts:'13:59', type:'sys'},
+    ]},
+  { id:'neo', glyph:'NE', name:'Neo', role:'Builder',
+    model:'claude-sonnet-4', tier:2, color:'#a78bfa', dark:'#5b3bbf', status:'idle',
+    uptime:'3h 42m', tokens:'84.2K',
+    task:'Awaiting task assignment from Hermes Switch.',
+    lastMsg:'Build env ready.',
+    activity:[
+      {msg:'write_file: Button.tsx complete', ts:'14:22', type:'tool'},
+      {msg:'pnpm build — exit 0, 3.2s', ts:'14:20', type:'tool'},
+      {msg:'Received task #049: Button', ts:'14:19', type:'msg'},
+      {msg:'Environment — node v22, tsx 4.19', ts:'13:59', type:'sys'},
+    ]},
+  { id:'trinity', glyph:'TR', name:'Trinity', role:'Investigator',
+    model:'claude-sonnet-4', tier:2, color:'#5fcfff', dark:'#1d7aad', status:'idle',
+    uptime:'3h 42m', tokens:'62.1K',
+    task:'Test suite scan complete. Monitoring for regressions.',
+    lastMsg:'0 regressions detected.',
+    activity:[
+      {msg:'diff Button.tsx: 0 regressions', ts:'14:23', type:'trace'},
+      {msg:'Test baseline: 847 passing', ts:'14:15', type:'trace'},
+      {msg:'Snapshot baseline captured', ts:'14:08', type:'sys'},
+      {msg:'Investigator mode active', ts:'13:59', type:'sys'},
+    ]},
+  { id:'morpheus', glyph:'MO', name:'Morpheus', role:'Architect',
+    model:'claude-sonnet-4', tier:2, color:'#d6ff5f', dark:'#7aad00', status:'idle',
+    uptime:'3h 42m', tokens:'95.8K',
+    task:'Architecture snapshot v2.3.8 loaded. Review queue empty.',
+    lastMsg:'Arch snapshot stable.',
+    activity:[
+      {msg:'Review: Button.tsx meets spec ✓', ts:'14:24', type:'review'},
+      {msg:'Architecture v2.3.8 loaded', ts:'14:12', type:'sys'},
+      {msg:'Design review protocol ready', ts:'14:05', type:'sys'},
+      {msg:'Architect mode active', ts:'13:59', type:'sys'},
+    ]},
+];
+
+const LOG_SEED = [
+  {agent:'SYS',     aC:null,        type:'sys',    msg:'Matrix3D Office v2.3.8 — 4 agents initialized',             dur:''},
+  {agent:'HERMES',  aC:'#00ff41',   type:'route',  msg:'Agent pool stable. Gateway: openclaw',                        dur:''},
+  {agent:'NEO',     aC:'#a78bfa',   type:'sys',    msg:'Build environment loaded — node v22, tsx 4.19',               dur:''},
+  {agent:'TRINITY', aC:'#5fcfff',   type:'trace',  msg:'Test baseline: 847 passing, 0 failing',                       dur:''},
+  {agent:'MORPHEUS',aC:'#d6ff5f',   type:'review', msg:'Architecture snapshot v2.3.8 loaded',                         dur:''},
+  {agent:'HERMES',  aC:'#00ff41',   type:'route',  msg:'Routing task #049 → Neo: "implement Button component"',       dur:'2ms'},
+  {agent:'NEO',     aC:'#a78bfa',   type:'tool',   msg:'write_file → src/components/Button.tsx',                      dur:'14ms'},
+  {agent:'NEO',     aC:'#a78bfa',   type:'tool',   msg:'bash → pnpm build [exit 0]',                                  dur:'3.2s'},
+  {agent:'TRINITY', aC:'#5fcfff',   type:'trace',  msg:'diff Button.tsx — 0 regressions detected',                   dur:'22ms'},
+  {agent:'MORPHEUS',aC:'#d6ff5f',   type:'review', msg:'Button.tsx review: meets arch spec ✓',                       dur:''},
+  {agent:'HERMES',  aC:'#00ff41',   type:'route',  msg:'Task #049 complete ✓  total: 4m 32s',                        dur:''},
+];
+
+const LOG_POOL = [
+  {agent:'HERMES',  aC:'#00ff41',   type:'route',  msg:'Dispatching health check to all agents',                     dur:''},
+  {agent:'NEO',     aC:'#a78bfa',   type:'tool',   msg:'read_file → src/styles/matrix-tasks.css',                    dur:'4ms'},
+  {agent:'TRINITY', aC:'#5fcfff',   type:'trace',  msg:'Type scan: 0 errors across 84 files',                        dur:'310ms'},
+  {agent:'MORPHEUS',aC:'#d6ff5f',   type:'review', msg:'Reviewing component prop API surface',                       dur:''},
+  {agent:'NEO',     aC:'#a78bfa',   type:'tool',   msg:'bash → pnpm test --run [12 passed, 0 failed]',                dur:'2.1s'},
+  {agent:'HERMES',  aC:'#00ff41',   type:'msg',    msg:'"Trinity — verify Button focus state edge cases"',            dur:''},
+  {agent:'TRINITY', aC:'#5fcfff',   type:'trace',  msg:'Focus trap analysis: accessible ✓ WCAG 2.1 AA',              dur:''},
+  {agent:'MORPHEUS',aC:'#d6ff5f',   type:'review', msg:'Approved: Button.tsx ready for merge → main',                dur:''},
+  {agent:'NEO',     aC:'#a78bfa',   type:'tool',   msg:'bash → git commit -m "feat(ui): Button component"',           dur:'0.4s'},
+  {agent:'SYS',     aC:null,        type:'sys',    msg:'Checkpoint saved — matrix3d-hermes/session-049',              dur:''},
+  {agent:'HERMES',  aC:'#00ff41',   type:'sys',    msg:'Memory nominal — 2.4 GB / 16 GB',                             dur:''},
+  {agent:'TRINITY', aC:'#5fcfff',   type:'trace',  msg:'Coverage report: 94.2% (+0.8%)',                             dur:'180ms'},
+];
+
+let lid = 1000;
+const mkId = () => lid++;
+const ts = () => { const d=new Date(); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`; };
+
+/* ── SPRITES ──────────────────────────────────────────── */
+function Sprite({ agent }) {
+  const c = agent.color, dk = agent.dark;
+  const cls = `sp-${agent.status==='working'?'working':agent.status==='error'?'error':'idle'}`;
+  const hs = agent.id === 'hermes-switch';
+  const ne = agent.id === 'neo';
+  const tr = agent.id === 'trinity';
+  const mo = agent.id === 'morpheus';
+  return (
+    <div className={cls} style={{width:44,height:52,display:'flex',alignItems:'flex-end'}}>
+      <svg width="44" height="52" viewBox="0 0 44 52" fill="none">
+        {/* Hermes antenna */}
+        {hs && <>
+          <rect x="19" y="0" width="2" height="6" rx="1" fill={c} opacity=".85"/>
+          <circle cx="20" cy="0" r="2.5" fill={c} style={{filter:`drop-shadow(0 0 4px ${c})`}}/>
+        </>}
+        {/* Neo shades */}
+        {ne && <rect x="10" y="15" width="24" height="3" rx="1.5" fill={dk} opacity=".85"/>}
+        {/* Trinity ponytail */}
+        {tr && <rect x="30" y="9" width="5" height="14" rx="2.5" fill={dk} opacity=".7"/>}
+        {/* Morpheus wide shoulders — handled by wider body rect */}
+
+        {/* Head */}
+        <rect x={mo?8:10} y={hs?6:4} width={mo?28:24} height={hs?18:17} rx="3" fill={c}/>
+        {/* Head highlight */}
+        <rect x={mo?8:10} y={hs?6:4} width={mo?28:24} height="8" rx="3" fill="rgba(255,255,255,0.13)"/>
+        {/* Eyes */}
+        <rect x={mo?13:13} y={hs?11:9} width="5" height="5" rx="1" fill="rgba(0,0,0,0.72)"/>
+        <rect x={mo?26:26} y={hs?11:9} width="5" height="5" rx="1" fill="rgba(0,0,0,0.72)"/>
+        {/* Eye shine */}
+        <rect x={mo?14:14} y={hs?12:10} width="2" height="2" fill="rgba(255,255,255,0.5)"/>
+        <rect x={mo?27:27} y={hs?12:10} width="2" height="2" fill="rgba(255,255,255,0.5)"/>
+        {/* Morpheus glasses bar */}
+        {mo && <rect x="12" y="12" width="20" height="2.5" rx="1.25" fill={dk} opacity=".7"/>}
+        {/* Mouth */}
+        <rect x="17" y={hs?21:18} width="10" height="2" rx="1" fill="rgba(0,0,0,0.42)"/>
+
+        {/* Body */}
+        <rect x={mo?7:9} y={hs?26:23} width={mo?30:26} height="18" rx="3" fill={c}/>
+        {/* Body top highlight */}
+        <rect x={mo?7:9} y={hs?26:23} width={mo?30:26} height="5" rx="3" fill="rgba(255,255,255,0.09)"/>
+        {/* Body center seam */}
+        <rect x="21" y={hs?28:25} width="2" height="14" fill="rgba(0,0,0,0.18)"/>
+
+        {/* Arms */}
+        <rect x="1" y={hs?26:23} width="8" height="13" rx="2" fill={c}/>
+        <rect x="35" y={hs?26:23} width="8" height="13" rx="2" fill={c}/>
+
+        {/* Legs */}
+        <rect x={mo?9:10} y="43" width={mo?11:10} height="9" rx="2" fill={dk}/>
+        <rect x={mo?24:24} y="43" width={mo?11:10} height="9" rx="2" fill={dk}/>
+        {/* Leg top highlight */}
+        <rect x={mo?9:10} y="43" width={mo?11:10} height="3" rx="2" fill={c} opacity=".45"/>
+        <rect x={mo?24:24} y="43" width={mo?11:10} height="3" rx="2" fill={c} opacity=".45"/>
+      </svg>
+    </div>
+  );
+}
+
+/* ── AGENT CARD ──────────────────────────────────────── */
+function AgentCard({ agent, sel, onSel, showBubble }) {
+  const c = agent.color;
+  const sDot = agent.status==='working' ? '#00ff41' : agent.status==='error' ? '#ff5f6d' : 'rgba(216,255,227,.28)';
+  const shadow = sel ? `0 0 0 1px ${c}55, 0 0 18px ${c}33` : '';
+  return (
+    <div className={`acard${sel?' sel':''}`}
+      style={{ borderColor: sel ? `${c}50` : undefined, boxShadow: shadow }}
+      onClick={() => onSel(sel ? null : agent)}>
+      {agent.tier===1 && <span className="acard-t1" style={{color:c,textShadow:`0 0 6px ${c}88`}}>T1</span>}
+      {showBubble && (
+        <div className="acard-bubble" style={{borderColor:`${c}35`,color:c,textShadow:`0 0 6px ${c}44`}}>
+          {agent.lastMsg}
+        </div>
+      )}
+      <div className="acard-sprite"><Sprite agent={agent}/></div>
+      <div className="acard-name" style={{color:c}}>{agent.name}</div>
+      <div className="acard-role">{agent.role}</div>
+      <div className="acard-status">
+        <div className="acard-sdot" style={{background:sDot,boxShadow:agent.status!=='idle'?`0 0 6px ${sDot}`:''}}/>
+        <div className="acard-slbl" style={{color:sDot}}>{agent.status}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ── ROSTER ──────────────────────────────────────────── */
+function Roster({ agents, sel, onSel, showBubble }) {
+  const working = agents.filter(a=>a.status==='working').length;
+  const errors  = agents.filter(a=>a.status==='error').length;
+  return (
+    <div className="roster">
+      <div className="roster-bar">
+        <div className="roster-pulse"/>
+        <span className="roster-lbl">Agents</span>
+        <span className="roster-summary">{agents.length} online · {working} working · {errors} error</span>
+      </div>
+      <div className="roster-rail">
+        {agents.map(a => <AgentCard key={a.id} agent={a} sel={sel?.id===a.id} onSel={onSel} showBubble={showBubble}/>)}
+      </div>
+    </div>
+  );
+}
+
+/* ── MATRIX RAIN ─────────────────────────────────────── */
+function MatrixRain() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const resize = () => { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; };
+    resize();
+    const cols = Math.floor(canvas.width / 13);
+    const drops = Array.from({length:cols}, () => Math.random() * (canvas.height/13));
+    const chars = '01アイウエカキサシスタチナニハヒ<>{}[]|∑∆∇∂';
+    let frame = 0, raf;
+    const draw = () => {
+      frame++;
+      if (frame % 3 === 0) {
+        ctx.fillStyle = 'rgba(2,8,4,0.15)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.font = '11px JetBrains Mono, monospace';
+        drops.forEach((y, i) => {
+          const ch = chars[Math.floor(Math.random() * chars.length)];
+          ctx.fillStyle = `rgba(0,255,65,${0.04 + Math.random()*0.07})`;
+          ctx.fillText(ch, i*13, y*13);
+          drops[i] = y*13 > canvas.height && Math.random()>.975 ? 0 : y + 0.35;
+        });
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    window.addEventListener('resize', resize);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
+  }, []);
+  return <canvas ref={ref} className="c-rain" style={{width:'100%',height:'100%'}}/>;
+}
+
+/* ── CONSOLE ─────────────────────────────────────────── */
+const TYPE_MAP = { sys:'SYS', route:'ROUTE', tool:'TOOL', trace:'TRACE', review:'REVIEW', msg:'MSG', err:'ERR', dispatch:'DISP' };
+const TABS = ['ALL','HERMES','NEO','TRINITY','MORPHEUS'];
+
+function Console({ logs }) {
+  const [tab, setTab] = useState('ALL');
+  const bodyRef = useRef(null);
+  const filtered = tab==='ALL' ? logs : logs.filter(l => l.agent===tab || l.agent==='SYS');
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [logs]);
+  return (
+    <div className="console">
+      <MatrixRain/>
+      <div className="c-head">
+        <span className="c-head-lbl">Console</span>
+        {TABS.map(t => (
+          <button key={t} className={`c-tab${tab===t?' on':''}`} onClick={()=>setTab(t)}>{t}</button>
+        ))}
+        <div className="c-live"><div className="c-live-dot"/><span>Live</span></div>
+      </div>
+      <div className="c-body" ref={bodyRef}>
+        {filtered.map(e => (
+          <div key={e.id} className={`c-row${e.isNew?' new':''}`}>
+            <span className="c-ts">{e.ts}</span>
+            <span className="c-who" style={{color:e.aC||'rgba(216,255,227,.34)'}}>{e.agent}</span>
+            <span className={`c-type ${e.type}`}>{TYPE_MAP[e.type]||e.type}</span>
+            <span className="c-msg">{e.msg}</span>
+            <span className="c-dur">{e.dur}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── SIDE PANEL ──────────────────────────────────────── */
+function SidePanel({ agent, onClose, onDispatch }) {
+  const [msg, setMsg] = useState('');
+  if (!agent) return <div className="sp"/>;
+  const c = agent.color;
+  const send = () => {
+    if (!msg.trim()) return;
+    onDispatch(agent, msg.trim());
+    setMsg('');
+  };
+  const sDot = agent.status==='working' ? '#00ff41' : agent.status==='error' ? '#ff5f6d' : 'rgba(216,255,227,.3)';
+  return (
+    <div className="sp open">
+      <div className="sp-accent-bar" style={{background:`linear-gradient(90deg, ${c}aa, ${c}22, transparent)`}}/>
+      <div className="sp-hdr">
+        <div className="sp-av" style={{borderColor:`${c}50`,background:`${c}12`}}>
+          <span className="sp-av-glyph" style={{color:c,textShadow:`0 0 10px ${c}99`}}>{agent.glyph}</span>
+          <div className="sp-av-pulse" style={{background:sDot,boxShadow:`0 0 6px ${sDot}`}}/>
+        </div>
+        <div className="sp-title">
+          <div className="sp-name">{agent.name}</div>
+          <div className="sp-badge" style={{color:c,background:`${c}18`,border:`1px solid ${c}35`}}>
+            {agent.tier===1 ? '◈' : '◇'} {agent.role}
+          </div>
+          <div className="sp-model">{agent.model} · tier {agent.tier}</div>
+        </div>
+        <button className="sp-close" onClick={onClose}>✕</button>
+      </div>
+      <div className="sp-body">
+        <div className="sp-stats">
+          {[['Tokens',agent.tokens],['Uptime',agent.uptime],['Tier',`T${agent.tier}`]].map(([l,v])=>(
+            <div key={l} className="sp-stat-cell">
+              <div className="sp-stat-v" style={{color:c}}>{v}</div>
+              <div className="sp-stat-l">{l}</div>
+            </div>
+          ))}
+        </div>
+        <div className="sp-sec">
+          <div className="sp-sec-lbl">Current Task</div>
+          <div className="sp-task">{agent.task}</div>
+        </div>
+        <div className="sp-sec">
+          <div className="sp-sec-lbl">Recent Activity</div>
+          <div className="sp-tl">
+            {agent.activity.map((a,i)=>(
+              <div key={i} className="sp-tl-row">
+                <div className="sp-tl-dot" style={{background:c,boxShadow:`0 0 5px ${c}70`}}/>
+                <div className="sp-tl-msg">{a.msg}</div>
+                <div className="sp-tl-ts">{a.ts}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="sp-sec">
+          <div className="sp-sec-lbl">Quick Actions</div>
+          <div className="sp-quick">
+            {['Pause','Reset','Inspect','Log'].map(a=>(
+              <button key={a} className="sp-qbtn">{a}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="sp-footer">
+        <textarea className="sp-textarea" placeholder={`Dispatch to ${agent.name}…`}
+          value={msg} onChange={e=>setMsg(e.target.value)}
+          onKeyDown={e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey))send();}}/>
+        <div className="sp-send-row">
+          <span className="sp-hint">⌘↵ to send</span>
+          <button className="sp-send" onClick={send} style={{background:c,color:'#010402'}}>Send →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── SIDEBAR ─────────────────────────────────────────── */
+const NAV = {
+  MAIN:[
+    ['⊞','Dashboard'],['◻','Chat'],['▤','Files'],['⊡','Terminal'],
+    ['≡','Jobs'],['⊠','Tasks'],['◈','Conductor'],['⚙','Operations'],
+    ['⊛','Matrix3D',true],
+  ],
+  KNOWLEDGE:[['◎','Memory']],
+  SETTINGS:[['⚙','Settings'],['◇','Skills'],['⊗','MCP'],['◉','Profiles']],
+};
+function Sidebar() {
+  return (
+    <div className="sb">
+      <div className="sb-hdr">
+        <div className="sb-brand">
+          <div className="sb-logo">H</div>
+          <div className="sb-info">
+            <div className="sb-name">Hermes</div>
+            <div className="sb-ver">V2.3.8</div>
+          </div>
+        </div>
+        <button className="sb-chevron">‹</button>
+      </div>
+      <div className="sb-search">
+        <span className="sb-search-ico">⌕</span>
+        <input placeholder="Search"/>
+        <span className="sb-search-cmd">⌘K</span>
+      </div>
+      <button className="sb-new">+ New Session</button>
+      <div className="sb-nav">
+        {Object.entries(NAV).map(([sec,items])=>(
+          <div key={sec}>
+            <div className="sb-section">{sec}</div>
+            {items.map(([ico,lbl,active])=>(
+              <div key={lbl} className={`sb-item${active?' active':''}`}>
+                <span className="sb-item-ico">{ico}</span>
+                <span className="sb-item-lbl">{lbl}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="sb-footer">
+        <div className="sb-stat">CPU <b style={{color:'var(--m-text-muted)'}}>39%</b></div>
+        <div className="sb-stat">RAM <b style={{color:'var(--m-text-muted)'}}>16GB</b></div>
+        <div className="sb-stat">DISK <b style={{color:'var(--m-warning)'}}>78%</b></div>
+        <div className="sb-stat">● <b style={{color:'var(--m-green-500)'}}>HERMES</b></div>
+      </div>
+    </div>
+  );
+}
+
+/* ── CANVAS PLACEHOLDER ──────────────────────────────── */
+function CanvasZone({ agentCount }) {
+  return (
+    <div className="canvas-zone">
+      <div className="canvas-grid"/>
+      <div className="canvas-glow"/>
+      <div className="canvas-title-bar">
+        <div className="canvas-title-line"/>
+        <span className="canvas-title">Matrix3D Office</span>
+        <div className="canvas-title-line r"/>
+      </div>
+      <div className="canvas-ph">
+        <div className="canvas-ph-ico">
+          <svg width="80" height="54" viewBox="0 0 80 54" fill="none">
+            <rect x="8" y="18" width="64" height="30" rx="3" stroke="#00ff41" strokeWidth="1.5"/>
+            <rect x="16" y="10" width="48" height="8" rx="2" stroke="#00ff41" strokeWidth="1.5" opacity=".5"/>
+            <rect x="18" y="28" width="12" height="14" rx="2" fill="#00ff41" opacity=".25"/>
+            <rect x="34" y="28" width="12" height="14" rx="2" fill="#00ff41" opacity=".18"/>
+            <rect x="50" y="28" width="12" height="14" rx="2" fill="#00ff41" opacity=".12"/>
+          </svg>
+        </div>
+      </div>
+      <div className="canvas-bottom-bar">
+        <div className="canvas-dot"/>
+        <span style={{color:'rgba(0,255,65,.6)',fontFamily:'var(--m-font-mono)',fontSize:10}}>0 working</span>
+        <span className="canvas-sep">·</span>
+        <span style={{fontFamily:'var(--m-font-mono)',fontSize:10}}>{agentCount} idle</span>
+        <span className="canvas-sep">·</span>
+        <span style={{fontFamily:'var(--m-font-mono)',fontSize:10}}>0 error</span>
+        <span style={{marginLeft:'auto',opacity:.4,fontFamily:'var(--m-font-mono)',fontSize:9}}>quiet · drag · scroll · space+drag · dbl-click</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── TWEAKS ──────────────────────────────────────────── */
+function Tweaks({ tw, set }) {
+  const [open, setOpen] = useState(false);
+  const seg = (key, opts) => (
+    <div className="tw-row">
+      <span className="tw-lbl">{{speed:'Speed',bubbles:'Bubbles',accent:'Accent'}[key]}</span>
+      <div className="tw-seg">
+        {opts.map(o=><button key={o} className={tw[key]===o?'on':''} onClick={()=>set(p=>({...p,[key]:o}))}>{o}</button>)}
+      </div>
+    </div>
+  );
+  return <>
+    <button className="tw-fab" onClick={()=>setOpen(o=>!o)} title="Tweaks">
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+        <circle cx="6.5" cy="6.5" r="2.2" stroke="currentColor" strokeWidth="1.3"/>
+        <line x1="6.5" y1="1" x2="6.5" y2="3.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+        <line x1="6.5" y1="9.8" x2="6.5" y2="12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+        <line x1="1" y1="6.5" x2="3.2" y2="6.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+        <line x1="9.8" y1="6.5" x2="12" y2="6.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+      </svg>
+    </button>
+    {open && <div className="tw-panel">
+      <div className="tw-title">Tweaks</div>
+      {seg('speed',['1×','2×','5×'])}
+      {seg('bubbles',['On','Off'])}
+      {seg('accent',['Green','Amber','Ice'])}
+    </div>}
+  </>;
+}
+
+/* ── PAGE ────────────────────────────────────────────── */
+function Page() {
+  const [sel, setSel] = useState(null);
+  const [logs, setLogs] = useState(()=>LOG_SEED.map((e,i)=>({...e,id:i,ts:`14:2${i}:${String(i*3%60).padStart(2,'0')}`,isNew:false})));
+  const [tw, setTw] = useState({speed:'1×',bubbles:'On',accent:'Green'});
+  const poolRef = useRef(0);
+
+  const speedMs = tw.speed==='5×'?600:tw.speed==='2×'?1400:3200;
+
+  useEffect(()=>{
+    const id = setInterval(()=>{
+      const e = LOG_POOL[poolRef.current % LOG_POOL.length];
+      poolRef.current++;
+      const ne = {...e, id:mkId(), ts:ts(), isNew:true};
+      setLogs(p=>[...p.slice(-90), ne]);
+      setTimeout(()=>setLogs(p=>p.map(l=>l.isNew?{...l,isNew:false}:l)),250);
+    }, speedMs);
+    return ()=>clearInterval(id);
+  },[speedMs]);
+
+  useEffect(()=>{
+    const c = tw.accent==='Amber'?'#d6ff5f':tw.accent==='Ice'?'#5fcfff':'#00ff41';
+    document.documentElement.style.setProperty('--m-green-500',c);
+    document.documentElement.style.setProperty('--m-text-glow',`0 0 8px ${c}99`);
+    document.documentElement.style.setProperty('--m-glow-sm',`0 0 8px ${c}59`);
+  },[tw.accent]);
+
+  const dispatch = (agent, text) => {
+    const e = {agent:agent.name.split(' ')[0].toUpperCase(), aC:agent.color, type:'dispatch',
+      msg:`[YOU → ${agent.name}] "${text}"`, dur:'', id:mkId(), ts:ts(), isNew:true};
+    setLogs(p=>[...p.slice(-90), e]);
+    setTimeout(()=>setLogs(p=>p.map(l=>l.isNew?{...l,isNew:false}:l)),250);
+  };
+
+  return (
+    <div className="shell">
+      <Sidebar/>
+      <div className="main">
+        <CanvasZone agentCount={AGENTS.length}/>
+        <div className="bottom-zone">
+          <Roster agents={AGENTS} sel={sel} onSel={setSel} showBubble={tw.bubbles==='On'}/>
+          <Console logs={logs}/>
+          <SidePanel agent={sel} onClose={()=>setSel(null)} onDispatch={dispatch}/>
+        </div>
+      </div>
+      <Tweaks tw={tw} set={setTw}/>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Page/>);
+</script>
+</body>
+</html>
