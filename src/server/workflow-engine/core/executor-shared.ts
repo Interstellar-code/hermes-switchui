@@ -282,13 +282,16 @@ export async function loadCommandPrompt(
   // If not found in repo/home and app defaults enabled, search app defaults
   const loadDefaultCommands = config.defaults?.loadDefaultCommands ?? true;
   if (loadDefaultCommands) {
+    // Always check the inlined BUNDLED_COMMANDS first — it's statically
+    // generated at build time and present in both binary and dev builds.
+    // The previous binary-only gate made the 36 bundled defaults
+    // unreachable in `pnpm dev`, breaking every `command:` reference.
+    const bundledContent = BUNDLED_COMMANDS[commandName];
+    if (bundledContent) {
+      getLog().debug({ commandName }, 'command_loaded_bundled');
+      return { success: true, content: bundledContent };
+    }
     if (isBinaryBuild()) {
-      // Binary: check bundled commands
-      const bundledContent = BUNDLED_COMMANDS[commandName];
-      if (bundledContent) {
-        getLog().debug({ commandName }, 'command_loaded_bundled');
-        return { success: true, content: bundledContent };
-      }
       getLog().debug({ commandName }, 'command_bundled_not_found');
     } else {
       // Bun: load from filesystem (walk 1 level deep so `defaults/archon-*.md` resolves)
