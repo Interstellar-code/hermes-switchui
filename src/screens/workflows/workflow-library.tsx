@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { useUpsertWorkflowDefinition } from './use-workflows'
+import { NewWorkflowWizard } from './new-workflow-wizard'
 import type { WorkflowSummary } from './types'
 
 const ORIGIN_OPTIONS = [
@@ -11,189 +11,12 @@ const ORIGIN_OPTIONS = [
 
 type OriginFilter = 'all' | 'bundled' | 'user' | 'project'
 
-const YAML_TEMPLATE = `id: my-workflow
-name: My Workflow
-description: ""
-nodes:
-  - id: start
-    type: prompt
-    prompt: "Hello"
-`
-
-const ID_REGEX = /^[A-Za-z0-9_:.-]{1,128}$/
-
 function slugify(name: string): string {
   return name
     .replace(/\.ya?ml$/i, '')
     .replace(/[^A-Za-z0-9_:.-]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 128)
-}
-
-interface NewWorkflowModalProps {
-  initialYaml?: string
-  initialId?: string
-  onClose: () => void
-}
-
-function NewWorkflowModal({ initialYaml, initialId, onClose }: NewWorkflowModalProps) {
-  const [id, setId] = useState(initialId ?? '')
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [source, setSource] = useState<'user' | 'project'>('project')
-  const [yaml, setYaml] = useState(initialYaml ?? YAML_TEMPLATE)
-  const [serverError, setServerError] = useState<string | null>(null)
-
-  const upsert = useUpsertWorkflowDefinition()
-
-  const idValid = ID_REGEX.test(id)
-  const canSubmit = idValid && name.trim().length > 0 && yaml.trim().length > 0 && !upsert.isPending
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setServerError(null)
-    try {
-      await upsert.mutateAsync({ id, name: name.trim(), description: description.trim() || undefined, source, yaml })
-      onClose()
-    } catch (err) {
-      setServerError(err instanceof Error ? err.message : 'Unknown error')
-    }
-  }
-
-  return (
-    <div
-      className="wfrd-overlay"
-      style={{
-        position: 'fixed', inset: 0, zIndex: 1000,
-        background: 'rgba(0,0,0,0.55)', display: 'flex',
-        alignItems: 'center', justifyContent: 'center',
-      }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div
-        className="wfrd-modal"
-        style={{
-          background: 'var(--bg-2, #1a1a1a)', border: '1px solid var(--border, #333)',
-          borderRadius: 8, padding: '24px 28px', width: 560, maxWidth: '95vw',
-          maxHeight: '90vh', overflowY: 'auto',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 20 }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, flex: 1 }}>New Workflow Definition</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-muted, #888)', lineHeight: 1 }}
-            aria-label="Close"
-          >×</button>
-        </div>
-
-        <form onSubmit={(e) => { void handleSubmit(e) }}>
-          {/* ID */}
-          <div style={{ marginBottom: 14 }}>
-            <label className="wfrd-label" style={{ display: 'block', fontSize: 12, marginBottom: 4, color: 'var(--text-muted, #888)' }}>
-              ID <span style={{ color: 'var(--text-danger, #e55)' }}>*</span>
-            </label>
-            <input
-              className="wfrd-input"
-              type="text"
-              value={id}
-              onChange={(e) => setId(e.target.value)}
-              placeholder="my-workflow"
-              style={{ width: '100%', boxSizing: 'border-box' }}
-              required
-            />
-            {id.length > 0 && !idValid && (
-              <div style={{ color: 'var(--text-danger, #e55)', fontSize: 11, marginTop: 3 }}>
-                id must be 1–128 chars of [A-Za-z0-9_:.-]
-              </div>
-            )}
-          </div>
-
-          {/* Name */}
-          <div style={{ marginBottom: 14 }}>
-            <label className="wfrd-label" style={{ display: 'block', fontSize: 12, marginBottom: 4, color: 'var(--text-muted, #888)' }}>
-              Name <span style={{ color: 'var(--text-danger, #e55)' }}>*</span>
-            </label>
-            <input
-              className="wfrd-input"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="My Workflow"
-              style={{ width: '100%', boxSizing: 'border-box' }}
-              required
-            />
-          </div>
-
-          {/* Description */}
-          <div style={{ marginBottom: 14 }}>
-            <label className="wfrd-label" style={{ display: 'block', fontSize: 12, marginBottom: 4, color: 'var(--text-muted, #888)' }}>
-              Description
-            </label>
-            <input
-              className="wfrd-input"
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional description"
-              style={{ width: '100%', boxSizing: 'border-box' }}
-            />
-          </div>
-
-          {/* Source */}
-          <div style={{ marginBottom: 14 }}>
-            <label className="wfrd-label" style={{ display: 'block', fontSize: 12, marginBottom: 4, color: 'var(--text-muted, #888)' }}>
-              Source
-            </label>
-            <select
-              className="wfrd-select"
-              value={source}
-              onChange={(e) => setSource(e.target.value as 'user' | 'project')}
-              style={{ width: '100%', boxSizing: 'border-box' }}
-            >
-              <option value="project">project</option>
-              <option value="user">user</option>
-            </select>
-          </div>
-
-          {/* YAML */}
-          <div style={{ marginBottom: 18 }}>
-            <label className="wfrd-label" style={{ display: 'block', fontSize: 12, marginBottom: 4, color: 'var(--text-muted, #888)' }}>
-              YAML <span style={{ color: 'var(--text-danger, #e55)' }}>*</span>
-            </label>
-            <textarea
-              className="wfrd-yaml"
-              value={yaml}
-              onChange={(e) => setYaml(e.target.value)}
-              rows={18}
-              style={{
-                width: '100%', boxSizing: 'border-box',
-                fontFamily: 'monospace', fontSize: 12,
-                resize: 'vertical',
-              }}
-              required
-            />
-          </div>
-
-          {serverError && (
-            <div style={{ color: 'var(--text-danger, #e55)', fontSize: 12, marginBottom: 12 }}>
-              {serverError}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button type="button" className="wfr-btn-import" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="wfr-btn-new" disabled={!canSubmit}>
-              {upsert.isPending ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
 }
 
 export interface WorkflowLibraryProps {
@@ -303,7 +126,7 @@ export function WorkflowLibrary({
   return (
     <>
       {modalOpen && (
-        <NewWorkflowModal
+        <NewWorkflowWizard
           initialYaml={modalInitialYaml}
           initialId={modalInitialId}
           onClose={() => setModalOpen(false)}
