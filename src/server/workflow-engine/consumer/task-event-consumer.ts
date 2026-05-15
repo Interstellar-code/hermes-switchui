@@ -169,14 +169,16 @@ const SUMMARY_CAP = 10_000;
 
 function extractSummary(detail: HermesKanbanTaskDetail): string {
   // Field preference order:
-  //   1. task.result  — explicit final output written by the worker
-  //   2. task.summary — latest_summary digest populated by the gateway
-  //   3. task.body    — task description (fallback; avoids empty panel)
-  //   4. ""           — nothing useful available
+  //   1. task.result         — explicit final output written by the worker
+  //   2. task.latest_summary — digest populated by the gateway (most common)
+  //   3. task.summary        — alternate digest field name
+  //   4. task.body           — task description (fallback; avoids empty panel)
+  //   5. ""                  — nothing useful available
   // Cap at SUMMARY_CAP chars so a runaway worker can't bloat the DB.
   const task = detail.task;
   const candidates: Array<string | null | undefined> = [
     task.result,
+    task.latest_summary,
     task.summary,
     task.body,
   ];

@@ -68,6 +68,7 @@ export type HermesKanbanTask = {
   skills: Array<string> | string | null
   block_reason?: string | null
   summary?: string | null
+  latest_summary?: string | null
   age?: {
     created_age_seconds: number
     started_age_seconds: number | null
@@ -192,6 +193,7 @@ export type UpdateKanbanTaskInput = {
   result?: string | null
   block_reason?: string | null
   summary?: string | null
+  latest_summary?: string | null
   workspace_kind?: string | null
   workspace_path?: string | null
   skills?: Array<string> | null
