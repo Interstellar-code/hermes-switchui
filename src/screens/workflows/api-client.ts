@@ -6,6 +6,8 @@
  * default; no token plumbing needed here.
  */
 
+import type { ParsedWorkflow } from './types'
+
 export interface WorkflowDefinitionRow {
   id: string
   name: string
@@ -22,17 +24,15 @@ export interface WorkflowDefinitionRow {
 
 export async function listWorkflowDefinitions(params?: {
   source?: 'bundled' | 'user' | 'project'
-}): Promise<WorkflowDefinitionRow[]> {
+}): Promise<Array<WorkflowDefinitionRow>> {
   const qs = params?.source ? `?source=${encodeURIComponent(params.source)}` : ''
   const res = await fetch(`/api/workflow-definitions${qs}`)
   if (!res.ok) {
     throw new Error(`listWorkflowDefinitions failed (${res.status})`)
   }
-  const body = (await res.json()) as { definitions: WorkflowDefinitionRow[] }
+  const body = (await res.json()) as { definitions: Array<WorkflowDefinitionRow> }
   return body.definitions
 }
-
-import type { ParsedWorkflow } from './types'
 
 export interface WorkflowDefinitionParsedResponse {
   definition: WorkflowDefinitionRow
@@ -88,6 +88,31 @@ export interface NodeRunRow {
   completed_at: string | number | null
   summary: string | null
   error: string | null
+  approval_message?: string | null
+  approval_response?: string | null
+  approval_target?: string | null
+}
+
+export interface ApproveWorkflowInput {
+  node_run_id: string
+  decision: 'approved' | 'rejected'
+  response?: string
+}
+
+export async function approveWorkflowRun(
+  runId: string,
+  input: ApproveWorkflowInput,
+): Promise<{ ok: true; decision: 'approved' | 'rejected'; resumedRunId: string }> {
+  const res = await fetch(`/api/workflow-runs/${encodeURIComponent(runId)}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`approveWorkflowRun failed (${res.status}): ${text}`)
+  }
+  return (await res.json()) as { ok: true; decision: 'approved' | 'rejected'; resumedRunId: string }
 }
 
 export interface WorkflowEventRow {
@@ -100,9 +125,9 @@ export interface WorkflowEventRow {
 
 export interface WorkflowRunDetail {
   run: WorkflowRunRow
-  nodeRuns: NodeRunRow[]
-  events: WorkflowEventRow[]
-  phaseTransitions: PhaseTransition[]
+  nodeRuns: Array<NodeRunRow>
+  events: Array<WorkflowEventRow>
+  phaseTransitions: Array<PhaseTransition>
 }
 
 export async function getWorkflowRun(runId: string): Promise<WorkflowRunDetail> {
@@ -133,4 +158,49 @@ export async function launchWorkflowRun(input: LaunchWorkflowInput): Promise<{ r
     throw new Error(`launchWorkflowRun failed (${res.status}): ${text}`)
   }
   return (await res.json()) as { run: { id: string } }
+}
+
+export interface UpsertWorkflowDefinitionInput {
+  id: string
+  name: string
+  description?: string
+  source: 'user' | 'project'
+  scope_path?: string
+  yaml: string
+  version?: string
+  tags?: Array<string>
+}
+
+export interface UpsertWorkflowDefinitionError {
+  error: string
+}
+
+export async function upsertWorkflowDefinition(
+  input: UpsertWorkflowDefinitionInput,
+): Promise<{ definition: WorkflowDefinitionRow }> {
+  const res = await fetch('/api/workflow-definitions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({ error: `HTTP ${res.status}` }))) as UpsertWorkflowDefinitionError
+    throw Object.assign(new Error(body.error || `upsertWorkflowDefinition failed (${res.status})`), {
+      status: res.status,
+      serverError: body.error,
+    })
+  }
+  return (await res.json()) as { definition: WorkflowDefinitionRow }
+}
+
+export async function deleteWorkflowDefinition(id: string): Promise<void> {
+  const res = await fetch(`/api/workflow-definitions/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({ error: `HTTP ${res.status}` }))) as UpsertWorkflowDefinitionError
+    throw Object.assign(new Error(body.error || `deleteWorkflowDefinition failed (${res.status})`), {
+      status: res.status,
+    })
+  }
 }
