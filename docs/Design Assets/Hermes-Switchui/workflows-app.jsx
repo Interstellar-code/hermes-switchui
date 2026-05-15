@@ -960,12 +960,442 @@ function LaunchWizard({wf, onClose}) {
 }
 
 // ═══════════════════════════════════════════════════════
+// NEW WORKFLOW WIZARD
+// ═══════════════════════════════════════════════════════
+const NWZ_CHAT_INIT = [
+  {role:'assistant', msg:"Let's build a new workflow. Describe what you want it to do — the steps it should take, what triggers it, and what the output should look like."},
+];
+
+const TEMPLATE_STARTERS = [
+  {label:'Pipeline',   desc:'Linear chain of steps',       color:'#ffb454'},
+  {label:'Review',     desc:'Parallel review agents',      color:'#5ad3ff'},
+  {label:'Interactive',desc:'Human-in-the-loop checkpoints',color:'#b07cff'},
+  {label:'Specialist', desc:'Focused single-purpose task', color:'#00ff41'},
+];
+
+function NewWorkflowWizard({onClose, onCreated}) {
+  const [step, setStep]               = useState(1);
+  const [chatInput, setChatInput]     = useState('');
+  const [chatHistory, setChatHistory] = useState(NWZ_CHAT_INIT);
+  const [replied, setReplied]         = useState(false);
+  const [activeStart, setActiveStart] = useState('Scratch');
+
+  // config
+  const [wfName,      setWfName]      = useState('');
+  const [wfCategory,  setWfCategory]  = useState('pipeline');
+  const [wfDesc,      setWfDesc]      = useState('');
+  const [wfWhen,      setWfWhen]      = useState('');
+  const [wfTags,      setWfTags]      = useState('');
+  const [wfRequired,  setWfRequired]  = useState(['INPUT_DATA']);
+  const [wfOptional,  setWfOptional]  = useState(['OUTPUT_FORMAT']);
+  const [saveAs,      setSaveAs]      = useState('user');
+  const [newReqInput, setNewReqInput] = useState('');
+  const [newOptInput, setNewOptInput] = useState('');
+
+  const STEPS = ['Describe','Design','Configure','Save'];
+
+  const proposedDag = [
+    {id:'analyze',  label:'Analyze',    type:'prompt',  cx:60,  cy:50},
+    {id:'plan',     label:'Plan Steps', type:'prompt',  cx:195, cy:50},
+    {id:'execute',  label:'Execute',    type:'bash',    cx:330, cy:50},
+    {id:'validate', label:'Validate',   type:'bash',    cx:465, cy:50},
+    {id:'output',   label:'Output',     type:'command', cx:600, cy:50},
+  ];
+  const proposedEdges = [['analyze','plan'],['plan','execute'],['execute','validate'],['validate','output']];
+
+  const handleSend = () => {
+    if (!chatInput.trim()) return;
+    const userMsg = chatInput.trim();
+    const suggestedName = userMsg.split(' ').slice(0,3)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    setChatHistory(h => [...h,
+      {role:'user', msg: userMsg},
+      {role:'assistant', msg: `Understood — mapping this as a **5-node pipeline**: analyze → plan → execute → validate → output.\n\nSuggested name: **${suggestedName} Workflow**\n\nI'll pre-fill the configuration in step 3. Ready to review the proposed DAG?`},
+    ]);
+    setChatInput('');
+    if (!wfName)  setWfName(suggestedName + ' Workflow');
+    if (!wfDesc)  setWfDesc(userMsg.slice(0, 90));
+    if (!wfWhen)  setWfWhen(`Use when you need to ${userMsg.slice(0,120).toLowerCase()}.`);
+    if (!wfTags)  setWfTags('custom');
+    setReplied(true);
+  };
+
+  const slugName = (wfName || 'my-workflow').toLowerCase().replace(/\s+/g, '-');
+  const savePath = saveAs === 'user'
+    ? `~/.hermes/workflows/user/${slugName}.yaml`
+    : `.hermes/workflows/${slugName}.yaml`;
+
+  const generatedYaml = [
+    `name: ${slugName}`,
+    `description: |`,
+    `  ${wfDesc || 'Custom workflow'}`,
+    `version: "1.0.0"`,
+    `source: ${saveAs}`,
+    ``,
+    `required_inputs:`,
+    ...wfRequired.map(r => `  - ${r}`),
+    ``,
+    `optional_inputs:`,
+    ...wfOptional.map(o => `  - ${o}`),
+    ``,
+    `when_to_use: |`,
+    `  ${wfWhen || 'Use for custom automation tasks.'}`,
+    ``,
+    `nodes:`,
+    `  analyze:`,
+    `    type: prompt`,
+    `    provider: hermes`,
+    `    outputs: [analysis, summary]`,
+    ``,
+    `  plan-steps:`,
+    `    type: prompt`,
+    `    provider: claude`,
+    `    depends_on: [analyze]`,
+    `    outputs: [plan, steps]`,
+    ``,
+    `  execute:`,
+    `    type: bash`,
+    `    depends_on: [plan-steps]`,
+    `    outputs: [result]`,
+    ``,
+    `  validate:`,
+    `    type: bash`,
+    `    depends_on: [execute]`,
+    `    outputs: [validated, errors]`,
+    ``,
+    `  output:`,
+    `    type: command`,
+    `    depends_on: [validate]`,
+    `    outputs: [final_output]`,
+  ].join('\n');
+
+  function YamlLine({line, idx}) {
+    const keyMatch = line.match(/^(\s*)([\w-]+)(:)(.*)$/);
+    if (keyMatch) {
+      const [,indent,key,colon,rest] = keyMatch;
+      const valColor = rest.trim().startsWith('"') || rest.trim().startsWith("'") ? '#5fcfff' : 'var(--m-text-muted)';
+      return <span><span style={{color:'var(--m-text-ghost)'}}>{indent}</span><span style={{color:'var(--m-green-500)'}}>{key}</span><span style={{color:'var(--m-text-ghost)'}}>{colon}</span><span style={{color:valColor}}>{rest}</span>{'\n'}</span>;
+    }
+    if (line.trim().startsWith('-')) return <span style={{color:'#5fcfff'}}>{line}{'\n'}</span>;
+    if (line.trim().startsWith('#')) return <span style={{color:'var(--m-text-ghost)'}}>{line}{'\n'}</span>;
+    return <span style={{color:'var(--m-text-faint)'}}>{line}{'\n'}</span>;
+  }
+
+  return (
+    <div className="wizard-scrim" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div className="wizard-modal">
+
+        {/* ── Header ── */}
+        <div className="wz-head">
+          <div className="wz-icon" style={{background:'rgba(0,255,65,.08)',borderColor:'var(--m-green-500)',color:'var(--m-green-500)',boxShadow:'0 0 10px rgba(0,255,65,.4)'}}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><path d="M12 5v14M5 12h14"/></svg>
+          </div>
+          <div>
+            <h2>New Workflow</h2>
+            <div className="wz-sub">Create a workflow definition · Step {step} of 4 — {STEPS[step-1]}</div>
+          </div>
+          <button className="wz-close" onClick={onClose}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="15" height="15"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        {/* ── Step bar ── */}
+        <div className="wz-steps">
+          <div className="wz-steps-line"></div>
+          {STEPS.map((l,i) => {
+            const n=i+1, cls=n<step?'done':n===step?'cur':'';
+            return (
+              <div key={n} className={`wz-step ${cls}`}>
+                <div className="wz-dot">{n<step?'✓':n}</div>
+                <div className="wz-lbl">{l}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Body ── */}
+        <div className="wz-body">
+
+          {/* Step 1 — Describe */}
+          {step===1 && (
+            <div className="wz-plan">
+              {/* Left: start options */}
+              <div className="plan-summary">
+                <div className="ps-title" style={{marginBottom:'10px'}}>Start from…</div>
+                <div style={{display:'grid', gap:'6px'}}>
+                  {[
+                    {l:'Scratch',      d:'Describe from scratch',         c:'var(--m-green-500)'},
+                    {l:'Duplicate',    d:'Copy an existing workflow',      c:'#5ad3ff'},
+                    {l:'Template',     d:'Use a workflow pattern',         c:'#b07cff'},
+                    {l:'Import YAML',  d:'Upload a .yaml file',            c:'#ffb454'},
+                  ].map(({l,d,c}) => (
+                    <div key={l}
+                      onClick={()=>setActiveStart(l)}
+                      style={{
+                        padding:'9px 11px',
+                        border:`1px solid ${activeStart===l ? c : 'var(--m-border-subtle)'}`,
+                        borderLeft:`2px solid ${activeStart===l ? c : 'var(--m-border-subtle)'}`,
+                        borderRadius:'5px',
+                        background: activeStart===l ? `color-mix(in srgb, ${c} 7%, transparent)` : 'var(--m-bg)',
+                        cursor:'pointer',
+                        transition:'all 120ms',
+                      }}
+                    >
+                      <div style={{font:'600 11px var(--m-font-mono)', color: activeStart===l ? c : 'var(--m-text)', marginBottom:'2px'}}>{l}</div>
+                      <div style={{font:'400 10px var(--m-font-sans)', color:'var(--m-text-ghost)'}}>{d}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {TEMPLATE_STARTERS.length > 0 && (
+                  <div style={{marginTop:'14px'}}>
+                    <div className="act-lbl" style={{marginBottom:'7px'}}>Patterns</div>
+                    <div style={{display:'grid', gap:'5px'}}>
+                      {TEMPLATE_STARTERS.map(({label,desc,color}) => (
+                        <div key={label} style={{display:'flex',alignItems:'center',gap:'8px',padding:'5px 8px',border:'1px solid var(--m-border-subtle)',borderRadius:'4px',background:'var(--m-bg)',cursor:'pointer'}}>
+                          <span style={{width:'6px',height:'6px',borderRadius:'50%',background:color,boxShadow:`0 0 5px ${color}`,flexShrink:0}}></span>
+                          <span style={{font:'600 10.5px var(--m-font-mono)',color:'var(--m-text-muted)',flex:1}}>{label}</span>
+                          <span style={{font:'400 9.5px var(--m-font-sans)',color:'var(--m-text-ghost)'}}>{desc}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right: chat */}
+              <div className="plan-chat">
+                <div className="chat-msgs">
+                  {chatHistory.map((m,i) => (
+                    <div key={i} className={`chat-msg ${m.role}`}>
+                      <span className="chat-who">{m.role==='assistant' ? 'Hermes' : 'You'}</span>
+                      <div className="chat-text">
+                        {m.msg.split('\n').map((line,j) => <p key={j}>{line}</p>)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="chat-input-row">
+                  <input
+                    className="chat-inp"
+                    placeholder="Describe your workflow in plain language…"
+                    value={chatInput}
+                    onChange={e=>setChatInput(e.target.value)}
+                    onKeyDown={e=>e.key==='Enter' && handleSend()}
+                  />
+                  <button className="btn-mini prim" onClick={handleSend}>Send</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2 — Design */}
+          {step===2 && (
+            <div className="wz-route">
+              <div className="route-note">Proposed DAG structure based on your description. You can rename nodes and adjust in the next step.</div>
+              <div style={{marginTop:'8px', padding:'14px 12px', background:'var(--m-bg-deep)', border:'1px solid var(--m-border-subtle)', borderRadius:'6px'}}>
+                <DagSvg dag={proposedDag} edges={proposedEdges}/>
+              </div>
+              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', marginTop:'6px'}}>
+                <div className="panel-card">
+                  <div className="pc-head">Node Breakdown</div>
+                  <div className="pc-body node-breakdown">
+                    {[['prompt',2],['bash',2],['command',1]].map(([t,n]) => (
+                      <div key={t} className="nb-row">
+                        <span className="nb-dot" style={{background:NODE_COLOR[t],boxShadow:`0 0 5px ${NODE_COLOR[t]}`}}></span>
+                        <span className="nb-type">{t}</span>
+                        <span className="nb-n">{n}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="panel-card">
+                  <div className="pc-head">Estimates</div>
+                  <div className="pc-body node-breakdown">
+                    {[['Nodes','5'],['DAG Depth','4'],['Parallelism','1'],['Est. time','3–6 min']].map(([k,v]) => (
+                      <div key={k} className="nb-row">
+                        <span className="nb-type" style={{flex:1}}>{k}</span>
+                        <span className="nb-n">{v}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div style={{marginTop:'6px', font:'400 11px var(--m-font-sans)', color:'var(--m-text-faint)', padding:'8px 12px', border:'1px solid rgba(0,255,65,.15)', borderLeft:'2px solid var(--m-green-500)', borderRadius:'4px', background:'rgba(0,255,65,.03)', lineHeight:'1.5'}}>
+                Node types and agent assignments are auto-inferred. You can override them after creation in the YAML editor.
+              </div>
+            </div>
+          )}
+
+          {/* Step 3 — Configure */}
+          {step===3 && (
+            <div className="wz-schedule">
+              <div style={{display:'grid', gap:'13px'}}>
+
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px'}}>
+                  <div>
+                    <div className="act-lbl" style={{marginBottom:'6px'}}>Workflow Name</div>
+                    <input className="form-inp" style={{width:'100%', boxSizing:'border-box'}}
+                      value={wfName} onChange={e=>setWfName(e.target.value)} placeholder="My Custom Workflow"/>
+                  </div>
+                  <div>
+                    <div className="act-lbl" style={{marginBottom:'6px'}}>Category</div>
+                    <select className="form-sel" style={{width:'100%', boxSizing:'border-box'}}
+                      value={wfCategory} onChange={e=>setWfCategory(e.target.value)}>
+                      {Object.keys(CAT_COLOR).map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="act-lbl" style={{marginBottom:'6px'}}>Description</div>
+                  <textarea className="wtu-editor" style={{minHeight:'56px'}}
+                    value={wfDesc} onChange={e=>setWfDesc(e.target.value)}
+                    placeholder="Short description of what this workflow does"/>
+                </div>
+
+                <div>
+                  <div className="act-lbl" style={{marginBottom:'6px'}}>
+                    Tags <span style={{color:'var(--m-text-ghost)',fontWeight:400,textTransform:'none',letterSpacing:0,fontSize:'9px'}}> · comma-separated</span>
+                  </div>
+                  <input className="form-inp" style={{width:'100%', boxSizing:'border-box'}}
+                    value={wfTags} onChange={e=>setWfTags(e.target.value)} placeholder="e.g. pipeline, pr, custom"/>
+                </div>
+
+                <div>
+                  <div className="act-lbl" style={{marginBottom:'6px'}}>Required Inputs</div>
+                  <div style={{display:'grid', gap:'4px', marginBottom:'6px'}}>
+                    {wfRequired.map((r,i) => (
+                      <div key={i} className="input-row req" style={{padding:'5px 8px'}}>
+                        <span className="ir-name">{r}</span>
+                        <button onClick={()=>setWfRequired(a=>a.filter((_,j)=>j!==i))}
+                          style={{background:'none',border:'none',color:'#ff5fa2',cursor:'pointer',font:'600 12px var(--m-font-mono)',padding:'0 4px',lineHeight:1}}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{display:'flex', gap:'6px'}}>
+                    <input className="form-inp" style={{flex:1, padding:'5px 9px', fontSize:'11px', boxSizing:'border-box'}}
+                      value={newReqInput} onChange={e=>setNewReqInput(e.target.value.toUpperCase())}
+                      placeholder="NEW_INPUT_NAME"
+                      onKeyDown={e=>{if(e.key==='Enter'&&newReqInput.trim()){setWfRequired(a=>[...a,newReqInput.trim()]);setNewReqInput('');}}}/>
+                    <button className="btn-mini" onClick={()=>{if(newReqInput.trim()){setWfRequired(a=>[...a,newReqInput.trim()]);setNewReqInput('');}}}>+ Add</button>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="act-lbl" style={{marginBottom:'6px'}}>Optional Inputs</div>
+                  <div style={{display:'grid', gap:'4px', marginBottom:'6px'}}>
+                    {wfOptional.map((o,i) => (
+                      <div key={i} className="input-row" style={{padding:'5px 8px'}}>
+                        <span className="ir-name">{o}</span>
+                        <button onClick={()=>setWfOptional(a=>a.filter((_,j)=>j!==i))}
+                          style={{background:'none',border:'none',color:'#ff5fa2',cursor:'pointer',font:'600 12px var(--m-font-mono)',padding:'0 4px',lineHeight:1}}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{display:'flex', gap:'6px'}}>
+                    <input className="form-inp" style={{flex:1, padding:'5px 9px', fontSize:'11px', boxSizing:'border-box'}}
+                      value={newOptInput} onChange={e=>setNewOptInput(e.target.value.toUpperCase())}
+                      placeholder="OPTIONAL_INPUT_NAME"
+                      onKeyDown={e=>{if(e.key==='Enter'&&newOptInput.trim()){setWfOptional(a=>[...a,newOptInput.trim()]);setNewOptInput('');}}}/>
+                    <button className="btn-mini" onClick={()=>{if(newOptInput.trim()){setWfOptional(a=>[...a,newOptInput.trim()]);setNewOptInput('');}}}>+ Add</button>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="act-lbl" style={{marginBottom:'6px'}}>When to Use</div>
+                  <textarea className="wtu-editor" style={{minHeight:'68px'}}
+                    value={wfWhen} onChange={e=>setWfWhen(e.target.value)}
+                    placeholder="Describe when Hermes should route tasks to this workflow…"/>
+                </div>
+
+                <div>
+                  <div className="act-lbl" style={{marginBottom:'7px'}}>Save As</div>
+                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px'}}>
+                    {[
+                      {v:'user',    l:'User Workflow',    d:'Personal · ~/.hermes/workflows/user/'},
+                      {v:'project', l:'Project Workflow', d:'Scoped to current project'},
+                    ].map(({v,l,d}) => (
+                      <label key={v} className={`sched-opt${saveAs===v?' sel':''}`} onClick={()=>setSaveAs(v)} style={{cursor:'pointer'}}>
+                        <input type="radio" name="nwz-saveas" value={v} checked={saveAs===v} onChange={()=>setSaveAs(v)}/>
+                        <div>
+                          <div className="so-label">{l}</div>
+                          <div className="so-desc">{d}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* Step 4 — Save */}
+          {step===4 && (
+            <div className="wz-confirm">
+              <div className="confirm-card">
+                <div className="cc-row"><span className="cc-k">Name</span><span className="cc-v">{wfName || 'my-workflow'}</span></div>
+                <div className="cc-row"><span className="cc-k">Category</span><span className="cc-v" style={{color:CAT_COLOR[wfCategory]||'#00ff41'}}>{wfCategory}</span></div>
+                <div className="cc-row"><span className="cc-k">Nodes</span><span className="cc-v">5 nodes · depth 4 · parallelism 1</span></div>
+                <div className="cc-row"><span className="cc-k">Required</span><span className="cc-v" style={{color:'#5fcfff'}}>{wfRequired.join(', ') || '—'}</span></div>
+                <div className="cc-row"><span className="cc-k">Optional</span><span className="cc-v" style={{color:'var(--m-text-faint)'}}>{wfOptional.join(', ') || '—'}</span></div>
+                <div className="cc-row"><span className="cc-k">Save path</span><span className="cc-v" style={{font:'500 10.5px var(--m-font-mono)',color:'var(--m-text-faint)',wordBreak:'break-all'}}>{savePath}</span></div>
+              </div>
+
+              <div className="panel-card" style={{overflow:'hidden'}}>
+                <div className="pc-head">
+                  Generated YAML
+                  <button className="btn-mini" style={{marginLeft:'auto',padding:'2px 8px'}}>Copy</button>
+                </div>
+                <div style={{overflowY:'auto', maxHeight:'220px'}}>
+                  <pre style={{margin:0, padding:'12px 14px', font:'400 11px/1.7 var(--m-font-mono)', background:'var(--m-bg-deep)', whiteSpace:'pre-wrap', wordBreak:'break-word'}}>
+                    {generatedYaml.split('\n').map((line,i) => <YamlLine key={i} line={line} idx={i}/>)}
+                  </pre>
+                </div>
+              </div>
+
+              <div className="confirm-note">
+                This definition will be saved to <b>{savePath}</b> and appear immediately in your library under the <b>{saveAs}</b> scope. You can edit the YAML directly after creation.
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* ── Footer ── */}
+        <div className="wz-foot">
+          <span className="wz-foot-step">Step {step} / 4</span>
+          <div className="wz-nav">
+            {step>1 && (
+              <button className="btn-mini" onClick={()=>setStep(s=>s-1)}>← Back</button>
+            )}
+            {step<4 && (
+              <button className="btn-mini prim" onClick={()=>setStep(s=>s+1)}>Next →</button>
+            )}
+            {step===4 && (
+              <button className="btn-mini prim" style={{minWidth:'160px'}}
+                onClick={()=>{ onCreated && onCreated({name:wfName, category:wfCategory, saveAs}); onClose(); }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="12" height="12"><path d="M20 6L9 17l-5-5"/></svg>
+                Save Workflow
+              </button>
+            )}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
 // ROOT APP
 // ═══════════════════════════════════════════════════════
 function WorkflowsApp() {
-  const [selected, setSelected] = useState(WORKFLOWS[0]);
-  const [launching, setLaunching] = useState(false);
-  const [libCollapsed, setLibCollapsed] = useState(false);
+  const [selected,      setSelected]      = useState(WORKFLOWS[0]);
+  const [launching,     setLaunching]     = useState(false);
+  const [newWizardOpen, setNewWizardOpen] = useState(false);
+  const [libCollapsed,  setLibCollapsed]  = useState(false);
 
   React.useEffect(()=>{
     const shell = document.querySelector('.wf-shell');
@@ -978,7 +1408,7 @@ function WorkflowsApp() {
         workflows={WORKFLOWS}
         selected={selected}
         onSelect={setSelected}
-        onNew={()=>setSelected(null)}
+        onNew={()=>setNewWizardOpen(true)}
         onImport={()=>{}}
         collapsed={libCollapsed}
         setCollapsed={setLibCollapsed}
@@ -987,6 +1417,15 @@ function WorkflowsApp() {
       <ActionsPanel wf={selected} onLaunch={()=>setLaunching(true)}/>
       {launching && selected && (
         <LaunchWizard wf={selected} onClose={()=>setLaunching(false)}/>
+      )}
+      {newWizardOpen && (
+        <NewWorkflowWizard
+          onClose={()=>setNewWizardOpen(false)}
+          onCreated={({name, category, saveAs})=>{
+            // In a real implementation this would persist to disk.
+            // Here we just close the wizard.
+          }}
+        />
       )}
     </>
   );
