@@ -1,4 +1,8 @@
-export function WorkflowsTopBar() {
+interface WorkflowsTopBarProps {
+  templateCount?: number
+}
+
+export function WorkflowsTopBar({ templateCount = 0 }: WorkflowsTopBarProps) {
   return (
     <header className="wf-top">
       <div className="crumbs">
@@ -6,11 +10,11 @@ export function WorkflowsTopBar() {
         <span className="sep">›</span>
         <span className="cur">Workflows</span>
         <span className="sep">·</span>
-        <span>template library · static</span>
+        <span>template library · live</span>
       </div>
       <div className="health">
         <div className="stat">
-          <span className="v ok">0</span>
+          <span className="v ok">{templateCount}</span>
           <span className="l">templates</span>
         </div>
         <div className="stat">
