@@ -25,7 +25,7 @@ export function OperationsTopBar() {
   return (
     <header className="ops-top">
       <div className="crumbs">
-        <span>Workspace</span>
+        <span>Switch UI</span>
         <span className="sep">›</span>
         <span className="cur">Operations</span>
         <span className="sep">·</span>

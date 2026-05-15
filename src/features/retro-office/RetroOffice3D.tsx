@@ -5163,7 +5163,7 @@ export function RetroOffice3D({
   }, [officeCenterSignal, overviewPreset]);
 
   return (
-    <div className="relative w-full h-full bg-[#1a1008] font-mono text-white overflow-hidden">
+    <div className="relative w-full h-full bg-[#010b05] font-mono text-white overflow-hidden">
       {/* 3D Canvas — fills everything. */}
       <div
         className="absolute inset-0"

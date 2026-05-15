@@ -1,5 +1,5 @@
 /**
- * Agora — shared types for the Hermes Workspace community surface.
+ * Agora — shared types for the Hermes Switch UI community surface.
  *
  * v0.0: local mock lobby with fake users.
  * v0.1+: same types will be used for real WebSocket multiplayer.
@@ -41,7 +41,7 @@ export interface AgoraProfile {
   status: AgoraStatus
   /** Optional links (twitter, github, etc) */
   links?: { label: string; url: string }[]
-  /** Current activity hint, e.g. "Building Hermes Workspace" */
+  /** Current activity hint, e.g. "Building Hermes Switch UI" */
   activity?: string
 }
 
@@ -90,4 +90,4 @@ export const DEFAULT_WORLD: AgoraWorld = {
   theme: 'agora',
 }
 
-export const AGORA_PROFILE_STORAGE_KEY = 'hermes-workspace-agora-profile'
+export const AGORA_PROFILE_STORAGE_KEY = 'hermes-switchui-agora-profile'

@@ -188,7 +188,7 @@ export function useAgoraRoom({
       'anyone testing the voice POC?',
       'where do I drop bug reports',
       'love the Greek pantheon',
-      'just installed Hermes Workspace, hi everyone',
+      'just installed Hermes Switch UI, hi everyone',
     ]
     let cancelled = false
     const tick = () => {

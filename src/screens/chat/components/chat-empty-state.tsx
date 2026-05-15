@@ -86,7 +86,7 @@ export function ChatEmptyState({
           className="micro-label mb-2"
           style={{ color: 'var(--theme-muted)' }}
         >
-          Hermes Workspace
+          Hermes Switch UI
         </p>
 
         {/* Editorial display title */}

@@ -138,7 +138,7 @@ export async function fetchMcpGet(signal?: AbortSignal): Promise<McpGetResult> {
   // Build request headers with conditional-GET
   const headers: Record<string, string> = {
     Accept: 'application/json',
-    'User-Agent': 'hermes-workspace/1.0 mcp-hub',
+    'User-Agent': 'hermes-switchui/1.0 mcp-hub',
   }
   if (cached?.etag) {
     headers['If-None-Match'] = cached.etag

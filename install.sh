@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Hermes Workspace — one-liner installer
+# Hermes Switch UI — one-liner installer
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/outsourc-e/hermes-workspace/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Interstellar-code/hermes-switchui/main/install.sh | bash
 #
 # What it does:
 #   1. Verifies Node 22+, git, pnpm
 #   2. Installs hermes-agent via Nous's official upstream installer
-#   3. Clones hermes-workspace
+#   3. Clones hermes-switchui
 #   4. Sets up .env, enables the Hermes API server, installs deps,
 #      and links bundled skills
 #
@@ -15,8 +15,8 @@
 
 set -euo pipefail
 
-REPO_URL="${REPO_URL:-https://github.com/outsourc-e/hermes-workspace.git}"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/hermes-workspace}"
+REPO_URL="${REPO_URL:-https://github.com/Interstellar-code/hermes-switchui.git}"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/hermes-switchui}"
 GATEWAY_PORT="${GATEWAY_PORT:-8642}"
 NOUS_INSTALLER_URL="${NOUS_INSTALLER_URL:-https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh}"
 
@@ -35,7 +35,7 @@ banner() {
 
    ╭────────────────────────────────────────────╮
    │  HERMES WORKSPACE — zero-fork installer   │
-   │  outsourc-e/hermes-workspace               │
+   │  Interstellar-code/hermes-switchui               │
    ╰────────────────────────────────────────────╯
 
 EOF
@@ -134,7 +134,7 @@ else
   if ! command -v hermes &>/dev/null; then
     red "  hermes-agent installed, but 'hermes' is not on PATH in this shell."
     yellow "  Open a new shell (or: source ~/.bashrc / ~/.zshrc) and re-run:"
-    yellow "    curl -fsSL https://hermes-workspace.com/install.sh | bash"
+    yellow "    curl -fsSL https://hermes-switchui.com/install.sh | bash"
     exit 1
   fi
   green "  hermes-agent installed ✓ ($(command -v hermes))"
@@ -142,7 +142,7 @@ fi
 
 # ─── clone workspace ──────────────────────────────────────────────────────
 
-cyan "→ Cloning hermes-workspace…"
+cyan "→ Cloning hermes-switchui…"
 if [[ -d "$INSTALL_DIR/.git" ]]; then
   yellow "  $INSTALL_DIR exists; pulling latest"
   git -C "$INSTALL_DIR" pull --ff-only

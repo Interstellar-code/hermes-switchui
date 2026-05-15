@@ -693,7 +693,7 @@ function Tree({ rows, openDirs, toggleDir, activeId, onPick, q, setQ, collapsed,
         </div>
         <div className="tree-rail">
           <span className="badge-n">{rows.filter(r => r.type==='file').length}</span>
-          <span className="vlabel">Workspace</span>
+          <span className="vlabel">Switch UI</span>
         </div>
         <div/>
       </aside>
@@ -704,7 +704,7 @@ function Tree({ rows, openDirs, toggleDir, activeId, onPick, q, setQ, collapsed,
   return (
     <aside className="tree">
       <div className="tree-head">
-        <h3>Workspace</h3><span className="ct">{fileCt + dirCt}</span>
+        <h3>Switch UI</h3><span className="ct">{fileCt + dirCt}</span>
         <span className="actions">
           <span className="ico-btn" title="Refresh">{Ico.refresh}</span>
           <span className="ico-btn" title="Upload">{Ico.upload}</span>

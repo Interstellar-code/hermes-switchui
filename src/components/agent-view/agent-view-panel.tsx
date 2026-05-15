@@ -103,7 +103,7 @@ const STATE_GLOW: Record<string, string> = {
 // ── Usage helpers (inline in OrchestratorCard) ─────────────────────────────
 
 const USAGE_POLL_MS = 30_000
-const PREFERRED_PROVIDER_KEY_OC = 'hermes-workspace-preferred-provider'
+const PREFERRED_PROVIDER_KEY_OC = 'hermes-switchui-preferred-provider'
 
 type OcUsageLine = {
   type: 'progress' | 'text' | 'badge'

@@ -1,4 +1,4 @@
-# Hermes Workspace — Comprehensive Features Inventory
+# Hermes Switch UI — Comprehensive Features Inventory
 
 > **Version:** 2.0.0 | **Stack:** React 19 + TanStack Start/Router + Vite 7 + Tailwind CSS 4 + Zustand + xterm.js + Monaco Editor  
 > **Description:** Desktop workspace for Hermes Agent — chat, orchestration, and multi-agent coding pipelines
@@ -685,7 +685,7 @@ pnpm stop:stable   # Stop via scripts/stop-stable.sh
 ### 10.4 Docker Compose
 
 - **hermes-agent** container — Python FastAPI gateway on port 8642
-- **hermes-workspace** container — Node.js web UI on port 3000
+- **hermes-switchui** container — Node.js web UI on port 3000
 - Health checks with retries
 - Environment file passthrough
 
@@ -736,4 +736,4 @@ pnpm stop:stable   # Stop via scripts/stop-stable.sh
 
 ---
 
-_Generated from codebase analysis of `/Users/aurora/hermes-workspace/`_
+_Generated from codebase analysis of `/Users/aurora/hermes-switchui/`_

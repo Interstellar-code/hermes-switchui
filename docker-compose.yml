@@ -1,4 +1,4 @@
-# Hermes Workspace + Agent — Docker Compose Setup
+# Hermes Switch UI + Agent — Docker Compose Setup
 #
 # Requirements:
 #   - Docker & Docker Compose
@@ -15,7 +15,7 @@
 # Images:
 #   This file pulls pre-built images by default — no local build required.
 #     - nousresearch/hermes-agent:latest  (Hermes Agent, Dockerfile upstream)
-#     - ghcr.io/outsourc-e/hermes-workspace:latest  (this workspace)
+#     - ghcr.io/interstellar-code/hermes-switchui:latest  (this workspace)
 #
 #   To build from source instead (e.g. for development), use:
 #     docker compose -f docker-compose.yml -f docker-compose.dev.yml up
@@ -80,10 +80,10 @@ services:
     ports:
       - '8642:8642'
 
-  # The Hermes Workspace Web UI
+  # The Hermes Switch UI Web UI
   # Connects to hermes-agent at http://hermes-agent:8642
-  hermes-workspace:
-    image: ghcr.io/outsourc-e/hermes-workspace:latest
+  hermes-switchui:
+    image: ghcr.io/interstellar-code/hermes-switchui:latest
     depends_on:
       hermes-agent:
         condition: service_healthy

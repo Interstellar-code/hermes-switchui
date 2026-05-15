@@ -165,7 +165,9 @@ export function inferLiveMatch(
       key === 'default' ||
       key.startsWith('api-') ||
       name.includes('hermes workspace') ||
-      task.includes('hermes workspace')
+      task.includes('hermes workspace') ||
+      name.includes('hermes switch ui') ||
+      task.includes('hermes switch ui')
 
     if (shouldMapWorkspaceChatToHermesSwitch) {
       if (looksLikeWorkspaceChat) return agent

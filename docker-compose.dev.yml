@@ -1,4 +1,4 @@
-# Hermes Workspace — Development Overlay
+# Hermes Switch UI — Development Overlay
 #
 # Builds the Workspace image from local source instead of pulling the
 # pre-built GHCR image. Use when iterating on Workspace code (server,
@@ -20,7 +20,7 @@
 # the workspace service so local source is compiled instead of pulled.
 
 services:
-  hermes-workspace:
+  hermes-switchui:
     build:
       context: .
       dockerfile: ./Dockerfile

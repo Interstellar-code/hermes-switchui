@@ -1,12 +1,12 @@
 # Docker
 
-Hermes Workspace + Hermes Agent in containers.
+Hermes Switch UI + Hermes Agent in containers.
 
 ## TL;DR (single-host, localhost-only)
 
 ```bash
-git clone https://github.com/outsourc-e/hermes-workspace
-cd hermes-workspace
+git clone https://github.com/Interstellar-code/hermes-switchui
+cd hermes-switchui
 cp .env.example .env
 # add at least one provider key (e.g. OPENROUTER_API_KEY=...)
 docker compose up -d
@@ -16,7 +16,7 @@ open http://localhost:3000
 That's it. The repo's `docker-compose.yml` runs:
 
 - `hermes-agent` (port `8642`, internal only)
-- `hermes-workspace` (port `3000`, bound to `127.0.0.1`)
+- `hermes-switchui` (port `3000`, bound to `127.0.0.1`)
 
 The workspace waits for the agent's `/health` to return `200` before starting (via `depends_on: condition: service_healthy`). On a fresh laptop this takes about 15 seconds.
 
@@ -65,7 +65,7 @@ If the workspace shows "**Disconnected**" or "**Missing Hermes APIs detected**" 
 ### Step 1 — Verify the agent is reachable from inside the workspace container
 
 ```bash
-docker compose exec hermes-workspace sh
+docker compose exec hermes-switchui sh
 # inside the workspace container:
 curl -fsS http://hermes-agent:8642/health
 curl -fsS -H "Authorization: Bearer $HERMES_API_TOKEN" http://hermes-agent:8642/v1/models | head -c 200
@@ -77,7 +77,7 @@ If `/health` returns a JSON `{"status": "ok"}`, the agent is alive on the docker
 ### Step 2 — Confirm the workspace's environment
 
 ```bash
-docker compose exec hermes-workspace env | grep -E "HERMES_API|API_SERVER"
+docker compose exec hermes-switchui env | grep -E "HERMES_API|API_SERVER"
 ```
 
 You should see:
@@ -100,7 +100,7 @@ This re-runs the probe and returns the fresh capability map. If it now reads `mo
 The workspace logs the full capability summary on every probe. Look for the `[gateway]` line:
 
 ```bash
-docker compose logs hermes-workspace 2>&1 | grep '\[gateway\]' | tail -3
+docker compose logs hermes-switchui 2>&1 | grep '\[gateway\]' | tail -3
 ```
 
 A healthy log looks like:
@@ -145,11 +145,11 @@ API_SERVER_KEY=<long random>
 
 If you bind the agent to `0.0.0.0` on a NAS without `API_SERVER_KEY`, the agent will refuse to start. This is intentional — open-internet exposure of the agent's chat endpoint without auth would be a footgun.
 
-## Hermes Workspace + Hermes Agent: why two containers?
+## Hermes Switch UI + Hermes Agent: why two containers?
 
 The workspace is the **UI**. The agent is the **engine**. Splitting them lets you:
 
-- Update either independently (`docker compose pull hermes-workspace` etc.)
+- Update either independently (`docker compose pull hermes-switchui` etc.)
 - Run multiple workspaces against one agent (different ports)
 - Run the workspace on a tablet/phone while the agent stays on a beefy machine
 
@@ -157,10 +157,10 @@ The default compose colocates them for simplicity. The split-host setup above is
 
 ## Filing bugs
 
-If your setup matches the playbook above and still breaks, file an issue at <https://github.com/outsourc-e/hermes-workspace/issues> with:
+If your setup matches the playbook above and still breaks, file an issue at <https://github.com/Interstellar-code/hermes-switchui/issues> with:
 
 1. Your `docker-compose.yml` (redact secrets)
-2. The output of `docker compose logs hermes-workspace 2>&1 | grep '\[gateway\]' | tail -5`
+2. The output of `docker compose logs hermes-switchui 2>&1 | grep '\[gateway\]' | tail -5`
 3. The output of `curl -fsS http://<workspace-host>:3000/api/gateway-reprobe -X POST` (also redact)
 
 That gets us to the actual cause within a couple of comments instead of a long back-and-forth.

@@ -31,7 +31,7 @@ function resolveClaudeAgentDir(env: Record<string, string>): string | null {
     candidates.push(env.CLAUDE_AGENT_PATH.trim())
   }
 
-  // Resolve relative to the workspace root (parent of hermes-workspace/)
+  // Resolve relative to the workspace root (parent of hermes-switchui/)
   const workspaceRoot = dirname(resolve('.'))
   candidates.push(
     resolve(workspaceRoot, 'hermes-agent'), // sibling (old README)
@@ -154,7 +154,7 @@ const config = defineConfig(({ mode, command }) => {
       console.warn(
         '[hermes-agent] Could not find hermes-agent installation.\n' +
           '  Run the installer:\n' +
-          '    curl -fsSL https://hermes-workspace.com/install.sh | bash\n' +
+          '    curl -fsSL https://hermes-switchui.com/install.sh | bash\n' +
           '  Or set CLAUDE_AGENT_PATH in .env to point at your hermes-agent clone.',
       )
       return
@@ -513,7 +513,7 @@ const config = defineConfig(({ mode, command }) => {
         ],
       },
       proxy: {
-        // WebSocket proxy: clients connect to /ws-claude on the Hermes Workspace
+        // WebSocket proxy: clients connect to /ws-claude on the Hermes Switch UI
         // server (any IP/port), which internally forwards to the local server.
         // This means phone/LAN/Docker users never need to reach port 18789 directly.
         '/ws-claude': {

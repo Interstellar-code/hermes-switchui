@@ -270,7 +270,7 @@ export function readWorkspaceUpdateStatus(
   if (installKind === 'desktop') {
     return {
       id: 'workspace',
-      label: 'Hermes Workspace',
+      label: 'Hermes Switch UI',
       installKind,
       version,
       path: repoPath,
@@ -290,7 +290,7 @@ export function readWorkspaceUpdateStatus(
   if (installKind === 'docker') {
     return {
       id: 'workspace',
-      label: 'Hermes Workspace',
+      label: 'Hermes Switch UI',
       installKind,
       version,
       path: repoPath,
@@ -310,7 +310,7 @@ export function readWorkspaceUpdateStatus(
   if (!gitRepo) {
     return {
       id: 'workspace',
-      label: 'Hermes Workspace',
+      label: 'Hermes Switch UI',
       installKind: 'unknown',
       version,
       path: repoPath,
@@ -328,7 +328,7 @@ export function readWorkspaceUpdateStatus(
 
   const remoteUrl = git(['remote', 'get-url', 'origin'], gitRepo)
   const repoMatches = remoteUrlMatches(remoteUrl, [
-    'hermes-workspace',
+    'hermes-switchui',
     'outsourc-e/hermes-workspace',
   ])
   if (repoMatches) git(['fetch', 'origin', '--quiet'], gitRepo, 30_000)
@@ -350,7 +350,7 @@ export function readWorkspaceUpdateStatus(
 
   return {
     id: 'workspace',
-    label: 'Hermes Workspace',
+    label: 'Hermes Switch UI',
     installKind: 'git',
     version,
     path: repoPath,
@@ -372,15 +372,15 @@ export function readWorkspaceUpdateStatus(
               : 'blocked'
             : 'current',
     reason: !repoMatches
-      ? 'Workspace origin remote does not look like hermes-workspace.'
+      ? 'Switch UI origin remote does not look like hermes-switchui.'
       : !supportedBranch
-        ? 'Workspace one-click updates are only enabled on main/master branches.'
+        ? 'Switch UI one-click updates are only enabled on main/master branches.'
         : dirty
-          ? 'Workspace checkout has local changes. Commit, stash, or remove the listed files before updating.'
+          ? 'Switch UI checkout has local changes. Commit, stash, or remove the listed files before updating.'
           : updateAvailable && !canSync
-            ? 'Workspace update could not verify the remote branch ref.'
+            ? 'Switch UI update could not verify the remote branch ref.'
             : updateAvailable && !ff
-              ? 'Workspace branch diverged from origin. One-click update will realign to the remote branch.'
+              ? 'Switch UI branch diverged from origin. One-click update will realign to the remote branch.'
               : null,
     blockingFiles: dirty ? listDirtyFiles(gitRepo) : undefined,
     updateMode: 'git-ff',
@@ -574,7 +574,7 @@ export function applyWorkspaceUpdate(): ApplyUpdateResult {
   const releaseNotes = [
     {
       product: 'workspace' as const,
-      label: 'Hermes Workspace',
+      label: 'Hermes Switch UI',
       from: before.currentHead,
       to: after.currentHead,
       commits: readCommits(

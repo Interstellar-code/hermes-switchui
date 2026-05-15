@@ -73,7 +73,7 @@ describe('scoreLiveMatch', () => {
 
     const activeHermesChat = {
       id: '20260515_082812_543c16ef',
-      name: 'Hermes Workspace',
+      name: 'Hermes Switch UI',
       task: 'All three are back: Neo infra health, Trinity deep dive, Morpheus architecture.',
       model: 'auto',
       status: 'running',

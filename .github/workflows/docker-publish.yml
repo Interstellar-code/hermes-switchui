@@ -1,9 +1,9 @@
 name: Build & publish Docker image
 
-# Publishes Hermes Workspace to GitHub Container Registry (GHCR) so users
+# Publishes Hermes Switch UI to GitHub Container Registry (GHCR) so users
 # can deploy via Coolify / Easypanel / Dokploy / any Docker host with:
 #
-#   image: ghcr.io/outsourc-e/hermes-workspace:latest
+#   image: ghcr.io/interstellar-code/hermes-switchui:latest
 #
 # Triggers:
 #   - push to main        -> tags: latest, main, main-<sha>
@@ -62,7 +62,7 @@ jobs:
           context: .
           file: ./Dockerfile
           load: true
-          tags: hermes-workspace:smoke
+          tags: hermes-switchui:smoke
           cache-from: type=gha
 
       - name: Smoke test container startup
@@ -73,7 +73,7 @@ jobs:
             -p 127.0.0.1:3000:3000 \
             -e HERMES_API_URL=http://127.0.0.1:8642 \
             -e CLAUDE_PASSWORD=ci-smoke-test-password \
-            hermes-workspace:smoke)
+            hermes-switchui:smoke)
           trap 'docker logs "$cid" || true; docker rm -f "$cid" || true' EXIT
 
           for _ in $(seq 1 30); do

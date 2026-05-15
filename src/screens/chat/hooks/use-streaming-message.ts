@@ -877,7 +877,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
             model: params.model || undefined,
             locale:
               typeof window !== 'undefined'
-                ? localStorage.getItem('hermes-workspace-locale') || 'en'
+                ? localStorage.getItem('hermes-switchui-locale') || 'en'
                 : 'en',
           }),
           signal: abortController.signal,

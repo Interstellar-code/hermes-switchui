@@ -214,7 +214,7 @@ export async function fetchGenericJson(
 
   const headers: Record<string, string> = {
     Accept: 'application/json',
-    'User-Agent': 'hermes-workspace/1.0 mcp-hub',
+    'User-Agent': 'hermes-switchui/1.0 mcp-hub',
   }
   if (cached?.etag) {
     headers['If-None-Match'] = cached.etag

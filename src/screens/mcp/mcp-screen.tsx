@@ -414,7 +414,7 @@ export function McpScreen() {
         <div className="mcp-top">
           <div>
             <div className="mcp-crumbs">
-              Hermes Workspace<span className="mcp-sep">·</span>MCP
+              Hermes Switch UI<span className="mcp-sep">·</span>MCP
             </div>
             <h1>MCP Servers</h1>
             <div className="mcp-sub">

@@ -195,7 +195,7 @@ function readSessionName(session: GatewaySession): string {
     const persona = assignPersona(key, taskText)
     return `${persona.emoji} ${persona.name} — ${persona.role}`
   }
-  if (isWorkspaceChatSession(session)) return 'Hermes Workspace'
+  if (isWorkspaceChatSession(session)) return 'Hermes Switch UI'
   // Assign persona based on session key + task for named agent display
   const key = readSessionKey(session)
   const taskText =

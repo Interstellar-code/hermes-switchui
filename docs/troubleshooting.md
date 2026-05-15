@@ -1,4 +1,4 @@
-# Troubleshooting — Hermes Workspace
+# Troubleshooting — Hermes Switch UI
 
 Common setup issues and how to fix them.
 
@@ -45,7 +45,7 @@ After fixing, restart the gateway: `hermes gateway run --replace`
 
 1. Is the gateway running? `pgrep -af "claude.*gateway"`
 2. Is port 8642 bound? `curl -sf http://127.0.0.1:8642/health`
-3. Is Workspace `.env` correct? `grep HERMES_API_URL ~/hermes-workspace/.env`
+3. Is Workspace `.env` correct? `grep HERMES_API_URL ~/hermes-switchui/.env`
    - Should be: `HERMES_API_URL=http://127.0.0.1:8642`
 4. Restart Workspace: `pnpm dev`
 
@@ -87,7 +87,7 @@ hermes gateway run
 # Wait until you see "Uvicorn running on http://127.0.0.1:8642"
 
 # Terminal 2 — then start workspace
-cd ~/hermes-workspace && pnpm dev
+cd ~/hermes-switchui && pnpm dev
 ```
 
 ---
@@ -128,7 +128,7 @@ echo "=== claude env (redacted) ===" && grep -E "^(API_SERVER|CLAUDE_)" "$(claud
 echo "=== gateway process ===" && pgrep -af "claude.*gateway" 2>&1 || echo "not running"
 echo "=== port 8642 ===" && (ss -tlnp 2>/dev/null || lsof -iTCP:8642 -sTCP:LISTEN 2>/dev/null) | grep 8642 || echo "not bound"
 echo "=== health check ===" && curl -sf http://127.0.0.1:8642/health 2>&1 || echo "not reachable"
-echo "=== workspace .env ===" && grep CLAUDE ~/hermes-workspace/.env 2>&1 || echo "no .env"
+echo "=== workspace .env ===" && grep CLAUDE ~/hermes-switchui/.env 2>&1 || echo "no .env"
 echo "=== OS ===" && uname -a
 echo "=== Node ===" && node --version
 echo "=== Python ===" && python3 --version 2>&1

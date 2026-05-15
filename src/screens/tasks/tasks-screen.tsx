@@ -622,7 +622,7 @@ export function TasksScreen() {
       {/* ── Breadcrumb strip (TS-01 / TS-02 / TS-03) ── */}
       <header className="tk-top">
         <div className="crumbs" aria-label="Breadcrumb">
-          <span>Workspace</span><span className="sep" aria-hidden="true">/</span>
+          <span>Switch UI</span><span className="sep" aria-hidden="true">/</span>
           <span className="cur">Tasks</span><span className="sep" aria-hidden="true">/</span>
           <span>Kanban</span>
         </div>

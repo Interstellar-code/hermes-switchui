@@ -117,7 +117,7 @@ async function main() {
       }
       res.end()
     } catch (error) {
-      console.error('[Hermes Workspace desktop] SSR error:', error)
+      console.error('[Hermes Switch UI desktop] SSR error:', error)
       res.writeHead(500, { 'Content-Type': 'text/plain' })
       res.end('Internal Server Error')
     }
@@ -125,13 +125,13 @@ async function main() {
 
   server.listen(PORT, '127.0.0.1', () => {
     console.log(
-      `[Hermes Workspace desktop] server listening on http://127.0.0.1:${PORT}`,
+      `[Hermes Switch UI desktop] server listening on http://127.0.0.1:${PORT}`,
     )
     if (process.send) process.send({ type: 'ready', port: PORT })
   })
 }
 
 main().catch((error) => {
-  console.error('[Hermes Workspace desktop] fatal:', error)
+  console.error('[Hermes Switch UI desktop] fatal:', error)
   process.exit(1)
 })

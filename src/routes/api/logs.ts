@@ -33,7 +33,7 @@ async function readLocalLogs(file: 'agent' | 'gateway', lines: number): Promise<
   const candidates = [
     join(getWorkspaceClaudeHome(), 'logs', filename),
     file === 'gateway' ? '/tmp/hermes-switchui-gateway.log' : '',
-    file === 'gateway' ? '/tmp/hermes-workspace-gateway.log' : '',
+    file === 'gateway' ? '/tmp/hermes-switchui-gateway.log' : '',
   ].filter(Boolean)
 
   for (const path of candidates) {
