@@ -51,15 +51,35 @@
 
 > **Priority shift:** /workflows page is the core surface for everything we just built. Tighten it end-to-end BEFORE touching Conductor/Operations. Only after /workflows is polished + tested do we tackle the Mission-bridge design decisions for Conductor.
 
-### B.4-extended — /workflows page deep wiring (NEXT)
+### B.4-extended — /workflows page deep wiring — STATUS (May 15)
 
-1. **Approval action in Run-Detail Panel** — when run.status === 'paused' AND a node_run has approval_message set, show Approve / Reject buttons calling `POST /api/workflow-runs/:runId/approve`. Surface approval_message + capture optional response text. Critical UX: currently A.5 backend is wired but no UI to drive it.
-2. **Definition CRUD UI** — "+ New Workflow" button currently logs to console. Build: YAML editor modal → POST /api/workflow-definitions → reload list. "Import YAML" button similar with file picker. Add delete confirm (backend currently 501 — also implement the DELETE on store + route).
-3. **Per-workflow run history** — Editor's "History" tab (currently shows live events for the active conversation) should also list ALL runs of THIS workflow_id. Add `GET /api/workflow-runs?workflow_id=X` already works; wire a hook + table.
-4. **Library card stats** — `last_used_at`, `run_count` are zero today. Need a stats endpoint OR include aggregate in list response.
-5. **Launch Wizard variable form** — `required_inputs` / `optional_inputs` from parsed endpoint are empty arrays today. Either ship a `vars:` schema extension on workflow YAML and parse it OR leave wizard with the free-form "user message" only (current).
-6. **YAML editor UX** — syntax highlighting + inline validation feedback (call POST /api/workflow-definitions with a "validate-only" mode that returns parse errors without writing).
-7. **Cron schedule UI** — schedule a workflow from /workflows. Surfaces the A.4 cron triggers feature.
+**End-to-end execution verified.** A workflow launched via the UI now: dispatches a Kanban task with assignee `default`, the worker claims + runs it, the task reaches `done`, `node_runs.kanban_task_id` is persisted, and `node_runs.summary` is backfilled from `task.latest_summary`. Smoke-tested with `archon-assist` on May 15.
+
+| # | Task | Status | Commit(s) |
+|---|---|---|---|
+| 1 | **Approval action in Run-Detail Panel** | ✅ Shipped — amber card when `run.status==='paused'` and a node_run has `approval_message`; Approve/Reject → `POST /api/workflow-runs/:runId/approve`; optimistic + 2s polling refresh. API smoke-tested (200/409/400 cases). | `5d226b8e` |
+| 2 | **Definition CRUD UI** | ✅ Shipped — initial MVP modal (`c35d38ce`) then replaced with the 4-step `NewWorkflowWizard` from `docs/Design Assets/Hermes-Switchui/workflows-app.jsx`. Step 1 Describe (Start-from picker + Patterns chips + chat input pre-fills) + Step 4 Save (real form → POST /api/workflow-definitions) fully wired. Pattern chip → `tags[]` persisted. DELETE backend (`store.deleteWorkflowDefinition`) + manifest refresh + Delete-with-confirm in `workflow-actions.tsx`. Template + Duplicate pickers populate from `useWorkflowDefinitions`. | `c35d38ce`, `ecaaf33f`, `79d9591c`, `6dd0f397` |
+|  | └─ Step 2 DESIGN preview | ✅ Live read-only DAG preview from the current YAML (`parseDagFromYaml` → SVG canvas + Node Breakdown card + Estimates card). View-only by design — DAG editing happens in the YAML editor after creation. | `d8bd7468` |
+|  | └─ Step 3 CONFIGURE | 🟡 Placeholder — node/agent configuration surface deferred. |  |
+|  | └─ Hermes chat in Step 1 | ⏸ Mock-only — needs design call (LLM endpoint + conversation persistence). Memory: `project_workflow_wizard_hermes_chat_pending`. |  |
+| 3 | **Per-workflow run history** | ⏳ Deferred per user — `GET /api/workflow-runs?workflow_id=X` already supported by the backend; UI tab not yet wired. |  |
+| 4 | **Library card stats** | ✅ Shipped — list endpoint now LEFT JOINs `workflow_runs` for `run_count`/`last_used_at`; `node_count` computed by parsing each row's YAML at list time. Top-bar `TEMPLATES` badge counts live definitions. | `5600a4e2` |
+| 5 | **Launch Wizard variable form** | ⏳ Open — needs design call: ship a `vars:` YAML schema extension vs keep free-form user_message only. |  |
+| 6 | **YAML editor UX** | ⏸ Folded into wizard redesign — Step 4's textarea is intentionally plain pending the wizard polish. |  |
+| 7 | **Cron schedule UI** | ⏳ Open — A.4 cron-triggers backend is shipped; surface from /workflows still TBD. |  |
+
+### Workflow execution stack hardening (shipped May 15, parallel to B.4-extended)
+
+The first end-to-end smoke surfaced six real bugs in the engine → dispatcher → consumer chain. All fixed:
+
+| Bug | Symptom | Fix | Commit |
+|---|---|---|---|
+| `BUNDLED_COMMANDS` gated behind `isBinaryBuild()` | Every `command:` ref in `pnpm dev` failed with "Command prompt not found"; the 36 inlined defaults were unreachable in source builds | Always consult `BUNDLED_COMMANDS` after repo/home miss, regardless of build mode | `9b18d188` |
+| Dispatcher created tasks without `assignee` | Tasks landed in `ready` column and sat indefinitely; workers only claim tasks that have an assignee | Resolve `nodeConfig.assigned_agent` > `HERMES_DEFAULT_AGENT` env > hardcoded `'default'` | `fba85c71` |
+| `KanbanDispatcher` constructed at `engine.ts:196` with no `onTaskCreated` callback | `node_runs.kanban_task_id` stayed NULL forever even after successful dispatch; consumer never tracked new dispatches | Wire `onTaskCreated({kanbanTaskId, nodeRunId, workflowRunId}) → store.setNodeRunKanbanTaskId + consumer.track`; thread `node_run_id`/`workflow_run_id` via `nodeConfig` from dag-executor; pre-generate `nodeRunId` in `executeNodeInternal` | `7fd495e2` |
+| `nodeConfig.id` missing | Dispatcher fell back to nodeId `'anon'` → kanban title `workflow:dispatch`, idempotency key `anon-<ts>`; downstream `node_run_id` never read | Inject `id: node.id` into base `nodeConfig` at `buildProviderOptions` | `062cbee6` |
+| `extractSummary` chain didn't check `task.latest_summary` | Worker output (digest field used by Hermes Agent) never reached `node_runs.summary` | Add `latest_summary` to the candidates list + document on `HermesKanbanTaskDetail` | `11cae54b`, `373d2c1c` |
+| Consumer idempotency guard skipped writes after dispatcher's generator-exit | `summary` stayed empty whenever the dispatcher closed first (the normal happy path) | When peer already terminal but `summary` is empty AND fresh kanban detail has text, backfill the summary instead of skipping | `5772eec8` |
 
 ### Workstream B continued (AFTER /workflows lock-in)
 
