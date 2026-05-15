@@ -20,6 +20,9 @@ export interface WorkflowDefinitionRow {
   tags: string | null // JSON-encoded string[]
   created_at: number
   updated_at: number
+  node_count: number
+  run_count: number
+  last_used_at: number | null
 }
 
 export async function listWorkflowDefinitions(params?: {

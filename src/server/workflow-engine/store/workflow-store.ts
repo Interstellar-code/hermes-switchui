@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import { randomUUID } from "node:crypto";
+import { parse as parseYaml } from "yaml";
 import {
   WorkflowRun,
   WorkflowRunRow,
@@ -868,17 +869,49 @@ export class SwitchUiWorkflowStore {
     const conditions: string[] = [];
     const params: unknown[] = [];
     if (filter?.source) {
-      conditions.push("source=?");
+      conditions.push("d.source=?");
       params.push(filter.source);
     }
     if (filter?.scope_path) {
-      conditions.push("scope_path=?");
+      conditions.push("d.scope_path=?");
       params.push(filter.scope_path);
     }
     const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-    return this.db
-      .prepare(`SELECT * FROM workflow_definitions ${where} ORDER BY created_at ASC`)
+    const rows = this.db
+      .prepare(
+        `SELECT d.*,
+                COALESCE(r.run_count, 0) AS run_count,
+                r.last_used_at           AS last_used_at
+         FROM workflow_definitions d
+         LEFT JOIN (
+           SELECT workflow_id,
+                  COUNT(*)        AS run_count,
+                  MAX(started_at) AS last_used_at
+           FROM workflow_runs
+           GROUP BY workflow_id
+         ) r ON r.workflow_id = d.id
+         ${where}
+         ORDER BY d.name COLLATE NOCASE`
+      )
       .all(...params) as WorkflowDefinitionRow[];
+
+    return rows.map((row) => {
+      let node_count = 0;
+      try {
+        const parsed = parseYaml(row.yaml) as unknown;
+        if (
+          parsed !== null &&
+          typeof parsed === "object" &&
+          "nodes" in parsed &&
+          Array.isArray((parsed as Record<string, unknown>).nodes)
+        ) {
+          node_count = ((parsed as Record<string, unknown>).nodes as unknown[]).length;
+        }
+      } catch {
+        // keep 0
+      }
+      return { ...row, node_count };
+    });
   }
 
   // ----------------------------------------------------------

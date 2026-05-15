@@ -50,6 +50,10 @@ export interface WorkflowDefinitionRow {
   tags: string | null; // JSON array<string>
   created_at: number;
   updated_at: number;
+  // Derived/joined — populated by listWorkflowDefinitions; optional elsewhere.
+  node_count?: number;
+  run_count?: number;
+  last_used_at?: number | null;
 }
 
 export interface WorkflowRunRow {

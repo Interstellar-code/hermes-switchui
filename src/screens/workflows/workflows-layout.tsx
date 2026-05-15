@@ -57,7 +57,7 @@ export function WorkflowsLayout() {
 
   return (
     <>
-      <WorkflowsTopBar />
+      <WorkflowsTopBar templateCount={workflows.length} />
       <div className="wf-body">
         <aside className={`wf-library${railCollapsed ? ' is-collapsed' : ''}`}>
           <WorkflowLibrary
