@@ -2,14 +2,16 @@
  * NewWorkflowWizard — 4-step wizard for creating a workflow definition.
  *
  * Step 1 DESCRIBE  — fully wired: start-from picker, patterns chips, Hermes prompt panel, chat input
- * Step 2 DESIGN    — placeholder (TODO: DAG design surface)
+ * Step 2 DESIGN    — live read-only DAG preview (DagSvg + parseDagFromYaml)
  * Step 3 CONFIGURE — placeholder (TODO: node/agent configuration surface)
  * Step 4 SAVE      — real form: id, name, description, source, YAML → POST /api/workflow-definitions
  *
  * Design source: docs/Design Assets/Hermes-Switchui/workflows-app.jsx + Workflows.html
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { parse as parseYaml } from 'yaml'
 import { useUpsertWorkflowDefinition, useWorkflowDefinitions } from './use-workflows'
+import type { NodeType } from './types'
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -205,23 +207,288 @@ function DescribeStep({
   )
 }
 
-// ── Step 2: Design (placeholder) ────────────────────────────────────────────
+// ── Step 2: Design — live DAG preview ───────────────────────────────────────
 
-function DesignStep() {
-  // TODO: DAG design surface — node editor / visual builder goes here
-  return (
-    <div className="wfw-placeholder-pane">
-      <div className="wfw-placeholder-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" width="32" height="32">
-          <rect x="3" y="3" width="7" height="7" rx="1" />
-          <rect x="14" y="3" width="7" height="7" rx="1" />
-          <rect x="8" y="14" width="8" height="7" rx="1" />
-          <path d="M6.5 10v4M17.5 10v4M10.5 17.5H13" strokeDasharray="2 2" />
+/** Node type → Matrix neon color. Matches launch-wizard.tsx + workflow-editor.tsx palette. */
+const NODE_COLOR: Record<string, string> = {
+  prompt:   '#00ff41',
+  bash:     '#5ad3ff',
+  command:  '#bf97ff',
+  approval: '#ffb454',
+  router:   '#ff6b6b',
+  loop:     '#ffd700',
+}
+
+interface RawNode {
+  id: string
+  type: NodeType
+  depends_on?: Array<string>
+}
+
+interface DagInfo {
+  nodes: Array<RawNode>
+  node_count: number
+  depth: number
+  parallelism: number
+  node_type_counts: Record<string, number>
+  /** Positioned nodes for SVG: cx/cy = center point */
+  positioned: Array<{ id: string; type: string; cx: number; cy: number; layer: number }>
+  edges: Array<[string, string]>
+}
+
+interface DagError { error: string }
+
+/** Parse YAML string → DAG metrics + layout. Exported for smoke testing. */
+export function parseDagFromYaml(yamlStr: string): DagInfo | DagError {
+  try {
+    const parsed = parseYaml(yamlStr) as Record<string, unknown>
+    const rawNodes: Array<RawNode> = Array.isArray(parsed['nodes']) ? (parsed['nodes'] as Array<RawNode>) : []
+    const node_count = rawNodes.length
+
+    // Compute topo depth per node
+    const depthMap: Record<string, number> = {}
+    function nodeDepth(id: string, visited = new Set<string>()): number {
+      if (id in depthMap) return depthMap[id]
+      if (visited.has(id)) return 1 // cycle guard
+      visited.add(id)
+      const node = rawNodes.find((n) => n.id === id)
+      const deps = node?.depends_on ?? []
+      const d = deps.length === 0 ? 1 : 1 + Math.max(...deps.map((dep) => nodeDepth(dep, new Set(visited))))
+      depthMap[id] = d
+      return d
+    }
+    rawNodes.forEach((n) => nodeDepth(n.id))
+
+    const depth = rawNodes.length === 0 ? 0 : Math.max(...Object.values(depthMap))
+
+    // Group by layer for parallelism + layout
+    const layers: Record<number, Array<RawNode>> = {}
+    rawNodes.forEach((n) => {
+      const d = depthMap[n.id] ?? 1
+      ;(layers[d] ??= []).push(n)
+    })
+    const parallelism = Object.values(layers).reduce((m, l) => Math.max(m, l.length), 0)
+
+    const node_type_counts: Record<string, number> = {}
+    rawNodes.forEach((n) => {
+      node_type_counts[n.type] = (node_type_counts[n.type] ?? 0) + 1
+    })
+
+    // Layout: X by layer depth, Y by index within layer
+    const NODE_W = 110, NODE_H = 34
+    const LAYER_GAP = 140, ROW_GAP = 80, X_OFFSET = 60, Y_OFFSET = 50
+    const capped = rawNodes.slice(0, 30)
+    const positioned = capped.map((n) => {
+      const layer = depthMap[n.id] ?? 1
+      const layerNodes = layers[layer] ?? []
+      const idx = layerNodes.indexOf(n)
+      return {
+        id: n.id,
+        type: n.type,
+        cx: (layer - 1) * LAYER_GAP + X_OFFSET + NODE_W / 2,
+        cy: idx * ROW_GAP + Y_OFFSET,
+        layer,
+      }
+    })
+
+    // Edges from depends_on (capped set only)
+    const cappedIds = new Set(capped.map((n) => n.id))
+    const edges: Array<[string, string]> = []
+    capped.forEach((n) => {
+      ;(n.depends_on ?? []).forEach((dep) => {
+        if (cappedIds.has(dep)) edges.push([dep, n.id])
+      })
+    })
+
+    return { nodes: rawNodes, node_count, depth, parallelism, node_type_counts, positioned, edges }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+// ── DagSvg ───────────────────────────────────────────────────────────────────
+
+interface DagSvgProps {
+  dag: DagInfo
+  extraCount: number
+}
+
+function DagSvg({ dag, extraCount }: DagSvgProps) {
+  const { positioned, edges } = dag
+  if (positioned.length === 0) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 0', opacity: 0.5 }}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" width="36" height="36">
+          <rect x="3" y="8" width="6" height="8" rx="1" /><rect x="9" y="5" width="6" height="5" rx="1" />
+          <rect x="9" y="14" width="6" height="5" rx="1" /><rect x="15" y="8" width="6" height="8" rx="1" />
         </svg>
+        <div style={{ font: '500 11px var(--m-font-mono)', color: 'var(--m-text-faint)', textTransform: 'uppercase', letterSpacing: '.15em', marginTop: 10 }}>
+          Visual DAG — view only
+        </div>
+        <div style={{ font: '400 12px var(--m-font-sans)', color: 'var(--m-text-ghost)', marginTop: 4 }}>
+          No nodes defined
+        </div>
       </div>
-      <div className="wfw-placeholder-title">DAG Design Surface</div>
-      <div className="wfw-placeholder-desc">
-        Visual node editor and DAG builder coming soon. After creation you can edit nodes in the YAML editor.
+    )
+  }
+
+  const W = 110, H = 34, R = 5
+  const posMap: Map<string, { cx: number; cy: number }> = new Map()
+  positioned.forEach((n) => { posMap.set(n.id, { cx: n.cx, cy: n.cy }) })
+
+  const svgW = Math.max(...positioned.map((n) => n.cx + W / 2)) + 24
+  const svgH = Math.max(...positioned.map((n) => n.cy + H / 2)) + 24
+
+  return (
+    <div style={{ overflowX: 'auto', overflowY: 'hidden', width: '100%' }}>
+      <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', maxWidth: svgW, display: 'block' }}>
+        <defs>
+          <marker id="wz-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 2 L 8 5 L 0 8 z" fill="rgba(0,255,65,.35)" />
+          </marker>
+        </defs>
+
+        {/* edges */}
+        {edges.map(([a, b], i) => {
+          const s = posMap.get(a)
+          const t = posMap.get(b)
+          if (!s || !t) return null
+          const sx = s.cx + W / 2, sy = s.cy
+          const tx = t.cx - W / 2, ty = t.cy
+          const mx = (sx + tx) / 2
+          return (
+            <path
+              key={i}
+              d={`M${sx},${sy} C${mx},${sy} ${mx},${ty} ${tx},${ty}`}
+              fill="none"
+              stroke="rgba(0,255,65,.25)"
+              strokeWidth="1.5"
+              markerEnd="url(#wz-arrow)"
+            />
+          )
+        })}
+
+        {/* nodes */}
+        {positioned.map((n) => {
+          const c = NODE_COLOR[n.type] ?? '#00ff41'
+          return (
+            <g key={n.id} style={{ cursor: 'default' }}>
+              <rect
+                x={n.cx - W / 2} y={n.cy - H / 2} width={W} height={H} rx={R}
+                fill="rgba(4,16,8,.9)" stroke={c} strokeWidth="1"
+              />
+              <text
+                x={n.cx} y={n.cy - 4}
+                textAnchor="middle"
+                style={{ font: '600 10px var(--m-font-mono)', fill: c, letterSpacing: '.08em' }}
+              >
+                {n.id.length > 14 ? n.id.slice(0, 13) + '…' : n.id}
+              </text>
+              <text
+                x={n.cx} y={n.cy + 9}
+                textAnchor="middle"
+                style={{ font: '500 9px var(--m-font-mono)', fill: c, letterSpacing: '.12em', textTransform: 'uppercase', opacity: 0.7 }}
+              >
+                {n.type}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+
+      {/* +N more badge */}
+      {extraCount > 0 && (
+        <div style={{ font: '500 10px var(--m-font-mono)', color: 'var(--m-text-faint)', textAlign: 'center', marginTop: 4 }}>
+          +{extraCount} more nodes
+        </div>
+      )}
+
+      {/* Legend */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 14px', marginTop: 8, paddingTop: 6, borderTop: '1px solid var(--m-border-subtle)' }}>
+        {Object.entries(NODE_COLOR).map(([t, c]) => (
+          <span key={t} style={{ display: 'flex', alignItems: 'center', gap: 4, font: '400 10px var(--m-font-mono)', color: 'var(--m-text-faint)' }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: c, boxShadow: `0 0 4px ${c}`, display: 'inline-block' }} />
+            {t}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── DesignStep ────────────────────────────────────────────────────────────────
+
+interface DesignStepProps { yaml: string }
+
+function DesignStep({ yaml }: DesignStepProps) {
+  const dag = useMemo(() => parseDagFromYaml(yaml), [yaml])
+
+  if ('error' in dag) {
+    return (
+      <div className="wz-route">
+        <div style={{ padding: '10px 14px', background: 'rgba(255,90,90,.07)', border: '1px solid rgba(255,90,90,.25)', borderRadius: 6, font: '400 12px var(--m-font-mono)', color: '#ff5fa2' }}>
+          Could not parse YAML — fix it on Step 4 and come back.
+          <span style={{ color: 'var(--m-text-ghost)', display: 'block', marginTop: 4, fontSize: 11 }}>{dag.error}</span>
+        </div>
+      </div>
+    )
+  }
+
+  const extraCount = dag.node_count - dag.positioned.length
+  const typeCounts = Object.entries(dag.node_type_counts)
+  // Heuristic: ~1 min per node (rough estimate)
+  const estMin = dag.node_count
+
+  return (
+    <div className="wz-route">
+      <div className="route-note">Proposed DAG structure based on your YAML definition. Node types and layout are auto-computed.</div>
+
+      {/* SVG DAG canvas */}
+      <div style={{ marginTop: 8, padding: '14px 12px', background: 'var(--m-bg-deep)', border: '1px solid var(--m-border-subtle)', borderRadius: 6 }}>
+        <DagSvg dag={dag} extraCount={extraCount} />
+      </div>
+
+      {/* Breakdown + Estimates */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 6 }}>
+        <div className="panel-card">
+          <div className="pc-head">Node Breakdown</div>
+          <div className="pc-body node-breakdown">
+            {typeCounts.length === 0
+              ? <div className="nb-row"><span className="nb-type" style={{ color: 'var(--m-text-ghost)' }}>—</span></div>
+              : typeCounts.map(([t, n]) => {
+                const c = NODE_COLOR[t] ?? '#aaa'
+                return (
+                  <div key={t} className="nb-row">
+                    <span className="nb-dot" style={{ background: c, boxShadow: `0 0 5px ${c}` }} />
+                    <span className="nb-type">{t}</span>
+                    <span className="nb-n">{n}</span>
+                  </div>
+                )
+              })
+            }
+          </div>
+        </div>
+        <div className="panel-card">
+          <div className="pc-head">Estimates</div>
+          <div className="pc-body node-breakdown">
+            {([
+              ['Nodes', String(dag.node_count)],
+              ['DAG Depth', String(dag.depth)],
+              ['Parallelism', String(dag.parallelism)],
+              ['Est. time', `~${estMin} min`],
+            ] as Array<[string, string]>).map(([k, v]) => (
+              <div key={k} className="nb-row">
+                <span className="nb-type" style={{ flex: 1 }}>{k}</span>
+                <span className="nb-n">{v}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer banner */}
+      <div style={{ marginTop: 6, font: '400 11px var(--m-font-sans)', color: 'var(--m-text-faint)', padding: '8px 12px', border: '1px solid rgba(0,255,65,.15)', borderLeft: '2px solid var(--m-green-500)', borderRadius: 4, background: 'rgba(0,255,65,.03)', lineHeight: 1.5 }}>
+        Node types and agent assignments are auto-inferred. You can override them after creation in the YAML editor.
       </div>
     </div>
   )
@@ -576,7 +843,7 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
             />
           )}
 
-          {step === 2 && <DesignStep />}
+          {step === 2 && <DesignStep yaml={yaml} />}
 
           {step === 3 && <ConfigureStep />}
 
