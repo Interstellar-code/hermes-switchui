@@ -3,17 +3,24 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  approveWorkflowRun,
   cancelWorkflowRun,
+  deleteWorkflowDefinition,
   getWorkflowDefinitionParsed,
   getWorkflowRun,
   launchWorkflowRun,
   listWorkflowDefinitions,
-  type LaunchWorkflowInput,
-  type WorkflowDefinitionRow,
+  upsertWorkflowDefinition,
 } from './api-client'
-import { type VersionTier, type WorkflowSource, type WorkflowSummary } from './types'
+import type {
+  ApproveWorkflowInput,
+  LaunchWorkflowInput,
+  UpsertWorkflowDefinitionInput,
+  WorkflowDefinitionRow,
+} from './api-client';
+import type {VersionTier, WorkflowSource, WorkflowSummary} from './types';
 
-function parseTags(raw: string | null): string[] {
+function parseTags(raw: string | null): Array<string> {
   if (!raw) return []
   try {
     const parsed = JSON.parse(raw) as unknown
@@ -100,6 +107,36 @@ export function useCancelRun(runId: string) {
     mutationFn: () => cancelWorkflowRun(runId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['workflow-runs', runId] })
+    },
+  })
+}
+
+export function useApproveRun(runId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: ApproveWorkflowInput) => approveWorkflowRun(runId, input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['workflow-runs', runId] })
+    },
+  })
+}
+
+export function useUpsertWorkflowDefinition() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: UpsertWorkflowDefinitionInput) => upsertWorkflowDefinition(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['workflow-definitions'] })
+    },
+  })
+}
+
+export function useDeleteWorkflowDefinition() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteWorkflowDefinition(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['workflow-definitions'] })
     },
   })
 }

@@ -5,6 +5,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { getWorkflowEngine } from '../../server/workflow-engine';
+import { writeWorkflowsManifest } from '../../server/workflow-engine/runtime/manifest';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -31,9 +32,14 @@ export const Route = createFileRoute('/api/workflow-definitions/$id')({
         if (existing.source === 'bundled') {
           return json({ error: 'bundled definitions are read-only' }, 403);
         }
-        // No store helper yet — direct delete via the SwitchUiWorkflowStore would
-        // require exposing a method. v1 path: surface a TODO and refuse for now.
-        return json({ error: 'delete not yet supported in v1' }, 501);
+        const rowsAffected = store.deleteWorkflowDefinition(params.id);
+        if (rowsAffected === 0) return json({ error: 'not found' }, 404);
+        try {
+          writeWorkflowsManifest({ store });
+        } catch (err) {
+          console.error('[workflow-definitions] manifest refresh failed after delete:', err);
+        }
+        return json({ ok: true });
       },
     },
   },

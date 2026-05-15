@@ -1,8 +1,9 @@
-import { useWorkflowParsed } from './use-workflows'
+import { useDeleteWorkflowDefinition, useWorkflowParsed } from './use-workflows'
 
 interface WorkflowActionsProps {
   selectedId: string | null
   onOpenLaunchWizard: (workflowId: string) => void
+  onDeselect?: () => void
 }
 
 /** Deterministic pseudo-random 0-3 from workflow id string */
@@ -42,8 +43,9 @@ function SourceBadge({ source }: { source: string }) {
   )
 }
 
-export function WorkflowActions({ selectedId, onOpenLaunchWizard }: WorkflowActionsProps) {
+export function WorkflowActions({ selectedId, onOpenLaunchWizard, onDeselect }: WorkflowActionsProps) {
   const { data, isLoading } = useWorkflowParsed(selectedId)
+  const deleteMutation = useDeleteWorkflowDefinition()
 
   if (!selectedId) {
     return (
@@ -72,6 +74,13 @@ export function WorkflowActions({ selectedId, onOpenLaunchWizard }: WorkflowActi
 
   function handleLaunch() {
     onOpenLaunchWizard(def.id)
+  }
+
+  function handleDelete() {
+    if (!window.confirm(`Delete workflow "${def.name}"? This cannot be undone.`)) return
+    deleteMutation.mutate(def.id, {
+      onSuccess: () => { onDeselect?.() },
+    })
   }
 
   return (
@@ -119,8 +128,8 @@ export function WorkflowActions({ selectedId, onOpenLaunchWizard }: WorkflowActi
         <div className="wfa-delete-wrap" title={isBundled ? 'Bundled workflows cannot be deleted' : undefined}>
           <button
             className={`wfa-action-btn wfa-action-danger${isBundled ? ' wfa-disabled' : ''}`}
-            disabled={isBundled}
-            onClick={() => !isBundled && console.log('[WorkflowActions] delete', def.id)}
+            disabled={isBundled || deleteMutation.isPending}
+            onClick={handleDelete}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="12" height="12">
               <polyline points="3 6 5 6 21 6" />

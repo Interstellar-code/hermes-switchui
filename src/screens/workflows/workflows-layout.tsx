@@ -85,6 +85,7 @@ export function WorkflowsLayout() {
           <WorkflowActions
             selectedId={selectedWorkflowId}
             onOpenLaunchWizard={handleOpenLaunchWizard}
+            onDeselect={() => setSelectedWorkflowId(null)}
           />
         </aside>
       </div>

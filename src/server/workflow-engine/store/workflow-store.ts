@@ -855,6 +855,14 @@ export class SwitchUiWorkflowStore {
       );
   }
 
+  // Helper 5b: deleteWorkflowDefinition
+  deleteWorkflowDefinition(id: string): number {
+    const result = this.db
+      .prepare(`DELETE FROM workflow_definitions WHERE id=? AND source!='bundled'`)
+      .run(id);
+    return result.changes;
+  }
+
   // Helper 6: listWorkflowDefinitions
   listWorkflowDefinitions(filter?: ListWorkflowDefinitionsFilter): WorkflowDefinitionRow[] {
     const conditions: string[] = [];
