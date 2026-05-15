@@ -168,11 +168,22 @@ export function mapTerminalStatus(status: HermesKanbanStatus): TerminalNodeStatu
 const SUMMARY_CAP = 10_000;
 
 function extractSummary(detail: HermesKanbanTaskDetail): string {
-  // Field preference: result (explicit worker output) → body (task description)
-  // → "". Cap at SUMMARY_CAP chars so a runaway worker can't bloat the DB.
+  // Field preference order:
+  //   1. task.result  — explicit final output written by the worker
+  //   2. task.summary — latest_summary digest populated by the gateway
+  //   3. task.body    — task description (fallback; avoids empty panel)
+  //   4. ""           — nothing useful available
+  // Cap at SUMMARY_CAP chars so a runaway worker can't bloat the DB.
   const task = detail.task;
-  const raw = (typeof task.result === "string" && task.result.trim().length > 0)
-    ? task.result
-    : (typeof task.body === "string" ? task.body : "");
-  return raw.trim().slice(0, SUMMARY_CAP);
+  const candidates: Array<string | null | undefined> = [
+    task.result,
+    task.summary,
+    task.body,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim().length > 0) {
+      return c.trim().slice(0, SUMMARY_CAP);
+    }
+  }
+  return "";
 }
