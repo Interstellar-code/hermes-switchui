@@ -533,8 +533,27 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
                 onChange={(e) => handleDuplicateSelect(e.target.value)}
               >
                 <option value="" disabled>Select a workflow…</option>
+                {(existingWorkflows ?? []).map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}{w.source === 'bundled' ? ' (built-in)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {step === 1 && activeStart === 'Template' && (
+            <div style={{ marginBottom: 12 }}>
+              <label className="act-lbl" style={{ display: 'block', marginBottom: 6 }}>Start from a built-in template</label>
+              <select
+                className="wfrd-select"
+                style={{ width: '100%', boxSizing: 'border-box', marginBottom: 12 }}
+                defaultValue=""
+                onChange={(e) => handleDuplicateSelect(e.target.value)}
+              >
+                <option value="" disabled>Select a template…</option>
                 {(existingWorkflows ?? [])
-                  .filter((w) => w.source !== 'bundled')
+                  .filter((w) => w.source === 'bundled')
                   .map((w) => (
                     <option key={w.id} value={w.id}>{w.name}</option>
                   ))}
