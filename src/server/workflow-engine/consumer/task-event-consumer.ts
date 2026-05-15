@@ -130,8 +130,15 @@ export class TaskEventConsumer {
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     const peer = this.opts.store.findNodeRunById?.(entry.nodeRunId);
     if (peer && (peer.status === "completed" || peer.status === "failed" || peer.status === "cancelled")) {
-      // Already resolved by the live dispatcher / projector. Drop tracking,
-      // do not double-write.
+      // Already resolved by the dispatcher's generator-exit path (which
+      // writes status + completed_at but NOT summary — the dispatcher only
+      // sees the task at the moment status flips terminal, and worker
+      // digests like latest_summary can land after that). Backfill the
+      // summary if it's still empty so the user actually sees worker output.
+      const fresh = extractSummary(detail);
+      if (fresh && !(peer.summary ?? "").trim()) {
+        await this.opts.store.updateNodeRun(entry.nodeRunId, { summary: fresh });
+      }
       this.tracked.delete(entry.kanbanTaskId);
       return;
     }
