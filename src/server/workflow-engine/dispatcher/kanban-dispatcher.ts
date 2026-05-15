@@ -113,6 +113,13 @@ export class KanbanDispatcher implements IAgentProvider {
 
     const nodeSkills = options?.nodeConfig?.skills;
     const modelHint = options?.nodeConfig?.['model_hint'] as string | undefined;
+    // Resolution: explicit node-level assigned_agent > env HERMES_DEFAULT_AGENT
+    // > hardcoded 'default'. Hermes Kanban workers only claim tasks that have
+    // an assignee, so an unassigned task sits in `ready` indefinitely.
+    const assignee =
+      (options?.nodeConfig?.['assigned_agent'] as string | undefined) ||
+      process.env.HERMES_DEFAULT_AGENT ||
+      'default';
 
     // Build task title from nodeId; use prompt as body.
     const title = nodeId !== 'anon' ? `workflow:${nodeId}` : 'workflow:dispatch';
@@ -122,6 +129,7 @@ export class KanbanDispatcher implements IAgentProvider {
       body: modelHint ? `[model_hint:${modelHint}]\n\n${prompt}` : prompt,
       workspace_path: cwd || undefined,
       idempotency_key: idempotencyKey,
+      assignee,
       ...(nodeSkills && nodeSkills.length > 0 ? { skills: nodeSkills } : {}),
     };
 
