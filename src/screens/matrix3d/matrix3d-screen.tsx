@@ -348,7 +348,7 @@ function Matrix3DConsole({ entries, isLoading, isError, agentTabs }: { entries: 
 export function Matrix3DScreen() {
   const officeData = useMatrix3DOfficeData()
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
-  const [isSidePanelOpen, setIsSidePanelOpen] = useState(true)
+  const [isSidePanelOpen, setIsSidePanelOpen] = useState(false)
   const cardAgents = useMemo(
     () =>
       officeData.agents.map((agent, index) =>
@@ -361,9 +361,9 @@ export function Matrix3DScreen() {
     [officeData.agents, officeData.presence],
   )
   useEffect(() => {
-    if (!selectedAgentId && cardAgents[0]) setSelectedAgentId(cardAgents[0].id)
     if (selectedAgentId && !cardAgents.some((agent) => agent.id === selectedAgentId)) {
-      setSelectedAgentId(cardAgents[0]?.id ?? null)
+      setSelectedAgentId(null)
+      setIsSidePanelOpen(false)
     }
   }, [cardAgents, selectedAgentId])
   const selectedAgent = useMemo<Matrix3DSelectedAgent | null>(() => {
@@ -519,7 +519,10 @@ export function Matrix3DScreen() {
                     type="button"
                     className="matrix3d-side-close"
                     aria-label="Close agent details"
-                    onClick={() => setIsSidePanelOpen(false)}
+                    onClick={() => {
+                      setSelectedAgentId(null)
+                      setIsSidePanelOpen(false)
+                    }}
                   >
                     ×
                   </button>
