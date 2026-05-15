@@ -270,7 +270,22 @@ export function RunDetailPanel({ runId, onClose }: Props) {
                       <td>{relTime(nr.started_at)}</td>
                       <td>{relTime(nr.completed_at)}</td>
                       <td className="wfrd-summary">
-                        {nr.summary ? nr.summary.slice(0, 80) : <span style={{ opacity: 0.4 }}>—</span>}
+                        {nr.summary ? (
+                          nr.summary.length > 80 ? (
+                            <details style={{ cursor: 'pointer' }}>
+                              <summary style={{ listStyle: 'none', outline: 'none' }}>
+                                {nr.summary.slice(0, 80)}&hellip;
+                              </summary>
+                              <pre style={{ margin: '4px 0 0', whiteSpace: 'pre-wrap', fontSize: 11, opacity: 0.85 }}>
+                                {nr.summary}
+                              </pre>
+                            </details>
+                          ) : (
+                            nr.summary
+                          )
+                        ) : (
+                          <span style={{ opacity: 0.4 }}>—</span>
+                        )}
                       </td>
                     </tr>
                   ))}

@@ -16,12 +16,10 @@
  *   archived   → cancelled
  *   running / ready / todo / triage → no change (still in flight)
  */
+import { kanbanStatusToNodeRunStatus } from "../dispatcher/kanban-status";
+import type { TerminalNodeStatus as CanonicalTerminalNodeStatus } from "../dispatcher/kanban-status";
 import type { SwitchUiWorkflowStore } from "../store/workflow-store";
 import type { HermesKanbanStatus, HermesKanbanTaskDetail } from "../../../lib/hermes-kanban-types";
-import {
-  kanbanStatusToNodeRunStatus,
-  type TerminalNodeStatus as CanonicalTerminalNodeStatus,
-} from "../dispatcher/kanban-status";
 
 export type TaskFetcher = (taskId: string) => Promise<HermesKanbanTaskDetail>;
 
@@ -108,7 +106,6 @@ export class TaskEventConsumer {
           // Fetch failure is transient — leave entry in map, retry next tick.
           // Persistent failures will be reaped by the orphan sweep (A.11).
           // Log via console only; no engine event emitted to avoid SSE noise.
-          // eslint-disable-next-line no-console
           console.warn(`[task-event-consumer] poll failed for ${entry.kanbanTaskId}:`, err);
         }
       }
@@ -130,6 +127,7 @@ export class TaskEventConsumer {
     // SwitchUiWorkflowStore exposes findNodeRun via dag_node_id lookup; we
     // only have nodeRunId here so use the raw row fetch path via
     // listNodeRuns (cheap — one workflow's node_runs is a small set).
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     const peer = this.opts.store.findNodeRunById?.(entry.nodeRunId);
     if (peer && (peer.status === "completed" || peer.status === "failed" || peer.status === "cancelled")) {
       // Already resolved by the live dispatcher / projector. Drop tracking,
@@ -167,9 +165,14 @@ export function mapTerminalStatus(status: HermesKanbanStatus): TerminalNodeStatu
   return kanbanStatusToNodeRunStatus(status);
 }
 
+const SUMMARY_CAP = 10_000;
+
 function extractSummary(detail: HermesKanbanTaskDetail): string {
-  // v1: task body is the best signal we have. A.11 may add a structured
-  // "result" field to the Kanban task contract; until then, body suffices.
-  const body = (detail.task as { body?: string }).body;
-  return typeof body === "string" ? body : "";
+  // Field preference: result (explicit worker output) → body (task description)
+  // → "". Cap at SUMMARY_CAP chars so a runaway worker can't bloat the DB.
+  const task = detail.task;
+  const raw = (typeof task.result === "string" && task.result.trim().length > 0)
+    ? task.result
+    : (typeof task.body === "string" ? task.body : "");
+  return raw.trim().slice(0, SUMMARY_CAP);
 }
