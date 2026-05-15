@@ -454,7 +454,8 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
   async function handleSave() {
     setServerError(null)
     try {
-      await upsert.mutateAsync({ id, name: name.trim(), description: description.trim() || undefined, source, yaml })
+      const tags = patternFilter ? [patternFilter.toLowerCase()] : undefined
+      await upsert.mutateAsync({ id, name: name.trim(), description: description.trim() || undefined, source, yaml, tags })
       onClose()
     } catch (err) {
       setServerError(err instanceof Error ? err.message : 'Unknown error')
