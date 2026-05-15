@@ -84,6 +84,9 @@ interface NodeStartedEvent {
   runId: string;
   nodeId: string;
   nodeName: string; // command name or node.id for inline prompts
+  /** Pre-generated node_run UUID — forwarded by executor so the projector
+   *  uses the same ID that was injected into nodeConfig['node_run_id']. */
+  nodeRunId?: string;
 }
 
 interface NodeCompletedEvent {

@@ -68,16 +68,16 @@ describe('KanbanDispatcher', () => {
     });
   });
 
-  it('4. onTaskCreated invoked with (idempotencyKey, "task-123") before first yield', async () => {
+  it('4. onTaskCreated invoked with {idempotencyKey, kanbanTaskId:"task-123"} before first yield', async () => {
     const onTaskCreated = vi.fn().mockResolvedValue(undefined);
     const { dispatcher } = makeDispatcher({ onTaskCreated });
     const gen = dispatcher.sendQuery('hello', '/tmp/repo');
     const first = await gen.next();
     expect(first.done).toBe(false);
     expect(onTaskCreated).toHaveBeenCalledOnce();
-    const [key, id] = onTaskCreated.mock.calls[0] as [string, string];
-    expect(id).toBe('task-123');
-    expect(key).toMatch(/^anon-\d+$/);
+    const [info] = onTaskCreated.mock.calls[0] as [{ idempotencyKey: string; kanbanTaskId: string }];
+    expect(info.kanbanTaskId).toBe('task-123');
+    expect(info.idempotencyKey).toMatch(/^anon-\d+$/);
     // Drain to allow generator cleanup
     await gen.return(undefined);
   });

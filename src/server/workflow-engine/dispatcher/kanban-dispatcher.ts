@@ -25,10 +25,15 @@ export type FetchKanbanTaskFn = (taskId: string) => Promise<HermesKanbanTaskDeta
 
 export interface KanbanDispatcherOpts {
   /**
-   * Called with (idempotencyKey, kanbanTaskId) after the task is created.
-   * Engine store uses this to write node_runs.kanban_task_id atomically.
+   * Called after the task is created. Engine store uses this to write
+   * node_runs.kanban_task_id and register the task with the event consumer.
    */
-  onTaskCreated?: (idempotencyKey: string, kanbanTaskId: string) => Promise<void>;
+  onTaskCreated?: (info: {
+    idempotencyKey: string;
+    kanbanTaskId: string;
+    nodeRunId?: string;
+    workflowRunId?: string;
+  }) => Promise<void>;
   /**
    * Injected gateway client. Defaults to the real createKanbanTask from
    * hermes-kanban-client. Injected in tests without vi.mock.
@@ -66,7 +71,7 @@ const KANBAN_CAPABILITIES: ProviderCapabilities = {
 };
 
 export class KanbanDispatcher implements IAgentProvider {
-  private readonly onTaskCreated?: (key: string, id: string) => Promise<void>;
+  private readonly onTaskCreated?: KanbanDispatcherOpts['onTaskCreated'];
   private readonly createTaskFn: CreateKanbanTaskFn;
   private readonly fetchTaskFn: FetchKanbanTaskFn;
   private readonly pollIntervalMs: number;
@@ -139,7 +144,9 @@ export class KanbanDispatcher implements IAgentProvider {
 
     // Notify engine store before yielding so callers see the ID atomically.
     if (this.onTaskCreated) {
-      await this.onTaskCreated(idempotencyKey, kanbanTaskId);
+      const nodeRunId = options?.nodeConfig?.['node_run_id'] as string | undefined;
+      const workflowRunId = options?.nodeConfig?.['workflow_run_id'] as string | undefined;
+      await this.onTaskCreated({ idempotencyKey, kanbanTaskId, nodeRunId, workflowRunId });
     }
 
     // Yield dispatch confirmation so the dag-executor surfaces it as an
