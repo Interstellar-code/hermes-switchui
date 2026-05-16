@@ -20,6 +20,12 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import {
+  DialogClose,
+  DialogContent,
+  DialogRoot,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   selectChatProfileAvatarDataUrl,
   selectChatProfileDisplayName,
   useChatSettingsStore,
@@ -167,6 +173,12 @@ export type InlineRenderPlanItem =
 export type CompactInlineRenderPlanItem =
   | { kind: 'text'; text: string }
   | { kind: 'tools'; sections: Array<InlineToolSection> }
+
+type InlineArtifact = {
+  type: string
+  title: string
+  content: string
+}
 
 export function buildInlineToolRenderPlan(
   message: ChatMessage,
@@ -1353,13 +1365,169 @@ function extractStandaloneMarkdownFence(text: string): string | null {
   return typeof match[1] === 'string' ? match[1].trim() : null
 }
 
-function MarkdownMessageCard({ content }: { content: string }) {
+function parseInlineArtifacts(text: string): {
+  cleanedText: string
+  artifacts: Array<InlineArtifact>
+} {
+  const artifacts: Array<InlineArtifact> = []
+  const cleanedText = text.replace(
+    /<artifact\b([^>]*)>([\s\S]*?)<\/artifact>/gi,
+    (_match, rawAttributes: string, rawContent: string) => {
+      const attributes: Record<string, string> = {}
+      const attributePattern = /(\w+)=(["'])([\s\S]*?)\2/g
+      let attributeMatch = attributePattern.exec(rawAttributes)
+
+      while (attributeMatch) {
+        const key = attributeMatch[1]?.trim().toLowerCase()
+        const value = attributeMatch[3] ?? ''
+        if (key) {
+          attributes[key] = value
+        }
+        attributeMatch = attributePattern.exec(rawAttributes)
+      }
+
+      const type = (attributes.type ?? 'artifact').trim() || 'artifact'
+      const title = (attributes.title ?? attributes.name ?? type).trim() || type
+      const content = (attributes.content ?? rawContent).trim()
+      if (content) {
+        artifacts.push({ type, title, content })
+      }
+      return ''
+    },
+  )
+
+  return {
+    cleanedText: cleanedText.replace(/\n{3,}/g, '\n\n').trim(),
+    artifacts,
+  }
+}
+
+function artifactSupportsIframe(type: string): boolean {
+  const normalized = type.trim().toLowerCase()
+  return normalized === 'html' || normalized === 'svg'
+}
+
+function artifactSupportsCodeBlock(type: string): boolean {
+  const normalized = type.trim().toLowerCase()
   return (
-    <MarkdownDocumentCard
-      title="Markdown preview"
-      content={content}
-      className="max-w-full"
-    />
+    normalized === 'code' ||
+    normalized === 'javascript' ||
+    normalized === 'typescript' ||
+    normalized === 'jsx' ||
+    normalized === 'tsx' ||
+    normalized === 'json' ||
+    normalized === 'css' ||
+    normalized === 'markdown' ||
+    normalized === 'md' ||
+    normalized === 'xml' ||
+    normalized === 'sql' ||
+    normalized === 'python' ||
+    normalized === 'bash'
+  )
+}
+
+function previewArtifact(artifact: InlineArtifact, compact = false) {
+  if (artifactSupportsIframe(artifact.type)) {
+    return (
+      <iframe
+        title={artifact.title}
+        sandbox=""
+        srcDoc={artifact.content}
+        className={cn(
+          'w-full rounded-lg border border-primary-200 bg-primary-50',
+          compact ? 'h-48' : 'h-[70vh]',
+        )}
+      />
+    )
+  }
+
+  if (artifactSupportsCodeBlock(artifact.type)) {
+    return (
+      <CodeBlock
+        content={artifact.content}
+        language={artifact.type}
+        className={cn(compact ? 'max-h-72 overflow-auto' : 'max-h-none')}
+      />
+    )
+  }
+
+  return (
+    <pre
+      className={cn(
+        'whitespace-pre-wrap rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-sm text-primary-900',
+        compact ? 'max-h-72 overflow-auto' : 'max-h-none',
+      )}
+    >
+      {artifact.content}
+    </pre>
+  )
+}
+
+function InlineArtifactCard({ artifact }: { artifact: InlineArtifact }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="w-full rounded-2xl border border-primary-200 bg-primary-50/70 p-3 text-left transition hover:border-primary-300 hover:bg-primary-50"
+      >
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-primary-900">
+              {artifact.title}
+            </div>
+          </div>
+          <span className="shrink-0 rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary-700">
+            {artifact.type}
+          </span>
+        </div>
+        {previewArtifact(artifact, true)}
+      </button>
+
+      <DialogRoot open={open} onOpenChange={setOpen}>
+        <DialogContent className="w-[min(960px,94vw)] max-w-none p-0">
+          <div className="flex items-center justify-between gap-3 border-b border-primary-200 px-5 py-4">
+            <div className="min-w-0">
+              <DialogTitle className="truncate text-base font-semibold">
+                {artifact.title}
+              </DialogTitle>
+              <div className="mt-1 text-xs uppercase tracking-wide text-primary-500">
+                {artifact.type}
+              </div>
+            </div>
+            <DialogClose render={<Button variant="outline">Close</Button>} />
+          </div>
+          <div className="p-5">{previewArtifact(artifact)}</div>
+        </DialogContent>
+      </DialogRoot>
+    </>
+  )
+}
+
+function MarkdownMessageCard({ content }: { content: string }) {
+  const { cleanedText, artifacts } = useMemo(
+    () => parseInlineArtifacts(content),
+    [content],
+  )
+
+  return (
+    <div className="flex flex-col gap-3">
+      {cleanedText ? (
+        <MarkdownDocumentCard
+          title="Markdown preview"
+          content={cleanedText}
+          className="max-w-full"
+        />
+      ) : null}
+      {artifacts.map((artifact, index) => (
+        <InlineArtifactCard
+          key={`${artifact.type}-${artifact.title}-${index}`}
+          artifact={artifact}
+        />
+      ))}
+    </div>
   )
 }
 
@@ -1484,14 +1652,18 @@ function InlineToolSectionItem({
         style={{
           background: 'color-mix(in srgb, var(--theme-card2) 76%, transparent)',
           borderColor: 'var(--theme-border)',
-          boxShadow: isRunning ? '0 0 0 1px color-mix(in srgb, var(--theme-accent) 18%, transparent)' : undefined,
+          boxShadow: isRunning
+            ? '0 0 0 1px color-mix(in srgb, var(--theme-accent) 18%, transparent)'
+            : undefined,
         }}
         onClick={() => setOpen((v) => !v)}
         role="button"
         tabIndex={0}
       >
         <div className="flex items-center gap-2 px-3 py-2">
-          <span className="text-sm leading-none shrink-0 opacity-80">{icon}</span>
+          <span className="text-sm leading-none shrink-0 opacity-80">
+            {icon}
+          </span>
           <span className="font-medium text-[12px] text-[var(--theme-text)]">
             {toolDisplayLabel}
           </span>
@@ -1830,13 +2002,18 @@ function MessageItemComponent({
   const effectiveIsStreaming =
     remoteStreamingActive || (_simulateStreaming && !revealComplete)
   const assistantDisplayText = effectiveIsStreaming ? revealedText : displayText
+  const parsedInlineArtifacts = useMemo(
+    () => parseInlineArtifacts(assistantDisplayText),
+    [assistantDisplayText],
+  )
   const assistantCorruptionWarning = useMemo(
-    () => detectAssistantCorruptionWarning(role, assistantDisplayText),
-    [role, assistantDisplayText],
+    () =>
+      detectAssistantCorruptionWarning(role, parsedInlineArtifacts.cleanedText),
+    [role, parsedInlineArtifacts.cleanedText],
   )
   const standaloneMarkdownDocument = useMemo(
-    () => extractStandaloneMarkdownFence(assistantDisplayText),
-    [assistantDisplayText],
+    () => extractStandaloneMarkdownFence(parsedInlineArtifacts.cleanedText),
+    [parsedInlineArtifacts.cleanedText],
   )
 
   useEffect(() => {
@@ -2123,7 +2300,13 @@ function MessageItemComponent({
       }),
       ...attachedToolSections,
     ],
-    [attachedToolSections, streamToolSections, toolParts, toolResultsByCallId, message],
+    [
+      attachedToolSections,
+      streamToolSections,
+      toolParts,
+      toolResultsByCallId,
+      message,
+    ],
   )
   // When streaming is done, force all tool sections to completed state
   // Prevents stuck timers from race conditions where tool.completed SSE
@@ -2462,15 +2645,27 @@ function MessageItemComponent({
                   {standaloneMarkdownDocument ? (
                     <MarkdownMessageCard content={standaloneMarkdownDocument} />
                   ) : (
-                    <MessageContent
-                      markdown
-                      className={cn(
-                        'text-primary-900 bg-transparent w-full text-pretty transition-all duration-100',
-                        effectiveIsStreaming && 'chat-streaming-content',
+                    <div className="flex flex-col gap-3">
+                      {parsedInlineArtifacts.cleanedText ? (
+                        <MessageContent
+                          markdown
+                          className={cn(
+                            'text-primary-900 bg-transparent w-full text-pretty transition-all duration-100',
+                            effectiveIsStreaming && 'chat-streaming-content',
+                          )}
+                        >
+                          {parsedInlineArtifacts.cleanedText}
+                        </MessageContent>
+                      ) : null}
+                      {parsedInlineArtifacts.artifacts.map(
+                        (artifact, index) => (
+                          <InlineArtifactCard
+                            key={`${artifact.type}-${artifact.title}-${index}`}
+                            artifact={artifact}
+                          />
+                        ),
                       )}
-                    >
-                      {assistantDisplayText}
-                    </MessageContent>
+                    </div>
                   )}
                   {effectiveIsStreaming && (
                     <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-accent-500 align-text-bottom" />
