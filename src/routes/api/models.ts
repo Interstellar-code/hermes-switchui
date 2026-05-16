@@ -21,19 +21,12 @@ const CLAUDE_HOME =
   process.env.CLAUDE_HOME ??
   path.join(os.homedir(), '.hermes')
 const MODELS_PATH = path.join(CLAUDE_HOME, 'models.json')
-const MODELS_DEV_CACHE_PATH = path.join(
-  os.homedir(),
-  '.hermes',
-  'models_dev_cache.json',
-)
 const CONFIG_PATH = path.join(CLAUDE_HOME, 'config.yaml')
 
-type ModelEntry = {
+export type ModelEntry = {
   provider?: string
   id?: string
   name?: string
-  contextLength?: number
-  outputLength?: number
   [key: string]: unknown
 }
 
@@ -45,12 +38,6 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function readString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
-}
-
-function readPositiveNumber(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0
-    ? value
-    : undefined
 }
 
 function normalizeModel(entry: unknown): ModelEntry | null {
@@ -80,78 +67,6 @@ function normalizeModel(entry: unknown): ModelEntry | null {
       readString(record.owned_by) ||
       (id.includes('/') ? id.split('/')[0] : 'unknown'),
   }
-}
-
-type ModelLimit = {
-  contextLength?: number
-  outputLength?: number
-}
-
-function modelLimitKeys(provider: string, id: string): Array<string> {
-  const keys = new Set<string>()
-  const normalizedProvider = provider.toLowerCase()
-  const normalizedId = id.toLowerCase()
-  if (normalizedId) keys.add(normalizedId)
-  if (normalizedProvider && normalizedId) {
-    keys.add(`${normalizedProvider}/${normalizedId}`)
-  }
-  const idParts = normalizedId.split('/')
-  const lastIdPart = idParts[idParts.length - 1]
-  if (lastIdPart) keys.add(lastIdPart)
-  return Array.from(keys)
-}
-
-function readModelLimitsCache(): Map<string, ModelLimit> {
-  const limits = new Map<string, ModelLimit>()
-  try {
-    if (!fs.existsSync(MODELS_DEV_CACHE_PATH)) return limits
-    const cache = asRecord(
-      JSON.parse(fs.readFileSync(MODELS_DEV_CACHE_PATH, 'utf-8')),
-    )
-    for (const [providerKey, providerValue] of Object.entries(cache)) {
-      const provider = asRecord(providerValue)
-      const models = asRecord(provider.models)
-      for (const [modelKey, modelValue] of Object.entries(models)) {
-        const model = asRecord(modelValue)
-        const limit = asRecord(model.limit)
-        const contextLength = readPositiveNumber(limit.context)
-        const outputLength = readPositiveNumber(limit.output)
-        if (!contextLength && !outputLength) continue
-        const id = readString(model.id) || modelKey
-        const entry: ModelLimit = {}
-        if (contextLength) entry.contextLength = contextLength
-        if (outputLength) entry.outputLength = outputLength
-        for (const key of modelLimitKeys(providerKey, id)) {
-          limits.set(key, entry)
-        }
-      }
-    }
-  } catch {
-    return limits
-  }
-  return limits
-}
-
-function enrichModelLimits(
-  models: Array<ModelEntry>,
-  limits: Map<string, ModelLimit>,
-): Array<ModelEntry> {
-  if (limits.size === 0) return models
-  return models.map((model) => {
-    const provider = readString(model.provider)
-    const ids = [
-      readString(model.id),
-      readString(model.model),
-      readString(model.name),
-    ].filter(Boolean)
-    for (const id of ids) {
-      for (const key of modelLimitKeys(provider, id)) {
-        const limit = limits.get(key)
-        if (limit) return { ...model, ...limit }
-      }
-    }
-    return model
-  })
 }
 
 /**
@@ -281,6 +196,22 @@ async function fetchClaudeModels(): Promise<Array<ModelEntry>> {
     .filter((e): e is ModelEntry => e !== null)
 }
 
+export function mergeModelEntries(
+  ...sources: Array<Array<ModelEntry>>
+): Array<ModelEntry> {
+  const merged: Array<ModelEntry> = []
+  const seen = new Set<string>()
+  for (const source of sources) {
+    for (const entry of source) {
+      const id = entry.id ?? entry.name ?? ''
+      if (!id || seen.has(id)) continue
+      seen.add(id)
+      merged.push(entry)
+    }
+  }
+  return merged
+}
+
 export const Route = createFileRoute('/api/models')({
   server: {
     handlers: {
@@ -292,34 +223,42 @@ export const Route = createFileRoute('/api/models')({
 
         try {
           // Primary: read user-configured models from ~/.hermes/models.json
-          let models = readClaudeModelsJson()
+          let gatewayModels = readClaudeModelsJson()
           let source = 'models.json'
 
           // Ensure the default model from config.yaml is always first
           const defaultModel = readClaudeDefaultModel()
           if (defaultModel) {
-            models = models.filter((m) => m.id !== defaultModel.id)
-            models.unshift(defaultModel)
+            gatewayModels = gatewayModels.filter(
+              (m) => m.id !== defaultModel.id,
+            )
+            gatewayModels.unshift(defaultModel)
           }
 
-          // Fallback: if no models.json, fetch from hermes-agent /v1/models
-          if (models.length === 0 && getGatewayCapabilities().models) {
-            models = await fetchClaudeModels()
+          if (getGatewayCapabilities().models) {
+            try {
+              const remoteModels = await fetchClaudeModels()
+              gatewayModels = mergeModelEntries(gatewayModels, remoteModels)
+              source =
+                source === 'models.json' ? 'models.json+hermes-agent' : source
+            } catch {
+              if (gatewayModels.length === 0)
+                throw new Error('Failed to fetch gateway models')
+            }
+          }
+
+          if (gatewayModels.length === 0 && getGatewayCapabilities().models) {
+            gatewayModels = await fetchClaudeModels()
             source = 'hermes-agent'
           }
 
           // Merge auto-discovered local models (Ollama, Atomic Chat, etc.)
           await ensureDiscovery()
           const localModels = getDiscoveredModels()
-          const existingIds = new Set(models.map((m) => m.id))
           for (const m of localModels) {
-            if (!existingIds.has(m.id)) {
-              models.push(m)
-              existingIds.add(m.id)
-              ensureProviderInConfig(m.provider)
-            }
+            ensureProviderInConfig(m.provider)
           }
-          models = enrichModelLimits(models, readModelLimitsCache())
+          const models = mergeModelEntries(gatewayModels, localModels)
 
           const configuredProviders = Array.from(
             new Set(
