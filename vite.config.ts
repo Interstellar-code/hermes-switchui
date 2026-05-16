@@ -427,6 +427,7 @@ const config = defineConfig(({ mode, command }) => {
         '**/dist/**',
         '**/skills-bundle/**',
         '**/.{idea,git,cache,output,temp}/**',
+        '**/*.skip.test.ts',
       ],
       // Force vitest to run React through its own transform pipeline so ESM
       // `import` and CJS `require('react')` share a single module instance.
@@ -440,6 +441,16 @@ const config = defineConfig(({ mode, command }) => {
           '@testing-library/dom',
         ],
       },
+      server: {
+        deps: {
+          external: ['better-sqlite3'],
+        },
+      },
+      // Native .node addons (better-sqlite3) cannot load in worker_threads.
+      // Run workflow-engine tests in a forked Node process instead.
+      poolMatchGlobs: [
+        ['**/workflow-engine/**', 'forks'],
+      ],
     },
     define: {
       // Note: Do NOT set 'process.env': {} here — TanStack Start uses environment-based

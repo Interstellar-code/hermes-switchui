@@ -59,6 +59,7 @@ const ICONS = {
   terminal: 'M2 3h12v10H2V3zM5 7l3-2-3-2M8 11h4',
   jobs: 'M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zM8 5v3.5l2.5 1.5',
   tasks: 'M3 4h10M3 8h7M3 12h5',
+  workflows: 'M2 4h12M2 8h8M2 12h5M11 9l2 2 4-4',
   conductor: 'M8 2L2 14h12L8 2zM8 8v3',
   operations: 'M3 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM9 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM1 14c0-2.5 2-4 5-4s5 1.5 5 4M11 11c1.5 0 3 .8 3 3',
   matrix3d: 'M8 2l5 3v6l-5 3-5-3V5l5-3zM8 2v12M3 5l5 3 5-3M3 11l5-3 5 3',
@@ -290,6 +291,7 @@ export function PrimaryNavV2() {
   const isTerminal = pathname.startsWith('/terminal')
   const isJobs = pathname.startsWith('/jobs')
   const isTasks = pathname.startsWith('/tasks')
+  const isWorkflows = pathname.startsWith('/workflows')
   const isConductor = pathname.startsWith('/conductor')
   const isOperations = pathname.startsWith('/operations')
   const isMatrix3D = pathname.startsWith('/matrix3d')
@@ -497,6 +499,7 @@ export function PrimaryNavV2() {
         <NavItem label="Terminal" iconKey="terminal" to="/terminal" active={isTerminal} collapsed={collapsed} />
         <NavItem label="Jobs" iconKey="jobs" to="/jobs" active={isJobs} collapsed={collapsed} />
         <NavItem label="Tasks" iconKey="tasks" to="/tasks" active={isTasks} collapsed={collapsed} />
+        <NavItem label="Workflows" iconKey="workflows" to="/workflows" active={isWorkflows} collapsed={collapsed} />
         <NavItem label="Conductor" iconKey="conductor" to="/conductor" active={isConductor} collapsed={collapsed} />
         <NavItem label="Operations" iconKey="operations" to="/operations" active={isOperations} collapsed={collapsed} />
         <NavItem label="Matrix3D" iconKey="matrix3d" to="/matrix3d" active={isMatrix3D} collapsed={collapsed} />
