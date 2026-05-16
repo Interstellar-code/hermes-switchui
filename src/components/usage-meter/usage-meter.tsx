@@ -10,13 +10,13 @@ import {
   MenuRoot,
   MenuTrigger,
 } from '@/components/ui/menu'
+import { registerUsageMeterSessionAlert } from './usage-meter-session'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toast'
 import { SEARCH_MODAL_EVENTS } from '@/hooks/use-search-modal'
 
 const POLL_INTERVAL_MS = 10_000
 const PROVIDER_POLL_INTERVAL_MS = 30_000
-const STORAGE_KEY = 'clawsuite-usage-meter-alerts'
 const STATS_VIEW_STORAGE_KEY = 'clawsuite-stats-view'
 const THRESHOLDS = [50, 75, 90]
 
@@ -86,6 +86,7 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
 }
 
 type UsageSummary = {
+  currentSessionKey: string
   inputTokens: number
   outputTokens: number
   contextPercent: number
@@ -136,11 +137,6 @@ type ProviderUsageEntry = {
   plan?: string
   lines: Array<UsageLine>
   updatedAt: number
-}
-
-function getTodayKey() {
-  const now = new Date()
-  return now.toISOString().slice(0, 10)
 }
 
 function readNumber(value: unknown): number {
@@ -373,6 +369,9 @@ function parseSessionStatus(payload: unknown): UsageSummary {
         : []
 
   return {
+    currentSessionKey: String(
+      root.sessionKey ?? root.session_id ?? usage?.sessionKey ?? '',
+    ).trim(),
     inputTokens,
     outputTokens,
     contextPercent,
@@ -394,38 +393,6 @@ function formatCurrency(value: number): string {
     currency: 'USD',
     maximumFractionDigits: value >= 10 ? 2 : 3,
   }).format(value)
-}
-
-function getAlertState() {
-  if (typeof window === 'undefined') {
-    return { date: getTodayKey(), sent: {} as Record<number, boolean> }
-  }
-  const today = getTodayKey()
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { date: today, sent: {} as Record<number, boolean> }
-    const parsed = JSON.parse(raw) as {
-      date?: string
-      sent?: Record<number, boolean>
-    }
-    if (parsed.date !== today) {
-      return { date: today, sent: {} as Record<number, boolean> }
-    }
-    return {
-      date: today,
-      sent: parsed.sent ?? ({} as Record<number, boolean>),
-    }
-  } catch {
-    return { date: today, sent: {} as Record<number, boolean> }
-  }
-}
-
-function saveAlertState(state: {
-  date: string
-  sent: Record<number, boolean>
-}) {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
 }
 
 type AgentActivity = {
@@ -457,7 +424,6 @@ export function UsageMeter() {
     open: boolean
     threshold: number
   }>({ open: false, threshold: 0 })
-  const alertStateRef = useRef(getAlertState())
 
   const refresh = useCallback(async () => {
     try {
@@ -549,22 +515,17 @@ export function UsageMeter() {
     if (typeof window === 'undefined') return
     const current = usage.contextPercent
     if (!Number.isFinite(current)) return
-    const state = alertStateRef.current
-    if (state.date !== getTodayKey()) {
-      state.date = getTodayKey()
-      state.sent = {}
-    }
     const eligible = THRESHOLDS.filter((threshold) => current >= threshold)
     if (eligible.length === 0) return
     for (const threshold of eligible) {
-      if (state.sent[threshold]) continue
-      state.sent[threshold] = true
-      saveAlertState(state)
+      if (!registerUsageMeterSessionAlert(usage.currentSessionKey, threshold)) {
+        continue
+      }
       // Show in-app modal instead of browser notification
       setContextAlert({ open: true, threshold })
       break // Only show one alert at a time
     }
-  }, [usage.contextPercent])
+  }, [usage.contextPercent, usage.currentSessionKey])
 
   useEffect(() => {
     function handleOpenUsageFromSearch() {
