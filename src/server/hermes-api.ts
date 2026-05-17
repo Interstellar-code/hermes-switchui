@@ -2,7 +2,7 @@
  * Hermes Agent FastAPI Client
  *
  * HTTP client for the Hermes Agent FastAPI backend (default: http://127.0.0.1:8642).
- * Replaces legacy WebSocket connection for the Hermes Workspace fork.
+ * Replaces legacy WebSocket connection for the Hermes Switch UI fork.
  */
 
 import {
@@ -54,6 +54,7 @@ export type ClaudeSession = {
   parent_session_id?: string | null
   last_active?: number | null
   preview?: string | null
+  is_active?: boolean
 }
 
 export type ClaudeMessage = {
@@ -380,6 +381,12 @@ export function toSessionSummary(
     friendlyId: session.id,
     kind: 'chat',
     status: session.ended_at ? 'ended' : 'idle',
+    is_active:
+      session.is_active ??
+      (!!session.last_active &&
+        !session.ended_at &&
+        Date.now() - session.last_active * 1000 < 300_000),
+    parentSessionId: session.parent_session_id ?? null,
     model: session.model || '',
     label: session.title || undefined,
     title: session.title || undefined,

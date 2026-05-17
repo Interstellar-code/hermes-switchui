@@ -236,7 +236,7 @@ async function requestHandler(req, res) {
 function listenOn(bindHost) {
   const httpServer = createServer(requestHandler)
   httpServer.listen(port, bindHost, () => {
-    console.log(`Hermes Workspace running at http://${bindHost}:${port}`)
+    console.log(`Hermes Switch UI running at http://${bindHost}:${port}`)
   })
   return httpServer
 }

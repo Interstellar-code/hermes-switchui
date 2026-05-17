@@ -1,7 +1,7 @@
 {
-  "name": "Hermes Workspace",
+  "name": "Hermes Switch UI",
   "dockerComposeFile": "../docker-compose.yml",
-  "service": "hermes-workspace",
+  "service": "hermes-switchui",
   "workspaceFolder": "/app",
   "overrideCommand": false,
   "forwardPorts": [3000, 8642],

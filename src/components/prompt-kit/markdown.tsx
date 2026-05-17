@@ -17,6 +17,30 @@ export type MarkdownProps = {
   components?: Partial<Components>
 }
 
+function mediaApiPath(filePath: string): string {
+  return `/api/media?path=${encodeURIComponent(filePath)}`
+}
+
+export function rewriteLocalMediaSources(content: string): string {
+  return content
+    .replace(
+      /!\[([^\]]*)\]\(MEDIA:([^)]+)\)/gi,
+      (_match, alt: string, filePath: string) =>
+        `![${alt}](${mediaApiPath(filePath.trim())})`,
+    )
+    .replace(
+      /<img\b([^>]*?)\bsrc=(["'])MEDIA:([^"']+)\2([^>]*)>/gi,
+      (
+        _match,
+        beforeSrc: string,
+        quote: string,
+        filePath: string,
+        afterSrc: string,
+      ) =>
+        `<img${beforeSrc}src=${quote}${mediaApiPath(filePath.trim())}${quote}${afterSrc}>`,
+    )
+}
+
 function parseMarkdownIntoBlocks(markdown: string): Array<string> {
   const tokens = marked.lexer(markdown)
   return tokens.map((token) => token.raw)
@@ -71,7 +95,10 @@ const INITIAL_COMPONENTS: Partial<Components> = {
         return (
           <button
             type="button"
-            className={codeClass + ' underline-offset-2 hover:underline cursor-pointer text-left align-baseline'}
+            className={
+              codeClass +
+              ' underline-offset-2 hover:underline cursor-pointer text-left align-baseline'
+            }
             title={`Open ${text}`}
             onClick={(e) => {
               e.preventDefault()
@@ -79,7 +106,9 @@ const INITIAL_COMPONENTS: Partial<Components> = {
                 useSessionsFilterStore.getState().setCollapsed(false)
                 useSessionsFilterStore.getState().setLeftPanel('files')
                 window.dispatchEvent(
-                  new CustomEvent('hermes:open-file', { detail: { path: expanded } }),
+                  new CustomEvent('hermes:open-file', {
+                    detail: { path: expanded },
+                  }),
                 )
               } catch {
                 /* noop */
@@ -266,9 +295,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   },
   td: function TdComponent({ children }) {
     return (
-      <td
-        className="px-3 py-2 text-primary-950 align-top max-sm:grid max-sm:grid-cols-[minmax(0,9rem)_1fr] max-sm:gap-3 max-sm:border-b max-sm:border-primary-100 max-sm:px-3 max-sm:py-2 max-sm:last:border-b-0 max-sm:before:content-[attr(data-label)] max-sm:before:text-xs max-sm:before:font-medium max-sm:before:text-primary-700"
-      >
+      <td className="px-3 py-2 text-primary-950 align-top max-sm:grid max-sm:grid-cols-[minmax(0,9rem)_1fr] max-sm:gap-3 max-sm:border-b max-sm:border-primary-100 max-sm:px-3 max-sm:py-2 max-sm:last:border-b-0 max-sm:before:content-[attr(data-label)] max-sm:before:text-xs max-sm:before:font-medium max-sm:before:text-primary-700">
         {children}
       </td>
     )
@@ -314,7 +341,14 @@ function MarkdownComponent({
 }: MarkdownProps) {
   const generatedId = useId()
   const blockId = id ?? generatedId
-  const blocks = useMemo(() => parseMarkdownIntoBlocks(children), [children])
+  const normalizedChildren = useMemo(
+    () => rewriteLocalMediaSources(children),
+    [children],
+  )
+  const blocks = useMemo(
+    () => parseMarkdownIntoBlocks(normalizedChildren),
+    [normalizedChildren],
+  )
 
   return (
     <div

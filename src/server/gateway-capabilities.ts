@@ -357,6 +357,21 @@ function withDashboardBase(path: string): string {
   return `${CLAUDE_DASHBOARD_URL}${path.startsWith('/') ? path : `/${path}`}`
 }
 
+function dashboardUnavailableResponse(): Response {
+  return new Response(
+    JSON.stringify({
+      ok: false,
+      error: 'Dashboard unavailable',
+      mode: 'dashboard-unavailable',
+      dashboardUrl: CLAUDE_DASHBOARD_URL,
+    }),
+    {
+      status: 503,
+      headers: { 'content-type': 'application/json' },
+    },
+  )
+}
+
 export async function dashboardFetch(
   path: string,
   init: RequestInit = {},
@@ -364,29 +379,33 @@ export async function dashboardFetch(
   const requestPath = withDashboardBase(path)
   const method = (init.method || 'GET').toUpperCase()
   const doFetch = async (forceToken = false) => {
-    const headers = new Headers(init.headers)
-    const isProtected =
-      requestPath.includes('/api/') &&
-      !requestPath.endsWith('/api/status') &&
-      !requestPath.endsWith('/api/config/defaults') &&
-      !requestPath.endsWith('/api/config/schema') &&
-      !requestPath.endsWith('/api/model/info') &&
-      !requestPath.endsWith('/api/dashboard/themes') &&
-      !requestPath.endsWith('/api/dashboard/plugins') &&
-      !requestPath.endsWith('/api/dashboard/plugins/rescan')
+    try {
+      const headers = new Headers(init.headers)
+      const isProtected =
+        requestPath.includes('/api/') &&
+        !requestPath.endsWith('/api/status') &&
+        !requestPath.endsWith('/api/config/defaults') &&
+        !requestPath.endsWith('/api/config/schema') &&
+        !requestPath.endsWith('/api/model/info') &&
+        !requestPath.endsWith('/api/dashboard/themes') &&
+        !requestPath.endsWith('/api/dashboard/plugins') &&
+        !requestPath.endsWith('/api/dashboard/plugins/rescan')
 
-    if (isProtected && !headers.has('Authorization')) {
-      const auth = await dashboardAuthHeaders({ force: forceToken })
-      for (const [key, value] of Object.entries(auth)) {
-        headers.set(key, value)
+      if (isProtected && !headers.has('Authorization')) {
+        const auth = await dashboardAuthHeaders({ force: forceToken })
+        for (const [key, value] of Object.entries(auth)) {
+          headers.set(key, value)
+        }
       }
-    }
 
-    return fetch(requestPath, {
-      ...init,
-      method,
-      headers,
-    })
+      return await fetch(requestPath, {
+        ...init,
+        method,
+        headers,
+      })
+    } catch {
+      return dashboardUnavailableResponse()
+    }
   }
 
   let res = await doFetch(false)

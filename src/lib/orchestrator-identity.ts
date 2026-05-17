@@ -6,7 +6,7 @@ const MIGRATION_GUARD = 'hermes:orchestrator-migration-done'
 
 const LEGACY_KEYS = [
   'operations:orchestrator:name',
-  'hermes-workspace-agent-name',
+  'hermes-switchui-agent-name',
   'conductor:orchestrator:name',
 ] as const
 

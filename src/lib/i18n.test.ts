@@ -4,7 +4,7 @@ import { LOCALE_LABELS, t, type LocaleId } from './i18n'
 function withLocale<T>(locale: LocaleId, fn: () => T): T {
   const originalWindow = globalThis.window
   const originalNavigator = globalThis.navigator
-  const store = new Map<string, string>([['hermes-workspace-locale', locale]])
+  const store = new Map<string, string>([['hermes-switchui-locale', locale]])
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
     value: {},

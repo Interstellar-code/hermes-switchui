@@ -150,3 +150,6 @@ skills-bundle/
 .omc/
 .omx/
 .claude/worktrees
+
+# Graphify generated knowledge graph/cache
+graphify-out/

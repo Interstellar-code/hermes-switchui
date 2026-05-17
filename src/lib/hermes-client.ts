@@ -85,7 +85,7 @@ export type ModelOptions = {
     slug: string
     name?: string
     is_current?: boolean
-    models: string[]
+    models: Array<string>
     total_models?: number
     [key: string]: unknown
   }>
@@ -345,6 +345,17 @@ export async function gatewayRestart(): Promise<unknown> {
   return proxySend('POST', '/api/gateway/restart')
 }
 
-export async function getLogs(): Promise<unknown> {
-  return proxyGet('/api/logs')
+export async function getLogs(params?: { lines?: number; file?: string; level?: string; component?: string }): Promise<unknown> {
+  const search = new URLSearchParams()
+  if (params?.lines) search.set('lines', String(params.lines))
+  if (params?.file) search.set('file', params.file)
+  if (params?.level) search.set('level', params.level)
+  if (params?.component) search.set('component', params.component)
+  const suffix = search.toString()
+  const res = await fetch(`/api/logs${suffix ? `?${suffix}` : ''}`)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Hermes Logs API /api/logs: ${res.status} ${body}`)
+  }
+  return res.json() as Promise<unknown>
 }

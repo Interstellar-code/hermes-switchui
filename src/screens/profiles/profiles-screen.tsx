@@ -139,13 +139,12 @@ export function ProfilesScreen() {
     queryKey: ['profiles', 'list'],
     queryFn: async () => {
       const data = await readJson<{ profiles: Array<any> }>(
-        '/api/dashboard-proxy/api/profiles',
+        '/api/profiles/list',
       )
-      // Deduplicate: if a disk profile has the same name as a builtin, keep only the disk one
-      const builtinNames = new Set(BUILTIN_AGENTS.map(b => b.name.toLowerCase()))
       const seen = new Set<string>()
       const deduped = (data.profiles || []).filter(p => {
         const key = (p.name || '').toLowerCase()
+        if (key === 'default') return false
         if (seen.has(key)) return false
         seen.add(key)
         return true

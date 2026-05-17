@@ -14,7 +14,7 @@ async function makeDir(...parts: Array<string>) {
 }
 
 beforeEach(async () => {
-  tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'hermes-workspace-route-'))
+  tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'hermes-switchui-route-'))
   process.env = { ...originalEnv }
   process.env.HERMES_HOME = path.join(tempRoot, '.hermes')
   delete process.env.HERMES_WORKSPACE_DIR
@@ -52,7 +52,7 @@ describe('workspace API catalog semantics', () => {
 
   it('derives Home from knowledge wiki paths when workspace config is not a string', async () => {
     const hermesHome = await makeDir(tempRoot, 'hermes')
-    const wikiPath = await makeDir(hermesHome, 'wikis', 'hermes-workspace-ui')
+    const wikiPath = await makeDir(hermesHome, 'wikis', 'hermes-switchui-ui')
     await fs.writeFile(
       path.join(process.env.HERMES_HOME!, 'config.yaml'),
       `workspace:

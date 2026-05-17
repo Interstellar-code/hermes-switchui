@@ -1,8 +1,8 @@
-# Hermes Workspace OpenAI-Compat Architecture Spec
+# Hermes Switch UI OpenAI-Compat Architecture Spec
 
 > **For Claude:** Use `writing-plans` if this turns into an implementation plan. This doc locks the product and backend compatibility direction.
 
-**Goal:** Make Hermes Workspace work out of the box against vanilla `hermes-agent` and any OpenAI-compatible backend, while unlocking richer workspace features automatically when Claude-specific APIs are available.
+**Goal:** Make Hermes Switch UI work out of the box against vanilla `hermes-agent` and any OpenAI-compatible backend, while unlocking richer workspace features automatically when Claude-specific APIs are available.
 
 **Status:** Approved architectural constraint for the next implementation pass.
 
@@ -10,7 +10,7 @@
 
 ## 1. Problem
 
-Hermes Workspace currently depends on a forked `hermes-agent` gateway for extended functionality:
+Hermes Switch UI currently depends on a forked `hermes-agent` gateway for extended functionality:
 
 - session management
 - streaming chat
@@ -36,7 +36,7 @@ We want to reverse that.
 
 This is the decision to lock in:
 
-> **Hermes Workspace must work standalone against any OpenAI-compatible backend.**
+> **Hermes Switch UI must work standalone against any OpenAI-compatible backend.**
 >
 > Claude-specific workspace features may enhance the experience when the full Hermes Agent API is available, but the product must remain usable without those endpoints.
 
@@ -117,7 +117,7 @@ The UI should detect these capabilities and progressively enhance.
 
 **Chat is the base product. Everything else is optional enhancement.**
 
-If a user points Hermes Workspace at a valid OpenAI-compatible backend, they should be able to send a message and receive a streamed response without caring whether the backend is Claude, OpenAI, OpenRouter, Ollama, vLLM, or something else.
+If a user points Hermes Switch UI at a valid OpenAI-compatible backend, they should be able to send a message and receive a streamed response without caring whether the backend is Claude, OpenAI, OpenRouter, Ollama, vLLM, or something else.
 
 Anything beyond that should be treated as capability-based augmentation.
 
@@ -298,7 +298,7 @@ Intent:
 
 - make enhanced workspace APIs part of upstream `hermes-agent`
 - remove ongoing maintenance burden of a permanent fork
-- let Hermes Workspace treat stock Claude as the best backend, without requiring it
+- let Hermes Switch UI treat stock Claude as the best backend, without requiring it
 
 ---
 
@@ -325,8 +325,8 @@ This initiative is complete when all of the following are true:
 
 ### Product acceptance
 
-- A user can launch Hermes Workspace against a stock OpenAI-compatible backend and successfully chat without patching backend code.
-- A user can launch Hermes Workspace against vanilla `hermes-agent` and get a working core experience.
+- A user can launch Hermes Switch UI against a stock OpenAI-compatible backend and successfully chat without patching backend code.
+- A user can launch Hermes Switch UI against vanilla `hermes-agent` and get a working core experience.
 - Advanced features do not hard-fail the app when Claude-specific APIs are absent.
 - The UI clearly communicates portable mode vs enhanced Claude mode.
 
@@ -364,7 +364,7 @@ This is not the detailed task plan, but the engineering direction should be:
 
 Lock this in:
 
-> Hermes Workspace is a standalone frontend for OpenAI-compatible chat backends.
+> Hermes Switch UI is a standalone frontend for OpenAI-compatible chat backends.
 >
 > Claude-native APIs are an enhancement layer, not a requirement.
 >

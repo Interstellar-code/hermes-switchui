@@ -66,7 +66,7 @@ const AVATAR_OPTIONS: Array<AvatarOption> = [
 const GREEK_AVATARS = AVATAR_OPTIONS.filter((o) => o.tier === 'greek')
 const EMOJI_AVATARS = AVATAR_OPTIONS.filter((o) => o.tier === 'emoji')
 
-const STORAGE_KEY = 'hermes-workspace-orchestrator-avatar'
+const STORAGE_KEY = 'hermes-switchui-orchestrator-avatar'
 
 function getStoredAvatar(): AvatarStyle {
   try {

@@ -1,6 +1,6 @@
 # Agent Pairing Guide — Workspace ↔ Claude Gateway
 
-> **Audience:** AI agents helping users set up Hermes Workspace.
+> **Audience:** AI agents helping users set up Hermes Switch UI.
 > Run these steps in order. Each step has a verification command — don't
 > skip to the next until the check passes.
 
@@ -8,7 +8,7 @@
 
 ```
 ┌─────────────────┐       HTTP :8642        ┌──────────────────┐
-│  Claude Gateway  │◄──────────────────────►│ Hermes Workspace │
+│  Claude Gateway  │◄──────────────────────►│ Hermes Switch UI │
 │  (Python, FastAPI)│  /health, /v1/chat,   │  (Node, Vite)     │
 │  hermes gateway   │  /api/sessions, etc.  │  pnpm dev         │
 │  run              │                       │  port 3000        │
@@ -153,7 +153,7 @@ ss -tlnp | grep 8642   # Linux
 ## Step 5 — Is Workspace pointed at the gateway?
 
 ```bash
-# In the hermes-workspace directory
+# In the hermes-switchui directory
 cat .env | grep HERMES_API_URL
 ```
 
@@ -161,7 +161,7 @@ cat .env | grep HERMES_API_URL
 
 **Fail or missing:**
 ```bash
-# In the hermes-workspace directory
+# In the hermes-switchui directory
 echo 'HERMES_API_URL=http://127.0.0.1:8642' >> .env
 ```
 
@@ -176,7 +176,7 @@ cp .env.example .env
 ## Step 6 — Start Workspace and verify pairing
 
 ```bash
-cd ~/hermes-workspace   # or wherever it's installed
+cd ~/hermes-switchui   # or wherever it's installed
 pnpm dev
 ```
 
@@ -230,7 +230,7 @@ sleep 8
 curl -sf http://127.0.0.1:8642/health && echo "✅ Gateway API is up" || echo "❌ Gateway API not reachable"
 
 # 6. Set workspace env
-cd ~/hermes-workspace 2>/dev/null || cd "$(find ~ -maxdepth 2 -name hermes-workspace -type d | head -1)"
+cd ~/hermes-switchui 2>/dev/null || cd "$(find ~ -maxdepth 2 -name hermes-switchui -type d | head -1)"
 grep -q '^HERMES_API_URL=' .env 2>/dev/null && \
   sed -i.bak 's|^HERMES_API_URL=.*|HERMES_API_URL=http://127.0.0.1:8642|' .env || \
   echo 'HERMES_API_URL=http://127.0.0.1:8642' >> .env
@@ -279,7 +279,7 @@ echo "=== claude env (redacted) ===" && grep -E "^(API_SERVER|CLAUDE_)" "$(claud
 echo "=== gateway process ===" && pgrep -af "claude.*gateway" 2>&1 || echo "not running"
 echo "=== port 8642 ===" && (ss -tlnp 2>/dev/null || lsof -iTCP:8642 -sTCP:LISTEN 2>/dev/null) | grep 8642 || echo "not bound"
 echo "=== health check ===" && curl -sf http://127.0.0.1:8642/health 2>&1 || echo "not reachable"
-echo "=== workspace .env ===" && grep CLAUDE ~/hermes-workspace/.env 2>&1 || echo "no .env"
+echo "=== workspace .env ===" && grep CLAUDE ~/hermes-switchui/.env 2>&1 || echo "no .env"
 echo "=== OS ===" && uname -a
 echo "=== Node ===" && node --version
 echo "=== Python ===" && python3 --version 2>&1

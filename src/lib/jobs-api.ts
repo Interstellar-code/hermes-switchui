@@ -34,6 +34,20 @@ export type JobOutput = {
   size: number
 }
 
+type JobMutationInput = {
+  schedule: string
+  prompt: string
+  name?: string
+  deliver?: Array<string>
+  skills?: Array<string>
+  repeat?: number
+}
+
+type JobMutationPayload = Omit<JobMutationInput, 'deliver'> & {
+  deliver?: Array<string> | string
+  input: string
+}
+
 export function normalizeJobsResponse(data: unknown): Array<ClaudeJob> {
   if (Array.isArray(data)) return data as Array<ClaudeJob>
   if (
@@ -56,7 +70,9 @@ export function findJobById(
 }
 
 export function normalizeJobState(state: unknown): string | null {
-  return typeof state === 'string' && state.trim() ? state.trim().toLowerCase() : null
+  return typeof state === 'string' && state.trim()
+    ? state.trim().toLowerCase()
+    : null
 }
 
 export function isFailedJobState(state: unknown): boolean {
@@ -89,7 +105,8 @@ export function getLatestJobOutputText(outputs: Array<JobOutput>): string {
   let latestTimestamp = Number.NEGATIVE_INFINITY
 
   for (const output of outputs) {
-    const content = typeof output.content === 'string' ? output.content.trim() : ''
+    const content =
+      typeof output.content === 'string' ? output.content.trim() : ''
     if (!content) continue
 
     const timestamp = new Date(output.timestamp).getTime()
@@ -102,7 +119,9 @@ export function getLatestJobOutputText(outputs: Array<JobOutput>): string {
   return latestContent
 }
 
-export function getJobErrorText(job: ClaudeJob | null | undefined): string | null {
+export function getJobErrorText(
+  job: ClaudeJob | null | undefined,
+): string | null {
   if (!job) return null
 
   const candidates = [job.last_run_error, job.error]
@@ -139,8 +158,9 @@ function errorMessageFromBody(body: unknown, fallback: string): string {
         .map((item) => {
           if (typeof item === 'string') return item
           if (item && typeof item === 'object') {
-            const msg = (item as { msg?: unknown; message?: unknown }).msg
-              ?? (item as { message?: unknown }).message
+            const msg =
+              (item as { msg?: unknown; message?: unknown }).msg ??
+              (item as { message?: unknown }).message
             if (typeof msg === 'string') return msg
           }
           return JSON.stringify(item)
@@ -162,32 +182,34 @@ function errorMessageFromBody(body: unknown, fallback: string): string {
   return fallback
 }
 
-export async function createJob(input: {
-  schedule: string
-  prompt: string
-  name?: string
-  deliver?: Array<string>
-  skills?: Array<string>
-  repeat?: number
-}): Promise<ClaudeJob> {
-  // Normalize deliver: backend expects a string, but the form sends an array
+export function buildJobMutationPayload(
+  input: JobMutationInput,
+): JobMutationPayload {
+  const prompt = typeof input.prompt === 'string' ? input.prompt : ''
   const normalizedDeliver = Array.isArray(input.deliver)
     ? input.deliver.join(',')
     : input.deliver
 
-  const payload = {
+  return {
     ...input,
+    prompt,
+    input: prompt,
     ...(normalizedDeliver !== undefined ? { deliver: normalizedDeliver } : {}),
   }
+}
 
+export async function createJob(input: JobMutationInput): Promise<ClaudeJob> {
+  // Normalize deliver: backend expects a string, but the form sends an array
   const res = await fetch(CLAUDE_API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(buildJobMutationPayload(input)),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(errorMessageFromBody(body, `Failed to create job: ${res.status}`))
+    throw new Error(
+      errorMessageFromBody(body, `Failed to create job: ${res.status}`),
+    )
   }
   return (await res.json()).job
 }
@@ -196,14 +218,20 @@ export async function updateJob(
   jobId: string,
   updates: Record<string, unknown>,
 ): Promise<ClaudeJob> {
+  const payload = { ...updates }
+  if (typeof updates.prompt === 'string') {
+    payload.input = updates.prompt
+  }
   const res = await fetch(`${CLAUDE_API}/${jobId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates),
+    body: JSON.stringify(payload),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(errorMessageFromBody(body, `Failed to update job: ${res.status}`))
+    throw new Error(
+      errorMessageFromBody(body, `Failed to update job: ${res.status}`),
+    )
   }
   return (await res.json()).job
 }
@@ -212,7 +240,9 @@ export async function deleteJob(jobId: string): Promise<void> {
   const res = await fetch(`${CLAUDE_API}/${jobId}`, { method: 'DELETE' })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(errorMessageFromBody(body, `Failed to delete job: ${res.status}`))
+    throw new Error(
+      errorMessageFromBody(body, `Failed to delete job: ${res.status}`),
+    )
   }
 }
 
@@ -222,7 +252,9 @@ export async function pauseJob(jobId: string): Promise<ClaudeJob> {
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(errorMessageFromBody(body, `Failed to pause job: ${res.status}`))
+    throw new Error(
+      errorMessageFromBody(body, `Failed to pause job: ${res.status}`),
+    )
   }
   return (await res.json()).job
 }
@@ -233,7 +265,9 @@ export async function resumeJob(jobId: string): Promise<ClaudeJob> {
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(errorMessageFromBody(body, `Failed to resume job: ${res.status}`))
+    throw new Error(
+      errorMessageFromBody(body, `Failed to resume job: ${res.status}`),
+    )
   }
   return (await res.json()).job
 }
@@ -244,7 +278,9 @@ export async function triggerJob(jobId: string): Promise<ClaudeJob> {
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(errorMessageFromBody(body, `Failed to trigger job: ${res.status}`))
+    throw new Error(
+      errorMessageFromBody(body, `Failed to trigger job: ${res.status}`),
+    )
   }
   return (await res.json()).job
 }

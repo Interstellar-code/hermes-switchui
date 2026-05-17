@@ -133,7 +133,7 @@ export function buildConnectParams(
   const role = 'operator'
   const scopes = ['operator.admin']
   const signedAtMs = Date.now()
-  const clientId = 'hermes-workspace-ui'
+  const clientId = 'hermes-switchui-ui'
   const clientMode = 'ui'
   const version = nonce ? 'v2' : 'v1'
   const parts = [version, identity.deviceId, clientId, clientMode, role, scopes.join(','), String(signedAtMs), token || '']

@@ -252,7 +252,7 @@ function MainTop({allBoards, boards, view, setView, search, setSearch, filter, s
     <>
       <div className="brd-top">
         <div>
-          <div className="crumbs">Workspace<span className="sep">/</span>Tasks<span className="sep">/</span><span className="cur">Boards</span></div>
+          <div className="crumbs">Switch UI<span className="sep">/</span>Tasks<span className="sep">/</span><span className="cur">Boards</span></div>
           <h1>Boards</h1>
           <div className="top-sub">Isolated project workspaces — each board has its own Kanban structure, agent assignments, and task database.</div>
         </div>
@@ -412,7 +412,7 @@ function BoardDrawer({board, onClose, onDelete, onUpdate}) {
             </div>
 
             <div className="panel-card">
-              <div className="pc-head">Workspace</div>
+              <div className="pc-head">Switch UI</div>
               <div className="pc-body ws-grid">
                 <div className="ws-lbl">Board Path</div>
                 <div className="ws-val path">{board.path}</div>

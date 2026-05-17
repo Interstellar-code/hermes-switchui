@@ -25,7 +25,7 @@ function classifyConnectionError(
   if (!normalizedError && !status) {
     return {
       title: 'Not connected',
-      description: "Hermes Workspace can't reach Hermes Agent.",
+      description: "Hermes Switch UI can't reach Hermes Agent.",
       action: 'Check that Hermes is running, then try again.',
     }
   }

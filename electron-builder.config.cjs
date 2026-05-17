@@ -1,7 +1,7 @@
 module.exports = {
   appId: 'com.hermesworkspace.app',
-  productName: 'hermes-workspace',
-  copyright: 'Copyright © 2026 hermes-workspace',
+  productName: 'hermes-switchui',
+  copyright: 'Copyright © 2026 hermes-switchui',
   icon: 'assets/icon.png',
   directories: {
     output: 'release',
@@ -30,7 +30,7 @@ module.exports = {
     gatekeeperAssess: false,
   },
   dmg: {
-    title: 'Hermes Workspace',
+    title: 'Hermes Switch UI',
     iconSize: 80,
     contents: [
       { x: 130, y: 220 },
@@ -49,7 +49,7 @@ module.exports = {
   publish: {
     provider: 'github',
     owner: 'outsourc-e',
-    repo: 'hermes-workspace',
+    repo: 'hermes-switchui',
     releaseType: 'release',
   },
   asar: false,

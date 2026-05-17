@@ -1,8 +1,10 @@
 # Hermes Switch UI — Rebrand Plan
 
-**Status:** Ready for Implementation  
+**Status:** Completed  
 **Date:** 2026-05-13  
 **Scope:** Replace all user-facing "Hermes Workspace" branding with "Hermes Switch UI"
+
+Completed on 2026-05-15. Remaining `outsourc-e/hermes-workspace` and `Hermes Workspace` references are upstream provenance / compatibility aliases, not active product branding.
 
 ---
 

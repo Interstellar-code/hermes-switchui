@@ -79,7 +79,7 @@ First release as **Switch UI** — fork of `outsourc-e/hermes-workspace` with a 
 
 ## [2.0.0] — 2026-04-20
 
-**Zero-fork release.** Clone, don't fork. Hermes Workspace now runs on vanilla `pip install hermes-agent` with no patches, no drift, no custom gateway required.
+**Zero-fork release.** Clone, don't fork. Hermes Switch UI now runs on vanilla `pip install hermes-agent` with no patches, no drift, no custom gateway required.
 
 ### Added
 - **Zero-fork architecture** — dual gateway/dashboard routing; workspace talks directly to vanilla `hermes-agent` 0.10.0+ via standard endpoints (`/v1/models`, `/api/sessions`, `/api/skills`, `/api/config`, `/api/jobs`)

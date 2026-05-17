@@ -109,7 +109,7 @@ export function getKnowledgeBaseEffectiveRoot(): string {
 
   const hermesWiki = firstExistingPath([
     '~/hermes/wikis/hermes-switchui',
-    '~/hermes/wikis/hermes-workspace-ui',
+    '~/hermes/wikis/hermes-switchui-ui',
     '~/hermes/wikis/workspace-ui',
   ])
   if (hermesWiki) return hermesWiki

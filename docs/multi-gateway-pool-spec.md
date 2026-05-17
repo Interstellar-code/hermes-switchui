@@ -1,5 +1,5 @@
 # Multi-Gateway Pool Architecture
-## Hermes Workspace — Profile-Parallel Agent Execution
+## Hermes Switch UI — Profile-Parallel Agent Execution
 
 ### Status: Design Document — PR Proposal
 
@@ -7,7 +7,7 @@
 
 ## 1. Problem Statement
 
-Hermes Workspace currently operates as a **single-gateway, single-profile UI**. The gateway loads one `HERMES_HOME` at startup and all chat sessions, operations, and memory access flow through that one process.
+Hermes Switch UI currently operates as a **single-gateway, single-profile UI**. The gateway loads one `HERMES_HOME` at startup and all chat sessions, operations, and memory access flow through that one process.
 
 For multi-profile users (the primary Claude use case), this means:
 - **No parallel agent execution**: Cannot brainstorm with Nous while Jules orchestrates Architect and Sentinel in Operations
@@ -43,7 +43,7 @@ For multi-profile users (the primary Claude use case), this means:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Hermes Workspace UI                      │
+│                     Hermes Switch UI UI                      │
 │  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌───────────────┐  │
 │  │ Chat    │  │ Ops     │  │ Memory  │  │ Profile       │  │
 │  │ (Nous)  │  │ (Jules) │  │ (all)   │  │ Selector      │  │
@@ -236,7 +236,7 @@ SESSIONS
 A persistent pill/button in the top-left (next to sidebar toggle):
 
 ```
-[☰] [ nous ▼ ]              Hermes Workspace
+[☰] [ nous ▼ ]              Hermes Switch UI
 ```
 
 - Dropdown lists all profiles with status indicators
@@ -396,5 +396,5 @@ CLAUDE_GATEWAY_HEALTH_INTERVAL=30  # Health check seconds
 
 ---
 
-*Authored by Nous (Vivere Vitalis) for the Hermes Workspace project.*
+*Authored by Nous (Vivere Vitalis) for the Hermes Switch UI project.*
 *First-principles architecture: if each profile is a distinct agent, the workspace must be an agent orchestrator.*

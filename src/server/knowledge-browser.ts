@@ -174,7 +174,7 @@ class GitHubKnowledgeProvider {
   private async fetchDir(dirPath: string): Promise<void> {
     const url = `https://api.github.com/repos/${this.repo}/contents/${dirPath}?ref=${this.branch}`
     const res = await fetch(url, {
-      headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'hermes-workspace' },
+      headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'hermes-switchui' },
     })
     if (!res.ok) {
       const body = await res.text().catch(() => '')
@@ -204,7 +204,7 @@ class GitHubKnowledgeProvider {
   private async fetchFile(entry: { path: string; sha: string }): Promise<string> {
     const url = `https://api.github.com/repos/${this.repo}/contents/${entry.path}?ref=${this.branch}`
     const res = await fetch(url, {
-      headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'hermes-workspace' },
+      headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'hermes-switchui' },
     })
     if (!res.ok) {
       throw new Error(`GitHub API ${res.status} for ${entry.path}`)

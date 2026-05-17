@@ -825,7 +825,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
           // Content-text dedup: identical assistant text within the same
           // session should never appear twice, even if message IDs differ
-          // (e.g. same reply routed from Telegram + Hermes Workspace).
+          // (e.g. same reply routed from Telegram + Hermes Switch UI).
           if (
             normalizedMessage.role === 'assistant' &&
             newPlainText.length > 20 &&

@@ -189,6 +189,13 @@ function readSessionKey(session: GatewaySession): string {
 }
 
 function readSessionName(session: GatewaySession): string {
+  if (isChildWorkerSession(session)) {
+    const taskText = readTaskText(session)
+    const key = readSessionKey(session)
+    const persona = assignPersona(key, taskText)
+    return `${persona.emoji} ${persona.name} — ${persona.role}`
+  }
+  if (isWorkspaceChatSession(session)) return 'Hermes Switch UI'
   // Assign persona based on session key + task for named agent display
   const key = readSessionKey(session)
   const taskText =
@@ -211,6 +218,22 @@ function readSessionName(session: GatewaySession): string {
   return 'session'
 }
 
+export function isWorkspaceChatSession(session: GatewaySession): boolean {
+  const key = readSessionKey(session).toLowerCase()
+  const friendlyId = readString(session.friendlyId).toLowerCase()
+  const kind = readString(session.kind).toLowerCase()
+  if (kind !== 'chat') return false
+  if (isChildWorkerSession(session)) return false
+  if (key.startsWith('cron') || key.includes('cron')) return false
+  if (session.is_active === true) return true
+  if (friendlyId === 'main' || friendlyId === 'default') return true
+  return key === 'main' || key === 'default'
+}
+
+export function isChildWorkerSession(session: GatewaySession): boolean {
+  return Boolean(session.parentSessionId) && readString(session.kind).toLowerCase() === 'chat'
+}
+
 function isAgentSession(session: GatewaySession): boolean {
   const key = readSessionKey(session).toLowerCase()
   const friendlyId = readString(session.friendlyId).toLowerCase()
@@ -225,9 +248,18 @@ function isAgentSession(session: GatewaySession): boolean {
   if (key === 'main' || key.includes(':main')) return false
   if (friendlyId === 'main') return false
   if (kind === 'cron' || key.includes('cron')) return false
-  // Normal chat sessions can have agent-like generated titles and can be
-  // transiently active while streaming, but they are not delegated workers.
-  // Never show them in the agent sidebar.
+
+  // The active workspace chat session (kind=chat, api-* key or main/default)
+  // is the primary Hermes conversation. It counts as a live agent for
+  // Matrix3D presence — without it, the Hermes card stays visually idle
+  // even when the main chat is actively streaming.
+  if (isWorkspaceChatSession(session)) return true
+
+  // Child sessions spawned by delegate_task are the actual worker sessions.
+  // They are live even if the status string is still idle.
+  if (isChildWorkerSession(session)) return true
+
+  // Regular chat sessions are not delegated workers. Skip them.
   if (kind === 'chat') return false
 
   return ['agent', 'worker', 'delegate', 'subagent'].includes(kind)
@@ -236,6 +268,9 @@ function isAgentSession(session: GatewaySession): boolean {
 function readTaskText(session: GatewaySession): string {
   const explicitTask = readString(session.task)
   if (explicitTask.length > 0) return explicitTask
+
+  const preview = readString((session as { preview?: unknown }).preview)
+  if (preview.length > 0) return preview
 
   const initialMessage = readString(session.initialMessage)
   if (initialMessage.length > 0) return initialMessage
@@ -333,7 +368,28 @@ function readStatus(
   if (statusText.length > 0) return statusText.toLowerCase()
 
   const sessionStatus = readString(session.status)
-  if (sessionStatus.length > 0) return sessionStatus.toLowerCase()
+  if (sessionStatus.length > 0) {
+    const normalized = sessionStatus.toLowerCase()
+    if (isChildWorkerSession(session) && normalized === 'idle') {
+      return 'running'
+    }
+    if (normalized === 'idle' && session.is_active === true && readString(session.kind).toLowerCase() === 'chat') {
+      return 'running'
+    }
+    if (isWorkspaceChatSession(session)) {
+      // Workspace chat sessions report "idle" between messages, but active
+      // sessions expose is_active. Treat that as live.
+      if (
+        session.is_active === true &&
+        normalized !== 'ended' &&
+        normalized !== 'completed'
+      ) {
+        return 'running'
+      }
+      return 'idle'
+    }
+    return normalized
+  }
 
   // Heuristic: detect completion from staleness when gateway has no explicit status
   const updatedAt = readTimestamp(session.updatedAt)
@@ -405,12 +461,13 @@ function mapSessionToActiveAgent(
   status: GatewaySessionStatusResponse | null,
 ): ActiveAgent {
   const tokenCount = readTokenCount(session, status)
+  const childWorker = isChildWorkerSession(session)
   return {
     id: readSessionKey(session) || crypto.randomUUID(),
     name: readSessionName(session),
     task: readTaskText(session),
     model: readModel(session, status),
-    status: readStatus(session, status),
+    status: childWorker ? 'running' : readStatus(session, status),
     progress: readProgress(session, status),
     startedAtMs: readStartTimeMs(session),
     tokenCount,

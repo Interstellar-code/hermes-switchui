@@ -15,7 +15,7 @@ describe('update-system helpers', () => {
     ).toBe(true)
     expect(
       remoteUrlMatches('https://github.com/example/other.git', [
-        'hermes-workspace',
+        'hermes-switchui',
       ]),
     ).toBe(false)
   })

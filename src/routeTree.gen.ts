@@ -54,7 +54,9 @@ import { Route as ApiPingRouteImport } from './routes/api/ping'
 import { Route as ApiPathsRouteImport } from './routes/api/paths'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
 import { Route as ApiMemoryRouteImport } from './routes/api/memory'
+import { Route as ApiMediaRouteImport } from './routes/api/media'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
+import { Route as ApiLogsRouteImport } from './routes/api/logs'
 import { Route as ApiLocalProvidersRouteImport } from './routes/api/local-providers'
 import { Route as ApiIntegrationsRouteImport } from './routes/api/integrations'
 import { Route as ApiHistoryRouteImport } from './routes/api/history'
@@ -76,6 +78,7 @@ import { Route as ApiChatEventsRouteImport } from './routes/api/chat-events'
 import { Route as ApiAuthCheckRouteImport } from './routes/api/auth-check'
 import { Route as ApiAuthRouteImport } from './routes/api/auth'
 import { Route as ApiArtifactsRouteImport } from './routes/api/artifacts'
+import { Route as ApiWorkspaceAgentsRouteImport } from './routes/api/workspace.agents'
 import { Route as ApiWorkflowRunsRunIdRouteImport } from './routes/api/workflow-runs.$runId'
 import { Route as ApiWorkflowDefinitionsIdRouteImport } from './routes/api/workflow-definitions.$id'
 import { Route as ApiUpdateWorkspaceRouteImport } from './routes/api/update/workspace'
@@ -384,9 +387,19 @@ const ApiMemoryRoute = ApiMemoryRouteImport.update({
   path: '/api/memory',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMediaRoute = ApiMediaRouteImport.update({
+  id: '/api/media',
+  path: '/api/media',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpRoute = ApiMcpRouteImport.update({
   id: '/api/mcp',
   path: '/api/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLogsRoute = ApiLogsRouteImport.update({
+  id: '/api/logs',
+  path: '/api/logs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiLocalProvidersRoute = ApiLocalProvidersRouteImport.update({
@@ -493,6 +506,11 @@ const ApiArtifactsRoute = ApiArtifactsRouteImport.update({
   id: '/api/artifacts',
   path: '/api/artifacts',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWorkspaceAgentsRoute = ApiWorkspaceAgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
+  getParentRoute: () => ApiWorkspaceRoute,
 } as any)
 const ApiWorkflowRunsRunIdRoute = ApiWorkflowRunsRunIdRouteImport.update({
   id: '/$runId',
@@ -961,7 +979,9 @@ export interface FileRoutesByFullPath {
   '/api/history': typeof ApiHistoryRoute
   '/api/integrations': typeof ApiIntegrationsRoute
   '/api/local-providers': typeof ApiLocalProvidersRoute
+  '/api/logs': typeof ApiLogsRoute
   '/api/mcp': typeof ApiMcpRouteWithChildren
+  '/api/media': typeof ApiMediaRoute
   '/api/memory': typeof ApiMemoryRouteWithChildren
   '/api/models': typeof ApiModelsRoute
   '/api/paths': typeof ApiPathsRoute
@@ -985,7 +1005,7 @@ export interface FileRoutesByFullPath {
   '/api/workflow-definitions': typeof ApiWorkflowDefinitionsRouteWithChildren
   '/api/workflow-events': typeof ApiWorkflowEventsRoute
   '/api/workflow-runs': typeof ApiWorkflowRunsRouteWithChildren
-  '/api/workspace': typeof ApiWorkspaceRoute
+  '/api/workspace': typeof ApiWorkspaceRouteWithChildren
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
   '/settings/providers': typeof SettingsProvidersRoute
   '/chat/': typeof ChatIndexRoute
@@ -1056,6 +1076,7 @@ export interface FileRoutesByFullPath {
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
   '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRouteWithChildren
   '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
+  '/api/workspace/agents': typeof ApiWorkspaceAgentsRoute
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
@@ -1111,7 +1132,9 @@ export interface FileRoutesByTo {
   '/api/history': typeof ApiHistoryRoute
   '/api/integrations': typeof ApiIntegrationsRoute
   '/api/local-providers': typeof ApiLocalProvidersRoute
+  '/api/logs': typeof ApiLogsRoute
   '/api/mcp': typeof ApiMcpRouteWithChildren
+  '/api/media': typeof ApiMediaRoute
   '/api/memory': typeof ApiMemoryRouteWithChildren
   '/api/models': typeof ApiModelsRoute
   '/api/paths': typeof ApiPathsRoute
@@ -1135,7 +1158,7 @@ export interface FileRoutesByTo {
   '/api/workflow-definitions': typeof ApiWorkflowDefinitionsRouteWithChildren
   '/api/workflow-events': typeof ApiWorkflowEventsRoute
   '/api/workflow-runs': typeof ApiWorkflowRunsRouteWithChildren
-  '/api/workspace': typeof ApiWorkspaceRoute
+  '/api/workspace': typeof ApiWorkspaceRouteWithChildren
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
   '/settings/providers': typeof SettingsProvidersRoute
   '/chat': typeof ChatIndexRoute
@@ -1206,6 +1229,7 @@ export interface FileRoutesByTo {
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
   '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRouteWithChildren
   '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
+  '/api/workspace/agents': typeof ApiWorkspaceAgentsRoute
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
@@ -1263,7 +1287,9 @@ export interface FileRoutesById {
   '/api/history': typeof ApiHistoryRoute
   '/api/integrations': typeof ApiIntegrationsRoute
   '/api/local-providers': typeof ApiLocalProvidersRoute
+  '/api/logs': typeof ApiLogsRoute
   '/api/mcp': typeof ApiMcpRouteWithChildren
+  '/api/media': typeof ApiMediaRoute
   '/api/memory': typeof ApiMemoryRouteWithChildren
   '/api/models': typeof ApiModelsRoute
   '/api/paths': typeof ApiPathsRoute
@@ -1287,7 +1313,7 @@ export interface FileRoutesById {
   '/api/workflow-definitions': typeof ApiWorkflowDefinitionsRouteWithChildren
   '/api/workflow-events': typeof ApiWorkflowEventsRoute
   '/api/workflow-runs': typeof ApiWorkflowRunsRouteWithChildren
-  '/api/workspace': typeof ApiWorkspaceRoute
+  '/api/workspace': typeof ApiWorkspaceRouteWithChildren
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
   '/settings/providers': typeof SettingsProvidersRoute
   '/chat/': typeof ChatIndexRoute
@@ -1358,6 +1384,7 @@ export interface FileRoutesById {
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
   '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRouteWithChildren
   '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
+  '/api/workspace/agents': typeof ApiWorkspaceAgentsRoute
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
@@ -1416,7 +1443,9 @@ export interface FileRouteTypes {
     | '/api/history'
     | '/api/integrations'
     | '/api/local-providers'
+    | '/api/logs'
     | '/api/mcp'
+    | '/api/media'
     | '/api/memory'
     | '/api/models'
     | '/api/paths'
@@ -1511,6 +1540,7 @@ export interface FileRouteTypes {
     | '/api/update/workspace'
     | '/api/workflow-definitions/$id'
     | '/api/workflow-runs/$runId'
+    | '/api/workspace/agents'
     | '/api/conductor/missions/$id'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/mcp/$name/logs'
@@ -1566,7 +1596,9 @@ export interface FileRouteTypes {
     | '/api/history'
     | '/api/integrations'
     | '/api/local-providers'
+    | '/api/logs'
     | '/api/mcp'
+    | '/api/media'
     | '/api/memory'
     | '/api/models'
     | '/api/paths'
@@ -1661,6 +1693,7 @@ export interface FileRouteTypes {
     | '/api/update/workspace'
     | '/api/workflow-definitions/$id'
     | '/api/workflow-runs/$runId'
+    | '/api/workspace/agents'
     | '/api/conductor/missions/$id'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/mcp/$name/logs'
@@ -1717,7 +1750,9 @@ export interface FileRouteTypes {
     | '/api/history'
     | '/api/integrations'
     | '/api/local-providers'
+    | '/api/logs'
     | '/api/mcp'
+    | '/api/media'
     | '/api/memory'
     | '/api/models'
     | '/api/paths'
@@ -1812,6 +1847,7 @@ export interface FileRouteTypes {
     | '/api/update/workspace'
     | '/api/workflow-definitions/$id'
     | '/api/workflow-runs/$runId'
+    | '/api/workspace/agents'
     | '/api/conductor/missions/$id'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/mcp/$name/logs'
@@ -1869,7 +1905,9 @@ export interface RootRouteChildren {
   ApiHistoryRoute: typeof ApiHistoryRoute
   ApiIntegrationsRoute: typeof ApiIntegrationsRoute
   ApiLocalProvidersRoute: typeof ApiLocalProvidersRoute
+  ApiLogsRoute: typeof ApiLogsRoute
   ApiMcpRoute: typeof ApiMcpRouteWithChildren
+  ApiMediaRoute: typeof ApiMediaRoute
   ApiMemoryRoute: typeof ApiMemoryRouteWithChildren
   ApiModelsRoute: typeof ApiModelsRoute
   ApiPathsRoute: typeof ApiPathsRoute
@@ -1893,7 +1931,7 @@ export interface RootRouteChildren {
   ApiWorkflowDefinitionsRoute: typeof ApiWorkflowDefinitionsRouteWithChildren
   ApiWorkflowEventsRoute: typeof ApiWorkflowEventsRoute
   ApiWorkflowRunsRoute: typeof ApiWorkflowRunsRouteWithChildren
-  ApiWorkspaceRoute: typeof ApiWorkspaceRoute
+  ApiWorkspaceRoute: typeof ApiWorkspaceRouteWithChildren
   ChatSessionKeyRoute: typeof ChatSessionKeyRoute
   ChatIndexRoute: typeof ChatIndexRoute
   ApiClaudeProxySplatRoute: typeof ApiClaudeProxySplatRoute
@@ -2258,11 +2296,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMemoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/media': {
+      id: '/api/media'
+      path: '/api/media'
+      fullPath: '/api/media'
+      preLoaderRoute: typeof ApiMediaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/mcp': {
       id: '/api/mcp'
       path: '/api/mcp'
       fullPath: '/api/mcp'
       preLoaderRoute: typeof ApiMcpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/logs': {
+      id: '/api/logs'
+      path: '/api/logs'
+      fullPath: '/api/logs'
+      preLoaderRoute: typeof ApiLogsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/local-providers': {
@@ -2411,6 +2463,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/artifacts'
       preLoaderRoute: typeof ApiArtifactsRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/workspace/agents': {
+      id: '/api/workspace/agents'
+      path: '/agents'
+      fullPath: '/api/workspace/agents'
+      preLoaderRoute: typeof ApiWorkspaceAgentsRouteImport
+      parentRoute: typeof ApiWorkspaceRoute
     }
     '/api/workflow-runs/$runId': {
       id: '/api/workflow-runs/$runId'
@@ -3192,6 +3251,18 @@ const ApiWorkflowRunsRouteWithChildren = ApiWorkflowRunsRoute._addFileChildren(
   ApiWorkflowRunsRouteChildren,
 )
 
+interface ApiWorkspaceRouteChildren {
+  ApiWorkspaceAgentsRoute: typeof ApiWorkspaceAgentsRoute
+}
+
+const ApiWorkspaceRouteChildren: ApiWorkspaceRouteChildren = {
+  ApiWorkspaceAgentsRoute: ApiWorkspaceAgentsRoute,
+}
+
+const ApiWorkspaceRouteWithChildren = ApiWorkspaceRoute._addFileChildren(
+  ApiWorkspaceRouteChildren,
+)
+
 interface ApiConductorMissionsIdRouteChildren {
   ApiConductorMissionsIdAbortRoute: typeof ApiConductorMissionsIdAbortRoute
 }
@@ -3326,7 +3397,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHistoryRoute: ApiHistoryRoute,
   ApiIntegrationsRoute: ApiIntegrationsRoute,
   ApiLocalProvidersRoute: ApiLocalProvidersRoute,
+  ApiLogsRoute: ApiLogsRoute,
   ApiMcpRoute: ApiMcpRouteWithChildren,
+  ApiMediaRoute: ApiMediaRoute,
   ApiMemoryRoute: ApiMemoryRouteWithChildren,
   ApiModelsRoute: ApiModelsRoute,
   ApiPathsRoute: ApiPathsRoute,
@@ -3350,7 +3423,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWorkflowDefinitionsRoute: ApiWorkflowDefinitionsRouteWithChildren,
   ApiWorkflowEventsRoute: ApiWorkflowEventsRoute,
   ApiWorkflowRunsRoute: ApiWorkflowRunsRouteWithChildren,
-  ApiWorkspaceRoute: ApiWorkspaceRoute,
+  ApiWorkspaceRoute: ApiWorkspaceRouteWithChildren,
   ChatSessionKeyRoute: ChatSessionKeyRoute,
   ChatIndexRoute: ChatIndexRoute,
   ApiClaudeProxySplatRoute: ApiClaudeProxySplatRoute,

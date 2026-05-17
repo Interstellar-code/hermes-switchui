@@ -25,7 +25,7 @@
 - **Upstream:** [`outsourc-e/hermes-workspace`](https://github.com/outsourc-e/hermes-workspace) — original Hermes Workspace
 - **This fork:** [`Interstellar-code/hermes-switchui`](https://github.com/Interstellar-code/hermes-switchui) — Switch UI
 
-**Sync strategy:** we cherry-pick upstream backend/infra fixes when relevant. We do **not** rebase or merge from upstream `main` — UI changes don't flow back, and we avoid pulling upstream UI changes that conflict with the Switch UI direction. Full credit to outsourc-e and the Hermes Workspace community for the original work this is built on.
+**Sync strategy:** we cherry-pick upstream backend/infra fixes when relevant. We do **not** rebase or merge from upstream `main` — UI changes don't flow back, and we avoid pulling upstream UI changes that conflict with the Switch UI direction. Full credit to outsourc-e and the Hermes Switch UI community for the original work this is built on.
 
 ---
 
@@ -284,7 +284,7 @@ docker compose up
 
 Open `http://localhost:3000` and complete onboarding.
 
-> **Note:** The default `docker-compose.yml` was inherited from upstream and may still reference `ghcr.io/outsourc-e/hermes-workspace:latest`. Until the Switch UI image is published, the simplest path is to pull this repo and run `docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build` so the Switch UI is built locally on top of the canonical `nousresearch/hermes-agent:latest` agent image.
+> **Note:** The default `docker-compose.yml` was inherited from upstream and may still reference `ghcr.io/interstellar-code/hermes-switchui:latest`. Until the Switch UI image is published, the simplest path is to pull this repo and run `docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build` so the Switch UI is built locally on top of the canonical `nousresearch/hermes-agent:latest` agent image.
 
 ---
 

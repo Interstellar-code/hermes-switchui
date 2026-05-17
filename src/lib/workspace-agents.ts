@@ -1,3 +1,4 @@
+import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
 import { workspaceRequestJson } from '@/lib/workspace-checkpoints'
 
 export type WorkspaceAgentDirectory = {
@@ -37,6 +38,27 @@ export type WorkspaceAgentStats = {
   cost_cents_today: number
   success_rate: number
   avg_response_ms: number | null
+}
+
+export type CrewStatusAgent = {
+  id: string
+  displayName: string
+  role: string
+  profileFound: boolean
+  gatewayState: string
+  processAlive: boolean
+  platforms: Record<string, unknown>
+  model: string
+  provider: string
+  lastSessionTitle: string | null
+  lastSessionAt: number | null
+  sessionCount: number
+  messageCount: number
+  toolCallCount: number
+  totalTokens: number
+  estimatedCostUsd: number | null
+  cronJobCount: number
+  assignedTaskCount: number
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -141,6 +163,154 @@ export function extractWorkspaceAgents(
   return []
 }
 
+const BUILTIN_AGENT_BY_ID = new Map(
+  BUILTIN_AGENTS.map((agent) => [agent.id, agent]),
+)
+
+function normalizeCrewStatusAgent(value: unknown): CrewStatusAgent | null {
+  const record = asRecord(value)
+  const id = asString(record?.id)
+  const displayName = asString(record?.displayName)
+  if (!id || !displayName) return null
+
+  return {
+    id,
+    displayName,
+    role: asString(record?.role) ?? 'Profile',
+    profileFound: asBoolean(record?.profileFound),
+    gatewayState: asString(record?.gatewayState) ?? 'unknown',
+    processAlive: asBoolean(record?.processAlive),
+    platforms: asRecord(record?.platforms) ?? {},
+    model: asString(record?.model) ?? 'unknown',
+    provider: asString(record?.provider) ?? 'Hermes',
+    lastSessionTitle: asString(record?.lastSessionTitle) ?? null,
+    lastSessionAt:
+      typeof record?.lastSessionAt === 'number' ? record.lastSessionAt : null,
+    sessionCount: asNumber(record?.sessionCount),
+    messageCount: asNumber(record?.messageCount),
+    toolCallCount: asNumber(record?.toolCallCount),
+    totalTokens: asNumber(record?.totalTokens),
+    estimatedCostUsd:
+      typeof record?.estimatedCostUsd === 'number' && Number.isFinite(record.estimatedCostUsd)
+        ? record.estimatedCostUsd
+        : null,
+    cronJobCount: asNumber(record?.cronJobCount),
+    assignedTaskCount: asNumber(record?.assignedTaskCount),
+  }
+}
+
+function normalizeTimestamp(value: unknown): string {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return new Date(
+      value < 1_000_000_000_000 ? value * 1000 : value,
+    ).toISOString()
+  }
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value)
+    if (!Number.isNaN(parsed)) return new Date(parsed).toISOString()
+  }
+  return new Date(0).toISOString()
+}
+
+function normalizeCrewMember(value: unknown): CrewStatusMember | null {
+  const record = asRecord(value)
+  const id = asString(record?.id)
+  const displayName = asString(record?.displayName)
+  if (!id || !displayName) return null
+
+  return {
+    id,
+    displayName,
+    role: asString(record?.role) ?? 'Profile',
+    profileFound: asBoolean(record?.profileFound),
+    gatewayState: asString(record?.gatewayState) ?? 'unknown',
+    processAlive: asBoolean(record?.processAlive),
+    model: asString(record?.model) ?? 'unknown',
+    provider: asString(record?.provider) ?? 'Hermes',
+    lastSessionTitle: asString(record?.lastSessionTitle),
+    lastSessionAt:
+      typeof record?.lastSessionAt === 'number' ? record.lastSessionAt : null,
+    sessionCount: asNumber(record?.sessionCount),
+    totalTokens: asNumber(record?.totalTokens),
+    cronJobCount: asNumber(record?.cronJobCount),
+    assignedTaskCount: asNumber(record?.assignedTaskCount),
+  }
+}
+
+function crewStatusToWorkspaceStatus(
+  member: CrewStatusAgent,
+): WorkspaceAgentDirectory['status'] {
+  if (!member.profileFound) return 'offline'
+  if (
+    member.processAlive ||
+    member.gatewayState === 'running' ||
+    member.assignedTaskCount > 0
+  ) {
+    return 'online'
+  }
+  return 'away'
+}
+
+function crewMemberToWorkspaceAgent(
+  member: CrewStatusAgent,
+): WorkspaceAgentDirectory {
+  const builtin = BUILTIN_AGENT_BY_ID.get(member.id)
+  const role = builtin?.role ?? member.role
+  const description =
+    member.lastSessionTitle ??
+    builtin?.description ??
+    `${member.displayName} Hermes profile`
+
+  return {
+    id: member.id,
+    name: member.displayName,
+    role,
+    adapter_type: 'local',
+    model: member.model === 'unknown' ? null : member.model,
+    provider: member.provider === 'unknown' ? 'Hermes' : member.provider,
+    status: crewStatusToWorkspaceStatus(member),
+    avatar: builtin?.glyph ?? member.displayName.slice(0, 2).toUpperCase(),
+    avatar_tone:
+      member.id === 'workspace'
+        ? 'accent'
+        : member.id === 'neo'
+          ? 'green'
+          : member.id === 'trinity'
+            ? 'yellow'
+            : 'primary',
+    description,
+    system_prompt: description,
+    prompt_updated_at: normalizeTimestamp(member.lastSessionAt),
+    limits: {
+      max_tokens: 0,
+      cost_label: 'local',
+      concurrency_limit: member.id === 'workspace' ? 4 : 1,
+      memory_scope: member.id === 'workspace' ? 'workspace' : 'agent',
+    },
+    capabilities: {
+      repo_write: member.id !== 'morpheus',
+      shell_commands: true,
+      git_operations: member.id === 'workspace' || member.id === 'neo',
+      browser: member.id === 'trinity',
+      network: true,
+    },
+    assigned_projects: [],
+    skills: builtin?.tags ?? [],
+  }
+}
+
+function extractCrewAgents(payload: unknown): Array<WorkspaceAgentDirectory> {
+  return extractCrewStatusAgents(payload).map(crewMemberToWorkspaceAgent)
+}
+
+export function extractCrewStatusAgents(payload: unknown): Array<CrewStatusAgent> {
+  const record = asRecord(payload)
+  if (!Array.isArray(record?.crew)) return []
+  return record.crew
+    .map(normalizeCrewStatusAgent)
+    .filter((member): member is CrewStatusAgent => Boolean(member))
+}
+
 export function normalizeWorkspaceAgentStats(
   payload: unknown,
 ): WorkspaceAgentStats {
@@ -160,9 +330,17 @@ export function normalizeWorkspaceAgentStats(
   }
 }
 
+export async function listCrewStatusAgents(): Promise<Array<CrewStatusAgent>> {
+  const payload = await workspaceRequestJson('/api/crew-status')
+  return extractCrewStatusAgents(payload)
+}
+
 export async function listWorkspaceAgents(): Promise<
   Array<WorkspaceAgentDirectory>
 > {
+  const crewAgents = await listCrewStatusAgents()
+  if (crewAgents.length > 0) return crewAgents.map(crewMemberToWorkspaceAgent)
+
   const payload = await workspaceRequestJson('/api/workspace/agents')
   return extractWorkspaceAgents(payload)
 }

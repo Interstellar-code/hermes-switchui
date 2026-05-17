@@ -21,7 +21,7 @@ Copy `.env.example` → `.env` before first run. Minimum required: nothing for l
 
 ## Project Identity: hermes-switchui
 
-This is **hermes-switchui** — Interstellar Code's opinionated flavor of Hermes Workspace.
+This is **hermes-switchui** — Interstellar Code's opinionated UI — Hermes Switch UI.
 
 ### Fork strategy
 

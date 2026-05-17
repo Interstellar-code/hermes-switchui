@@ -1290,7 +1290,7 @@ Add a top-level comment:
 
 **Step 3: Update skill/reference if needed**
 
-Patch `hermes-workspace` skill reference later after implementation succeeds so future agents do not write to `tasks.json`.
+Patch `hermes-switchui` skill reference later after implementation succeeds so future agents do not write to `tasks.json`.
 
 **Step 4: Commit**
 

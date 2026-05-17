@@ -150,7 +150,7 @@ Faster Workspace-only patch.
 Store artifacts under:
 
 ```txt
-~/hermes-workspace/.runtime/artifacts/<session_id>/<artifact_id>.json
+~/hermes-switchui/.runtime/artifacts/<session_id>/<artifact_id>.json
 ```
 
 or a small local DB/JSON index.

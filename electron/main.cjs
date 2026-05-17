@@ -8,7 +8,7 @@ try {
   ;({ autoUpdater } = require('electron-updater'))
 } catch (error) {
   console.warn(
-    '[hermes-workspace] electron-updater unavailable, disabling built-in updater:',
+    '[hermes-switchui] electron-updater unavailable, disabling built-in updater:',
     error?.message || error,
   )
 }
@@ -78,7 +78,7 @@ function configureAutoUpdater() {
       defaultId: 0,
       cancelId: 1,
       title: 'Update available',
-      message: `A new hermes-workspace version (${info?.version || 'latest'}) is available.`,
+      message: `A new hermes-switchui version (${info?.version || 'latest'}) is available.`,
       detail: 'Download and install it from inside the app?',
     })
     if (result.response === 0) {
@@ -111,7 +111,7 @@ function configureAutoUpdater() {
       defaultId: 0,
       cancelId: 1,
       title: 'Update ready',
-      message: `hermes-workspace ${info?.version || ''} is ready to install.`,
+      message: `hermes-switchui ${info?.version || ''} is ready to install.`,
       detail: 'The app will restart to finish the update.',
     })
     if (result.response === 0) {
@@ -224,11 +224,11 @@ async function ensureHermesBackend() {
   }
 
   if (!gatewayReachable) {
-    spawnDetached('hermes gateway run >/tmp/hermes-workspace-gateway.log 2>&1')
+    spawnDetached('hermes gateway run >/tmp/hermes-switchui-gateway.log 2>&1')
   }
   if (!dashboardReachable) {
     spawnDetached(
-      'hermes dashboard --no-open >/tmp/hermes-workspace-dashboard.log 2>&1',
+      'hermes dashboard --no-open >/tmp/hermes-switchui-dashboard.log 2>&1',
     )
   }
 
@@ -316,7 +316,7 @@ async function createWindow() {
     height: 940,
     minWidth: 980,
     minHeight: 680,
-    title: 'hermes-workspace',
+    title: 'hermes-switchui',
     icon: existsSync(join(__dirname, '..', 'assets', 'icon.png'))
       ? join(__dirname, '..', 'assets', 'icon.png')
       : undefined,
@@ -381,4 +381,4 @@ app.on('before-quit', () => {
   localServer?.kill()
 })
 
-app.setName('hermes-workspace')
+app.setName('hermes-switchui')
