@@ -1,4 +1,4 @@
-import { CLAUDE_API } from './gateway-capabilities'
+import { BEARER_TOKEN, CLAUDE_API } from './gateway-capabilities'
 
 /**
  * Optional bearer token for authenticated OpenAI-compatible endpoints
@@ -13,6 +13,7 @@ import { CLAUDE_API } from './gateway-capabilities'
  * Resolution order matches the rest of the Hermes gateway client:
  * 1. `HERMES_API_TOKEN` env var
  * 2. `CLAUDE_API_TOKEN` env var (back-compat)
+ * 3. `API_SERVER_KEY` from `~/.hermes/.env`
  *
  * Do not fall back to OPENAI_API_KEY or Codex OAuth tokens here. The local
  * Hermes gateway may be OpenAI-compatible on the wire, but its auth token is
@@ -21,7 +22,7 @@ import { CLAUDE_API } from './gateway-capabilities'
  * `invalid_api_key`.
  */
 function getBearerToken(): string {
-  return process.env.HERMES_API_TOKEN || process.env.CLAUDE_API_TOKEN || ''
+  return BEARER_TOKEN
 }
 
 /** Cached first available model from /v1/models — used as fallback when no model is specified. */

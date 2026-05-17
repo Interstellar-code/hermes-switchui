@@ -26,7 +26,11 @@ type WorkspaceOverrides = {
 }
 
 function hermesHome(): string {
-  return process.env.HERMES_HOME ?? process.env.CLAUDE_HOME ?? path.join(os.homedir(), '.hermes')
+  return (
+    process.env.HERMES_HOME ??
+    process.env.CLAUDE_HOME ??
+    path.join(os.homedir(), '.hermes')
+  )
 }
 
 function overridesPath(): string {
@@ -36,7 +40,7 @@ function overridesPath(): string {
 function readOverrides(): WorkspaceOverrides {
   try {
     const raw = fs.readFileSync(overridesPath(), 'utf-8')
-    const parsed = JSON.parse(raw) as WorkspaceOverrides
+    const parsed = JSON.parse(raw) as unknown
     return parsed && typeof parsed === 'object' ? parsed : {}
   } catch {
     return {}
@@ -64,15 +68,15 @@ const _initialOverrides = readOverrides()
 
 export let CLAUDE_API = normalizeUrl(
   _initialOverrides.claudeApiUrl ||
-  process.env.HERMES_API_URL ||
-  process.env.CLAUDE_API_URL ||
-  'http://127.0.0.1:8642',
+    process.env.HERMES_API_URL ||
+    process.env.CLAUDE_API_URL ||
+    'http://127.0.0.1:8642',
 )
 export let CLAUDE_DASHBOARD_URL = normalizeUrl(
   _initialOverrides.claudeDashboardUrl ||
-  process.env.HERMES_DASHBOARD_URL ||
-  process.env.CLAUDE_DASHBOARD_URL ||
-  'http://127.0.0.1:9119',
+    process.env.HERMES_DASHBOARD_URL ||
+    process.env.CLAUDE_DASHBOARD_URL ||
+    'http://127.0.0.1:9119',
 )
 
 /**
@@ -90,7 +94,9 @@ export function setGatewayUrl(input: string | null | undefined): string {
   } else {
     delete overrides.claudeApiUrl
     CLAUDE_API = normalizeUrl(
-      process.env.HERMES_API_URL || process.env.CLAUDE_API_URL || 'http://127.0.0.1:8642',
+      process.env.HERMES_API_URL ||
+        process.env.CLAUDE_API_URL ||
+        'http://127.0.0.1:8642',
     )
   }
   writeOverrides(overrides)
@@ -112,7 +118,9 @@ export function setDashboardUrl(input: string | null | undefined): string {
   } else {
     delete overrides.claudeDashboardUrl
     CLAUDE_DASHBOARD_URL = normalizeUrl(
-      process.env.HERMES_DASHBOARD_URL || process.env.CLAUDE_DASHBOARD_URL || 'http://127.0.0.1:9119',
+      process.env.HERMES_DASHBOARD_URL ||
+        process.env.CLAUDE_DASHBOARD_URL ||
+        'http://127.0.0.1:9119',
     )
   }
   writeOverrides(overrides)
@@ -130,7 +138,7 @@ export function getResolvedUrls(): {
   const overrides = readOverrides()
   const source = overrides.claudeApiUrl
     ? 'override'
-    : (process.env.HERMES_API_URL || process.env.CLAUDE_API_URL)
+    : process.env.HERMES_API_URL || process.env.CLAUDE_API_URL
       ? 'env'
       : 'default'
   return { gateway: CLAUDE_API, dashboard: CLAUDE_DASHBOARD_URL, source }
@@ -150,7 +158,10 @@ const PROBE_TIMEOUT_MS = 3_000
 const PROBE_TTL_MS = 120_000
 const PROBE_TTL_DISCONNECTED_MS = 15_000
 
-function effectiveProbeTtl(caps: { health: boolean; chatCompletions: boolean }): number {
+function effectiveProbeTtl(caps: {
+  health: boolean
+  chatCompletions: boolean
+}): number {
   if (caps.health || caps.chatCompletions) return PROBE_TTL_MS
   return PROBE_TTL_DISCONNECTED_MS
 }
@@ -206,8 +217,7 @@ export type DashboardCapabilities = {
 }
 
 /** Full capabilities — backward compat with existing code */
-export type GatewayCapabilities =
-  CoreCapabilities &
+export type GatewayCapabilities = CoreCapabilities &
   EnhancedCapabilities &
   DashboardCapabilities
 
@@ -256,7 +266,32 @@ let dashboardTokenPromise: Promise<string> | null = null
 let dashboardTokenCache = ''
 
 /** Optional bearer token for authenticated gateway endpoints. */
-export const BEARER_TOKEN = process.env.HERMES_API_TOKEN || process.env.CLAUDE_API_TOKEN || ''
+function readHermesEnvValue(name: string): string {
+  try {
+    const envPath = path.join(hermesHome(), '.env')
+    if (!fs.existsSync(envPath)) return ''
+    const raw = fs.readFileSync(envPath, 'utf-8')
+    for (const line of raw.split(/\r?\n/)) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const eq = trimmed.indexOf('=')
+      if (eq <= 0) continue
+      if (trimmed.slice(0, eq).trim() !== name) continue
+      return trimmed
+        .slice(eq + 1)
+        .trim()
+        .replace(/^['"]|['"]$/g, '')
+    }
+  } catch {
+    // Missing/unreadable ~/.hermes/.env is valid for unauthenticated gateways.
+  }
+  return ''
+}
+
+export const BEARER_TOKEN =
+  process.env.HERMES_API_TOKEN ||
+  process.env.CLAUDE_API_TOKEN ||
+  readHermesEnvValue('API_SERVER_KEY')
 
 /**
  * Optional explicit bearer token for dashboard API calls.
@@ -274,7 +309,8 @@ export const BEARER_TOKEN = process.env.HERMES_API_TOKEN || process.env.CLAUDE_A
  * CLAUDE_DASHBOARD_TOKEN isn't set, leave this empty and let
  * fetchDashboardToken() fall through to the HTML-scrape legacy path.
  */
-const DASHBOARD_BEARER_TOKEN = process.env.HERMES_DASHBOARD_TOKEN || process.env.CLAUDE_DASHBOARD_TOKEN || ''
+const DASHBOARD_BEARER_TOKEN =
+  process.env.HERMES_DASHBOARD_TOKEN || process.env.CLAUDE_DASHBOARD_TOKEN || ''
 
 function authHeaders(): Record<string, string> {
   return BEARER_TOKEN ? { Authorization: `Bearer ${BEARER_TOKEN}` } : {}
@@ -286,8 +322,8 @@ let loggedHtmlScrapeFallback = false
  * Resolve a bearer token for dashboard API calls.
  *
  * Lookup order:
- *   1.  CLAUDE_DASHBOARD_TOKEN / CLAUDE_API_TOKEN env (preferred)
- *   2.  Inline token injected into the dashboard's root HTML (legacy
+ *   1. CLAUDE_DASHBOARD_TOKEN / CLAUDE_API_TOKEN env (preferred)
+ *   2. Inline token injected into the dashboard's root HTML (legacy
  *      fallback — logs a deprecation warning; to be removed once all
  *      supported dashboards expose a first-class token endpoint). See #124.
  */
@@ -310,9 +346,9 @@ export async function fetchDashboardToken(options?: {
       loggedHtmlScrapeFallback = true
       console.warn(
         '[gateway] CLAUDE_DASHBOARD_TOKEN is not set — falling back to the legacy ' +
-        'HTML-scrape token flow. This fallback will be removed in a future release. ' +
-        'Set CLAUDE_DASHBOARD_TOKEN (or CLAUDE_API_TOKEN) to a dashboard bearer ' +
-        'token to migrate. See #124.',
+          'HTML-scrape token flow. This fallback will be removed in a future release. ' +
+          'Set CLAUDE_DASHBOARD_TOKEN (or CLAUDE_API_TOKEN) to a dashboard bearer ' +
+          'token to migrate. See #124.',
       )
     }
     // Dashboard injects the session token inline on `/` (root), not on
@@ -471,12 +507,15 @@ async function probe(path: string): Promise<boolean> {
  */
 async function probeEnhancedChatStream(): Promise<boolean> {
   try {
-    const res = await fetch(`${CLAUDE_API}/api/sessions/__probe__/chat/stream`, {
-      method: 'POST',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: '{}',
-      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
-    })
+    const res = await fetch(
+      `${CLAUDE_API}/api/sessions/__probe__/chat/stream`,
+      {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: '{}',
+        signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+      },
+    )
     // Vanilla hermes-agent has no such endpoint — dashboard layer 404s,
     // gateway 404s, anything in between 404s. Enhanced fork accepts POST
     // and returns either a 4xx structured error (validation) or starts a
@@ -569,7 +608,9 @@ export function isLocalhostDeployment(): boolean {
   const isLoopbackHost = (host: string): boolean => {
     const h = host.trim().toLowerCase()
     if (!h) return false
-    return h === '127.0.0.1' || h === '::1' || h === 'localhost' || h === '[::1]'
+    return (
+      h === '127.0.0.1' || h === '::1' || h === 'localhost' || h === '[::1]'
+    )
   }
   const isLoopbackUrl = (raw: string): boolean => {
     try {
@@ -660,7 +701,6 @@ async function probeConductor(dashboardAvailable: boolean): Promise<boolean> {
   }
 }
 
-
 // Vanilla hermes-agent 0.10.0 satisfies: health, chatCompletions, models, streaming,
 // sessions, skills, config, jobs. Dashboard-only endpoints (themes/plugins) and the
 // legacy enhanced-fork chat stream are optional — their absence should not emit the
@@ -702,10 +742,10 @@ function logCapabilities(next: GatewayCapabilities): void {
   ]
 
   for (const key of coreKeys) {
-    ; (next[key] ? core : missing).push(key)
+    ;(next[key] ? core : missing).push(key)
   }
   for (const key of enhancedKeys) {
-    ; (next[key] ? enhanced : missing).push(key)
+    ;(next[key] ? enhanced : missing).push(key)
   }
   if (next.dashboard.available) core.push('dashboard')
   else missing.push('dashboard')
@@ -750,9 +790,9 @@ async function autoDetectGatewayUrl(): Promise<void> {
 
   console.warn(
     '[gateway] Could not reach Hermes gateway on 8645, 8642, or 8643. ' +
-    'If you run the workspace on a different machine (Tailscale / VPN / LAN), ' +
-    'set HERMES_API_URL=http://<reachable-host>:8642 in .env and restart. ' +
-    'Also set API_SERVER_HOST=0.0.0.0 on the gateway so remote peers can connect.',
+      'If you run the workspace on a different machine (Tailscale / VPN / LAN), ' +
+      'set HERMES_API_URL=http://<reachable-host>:8642 in .env and restart. ' +
+      'Also set API_SERVER_HOST=0.0.0.0 on the gateway so remote peers can connect.',
   )
 }
 
@@ -865,8 +905,7 @@ export async function probeGateway(options?: {
 }
 
 export async function ensureGatewayProbed(): Promise<GatewayCapabilities> {
-  const isStale =
-    Date.now() - lastProbeAt > effectiveProbeTtl(capabilities)
+  const isStale = Date.now() - lastProbeAt > effectiveProbeTtl(capabilities)
   if (!capabilities.probed || isStale) {
     return probeGateway({ force: isStale })
   }
