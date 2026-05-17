@@ -10,8 +10,12 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
-import { useUpsertWorkflowDefinition, useWorkflowDefinitions } from './use-workflows'
-import type { NodeType } from './types'
+import {
+  useUpsertWorkflowDefinition,
+  useWorkflowDefinitions,
+} from './use-workflows'
+import { chatWorkflowWizard } from './api-client'
+import type { NodeType, WorkflowSummary } from './types'
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -36,10 +40,14 @@ function slugify(raw: string): string {
 }
 
 const START_OPTIONS = [
-  { label: 'Scratch',     desc: 'Describe from scratch',        color: 'var(--m-green-500, #00ff41)' },
-  { label: 'Duplicate',   desc: 'Copy an existing workflow',     color: '#5ad3ff' },
-  { label: 'Template',    desc: 'Use a workflow pattern',        color: '#b07cff' },
-  { label: 'Import YAML', desc: 'Upload a .yaml file',           color: '#ffb454' },
+  {
+    label: 'Scratch',
+    desc: 'Describe from scratch',
+    color: 'var(--m-green-500, #00ff41)',
+  },
+  { label: 'Duplicate', desc: 'Copy an existing workflow', color: '#5ad3ff' },
+  { label: 'Template', desc: 'Use a workflow pattern', color: '#b07cff' },
+  { label: 'Import YAML', desc: 'Upload a .yaml file', color: '#ffb454' },
 ] as const
 type StartOption = (typeof START_OPTIONS)[number]['label']
 
@@ -115,7 +123,10 @@ const VARIANT_NODE_KEYS = [
 ]
 
 const NWZ_CHAT_INIT: Array<ChatMessage> = [
-  { role: 'assistant', msg: "Let's build a new workflow. Describe what you want it to do — the steps it should take, what triggers it, and what the output should look like." },
+  {
+    role: 'assistant',
+    msg: "Let's build a new workflow. Describe what you want it to do — the steps it should take, what triggers it, and what the output should look like.",
+  },
 ]
 
 function splitCsv(raw: string): Array<string> {
@@ -136,7 +147,10 @@ function inferNodeType(raw: Record<string, unknown>): NodeType {
   return 'prompt'
 }
 
-function createDefaultNodeDraft(type: NodeType, index: number): WizardNodeDraft {
+function createDefaultNodeDraft(
+  type: NodeType,
+  index: number,
+): WizardNodeDraft {
   const idBase =
     type === 'approval'
       ? 'review'
@@ -155,7 +169,8 @@ function createDefaultNodeDraft(type: NodeType, index: number): WizardNodeDraft 
     skills: '',
     hermes_task_enabled: false,
     hermes_task: { skills: '', agent_hint: '', model_hint: '' },
-    prompt: type === 'prompt' ? 'Describe the work this node should perform.' : '',
+    prompt:
+      type === 'prompt' ? 'Describe the work this node should perform.' : '',
     command: type === 'command' ? 'replace-with-command' : '',
     bash: type === 'bash' ? 'echo "todo"' : '',
     script: type === 'script' ? 'console.log("todo")' : '',
@@ -171,7 +186,10 @@ function createDefaultNodeDraft(type: NodeType, index: number): WizardNodeDraft 
   }
 }
 
-function toNodeDraft(rawNode: Record<string, unknown>, index: number): WizardNodeDraft {
+function toNodeDraft(
+  rawNode: Record<string, unknown>,
+  index: number,
+): WizardNodeDraft {
   const type = inferNodeType(rawNode)
   const hermesTaskRaw =
     rawNode['hermes_task'] && typeof rawNode['hermes_task'] === 'object'
@@ -194,12 +212,17 @@ function toNodeDraft(rawNode: Record<string, unknown>, index: number): WizardNod
         : base.id,
     phase: typeof rawNode['phase'] === 'string' ? rawNode['phase'] : '',
     depends_on: Array.isArray(rawNode['depends_on'])
-      ? rawNode['depends_on'].filter((dep): dep is string => typeof dep === 'string')
+      ? rawNode['depends_on'].filter(
+          (dep): dep is string => typeof dep === 'string',
+        )
       : [],
     model: typeof rawNode['model'] === 'string' ? rawNode['model'] : '',
-    provider: typeof rawNode['provider'] === 'string' ? rawNode['provider'] : '',
+    provider:
+      typeof rawNode['provider'] === 'string' ? rawNode['provider'] : '',
     skills: Array.isArray(rawNode['skills'])
-      ? rawNode['skills'].filter((skill): skill is string => typeof skill === 'string').join(', ')
+      ? rawNode['skills']
+          .filter((skill): skill is string => typeof skill === 'string')
+          .join(', ')
       : '',
     hermes_task_enabled: Boolean(hermesTaskRaw),
     hermes_task: {
@@ -221,10 +244,15 @@ function toNodeDraft(rawNode: Record<string, unknown>, index: number): WizardNod
     command: typeof rawNode['command'] === 'string' ? rawNode['command'] : '',
     bash: typeof rawNode['bash'] === 'string' ? rawNode['bash'] : '',
     script: typeof rawNode['script'] === 'string' ? rawNode['script'] : '',
-    runtime: typeof rawNode['runtime'] === 'string' ? rawNode['runtime'] : base.runtime,
+    runtime:
+      typeof rawNode['runtime'] === 'string'
+        ? rawNode['runtime']
+        : base.runtime,
     cancel: typeof rawNode['cancel'] === 'string' ? rawNode['cancel'] : '',
     approval_message:
-      typeof approvalRaw?.['message'] === 'string' ? approvalRaw['message'] : '',
+      typeof approvalRaw?.['message'] === 'string'
+        ? approvalRaw['message']
+        : '',
     approval_capture_response: Boolean(approvalRaw?.['capture_response']),
     loop_prompt:
       typeof loopRaw?.['prompt'] === 'string' ? loopRaw['prompt'] : '',
@@ -253,7 +281,8 @@ function toWorkflowDocumentDraft(yamlStr: string): WizardDocumentDraft | null {
   return {
     id: typeof raw['id'] === 'string' ? raw['id'] : '',
     name: typeof raw['name'] === 'string' ? raw['name'] : '',
-    description: typeof raw['description'] === 'string' ? raw['description'] : '',
+    description:
+      typeof raw['description'] === 'string' ? raw['description'] : '',
     topLevel,
     nodes: nodesRaw.map((node, index) => toNodeDraft(node, index)),
   }
@@ -289,7 +318,8 @@ function serializeNodeDraft(node: WizardNodeDraft): Record<string, unknown> {
 
   switch (node.type) {
     case 'prompt':
-      next.prompt = node.prompt.trim() || 'Describe the work this node should perform.'
+      next.prompt =
+        node.prompt.trim() || 'Describe the work this node should perform.'
       break
     case 'command':
       next.command = node.command.trim() || 'replace-with-command'
@@ -303,7 +333,9 @@ function serializeNodeDraft(node: WizardNodeDraft): Record<string, unknown> {
       break
     case 'approval':
       next.approval = {
-        message: node.approval_message.trim() || 'Review the plan above. Approve to continue.',
+        message:
+          node.approval_message.trim() ||
+          'Review the plan above. Approve to continue.',
         ...(node.approval_capture_response ? { capture_response: true } : {}),
       }
       break
@@ -330,7 +362,10 @@ function serializeWorkflowYaml(doc: WizardDocumentDraft): string {
   return stringifyYaml(root, { lineWidth: 0 })
 }
 
-function buildWorkflowFromPrompt(userMsg: string, currentName: string): WizardDocumentDraft {
+function buildWorkflowFromPrompt(
+  userMsg: string,
+  currentName: string,
+): WizardDocumentDraft {
   const tokens = userMsg
     .toLowerCase()
     .replace(/[^a-z0-9\s-]+/g, ' ')
@@ -371,7 +406,8 @@ function buildWorkflowFromPrompt(userMsg: string, currentName: string): WizardDo
       id: 'review',
       phase: 'Review',
       depends_on: ['plan'],
-      approval_message: 'Review the generated plan and approve before execution continues.',
+      approval_message:
+        'Review the generated plan and approve before execution continues.',
       approval_capture_response: true,
     })
   }
@@ -421,7 +457,9 @@ function buildWorkflowFromPrompt(userMsg: string, currentName: string): WizardDo
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
-interface StepBarProps { step: number }
+interface StepBarProps {
+  step: number
+}
 function StepBar({ step }: StepBarProps) {
   return (
     <div className="wz-steps">
@@ -447,10 +485,16 @@ interface DescribeStepProps {
   onSelectStart: (s: StartOption) => void
   chatHistory: Array<ChatMessage>
   chatInput: string
+  chatPending: boolean
   onChatInput: (v: string) => void
   onSend: () => void
   importRef: React.RefObject<HTMLInputElement | null>
   onImportChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  importedFileName: string | null
+  yamlStatus: string
+  workflowOptions: Array<WorkflowSummary>
+  selectedWorkflowId: string
+  onSelectWorkflow: (workflowId: string) => void
 }
 
 function DescribeStep({
@@ -458,21 +502,50 @@ function DescribeStep({
   onSelectStart,
   chatHistory,
   chatInput,
+  chatPending,
   onChatInput,
   onSend,
   importRef,
   onImportChange,
+  importedFileName,
+  yamlStatus,
+  workflowOptions,
+  selectedWorkflowId,
+  onSelectWorkflow,
 }: DescribeStepProps) {
   const msgsEndRef = useRef<HTMLDivElement>(null)
+  const [pickerQuery, setPickerQuery] = useState('')
   useEffect(() => {
     msgsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatHistory])
+
+  const filteredWorkflowOptions = useMemo(() => {
+    const normalized = pickerQuery.trim().toLowerCase()
+    const sourceOptions =
+      activeStart === 'Template'
+        ? workflowOptions.filter((workflow) => workflow.source === 'bundled')
+        : workflowOptions
+    if (!normalized) return sourceOptions
+    return sourceOptions.filter((workflow) => {
+      const haystack = [
+        workflow.name,
+        workflow.id,
+        workflow.description,
+        workflow.source,
+      ]
+        .join(' ')
+        .toLowerCase()
+      return haystack.includes(normalized)
+    })
+  }, [activeStart, pickerQuery, workflowOptions])
 
   return (
     <div className="wz-plan">
       {/* Left rail: start-from */}
       <div className="plan-summary">
-        <div className="ps-title" style={{ marginBottom: 10 }}>Start from…</div>
+        <div className="ps-title" style={{ marginBottom: 10 }}>
+          Start from…
+        </div>
         <div style={{ display: 'grid', gap: 6 }}>
           {START_OPTIONS.map(({ label, desc, color }) => (
             <div
@@ -483,18 +556,37 @@ function DescribeStep({
                 onSelectStart(label)
                 if (label === 'Import YAML') importRef.current?.click()
               }}
-              onKeyDown={(e) => { if (e.key === 'Enter') onSelectStart(label) }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onSelectStart(label)
+              }}
               style={{
                 padding: '9px 11px',
                 border: `1px solid ${activeStart === label ? color : 'var(--m-border-subtle, #2a2a2a)'}`,
                 borderRadius: 5,
-                background: activeStart === label ? `${color}12` : 'var(--m-bg, #0d0d0d)',
+                background:
+                  activeStart === label ? `${color}12` : 'var(--m-bg, #0d0d0d)',
                 cursor: 'pointer',
                 transition: 'border-color .15s',
               }}
             >
-              <div style={{ font: `600 11px var(--m-font-mono, monospace)`, color: activeStart === label ? color : 'var(--m-text, #e0e0e0)', marginBottom: 2 }}>{label}</div>
-              <div style={{ font: `400 10px var(--m-font-sans, sans-serif)`, color: 'var(--m-text-ghost, #555)' }}>{desc}</div>
+              <div
+                style={{
+                  font: `600 11px var(--m-font-mono, monospace)`,
+                  color:
+                    activeStart === label ? color : 'var(--m-text, #e0e0e0)',
+                  marginBottom: 2,
+                }}
+              >
+                {label}
+              </div>
+              <div
+                style={{
+                  font: `400 10px var(--m-font-sans, sans-serif)`,
+                  color: 'var(--m-text-ghost, #555)',
+                }}
+              >
+                {desc}
+              </div>
             </div>
           ))}
         </div>
@@ -507,33 +599,159 @@ function DescribeStep({
           style={{ display: 'none' }}
           onChange={onImportChange}
         />
-
       </div>
 
-      {/* Right pane: Hermes prompt panel */}
-      <div className="plan-chat">
-        <div className="chat-msgs">
-          {chatHistory.map((m, i) => (
-            <div key={i} className={`chat-msg ${m.role}`}>
-              <span className="chat-who">{m.role === 'assistant' ? 'Hermes' : 'You'}</span>
-              <div className="chat-text">
-                {m.msg.split('\n').map((line, j) => <p key={j}>{line}</p>)}
+      {/* Right pane: mode-specific guidance */}
+      {activeStart === 'Scratch' ? (
+        <div className="plan-chat">
+          <div className="chat-msgs">
+            {chatHistory.map((m, i) => (
+              <div key={i} className={`chat-msg ${m.role}`}>
+                <span className="chat-who">
+                  {m.role === 'assistant' ? 'Hermes' : 'You'}
+                </span>
+                <div className="chat-text">
+                  {m.msg.split('\n').map((line, j) => (
+                    <p key={j}>{line}</p>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-          <div ref={msgsEndRef} />
+            ))}
+            <div ref={msgsEndRef} />
+          </div>
+          <div className="chat-input-row">
+            <input
+              className="chat-inp"
+              placeholder="Describe your workflow in plain language…"
+              value={chatInput}
+              disabled={chatPending}
+              onChange={(e) => onChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onSend()
+              }}
+            />
+            <button
+              className="btn-mini prim"
+              onClick={onSend}
+              disabled={chatPending}
+            >
+              {chatPending ? 'Thinking…' : 'Send'}
+            </button>
+          </div>
         </div>
-        <div className="chat-input-row">
-          <input
-            className="chat-inp"
-            placeholder="Describe your workflow in plain language…"
-            value={chatInput}
-            onChange={(e) => onChatInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') onSend() }}
-          />
-          <button className="btn-mini prim" onClick={onSend}>Send</button>
+      ) : (
+        <div className="plan-sidecard">
+          <div className="plan-sidecard-head">
+            {activeStart === 'Duplicate'
+              ? 'Duplicate workflow'
+              : activeStart === 'Template'
+                ? 'Template workflow'
+                : 'Imported YAML'}
+          </div>
+          <div className="plan-sidecard-body">
+            {activeStart === 'Duplicate' && (
+              <>
+                <p>
+                  Search and select an existing workflow, then refine the copied
+                  structure in Steps 2–4.
+                </p>
+                <div className="wizard-combobox">
+                  <input
+                    className="chat-inp wizard-combobox-input"
+                    placeholder="Search workflows…"
+                    value={pickerQuery}
+                    onChange={(e) => setPickerQuery(e.target.value)}
+                  />
+                  <div
+                    className="wizard-combobox-list"
+                    role="listbox"
+                    aria-label="Duplicate workflow options"
+                  >
+                    {filteredWorkflowOptions.length > 0 ? (
+                      filteredWorkflowOptions.map((workflow) => (
+                        <button
+                          key={workflow.id}
+                          type="button"
+                          className={`wizard-combobox-item ${selectedWorkflowId === workflow.id ? 'sel' : ''}`}
+                          onClick={() => onSelectWorkflow(workflow.id)}
+                        >
+                          <span className="wizard-combobox-title">
+                            {workflow.name}
+                            {workflow.source === 'bundled' ? ' (built-in)' : ''}
+                          </span>
+                          <span className="wizard-combobox-meta">
+                            {workflow.id}
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="wizard-combobox-empty">
+                        No workflows match your search.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+            {activeStart === 'Template' && (
+              <>
+                <p>
+                  Pick a bundled template, then customize phases, dependencies,
+                  and Hermes task hints.
+                </p>
+                <div className="wizard-combobox">
+                  <input
+                    className="chat-inp wizard-combobox-input"
+                    placeholder="Search templates…"
+                    value={pickerQuery}
+                    onChange={(e) => setPickerQuery(e.target.value)}
+                  />
+                  <div
+                    className="wizard-combobox-list"
+                    role="listbox"
+                    aria-label="Template workflow options"
+                  >
+                    {filteredWorkflowOptions.length > 0 ? (
+                      filteredWorkflowOptions.map((workflow) => (
+                        <button
+                          key={workflow.id}
+                          type="button"
+                          className={`wizard-combobox-item ${selectedWorkflowId === workflow.id ? 'sel' : ''}`}
+                          onClick={() => onSelectWorkflow(workflow.id)}
+                        >
+                          <span className="wizard-combobox-title">
+                            {workflow.name}
+                          </span>
+                          <span className="wizard-combobox-meta">
+                            {workflow.id}
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="wizard-combobox-empty">
+                        No templates match your search.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+            {activeStart === 'Import YAML' && (
+              <>
+                <p>
+                  Imported YAML skips the scratch chat and goes straight to
+                  review.
+                </p>
+                <ul>
+                  <li>Status: {yamlStatus}</li>
+                  <li>File: {importedFileName ?? 'Waiting for file import'}</li>
+                  <li>Fix any parse issues in Step 4 if needed</li>
+                </ul>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -542,12 +760,12 @@ function DescribeStep({
 
 /** Node type → Matrix neon color. Matches launch-wizard.tsx + workflow-editor.tsx palette. */
 const NODE_COLOR: Record<string, string> = {
-  prompt:   '#00ff41',
-  bash:     '#5ad3ff',
-  command:  '#bf97ff',
+  prompt: '#00ff41',
+  bash: '#5ad3ff',
+  command: '#bf97ff',
   approval: '#ffb454',
-  router:   '#ff6b6b',
-  loop:     '#ffd700',
+  router: '#ff6b6b',
+  loop: '#ffd700',
 }
 
 interface RawNode {
@@ -563,24 +781,37 @@ interface DagInfo {
   parallelism: number
   node_type_counts: Record<string, number>
   /** Positioned nodes for SVG: cx/cy = center point */
-  positioned: Array<{ id: string; type: string; cx: number; cy: number; layer: number }>
+  positioned: Array<{
+    id: string
+    type: string
+    cx: number
+    cy: number
+    layer: number
+  }>
   edges: Array<[string, string]>
 }
 
-interface DagError { error: string }
+interface DagError {
+  error: string
+}
 
 /** Parse YAML string → DAG metrics + layout. Exported for smoke testing. */
 export function parseDagFromYaml(yamlStr: string): DagInfo | DagError {
   try {
     const parsed = parseYaml(yamlStr) as Record<string, unknown>
     const rawNodes: Array<RawNode> = Array.isArray(parsed['nodes'])
-      ? (parsed['nodes'] as Array<Record<string, unknown>>).map((node, index) => ({
-          id: typeof node['id'] === 'string' ? node['id'] : `node-${index + 1}`,
-          type: inferNodeType(node),
-          depends_on: Array.isArray(node['depends_on'])
-            ? node['depends_on'].filter((dep): dep is string => typeof dep === 'string')
-            : [],
-        }))
+      ? (parsed['nodes'] as Array<Record<string, unknown>>).map(
+          (node, index) => ({
+            id:
+              typeof node['id'] === 'string' ? node['id'] : `node-${index + 1}`,
+            type: inferNodeType(node),
+            depends_on: Array.isArray(node['depends_on'])
+              ? node['depends_on'].filter(
+                  (dep): dep is string => typeof dep === 'string',
+                )
+              : [],
+          }),
+        )
       : []
     const node_count = rawNodes.length
 
@@ -592,13 +823,17 @@ export function parseDagFromYaml(yamlStr: string): DagInfo | DagError {
       visited.add(id)
       const node = rawNodes.find((n) => n.id === id)
       const deps = node?.depends_on ?? []
-      const d = deps.length === 0 ? 1 : 1 + Math.max(...deps.map((dep) => nodeDepth(dep, new Set(visited))))
+      const d =
+        deps.length === 0
+          ? 1
+          : 1 + Math.max(...deps.map((dep) => nodeDepth(dep, new Set(visited))))
       depthMap[id] = d
       return d
     }
     rawNodes.forEach((n) => nodeDepth(n.id))
 
-    const depth = rawNodes.length === 0 ? 0 : Math.max(...Object.values(depthMap))
+    const depth =
+      rawNodes.length === 0 ? 0 : Math.max(...Object.values(depthMap))
 
     // Group by layer for parallelism + layout
     const layers: Record<number, Array<RawNode>> = {}
@@ -606,7 +841,10 @@ export function parseDagFromYaml(yamlStr: string): DagInfo | DagError {
       const d = depthMap[n.id] ?? 1
       ;(layers[d] ??= []).push(n)
     })
-    const parallelism = Object.values(layers).reduce((m, l) => Math.max(m, l.length), 0)
+    const parallelism = Object.values(layers).reduce(
+      (m, l) => Math.max(m, l.length),
+      0,
+    )
 
     const node_type_counts: Record<string, number> = {}
     rawNodes.forEach((n) => {
@@ -614,8 +852,12 @@ export function parseDagFromYaml(yamlStr: string): DagInfo | DagError {
     })
 
     // Layout: X by layer depth, Y by index within layer
-    const NODE_W = 110, NODE_H = 34
-    const LAYER_GAP = 140, ROW_GAP = 80, X_OFFSET = 60, Y_OFFSET = 50
+    const NODE_W = 110,
+      NODE_H = 34
+    const LAYER_GAP = 140,
+      ROW_GAP = 80,
+      X_OFFSET = 60,
+      Y_OFFSET = 50
     const capped = rawNodes.slice(0, 30)
     const positioned = capped.map((n) => {
       const layer = depthMap[n.id] ?? 1
@@ -639,7 +881,15 @@ export function parseDagFromYaml(yamlStr: string): DagInfo | DagError {
       })
     })
 
-    return { nodes: rawNodes, node_count, depth, parallelism, node_type_counts, positioned, edges }
+    return {
+      nodes: rawNodes,
+      node_count,
+      depth,
+      parallelism,
+      node_type_counts,
+      positioned,
+      edges,
+    }
   } catch (err) {
     return { error: err instanceof Error ? err.message : String(err) }
   }
@@ -656,33 +906,79 @@ function DagSvg({ dag, extraCount }: DagSvgProps) {
   const { positioned, edges } = dag
   if (positioned.length === 0) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 0', opacity: 0.5 }}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" width="36" height="36">
-          <rect x="3" y="8" width="6" height="8" rx="1" /><rect x="9" y="5" width="6" height="5" rx="1" />
-          <rect x="9" y="14" width="6" height="5" rx="1" /><rect x="15" y="8" width="6" height="8" rx="1" />
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: '32px 0',
+          opacity: 0.5,
+        }}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.2"
+          width="36"
+          height="36"
+        >
+          <rect x="3" y="8" width="6" height="8" rx="1" />
+          <rect x="9" y="5" width="6" height="5" rx="1" />
+          <rect x="9" y="14" width="6" height="5" rx="1" />
+          <rect x="15" y="8" width="6" height="8" rx="1" />
         </svg>
-        <div style={{ font: '500 11px var(--m-font-mono)', color: 'var(--m-text-faint)', textTransform: 'uppercase', letterSpacing: '.15em', marginTop: 10 }}>
+        <div
+          style={{
+            font: '500 11px var(--m-font-mono)',
+            color: 'var(--m-text-faint)',
+            textTransform: 'uppercase',
+            letterSpacing: '.15em',
+            marginTop: 10,
+          }}
+        >
           Visual DAG — view only
         </div>
-        <div style={{ font: '400 12px var(--m-font-sans)', color: 'var(--m-text-ghost)', marginTop: 4 }}>
+        <div
+          style={{
+            font: '400 12px var(--m-font-sans)',
+            color: 'var(--m-text-ghost)',
+            marginTop: 4,
+          }}
+        >
           No nodes defined
         </div>
       </div>
     )
   }
 
-  const W = 110, H = 34, R = 5
+  const W = 110,
+    H = 34,
+    R = 5
   const posMap: Map<string, { cx: number; cy: number }> = new Map()
-  positioned.forEach((n) => { posMap.set(n.id, { cx: n.cx, cy: n.cy }) })
+  positioned.forEach((n) => {
+    posMap.set(n.id, { cx: n.cx, cy: n.cy })
+  })
 
   const svgW = Math.max(...positioned.map((n) => n.cx + W / 2)) + 24
   const svgH = Math.max(...positioned.map((n) => n.cy + H / 2)) + 24
 
   return (
     <div style={{ overflowX: 'auto', overflowY: 'hidden', width: '100%' }}>
-      <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', maxWidth: svgW, display: 'block' }}>
+      <svg
+        viewBox={`0 0 ${svgW} ${svgH}`}
+        style={{ width: '100%', maxWidth: svgW, display: 'block' }}
+      >
         <defs>
-          <marker id="wz-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <marker
+            id="wz-arrow"
+            viewBox="0 0 10 10"
+            refX="8"
+            refY="5"
+            markerWidth="6"
+            markerHeight="6"
+            orient="auto"
+          >
             <path d="M 0 2 L 8 5 L 0 8 z" fill="rgba(0,255,65,.35)" />
           </marker>
         </defs>
@@ -692,8 +988,10 @@ function DagSvg({ dag, extraCount }: DagSvgProps) {
           const s = posMap.get(a)
           const t = posMap.get(b)
           if (!s || !t) return null
-          const sx = s.cx + W / 2, sy = s.cy
-          const tx = t.cx - W / 2, ty = t.cy
+          const sx = s.cx + W / 2,
+            sy = s.cy
+          const tx = t.cx - W / 2,
+            ty = t.cy
           const mx = (sx + tx) / 2
           return (
             <path
@@ -713,20 +1011,38 @@ function DagSvg({ dag, extraCount }: DagSvgProps) {
           return (
             <g key={n.id} style={{ cursor: 'default' }}>
               <rect
-                x={n.cx - W / 2} y={n.cy - H / 2} width={W} height={H} rx={R}
-                fill="rgba(4,16,8,.9)" stroke={c} strokeWidth="1"
+                x={n.cx - W / 2}
+                y={n.cy - H / 2}
+                width={W}
+                height={H}
+                rx={R}
+                fill="rgba(4,16,8,.9)"
+                stroke={c}
+                strokeWidth="1"
               />
               <text
-                x={n.cx} y={n.cy - 4}
+                x={n.cx}
+                y={n.cy - 4}
                 textAnchor="middle"
-                style={{ font: '600 10px var(--m-font-mono)', fill: c, letterSpacing: '.08em' }}
+                style={{
+                  font: '600 10px var(--m-font-mono)',
+                  fill: c,
+                  letterSpacing: '.08em',
+                }}
               >
                 {n.id.length > 14 ? n.id.slice(0, 13) + '…' : n.id}
               </text>
               <text
-                x={n.cx} y={n.cy + 9}
+                x={n.cx}
+                y={n.cy + 9}
                 textAnchor="middle"
-                style={{ font: '500 9px var(--m-font-mono)', fill: c, letterSpacing: '.12em', textTransform: 'uppercase', opacity: 0.7 }}
+                style={{
+                  font: '500 9px var(--m-font-mono)',
+                  fill: c,
+                  letterSpacing: '.12em',
+                  textTransform: 'uppercase',
+                  opacity: 0.7,
+                }}
               >
                 {n.type}
               </text>
@@ -737,16 +1053,50 @@ function DagSvg({ dag, extraCount }: DagSvgProps) {
 
       {/* +N more badge */}
       {extraCount > 0 && (
-        <div style={{ font: '500 10px var(--m-font-mono)', color: 'var(--m-text-faint)', textAlign: 'center', marginTop: 4 }}>
+        <div
+          style={{
+            font: '500 10px var(--m-font-mono)',
+            color: 'var(--m-text-faint)',
+            textAlign: 'center',
+            marginTop: 4,
+          }}
+        >
           +{extraCount} more nodes
         </div>
       )}
 
       {/* Legend */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 14px', marginTop: 8, paddingTop: 6, borderTop: '1px solid var(--m-border-subtle)' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '8px 14px',
+          marginTop: 8,
+          paddingTop: 6,
+          borderTop: '1px solid var(--m-border-subtle)',
+        }}
+      >
         {Object.entries(NODE_COLOR).map(([t, c]) => (
-          <span key={t} style={{ display: 'flex', alignItems: 'center', gap: 4, font: '400 10px var(--m-font-mono)', color: 'var(--m-text-faint)' }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: c, boxShadow: `0 0 4px ${c}`, display: 'inline-block' }} />
+          <span
+            key={t}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              font: '400 10px var(--m-font-mono)',
+              color: 'var(--m-text-faint)',
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                background: c,
+                boxShadow: `0 0 4px ${c}`,
+                display: 'inline-block',
+              }}
+            />
             {t}
           </span>
         ))}
@@ -757,7 +1107,9 @@ function DagSvg({ dag, extraCount }: DagSvgProps) {
 
 // ── DesignStep ────────────────────────────────────────────────────────────────
 
-interface DesignStepProps { yaml: string }
+interface DesignStepProps {
+  yaml: string
+}
 
 function DesignStep({ yaml }: DesignStepProps) {
   const dag = useMemo(() => parseDagFromYaml(yaml), [yaml])
@@ -765,9 +1117,27 @@ function DesignStep({ yaml }: DesignStepProps) {
   if ('error' in dag) {
     return (
       <div className="wz-route">
-        <div style={{ padding: '10px 14px', background: 'rgba(255,90,90,.07)', border: '1px solid rgba(255,90,90,.25)', borderRadius: 6, font: '400 12px var(--m-font-mono)', color: '#ff5fa2' }}>
+        <div
+          style={{
+            padding: '10px 14px',
+            background: 'rgba(255,90,90,.07)',
+            border: '1px solid rgba(255,90,90,.25)',
+            borderRadius: 6,
+            font: '400 12px var(--m-font-mono)',
+            color: '#ff5fa2',
+          }}
+        >
           Could not parse YAML — fix it on Step 4 and come back.
-          <span style={{ color: 'var(--m-text-ghost)', display: 'block', marginTop: 4, fontSize: 11 }}>{dag.error}</span>
+          <span
+            style={{
+              color: 'var(--m-text-ghost)',
+              display: 'block',
+              marginTop: 4,
+              fontSize: 11,
+            }}
+          >
+            {dag.error}
+          </span>
         </div>
       </div>
     )
@@ -780,44 +1150,77 @@ function DesignStep({ yaml }: DesignStepProps) {
 
   return (
     <div className="wz-route">
-      <div className="route-note">Proposed DAG structure based on your YAML definition. Node types and layout are auto-computed.</div>
+      <div className="route-note">
+        Proposed DAG structure based on your YAML definition. Node types and
+        layout are auto-computed.
+      </div>
 
       {/* SVG DAG canvas */}
-      <div style={{ marginTop: 8, padding: '14px 12px', background: 'var(--m-bg-deep)', border: '1px solid var(--m-border-subtle)', borderRadius: 6 }}>
+      <div
+        style={{
+          marginTop: 8,
+          padding: '14px 12px',
+          background: 'var(--m-bg-deep)',
+          border: '1px solid var(--m-border-subtle)',
+          borderRadius: 6,
+        }}
+      >
         <DagSvg dag={dag} extraCount={extraCount} />
       </div>
 
       {/* Breakdown + Estimates */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 6 }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 10,
+          marginTop: 6,
+        }}
+      >
         <div className="panel-card">
           <div className="pc-head">Node Breakdown</div>
           <div className="pc-body node-breakdown">
-            {typeCounts.length === 0
-              ? <div className="nb-row"><span className="nb-type" style={{ color: 'var(--m-text-ghost)' }}>—</span></div>
-              : typeCounts.map(([t, n]) => {
+            {typeCounts.length === 0 ? (
+              <div className="nb-row">
+                <span
+                  className="nb-type"
+                  style={{ color: 'var(--m-text-ghost)' }}
+                >
+                  —
+                </span>
+              </div>
+            ) : (
+              typeCounts.map(([t, n]) => {
                 const c = NODE_COLOR[t] ?? '#aaa'
                 return (
                   <div key={t} className="nb-row">
-                    <span className="nb-dot" style={{ background: c, boxShadow: `0 0 5px ${c}` }} />
+                    <span
+                      className="nb-dot"
+                      style={{ background: c, boxShadow: `0 0 5px ${c}` }}
+                    />
                     <span className="nb-type">{t}</span>
                     <span className="nb-n">{n}</span>
                   </div>
                 )
               })
-            }
+            )}
           </div>
         </div>
         <div className="panel-card">
           <div className="pc-head">Estimates</div>
           <div className="pc-body node-breakdown">
-            {([
-              ['Nodes', String(dag.node_count)],
-              ['DAG Depth', String(dag.depth)],
-              ['Parallelism', String(dag.parallelism)],
-              ['Est. time', `~${estMin} min`],
-            ] as Array<[string, string]>).map(([k, v]) => (
+            {(
+              [
+                ['Nodes', String(dag.node_count)],
+                ['DAG Depth', String(dag.depth)],
+                ['Parallelism', String(dag.parallelism)],
+                ['Est. time', `~${estMin} min`],
+              ] as Array<[string, string]>
+            ).map(([k, v]) => (
               <div key={k} className="nb-row">
-                <span className="nb-type" style={{ flex: 1 }}>{k}</span>
+                <span className="nb-type" style={{ flex: 1 }}>
+                  {k}
+                </span>
                 <span className="nb-n">{v}</span>
               </div>
             ))}
@@ -826,8 +1229,21 @@ function DesignStep({ yaml }: DesignStepProps) {
       </div>
 
       {/* Footer banner */}
-      <div style={{ marginTop: 6, font: '400 11px var(--m-font-sans)', color: 'var(--m-text-faint)', padding: '8px 12px', border: '1px solid rgba(0,255,65,.15)', borderLeft: '2px solid var(--m-green-500)', borderRadius: 4, background: 'rgba(0,255,65,.03)', lineHeight: 1.5 }}>
-        Review the inferred structure here, then refine node types, dependencies, phases, and Hermes task hints in Step 3.
+      <div
+        style={{
+          marginTop: 6,
+          font: '400 11px var(--m-font-sans)',
+          color: 'var(--m-text-faint)',
+          padding: '8px 12px',
+          border: '1px solid rgba(0,255,65,.15)',
+          borderLeft: '2px solid var(--m-green-500)',
+          borderRadius: 4,
+          background: 'rgba(0,255,65,.03)',
+          lineHeight: 1.5,
+        }}
+      >
+        Review the inferred structure here, then refine node types,
+        dependencies, phases, and Hermes task hints in Step 3.
       </div>
     </div>
   )
@@ -867,7 +1283,9 @@ function ConfigureStep({
         <div className="wz-config-toolbar">
           <div>
             <div className="pc-head">Nodes</div>
-            <div className="route-note">Edit node type, order dependencies, phase, and Hermes task hints.</div>
+            <div className="route-note">
+              Edit node type, order dependencies, phase, and Hermes task hints.
+            </div>
           </div>
           <div className="wz-config-add">
             {NODE_TYPE_OPTIONS.map((type) => (
@@ -886,7 +1304,8 @@ function ConfigureStep({
         <div className="wz-config-cards">
           {nodes.map((node) => {
             const selected = selectedNode?.id === node.id
-            const nodeColor = NODE_COLOR[node.type] ?? 'var(--m-green-500, #00ff41)'
+            const nodeColor =
+              NODE_COLOR[node.type] ?? 'var(--m-green-500, #00ff41)'
             return (
               <button
                 key={node.id}
@@ -906,14 +1325,17 @@ function ConfigureStep({
                 <div className="wz-node-card-meta">
                   <span>{node.phase.trim() || 'No phase'}</span>
                   <span>{node.depends_on.length} deps</span>
-                  <span>{node.hermes_task_enabled ? 'Hermes task' : 'Local node'}</span>
+                  <span>
+                    {node.hermes_task_enabled ? 'Hermes task' : 'Local node'}
+                  </span>
                 </div>
               </button>
             )
           })}
           {nodes.length === 0 && (
             <div className="wz-empty-config">
-              No nodes yet. Add one from the toolbar or go back to Describe to scaffold a flow.
+              No nodes yet. Add one from the toolbar or go back to Describe to
+              scaffold a flow.
             </div>
           )}
         </div>
@@ -1248,9 +1670,7 @@ function ConfigureStep({
             </div>
           </>
         ) : (
-          <div className="wz-empty-config">
-            No configurable node selected.
-          </div>
+          <div className="wz-empty-config">No configurable node selected.</div>
         )}
       </div>
     </div>
@@ -1277,13 +1697,31 @@ interface SaveStepProps {
 }
 
 function SaveStep({
-  id, name, description, source, yaml,
-  yamlError, serverError, isPending,
-  onIdChange, onNameChange, onDescriptionChange, onSourceChange, onYamlChange,
+  id,
+  name,
+  description,
+  source,
+  yaml,
+  yamlError,
+  serverError,
+  isPending,
+  onIdChange,
+  onNameChange,
+  onDescriptionChange,
+  onSourceChange,
+  onYamlChange,
 }: SaveStepProps) {
   const idValid = ID_REGEX.test(id)
-  const fieldStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box' }
-  const labelStyle: React.CSSProperties = { display: 'block', fontSize: 12, marginBottom: 4, color: 'var(--m-text-muted, var(--text-muted, #888))' }
+  const fieldStyle: React.CSSProperties = {
+    width: '100%',
+    boxSizing: 'border-box',
+  }
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: 12,
+    marginBottom: 4,
+    color: 'var(--m-text-muted, var(--text-muted, #888))',
+  }
 
   return (
     <div className="wfw-save-pane">
@@ -1301,7 +1739,13 @@ function SaveStep({
           style={fieldStyle}
         />
         {id.length > 0 && !idValid && (
-          <div style={{ color: 'var(--text-danger, #e55)', fontSize: 11, marginTop: 3 }}>
+          <div
+            style={{
+              color: 'var(--text-danger, #e55)',
+              fontSize: 11,
+              marginTop: 3,
+            }}
+          >
             id must be 1–128 chars of [A-Za-z0-9_:.-]
           </div>
         )}
@@ -1324,7 +1768,9 @@ function SaveStep({
 
       {/* Description */}
       <div style={{ marginBottom: 14 }}>
-        <label className="wfrd-label" style={labelStyle}>Description</label>
+        <label className="wfrd-label" style={labelStyle}>
+          Description
+        </label>
         <input
           className="wfrd-input"
           type="text"
@@ -1337,7 +1783,9 @@ function SaveStep({
 
       {/* Source */}
       <div style={{ marginBottom: 14 }}>
-        <label className="wfrd-label" style={labelStyle}>Source</label>
+        <label className="wfrd-label" style={labelStyle}>
+          Source
+        </label>
         <select
           className="wfrd-select"
           value={source}
@@ -1359,24 +1807,50 @@ function SaveStep({
           value={yaml}
           onChange={(e) => onYamlChange(e.target.value)}
           rows={14}
-          style={{ width: '100%', boxSizing: 'border-box', fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
+          style={{
+            width: '100%',
+            boxSizing: 'border-box',
+            fontFamily: 'monospace',
+            fontSize: 12,
+            resize: 'vertical',
+          }}
         />
       </div>
 
       {yamlError && (
-        <div style={{ color: 'var(--text-danger, #e55)', fontSize: 12, marginBottom: 12 }}>
+        <div
+          style={{
+            color: 'var(--text-danger, #e55)',
+            fontSize: 12,
+            marginBottom: 12,
+          }}
+        >
           YAML parse error: {yamlError}
         </div>
       )}
 
       {serverError && (
-        <div style={{ color: 'var(--text-danger, #e55)', fontSize: 12, marginBottom: 12 }}>
+        <div
+          style={{
+            color: 'var(--text-danger, #e55)',
+            fontSize: 12,
+            marginBottom: 12,
+          }}
+        >
           {serverError}
         </div>
       )}
 
       {isPending && (
-        <div style={{ color: 'var(--m-text-muted, #888)', fontSize: 12, marginBottom: 8 }}>Saving…</div>
+        <div
+          style={{
+            color: 'var(--m-text-muted, #888)',
+            fontSize: 12,
+            marginBottom: 8,
+          }}
+        >
+          Saving…
+        </div>
       )}
     </div>
   )
@@ -1392,22 +1866,34 @@ export interface NewWorkflowWizardProps {
   onClose: () => void
 }
 
-export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkflowWizardProps) {
-  const initialDocument =
-    toWorkflowDocumentDraft(initialYaml ?? YAML_TEMPLATE) ?? {
-      id: '',
-      name: 'My Workflow',
-      description: '',
-      topLevel: {},
-      nodes: [toNodeDraft({ id: 'start', prompt: 'Hello' }, 0)],
-    }
+export function NewWorkflowWizard({
+  initialYaml,
+  initialId,
+  onClose,
+}: NewWorkflowWizardProps) {
+  const initialDocument = toWorkflowDocumentDraft(
+    initialYaml ?? YAML_TEMPLATE,
+  ) ?? {
+    id: '',
+    name: 'My Workflow',
+    description: '',
+    topLevel: {},
+    nodes: [toNodeDraft({ id: 'start', prompt: 'Hello' }, 0)],
+  }
   const [step, setStep] = useState(1)
 
   // Step 1 state
-  const [activeStart, setActiveStart] = useState<StartOption>(initialYaml ? 'Import YAML' : 'Scratch')
-  const [chatHistory, setChatHistory] = useState<Array<ChatMessage>>(NWZ_CHAT_INIT)
+  const [activeStart, setActiveStart] = useState<StartOption>(
+    initialYaml ? 'Import YAML' : 'Scratch',
+  )
+  const [chatHistory, setChatHistory] =
+    useState<Array<ChatMessage>>(NWZ_CHAT_INIT)
   const [chatInput, setChatInput] = useState('')
+  const [chatPending, setChatPending] = useState(false)
+  const [wizardSessionId, setWizardSessionId] = useState<string | null>(null)
   const importRef = useRef<HTMLInputElement>(null)
+  const [importedFileName, setImportedFileName] = useState<string | null>(null)
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState('')
 
   // Draft workflow state
   const [id, setId] = useState(initialId ?? '')
@@ -1447,17 +1933,21 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
 
   // Close on Esc
   useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  function buildDocument(next: {
-    name?: string
-    description?: string
-    topLevel?: Record<string, unknown>
-    nodes?: Array<WizardNodeDraft>
-  } = {}): WizardDocumentDraft {
+  function buildDocument(
+    next: {
+      name?: string
+      description?: string
+      topLevel?: Record<string, unknown>
+      nodes?: Array<WizardNodeDraft>
+    } = {},
+  ): WizardDocumentDraft {
     return {
       id: '',
       name: next.name ?? name,
@@ -1473,7 +1963,11 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
 
   function applyParsedDocument(
     nextDoc: WizardDocumentDraft,
-    options?: { wizardId?: string; forceName?: string; forceDescription?: string },
+    options?: {
+      wizardId?: string
+      forceName?: string
+      forceDescription?: string
+    },
   ) {
     const nextName = options?.forceName ?? nextDoc.name
     const nextDescription = options?.forceDescription ?? nextDoc.description
@@ -1490,7 +1984,7 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
     setSelectedNodeId((current) =>
       normalizedDoc.nodes.some((node) => node.id === current)
         ? current
-        : normalizedDoc.nodes[0]?.id ?? null,
+        : (normalizedDoc.nodes[0]?.id ?? null),
     )
     syncYamlFromDocument(normalizedDoc)
   }
@@ -1500,31 +1994,61 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
     syncYamlFromDocument(buildDocument({ nodes: nextNodes }))
   }
 
-  function handleSend() {
+  async function handleSend() {
     const userMsg = chatInput.trim()
-    if (!userMsg) return
-    const suggested = userMsg
-      .split(' ')
-      .filter((w) => w.length > 3)
-      .slice(0, 3)
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ')
-    const suggestedName = suggested || 'Custom'
-    setChatHistory((h) => [
-      ...h,
-      { role: 'user', msg: userMsg },
-      {
-        role: 'assistant',
-        msg: `Understood — I scaffolded a draft workflow from that description.\n\nSuggested name: ${suggestedName} Workflow\n\nReview the DAG in Step 2, refine nodes in Step 3, and edit final YAML in Step 4 if needed.`,
-      },
-    ])
+    if (!userMsg || chatPending) return
+    setChatHistory((h) => [...h, { role: 'user', msg: userMsg }])
     setChatInput('')
-    const generated = buildWorkflowFromPrompt(userMsg, suggestedName + ' Workflow')
-    applyParsedDocument(generated, {
-      wizardId: id || slugify(suggestedName + '-workflow'),
-      forceName: name || suggestedName + ' Workflow',
-      forceDescription: description || userMsg.slice(0, 160),
-    })
+    setChatPending(true)
+    try {
+      const result = await chatWorkflowWizard({
+        sessionId: wizardSessionId ?? undefined,
+        message: userMsg,
+        currentYaml: yaml,
+        currentName: name,
+        currentDescription: description,
+        history: [...chatHistory, { role: 'user', msg: userMsg }],
+      })
+      setWizardSessionId(result.sessionId ?? null)
+      setChatHistory((h) => [...h, { role: 'assistant', msg: result.reply }])
+
+      const parsed = toWorkflowDocumentDraft(result.workflow_yaml)
+      if (parsed) {
+        applyParsedDocument(parsed, {
+          wizardId:
+            result.suggested_id ||
+            id ||
+            slugify(result.suggested_name || name || 'workflow'),
+          forceName: result.suggested_name || parsed.name || name || 'Workflow',
+          forceDescription:
+            result.suggested_description || parsed.description || description,
+        })
+      } else {
+        setYaml(result.workflow_yaml)
+      }
+    } catch (err) {
+      if (import.meta.env.DEV) {
+        console.warn('[workflow-wizard] Hermes scratch chat failed', err)
+      }
+      const fallbackDoc = buildWorkflowFromPrompt(
+        userMsg,
+        name || 'My Workflow',
+      )
+      applyParsedDocument(fallbackDoc, {
+        wizardId: id || slugify(fallbackDoc.name || userMsg || 'workflow'),
+        forceName: fallbackDoc.name || name || 'Workflow',
+        forceDescription: fallbackDoc.description || description,
+      })
+      setChatHistory((h) => [
+        ...h,
+        {
+          role: 'assistant',
+          msg: 'I could not reach the live Hermes chat service for this turn, so I created a local workflow draft from your message. Review the DAG in Step 2, refine nodes in Step 3, or tell me more about the trigger, steps, and expected output.',
+        },
+      ])
+    } finally {
+      setChatPending(false)
+    }
   }
 
   function handleImportChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1541,15 +2065,24 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
       } else {
         setYaml(text)
       }
+      setImportedFileName(file.name)
       if (!id) setId(slugify(file.name))
       if (!name) setName(file.name.replace(/\.ya?ml$/i, ''))
     })
     e.target.value = ''
   }
 
+  const yamlStatus =
+    yaml.trim().length === 0
+      ? 'No YAML loaded yet'
+      : 'error' in yamlParse
+        ? `Parse error — ${yamlParse.error}`
+        : `Valid YAML — ${'node_count' in yamlParse ? yamlParse.node_count : 0} nodes detected`
+
   function handleDuplicateSelect(wfId: string) {
     const wf = existingWorkflows?.find((w) => w.id === wfId)
     if (!wf) return
+    setSelectedWorkflowId(wfId)
     const parsed = toWorkflowDocumentDraft(wf.yaml || YAML_TEMPLATE)
     if (parsed) {
       applyParsedDocument(parsed, {
@@ -1576,7 +2109,7 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
     setSelectedNodeId((current) =>
       parsed.nodes.some((node) => node.id === current)
         ? current
-        : parsed.nodes[0]?.id ?? null,
+        : (parsed.nodes[0]?.id ?? null),
     )
   }
 
@@ -1624,7 +2157,13 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
   async function handleSave() {
     setServerError(null)
     try {
-      await upsert.mutateAsync({ id, name: name.trim(), description: description.trim() || undefined, source, yaml })
+      await upsert.mutateAsync({
+        id,
+        name: name.trim(),
+        description: description.trim() || undefined,
+        source,
+        yaml,
+      })
       onClose()
     } catch (err) {
       setServerError(err instanceof Error ? err.message : 'Unknown error')
@@ -1636,8 +2175,18 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
   return (
     <div
       className="wizard-scrim"
-      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1000,
+        background: 'rgba(0,0,0,0.72)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
     >
       <div
         className="wizard-modal"
@@ -1654,23 +2203,69 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
         }}
       >
         {/* ── Header ── */}
-        <div className="wz-head" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', borderBottom: '1px solid var(--m-border, #2a2a2a)', flexShrink: 0 }}>
+        <div
+          className="wz-head"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '16px 20px',
+            borderBottom: '1px solid var(--m-border, #2a2a2a)',
+            flexShrink: 0,
+          }}
+        >
           <div
             className="wz-icon"
             style={{
-              width: 34, height: 34, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(0,255,65,.08)', border: '1px solid var(--m-green-500, #00ff41)',
-              color: 'var(--m-green-500, #00ff41)', boxShadow: '0 0 10px rgba(0,255,65,.3)', flexShrink: 0,
+              width: 34,
+              height: 34,
+              borderRadius: 7,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(0,255,65,.08)',
+              border: '1px solid var(--m-green-500, #00ff41)',
+              color: 'var(--m-green-500, #00ff41)',
+              boxShadow: '0 0 10px rgba(0,255,65,.3)',
+              flexShrink: 0,
             }}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              width="16"
+              height="16"
+            >
               <path d="M12 5v14M5 12h14" />
             </svg>
           </div>
           <div style={{ flex: 1 }}>
-            <h2 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--m-text, #e0e0e0)', letterSpacing: '.02em' }}>New Workflow</h2>
-            <div className="wz-sub" style={{ fontSize: 10, color: 'var(--m-text-muted, #888)', marginTop: 2, fontFamily: 'var(--m-font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '.1em' }}>
-              CREATE A WORKFLOW DEFINITION · STEP {step} OF 4 — {currentStepLabel}
+            <h2
+              style={{
+                margin: 0,
+                fontSize: 14,
+                fontWeight: 700,
+                color: 'var(--m-text, #e0e0e0)',
+                letterSpacing: '.02em',
+              }}
+            >
+              New Workflow
+            </h2>
+            <div
+              className="wz-sub"
+              style={{
+                fontSize: 10,
+                color: 'var(--m-text-muted, #888)',
+                marginTop: 2,
+                fontFamily: 'var(--m-font-mono, monospace)',
+                textTransform: 'uppercase',
+                letterSpacing: '.1em',
+              }}
+            >
+              CREATE A WORKFLOW DEFINITION · STEP {step} OF 4 —{' '}
+              {currentStepLabel}
             </div>
           </div>
           <button
@@ -1678,9 +2273,23 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
             type="button"
             onClick={onClose}
             aria-label="Close"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--m-text-muted, #888)', padding: 4, lineHeight: 1 }}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--m-text-muted, #888)',
+              padding: 4,
+              lineHeight: 1,
+            }}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="16" height="16">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              width="16"
+              height="16"
+            >
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
@@ -1690,56 +2299,26 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
         <StepBar step={step} />
 
         {/* ── Body ── */}
-        <div className="wz-body" style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
-
-          {step === 1 && activeStart === 'Duplicate' && (
-            <div style={{ marginBottom: 12 }}>
-              <label className="act-lbl" style={{ display: 'block', marginBottom: 6 }}>Duplicate from existing workflow</label>
-              <select
-                className="wfrd-select"
-                style={{ width: '100%', boxSizing: 'border-box', marginBottom: 12 }}
-                defaultValue=""
-                onChange={(e) => handleDuplicateSelect(e.target.value)}
-              >
-                <option value="" disabled>Select a workflow…</option>
-                {(existingWorkflows ?? []).map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}{w.source === 'bundled' ? ' (built-in)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {step === 1 && activeStart === 'Template' && (
-            <div style={{ marginBottom: 12 }}>
-              <label className="act-lbl" style={{ display: 'block', marginBottom: 6 }}>Start from a built-in template</label>
-              <select
-                className="wfrd-select"
-                style={{ width: '100%', boxSizing: 'border-box', marginBottom: 12 }}
-                defaultValue=""
-                onChange={(e) => handleDuplicateSelect(e.target.value)}
-              >
-                <option value="" disabled>Select a template…</option>
-                {(existingWorkflows ?? [])
-                  .filter((w) => w.source === 'bundled')
-                  .map((w) => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
-                  ))}
-              </select>
-            </div>
-          )}
-
+        <div
+          className="wz-body"
+          style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}
+        >
           {step === 1 && (
             <DescribeStep
               activeStart={activeStart}
               onSelectStart={setActiveStart}
               chatHistory={chatHistory}
               chatInput={chatInput}
+              chatPending={chatPending}
               onChatInput={setChatInput}
               onSend={handleSend}
               importRef={importRef}
               onImportChange={handleImportChange}
+              importedFileName={importedFileName}
+              yamlStatus={yamlStatus}
+              workflowOptions={existingWorkflows ?? []}
+              selectedWorkflowId={selectedWorkflowId}
+              onSelectWorkflow={handleDuplicateSelect}
             />
           )}
 
@@ -1780,7 +2359,9 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
               }}
               onSourceChange={setSource}
               onYamlChange={handleYamlChange}
-              onSubmit={() => { void handleSave() }}
+              onSubmit={() => {
+                void handleSave()
+              }}
             />
           )}
         </div>
@@ -1788,17 +2369,44 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
         {/* ── Footer ── */}
         <div
           className="wz-foot"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 20px', borderTop: '1px solid var(--m-border, #2a2a2a)', flexShrink: 0 }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '12px 20px',
+            borderTop: '1px solid var(--m-border, #2a2a2a)',
+            flexShrink: 0,
+          }}
         >
-          <span className="wz-foot-step" style={{ font: '500 10px var(--m-font-mono, monospace)', color: 'var(--m-text-faint, #444)', textTransform: 'uppercase', letterSpacing: '.14em' }}>
+          <span
+            className="wz-foot-step"
+            style={{
+              font: '500 10px var(--m-font-mono, monospace)',
+              color: 'var(--m-text-faint, #444)',
+              textTransform: 'uppercase',
+              letterSpacing: '.14em',
+            }}
+          >
             Step {step} / 4
           </span>
           <div className="wz-nav" style={{ display: 'flex', gap: 8 }}>
             {step > 1 && (
-              <button className="btn-mini" type="button" onClick={() => setStep((s) => s - 1)}>← Back</button>
+              <button
+                className="btn-mini"
+                type="button"
+                onClick={() => setStep((s) => s - 1)}
+              >
+                ← Back
+              </button>
             )}
             {step < 4 && (
-              <button className="btn-mini prim" type="button" onClick={() => setStep((s) => s + 1)}>Next →</button>
+              <button
+                className="btn-mini prim"
+                type="button"
+                onClick={() => setStep((s) => s + 1)}
+              >
+                Next →
+              </button>
             )}
             {step === 4 && (
               <button
@@ -1806,9 +2414,19 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
                 type="button"
                 style={{ minWidth: 130 }}
                 disabled={!canSave}
-                onClick={() => { void handleSave() }}
+                onClick={() => {
+                  void handleSave()
+                }}
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" width="11" height="11" style={{ marginRight: 5 }}>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  width="11"
+                  height="11"
+                  style={{ marginRight: 5 }}
+                >
                   <path d="M20 6L9 17l-5-5" />
                 </svg>
                 Save Workflow
@@ -1940,6 +2558,89 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
           outline: none;
         }
         .chat-inp:focus { border-color: var(--m-green-500, #00ff41); }
+        .plan-sidecard {
+          border: 1px solid var(--m-border-subtle, #222);
+          border-radius: 6px;
+          background: var(--m-bg-deep, #0a0a0a);
+          overflow: hidden;
+        }
+        .plan-sidecard-head {
+          padding: 12px 14px;
+          border-bottom: 1px solid var(--m-border-subtle, #222);
+          font: 600 11px var(--m-font-mono, monospace);
+          color: var(--m-green-500, #00ff41);
+          text-transform: uppercase;
+          letter-spacing: .1em;
+        }
+        .plan-sidecard-body {
+          padding: 14px;
+          font: 400 12px var(--m-font-sans, sans-serif);
+          color: var(--m-text, #e0e0e0);
+          line-height: 1.6;
+        }
+        .plan-sidecard-body p {
+          margin: 0 0 10px;
+        }
+        .plan-sidecard-body ul {
+          margin: 0;
+          padding-left: 18px;
+          color: var(--m-text-muted, #888);
+        }
+        .plan-sidecard-body li + li {
+          margin-top: 6px;
+        }
+        .wizard-combobox {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .wizard-combobox-input {
+          width: 100%;
+          box-sizing: border-box;
+        }
+        .wizard-combobox-list {
+          max-height: 220px;
+          overflow-y: auto;
+          border: 1px solid var(--m-border-subtle, #222);
+          border-radius: 6px;
+          background: var(--m-bg, #0d0d0d);
+          padding: 6px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .wizard-combobox-item {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 3px;
+          width: 100%;
+          padding: 8px 10px;
+          border-radius: 5px;
+          border: 1px solid transparent;
+          background: transparent;
+          color: var(--m-text, #e0e0e0);
+          text-align: left;
+          cursor: pointer;
+        }
+        .wizard-combobox-item:hover,
+        .wizard-combobox-item.sel {
+          border-color: rgba(0,255,65,.3);
+          background: rgba(0,255,65,.08);
+        }
+        .wizard-combobox-title {
+          font: 600 11px var(--m-font-mono, monospace);
+          color: var(--m-text, #e0e0e0);
+        }
+        .wizard-combobox-meta {
+          font: 400 10px var(--m-font-sans, sans-serif);
+          color: var(--m-text-muted, #888);
+        }
+        .wizard-combobox-empty {
+          padding: 10px;
+          color: var(--m-text-muted, #888);
+          font: 400 11px var(--m-font-sans, sans-serif);
+        }
 
         /* Configure step */
         .wz-config {

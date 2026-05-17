@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { parseOpenAIStream } from './openai-compat-api'
+import { openaiChat, parseOpenAIStream } from './openai-compat-api'
 
-function createStreamResponse(chunks: string[]): Response {
+function createStreamResponse(chunks: Array<string>): Response {
   const encoder = new TextEncoder()
   return new Response(
     new ReadableStream({
@@ -88,5 +88,56 @@ describe('parseOpenAIStream', () => {
       },
       { type: 'content', text: 'done' },
     ])
+  })
+})
+
+describe('openaiChat gateway auth', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    delete process.env.HERMES_API_TOKEN
+    delete process.env.CLAUDE_API_TOKEN
+    delete process.env.OPENAI_API_KEY
+  })
+
+  it('does not send unrelated OPENAI_API_KEY credentials to the Hermes gateway', async () => {
+    process.env.OPENAI_API_KEY = 'not-a-hermes-gateway-token'
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: 'ok' } }] }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+
+    await openaiChat([{ role: 'user', content: 'hi' }], { model: 'test-model' })
+
+    const init = fetchSpy.mock.calls[0][1] as RequestInit
+    expect(
+      (init.headers as Record<string, string>).Authorization,
+    ).toBeUndefined()
+  })
+
+  it('sends only Hermes gateway tokens when configured', async () => {
+    process.env.HERMES_API_TOKEN = 'hermes-token'
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ choices: [{ message: { content: 'ok' } }] }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+
+    await openaiChat([{ role: 'user', content: 'hi' }], { model: 'test-model' })
+
+    const init = fetchSpy.mock.calls[0][1] as RequestInit
+    expect((init.headers as Record<string, string>).Authorization).toBe(
+      'Bearer hermes-token',
+    )
   })
 })
