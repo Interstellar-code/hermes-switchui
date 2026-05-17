@@ -1,15 +1,15 @@
 /**
  * NewWorkflowWizard — 4-step wizard for creating a workflow definition.
  *
- * Step 1 DESCRIBE  — fully wired: start-from picker, patterns chips, Hermes prompt panel, chat input
- * Step 2 DESIGN    — live read-only DAG preview (DagSvg + parseDagFromYaml)
- * Step 3 CONFIGURE — placeholder (TODO: node/agent configuration surface)
+ * Step 1 DESCRIBE  — fully wired: start-from picker, Hermes prompt panel, chat input
+ * Step 2 DESIGN    — live DAG preview (DagSvg + parseDagFromYaml)
+ * Step 3 CONFIGURE — node-level editing with YAML round-tripping
  * Step 4 SAVE      — real form: id, name, description, source, YAML → POST /api/workflow-definitions
  *
  * Design source: docs/Design Assets/Hermes-Switchui/workflows-app.jsx + Workflows.html
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { parse as parseYaml } from 'yaml'
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 import { useUpsertWorkflowDefinition, useWorkflowDefinitions } from './use-workflows'
 import type { NodeType } from './types'
 
@@ -20,12 +20,10 @@ type StepLabel = (typeof STEPS)[number]
 
 const ID_REGEX = /^[A-Za-z0-9_:.-]{1,128}$/
 
-const YAML_TEMPLATE = `id: my-workflow
-name: My Workflow
-description: ""
+const YAML_TEMPLATE = `name: My Workflow
+description: New workflow
 nodes:
   - id: start
-    type: prompt
     prompt: "Hello"
 `
 
@@ -45,18 +43,381 @@ const START_OPTIONS = [
 ] as const
 type StartOption = (typeof START_OPTIONS)[number]['label']
 
-const PATTERN_CHIPS = [
-  { label: 'Pipeline',    desc: 'Linear chain of steps',             color: '#ffb454' },
-  { label: 'Review',      desc: 'Parallel review agents',            color: '#5ad3ff' },
-  { label: 'Interactive', desc: 'Human-in-the-loop checkpoints',     color: '#b07cff' },
-  { label: 'Specialist',  desc: 'Focused single-purpose agent',      color: 'var(--m-green-500, #00ff41)' },
-] as const
-
 type ChatMessage = { role: 'assistant' | 'user'; msg: string }
+
+interface WizardHermesTaskDraft {
+  skills: string
+  agent_hint: string
+  model_hint: string
+}
+
+interface WizardNodeDraft {
+  id: string
+  type: NodeType
+  phase: string
+  depends_on: Array<string>
+  model: string
+  provider: string
+  skills: string
+  hermes_task_enabled: boolean
+  hermes_task: WizardHermesTaskDraft
+  prompt: string
+  command: string
+  bash: string
+  script: string
+  runtime: string
+  cancel: string
+  approval_message: string
+  approval_capture_response: boolean
+  loop_prompt: string
+  loop_until: string
+  loop_max_iterations: number
+  raw: Record<string, unknown>
+}
+
+interface WizardDocumentDraft {
+  id: string
+  name: string
+  description: string
+  topLevel: Record<string, unknown>
+  nodes: Array<WizardNodeDraft>
+}
+
+const NODE_TYPE_OPTIONS: Array<NodeType> = [
+  'prompt',
+  'command',
+  'bash',
+  'script',
+  'approval',
+  'loop',
+  'cancel',
+]
+
+const TOP_LEVEL_RESERVED_KEYS = new Set(['id', 'name', 'description', 'nodes'])
+const COMMON_NODE_KEYS = [
+  'id',
+  'phase',
+  'depends_on',
+  'model',
+  'provider',
+  'skills',
+  'hermes_task',
+]
+const VARIANT_NODE_KEYS = [
+  'prompt',
+  'command',
+  'bash',
+  'script',
+  'runtime',
+  'cancel',
+  'approval',
+  'loop',
+]
 
 const NWZ_CHAT_INIT: Array<ChatMessage> = [
   { role: 'assistant', msg: "Let's build a new workflow. Describe what you want it to do — the steps it should take, what triggers it, and what the output should look like." },
 ]
+
+function splitCsv(raw: string): Array<string> {
+  return raw
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+}
+
+function inferNodeType(raw: Record<string, unknown>): NodeType {
+  if (typeof raw['prompt'] === 'string') return 'prompt'
+  if (typeof raw['command'] === 'string') return 'command'
+  if (typeof raw['bash'] === 'string') return 'bash'
+  if (typeof raw['script'] === 'string') return 'script'
+  if (typeof raw['cancel'] === 'string') return 'cancel'
+  if (raw['approval'] && typeof raw['approval'] === 'object') return 'approval'
+  if (raw['loop'] && typeof raw['loop'] === 'object') return 'loop'
+  return 'prompt'
+}
+
+function createDefaultNodeDraft(type: NodeType, index: number): WizardNodeDraft {
+  const idBase =
+    type === 'approval'
+      ? 'review'
+      : type === 'loop'
+        ? 'iterate'
+        : type === 'cancel'
+          ? 'stop'
+          : type
+  return {
+    id: `${idBase}-${index + 1}`,
+    type,
+    phase: '',
+    depends_on: [],
+    model: '',
+    provider: '',
+    skills: '',
+    hermes_task_enabled: false,
+    hermes_task: { skills: '', agent_hint: '', model_hint: '' },
+    prompt: type === 'prompt' ? 'Describe the work this node should perform.' : '',
+    command: type === 'command' ? 'replace-with-command' : '',
+    bash: type === 'bash' ? 'echo "todo"' : '',
+    script: type === 'script' ? 'console.log("todo")' : '',
+    runtime: type === 'script' ? 'bun' : '',
+    cancel: type === 'cancel' ? 'Cancelled by workflow' : '',
+    approval_message:
+      type === 'approval' ? 'Review the plan above. Approve to continue.' : '',
+    approval_capture_response: false,
+    loop_prompt: type === 'loop' ? 'Repeat until the task is complete.' : '',
+    loop_until: type === 'loop' ? 'DONE' : '',
+    loop_max_iterations: 3,
+    raw: {},
+  }
+}
+
+function toNodeDraft(rawNode: Record<string, unknown>, index: number): WizardNodeDraft {
+  const type = inferNodeType(rawNode)
+  const hermesTaskRaw =
+    rawNode['hermes_task'] && typeof rawNode['hermes_task'] === 'object'
+      ? (rawNode['hermes_task'] as Record<string, unknown>)
+      : null
+  const approvalRaw =
+    rawNode['approval'] && typeof rawNode['approval'] === 'object'
+      ? (rawNode['approval'] as Record<string, unknown>)
+      : null
+  const loopRaw =
+    rawNode['loop'] && typeof rawNode['loop'] === 'object'
+      ? (rawNode['loop'] as Record<string, unknown>)
+      : null
+  const base = createDefaultNodeDraft(type, index)
+  return {
+    ...base,
+    id:
+      typeof rawNode['id'] === 'string' && rawNode['id'].trim().length > 0
+        ? rawNode['id']
+        : base.id,
+    phase: typeof rawNode['phase'] === 'string' ? rawNode['phase'] : '',
+    depends_on: Array.isArray(rawNode['depends_on'])
+      ? rawNode['depends_on'].filter((dep): dep is string => typeof dep === 'string')
+      : [],
+    model: typeof rawNode['model'] === 'string' ? rawNode['model'] : '',
+    provider: typeof rawNode['provider'] === 'string' ? rawNode['provider'] : '',
+    skills: Array.isArray(rawNode['skills'])
+      ? rawNode['skills'].filter((skill): skill is string => typeof skill === 'string').join(', ')
+      : '',
+    hermes_task_enabled: Boolean(hermesTaskRaw),
+    hermes_task: {
+      skills: Array.isArray(hermesTaskRaw?.['skills'])
+        ? hermesTaskRaw['skills']
+            .filter((skill): skill is string => typeof skill === 'string')
+            .join(', ')
+        : '',
+      agent_hint:
+        typeof hermesTaskRaw?.['agent_hint'] === 'string'
+          ? hermesTaskRaw['agent_hint']
+          : '',
+      model_hint:
+        typeof hermesTaskRaw?.['model_hint'] === 'string'
+          ? hermesTaskRaw['model_hint']
+          : '',
+    },
+    prompt: typeof rawNode['prompt'] === 'string' ? rawNode['prompt'] : '',
+    command: typeof rawNode['command'] === 'string' ? rawNode['command'] : '',
+    bash: typeof rawNode['bash'] === 'string' ? rawNode['bash'] : '',
+    script: typeof rawNode['script'] === 'string' ? rawNode['script'] : '',
+    runtime: typeof rawNode['runtime'] === 'string' ? rawNode['runtime'] : base.runtime,
+    cancel: typeof rawNode['cancel'] === 'string' ? rawNode['cancel'] : '',
+    approval_message:
+      typeof approvalRaw?.['message'] === 'string' ? approvalRaw['message'] : '',
+    approval_capture_response: Boolean(approvalRaw?.['capture_response']),
+    loop_prompt:
+      typeof loopRaw?.['prompt'] === 'string' ? loopRaw['prompt'] : '',
+    loop_until: typeof loopRaw?.['until'] === 'string' ? loopRaw['until'] : '',
+    loop_max_iterations:
+      typeof loopRaw?.['max_iterations'] === 'number'
+        ? loopRaw['max_iterations']
+        : base.loop_max_iterations,
+    raw: rawNode,
+  }
+}
+
+function toWorkflowDocumentDraft(yamlStr: string): WizardDocumentDraft | null {
+  const parsed = parseYaml(yamlStr)
+  if (!parsed || typeof parsed !== 'object') return null
+  const raw = parsed as Record<string, unknown>
+  const topLevel = Object.fromEntries(
+    Object.entries(raw).filter(([key]) => !TOP_LEVEL_RESERVED_KEYS.has(key)),
+  )
+  const nodesRaw = Array.isArray(raw['nodes'])
+    ? raw['nodes'].filter(
+        (node): node is Record<string, unknown> =>
+          Boolean(node) && typeof node === 'object' && !Array.isArray(node),
+      )
+    : []
+  return {
+    id: typeof raw['id'] === 'string' ? raw['id'] : '',
+    name: typeof raw['name'] === 'string' ? raw['name'] : '',
+    description: typeof raw['description'] === 'string' ? raw['description'] : '',
+    topLevel,
+    nodes: nodesRaw.map((node, index) => toNodeDraft(node, index)),
+  }
+}
+
+function serializeNodeDraft(node: WizardNodeDraft): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...node.raw }
+  for (const key of [...COMMON_NODE_KEYS, ...VARIANT_NODE_KEYS]) {
+    delete next[key]
+  }
+
+  next.id = node.id.trim()
+  if (node.phase.trim()) next.phase = node.phase.trim()
+  if (node.depends_on.length > 0) next.depends_on = node.depends_on
+  if (node.model.trim()) next.model = node.model.trim()
+  if (node.provider.trim()) next.provider = node.provider.trim()
+
+  const skills = splitCsv(node.skills)
+  if (skills.length > 0) next.skills = skills
+
+  if (node.hermes_task_enabled) {
+    const hermesTask: Record<string, unknown> = {}
+    const hermesSkills = splitCsv(node.hermes_task.skills)
+    if (hermesSkills.length > 0) hermesTask.skills = hermesSkills
+    if (node.hermes_task.agent_hint.trim()) {
+      hermesTask.agent_hint = node.hermes_task.agent_hint.trim()
+    }
+    if (node.hermes_task.model_hint.trim()) {
+      hermesTask.model_hint = node.hermes_task.model_hint.trim()
+    }
+    next.hermes_task = hermesTask
+  }
+
+  switch (node.type) {
+    case 'prompt':
+      next.prompt = node.prompt.trim() || 'Describe the work this node should perform.'
+      break
+    case 'command':
+      next.command = node.command.trim() || 'replace-with-command'
+      break
+    case 'bash':
+      next.bash = node.bash || 'echo "todo"'
+      break
+    case 'script':
+      next.script = node.script || 'console.log("todo")'
+      next.runtime = node.runtime.trim() || 'bun'
+      break
+    case 'approval':
+      next.approval = {
+        message: node.approval_message.trim() || 'Review the plan above. Approve to continue.',
+        ...(node.approval_capture_response ? { capture_response: true } : {}),
+      }
+      break
+    case 'loop':
+      next.loop = {
+        prompt: node.loop_prompt.trim() || 'Repeat until the task is complete.',
+        until: node.loop_until.trim() || 'DONE',
+        max_iterations: Math.max(1, Math.trunc(node.loop_max_iterations || 1)),
+      }
+      break
+    case 'cancel':
+      next.cancel = node.cancel.trim() || 'Cancelled by workflow'
+      break
+  }
+
+  return next
+}
+
+function serializeWorkflowYaml(doc: WizardDocumentDraft): string {
+  const root: Record<string, unknown> = { ...doc.topLevel }
+  root.name = doc.name.trim() || 'Workflow'
+  root.description = doc.description.trim() || 'New workflow'
+  root.nodes = doc.nodes.map((node) => serializeNodeDraft(node))
+  return stringifyYaml(root, { lineWidth: 0 })
+}
+
+function buildWorkflowFromPrompt(userMsg: string, currentName: string): WizardDocumentDraft {
+  const tokens = userMsg
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]+/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+  const wantsApproval = tokens.some((token) =>
+    ['approve', 'approval', 'review', 'human', 'checkpoint'].includes(token),
+  )
+  const wantsLoop = tokens.some((token) =>
+    ['iterate', 'loop', 'repeat', 'retry'].includes(token),
+  )
+  const wantsCommand = tokens.some((token) =>
+    ['command', 'cli'].includes(token),
+  )
+  const wantsScript = tokens.some((token) =>
+    ['script', 'transform', 'parse'].includes(token),
+  )
+
+  const drafts: Array<WizardNodeDraft> = [
+    {
+      ...createDefaultNodeDraft('prompt', 0),
+      id: 'analyze',
+      phase: 'Plan',
+      prompt: `Analyze this workflow request and extract the needed context, constraints, and success criteria.\n\nUser request:\n${userMsg}`,
+    },
+    {
+      ...createDefaultNodeDraft('prompt', 1),
+      id: 'plan',
+      phase: 'Plan',
+      depends_on: ['analyze'],
+      prompt: `Create the execution plan for this workflow based on the analyzed request.\n\nOriginal request:\n${userMsg}`,
+    },
+  ]
+
+  if (wantsApproval) {
+    drafts.push({
+      ...createDefaultNodeDraft('approval', drafts.length),
+      id: 'review',
+      phase: 'Review',
+      depends_on: ['plan'],
+      approval_message: 'Review the generated plan and approve before execution continues.',
+      approval_capture_response: true,
+    })
+  }
+
+  drafts.push({
+    ...createDefaultNodeDraft(
+      wantsCommand ? 'command' : wantsScript ? 'script' : 'prompt',
+      drafts.length,
+    ),
+    id: 'execute',
+    phase: 'Execute',
+    depends_on: [wantsApproval ? 'review' : 'plan'],
+    command: wantsCommand ? 'replace-with-command' : '',
+    script: wantsScript ? 'console.log("implement task transform here")' : '',
+    runtime: wantsScript ? 'bun' : '',
+    prompt: `Execute the planned work for this request.\n\nOriginal request:\n${userMsg}`,
+  })
+
+  if (wantsLoop) {
+    drafts.push({
+      ...createDefaultNodeDraft('loop', drafts.length),
+      id: 'iterate',
+      phase: 'Execute',
+      depends_on: ['execute'],
+      loop_prompt: `Repeat the execution/refinement cycle until the workflow goal is complete.\n\nOriginal request:\n${userMsg}`,
+      loop_until: 'DONE',
+      loop_max_iterations: 3,
+    })
+  }
+
+  drafts.push({
+    ...createDefaultNodeDraft('prompt', drafts.length),
+    id: 'summarize',
+    phase: 'Verify',
+    depends_on: [wantsLoop ? 'iterate' : 'execute'],
+    prompt: `Summarize results, validation status, and final output for this workflow.\n\nOriginal request:\n${userMsg}`,
+  })
+
+  return {
+    id: '',
+    name: currentName,
+    description: userMsg.slice(0, 160),
+    topLevel: {},
+    nodes: drafts,
+  }
+}
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
@@ -88,8 +449,6 @@ interface DescribeStepProps {
   chatInput: string
   onChatInput: (v: string) => void
   onSend: () => void
-  patternFilter: string
-  onPatternFilter: (l: string) => void
   importRef: React.RefObject<HTMLInputElement | null>
   onImportChange: (e: React.ChangeEvent<HTMLInputElement>) => void
 }
@@ -101,8 +460,6 @@ function DescribeStep({
   chatInput,
   onChatInput,
   onSend,
-  patternFilter,
-  onPatternFilter,
   importRef,
   onImportChange,
 }: DescribeStepProps) {
@@ -113,7 +470,7 @@ function DescribeStep({
 
   return (
     <div className="wz-plan">
-      {/* Left rail: start-from + patterns */}
+      {/* Left rail: start-from */}
       <div className="plan-summary">
         <div className="ps-title" style={{ marginBottom: 10 }}>Start from…</div>
         <div style={{ display: 'grid', gap: 6 }}>
@@ -151,32 +508,6 @@ function DescribeStep({
           onChange={onImportChange}
         />
 
-        <div style={{ marginTop: 14 }}>
-          <div className="act-lbl" style={{ marginBottom: 7 }}>Patterns</div>
-          <div style={{ display: 'grid', gap: 5 }}>
-            {PATTERN_CHIPS.map(({ label, desc, color }) => (
-              <div
-                key={label}
-                role="button"
-                tabIndex={0}
-                onClick={() => onPatternFilter(patternFilter === label ? '' : label)}
-                onKeyDown={(e) => { if (e.key === 'Enter') onPatternFilter(patternFilter === label ? '' : label) }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '5px 8px',
-                  border: `1px solid ${patternFilter === label ? color : 'var(--m-border-subtle, #2a2a2a)'}`,
-                  borderRadius: 4,
-                  background: patternFilter === label ? `${color}10` : 'var(--m-bg, #0d0d0d)',
-                  cursor: 'pointer',
-                }}
-              >
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0, boxShadow: `0 0 5px ${color}` }} />
-                <span style={{ font: `500 10px var(--m-font-mono, monospace)`, color: 'var(--m-text, #e0e0e0)' }}>{label}</span>
-                <span style={{ font: `400 9px var(--m-font-sans, sans-serif)`, color: 'var(--m-text-ghost, #555)', flex: 1 }}>{desc}</span>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Right pane: Hermes prompt panel */}
@@ -242,7 +573,15 @@ interface DagError { error: string }
 export function parseDagFromYaml(yamlStr: string): DagInfo | DagError {
   try {
     const parsed = parseYaml(yamlStr) as Record<string, unknown>
-    const rawNodes: Array<RawNode> = Array.isArray(parsed['nodes']) ? (parsed['nodes'] as Array<RawNode>) : []
+    const rawNodes: Array<RawNode> = Array.isArray(parsed['nodes'])
+      ? (parsed['nodes'] as Array<Record<string, unknown>>).map((node, index) => ({
+          id: typeof node['id'] === 'string' ? node['id'] : `node-${index + 1}`,
+          type: inferNodeType(node),
+          depends_on: Array.isArray(node['depends_on'])
+            ? node['depends_on'].filter((dep): dep is string => typeof dep === 'string')
+            : [],
+        }))
+      : []
     const node_count = rawNodes.length
 
     // Compute topo depth per node
@@ -488,27 +827,431 @@ function DesignStep({ yaml }: DesignStepProps) {
 
       {/* Footer banner */}
       <div style={{ marginTop: 6, font: '400 11px var(--m-font-sans)', color: 'var(--m-text-faint)', padding: '8px 12px', border: '1px solid rgba(0,255,65,.15)', borderLeft: '2px solid var(--m-green-500)', borderRadius: 4, background: 'rgba(0,255,65,.03)', lineHeight: 1.5 }}>
-        Node types and agent assignments are auto-inferred. You can override them after creation in the YAML editor.
+        Review the inferred structure here, then refine node types, dependencies, phases, and Hermes task hints in Step 3.
       </div>
     </div>
   )
 }
 
-// ── Step 3: Configure (placeholder) ─────────────────────────────────────────
+// ── Step 3: Configure ────────────────────────────────────────────────────────
 
-function ConfigureStep() {
-  // TODO: node/agent configuration panel goes here
+interface ConfigureStepProps {
+  nodes: Array<WizardNodeDraft>
+  selectedNodeId: string | null
+  onSelectNode: (nodeId: string) => void
+  onUpdateNode: (nodeId: string, patch: Partial<WizardNodeDraft>) => void
+  onUpdateHermesTask: (
+    nodeId: string,
+    patch: Partial<WizardHermesTaskDraft>,
+  ) => void
+  onAddNode: (type: NodeType) => void
+  onRemoveNode: (nodeId: string) => void
+}
+
+function ConfigureStep({
+  nodes,
+  selectedNodeId,
+  onSelectNode,
+  onUpdateNode,
+  onUpdateHermesTask,
+  onAddNode,
+  onRemoveNode,
+}: ConfigureStepProps) {
+  const selectedNode =
+    nodes.find((node) => node.id === selectedNodeId) ??
+    (nodes.length > 0 ? nodes[0] : null)
+
   return (
-    <div className="wfw-placeholder-pane">
-      <div className="wfw-placeholder-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" width="32" height="32">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12" />
-        </svg>
+    <div className="wz-config">
+      <div className="wz-config-list">
+        <div className="wz-config-toolbar">
+          <div>
+            <div className="pc-head">Nodes</div>
+            <div className="route-note">Edit node type, order dependencies, phase, and Hermes task hints.</div>
+          </div>
+          <div className="wz-config-add">
+            {NODE_TYPE_OPTIONS.map((type) => (
+              <button
+                key={type}
+                className="btn-mini"
+                type="button"
+                onClick={() => onAddNode(type)}
+              >
+                + {type}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="wz-config-cards">
+          {nodes.map((node) => {
+            const selected = selectedNode?.id === node.id
+            const nodeColor = NODE_COLOR[node.type] ?? 'var(--m-green-500, #00ff41)'
+            return (
+              <button
+                key={node.id}
+                type="button"
+                className={`wz-node-card ${selected ? 'sel' : ''}`}
+                onClick={() => onSelectNode(node.id)}
+              >
+                <div className="wz-node-card-row">
+                  <span className="wz-node-card-id">{node.id}</span>
+                  <span
+                    className="wz-node-card-type"
+                    style={{ color: nodeColor, borderColor: `${nodeColor}55` }}
+                  >
+                    {node.type}
+                  </span>
+                </div>
+                <div className="wz-node-card-meta">
+                  <span>{node.phase.trim() || 'No phase'}</span>
+                  <span>{node.depends_on.length} deps</span>
+                  <span>{node.hermes_task_enabled ? 'Hermes task' : 'Local node'}</span>
+                </div>
+              </button>
+            )
+          })}
+          {nodes.length === 0 && (
+            <div className="wz-empty-config">
+              No nodes yet. Add one from the toolbar or go back to Describe to scaffold a flow.
+            </div>
+          )}
+        </div>
       </div>
-      <div className="wfw-placeholder-title">Node Configuration</div>
-      <div className="wfw-placeholder-desc">
-        Agent assignment, variable bindings, and node-level overrides coming soon. Use the YAML editor for full control after creation.
+
+      <div className="wz-config-editor">
+        {selectedNode ? (
+          <>
+            <div className="wz-config-editor-head">
+              <div>
+                <div className="pc-head">Configure node</div>
+                <div className="route-note">
+                  Changes here regenerate the workflow YAML immediately.
+                </div>
+              </div>
+              <button
+                className="btn-mini"
+                type="button"
+                onClick={() => onRemoveNode(selectedNode.id)}
+              >
+                Remove node
+              </button>
+            </div>
+
+            <div className="wz-config-grid">
+              <label className="wz-field">
+                <span>ID</span>
+                <input
+                  className="wfrd-input"
+                  value={selectedNode.id}
+                  onChange={(e) =>
+                    onUpdateNode(selectedNode.id, {
+                      id: slugify(e.target.value) || selectedNode.id,
+                    })
+                  }
+                />
+              </label>
+              <label className="wz-field">
+                <span>Type</span>
+                <select
+                  className="wfrd-select"
+                  value={selectedNode.type}
+                  onChange={(e) =>
+                    onUpdateNode(selectedNode.id, {
+                      type: e.target.value as NodeType,
+                    })
+                  }
+                >
+                  {NODE_TYPE_OPTIONS.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="wz-field">
+                <span>Phase</span>
+                <input
+                  className="wfrd-input"
+                  value={selectedNode.phase}
+                  onChange={(e) =>
+                    onUpdateNode(selectedNode.id, { phase: e.target.value })
+                  }
+                  placeholder="Plan / Execute / Verify"
+                />
+              </label>
+              <label className="wz-field">
+                <span>Depends on</span>
+                <input
+                  className="wfrd-input"
+                  value={selectedNode.depends_on.join(', ')}
+                  onChange={(e) =>
+                    onUpdateNode(selectedNode.id, {
+                      depends_on: splitCsv(e.target.value),
+                    })
+                  }
+                  placeholder="analyze, plan"
+                />
+              </label>
+              <label className="wz-field">
+                <span>Provider</span>
+                <input
+                  className="wfrd-input"
+                  value={selectedNode.provider}
+                  onChange={(e) =>
+                    onUpdateNode(selectedNode.id, { provider: e.target.value })
+                  }
+                  placeholder="claude / codex"
+                />
+              </label>
+              <label className="wz-field">
+                <span>Model</span>
+                <input
+                  className="wfrd-input"
+                  value={selectedNode.model}
+                  onChange={(e) =>
+                    onUpdateNode(selectedNode.id, { model: e.target.value })
+                  }
+                  placeholder="sonnet / gpt-5.4"
+                />
+              </label>
+              <label className="wz-field wz-field-full">
+                <span>Node skills</span>
+                <input
+                  className="wfrd-input"
+                  value={selectedNode.skills}
+                  onChange={(e) =>
+                    onUpdateNode(selectedNode.id, { skills: e.target.value })
+                  }
+                  placeholder="planning, testing"
+                />
+              </label>
+            </div>
+
+            {selectedNode.type === 'prompt' && (
+              <label className="wz-field wz-field-full">
+                <span>Prompt</span>
+                <textarea
+                  className="wfrd-yaml"
+                  rows={8}
+                  value={selectedNode.prompt}
+                  onChange={(e) =>
+                    onUpdateNode(selectedNode.id, { prompt: e.target.value })
+                  }
+                />
+              </label>
+            )}
+
+            {selectedNode.type === 'command' && (
+              <label className="wz-field wz-field-full">
+                <span>Command</span>
+                <input
+                  className="wfrd-input"
+                  value={selectedNode.command}
+                  onChange={(e) =>
+                    onUpdateNode(selectedNode.id, { command: e.target.value })
+                  }
+                  placeholder="archon-smart-pr-review"
+                />
+              </label>
+            )}
+
+            {selectedNode.type === 'bash' && (
+              <label className="wz-field wz-field-full">
+                <span>Bash</span>
+                <textarea
+                  className="wfrd-yaml"
+                  rows={8}
+                  value={selectedNode.bash}
+                  onChange={(e) =>
+                    onUpdateNode(selectedNode.id, { bash: e.target.value })
+                  }
+                />
+              </label>
+            )}
+
+            {selectedNode.type === 'script' && (
+              <>
+                <label className="wz-field">
+                  <span>Runtime</span>
+                  <select
+                    className="wfrd-select"
+                    value={selectedNode.runtime}
+                    onChange={(e) =>
+                      onUpdateNode(selectedNode.id, { runtime: e.target.value })
+                    }
+                  >
+                    <option value="bun">bun</option>
+                    <option value="uv">uv</option>
+                  </select>
+                </label>
+                <label className="wz-field wz-field-full">
+                  <span>Script</span>
+                  <textarea
+                    className="wfrd-yaml"
+                    rows={8}
+                    value={selectedNode.script}
+                    onChange={(e) =>
+                      onUpdateNode(selectedNode.id, { script: e.target.value })
+                    }
+                  />
+                </label>
+              </>
+            )}
+
+            {selectedNode.type === 'approval' && (
+              <>
+                <label className="wz-field wz-field-full">
+                  <span>Approval message</span>
+                  <textarea
+                    className="wfrd-yaml"
+                    rows={5}
+                    value={selectedNode.approval_message}
+                    onChange={(e) =>
+                      onUpdateNode(selectedNode.id, {
+                        approval_message: e.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label className="wz-check">
+                  <input
+                    type="checkbox"
+                    checked={selectedNode.approval_capture_response}
+                    onChange={(e) =>
+                      onUpdateNode(selectedNode.id, {
+                        approval_capture_response: e.target.checked,
+                      })
+                    }
+                  />
+                  Capture reviewer response
+                </label>
+              </>
+            )}
+
+            {selectedNode.type === 'loop' && (
+              <>
+                <label className="wz-field wz-field-full">
+                  <span>Loop prompt</span>
+                  <textarea
+                    className="wfrd-yaml"
+                    rows={6}
+                    value={selectedNode.loop_prompt}
+                    onChange={(e) =>
+                      onUpdateNode(selectedNode.id, {
+                        loop_prompt: e.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <div className="wz-config-grid">
+                  <label className="wz-field">
+                    <span>Until signal</span>
+                    <input
+                      className="wfrd-input"
+                      value={selectedNode.loop_until}
+                      onChange={(e) =>
+                        onUpdateNode(selectedNode.id, {
+                          loop_until: e.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="wz-field">
+                    <span>Max iterations</span>
+                    <input
+                      className="wfrd-input"
+                      type="number"
+                      min={1}
+                      value={selectedNode.loop_max_iterations}
+                      onChange={(e) =>
+                        onUpdateNode(selectedNode.id, {
+                          loop_max_iterations: Number(e.target.value) || 1,
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+              </>
+            )}
+
+            {selectedNode.type === 'cancel' && (
+              <label className="wz-field wz-field-full">
+                <span>Cancel reason</span>
+                <input
+                  className="wfrd-input"
+                  value={selectedNode.cancel}
+                  onChange={(e) =>
+                    onUpdateNode(selectedNode.id, { cancel: e.target.value })
+                  }
+                />
+              </label>
+            )}
+
+            <div className="wz-hermes-box">
+              <label className="wz-check">
+                <input
+                  type="checkbox"
+                  checked={selectedNode.hermes_task_enabled}
+                  onChange={(e) =>
+                    onUpdateNode(selectedNode.id, {
+                      hermes_task_enabled: e.target.checked,
+                    })
+                  }
+                />
+                Hermes task-backed node
+              </label>
+
+              {selectedNode.hermes_task_enabled && (
+                <div className="wz-config-grid">
+                  <label className="wz-field wz-field-full">
+                    <span>Hermes task skills</span>
+                    <input
+                      className="wfrd-input"
+                      value={selectedNode.hermes_task.skills}
+                      onChange={(e) =>
+                        onUpdateHermesTask(selectedNode.id, {
+                          skills: e.target.value,
+                        })
+                      }
+                      placeholder="testing, planning"
+                    />
+                  </label>
+                  <label className="wz-field">
+                    <span>Agent hint</span>
+                    <input
+                      className="wfrd-input"
+                      value={selectedNode.hermes_task.agent_hint}
+                      onChange={(e) =>
+                        onUpdateHermesTask(selectedNode.id, {
+                          agent_hint: e.target.value,
+                        })
+                      }
+                      placeholder="trinity"
+                    />
+                  </label>
+                  <label className="wz-field">
+                    <span>Model hint</span>
+                    <input
+                      className="wfrd-input"
+                      value={selectedNode.hermes_task.model_hint}
+                      onChange={(e) =>
+                        onUpdateHermesTask(selectedNode.id, {
+                          model_hint: e.target.value,
+                        })
+                      }
+                      placeholder="claude-sonnet-4"
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="wz-empty-config">
+            No configurable node selected.
+          </div>
+        )}
       </div>
     </div>
   )
@@ -522,6 +1265,7 @@ interface SaveStepProps {
   description: string
   source: 'user' | 'project'
   yaml: string
+  yamlError: string | null
   serverError: string | null
   isPending: boolean
   onIdChange: (v: string) => void
@@ -534,7 +1278,7 @@ interface SaveStepProps {
 
 function SaveStep({
   id, name, description, source, yaml,
-  serverError, isPending,
+  yamlError, serverError, isPending,
   onIdChange, onNameChange, onDescriptionChange, onSourceChange, onYamlChange,
 }: SaveStepProps) {
   const idValid = ID_REGEX.test(id)
@@ -619,6 +1363,12 @@ function SaveStep({
         />
       </div>
 
+      {yamlError && (
+        <div style={{ color: 'var(--text-danger, #e55)', fontSize: 12, marginBottom: 12 }}>
+          YAML parse error: {yamlError}
+        </div>
+      )}
+
       {serverError && (
         <div style={{ color: 'var(--text-danger, #e55)', fontSize: 12, marginBottom: 12 }}>
           {serverError}
@@ -643,29 +1393,57 @@ export interface NewWorkflowWizardProps {
 }
 
 export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkflowWizardProps) {
+  const initialDocument =
+    toWorkflowDocumentDraft(initialYaml ?? YAML_TEMPLATE) ?? {
+      id: '',
+      name: 'My Workflow',
+      description: '',
+      topLevel: {},
+      nodes: [toNodeDraft({ id: 'start', prompt: 'Hello' }, 0)],
+    }
   const [step, setStep] = useState(1)
 
   // Step 1 state
   const [activeStart, setActiveStart] = useState<StartOption>(initialYaml ? 'Import YAML' : 'Scratch')
   const [chatHistory, setChatHistory] = useState<Array<ChatMessage>>(NWZ_CHAT_INIT)
   const [chatInput, setChatInput] = useState('')
-  const [patternFilter, setPatternFilter] = useState('')
   const importRef = useRef<HTMLInputElement>(null)
 
-  // Step 4 state (pre-filled from step 1 interactions)
+  // Draft workflow state
   const [id, setId] = useState(initialId ?? '')
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
+  const [name, setName] = useState(initialDocument.name || 'My Workflow')
+  const [description, setDescription] = useState(initialDocument.description)
   const [source, setSource] = useState<'user' | 'project'>('project')
-  const [yaml, setYaml] = useState(initialYaml ?? YAML_TEMPLATE)
+  const [topLevelDraft, setTopLevelDraft] = useState<Record<string, unknown>>(
+    initialDocument.topLevel,
+  )
+  const [nodeDrafts, setNodeDrafts] = useState<Array<WizardNodeDraft>>(
+    initialDocument.nodes,
+  )
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
+    initialDocument.nodes[0]?.id ?? null,
+  )
+  const [yaml, setYaml] = useState(
+    initialYaml ??
+      serializeWorkflowYaml({
+        ...initialDocument,
+        name: initialDocument.name || 'My Workflow',
+      }),
+  )
   const [serverError, setServerError] = useState<string | null>(null)
 
   const upsert = useUpsertWorkflowDefinition()
   // For Duplicate picker
   const { data: existingWorkflows } = useWorkflowDefinitions()
 
+  const yamlParse = useMemo(() => parseDagFromYaml(yaml), [yaml])
   const idValid = ID_REGEX.test(id)
-  const canSave = idValid && name.trim().length > 0 && yaml.trim().length > 0 && !upsert.isPending
+  const canSave =
+    idValid &&
+    name.trim().length > 0 &&
+    yaml.trim().length > 0 &&
+    !('error' in yamlParse) &&
+    !upsert.isPending
 
   // Close on Esc
   useEffect(() => {
@@ -673,6 +1451,54 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
+
+  function buildDocument(next: {
+    name?: string
+    description?: string
+    topLevel?: Record<string, unknown>
+    nodes?: Array<WizardNodeDraft>
+  } = {}): WizardDocumentDraft {
+    return {
+      id: '',
+      name: next.name ?? name,
+      description: next.description ?? description,
+      topLevel: next.topLevel ?? topLevelDraft,
+      nodes: next.nodes ?? nodeDrafts,
+    }
+  }
+
+  function syncYamlFromDocument(nextDoc: WizardDocumentDraft) {
+    setYaml(serializeWorkflowYaml(nextDoc))
+  }
+
+  function applyParsedDocument(
+    nextDoc: WizardDocumentDraft,
+    options?: { wizardId?: string; forceName?: string; forceDescription?: string },
+  ) {
+    const nextName = options?.forceName ?? nextDoc.name
+    const nextDescription = options?.forceDescription ?? nextDoc.description
+    const normalizedDoc = {
+      ...nextDoc,
+      name: nextName || 'My Workflow',
+      description: nextDescription,
+    }
+    setTopLevelDraft(normalizedDoc.topLevel)
+    setNodeDrafts(normalizedDoc.nodes)
+    setName(normalizedDoc.name)
+    setDescription(normalizedDoc.description)
+    if (options?.wizardId !== undefined) setId(options.wizardId)
+    setSelectedNodeId((current) =>
+      normalizedDoc.nodes.some((node) => node.id === current)
+        ? current
+        : normalizedDoc.nodes[0]?.id ?? null,
+    )
+    syncYamlFromDocument(normalizedDoc)
+  }
+
+  function updateNodes(nextNodes: Array<WizardNodeDraft>) {
+    setNodeDrafts(nextNodes)
+    syncYamlFromDocument(buildDocument({ nodes: nextNodes }))
+  }
 
   function handleSend() {
     const userMsg = chatInput.trim()
@@ -689,20 +1515,32 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
       { role: 'user', msg: userMsg },
       {
         role: 'assistant',
-        msg: `Understood — mapping this as a 5-node pipeline: analyze → plan → execute → validate → output.\n\nSuggested name: ${suggestedName} Workflow\n\nI'll pre-fill the configuration in step 3. Ready to review the proposed DAG?`,
+        msg: `Understood — I scaffolded a draft workflow from that description.\n\nSuggested name: ${suggestedName} Workflow\n\nReview the DAG in Step 2, refine nodes in Step 3, and edit final YAML in Step 4 if needed.`,
       },
     ])
     setChatInput('')
-    if (!name) setName(suggestedName + ' Workflow')
-    if (!id) setId(slugify(suggestedName + '-workflow'))
-    if (!description) setDescription(userMsg.slice(0, 90))
+    const generated = buildWorkflowFromPrompt(userMsg, suggestedName + ' Workflow')
+    applyParsedDocument(generated, {
+      wizardId: id || slugify(suggestedName + '-workflow'),
+      forceName: name || suggestedName + ' Workflow',
+      forceDescription: description || userMsg.slice(0, 160),
+    })
   }
 
   function handleImportChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     void file.text().then((text) => {
-      setYaml(text)
+      const parsed = toWorkflowDocumentDraft(text)
+      if (parsed) {
+        applyParsedDocument(parsed, {
+          wizardId: id || slugify(file.name),
+          forceName: parsed.name || name || file.name.replace(/\.ya?ml$/i, ''),
+          forceDescription: parsed.description || description,
+        })
+      } else {
+        setYaml(text)
+      }
       if (!id) setId(slugify(file.name))
       if (!name) setName(file.name.replace(/\.ya?ml$/i, ''))
     })
@@ -712,17 +1550,81 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
   function handleDuplicateSelect(wfId: string) {
     const wf = existingWorkflows?.find((w) => w.id === wfId)
     if (!wf) return
-    setYaml(wf.yaml || YAML_TEMPLATE)
-    setName(wf.name + ' (copy)')
-    setDescription(wf.description || '')
-    setId(slugify(wf.id + '-copy'))
+    const parsed = toWorkflowDocumentDraft(wf.yaml || YAML_TEMPLATE)
+    if (parsed) {
+      applyParsedDocument(parsed, {
+        wizardId: slugify(wf.id + '-copy'),
+        forceName: `${wf.name} (copy)`,
+        forceDescription: wf.description || parsed.description,
+      })
+    } else {
+      setYaml(wf.yaml || YAML_TEMPLATE)
+      setName(wf.name + ' (copy)')
+      setDescription(wf.description || '')
+      setId(slugify(wf.id + '-copy'))
+    }
+  }
+
+  function handleYamlChange(nextYaml: string) {
+    setYaml(nextYaml)
+    const parsed = toWorkflowDocumentDraft(nextYaml)
+    if (!parsed) return
+    setTopLevelDraft(parsed.topLevel)
+    setNodeDrafts(parsed.nodes)
+    if (parsed.name) setName(parsed.name)
+    setDescription(parsed.description)
+    setSelectedNodeId((current) =>
+      parsed.nodes.some((node) => node.id === current)
+        ? current
+        : parsed.nodes[0]?.id ?? null,
+    )
+  }
+
+  function handleUpdateNode(nodeId: string, patch: Partial<WizardNodeDraft>) {
+    const nextNodes = nodeDrafts.map((node) =>
+      node.id === nodeId ? { ...node, ...patch } : node,
+    )
+    if (patch.id && selectedNodeId === nodeId) setSelectedNodeId(patch.id)
+    updateNodes(nextNodes)
+  }
+
+  function handleUpdateHermesTask(
+    nodeId: string,
+    patch: Partial<WizardHermesTaskDraft>,
+  ) {
+    const nextNodes = nodeDrafts.map((node) =>
+      node.id === nodeId
+        ? { ...node, hermes_task: { ...node.hermes_task, ...patch } }
+        : node,
+    )
+    updateNodes(nextNodes)
+  }
+
+  function handleAddNode(type: NodeType) {
+    const draft = createDefaultNodeDraft(type, nodeDrafts.length)
+    if (nodeDrafts.length > 0) {
+      draft.depends_on = [nodeDrafts[nodeDrafts.length - 1]?.id].filter(Boolean)
+    }
+    const nextNodes = [...nodeDrafts, draft]
+    setSelectedNodeId(draft.id)
+    updateNodes(nextNodes)
+  }
+
+  function handleRemoveNode(nodeId: string) {
+    const nextNodes = nodeDrafts
+      .filter((node) => node.id !== nodeId)
+      .map((node) => ({
+        ...node,
+        depends_on: node.depends_on.filter((dep) => dep !== nodeId),
+      }))
+    setSelectedNodeId(nextNodes[0]?.id ?? null)
+    updateNodes(nextNodes)
   }
 
   async function handleSave() {
     setServerError(null)
     try {
-      const tags = patternFilter ? [patternFilter.toLowerCase()] : undefined
-      await upsert.mutateAsync({ id, name: name.trim(), description: description.trim() || undefined, source, yaml, tags })
+      await upsert.mutateAsync({ id, name: name.trim(), description: description.trim() || undefined, source, yaml })
       onClose()
     } catch (err) {
       setServerError(err instanceof Error ? err.message : 'Unknown error')
@@ -836,8 +1738,6 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
               chatInput={chatInput}
               onChatInput={setChatInput}
               onSend={handleSend}
-              patternFilter={patternFilter}
-              onPatternFilter={setPatternFilter}
               importRef={importRef}
               onImportChange={handleImportChange}
             />
@@ -845,7 +1745,17 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
 
           {step === 2 && <DesignStep yaml={yaml} />}
 
-          {step === 3 && <ConfigureStep />}
+          {step === 3 && (
+            <ConfigureStep
+              nodes={nodeDrafts}
+              selectedNodeId={selectedNodeId}
+              onSelectNode={setSelectedNodeId}
+              onUpdateNode={handleUpdateNode}
+              onUpdateHermesTask={handleUpdateHermesTask}
+              onAddNode={handleAddNode}
+              onRemoveNode={handleRemoveNode}
+            />
+          )}
 
           {step === 4 && (
             <SaveStep
@@ -854,13 +1764,22 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
               description={description}
               source={source}
               yaml={yaml}
+              yamlError={'error' in yamlParse ? yamlParse.error : null}
               serverError={serverError}
               isPending={upsert.isPending}
               onIdChange={setId}
-              onNameChange={setName}
-              onDescriptionChange={setDescription}
+              onNameChange={(nextName) => {
+                setName(nextName)
+                syncYamlFromDocument(buildDocument({ name: nextName }))
+              }}
+              onDescriptionChange={(nextDescription) => {
+                setDescription(nextDescription)
+                syncYamlFromDocument(
+                  buildDocument({ description: nextDescription }),
+                )
+              }}
               onSourceChange={setSource}
-              onYamlChange={setYaml}
+              onYamlChange={handleYamlChange}
               onSubmit={() => { void handleSave() }}
             />
           )}
@@ -1022,31 +1941,124 @@ export function NewWorkflowWizard({ initialYaml, initialId, onClose }: NewWorkfl
         }
         .chat-inp:focus { border-color: var(--m-green-500, #00ff41); }
 
-        /* Placeholder panes */
-        .wfw-placeholder-pane {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          height: 340px;
+        /* Configure step */
+        .wz-config {
+          display: grid;
+          grid-template-columns: 260px 1fr;
           gap: 14px;
-          color: var(--m-text-ghost, #555);
-          border: 1px dashed var(--m-border-subtle, #222);
+          min-height: 420px;
+        }
+        .wz-config-list,
+        .wz-config-editor {
+          border: 1px solid var(--m-border-subtle, #222);
           border-radius: 8px;
           background: var(--m-bg-deep, #0a0a0a);
         }
-        .wfw-placeholder-icon { color: var(--m-text-faint, #444); }
-        .wfw-placeholder-title {
-          font: 600 13px var(--m-font-mono, monospace);
-          color: var(--m-text-muted, #888);
-          text-transform: uppercase;
-          letter-spacing: .1em;
+        .wz-config-list {
+          padding: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
         }
-        .wfw-placeholder-desc {
-          font: 400 12px var(--m-font-sans, sans-serif);
+        .wz-config-editor {
+          padding: 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .wz-config-toolbar,
+        .wz-config-editor-head {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 10px;
+        }
+        .wz-config-add {
+          display: flex;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          gap: 6px;
+        }
+        .wz-config-cards {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          overflow-y: auto;
+        }
+        .wz-node-card {
+          width: 100%;
+          padding: 10px;
+          border-radius: 6px;
+          border: 1px solid var(--m-border-subtle, #222);
+          background: var(--m-bg, #0d0d0d);
+          color: var(--m-text, #e0e0e0);
+          cursor: pointer;
+          text-align: left;
+        }
+        .wz-node-card.sel {
+          border-color: var(--m-green-500, #00ff41);
+          box-shadow: 0 0 0 1px rgba(0,255,65,.15);
+        }
+        .wz-node-card-row,
+        .wz-node-card-meta {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+        .wz-node-card-id {
+          font: 600 10px var(--m-font-mono, monospace);
+          letter-spacing: .08em;
+          text-transform: uppercase;
+        }
+        .wz-node-card-type {
+          border: 1px solid currentColor;
+          border-radius: 999px;
+          padding: 2px 8px;
+          font: 600 9px var(--m-font-mono, monospace);
+          text-transform: uppercase;
+          letter-spacing: .08em;
+        }
+        .wz-node-card-meta {
+          margin-top: 8px;
+          font: 400 10px var(--m-font-sans, sans-serif);
+          color: var(--m-text-muted, #888);
+        }
+        .wz-config-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+        .wz-field {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+          font: 500 11px var(--m-font-mono, monospace);
+          color: var(--m-text-muted, #888);
+        }
+        .wz-field-full {
+          grid-column: 1 / -1;
+        }
+        .wz-check {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font: 500 11px var(--m-font-sans, sans-serif);
+          color: var(--m-text, #e0e0e0);
+        }
+        .wz-hermes-box {
+          border-top: 1px solid var(--m-border-subtle, #222);
+          padding-top: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .wz-empty-config {
+          border: 1px dashed var(--m-border-subtle, #222);
+          border-radius: 8px;
+          padding: 18px;
           color: var(--m-text-ghost, #555);
-          max-width: 400px;
-          text-align: center;
+          font: 400 12px var(--m-font-sans, sans-serif);
           line-height: 1.6;
         }
 
