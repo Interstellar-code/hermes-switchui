@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useWorkflowDefinitions } from './use-workflows'
 import { WorkflowsTopBar } from './workflows-top-bar'
 import { WorkflowLibrary } from './workflow-library'
-import { WorkflowActions } from './workflow-actions'
 import { WorkflowEditor } from './workflow-editor'
 import { WorkflowGrid } from './workflow-grid'
 import { LaunchWizard } from './launch-wizard'
@@ -63,12 +62,14 @@ export function WorkflowsLayout() {
 
   return (
     <>
-      <WorkflowsTopBar templateCount={workflows.length} />
-      <div className="wf-body">
+      <div
+        className={`wf-body${selectedWorkflowId ? '' : ' wf-body--browse'}${railCollapsed ? ' wf-body--rail-collapsed' : ''}`}
+      >
         <aside className={`wf-library${railCollapsed ? ' is-collapsed' : ''}`}>
           <WorkflowLibrary
             selectedId={selectedWorkflowId}
             onSelectWorkflow={setSelectedWorkflowId}
+            onClearSelection={() => setSelectedWorkflowId(null)}
             collapsed={railCollapsed}
             onToggleCollapse={() => setRailCollapsed((c) => !c)}
             onFilteredChange={handleFilteredChange}
@@ -76,10 +77,17 @@ export function WorkflowsLayout() {
           />
         </aside>
         <main className="wf-editor">
+          <WorkflowsTopBar templateCount={workflows.length} />
           {activeRunId ? (
             <RunDetailPanel runId={activeRunId} onClose={handleCloseRunPanel} />
           ) : selectedWorkflowId ? (
-            <WorkflowEditor selectedId={selectedWorkflowId} />
+            <WorkflowEditor
+              selectedId={selectedWorkflowId}
+              onOpenRun={handleOpenRunPanel}
+              onOpenLaunchWizard={handleOpenLaunchWizard}
+              onDeselect={() => setSelectedWorkflowId(null)}
+              onSelectWorkflow={setSelectedWorkflowId}
+            />
           ) : (
             <WorkflowGrid
               workflows={filteredWorkflows}
@@ -87,15 +95,6 @@ export function WorkflowsLayout() {
             />
           )}
         </main>
-        {selectedWorkflowId ? (
-          <aside className="wf-actions">
-            <WorkflowActions
-              selectedId={selectedWorkflowId}
-              onOpenLaunchWizard={handleOpenLaunchWizard}
-              onDeselect={() => setSelectedWorkflowId(null)}
-            />
-          </aside>
-        ) : null}
       </div>
       <LaunchWizard
         workflowId={wizardOpenForId}

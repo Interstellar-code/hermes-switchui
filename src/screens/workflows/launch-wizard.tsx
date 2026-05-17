@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useWorkflowParsed, useLaunchWorkflowRun } from './use-workflows'
+import { useLaunchWorkflowRun, useWorkflowParsed } from './use-workflows'
 import type { NodeType, WorkflowDagNode } from './types'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -14,6 +14,8 @@ const NODE_COLOR: Record<NodeType, string> = {
   approval: '#ffb454',
   router: '#ff6b6b',
   loop: '#ffd700',
+  script: '#5ad3ff',
+  cancel: '#ff6b6b',
 }
 
 const STEP_TITLES = ['Plan', 'Route', 'Schedule', 'Confirm'] as const
@@ -26,9 +28,9 @@ function agentForNode(nodeId: string): Agent {
 
 /** Kahn topological layout for wizard DAG (horizontal) */
 function computeWizardLayout(
-  nodes: WorkflowDagNode[],
-  edges: [string, string][],
-): Record<string, { x: number; y: number }> {
+  nodes: Array<WorkflowDagNode>,
+  edges: Array<[string, string]>,
+): Partial<Record<string, { x: number; y: number }>> {
   const NODE_W = 110
   const NODE_H = 44
   const GAP_X = 50
@@ -36,7 +38,7 @@ function computeWizardLayout(
   const PAD = 24
 
   const inDeg: Record<string, number> = {}
-  const adj: Record<string, string[]> = {}
+  const adj: Record<string, Array<string>> = {}
   for (const n of nodes) { inDeg[n.id] = 0; adj[n.id] = [] }
   for (const [a, b] of edges) {
     adj[a] = adj[a] ?? []
@@ -45,7 +47,7 @@ function computeWizardLayout(
   }
 
   const depth: Record<string, number> = {}
-  const queue: string[] = []
+  const queue: Array<string> = []
   for (const n of nodes) if ((inDeg[n.id] ?? 0) === 0) queue.push(n.id)
   while (queue.length > 0) {
     const id = queue.shift()!
@@ -56,14 +58,14 @@ function computeWizardLayout(
     }
   }
 
-  const byDepth: Record<number, string[]> = {}
+  const byDepth: Record<number, Array<string>> = {}
   for (const n of nodes) {
     const d = depth[n.id] ?? 0
     byDepth[d] = byDepth[d] ?? []
     byDepth[d].push(n.id)
   }
 
-  const pos: Record<string, { x: number; y: number }> = {}
+  const pos: Partial<Record<string, { x: number; y: number }>> = {}
   for (const [d, ids] of Object.entries(byDepth)) {
     const depthNum = Number(d)
     const cx = PAD + depthNum * (NODE_W + GAP_X) + NODE_W / 2
@@ -85,10 +87,10 @@ interface WizardData {
   id: string
   name: string
   description: string
-  required_inputs: string[]
-  optional_inputs: string[]
-  nodes: WorkflowDagNode[]
-  edges: [string, string][]
+  required_inputs: Array<string>
+  optional_inputs: Array<string>
+  nodes: Array<WorkflowDagNode>
+  edges: Array<[string, string]>
 }
 
 function Step1Plan({
@@ -102,7 +104,7 @@ function Step1Plan({
   userMessage: string
   setUserMessage: (m: string) => void
 }) {
-  const [msgs, setMsgs] = useState<ChatMsg[]>([
+  const [msgs, setMsgs] = useState<Array<ChatMsg>>([
     {
       role: 'switch',
       text: `I see you want to launch **${wf.name}**. What's the issue number or repo context?`,
@@ -115,7 +117,7 @@ function Step1Plan({
   function send() {
     const text = draft.trim()
     if (!text) return
-    const newMsgs: ChatMsg[] = [
+    const newMsgs: Array<ChatMsg> = [
       ...msgs,
       { role: 'user', text },
       {
@@ -210,8 +212,9 @@ function Step2Route({
   const hasDag = wf.nodes.length > 0
   const posMap = hasDag ? computeWizardLayout(wf.nodes, wf.edges) : {}
 
-  const allX = Object.values(posMap).map((p) => p.x)
-  const allY = Object.values(posMap).map((p) => p.y)
+  const positions = Object.values(posMap).filter((p): p is { x: number; y: number } => Boolean(p))
+  const allX = positions.map((p) => p.x)
+  const allY = positions.map((p) => p.y)
   const svgW = hasDag ? Math.max(...allX) + W + PAD : 400
   const svgH = hasDag ? Math.max(...allY) + H + 20 + PAD : 120
 
@@ -262,7 +265,7 @@ function Step2Route({
             {wf.nodes.map((n) => {
               const pos = posMap[n.id]
               if (!pos) return null
-              const c = NODE_COLOR[n.type] ?? '#00ff41'
+              const c = NODE_COLOR[n.type]
               const agent = agentMap[n.id] ?? agentForNode(n.id)
               return (
                 <g
@@ -377,7 +380,7 @@ function Step3Schedule({
   schedule: ScheduleState
   setSchedule: React.Dispatch<React.SetStateAction<ScheduleState>>
 }) {
-  function update<K extends keyof ScheduleState>(k: K, v: ScheduleState[K]) {
+  function update<TKey extends keyof ScheduleState>(k: TKey, v: ScheduleState[TKey]) {
     setSchedule((prev) => ({ ...prev, [k]: v }))
   }
 
@@ -638,7 +641,7 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
         onError: (err) => {
           window.dispatchEvent(
             new CustomEvent('wf-toast', {
-              detail: { msg: `Launch failed: ${(err as Error).message}` },
+              detail: { msg: `Launch failed: ${(err).message}` },
             }),
           )
         },

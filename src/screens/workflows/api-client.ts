@@ -28,12 +28,16 @@ export interface WorkflowDefinitionRow {
 export async function listWorkflowDefinitions(params?: {
   source?: 'bundled' | 'user' | 'project'
 }): Promise<Array<WorkflowDefinitionRow>> {
-  const qs = params?.source ? `?source=${encodeURIComponent(params.source)}` : ''
+  const qs = params?.source
+    ? `?source=${encodeURIComponent(params.source)}`
+    : ''
   const res = await fetch(`/api/workflow-definitions${qs}`)
   if (!res.ok) {
     throw new Error(`listWorkflowDefinitions failed (${res.status})`)
   }
-  const body = (await res.json()) as { definitions: Array<WorkflowDefinitionRow> }
+  const body = (await res.json()) as {
+    definitions: Array<WorkflowDefinitionRow>
+  }
   return body.definitions
 }
 
@@ -42,8 +46,12 @@ export interface WorkflowDefinitionParsedResponse {
   parsed: ParsedWorkflow
 }
 
-export async function getWorkflowDefinitionParsed(id: string): Promise<WorkflowDefinitionParsedResponse> {
-  const res = await fetch(`/api/workflow-definitions/${encodeURIComponent(id)}/parsed`)
+export async function getWorkflowDefinitionParsed(
+  id: string,
+): Promise<WorkflowDefinitionParsedResponse> {
+  const res = await fetch(
+    `/api/workflow-definitions/${encodeURIComponent(id)}/parsed`,
+  )
   if (!res.ok) {
     throw new Error(`getWorkflowDefinitionParsed failed (${res.status})`)
   }
@@ -80,6 +88,13 @@ export interface WorkflowRunRow {
   error: string | null
 }
 
+export type WorkflowArtifactRef = {
+  type?: string
+  label?: string
+  url?: string
+  path?: string
+}
+
 export interface NodeRunRow {
   id: string
   workflow_run_id: string
@@ -94,6 +109,7 @@ export interface NodeRunRow {
   approval_message?: string | null
   approval_response?: string | null
   approval_target?: string | null
+  artifact_refs?: string | Array<WorkflowArtifactRef> | null
 }
 
 export interface ApproveWorkflowInput {
@@ -105,17 +121,28 @@ export interface ApproveWorkflowInput {
 export async function approveWorkflowRun(
   runId: string,
   input: ApproveWorkflowInput,
-): Promise<{ ok: true; decision: 'approved' | 'rejected'; resumedRunId: string }> {
-  const res = await fetch(`/api/workflow-runs/${encodeURIComponent(runId)}/approve`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  })
+): Promise<{
+  ok: true
+  decision: 'approved' | 'rejected'
+  resumedRunId: string
+}> {
+  const res = await fetch(
+    `/api/workflow-runs/${encodeURIComponent(runId)}/approve`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  )
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`approveWorkflowRun failed (${res.status}): ${text}`)
   }
-  return (await res.json()) as { ok: true; decision: 'approved' | 'rejected'; resumedRunId: string }
+  return (await res.json()) as {
+    ok: true
+    decision: 'approved' | 'rejected'
+    resumedRunId: string
+  }
 }
 
 export interface WorkflowEventRow {
@@ -133,7 +160,29 @@ export interface WorkflowRunDetail {
   phaseTransitions: Array<PhaseTransition>
 }
 
-export async function getWorkflowRun(runId: string): Promise<WorkflowRunDetail> {
+export async function listWorkflowRuns(params?: {
+  workflow_id?: string
+  status?: string | Array<string>
+}): Promise<Array<WorkflowRunRow>> {
+  const qs = new URLSearchParams()
+  if (params?.workflow_id) qs.set('workflow_id', params.workflow_id)
+  if (params?.status)
+    qs.set(
+      'status',
+      Array.isArray(params.status) ? params.status.join(',') : params.status,
+    )
+  const query = qs.toString()
+  const res = await fetch(`/api/workflow-runs${query ? `?${query}` : ''}`)
+  if (!res.ok) {
+    throw new Error(`listWorkflowRuns failed (${res.status})`)
+  }
+  const body = (await res.json()) as { runs: Array<WorkflowRunRow> }
+  return body.runs
+}
+
+export async function getWorkflowRun(
+  runId: string,
+): Promise<WorkflowRunDetail> {
   const res = await fetch(`/api/workflow-runs/${encodeURIComponent(runId)}`)
   if (!res.ok) {
     throw new Error(`getWorkflowRun failed (${res.status})`)
@@ -142,15 +191,20 @@ export async function getWorkflowRun(runId: string): Promise<WorkflowRunDetail> 
 }
 
 export async function cancelWorkflowRun(runId: string): Promise<void> {
-  const res = await fetch(`/api/workflow-runs/${encodeURIComponent(runId)}?action=cancel`, {
-    method: 'POST',
-  })
+  const res = await fetch(
+    `/api/workflow-runs/${encodeURIComponent(runId)}?action=cancel`,
+    {
+      method: 'POST',
+    },
+  )
   if (!res.ok) {
     throw new Error(`cancelWorkflowRun failed (${res.status})`)
   }
 }
 
-export async function launchWorkflowRun(input: LaunchWorkflowInput): Promise<{ run: { id: string } }> {
+export async function launchWorkflowRun(
+  input: LaunchWorkflowInput,
+): Promise<{ run: { id: string } }> {
   const res = await fetch(`/api/workflow-runs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -187,23 +241,44 @@ export async function upsertWorkflowDefinition(
     body: JSON.stringify(input),
   })
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({ error: `HTTP ${res.status}` }))) as UpsertWorkflowDefinitionError
-    throw Object.assign(new Error(body.error || `upsertWorkflowDefinition failed (${res.status})`), {
-      status: res.status,
-      serverError: body.error,
-    })
+    const body = (await res
+      .json()
+      .catch(() => ({
+        error: `HTTP ${res.status}`,
+      }))) as UpsertWorkflowDefinitionError
+    throw Object.assign(
+      new Error(
+        body.error || `upsertWorkflowDefinition failed (${res.status})`,
+      ),
+      {
+        status: res.status,
+        serverError: body.error,
+      },
+    )
   }
   return (await res.json()) as { definition: WorkflowDefinitionRow }
 }
 
 export async function deleteWorkflowDefinition(id: string): Promise<void> {
-  const res = await fetch(`/api/workflow-definitions/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-  })
+  const res = await fetch(
+    `/api/workflow-definitions/${encodeURIComponent(id)}`,
+    {
+      method: 'DELETE',
+    },
+  )
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({ error: `HTTP ${res.status}` }))) as UpsertWorkflowDefinitionError
-    throw Object.assign(new Error(body.error || `deleteWorkflowDefinition failed (${res.status})`), {
-      status: res.status,
-    })
+    const body = (await res
+      .json()
+      .catch(() => ({
+        error: `HTTP ${res.status}`,
+      }))) as UpsertWorkflowDefinitionError
+    throw Object.assign(
+      new Error(
+        body.error || `deleteWorkflowDefinition failed (${res.status})`,
+      ),
+      {
+        status: res.status,
+      },
+    )
   }
 }

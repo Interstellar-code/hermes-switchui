@@ -10,6 +10,7 @@ import {
   getWorkflowRun,
   launchWorkflowRun,
   listWorkflowDefinitions,
+  listWorkflowRuns,
   upsertWorkflowDefinition,
 } from './api-client'
 import type {
@@ -17,14 +18,16 @@ import type {
   LaunchWorkflowInput,
   UpsertWorkflowDefinitionInput,
   WorkflowDefinitionRow,
-} from './api-client';
-import type {VersionTier, WorkflowSource, WorkflowSummary} from './types';
+} from './api-client'
+import type { VersionTier, WorkflowSource, WorkflowSummary } from './types'
 
 function parseTags(raw: string | null): Array<string> {
   if (!raw) return []
   try {
     const parsed = JSON.parse(raw) as unknown
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []
+    return Array.isArray(parsed)
+      ? parsed.filter((x): x is string => typeof x === 'string')
+      : []
   } catch {
     return []
   }
@@ -85,6 +88,15 @@ export function useLaunchWorkflowRun() {
   })
 }
 
+export function useWorkflowRuns(workflowId: string | null) {
+  return useQuery({
+    queryKey: ['workflow-runs', 'workflow', workflowId],
+    queryFn: () => listWorkflowRuns({ workflow_id: workflowId! }),
+    enabled: !!workflowId,
+    staleTime: 10_000,
+  })
+}
+
 const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled'])
 
 export function useWorkflowRun(runId: string | null) {
@@ -114,7 +126,8 @@ export function useCancelRun(runId: string) {
 export function useApproveRun(runId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: ApproveWorkflowInput) => approveWorkflowRun(runId, input),
+    mutationFn: (input: ApproveWorkflowInput) =>
+      approveWorkflowRun(runId, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['workflow-runs', runId] })
     },
@@ -124,7 +137,8 @@ export function useApproveRun(runId: string) {
 export function useUpsertWorkflowDefinition() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: UpsertWorkflowDefinitionInput) => upsertWorkflowDefinition(input),
+    mutationFn: (input: UpsertWorkflowDefinitionInput) =>
+      upsertWorkflowDefinition(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['workflow-definitions'] })
     },

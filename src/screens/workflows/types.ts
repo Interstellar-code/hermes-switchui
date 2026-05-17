@@ -5,12 +5,28 @@
 
 export type WorkflowSource = 'bundled' | 'user' | 'project'
 export type VersionTier = 'v1' | 'v1.1'
-export type NodeType = 'prompt' | 'bash' | 'command' | 'approval' | 'router' | 'loop'
+export type NodeType =
+  | 'prompt'
+  | 'bash'
+  | 'command'
+  | 'approval'
+  | 'router'
+  | 'loop'
+  | 'cancel'
+  | 'script'
+
+export interface HermesTaskHint {
+  skills?: Array<string>
+  agent_hint?: string | null
+  model_hint?: string | null
+}
 
 export interface WorkflowDagNode {
   id: string
   label: string
   type: NodeType
+  phase?: string | null
+  hermes_task?: HermesTaskHint | null
   config?: string
 }
 
@@ -19,21 +35,21 @@ export interface WorkflowSummary {
   name: string
   description: string
   source: WorkflowSource
-  tags: string[]
+  tags: Array<string>
   node_count: number
   last_used_at: string | null
   version_tier: VersionTier
   has_loop: boolean
   has_approval: boolean
   // extended fields for editor
-  required_inputs: string[]
-  optional_inputs: string[]
+  required_inputs: Array<string>
+  optional_inputs: Array<string>
   when_to_use: string
   dag_depth: number
   max_parallelism: number
   run_count: number
-  dag: WorkflowDagNode[]
-  dag_edges: [string, string][]
+  dag: Array<WorkflowDagNode>
+  dag_edges: Array<[string, string]>
   yaml: string
 }
 
@@ -41,12 +57,20 @@ export interface WorkflowSummary {
 export interface ParsedWorkflow {
   name: string
   description: string
-  nodes: Array<{ id: string; label?: string; type?: string; config?: string }>
+  nodes: Array<{
+    id: string
+    label?: string
+    type?: string
+    phase?: string | null
+    hermes_task?: HermesTaskHint | null
+    config?: string
+    config_preview?: string
+  }>
   edges: Array<[string, string]>
   has_loop: boolean
   has_approval: boolean
-  required_inputs: string[]
-  optional_inputs: string[]
+  required_inputs: Array<string>
+  optional_inputs: Array<string>
   node_count: number
 }
 
