@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useWorkflowDefinitions } from './use-workflows'
-import type { WorkflowSummary } from './types'
 import { WorkflowsTopBar } from './workflows-top-bar'
 import { WorkflowLibrary } from './workflow-library'
 import { WorkflowActions } from './workflow-actions'
@@ -8,9 +7,12 @@ import { WorkflowEditor } from './workflow-editor'
 import { WorkflowGrid } from './workflow-grid'
 import { LaunchWizard } from './launch-wizard'
 import { RunDetailPanel } from './run-detail-panel'
+import type { WorkflowSummary } from './types'
 
 export function WorkflowsLayout() {
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null)
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
+    null,
+  )
   const [wizardOpenForId, setWizardOpenForId] = useState<string | null>(null)
   const [activeRunId, setActiveRunId] = useState<string | null>(null)
   const [railCollapsed, setRailCollapsed] = useState(false)
@@ -18,11 +20,12 @@ export function WorkflowsLayout() {
   // B.4: Library + Grid consume live data from /api/workflow-definitions.
   // B.4 Path B: Editor + Launch Wizard now load via useWorkflowParsed (parsed endpoint).
   const { data: liveWorkflows } = useWorkflowDefinitions()
-  const workflows = useMemo<WorkflowSummary[]>(() => {
+  const workflows = useMemo<Array<WorkflowSummary>>(() => {
     return liveWorkflows ?? []
   }, [liveWorkflows])
 
-  const [filteredWorkflows, setFilteredWorkflows] = useState<WorkflowSummary[]>(workflows)
+  const [filteredWorkflows, setFilteredWorkflows] =
+    useState<Array<WorkflowSummary>>(workflows)
 
   // Read ?wizard=<id> and ?run=<id> query params on mount
   useEffect(() => {
@@ -51,9 +54,12 @@ export function WorkflowsLayout() {
     window.history.pushState(null, '', url.toString())
   }
 
-  const handleFilteredChange = useCallback((workflows: WorkflowSummary[]) => {
-    setFilteredWorkflows(workflows)
-  }, [])
+  const handleFilteredChange = useCallback(
+    (nextWorkflows: Array<WorkflowSummary>) => {
+      setFilteredWorkflows(nextWorkflows)
+    },
+    [],
+  )
 
   return (
     <>
@@ -81,13 +87,15 @@ export function WorkflowsLayout() {
             />
           )}
         </main>
-        <aside className="wf-actions">
-          <WorkflowActions
-            selectedId={selectedWorkflowId}
-            onOpenLaunchWizard={handleOpenLaunchWizard}
-            onDeselect={() => setSelectedWorkflowId(null)}
-          />
-        </aside>
+        {selectedWorkflowId ? (
+          <aside className="wf-actions">
+            <WorkflowActions
+              selectedId={selectedWorkflowId}
+              onOpenLaunchWizard={handleOpenLaunchWizard}
+              onDeselect={() => setSelectedWorkflowId(null)}
+            />
+          </aside>
+        ) : null}
       </div>
       <LaunchWizard
         workflowId={wizardOpenForId}
