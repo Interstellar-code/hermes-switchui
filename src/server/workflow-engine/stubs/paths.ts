@@ -94,6 +94,14 @@ export function getProjectLogsPath(owner: string, repo: string): string {
   return join(SWITCHUI_HOME, "runs", owner, repo, "logs");
 }
 
+export function getUnregisteredRunArtifactsPath(runId: string): string {
+  return join(SWITCHUI_HOME, "runs", "unregistered", runId, "artifacts");
+}
+
+export function getUnregisteredLogsPath(): string {
+  return join(SWITCHUI_HOME, "runs", "unregistered", "logs");
+}
+
 // ─── Search path helpers ─────────────────────────────────────────────────────
 
 export function getWorkflowFolderSearchPaths(): string[] {

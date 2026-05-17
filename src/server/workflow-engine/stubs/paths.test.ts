@@ -1,13 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { existsSync } from "node:fs";
+import { describe, expect, it } from "vitest";
 import {
-  getArchonHome,
-  getHomeScriptsPath,
-  createLogger,
   BUNDLED_IS_BINARY,
   BUNDLED_VERSION,
+  createLogger,
+  getArchonHome,
+  getHomeScriptsPath,
+  getUnregisteredLogsPath,
+  getUnregisteredRunArtifactsPath,
   parseOwnerRepo,
 } from "./paths.js";
-import { existsSync } from "node:fs";
 
 describe("paths stub", () => {
   it("getArchonHome() creates directory without throwing", () => {
@@ -42,5 +44,12 @@ describe("paths stub", () => {
   it("parseOwnerRepo splits owner/repo correctly", () => {
     expect(parseOwnerRepo("acme/my-repo")).toEqual({ owner: "acme", repo: "my-repo" });
     expect(parseOwnerRepo("bare-repo")).toEqual({ owner: "", repo: "bare-repo" });
+  });
+
+  it("uses app-owned storage for unregistered workflow runtime output", () => {
+    expect(getUnregisteredRunArtifactsPath("run-1")).toContain("/.hermes/switchui/runs/unregistered/run-1/artifacts");
+    expect(getUnregisteredLogsPath()).toContain("/.hermes/switchui/runs/unregistered/logs");
+    expect(getUnregisteredRunArtifactsPath("run-1")).not.toContain("/.archon/");
+    expect(getUnregisteredLogsPath()).not.toContain("/.archon/");
   });
 });

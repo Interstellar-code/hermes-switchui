@@ -2,7 +2,6 @@
  * Workflow Executor - runs DAG-based workflows
  */
 import { mkdir } from 'fs/promises';
-import { join } from 'path';
 import type { IWorkflowPlatform, WorkflowMessageMetadata } from '../wiring/deps';
 import type { WorkflowDeps, WorkflowConfig } from '../wiring/deps';
 import * as archonPaths from '@archon/paths';
@@ -174,7 +173,7 @@ async function sendCriticalMessage(
 /**
  * Resolve the artifacts and log directories for a workflow run.
  * Looks up the codebase by ID once, parses owner/repo, and returns project-scoped paths.
- * Falls back to cwd-based paths for unregistered repos.
+ * Falls back to app-owned unregistered paths; never writes runtime logs/artifacts under cwd.
  */
 async function resolveProjectPaths(
   deps: WorkflowDeps,
@@ -196,17 +195,18 @@ async function resolveProjectPaths(
         getLog().warn({ codebaseName: codebase.name }, 'codebase_name_not_owner_repo_format');
       }
     } catch (error) {
-      const fallbackArtifactsDir = join(cwd, '.archon', 'artifacts', 'runs', workflowRunId);
+      const fallbackArtifactsDir = archonPaths.getUnregisteredRunArtifactsPath(workflowRunId);
       getLog().error(
         { err: error as Error, codebaseId, fallbackArtifactsDir },
-        'project_paths_resolve_failed_using_fallback'
+        'project_paths_resolve_failed_using_unregistered_storage'
       );
     }
   }
-  // Fallback for unregistered repos
+  // Fallback for unregistered repos. Keep cwd for command execution only;
+  // runtime logs/artifacts belong under Switch UI home, never the repository.
   return {
-    artifactsDir: join(cwd, '.archon', 'artifacts', 'runs', workflowRunId),
-    logDir: join(cwd, '.archon', 'logs'),
+    artifactsDir: archonPaths.getUnregisteredRunArtifactsPath(workflowRunId),
+    logDir: archonPaths.getUnregisteredLogsPath(),
   };
 }
 
