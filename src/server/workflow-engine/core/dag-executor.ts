@@ -84,6 +84,33 @@ function getLog(): ReturnType<typeof createLogger> {
   return cachedLog;
 }
 
+/** Derive the UI/store node type plus routing hints from a DAG node.
+ *  Used to enrich the node_started event so the projector can populate
+ *  node_runs.node_type and the hermes_task-derived columns. */
+function nodeRoutingHints(node: DagNode): {
+  nodeType: 'bash' | 'loop' | 'approval' | 'cancel' | 'script' | 'command' | 'prompt';
+  agentProfileHint?: string;
+  skills?: Array<string>;
+  modelHint?: string;
+} {
+  const n = node as unknown as { command?: unknown; hermes_task?: { agent_hint?: string; skills?: Array<string>; model_hint?: string } };
+  let nodeType: 'bash' | 'loop' | 'approval' | 'cancel' | 'script' | 'command' | 'prompt';
+  if (isBashNode(node)) nodeType = 'bash';
+  else if (isLoopNode(node)) nodeType = 'loop';
+  else if (isApprovalNode(node)) nodeType = 'approval';
+  else if (isCancelNode(node)) nodeType = 'cancel';
+  else if (isScriptNode(node)) nodeType = 'script';
+  else if (typeof n.command === 'string') nodeType = 'command';
+  else nodeType = 'prompt';
+  const ht = n.hermes_task;
+  return {
+    nodeType,
+    ...(ht?.agent_hint ? { agentProfileHint: ht.agent_hint } : {}),
+    ...(ht?.skills && ht.skills.length > 0 ? { skills: ht.skills } : {}),
+    ...(ht?.model_hint ? { modelHint: ht.model_hint } : {}),
+  };
+}
+
 const MCP_FAILURE_PREFIX = 'MCP server connection failed: ';
 
 /** A failed MCP server entry parsed from the SDK message. `segment` is the
@@ -447,12 +474,17 @@ async function resolveNodeProviderAndModel(
     baseOptions.outputFormat = { type: 'json_schema', schema: node.output_format };
   }
 
+  // Flatten YAML `hermes_task` block onto nodeConfig so the Kanban dispatcher
+  // can route by agent_hint / skills / model_hint. Without this, every Kanban
+  // task lands on the `default` profile regardless of YAML intent.
+  const hermesTask = (node as { hermes_task?: { agent_hint?: string; skills?: Array<string>; model_hint?: string } }).hermes_task;
+
   // Build raw nodeConfig — provider translates internally
   const nodeConfig: NodeConfig = {
     id: node.id,
     mcp: node.mcp,
     hooks: node.hooks,
-    skills: node.skills,
+    skills: hermesTask?.skills ?? node.skills,
     agents: node.agents,
     allowed_tools: node.allowed_tools,
     denied_tools: node.denied_tools,
@@ -464,6 +496,8 @@ async function resolveNodeProviderAndModel(
     maxBudgetUsd: node.maxBudgetUsd,
     systemPrompt: node.systemPrompt,
     fallbackModel: fb,
+    ...(hermesTask?.agent_hint ? { assigned_agent: hermesTask.agent_hint } : {}),
+    ...(hermesTask?.model_hint ? { model_hint: hermesTask.model_hint } : {}),
   };
 
   // Pass assistantConfig from config — provider parses internally
@@ -620,6 +654,7 @@ async function executeNodeInternal(
     nodeId: node.id,
     nodeName: node.command ?? node.id,
     nodeRunId,
+    ...nodeRoutingHints(node),
   });
 
   // Load prompt
@@ -1318,6 +1353,7 @@ async function executeBashNode(
     runId: workflowRun.id,
     nodeId: node.id,
     nodeName: node.id,
+    ...nodeRoutingHints(node),
   });
 
   // Variable substitution on script
@@ -1485,6 +1521,7 @@ async function executeScriptNode(
     runId: workflowRun.id,
     nodeId: node.id,
     nodeName: node.id,
+    ...nodeRoutingHints(node),
   });
 
   // Variable substitution on script field

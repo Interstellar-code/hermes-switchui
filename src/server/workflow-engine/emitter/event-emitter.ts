@@ -87,6 +87,14 @@ interface NodeStartedEvent {
   /** Pre-generated node_run UUID — forwarded by executor so the projector
    *  uses the same ID that was injected into nodeConfig['node_run_id']. */
   nodeRunId?: string;
+  /** Node type from YAML (prompt | bash | command | script | loop | approval | cancel).
+   *  Without this the projector falls back to 'prompt' for every row. */
+  nodeType?: string;
+  /** Flattened from YAML `hermes_task` — used by the projector to populate
+   *  the routing-hint columns on node_runs. */
+  agentProfileHint?: string;
+  skills?: Array<string>;
+  modelHint?: string;
 }
 
 interface NodeCompletedEvent {

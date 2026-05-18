@@ -7,6 +7,7 @@ export interface WorkflowSseEvent {
 }
 
 const MAX_BUFFER = 500
+const FLUSH_INTERVAL_MS = 80
 
 export function useWorkflowEvents(conversationId: string | null): {
   events: WorkflowSseEvent[]
@@ -15,6 +16,12 @@ export function useWorkflowEvents(conversationId: string | null): {
   const [events, setEvents] = useState<WorkflowSseEvent[]>([])
   const [status, setStatus] = useState<'idle' | 'connecting' | 'open' | 'error' | 'closed'>('idle')
   const esRef = useRef<EventSource | null>(null)
+  // Buffer + timer: SSE bursts (workflow completion, node fan-out) used to
+  // queue one setState per event, freezing the panel. We batch into a ref
+  // and flush every FLUSH_INTERVAL_MS so React sees at most one update per
+  // animation-frame-ish window regardless of incoming event rate.
+  const bufferRef = useRef<Array<WorkflowSseEvent>>([])
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!conversationId) {
@@ -28,6 +35,11 @@ export function useWorkflowEvents(conversationId: string | null): {
       esRef.current.close()
       esRef.current = null
     }
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current)
+      flushTimerRef.current = null
+    }
+    bufferRef.current = []
 
     setStatus('connecting')
     setEvents([])
@@ -36,6 +48,17 @@ export function useWorkflowEvents(conversationId: string | null): {
     const es = new EventSource(url)
     esRef.current = es
 
+    const flush = () => {
+      flushTimerRef.current = null
+      const incoming = bufferRef.current
+      if (incoming.length === 0) return
+      bufferRef.current = []
+      setEvents((prev) => {
+        const next = prev.length === 0 ? incoming : prev.concat(incoming)
+        return next.length > MAX_BUFFER ? next.slice(next.length - MAX_BUFFER) : next
+      })
+    }
+
     const pushEvent = (type: string, raw: string) => {
       let data: Record<string, unknown> = {}
       try {
@@ -43,11 +66,10 @@ export function useWorkflowEvents(conversationId: string | null): {
       } catch {
         data = { raw }
       }
-      const entry: WorkflowSseEvent = { type, data, receivedAt: Date.now() }
-      setEvents((prev) => {
-        const next = [...prev, entry]
-        return next.length > MAX_BUFFER ? next.slice(next.length - MAX_BUFFER) : next
-      })
+      bufferRef.current.push({ type, data, receivedAt: Date.now() })
+      if (flushTimerRef.current === null) {
+        flushTimerRef.current = setTimeout(flush, FLUSH_INTERVAL_MS)
+      }
     }
 
     es.addEventListener('connected', (e: MessageEvent) => {
@@ -84,6 +106,11 @@ export function useWorkflowEvents(conversationId: string | null): {
     return () => {
       es.close()
       esRef.current = null
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current)
+        flushTimerRef.current = null
+      }
+      bufferRef.current = []
       setStatus('closed')
     }
   }, [conversationId])

@@ -34,13 +34,16 @@ export function createNodeRunsProjector({
     try {
       switch (event.type) {
         case 'node_started': {
-          const { runId, nodeId, nodeRunId } = event;
+          const { runId, nodeId, nodeRunId, nodeType, agentProfileHint, skills, modelHint } = event;
           try {
             await store.createNodeRun({
               workflow_run_id: runId,
               dag_node_id: nodeId,
-              node_type: 'prompt',
+              node_type: nodeType ?? 'prompt',
               ...(nodeRunId ? { id: nodeRunId } : {}),
+              ...(agentProfileHint ? { agent_profile_hint: agentProfileHint } : {}),
+              ...(skills && skills.length > 0 ? { skills } : {}),
+              ...(modelHint ? { model_hint: modelHint } : {}),
             });
           } catch (err) {
             if (err instanceof DuplicateNodeRunError) {
