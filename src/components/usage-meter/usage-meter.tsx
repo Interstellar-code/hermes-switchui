@@ -1,8 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { UsageDetailsModal } from './usage-details-modal'
-import { ContextAlertModal } from './context-alert-modal'
 import { DialogContent, DialogRoot } from '@/components/ui/dialog'
 import {
   MenuContent,
@@ -10,7 +9,6 @@ import {
   MenuRoot,
   MenuTrigger,
 } from '@/components/ui/menu'
-import { registerUsageMeterSessionAlert } from './usage-meter-session'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toast'
 import { SEARCH_MODAL_EVENTS } from '@/hooks/use-search-modal'
@@ -18,7 +16,6 @@ import { SEARCH_MODAL_EVENTS } from '@/hooks/use-search-modal'
 const POLL_INTERVAL_MS = 10_000
 const PROVIDER_POLL_INTERVAL_MS = 30_000
 const STATS_VIEW_STORAGE_KEY = 'clawsuite-stats-view'
-const THRESHOLDS = [50, 75, 90]
 
 type StatsView = 'session' | 'provider' | 'cost' | 'agents'
 
@@ -420,11 +417,6 @@ export function UsageMeter() {
     totalSpawned: 0,
     totalAgentCost: 0,
   })
-  const [contextAlert, setContextAlert] = useState<{
-    open: boolean
-    threshold: number
-  }>({ open: false, threshold: 0 })
-
   const refresh = useCallback(async () => {
     try {
       const res = await fetch('/api/session-status')
@@ -510,22 +502,6 @@ export function UsageMeter() {
       window.clearInterval(interval)
     }
   }, [refreshAgentActivity])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const current = usage.contextPercent
-    if (!Number.isFinite(current)) return
-    const eligible = THRESHOLDS.filter((threshold) => current >= threshold)
-    if (eligible.length === 0) return
-    for (const threshold of eligible) {
-      if (!registerUsageMeterSessionAlert(usage.currentSessionKey, threshold)) {
-        continue
-      }
-      // Show in-app modal instead of browser notification
-      setContextAlert({ open: true, threshold })
-      break // Only show one alert at a time
-    }
-  }, [usage.contextPercent, usage.currentSessionKey])
 
   useEffect(() => {
     function handleOpenUsageFromSearch() {
@@ -839,12 +815,6 @@ export function UsageMeter() {
         </DialogContent>
       </DialogRoot>
 
-      <ContextAlertModal
-        open={contextAlert.open}
-        onClose={() => setContextAlert({ open: false, threshold: 0 })}
-        threshold={contextAlert.threshold}
-        contextPercent={usage.contextPercent}
-      />
     </>
   )
 }

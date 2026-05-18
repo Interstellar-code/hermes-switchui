@@ -25,11 +25,13 @@ type ContextMeterProps = {
   /** 'mobile' renders a 3px bar at the top of the chat; 'desktop' renders inline in header */
   variant?: 'mobile' | 'desktop'
   className?: string
+  sessionKey?: string
 }
 
 export function ContextMeter({
   variant = 'mobile',
   className,
+  sessionKey,
 }: ContextMeterProps) {
   const [pct, setPct] = useState(0)
   const [warning, setWarning] = useState<string | null>(null)
@@ -37,11 +39,17 @@ export function ContextMeter({
   const prevPctRef = useRef(0)
 
   useEffect(() => {
+    setPct(0)
+    setWarning(null)
+    if (!sessionKey) return
+    const activeKey = sessionKey
     let cancelled = false
 
     async function poll() {
       try {
-        const res = await fetch('/api/context-usage')
+        const res = await fetch(
+          `/api/context-usage?sessionId=${encodeURIComponent(activeKey)}`,
+        )
         if (!res.ok || cancelled) return
         const data = (await res.json()) as {
           ok?: boolean
@@ -71,7 +79,7 @@ export function ContextMeter({
       window.clearInterval(id)
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
     }
-  }, [])
+  }, [sessionKey])
 
   if (pct <= 0) return null
 

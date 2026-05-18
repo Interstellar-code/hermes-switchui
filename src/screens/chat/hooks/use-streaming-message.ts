@@ -676,7 +676,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
           }
           stepUsageRef.current = nextUsage
           if (typeof payload.contextPercent === 'number') {
-            updateContextPercent(payload.contextPercent)
+            updateContextPercent(activeSessionKeyRef.current, payload.contextPercent)
           }
           break
         }
@@ -688,6 +688,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
           if (pct !== null) {
             if (payload.compacted === true) {
               recordCompaction({
+                sessionKey: activeSessionKeyRef.current,
                 contextPercent: pct,
                 messagesBefore:
                   typeof payload.messagesBefore === 'number'
@@ -699,7 +700,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
                     : undefined,
               })
             } else {
-              updateContextPercent(pct)
+              updateContextPercent(activeSessionKeyRef.current, pct)
             }
           }
           break

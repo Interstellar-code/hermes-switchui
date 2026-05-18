@@ -162,7 +162,34 @@ export async function readContextUsage(
     if (!sessionData) return emptySnapshot()
 
     const model = String(sessionData.model || '')
-    const maxTokens = getContextWindow(model)
+    const gatewayContextLength =
+      Number(sessionData.effective_context_length) > 0
+        ? Number(sessionData.effective_context_length)
+        : Number(sessionData.context_length) > 0
+          ? Number(sessionData.context_length)
+          : 0
+    const maxTokens = gatewayContextLength > 0 ? gatewayContextLength : getContextWindow(model)
+
+    const gatewayLastPromptTokens =
+      Number(sessionData.last_prompt_tokens) > 0
+        ? Number(sessionData.last_prompt_tokens)
+        : 0
+
+    if (gatewayLastPromptTokens > 0) {
+      const usedTokens = Math.min(gatewayLastPromptTokens, maxTokens)
+      const contextPercent =
+        maxTokens > 0 ? Math.round((usedTokens / maxTokens) * 1000) / 10 : 0
+      return {
+        ok: true,
+        contextPercent,
+        maxTokens,
+        usedTokens,
+        model,
+        staticTokens: 0,
+        conversationTokens: usedTokens,
+      }
+    }
+
     const cacheReadTokens = Number(sessionData.cache_read_tokens) || 0
     const messageCount = Number(sessionData.message_count) || 0
 

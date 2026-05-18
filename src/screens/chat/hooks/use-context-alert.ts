@@ -1,16 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useContextUsageStore } from '@/stores/context-usage-store'
 
 const POLL_MS = 15_000
-const STORAGE_KEY = 'claude-ctx-alert'
-// 35% threshold fires BEFORE the Hermes compacts (~40% / 80k on 200k window)
-const THRESHOLDS = [90, 75, 35] as const
-
-type Threshold = (typeof THRESHOLDS)[number]
+const STORAGE_KEY_PREFIX = 'claude-ctx-alert'
+const THRESHOLDS = [90, 75] as const
 
 type StoredState = {
   date: string
-  sent: Record<'35' | '75' | '90', boolean>
+  sent: Record<'75' | '90', boolean>
 }
 
 function getTodayKeyLocal(): string {
@@ -22,14 +19,18 @@ function getTodayKeyLocal(): string {
 }
 
 function emptySent(): StoredState['sent'] {
-  return { '35': false, '75': false, '90': false }
+  return { '75': false, '90': false }
 }
 
-function loadStoredState(): StoredState {
+function storageKey(sessionKey: string): string {
+  return sessionKey ? `${STORAGE_KEY_PREFIX}:${sessionKey}` : STORAGE_KEY_PREFIX
+}
+
+function loadStoredState(sessionKey: string): StoredState {
   const today = getTodayKeyLocal()
   if (typeof window === 'undefined') return { date: today, sent: emptySent() }
   try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEY)
+    const raw = window.sessionStorage.getItem(storageKey(sessionKey))
     if (!raw) return { date: today, sent: emptySent() }
     const parsed = JSON.parse(raw) as Partial<StoredState> | null
     if (!parsed || parsed.date !== today)
@@ -37,7 +38,6 @@ function loadStoredState(): StoredState {
     return {
       date: today,
       sent: {
-        '35': Boolean(parsed.sent?.['35']),
         '75': Boolean(parsed.sent?.['75']),
         '90': Boolean(parsed.sent?.['90']),
       },
@@ -47,10 +47,10 @@ function loadStoredState(): StoredState {
   }
 }
 
-function saveStoredState(state: StoredState) {
+function saveStoredState(state: StoredState, sessionKey: string) {
   if (typeof window === 'undefined') return
   try {
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+    window.sessionStorage.setItem(storageKey(sessionKey), JSON.stringify(state))
   } catch {
     /* ignore */
   }
@@ -65,7 +65,7 @@ function readPercent(value: unknown): number {
   return 0
 }
 
-export function useContextAlert(): {
+export function useContextAlert(sessionKey = ''): {
   alertOpen: boolean
   alertThreshold: number
   alertPercent: number
@@ -78,14 +78,56 @@ export function useContextAlert(): {
 
   const lastCompactionAt = useContextUsageStore((s) => s.lastCompactionAt)
   const storeContextPercent = useContextUsageStore((s) => s.contextPercent)
+  const storeSessionKey = useContextUsageStore((s) => s.sessionKey)
 
   const dismissAlert = useCallback(() => {
     setAlertOpen(false)
   }, [])
 
+  // Synchronously reset per-session state before any effects run for the new key.
+  useLayoutEffect(() => {
+    storedRef.current = null
+    setAlertOpen(false)
+    setAlertThreshold(0)
+    setAlertPercent(0)
+    if (sessionKey) {
+      storedRef.current = loadStoredState(sessionKey)
+    }
+  }, [sessionKey])
+
+  const checkThresholds = useCallback(
+    (currentPercent: number, currentSessionKey: string) => {
+      if (typeof window === 'undefined') return
+      const today = getTodayKeyLocal()
+      const stored = storedRef.current ?? loadStoredState(currentSessionKey)
+      if (stored.date !== today) {
+        stored.date = today
+        stored.sent = emptySent()
+        saveStoredState(stored, currentSessionKey)
+      }
+      storedRef.current = stored
+
+      const candidate = THRESHOLDS.find((threshold) => {
+        if (currentPercent < threshold) return false
+        return !stored.sent[String(threshold) as keyof StoredState['sent']]
+      })
+      if (!candidate) return
+
+      stored.sent[String(candidate) as keyof StoredState['sent']] = true
+      saveStoredState(stored, currentSessionKey)
+
+      setAlertThreshold(candidate)
+      setAlertOpen(true)
+    },
+    [],
+  )
+
   const refresh = useCallback(async () => {
+    if (!sessionKey || sessionKey === 'new' || sessionKey === 'main') return
     try {
-      const res = await fetch('/api/context-usage')
+      const res = await fetch(
+        `/api/context-usage?sessionId=${encodeURIComponent(sessionKey)}`,
+      )
       if (!res.ok) return
       const data = (await res.json()) as {
         ok?: boolean
@@ -96,57 +138,48 @@ export function useContextAlert(): {
       const currentPercent = readPercent(data.contextPercent)
       setAlertPercent(currentPercent)
 
-      if (typeof window === 'undefined') return
-      const today = getTodayKeyLocal()
-      const stored = storedRef.current ?? loadStoredState()
-      if (stored.date !== today) {
-        stored.date = today
-        stored.sent = emptySent()
-        saveStoredState(stored)
-      }
-      storedRef.current = stored
-
       if (alertOpen) return
-
-      const candidate = THRESHOLDS.find((threshold) => {
-        if (currentPercent < threshold) return false
-        return !stored.sent[String(threshold) as keyof StoredState['sent']]
-      })
-      if (!candidate) return
-
-      stored.sent[String(candidate) as keyof StoredState['sent']] = true
-      saveStoredState(stored)
-
-      setAlertThreshold(candidate)
-      setAlertOpen(true)
+      checkThresholds(currentPercent, sessionKey)
     } catch {
       /* ignore */
     }
-  }, [alertOpen])
+  }, [sessionKey, alertOpen, checkThresholds])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    storedRef.current = loadStoredState()
+    storedRef.current = loadStoredState(sessionKey)
+    if (!sessionKey || sessionKey === 'new' || sessionKey === 'main') return
     void refresh()
     const id = window.setInterval(() => {
       void refresh()
     }, POLL_MS)
     return () => window.clearInterval(id)
-  }, [refresh])
+  }, [sessionKey, refresh])
 
   // React immediately when context is compressed: reset fired thresholds so
   // they can fire again on the next build-up, and update the displayed percent.
   useEffect(() => {
     if (lastCompactionAt === null) return
     const today = getTodayKeyLocal()
-    const stored = storedRef.current ?? loadStoredState()
+    const stored = storedRef.current ?? loadStoredState(sessionKey)
     stored.date = today
     stored.sent = emptySent()
     storedRef.current = stored
-    saveStoredState(stored)
+    saveStoredState(stored, sessionKey)
     setAlertPercent(storeContextPercent)
     setAlertOpen(false)
-  }, [lastCompactionAt, storeContextPercent])
+  }, [lastCompactionAt, storeContextPercent, sessionKey])
+
+  // React in real-time to SSE-driven store updates (no 15s poll lag).
+  // Guard: only apply when the store is keyed to this session — prevents
+  // a stale session's SSE updates from polluting a freshly-switched session.
+  useEffect(() => {
+    if (storeSessionKey !== sessionKey) return
+    if (storeContextPercent <= 0) return
+    setAlertPercent((prev) => Math.max(prev, storeContextPercent))
+    if (alertOpen) return
+    checkThresholds(storeContextPercent, sessionKey)
+  }, [storeContextPercent, storeSessionKey, sessionKey, alertOpen, checkThresholds])
 
   return { alertOpen, alertThreshold, alertPercent, dismissAlert }
 }

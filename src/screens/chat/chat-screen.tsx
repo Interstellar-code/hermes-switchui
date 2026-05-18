@@ -92,6 +92,7 @@ import { ContextAlertModal } from '@/components/usage-meter/context-alert-modal'
 import { ErrorToastContainer, showErrorToast } from '@/components/error-toast'
 // ContextMeter removed — ContextBar (PR #32) replaces it
 import { useChatStore } from '@/stores/chat-store'
+import { useContextUsageStore } from '@/stores/context-usage-store'
 import { useResearchCard } from '@/hooks/use-research-card'
 // MOBILE_TAB_BAR_OFFSET removed — tab bar always hidden in chat
 import { useTapDebug } from '@/hooks/use-tap-debug'
@@ -514,7 +515,11 @@ export function ChatScreen({
     return 'low'
   })
   const { alertOpen, alertThreshold, alertPercent, dismissAlert } =
-    useContextAlert()
+    useContextAlert(activeFriendlyId)
+
+  useEffect(() => {
+    useContextUsageStore.getState().setSessionKey(activeFriendlyId || null)
+  }, [activeFriendlyId])
 
   const pendingStartRef = useRef(false)
   const composerHandleRef = useRef<ChatComposerHandle | null>(null)
