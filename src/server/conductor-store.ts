@@ -1,12 +1,13 @@
 /**
- * conductor-store.ts — File-backed mission registry.
- * Missions stored at ~/.hermes/conductor/missions/<id>.json
+ * conductor-store.ts — Live mission projection from workflow_runs.
+ *
+ * Each workflow_run row is projected to a Mission on-the-fly.
+ * No file-backed seed data. createMission returns 501 (use /workflows).
+ * abortMission returns 501 (engine abort not yet wired).
  */
 
-import { randomBytes } from 'node:crypto'
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { openDb, defaultWorkflowDbPath } from './workflow-engine/db/client'
+import { runMigrations } from './workflow-engine/db/migrate'
 
 export interface Mission {
   id: string
@@ -20,27 +21,22 @@ export interface Mission {
   createdAt: number
 }
 
-function missionsDir(): string {
-  return join(homedir(), '.hermes', 'conductor', 'missions')
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatElapsed(ms: number): string {
+  const totalS = Math.max(0, Math.floor(ms / 1000))
+  const mm = Math.floor(totalS / 60)
+    .toString()
+    .padStart(2, '0')
+  const ss = (totalS % 60).toString().padStart(2, '0')
+  return `${mm}:${ss}`
 }
 
-async function ensureDir(): Promise<void> {
-  await mkdir(missionsDir(), { recursive: true })
-}
-
-async function writeMission(mission: Mission): Promise<void> {
-  await ensureDir()
-  await writeFile(
-    join(missionsDir(), `${mission.id}.json`),
-    JSON.stringify(mission, null, 2),
-    'utf-8',
-  )
-}
-
-function computeDayGroup(createdAt: number): Mission['dayGroup'] {
+function computeDayGroup(startedAtMs: number): Mission['dayGroup'] {
   const now = Date.now()
-  const diffMs = now - createdAt
-  const diffH = diffMs / 1000 / 3600
+  const diffH = (now - startedAtMs) / 1000 / 3600
   if (diffH < 1) return 'now'
   if (diffH < 24) return 'today'
   return 'yesterday'
@@ -52,100 +48,129 @@ function deriveAction(status: Mission['status']): Mission['action'] {
   return 'retry'
 }
 
-const SEED_MISSIONS: Array<Mission> = [
-  { id: 'm_seed_01', title: 'Sweep PRs + summarise Bench results', subtitle: 'routed by switch · 3 domains · in progress', status: 'live', elapsed: '04:18', tokens: '8.4k', action: 'focus', dayGroup: 'now', createdAt: Date.now() - 4*60*1000 },
-  { id: 'm_seed_02', title: 'Standup digest · 1106', subtitle: 'echo + sage · 3 stages', status: 'done', elapsed: '02:14', tokens: '3.1k', action: 'replay', dayGroup: 'today', createdAt: Date.now() - 2*60*60*1000 },
-  { id: 'm_seed_03', title: 'Market signals · BTC/ETH/SOL', subtitle: 'blaze · 1 stage · 6 series', status: 'done', elapsed: '01:42', tokens: '2.8k', action: 'replay', dayGroup: 'today', createdAt: Date.now() - 3*60*60*1000 },
-  { id: 'm_seed_04', title: 'Index .hermes/embeddings', subtitle: 'nightly digest · failed', status: 'err', elapsed: '00:48', tokens: '12k', action: 'retry', dayGroup: 'today', createdAt: Date.now() - 4*60*60*1000 },
-  { id: 'm_seed_05', title: 'PR review queue', subtitle: 'github · scan 48 · classify 12/48', status: 'done', elapsed: '12:30', tokens: '6.2k', action: 'replay', dayGroup: 'today', createdAt: Date.now() - 5*60*60*1000 },
-  { id: 'm_seed_06', title: 'Memory rewrite · scratchpad', subtitle: 'morpheus · 4 stages', status: 'done', elapsed: '08:15', tokens: '4.7k', action: 'replay', dayGroup: 'yesterday', createdAt: Date.now() - 28*60*60*1000 },
-  { id: 'm_seed_07', title: 'MCP gateway probe', subtitle: 'neo · ping · capabilities', status: 'done', elapsed: '00:32', tokens: '512', action: 'replay', dayGroup: 'yesterday', createdAt: Date.now() - 30*60*60*1000 },
-]
-
-async function seedIfEmpty(): Promise<void> {
-  const dir = missionsDir()
-  let files: Array<string>
-  try {
-    files = await readdir(dir)
-  } catch {
-    files = []
+// Map workflow_run.status → Mission.status
+function mapStatus(runStatus: string): Mission['status'] {
+  if (runStatus === 'running') return 'live'
+  if (runStatus === 'completed' || runStatus === 'success') return 'done'
+  if (
+    runStatus === 'failed' ||
+    runStatus === 'error' ||
+    runStatus === 'cancelled'
+  ) {
+    return 'err'
   }
-  if (files.filter((f) => f.endsWith('.json')).length === 0) {
-    await Promise.all(SEED_MISSIONS.map((m) => writeMission(m)))
+  // pending | paused → surface as done so UI doesn't show as live
+  return 'done'
+}
+
+interface WorkflowRunRow {
+  id: string
+  workflow_id: string
+  status: string
+  started_at: number
+  completed_at: number | null
+  user_message: string
+  current_phase: string
+}
+
+function rowToMission(row: WorkflowRunRow): Mission {
+  const now = Date.now()
+  const status = mapStatus(row.status)
+
+  let elapsedMs: number
+  if (status === 'live') {
+    elapsedMs = now - row.started_at
+  } else if (row.completed_at != null) {
+    elapsedMs = row.completed_at - row.started_at
+  } else {
+    elapsedMs = now - row.started_at
+  }
+
+  // TODO: token_usage not yet in workflow_runs schema
+  const tokens = '—'
+
+  // Build a human subtitle from phase + workflow id
+  const subtitle = `${row.workflow_id} · ${row.current_phase}`
+
+  return {
+    id: row.id,
+    title: row.workflow_id,
+    subtitle,
+    status,
+    elapsed: formatElapsed(elapsedMs),
+    tokens,
+    action: deriveAction(status),
+    dayGroup: computeDayGroup(row.started_at),
+    createdAt: row.started_at,
   }
 }
 
+// Ensure DB is open and migrated. Lazy-init on first call.
+let _dbReady = false
+function ensureDb() {
+  const db = openDb(defaultWorkflowDbPath())
+  if (!_dbReady) {
+    runMigrations(db)
+    _dbReady = true
+  }
+  return db
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 export async function listMissions(): Promise<Array<Mission>> {
-  await ensureDir()
-  await seedIfEmpty()
-  let files: Array<string>
   try {
-    files = await readdir(missionsDir())
+    const db = ensureDb()
+    const rows = db
+      .prepare<[], WorkflowRunRow>(
+        `SELECT id, workflow_id, status, started_at, completed_at, user_message, current_phase
+         FROM workflow_runs
+         ORDER BY started_at DESC
+         LIMIT 200`,
+      )
+      .all()
+    return rows.map(rowToMission)
   } catch {
     return []
   }
-
-  const jsonFiles = files.filter((f) => f.endsWith('.json'))
-  const missions = await Promise.all(
-    jsonFiles.map(async (f) => {
-      try {
-        const raw = await readFile(join(missionsDir(), f), 'utf-8')
-        const m = JSON.parse(raw) as Mission
-        // Re-derive dayGroup based on current time
-        m.dayGroup = computeDayGroup(m.createdAt)
-        return m
-      } catch {
-        return null
-      }
-    }),
-  )
-
-  return (missions.filter(Boolean) as Array<Mission>).sort(
-    (a, b) => b.createdAt - a.createdAt,
-  )
 }
 
 export async function getMission(id: string): Promise<Mission | null> {
   try {
-    const raw = await readFile(join(missionsDir(), `${id}.json`), 'utf-8')
-    const m = JSON.parse(raw) as Mission
-    m.dayGroup = computeDayGroup(m.createdAt)
-    return m
+    const db = ensureDb()
+    const row = db
+      .prepare<[string], WorkflowRunRow>(
+        `SELECT id, workflow_id, status, started_at, completed_at, user_message, current_phase
+         FROM workflow_runs
+         WHERE id = ?`,
+      )
+      .get(id)
+    return row ? rowToMission(row) : null
   } catch {
     return null
   }
 }
 
-export async function createMission(input: {
+export async function createMission(_input: {
   title: string
   subtitle?: string
-}): Promise<Mission> {
-  const id = `m_${randomBytes(4).toString('hex')}`
-  const now = Date.now()
-  const mission: Mission = {
-    id,
-    title: input.title,
-    subtitle: input.subtitle ?? 'routed by switch · 1 domain',
-    status: 'live',
-    elapsed: '00:00',
-    tokens: '0',
-    action: 'focus',
-    dayGroup: 'now',
-    createdAt: now,
-  }
-  await writeMission(mission)
-  return mission
+}): Promise<never> {
+  // Missions are created by dispatching a workflow from the /workflows page.
+  const err = Object.assign(
+    new Error('Create workflows from /workflows page'),
+    { statusCode: 501 },
+  )
+  throw err
 }
 
-export async function abortMission(id: string): Promise<Mission> {
-  const mission = await getMission(id)
-  if (!mission) {
-    throw new Error(`Mission ${id} not found`)
-  }
-  mission.status = 'err'
-  mission.action = deriveAction('err')
-  await writeMission(mission)
-  return mission
+export async function abortMission(_id: string): Promise<never> {
+  // TODO: wire to engine abort API when available
+  const err = Object.assign(new Error('Abort not yet supported'), {
+    statusCode: 501,
+  })
+  throw err
 }
 
 export async function getConductorState(): Promise<{
@@ -154,37 +179,46 @@ export async function getConductorState(): Promise<{
   workersActive: number
   tokensUsed: string
 }> {
-  const missions = await listMissions()
-  const live = missions.filter((m) => m.status === 'live')
+  try {
+    const db = ensureDb()
 
-  // Compute elapsed for oldest live mission
-  let elapsed = '00:00'
-  if (live.length > 0) {
-    const oldest = live.reduce((a, b) => (a.createdAt < b.createdAt ? a : b))
-    const diffS = Math.floor((Date.now() - oldest.createdAt) / 1000)
-    const mm = Math.floor(diffS / 60)
-      .toString()
-      .padStart(2, '0')
-    const ss = (diffS % 60).toString().padStart(2, '0')
-    elapsed = `${mm}:${ss}`
-  }
+    // Live workflow_runs
+    const liveRows = db
+      .prepare<[], WorkflowRunRow>(
+        `SELECT id, workflow_id, status, started_at, completed_at, user_message, current_phase
+         FROM workflow_runs
+         WHERE status = 'running'
+         ORDER BY started_at ASC`,
+      )
+      .all()
 
-  // Rough token sum (parse suffixes like '8.4k', '12k', '410')
-  function parseTokens(t: string): number {
-    const s = t.trim().toLowerCase()
-    if (s.endsWith('k')) return parseFloat(s) * 1000
-    return parseFloat(s) || 0
-  }
-  const totalTok = missions.reduce((sum, m) => sum + parseTokens(m.tokens), 0)
-  const tokensUsed =
-    totalTok >= 1000
-      ? `${(totalTok / 1000).toFixed(1).replace(/\.0$/, '')}k`
-      : String(Math.round(totalTok))
+    // Active node_runs count (real "workers" — DAG nodes currently executing)
+    const activeNodesRow = db
+      .prepare<[], { c: number }>(
+        `SELECT COUNT(*) as c FROM node_runs WHERE status = 'running'`,
+      )
+      .get()
+    const workersActive = activeNodesRow?.c ?? 0
 
-  return {
-    liveMissions: live.length,
-    elapsed,
-    workersActive: live.length,
-    tokensUsed,
+    let elapsed = '00:00'
+    if (liveRows.length > 0) {
+      const oldest = liveRows[0]! // ORDER BY started_at ASC → first is oldest
+      elapsed = formatElapsed(Date.now() - oldest.started_at)
+    }
+
+    return {
+      liveMissions: liveRows.length,
+      elapsed,
+      workersActive,
+      // TODO: token_usage column not yet in workflow_runs schema
+      tokensUsed: '—',
+    }
+  } catch {
+    return {
+      liveMissions: 0,
+      elapsed: '00:00',
+      workersActive: 0,
+      tokensUsed: '—',
+    }
   }
 }
