@@ -16,7 +16,6 @@ type ConductorUIState = {
   laneScale: LaneScale
   filterTab: FilterTab
   focusedMissionId: string | null
-  newMissionDialogOpen: boolean
   goalDraft: string
 }
 
@@ -25,8 +24,6 @@ type ConductorUIActions = {
   setLaneScale: (scale: LaneScale) => void
   setFilterTab: (tab: FilterTab) => void
   setFocusedMissionId: (id: string | null) => void
-  openNewMissionDialog: () => void
-  closeNewMissionDialog: () => void
   setGoalDraft: (draft: string) => void
 }
 
@@ -53,15 +50,12 @@ export const useConductorUIStore = create<ConductorUIState & ConductorUIActions>
   laneScale: '5M',
   filterTab: 'all',
   focusedMissionId: null,
-  newMissionDialogOpen: false,
   goalDraft: loadGoalDraft(),
 
   setCanvasView: (canvasView) => set({ canvasView }),
   setLaneScale: (laneScale) => set({ laneScale }),
   setFilterTab: (filterTab) => set({ filterTab }),
   setFocusedMissionId: (focusedMissionId) => set({ focusedMissionId }),
-  openNewMissionDialog: () => set({ newMissionDialogOpen: true }),
-  closeNewMissionDialog: () => set({ newMissionDialogOpen: false }),
   setGoalDraft: (goalDraft) => {
     saveGoalDraft(goalDraft)
     set({ goalDraft })

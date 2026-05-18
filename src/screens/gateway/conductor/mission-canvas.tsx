@@ -10,8 +10,9 @@ interface MissionCanvasProps {
 }
 
 const DEFAULT_DATA: MissionCanvasData = {
-  title: 'Mission DAG',
-  subtitle: '· 3-tier orchestration · plan → route → execute ↺ review → report',
+  title: 'Hermes Orchestration',
+  subtitle:
+    '· reference 3-tier model · live DAG rendering coming in a follow-up',
 }
 
 function DagFlow() {
@@ -330,6 +331,21 @@ export function MissionCanvas({ data = DEFAULT_DATA }: MissionCanvasProps) {
     <div className="dag-wrap">
       <div className="dag-head">
         <h3 id="canvas-title">{data.title}</h3>
+        <span
+          style={{
+            fontSize: '9px',
+            padding: '2px 6px',
+            marginLeft: '8px',
+            borderRadius: '3px',
+            background: 'rgba(214,255,95,0.12)',
+            border: '1px solid rgba(214,255,95,0.4)',
+            color: '#d6ff5f',
+            letterSpacing: '1.2px',
+            fontWeight: 600,
+          }}
+        >
+          PREVIEW · sample
+        </span>
         <span className="ct" id="canvas-sub">
           {data.subtitle}
         </span>
