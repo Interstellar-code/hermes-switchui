@@ -27,6 +27,13 @@ export function WorkflowGrid({ workflows, onSelect }: WorkflowGridProps) {
         return tb - ta
       })
     }
+    // Subgraphs always pin to the top so the "Show subgraphs" toggle yields a
+    // visible result regardless of the lexical/numeric sort underneath.
+    copy.sort((a, b) => {
+      const aSub = a.kind === 'subgraph' ? 0 : 1
+      const bSub = b.kind === 'subgraph' ? 0 : 1
+      return aSub - bSub
+    })
     return copy
   }, [workflows, sort])
 
@@ -168,7 +175,11 @@ function WorkflowCard({
           <div className="wfg-card-by">{wf.id}</div>
         </div>
         <div className="wfg-card-right">
-          <span className={srcCls}>{sourceLabel(wf.source)}</span>
+          {wf.kind === 'subgraph' ? (
+            <span className="wfg-tag wfg-tag-subgraph">SUBGRAPH</span>
+          ) : (
+            <span className={srcCls}>{sourceLabel(wf.source)}</span>
+          )}
         </div>
       </div>
       <div className="wfg-card-desc">{wf.description}</div>

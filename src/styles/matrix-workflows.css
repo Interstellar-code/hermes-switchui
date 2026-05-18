@@ -2875,6 +2875,14 @@
     border-color: rgba(95, 207, 255, 0.35);
   }
 
+  .wfg-tag-subgraph {
+    color: #bf97ff;
+    border-color: rgba(191, 151, 255, 0.45);
+    background: rgba(191, 151, 255, 0.08);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
   .wfg-tag-approval {
     color: #ffb454;
     border-color: rgba(255, 180, 84, 0.35);
