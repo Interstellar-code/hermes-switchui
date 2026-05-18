@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Matrix3D Architecture</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #00ff41; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.green { background: #00ff41; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Hermes Switch UI — Matrix3D Architecture</h1>
+      </div>
+      <p class="subtitle">3D office canvas composition, data flow, and side panel layout</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 860">
+        <defs>
+          <marker id="arrow-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrow-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#00ff41" />
+          </marker>
+          <marker id="arrow-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrow-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ========== Section labels ========== -->
+        <text x="20" y="28" font-family="JetBrains Mono" font-size="9" fill="#475569" letter-spacing="2" font-weight="600">FRONTEND COMPOSITION (cyan)</text>
+        <text x="860" y="28" font-family="JetBrains Mono" font-size="9" fill="#475569" letter-spacing="2" font-weight="600">DATA SOURCES (emerald)</text>
+
+        <!-- ========== Matrix3DCanvas outer shell ========== -->
+        <rect x="22" y="42" width="796" height="520" rx="8" fill="rgba(0,255,65,0.03)" stroke="#00ff41" stroke-width="1" opacity="0.4"/>
+        <rect x="20" y="40" width="796" height="520" rx="8" fill="rgba(0,255,65,0.04)" stroke="#00ff41" stroke-width="1.5"/>
+        <text x="36" y="62" font-family="JetBrains Mono" font-size="9" fill="rgba(0,255,65,0.7)" letter-spacing="1.5" font-weight="600">R3F CANVAS · Matrix3DCanvas (@react-three/fiber + @react-three/drei)</text>
+
+        <!-- Title overlay bar -->
+        <rect x="36" y="72" width="764" height="28" rx="3" fill="rgba(0,0,0,0.4)" stroke="rgba(0,255,65,0.2)" stroke-width="1"/>
+        <text x="52" y="90" font-family="JetBrains Mono" font-size="10" fill="#00ff41" font-weight="700">Matrix3D Office</text>
+        <text x="660" y="90" font-family="JetBrains Mono" font-size="8" fill="rgba(0,255,65,0.5)">drag:orbit · scroll:zoom · space+drag:pan · dbl:focus</text>
+
+        <!-- 3D scene: office-room background -->
+        <rect x="36" y="108" width="764" height="360" rx="4" fill="rgba(2,12,4,0.6)" stroke="rgba(0,255,65,0.15)" stroke-width="1"/>
+        <text x="44" y="124" font-family="JetBrains Mono" font-size="8" fill="rgba(0,255,65,0.4)">office-room · ambient fog · green directional lighting · OrbitControls (drei)</text>
+
+        <!-- Matrix rain background strips -->
+        <text x="52" y="142" font-family="JetBrains Mono" font-size="8" fill="rgba(0,255,65,0.3)">│ │ │ │ ░ ▒ ▓ █ ▓ ░ │</text>
+        <text x="180" y="155" font-family="JetBrains Mono" font-size="7" fill="rgba(0,255,65,0.15)">matrix rain bars drifting background</text>
+
+        <!-- Desk 1 -->
+        <rect x="52" y="170" width="156" height="120" rx="5" fill="rgba(0,255,65,0.08)" stroke="rgba(0,255,65,0.4)" stroke-width="1.2"/>
+        <text x="130" y="190" font-family="JetBrains Mono" font-size="8" fill="rgba(0,255,65,0.6)" text-anchor="middle" letter-spacing="1">DESK · Ops</text>
+        <!-- desk surface -->
+        <rect x="68" y="198" width="124" height="40" rx="3" fill="rgba(0,255,65,0.05)" stroke="rgba(0,255,65,0.2)" stroke-width="1"/>
+        <!-- avatar capsule (Float) -->
+        <ellipse cx="130" cy="196" rx="14" ry="20" fill="rgba(0,255,65,0.15)" stroke="#00ff41" stroke-width="1"/>
+        <text x="130" y="200" font-family="JetBrains Mono" font-size="7" fill="#00ff41" text-anchor="middle">HERMES</text>
+        <circle cx="156" cy="172" r="4" fill="#00ff41"><animate attributeName="opacity" values="1;0.3;1" dur="1.4s" repeatCount="indefinite"/></circle>
+        <text x="68" y="260" font-family="JetBrains Mono" font-size="7" fill="rgba(0,255,65,0.5)">pixel sprite · Float</text>
+        <text x="68" y="272" font-family="JetBrains Mono" font-size="7" fill="rgba(0,255,65,0.5)">Matrix3DSprite</text>
+
+        <!-- Desk 2 -->
+        <rect x="224" y="170" width="156" height="120" rx="5" fill="rgba(0,255,65,0.06)" stroke="rgba(0,255,65,0.3)" stroke-width="1"/>
+        <text x="302" y="190" font-family="JetBrains Mono" font-size="8" fill="rgba(0,255,65,0.5)" text-anchor="middle" letter-spacing="1">DESK · Intel</text>
+        <rect x="240" y="198" width="124" height="40" rx="3" fill="rgba(0,255,65,0.04)" stroke="rgba(0,255,65,0.15)" stroke-width="1"/>
+        <ellipse cx="302" cy="196" rx="14" ry="20" fill="rgba(0,255,65,0.10)" stroke="rgba(0,255,65,0.5)" stroke-width="1"/>
+        <text x="302" y="200" font-family="JetBrains Mono" font-size="7" fill="rgba(0,255,65,0.7)" text-anchor="middle">NEO</text>
+        <text x="240" y="272" font-family="JetBrains Mono" font-size="7" fill="rgba(0,255,65,0.4)">idle · RoundedBox</text>
+
+        <!-- Desk 3 -->
+        <rect x="396" y="170" width="156" height="120" rx="5" fill="rgba(0,255,65,0.06)" stroke="rgba(0,255,65,0.3)" stroke-width="1"/>
+        <text x="474" y="190" font-family="JetBrains Mono" font-size="8" fill="rgba(0,255,65,0.5)" text-anchor="middle" letter-spacing="1">DESK · Forge</text>
+        <rect x="412" y="198" width="124" height="40" rx="3" fill="rgba(0,255,65,0.04)" stroke="rgba(0,255,65,0.15)" stroke-width="1"/>
+        <ellipse cx="474" cy="196" rx="14" ry="20" fill="rgba(0,255,65,0.10)" stroke="rgba(0,255,65,0.5)" stroke-width="1"/>
+        <text x="474" y="200" font-family="JetBrains Mono" font-size="7" fill="rgba(0,255,65,0.7)" text-anchor="middle">TRINITY</text>
+        <text x="412" y="272" font-family="JetBrains Mono" font-size="7" fill="rgba(0,255,65,0.4)">idle · Html (drei)</text>
+
+        <!-- Desk 4 -->
+        <rect x="568" y="170" width="156" height="120" rx="5" fill="rgba(0,255,65,0.06)" stroke="rgba(0,255,65,0.3)" stroke-width="1"/>
+        <text x="646" y="190" font-family="JetBrains Mono" font-size="8" fill="rgba(0,255,65,0.5)" text-anchor="middle" letter-spacing="1">DESK · Watch</text>
+        <rect x="584" y="198" width="124" height="40" rx="3" fill="rgba(0,255,65,0.04)" stroke="rgba(0,255,65,0.15)" stroke-width="1"/>
+        <ellipse cx="646" cy="196" rx="14" ry="20" fill="rgba(0,255,65,0.10)" stroke="rgba(0,255,65,0.5)" stroke-width="1"/>
+        <text x="646" y="200" font-family="JetBrains Mono" font-size="7" fill="rgba(0,255,65,0.7)" text-anchor="middle">MORPHEUS</text>
+        <text x="584" y="272" font-family="JetBrains Mono" font-size="7" fill="rgba(0,255,65,0.4)">idle · pixel-art sprite</text>
+
+        <!-- Spillover label -->
+        <text x="52" y="320" font-family="JetBrains Mono" font-size="8" fill="rgba(0,255,65,0.35)">active sessions → desks (alphabetical) · spillover row when sessions > desk count</text>
+
+        <!-- Status bar bottom -->
+        <rect x="36" y="440" width="764" height="28" rx="3" fill="rgba(0,0,0,0.4)" stroke="rgba(0,255,65,0.2)" stroke-width="1"/>
+        <circle cx="56" cy="454" r="4" fill="#00ff41" opacity="0.8"/>
+        <text x="68" y="458" font-family="JetBrains Mono" font-size="9" fill="#00ff41">1 working</text>
+        <circle cx="140" cy="454" r="4" fill="rgba(148,163,184,0.5)"/>
+        <text x="152" y="458" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.7)">3 idle</text>
+        <circle cx="210" cy="454" r="4" fill="rgba(251,113,133,0.6)"/>
+        <text x="222" y="458" font-family="JetBrains Mono" font-size="9" fill="rgba(251,113,133,0.7)">0 error</text>
+
+        <!-- OrbitControls note -->
+        <text x="36" y="498" font-family="JetBrains Mono" font-size="8" fill="rgba(0,255,65,0.4)">Lazy-loaded · requires WebGL · OrbitControls from @react-three/drei handles mouse + touch</text>
+        <text x="36" y="514" font-family="JetBrains Mono" font-size="8" fill="rgba(0,255,65,0.35)">useMatrix3DOfficeData() merges gateway agents + local roster profiles</text>
+
+        <!-- ========== Agent Roster Rail ========== -->
+        <rect x="22" y="572" width="560" height="100" rx="6" fill="rgba(34,211,238,0.07)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="20" y="570" width="560" height="100" rx="6" fill="rgba(34,211,238,0.08)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="36" y="592" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.7)" letter-spacing="1.5" font-weight="600">AGENT ROSTER RAIL · Matrix3DAgentCard (horizontal scroll)</text>
+        <!-- Agent cards -->
+        <rect x="36" y="600" width="110" height="60" rx="4" fill="rgba(34,211,238,0.12)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="91" y="618" font-family="JetBrains Mono" font-size="9" fill="#22d3ee" text-anchor="middle" font-weight="700">HERMES</text>
+        <text x="91" y="630" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.7)" text-anchor="middle">T1 · working</text>
+        <text x="91" y="642" font-family="JetBrains Mono" font-size="7" fill="rgba(0,255,65,0.7)" text-anchor="middle">● live</text>
+        <text x="91" y="654" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.5)" text-anchor="middle">Matrix3DSprite</text>
+        <rect x="156" y="600" width="110" height="60" rx="4" fill="rgba(34,211,238,0.06)" stroke="rgba(34,211,238,0.4)" stroke-width="1"/>
+        <text x="211" y="618" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.7)" text-anchor="middle">NEO</text>
+        <text x="211" y="630" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.6)" text-anchor="middle">T2 · idle</text>
+        <text x="211" y="642" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.5)" text-anchor="middle">model bubble</text>
+        <rect x="276" y="600" width="110" height="60" rx="4" fill="rgba(34,211,238,0.06)" stroke="rgba(34,211,238,0.4)" stroke-width="1"/>
+        <text x="331" y="618" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.7)" text-anchor="middle">TRINITY</text>
+        <text x="331" y="630" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.6)" text-anchor="middle">T3 · idle</text>
+        <text x="396" y="618" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">tier badge · sprite · name · role</text>
+        <text x="396" y="632" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.4)">model label · sessions · tasks</text>
+        <text x="396" y="646" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.4)">click → opens Agent Side Panel</text>
+        <text x="396" y="660" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.3)">label: "Active agents" / "Workspace roster"</text>
+
+        <!-- ========== Console Log ========== -->
+        <rect x="592" y="572" width="226" height="100" rx="6" fill="rgba(34,211,238,0.07)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="590" y="570" width="226" height="100" rx="6" fill="rgba(34,211,238,0.07)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="606" y="592" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.7)" letter-spacing="1.5" font-weight="600">CONSOLE · Matrix3DConsole</text>
+        <!-- Tab filters -->
+        <rect x="606" y="600" width="28" height="14" rx="2" fill="rgba(34,211,238,0.2)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="620" y="611" font-family="JetBrains Mono" font-size="7" fill="white" text-anchor="middle">ALL</text>
+        <rect x="638" y="600" width="44" height="14" rx="2" fill="rgba(30,41,59,0.5)" stroke="#475569" stroke-width="1"/>
+        <text x="660" y="611" font-family="JetBrains Mono" font-size="7" fill="#94a3b8" text-anchor="middle">AGENTS</text>
+        <rect x="686" y="600" width="52" height="14" rx="2" fill="rgba(30,41,59,0.5)" stroke="#475569" stroke-width="1"/>
+        <text x="712" y="611" font-family="JetBrains Mono" font-size="7" fill="#94a3b8" text-anchor="middle">GATEWAY</text>
+        <text x="606" y="628" font-family="JetBrains Mono" font-size="7" fill="rgba(0,255,65,0.6)">[HERMES] tool call: read_file</text>
+        <text x="606" y="640" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.5)">[gateway] probe ok · mode=zero-fork</text>
+        <text x="606" y="652" font-family="JetBrains Mono" font-size="7" fill="rgba(0,255,65,0.5)">[HERMES] task complete</text>
+        <text x="606" y="664" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.4)">NOISE toggle · Live/Sync/Offline · 5s poll</text>
+
+        <!-- ========== Agent Side Panel ========== -->
+        <rect x="832" y="570" width="348" height="290" rx="6" fill="rgba(34,211,238,0.07)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="830" y="568" width="348" height="290" rx="6" fill="rgba(34,211,238,0.08)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="846" y="590" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.7)" letter-spacing="1.5" font-weight="600">AGENT SIDE PANEL (slide-in on card click)</text>
+        <!-- Hero -->
+        <ellipse cx="870" cy="620" rx="18" ry="22" fill="rgba(34,211,238,0.15)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="870" y="624" font-family="JetBrains Mono" font-size="8" fill="#22d3ee" text-anchor="middle">H</text>
+        <circle cx="884" cy="604" r="4" fill="#00ff41"><animate attributeName="opacity" values="1;0.3;1" dur="1.6s" repeatCount="indefinite"/></circle>
+        <text x="900" y="608" font-family="JetBrains Mono" font-size="11" fill="#22d3ee" font-weight="700">HERMES</text>
+        <text x="900" y="622" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">claude-opus-4 · T1</text>
+        <text x="900" y="634" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">provider: anthropic</text>
+        <!-- Stats -->
+        <rect x="846" y="648" width="80" height="44" rx="3" fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.3)" stroke-width="1"/>
+        <text x="886" y="664" font-family="JetBrains Mono" font-size="9" fill="#22d3ee" text-anchor="middle" font-weight="600">12</text>
+        <text x="886" y="678" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.6)" text-anchor="middle">Sessions</text>
+        <rect x="934" y="648" width="80" height="44" rx="3" fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.3)" stroke-width="1"/>
+        <text x="974" y="664" font-family="JetBrains Mono" font-size="9" fill="#22d3ee" text-anchor="middle" font-weight="600">47</text>
+        <text x="974" y="678" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.6)" text-anchor="middle">Tasks</text>
+        <rect x="1022" y="648" width="80" height="44" rx="3" fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.3)" stroke-width="1"/>
+        <text x="1062" y="664" font-family="JetBrains Mono" font-size="9" fill="#22d3ee" text-anchor="middle" font-weight="600">T1</text>
+        <text x="1062" y="678" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.6)" text-anchor="middle">Tier</text>
+        <!-- Current task -->
+        <text x="846" y="710" font-family="JetBrains Mono" font-size="8" fill="rgba(34,211,238,0.6)">Current Task</text>
+        <rect x="846" y="716" width="316" height="24" rx="3" fill="rgba(15,23,42,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="858" y="732" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">Orchestrate mission Alpha · phase: execute</text>
+        <!-- Recent activity -->
+        <text x="846" y="756" font-family="JetBrains Mono" font-size="8" fill="rgba(34,211,238,0.6)">Recent Activity (last 5)</text>
+        <text x="846" y="770" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.6)">▸ tool: read_file · 2m ago</text>
+        <text x="846" y="782" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.5)">▸ spawned worker-a · 4m ago</text>
+        <text x="846" y="794" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.4)">▸ task complete · 6m ago</text>
+        <!-- × close button -->
+        <text x="1158" y="590" font-family="JetBrains Mono" font-size="12" fill="rgba(148,163,184,0.6)">×</text>
+
+        <!-- ========== Data sources (right) ========== -->
+        <!-- useMatrix3DOfficeData -->
+        <rect x="862" y="132" width="316" height="80" rx="6" fill="rgba(52,211,153,0.07)" stroke="#34d399" stroke-width="1" opacity="0.4"/>
+        <rect x="860" y="130" width="316" height="80" rx="6" fill="rgba(52,211,153,0.10)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="876" y="152" font-family="JetBrains Mono" font-size="9" fill="rgba(52,211,153,0.7)" letter-spacing="1.5" font-weight="600">HOOK · useMatrix3DOfficeData()</text>
+        <text x="876" y="170" font-family="JetBrains Mono" font-size="10" fill="#34d399" font-weight="600">agent presence + profiles</text>
+        <text x="876" y="186" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">merges: gateway live agents + local roster</text>
+        <text x="876" y="200" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">drives: desk assignments + roster cards</text>
+
+        <!-- use-agent-positions / SSE -->
+        <rect x="862" y="232" width="316" height="80" rx="6" fill="rgba(52,211,153,0.07)" stroke="#34d399" stroke-width="1" opacity="0.4"/>
+        <rect x="860" y="230" width="316" height="80" rx="6" fill="rgba(52,211,153,0.10)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="876" y="252" font-family="JetBrains Mono" font-size="9" fill="rgba(52,211,153,0.7)" letter-spacing="1.5" font-weight="600">HOOK · use-agent-positions.ts</text>
+        <text x="876" y="270" font-family="JetBrains Mono" font-size="10" fill="#34d399" font-weight="600">SSE chat-event-bus subscription</text>
+        <text x="876" y="286" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">real-time position / status updates</text>
+        <text x="876" y="300" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">fallback: /api/sessions polling</text>
+
+        <!-- getLogs -->
+        <rect x="862" y="332" width="316" height="80" rx="6" fill="rgba(52,211,153,0.07)" stroke="#34d399" stroke-width="1" opacity="0.4"/>
+        <rect x="860" y="330" width="316" height="80" rx="6" fill="rgba(52,211,153,0.10)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="876" y="352" font-family="JetBrains Mono" font-size="9" fill="rgba(52,211,153,0.7)" letter-spacing="1.5" font-weight="600">LOG FETCHING · getLogs()</text>
+        <text x="876" y="370" font-family="JetBrains Mono" font-size="10" fill="#34d399" font-weight="600">/api/logs — polled every 5s</text>
+        <text x="876" y="386" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">file: 'agent' + file: 'gateway'</text>
+        <text x="876" y="400" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">TanStack Query · drives Matrix3DConsole</text>
+
+        <!-- /api/sessions fallback -->
+        <rect x="862" y="432" width="316" height="80" rx="6" fill="rgba(52,211,153,0.07)" stroke="#34d399" stroke-width="1" opacity="0.4"/>
+        <rect x="860" y="430" width="316" height="80" rx="6" fill="rgba(52,211,153,0.10)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="876" y="452" font-family="JetBrains Mono" font-size="9" fill="rgba(52,211,153,0.7)" letter-spacing="1.5" font-weight="600">FALLBACK · /api/sessions</text>
+        <text x="876" y="470" font-family="JetBrains Mono" font-size="10" fill="#34d399" font-weight="600">session polling fallback</text>
+        <text x="876" y="486" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">active sessions → desks (alphabetical)</text>
+        <text x="876" y="500" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">spillover row if sessions > desk count</text>
+
+        <!-- Arrows: canvas → data sources -->
+        <line x1="816" y1="170" x2="860" y2="170" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <line x1="816" y1="270" x2="860" y2="270" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <line x1="816" y1="370" x2="860" y2="370" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <line x1="816" y1="470" x2="860" y2="470" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+
+        <!-- Arrow: roster → side panel -->
+        <line x1="580" y1="620" x2="830" y2="620" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#arrow-cyan)"/>
+        <text x="700" y="614" font-family="JetBrains Mono" font-size="8" fill="#22d3ee" text-anchor="middle">click card</text>
+
+        <!-- Legend -->
+        <text x="20" y="810" font-family="JetBrains Mono" font-size="9" fill="white" font-weight="600">Legend</text>
+        <rect x="20" y="818" width="10" height="10" rx="2" fill="rgba(0,255,65,0.2)" stroke="#00ff41" stroke-width="1"/>
+        <text x="36" y="828" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">green — R3F 3D scene / office canvas</text>
+        <rect x="220" y="818" width="10" height="10" rx="2" fill="rgba(34,211,238,0.2)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="236" y="828" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">cyan — 2D UI surfaces / roster / console</text>
+        <rect x="480" y="818" width="10" height="10" rx="2" fill="rgba(52,211,153,0.2)" stroke="#34d399" stroke-width="1"/>
+        <text x="496" y="828" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">emerald — data hooks / API endpoints</text>
+        <text x="20" y="848" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">Matrix3DCanvas is lazy-loaded. Requires WebGL. No capability gate — renders unconditionally.</text>
+
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot green"></div><h3>R3F Canvas Scene</h3></div>
+        <ul>
+          <li>• <code>Matrix3DCanvas</code> — R3F + drei wrapper</li>
+          <li>• Desks labelled Ops, Intel, Forge, Watch</li>
+          <li>• <code>Float</code> — floating capsule avatars</li>
+          <li>• <code>OrbitControls</code> — mouse/touch navigation</li>
+          <li>• <code>RoundedBox</code>, <code>Html</code> — scene elements</li>
+          <li>• Matrix rain bars + green fog lighting</li>
+          <li>• <code>Matrix3DSprite</code> — pixel-art per-agent sprite</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot cyan"></div><h3>2D UI Surfaces</h3></div>
+        <ul>
+          <li>• <code>Matrix3DAgentCard</code> — roster rail, horizontal scroll</li>
+          <li>• <code>Matrix3DConsole</code> — log console with tab filters + NOISE toggle</li>
+          <li>• Agent side panel — slides in on card click</li>
+          <li>• Side panel: avatar, stats, current task, recent activity, profile details</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot emerald"></div><h3>Data Sources</h3></div>
+        <ul>
+          <li>• <code>useMatrix3DOfficeData()</code> — merges gateway + local roster</li>
+          <li>• <code>use-agent-positions.ts</code> — SSE chat-event-bus subscription</li>
+          <li>• <code>getLogs()</code> → <code>/api/logs</code> — polled every 5 s</li>
+          <li>• <code>/api/sessions</code> — polling fallback for positions</li>
+          <li>• Active sessions → desks alphabetical; spillover row if overflow</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">hermes-switchui · Matrix3D Architecture · src/screens/matrix3d/</p>
+  </div>
+</body>
+</html>

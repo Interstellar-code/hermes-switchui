@@ -7,6 +7,14 @@ description: Get an overview of your agents, sessions, and activity from the Das
 
 The Dashboard gives you a single-screen operational view of your Switch UI activity: token usage, session counts, agent costs, live log output, and gateway health — all sourced from the connected Hermes Agent.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/dashboard-data-sources.html"
+  width="100%"
+  height="960"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 ## What you see
 
 Navigate to `/dashboard` from the left nav. The page loads from top to bottom:

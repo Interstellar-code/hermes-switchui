@@ -9,6 +9,14 @@ A workflow is a directed acyclic graph (DAG) of nodes where each node performs a
 
 > [SCREENSHOT: Visual DAG diagram in the workflow editor showing nodes connected by directed edges]
 
+<iframe
+  src="/api/docs-asset?path=diagrams/workflow-node-types.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 ## Nodes
 
 Each node in a workflow has a type that determines what it does at runtime:

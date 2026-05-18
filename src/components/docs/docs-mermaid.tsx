@@ -15,17 +15,8 @@ export function DocsMermaid({ trigger }: { trigger?: string }) {
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: 'loose',
-          theme: 'base',
+          theme: 'dark',
           fontFamily: 'ui-sans-serif, system-ui, sans-serif',
-          themeVariables: {
-            primaryColor: 'var(--theme-bg-subtle, #1e293b)',
-            primaryTextColor: 'var(--theme-text, #e2e8f0)',
-            primaryBorderColor: 'var(--theme-accent, #6366f1)',
-            lineColor: 'var(--theme-accent, #818cf8)',
-            textColor: 'var(--theme-text, #e2e8f0)',
-            mainBkg: 'var(--theme-bg-subtle, #312e81)',
-            background: 'transparent',
-          },
           flowchart: {
             htmlLabels: true,
             curve: 'basis',

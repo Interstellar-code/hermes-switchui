@@ -7,6 +7,14 @@ description: Orchestrate multiple agents and pipelines from the Conductor contro
 
 > Plan, route, and monitor multi-agent missions from a single orchestration surface.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/conductor-architecture.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 **Status:** The Conductor UI was fully rebuilt in this codebase as of May 2026. The new screen is functional but live DAG rendering is noted in code as "coming in a follow-up." Some panels may show placeholder data until the backend mission API returns live results.
 
 **Data dependency:** Conductor fetches mission data from `/api/conductor/missions` on the gateway. The route loads unconditionally — there is no capability gate at the route level. If the gateway does not expose that endpoint, the mission list will be empty but the page still renders.

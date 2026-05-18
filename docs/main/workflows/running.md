@@ -9,6 +9,14 @@ Running a workflow takes you through a four-step wizard that lets you review the
 
 > [SCREENSHOT: Launch wizard modal open at Step 1 (Plan) showing workflow summary card and required inputs list]
 
+<iframe
+  src="/api/docs-asset?path=diagrams/workflow-run-sequence.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 ## Step 1 — Plan
 
 The first step shows a summary card with the workflow ID, name, and description. Below it you see two sections:

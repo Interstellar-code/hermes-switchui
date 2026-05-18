@@ -7,6 +7,14 @@ description: See how much of the model's context window your conversation is usi
 
 Every language model has a fixed context window — the total number of tokens it can hold in a single conversation. As your session grows, the conversation approaches that limit. The context window indicator lets you see at a glance how full the current session is.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/context-window-flow.html"
+  width="100%"
+  height="960"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 > [SCREENSHOT: Context bar in the chat header showing a filled arc ring with a percentage label]
 
 ## What you see

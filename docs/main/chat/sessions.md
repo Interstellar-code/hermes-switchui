@@ -7,6 +7,14 @@ description: Understand how chat sessions are created, stored, and resumed.
 
 Every conversation you start is stored as a session. Sessions persist across page reloads and browser restarts because the Hermes Agent keeps the history server-side. You can have as many sessions as you like and switch between them freely.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/session-lifecycle.html"
+  width="100%"
+  height="880"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 > [SCREENSHOT: Sessions sidebar showing day groups "Today", "Yesterday", and "Earlier" with session cards]
 
 ## What you see

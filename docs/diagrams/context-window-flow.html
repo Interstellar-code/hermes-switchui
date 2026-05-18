@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Context Window Flow</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #22d3ee; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Context Window Indicator — SSE Flow</h1>
+      </div>
+      <p class="subtitle">Sequence diagram: how the context ring updates and alerts fire after each message</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 820">
+        <defs>
+          <marker id="arrow-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrow-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrow-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <marker id="arrow-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <marker id="arrow-rose" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fb7185" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ============ Participant headers ============ -->
+
+        <!-- Switch UI Chat -->
+        <rect x="30" y="30" width="190" height="70" rx="6" fill="#0f172a"/>
+        <rect x="30" y="30" width="190" height="70" rx="6" fill="rgba(8, 51, 68, 0.45)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="125" y="57" fill="white" font-size="11" font-weight="600" text-anchor="middle">Switch UI Chat</text>
+        <text x="125" y="73" fill="#94a3b8" font-size="8" text-anchor="middle">use-streaming-message.ts</text>
+        <text x="125" y="87" fill="#94a3b8" font-size="8" text-anchor="middle">ContextRing component</text>
+
+        <!-- useContextUsageStore -->
+        <rect x="278" y="30" width="210" height="70" rx="6" fill="#0f172a"/>
+        <rect x="278" y="30" width="210" height="70" rx="6" fill="rgba(76, 29, 149, 0.35)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="383" y="55" fill="white" font-size="11" font-weight="600" text-anchor="middle">useContextUsageStore</text>
+        <text x="383" y="71" fill="#94a3b8" font-size="8" text-anchor="middle">Zustand store</text>
+        <text x="383" y="87" fill="#a78bfa" font-size="8" text-anchor="middle">keyed by sessionKey</text>
+
+        <!-- Hermes Agent -->
+        <rect x="546" y="30" width="200" height="70" rx="6" fill="#0f172a"/>
+        <rect x="546" y="30" width="200" height="70" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="646" y="55" fill="white" font-size="11" font-weight="600" text-anchor="middle">Hermes Agent</text>
+        <text x="646" y="71" fill="#94a3b8" font-size="8" text-anchor="middle">port 8642</text>
+        <text x="646" y="87" fill="#34d399" font-size="8" text-anchor="middle">emits step_usage events</text>
+
+        <!-- useContextAlert hook -->
+        <rect x="804" y="30" width="200" height="70" rx="6" fill="#0f172a"/>
+        <rect x="804" y="30" width="200" height="70" rx="6" fill="rgba(251, 113, 133, 0.2)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="904" y="55" fill="white" font-size="11" font-weight="600" text-anchor="middle">useContextAlert hook</text>
+        <text x="904" y="71" fill="#94a3b8" font-size="8" text-anchor="middle">effect on contextPercent</text>
+        <text x="904" y="87" fill="#fb7185" font-size="8" text-anchor="middle">thresholds: 35 / 75 / 90%</text>
+
+        <!-- sessionStorage -->
+        <rect x="1060" y="30" width="120" height="70" rx="6" fill="#0f172a"/>
+        <rect x="1060" y="30" width="120" height="70" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="1120" y="55" fill="white" font-size="10" font-weight="600" text-anchor="middle">session</text>
+        <text x="1120" y="70" fill="white" font-size="10" font-weight="600" text-anchor="middle">Storage</text>
+        <text x="1120" y="87" fill="#94a3b8" font-size="8" text-anchor="middle">per session</text>
+
+        <!-- ============ Lifelines ============ -->
+        <line x1="125" y1="100" x2="125" y2="760" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4,4" opacity="0.4"/>
+        <line x1="383" y1="100" x2="383" y2="760" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4,4" opacity="0.4"/>
+        <line x1="646" y1="100" x2="646" y2="760" stroke="#34d399" stroke-width="1" stroke-dasharray="4,4" opacity="0.4"/>
+        <line x1="904" y1="100" x2="904" y2="760" stroke="#fb7185" stroke-width="1" stroke-dasharray="4,4" opacity="0.4"/>
+        <line x1="1120" y1="100" x2="1120" y2="760" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,4" opacity="0.4"/>
+
+        <!-- ============ Activation bars ============ -->
+        <rect x="121" y="160" width="8" height="540" rx="2" fill="rgba(8, 51, 68, 0.5)" stroke="#22d3ee" stroke-width="0.5"/>
+        <rect x="379" y="260" width="8" height="380" rx="2" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="0.5"/>
+        <rect x="642" y="160" width="8" height="260" rx="2" fill="rgba(6, 78, 59, 0.5)" stroke="#34d399" stroke-width="0.5"/>
+        <rect x="900" y="480" width="8" height="200" rx="2" fill="rgba(251, 113, 133, 0.3)" stroke="#fb7185" stroke-width="0.5"/>
+
+        <!-- ============ Time labels ============ -->
+        <text x="8" y="175" fill="#475569" font-size="9" font-weight="600">1</text>
+        <text x="8" y="265" fill="#475569" font-size="9" font-weight="600">2</text>
+        <text x="8" y="345" fill="#475569" font-size="9" font-weight="600">3</text>
+        <text x="8" y="425" fill="#475569" font-size="9" font-weight="600">4</text>
+        <text x="8" y="495" fill="#475569" font-size="9" font-weight="600">5</text>
+        <text x="8" y="575" fill="#475569" font-size="9" font-weight="600">6</text>
+        <text x="8" y="655" fill="#475569" font-size="9" font-weight="600">7</text>
+        <text x="8" y="725" fill="#475569" font-size="9" font-weight="600">8</text>
+
+        <!-- ============ STEP 1: Agent emits step_usage SSE event ============ -->
+        <line x1="650" y1="170" x2="133" y2="170" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrow-emerald)"/>
+        <text x="390" y="161" fill="white" font-size="10" font-weight="500" text-anchor="middle">1. SSE event: step_usage</text>
+        <text x="390" y="180" fill="#34d399" font-size="8" text-anchor="middle">{ type: "step_usage", tokens_used: N, context_length: M, session_key }</text>
+
+        <!-- STEP 2: use-streaming-message.ts handles event -->
+        <line x1="129" y1="260" x2="375" y2="260" stroke="#22d3ee" stroke-width="1.8" marker-end="url(#arrow-cyan)"/>
+        <text x="252" y="251" fill="white" font-size="10" font-weight="500" text-anchor="middle">2. updateContextPercent(sessionKey, pct)</text>
+        <text x="252" y="272" fill="#22d3ee" font-size="8" text-anchor="middle">use-streaming-message.ts  •  pct = tokens_used / context_length</text>
+
+        <!-- STEP 3: Store updates contextPercent -->
+        <!-- self-box on store -->
+        <rect x="387" y="325" width="120" height="40" rx="4" fill="rgba(76, 29, 149, 0.2)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="447" y="342" fill="white" font-size="9" font-weight="600" text-anchor="middle">store updates</text>
+        <text x="447" y="357" fill="#a78bfa" font-size="8" text-anchor="middle">contextPercent[key]</text>
+        <line x1="383" y1="320" x2="383" y2="370" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="310" y="336" fill="white" font-size="10" font-weight="500">3. state update</text>
+
+        <!-- STEP 4: ContextRing re-renders -->
+        <line x1="383" y1="420" x2="133" y2="420" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow-violet)"/>
+        <text x="258" y="411" fill="white" font-size="10" font-weight="500" text-anchor="middle">4. ContextRing re-renders</text>
+        <text x="258" y="432" fill="#a78bfa" font-size="8" text-anchor="middle">arc fill % updates  •  color changes at 75% and 90%</text>
+
+        <!-- STEP 5: useContextAlert effect runs -->
+        <line x1="387" y1="490" x2="896" y2="490" stroke="#fb7185" stroke-width="1.8" marker-end="url(#arrow-rose)"/>
+        <text x="641" y="481" fill="white" font-size="10" font-weight="500" text-anchor="middle">5. useContextAlert effect runs</text>
+        <text x="641" y="503" fill="#fb7185" font-size="8" text-anchor="middle">watches contextPercent  •  checks threshold (35 / 75 / 90%)</text>
+
+        <!-- STEP 6: Threshold check (decision box) -->
+        <!-- Diamond-ish box -->
+        <rect x="836" y="555" width="136" height="50" rx="6" fill="#0f172a"/>
+        <rect x="836" y="555" width="136" height="50" rx="6" fill="rgba(251, 113, 133, 0.2)" stroke="#fb7185" stroke-width="1.2" stroke-dasharray="4,3"/>
+        <text x="904" y="575" fill="white" font-size="9" font-weight="600" text-anchor="middle">pct crossed threshold</text>
+        <text x="904" y="591" fill="#94a3b8" font-size="8" text-anchor="middle">AND not yet alerted today?</text>
+
+        <!-- Yes path: show modal -->
+        <line x1="908" y1="605" x2="908" y2="640" stroke="#fb7185" stroke-width="1.5" marker-end="url(#arrow-rose)"/>
+        <rect x="836" y="643" width="136" height="44" rx="6" fill="#0f172a"/>
+        <rect x="836" y="643" width="136" height="44" rx="6" fill="rgba(251, 113, 133, 0.2)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="904" y="661" fill="white" font-size="9" font-weight="600" text-anchor="middle">show ContextAlertModal</text>
+        <text x="904" y="677" fill="#94a3b8" font-size="8" text-anchor="middle">YES branch</text>
+
+        <!-- No path label -->
+        <text x="836" y="575" fill="#94a3b8" font-size="8" text-anchor="end">NO → skip</text>
+
+        <!-- STEP 7: User dismisses modal → sessionStorage -->
+        <line x1="972" y1="665" x2="1112" y2="665" stroke="#94a3b8" stroke-width="1.8" marker-end="url(#arrow-slate)"/>
+        <text x="1042" y="656" fill="white" font-size="10" font-weight="500" text-anchor="middle">7. user dismisses</text>
+        <text x="1042" y="680" fill="#94a3b8" font-size="8" text-anchor="middle">alert logged to sessionStorage</text>
+
+        <!-- STEP 8: sessionStorage persists -->
+        <rect x="1060" y="700" width="120" height="44" rx="4" fill="#0f172a"/>
+        <rect x="1060" y="700" width="120" height="44" rx="4" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1"/>
+        <text x="1120" y="719" fill="white" font-size="9" font-weight="600" text-anchor="middle">ctx-alert-{key}</text>
+        <text x="1120" y="735" fill="#94a3b8" font-size="8" text-anchor="middle">per session per day</text>
+
+        <!-- STEP 6 label -->
+        <text x="14" y="575" fill="#475569" font-size="9" font-weight="600">6</text>
+
+        <!-- ============ Legend ============ -->
+        <text x="30" y="790" fill="white" font-size="10" font-weight="600">Transport</text>
+        <line x1="130" y1="786" x2="170" y2="786" stroke="#34d399" stroke-width="2"/>
+        <text x="178" y="789" fill="#94a3b8" font-size="9">emerald = Agent SSE</text>
+        <line x1="340" y1="786" x2="380" y2="786" stroke="#22d3ee" stroke-width="2"/>
+        <text x="388" y="789" fill="#94a3b8" font-size="9">cyan = UI → store call</text>
+        <line x1="560" y1="786" x2="600" y2="786" stroke="#a78bfa" stroke-width="2"/>
+        <text x="608" y="789" fill="#94a3b8" font-size="9">violet = store → component</text>
+        <line x1="820" y1="786" x2="860" y2="786" stroke="#fb7185" stroke-width="2"/>
+        <text x="868" y="789" fill="#94a3b8" font-size="9">rose = alert effect</text>
+
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot emerald"></div><h3>SSE event: step_usage</h3></div>
+        <ul>
+          <li>• Emitted by Hermes Agent after each model response</li>
+          <li>• Contains tokens_used and context_length for the session</li>
+          <li>• Handled in use-streaming-message.ts SSE event loop</li>
+          <li>• pct = tokens_used / context_length (0–1 float)</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot violet"></div><h3>useContextUsageStore (Zustand)</h3></div>
+        <ul>
+          <li>• Map of sessionKey → contextPercent (0–100)</li>
+          <li>• updateContextPercent() called per SSE event</li>
+          <li>• Updates from non-active sessions are discarded</li>
+          <li>• ContextRing subscribes and re-renders on each update</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot rose"></div><h3>Alert thresholds</h3></div>
+        <ul>
+          <li>• 35% — approaching agent auto-compact threshold (~40%)</li>
+          <li>• 75% — context is getting full; consider new session</li>
+          <li>• 90% — nearly exhausted; response quality may drop</li>
+          <li>• Each alert fires once per session per calendar day (sessionStorage)</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">
+      Hermes Switch UI  •  context window flow  •  step_usage SSE event → Zustand → ContextRing → alert modal
+    </p>
+  </div>
+</body>
+</html>

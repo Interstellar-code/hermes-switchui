@@ -7,6 +7,14 @@ description: Run shell commands directly inside Hermes Switch UI via the built-i
 
 > Open a real PTY shell session inside the browser without leaving the workspace.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/terminal-pty-architecture.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 ## What you see
 
 The terminal is rendered by the `TerminalWorkspace` component using **xterm.js** (loaded lazily on the client; never server-side). It can run as a floating panel from the workspace shell or full-screen at the `/terminal` route. A tab bar at the top lets you manage multiple sessions. A Matrix rain canvas animates in the background.

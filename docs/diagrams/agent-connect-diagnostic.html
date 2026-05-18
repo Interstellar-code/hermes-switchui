@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Agent Connect Diagnostic</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #fb7185; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Hermes Switch UI — Agent Connect Diagnostic</h1>
+      </div>
+      <p class="subtitle">Visual decision tree for "agent unavailable" symptoms — check in order of frequency</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 1060">
+        <defs>
+          <marker id="arrow-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrow-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrow-rose" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fb7185" />
+          </marker>
+          <marker id="arrow-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ======== ROOT: symptom banner ======== -->
+        <rect x="322" y="22" width="556" height="56" rx="6" fill="rgba(251,113,133,0.10)" stroke="#fb7185" stroke-width="1" opacity="0.4"/>
+        <rect x="320" y="20" width="556" height="56" rx="6" fill="rgba(251,113,133,0.12)" stroke="#fb7185" stroke-width="2"/>
+        <text x="598" y="44" font-family="JetBrains Mono" font-size="12" fill="#fb7185" text-anchor="middle" font-weight="700">Agent unavailable banner / chat not responding</text>
+        <text x="598" y="62" font-family="JetBrains Mono" font-size="9" fill="rgba(251,113,133,0.7)" text-anchor="middle">sessions won't load · "Gateway offline" · no model response</text>
+
+        <!-- root → Q1 -->
+        <line x1="598" y1="76" x2="598" y2="102" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-slate)"/>
+
+        <!-- ======== Q1: Is hermes-agent process running? ======== -->
+        <rect x="382" y="102" width="432" height="52" rx="6" fill="rgba(34,211,238,0.08)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="380" y="100" width="432" height="52" rx="6" fill="rgba(34,211,238,0.10)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="596" y="122" font-family="JetBrains Mono" font-size="10" fill="white" text-anchor="middle" font-weight="600">Is hermes-agent process running?</text>
+        <text x="596" y="138" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)" text-anchor="middle">Check: open http://127.0.0.1:8642/health in browser → JSON payload = healthy</text>
+
+        <!-- Q1 YES → right, continue -->
+        <line x1="812" y1="126" x2="880" y2="126" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <text x="846" y="120" font-family="JetBrains Mono" font-size="9" fill="#34d399" text-anchor="middle" font-weight="600">YES</text>
+
+        <!-- Q1 NO → fix box below-left -->
+        <line x1="598" y1="152" x2="598" y2="172" stroke="#94a3b8" stroke-width="1.5"/>
+        <line x1="598" y1="172" x2="220" y2="172" stroke="#94a3b8" stroke-width="1.5"/>
+        <line x1="220" y1="172" x2="220" y2="192" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-rose)"/>
+        <text x="400" y="166" font-family="JetBrains Mono" font-size="9" fill="#fb7185" text-anchor="middle" font-weight="600">NO</text>
+
+        <!-- Fix 1: start agent -->
+        <rect x="42" y="192" width="356" height="100" rx="6" fill="rgba(52,211,153,0.07)" stroke="#34d399" stroke-width="1" opacity="0.4"/>
+        <rect x="40" y="190" width="356" height="100" rx="6" fill="rgba(52,211,153,0.09)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="218" y="210" font-family="JetBrains Mono" font-size="9" fill="rgba(52,211,153,0.7)" text-anchor="middle" letter-spacing="1.5" font-weight="600">FIX — START THE AGENT</text>
+        <text x="218" y="228" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.9)" text-anchor="middle">Dev: restart pnpm dev (auto-starts agent)</text>
+        <text x="218" y="244" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.8)" text-anchor="middle">Manual: hermes gateway run</text>
+        <text x="218" y="260" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)" text-anchor="middle">Requires API_SERVER_ENABLED=true in ~/.hermes/.env</text>
+        <text x="218" y="276" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)" text-anchor="middle">Production: restart app to re-launch agent</text>
+
+        <!-- ======== Q2: HERMES_API_URL correct? ======== -->
+        <!-- Q1 YES continues right to Q2 -->
+        <rect x="882" y="100" width="296" height="52" rx="6" fill="rgba(34,211,238,0.08)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="880" y="98" width="296" height="52" rx="6" fill="rgba(34,211,238,0.10)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="1028" y="118" font-family="JetBrains Mono" font-size="10" fill="white" text-anchor="middle" font-weight="600">HERMES_API_URL correct?</text>
+        <text x="1028" y="134" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)" text-anchor="middle">default: http://127.0.0.1:8642</text>
+
+        <!-- Q2 YES → down, continue -->
+        <line x1="1028" y1="150" x2="1028" y2="190" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <text x="1040" y="174" font-family="JetBrains Mono" font-size="9" fill="#34d399" font-weight="600">YES</text>
+
+        <!-- Q2 NO → fix box right -->
+        <line x1="1176" y1="124" x2="1196" y2="124" stroke="#94a3b8" stroke-width="1"/>
+        <!-- (no more room right — drop below Q2) -->
+        <!-- Fix 2 below Q2 NO branch — shown as side note -->
+        <rect x="882" y="162" width="296" height="80" rx="6" fill="rgba(52,211,153,0.07)" stroke="#34d399" stroke-width="1" opacity="0.4"/>
+        <rect x="880" y="160" width="296" height="80" rx="6" fill="rgba(52,211,153,0.09)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="1028" y="178" font-family="JetBrains Mono" font-size="8" fill="rgba(52,211,153,0.7)" text-anchor="middle" letter-spacing="1" font-weight="600">FIX — CORRECT THE URL</text>
+        <text x="1028" y="194" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.8)" text-anchor="middle">Unset HERMES_API_URL (uses default)</text>
+        <text x="1028" y="208" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)" text-anchor="middle">or set to correct host:port</text>
+        <text x="1028" y="222" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)" text-anchor="middle">LAN: set API_SERVER_HOST=0.0.0.0 on agent</text>
+        <text x="880" y="130" font-family="JetBrains Mono" font-size="9" fill="#fb7185">NO ↓</text>
+
+        <!-- ======== Q3: API_SERVER_ENABLED=true? ======== -->
+        <line x1="1028" y1="240" x2="1028" y2="300" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <rect x="882" y="300" width="296" height="52" rx="6" fill="rgba(34,211,238,0.08)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="880" y="298" width="296" height="52" rx="6" fill="rgba(34,211,238,0.10)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="1028" y="318" font-family="JetBrains Mono" font-size="10" fill="white" text-anchor="middle" font-weight="600">API_SERVER_ENABLED=true set?</text>
+        <text x="1028" y="334" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)" text-anchor="middle">in ~/.hermes/.env · enables HTTP API on port 8642</text>
+
+        <!-- Q3 YES → continue -->
+        <line x1="1028" y1="350" x2="1028" y2="390" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <text x="1040" y="374" font-family="JetBrains Mono" font-size="9" fill="#34d399" font-weight="600">YES</text>
+
+        <!-- Q3 NO → fix note -->
+        <rect x="882" y="362" width="296" height="52" rx="6" fill="rgba(52,211,153,0.07)" stroke="#34d399" stroke-width="1" opacity="0.4"/>
+        <rect x="880" y="360" width="296" height="52" rx="6" fill="rgba(52,211,153,0.09)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="1028" y="378" font-family="JetBrains Mono" font-size="8" fill="rgba(52,211,153,0.7)" text-anchor="middle" letter-spacing="1" font-weight="600">FIX — ENABLE THE API SERVER</text>
+        <text x="1028" y="394" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)" text-anchor="middle">Add API_SERVER_ENABLED=true to ~/.hermes/.env</text>
+        <text x="1028" y="406" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)" text-anchor="middle">Restart hermes gateway run</text>
+        <text x="880" y="306" font-family="JetBrains Mono" font-size="9" fill="#fb7185">NO ↓</text>
+
+        <!-- ======== Q4: API_SERVER_KEY ↔ HERMES_API_TOKEN match? ======== -->
+        <line x1="1028" y1="412" x2="1028" y2="460" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <rect x="882" y="460" width="296" height="52" rx="6" fill="rgba(34,211,238,0.08)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="880" y="458" width="296" height="52" rx="6" fill="rgba(34,211,238,0.10)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="1028" y="478" font-family="JetBrains Mono" font-size="10" fill="white" text-anchor="middle" font-weight="600">API_SERVER_KEY ↔ HERMES_API_TOKEN match?</text>
+        <text x="1028" y="494" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)" text-anchor="middle">if API_SERVER_KEY set, app must send matching token</text>
+
+        <!-- Q4 YES → continue -->
+        <line x1="1028" y1="510" x2="1028" y2="550" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <text x="1040" y="534" font-family="JetBrains Mono" font-size="9" fill="#34d399" font-weight="600">YES</text>
+
+        <!-- Q4 NO → fix note -->
+        <rect x="882" y="522" width="296" height="52" rx="6" fill="rgba(52,211,153,0.07)" stroke="#34d399" stroke-width="1" opacity="0.4"/>
+        <rect x="880" y="520" width="296" height="52" rx="6" fill="rgba(52,211,153,0.09)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="1028" y="538" font-family="JetBrains Mono" font-size="8" fill="rgba(52,211,153,0.7)" text-anchor="middle" letter-spacing="1" font-weight="600">FIX — SYNC THE TOKEN</text>
+        <text x="1028" y="554" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)" text-anchor="middle">Set HERMES_API_TOKEN=&lt;same value as API_SERVER_KEY&gt;</text>
+        <text x="1028" y="566" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)" text-anchor="middle">in hermes-switchui/.env · restart app</text>
+        <text x="880" y="466" font-family="JetBrains Mono" font-size="9" fill="#fb7185">NO ↓</text>
+
+        <!-- ======== Q5: HERMES_PASSWORD set if 0.0.0.0? ======== -->
+        <line x1="1028" y1="572" x2="1028" y2="618" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <rect x="882" y="618" width="296" height="52" rx="6" fill="rgba(34,211,238,0.08)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="880" y="616" width="296" height="52" rx="6" fill="rgba(34,211,238,0.10)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="1028" y="636" font-family="JetBrains Mono" font-size="10" fill="white" text-anchor="middle" font-weight="600">Binding to 0.0.0.0? HERMES_PASSWORD set?</text>
+        <text x="1028" y="652" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)" text-anchor="middle">app refuses non-loopback without password guard</text>
+
+        <!-- Q5 YES → continue -->
+        <line x1="1028" y1="668" x2="1028" y2="710" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <text x="1040" y="692" font-family="JetBrains Mono" font-size="9" fill="#34d399" font-weight="600">YES</text>
+
+        <!-- Q5 NO → fix note -->
+        <rect x="882" y="682" width="296" height="52" rx="6" fill="rgba(52,211,153,0.07)" stroke="#34d399" stroke-width="1" opacity="0.4"/>
+        <rect x="880" y="680" width="296" height="52" rx="6" fill="rgba(52,211,153,0.09)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="1028" y="698" font-family="JetBrains Mono" font-size="8" fill="rgba(52,211,153,0.7)" text-anchor="middle" letter-spacing="1" font-weight="600">FIX — SET HERMES_PASSWORD</text>
+        <text x="1028" y="714" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)" text-anchor="middle">Set HERMES_PASSWORD=&lt;strong-secret&gt; in .env</text>
+        <text x="1028" y="726" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)" text-anchor="middle">or keep HOST=127.0.0.1 (loopback only)</text>
+        <text x="880" y="626" font-family="JetBrains Mono" font-size="9" fill="#fb7185">NO ↓</text>
+
+        <!-- ======== Q6: Provider configured? ======== -->
+        <line x1="1028" y1="732" x2="1028" y2="778" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <rect x="882" y="778" width="296" height="52" rx="6" fill="rgba(34,211,238,0.08)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="880" y="776" width="296" height="52" rx="6" fill="rgba(34,211,238,0.10)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="1028" y="796" font-family="JetBrains Mono" font-size="10" fill="white" text-anchor="middle" font-weight="600">Provider configured in config.yaml?</text>
+        <text x="1028" y="812" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)" text-anchor="middle">agent up but chat fails → no working provider</text>
+
+        <!-- Q6 YES → continue -->
+        <line x1="1028" y1="828" x2="1028" y2="870" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <text x="1040" y="852" font-family="JetBrains Mono" font-size="9" fill="#34d399" font-weight="600">YES</text>
+
+        <!-- Q6 NO → fix note -->
+        <rect x="882" y="842" width="296" height="52" rx="6" fill="rgba(52,211,153,0.07)" stroke="#34d399" stroke-width="1" opacity="0.4"/>
+        <rect x="880" y="840" width="296" height="52" rx="6" fill="rgba(52,211,153,0.09)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="1028" y="858" font-family="JetBrains Mono" font-size="8" fill="rgba(52,211,153,0.7)" text-anchor="middle" letter-spacing="1" font-weight="600">FIX — CONFIGURE PROVIDER</text>
+        <text x="1028" y="874" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)" text-anchor="middle">Follow: Connecting your AI provider</text>
+        <text x="1028" y="886" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)" text-anchor="middle">provider: manifest type in config.yaml</text>
+        <text x="880" y="786" font-family="JetBrains Mono" font-size="9" fill="#fb7185">NO ↓</text>
+
+        <!-- ======== Q7: Gateway capability probe successful? ======== -->
+        <line x1="1028" y1="892" x2="1028" y2="930" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <rect x="882" y="930" width="296" height="52" rx="6" fill="rgba(34,211,238,0.08)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="880" y="928" width="296" height="52" rx="6" fill="rgba(34,211,238,0.10)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="1028" y="948" font-family="JetBrains Mono" font-size="10" fill="white" text-anchor="middle" font-weight="600">Gateway capability probe successful?</text>
+        <text x="1028" y="964" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)" text-anchor="middle">check [gateway] log line · mode=zero-fork expected</text>
+
+        <!-- Q7 YES → resolved -->
+        <line x1="1028" y1="980" x2="1028" y2="1020" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <rect x="882" y="1020" width="296" height="32" rx="6" fill="rgba(52,211,153,0.12)" stroke="#34d399" stroke-width="2"/>
+        <text x="1028" y="1041" font-family="JetBrains Mono" font-size="10" fill="#34d399" text-anchor="middle" font-weight="700">Connected · mode: zero-fork</text>
+
+        <!-- Q7 NO → fix note (left side) -->
+        <line x1="880" y1="954" x2="760" y2="954" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-rose)"/>
+        <text x="820" y="946" font-family="JetBrains Mono" font-size="9" fill="#fb7185" text-anchor="middle" font-weight="600">NO</text>
+
+        <!-- ======== Capability probe mode table ======== -->
+        <rect x="422" y="910" width="336" height="142" rx="6" fill="rgba(167,139,250,0.07)" stroke="#a78bfa" stroke-width="1" opacity="0.4"/>
+        <rect x="420" y="908" width="336" height="142" rx="6" fill="rgba(167,139,250,0.08)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="588" y="928" font-family="JetBrains Mono" font-size="9" fill="rgba(167,139,250,0.7)" text-anchor="middle" letter-spacing="1.5" font-weight="600">CAPABILITY PROBE MODES</text>
+        <!-- mode rows -->
+        <text x="436" y="946" font-family="JetBrains Mono" font-size="8" fill="#34d399" font-weight="600">zero-fork</text>
+        <text x="530" y="946" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">all core + enhanced capabilities detected</text>
+        <text x="436" y="962" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" font-weight="600">enhanced-fork</text>
+        <text x="530" y="962" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">some optional capabilities missing</text>
+        <text x="436" y="978" font-family="JetBrains Mono" font-size="8" fill="#22d3ee" font-weight="600">portable</text>
+        <text x="530" y="978" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">UI-only, basic chat works, no extended APIs</text>
+        <text x="436" y="994" font-family="JetBrains Mono" font-size="8" fill="#fb7185" font-weight="600">disconnected</text>
+        <text x="530" y="994" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">nothing reachable · full restart needed</text>
+        <text x="436" y="1016" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">Fix: force re-probe from Settings → connection panel</text>
+        <text x="436" y="1030" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">or restart agent first, then restart the app</text>
+        <text x="436" y="1044" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.4)">check nothing else bound to port 8642</text>
+
+        <!-- ======== Left column: YES path summary ======== -->
+        <!-- Vertical YES spine label -->
+        <line x1="598" y1="152" x2="598" y2="300" stroke="#34d399" stroke-width="1" stroke-dasharray="3 3"/>
+
+        <!-- Bridge: Q1 YES (right) → Q2 entry already shown -->
+        <!-- Bridge: process running flow description -->
+        <rect x="20" y="340" width="336" height="560" rx="6" fill="rgba(30,41,59,0.3)" stroke="#1e293b" stroke-width="1"/>
+        <text x="188" y="362" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.6)" text-anchor="middle" letter-spacing="1.5" font-weight="600">QUICK REFERENCE</text>
+        <text x="188" y="382" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.7)" text-anchor="middle" font-weight="600">Check order (most common first)</text>
+
+        <text x="36" y="404" font-family="JetBrains Mono" font-size="8" fill="#fb7185" font-weight="600">① Agent process</text>
+        <text x="36" y="418" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">  curl http://127.0.0.1:8642/health</text>
+        <text x="36" y="432" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">  fix: pnpm dev / hermes gateway run</text>
+
+        <text x="36" y="452" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" font-weight="600">② Gateway URL</text>
+        <text x="36" y="466" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">  check HERMES_API_URL in .env</text>
+        <text x="36" y="480" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">  default: http://127.0.0.1:8642</text>
+
+        <text x="36" y="500" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" font-weight="600">③ API_SERVER_ENABLED</text>
+        <text x="36" y="514" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">  must be true in ~/.hermes/.env</text>
+        <text x="36" y="528" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">  activates port 8642 HTTP API</text>
+
+        <text x="36" y="548" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" font-weight="600">④ Token mismatch</text>
+        <text x="36" y="562" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">  API_SERVER_KEY ↔ HERMES_API_TOKEN</text>
+        <text x="36" y="576" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">  must be identical strings</text>
+
+        <text x="36" y="596" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" font-weight="600">⑤ Password guard</text>
+        <text x="36" y="610" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">  HOST=0.0.0.0 requires HERMES_PASSWORD</text>
+        <text x="36" y="624" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">  safety guard for non-loopback binding</text>
+
+        <text x="36" y="644" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" font-weight="600">⑥ No provider</text>
+        <text x="36" y="658" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">  agent up, chat fails → config.yaml</text>
+        <text x="36" y="672" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">  follow: Connecting your AI provider</text>
+
+        <text x="36" y="692" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" font-weight="600">⑦ Probe / mode</text>
+        <text x="36" y="706" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">  check [gateway] log line for mode=</text>
+        <text x="36" y="720" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">  target: zero-fork (full feature set)</text>
+
+        <text x="36" y="750" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.5)" font-weight="600">Logs locations</text>
+        <text x="36" y="766" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">  dev: terminal running pnpm dev</text>
+        <text x="36" y="780" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">  agent: ~/.hermes/ log files</text>
+        <text x="36" y="794" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">  docker: docker logs &lt;container-name&gt;</text>
+
+        <text x="36" y="820" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.4)">Still stuck?</text>
+        <text x="36" y="834" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.4)">  force re-probe from Settings panel</text>
+        <text x="36" y="848" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.4)">  restart agent first, then app</text>
+        <text x="36" y="862" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.4)">  check nothing else on port 8642</text>
+        <text x="36" y="876" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.3)">  verify .env files don't disagree</text>
+
+        <!-- ======== Legend ======== -->
+        <text x="36" y="918" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.5)" font-weight="600">Color key</text>
+        <rect x="36" y="926" width="8" height="8" rx="1" fill="rgba(34,211,238,0.3)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="50" y="934" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">cyan — decision / check</text>
+        <rect x="36" y="942" width="8" height="8" rx="1" fill="rgba(52,211,153,0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="50" y="950" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">emerald — fix action / YES path</text>
+        <rect x="36" y="958" width="8" height="8" rx="1" fill="rgba(251,113,133,0.3)" stroke="#fb7185" stroke-width="1"/>
+        <text x="50" y="966" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">rose — symptom / NO branch</text>
+        <rect x="36" y="974" width="8" height="8" rx="1" fill="rgba(167,139,250,0.3)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="50" y="982" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">violet — probe mode table</text>
+
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot rose"></div><h3>Most Common Causes</h3></div>
+        <ul>
+          <li>• Agent process not running — check port 8642 health endpoint</li>
+          <li>• <code>API_SERVER_ENABLED=true</code> missing from <code>~/.hermes/.env</code></li>
+          <li>• <code>HERMES_API_URL</code> pointing at wrong host/port</li>
+          <li>• Token mismatch: <code>API_SERVER_KEY</code> vs <code>HERMES_API_TOKEN</code></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot amber"></div><h3>Network / Remote</h3></div>
+        <ul>
+          <li>• Remote bind (<code>HOST=0.0.0.0</code>) without <code>HERMES_PASSWORD</code></li>
+          <li>• Agent not bound to non-loopback: set <code>API_SERVER_HOST=0.0.0.0</code></li>
+          <li>• Port conflict — check nothing else on 8642</li>
+          <li>• LAN / Tailscale: verify firewall allows port 8642</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot violet"></div><h3>Probe Modes</h3></div>
+        <ul>
+          <li>• <code>zero-fork</code> — all core + enhanced OK</li>
+          <li>• <code>enhanced-fork</code> — some optional features missing</li>
+          <li>• <code>portable</code> — basic chat only, no extended APIs</li>
+          <li>• <code>disconnected</code> — nothing reachable; full restart needed</li>
+          <li>• Force re-probe from Settings → connection panel</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">hermes-switchui · Agent Connect Diagnostic · docs/troubleshooting/agent-connect.md</p>
+  </div>
+</body>
+</html>

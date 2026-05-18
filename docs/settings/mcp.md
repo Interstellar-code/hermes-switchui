@@ -7,6 +7,14 @@ description: Connect and manage Model Context Protocol servers from the MCP page
 
 Model Context Protocol (MCP) is a standard that lets an AI agent connect to external servers that provide tools, resources, and prompts. The MCP page in Hermes Switch UI shows which servers are installed and lets you manage their connection state.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/mcp-server-lifecycle.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 > [SCREENSHOT: MCP page showing a list of server entries with status indicators]
 
 ## What you see

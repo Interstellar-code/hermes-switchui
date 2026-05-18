@@ -7,6 +7,14 @@ description: Monitor system health, resource usage, and operational metrics for 
 
 > Monitor individual agent status, dispatch tasks to specific agents, and view recent agent outputs — all from one screen.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/operations-architecture.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 ## What you see
 
 The page has a three-column layout: a left **Team Rail**, a centre **Focus Panel**, and a right **Dispatch Panel**. A full-width **Outputs Strip** spans the bottom. A top bar provides global controls and a page title. If the screen fails to load, the route shows an inline error with a **Reload Page** button.

@@ -4,7 +4,6 @@
   color: var(--theme-text);
   font-size: 15px;
   line-height: 1.7;
-  max-width: 860px;
 }
 
 .docs-content > * + * {

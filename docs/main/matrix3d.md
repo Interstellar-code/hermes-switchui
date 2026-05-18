@@ -7,6 +7,14 @@ description: Explore your agent's activity as an immersive 3D office environment
 
 > Visualise your Hermes agents as pixel-art characters in a 3D office scene, with a live runtime log console beneath.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/matrix3d-architecture.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 ## What you see
 
 The page has a full-height layout with two zones stacked vertically. The upper zone is the **3D canvas viewport**. The lower zone holds the **agent roster rail** on the left and the **runtime log console** on the right. Clicking an agent card in the roster opens a collapsible **side panel** on the far right with agent details.

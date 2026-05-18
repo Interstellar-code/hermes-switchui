@@ -42,12 +42,31 @@ function numberHeadings(items: Array<TocItem>): Array<NumberedTocItem> {
   })
 }
 
+const COLLAPSE_KEY = 'docs-toc-collapsed'
+
 export function DocsToc({ content }: { content: string }) {
   const headings = useMemo(
     () => numberHeadings(parseHeadings(content)),
     [content],
   )
   const [activeId, setActiveId] = useState('')
+  const [collapsed, setCollapsed] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const stored = window.localStorage.getItem(COLLAPSE_KEY)
+    if (stored === '1') setCollapsed(true)
+  }, [])
+
+  const toggle = () => {
+    setCollapsed((prev) => {
+      const next = !prev
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0')
+      }
+      return next
+    })
+  }
 
   useEffect(() => {
     if (headings.length === 0) return undefined
@@ -68,11 +87,36 @@ export function DocsToc({ content }: { content: string }) {
 
   if (headings.length === 0) return null
 
+  if (collapsed) {
+    return (
+      <nav className="docs-toc sticky top-6 hidden w-8 shrink-0 self-start xl:block">
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label="Expand table of contents"
+          className="flex h-8 w-8 items-center justify-center rounded border border-[var(--theme-border)] text-[var(--theme-muted)] transition-colors hover:bg-[color-mix(in_srgb,var(--theme-accent)_10%,transparent)] hover:text-[var(--theme-accent)]"
+        >
+          ‹
+        </button>
+      </nav>
+    )
+  }
+
   return (
     <nav className="docs-toc sticky top-6 hidden max-h-[calc(100vh-3rem)] w-56 shrink-0 self-start overflow-y-auto xl:block">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--theme-muted)]">
-        On this page
-      </p>
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--theme-muted)]">
+          On this page
+        </p>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label="Collapse table of contents"
+          className="rounded px-1.5 text-xs text-[var(--theme-muted)] transition-colors hover:bg-[color-mix(in_srgb,var(--theme-accent)_10%,transparent)] hover:text-[var(--theme-accent)]"
+        >
+          ›
+        </button>
+      </div>
       <ul className="space-y-1">
         {headings.map((h) => (
           <li key={h.id}>

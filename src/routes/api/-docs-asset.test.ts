@@ -135,4 +135,36 @@ describe('/api/docs-asset', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toBe('image/svg+xml')
   })
+
+  it('returns 200 with text/html content-type for .html file', async () => {
+    fs.writeFileSync(
+      path.join(tmpDocsRoot, 'images', 'diagram.html'),
+      '<!DOCTYPE html><html><body><svg></svg></body></html>',
+    )
+    const res = await invoke('images/diagram.html')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe('text/html; charset=utf-8')
+  })
+
+  it('includes Content-Security-Policy with script-src none for .html file', async () => {
+    fs.writeFileSync(
+      path.join(tmpDocsRoot, 'images', 'diagram.html'),
+      '<!DOCTYPE html><html><body><svg></svg></body></html>',
+    )
+    const res = await invoke('images/diagram.html')
+    expect(res.status).toBe(200)
+    const csp = res.headers.get('Content-Security-Policy')
+    expect(csp).toBeTruthy()
+    expect(csp).toContain("script-src 'none'")
+  })
+
+  it('includes X-Content-Type-Options: nosniff for .html file', async () => {
+    fs.writeFileSync(
+      path.join(tmpDocsRoot, 'images', 'diagram.html'),
+      '<!DOCTYPE html><html><body><svg></svg></body></html>',
+    )
+    const res = await invoke('images/diagram.html')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff')
+  })
 })

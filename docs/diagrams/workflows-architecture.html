@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Workflows Architecture</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #22d3ee; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Hermes Switch UI — Workflows Architecture</h1>
+      </div>
+      <p class="subtitle">Frontend surfaces, backend engine, and storage — how data flows from library to live run</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 760">
+        <defs>
+          <marker id="arrowhead-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrowhead-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrowhead-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <marker id="arrowhead-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ============ Legend ============ -->
+        <text x="30" y="50" fill="white" font-size="11" font-weight="600">Legend</text>
+        <rect x="30" y="60" width="16" height="10" rx="2" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="52" y="68" fill="#94a3b8" font-size="9">Frontend (browser)</text>
+        <rect x="30" y="76" width="16" height="10" rx="2" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1"/>
+        <text x="52" y="84" fill="#94a3b8" font-size="9">Backend (server)</text>
+        <rect x="30" y="92" width="16" height="10" rx="2" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="52" y="100" fill="#94a3b8" font-size="9">Storage</text>
+
+        <!-- ============ FRONTEND boundary ============ -->
+        <rect x="30" y="120" width="500" height="490" rx="12" fill="rgba(8, 51, 68, 0.06)" stroke="#22d3ee" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="46" y="140" fill="#22d3ee" font-size="11" font-weight="600">Frontend — src/screens/workflows/</text>
+
+        <!-- Library panel -->
+        <rect x="50" y="160" width="140" height="70" rx="6" fill="#0f172a"/>
+        <rect x="50" y="160" width="140" height="70" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="120" y="183" fill="white" font-size="11" font-weight="600" text-anchor="middle">Library panel</text>
+        <text x="120" y="198" fill="#94a3b8" font-size="8" text-anchor="middle">workflow-library.tsx</text>
+        <text x="120" y="211" fill="#94a3b8" font-size="8" text-anchor="middle">bundled + user workflows</text>
+
+        <!-- Grid view -->
+        <rect x="220" y="160" width="140" height="70" rx="6" fill="#0f172a"/>
+        <rect x="220" y="160" width="140" height="70" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="290" y="183" fill="white" font-size="11" font-weight="600" text-anchor="middle">Grid view</text>
+        <text x="290" y="198" fill="#94a3b8" font-size="8" text-anchor="middle">workflow-grid.tsx</text>
+        <text x="290" y="211" fill="#94a3b8" font-size="8" text-anchor="middle">card tiles · tag filters</text>
+
+        <!-- Editor -->
+        <rect x="390" y="160" width="120" height="70" rx="6" fill="#0f172a"/>
+        <rect x="390" y="160" width="120" height="70" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="450" y="183" fill="white" font-size="11" font-weight="600" text-anchor="middle">Editor</text>
+        <text x="450" y="198" fill="#94a3b8" font-size="8" text-anchor="middle">workflow-editor.tsx</text>
+        <text x="450" y="211" fill="#94a3b8" font-size="8" text-anchor="middle">Overview · DAG · YAML</text>
+
+        <!-- Launch wizard -->
+        <rect x="50" y="270" width="200" height="70" rx="6" fill="#0f172a"/>
+        <rect x="50" y="270" width="200" height="70" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="150" y="293" fill="white" font-size="11" font-weight="600" text-anchor="middle">Launch wizard</text>
+        <text x="150" y="308" fill="#94a3b8" font-size="8" text-anchor="middle">launch-wizard.tsx</text>
+        <text x="150" y="321" fill="#94a3b8" font-size="8" text-anchor="middle">Plan → Route → Schedule → Confirm</text>
+
+        <!-- Run detail panel -->
+        <rect x="280" y="270" width="220" height="70" rx="6" fill="#0f172a"/>
+        <rect x="280" y="270" width="220" height="70" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="390" y="293" fill="white" font-size="11" font-weight="600" text-anchor="middle">Run detail panel</text>
+        <text x="390" y="308" fill="#94a3b8" font-size="8" text-anchor="middle">run-detail-panel.tsx</text>
+        <text x="390" y="321" fill="#94a3b8" font-size="8" text-anchor="middle">node badges · output · approval</text>
+
+        <!-- use-workflow-events -->
+        <rect x="50" y="380" width="460" height="50" rx="6" fill="#0f172a"/>
+        <rect x="50" y="380" width="460" height="50" rx="6" fill="rgba(8, 51, 68, 0.3)" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="280" y="402" fill="white" font-size="11" font-weight="600" text-anchor="middle">use-workflow-events.ts  (SSE consumer hook)</text>
+        <text x="280" y="418" fill="#94a3b8" font-size="8" text-anchor="middle">EventSource → /api/workflow-events  •  updates run state in Zustand</text>
+
+        <!-- api-client -->
+        <rect x="50" y="460" width="460" height="50" rx="6" fill="#0f172a"/>
+        <rect x="50" y="460" width="460" height="50" rx="6" fill="rgba(8, 51, 68, 0.3)" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="280" y="482" fill="white" font-size="11" font-weight="600" text-anchor="middle">api-client.ts  (REST client)</text>
+        <text x="280" y="498" fill="#94a3b8" font-size="8" text-anchor="middle">listDefinitions · submitRun · getNodeRuns · postApproval</text>
+
+        <!-- ============ BACKEND boundary ============ -->
+        <rect x="560" y="120" width="380" height="490" rx="12" fill="rgba(6, 78, 59, 0.06)" stroke="#34d399" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="576" y="140" fill="#34d399" font-size="11" font-weight="600">Backend — src/server/workflow-engine/</text>
+
+        <!-- Discovery loader -->
+        <rect x="580" y="160" width="160" height="70" rx="6" fill="#0f172a"/>
+        <rect x="580" y="160" width="160" height="70" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="660" y="183" fill="white" font-size="11" font-weight="600" text-anchor="middle">Discovery loader</text>
+        <text x="660" y="198" fill="#94a3b8" font-size="8" text-anchor="middle">discovery/loader.ts</text>
+        <text x="660" y="211" fill="#94a3b8" font-size="8" text-anchor="middle">parse YAML · validate nodes</text>
+
+        <!-- Schema validator -->
+        <rect x="760" y="160" width="160" height="70" rx="6" fill="#0f172a"/>
+        <rect x="760" y="160" width="160" height="70" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="840" y="183" fill="white" font-size="11" font-weight="600" text-anchor="middle">Schema validator</text>
+        <text x="840" y="198" fill="#94a3b8" font-size="8" text-anchor="middle">schemas/dag-node.ts</text>
+        <text x="840" y="211" fill="#94a3b8" font-size="8" text-anchor="middle">Zod · node type guards</text>
+
+        <!-- DAG executor -->
+        <rect x="580" y="270" width="160" height="70" rx="6" fill="#0f172a"/>
+        <rect x="580" y="270" width="160" height="70" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="660" y="293" fill="white" font-size="11" font-weight="600" text-anchor="middle">DAG executor</text>
+        <text x="660" y="308" fill="#94a3b8" font-size="8" text-anchor="middle">core/dag-executor.ts</text>
+        <text x="660" y="321" fill="#94a3b8" font-size="8" text-anchor="middle">topo order · node runners</text>
+
+        <!-- Event emitter -->
+        <rect x="760" y="270" width="160" height="70" rx="6" fill="#0f172a"/>
+        <rect x="760" y="270" width="160" height="70" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="840" y="293" fill="white" font-size="11" font-weight="600" text-anchor="middle">Event emitter</text>
+        <text x="840" y="308" fill="#94a3b8" font-size="8" text-anchor="middle">emitter/event-emitter.ts</text>
+        <text x="840" y="321" fill="#94a3b8" font-size="8" text-anchor="middle">node_started/completed/failed</text>
+
+        <!-- Node-runs projector -->
+        <rect x="580" y="380" width="160" height="70" rx="6" fill="#0f172a"/>
+        <rect x="580" y="380" width="160" height="70" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="660" y="403" fill="white" font-size="11" font-weight="600" text-anchor="middle">Node-runs projector</text>
+        <text x="660" y="418" fill="#94a3b8" font-size="8" text-anchor="middle">projector/node-runs-projector.ts</text>
+        <text x="660" y="431" fill="#94a3b8" font-size="8" text-anchor="middle">writes node_runs rows</text>
+
+        <!-- SSE relay -->
+        <rect x="760" y="380" width="160" height="70" rx="6" fill="#0f172a"/>
+        <rect x="760" y="380" width="160" height="70" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="840" y="403" fill="white" font-size="11" font-weight="600" text-anchor="middle">SSE relay</text>
+        <text x="840" y="418" fill="#94a3b8" font-size="8" text-anchor="middle">/api/workflow-events</text>
+        <text x="840" y="431" fill="#94a3b8" font-size="8" text-anchor="middle">broadcasts to EventSource</text>
+
+        <!-- API routes -->
+        <rect x="580" y="480" width="340" height="110" rx="6" fill="#0f172a"/>
+        <rect x="580" y="480" width="340" height="110" rx="6" fill="rgba(6, 78, 59, 0.25)" stroke="#34d399" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="750" y="502" fill="white" font-size="11" font-weight="600" text-anchor="middle">API routes (TanStack Start)</text>
+        <text x="750" y="520" fill="#94a3b8" font-size="8" text-anchor="middle">GET/POST /api/workflow-definitions</text>
+        <text x="750" y="534" fill="#94a3b8" font-size="8" text-anchor="middle">POST /api/workflow-runs  •  GET /api/workflow-runs/:id</text>
+        <text x="750" y="548" fill="#94a3b8" font-size="8" text-anchor="middle">GET /api/workflow-events  (SSE)</text>
+        <text x="750" y="562" fill="#94a3b8" font-size="8" text-anchor="middle">POST /api/workflow-runs/:id/approve</text>
+        <text x="750" y="576" fill="#94a3b8" font-size="8" text-anchor="middle">GET /api/workflow-runs/:id/node-runs</text>
+
+        <!-- ============ STORAGE ============ -->
+        <rect x="30" y="650" width="910" height="90" rx="8" fill="#0f172a"/>
+        <rect x="30" y="650" width="910" height="90" rx="8" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="485" y="672" fill="white" font-size="12" font-weight="600" text-anchor="middle">~/.hermes/  (persistent storage)</text>
+        <text x="120" y="698" fill="#94a3b8" font-size="9">• workflows/   (YAML files)</text>
+        <text x="120" y="714" fill="#94a3b8" font-size="9">• workflows-manifest.json</text>
+        <text x="370" y="698" fill="#94a3b8" font-size="9">• workflow-runs.db</text>
+        <text x="370" y="714" fill="#94a3b8" font-size="9">• node_runs table</text>
+        <text x="600" y="698" fill="#94a3b8" font-size="9">• bundled definitions (read-only)</text>
+        <text x="600" y="714" fill="#94a3b8" font-size="9">• user / project scoped defs</text>
+
+        <!-- ============ CONNECTIONS ============ -->
+
+        <!-- Library → loader (reads definitions) -->
+        <line x1="120" y1="160" x2="580" y2="215" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowhead-slate)"/>
+        <text x="340" y="165" fill="#94a3b8" font-size="8" text-anchor="middle">GET /api/workflow-definitions</text>
+
+        <!-- Editor → loader (reads + writes YAML) -->
+        <line x1="450" y1="160" x2="580" y2="175" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowhead-slate)"/>
+
+        <!-- loader → schema validator -->
+        <line x1="742" y1="195" x2="762" y2="195" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+
+        <!-- loader → DAG executor (definitions) -->
+        <line x1="660" y1="232" x2="660" y2="268" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+
+        <!-- Wizard → DAG executor (submit run) -->
+        <line x1="150" y1="340" x2="580" y2="305" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead-cyan)"/>
+        <text x="360" y="310" fill="#22d3ee" font-size="8" text-anchor="middle">POST /api/workflow-runs</text>
+
+        <!-- DAG executor → event emitter -->
+        <line x1="742" y1="305" x2="762" y2="305" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+        <text x="752" y="298" fill="#34d399" font-size="8" text-anchor="middle">emit events</text>
+
+        <!-- event emitter → projector -->
+        <line x1="840" y1="342" x2="840" y2="378" stroke="#34d399" stroke-width="1.5"/>
+        <line x1="840" y1="378" x2="742" y2="410" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+
+        <!-- event emitter → SSE relay -->
+        <line x1="840" y1="342" x2="840" y2="378" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+
+        <!-- projector → storage -->
+        <line x1="660" y1="452" x2="660" y2="648" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrowhead-violet)"/>
+        <text x="675" y="560" fill="#a78bfa" font-size="8">writes node_runs</text>
+
+        <!-- SSE relay → use-workflow-events -->
+        <line x1="840" y1="452" x2="510" y2="398" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead-cyan)"/>
+        <text x="700" y="434" fill="#22d3ee" font-size="8" text-anchor="middle">SSE stream</text>
+
+        <!-- use-workflow-events → run detail panel -->
+        <line x1="390" y1="378" x2="390" y2="342" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead-cyan)"/>
+
+        <!-- storage → loader (reads YAML) -->
+        <line x1="370" y1="648" x2="660" y2="234" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrowhead-violet)"/>
+        <text x="430" y="530" fill="#a78bfa" font-size="8">reads YAML defs</text>
+
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot cyan"></div><h3>Frontend surfaces</h3></div>
+        <ul>
+          <li>• Library panel: browse bundled + user workflows</li>
+          <li>• Grid view: card tiles with tag filters</li>
+          <li>• Editor: Overview / DAG / YAML tabs</li>
+          <li>• Launch wizard: 4-step run submission</li>
+          <li>• Run detail panel: live node status + output</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot emerald"></div><h3>Backend engine</h3></div>
+        <ul>
+          <li>• Discovery loader: parses YAML, validates nodes</li>
+          <li>• DAG executor: topological execution</li>
+          <li>• Event emitter: node lifecycle events</li>
+          <li>• Node-runs projector: writes DB snapshot</li>
+          <li>• SSE relay: streams events to browser</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot violet"></div><h3>Storage (~/.hermes/)</h3></div>
+        <ul>
+          <li>• workflows/ — user YAML definitions</li>
+          <li>• workflow-runs.db — run + node_runs tables</li>
+          <li>• Bundled definitions shipped with the app</li>
+          <li>• Manifest JSON for fast listing</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">
+      Hermes Switch UI  •  workflows architecture
+    </p>
+  </div>
+</body>
+</html>

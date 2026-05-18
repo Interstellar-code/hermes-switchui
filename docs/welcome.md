@@ -20,6 +20,30 @@ Two paired processes work together:
 
 You configure your AI provider once and the app routes chats, tool calls, and streaming responses through the agent.
 
+## Architecture at a glance
+
+The two processes talk to each other locally, and the agent is the only thing that talks to the outside world. Your provider choice, sessions, memory, and skills all live behind the agent on disk.
+
+<iframe
+  src="/api/docs-asset?path=diagrams/dual-process-architecture.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
+## What happens when you send a message
+
+A chat round-trip is fully streamed. You see tokens land as the provider emits them, and the agent persists the session as it goes.
+
+<iframe
+  src="/api/docs-asset?path=diagrams/chat-message-lifecycle.html"
+  width="100%"
+  height="1000"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 > [SCREENSHOT: hermes switch ui home page, matrix-dark theme]
 
 ## What you can do

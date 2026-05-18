@@ -7,6 +7,14 @@ description: Link an AI provider so Hermes Switch UI can send and receive messag
 
 > Pick where chat completions come from — a local runtime, a hosted provider, or your own OpenAI-compatible endpoint.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/provider-routing.html"
+  width="100%"
+  height="860"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 Hermes Switch UI itself doesn't talk to AI providers directly. It routes chat through the Hermes Agent on port `8642`, and the agent does the actual provider calls. Connecting a provider means configuring the agent and, when needed, dropping an API key into the agent's environment.
 
 ## Where settings live

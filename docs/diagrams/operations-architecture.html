@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Operations Architecture</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #22d3ee; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Hermes Switch UI — Operations Architecture</h1>
+      </div>
+      <p class="subtitle">Three-column agent monitoring layout: Team Rail · Focus Panel · Dispatch Panel</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 860">
+        <defs>
+          <marker id="arrow-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrow-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrow-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ========== OperationsTopBar ========== -->
+        <rect x="22" y="42" width="1156" height="60" rx="6" fill="rgba(34,211,238,0.07)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="20" y="40" width="1156" height="60" rx="6" fill="rgba(34,211,238,0.09)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="36" y="62" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.7)" letter-spacing="1.5" font-weight="600">OPERATIONS TOP BAR · OperationsTopBar</text>
+        <text x="36" y="80" font-family="JetBrains Mono" font-size="10" fill="rgba(148,163,184,0.8)">page title · filter state indicator · connection status · global controls</text>
+
+        <!-- ========== COLUMN LABELS ========== -->
+        <text x="36" y="122" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.5)" letter-spacing="2" font-weight="600">LEFT COLUMN</text>
+        <text x="336" y="122" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.5)" letter-spacing="2" font-weight="600">CENTER COLUMN</text>
+        <text x="800" y="122" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.5)" letter-spacing="2" font-weight="600">RIGHT COLUMN</text>
+
+        <!-- ========== Team Rail (left) ========== -->
+        <rect x="22" y="132" width="276" height="580" rx="6" fill="rgba(34,211,238,0.07)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="20" y="130" width="276" height="580" rx="6" fill="rgba(34,211,238,0.09)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="36" y="152" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.7)" letter-spacing="1.5" font-weight="600">TEAM RAIL · TeamRail</text>
+        <!-- TeamHeader -->
+        <text x="36" y="170" font-family="JetBrains Mono" font-size="10" fill="rgba(148,163,184,0.8)">TeamHeader · agent count</text>
+        <!-- TeamFilters -->
+        <rect x="36" y="178" width="44" height="18" rx="3" fill="rgba(34,211,238,0.25)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="58" y="191" font-family="JetBrains Mono" font-size="8" fill="white" text-anchor="middle">all</text>
+        <rect x="86" y="178" width="44" height="18" rx="3" fill="rgba(30,41,59,0.5)" stroke="#475569" stroke-width="1"/>
+        <text x="108" y="191" font-family="JetBrains Mono" font-size="8" fill="#94a3b8" text-anchor="middle">live</text>
+        <rect x="136" y="178" width="44" height="18" rx="3" fill="rgba(30,41,59,0.5)" stroke="#475569" stroke-width="1"/>
+        <text x="158" y="191" font-family="JetBrains Mono" font-size="8" fill="#94a3b8" text-anchor="middle">idle</text>
+        <rect x="186" y="178" width="56" height="18" rx="3" fill="rgba(30,41,59,0.5)" stroke="#475569" stroke-width="1"/>
+        <text x="214" y="191" font-family="JetBrains Mono" font-size="8" fill="#94a3b8" text-anchor="middle">blocked</text>
+        <!-- AgentCard 1 — selected/focused -->
+        <rect x="32" y="206" width="248" height="64" rx="4" fill="rgba(34,211,238,0.14)" stroke="#22d3ee" stroke-width="1.5"/>
+        <circle cx="50" cy="224" r="6" fill="rgba(34,211,238,0.2)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="64" y="222" font-family="JetBrains Mono" font-size="10" fill="#22d3ee" font-weight="700">HERMES</text>
+        <text x="64" y="236" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">claude-opus-4 · T1 orchestrator</text>
+        <circle cx="257" cy="224" r="4" fill="#00ff41"><animate attributeName="opacity" values="1;0.4;1" dur="1.8s" repeatCount="indefinite"/></circle>
+        <text x="270" y="227" font-family="JetBrains Mono" font-size="8" fill="#00ff41">working</text>
+        <text x="34" y="256" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">mission: Alpha · 2 tasks active</text>
+        <!-- AgentCard 2 -->
+        <rect x="32" y="278" width="248" height="64" rx="4" fill="rgba(30,41,59,0.4)" stroke="rgba(71,85,105,0.6)" stroke-width="1"/>
+        <circle cx="50" cy="296" r="6" fill="rgba(71,85,105,0.3)" stroke="#475569" stroke-width="1"/>
+        <text x="64" y="294" font-family="JetBrains Mono" font-size="10" fill="rgba(148,163,184,0.7)">NEO</text>
+        <text x="64" y="308" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">claude-sonnet-4 · T2 domain head</text>
+        <circle cx="257" cy="296" r="4" fill="#94a3b8" opacity="0.5"/>
+        <text x="270" y="299" font-family="JetBrains Mono" font-size="8" fill="#94a3b8">idle</text>
+        <text x="34" y="328" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.4)">mission: Beta · waiting</text>
+        <!-- AgentCard 3 -->
+        <rect x="32" y="350" width="248" height="64" rx="4" fill="rgba(30,41,59,0.4)" stroke="rgba(71,85,105,0.6)" stroke-width="1"/>
+        <circle cx="50" cy="368" r="6" fill="rgba(71,85,105,0.3)" stroke="#475569" stroke-width="1"/>
+        <text x="64" y="366" font-family="JetBrains Mono" font-size="10" fill="rgba(148,163,184,0.7)">TRINITY</text>
+        <text x="64" y="380" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">claude-haiku-4 · T3 specialist</text>
+        <circle cx="257" cy="368" r="4" fill="#94a3b8" opacity="0.5"/>
+        <text x="270" y="371" font-family="JetBrains Mono" font-size="8" fill="#94a3b8">idle</text>
+        <text x="34" y="400" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.4)">no active task</text>
+        <!-- New Agent button -->
+        <rect x="32" y="686" width="248" height="32" rx="4" fill="rgba(34,211,238,0.12)" stroke="rgba(34,211,238,0.5)" stroke-width="1"/>
+        <text x="156" y="706" font-family="JetBrains Mono" font-size="10" fill="#22d3ee" text-anchor="middle">+ New Agent</text>
+        <text x="36" y="424" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.4)">filtered by teamFilter in useOperationsUIStore</text>
+
+        <!-- ========== Focus Panel (center) ========== -->
+        <rect x="312" y="132" width="456" height="580" rx="6" fill="rgba(34,211,238,0.07)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="310" y="130" width="456" height="580" rx="6" fill="rgba(34,211,238,0.08)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="326" y="152" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.7)" letter-spacing="1.5" font-weight="600">FOCUS PANEL · FocusPanel</text>
+
+        <!-- FocusHero -->
+        <rect x="326" y="162" width="424" height="80" rx="4" fill="rgba(34,211,238,0.10)" stroke="rgba(34,211,238,0.4)" stroke-width="1"/>
+        <text x="342" y="180" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.6)" letter-spacing="1">FOCUS HERO · FocusHero</text>
+        <text x="342" y="198" font-family="JetBrains Mono" font-size="15" fill="#22d3ee" font-weight="700">HERMES</text>
+        <text x="460" y="198" font-family="JetBrains Mono" font-size="9" fill="#00ff41">● working</text>
+        <text x="342" y="214" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.7)">claude-opus-4 · T1 orchestrator · last seen: just now</text>
+        <text x="342" y="230" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">agent name · status badge · identity fields</text>
+
+        <!-- FocusMission -->
+        <rect x="326" y="252" width="204" height="80" rx="4" fill="rgba(34,211,238,0.07)" stroke="rgba(34,211,238,0.35)" stroke-width="1"/>
+        <text x="342" y="270" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.6)" letter-spacing="1">FOCUS MISSION</text>
+        <text x="342" y="286" font-family="JetBrains Mono" font-size="10" fill="rgba(148,163,184,0.9)" font-weight="600">Mission Alpha</text>
+        <text x="342" y="300" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">phase: execute</text>
+        <text x="342" y="314" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">FocusMission component</text>
+
+        <!-- FocusActivity -->
+        <rect x="546" y="252" width="204" height="80" rx="4" fill="rgba(34,211,238,0.07)" stroke="rgba(34,211,238,0.35)" stroke-width="1"/>
+        <text x="562" y="270" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.6)" letter-spacing="1">FOCUS ACTIVITY</text>
+        <text x="562" y="286" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">▸ Spawned worker-a</text>
+        <text x="562" y="300" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">▸ Completed tool: read_file</text>
+        <text x="562" y="314" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">FocusActivity component</text>
+
+        <!-- FocusTools -->
+        <rect x="326" y="342" width="204" height="80" rx="4" fill="rgba(34,211,238,0.07)" stroke="rgba(34,211,238,0.35)" stroke-width="1"/>
+        <text x="342" y="360" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.6)" letter-spacing="1">FOCUS TOOLS</text>
+        <text x="342" y="376" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">read_file · bash · edit_file</text>
+        <text x="342" y="390" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">tools invoked recently</text>
+        <text x="342" y="404" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">FocusTools component</text>
+
+        <!-- FocusRecentOutputs -->
+        <rect x="546" y="342" width="204" height="80" rx="4" fill="rgba(34,211,238,0.07)" stroke="rgba(34,211,238,0.35)" stroke-width="1"/>
+        <text x="562" y="360" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.6)" letter-spacing="1">RECENT OUTPUTS</text>
+        <text x="562" y="376" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">output-a.md · 2.1KB</text>
+        <text x="562" y="390" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">output-b.json · 840B</text>
+        <text x="562" y="404" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">FocusRecentOutputs</text>
+
+        <!-- Empty state note -->
+        <text x="326" y="448" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.5)">Auto-selects first agent when none focused.</text>
+        <text x="326" y="462" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.5)">"Gateway offline · no live agents" when gateway unreachable.</text>
+
+        <!-- Arrow from TeamRail → FocusPanel -->
+        <line x1="296" y1="238" x2="310" y2="238" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+        <text x="298" y="230" font-family="JetBrains Mono" font-size="8" fill="#22d3ee" text-anchor="middle">click</text>
+
+        <!-- ========== Dispatch Panel (right) ========== -->
+        <rect x="782" y="132" width="396" height="580" rx="6" fill="rgba(34,211,238,0.07)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="780" y="130" width="396" height="580" rx="6" fill="rgba(34,211,238,0.08)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="796" y="152" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.7)" letter-spacing="1.5" font-weight="600">DISPATCH PANEL · DispatchPanel</text>
+
+        <!-- DispatchHeader -->
+        <rect x="796" y="162" width="364" height="44" rx="4" fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.35)" stroke-width="1"/>
+        <text x="812" y="180" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.6)">DispatchHeader — panel title and context</text>
+        <text x="812" y="196" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.6)">Dispatch Task</text>
+
+        <!-- DispatchModes -->
+        <rect x="796" y="214" width="364" height="48" rx="4" fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.35)" stroke-width="1"/>
+        <text x="812" y="232" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.6)">DispatchModes — routing mode selector</text>
+        <rect x="812" y="238" width="72" height="16" rx="3" fill="rgba(34,211,238,0.2)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="848" y="250" font-family="JetBrains Mono" font-size="8" fill="white" text-anchor="middle">single</text>
+        <rect x="890" y="238" width="72" height="16" rx="3" fill="rgba(30,41,59,0.5)" stroke="#475569" stroke-width="1"/>
+        <text x="926" y="250" font-family="JetBrains Mono" font-size="8" fill="#94a3b8" text-anchor="middle">broadcast</text>
+        <rect x="968" y="238" width="72" height="16" rx="3" fill="rgba(30,41,59,0.5)" stroke="#475569" stroke-width="1"/>
+        <text x="1004" y="250" font-family="JetBrains Mono" font-size="8" fill="#94a3b8" text-anchor="middle">round-robin</text>
+
+        <!-- DispatchComposer -->
+        <rect x="796" y="270" width="364" height="120" rx="4" fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.35)" stroke-width="1"/>
+        <text x="812" y="288" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.6)">DispatchComposer — task prompt input</text>
+        <rect x="812" y="296" width="332" height="84" rx="3" fill="rgba(15,23,42,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="824" y="316" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.5)">Write a task description here…</text>
+        <text x="824" y="334" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.3)">e.g. "Summarise all open PRs and</text>
+        <text x="824" y="348" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.3)">create a status report"</text>
+
+        <!-- DispatchMeta -->
+        <rect x="796" y="398" width="364" height="60" rx="4" fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.35)" stroke-width="1"/>
+        <text x="812" y="416" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.6)">DispatchMeta — metadata fields</text>
+        <text x="812" y="432" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">priority: normal · context: global · timeout: 60s</text>
+        <text x="812" y="448" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">configurable per dispatch</text>
+
+        <!-- RoutingPreview -->
+        <rect x="796" y="466" width="364" height="80" rx="4" fill="rgba(52,211,153,0.07)" stroke="rgba(52,211,153,0.4)" stroke-width="1"/>
+        <text x="812" y="484" font-family="JetBrains Mono" font-size="9" fill="rgba(52,211,153,0.7)" letter-spacing="1">ROUTING PREVIEW · RoutingPreview</text>
+        <text x="812" y="500" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.8)">→ Will dispatch to: HERMES</text>
+        <text x="812" y="516" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">mode: single · selected agent</text>
+        <text x="812" y="532" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">preview from /api/operations/dispatch.preview</text>
+
+        <!-- Footer buttons -->
+        <rect x="796" y="554" width="160" height="36" rx="4" fill="rgba(30,41,59,0.5)" stroke="#475569" stroke-width="1"/>
+        <text x="876" y="576" font-family="JetBrains Mono" font-size="10" fill="#94a3b8" text-anchor="middle">save draft</text>
+        <rect x="970" y="554" width="190" height="36" rx="4" fill="rgba(34,211,238,0.2)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="1065" y="576" font-family="JetBrains Mono" font-size="10" fill="#22d3ee" text-anchor="middle" font-weight="600">→ dispatch</text>
+
+        <!-- ========== Outputs Strip (bottom) ========== -->
+        <rect x="22" y="730" width="1156" height="100" rx="6" fill="rgba(34,211,238,0.07)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="20" y="728" width="1156" height="100" rx="6" fill="rgba(34,211,238,0.07)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="36" y="750" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.7)" letter-spacing="1.5" font-weight="600">OUTPUTS STRIP · OutputsStrip — full width bottom</text>
+        <!-- Output cards -->
+        <rect x="36" y="758" width="200" height="56" rx="3" fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.3)" stroke-width="1"/>
+        <text x="46" y="774" font-family="JetBrains Mono" font-size="8" fill="rgba(34,211,238,0.6)">OutputCard</text>
+        <text x="46" y="788" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">HERMES · status-report.md</text>
+        <text x="46" y="802" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.5)">2m ago · 2.4KB</text>
+        <rect x="246" y="758" width="200" height="56" rx="3" fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.3)" stroke-width="1"/>
+        <text x="256" y="774" font-family="JetBrains Mono" font-size="8" fill="rgba(34,211,238,0.6)">OutputCard</text>
+        <text x="256" y="788" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">NEO · analysis.json</text>
+        <text x="256" y="802" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.5)">8m ago · 880B</text>
+        <rect x="456" y="758" width="200" height="56" rx="3" fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.3)" stroke-width="1"/>
+        <text x="466" y="774" font-family="JetBrains Mono" font-size="8" fill="rgba(34,211,238,0.6)">OutputCard</text>
+        <text x="466" y="788" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">TRINITY · patch.diff</text>
+        <text x="466" y="802" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.5)">15m ago · 4.1KB</text>
+        <text x="700" y="786" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.4)">OutputsFilters · OutputsHeader · filtered per agent or global</text>
+        <!-- Dispatch arrow -->
+        <line x1="1065" y1="590" x2="1065" y2="640" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#arrow-cyan)"/>
+        <text x="1070" y="620" font-family="JetBrains Mono" font-size="8" fill="#22d3ee">POST /api/operations/dispatch</text>
+
+        <!-- ========== Backend sources (right of layout) ========== -->
+        <!-- /api/operations/agents -->
+        <rect x="1062" y="132" width="116" height="0" rx="6"/>
+        <!-- note: backend shown inline via routing preview label above -->
+
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot cyan"></div><h3>Team Rail (left)</h3></div>
+        <ul>
+          <li>• <code>TeamRail</code> — container, filtered agent list</li>
+          <li>• <code>TeamHeader</code> — total agent count</li>
+          <li>• <code>TeamFilters</code> — all / live / idle / blocked</li>
+          <li>• <code>AgentCard</code> — per-agent row, click to focus</li>
+          <li>• <code>NewAgentModal</code> — register new agent</li>
+          <li>• Data: <code>useOperationsAgents()</code></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot cyan"></div><h3>Focus Panel (center)</h3></div>
+        <ul>
+          <li>• <code>FocusHero</code> — name, status badge, identity</li>
+          <li>• <code>FocusMission</code> — current mission / task</li>
+          <li>• <code>FocusActivity</code> — recent activity feed</li>
+          <li>• <code>FocusTools</code> — recently invoked tools</li>
+          <li>• <code>FocusRecentOutputs</code> — last outputs</li>
+          <li>• Data: <code>useOperationsAgent(focusedId)</code></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot emerald"></div><h3>Dispatch Panel + APIs</h3></div>
+        <ul>
+          <li>• <code>DispatchComposer</code> — task text input</li>
+          <li>• <code>DispatchModes</code> — single / broadcast / round-robin</li>
+          <li>• <code>RoutingPreview</code> — which agents receive task</li>
+          <li>• <code>GET /api/operations/agents</code> — agent list</li>
+          <li>• <code>GET /api/operations/agents/$id</code> — agent detail</li>
+          <li>• <code>POST /api/operations/dispatch</code> — send task</li>
+          <li>• <code>GET /api/operations/dispatch.preview</code> — routing preview</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">hermes-switchui · Operations Architecture · src/screens/agents/operations/</p>
+  </div>
+</body>
+</html>

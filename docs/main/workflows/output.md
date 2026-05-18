@@ -9,6 +9,14 @@ The run detail panel shows everything that happened during a workflow run: which
 
 > [SCREENSHOT: Run detail panel showing a completed run with node rows, status badges, and expandable output sections]
 
+<iframe
+  src="/api/docs-asset?path=diagrams/workflow-output-flow.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 ## What you see
 
 The run detail panel opens automatically after you start a run from the launch wizard. It is also accessible by selecting a past run from the run history list in the workflow editor.

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Workflow Run Sequence</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #22d3ee; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Hermes Switch UI — Workflow Run Sequence</h1>
+      </div>
+      <p class="subtitle">From clicking a workflow card to seeing live node status in the run detail panel</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 900">
+        <defs>
+          <marker id="arrowhead-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrowhead-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrowhead-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ============ LIFELINE HEADERS ============ -->
+        <!-- User -->
+        <rect x="30" y="30" width="100" height="44" rx="6" fill="#0f172a"/>
+        <rect x="30" y="30" width="100" height="44" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="80" y="50" fill="white" font-size="10" font-weight="600" text-anchor="middle">User</text>
+        <text x="80" y="65" fill="#94a3b8" font-size="8" text-anchor="middle">browser</text>
+
+        <!-- Launch Wizard -->
+        <rect x="185" y="30" width="130" height="44" rx="6" fill="#0f172a"/>
+        <rect x="185" y="30" width="130" height="44" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="250" y="50" fill="white" font-size="10" font-weight="600" text-anchor="middle">Launch Wizard</text>
+        <text x="250" y="65" fill="#22d3ee" font-size="8" text-anchor="middle">launch-wizard.tsx</text>
+
+        <!-- Workflow Engine -->
+        <rect x="390" y="30" width="140" height="44" rx="6" fill="#0f172a"/>
+        <rect x="390" y="30" width="140" height="44" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="460" y="50" fill="white" font-size="10" font-weight="600" text-anchor="middle">Workflow Engine</text>
+        <text x="460" y="65" fill="#34d399" font-size="8" text-anchor="middle">dag-executor.ts</text>
+
+        <!-- Projector -->
+        <rect x="600" y="30" width="130" height="44" rx="6" fill="#0f172a"/>
+        <rect x="600" y="30" width="130" height="44" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="665" y="50" fill="white" font-size="10" font-weight="600" text-anchor="middle">Projector</text>
+        <text x="665" y="65" fill="#34d399" font-size="8" text-anchor="middle">node-runs-projector.ts</text>
+
+        <!-- SSE bus -->
+        <rect x="800" y="30" width="130" height="44" rx="6" fill="#0f172a"/>
+        <rect x="800" y="30" width="130" height="44" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="865" y="50" fill="white" font-size="10" font-weight="600" text-anchor="middle">SSE bus</text>
+        <text x="865" y="65" fill="#34d399" font-size="8" text-anchor="middle">/api/workflow-events</text>
+
+        <!-- Run Detail Panel -->
+        <rect x="1000" y="30" width="140" height="44" rx="6" fill="#0f172a"/>
+        <rect x="1000" y="30" width="140" height="44" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="1070" y="50" fill="white" font-size="10" font-weight="600" text-anchor="middle">Run Detail Panel</text>
+        <text x="1070" y="65" fill="#22d3ee" font-size="8" text-anchor="middle">run-detail-panel.tsx</text>
+
+        <!-- ============ LIFELINES (vertical dashed) ============ -->
+        <line x1="80" y1="76" x2="80" y2="870" stroke="#475569" stroke-width="1" stroke-dasharray="4,4"/>
+        <line x1="250" y1="76" x2="250" y2="870" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4,4" opacity="0.4"/>
+        <line x1="460" y1="76" x2="460" y2="870" stroke="#34d399" stroke-width="1" stroke-dasharray="4,4" opacity="0.4"/>
+        <line x1="665" y1="76" x2="665" y2="870" stroke="#34d399" stroke-width="1" stroke-dasharray="4,4" opacity="0.4"/>
+        <line x1="865" y1="76" x2="865" y2="870" stroke="#34d399" stroke-width="1" stroke-dasharray="4,4" opacity="0.4"/>
+        <line x1="1070" y1="76" x2="1070" y2="870" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4,4" opacity="0.4"/>
+
+        <!-- ============ STEP 1: User clicks card ============ -->
+        <text x="30" y="116" fill="#475569" font-size="9" font-weight="600">1</text>
+        <line x1="80" y1="120" x2="248" y2="120" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowhead-slate)"/>
+        <text x="165" y="113" fill="white" font-size="9" text-anchor="middle">click workflow card</text>
+
+        <!-- wizard opens -->
+        <rect x="220" y="130" width="60" height="22" rx="3" fill="rgba(8, 51, 68, 0.6)" stroke="#22d3ee" stroke-width="0.75"/>
+        <text x="250" y="145" fill="#22d3ee" font-size="8" text-anchor="middle">wizard opens</text>
+
+        <!-- ============ STEP 2: Wizard steps ============ -->
+        <text x="30" y="186" fill="#475569" font-size="9" font-weight="600">2</text>
+
+        <!-- Step 1 Plan box on wizard lifeline -->
+        <rect x="185" y="162" width="130" height="22" rx="3" fill="rgba(8, 51, 68, 0.5)" stroke="#22d3ee" stroke-width="0.75"/>
+        <text x="250" y="177" fill="white" font-size="8" text-anchor="middle">Step 1 — Plan</text>
+        <text x="165" y="197" fill="#94a3b8" font-size="7.5" text-anchor="middle">review summary · inputs · run context</text>
+
+        <rect x="185" y="202" width="130" height="22" rx="3" fill="rgba(8, 51, 68, 0.5)" stroke="#22d3ee" stroke-width="0.75"/>
+        <text x="250" y="217" fill="white" font-size="8" text-anchor="middle">Step 2 — Route</text>
+        <text x="165" y="237" fill="#94a3b8" font-size="7.5" text-anchor="middle">DAG node graph preview · agent hints</text>
+
+        <rect x="185" y="242" width="130" height="22" rx="3" fill="rgba(8, 51, 68, 0.5)" stroke="#22d3ee" stroke-width="0.75"/>
+        <text x="250" y="257" fill="white" font-size="8" text-anchor="middle">Step 3 — Schedule</text>
+        <text x="165" y="277" fill="#94a3b8" font-size="7.5" text-anchor="middle">run-now or cron trigger</text>
+
+        <rect x="185" y="282" width="130" height="22" rx="3" fill="rgba(8, 51, 68, 0.5)" stroke="#22d3ee" stroke-width="0.75"/>
+        <text x="250" y="297" fill="white" font-size="8" text-anchor="middle">Step 4 — Confirm</text>
+        <text x="165" y="317" fill="#94a3b8" font-size="7.5" text-anchor="middle">final review before submit</text>
+
+        <!-- ============ STEP 3: Submit ============ -->
+        <text x="30" y="346" fill="#475569" font-size="9" font-weight="600">3</text>
+        <line x1="80" y1="350" x2="248" y2="350" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowhead-slate)"/>
+        <text x="165" y="343" fill="white" font-size="9" text-anchor="middle">click "Submit as Workflow Run"</text>
+
+        <!-- ============ STEP 4: POST to engine ============ -->
+        <text x="30" y="390" fill="#475569" font-size="9" font-weight="600">4</text>
+        <line x1="250" y1="390" x2="458" y2="390" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead-cyan)"/>
+        <text x="354" y="383" fill="#22d3ee" font-size="8" text-anchor="middle">POST /api/workflow-runs</text>
+        <!-- engine acks -->
+        <line x1="458" y1="406" x2="252" y2="406" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrowhead-slate)"/>
+        <text x="354" y="400" fill="#94a3b8" font-size="7.5" text-anchor="middle">200 { runId }</text>
+
+        <!-- engine starts DAG executor -->
+        <rect x="430" y="418" width="60" height="22" rx="3" fill="rgba(6, 78, 59, 0.6)" stroke="#34d399" stroke-width="0.75"/>
+        <text x="460" y="433" fill="#34d399" font-size="8" text-anchor="middle">starts DAG</text>
+
+        <!-- ============ STEP 5: Node execution loop ============ -->
+        <text x="30" y="470" fill="#475569" font-size="9" font-weight="600">5</text>
+
+        <!-- loop box -->
+        <rect x="380" y="454" width="160" height="250" rx="6" fill="rgba(6, 78, 59, 0.06)" stroke="#34d399" stroke-width="1" stroke-dasharray="6,3"/>
+        <text x="460" y="472" fill="#34d399" font-size="8" text-anchor="middle">for each node (topo order)</text>
+
+        <!-- node-start event -->
+        <line x1="460" y1="488" x2="663" y2="488" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+        <text x="562" y="481" fill="#34d399" font-size="8" text-anchor="middle">emit node_started</text>
+
+        <!-- node output event -->
+        <line x1="460" y1="524" x2="663" y2="524" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+        <text x="562" y="517" fill="#34d399" font-size="8" text-anchor="middle">emit node_output (streaming)</text>
+
+        <!-- node end event -->
+        <line x1="460" y1="560" x2="663" y2="560" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+        <text x="562" y="553" fill="#34d399" font-size="8" text-anchor="middle">emit node_completed / node_failed</text>
+
+        <!-- node execution box -->
+        <rect x="390" y="572" width="140" height="120" rx="4" fill="rgba(6, 78, 59, 0.15)" stroke="#34d399" stroke-width="0.75" stroke-dasharray="3,2"/>
+        <text x="460" y="590" fill="#94a3b8" font-size="7.5" text-anchor="middle">executor.ts runs node:</text>
+        <text x="460" y="604" fill="#94a3b8" font-size="7.5" text-anchor="middle">command → Claude SDK call</text>
+        <text x="460" y="618" fill="#94a3b8" font-size="7.5" text-anchor="middle">bash/script → child_process</text>
+        <text x="460" y="632" fill="#94a3b8" font-size="7.5" text-anchor="middle">approval → pause + wait</text>
+        <text x="460" y="646" fill="#94a3b8" font-size="7.5" text-anchor="middle">subgraph → recurse</text>
+        <text x="460" y="660" fill="#94a3b8" font-size="7.5" text-anchor="middle">cancel → mark run cancelled</text>
+        <text x="460" y="674" fill="#94a3b8" font-size="7.5" text-anchor="middle">loop → iterate until done</text>
+        <text x="460" y="688" fill="#94a3b8" font-size="7.5" text-anchor="middle">bash → shell subprocess</text>
+
+        <!-- ============ STEP 6: Projector aggregates ============ -->
+        <text x="30" y="740" fill="#475569" font-size="9" font-weight="600">6</text>
+
+        <!-- projector writes node_runs -->
+        <rect x="635" y="724" width="60" height="22" rx="3" fill="rgba(6, 78, 59, 0.6)" stroke="#34d399" stroke-width="0.75"/>
+        <text x="665" y="739" fill="#34d399" font-size="8" text-anchor="middle">write node_run</text>
+
+        <!-- projector → SSE -->
+        <line x1="665" y1="746" x2="663" y2="760" stroke="#34d399" stroke-width="1"/>
+        <line x1="665" y1="760" x2="863" y2="760" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+        <text x="764" y="754" fill="#34d399" font-size="8" text-anchor="middle">relay to SSE subscribers</text>
+
+        <!-- ============ STEP 7: SSE broadcasts ============ -->
+        <text x="30" y="800" fill="#475569" font-size="9" font-weight="600">7</text>
+
+        <line x1="865" y1="790" x2="1068" y2="790" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead-cyan)"/>
+        <text x="967" y="783" fill="#22d3ee" font-size="8" text-anchor="middle">SSE event chunk</text>
+
+        <!-- ============ STEP 8: Run panel updates ============ -->
+        <text x="30" y="840" fill="#475569" font-size="9" font-weight="600">8</text>
+
+        <rect x="1040" y="824" width="60" height="22" rx="3" fill="rgba(8, 51, 68, 0.6)" stroke="#22d3ee" stroke-width="0.75"/>
+        <text x="1070" y="839" fill="#22d3ee" font-size="8" text-anchor="middle">update UI</text>
+        <text x="1070" y="860" fill="#94a3b8" font-size="7.5" text-anchor="middle">node badges · output · status</text>
+
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot cyan"></div><h3>Launch wizard (4 steps)</h3></div>
+        <ul>
+          <li>• Step 1 Plan — review summary, inputs, context</li>
+          <li>• Step 2 Route — DAG graph preview + agent hints</li>
+          <li>• Step 3 Schedule — run-now or cron trigger</li>
+          <li>• Step 4 Confirm — final review before POST</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot emerald"></div><h3>Engine + Projector</h3></div>
+        <ul>
+          <li>• DAG executor runs nodes in topological order</li>
+          <li>• Emits node_started / node_output / node_completed</li>
+          <li>• Projector writes node_runs rows after each event</li>
+          <li>• Approval nodes pause execution waiting for user</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot cyan"></div><h3>SSE + Run detail panel</h3></div>
+        <ul>
+          <li>• use-workflow-events hook opens EventSource</li>
+          <li>• Each SSE chunk updates Zustand run state</li>
+          <li>• Node badges flip: pending → running → done</li>
+          <li>• Output bodies expandable per node</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">
+      Hermes Switch UI  •  workflow run sequence
+    </p>
+  </div>
+</body>
+</html>

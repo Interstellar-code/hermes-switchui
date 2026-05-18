@@ -7,6 +7,14 @@ description: Steps to take when Hermes Switch UI cannot reach the hermes-agent g
 
 > When the app shows "Agent unavailable", sessions won't load, or chat doesn't respond, walk this checklist top to bottom.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/agent-connect-diagnostic.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 The app talks to the Hermes Agent gateway over HTTP. If chat is broken, in almost every case one of five things is wrong. Check them in this order.
 
 ## 1. The agent process isn't running

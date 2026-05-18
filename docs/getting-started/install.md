@@ -7,6 +7,14 @@ description: How to install and launch Hermes Switch UI.
 
 > Hermes Switch UI runs as two paired processes: the web app on port `3000` and the **Hermes Agent** gateway on port `8642`. Most install methods set both up for you.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/install-paths.html"
+  width="100%"
+  height="820"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 Pick the method that matches how you plan to use the app:
 
 | Method | Best for | What you get |

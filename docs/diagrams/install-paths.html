@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Install Paths</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #22d3ee; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Hermes Switch UI — Install Paths</h1>
+      </div>
+      <p class="subtitle">Four methods to get both processes running — pick the one that fits your setup</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 760">
+        <defs>
+          <marker id="arrow-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrow-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrow-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <marker id="arrow-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ============ Column headers ============ -->
+        <!-- Docker -->
+        <rect x="30" y="30" width="240" height="50" rx="6" fill="#0f172a"/>
+        <rect x="30" y="30" width="240" height="50" rx="6" fill="rgba(8, 51, 68, 0.5)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="150" y="52" fill="white" font-size="13" font-weight="700" text-anchor="middle">Docker</text>
+        <text x="150" y="68" fill="#94a3b8" font-size="9" text-anchor="middle">most users — managed images</text>
+
+        <!-- Electron -->
+        <rect x="295" y="30" width="240" height="50" rx="6" fill="#0f172a"/>
+        <rect x="295" y="30" width="240" height="50" rx="6" fill="rgba(180, 83, 9, 0.25)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="415" y="52" fill="white" font-size="13" font-weight="700" text-anchor="middle">Electron Desktop</text>
+        <text x="415" y="68" fill="#94a3b8" font-size="9" text-anchor="middle">single-user laptop — no terminal</text>
+
+        <!-- pnpm dev -->
+        <rect x="560" y="30" width="240" height="50" rx="6" fill="#0f172a"/>
+        <rect x="560" y="30" width="240" height="50" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="680" y="52" fill="white" font-size="13" font-weight="700" text-anchor="middle">pnpm dev</text>
+        <text x="680" y="68" fill="#94a3b8" font-size="9" text-anchor="middle">contributors, debugging</text>
+
+        <!-- Production node -->
+        <rect x="825" y="30" width="345" height="50" rx="6" fill="#0f172a"/>
+        <rect x="825" y="30" width="345" height="50" rx="6" fill="rgba(76, 29, 149, 0.3)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="997" y="52" fill="white" font-size="13" font-weight="700" text-anchor="middle">Production Node Build</text>
+        <text x="997" y="68" fill="#94a3b8" font-size="9" text-anchor="middle">self-hosted server / remote deploy</text>
+
+        <!-- ============ DOCKER steps ============ -->
+        <!-- Step 1 -->
+        <rect x="50" y="120" width="200" height="44" rx="6" fill="#0f172a"/>
+        <rect x="50" y="120" width="200" height="44" rx="6" fill="rgba(8, 51, 68, 0.35)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="150" y="138" fill="white" font-size="10" font-weight="600" text-anchor="middle">git clone</text>
+        <text x="150" y="153" fill="#94a3b8" font-size="8" text-anchor="middle">Interstellar-code/hermes-switchui</text>
+
+        <line x1="150" y1="164" x2="150" y2="184" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+        <!-- Step 2 -->
+        <rect x="50" y="184" width="200" height="44" rx="6" fill="#0f172a"/>
+        <rect x="50" y="184" width="200" height="44" rx="6" fill="rgba(8, 51, 68, 0.35)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="150" y="202" fill="white" font-size="10" font-weight="600" text-anchor="middle">cp .env.example .env</text>
+        <text x="150" y="217" fill="#94a3b8" font-size="8" text-anchor="middle">copy env template</text>
+
+        <line x1="150" y1="228" x2="150" y2="248" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+        <!-- Step 3 -->
+        <rect x="50" y="248" width="200" height="44" rx="6" fill="#0f172a"/>
+        <rect x="50" y="248" width="200" height="44" rx="6" fill="rgba(8, 51, 68, 0.35)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="150" y="266" fill="white" font-size="10" font-weight="600" text-anchor="middle">add API key to .env</text>
+        <text x="150" y="281" fill="#94a3b8" font-size="8" text-anchor="middle">ANTHROPIC_API_KEY etc.</text>
+
+        <line x1="150" y1="292" x2="150" y2="312" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+        <!-- Step 4 -->
+        <rect x="50" y="312" width="200" height="44" rx="6" fill="#0f172a"/>
+        <rect x="50" y="312" width="200" height="44" rx="6" fill="rgba(8, 51, 68, 0.35)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="150" y="330" fill="white" font-size="10" font-weight="600" text-anchor="middle">docker compose up</text>
+        <text x="150" y="345" fill="#94a3b8" font-size="8" text-anchor="middle">starts UI + agent containers</text>
+
+        <!-- down to converge line -->
+        <line x1="150" y1="356" x2="150" y2="560" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <!-- ============ ELECTRON steps ============ -->
+        <rect x="315" y="120" width="200" height="44" rx="6" fill="#0f172a"/>
+        <rect x="315" y="120" width="200" height="44" rx="6" fill="rgba(180, 83, 9, 0.2)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="415" y="138" fill="white" font-size="10" font-weight="600" text-anchor="middle">download installer</text>
+        <text x="415" y="153" fill="#94a3b8" font-size="8" text-anchor="middle">.dmg / .exe / .AppImage</text>
+
+        <line x1="415" y1="164" x2="415" y2="184" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+
+        <rect x="315" y="184" width="200" height="44" rx="6" fill="#0f172a"/>
+        <rect x="315" y="184" width="200" height="44" rx="6" fill="rgba(180, 83, 9, 0.2)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="415" y="202" fill="white" font-size="10" font-weight="600" text-anchor="middle">run installer</text>
+        <text x="415" y="217" fill="#94a3b8" font-size="8" text-anchor="middle">follow OS install wizard</text>
+
+        <line x1="415" y1="228" x2="415" y2="248" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+
+        <rect x="315" y="248" width="200" height="44" rx="6" fill="#0f172a"/>
+        <rect x="315" y="248" width="200" height="44" rx="6" fill="rgba(180, 83, 9, 0.2)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="415" y="266" fill="white" font-size="10" font-weight="600" text-anchor="middle">launch app</text>
+        <text x="415" y="281" fill="#94a3b8" font-size="8" text-anchor="middle">agent auto-starts on first run</text>
+
+        <line x1="415" y1="292" x2="415" y2="560" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <!-- ============ PNPM DEV steps ============ -->
+        <rect x="580" y="120" width="200" height="44" rx="6" fill="#0f172a"/>
+        <rect x="580" y="120" width="200" height="44" rx="6" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="680" y="138" fill="white" font-size="10" font-weight="600" text-anchor="middle">git clone</text>
+        <text x="680" y="153" fill="#94a3b8" font-size="8" text-anchor="middle">Interstellar-code/hermes-switchui</text>
+
+        <line x1="680" y1="164" x2="680" y2="184" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+
+        <rect x="580" y="184" width="200" height="44" rx="6" fill="#0f172a"/>
+        <rect x="580" y="184" width="200" height="44" rx="6" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="680" y="202" fill="white" font-size="10" font-weight="600" text-anchor="middle">pnpm install</text>
+        <text x="680" y="217" fill="#94a3b8" font-size="8" text-anchor="middle">install node dependencies</text>
+
+        <line x1="680" y1="228" x2="680" y2="248" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+
+        <rect x="580" y="248" width="200" height="44" rx="6" fill="#0f172a"/>
+        <rect x="580" y="248" width="200" height="44" rx="6" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="680" y="266" fill="white" font-size="10" font-weight="600" text-anchor="middle">cp .env.example .env</text>
+        <text x="680" y="281" fill="#94a3b8" font-size="8" text-anchor="middle">copy env template</text>
+
+        <line x1="680" y1="292" x2="680" y2="312" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+
+        <rect x="580" y="312" width="200" height="44" rx="6" fill="#0f172a"/>
+        <rect x="580" y="312" width="200" height="44" rx="6" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="680" y="330" fill="white" font-size="10" font-weight="600" text-anchor="middle">pnpm dev</text>
+        <text x="680" y="345" fill="#94a3b8" font-size="8" text-anchor="middle">UI + agent auto-start</text>
+
+        <line x1="680" y1="356" x2="680" y2="560" stroke="#34d399" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <!-- ============ PRODUCTION NODE steps ============ -->
+        <rect x="845" y="120" width="305" height="44" rx="6" fill="#0f172a"/>
+        <rect x="845" y="120" width="305" height="44" rx="6" fill="rgba(76, 29, 149, 0.2)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="997" y="138" fill="white" font-size="10" font-weight="600" text-anchor="middle">git clone</text>
+        <text x="997" y="153" fill="#94a3b8" font-size="8" text-anchor="middle">Interstellar-code/hermes-switchui</text>
+
+        <line x1="997" y1="164" x2="997" y2="184" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrow-violet)"/>
+
+        <rect x="845" y="184" width="305" height="44" rx="6" fill="#0f172a"/>
+        <rect x="845" y="184" width="305" height="44" rx="6" fill="rgba(76, 29, 149, 0.2)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="997" y="202" fill="white" font-size="10" font-weight="600" text-anchor="middle">pnpm install</text>
+        <text x="997" y="217" fill="#94a3b8" font-size="8" text-anchor="middle">install node dependencies</text>
+
+        <line x1="997" y1="228" x2="997" y2="248" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrow-violet)"/>
+
+        <rect x="845" y="248" width="305" height="44" rx="6" fill="#0f172a"/>
+        <rect x="845" y="248" width="305" height="44" rx="6" fill="rgba(76, 29, 149, 0.2)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="997" y="266" fill="white" font-size="10" font-weight="600" text-anchor="middle">pnpm build</text>
+        <text x="997" y="281" fill="#94a3b8" font-size="8" text-anchor="middle">compiles to .output/</text>
+
+        <line x1="997" y1="292" x2="997" y2="312" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrow-violet)"/>
+
+        <rect x="845" y="312" width="305" height="44" rx="6" fill="#0f172a"/>
+        <rect x="845" y="312" width="305" height="44" rx="6" fill="rgba(76, 29, 149, 0.2)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="997" y="330" fill="white" font-size="10" font-weight="600" text-anchor="middle">start hermes-agent separately</text>
+        <text x="997" y="345" fill="#94a3b8" font-size="8" text-anchor="middle">python -m hermes_agent  on :8642</text>
+
+        <line x1="997" y1="356" x2="997" y2="376" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrow-violet)"/>
+
+        <rect x="845" y="376" width="305" height="44" rx="6" fill="#0f172a"/>
+        <rect x="845" y="376" width="305" height="44" rx="6" fill="rgba(76, 29, 149, 0.2)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="997" y="394" fill="white" font-size="10" font-weight="600" text-anchor="middle">pnpm start</text>
+        <text x="997" y="409" fill="#94a3b8" font-size="8" text-anchor="middle">runs .output/server/index.mjs on :3000</text>
+
+        <line x1="997" y1="420" x2="997" y2="560" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+        <!-- ============ Converge line ============ -->
+        <line x1="150" y1="560" x2="997" y2="560" stroke="#475569" stroke-width="1.5"/>
+
+        <!-- ============ Verify box ============ -->
+        <rect x="350" y="575" width="500" height="130" rx="8" fill="#0f172a"/>
+        <rect x="350" y="575" width="500" height="130" rx="8" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="600" y="598" fill="white" font-size="13" font-weight="700" text-anchor="middle">Verify install</text>
+
+        <text x="380" y="622" fill="#94a3b8" font-size="10">1.</text>
+        <text x="395" y="622" fill="white" font-size="10">Open browser to</text>
+        <text x="530" y="622" fill="#22d3ee" font-size="10" font-weight="600">localhost:3000</text>
+
+        <text x="380" y="645" fill="#94a3b8" font-size="10">2.</text>
+        <text x="395" y="645" fill="white" font-size="10">Check agent health:</text>
+        <text x="530" y="645" fill="#34d399" font-size="10" font-weight="600">localhost:8642/health</text>
+
+        <text x="380" y="668" fill="#94a3b8" font-size="10">3.</text>
+        <text x="395" y="668" fill="white" font-size="10">Send a test chat message — tokens should stream back</text>
+
+        <!-- convergence arrows down to verify -->
+        <line x1="150" y1="560" x2="350" y2="600" stroke="#475569" stroke-width="1" stroke-dasharray="3,3"/>
+        <line x1="997" y1="560" x2="850" y2="600" stroke="#475569" stroke-width="1" stroke-dasharray="3,3"/>
+
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot cyan"></div><h3>Docker (recommended)</h3></div>
+        <ul>
+          <li>• Both processes in pre-built containers</li>
+          <li>• Survives reboots via restart policy</li>
+          <li>• Minimal local tooling required</li>
+          <li>• GPU passthrough possible via compose</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot amber"></div><h3>Electron Desktop</h3></div>
+        <ul>
+          <li>• Native installer — no terminal after setup</li>
+          <li>• Agent auto-starts with the app window</li>
+          <li>• Auto-updater handles future releases</li>
+          <li>• Single-user, local-machine focus</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot emerald"></div><h3>pnpm dev / Production Node</h3></div>
+        <ul>
+          <li>• Source checkout — hot reload in dev mode</li>
+          <li>• pnpm dev auto-starts the agent sidecar</li>
+          <li>• Production build outputs to .output/</li>
+          <li>• Bind HERMES_PASSWORD for remote access</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">
+      Hermes Switch UI  •  install paths  •  all methods converge on localhost:3000 + :8642/health
+    </p>
+  </div>
+</body>
+</html>

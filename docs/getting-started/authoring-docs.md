@@ -127,6 +127,37 @@ graph LR
 
 The renderer converts these to SVG client-side. Mermaid is well-suited to workflow diagrams, architecture overviews, and sequence diagrams. Keep diagrams focused — one concept per diagram.
 
+### HTML diagrams (architecture)
+
+For richer diagrams — system architecture, infra topology, cloud diagrams — you can embed a standalone HTML file. The Hermes Agent's `architecture-diagram` skill generates dark-themed SVG diagrams as HTML files which you can drop into docs.
+
+Workflow:
+
+1. Ask your agent to generate a diagram using the `architecture-diagram` skill — describe what you want shown (services, layers, connections).
+2. Save the resulting `.html` file under `docs/<section>/diagrams/<name>.html` (create a `diagrams/` folder per section).
+3. Embed it in your doc via iframe:
+
+   ```markdown
+   <iframe
+     src="/api/docs-asset?path=<section>/diagrams/<name>.html"
+     width="100%"
+     height="600"
+     loading="lazy"
+     style="border: 0; border-radius: 8px;"
+   ></iframe>
+   ```
+
+The doc renderer serves these HTML files with strict Content-Security-Policy headers (no scripts allowed), so they are safe to embed even from untrusted sources. Only static SVG/CSS content is supported.
+
+Use this when:
+- Mermaid is too limited (you need precise positioning, custom shapes, brand styling)
+- You want a one-page architecture poster
+- You have a complex topology that benefits from visual hierarchy
+
+Stick with mermaid for:
+- Simple flowcharts and sequence diagrams
+- Diagrams that change frequently (mermaid is easier to edit)
+
 ## Code blocks
 
 Use fenced code blocks with a language hint for syntax highlighting:

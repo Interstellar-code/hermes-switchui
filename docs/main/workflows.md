@@ -9,6 +9,14 @@ Workflows let you run structured, multi-step sequences of AI agent tasks without
 
 > [SCREENSHOT: Workflows page showing the grid of workflow cards with a sidebar filter panel]
 
+<iframe
+  src="/api/docs-asset?path=diagrams/workflows-architecture.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 ## What you see
 
 The Workflows page (`/workflows`) has three main areas:

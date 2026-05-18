@@ -14,7 +14,11 @@ const ALLOWED_EXTENSIONS: Record<string, string> = {
   '.svg': 'image/svg+xml',
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
+  '.html': 'text/html; charset=utf-8',
+  '.htm': 'text/html; charset=utf-8',
 }
+
+const HTML_EXTENSIONS = new Set(['.html', '.htm'])
 
 export const Route = createFileRoute('/api/docs-asset')({
   server: {
@@ -72,14 +76,18 @@ export const Route = createFileRoute('/api/docs-asset')({
         }
 
         const buffer = fs.readFileSync(resolved)
-        return new Response(buffer, {
-          status: 200,
-          headers: {
-            'Content-Type': contentType,
-            'Content-Length': String(stat.size),
-            'Cache-Control': 'private, max-age=300',
-          },
-        })
+        const headers: Record<string, string> = {
+          'Content-Type': contentType,
+          'Content-Length': String(stat.size),
+          'Cache-Control': 'private, max-age=300',
+        }
+        if (HTML_EXTENSIONS.has(ext)) {
+          headers['Content-Security-Policy'] =
+            "default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'self'"
+          headers['X-Content-Type-Options'] = 'nosniff'
+          headers['X-Frame-Options'] = 'SAMEORIGIN'
+        }
+        return new Response(buffer, { status: 200, headers })
       },
     },
   },

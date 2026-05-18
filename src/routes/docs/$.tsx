@@ -71,7 +71,7 @@ function DocsCatchAll() {
   if (!data?.page || !data.html) return null
 
   return (
-    <div className="flex gap-8 px-8 py-8">
+    <div className="flex gap-8 py-8 pl-8">
       <article className="min-w-0 flex-1">
         <h1 className="mb-2 text-3xl font-bold tracking-tight text-[var(--theme-text)]">
           {data.page.title}
