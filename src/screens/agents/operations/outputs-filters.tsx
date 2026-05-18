@@ -1,6 +1,6 @@
 import { useOperationsUIStore } from '../../../stores/operations-ui-store'
-import { OUTPUTS } from './mock-data'
 import type { OutputsFilter } from '../../../stores/operations-ui-store'
+import { useOperationsOutputs } from './use-operations-queries'
 
 const FILTER_TABS: Array<{ key: OutputsFilter; label: string }> = [
   { key: 'all', label: 'all' },
@@ -10,14 +10,16 @@ const FILTER_TABS: Array<{ key: OutputsFilter; label: string }> = [
   { key: 'media', label: 'media' },
 ]
 
-function countFor(key: OutputsFilter): number {
-  if (key === 'all') return OUTPUTS.length
-  return OUTPUTS.filter((o) => o.type === key).length
-}
-
 export function OutputsFilters() {
   const outputsFilter = useOperationsUIStore((s) => s.outputsFilter)
   const setOutputsFilter = useOperationsUIStore((s) => s.setOutputsFilter)
+  const { data: outputs } = useOperationsOutputs()
+  const all = outputs ?? []
+
+  function countFor(key: OutputsFilter): number {
+    if (key === 'all') return all.length
+    return all.filter((o) => o.type === key).length
+  }
 
   return (
     <div className="filters">

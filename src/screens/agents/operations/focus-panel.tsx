@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { useOperationsUIStore } from '../../../stores/operations-ui-store'
 import { useOperationsAgent, useOperationsAgents } from './use-operations-queries'
-import { FOCUS_DATA } from './mock-data'
 import { FocusHero } from './focus-hero'
 import { FocusMission } from './focus-mission'
 import { FocusActivity } from './focus-activity'
@@ -21,19 +20,30 @@ export function FocusPanel() {
     }
   }, [focusedAgentId, agents, setFocusedAgentId])
 
-  const { data: focusData } = useOperationsAgent(focusedAgentId)
+  const { data: focusData, isLoading } = useOperationsAgent(focusedAgentId)
 
-  // Use queried data if available, else fall back to static mock for initial render
-  const data = focusData ?? FOCUS_DATA
+  if (!focusData) {
+    return (
+      <section className="ops-focus">
+        <div className="ops-focus-empty">
+          {isLoading
+            ? 'Loading agent…'
+            : agents && agents.length === 0
+              ? 'Gateway offline · no live agents'
+              : 'Select an agent to view detail'}
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="ops-focus">
-      <FocusHero data={data} />
+      <FocusHero data={focusData} />
       <div className="focus-grid">
-        <FocusMission mission={data.mission} />
-        <FocusActivity items={data.activity} />
-        <FocusTools tools={data.tools} />
-        <FocusRecentOutputs outputs={data.outputs} />
+        <FocusMission mission={focusData.mission} />
+        <FocusActivity items={focusData.activity} />
+        <FocusTools tools={focusData.tools} />
+        <FocusRecentOutputs outputs={focusData.outputs} />
       </div>
     </section>
   )

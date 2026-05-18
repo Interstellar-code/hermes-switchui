@@ -1,4 +1,4 @@
-import type { ToolItem } from './mock-data'
+import type { ToolItem } from '../../../server/operations-store'
 
 interface FocusToolsProps {
   tools: ToolItem[]

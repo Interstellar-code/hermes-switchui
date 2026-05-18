@@ -6,7 +6,6 @@
  */
 
 import { create } from 'zustand'
-import { AGENTS } from '../screens/agents/operations/mock-data'
 
 export type TeamFilter = 'all' | 'live' | 'idle' | 'issues'
 export type OutputsFilter = 'all' | 'code' | 'docs' | 'data' | 'media'
@@ -50,13 +49,12 @@ function saveDispatchDraft(draft: string): void {
   }
 }
 
-const firstAgentId = AGENTS[0]?.id ?? null
-
 export const useOperationsUIStore = create<OperationsUIState & OperationsUIActions>()((set) => ({
   teamFilter: 'all',
   outputsFilter: 'all',
   dispatchMode: 'auto',
-  focusedAgentId: firstAgentId,
+  // Seeded null — FocusPanel resolves to the first live agent on first render.
+  focusedAgentId: null,
   dispatchDraft: loadDispatchDraft(),
   autoRefresh: true,
   newAgentModalOpen: false,

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { useOperationsUIStore } from '../../../stores/operations-ui-store'
-import { DISPATCH_DATA } from './mock-data'
 
 interface RoutingStep {
   num: number
@@ -48,20 +47,18 @@ export function RoutingPreview() {
     }
   }, [dispatchDraft, dispatchMode])
 
-  const { routingPreview } = DISPATCH_DATA
+  if (!preview) {
+    return (
+      <div className="disp-preview">
+        <div className="disp-preview-lbl">routing preview</div>
+        <div className="disp-preview-empty">
+          {dispatchDraft.trim() ? 'computing route…' : 'type a prompt to preview routing'}
+        </div>
+      </div>
+    )
+  }
 
-  // Use live preview if available, else static mock
-  const steps = preview
-    ? preview.steps.map((s) => ({
-        num: s.num,
-        agent: s.agent,
-        desc: s.desc,
-        conf: s.conf,
-        variant: s.variant,
-      }))
-    : routingPreview.steps
-  const estCost = preview ? preview.estCost : routingPreview.estCost
-  const estTime = preview ? preview.estTime : routingPreview.estTime
+  const { steps, estCost, estTime } = preview
 
   return (
     <div className="disp-preview">

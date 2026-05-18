@@ -1,4 +1,4 @@
-import type { OutputItem } from './mock-data'
+import type { OutputItem } from '../../../server/operations-store'
 
 interface FocusRecentOutputsProps {
   outputs: OutputItem[]
