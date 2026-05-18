@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLaunchWorkflowRun, useWorkflowParsed } from './use-workflows'
 import type { NodeType, WorkflowDagNode } from './types'
 
@@ -78,11 +78,6 @@ function computeWizardLayout(
 
 // ── Step 1 — Plan ─────────────────────────────────────────────────────────────
 
-interface ChatMsg {
-  role: 'switch' | 'user'
-  text: string
-}
-
 interface WizardData {
   id: string
   name: string
@@ -95,48 +90,26 @@ interface WizardData {
 
 function Step1Plan({
   wf,
-  onUserSent,
   userMessage,
   setUserMessage,
 }: {
   wf: WizardData
-  onUserSent: (sent: boolean) => void
   userMessage: string
   setUserMessage: (m: string) => void
 }) {
-  const [msgs, setMsgs] = useState<Array<ChatMsg>>([
-    {
-      role: 'switch',
-      text: `I see you want to launch **${wf.name}**. What's the issue number or repo context?`,
-    },
-  ])
-  const [draft, setDraft] = useState('')
-  const [hasSent, setHasSent] = useState(false)
-  const chatRef = useRef<HTMLDivElement>(null)
-
-  function send() {
-    const text = draft.trim()
-    if (!text) return
-    const newMsgs: Array<ChatMsg> = [
-      ...msgs,
-      { role: 'user', text },
-      {
-        role: 'switch',
-        text: `Understood. I'll use that context to configure the run. You can proceed to routing.`,
-      },
-    ]
-    setMsgs(newMsgs)
-    setUserMessage(text)
-    setDraft('')
-    if (!hasSent) {
-      setHasSent(true)
-      onUserSent(true)
-    }
-  }
-
-  useEffect(() => {
-    chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: 'smooth' })
-  }, [msgs])
+  const phases = Array.from(
+    new Set(wf.nodes.map((n) => n.phase).filter((p): p is string => Boolean(p))),
+  )
+  const agentHints = Array.from(
+    new Set(
+      wf.nodes
+        .map((n) => n.hermes_task?.agent_hint)
+        .filter((a): a is string => Boolean(a)),
+    ),
+  )
+  const skillSet = Array.from(
+    new Set(wf.nodes.flatMap((n) => n.hermes_task?.skills ?? [])),
+  )
 
   return (
     <div className="wfw-step-1">
@@ -163,28 +136,68 @@ function Step1Plan({
             ))}
           </div>
         )}
+        <div className="wfw-inputs-list">
+          <div className="wfw-inputs-label">Run context (optional)</div>
+          <textarea
+            className="wfw-chat-input"
+            style={{ minHeight: 80, padding: 8, resize: 'vertical', width: '100%' }}
+            placeholder="Issue number, repo, or extra prompt context…"
+            value={userMessage}
+            onChange={(e) => setUserMessage(e.target.value)}
+          />
+        </div>
       </div>
       <div className="wfw-s1-right">
-        <div className="wfw-chat-header">Hermes T1 Switch</div>
-        <div className="wfw-chat-msgs" ref={chatRef}>
-          {msgs.map((m, i) => (
-            <div key={i} className={`wfw-bubble wfw-bubble--${m.role}`}>
-              {m.role === 'switch' && <span className="wfw-bubble-sender">Switch</span>}
-              <span>{m.text}</span>
+        <div className="wfw-chat-header">Workflow overview</div>
+        <div className="wfw-chat-msgs">
+          <div className="wfw-inputs-list" style={{ marginBottom: 12 }}>
+            <div className="wfw-inputs-label">Stats</div>
+            <div className="wfw-input-item">
+              <span className="wfw-input-name">{wf.nodes.length} nodes</span>
             </div>
-          ))}
-        </div>
-        <div className="wfw-chat-input-row">
-          <input
-            className="wfw-chat-input"
-            placeholder="Type a message…"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && send()}
-          />
-          <button className="wfw-chat-send" onClick={send} disabled={!draft.trim()}>
-            Send
-          </button>
+            <div className="wfw-input-item">
+              <span className="wfw-input-name">{wf.edges.length} edges</span>
+            </div>
+            {phases.length > 0 && (
+              <div className="wfw-input-item">
+                <span className="wfw-input-name">Phases: {phases.join(' → ')}</span>
+              </div>
+            )}
+            {agentHints.length > 0 && (
+              <div className="wfw-input-item">
+                <span className="wfw-input-name">Agents: {agentHints.join(', ')}</span>
+              </div>
+            )}
+            {skillSet.length > 0 && (
+              <div className="wfw-input-item">
+                <span className="wfw-input-name">Skills: {skillSet.join(', ')}</span>
+              </div>
+            )}
+          </div>
+          <div className="wfw-inputs-label">Nodes</div>
+          {wf.nodes.map((n) => {
+            const agent = n.hermes_task?.agent_hint
+            const color = NODE_COLOR[n.type]
+            return (
+              <div
+                key={n.id}
+                className="wfw-bubble wfw-bubble--switch"
+                style={{ borderLeft: `3px solid ${color}` }}
+              >
+                <span className="wfw-bubble-sender">
+                  {n.type}
+                  {n.phase ? ` · ${n.phase}` : ''}
+                  {agent ? ` · ${agent}` : ''}
+                </span>
+                <span>{n.label || n.id}</span>
+              </div>
+            )
+          })}
+          {wf.nodes.length === 0 && (
+            <div className="wfw-bubble wfw-bubble--switch">
+              <span>No nodes defined.</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -534,7 +547,7 @@ interface LaunchWizardProps {
 
 export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizardProps) {
   const [step, setStep] = useState(1)
-  const [canAdvance, setCanAdvance] = useState(false)
+  const [canAdvance, setCanAdvance] = useState(true)
   const [agentMap, setAgentMap] = useState<Record<string, Agent>>({})
   const [userMessage, setUserMessage] = useState('')
   const [schedule, setSchedule] = useState<ScheduleState>({
@@ -551,7 +564,7 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
   // Reset state when workflow changes
   useEffect(() => {
     setStep(1)
-    setCanAdvance(false)
+    setCanAdvance(true)
     setAgentMap({})
     setUserMessage('')
     setSchedule({ mode: 'now', datetime: '', cron: '', priority: 'normal', maxRuntime: 3600 })
@@ -681,7 +694,6 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
           {step === 1 && (
             <Step1Plan
               wf={wf}
-              onUserSent={(sent) => setCanAdvance(sent)}
               userMessage={userMessage}
               setUserMessage={setUserMessage}
             />

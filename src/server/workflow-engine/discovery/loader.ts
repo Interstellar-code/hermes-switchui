@@ -4,7 +4,6 @@
 import type { WorkflowDefinition, WorkflowLoadError, DagNode, WorkflowNodeHooks } from '../schemas';
 import { isLoopNode, isApprovalNode, isCancelNode, isScriptNode } from '../schemas';
 import { createLogger } from '@archon/paths';
-import { isRegisteredProvider, getRegisteredProviders } from '@archon/providers';
 import {
   dagNodeSchema,
   BASH_NODE_AI_FIELDS,
@@ -289,36 +288,11 @@ export function parseWorkflow(content: string, filename: string): ParseResult {
       typeof raw.provider === 'string' && raw.provider.length > 0 ? raw.provider : undefined;
     const model = typeof raw.model === 'string' ? raw.model : undefined;
 
-    // Validate provider identity at load time, both at the workflow level and
-    // per node. Model strings are NOT validated — they pass through to the SDK
-    // at run time, which is the source of truth for what model names exist
-    // (vendor SDKs ship new models faster than Archon can update).
-    if (provider && !isRegisteredProvider(provider)) {
-      return {
-        workflow: null,
-        error: {
-          filename,
-          error: `Unknown provider '${provider}'. Registered: ${getRegisteredProviders()
-            .map(p => p.id)
-            .join(', ')}`,
-          errorType: 'validation_error',
-        },
-      };
-    }
-    for (const node of dagNodes) {
-      if (node.provider !== undefined && !isRegisteredProvider(node.provider)) {
-        return {
-          workflow: null,
-          error: {
-            filename,
-            error: `Node '${node.id}': unknown provider '${node.provider}'. Registered: ${getRegisteredProviders()
-              .map(p => p.id)
-              .join(', ')}`,
-            errorType: 'validation_error',
-          },
-        };
-      }
-    }
+    // Provider field is a routing hint only — Switch UI's single dispatcher
+    // (hermes-kanban) handles execution and Hermes workers pick the actual CLI
+    // based on Kanban task skills/agent_hint. No whitelist enforcement here;
+    // capability warnings in validation/validator.ts still fire when the value
+    // matches a registered provider id.
 
     // Validate modelReasoningEffort — warn and ignore invalid values (preserve original behavior)
     const modelReasoningEffortResult = modelReasoningEffortSchema.safeParse(

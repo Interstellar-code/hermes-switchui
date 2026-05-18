@@ -5,6 +5,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { getWorkflowEngine } from '../../server/workflow-engine';
+import { parseWorkflow } from '../../server/workflow-engine/discovery/loader';
 import { writeWorkflowsManifest } from '../../server/workflow-engine/runtime/manifest';
 import { createHash } from 'node:crypto';
 
@@ -84,6 +85,19 @@ export const Route = createFileRoute('/api/workflow-definitions')({
             return json({ error: 'tags must be a string[] when provided' }, 400);
           }
           tags = body.tags as string[];
+        }
+
+        // Parse-validate YAML before persisting so a malformed/bad-schema
+        // workflow can't poison the library page later (422 on /parsed read).
+        const validation = parseWorkflow(body.yaml, body.id);
+        if (validation.error !== null) {
+          return json(
+            {
+              error: validation.error.error,
+              errorType: validation.error.errorType,
+            },
+            422,
+          );
         }
 
         const checksum = createHash('sha256').update(body.yaml.replace(/\r\n/g, '\n')).digest('hex');
