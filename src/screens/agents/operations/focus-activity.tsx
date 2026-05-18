@@ -1,4 +1,4 @@
-import type { ActivityItem } from './mock-data'
+import type { ActivityItem } from '../../../server/operations-store'
 
 interface FocusActivityProps {
   items: ActivityItem[]

@@ -1,19 +1,31 @@
 /**
- * operations-store.ts — File-backed operations registry.
- * Data stored at ~/.hermes/operations/
- *   agents/<id>.json
- *   outputs/<id>.json
- *   state.json
- *   dispatches/<id>.json
+ * operations-store.ts — Live projections of the Operations UI from
+ * Hermes gateway sessions and the workflow-engine node_runs store.
+ *
+ * No seeded mocks. If the gateway is offline or the workflow engine is
+ * unavailable, projections return empty arrays / zeroed state. Callers
+ * never see a thrown error from listAgents()/listOutputs()/getState().
+ *
+ * Field mapping (Agent):
+ *   id          ← node_run.id OR session.id
+ *   name        ← node_run.assigned_agent / node.dag_node_id OR session.title/id
+ *   initials    ← first 2 chars of name uppercased
+ *   role        ← 'orchestrator' for fanout/router node_types, else 'worker'
+ *   status      ← live | idle | blocked | error  (mapped from node_run.status / session.is_active)
+ *   task        ← node_run.summary / dag_node_id  OR  session preview/title
+ *   capacityPct ← null today (gateway does not expose). UI displays 0.
+ *   tokens      ← session.input+output_tokens when present, else null
+ *   lastSeen    ← humanised heartbeat / last_active
+ *
+ * Outputs are projected from the latest completed node_runs that carry
+ * `artifact_refs`. Falls back to the most recent completed node_runs
+ * with a non-null `summary`.
  */
 
-import { randomBytes } from 'node:crypto'
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
+import type { ClaudeSession } from './hermes-api'
 
 // ---------------------------------------------------------------------------
-// Types
+// Types — kept stable so UI components don't need to change shape.
 // ---------------------------------------------------------------------------
 
 export type AgentStatus = 'live' | 'idle' | 'blocked' | 'error'
@@ -65,7 +77,7 @@ export interface FocusData {
   initials: string
   name: string
   role: string
-  status: 'live' | 'idle' | 'blocked' | 'error'
+  status: AgentStatus
   workerCount: number
   model: string
   profile: string
@@ -109,243 +121,475 @@ export interface Dispatch {
   createdAt: number
 }
 
-// ---------------------------------------------------------------------------
-// Paths
-// ---------------------------------------------------------------------------
-
-function opsDir(): string {
-  return join(homedir(), '.hermes', 'operations')
-}
-function agentsDir(): string {
-  return join(opsDir(), 'agents')
-}
-function outputsDir(): string {
-  return join(opsDir(), 'outputs')
-}
-function dispatchesDir(): string {
-  return join(opsDir(), 'dispatches')
-}
-function statePath(): string {
-  return join(opsDir(), 'state.json')
+export const EMPTY_STATE: OperationsState = {
+  live: 0,
+  total: 0,
+  tokenRate: '0',
+  queue: 0,
+  errors24h: 0,
+  spark: [],
 }
 
-async function ensureDirs(): Promise<void> {
-  await Promise.all([
-    mkdir(agentsDir(), { recursive: true }),
-    mkdir(outputsDir(), { recursive: true }),
-    mkdir(dispatchesDir(), { recursive: true }),
+// ---------------------------------------------------------------------------
+// Source readers (injectable so the test suite can stub them out).
+// ---------------------------------------------------------------------------
+
+export interface SourceReaders {
+  /** List active/recent sessions from the Hermes gateway. */
+  listSessions: () => Promise<Array<ClaudeSession>>
+  /** List recent node_runs from the workflow engine. */
+  listNodeRuns: () => Promise<Array<NodeRunRow>>
+}
+
+/** Minimal shape we need from a workflow-engine node_run row. */
+export interface NodeRunRow {
+  id: string
+  workflow_run_id: string
+  dag_node_id: string
+  node_type: string
+  status:
+    | 'pending'
+    | 'ready'
+    | 'running'
+    | 'paused'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
+    | 'skipped'
+  assigned_agent: string | null
+  summary: string | null
+  error: string | null
+  started_at: number | null
+  completed_at: number | null
+  artifact_refs:
+    | string
+    | Array<{ type?: string; label?: string; url?: string; path?: string }>
+    | null
+}
+
+async function defaultListSessions(): Promise<Array<ClaudeSession>> {
+  try {
+    const { listSessions } = await import('./hermes-api')
+    return await listSessions(50, 0)
+  } catch {
+    return []
+  }
+}
+
+async function defaultListNodeRuns(): Promise<Array<NodeRunRow>> {
+  try {
+    const { getWorkflowEngine } = await import('./workflow-engine')
+    const engine = await getWorkflowEngine()
+    // The store exposes a per-run lister; we widen here by enumerating runs.
+    const runs = engine.store.listWorkflowRuns({ limit: 50 }) as Array<{
+      id: string
+    }>
+    const all: Array<NodeRunRow> = []
+    for (const r of runs) {
+      const rows = engine.store.listNodeRuns(r.id) as Array<NodeRunRow>
+      for (const row of rows) all.push(row)
+    }
+    return all
+  } catch {
+    return []
+  }
+}
+
+let _readers: SourceReaders = {
+  listSessions: defaultListSessions,
+  listNodeRuns: defaultListNodeRuns,
+}
+
+/** Replace the readers — used by tests. */
+export function __setOperationsReaders(readers: Partial<SourceReaders>): void {
+  _readers = { ..._readers, ...readers }
+}
+
+/** Restore the production readers (default gateway + workflow-engine). */
+export function __resetOperationsReaders(): void {
+  _readers = {
+    listSessions: defaultListSessions,
+    listNodeRuns: defaultListNodeRuns,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Projection helpers
+// ---------------------------------------------------------------------------
+
+function makeInitials(name: string): string {
+  const clean = (name || '').trim()
+  if (clean.length === 0) return '··'
+  const parts = clean.split(/\s+/)
+  if (parts.length > 1 && parts[0].length > 0 && parts[1].length > 0) {
+    return (parts[0][0] + parts[1][0]).toUpperCase()
+  }
+  return clean.slice(0, 2).toUpperCase()
+}
+
+const ORCHESTRATOR_NODE_TYPES = new Set([
+  'fanout',
+  'router',
+  'router_decision',
+  'orchestrator',
+  'plan',
+  'subgraph',
+])
+
+function nodeRoleFor(nodeType: string): AgentRole {
+  return ORCHESTRATOR_NODE_TYPES.has(nodeType.toLowerCase()) ? 'orchestrator' : 'worker'
+}
+
+function nodeStatusToAgent(
+  s: NodeRunRow['status'],
+): AgentStatus {
+  switch (s) {
+    case 'running':
+      return 'live'
+    case 'paused':
+      return 'blocked'
+    case 'failed':
+      return 'error'
+    case 'pending':
+    case 'ready':
+      return 'idle'
+    default:
+      return 'idle'
+  }
+}
+
+function sessionStatus(session: ClaudeSession): AgentStatus {
+  if (session.end_reason === 'error') return 'error'
+  const active =
+    session.is_active === true ||
+    (!!session.last_active &&
+      !session.ended_at &&
+      Date.now() - (session.last_active ?? 0) * 1000 < 5 * 60 * 1000)
+  return active ? 'live' : 'idle'
+}
+
+function humaniseAgo(ms: number | null | undefined): string {
+  if (!ms || ms < 0) return '—'
+  const sec = Math.floor(ms / 1000)
+  if (sec < 5) return 'now'
+  if (sec < 60) return `${sec}s`
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `${min}m`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr}h`
+  return `${Math.floor(hr / 24)}d`
+}
+
+function formatHhmm(ms: number | null | undefined): string {
+  if (!ms) return '—'
+  const d = new Date(ms)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function compactTokens(n: number | null | undefined): string | null {
+  if (n == null || n <= 0) return null
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
+  return String(n)
+}
+
+function parseArtifactRefs(
+  raw: NodeRunRow['artifact_refs'],
+): Array<{ type?: string; label?: string; url?: string; path?: string }> {
+  if (raw == null) return []
+  if (Array.isArray(raw)) return raw
+  try {
+    const parsed = JSON.parse(raw) as Array<{
+      type?: string
+      label?: string
+      url?: string
+      path?: string
+    }>
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function outputTypeFor(name: string, hintedType?: string): OutputType {
+  const t = (hintedType ?? '').toLowerCase()
+  if (t === 'code' || t === 'docs' || t === 'data' || t === 'media') return t
+  const ext = name.toLowerCase().split('.').pop() ?? ''
+  if (['ts', 'tsx', 'js', 'jsx', 'py', 'go', 'rs', 'java', 'c', 'cpp'].includes(ext)) return 'code'
+  if (['md', 'mdx', 'txt', 'rst', 'draft'].includes(ext)) return 'docs'
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)) return 'media'
+  return 'data'
+}
+
+// ---------------------------------------------------------------------------
+// Projections
+// ---------------------------------------------------------------------------
+
+function nodeRunToAgent(row: NodeRunRow): Agent {
+  const name = row.assigned_agent ?? row.dag_node_id ?? row.id
+  const status = nodeStatusToAgent(row.status)
+  const lastTs = row.completed_at ?? row.started_at ?? null
+  const task = row.summary ?? row.dag_node_id ?? ''
+  return {
+    id: row.id,
+    initials: makeInitials(name),
+    name,
+    role: nodeRoleFor(row.node_type),
+    status,
+    task,
+    capacityPct: 0,
+    capacityVariant: status === 'error' ? 'err' : status === 'blocked' ? 'warn' : undefined,
+    tokens: null,
+    lastSeen: lastTs ? humaniseAgo(Date.now() - lastTs) : '—',
+  }
+}
+
+function sessionToAgent(session: ClaudeSession): Agent {
+  const name = session.title?.trim() || session.id
+  const status = sessionStatus(session)
+  const tokens = compactTokens(
+    (session.input_tokens ?? 0) + (session.output_tokens ?? 0),
+  )
+  const lastSec = session.last_active ?? session.started_at ?? null
+  return {
+    id: session.id,
+    initials: makeInitials(name),
+    name,
+    role: 'worker',
+    status,
+    task: session.preview?.trim() || session.title?.trim() || 'session active',
+    capacityPct: 0,
+    capacityVariant: status === 'error' ? 'err' : undefined,
+    tokens,
+    lastSeen: lastSec ? humaniseAgo(Date.now() - lastSec * 1000) : '—',
+  }
+}
+
+/**
+ * List agents = active node_runs UNION live sessions.
+ * Node runs whose status is terminal (completed/cancelled/skipped) are excluded.
+ */
+export async function listAgents(): Promise<Array<Agent>> {
+  const [sessions, nodeRuns] = await Promise.all([
+    safe(_readers.listSessions),
+    safe(_readers.listNodeRuns),
   ])
+
+  const active = nodeRuns.filter(
+    (n) => n.status !== 'completed' && n.status !== 'cancelled' && n.status !== 'skipped',
+  )
+  const nodeAgents = active.map(nodeRunToAgent)
+  const seenIds = new Set(nodeAgents.map((a) => a.id))
+
+  const sessionAgents = sessions
+    .filter((s) => !seenIds.has(s.id))
+    .map(sessionToAgent)
+
+  return [...nodeAgents, ...sessionAgents]
 }
 
-// ---------------------------------------------------------------------------
-// Seed data (mirrors mock-data.ts values)
-// ---------------------------------------------------------------------------
+/**
+ * Get the focus view for a single agent.
+ * Tries node_runs first (richer activity), then falls back to gateway session.
+ */
+export async function getAgent(id: string): Promise<FocusData | null> {
+  const [sessions, nodeRuns] = await Promise.all([
+    safe(_readers.listSessions),
+    safe(_readers.listNodeRuns),
+  ])
 
-const SEED_AGENTS: Array<Agent> = [
-  { id: 'sage', initials: 'SG', name: 'sage', role: 'orchestrator', status: 'live', task: 'routing · planning q4 portfolio rebalance', capacityPct: 64, tokens: '2.4k', lastSeen: 'now' },
-  { id: 'neo', initials: 'NE', name: 'neo', role: 'worker', status: 'live', task: 'scanning issue tracker · 14 PRs queued', capacityPct: 82, tokens: '1.1k', lastSeen: '4s' },
-  { id: 'workspace', initials: 'WS', name: 'workspace', role: 'worker', status: 'live', task: 'indexing /Users/rohits/.hermes', capacityPct: 38, tokens: '820', lastSeen: '1m' },
-  { id: 'pixel', initials: 'PX', name: 'pixel', role: 'worker', status: 'live', task: 'rendering preview frames · 12/24', capacityPct: 50, tokens: '680', lastSeen: 'now' },
-  { id: 'echo', initials: 'EC', name: 'echo', role: 'worker', status: 'live', task: 'summarising standup notes', capacityPct: 24, tokens: '410', lastSeen: '3s' },
-  { id: 'drift', initials: 'DR', name: 'drift', role: 'worker', status: 'blocked', task: 'awaiting review · PR #318', capacityPct: 100, capacityVariant: 'warn', tokens: null, lastSeen: '2m' },
-  { id: 'blaze', initials: 'BL', name: 'blaze', role: 'worker', status: 'live', task: 'market signals · BTC/ETH/SOL', capacityPct: 70, tokens: '3.2k', lastSeen: 'now' },
-  { id: 'nova', initials: 'NV', name: 'nova', role: 'worker', status: 'error', task: 'retry · MCP gateway timeout (3/5)', capacityPct: 12, capacityVariant: 'err', tokens: null, lastSeen: '9s' },
-  { id: 'water', initials: 'WT', name: 'water', role: 'worker', status: 'idle', task: 'idle · awaiting dispatch', capacityPct: 0, tokens: null, lastSeen: '17m' },
-]
+  const node = nodeRuns.find((n) => n.id === id)
+  if (node) {
+    return nodeRunToFocusData(node, nodeRuns)
+  }
 
-const SEED_OUTPUTS: Array<TeamOutput> = [
-  { id: 'o1', agent: 'drift', typeLabel: 'md', type: 'docs', name: 'PROJECT.md', preview: 'High-level scope and constraints for the hermes-switchui rewrite. Frozen routes, locked profiles, follow-ups…', time: '11:08', size: '4.2 kb' },
-  { id: 'o2', agent: 'drift', typeLabel: 'md', type: 'docs', name: 'ARCHITECTURE.md', preview: 'Route/server map, gateway capabilities, MCP surface, queue topology, shared state contracts and side-effects…', time: '11:08', size: '8.1 kb' },
-  { id: 'o3', agent: 'neo', typeLabel: 'draft', type: 'docs', name: 'launch-tweet.draft', preview: '"hermes-switchui v0.4 ships today: a control room for persistent agent teams. dispatch missions, watch them route, see…"', time: '11:07', size: '178 ch' },
-  { id: 'o4', agent: 'drift', typeLabel: 'json', type: 'data', name: 'benchloop-summary.json', preview: '12 runs across PC1 nightly · p50 latency 612ms (-8%) · p99 1.4s · regression at run #1009 narrowed to scheduler…', time: '11:06', size: '2.6 kb' },
-  { id: 'o5', agent: 'blaze', typeLabel: 'csv', type: 'data', name: 'market-signals-1106.csv', preview: 'BTC/ETH/SOL hourly bands · funding divergences flagged at 03:00 and 09:00 · Z > 2.4 on three pairs…', time: '10:54', size: '14 kb' },
-  { id: 'o6', agent: 'echo', typeLabel: 'md', type: 'docs', name: 'standup-1106.md', preview: '3 wins · 2 blockers · 1 ask. neo merged #312, drift unblocked memory rewrite, water awaiting design tokens…', time: '10:31', size: '1.8 kb' },
-  { id: 'o7', agent: 'pixel', typeLabel: 'png', type: 'media', name: 'conductor-frame-008.png', preview: 'Frame 8/24 of the conductor radar overlay · 1920×1080 · agents diffused, glow at 0.6 opacity…', time: '10:18', size: '312 kb' },
-  { id: 'o8', agent: 'workspace', typeLabel: 'idx', type: 'data', name: '.hermes-index.bin', preview: 'Indexed 4,212 files across .hermes/kanban/workspaces. Embeddings refreshed for 188 changed paths…', time: '10:02', size: '2.1 mb' },
-  { id: 'o9', agent: 'neo', typeLabel: 'ts', type: 'code', name: 'operations-layout.tsx', preview: 'Scaffolded M3 layout grid with team rail, focus panel, dispatch panel and outputs strip slots…', time: '09:55', size: '3.1 kb' },
-  { id: 'o10', agent: 'blaze', typeLabel: 'py', type: 'code', name: 'signal-scanner.py', preview: 'Vectorised BTC/ETH/SOL hourly band scanner with Z-score threshold alerts and funding rate divergence flags…', time: '09:40', size: '6.8 kb' },
-]
-
-const SEED_STATE: OperationsState = {
-  live: 6,
-  total: 9,
-  tokenRate: '14.2k',
-  queue: 3,
-  errors24h: 2,
-  spark: [22, 18, 20, 14, 16, 9, 12, 6, 10, 4, 8, 3, 7],
+  const session = sessions.find((s) => s.id === id)
+  if (session) {
+    return sessionToFocusData(session)
+  }
+  return null
 }
 
-// Shared mission/activity/tools/outputs used for all agent focus panels in M6
-const SHARED_MISSION: FocusMission = {
-  traceId: 't_49b85d13',
-  startedAt: '11:04',
-  prompt: 'Sweep open PRs in hermes-switchui, summarise BenchLoop runs from PC1, draft a launch tweet.',
-  stages: [
-    { label: 'plan', state: 'done' },
-    { label: 'route', state: 'done' },
-    { label: 'execute · 3/5', state: 'now' },
-    { label: 'review', state: 'pending' },
-    { label: 'report', state: 'pending' },
-  ],
-  elapsed: '04:18',
-}
+function nodeRunToFocusData(row: NodeRunRow, all: Array<NodeRunRow>): FocusData {
+  const agent = nodeRunToAgent(row)
+  // Sibling rows in the same workflow_run feed the activity feed.
+  const siblings = all
+    .filter((n) => n.workflow_run_id === row.workflow_run_id)
+    .sort((a, b) => (b.started_at ?? 0) - (a.started_at ?? 0))
 
-const SHARED_ACTIVITY: Array<ActivityItem> = [
-  { time: '11:08:42', tag: 'handoff', text: 'delegated summarise BenchLoop → drift' },
-  { time: '11:08:31', tag: 'tool', text: 'list_files · /workspaces/hermes-switchui/.benchloop · 4ms' },
-  { time: '11:08:14', tag: 'handoff', text: 'delegated scan PRs → neo' },
-  { time: '11:07:52', tag: 'tool', text: 'github.search_pulls · 48 results · 312ms', done: true },
-  { time: '11:06:02', text: 'plan finalised · 5 stages · est 06:10', done: true },
-  { time: '11:04:00', text: 'mission accepted from user (rohit)', done: true },
-]
+  const activity: Array<ActivityItem> = siblings.slice(0, 12).map((n) => ({
+    time: formatHhmm(n.started_at),
+    tag: n.assigned_agent && n.id !== row.id ? 'handoff' : 'tool',
+    text:
+      n.summary ?? `${n.node_type} · ${n.assigned_agent ?? n.dag_node_id} · ${n.status}`,
+    done: n.status === 'completed',
+  }))
 
-const SHARED_TOOLS: Array<ToolItem> = [
-  { ico: 'git', name: 'github.search', count: 12 },
-  { ico: 'fs', name: 'list_files', count: 8 },
-  { ico: 'fs', name: 'read_file', count: 21 },
-  { ico: 'w', name: 'write_file', count: 3 },
-  { ico: 'x', name: 'x.compose', count: 1 },
-  { ico: 'db', name: 'memory.recall', count: 5 },
-]
+  const outputs: Array<OutputItem> = siblings
+    .flatMap((n) => parseArtifactRefs(n.artifact_refs).map((ref) => ({ n, ref })))
+    .slice(0, 8)
+    .map(({ n, ref }) => ({
+      type:
+        ref.type === 'file' || ref.type === 'artifact' || ref.type === 'data'
+          ? (ref.type as OutputItem['type'])
+          : 'artifact',
+      name: ref.label ?? ref.path ?? ref.url ?? 'artifact',
+      meta: `${n.assigned_agent ?? n.dag_node_id} · ${ref.url ?? ref.path ?? ''}`.trim(),
+      time: formatHhmm(n.completed_at ?? n.started_at),
+    }))
 
-const SHARED_OUTPUTS: Array<OutputItem> = [
-  { type: 'file', name: 'PROJECT.md', meta: 'workspace root · committed by drift · 4.2 kb', time: '11:08' },
-  { type: 'file', name: 'ARCHITECTURE.md', meta: 'workspace root · committed by drift · 8.1 kb', time: '11:08' },
-  { type: 'artifact', name: 'launch-tweet.draft', meta: 'by neo · awaiting review · 178 chars', time: '11:07' },
-  { type: 'data', name: 'benchloop-summary.json', meta: 'by drift · 12 runs · 2.6 kb', time: '11:06' },
-]
-
-function agentToFocusData(agent: Agent): FocusData {
   return {
     id: agent.id,
     initials: agent.initials,
     name: agent.name,
     role: agent.role,
     status: agent.status,
-    workerCount: 3,
-    model: 'hermes-4-405b',
+    workerCount: siblings.length,
+    model: 'unknown',
     profile: 'default',
-    toolCount: 12,
-    mission: SHARED_MISSION,
-    activity: SHARED_ACTIVITY,
-    tools: SHARED_TOOLS,
-    outputs: SHARED_OUTPUTS,
+    toolCount: 0,
+    mission: {
+      traceId: row.workflow_run_id,
+      startedAt: formatHhmm(row.started_at),
+      prompt: row.summary ?? row.dag_node_id,
+      stages: [
+        { label: 'plan', state: row.status === 'pending' ? 'now' : 'done' },
+        { label: 'route', state: row.status === 'ready' ? 'now' : 'pending' },
+        { label: 'execute', state: row.status === 'running' ? 'now' : 'pending' },
+        { label: 'review', state: 'pending' },
+        { label: 'report', state: row.status === 'completed' ? 'done' : 'pending' },
+      ],
+      elapsed: row.started_at ? humaniseAgo(Date.now() - row.started_at) : '—',
+    },
+    activity,
+    tools: [],
+    outputs,
+  }
+}
+
+function sessionToFocusData(session: ClaudeSession): FocusData {
+  const agent = sessionToAgent(session)
+  return {
+    id: agent.id,
+    initials: agent.initials,
+    name: agent.name,
+    role: agent.role,
+    status: agent.status,
+    workerCount: 0,
+    model: session.model ?? 'unknown',
+    profile: 'default',
+    toolCount: session.tool_call_count ?? 0,
+    mission: {
+      traceId: session.id,
+      startedAt: session.started_at ? formatHhmm(session.started_at * 1000) : '—',
+      prompt: session.preview ?? session.title ?? '',
+      stages: [
+        { label: 'plan', state: 'done' },
+        { label: 'route', state: 'done' },
+        { label: 'execute', state: agent.status === 'live' ? 'now' : 'pending' },
+        { label: 'review', state: 'pending' },
+        { label: 'report', state: session.ended_at ? 'done' : 'pending' },
+      ],
+      elapsed: session.started_at
+        ? humaniseAgo(Date.now() - session.started_at * 1000)
+        : '—',
+    },
+    activity: [],
+    tools: [],
+    outputs: [],
   }
 }
 
 // ---------------------------------------------------------------------------
-// Seed
+// Outputs
 // ---------------------------------------------------------------------------
-
-async function seedIfEmpty(): Promise<void> {
-  let agentFiles: Array<string>
-  try {
-    agentFiles = await readdir(agentsDir())
-  } catch {
-    agentFiles = []
-  }
-  if (agentFiles.filter((f) => f.endsWith('.json')).length > 0) return
-
-  await Promise.all([
-    ...SEED_AGENTS.map((a) =>
-      writeFile(join(agentsDir(), `${a.id}.json`), JSON.stringify(a, null, 2), 'utf-8'),
-    ),
-    ...SEED_OUTPUTS.map((o) =>
-      writeFile(join(outputsDir(), `${o.id}.json`), JSON.stringify(o, null, 2), 'utf-8'),
-    ),
-    writeFile(statePath(), JSON.stringify(SEED_STATE, null, 2), 'utf-8'),
-  ])
-}
-
-// ---------------------------------------------------------------------------
-// Exported functions
-// ---------------------------------------------------------------------------
-
-export async function listAgents(): Promise<Array<Agent>> {
-  await ensureDirs()
-  await seedIfEmpty()
-  let files: Array<string>
-  try {
-    files = await readdir(agentsDir())
-  } catch {
-    return []
-  }
-  const agents = await Promise.all(
-    files
-      .filter((f) => f.endsWith('.json'))
-      .map(async (f) => {
-        try {
-          const raw = await readFile(join(agentsDir(), f), 'utf-8')
-          return JSON.parse(raw) as Agent
-        } catch {
-          return null
-        }
-      }),
-  )
-  return agents.filter(Boolean) as Array<Agent>
-}
-
-export async function getAgent(id: string): Promise<FocusData | null> {
-  await ensureDirs()
-  await seedIfEmpty()
-  try {
-    const raw = await readFile(join(agentsDir(), `${id}.json`), 'utf-8')
-    const agent = JSON.parse(raw) as Agent
-    return agentToFocusData(agent)
-  } catch {
-    return null
-  }
-}
-
-export async function pauseAgent(id: string): Promise<Agent> {
-  const raw = await readFile(join(agentsDir(), `${id}.json`), 'utf-8')
-  const agent = JSON.parse(raw) as Agent
-  agent.status = 'idle'
-  await writeFile(join(agentsDir(), `${id}.json`), JSON.stringify(agent, null, 2), 'utf-8')
-  return agent
-}
-
-export async function resumeAgent(id: string): Promise<Agent> {
-  const raw = await readFile(join(agentsDir(), `${id}.json`), 'utf-8')
-  const agent = JSON.parse(raw) as Agent
-  agent.status = 'live'
-  await writeFile(join(agentsDir(), `${id}.json`), JSON.stringify(agent, null, 2), 'utf-8')
-  return agent
-}
 
 export async function listOutputs(): Promise<Array<TeamOutput>> {
-  await ensureDirs()
-  await seedIfEmpty()
-  let files: Array<string>
-  try {
-    files = await readdir(outputsDir())
-  } catch {
-    return []
+  const nodeRuns = await safe(_readers.listNodeRuns)
+  const completed = nodeRuns
+    .filter((n) => n.status === 'completed')
+    .sort((a, b) => (b.completed_at ?? 0) - (a.completed_at ?? 0))
+
+  const out: Array<TeamOutput> = []
+  for (const n of completed) {
+    const refs = parseArtifactRefs(n.artifact_refs)
+    if (refs.length > 0) {
+      for (const ref of refs) {
+        const name = ref.label ?? ref.path ?? ref.url ?? 'artifact'
+        const type = outputTypeFor(name, ref.type)
+        out.push({
+          id: `${n.id}:${name}`,
+          agent: n.assigned_agent ?? n.dag_node_id,
+          typeLabel: ref.type ?? type,
+          type,
+          name,
+          preview: n.summary ?? '',
+          time: formatHhmm(n.completed_at),
+          size: '—',
+        })
+      }
+    } else if (n.summary) {
+      out.push({
+        id: n.id,
+        agent: n.assigned_agent ?? n.dag_node_id,
+        typeLabel: 'summary',
+        type: 'docs',
+        name: `${n.dag_node_id}.summary`,
+        preview: n.summary,
+        time: formatHhmm(n.completed_at),
+        size: `${n.summary.length} ch`,
+      })
+    }
+    if (out.length >= 20) break
   }
-  const outputs = await Promise.all(
-    files
-      .filter((f) => f.endsWith('.json'))
-      .map(async (f) => {
-        try {
-          const raw = await readFile(join(outputsDir(), f), 'utf-8')
-          return JSON.parse(raw) as TeamOutput
-        } catch {
-          return null
-        }
-      }),
-  )
-  return (outputs.filter(Boolean) as Array<TeamOutput>).sort((a, b) => a.id.localeCompare(b.id))
+  return out
 }
 
+// ---------------------------------------------------------------------------
+// Aggregate state
+// ---------------------------------------------------------------------------
+
 export async function getState(): Promise<OperationsState> {
-  await ensureDirs()
-  await seedIfEmpty()
-  try {
-    const raw = await readFile(statePath(), 'utf-8')
-    return JSON.parse(raw) as OperationsState
-  } catch {
-    return SEED_STATE
+  const agents = await listAgents()
+  const sessions = await safe(_readers.listSessions)
+  const live = agents.filter((a) => a.status === 'live').length
+  const errors24h = agents.filter((a) => a.status === 'error').length
+  const queue = agents.filter((a) => a.status === 'idle').length
+  const tokens = sessions.reduce(
+    (acc, s) => acc + (s.input_tokens ?? 0) + (s.output_tokens ?? 0),
+    0,
+  )
+  return {
+    live,
+    total: agents.length,
+    tokenRate: compactTokens(tokens) ?? '0',
+    queue,
+    errors24h,
+    spark: [],
   }
+}
+
+// ---------------------------------------------------------------------------
+// Mutations — pause/resume/dispatch/createAgent
+//
+// pause / resume map to gateway capabilities. Today the Hermes gateway has no
+// generic "pause session" endpoint, so both calls return { available: false }
+// with HTTP 501 from the route handler. The store throws a sentinel so the
+// route can convert.
+// ---------------------------------------------------------------------------
+
+export class CapabilityUnavailableError extends Error {
+  constructor(capability: string) {
+    super(`Capability '${capability}' not available on this gateway`)
+    this.name = 'CapabilityUnavailableError'
+  }
+}
+
+export async function pauseAgent(_id: string): Promise<never> {
+  throw new CapabilityUnavailableError('session-pause')
+}
+
+export async function resumeAgent(_id: string): Promise<never> {
+  throw new CapabilityUnavailableError('session-resume')
 }
 
 export async function createAgent(input: {
@@ -353,22 +597,12 @@ export async function createAgent(input: {
   role: AgentRole
   task: string
 }): Promise<Agent> {
-  await ensureDirs()
-  await seedIfEmpty()
-  const slug = input.name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-  const uid = randomBytes(2).toString('hex')
-  const id = `${slug}-${uid}`
-  const nameParts = input.name.split(/\s+/)
-  const initials = nameParts
-    .map((w) => (w.length > 0 ? w[0].toUpperCase() : ''))
-    .join('')
-    .slice(0, 2)
-    .padEnd(2, input.name.length > 1 ? input.name[1].toUpperCase() : 'X')
-  const agent: Agent = {
-    id,
+  // Spawning a long-lived agent isn't yet exposed by the gateway; we surface
+  // a placeholder Agent so the UI can optimistically render until a proper
+  // gateway endpoint lands. No persistent state is created.
+  const initials = makeInitials(input.name)
+  return {
+    id: `pending-${Date.now().toString(36)}`,
     initials,
     name: input.name,
     role: input.role,
@@ -378,8 +612,6 @@ export async function createAgent(input: {
     tokens: null,
     lastSeen: 'now',
   }
-  await writeFile(join(agentsDir(), `${id}.json`), JSON.stringify(agent, null, 2), 'utf-8')
-  return agent
 }
 
 export async function createDispatch(input: {
@@ -390,10 +622,19 @@ export async function createDispatch(input: {
   deadline?: string
   tags?: Array<string>
 }): Promise<Dispatch> {
-  await ensureDirs()
-  await seedIfEmpty()
-  const id = `d_${randomBytes(4).toString('hex')}`
-  const dispatch: Dispatch = {
+  // Best-effort: ask the gateway to create a session and post the prompt.
+  // Any failure here just surfaces the dispatch record locally with a
+  // synthetic id; the route handler reports {ok:true} either way.
+  let id = `d_${Math.random().toString(36).slice(2, 10)}`
+  try {
+    const { createSession, sendChat } = await import('./hermes-api')
+    const session = await createSession({ title: input.prompt.slice(0, 60) })
+    await sendChat(session.id, input.prompt)
+    id = session.id
+  } catch {
+    // gateway offline — return synthetic id so the UI doesn't error out.
+  }
+  return {
     id,
     prompt: input.prompt,
     mode: input.mode ?? 'auto',
@@ -403,10 +644,16 @@ export async function createDispatch(input: {
     tags: input.tags ?? [],
     createdAt: Date.now(),
   }
-  await writeFile(
-    join(dispatchesDir(), `${id}.json`),
-    JSON.stringify(dispatch, null, 2),
-    'utf-8',
-  )
-  return dispatch
+}
+
+// ---------------------------------------------------------------------------
+// Internals
+// ---------------------------------------------------------------------------
+
+async function safe<T>(fn: () => Promise<Array<T>>): Promise<Array<T>> {
+  try {
+    return await fn()
+  } catch {
+    return []
+  }
 }

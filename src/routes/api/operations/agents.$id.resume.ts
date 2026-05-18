@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
-import { resumeAgent } from '../../../server/operations-store'
+import { CapabilityUnavailableError, resumeAgent } from '../../../server/operations-store'
 
 export const Route = createFileRoute('/api/operations/agents/$id/resume')({
   server: {
@@ -22,6 +22,9 @@ export const Route = createFileRoute('/api/operations/agents/$id/resume')({
           await resumeAgent(id)
           return json({ ok: true })
         } catch (error) {
+          if (error instanceof CapabilityUnavailableError) {
+            return json({ available: false, error: error.message }, { status: 501 })
+          }
           const msg = error instanceof Error ? error.message : String(error)
           const status = msg.includes('not found') ? 404 : 500
           return json({ error: msg }, { status })
