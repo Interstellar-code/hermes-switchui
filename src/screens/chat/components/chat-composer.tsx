@@ -3042,12 +3042,32 @@ function ChatComposerComponent({
                           setIsThinkingMenuOpen(false)
                         }}
                         disabled={isModelSwitcherDisabled}
-                        className="inline-flex h-8 max-w-[9rem] items-center rounded-full bg-primary-100/70 px-2 md:max-w-none md:px-3 text-xs font-medium text-primary-600 hover:bg-primary-200/80 dark:hover:bg-primary-800/60 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex h-7 max-w-[9rem] items-center gap-1.5 rounded px-2.5 text-[10px] font-mono font-semibold tracking-wider uppercase transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                        style={{
+                          background: 'color-mix(in srgb, var(--m-green-500, #00ff41) 14%, transparent)',
+                          border: '1px solid color-mix(in srgb, var(--m-green-500, #00ff41) 50%, transparent)',
+                          color: 'var(--m-green-400, #3aff77)',
+                          textShadow: '0 0 4px color-mix(in srgb, var(--m-green-500, #00ff41) 40%, transparent)',
+                        }}
                         title={modelButtonLabel}
                       >
-                        <span className="max-w-[5.5rem] truncate sm:max-w-[8.5rem] md:max-w-[12rem]">
-                          {modelButtonLabel}
-                        </span>
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                          <line x1="12" y1="22.08" x2="12" y2="12" />
+                        </svg>
+                        <span className="truncate">{modelButtonLabel}</span>
+                        <HugeiconsIcon icon={ArrowDown01Icon} size={11} />
                       </button>
                       {isModelMenuOpen && (
                         <>
