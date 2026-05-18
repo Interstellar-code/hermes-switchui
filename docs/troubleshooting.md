@@ -1,3 +1,8 @@
+---
+published: true
+title: Troubleshooting
+---
+
 # Troubleshooting — Hermes Switch UI
 
 Common setup issues and how to fix them.

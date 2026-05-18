@@ -1,3 +1,8 @@
+---
+published: true
+title: OpenAI-Compat Architecture Spec
+---
+
 # Hermes Switch UI OpenAI-Compat Architecture Spec
 
 > **For Claude:** Use `writing-plans` if this turns into an implementation plan. This doc locks the product and backend compatibility direction.

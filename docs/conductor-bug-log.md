@@ -1,3 +1,8 @@
+---
+published: true
+title: Conductor Bug Log
+---
+
 # Conductor Bug Log
 
 ## 1. Portable Conductor jobs never executed

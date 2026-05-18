@@ -1,3 +1,8 @@
+---
+published: true
+title: Desktop Update System
+---
+
 # Hermes Switch UI Desktop Update System
 
 This branch introduces the update contract that the DMG/EXE packaging should use.

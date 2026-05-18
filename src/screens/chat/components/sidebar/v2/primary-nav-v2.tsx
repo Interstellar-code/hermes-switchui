@@ -64,6 +64,7 @@ const ICONS = {
   search: 'M6.5 1.5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM10.5 10.5l4 4',
   newchat: 'M3 8h10M8 3v10',
   cog: 'M8 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4',
+  docs: 'M3 2h7l3 3v9H3V2zM10 2v3h3M5 8h6M5 11h4',
 } as const
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -320,6 +321,7 @@ export function PrimaryNavV2() {
   const isMcp = pathname.startsWith('/mcp')
   const isProfiles = pathname.startsWith('/profiles')
   const isSettings = pathname.startsWith('/settings')
+  const isDocs = pathname.startsWith('/docs')
 const boardsQuery = useBoards(true)
   const boardsCount = boardsQuery.data?.boards?.length
   const boardChildren = useMemo(
@@ -565,6 +567,10 @@ const boardsQuery = useBoards(true)
         <NavItem label="Skills" iconKey="skills" to="/skills" active={isSkills} collapsed={collapsed} />
         <NavItem label="MCP" iconKey="mcp" to="/mcp" active={isMcp} collapsed={collapsed} />
         <NavItem label="Profiles" iconKey="profiles" to="/profiles" active={isProfiles} collapsed={collapsed} />
+
+        {/* HELP group */}
+        {!collapsed && <GroupLabel label="Help" />}
+        <NavItem label="Docs" iconKey="docs" to="/docs" active={isDocs} collapsed={collapsed} />
       </div>
 
       {/* Footer */}

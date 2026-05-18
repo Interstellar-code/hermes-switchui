@@ -1,3 +1,8 @@
+---
+published: true
+title: Agent Pairing Guide
+---
+
 # Agent Pairing Guide — Workspace ↔ Claude Gateway
 
 > **Audience:** AI agents helping users set up Hermes Switch UI.

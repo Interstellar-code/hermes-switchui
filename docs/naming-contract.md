@@ -1,3 +1,8 @@
+---
+published: true
+title: Naming Contract
+---
+
 # Hermes Switch UI Naming Contract
 
 This repo is for **Hermes Switch UI** and **Hermes Agent** work.

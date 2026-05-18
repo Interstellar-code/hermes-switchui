@@ -1,3 +1,8 @@
+---
+published: true
+title: Tool Output Artifacts / Context Bloat Plan
+---
+
 # Tool Output Artifacts / Context Bloat Plan
 
 Date: 2026-04-24

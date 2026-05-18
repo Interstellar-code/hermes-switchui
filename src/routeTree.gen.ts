@@ -26,10 +26,13 @@ import { Route as ConductorRouteImport } from './routes/conductor'
 import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as AgoraRouteImport } from './routes/agora'
 import { Route as SplatRouteImport } from './routes/$'
+import { Route as DocsRouteRouteImport } from './routes/docs/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
+import { Route as DocsIndexRouteImport } from './routes/docs/index'
 import { Route as ChatIndexRouteImport } from './routes/chat/index'
 import { Route as SettingsProvidersRouteImport } from './routes/settings/providers'
+import { Route as DocsSplatRouteImport } from './routes/docs/$'
 import { Route as ChatSessionKeyRouteImport } from './routes/chat/$sessionKey'
 import { Route as ApiWorkspaceRouteImport } from './routes/api/workspace'
 import { Route as ApiWorkflowRunsRouteImport } from './routes/api/workflow-runs'
@@ -65,6 +68,7 @@ import { Route as ApiGatewayStatusRouteImport } from './routes/api/gateway-statu
 import { Route as ApiGatewayReprobeRouteImport } from './routes/api/gateway-reprobe'
 import { Route as ApiFilesRouteImport } from './routes/api/files'
 import { Route as ApiEventsRouteImport } from './routes/api/events'
+import { Route as ApiDocsRouteImport } from './routes/api/docs'
 import { Route as ApiDashboardConfigRouteImport } from './routes/api/dashboard-config'
 import { Route as ApiCrewStatusRouteImport } from './routes/api/crew-status'
 import { Route as ApiContextUsageRouteImport } from './routes/api/context-usage'
@@ -252,6 +256,11 @@ const SplatRoute = SplatRouteImport.update({
   path: '/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocsRouteRoute = DocsRouteRouteImport.update({
+  id: '/docs',
+  path: '/docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -262,6 +271,11 @@ const SettingsIndexRoute = SettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SettingsRoute,
 } as any)
+const DocsIndexRoute = DocsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DocsRouteRoute,
+} as any)
 const ChatIndexRoute = ChatIndexRouteImport.update({
   id: '/chat/',
   path: '/chat/',
@@ -271,6 +285,11 @@ const SettingsProvidersRoute = SettingsProvidersRouteImport.update({
   id: '/providers',
   path: '/providers',
   getParentRoute: () => SettingsRoute,
+} as any)
+const DocsSplatRoute = DocsSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => DocsRouteRoute,
 } as any)
 const ChatSessionKeyRoute = ChatSessionKeyRouteImport.update({
   id: '/chat/$sessionKey',
@@ -445,6 +464,11 @@ const ApiFilesRoute = ApiFilesRouteImport.update({
 const ApiEventsRoute = ApiEventsRouteImport.update({
   id: '/api/events',
   path: '/api/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDocsRoute = ApiDocsRouteImport.update({
+  id: '/api/docs',
+  path: '/api/docs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDashboardConfigRoute = ApiDashboardConfigRouteImport.update({
@@ -974,6 +998,7 @@ const ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/docs': typeof DocsRouteRouteWithChildren
   '/$': typeof SplatRoute
   '/agora': typeof AgoraRoute
   '/boards': typeof BoardsRoute
@@ -1005,6 +1030,7 @@ export interface FileRoutesByFullPath {
   '/api/context-usage': typeof ApiContextUsageRoute
   '/api/crew-status': typeof ApiCrewStatusRoute
   '/api/dashboard-config': typeof ApiDashboardConfigRoute
+  '/api/docs': typeof ApiDocsRoute
   '/api/events': typeof ApiEventsRoute
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
@@ -1040,8 +1066,10 @@ export interface FileRoutesByFullPath {
   '/api/workflow-runs': typeof ApiWorkflowRunsRouteWithChildren
   '/api/workspace': typeof ApiWorkspaceRouteWithChildren
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
+  '/docs/$': typeof DocsSplatRoute
   '/settings/providers': typeof SettingsProvidersRoute
   '/chat/': typeof ChatIndexRoute
+  '/docs/': typeof DocsIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/api/artifacts/$artifactId': typeof ApiArtifactsArtifactIdRoute
   '/api/claude-jobs/$jobId': typeof ApiClaudeJobsJobIdRoute
@@ -1163,6 +1191,7 @@ export interface FileRoutesByTo {
   '/api/context-usage': typeof ApiContextUsageRoute
   '/api/crew-status': typeof ApiCrewStatusRoute
   '/api/dashboard-config': typeof ApiDashboardConfigRoute
+  '/api/docs': typeof ApiDocsRoute
   '/api/events': typeof ApiEventsRoute
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
@@ -1198,8 +1227,10 @@ export interface FileRoutesByTo {
   '/api/workflow-runs': typeof ApiWorkflowRunsRouteWithChildren
   '/api/workspace': typeof ApiWorkspaceRouteWithChildren
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
+  '/docs/$': typeof DocsSplatRoute
   '/settings/providers': typeof SettingsProvidersRoute
   '/chat': typeof ChatIndexRoute
+  '/docs': typeof DocsIndexRoute
   '/settings': typeof SettingsIndexRoute
   '/api/artifacts/$artifactId': typeof ApiArtifactsArtifactIdRoute
   '/api/claude-jobs/$jobId': typeof ApiClaudeJobsJobIdRoute
@@ -1292,6 +1323,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/docs': typeof DocsRouteRouteWithChildren
   '/$': typeof SplatRoute
   '/agora': typeof AgoraRoute
   '/boards': typeof BoardsRoute
@@ -1323,6 +1355,7 @@ export interface FileRoutesById {
   '/api/context-usage': typeof ApiContextUsageRoute
   '/api/crew-status': typeof ApiCrewStatusRoute
   '/api/dashboard-config': typeof ApiDashboardConfigRoute
+  '/api/docs': typeof ApiDocsRoute
   '/api/events': typeof ApiEventsRoute
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
@@ -1358,8 +1391,10 @@ export interface FileRoutesById {
   '/api/workflow-runs': typeof ApiWorkflowRunsRouteWithChildren
   '/api/workspace': typeof ApiWorkspaceRouteWithChildren
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
+  '/docs/$': typeof DocsSplatRoute
   '/settings/providers': typeof SettingsProvidersRoute
   '/chat/': typeof ChatIndexRoute
+  '/docs/': typeof DocsIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/api/artifacts/$artifactId': typeof ApiArtifactsArtifactIdRoute
   '/api/claude-jobs/$jobId': typeof ApiClaudeJobsJobIdRoute
@@ -1453,6 +1488,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/docs'
     | '/$'
     | '/agora'
     | '/boards'
@@ -1484,6 +1520,7 @@ export interface FileRouteTypes {
     | '/api/context-usage'
     | '/api/crew-status'
     | '/api/dashboard-config'
+    | '/api/docs'
     | '/api/events'
     | '/api/files'
     | '/api/gateway-reprobe'
@@ -1519,8 +1556,10 @@ export interface FileRouteTypes {
     | '/api/workflow-runs'
     | '/api/workspace'
     | '/chat/$sessionKey'
+    | '/docs/$'
     | '/settings/providers'
     | '/chat/'
+    | '/docs/'
     | '/settings/'
     | '/api/artifacts/$artifactId'
     | '/api/claude-jobs/$jobId'
@@ -1642,6 +1681,7 @@ export interface FileRouteTypes {
     | '/api/context-usage'
     | '/api/crew-status'
     | '/api/dashboard-config'
+    | '/api/docs'
     | '/api/events'
     | '/api/files'
     | '/api/gateway-reprobe'
@@ -1677,8 +1717,10 @@ export interface FileRouteTypes {
     | '/api/workflow-runs'
     | '/api/workspace'
     | '/chat/$sessionKey'
+    | '/docs/$'
     | '/settings/providers'
     | '/chat'
+    | '/docs'
     | '/settings'
     | '/api/artifacts/$artifactId'
     | '/api/claude-jobs/$jobId'
@@ -1770,6 +1812,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/docs'
     | '/$'
     | '/agora'
     | '/boards'
@@ -1801,6 +1844,7 @@ export interface FileRouteTypes {
     | '/api/context-usage'
     | '/api/crew-status'
     | '/api/dashboard-config'
+    | '/api/docs'
     | '/api/events'
     | '/api/files'
     | '/api/gateway-reprobe'
@@ -1836,8 +1880,10 @@ export interface FileRouteTypes {
     | '/api/workflow-runs'
     | '/api/workspace'
     | '/chat/$sessionKey'
+    | '/docs/$'
     | '/settings/providers'
     | '/chat/'
+    | '/docs/'
     | '/settings/'
     | '/api/artifacts/$artifactId'
     | '/api/claude-jobs/$jobId'
@@ -1930,6 +1976,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DocsRouteRoute: typeof DocsRouteRouteWithChildren
   SplatRoute: typeof SplatRoute
   AgoraRoute: typeof AgoraRoute
   BoardsRoute: typeof BoardsRoute
@@ -1961,6 +2008,7 @@ export interface RootRouteChildren {
   ApiContextUsageRoute: typeof ApiContextUsageRoute
   ApiCrewStatusRoute: typeof ApiCrewStatusRoute
   ApiDashboardConfigRoute: typeof ApiDashboardConfigRoute
+  ApiDocsRoute: typeof ApiDocsRoute
   ApiEventsRoute: typeof ApiEventsRoute
   ApiFilesRoute: typeof ApiFilesRoute
   ApiGatewayReprobeRoute: typeof ApiGatewayReprobeRoute
@@ -2165,6 +2213,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/docs': {
+      id: '/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof DocsRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -2179,6 +2234,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsIndexRouteImport
       parentRoute: typeof SettingsRoute
     }
+    '/docs/': {
+      id: '/docs/'
+      path: '/'
+      fullPath: '/docs/'
+      preLoaderRoute: typeof DocsIndexRouteImport
+      parentRoute: typeof DocsRouteRoute
+    }
     '/chat/': {
       id: '/chat/'
       path: '/chat'
@@ -2192,6 +2254,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/providers'
       preLoaderRoute: typeof SettingsProvidersRouteImport
       parentRoute: typeof SettingsRoute
+    }
+    '/docs/$': {
+      id: '/docs/$'
+      path: '/$'
+      fullPath: '/docs/$'
+      preLoaderRoute: typeof DocsSplatRouteImport
+      parentRoute: typeof DocsRouteRoute
     }
     '/chat/$sessionKey': {
       id: '/chat/$sessionKey'
@@ -2436,6 +2505,13 @@ declare module '@tanstack/react-router' {
       path: '/api/events'
       fullPath: '/api/events'
       preLoaderRoute: typeof ApiEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/docs': {
+      id: '/api/docs'
+      path: '/api/docs'
+      fullPath: '/api/docs'
+      preLoaderRoute: typeof ApiDocsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/dashboard-config': {
@@ -3148,6 +3224,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface DocsRouteRouteChildren {
+  DocsSplatRoute: typeof DocsSplatRoute
+  DocsIndexRoute: typeof DocsIndexRoute
+}
+
+const DocsRouteRouteChildren: DocsRouteRouteChildren = {
+  DocsSplatRoute: DocsSplatRoute,
+  DocsIndexRoute: DocsIndexRoute,
+}
+
+const DocsRouteRouteWithChildren = DocsRouteRoute._addFileChildren(
+  DocsRouteRouteChildren,
+)
+
 interface SettingsRouteChildren {
   SettingsProvidersRoute: typeof SettingsProvidersRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
@@ -3487,6 +3577,7 @@ const ApiOperationsDispatchRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DocsRouteRoute: DocsRouteRouteWithChildren,
   SplatRoute: SplatRoute,
   AgoraRoute: AgoraRoute,
   BoardsRoute: BoardsRoute,
@@ -3518,6 +3609,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiContextUsageRoute: ApiContextUsageRoute,
   ApiCrewStatusRoute: ApiCrewStatusRoute,
   ApiDashboardConfigRoute: ApiDashboardConfigRoute,
+  ApiDocsRoute: ApiDocsRoute,
   ApiEventsRoute: ApiEventsRoute,
   ApiFilesRoute: ApiFilesRoute,
   ApiGatewayReprobeRoute: ApiGatewayReprobeRoute,

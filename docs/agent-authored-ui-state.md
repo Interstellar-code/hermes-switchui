@@ -1,3 +1,8 @@
+---
+published: true
+title: Agent-Authored UI State
+---
+
 # Agent-authored UI state
 
 Hermes Switch UI can render optional structured UI state emitted by the agent instead of relying only on heuristic panel derivation from plain chat text.

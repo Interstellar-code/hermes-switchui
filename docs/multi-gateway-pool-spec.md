@@ -1,3 +1,8 @@
+---
+published: true
+title: Multi-Gateway Pool Architecture
+---
+
 # Multi-Gateway Pool Architecture
 ## Hermes Switch UI — Profile-Parallel Agent Execution
 

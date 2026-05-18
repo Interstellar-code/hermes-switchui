@@ -1,3 +1,8 @@
+---
+published: true
+title: Docker
+---
+
 # Docker
 
 Hermes Switch UI + Hermes Agent in containers.

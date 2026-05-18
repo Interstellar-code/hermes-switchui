@@ -1,3 +1,8 @@
+---
+published: true
+title: Contributing UI Translations
+---
+
 # Contributing UI translations
 
 Hermes Switch UI currently uses a lightweight translation map for the UI strings that have been wired for localization.
