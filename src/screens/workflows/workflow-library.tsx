@@ -144,8 +144,21 @@ export function WorkflowLibrary({
 
   const filtered = useMemo<Array<WorkflowSummary>>(() => {
     return workflows.filter((w) => {
-      // Hide subgraph definitions unless the toggle is on (A.7-subgraphs).
-      if (!showSubgraphs && w.kind === 'subgraph') return false
+      // Subgraphs are infrastructure, not user-launchable workflows. Treat the
+      // "Show subgraphs" toggle as the sole gate for them — bypass the rest of
+      // the per-source / node-type / task filters so the toggle actually
+      // surfaces every subgraph regardless of the other rail selections.
+      if (w.kind === 'subgraph') {
+        if (!showSubgraphs) return false
+        if (normalizedSearch) {
+          if (
+            !w.name.toLowerCase().includes(normalizedSearch) &&
+            !w.description.toLowerCase().includes(normalizedSearch)
+          )
+            return false
+        }
+        return true
+      }
       if (originFilter !== 'all' && w.source !== originFilter) return false
       if (nodeTypeFilter !== 'all' && !detectNodeTypes(w).has(nodeTypeFilter)) {
         return false
