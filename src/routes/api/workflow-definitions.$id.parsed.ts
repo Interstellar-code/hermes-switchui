@@ -20,6 +20,7 @@ import {
   isCancelNode,
   isLoopNode,
   isScriptNode,
+  isSubgraphNode,
 } from '../../server/workflow-engine/schemas'
 import type { DagNode } from '../../server/workflow-engine/schemas'
 
@@ -41,7 +42,9 @@ function nodeType(
   | 'loop'
   | 'router'
   | 'cancel'
-  | 'script' {
+  | 'script'
+  | 'subgraph' {
+  if (isSubgraphNode(node)) return 'subgraph'
   if (isBashNode(node)) return 'bash'
   if (isLoopNode(node)) return 'loop'
   if (isApprovalNode(node)) return 'approval'

@@ -14,6 +14,7 @@ export type NodeType =
   | 'loop'
   | 'cancel'
   | 'script'
+  | 'subgraph'
 
 export interface HermesTaskHint {
   skills?: Array<string>

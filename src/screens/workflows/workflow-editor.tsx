@@ -31,6 +31,7 @@ const NODE_COLOR: Record<NodeType, string> = {
   loop: '#ffd700',
   cancel: '#ff6b6b',
   script: '#5ad3ff',
+  subgraph: '#bf97ff',
 }
 
 function formatRunStartedAt(value: WorkflowRunRow['started_at']): string {

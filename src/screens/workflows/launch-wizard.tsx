@@ -16,6 +16,7 @@ const NODE_COLOR: Record<NodeType, string> = {
   loop: '#ffd700',
   script: '#5ad3ff',
   cancel: '#ff6b6b',
+  subgraph: '#bf97ff',
 }
 
 const STEP_TITLES = ['Plan', 'Route', 'Schedule', 'Confirm'] as const
