@@ -205,6 +205,7 @@ export type CommandNode = z.infer<typeof commandNodeSchema> & {
   approval?: never
   cancel?: never
   script?: never
+  subgraph?: never
 }
 
 export const promptNodeSchema = dagNodeBaseSchema.extend({
@@ -219,6 +220,7 @@ export type PromptNode = z.infer<typeof promptNodeSchema> & {
   approval?: never
   cancel?: never
   script?: never
+  subgraph?: never
 }
 
 /**
@@ -238,6 +240,7 @@ export type BashNode = z.infer<typeof bashNodeSchema> & {
   approval?: never
   cancel?: never
   script?: never
+  subgraph?: never
 }
 
 /**
@@ -262,6 +265,7 @@ export type ScriptNode = z.infer<typeof scriptNodeSchema> & {
   loop?: never
   approval?: never
   cancel?: never
+  subgraph?: never
 }
 
 /**
@@ -281,6 +285,7 @@ export type LoopNode = z.infer<typeof loopNodeSchema> & {
   approval?: never
   cancel?: never
   script?: never
+  subgraph?: never
 }
 
 /** Schema for the `on_reject` sub-object on approval nodes. */
@@ -311,6 +316,7 @@ export type ApprovalNode = z.infer<typeof approvalNodeSchema> & {
   loop?: never
   cancel?: never
   script?: never
+  subgraph?: never
 }
 
 /**
@@ -329,9 +335,40 @@ export type CancelNode = z.infer<typeof cancelNodeSchema> & {
   loop?: never
   approval?: never
   script?: never
+  subgraph?: never
 }
 
-/** A single node in a DAG workflow. command, prompt, bash, loop, approval, cancel, and script are mutually exclusive. */
+/** Reference to a subgraph definition (A.7-subgraphs). */
+export const subgraphReferenceSchema = z.object({
+  ref: z
+    .string()
+    .min(1, "'subgraph.ref' must not be empty")
+    .regex(/^[a-z0-9][a-z0-9_-]*$/i, "'subgraph.ref' must be kebab/snake-case"),
+  inputs: z.record(z.string(), z.unknown()).optional(),
+  when: z.string().optional(),
+  timeout: z.number().int().positive().optional(),
+  max_retries: z.number().int().nonnegative().optional(),
+})
+
+export type SubgraphReference = z.infer<typeof subgraphReferenceSchema>
+
+export const subgraphNodeSchema = dagNodeBaseSchema.extend({
+  subgraph: subgraphReferenceSchema,
+})
+
+/** DAG node that expands a subgraph definition into the parent run at runtime */
+export type SubgraphNode = z.infer<typeof subgraphNodeSchema> & {
+  command?: never
+  prompt?: never
+  bash?: never
+  loop?: never
+  approval?: never
+  cancel?: never
+  script?: never
+  subgraph?: never
+}
+
+/** A single node in a DAG workflow. command, prompt, bash, loop, approval, cancel, script, and subgraph are mutually exclusive. */
 export type DagNode =
   | CommandNode
   | PromptNode
@@ -340,6 +377,7 @@ export type DagNode =
   | ApprovalNode
   | CancelNode
   | ScriptNode
+  | SubgraphNode
 
 // ---------------------------------------------------------------------------
 // AI-specific fields that are meaningless on non-AI nodes
@@ -419,6 +457,8 @@ export const dagNodeSchema = dagNodeBaseSchema
       .optional(),
     // Bash/Script shared
     timeout: z.number().optional(),
+    // Subgraph reference (A.7-subgraphs)
+    subgraph: subgraphReferenceSchema.optional(),
   })
   .superRefine((data, ctx) => {
     const id = data.id.trim()
@@ -444,6 +484,7 @@ export const dagNodeSchema = dagNodeBaseSchema
       typeof data.cancel === 'string' && data.cancel.trim().length > 0
     const hasScript =
       typeof data.script === 'string' && data.script.trim().length > 0
+    const hasSubgraph = data.subgraph !== undefined
 
     const modeCount = [
       hasCommand,
@@ -453,13 +494,14 @@ export const dagNodeSchema = dagNodeBaseSchema
       hasApproval,
       hasCancel,
       hasScript,
+      hasSubgraph,
     ].filter(Boolean).length
 
     if (modeCount > 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message:
-          "'command', 'prompt', 'bash', 'loop', 'approval', 'cancel', and 'script' are mutually exclusive",
+          "'command', 'prompt', 'bash', 'loop', 'approval', 'cancel', 'script', and 'subgraph' are mutually exclusive",
       })
       return z.NEVER
     }
@@ -491,7 +533,7 @@ export const dagNodeSchema = dagNodeBaseSchema
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message:
-          "must have either 'command', 'prompt', 'bash', 'loop', 'approval', 'cancel', or 'script'",
+          "must have either 'command', 'prompt', 'bash', 'loop', 'approval', 'cancel', 'script', or 'subgraph'",
       })
       return z.NEVER
     }
@@ -681,6 +723,13 @@ export const dagNodeSchema = dagNodeBaseSchema
           : {}),
       } as CancelNode
     }
+    if (data.subgraph !== undefined) {
+      return {
+        ...base,
+        ...shared,
+        subgraph: data.subgraph,
+      } as SubgraphNode
+    }
     // loop — guaranteed by superRefine to be defined at this point
     if (!data.loop)
       throw new Error('unreachable: loop must be defined after superRefine')
@@ -721,6 +770,11 @@ export function isCancelNode(node: DagNode): node is CancelNode {
 /** Type guard: check if a DAG node is a script node */
 export function isScriptNode(node: DagNode): node is ScriptNode {
   return 'script' in node && typeof node.script === 'string'
+}
+
+/** Type guard: validates a value is a SubgraphNode (A.7-subgraphs). */
+export function isSubgraphNode(node: DagNode): node is SubgraphNode {
+  return 'subgraph' in node && node.subgraph !== undefined
 }
 
 /** Type guard: validates a value is a known TriggerRule */

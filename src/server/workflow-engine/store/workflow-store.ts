@@ -76,6 +76,7 @@ function rowToNodeRun(row: NodeRunRow): NodeRun {
       : null,
     loop_iteration: row.loop_iteration,
     loop_parent_node_run_id: row.loop_parent_node_run_id,
+    parent_subgraph_node_run_id: row.parent_subgraph_node_run_id ?? null,
     approval_message: row.approval_message,
     approval_response: row.approval_response,
     approval_target: row.approval_target,
@@ -475,6 +476,8 @@ export class SwitchUiWorkflowStore {
     depends_on?: string[];
     loop_iteration?: number;
     loop_parent_node_run_id?: string;
+    /** When set, this node_run belongs to a subgraph expansion. (A.7-subgraphs) */
+    parent_subgraph_node_run_id?: string;
     max_retries?: number;
     retry_delay_ms?: number;
     retry_on_error?: string;
@@ -512,13 +515,13 @@ export class SwitchUiWorkflowStore {
         .prepare(
           `INSERT INTO node_runs
              (id, workflow_run_id, dag_node_id, node_type, depends_on, status,
-              loop_iteration, loop_parent_node_run_id,
+              loop_iteration, loop_parent_node_run_id, parent_subgraph_node_run_id,
               max_retries, retry_delay_ms, retry_on_error,
               idle_timeout_ms, max_runtime_seconds,
               assigned_agent, agent_profile_hint, skills, model_hint,
               allowed_tools, denied_tools,
               approval_message, approval_target, metadata)
-           VALUES (?,?,?,?,?,'pending',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+           VALUES (?,?,?,?,?,'pending',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
         )
         .run(
           id,
@@ -528,6 +531,7 @@ export class SwitchUiWorkflowStore {
           input.depends_on ? JSON.stringify(input.depends_on) : null,
           loopIter,
           input.loop_parent_node_run_id ?? null,
+          input.parent_subgraph_node_run_id ?? null,
           input.max_retries ?? 2,
           input.retry_delay_ms ?? 3000,
           input.retry_on_error ?? "transient",

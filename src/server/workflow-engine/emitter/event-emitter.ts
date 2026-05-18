@@ -124,6 +124,40 @@ interface NodeSkippedEvent {
   reason: 'when_condition' | 'when_condition_parse_error' | 'trigger_rule' | 'prior_success';
 }
 
+// Subgraph lifecycle events (A.7-subgraphs).
+// A subgraph node produces one placeholder node_run plus one child node_run
+// per inner node. The placeholder's lifecycle is tracked via these events;
+// children continue to use the regular node_started/completed/failed events.
+
+interface SubgraphStartedEvent {
+  type: 'subgraph_started';
+  runId: string;
+  nodeId: string;          // parent subgraph-node id (placeholder)
+  subgraphRef: string;     // id of the subgraph definition being expanded
+  /** Pre-generated UUID for the placeholder node_run row. */
+  nodeRunId?: string;
+  /** Number of child nodes the expansion produced. */
+  childCount: number;
+}
+
+interface SubgraphCompletedEvent {
+  type: 'subgraph_completed';
+  runId: string;
+  nodeId: string;
+  duration: number;
+  /** Aggregated outputs as declared in the subgraph definition's `outputs:` block. */
+  outputs?: Record<string, unknown>;
+}
+
+interface SubgraphFailedEvent {
+  type: 'subgraph_failed';
+  runId: string;
+  nodeId: string;
+  /** dag_node_id of the inner child that failed. */
+  failedChildNodeId?: string;
+  error: string;
+}
+
 interface ToolStartedEvent {
   type: 'tool_started';
   runId: string;
@@ -203,6 +237,9 @@ export type WorkflowEmitterEvent =
   | NodeCompletedEvent
   | NodeFailedEvent
   | NodeSkippedEvent
+  | SubgraphStartedEvent
+  | SubgraphCompletedEvent
+  | SubgraphFailedEvent
   | WorkflowArtifactEvent
   | ToolStartedEvent
   | ToolCompletedEvent

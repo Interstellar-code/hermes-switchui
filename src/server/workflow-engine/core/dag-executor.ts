@@ -111,6 +111,33 @@ function nodeRoutingHints(node: DagNode): {
   };
 }
 
+/**
+ * Subgraph expansion entry point (A.7-subgraphs).
+ *
+ * Stub: throws until Track 2 (executor + store) implements expansion.
+ * Contract:
+ *   - Caller passes a DagNode whose `subgraph` field is set.
+ *   - This function fetches the subgraph definition from the store via
+ *     `node.subgraph.ref`, materialises child DagNode rows scoped to the
+ *     parent run, and returns them alongside the placeholder node_run id.
+ *   - Throws on missing subgraph, missing required inputs, or detected
+ *     reference cycle.
+ *
+ * Locked here so Tracks 1, 3, 4, 5 can compile against a stable signature.
+ */
+export async function expandSubgraph(
+  _node: DagNode & { subgraph: { ref: string; inputs?: Record<string, unknown> } },
+  _parentRunId: string,
+  _parentNodeRunId: string,
+  /** Store dep is intentionally `unknown` here — the contract stub avoids
+   *  coupling to SwitchUiWorkflowStore until Track 2 lands the real impl. */
+  _store: unknown,
+): Promise<{ placeholderRunId: string; childNodes: Array<DagNode> }> {
+  throw new Error(
+    'expandSubgraph not yet implemented — Track 2 (A.7-subgraphs executor+store) pending',
+  );
+}
+
 const MCP_FAILURE_PREFIX = 'MCP server connection failed: ';
 
 /** A failed MCP server entry parsed from the SDK message. `segment` is the

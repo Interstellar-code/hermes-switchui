@@ -53,7 +53,40 @@ export type WorkflowWorktreePolicy = z.infer<typeof workflowWorktreePolicySchema
 // WorkflowBase — common fields shared by all workflow types
 // ---------------------------------------------------------------------------
 
+/**
+ * Subgraph input/output declarations (A.7-subgraphs).
+ * A subgraph YAML declares the parameters its parent must bind and the
+ * outputs it surfaces back. Both blocks are ignored on workflows where
+ * kind !== 'subgraph'.
+ */
+export const subgraphInputSchema = z.object({
+  name: z.string().regex(/^[a-z][a-z0-9_]*$/i, 'input name must be snake_case identifier'),
+  type: z.enum(['string', 'number', 'boolean', 'object', 'array']).optional(),
+  required: z.boolean().optional(),
+  description: z.string().optional(),
+});
+
+export const subgraphOutputSchema = z.object({
+  name: z.string().regex(/^[a-z][a-z0-9_]*$/i, 'output name must be snake_case identifier'),
+  /** Dotted reference into a child node's output (e.g. `synthesize.output` or `synthesize.output.summary`). */
+  from: z.string().min(1),
+  description: z.string().optional(),
+});
+
 export const workflowBaseSchema = z.object({
+  /**
+   * Discriminator: `workflow` (default) for runnable workflows; `subgraph`
+   * for referenceable inner-graph definitions. Subgraphs cannot be launched
+   * directly — they expand into a parent workflow's run via a DagNode that
+   * carries `subgraph: { ref: <id> }`.
+   */
+  kind: z.enum(['workflow', 'subgraph']).optional(),
+  /** Required when kind=subgraph — the subgraph's stable id used in references. */
+  id: z.string().regex(/^[a-z0-9][a-z0-9_-]*$/i).optional(),
+  /** Subgraph inputs — parent must bind every required input at the reference site. */
+  inputs: z.array(subgraphInputSchema).optional(),
+  /** Subgraph outputs — surfaced to the parent as `$<node-id>.outputs.<name>`. */
+  outputs: z.array(subgraphOutputSchema).optional(),
   name: z.string().min(1),
   description: z.string().min(1),
   provider: z.string().trim().min(1).optional(),

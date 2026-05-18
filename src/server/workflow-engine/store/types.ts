@@ -48,6 +48,8 @@ export interface WorkflowDefinitionRow {
   checksum: string;
   version: string | null;
   tags: string | null; // JSON array<string>
+  /** 'workflow' (default — runnable top-level) | 'subgraph' (referenceable via DagNode.subgraph). */
+  kind?: 'workflow' | 'subgraph';
   created_at: number;
   updated_at: number;
   // Derived/joined — populated by listWorkflowDefinitions; optional elsewhere.
@@ -101,6 +103,7 @@ export interface NodeRunRow {
   artifact_refs: string | null; // JSON array
   loop_iteration: number | null;
   loop_parent_node_run_id: string | null;
+  parent_subgraph_node_run_id: string | null;
   approval_message: string | null;
   approval_response: string | null;
   approval_target: string | null;
@@ -191,6 +194,9 @@ export interface NodeRun {
   artifact_refs?: Array<{ type: string; label: string; url?: string; path?: string }> | null;
   loop_iteration?: number | null;
   loop_parent_node_run_id?: string | null;
+  /** When set, this node_run is a child of a subgraph expansion. Mirrors the
+   *  loop_parent_node_run_id pattern. (A.7-subgraphs) */
+  parent_subgraph_node_run_id?: string | null;
   approval_message?: string | null;
   approval_response?: string | null;
   approval_target?: string | null;
