@@ -2,7 +2,7 @@
  * Workflow loader - discovers and parses workflow YAML files
  */
 import type { WorkflowDefinition, WorkflowLoadError, DagNode, WorkflowNodeHooks } from '../schemas';
-import { isLoopNode, isApprovalNode, isCancelNode, isScriptNode } from '../schemas';
+import { isLoopNode, isApprovalNode, isCancelNode, isScriptNode, isSubgraphNode } from '../schemas';
 import { createLogger } from '@archon/paths';
 import {
   dagNodeSchema,
@@ -10,10 +10,19 @@ import {
   SCRIPT_NODE_AI_FIELDS,
   LOOP_NODE_AI_FIELDS,
 } from '../schemas/dag-node';
-import { modelReasoningEffortSchema, webSearchModeSchema } from '../schemas/workflow';
+import { modelReasoningEffortSchema, webSearchModeSchema, subgraphInputSchema, subgraphOutputSchema } from '../schemas/workflow';
 import { workflowNodeHooksSchema } from '../schemas/hooks';
 import { z } from '@hono/zod-openapi';
 import { parse as parseYamlLib } from 'yaml';
+
+// ---------------------------------------------------------------------------
+// Store interface (subset used by parseWorkflow for subgraph validation)
+// ---------------------------------------------------------------------------
+
+/** Minimal store interface needed by parseWorkflow for subgraph reference validation. */
+export interface ISubgraphStore {
+  getWorkflowDefinition(id: string): { id: string; yaml: string; kind?: 'workflow' | 'subgraph' } | null;
+}
 
 /** Lazy-initialized logger (deferred so test mocks can intercept createLogger) */
 let cachedLog: ReturnType<typeof createLogger> | undefined;
@@ -182,10 +191,154 @@ export type ParseResult =
   | { workflow: WorkflowDefinition; error: null }
   | { workflow: null; error: WorkflowLoadError };
 
+// ---------------------------------------------------------------------------
+// Subgraph validation helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Validate subgraph-specific top-level fields when kind=subgraph.
+ * Returns an error string or null if valid.
+ */
+function validateSubgraphDeclaration(raw: Record<string, unknown>): string | null {
+  // id is required for kind=subgraph
+  if (!raw.id || typeof raw.id !== 'string' || raw.id.trim().length === 0) {
+    return "Subgraph must have a non-empty 'id' field when kind=subgraph";
+  }
+  const idResult = z.string().regex(/^[a-z0-9][a-z0-9_-]*$/i).safeParse(raw.id);
+  if (!idResult.success) {
+    return `Subgraph 'id' must be kebab/snake-case (got '${String(raw.id)}')`;
+  }
+
+  // Validate inputs if present
+  if (raw.inputs !== undefined) {
+    if (!Array.isArray(raw.inputs)) {
+      return "'inputs' must be an array of input declarations";
+    }
+    for (let i = 0; i < (raw.inputs as unknown[]).length; i++) {
+      const result = subgraphInputSchema.safeParse((raw.inputs as unknown[])[i]);
+      if (!result.success) {
+        const msg = result.error.issues.map(iss => iss.message).join('; ');
+        return `inputs[${i}]: ${msg}`;
+      }
+    }
+  }
+
+  // Validate outputs if present
+  if (raw.outputs !== undefined) {
+    if (!Array.isArray(raw.outputs)) {
+      return "'outputs' must be an array of output declarations";
+    }
+    for (let i = 0; i < (raw.outputs as unknown[]).length; i++) {
+      const result = subgraphOutputSchema.safeParse((raw.outputs as unknown[])[i]);
+      if (!result.success) {
+        const msg = result.error.issues.map(iss => iss.message).join('; ');
+        return `outputs[${i}]: ${msg}`;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Validate that every outputs[*].from references a real inner node id.
+ * Must be called after nodes are parsed (so nodeIds is populated).
+ */
+function validateSubgraphOutputRefs(raw: Record<string, unknown>, nodeIds: Set<string>): string | null {
+  if (!Array.isArray(raw.outputs)) return null;
+  for (const output of raw.outputs as Array<Record<string, unknown>>) {
+    if (typeof output.from !== 'string' || output.from.trim().length === 0) continue;
+    // from is in the form `<nodeId>` or `<nodeId>.output` or `<nodeId>.output.field`
+    const refNodeId = output.from.split('.')[0];
+    if (refNodeId && !nodeIds.has(refNodeId)) {
+      return `outputs[].from references unknown inner node '${refNodeId}' (in '${output.from}')`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Validate subgraph references inside a workflow's nodes.
+ * For each subgraph node:
+ *   1. Look up the referenced subgraph via store.
+ *   2. Verify all required inputs are bound at the reference site.
+ *   3. Detect cycles via DFS using visitedSubgraphIds (accumulated per top-level parse pass).
+ *
+ * Returns an error string or null if valid.
+ */
+function validateSubgraphReferences(
+  nodes: DagNode[],
+  store: ISubgraphStore,
+  visitedSubgraphIds: Set<string>,
+  filename: string,
+): string | null {
+  for (const node of nodes) {
+    if (!isSubgraphNode(node)) continue;
+
+    const ref = node.subgraph.ref;
+
+    // Cycle detection: if we've already visited this subgraph id in this parse pass, it's a cycle
+    if (visitedSubgraphIds.has(ref)) {
+      return `Subgraph cycle detected: '${ref}' is referenced more than once in a dependency chain (cycle via ${filename})`;
+    }
+
+    // Look up the subgraph definition
+    const row = store.getWorkflowDefinition(ref);
+    if (!row) {
+      return `Node '${node.id}': subgraph reference '${ref}' not found in the store`;
+    }
+    if (row.kind !== 'subgraph') {
+      return `Node '${node.id}': '${ref}' exists but is not a subgraph (kind=${row.kind ?? 'workflow'})`;
+    }
+
+    // Parse the referenced subgraph YAML to extract its declared inputs
+    const subgraphParseResult = parseYaml(row.yaml) as Record<string, unknown> | null;
+    const declaredInputs: Array<{ name: string; required?: boolean }> =
+      Array.isArray(subgraphParseResult?.inputs)
+        ? (subgraphParseResult.inputs as Array<{ name: string; required?: boolean }>)
+        : [];
+
+    // Validate that all required inputs are bound at this reference site
+    const boundInputs = node.subgraph.inputs ?? {};
+    for (const input of declaredInputs) {
+      const isRequired = input.required !== false; // defaults to required if not explicitly false
+      if (isRequired && !(input.name in boundInputs)) {
+        return `Node '${node.id}': subgraph '${ref}' requires input '${input.name}' but it is not bound at the reference site`;
+      }
+    }
+
+    // DFS: mark this subgraph as visited, then recurse into it to check its own subgraph refs
+    visitedSubgraphIds.add(ref);
+
+    // Parse the subgraph's nodes to check for transitive references
+    if (subgraphParseResult && Array.isArray(subgraphParseResult.nodes)) {
+      const validationErrors: string[] = [];
+      const childNodes = (subgraphParseResult.nodes as unknown[])
+        .map((n: unknown, i: number) => parseDagNode(n, i, validationErrors))
+        .filter((n): n is DagNode => n !== null);
+
+      if (childNodes.length > 0) {
+        const transitiveError = validateSubgraphReferences(
+          childNodes,
+          store,
+          visitedSubgraphIds,
+          `${ref}.yaml`,
+        );
+        if (transitiveError) return transitiveError;
+      }
+    }
+
+    // Remove from visited after this branch is done (backtrack) so sibling nodes can use the same subgraph
+    visitedSubgraphIds.delete(ref);
+  }
+
+  return null;
+}
+
 /**
  * Parse and validate a workflow YAML file
  */
-export function parseWorkflow(content: string, filename: string): ParseResult {
+export function parseWorkflow(content: string, filename: string, store?: ISubgraphStore): ParseResult {
   try {
     const raw = parseYaml(content) as Record<string, unknown>;
 
@@ -217,6 +370,20 @@ export function parseWorkflow(content: string, filename: string): ParseResult {
           errorType: 'validation_error',
         },
       };
+    }
+
+    // Determine kind — default is 'workflow'
+    const kind = raw.kind === 'subgraph' ? 'subgraph' : 'workflow';
+
+    // Validate subgraph-specific top-level fields early (before node parsing)
+    if (kind === 'subgraph') {
+      const subgraphDeclError = validateSubgraphDeclaration(raw);
+      if (subgraphDeclError) {
+        return {
+          workflow: null,
+          error: { filename, error: subgraphDeclError, errorType: 'validation_error' },
+        };
+      }
     }
 
     const errors: string[] = [];
@@ -279,6 +446,29 @@ export function parseWorkflow(content: string, filename: string): ParseResult {
         workflow: null,
         error: { filename, error: structureError, errorType: 'validation_error' },
       };
+    }
+
+    // Validate outputs[].from references real inner node ids (subgraph declaration only)
+    if (kind === 'subgraph') {
+      const nodeIds = new Set(dagNodes.map(n => n.id));
+      const outputRefError = validateSubgraphOutputRefs(raw, nodeIds);
+      if (outputRefError) {
+        return {
+          workflow: null,
+          error: { filename, error: outputRefError, errorType: 'validation_error' },
+        };
+      }
+    }
+
+    // Validate subgraph references in this workflow's nodes (when store is available)
+    if (store) {
+      const subgraphRefError = validateSubgraphReferences(dagNodes, store, new Set<string>(), filename);
+      if (subgraphRefError) {
+        return {
+          workflow: null,
+          error: { filename, error: subgraphRefError, errorType: 'validation_error' },
+        };
+      }
     }
 
     // Parse workflow-level fields using WorkflowBaseSchema for validation
@@ -399,10 +589,27 @@ export function parseWorkflow(content: string, filename: string): ParseResult {
       getLog().warn({ filename, value: raw.tags }, 'invalid_tags_block_ignored');
     }
 
+    // Parse subgraph declaration fields (kind, id, inputs, outputs)
+    const subgraphId = kind === 'subgraph' && typeof raw.id === 'string' ? raw.id.trim() : undefined;
+    const subgraphInputs = Array.isArray(raw.inputs)
+      ? (raw.inputs as unknown[])
+          .map((inp: unknown) => subgraphInputSchema.safeParse(inp))
+          .flatMap(r => (r.success ? [r.data] : []))
+      : undefined;
+    const subgraphOutputs = Array.isArray(raw.outputs)
+      ? (raw.outputs as unknown[])
+          .map((out: unknown) => subgraphOutputSchema.safeParse(out))
+          .flatMap(r => (r.success ? [r.data] : []))
+      : undefined;
+
     return {
       workflow: {
         name: raw.name,
         description: raw.description,
+        ...(kind === 'subgraph' ? { kind } : {}),
+        ...(subgraphId !== undefined ? { id: subgraphId } : {}),
+        ...(subgraphInputs !== undefined ? { inputs: subgraphInputs } : {}),
+        ...(subgraphOutputs !== undefined ? { outputs: subgraphOutputs } : {}),
         provider,
         model,
         modelReasoningEffort,

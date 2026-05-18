@@ -2,7 +2,7 @@
  * RunDetailPanel — shows status, phase timeline, node runs, and live SSE events
  * for a single workflow run. Opened by the LaunchWizard after a successful launch.
  */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useApproveRun, useCancelRun, useWorkflowRun } from './use-workflows'
 import { useWorkflowEvents } from './use-workflow-events'
 import type { NodeRunRow, WorkflowArtifactRef } from './api-client'
@@ -203,6 +203,49 @@ export function RunDetailPanel({ runId, onClose }: Props) {
       ? nodeRuns.find((nr) => nr.status === 'paused' && nr.approval_message)
       : undefined
 
+  // ── Subgraph tree state ───────────────────────────────────────────────────
+  const [expandedSubgraphRows, setExpandedSubgraphRows] = useState<Set<string>>(
+    new Set(),
+  )
+  function toggleSubgraphRow(id: string) {
+    setExpandedSubgraphRows((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // Build tree: placeholder rows (no parent) + map from placeholder id → children
+  const { topLevelRuns, childrenByParent } = useMemo(() => {
+    const byParent = new Map<string, Array<NodeRunRow>>()
+    const childIds = new Set<string>()
+    for (const nr of nodeRuns) {
+      if (nr.parent_subgraph_node_run_id) {
+        childIds.add(nr.id)
+        const arr = byParent.get(nr.parent_subgraph_node_run_id) ?? []
+        arr.push(nr)
+        byParent.set(nr.parent_subgraph_node_run_id, arr)
+      }
+    }
+    const topLevel = nodeRuns.filter((nr) => !childIds.has(nr.id))
+    return { topLevelRuns: topLevel, childrenByParent: byParent }
+  }, [nodeRuns])
+
+  /** Compute aggregate status label for a subgraph placeholder row. */
+  function subgraphAggregate(placeholderId: string): string {
+    const children = childrenByParent.get(placeholderId) ?? []
+    if (children.length === 0) return 'no children'
+    const counts: Record<string, number> = {}
+    for (const c of children) {
+      counts[c.status] = (counts[c.status] ?? 0) + 1
+    }
+    if (counts['running']) return `${counts['running']}/${children.length} running`
+    if (counts['failed']) return `${counts['failed']}/${children.length} failed`
+    if (counts['pending']) return `${children.length - (counts['completed'] ?? 0)}/${children.length} pending`
+    return `${counts['completed'] ?? 0}/${children.length} completed`
+  }
+
   return (
     <div className="wfrd-panel">
       {/* ── Header ── */}
@@ -363,49 +406,141 @@ export function RunDetailPanel({ runId, onClose }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {nodeRuns.map((nr) => (
-                    <tr key={nr.id}>
-                      <td className="wfrd-mono">{nr.dag_node_id}</td>
-                      <td>
-                        <StatusBadge status={nr.status} />
-                      </td>
-                      <td>
-                        <TaskCell nodeRun={nr} />
-                      </td>
-                      <td>{relTime(nr.started_at)}</td>
-                      <td>{relTime(nr.completed_at)}</td>
-                      <td>
-                        <ArtifactRefs nodeRun={nr} />
-                      </td>
-                      <td className="wfrd-summary">
-                        {nr.summary ? (
-                          nr.summary.length > 80 ? (
-                            <details style={{ cursor: 'pointer' }}>
-                              <summary
-                                style={{ listStyle: 'none', outline: 'none' }}
+                  {topLevelRuns.map((nr) => {
+                    const children = childrenByParent.get(nr.id)
+                    const isSubgraphPlaceholder =
+                      children !== undefined && children.length > 0
+                    const isExpanded = expandedSubgraphRows.has(nr.id)
+
+                    return (
+                      <>
+                        <tr
+                          key={nr.id}
+                          className={
+                            isSubgraphPlaceholder
+                              ? 'wfrd-row wfrd-row--subgraph-parent'
+                              : 'wfrd-row'
+                          }
+                        >
+                          <td className="wfrd-mono">
+                            {isSubgraphPlaceholder ? (
+                              <button
+                                type="button"
+                                className="wfrd-sg-toggle"
+                                onClick={() => toggleSubgraphRow(nr.id)}
+                                aria-expanded={isExpanded}
+                                aria-label={
+                                  isExpanded ? 'Collapse children' : 'Expand children'
+                                }
                               >
-                                {nr.summary.slice(0, 80)}&hellip;
-                              </summary>
-                              <pre
-                                style={{
-                                  margin: '4px 0 0',
-                                  whiteSpace: 'pre-wrap',
-                                  fontSize: 11,
-                                  opacity: 0.85,
-                                }}
-                              >
-                                {nr.summary}
-                              </pre>
-                            </details>
-                          ) : (
-                            nr.summary
-                          )
-                        ) : (
-                          <span style={{ opacity: 0.4 }}>—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                                {isExpanded ? '▾' : '▸'}
+                              </button>
+                            ) : null}
+                            {nr.dag_node_id}
+                          </td>
+                          <td>
+                            {isSubgraphPlaceholder ? (
+                              <span className="wfrd-sg-aggregate">
+                                {subgraphAggregate(nr.id)}
+                              </span>
+                            ) : (
+                              <StatusBadge status={nr.status} />
+                            )}
+                          </td>
+                          <td>
+                            <TaskCell nodeRun={nr} />
+                          </td>
+                          <td>{relTime(nr.started_at)}</td>
+                          <td>{relTime(nr.completed_at)}</td>
+                          <td>
+                            <ArtifactRefs nodeRun={nr} />
+                          </td>
+                          <td className="wfrd-summary">
+                            {nr.summary ? (
+                              nr.summary.length > 80 ? (
+                                <details style={{ cursor: 'pointer' }}>
+                                  <summary
+                                    style={{ listStyle: 'none', outline: 'none' }}
+                                  >
+                                    {nr.summary.slice(0, 80)}&hellip;
+                                  </summary>
+                                  <pre
+                                    style={{
+                                      margin: '4px 0 0',
+                                      whiteSpace: 'pre-wrap',
+                                      fontSize: 11,
+                                      opacity: 0.85,
+                                    }}
+                                  >
+                                    {nr.summary}
+                                  </pre>
+                                </details>
+                              ) : (
+                                nr.summary
+                              )
+                            ) : (
+                              <span style={{ opacity: 0.4 }}>—</span>
+                            )}
+                          </td>
+                        </tr>
+                        {/* child rows — shown when expanded */}
+                        {isSubgraphPlaceholder &&
+                          isExpanded &&
+                          children.map((child) => (
+                            <tr
+                              key={child.id}
+                              className="wfrd-row wfrd-row--subgraph-child"
+                            >
+                              <td className="wfrd-mono wfrd-mono--child">
+                                <span className="wfrd-sg-indent" />
+                                {child.dag_node_id}
+                              </td>
+                              <td>
+                                <StatusBadge status={child.status} />
+                              </td>
+                              <td>
+                                <TaskCell nodeRun={child} />
+                              </td>
+                              <td>{relTime(child.started_at)}</td>
+                              <td>{relTime(child.completed_at)}</td>
+                              <td>
+                                <ArtifactRefs nodeRun={child} />
+                              </td>
+                              <td className="wfrd-summary">
+                                {child.summary ? (
+                                  child.summary.length > 80 ? (
+                                    <details style={{ cursor: 'pointer' }}>
+                                      <summary
+                                        style={{
+                                          listStyle: 'none',
+                                          outline: 'none',
+                                        }}
+                                      >
+                                        {child.summary.slice(0, 80)}&hellip;
+                                      </summary>
+                                      <pre
+                                        style={{
+                                          margin: '4px 0 0',
+                                          whiteSpace: 'pre-wrap',
+                                          fontSize: 11,
+                                          opacity: 0.85,
+                                        }}
+                                      >
+                                        {child.summary}
+                                      </pre>
+                                    </details>
+                                  ) : (
+                                    child.summary
+                                  )
+                                ) : (
+                                  <span style={{ opacity: 0.4 }}>—</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                      </>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

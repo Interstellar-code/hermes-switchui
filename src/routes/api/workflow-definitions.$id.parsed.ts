@@ -136,12 +136,32 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
                     : null,
               }
             : null
+          // Project subgraph reference when present (A.7-subgraphs).
+          const subgraphRaw =
+            raw['subgraph'] && typeof raw['subgraph'] === 'object'
+              ? (raw['subgraph'] as Record<string, unknown>)
+              : null
+          const subgraph = subgraphRaw
+            ? {
+                ref: String(subgraphRaw['ref'] ?? ''),
+                inputs:
+                  subgraphRaw['inputs'] &&
+                  typeof subgraphRaw['inputs'] === 'object'
+                    ? (subgraphRaw['inputs'] as Record<string, unknown>)
+                    : undefined,
+                when:
+                  typeof subgraphRaw['when'] === 'string'
+                    ? subgraphRaw['when']
+                    : undefined,
+              }
+            : null
           return {
             id: node.id,
             label: (raw['name'] as string | undefined) ?? node.id,
             type: nodeType(node),
             phase: (raw['phase'] as string | undefined) ?? null,
             hermes_task: hermesTask,
+            subgraph,
             depends_on:
               (node as { depends_on?: Array<string> }).depends_on ?? [],
             skills:

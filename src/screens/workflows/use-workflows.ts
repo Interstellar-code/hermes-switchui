@@ -54,6 +54,7 @@ function adaptDefinition(row: WorkflowDefinitionRow): WorkflowSummary {
     dag: [],
     dag_edges: [],
     yaml: row.yaml,
+    kind: row.kind,
   }
 }
 

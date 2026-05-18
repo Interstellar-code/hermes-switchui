@@ -18,6 +18,8 @@ export interface WorkflowDefinitionRow {
   yaml: string
   checksum: string
   version: string | null
+  /** 'workflow' (default) | 'subgraph' — subgraphs are hidden from the library grid by default (A.7). */
+  kind?: 'workflow' | 'subgraph'
   tags: string | null // JSON-encoded string[]
   created_at: number
   updated_at: number
@@ -111,6 +113,8 @@ export interface NodeRunRow {
   approval_response?: string | null
   approval_target?: string | null
   artifact_refs?: string | Array<WorkflowArtifactRef> | null
+  /** Set on child rows when they belong to a subgraph expansion (A.7-subgraphs). */
+  parent_subgraph_node_run_id?: string | null
 }
 
 export interface ApproveWorkflowInput {

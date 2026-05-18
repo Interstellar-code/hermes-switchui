@@ -93,6 +93,7 @@ export function useWorkflowEvents(conversationId: string | null): {
       'node_started', 'node_completed', 'node_failed', 'node_skipped',
       'node_skipped_prior_success',
       'loop_iteration_started', 'loop_iteration_completed', 'loop_iteration_failed',
+      'subgraph_started', 'subgraph_completed', 'subgraph_failed',
       'tool_called', 'tool_completed',
       'ralph_story_started', 'ralph_story_completed', 'ralph_story_failed',
       'approval_requested', 'approval_received',

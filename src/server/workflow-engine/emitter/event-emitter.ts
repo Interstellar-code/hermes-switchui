@@ -95,6 +95,9 @@ interface NodeStartedEvent {
   agentProfileHint?: string;
   skills?: Array<string>;
   modelHint?: string;
+  /** When set, this node_run is a child of a subgraph placeholder. (A.7-subgraphs)
+   *  Projector forwards this to createNodeRun so the FK linkage is established. */
+  parentSubgraphNodeRunId?: string;
 }
 
 interface NodeCompletedEvent {

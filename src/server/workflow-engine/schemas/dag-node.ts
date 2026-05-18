@@ -365,7 +365,6 @@ export type SubgraphNode = z.infer<typeof subgraphNodeSchema> & {
   approval?: never
   cancel?: never
   script?: never
-  subgraph?: never
 }
 
 /** A single node in a DAG workflow. command, prompt, bash, loop, approval, cancel, script, and subgraph are mutually exclusive. */

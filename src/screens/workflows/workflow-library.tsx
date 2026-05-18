@@ -90,6 +90,7 @@ export function WorkflowLibrary({
   const [originFilter, setOriginFilter] = useState<OriginFilter>('all')
   const [nodeTypeFilter, setNodeTypeFilter] = useState<NodeTypeFilter>('all')
   const [taskFilter, setTaskFilter] = useState<TaskFilter>('all')
+  const [showSubgraphs, setShowSubgraphs] = useState(false)
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
@@ -143,6 +144,8 @@ export function WorkflowLibrary({
 
   const filtered = useMemo<Array<WorkflowSummary>>(() => {
     return workflows.filter((w) => {
+      // Hide subgraph definitions unless the toggle is on (A.7-subgraphs).
+      if (!showSubgraphs && w.kind === 'subgraph') return false
       if (originFilter !== 'all' && w.source !== originFilter) return false
       if (nodeTypeFilter !== 'all' && !detectNodeTypes(w).has(nodeTypeFilter)) {
         return false
@@ -158,7 +161,7 @@ export function WorkflowLibrary({
       }
       return true
     })
-  }, [workflows, originFilter, nodeTypeFilter, taskFilter, normalizedSearch])
+  }, [workflows, originFilter, nodeTypeFilter, taskFilter, normalizedSearch, showSubgraphs])
 
   useEffect(() => {
     onFilteredChange?.(filtered)
@@ -205,6 +208,7 @@ export function WorkflowLibrary({
     setOriginFilter('all')
     setNodeTypeFilter('all')
     setTaskFilter('all')
+    setShowSubgraphs(false)
     onClearSelection?.()
   }
 
@@ -427,6 +431,25 @@ export function WorkflowLibrary({
                   <span className="wfr-row-ct">{taskCounts[opt.value]}</span>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* ── Subgraph toggle (A.7-subgraphs) ─────────────── */}
+          <div className="wfr-section">
+            <div className="wfr-sec-label">Kind</div>
+            <div className="wfr-list">
+              <button
+                type="button"
+                className={`wfr-opt-row${showSubgraphs ? ' on' : ''}`}
+                onClick={() => setShowSubgraphs((v) => !v)}
+                aria-pressed={showSubgraphs}
+              >
+                <span className="wfr-dot wfr-dot--subgraph" />
+                <span>Show subgraphs</span>
+                <span className="wfr-row-ct">
+                  {workflows.filter((w) => w.kind === 'subgraph').length}
+                </span>
+              </button>
             </div>
           </div>
         </div>

@@ -506,7 +506,21 @@ function DagSvgTab({ parsed }: { parsed: ParsedWorkflow }) {
     phase: n.phase,
     hermes_task: n.hermes_task,
     config: n.config ?? n.config_preview,
+    subgraph: n.subgraph,
   }))
+
+  // Track expand state for subgraph nodes
+  const [expandedSubgraphs, setExpandedSubgraphs] = useState<Set<string>>(
+    new Set(),
+  )
+  function toggleSubgraph(id: string) {
+    setExpandedSubgraphs((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   if (dagNodes.length === 0) {
     return (
@@ -648,6 +662,138 @@ function DagSvgTab({ parsed }: { parsed: ParsedWorkflow }) {
           {dagNodes.map((n) => {
             const pos = posMap[n.id]
             const c = NODE_COLOR[n.type]
+            const isSubgraph = !!n.subgraph
+            const isExpanded = expandedSubgraphs.has(n.id)
+            // Count how many child nodes list this node as a dependency proxy
+            const childCount = isSubgraph
+              ? parsed.edges.filter(([a]) => a === n.id).length
+              : 0
+
+            if (isSubgraph) {
+              // ── Subgraph node: dashed outline, chevron, ref badge ──
+              const SG_COLOR = '#bf97ff'
+              return (
+                <g
+                  key={n.id}
+                  className="dag-node dag-node--subgraph"
+                  onClick={() => toggleSubgraph(n.id)}
+                  onMouseEnter={() =>
+                    setTooltip({ id: n.id, cx: pos.cx, cy: pos.cy })
+                  }
+                  onMouseLeave={() => setTooltip(null)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <rect
+                    className="dag-node-shadow"
+                    x={pos.cx - W / 2 + 5}
+                    y={pos.cy - H / 2 + 7}
+                    width={W}
+                    height={H}
+                    rx={R}
+                  />
+                  {/* dashed outline indicates subgraph */}
+                  <rect
+                    x={pos.cx - W / 2}
+                    y={pos.cy - H / 2}
+                    width={W}
+                    height={H}
+                    rx={R}
+                    fill="url(#dag-node-fill)"
+                    stroke={SG_COLOR}
+                    strokeWidth="1.6"
+                    strokeDasharray="5 3"
+                    filter="url(#glow-command)"
+                  />
+                  <circle
+                    className="dag-port dag-port-in"
+                    cx={pos.cx - W / 2}
+                    cy={pos.cy}
+                    r="4"
+                  />
+                  <circle
+                    className="dag-port dag-port-out"
+                    cx={pos.cx + W / 2}
+                    cy={pos.cy}
+                    r="4"
+                  />
+                  {/* chevron expand/collapse */}
+                  <text
+                    x={pos.cx - W / 2 + 10}
+                    y={pos.cy - 14}
+                    style={{
+                      font: '700 10px var(--m-font-mono, ui-monospace, monospace)',
+                      fill: SG_COLOR,
+                    }}
+                  >
+                    {isExpanded ? '▾' : '▸'}
+                  </text>
+                  <text
+                    x={pos.cx - W / 2 + 24}
+                    y={pos.cy - 14}
+                    style={{
+                      font: '700 12px var(--m-font-mono, ui-monospace, monospace)',
+                      fill: '#e8ffe8',
+                      letterSpacing: '.02em',
+                    }}
+                  >
+                    {shortenNodeLabel(n.label)}
+                  </text>
+                  {/* subgraph ref id */}
+                  <text
+                    x={pos.cx - W / 2 + 24}
+                    y={pos.cy + 4}
+                    style={{
+                      font: '700 9px var(--m-font-mono, ui-monospace, monospace)',
+                      fill: SG_COLOR,
+                      letterSpacing: '.08em',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    subgraph
+                  </text>
+                  <text
+                    x={pos.cx - W / 2 + 24}
+                    y={pos.cy + 18}
+                    style={{
+                      font: '500 8px var(--m-font-mono, ui-monospace, monospace)',
+                      fill: 'rgba(191,151,255,.7)',
+                      letterSpacing: '.04em',
+                    }}
+                  >
+                    {n.subgraph!.ref.length > 20
+                      ? `${n.subgraph!.ref.slice(0, 17)}…`
+                      : n.subgraph!.ref}
+                  </text>
+                  {/* child-count badge */}
+                  {childCount > 0 && (
+                    <>
+                      <rect
+                        x={pos.cx + W / 2 - 30}
+                        y={pos.cy - H / 2 + 6}
+                        width={24}
+                        height={14}
+                        rx={4}
+                        fill={SG_COLOR}
+                        opacity={0.22}
+                      />
+                      <text
+                        x={pos.cx + W / 2 - 18}
+                        y={pos.cy - H / 2 + 16}
+                        textAnchor="middle"
+                        style={{
+                          font: '700 9px var(--m-font-mono, ui-monospace, monospace)',
+                          fill: SG_COLOR,
+                          letterSpacing: '.04em',
+                        }}
+                      >
+                        {childCount}
+                      </text>
+                    </>
+                  )}
+                </g>
+              )
+            }
+
             return (
               <g
                 key={n.id}
@@ -757,6 +903,14 @@ function DagSvgTab({ parsed }: { parsed: ParsedWorkflow }) {
             {tooltipNode.phase && (
               <div className="dag-tt-phase">{tooltipNode.phase}</div>
             )}
+            {tooltipNode.subgraph && (
+              <div className="dag-tt-task">
+                <div>Subgraph ref: {tooltipNode.subgraph.ref}</div>
+                <div style={{ opacity: 0.7, fontSize: 10 }}>
+                  Click node to {expandedSubgraphs.has(tooltipNode.id) ? 'collapse' : 'expand'} children
+                </div>
+              </div>
+            )}
             {tooltipNode.hermes_task && (
               <div className="dag-tt-task">
                 <div>Hermes Kanban task-backed node</div>
@@ -776,15 +930,57 @@ function DagSvgTab({ parsed }: { parsed: ParsedWorkflow }) {
             )}
             <div
               className="dag-tt-type"
-              style={{ color: NODE_COLOR[tooltipNode.type] }}
+              style={{ color: tooltipNode.subgraph ? '#bf97ff' : NODE_COLOR[tooltipNode.type] }}
             >
-              {tooltipNode.type}
+              {tooltipNode.subgraph ? 'subgraph' : tooltipNode.type}
             </div>
-            {tooltipNode.config && (
+            {tooltipNode.config && !tooltipNode.subgraph && (
               <div className="dag-tt-cfg">{tooltipNode.config}</div>
             )}
           </div>
         )}
+
+        {/* expanded subgraph children list */}
+        {dagNodes
+          .filter((n) => n.subgraph && expandedSubgraphs.has(n.id))
+          .map((n) => {
+            const pos = posMap[n.id]
+            // Children: nodes that have an edge FROM this subgraph node
+            const childIds = parsed.edges
+              .filter(([a]) => a === n.id)
+              .map(([, b]) => b)
+            const childNodes = dagNodes.filter((c) => childIds.includes(c.id))
+            return (
+              <div
+                key={`sg-expand-${n.id}`}
+                className="dag-sg-expand"
+                style={{
+                  position: 'absolute',
+                  top: `${pos.cy + H / 2 + 10}px`,
+                  left: `${pos.cx - W / 2}px`,
+                  width: W,
+                }}
+              >
+                <div className="dag-sg-expand-title">
+                  {n.subgraph!.ref} children
+                </div>
+                {childNodes.length === 0 ? (
+                  <div className="dag-sg-expand-empty">no direct children</div>
+                ) : (
+                  childNodes.map((c) => (
+                    <div key={c.id} className="dag-sg-expand-row">
+                      <span
+                        className="dag-sg-expand-dot"
+                        style={{ background: NODE_COLOR[c.type] }}
+                      />
+                      <span className="dag-sg-expand-id">{c.id}</span>
+                      <span className="dag-sg-expand-type">{c.type}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )
+          })}
       </div>
 
       {/* legend */}

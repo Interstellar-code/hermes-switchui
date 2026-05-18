@@ -21,6 +21,13 @@ export interface HermesTaskHint {
   model_hint?: string | null
 }
 
+/** Subgraph reference on a DAG node (A.7-subgraphs). */
+export interface SubgraphRef {
+  ref: string
+  inputs?: Record<string, unknown>
+  when?: string
+}
+
 export interface WorkflowDagNode {
   id: string
   label: string
@@ -28,6 +35,8 @@ export interface WorkflowDagNode {
   phase?: string | null
   hermes_task?: HermesTaskHint | null
   config?: string
+  /** Present when the node expands a subgraph definition (A.7-subgraphs). */
+  subgraph?: SubgraphRef | null
 }
 
 export interface WorkflowSummary {
@@ -51,6 +60,8 @@ export interface WorkflowSummary {
   dag: Array<WorkflowDagNode>
   dag_edges: Array<[string, string]>
   yaml: string
+  /** 'workflow' (default) | 'subgraph' — subgraphs are hidden from the grid by default (A.7). */
+  kind?: 'workflow' | 'subgraph'
 }
 
 /** Shape returned by GET /api/workflow-definitions/:id/parsed */
@@ -65,6 +76,8 @@ export interface ParsedWorkflow {
     hermes_task?: HermesTaskHint | null
     config?: string
     config_preview?: string
+    /** Present when the node expands a subgraph definition (A.7-subgraphs). */
+    subgraph?: SubgraphRef | null
   }>
   edges: Array<[string, string]>
   has_loop: boolean
