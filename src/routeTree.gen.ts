@@ -141,6 +141,7 @@ import { Route as ApiHermesKanbanBoardRouteImport } from './routes/api/hermes-ka
 import { Route as ApiHermesKanbanAssigneesRouteImport } from './routes/api/hermes-kanban/assignees'
 import { Route as ApiDashboardOverviewRouteImport } from './routes/api/dashboard/overview'
 import { Route as ApiDashboardProxySplatRouteImport } from './routes/api/dashboard-proxy/$'
+import { Route as ApiConductorWorkersRouteImport } from './routes/api/conductor/workers'
 import { Route as ApiConductorStateRouteImport } from './routes/api/conductor/state'
 import { Route as ApiConductorMissionsRouteImport } from './routes/api/conductor/missions'
 import { Route as ApiClaudeTasksTaskIdRouteImport } from './routes/api/claude-tasks.$taskId'
@@ -831,6 +832,11 @@ const ApiDashboardProxySplatRoute = ApiDashboardProxySplatRouteImport.update({
   path: '/api/dashboard-proxy/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiConductorWorkersRoute = ApiConductorWorkersRouteImport.update({
+  id: '/api/conductor/workers',
+  path: '/api/conductor/workers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiConductorStateRoute = ApiConductorStateRouteImport.update({
   id: '/api/conductor/state',
   path: '/api/conductor/state',
@@ -1043,6 +1049,7 @@ export interface FileRoutesByFullPath {
   '/api/claude-tasks/$taskId': typeof ApiClaudeTasksTaskIdRoute
   '/api/conductor/missions': typeof ApiConductorMissionsRouteWithChildren
   '/api/conductor/state': typeof ApiConductorStateRoute
+  '/api/conductor/workers': typeof ApiConductorWorkersRoute
   '/api/dashboard-proxy/$': typeof ApiDashboardProxySplatRoute
   '/api/dashboard/overview': typeof ApiDashboardOverviewRoute
   '/api/hermes-kanban/assignees': typeof ApiHermesKanbanAssigneesRoute
@@ -1200,6 +1207,7 @@ export interface FileRoutesByTo {
   '/api/claude-tasks/$taskId': typeof ApiClaudeTasksTaskIdRoute
   '/api/conductor/missions': typeof ApiConductorMissionsRouteWithChildren
   '/api/conductor/state': typeof ApiConductorStateRoute
+  '/api/conductor/workers': typeof ApiConductorWorkersRoute
   '/api/dashboard-proxy/$': typeof ApiDashboardProxySplatRoute
   '/api/dashboard/overview': typeof ApiDashboardOverviewRoute
   '/api/hermes-kanban/assignees': typeof ApiHermesKanbanAssigneesRoute
@@ -1359,6 +1367,7 @@ export interface FileRoutesById {
   '/api/claude-tasks/$taskId': typeof ApiClaudeTasksTaskIdRoute
   '/api/conductor/missions': typeof ApiConductorMissionsRouteWithChildren
   '/api/conductor/state': typeof ApiConductorStateRoute
+  '/api/conductor/workers': typeof ApiConductorWorkersRoute
   '/api/dashboard-proxy/$': typeof ApiDashboardProxySplatRoute
   '/api/dashboard/overview': typeof ApiDashboardOverviewRoute
   '/api/hermes-kanban/assignees': typeof ApiHermesKanbanAssigneesRoute
@@ -1519,6 +1528,7 @@ export interface FileRouteTypes {
     | '/api/claude-tasks/$taskId'
     | '/api/conductor/missions'
     | '/api/conductor/state'
+    | '/api/conductor/workers'
     | '/api/dashboard-proxy/$'
     | '/api/dashboard/overview'
     | '/api/hermes-kanban/assignees'
@@ -1676,6 +1686,7 @@ export interface FileRouteTypes {
     | '/api/claude-tasks/$taskId'
     | '/api/conductor/missions'
     | '/api/conductor/state'
+    | '/api/conductor/workers'
     | '/api/dashboard-proxy/$'
     | '/api/dashboard/overview'
     | '/api/hermes-kanban/assignees'
@@ -1834,6 +1845,7 @@ export interface FileRouteTypes {
     | '/api/claude-tasks/$taskId'
     | '/api/conductor/missions'
     | '/api/conductor/state'
+    | '/api/conductor/workers'
     | '/api/dashboard-proxy/$'
     | '/api/dashboard/overview'
     | '/api/hermes-kanban/assignees'
@@ -1988,6 +2000,7 @@ export interface RootRouteChildren {
   ApiClaudeProxySplatRoute: typeof ApiClaudeProxySplatRoute
   ApiConductorMissionsRoute: typeof ApiConductorMissionsRouteWithChildren
   ApiConductorStateRoute: typeof ApiConductorStateRoute
+  ApiConductorWorkersRoute: typeof ApiConductorWorkersRoute
   ApiDashboardProxySplatRoute: typeof ApiDashboardProxySplatRoute
   ApiDashboardOverviewRoute: typeof ApiDashboardOverviewRoute
   ApiHermesKanbanAssigneesRoute: typeof ApiHermesKanbanAssigneesRoute
@@ -2957,6 +2970,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDashboardProxySplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/conductor/workers': {
+      id: '/api/conductor/workers'
+      path: '/api/conductor/workers'
+      fullPath: '/api/conductor/workers'
+      preLoaderRoute: typeof ApiConductorWorkersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/conductor/state': {
       id: '/api/conductor/state'
       path: '/api/conductor/state'
@@ -3537,6 +3557,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiClaudeProxySplatRoute: ApiClaudeProxySplatRoute,
   ApiConductorMissionsRoute: ApiConductorMissionsRouteWithChildren,
   ApiConductorStateRoute: ApiConductorStateRoute,
+  ApiConductorWorkersRoute: ApiConductorWorkersRoute,
   ApiDashboardProxySplatRoute: ApiDashboardProxySplatRoute,
   ApiDashboardOverviewRoute: ApiDashboardOverviewRoute,
   ApiHermesKanbanAssigneesRoute: ApiHermesKanbanAssigneesRoute,
