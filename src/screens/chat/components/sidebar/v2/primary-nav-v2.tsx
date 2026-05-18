@@ -312,7 +312,7 @@ export function PrimaryNavV2() {
   const isWorkflows = pathname.startsWith('/workflows')
   const isBoards = pathname.startsWith('/boards')
   const isConductor = pathname.startsWith('/conductor')
-  const isOperations = pathname.startsWith('/operations')
+  // const isOperations = pathname.startsWith('/operations')
   const isMatrix3D = pathname.startsWith('/matrix3d')
 
   const isMemory = pathname.startsWith('/memory')
