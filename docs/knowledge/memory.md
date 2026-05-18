@@ -11,10 +11,13 @@ The Memory page gives you a browser for everything your Hermes agents remember b
 
 ## What you see
 
-The page has two tabs:
+The page has five tabs:
 
 - **Agent Memory** — per-agent markdown files stored under `~/.hermes/profiles/<agent-id>/memory/`. Each built-in agent (Hermes Switch, Neo, Trinity, Morpheus) has its own memory space you can inspect and edit.
 - **Wiki** — a shared knowledge base of markdown pages stored under `~/.hermes/` (rooted at `MEMORY.md`, `memory/`, and `memories/`). Any page in the wiki is readable by all agents.
+- **Graph** — a visual adjacency graph of the knowledge base. Nodes are wiki pages and agent memory entries; edges show references between them.
+- **Chat** — a retrieval-augmented chat that lets you ask questions grounded in the wiki corpus.
+- **Settings** — wiki source configuration, graph rebuild, and cache controls.
 
 The active tab persists in `localStorage` between visits so you land on the same tab you left.
 
@@ -35,6 +38,27 @@ The left pane lists agents. Selecting an agent shows its memory files in a file 
 The Wiki tab shows a filterable list of all markdown pages in the shared knowledge base. Select a page to read it rendered as HTML. Click "Edit" to switch to the raw markdown editor. You can also create new pages (enter a relative path such as `engineering/react-patterns.md`) and delete existing ones.
 
 Use the search box at the top of the list to filter pages by title or path.
+
+## Graph tab
+
+The Graph tab renders the wiki as an SVG adjacency graph. Hover a node to see its full title, type, and connection count. Click a node to focus it and see its neighbors in a side panel. Use the legend to isolate or mute categories. Toggle between **1-hop**, **2-hop**, and **all** to control how much of the graph is shown around the selected node.
+
+If the gateway has not exposed `/api/knowledge/graph` yet, the tab falls back to a flat node and edge list.
+
+## Chat tab
+
+The Chat tab gives you a chat that answers questions using your wiki as grounding. When you send a message, the app searches the wiki for the top five matching pages (`/api/knowledge/search`), trims each page to 4 kB, caps the total context at 32 kB, and streams the response from the gateway.
+
+Cited pages appear under each assistant message so you can click through to the source. If the gateway is offline, the send button shows a clear "Backend offline" error rather than failing silently.
+
+## Settings tab
+
+The Settings tab covers four operational concerns for the knowledge base:
+
+1. **Wiki source** — switch between a local filesystem wiki and a GitHub-backed wiki. Settings are read and written through `/api/knowledge/config`.
+2. **Knowledge graph rebuild** — force a rebuild of the graph index by calling `/api/knowledge/graph?action=rebuild`.
+3. **Cache controls** — clear cached knowledge entries through `/api/knowledge/sync?action=clear`.
+4. **Provider config** — a notice that per-agent memory providers are managed inside each agent's Profile wizard (step 6), not here.
 
 ## Where the data lives
 
