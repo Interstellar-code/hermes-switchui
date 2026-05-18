@@ -5,6 +5,14 @@ description: Resolve issues where chat sessions fail to load or appear to disapp
 
 # Sessions stuck or missing
 
+<iframe
+  src="/api/docs-asset?path=diagrams/sessions-diagnostic.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 ## 1. A session disappears from the sidebar
 
 **Cause A — Gateway not reachable.** Sessions are fetched from the hermes-agent gateway on page load. If the gateway is down when the page loads, the session list comes back empty.

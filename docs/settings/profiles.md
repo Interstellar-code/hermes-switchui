@@ -7,6 +7,14 @@ description: Create and switch between named agent profiles with different setti
 
 The Profiles page lets you browse and manage saved agent personas. Each profile stores a named configuration that the agent can adopt when starting a conversation.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/profile-data-model.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 > [SCREENSHOT: Profiles page showing a grid of profile cards]
 
 ## What you see

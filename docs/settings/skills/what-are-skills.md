@@ -5,7 +5,17 @@ description: Understand what skills are and how they extend your AI agent's capa
 
 # What are skills
 
-Skills are self-contained bundles of instructions and logic that extend what your agent can do. When the agent recognises a trigger phrase in a conversation it can invoke the matching skill, running its predefined behaviour rather than generating a freeform response.
+Skills are self-contained bundles of instructions and logic that extend what your agent can do.
+
+<iframe
+  src="/api/docs-asset?path=diagrams/skill-anatomy.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
+When the agent recognises a trigger phrase in a conversation it can invoke the matching skill, running its predefined behaviour rather than generating a freeform response.
 
 ## How skills work
 

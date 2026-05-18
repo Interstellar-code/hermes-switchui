@@ -7,6 +7,14 @@ description: Modify workflow steps, inputs, and conditions using the workflow ed
 
 The workflow editor panel opens on the right side of the Workflows page when you select a workflow card. It shows the workflow's full definition and gives you tools to view, modify, duplicate, export, and delete workflows.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/workflow-editor-model.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 > [SCREENSHOT: Workflow editor panel showing Overview tab with metadata grid, and tab bar with DAG and YAML tabs]
 
 ## What you see

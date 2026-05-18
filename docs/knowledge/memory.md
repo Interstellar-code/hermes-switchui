@@ -7,6 +7,14 @@ description: View and manage the persistent memory your AI agent draws on across
 
 The Memory page gives you a browser for everything your Hermes agents remember between conversations. It is not a conversation interface — it is a direct view of the files the agents read and write on disk.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/memory-tabs-architecture.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 > [SCREENSHOT: Memory page with Agent Memory tab active]
 
 ## What you see

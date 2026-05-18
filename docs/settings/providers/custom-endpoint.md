@@ -9,6 +9,14 @@ If you run a self-hosted model, an internal inference gateway, or use a smaller 
 
 > [SCREENSHOT: /settings/providers page with Custom provider option selected and Base URL field visible]
 
+<iframe
+  src="/api/docs-asset?path=diagrams/custom-endpoint-routing.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 ## Overview
 
 The custom endpoint uses the agent's named `manifest` provider entry. Unlike the named built-in providers, `manifest` is a generic slot that accepts any OpenAI-compatible base URL and a single API key environment variable.

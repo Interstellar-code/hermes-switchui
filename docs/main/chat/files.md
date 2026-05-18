@@ -9,6 +9,14 @@ You can attach images and text-based files to any message. The model receives th
 
 > [SCREENSHOT: Composer with an attached image thumbnail and a text file chip visible above the text area]
 
+<iframe
+  src="/api/docs-asset?path=diagrams/chat-attachment-flow.html"
+  width="100%"
+  height="880"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 ## What you see
 
 When you add an attachment, a preview chip appears above the composer text area. Image files show a small thumbnail. Text and code files show a filename chip. You can attach multiple files to a single message. Click the **X** on a chip to remove an attachment before sending.

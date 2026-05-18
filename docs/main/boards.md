@@ -7,6 +7,14 @@ description: Organise tasks visually on Kanban-style boards within Hermes Switch
 
 > Create and manage named Kanban boards that partition your agent's tasks into separate workspaces.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/boards-architecture.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 **Feature gate:** Boards requires the Hermes Agent Dashboard Kanban plugin — the same gate as Tasks. Start the Hermes dashboard on port 9119 with the Kanban plugin enabled. While the gateway probes, a skeleton placeholder replaces the board list.
 
 ## What you see

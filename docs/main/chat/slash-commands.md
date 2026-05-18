@@ -9,6 +9,14 @@ Slash commands are shortcuts you type directly in the composer. They let you per
 
 > [SCREENSHOT: Slash command menu open in the composer showing a list of available commands with descriptions]
 
+<iframe
+  src="/api/docs-asset?path=diagrams/slash-command-resolution.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 ## Using slash commands
 
 Type `/` at the very beginning of a message. A command menu appears above the composer listing all available commands and a short description of each. Continue typing to filter the list. Use the arrow keys to move between entries and press Enter to select one, or click a command directly.

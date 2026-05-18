@@ -5,7 +5,17 @@ description: Install Model Context Protocol servers to give your agent access to
 
 # MCP — installing servers
 
-MCP servers provide tools, resources, and prompts that your agent can call during a conversation. Installing a server makes it available to the agent; connecting it (a separate step) activates it for use.
+MCP servers provide tools, resources, and prompts that your agent can call during a conversation.
+
+<iframe
+  src="/api/docs-asset?path=diagrams/mcp-install-sequence.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
+Installing a server makes it available to the agent; connecting it (a separate step) activates it for use.
 
 > [SCREENSHOT: MCP page with Hub tab open showing available server entries]
 

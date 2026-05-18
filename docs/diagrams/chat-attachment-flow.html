@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Chat Attachment Flow</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #22d3ee; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Hermes Switch UI — Chat Attachment Flow</h1>
+      </div>
+      <p class="subtitle">From file drop / paste to provider content block — with size caps enforced at each stage</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 700">
+        <defs>
+          <marker id="arrow-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrow-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrow-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#0f172a" stroke-width="1"/>
+          </pattern>
+        </defs>
+
+        <rect width="1200" height="700" fill="url(#grid)" />
+
+        <!-- Lane labels -->
+        <text x="30" y="38" fill="#475569" font-size="9" font-weight="600" letter-spacing="0.08em">USER / BROWSER</text>
+        <text x="30" y="238" fill="#475569" font-size="9" font-weight="600" letter-spacing="0.08em">COMPOSER (chat-composer.tsx)</text>
+        <text x="30" y="438" fill="#475569" font-size="9" font-weight="600" letter-spacing="0.08em">SERVER + AGENT</text>
+
+        <line x1="0" y1="58" x2="1200" y2="58" stroke="#1e293b" stroke-width="1" stroke-dasharray="4,4"/>
+        <line x1="0" y1="258" x2="1200" y2="258" stroke="#1e293b" stroke-width="1" stroke-dasharray="4,4"/>
+        <line x1="0" y1="458" x2="1200" y2="458" stroke="#1e293b" stroke-width="1" stroke-dasharray="4,4"/>
+
+        <!-- ① User input: drag or paperclip -->
+        <rect x="34" y="82" width="148" height="76" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="30" y="78" width="148" height="76" rx="6" fill="#1e293b" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="104" y="104" fill="white" font-size="10" font-weight="600" text-anchor="middle">User</text>
+        <text x="104" y="120" fill="#94a3b8" font-size="8" text-anchor="middle">drag &amp; drop file</text>
+        <text x="104" y="134" fill="#94a3b8" font-size="8" text-anchor="middle">or paperclip picker</text>
+        <text x="104" y="150" fill="#22d3ee" font-size="8" text-anchor="middle">or paste image</text>
+        <text x="104" y="68" fill="#94a3b8" font-size="8" text-anchor="middle" font-weight="600">① INPUT</text>
+
+        <!-- 50MB cap badge -->
+        <rect x="44" y="154" width="80" height="16" rx="3" fill="#1e293b" stroke="#fb7185" stroke-width="1"/>
+        <text x="84" y="166" fill="#fb7185" font-size="8" text-anchor="middle" font-weight="600">cap: 50 MB (UI)</text>
+
+        <line x1="178" y1="120" x2="220" y2="120" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+        <!-- ② Composer detects -->
+        <rect x="226" y="82" width="148" height="64" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="222" y="78" width="148" height="64" rx="6" fill="#1e293b" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="296" y="106" fill="white" font-size="10" font-weight="600" text-anchor="middle">Composer detects</text>
+        <text x="296" y="122" fill="#94a3b8" font-size="8" text-anchor="middle">onDrop / onPaste / onChange</text>
+        <text x="296" y="136" fill="#22d3ee" font-size="8" text-anchor="middle">preview chip appears</text>
+        <text x="296" y="68" fill="#94a3b8" font-size="8" text-anchor="middle" font-weight="600">② DETECT</text>
+
+        <!-- drop down to image branch -->
+        <line x1="296" y1="142" x2="296" y2="280" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-slate)"/>
+
+        <!-- ============ IMAGE PATH (top sub-lane) ============ -->
+        <!-- decision diamond for image vs text -->
+        <polygon points="296,290 336,316 296,342 256,316" fill="#0f172a" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="296" y="313" fill="#fbbf24" font-size="8" text-anchor="middle" font-weight="600">image?</text>
+        <text x="296" y="325" fill="#94a3b8" font-size="7" text-anchor="middle">file type check</text>
+
+        <!-- yes → compress branch -->
+        <line x1="336" y1="316" x2="400" y2="316" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+        <text x="368" y="308" fill="#fbbf24" font-size="8" text-anchor="middle">yes</text>
+
+        <!-- ③ Compress (image) -->
+        <rect x="406" y="292" width="148" height="64" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="402" y="288" width="148" height="64" rx="6" fill="#1e293b" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="476" y="312" fill="white" font-size="10" font-weight="600" text-anchor="middle">Compress</text>
+        <text x="476" y="328" fill="#94a3b8" font-size="8" text-anchor="middle">canvas resize ≤ 1920px</text>
+        <text x="476" y="342" fill="#fbbf24" font-size="8" text-anchor="middle">JPEG 85% quality</text>
+        <text x="406" y="282" fill="#fbbf24" font-size="8" font-weight="600">③ COMPRESS</text>
+
+        <!-- 1MB transport cap -->
+        <rect x="416" y="350" width="100" height="16" rx="3" fill="#1e293b" stroke="#fb7185" stroke-width="1"/>
+        <text x="466" y="362" fill="#fb7185" font-size="8" text-anchor="middle" font-weight="600">cap: 1 MB (transport)</text>
+
+        <!-- compress → base64 -->
+        <line x1="550" y1="316" x2="598" y2="316" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+
+        <!-- no (text) → drop down to same base64 -->
+        <line x1="296" y1="342" x2="296" y2="380" stroke="#94a3b8" stroke-width="1.5"/>
+        <line x1="296" y1="380" x2="604" y2="380" stroke="#94a3b8" stroke-width="1.5"/>
+        <line x1="604" y1="316" x2="604" y2="380" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="430" y="375" fill="#94a3b8" font-size="8" text-anchor="middle">no (text/code: read as UTF-8)</text>
+        <line x1="604" y1="352" x2="604" y2="332" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-slate)"/>
+
+        <!-- ④ Convert to base64 -->
+        <rect x="610" y="292" width="148" height="64" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="606" y="288" width="148" height="64" rx="6" fill="#1e293b" stroke="#34d399" stroke-width="1.5"/>
+        <text x="680" y="312" fill="white" font-size="10" font-weight="600" text-anchor="middle">Base64 encode</text>
+        <text x="680" y="328" fill="#94a3b8" font-size="8" text-anchor="middle">image → image content block</text>
+        <text x="680" y="342" fill="#34d399" font-size="8" text-anchor="middle">text → data:text/…;base64,</text>
+        <text x="610" y="282" fill="#34d399" font-size="8" font-weight="600">④ ENCODE</text>
+
+        <!-- base64 → attach to payload -->
+        <line x1="754" y1="316" x2="802" y2="316" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+
+        <!-- ⑤ Attach to message payload -->
+        <rect x="808" y="292" width="148" height="64" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="804" y="288" width="148" height="64" rx="6" fill="#1e293b" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="878" y="310" fill="white" font-size="10" font-weight="600" text-anchor="middle">Attach to payload</text>
+        <text x="878" y="326" fill="#94a3b8" font-size="8" text-anchor="middle">content: [{type,data}, ...]</text>
+        <text x="878" y="342" fill="#22d3ee" font-size="8" text-anchor="middle">Zustand chat-store</text>
+        <text x="808" y="282" fill="#22d3ee" font-size="8" font-weight="600">⑤ ASSEMBLE</text>
+
+        <!-- payload → POST /api/send -->
+        <line x1="878" y1="352" x2="878" y2="476" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+        <!-- ⑥ POST /api/send -->
+        <rect x="808" y="480" width="148" height="64" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="804" y="476" width="148" height="64" rx="6" fill="#1e293b" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="878" y="500" fill="white" font-size="10" font-weight="600" text-anchor="middle">POST /api/send</text>
+        <text x="878" y="516" fill="#94a3b8" font-size="8" text-anchor="middle">rate-limit + CSRF check</text>
+        <text x="878" y="530" fill="#fb7185" font-size="8" text-anchor="middle">auth-gated server handler</text>
+        <text x="808" y="470" fill="#fb7185" font-size="8" font-weight="600">⑥ SEND</text>
+
+        <!-- /api/send → hermes-agent -->
+        <line x1="804" y1="508" x2="756" y2="508" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+
+        <!-- ⑦ hermes-agent forwards to provider -->
+        <rect x="606" y="480" width="148" height="64" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="602" y="476" width="148" height="64" rx="6" fill="#1e293b" stroke="#34d399" stroke-width="1.5"/>
+        <text x="676" y="500" fill="white" font-size="10" font-weight="600" text-anchor="middle">hermes-agent</text>
+        <text x="676" y="516" fill="#94a3b8" font-size="8" text-anchor="middle">decodes content blocks</text>
+        <text x="676" y="530" fill="#34d399" font-size="8" text-anchor="middle">forwards to provider</text>
+        <text x="606" y="470" fill="#34d399" font-size="8" font-weight="600">⑦ FORWARD</text>
+
+        <!-- hermes-agent → provider -->
+        <line x1="602" y1="508" x2="554" y2="508" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-slate)"/>
+
+        <!-- ⑧ Provider -->
+        <rect x="404" y="480" width="148" height="64" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="400" y="476" width="148" height="64" rx="6" fill="#1e293b" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="474" y="500" fill="white" font-size="10" font-weight="600" text-anchor="middle">AI Provider</text>
+        <text x="474" y="516" fill="#94a3b8" font-size="8" text-anchor="middle">multipart content blocks</text>
+        <text x="474" y="530" fill="#94a3b8" font-size="8" text-anchor="middle">model reads file + prompt</text>
+        <text x="404" y="470" fill="#94a3b8" font-size="8" font-weight="600">⑧ PROVIDER</text>
+
+        <!-- Legend -->
+        <text x="30" y="618" fill="white" font-size="10" font-weight="600">Legend</text>
+        <line x1="100" y1="614" x2="130" y2="614" stroke="#22d3ee" stroke-width="2"/>
+        <text x="136" y="618" fill="#94a3b8" font-size="9">browser / UI</text>
+        <line x1="260" y1="614" x2="290" y2="614" stroke="#fbbf24" stroke-width="2"/>
+        <text x="296" y="618" fill="#94a3b8" font-size="9">image compress path</text>
+        <line x1="460" y1="614" x2="490" y2="614" stroke="#34d399" stroke-width="2"/>
+        <text x="496" y="618" fill="#94a3b8" font-size="9">server / agent</text>
+        <line x1="620" y1="614" x2="650" y2="614" stroke="#fb7185" stroke-width="2"/>
+        <text x="656" y="618" fill="#94a3b8" font-size="9">auth-gated + rate-limited</text>
+        <rect x="830" y="607" width="10" height="10" rx="2" fill="#1e293b" stroke="#fb7185" stroke-width="1"/>
+        <text x="846" y="618" fill="#fb7185" font-size="9">size cap enforced</text>
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot rose"></div>
+          <h3>Size caps</h3>
+        </div>
+        <ul>
+          <li>· UI input cap: 50 MB per file</li>
+          <li>· Transport cap: 1 MB per image after compress</li>
+          <li>· Images: resized to ≤ 1920 px longest side</li>
+          <li>· Compression: JPEG 85% quality via canvas</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot cyan"></div>
+          <h3>Supported types</h3>
+        </div>
+        <ul>
+          <li>· Images: PNG, JPEG, GIF, WebP, BMP, SVG, AVIF, HEIC, TIFF</li>
+          <li>· Text: .md, .txt, .json, .csv, .ts, .tsx, .js, .py</li>
+          <li>· Binary (PDF, Word): not yet supported</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot emerald"></div>
+          <h3>Encoding on wire</h3>
+        </div>
+        <ul>
+          <li>· Images → base64 image content block</li>
+          <li>· Text → data:text/…;base64, URI prefix</li>
+          <li>· Agent decodes and presents to model</li>
+          <li>· Consumes context window proportionally</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer">
+      Hermes Switch UI · Chat Attachment Flow · chat-composer.tsx → /api/send → hermes-agent → provider
+    </div>
+  </div>
+</body>
+</html>

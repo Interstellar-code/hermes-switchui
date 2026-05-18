@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Custom Endpoint Routing</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #22d3ee; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Custom Endpoint Routing</h1>
+      </div>
+      <p class="subtitle">How a request flows from Settings UI → config.yaml → Hermes Agent → your OpenAI-compatible endpoint</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 700">
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
+          </marker>
+          <marker id="arrowhead-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrowhead-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrowhead-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <marker id="arrowhead-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <marker id="arrowhead-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ============ PHASE 1: Settings UI (left column) ============ -->
+        <text x="40" y="38" fill="#22d3ee" font-size="10" font-weight="600">PHASE 1 — Configure</text>
+
+        <!-- /settings/providers route -->
+        <rect x="40" y="50" width="180" height="52" rx="6" fill="#0f172a"/>
+        <rect x="40" y="50" width="180" height="52" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="130" y="72" fill="white" font-size="11" font-weight="600" text-anchor="middle">Settings</text>
+        <text x="130" y="88" fill="#94a3b8" font-size="8" text-anchor="middle">/settings/providers route</text>
+
+        <!-- ProvidersScreen form -->
+        <rect x="40" y="130" width="180" height="52" rx="6" fill="#0f172a"/>
+        <rect x="40" y="130" width="180" height="52" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="130" y="152" fill="white" font-size="11" font-weight="600" text-anchor="middle">ProvidersScreen</text>
+        <text x="130" y="168" fill="#94a3b8" font-size="8" text-anchor="middle">Provider = Custom, Base URL, key_env</text>
+
+        <!-- Arrow: Settings → ProvidersScreen -->
+        <line x1="130" y1="102" x2="130" y2="128" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead-cyan)"/>
+        <text x="140" y="118" fill="#94a3b8" font-size="8">navigate</text>
+
+        <!-- Save → Gateway API -->
+        <rect x="40" y="210" width="180" height="52" rx="6" fill="#0f172a"/>
+        <rect x="40" y="210" width="180" height="52" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="130" y="232" fill="white" font-size="11" font-weight="600" text-anchor="middle">Save</text>
+        <text x="130" y="248" fill="#94a3b8" font-size="8" text-anchor="middle">POST /api/hermes-proxy/config</text>
+
+        <!-- Arrow: ProvidersScreen → Save -->
+        <line x1="130" y1="182" x2="130" y2="208" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead-cyan)"/>
+        <text x="140" y="198" fill="#94a3b8" font-size="8">on submit</text>
+
+        <!-- ============ PHASE 2: Storage (center-left) ============ -->
+        <text x="290" y="38" fill="#a78bfa" font-size="10" font-weight="600">PHASE 2 — Persist</text>
+
+        <!-- config.yaml -->
+        <rect x="290" y="50" width="180" height="52" rx="6" fill="#0f172a"/>
+        <rect x="290" y="50" width="180" height="52" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="380" y="72" fill="white" font-size="11" font-weight="600" text-anchor="middle">~/.hermes/config.yaml</text>
+        <text x="380" y="88" fill="#94a3b8" font-size="8" text-anchor="middle">provider: manifest  •  type: openai  •  base_url</text>
+
+        <!-- .env -->
+        <rect x="290" y="130" width="180" height="52" rx="6" fill="#0f172a"/>
+        <rect x="290" y="130" width="180" height="52" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="380" y="152" fill="white" font-size="11" font-weight="600" text-anchor="middle">~/.hermes/.env</text>
+        <text x="380" y="168" fill="#94a3b8" font-size="8" text-anchor="middle">CUSTOM_API_KEY=your-key-here</text>
+
+        <!-- Arrow: Save → config.yaml -->
+        <line x1="222" y1="236" x2="288" y2="76" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrowhead-violet)"/>
+        <text x="230" y="170" fill="#a78bfa" font-size="8">writes</text>
+
+        <!-- Arrow: Save → .env -->
+        <line x1="222" y1="240" x2="288" y2="156" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowhead-violet)"/>
+
+        <!-- ============ PHASE 3: Agent startup (center) ============ -->
+        <text x="540" y="38" fill="#34d399" font-size="10" font-weight="600">PHASE 3 — Agent starts</text>
+
+        <!-- Hermes Agent startup -->
+        <rect x="540" y="50" width="180" height="52" rx="6" fill="#0f172a"/>
+        <rect x="540" y="50" width="180" height="52" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="630" y="72" fill="white" font-size="11" font-weight="600" text-anchor="middle">Hermes Agent</text>
+        <text x="630" y="88" fill="#94a3b8" font-size="8" text-anchor="middle">reads config.yaml + .env on startup</text>
+
+        <!-- Provider router -->
+        <rect x="540" y="130" width="180" height="52" rx="6" fill="#0f172a"/>
+        <rect x="540" y="130" width="180" height="52" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="630" y="152" fill="white" font-size="11" font-weight="600" text-anchor="middle">Provider Router</text>
+        <text x="630" y="168" fill="#94a3b8" font-size="8" text-anchor="middle">selects "manifest" / openai type</text>
+
+        <!-- Resolve base_url + key -->
+        <rect x="540" y="210" width="180" height="52" rx="6" fill="#0f172a"/>
+        <rect x="540" y="210" width="180" height="52" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="630" y="232" fill="white" font-size="11" font-weight="600" text-anchor="middle">Resolve</text>
+        <text x="630" y="248" fill="#94a3b8" font-size="8" text-anchor="middle">base_url + key_env → CUSTOM_API_KEY</text>
+
+        <!-- Arrows: config.yaml → Agent -->
+        <line x1="472" y1="76" x2="538" y2="76" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+        <text x="490" y="68" fill="#94a3b8" font-size="8">reads</text>
+
+        <!-- Arrow: Agent → Provider Router -->
+        <line x1="630" y1="102" x2="630" y2="128" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+
+        <!-- Arrow: Provider Router → Resolve -->
+        <line x1="630" y1="182" x2="630" y2="208" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+
+        <!-- ============ PHASE 4: Chat turn (right) ============ -->
+        <text x="790" y="38" fill="#fbbf24" font-size="10" font-weight="600">PHASE 4 — Chat turn</text>
+
+        <!-- POST to custom endpoint -->
+        <rect x="790" y="50" width="180" height="52" rx="6" fill="#0f172a"/>
+        <rect x="790" y="50" width="180" height="52" rx="6" fill="rgba(120, 53, 15, 0.4)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="880" y="72" fill="white" font-size="11" font-weight="600" text-anchor="middle">POST /v1/chat/completions</text>
+        <text x="880" y="88" fill="#94a3b8" font-size="8" text-anchor="middle">Authorization: Bearer CUSTOM_API_KEY</text>
+
+        <!-- Stream response -->
+        <rect x="790" y="130" width="180" height="52" rx="6" fill="#0f172a"/>
+        <rect x="790" y="130" width="180" height="52" rx="6" fill="rgba(120, 53, 15, 0.4)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="880" y="152" fill="white" font-size="11" font-weight="600" text-anchor="middle">SSE stream back</text>
+        <text x="880" y="168" fill="#94a3b8" font-size="8" text-anchor="middle">token deltas → Hermes Agent → UI</text>
+
+        <!-- Custom endpoint box (far right) -->
+        <rect x="1030" y="50" width="150" height="132" rx="6" fill="#0f172a"/>
+        <rect x="1030" y="50" width="150" height="132" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="1105" y="75" fill="white" font-size="11" font-weight="600" text-anchor="middle">Your Endpoint</text>
+        <text x="1105" y="93" fill="#94a3b8" font-size="8" text-anchor="middle">any OpenAI-compat</text>
+        <text x="1105" y="109" fill="#94a3b8" font-size="8" text-anchor="middle">base_url/v1/</text>
+        <text x="1105" y="125" fill="#475569" font-size="8" text-anchor="middle">self-hosted model</text>
+        <text x="1105" y="141" fill="#475569" font-size="8" text-anchor="middle">internal gateway</text>
+        <text x="1105" y="157" fill="#475569" font-size="8" text-anchor="middle">small provider</text>
+        <text x="1105" y="173" fill="#475569" font-size="8" text-anchor="middle">local inference</text>
+
+        <!-- Arrow: Resolve → POST -->
+        <line x1="722" y1="236" x2="788" y2="76" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrowhead-amber)"/>
+        <text x="740" y="170" fill="#fbbf24" font-size="8">on chat turn</text>
+
+        <!-- Arrow: POST → Stream response -->
+        <line x1="880" y1="102" x2="880" y2="128" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrowhead-amber)"/>
+
+        <!-- Arrow: POST → Endpoint -->
+        <line x1="972" y1="76" x2="1028" y2="76" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowhead-slate)"/>
+
+        <!-- Arrow: Endpoint → Stream response (return) -->
+        <line x1="1028" y1="156" x2="972" y2="156" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowhead-slate)"/>
+        <text x="985" y="148" fill="#94a3b8" font-size="8">chunks</text>
+
+        <!-- ============ Restart note ============ -->
+        <rect x="290" y="290" width="430" height="44" rx="6" fill="rgba(120, 53, 15, 0.15)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="505" y="308" fill="#fbbf24" font-size="9" font-weight="600" text-anchor="middle">Restart required</text>
+        <text x="505" y="323" fill="#94a3b8" font-size="8" text-anchor="middle">Agent reads config.yaml and .env only at startup — restart after any config change</text>
+
+        <!-- ============ /v1/models probe (bottom strip) ============ -->
+        <text x="40" y="400" fill="#94a3b8" font-size="10" font-weight="600">Model discovery (on chat page load)</text>
+
+        <rect x="40" y="418" width="150" height="44" rx="6" fill="#0f172a"/>
+        <rect x="40" y="418" width="150" height="44" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="115" y="438" fill="white" font-size="10" font-weight="600" text-anchor="middle">Model picker</text>
+        <text x="115" y="452" fill="#94a3b8" font-size="8" text-anchor="middle">chat composer</text>
+
+        <rect x="250" y="418" width="150" height="44" rx="6" fill="#0f172a"/>
+        <rect x="250" y="418" width="150" height="44" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="325" y="438" fill="white" font-size="10" font-weight="600" text-anchor="middle">/api/models</text>
+        <text x="325" y="452" fill="#94a3b8" font-size="8" text-anchor="middle">Switch UI API route</text>
+
+        <rect x="460" y="418" width="150" height="44" rx="6" fill="#0f172a"/>
+        <rect x="460" y="418" width="150" height="44" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="535" y="438" fill="white" font-size="10" font-weight="600" text-anchor="middle">Hermes Agent</text>
+        <text x="535" y="452" fill="#94a3b8" font-size="8" text-anchor="middle">queries each provider</text>
+
+        <rect x="670" y="418" width="150" height="44" rx="6" fill="#0f172a"/>
+        <rect x="670" y="418" width="150" height="44" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="745" y="438" fill="white" font-size="10" font-weight="600" text-anchor="middle">base_url/v1/models</text>
+        <text x="745" y="452" fill="#94a3b8" font-size="8" text-anchor="middle">your endpoint</text>
+
+        <line x1="192" y1="440" x2="248" y2="440" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrowhead-cyan)"/>
+        <line x1="402" y1="440" x2="458" y2="440" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+        <line x1="612" y1="440" x2="668" y2="440" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowhead-slate)"/>
+        <line x1="668" y1="452" x2="612" y2="452" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowhead-slate)"/>
+        <text x="625" y="465" fill="#475569" font-size="8">model list</text>
+
+        <!-- failure modes -->
+        <rect x="880" y="410" width="280" height="68" rx="6" fill="rgba(127, 29, 29, 0.15)" stroke="#fb7185" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="892" y="428" fill="#fb7185" font-size="9" font-weight="600">Failure modes</text>
+        <text x="892" y="444" fill="#94a3b8" font-size="8">• /v1/models 404 → free-text model entry</text>
+        <text x="892" y="458" fill="#94a3b8" font-size="8">• API key wrong → 401 on chat send</text>
+        <text x="892" y="472" fill="#94a3b8" font-size="8">• base_url unreachable → "Provider not found"</text>
+
+        <!-- ============ Legend ============ -->
+        <text x="40" y="540" fill="white" font-size="10" font-weight="600">Legend</text>
+        <rect x="40" y="552" width="14" height="10" rx="2" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="60" y="560" fill="#94a3b8" font-size="9">Switch UI</text>
+        <rect x="140" y="552" width="14" height="10" rx="2" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="160" y="560" fill="#94a3b8" font-size="9">Storage (~/.hermes/)</text>
+        <rect x="300" y="552" width="14" height="10" rx="2" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1"/>
+        <text x="320" y="560" fill="#94a3b8" font-size="9">Hermes Agent</text>
+        <rect x="430" y="552" width="14" height="10" rx="2" fill="rgba(120, 53, 15, 0.4)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="450" y="560" fill="#94a3b8" font-size="9">Chat turn</text>
+        <rect x="530" y="552" width="14" height="10" rx="2" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1"/>
+        <text x="550" y="560" fill="#94a3b8" font-size="9">External endpoint</text>
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot violet"></div><h3>What gets written</h3></div>
+        <ul>
+          <li>• <code>~/.hermes/config.yaml</code> — provider: manifest, type: openai, base_url, key_env</li>
+          <li>• <code>~/.hermes/.env</code> — CUSTOM_API_KEY=your-key</li>
+          <li>• Provider name must be <strong>manifest</strong>, not <em>custom</em></li>
+          <li>• Agent restart required to pick up changes</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot emerald"></div><h3>What the agent does</h3></div>
+        <ul>
+          <li>• Reads config.yaml + .env at startup</li>
+          <li>• Provider router selects "manifest"/openai slot</li>
+          <li>• Resolves base_url and reads key from key_env</li>
+          <li>• Attaches key as Authorization: Bearer header</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot rose"></div><h3>Endpoint requirements</h3></div>
+        <ul>
+          <li>• Must implement OpenAI Chat Completions API shape</li>
+          <li>• GET /v1/models → model list (optional; fallback = free-text)</li>
+          <li>• POST /v1/chat/completions → SSE token stream</li>
+          <li>• Keyless: set CUSTOM_API_KEY=none in .env</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">
+      Hermes Switch UI  •  custom endpoint routing  •  Settings → config.yaml → manifest provider → your endpoint
+    </p>
+  </div>
+</body>
+</html>

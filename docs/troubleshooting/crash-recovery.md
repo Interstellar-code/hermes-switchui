@@ -5,6 +5,14 @@ description: Steps to restore your sessions and data after an unexpected applica
 
 # Recovering after a crash
 
+<iframe
+  src="/api/docs-asset?path=diagrams/crash-recovery-flow.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 A crash of the UI process (the Node server or the browser tab) does not destroy your data. Chat history lives in the agent's database, and UI state is persisted to disk. This page explains where everything is and how to recover it.
 
 ## 1. Chat history is missing after a restart

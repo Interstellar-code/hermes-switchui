@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Sessions Diagnostic</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #22d3ee; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Sessions Diagnostic Tree</h1>
+      </div>
+      <p class="subtitle">Decision tree: identify your session symptom → follow to the fix</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 820">
+        <defs>
+          <marker id="arrowhead-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <marker id="arrowhead-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrowhead-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrowhead-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <marker id="arrowhead-rose" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fb7185" />
+          </marker>
+          <marker id="arrowhead-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ============ Root symptom ============ -->
+        <rect x="430" y="30" width="340" height="56" rx="6" fill="#0f172a"/>
+        <rect x="430" y="30" width="340" height="56" rx="6" fill="rgba(30, 41, 59, 0.6)" stroke="#94a3b8" stroke-width="2"/>
+        <text x="600" y="54" fill="white" font-size="13" font-weight="700" text-anchor="middle">Session issue</text>
+        <text x="600" y="74" fill="#94a3b8" font-size="9" text-anchor="middle">disappears / stuck / won't rename / won't delete / all gone</text>
+
+        <!-- Branches down from root -->
+        <!-- Branch 1: disappears -->
+        <line x1="500" y1="86" x2="120" y2="186" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowhead-slate)"/>
+        <!-- Branch 2: stuck -->
+        <line x1="540" y1="86" x2="310" y2="186" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowhead-slate)"/>
+        <!-- Branch 3: won't rename -->
+        <line x1="600" y1="86" x2="600" y2="186" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowhead-slate)"/>
+        <!-- Branch 4: won't delete -->
+        <line x1="660" y1="86" x2="870" y2="186" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowhead-slate)"/>
+        <!-- Branch 5: all gone -->
+        <line x1="700" y1="86" x2="1080" y2="186" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowhead-slate)"/>
+
+        <!-- ============ Branch 1: disappears ============ -->
+        <rect x="30" y="190" width="180" height="52" rx="6" fill="#0f172a"/>
+        <rect x="30" y="190" width="180" height="52" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="120" y="210" fill="white" font-size="10" font-weight="600" text-anchor="middle">Session disappears</text>
+        <text x="120" y="224" fill="#94a3b8" font-size="8" text-anchor="middle">from sidebar list</text>
+        <text x="120" y="236" fill="#475569" font-size="8" text-anchor="middle">after reload / missing</text>
+
+        <!-- Sub-causes for disappears -->
+        <line x1="120" y1="242" x2="60" y2="310" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#arrowhead-cyan)"/>
+        <line x1="120" y1="242" x2="120" y2="310" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#arrowhead-cyan)"/>
+        <line x1="120" y1="242" x2="185" y2="310" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#arrowhead-cyan)"/>
+
+        <!-- Fix 1a: agent down -->
+        <rect x="20" y="314" width="82" height="56" rx="4" fill="#0f172a"/>
+        <rect x="20" y="314" width="82" height="56" rx="4" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="61" y="332" fill="white" font-size="8" font-weight="600" text-anchor="middle">Agent down</text>
+        <text x="61" y="345" fill="#34d399" font-size="7" text-anchor="middle">Fix: start agent</text>
+        <text x="61" y="357" fill="#94a3b8" font-size="7" text-anchor="middle">pnpm dev</text>
+        <text x="61" y="368" fill="#94a3b8" font-size="7" text-anchor="middle">reload page</text>
+
+        <!-- Fix 1b: wrong gateway URL -->
+        <rect x="80" y="314" width="82" height="56" rx="4" fill="#0f172a"/>
+        <rect x="80" y="314" width="82" height="56" rx="4" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="121" y="332" fill="white" font-size="8" font-weight="600" text-anchor="middle">Wrong URL</text>
+        <text x="121" y="345" fill="#34d399" font-size="7" text-anchor="middle">Fix: Settings</text>
+        <text x="121" y="357" fill="#94a3b8" font-size="7" text-anchor="middle">→ Agent →</text>
+        <text x="121" y="368" fill="#94a3b8" font-size="7" text-anchor="middle">Reconnect</text>
+
+        <!-- Fix 1c: stale cache -->
+        <rect x="140" y="314" width="82" height="56" rx="4" fill="#0f172a"/>
+        <rect x="140" y="314" width="82" height="56" rx="4" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="181" y="332" fill="white" font-size="8" font-weight="600" text-anchor="middle">Stale cache</text>
+        <text x="181" y="345" fill="#34d399" font-size="7" text-anchor="middle">Fix: hard refresh</text>
+        <text x="181" y="357" fill="#94a3b8" font-size="7" text-anchor="middle">Cmd+Shift+R</text>
+        <text x="181" y="368" fill="#94a3b8" font-size="7" text-anchor="middle">Ctrl+Shift+F5</text>
+
+        <!-- ============ Branch 2: stuck loading ============ -->
+        <rect x="224" y="190" width="172" height="52" rx="6" fill="#0f172a"/>
+        <rect x="224" y="190" width="172" height="52" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="310" y="210" fill="white" font-size="10" font-weight="600" text-anchor="middle">Stuck on "Loading…"</text>
+        <text x="310" y="224" fill="#94a3b8" font-size="8" text-anchor="middle">SSE stream not opening</text>
+        <text x="310" y="236" fill="#475569" font-size="8" text-anchor="middle">indefinite spinner</text>
+
+        <line x1="310" y1="242" x2="270" y2="310" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#arrowhead-cyan)"/>
+        <line x1="310" y1="242" x2="350" y2="310" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#arrowhead-cyan)"/>
+
+        <!-- Fix 2a: reload -->
+        <rect x="226" y="314" width="82" height="56" rx="4" fill="#0f172a"/>
+        <rect x="226" y="314" width="82" height="56" rx="4" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="267" y="332" fill="white" font-size="8" font-weight="600" text-anchor="middle">Reload page</text>
+        <text x="267" y="345" fill="#34d399" font-size="7" text-anchor="middle">SSE reconnect</text>
+        <text x="267" y="357" fill="#94a3b8" font-size="7" text-anchor="middle">transient failures</text>
+        <text x="267" y="368" fill="#94a3b8" font-size="7" text-anchor="middle">resolve on retry</text>
+
+        <!-- Fix 2b: proxy/VPN -->
+        <rect x="314" y="314" width="82" height="56" rx="4" fill="#0f172a"/>
+        <rect x="314" y="314" width="82" height="56" rx="4" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="355" y="332" fill="white" font-size="8" font-weight="600" text-anchor="middle">Proxy / VPN</text>
+        <text x="355" y="345" fill="#34d399" font-size="7" text-anchor="middle">strips SSE</text>
+        <text x="355" y="357" fill="#94a3b8" font-size="7" text-anchor="middle">use direct</text>
+        <text x="355" y="368" fill="#94a3b8" font-size="7" text-anchor="middle">connection</text>
+
+        <!-- ============ Branch 3: won't rename ============ -->
+        <rect x="510" y="190" width="180" height="52" rx="6" fill="#0f172a"/>
+        <rect x="510" y="190" width="180" height="52" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="600" y="210" fill="white" font-size="10" font-weight="600" text-anchor="middle">Won't rename</text>
+        <text x="600" y="224" fill="#94a3b8" font-size="8" text-anchor="middle">rename has no effect</text>
+        <text x="600" y="236" fill="#475569" font-size="8" text-anchor="middle">silently fails</text>
+
+        <line x1="600" y1="242" x2="600" y2="310" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#arrowhead-cyan)"/>
+
+        <!-- Fix 3: sessions API missing -->
+        <rect x="536" y="314" width="128" height="56" rx="4" fill="#0f172a"/>
+        <rect x="536" y="314" width="128" height="56" rx="4" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="600" y="332" fill="white" font-size="8" font-weight="600" text-anchor="middle">Sessions API missing</text>
+        <text x="600" y="345" fill="#34d399" font-size="7" text-anchor="middle">Fix: check startup probe</text>
+        <text x="600" y="357" fill="#94a3b8" font-size="7" text-anchor="middle">"sessions" in core list?</text>
+        <text x="600" y="368" fill="#94a3b8" font-size="7" text-anchor="middle">update agent if not</text>
+
+        <!-- ============ Branch 4: won't delete / reappears ============ -->
+        <rect x="778" y="190" width="185" height="52" rx="6" fill="#0f172a"/>
+        <rect x="778" y="190" width="185" height="52" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="870" y="208" fill="white" font-size="10" font-weight="600" text-anchor="middle">Won't delete</text>
+        <text x="870" y="222" fill="#94a3b8" font-size="8" text-anchor="middle">or reappears after delete</text>
+        <text x="870" y="236" fill="#475569" font-size="8" text-anchor="middle">generic error / 503</text>
+
+        <line x1="870" y1="242" x2="870" y2="310" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#arrowhead-cyan)"/>
+
+        <!-- Fix 4: kanban DB timestamp bug -->
+        <rect x="800" y="314" width="140" height="72" rx="4" fill="#0f172a"/>
+        <rect x="800" y="314" width="140" height="72" rx="4" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="870" y="332" fill="white" font-size="8" font-weight="600" text-anchor="middle">Kanban DB timestamp</text>
+        <text x="870" y="344" fill="#fbbf24" font-size="7" text-anchor="middle">ISO string in created_at</text>
+        <text x="870" y="357" fill="#34d399" font-size="7" text-anchor="middle">Fix: restart agent</text>
+        <text x="870" y="369" fill="#94a3b8" font-size="7" text-anchor="middle">If persists: restore</text>
+        <text x="870" y="381" fill="#94a3b8" font-size="7" text-anchor="middle">kanban.db.bak.*</text>
+
+        <!-- ============ Branch 5: all sessions gone ============ -->
+        <rect x="995" y="190" width="175" height="52" rx="6" fill="#0f172a"/>
+        <rect x="995" y="190" width="175" height="52" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="1082" y="210" fill="white" font-size="10" font-weight="600" text-anchor="middle">All sessions gone</text>
+        <text x="1082" y="224" fill="#94a3b8" font-size="8" text-anchor="middle">every session disappeared</text>
+        <text x="1082" y="236" fill="#475569" font-size="8" text-anchor="middle">after agent restart</text>
+
+        <line x1="1082" y1="242" x2="1082" y2="310" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#arrowhead-cyan)"/>
+
+        <!-- Fix 5: DB corrupted -->
+        <rect x="1012" y="314" width="140" height="72" rx="4" fill="#0f172a"/>
+        <rect x="1012" y="314" width="140" height="72" rx="4" fill="rgba(127, 29, 29, 0.3)" stroke="#fb7185" stroke-width="1"/>
+        <text x="1082" y="332" fill="white" font-size="8" font-weight="600" text-anchor="middle">sessions.db corrupted</text>
+        <text x="1082" y="344" fill="#fb7185" font-size="7" text-anchor="middle">data may be lost</text>
+        <text x="1082" y="357" fill="#34d399" font-size="7" text-anchor="middle">Fix: restore backup</text>
+        <text x="1082" y="369" fill="#94a3b8" font-size="7" text-anchor="middle">~/.hermes/sessions.db</text>
+        <text x="1082" y="381" fill="#94a3b8" font-size="7" text-anchor="middle">or accept fresh start</text>
+
+        <!-- ============ Normal flow (bottom) — what works ============ -->
+        <text x="40" y="450" fill="#34d399" font-size="10" font-weight="600">Normal session lifecycle (no issues)</text>
+
+        <rect x="40" y="468" width="140" height="44" rx="6" fill="#0f172a"/>
+        <rect x="40" y="468" width="140" height="44" rx="6" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="110" y="486" fill="white" font-size="10" font-weight="600" text-anchor="middle">UI loads</text>
+        <text x="110" y="500" fill="#94a3b8" font-size="8" text-anchor="middle">page load</text>
+
+        <rect x="210" y="468" width="140" height="44" rx="6" fill="#0f172a"/>
+        <rect x="210" y="468" width="140" height="44" rx="6" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="280" y="486" fill="white" font-size="10" font-weight="600" text-anchor="middle">Probe gateway</text>
+        <text x="280" y="500" fill="#94a3b8" font-size="8" text-anchor="middle">GET /health + capabilities</text>
+
+        <rect x="380" y="468" width="140" height="44" rx="6" fill="#0f172a"/>
+        <rect x="380" y="468" width="140" height="44" rx="6" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="450" y="486" fill="white" font-size="10" font-weight="600" text-anchor="middle">Fetch sessions</text>
+        <text x="450" y="500" fill="#94a3b8" font-size="8" text-anchor="middle">GET /api/sessions</text>
+
+        <rect x="550" y="468" width="140" height="44" rx="6" fill="#0f172a"/>
+        <rect x="550" y="468" width="140" height="44" rx="6" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="620" y="486" fill="white" font-size="10" font-weight="600" text-anchor="middle">Sidebar renders</text>
+        <text x="620" y="500" fill="#94a3b8" font-size="8" text-anchor="middle">session list shown</text>
+
+        <rect x="720" y="468" width="140" height="44" rx="6" fill="#0f172a"/>
+        <rect x="720" y="468" width="140" height="44" rx="6" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="790" y="486" fill="white" font-size="10" font-weight="600" text-anchor="middle">Click session</text>
+        <text x="790" y="500" fill="#94a3b8" font-size="8" text-anchor="middle">SSE stream opens</text>
+
+        <rect x="890" y="468" width="140" height="44" rx="6" fill="#0f172a"/>
+        <rect x="890" y="468" width="140" height="44" rx="6" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="960" y="486" fill="white" font-size="10" font-weight="600" text-anchor="middle">History loads</text>
+        <text x="960" y="500" fill="#94a3b8" font-size="8" text-anchor="middle">messages from sessions.db</text>
+
+        <line x1="182" y1="490" x2="208" y2="490" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+        <line x1="352" y1="490" x2="378" y2="490" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+        <line x1="522" y1="490" x2="548" y2="490" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+        <line x1="692" y1="490" x2="718" y2="490" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+        <line x1="862" y1="490" x2="888" y2="490" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrowhead-emerald)"/>
+
+        <!-- ============ Legend ============ -->
+        <text x="40" y="580" fill="white" font-size="10" font-weight="600">Symptom colors</text>
+        <rect x="40" y="592" width="14" height="10" rx="2" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="60" y="600" fill="#94a3b8" font-size="9">Symptom node</text>
+        <rect x="180" y="592" width="14" height="10" rx="2" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="200" y="600" fill="#94a3b8" font-size="9">Fix / cause</text>
+        <rect x="300" y="592" width="14" height="10" rx="2" fill="rgba(120, 53, 15, 0.3)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="320" y="600" fill="#94a3b8" font-size="9">Known bug (kanban DB timestamp)</text>
+        <rect x="540" y="592" width="14" height="10" rx="2" fill="rgba(127, 29, 29, 0.3)" stroke="#fb7185" stroke-width="1"/>
+        <text x="560" y="600" fill="#94a3b8" font-size="9">Data loss risk</text>
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot cyan"></div><h3>Session disappears</h3></div>
+        <ul>
+          <li>• Agent not running → start agent, reload page</li>
+          <li>• Wrong gateway URL → Settings → Agent → Reconnect</li>
+          <li>• Capability probe failed → check console for [gateway] log</li>
+          <li>• Stale cache → hard refresh (Cmd+Shift+R)</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot amber"></div><h3>Delete fails / reappears</h3></div>
+        <ul>
+          <li>• Kanban DB ISO timestamp poisoning bug</li>
+          <li>• Direct DB write bypasses int coercion → 503 errors</li>
+          <li>• Fix: restart agent process</li>
+          <li>• Persists? Restore ~/.hermes/kanban.db.bak.*</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot rose"></div><h3>All sessions gone</h3></div>
+        <ul>
+          <li>• sessions.db corrupted after agent crash</li>
+          <li>• Check ~/.hermes/ for .bak backup files</li>
+          <li>• Copy most recent backup → sessions.db → restart</li>
+          <li>• No backup: accept fresh start, data is lost</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">
+      Hermes Switch UI  •  sessions diagnostic  •  identify symptom → find cause → apply fix
+    </p>
+  </div>
+</body>
+</html>

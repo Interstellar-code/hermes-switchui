@@ -5,6 +5,14 @@ description: Fix configuration issues that prevent AI models from showing up in 
 
 # Models not appearing
 
+<iframe
+  src="/api/docs-asset?path=diagrams/models-source-architecture.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 ## 1. The model picker is empty
 
 **Cause — No provider configured.** The model list is read from `~/.hermes/config.yaml`. If no `providers` block exists, or the block has no entries, the picker has nothing to show.

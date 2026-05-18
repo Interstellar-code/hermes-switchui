@@ -9,6 +9,14 @@ Cloud AI providers that use API key authentication require you to supply a key b
 
 > [SCREENSHOT: API Keys section in Settings showing masked key fields for configured providers]
 
+<iframe
+  src="/api/docs-asset?path=diagrams/api-keys-flow.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 ## Where keys are stored
 
 All API keys are stored in:

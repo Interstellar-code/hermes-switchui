@@ -7,6 +7,14 @@ description: Monitor long-running background jobs kicked off by your AI agent.
 
 > Manage and monitor scheduled cron jobs run by the Hermes agent.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/jobs-lifecycle.html"
+  width="100%"
+  height="920"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 **Feature gate:** The Jobs page requires the Hermes Agent extended API. If your gateway build does not expose the `/api/jobs` endpoint, the page shows a **Backend Unavailable** state instead of the job list. Start the Hermes dashboard on port 9119 (`hermes dashboard`) to enable it.
 
 ## What you see

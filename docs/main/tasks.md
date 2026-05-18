@@ -7,6 +7,14 @@ description: Track discrete tasks assigned to or created by your AI agent.
 
 > A Kanban board for discrete tasks tracked by the Hermes agent — drag cards between columns to update status.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/tasks-board-sync.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 **Feature gate:** The Tasks page requires the Hermes Agent Dashboard Kanban plugin. If the plugin is absent, the page shows a **Backend Unavailable** state. Start the Hermes dashboard on port 9119 with the Kanban plugin enabled to activate it. While the gateway is probing, a loading skeleton is shown instead of an error.
 
 ## What you see

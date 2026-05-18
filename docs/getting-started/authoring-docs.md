@@ -7,6 +7,14 @@ description: How docs are organized, where files live, and how to add or edit th
 
 > The /docs page renders markdown files from the `docs/` folder. This page explains where docs live, how to add new ones, and the conventions to follow.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/docs-authoring-pipeline.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 ## How it works
 
 All docs live in `docs/` as plain markdown files. A central manifest — `docs/docs-manifest.yaml` — controls what appears in the sidebar and in what order. Files that are not in the manifest are ignored by the renderer; they stay on disk but never appear in the doc site.

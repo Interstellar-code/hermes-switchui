@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Task Board Sync Flow</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #22d3ee; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Task Board — dnd-kit + Agent Sync Flow</h1>
+      </div>
+      <p class="subtitle">How drag-and-drop card moves propagate from UI to kanban.db and back via the Hermes gateway</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 780">
+        <defs>
+          <marker id="arrow-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrow-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrow-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <marker id="arrow-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <!-- Grid background -->
+        <rect width="1200" height="780" fill="url(#grid)" />
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- LAYER 0: Feature gate banner -->
+        <!-- ═══════════════════════════════════════ -->
+        <rect x="20" y="16" width="360" height="32" rx="6" fill="#0f172a"/>
+        <rect x="20" y="16" width="360" height="32" rx="6" fill="rgba(245,158,11,0.1)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="4 3"/>
+        <text x="200" y="28" fill="#fbbf24" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">FEATURE GATE</text>
+        <text x="200" y="41" fill="#94a3b8" font-size="9" text-anchor="middle" font-family="JetBrains Mono">requires kanban capability · hermes dashboard :9119</text>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- LAYER 1: TasksScreen — top bar -->
+        <!-- ═══════════════════════════════════════ -->
+
+        <!-- Outer TasksScreen boundary -->
+        <rect x="20" y="60" width="760" height="700" rx="10" fill="#0f172a"/>
+        <rect x="20" y="60" width="760" height="700" rx="10" fill="rgba(8,51,68,0.25)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="400" y="82" fill="#22d3ee" font-size="11" font-weight="700" text-anchor="middle" font-family="JetBrains Mono">TasksScreen</text>
+
+        <!-- Top bar -->
+        <rect x="40" y="92" width="720" height="44" rx="6" fill="#0f172a"/>
+        <rect x="40" y="92" width="720" height="44" rx="6" fill="rgba(15,23,42,0.8)" stroke="#334155" stroke-width="1"/>
+        <!-- View toggles -->
+        <rect x="56" y="104" width="70" height="22" rx="4" fill="#22d3ee" fill-opacity="0.15" stroke="#22d3ee" stroke-width="1"/>
+        <text x="91" y="119" fill="#22d3ee" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">Board</text>
+        <rect x="134" y="104" width="60" height="22" rx="4" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="164" y="119" fill="#94a3b8" font-size="9" text-anchor="middle" font-family="JetBrains Mono">Swim</text>
+        <rect x="202" y="104" width="76" height="22" rx="4" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="240" y="119" fill="#94a3b8" font-size="9" text-anchor="middle" font-family="JetBrains Mono">Timeline</text>
+        <!-- New task button -->
+        <rect x="660" y="104" width="84" height="22" rx="4" fill="rgba(8,51,68,0.6)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="702" y="119" fill="#22d3ee" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">+ New Task</text>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- LAYER 2: Board view — DnD columns -->
+        <!-- ═══════════════════════════════════════ -->
+
+        <!-- DnDContext label -->
+        <text x="400" y="156" fill="#475569" font-size="8" text-anchor="middle" font-family="JetBrains Mono">DndContext (dnd-kit) — drag overlay active during move</text>
+
+        <!-- Column headers row -->
+        <!-- Triage -->
+        <rect x="40" y="164" width="110" height="570" rx="6" fill="rgba(15,23,42,0.6)" stroke="#334155" stroke-width="1"/>
+        <rect x="40" y="164" width="110" height="28" rx="6" fill="rgba(100,116,139,0.2)" stroke="#334155" stroke-width="1"/>
+        <text x="95" y="182" fill="#94a3b8" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">Triage</text>
+        <text x="95" y="193" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">DroppableColumn</text>
+
+        <!-- Todo -->
+        <rect x="158" y="164" width="110" height="570" rx="6" fill="rgba(15,23,42,0.6)" stroke="#334155" stroke-width="1"/>
+        <rect x="158" y="164" width="110" height="28" rx="6" fill="rgba(8,51,68,0.3)" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.4"/>
+        <text x="213" y="182" fill="#7dd3fc" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">Todo</text>
+        <text x="213" y="193" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">DroppableColumn</text>
+
+        <!-- Ready -->
+        <rect x="276" y="164" width="110" height="570" rx="6" fill="rgba(15,23,42,0.6)" stroke="#334155" stroke-width="1"/>
+        <rect x="276" y="164" width="110" height="28" rx="6" fill="rgba(5,46,22,0.3)" stroke="#34d399" stroke-width="1" stroke-opacity="0.4"/>
+        <text x="331" y="182" fill="#34d399" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">Ready</text>
+        <text x="331" y="193" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">DroppableColumn</text>
+
+        <!-- Running -->
+        <rect x="394" y="164" width="110" height="570" rx="6" fill="rgba(15,23,42,0.6)" stroke="#334155" stroke-width="1"/>
+        <rect x="394" y="164" width="110" height="28" rx="6" fill="rgba(46,16,101,0.3)" stroke="#a78bfa" stroke-width="1" stroke-opacity="0.4"/>
+        <text x="449" y="182" fill="#a78bfa" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">Running</text>
+        <text x="449" y="193" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">DroppableColumn</text>
+
+        <!-- Blocked -->
+        <rect x="512" y="164" width="110" height="570" rx="6" fill="rgba(15,23,42,0.6)" stroke="#334155" stroke-width="1"/>
+        <rect x="512" y="164" width="110" height="28" rx="6" fill="rgba(67,20,7,0.3)" stroke="#fb7185" stroke-width="1" stroke-opacity="0.4"/>
+        <text x="567" y="182" fill="#fb7185" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">Blocked</text>
+        <text x="567" y="193" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">DroppableColumn</text>
+
+        <!-- Done -->
+        <rect x="630" y="164" width="110" height="570" rx="6" fill="rgba(15,23,42,0.6)" stroke="#334155" stroke-width="1"/>
+        <rect x="630" y="164" width="110" height="28" rx="6" fill="rgba(5,46,22,0.15)" stroke="#34d399" stroke-width="1" stroke-opacity="0.3"/>
+        <text x="685" y="182" fill="#6ee7b7" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">Done</text>
+        <text x="685" y="193" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">DroppableColumn</text>
+
+        <!-- Sample task cards in Todo column -->
+        <rect x="163" y="200" width="100" height="52" rx="4" fill="#0f172a"/>
+        <rect x="163" y="200" width="100" height="52" rx="4" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.5"/>
+        <text x="213" y="216" fill="white" font-size="8" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">DraggableCard</text>
+        <text x="213" y="228" fill="#94a3b8" font-size="7" text-anchor="middle" font-family="JetBrains Mono">TaskCard inside</text>
+        <text x="213" y="240" fill="#94a3b8" font-size="7" text-anchor="middle" font-family="JetBrains Mono">title · assignee</text>
+        <text x="213" y="252" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">priority badge</text>
+
+        <rect x="163" y="260" width="100" height="40" rx="4" fill="#0f172a"/>
+        <rect x="163" y="260" width="100" height="40" rx="4" fill="rgba(8,51,68,0.3)" stroke="#334155" stroke-width="1"/>
+        <text x="213" y="276" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">DraggableCard</text>
+        <text x="213" y="291" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">TaskCard</text>
+
+        <!-- Sample card in Running -->
+        <rect x="399" y="200" width="100" height="52" rx="4" fill="#0f172a"/>
+        <rect x="399" y="200" width="100" height="52" rx="4" fill="rgba(46,16,101,0.3)" stroke="#a78bfa" stroke-width="1" stroke-opacity="0.5"/>
+        <text x="449" y="216" fill="white" font-size="8" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">DraggableCard</text>
+        <text x="449" y="228" fill="#94a3b8" font-size="7" text-anchor="middle" font-family="JetBrains Mono">TaskCard inside</text>
+        <text x="449" y="240" fill="#a78bfa" font-size="7" text-anchor="middle" font-family="JetBrains Mono">agent assigned</text>
+        <text x="449" y="252" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">running badge</text>
+
+        <!-- Drag overlay ghost -->
+        <rect x="163" y="318" width="100" height="52" rx="4" fill="rgba(34,211,238,0.08)" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <text x="213" y="342" fill="#22d3ee" font-size="8" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">DragOverlay</text>
+        <text x="213" y="356" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">semi-transparent</text>
+        <text x="213" y="366" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">ghost during drag</text>
+
+        <!-- Task Detail Drawer (right side of board area) -->
+        <rect x="40" y="590" width="720" height="134" rx="6" fill="#0f172a"/>
+        <rect x="40" y="590" width="720" height="134" rx="6" fill="rgba(15,23,42,0.8)" stroke="#334155" stroke-width="1"/>
+        <text x="60" y="608" fill="#94a3b8" font-size="9" font-weight="600" font-family="JetBrains Mono">Task Detail Drawer  (click card to open)</text>
+        <!-- Drawer fields -->
+        <rect x="56" y="618" width="140" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="126" y="633" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">title / description</text>
+        <rect x="204" y="618" width="100" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="254" y="633" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">assignee</text>
+        <rect x="312" y="618" width="80" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="352" y="633" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">priority</text>
+        <rect x="400" y="618" width="80" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="440" y="633" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">due date</text>
+        <rect x="488" y="618" width="80" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="528" y="633" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">tags</text>
+        <!-- Actions -->
+        <rect x="56" y="650" width="90" height="22" rx="3" fill="rgba(67,20,7,0.4)" stroke="#fb7185" stroke-width="1"/>
+        <text x="101" y="665" fill="#fb7185" font-size="8" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">Archive task</text>
+        <rect x="154" y="650" width="100" height="22" rx="3" fill="rgba(67,20,7,0.3)" stroke="#fb7185" stroke-width="1" stroke-dasharray="3 2"/>
+        <text x="204" y="665" fill="#fb7185" font-size="8" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">Hard delete</text>
+        <text x="400" y="680" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">DELETE /api/hermes-kanban/tasks/:id?delete=true</text>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- LAYER 3: Sync flow (right side) -->
+        <!-- ═══════════════════════════════════════ -->
+
+        <!-- Optimistic update box -->
+        <rect x="820" y="60" width="200" height="56" rx="6" fill="#0f172a"/>
+        <rect x="820" y="60" width="200" height="56" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="920" y="82" fill="white" font-size="10" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">Optimistic update</text>
+        <text x="920" y="96" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">local state moves card</text>
+        <text x="920" y="108" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">immediately (no flicker)</text>
+
+        <!-- POST /api/hermes-kanban/tasks/:id/move -->
+        <rect x="820" y="150" width="200" height="56" rx="6" fill="#0f172a"/>
+        <rect x="820" y="150" width="200" height="56" rx="6" fill="rgba(6,78,59,0.3)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="920" y="172" fill="white" font-size="10" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">POST move</text>
+        <text x="920" y="186" fill="#34d399" font-size="8" text-anchor="middle" font-family="JetBrains Mono">/api/hermes-kanban/tasks</text>
+        <text x="920" y="198" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">:id · column · position</text>
+
+        <!-- Hermes gateway -->
+        <rect x="820" y="240" width="200" height="56" rx="6" fill="#0f172a"/>
+        <rect x="820" y="240" width="200" height="56" rx="6" fill="rgba(46,16,101,0.3)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="920" y="262" fill="white" font-size="10" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">Hermes gateway</text>
+        <text x="920" y="276" fill="#a78bfa" font-size="8" text-anchor="middle" font-family="JetBrains Mono">kanban plugin · :9119</text>
+        <text x="920" y="288" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">moveTask() → updateTask()</text>
+
+        <!-- kanban.db -->
+        <rect x="820" y="330" width="200" height="56" rx="6" fill="#0f172a"/>
+        <rect x="820" y="330" width="200" height="56" rx="6" fill="rgba(67,20,7,0.2)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="920" y="352" fill="white" font-size="10" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">kanban.db</text>
+        <text x="920" y="366" fill="#fb7185" font-size="8" text-anchor="middle" font-family="JetBrains Mono">SQLite · tasks table</text>
+        <text x="920" y="378" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">column + updated_at</text>
+
+        <!-- SSE broadcast -->
+        <rect x="820" y="420" width="200" height="56" rx="6" fill="#0f172a"/>
+        <rect x="820" y="420" width="200" height="56" rx="6" fill="rgba(6,78,59,0.25)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="920" y="442" fill="white" font-size="10" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">SSE broadcast</text>
+        <text x="920" y="456" fill="#34d399" font-size="8" text-anchor="middle" font-family="JetBrains Mono">/api/hermes-kanban/events</text>
+        <text x="920" y="468" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">task:updated event</text>
+
+        <!-- TanStack Query invalidate -->
+        <rect x="820" y="510" width="200" height="56" rx="6" fill="#0f172a"/>
+        <rect x="820" y="510" width="200" height="56" rx="6" fill="rgba(8,51,68,0.35)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="920" y="532" fill="white" font-size="10" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">queryClient</text>
+        <text x="920" y="546" fill="#22d3ee" font-size="8" text-anchor="middle" font-family="JetBrains Mono">invalidateQueries</text>
+        <text x="920" y="558" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">hermes-kanban · tasks</text>
+
+        <!-- Error rollback box -->
+        <rect x="820" y="600" width="200" height="56" rx="6" fill="#0f172a"/>
+        <rect x="820" y="600" width="200" height="56" rx="6" fill="rgba(67,20,7,0.2)" stroke="#fb7185" stroke-width="1" stroke-dasharray="4 3"/>
+        <text x="920" y="622" fill="#fb7185" font-size="10" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">Error rollback</text>
+        <text x="920" y="636" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">revert optimistic state</text>
+        <text x="920" y="648" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">toast notification</text>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- ARROWS: drag → optimistic update -->
+        <!-- ═══════════════════════════════════════ -->
+
+        <!-- Drag fires → optimistic update -->
+        <line x1="780" y1="260" x2="818" y2="88" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+        <text x="800" y="200" fill="#22d3ee" font-size="8" text-anchor="middle" font-family="JetBrains Mono" transform="rotate(-35, 800, 200)">onDragEnd</text>
+
+        <!-- optimistic → POST -->
+        <line x1="920" y1="116" x2="920" y2="148" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <text x="935" y="138" fill="#34d399" font-size="8" font-family="JetBrains Mono">fetch</text>
+
+        <!-- POST → gateway -->
+        <line x1="920" y1="206" x2="920" y2="238" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrow-violet)"/>
+        <text x="935" y="228" fill="#a78bfa" font-size="8" font-family="JetBrains Mono">proxy</text>
+
+        <!-- gateway → kanban.db -->
+        <line x1="920" y1="296" x2="920" y2="328" stroke="#fb7185" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+        <text x="935" y="318" fill="#fb7185" font-size="8" font-family="JetBrains Mono">SQL</text>
+
+        <!-- kanban.db → SSE -->
+        <line x1="920" y1="386" x2="920" y2="418" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <text x="935" y="410" fill="#34d399" font-size="8" font-family="JetBrains Mono">emit</text>
+
+        <!-- SSE → queryClient -->
+        <line x1="920" y1="476" x2="920" y2="508" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+        <text x="935" y="498" fill="#22d3ee" font-size="8" font-family="JetBrains Mono">event</text>
+
+        <!-- queryClient → Board re-render (back left) -->
+        <line x1="820" y1="538" x2="400" y2="500" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arrow-cyan)"/>
+        <text x="620" y="525" fill="#22d3ee" font-size="8" text-anchor="middle" font-family="JetBrains Mono">re-fetch → board re-renders</text>
+
+        <!-- Error path (dashed) -->
+        <line x1="820" y1="178" x2="820" y2="628" stroke="#fb7185" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arrow-amber)"/>
+        <text x="810" y="420" fill="#fb7185" font-size="8" text-anchor="end" font-family="JetBrains Mono" transform="rotate(-90, 810, 420)">on error</text>
+
+        <!-- Labels -->
+        <text x="920" y="730" fill="#475569" font-size="8" text-anchor="middle" font-family="JetBrains Mono">Hermes Switch UI · Task Board Sync · /api/hermes-kanban/*</text>
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot cyan"></div>
+          <h3>TasksScreen</h3>
+        </div>
+        <ul>
+          <li>· Board / Swim / Timeline view toggle</li>
+          <li>· DndContext wraps all DroppableColumns</li>
+          <li>· DraggableCard wraps each TaskCard</li>
+          <li>· DragOverlay renders semi-transparent ghost</li>
+          <li>· New Task button opens TaskDialog</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot emerald"></div>
+          <h3>Optimistic update + POST</h3>
+        </div>
+        <ul>
+          <li>· onDragEnd triggers moveTask() locally first</li>
+          <li>· PATCH /api/hermes-kanban/tasks/:id</li>
+          <li>· column + position payload</li>
+          <li>· Rollback on fetch error</li>
+          <li>· Toast shown on failure</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot violet"></div>
+          <h3>kanban.db + SSE broadcast</h3>
+        </div>
+        <ul>
+          <li>· Hermes gateway persists to SQLite kanban.db</li>
+          <li>· task:updated SSE event fires on change</li>
+          <li>· useKanbanEvents hook subscribes on mount</li>
+          <li>· queryClient.invalidateQueries re-fetches board</li>
+          <li>· Agent-side updates follow same broadcast path</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot rose"></div>
+          <h3>Task Detail Drawer</h3>
+        </div>
+        <ul>
+          <li>· Opens on card click</li>
+          <li>· Inline edit: title, description, assignee, priority</li>
+          <li>· Archive: soft-delete (hidden from board)</li>
+          <li>· Hard delete: DELETE …?delete=true</li>
+          <li>· Status change available from drawer column picker</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer">Hermes Switch UI · Tasks Board Sync Flow · dnd-kit + agent gateway</div>
+  </div>
+</body>
+</html>

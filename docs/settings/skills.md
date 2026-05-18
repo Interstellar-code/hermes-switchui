@@ -7,6 +7,14 @@ description: Browse installed skills and invoke them directly from the Skills pa
 
 The Skills page is the central place to browse, search, and manage the skills available to your agent. Skills extend the agent with predefined behaviours that it can invoke during a conversation.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/skills-loading-pipeline.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 > [SCREENSHOT: Skills page in grid view with filter bar at top, several skill cards visible]
 
 ## What you see

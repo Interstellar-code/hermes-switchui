@@ -7,6 +7,14 @@ description: Browse, edit, upload, and manage files in your Hermes workspace.
 
 > Browse, preview, edit, and manage files in the directory your Hermes agent has access to.
 
+<iframe
+  src="/api/docs-asset?path=diagrams/file-operations-flow.html"
+  width="100%"
+  height="920"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
 ## What you see
 
 The page has a two-column layout. The left side holds a collapsible **Files** tree sidebar. The right side shows a **FilePanel** preview area. At the top of the sidebar is a search input labelled "Search workspace…", plus action buttons to upload, create a new folder, and refresh the tree. A breadcrumb above the tree body shows the currently selected path.

@@ -5,7 +5,17 @@ description: Create a custom skill to add new commands or behaviours to your age
 
 # Building your own skill
 
-A skill is a directory containing a manifest and one or more content files. You can create a skill manually on the agent's host machine and the agent will pick it up the next time it loads its skills directory.
+A skill is a directory containing a manifest and one or more content files.
+
+<iframe
+  src="/api/docs-asset?path=diagrams/skill-authoring-flow.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
+You can create a skill manually on the agent's host machine and the agent will pick it up the next time it loads its skills directory.
 
 ## Directory layout
 

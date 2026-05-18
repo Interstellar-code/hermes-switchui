@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Profile Data Model</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot { width: 12px; height: 12px; background: #22d3ee; border-radius: 50%; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container { background: rgba(15,23,42,0.5); border-radius: 1rem; border: 1px solid #1e293b; padding: 1.5rem; overflow-x: auto; }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin-top: 2rem; }
+    .card { background: rgba(15,23,42,0.5); border-radius: 0.75rem; border: 1px solid #1e293b; padding: 1.25rem; }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Profile Data Model</h1>
+      </div>
+      <p class="subtitle">Profile composition, on-disk storage layout, and how a chat session selects and loads a profile</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 780">
+        <defs>
+          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrow-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrow-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <marker id="arrow-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <marker id="arrow-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="1200" height="780" fill="url(#grid)" />
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- CENTER: Profile core (double-rect)     -->
+        <!-- ═══════════════════════════════════════ -->
+        <rect x="420" y="280" width="220" height="100" rx="8" fill="#0f172a"/>
+        <rect x="420" y="280" width="220" height="100" rx="8" fill="rgba(8,51,68,0.5)" stroke="#22d3ee" stroke-width="2.5"/>
+        <!-- inner rect (double-rect pattern) -->
+        <rect x="428" y="288" width="204" height="84" rx="5" fill="none" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.4"/>
+        <text x="530" y="322" fill="white" font-size="12" font-weight="700" text-anchor="middle" font-family="JetBrains Mono">Profile</text>
+        <text x="530" y="340" fill="#22d3ee" font-size="9" text-anchor="middle" font-family="JetBrains Mono">&lt;profile-id&gt;</text>
+        <text x="530" y="356" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">named agent configuration</text>
+        <text x="530" y="370" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">adopted at chat session start</text>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- TOP: Persona                           -->
+        <!-- ═══════════════════════════════════════ -->
+        <rect x="396" y="80" width="268" height="128" rx="6" fill="#0f172a"/>
+        <rect x="396" y="80" width="268" height="128" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="530" y="102" fill="#22d3ee" font-size="10" font-weight="700" text-anchor="middle" font-family="JetBrains Mono">Persona</text>
+        <rect x="412" y="112" width="236" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="530" y="127" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">name: string  (display name)</text>
+        <rect x="412" y="142" width="236" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="530" y="157" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">system_prompt: string</text>
+        <rect x="412" y="172" width="236" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="530" y="187" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">tone: string  (e.g. professional)</text>
+
+        <!-- Persona → Profile arrow -->
+        <line x1="530" y1="208" x2="530" y2="278" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- LEFT: Memory                           -->
+        <!-- ═══════════════════════════════════════ -->
+        <rect x="100" y="268" width="240" height="128" rx="6" fill="#0f172a"/>
+        <rect x="100" y="268" width="240" height="128" rx="6" fill="rgba(6,78,59,0.3)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="220" y="290" fill="#34d399" font-size="10" font-weight="700" text-anchor="middle" font-family="JetBrains Mono">Memory</text>
+        <rect x="116" y="300" width="208" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="220" y="315" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">memory/ directory (seed files)</text>
+        <rect x="116" y="330" width="208" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="220" y="345" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">*.md files (pre-loaded context)</text>
+        <rect x="116" y="360" width="208" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="220" y="375" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">editable via Agent Memory tab</text>
+
+        <!-- Memory → Profile arrow -->
+        <line x1="340" y1="332" x2="418" y2="332" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- RIGHT: Provider config                 -->
+        <!-- ═══════════════════════════════════════ -->
+        <rect x="720" y="268" width="260" height="128" rx="6" fill="#0f172a"/>
+        <rect x="720" y="268" width="260" height="128" rx="6" fill="rgba(245,158,11,0.15)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="850" y="290" fill="#fbbf24" font-size="10" font-weight="700" text-anchor="middle" font-family="JetBrains Mono">Provider config</text>
+        <rect x="736" y="300" width="228" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="850" y="315" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">provider: manifest | openai | …</text>
+        <rect x="736" y="330" width="228" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="850" y="345" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">model: string  (e.g. auto)</text>
+        <rect x="736" y="360" width="228" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="850" y="375" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">key_env: CUSTOM_API_KEY (ref)</text>
+
+        <!-- Provider → Profile arrow -->
+        <line x1="720" y1="332" x2="642" y2="332" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- BOTTOM-LEFT: Skills                    -->
+        <!-- ═══════════════════════════════════════ -->
+        <rect x="160" y="480" width="220" height="100" rx="6" fill="#0f172a"/>
+        <rect x="160" y="480" width="220" height="100" rx="6" fill="rgba(46,16,101,0.3)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="270" y="502" fill="#a78bfa" font-size="10" font-weight="700" text-anchor="middle" font-family="JetBrains Mono">Skills</text>
+        <rect x="176" y="512" width="188" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="270" y="527" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">allowed skill IDs[]</text>
+        <rect x="176" y="542" width="188" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="270" y="557" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">from marketplace · bundled</text>
+
+        <!-- Skills → Profile arrow -->
+        <line x1="380" y1="530" x2="470" y2="382" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrow-violet)"/>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- BOTTOM-RIGHT: MCP servers              -->
+        <!-- ═══════════════════════════════════════ -->
+        <rect x="680" y="480" width="220" height="100" rx="6" fill="#0f172a"/>
+        <rect x="680" y="480" width="220" height="100" rx="6" fill="rgba(67,20,7,0.25)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="790" y="502" fill="#fb7185" font-size="10" font-weight="700" text-anchor="middle" font-family="JetBrains Mono">MCP servers</text>
+        <rect x="696" y="512" width="188" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="790" y="527" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">allowed server IDs[]</text>
+        <rect x="696" y="542" width="188" height="22" rx="3" fill="rgba(30,41,59,0.6)" stroke="#334155" stroke-width="1"/>
+        <text x="790" y="557" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">external tool servers</text>
+
+        <!-- MCP → Profile arrow -->
+        <line x1="680" y1="530" x2="592" y2="382" stroke="#fb7185" stroke-width="1.5" marker-end="url(#arrow-slate)"/>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- Storage box (violet)                   -->
+        <!-- ═══════════════════════════════════════ -->
+        <rect x="270" y="648" width="520" height="108" rx="8" fill="#0f172a"/>
+        <rect x="270" y="648" width="520" height="108" rx="8" fill="rgba(46,16,101,0.25)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="530" y="670" fill="#a78bfa" font-size="10" font-weight="700" text-anchor="middle" font-family="JetBrains Mono">Storage · ~/.hermes/profiles/&lt;profile-id&gt;/</text>
+
+        <rect x="288" y="682" width="148" height="56" rx="4" fill="rgba(30,41,59,0.5)" stroke="#334155" stroke-width="1"/>
+        <text x="362" y="700" fill="#94a3b8" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">config.yaml</text>
+        <text x="362" y="716" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">persona + provider</text>
+        <text x="362" y="730" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">skills + MCP server IDs</text>
+
+        <rect x="446" y="682" width="148" height="56" rx="4" fill="rgba(30,41,59,0.5)" stroke="#334155" stroke-width="1"/>
+        <text x="520" y="700" fill="#94a3b8" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">memory/</text>
+        <text x="520" y="716" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">seed *.md files</text>
+        <text x="520" y="730" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">pre-loaded at session start</text>
+
+        <rect x="604" y="682" width="168" height="56" rx="4" fill="rgba(30,41,59,0.5)" stroke="#334155" stroke-width="1"/>
+        <text x="688" y="700" fill="#94a3b8" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">~/.hermes/.env</text>
+        <text x="688" y="716" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">CUSTOM_API_KEY</text>
+        <text x="688" y="730" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">referenced by key_env</text>
+
+        <!-- Profile → Storage arrow -->
+        <line x1="530" y1="382" x2="530" y2="646" stroke="#a78bfa" stroke-width="1.5" stroke-dasharray="6 3" marker-end="url(#arrow-violet)"/>
+        <text x="548" y="520" fill="#a78bfa" font-size="8" font-family="JetBrains Mono">persisted to</text>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- Chat session load flow (right side)    -->
+        <!-- ═══════════════════════════════════════ -->
+        <rect x="1000" y="80" width="180" height="600" rx="8" fill="#0f172a"/>
+        <rect x="1000" y="80" width="180" height="600" rx="8" fill="rgba(15,23,42,0.5)" stroke="#1e293b" stroke-width="1"/>
+        <text x="1090" y="104" fill="#475569" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">Session load</text>
+
+        <!-- Step 1 -->
+        <rect x="1014" y="116" width="152" height="52" rx="4" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="1090" y="136" fill="white" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">1. Select profile</text>
+        <text x="1090" y="152" fill="#94a3b8" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">ProfilesPage card click</text>
+        <text x="1090" y="164" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">or session param</text>
+
+        <line x1="1090" y1="168" x2="1090" y2="188" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+
+        <!-- Step 2 -->
+        <rect x="1014" y="190" width="152" height="52" rx="4" fill="rgba(6,78,59,0.3)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="1090" y="210" fill="white" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">2. Read config.yaml</text>
+        <text x="1090" y="226" fill="#94a3b8" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">persona · provider</text>
+        <text x="1090" y="238" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">skills · MCP IDs</text>
+
+        <line x1="1090" y1="242" x2="1090" y2="262" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrow-violet)"/>
+
+        <!-- Step 3 -->
+        <rect x="1014" y="264" width="152" height="52" rx="4" fill="rgba(46,16,101,0.3)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="1090" y="284" fill="white" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">3. Load memory/</text>
+        <text x="1090" y="300" fill="#94a3b8" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">seed *.md into context</text>
+        <text x="1090" y="312" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">pre-populated knowledge</text>
+
+        <line x1="1090" y1="316" x2="1090" y2="336" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+
+        <!-- Step 4 -->
+        <rect x="1014" y="338" width="152" height="52" rx="4" fill="rgba(245,158,11,0.15)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="1090" y="358" fill="white" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">4. Init provider</text>
+        <text x="1090" y="374" fill="#94a3b8" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">resolve key_env → API key</text>
+        <text x="1090" y="386" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">select model from config</text>
+
+        <line x1="1090" y1="390" x2="1090" y2="410" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+        <!-- Step 5 -->
+        <rect x="1014" y="412" width="152" height="52" rx="4" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="1090" y="432" fill="white" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">5. Register skills</text>
+        <text x="1090" y="448" fill="#94a3b8" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">allowed skill IDs loaded</text>
+        <text x="1090" y="460" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">from profile config</text>
+
+        <line x1="1090" y1="464" x2="1090" y2="484" stroke="#fb7185" stroke-width="1.5" marker-end="url(#arrow-slate)"/>
+
+        <!-- Step 6 -->
+        <rect x="1014" y="486" width="152" height="52" rx="4" fill="rgba(67,20,7,0.2)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="1090" y="506" fill="white" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">6. Connect MCP</text>
+        <text x="1090" y="522" fill="#94a3b8" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">allowed server IDs</text>
+        <text x="1090" y="534" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">external tool servers ready</text>
+
+        <line x1="1090" y1="538" x2="1090" y2="558" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+
+        <!-- Step 7 -->
+        <rect x="1014" y="560" width="152" height="52" rx="4" fill="rgba(6,78,59,0.3)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="1090" y="580" fill="white" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">7. Session ready</text>
+        <text x="1090" y="596" fill="#94a3b8" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">system_prompt applied</text>
+        <text x="1090" y="608" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">chat turns begin</text>
+
+        <!-- Arrow from Profile to session load -->
+        <line x1="640" y1="330" x2="998" y2="142" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arrow-cyan)"/>
+        <text x="830" y="220" fill="#22d3ee" font-size="8" text-anchor="middle" font-family="JetBrains Mono" transform="rotate(-20,830,220)">selected at session start</text>
+
+        <text x="530" y="754" fill="#475569" font-size="8" text-anchor="middle" font-family="JetBrains Mono">Hermes Switch UI · Profile Data Model · ~/.hermes/profiles/&lt;profile-id&gt;/</text>
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot cyan"></div><h3>Profile core</h3></div>
+        <ul>
+          <li>· Named configuration adopted at chat session start</li>
+          <li>· Identified by profile-id (slug)</li>
+          <li>· Stored under ~/.hermes/profiles/&lt;profile-id&gt;/</li>
+          <li>· config.yaml + memory/ subfolder</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot cyan"></div><h3>Persona + Memory</h3></div>
+        <ul>
+          <li>· Persona: name, system_prompt, tone</li>
+          <li>· Memory: seed *.md files pre-loaded into context</li>
+          <li>· Editable via Agent Memory tab in /memory page</li>
+          <li>· Memory files scoped per profile-id</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot amber"></div><h3>Provider config</h3></div>
+        <ul>
+          <li>· provider: manifest | openai | …</li>
+          <li>· model: string (e.g. auto)</li>
+          <li>· key_env: references CUSTOM_API_KEY in ~/.hermes/.env</li>
+          <li>· base_url for custom OpenAI-compatible endpoints</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot violet"></div><h3>Skills + MCP servers</h3></div>
+        <ul>
+          <li>· Skills: allowed skill IDs[] from marketplace or bundled</li>
+          <li>· MCP servers: allowed external tool server IDs[]</li>
+          <li>· Both configured in Profile wizard (step 6)</li>
+          <li>· Related docs: skills.md · mcp.md</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer">Hermes Switch UI · Profile Data Model · config.yaml + memory/ + key_env</div>
+  </div>
+</body>
+</html>

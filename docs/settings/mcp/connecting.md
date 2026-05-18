@@ -5,7 +5,17 @@ description: Connect a running MCP server so your agent can use its tools and re
 
 # MCP — connecting servers
 
-Installing an MCP server adds it to the agent's configuration. Connecting it starts the server process and makes its tools available to the agent during conversations.
+Installing an MCP server adds it to the agent's configuration.
+
+<iframe
+  src="/api/docs-asset?path=diagrams/mcp-handshake-sequence.html"
+  width="100%"
+  height="900"
+  loading="lazy"
+  style="border: 0; border-radius: 8px;"
+></iframe>
+
+Connecting it starts the server process and makes its tools available to the agent during conversations.
 
 > [SCREENSHOT: MCP detail drawer showing server name, status indicator, and toggle button]
 
