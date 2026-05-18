@@ -234,7 +234,6 @@ describe('node-runs-projector', () => {
     const placeholderId = placeholderRows[0].id;
 
     // Manually insert two child node_runs linked to the placeholder
-    const now = Date.now();
     db.prepare(
       `INSERT INTO node_runs (id, workflow_run_id, dag_node_id, node_type, status,
          parent_subgraph_node_run_id, retries, max_retries, retry_delay_ms, retry_on_error)

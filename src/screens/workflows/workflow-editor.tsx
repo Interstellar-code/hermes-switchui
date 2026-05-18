@@ -85,19 +85,6 @@ function duplicateWorkflowId(id: string): string {
   return `${id}-copy-${Date.now().toString(36)}`
 }
 
-function mockSha256(id: string): string {
-  let h = 5381
-  for (let i = 0; i < id.length; i++) {
-    h = ((h << 5) + h + id.charCodeAt(i)) >>> 0
-  }
-  const base = h.toString(16).padStart(8, '0')
-  return (base + base + base + base + base + base + base + base).slice(0, 64)
-}
-
-function mockVersion(id: string): string {
-  const n = id.charCodeAt(id.length - 1) % 10
-  return `1.${n}.0`
-}
 
 function filePathFor(def: WorkflowDefinitionRow): string {
   if (def.source === 'bundled') {
@@ -364,8 +351,8 @@ function OverviewTab({
     .join('')
     .slice(0, 2)
     .toUpperCase()
-  const checksum = def.checksum || mockSha256(def.id)
-  const version = def.version || mockVersion(def.id)
+  const checksum = def.checksum ?? ''
+  const version = def.version ?? 'unversioned'
   const filePath = filePathFor(def)
 
   return (
@@ -377,7 +364,7 @@ function OverviewTab({
           <div className="ov-meta">
             <SourceBadge source={def.source} />
             <span className="ov-sep">·</span>
-            <span className="ov-tier">{def.version ?? 'v1'}</span>
+            <span className="ov-tier">{def.version ?? 'unversioned'}</span>
           </div>
         </div>
       </div>
@@ -465,7 +452,7 @@ function OverviewTab({
           <div className="ov-meta-row">
             <span className="ov-meta-key">Checksum</span>
             <span className="ov-meta-value ov-meta-mono" title={checksum}>
-              {checksum.slice(0, 12)}…
+              {checksum ? `${checksum.slice(0, 12)}…` : '—'}
             </span>
           </div>
           <div className="ov-meta-row">
@@ -1083,10 +1070,8 @@ function YamlTab({
 // ── When-to-Use Tab ───────────────────────────────────────────────────────────
 
 function WhenToUseTab({
-  def,
   parsed,
 }: {
-  def: WorkflowDefinitionRow
   parsed: ParsedWorkflow
 }) {
   return (
@@ -1396,7 +1381,7 @@ export function WorkflowEditor({
         {activeTab === 'Visual DAG' && <DagSvgTab parsed={parsed} />}
         {activeTab === 'YAML' && <YamlTab def={def} parsed={parsed} />}
         {activeTab === 'When-to-Use' && (
-          <WhenToUseTab def={def} parsed={parsed} />
+          <WhenToUseTab parsed={parsed} />
         )}
         {activeTab === 'History' && (
           <>

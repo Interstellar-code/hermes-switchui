@@ -578,6 +578,23 @@ function DescribeStep({
                 }}
               >
                 {label}
+                {label === 'Scratch' && (
+                  <span
+                    style={{
+                      marginLeft: 5,
+                      fontSize: 8,
+                      letterSpacing: '.06em',
+                      background: 'var(--m-green-500, #00ff41)',
+                      color: '#000',
+                      borderRadius: 3,
+                      padding: '1px 4px',
+                      verticalAlign: 'middle',
+                      fontFamily: 'var(--m-font-mono, monospace)',
+                    }}
+                  >
+                    PREVIEW
+                  </span>
+                )}
               </div>
               <div
                 style={{
@@ -619,6 +636,9 @@ function DescribeStep({
             ))}
             <div ref={msgsEndRef} />
           </div>
+          <p style={{ fontSize: 10, color: 'var(--m-text-ghost, #666)', margin: '0 0 6px', padding: '0 2px' }}>
+            Planning chat is a preview — not yet wired to an LLM.
+          </p>
           <div className="chat-input-row">
             <input
               className="chat-inp"
