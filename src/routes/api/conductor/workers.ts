@@ -8,6 +8,7 @@ export interface WorkerRun {
   nodeId: string
   label: string
   elapsed: string
+  startedAt: number
 }
 
 export interface WorkerLane {
@@ -77,12 +78,14 @@ export const Route = createFileRoute('/api/conductor/workers')({
               })
             }
             const lane = laneMap.get(agentKey)!
-            const elapsedMs = row.started_at != null ? now - row.started_at : 0
+            const startedAt = row.started_at ?? now
+            const elapsedMs = now - startedAt
             lane.runs.push({
               runId: row.workflow_run_id,
               nodeId: row.dag_node_id,
-              label: row.node_type,
+              label: row.dag_node_id,
               elapsed: formatElapsed(elapsedMs),
+              startedAt,
             })
             lane.activeCount = lane.runs.length
           }

@@ -1,4 +1,10 @@
-import type { LaneBlock } from './mock-data'
+import type { CSSProperties } from 'react'
+
+export interface LaneBlock {
+  className: string
+  style: CSSProperties
+  label: string
+}
 
 interface LaneRowProps {
   name: string
