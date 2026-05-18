@@ -42,6 +42,9 @@ export function seedBundledWorkflows(store: SwitchUiWorkflowStore): SeedResult {
       continue;
     }
 
+    // Detect subgraph vs workflow from the parsed kind discriminator. Default
+    // to 'workflow' for backward-compat when kind is absent.
+    const parsedWorkflow = parsed.workflow as { kind?: 'workflow' | 'subgraph' };
     store.upsertWorkflowDefinition({
       id,
       name: parsed.workflow.name,
@@ -49,6 +52,7 @@ export function seedBundledWorkflows(store: SwitchUiWorkflowStore): SeedResult {
       source: 'bundled',
       yaml,
       checksum,
+      kind: parsedWorkflow.kind ?? 'workflow',
     });
     inserted += 1;
   }

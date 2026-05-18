@@ -836,6 +836,8 @@ export class SwitchUiWorkflowStore {
     checksum: string;
     version?: string;
     tags?: string[];
+    /** 'workflow' (default — runnable top-level) | 'subgraph' (referenceable). */
+    kind?: 'workflow' | 'subgraph';
   }): void {
     const now = nowMs();
     // Short-circuit: skip write if checksum unchanged.
@@ -845,8 +847,8 @@ export class SwitchUiWorkflowStore {
     this.db
       .prepare(
         `INSERT INTO workflow_definitions
-           (id, name, description, source, scope_path, yaml, checksum, version, tags, created_at, updated_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?)
+           (id, name, description, source, scope_path, yaml, checksum, version, tags, kind, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
          ON CONFLICT(id) DO UPDATE SET
            name=excluded.name,
            description=excluded.description,
@@ -856,6 +858,7 @@ export class SwitchUiWorkflowStore {
            checksum=excluded.checksum,
            version=excluded.version,
            tags=excluded.tags,
+           kind=excluded.kind,
            updated_at=excluded.updated_at`
       )
       .run(
@@ -868,6 +871,7 @@ export class SwitchUiWorkflowStore {
         def.checksum,
         def.version ?? null,
         def.tags ? JSON.stringify(def.tags) : null,
+        def.kind ?? 'workflow',
         existing ? existing.created_at : now,
         now
       );
