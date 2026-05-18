@@ -76,23 +76,28 @@ export function WorkflowsLayout() {
             workflows={workflows}
           />
         </aside>
-        <main className="wf-editor">
+        <main className={`wf-editor${activeRunId ? ' wf-editor--with-run' : ''}`}>
           <WorkflowsTopBar templateCount={workflows.length} />
-          {activeRunId ? (
-            <RunDetailPanel runId={activeRunId} onClose={handleCloseRunPanel} />
-          ) : selectedWorkflowId ? (
-            <WorkflowEditor
-              selectedId={selectedWorkflowId}
-              onOpenRun={handleOpenRunPanel}
-              onOpenLaunchWizard={handleOpenLaunchWizard}
-              onDeselect={() => setSelectedWorkflowId(null)}
-              onSelectWorkflow={setSelectedWorkflowId}
-            />
-          ) : (
-            <WorkflowGrid
-              workflows={filteredWorkflows}
-              onSelect={setSelectedWorkflowId}
-            />
+          <div className="wf-editor-content">
+            {selectedWorkflowId ? (
+              <WorkflowEditor
+                selectedId={selectedWorkflowId}
+                onOpenRun={handleOpenRunPanel}
+                onOpenLaunchWizard={handleOpenLaunchWizard}
+                onDeselect={() => setSelectedWorkflowId(null)}
+                onSelectWorkflow={setSelectedWorkflowId}
+              />
+            ) : (
+              <WorkflowGrid
+                workflows={filteredWorkflows}
+                onSelect={setSelectedWorkflowId}
+              />
+            )}
+          </div>
+          {activeRunId && (
+            <div className="wf-run-panel">
+              <RunDetailPanel runId={activeRunId} onClose={handleCloseRunPanel} />
+            </div>
           )}
         </main>
       </div>

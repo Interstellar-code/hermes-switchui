@@ -95,6 +95,7 @@
     display: grid;
     --wf-current-lib-w: var(--wf-lib-w, 290px);
     grid-template-columns: var(--wf-current-lib-w) 1fr;
+    flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
   }
@@ -128,6 +129,38 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    min-height: 0;
+  }
+
+  /* Default content slot — takes remaining space below top bar. */
+  .wf-editor-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Run-detail split: grid/editor on top (~55%), run-detail panel below (~45%). */
+  .wf-editor--with-run .wf-editor-content {
+    flex: 1 1 55%;
+    min-height: 0;
+  }
+
+  .wf-run-panel {
+    flex: 1 1 45%;
+    min-height: 240px;
+    border-top: 1px solid var(--m-border, var(--theme-border));
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: var(--m-bg, var(--theme-bg));
+  }
+
+  .wf-run-panel > * {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
   }
 
   /* ── placeholder ── */
