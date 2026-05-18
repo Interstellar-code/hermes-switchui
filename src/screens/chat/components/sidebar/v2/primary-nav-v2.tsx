@@ -19,20 +19,12 @@
  * Non-existent routes are rendered as non-link buttons.
  */
 
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { useSearchModal } from '@/hooks/use-search-modal'
 import { getTheme, getThemeVariant, isDarkTheme, setTheme } from '@/lib/theme'
 import { SettingsDialog } from '@/components/settings-dialog'
-
-// ── Nav item types ────────────────────────────────────────────────────────────
-
-interface NavEntry {
-  label: string
-  icon: string // SVG path or emoji placeholder
-  to?: string
-  iconEl?: React.ReactNode
-}
+import { useBoards } from '@/lib/boards-api'
 
 // ── Icons (inline SVG) ────────────────────────────────────────────────────────
 
@@ -60,6 +52,7 @@ const ICONS = {
   jobs: 'M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zM8 5v3.5l2.5 1.5',
   tasks: 'M3 4h10M3 8h7M3 12h5',
   workflows: 'M2 4h12M2 8h8M2 12h5M11 9l2 2 4-4',
+  boards: 'M3 3h4v4H3V3zM9 3h4v4H9V3zM3 9h4v4H3V9zM9 9h4v4H9V9z',
   conductor: 'M8 2L2 14h12L8 2zM8 8v3',
   operations: 'M3 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM9 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM1 14c0-2.5 2-4 5-4s5 1.5 5 4M11 11c1.5 0 3 .8 3 3',
   matrix3d: 'M8 2l5 3v6l-5 3-5-3V5l5-3zM8 2v12M3 5l5 3 5-3M3 11l5-3 5 3',
@@ -125,12 +118,39 @@ interface NavItemProps {
   to?: string
   active: boolean
   collapsed?: boolean
+  badge?: string | number | null
+  compact?: boolean
 }
 
-function NavItem({ label, iconKey, to, active, collapsed }: NavItemProps) {
+function NavItem({ label, iconKey, to, active, collapsed, badge, compact }: NavItemProps) {
+  const baseStyle = getItemStyle(active)
   const style = collapsed
-    ? { ...getItemStyle(active), justifyContent: 'center', padding: '8px 0' }
-    : getItemStyle(active)
+    ? { ...baseStyle, justifyContent: 'center', padding: '8px 0' }
+    : compact
+      ? { ...baseStyle, padding: '5px 12px 5px 28px' }
+      : baseStyle
+
+  const content = (
+    <>
+      <Icon d={ICONS[iconKey]} />
+      {!collapsed && <span style={{ flex: 1, minWidth: 0 }}>{label}</span>}
+      {!collapsed && badge !== undefined && badge !== null && (
+        <span
+          className="m-mono"
+          style={{
+            fontSize: 9,
+            lineHeight: 1,
+            padding: '2px 5px',
+            borderRadius: 999,
+            border: '1px solid var(--theme-border)',
+            color: active ? 'var(--m-green-400, var(--theme-accent))' : 'var(--theme-muted)',
+          }}
+        >
+          {badge}
+        </span>
+      )}
+    </>
+  )
 
   if (to) {
     return (
@@ -141,8 +161,7 @@ function NavItem({ label, iconKey, to, active, collapsed }: NavItemProps) {
         data-active={active ? 'true' : undefined}
         title={collapsed ? label : undefined}
       >
-        <Icon d={ICONS[iconKey]} />
-        {!collapsed && label}
+        {content}
       </Link>
     )
   }
@@ -155,8 +174,7 @@ function NavItem({ label, iconKey, to, active, collapsed }: NavItemProps) {
       aria-disabled="true"
       title={collapsed ? label : undefined}
     >
-      <Icon d={ICONS[iconKey]} />
-      {!collapsed && label}
+      {content}
     </button>
   )
 }
@@ -292,6 +310,7 @@ export function PrimaryNavV2() {
   const isJobs = pathname.startsWith('/jobs')
   const isTasks = pathname.startsWith('/tasks')
   const isWorkflows = pathname.startsWith('/workflows')
+  const isBoards = pathname.startsWith('/boards')
   const isConductor = pathname.startsWith('/conductor')
   const isOperations = pathname.startsWith('/operations')
   const isMatrix3D = pathname.startsWith('/matrix3d')
@@ -301,7 +320,16 @@ export function PrimaryNavV2() {
   const isMcp = pathname.startsWith('/mcp')
   const isProfiles = pathname.startsWith('/profiles')
   const isSettings = pathname.startsWith('/settings')
-  const isNewSession = pathname === '/new' || pathname.startsWith('/chat/new')
+const boardsQuery = useBoards(true)
+  const boardsCount = boardsQuery.data?.boards?.length
+  const boardChildren = useMemo(
+    () => [
+      { label: 'Board', to: '/tasks', active: isTasks, iconKey: 'tasks' as const },
+      { label: 'Boards', to: '/boards', active: isBoards, iconKey: 'boards' as const, badge: boardsCount },
+    ],
+    [boardsCount, isBoards, isTasks],
+  )
+  const boardsSectionActive = isTasks || isBoards
 
   const w = collapsed ? NAV_COLLAPSED_WIDTH : NAV_WIDTH
 
@@ -498,7 +526,30 @@ export function PrimaryNavV2() {
         <NavItem label="Files" iconKey="files" to="/files" active={isFiles} collapsed={collapsed} />
         <NavItem label="Terminal" iconKey="terminal" to="/terminal" active={isTerminal} collapsed={collapsed} />
         <NavItem label="Jobs" iconKey="jobs" to="/jobs" active={isJobs} collapsed={collapsed} />
-        <NavItem label="Tasks" iconKey="tasks" to="/tasks" active={isTasks} collapsed={collapsed} />
+        <NavItem
+          label="Tasks"
+          iconKey="tasks"
+          to="/tasks"
+          active={boardsSectionActive}
+          collapsed={collapsed}
+          badge={boardsCount}
+        />
+        {!collapsed && (
+          <div style={{ display: 'grid', gap: 4, marginTop: -2, marginBottom: 2 }}>
+            {boardChildren.map((item) => (
+              <NavItem
+                key={item.label}
+                label={item.label}
+                iconKey={item.iconKey}
+                to={item.to}
+                active={item.active}
+                collapsed={collapsed}
+                badge={item.badge}
+                compact
+              />
+            ))}
+          </div>
+        )}
         <NavItem label="Workflows" iconKey="workflows" to="/workflows" active={isWorkflows} collapsed={collapsed} />
         <NavItem label="Conductor" iconKey="conductor" to="/conductor" active={isConductor} collapsed={collapsed} />
         <NavItem label="Operations" iconKey="operations" to="/operations" active={isOperations} collapsed={collapsed} />

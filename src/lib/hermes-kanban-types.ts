@@ -150,6 +150,48 @@ export function boardColumnsToMap(
   return map
 }
 
+// ── Board types ──────────────────────────────────────────────────────────────
+
+/** A kanban board entity as returned by GET /api/plugins/kanban/boards. */
+export type BoardMeta = {
+  slug: string
+  name: string
+  description: string
+  icon: string
+  color: string
+  created_at: number | null
+  archived: boolean
+  db_path?: string
+  // Injected by the list endpoint handler
+  is_current: boolean
+  counts: Record<string, number>
+  total: number
+}
+
+/** Body for POST /api/plugins/kanban/boards. slug is required (server does NOT derive it). */
+export type CreateBoardInput = {
+  slug: string
+  name?: string
+  description?: string
+  icon?: string
+  color?: string
+  switch?: boolean
+}
+
+/** Body for PATCH /api/plugins/kanban/boards/{slug}. Slug is immutable. */
+export type UpdateBoardInput = {
+  name?: string
+  description?: string
+  icon?: string
+  color?: string
+}
+
+/** Response shape for GET /api/plugins/kanban/boards. */
+export type KanbanBoardsListResponse = {
+  boards: BoardMeta[]
+  current: string
+}
+
 // ── Assignees ────────────────────────────────────────────────────────────────
 
 export type HermesKanbanAssigneeRaw = {
