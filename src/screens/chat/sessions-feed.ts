@@ -42,7 +42,8 @@ type CapabilityMap = {
 async function fetchCapabilities(): Promise<CapabilityMap> {
   try {
     const res = await fetch('/api/connection-status')
-    if (!res.ok) return { sessions: false, jobs: false, kanban: false, memory: false }
+    if (!res.ok)
+      return { sessions: false, jobs: false, kanban: false, memory: false }
     const data = (await res.json()) as {
       capabilities?: Partial<CapabilityMap>
       sessions?: boolean
@@ -73,8 +74,13 @@ const CAPABILITIES_QUERY_KEY = ['sessions-feed', 'capabilities'] as const
  * boundaries, not UTC offsets.
  */
 export function getDayBucket(whenMs: number, nowMs: number): SessionDayBucket {
-  const locale = typeof navigator !== 'undefined' ? navigator.language : undefined
-  const opts: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit' }
+  const locale =
+    typeof navigator !== 'undefined' ? navigator.language : undefined
+  const opts: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }
   const itemDay = new Date(whenMs).toLocaleDateString(locale, opts)
   const todayDay = new Date(nowMs).toLocaleDateString(locale, opts)
   // DST-safe: derive yesterday by subtracting one calendar day from today's
@@ -101,7 +107,13 @@ function makeId(src: SessionSource, rawId: string): string {
 
 // ── Chat source hook ───────────────────────────────────────────────────────────
 
-/** Hook for chat sessions. Gated by `capabilities.sessions`. */
+/** Hook for chat sessions.
+ *
+ * `/api/sessions` is the source of truth. Do not gate this query only on
+ * `/api/connection-status`: that endpoint is a coarse capability snapshot and
+ * can be stale during gateway/dashboard restarts, leaving the sidebar stuck at
+ * "0" even while `/api/sessions` is healthy.
+ */
 export function useChatSessionsFeed(): SessionSourceResult {
   const capsQuery = useQuery({
     queryKey: CAPABILITIES_QUERY_KEY,
@@ -164,12 +176,14 @@ export function useChatSessionsFeed(): SessionSourceResult {
         }
       })
     },
-    enabled: available,
     staleTime: 30_000,
     refetchInterval: false,
   })
 
-  return available
+  const queryHasData = Array.isArray(query.data)
+  const effectiveAvailable = available || queryHasData
+
+  return effectiveAvailable
     ? {
         src: 'chat',
         items: query.data ?? [],
@@ -183,7 +197,13 @@ export function useChatSessionsFeed(): SessionSourceResult {
 // ── Tool / Telegram source hooks — permanently unavailable ───────────────────
 
 export function useToolSessionsFeed(): SessionSourceResult {
-  return { src: 'tool', items: [], available: false, loading: false, error: null }
+  return {
+    src: 'tool',
+    items: [],
+    available: false,
+    loading: false,
+    error: null,
+  }
 }
 
 export function useTelegramSessionsFeed(): SessionSourceResult {
@@ -201,12 +221,17 @@ function matchesQuery(item: SessionFeedItem, q: string): boolean {
   }
   // Also search sourceMeta string values
   for (const val of Object.values(item.sourceMeta)) {
-    if (typeof val === 'string' && val.toLowerCase().includes(lower)) return true
+    if (typeof val === 'string' && val.toLowerCase().includes(lower))
+      return true
   }
   return false
 }
 
-function matchesDateRange(item: SessionFeedItem, from: string | null, to: string | null): boolean {
+function matchesDateRange(
+  item: SessionFeedItem,
+  from: string | null,
+  to: string | null,
+): boolean {
   if (!from && !to) return true
   const itemDate = item.when
   if (from) {
@@ -232,7 +257,10 @@ const SOURCE_ORDER: Record<SessionSource, number> = {
   tg: 5,
 }
 
-export function sortItems(items: Array<SessionFeedItem>, sort: SessionFeedSort): Array<SessionFeedItem> {
+export function sortItems(
+  items: Array<SessionFeedItem>,
+  sort: SessionFeedSort,
+): Array<SessionFeedItem> {
   const copy = [...items]
   if (sort === 'recent') {
     copy.sort((a, b) => b.when - a.when)
@@ -270,7 +298,9 @@ export function sortItems(items: Array<SessionFeedItem>, sort: SessionFeedSort):
  * One source loading or erroring does not block others — per-source error and
  * loading states are surfaced in `result.sources`.
  */
-export function useSessionsFeed(options: SessionsFeedOptions = {}): SessionsFeedResult {
+export function useSessionsFeed(
+  options: SessionsFeedOptions = {},
+): SessionsFeedResult {
   const {
     sources: requestedSources,
     state: stateFilter = 'all',
@@ -350,7 +380,9 @@ export function useSessionsFeed(options: SessionsFeedOptions = {}): SessionsFeed
       loading,
     }
   }, [
-    chat.items, chat.available, chat.loading,
+    chat.items,
+    chat.available,
+    chat.loading,
     tool.available,
     tg.available,
     requestedSources,

@@ -48,8 +48,11 @@ import {
   isApprovalNode,
   isCancelNode,
   isScriptNode,
+  isSubgraphNode,
   isApprovalContext,
 } from '../schemas';
+import type { SubgraphNode } from '../schemas';
+import { parseWorkflow } from '../discovery/loader';
 import { formatToolCall } from '../utils/tool-formatter';
 import { createLogger } from '@archon/paths';
 import { getWorkflowEventEmitter } from '../emitter/event-emitter';
@@ -82,6 +85,293 @@ let cachedLog: ReturnType<typeof createLogger> | undefined;
 function getLog(): ReturnType<typeof createLogger> {
   if (!cachedLog) cachedLog = createLogger('workflow.dag-executor');
   return cachedLog;
+}
+
+/** Derive the UI/store node type plus routing hints from a DAG node.
+ *  Used to enrich the node_started event so the projector can populate
+ *  node_runs.node_type and the hermes_task-derived columns. */
+function nodeRoutingHints(node: DagNode): {
+  nodeType: 'bash' | 'loop' | 'approval' | 'cancel' | 'script' | 'command' | 'prompt';
+  agentProfileHint?: string;
+  skills?: Array<string>;
+  modelHint?: string;
+} {
+  const n = node as unknown as { command?: unknown; hermes_task?: { agent_hint?: string; skills?: Array<string>; model_hint?: string } };
+  let nodeType: 'bash' | 'loop' | 'approval' | 'cancel' | 'script' | 'command' | 'prompt';
+  if (isBashNode(node)) nodeType = 'bash';
+  else if (isLoopNode(node)) nodeType = 'loop';
+  else if (isApprovalNode(node)) nodeType = 'approval';
+  else if (isCancelNode(node)) nodeType = 'cancel';
+  else if (isScriptNode(node)) nodeType = 'script';
+  else if (typeof n.command === 'string') nodeType = 'command';
+  else nodeType = 'prompt';
+  const ht = n.hermes_task;
+  return {
+    nodeType,
+    ...(ht?.agent_hint ? { agentProfileHint: ht.agent_hint } : {}),
+    ...(ht?.skills && ht.skills.length > 0 ? { skills: ht.skills } : {}),
+    ...(ht?.model_hint ? { modelHint: ht.model_hint } : {}),
+  };
+}
+
+/** Minimal store surface required by `expandSubgraph` — keeps the helper
+ *  decoupled from the concrete SwitchUiWorkflowStore so tests can stub it. */
+export interface SubgraphDefinitionStore {
+  getWorkflowDefinition(
+    id: string,
+  ): { id: string; yaml: string; kind?: 'workflow' | 'subgraph' } | null;
+}
+
+/** Output mapping declared in a subgraph YAML's `outputs:` block. */
+export interface SubgraphOutputSpec {
+  name: string;
+  /** Dotted reference into a child node's output (e.g. `synthesize.output`). */
+  from: string;
+}
+
+/** Result of a single subgraph expansion. The placeholder is created
+ *  out-of-band by the caller via the `subgraph_started` event (carries
+ *  `placeholderRunId` so the projector materialises the row). */
+export interface ExpandedSubgraph {
+  /** Pre-generated UUID for the placeholder node_run row. */
+  placeholderRunId: string;
+  /** Materialised child DagNodes with namespaced ids and substituted refs. */
+  childNodes: Array<DagNode>;
+  /** `outputs:` declarations from the subgraph YAML (for aggregation). */
+  outputs: Array<SubgraphOutputSpec>;
+  /** Map child-namespaced-id → original inner id (for output aggregation). */
+  innerIdByChildId: Map<string, string>;
+}
+
+/** Build a namespaced child id from the parent subgraph node id + inner node id.
+ *  e.g. parentNodeId=`review`, innerId=`code-review` → `review.code-review`. */
+function namespacedChildId(parentNodeId: string, innerId: string): string {
+  return `${parentNodeId}.${innerId}`;
+}
+
+/** Substitute `$INPUTS.<name>` references in a string with the bound input
+ *  values from the parent's `subgraph.inputs` block. Missing inputs render
+ *  as the empty string (callers that need stricter behavior should
+ *  validate at load time via the loader's `validateSubgraphReferences`). */
+function substituteSubgraphInputs(
+  source: string,
+  inputs: Record<string, unknown>,
+): string {
+  return source.replace(
+    /\$INPUTS\.([a-zA-Z_][a-zA-Z0-9_]*)/g,
+    (match, name: string) => {
+      if (!(name in inputs)) {
+        getLog().warn(
+          { name, match },
+          'dag.subgraph_input_ref_unknown',
+        );
+        return '';
+      }
+      const value = inputs[name];
+      if (typeof value === 'string') return value;
+      if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+      if (value === null || value === undefined) return '';
+      // arrays/objects: JSON-stringify so downstream tools can parse
+      return JSON.stringify(value);
+    },
+  );
+}
+
+/** Rewrite `$<inner-id>.output[.field]` references inside the subgraph body to
+ *  the namespaced form `$<parent>.<inner-id>.output[.field]`. The simple form
+ *  continues to work too because we ALSO leave it as-is when the inner id is
+ *  not in `innerIds` — but inside the subgraph we always want references to
+ *  inner nodes to resolve to the namespaced child id. Authors can therefore
+ *  paste an inline workflow body unchanged.
+ *
+ *  When the matched id is not an inner id of this subgraph, the reference is
+ *  left untouched — it may resolve from the parent workflow's node outputs
+ *  via the standard substituteNodeOutputRefs pass. */
+function rewriteInnerOutputRefs(
+  source: string,
+  innerIds: ReadonlySet<string>,
+  parentNodeId: string,
+): string {
+  return source.replace(
+    /\$([a-zA-Z_][a-zA-Z0-9_-]*)\.output((?:\.[a-zA-Z_][a-zA-Z0-9_]*)?)/g,
+    (match, innerId: string, suffix: string) => {
+      if (!innerIds.has(innerId)) return match;
+      return `$${namespacedChildId(parentNodeId, innerId)}.output${suffix}`;
+    },
+  );
+}
+
+/** Deep-clone a DagNode and rewrite its string fields. Pure — does not mutate
+ *  the source. Only descends into the fields that the executor reads at
+ *  runtime (prompt/bash/script/cancel/approval.message/loop.prompt). */
+function cloneAndRewriteNode(
+  node: DagNode,
+  parentNodeId: string,
+  innerIds: ReadonlySet<string>,
+  inputs: Record<string, unknown>,
+): DagNode {
+  // Deep clone via structuredClone (Node 17+) — safe for the schema-validated
+  // shape, no functions or circular refs. Falls back to JSON for the rare
+  // engine running on Node 16 (vitest target is current LTS).
+  const cloned: DagNode = (typeof structuredClone === 'function'
+    ? structuredClone(node)
+    : (JSON.parse(JSON.stringify(node)) as DagNode));
+
+  const rewriteString = (s: string): string =>
+    rewriteInnerOutputRefs(substituteSubgraphInputs(s, inputs), innerIds, parentNodeId);
+
+  // Namespace the id
+  cloned.id = namespacedChildId(parentNodeId, cloned.id);
+
+  // Rewrite depends_on entries that reference inner ids
+  if (cloned.depends_on && cloned.depends_on.length > 0) {
+    cloned.depends_on = cloned.depends_on.map(dep =>
+      innerIds.has(dep) ? namespacedChildId(parentNodeId, dep) : dep,
+    );
+  }
+
+  // Walk known string fields and rewrite. Cast to a loose record to read
+  // optional mode-specific fields without exhausting the discriminated union.
+  const loose = cloned as unknown as Record<string, unknown>;
+
+  if (typeof loose.prompt === 'string') loose.prompt = rewriteString(loose.prompt);
+  if (typeof loose.bash === 'string') loose.bash = rewriteString(loose.bash);
+  if (typeof loose.script === 'string') loose.script = rewriteString(loose.script);
+  if (typeof loose.cancel === 'string') loose.cancel = rewriteString(loose.cancel);
+  if (typeof loose.when === 'string') loose.when = rewriteString(loose.when);
+
+  if (loose.approval && typeof loose.approval === 'object') {
+    const ap = loose.approval as Record<string, unknown>;
+    if (typeof ap.message === 'string') ap.message = rewriteString(ap.message);
+  }
+
+  if (loose.loop && typeof loose.loop === 'object') {
+    const lp = loose.loop as Record<string, unknown>;
+    if (typeof lp.prompt === 'string') lp.prompt = rewriteString(lp.prompt);
+  }
+
+  return cloned;
+}
+
+/**
+ * Subgraph expansion entry point (A.7-subgraphs).
+ *
+ * Fetches the subgraph definition via `store.getWorkflowDefinition(node.subgraph.ref)`,
+ * parses the YAML, and produces a list of namespaced child DagNodes whose
+ * `$INPUTS.<name>` and `$<inner-id>.output` references have been rewritten to
+ * the parent run's substitution scope.
+ *
+ * Side-effect free: the placeholder node_run row is created by the projector
+ * when the caller emits `subgraph_started` with `placeholderRunId`. This keeps
+ * the helper unit-testable without a live DB.
+ */
+export async function expandSubgraph(
+  node: SubgraphNode,
+  _parentRunId: string,
+  _parentNodeRunId: string,
+  store: SubgraphDefinitionStore,
+): Promise<ExpandedSubgraph> {
+  const ref = node.subgraph.ref;
+  const row = store.getWorkflowDefinition(ref);
+  if (!row) {
+    throw new Error(`Subgraph '${ref}' not found in store`);
+  }
+  if (row.kind !== 'subgraph') {
+    throw new Error(
+      `Workflow definition '${ref}' is not a subgraph (kind=${row.kind ?? 'workflow'})`,
+    );
+  }
+
+  const parsed = parseWorkflow(row.yaml, `${ref}.yaml`);
+  if (parsed.error || !parsed.workflow) {
+    const msg = parsed.error?.error ?? 'unknown parse error';
+    throw new Error(`Failed to parse subgraph '${ref}': ${msg}`);
+  }
+  const definition = parsed.workflow;
+
+  const innerNodes = definition.nodes;
+  if (innerNodes.length === 0) {
+    throw new Error(`Subgraph '${ref}' has no nodes`);
+  }
+
+  const innerIds = new Set(innerNodes.map(n => n.id));
+  const inputs = node.subgraph.inputs ?? {};
+
+  const childNodes: Array<DagNode> = innerNodes.map(inner =>
+    cloneAndRewriteNode(inner, node.id, innerIds, inputs),
+  );
+
+  const innerIdByChildId = new Map<string, string>();
+  for (const inner of innerNodes) {
+    innerIdByChildId.set(namespacedChildId(node.id, inner.id), inner.id);
+  }
+
+  // Extract output specs from the parsed definition. The shape is
+  // `outputs: Array<{ name, from }>` per the subgraph schema.
+  const outputs: Array<SubgraphOutputSpec> = Array.isArray(
+    (definition as unknown as { outputs?: Array<unknown> }).outputs,
+  )
+    ? (
+        (definition as unknown as { outputs: Array<{ name: string; from: string }> }).outputs
+      ).map(o => ({ name: o.name, from: o.from }))
+    : [];
+
+  return {
+    placeholderRunId: randomUUID(),
+    childNodes,
+    outputs,
+    innerIdByChildId,
+  };
+}
+
+/**
+ * Aggregate subgraph outputs from completed child node outputs.
+ * Resolves each `outputs[*].from` (e.g. `synthesize.output` or
+ * `synthesize.output.summary`) against the child's namespaced output entry.
+ *
+ * Returns an object keyed by the declared output name. Missing references
+ * resolve to `null` rather than throwing — partial output is still useful.
+ */
+export function aggregateSubgraphOutputs(
+  outputs: ReadonlyArray<SubgraphOutputSpec>,
+  parentNodeId: string,
+  nodeOutputs: ReadonlyMap<string, NodeOutput>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const spec of outputs) {
+    // `from: <inner-id>.output` or `<inner-id>.output.<field>`
+    const match = /^([a-zA-Z_][a-zA-Z0-9_-]*)\.output(?:\.([a-zA-Z_][a-zA-Z0-9_]*))?$/.exec(
+      spec.from,
+    );
+    if (!match) {
+      getLog().warn(
+        { name: spec.name, from: spec.from, parentNodeId },
+        'dag.subgraph_output_spec_unparseable',
+      );
+      result[spec.name] = null;
+      continue;
+    }
+    const innerId = match[1];
+    const field = match[2];
+    const childId = namespacedChildId(parentNodeId, innerId);
+    const childOutput = nodeOutputs.get(childId);
+    if (!childOutput || childOutput.state !== 'completed') {
+      result[spec.name] = null;
+      continue;
+    }
+    if (!field) {
+      result[spec.name] = childOutput.output;
+      continue;
+    }
+    // Attempt JSON parse for field access (same convention as substituteNodeOutputRefs)
+    try {
+      const parsed = JSON.parse(childOutput.output) as Record<string, unknown>;
+      result[spec.name] = parsed[field] ?? null;
+    } catch {
+      result[spec.name] = null;
+    }
+  }
+  return result;
 }
 
 const MCP_FAILURE_PREFIX = 'MCP server connection failed: ';
@@ -447,12 +737,17 @@ async function resolveNodeProviderAndModel(
     baseOptions.outputFormat = { type: 'json_schema', schema: node.output_format };
   }
 
+  // Flatten YAML `hermes_task` block onto nodeConfig so the Kanban dispatcher
+  // can route by agent_hint / skills / model_hint. Without this, every Kanban
+  // task lands on the `default` profile regardless of YAML intent.
+  const hermesTask = (node as { hermes_task?: { agent_hint?: string; skills?: Array<string>; model_hint?: string } }).hermes_task;
+
   // Build raw nodeConfig — provider translates internally
   const nodeConfig: NodeConfig = {
     id: node.id,
     mcp: node.mcp,
     hooks: node.hooks,
-    skills: node.skills,
+    skills: hermesTask?.skills ?? node.skills,
     agents: node.agents,
     allowed_tools: node.allowed_tools,
     denied_tools: node.denied_tools,
@@ -464,6 +759,8 @@ async function resolveNodeProviderAndModel(
     maxBudgetUsd: node.maxBudgetUsd,
     systemPrompt: node.systemPrompt,
     fallbackModel: fb,
+    ...(hermesTask?.agent_hint ? { assigned_agent: hermesTask.agent_hint } : {}),
+    ...(hermesTask?.model_hint ? { model_hint: hermesTask.model_hint } : {}),
   };
 
   // Pass assistantConfig from config — provider parses internally
@@ -620,6 +917,7 @@ async function executeNodeInternal(
     nodeId: node.id,
     nodeName: node.command ?? node.id,
     nodeRunId,
+    ...nodeRoutingHints(node),
   });
 
   // Load prompt
@@ -1318,6 +1616,7 @@ async function executeBashNode(
     runId: workflowRun.id,
     nodeId: node.id,
     nodeName: node.id,
+    ...nodeRoutingHints(node),
   });
 
   // Variable substitution on script
@@ -1485,6 +1784,7 @@ async function executeScriptNode(
     runId: workflowRun.id,
     nodeId: node.id,
     nodeName: node.id,
+    ...nodeRoutingHints(node),
   });
 
   // Variable substitution on script field
@@ -2525,8 +2825,180 @@ export async function executeDagWorkflow(
     betas: workflow.betas,
     sandbox: workflow.sandbox,
   };
-  const layers = buildTopologicalLayers(workflow.nodes);
   const nodeOutputs = new Map<string, NodeOutput>();
+
+  // ---------------------------------------------------------------------
+  // Subgraph pre-expansion (A.7-subgraphs)
+  // ---------------------------------------------------------------------
+  // Walk the top-level nodes; for each SubgraphNode evaluate `when:` against
+  // pre-existing outputs (resume case only — fresh runs have no upstream
+  // outputs at expansion time and any `when:` referencing parent nodes is
+  // skipped here and re-checked in the layer loop). For each retained
+  // subgraph node, fetch its definition, expand children with namespaced
+  // ids, and replace the placeholder in the working node list.
+  //
+  // Subgraphs that resolve `when: false` at parse time still produce a
+  // placeholder marked skipped (no children).
+  //
+  // The placeholder itself is NOT executed as a regular node — we track it
+  // in `subgraphExpansions` and emit `subgraph_started` + aggregate the
+  // outputs after children settle.
+  interface ExpansionRecord {
+    placeholderRunId: string;
+    parentNodeId: string;
+    childIds: string[];
+    outputs: Array<SubgraphOutputSpec>;
+    innerIdByChildId: Map<string, string>;
+    skipped: boolean;
+    skipReason?: 'when_condition';
+    /** Original depends_on of the subgraph placeholder, used to thread parent
+     *  dependencies into the first layer of expanded children. */
+    originalDependsOn: string[];
+    /** Inner-node ids with no inner depends_on (the subgraph's roots) — these
+     *  receive the parent placeholder's depends_on after namespacing. */
+    rootChildIds: string[];
+    /** Inner-node ids with no inner dependents (terminal nodes) — used to
+     *  rewrite downstream parent nodes' depends_on entries that referenced
+     *  the subgraph placeholder. */
+    terminalChildIds: string[];
+    subgraphRef: string;
+  }
+
+  const subgraphExpansions = new Map<string, ExpansionRecord>();
+  const executableNodes: DagNode[] = [];
+
+  // Track a hint store: the runtime store on deps. Subgraph expansion may
+  // require getWorkflowDefinition which is on the concrete store. We cast
+  // through a narrow interface so unit-tests that mock deps.store can still
+  // supply a fake getWorkflowDefinition.
+  const subgraphStore = deps.store as unknown as Partial<SubgraphDefinitionStore>;
+
+  for (const topNode of workflow.nodes) {
+    if (!isSubgraphNode(topNode)) {
+      executableNodes.push(topNode);
+      continue;
+    }
+
+    // when: false → placeholder marked skipped, no children, no events
+    if (topNode.subgraph.when !== undefined) {
+      const { result: passes, parsed } = evaluateCondition(topNode.subgraph.when, nodeOutputs);
+      if (parsed && !passes) {
+        subgraphExpansions.set(topNode.id, {
+          placeholderRunId: randomUUID(),
+          parentNodeId: topNode.id,
+          childIds: [],
+          outputs: [],
+          innerIdByChildId: new Map(),
+          skipped: true,
+          skipReason: 'when_condition',
+          originalDependsOn: topNode.depends_on ?? [],
+          rootChildIds: [],
+          terminalChildIds: [],
+          subgraphRef: topNode.subgraph.ref,
+        });
+        nodeOutputs.set(topNode.id, { state: 'skipped', output: '' });
+        continue;
+      }
+    }
+
+    if (typeof subgraphStore.getWorkflowDefinition !== 'function') {
+      throw new Error(
+        `Subgraph node '${topNode.id}' requires a store with getWorkflowDefinition`,
+      );
+    }
+    const expanded = await expandSubgraph(
+      topNode,
+      workflowRun.id,
+      /* placeholder run id filled below */ '',
+      subgraphStore as SubgraphDefinitionStore,
+    );
+
+    // Thread parent depends_on onto the expansion roots, and rewrite
+    // downstream parent dependencies on this subgraph node into the
+    // expansion's terminals.
+    const originalDependsOn = topNode.depends_on ?? [];
+    const innerIds = new Set<string>();
+    for (const childId of expanded.innerIdByChildId.keys()) innerIds.add(childId);
+
+    const childDepSources = new Map<string, string[]>();
+    for (const child of expanded.childNodes) {
+      childDepSources.set(child.id, child.depends_on ?? []);
+    }
+    // Roots: children with no namespaced inner dep
+    const rootChildIds: string[] = [];
+    const dependentsByChild = new Map<string, Set<string>>();
+    for (const child of expanded.childNodes) {
+      const deps = childDepSources.get(child.id) ?? [];
+      const innerDeps = deps.filter(d => innerIds.has(d));
+      if (innerDeps.length === 0) rootChildIds.push(child.id);
+      for (const d of innerDeps) {
+        const entry = dependentsByChild.get(d) ?? new Set<string>();
+        entry.add(child.id);
+        dependentsByChild.set(d, entry);
+      }
+    }
+    // Terminals: children with no dependents inside the subgraph
+    const terminalChildIds: string[] = expanded.childNodes
+      .filter(c => !dependentsByChild.has(c.id) || (dependentsByChild.get(c.id)?.size ?? 0) === 0)
+      .map(c => c.id);
+
+    // Thread parent deps onto each root child
+    if (originalDependsOn.length > 0) {
+      for (const child of expanded.childNodes) {
+        if (rootChildIds.includes(child.id)) {
+          child.depends_on = [...originalDependsOn, ...(child.depends_on ?? [])];
+        }
+      }
+    }
+
+    subgraphExpansions.set(topNode.id, {
+      placeholderRunId: expanded.placeholderRunId,
+      parentNodeId: topNode.id,
+      childIds: expanded.childNodes.map(c => c.id),
+      outputs: expanded.outputs,
+      innerIdByChildId: expanded.innerIdByChildId,
+      skipped: false,
+      originalDependsOn,
+      rootChildIds,
+      terminalChildIds,
+      subgraphRef: topNode.subgraph.ref,
+    });
+
+    executableNodes.push(...expanded.childNodes);
+  }
+
+  // After expansion, rewrite parent nodes' `depends_on` entries that point
+  // at a subgraph placeholder to instead depend on that subgraph's terminal
+  // children. Otherwise downstream layers would never become ready.
+  for (let i = 0; i < executableNodes.length; i++) {
+    const n = executableNodes[i];
+    if (!n.depends_on || n.depends_on.length === 0) continue;
+    const rewritten: string[] = [];
+    let changed = false;
+    for (const dep of n.depends_on) {
+      const expansion = subgraphExpansions.get(dep);
+      if (expansion) {
+        changed = true;
+        if (expansion.skipped) {
+          // Subgraph was skipped — keep the original ref so trigger_rule fires.
+          // The skipped state propagates via nodeOutputs.
+          rewritten.push(dep);
+        } else {
+          rewritten.push(...expansion.terminalChildIds);
+        }
+      } else {
+        rewritten.push(dep);
+      }
+    }
+    if (changed) {
+      // Need to mutate; nodes are clones from expansion (children) or originals
+      // from the spread (parents). Parents from workflow.nodes are frozen by the
+      // schema — clone before mutating.
+      executableNodes[i] = { ...n, depends_on: rewritten };
+    }
+  }
+
+  const layers = buildTopologicalLayers(executableNodes);
 
   // Pre-populate nodeOutputs from prior run so already-completed nodes are
   // treated as done for trigger-rule and $nodeId.output substitution purposes.
@@ -2558,6 +3030,60 @@ export async function executeDagWorkflow(
   // from the prior run are not included — total_cost_usd will reflect resumed-portion cost only.
   let totalCostUsd = 0;
 
+  // Map child-namespaced-id → parent subgraph placeholder run id, used both
+  // for emitting node_started with `parentSubgraphNodeRunId` and for tracking
+  // which placeholder a child belongs to for aggregation.
+  const childToPlaceholderRunId = new Map<string, string>();
+  const childToParentNodeId = new Map<string, string>();
+  for (const expansion of subgraphExpansions.values()) {
+    if (expansion.skipped) continue;
+    for (const childId of expansion.childIds) {
+      childToPlaceholderRunId.set(childId, expansion.placeholderRunId);
+      childToParentNodeId.set(childId, expansion.parentNodeId);
+    }
+  }
+
+  // Emit subgraph_started for every retained expansion BEFORE any layer runs
+  // so the projector materialises placeholder rows first; children created
+  // by node_started events thereafter resolve their FK linkage cleanly.
+  for (const expansion of subgraphExpansions.values()) {
+    if (expansion.skipped) {
+      // Skipped subgraph — emit node_skipped to populate a row with skip_reason.
+      // No subgraph_started/completed lifecycle is emitted (per spec).
+      getWorkflowEventEmitter().emit({
+        type: 'node_skipped',
+        runId: workflowRun.id,
+        nodeId: expansion.parentNodeId,
+        nodeName: expansion.parentNodeId,
+        reason: expansion.skipReason ?? 'when_condition',
+      });
+      continue;
+    }
+    getWorkflowEventEmitter().emit({
+      type: 'subgraph_started',
+      runId: workflowRun.id,
+      nodeId: expansion.parentNodeId,
+      subgraphRef: expansion.subgraphRef,
+      nodeRunId: expansion.placeholderRunId,
+      childCount: expansion.childIds.length,
+    });
+
+    // Pre-create the child node_run rows linked to the placeholder. The
+    // actual node_started events fired during execution will hit the
+    // projector's DuplicateNodeRunError branch and transition status to
+    // 'running' — but the FK back to the placeholder is established here
+    // so the cancel cascade (parent → children) works.
+    for (const childId of expansion.childIds) {
+      getWorkflowEventEmitter().emit({
+        type: 'node_started',
+        runId: workflowRun.id,
+        nodeId: childId,
+        nodeName: childId,
+        parentSubgraphNodeRunId: expansion.placeholderRunId,
+      });
+    }
+  }
+
   for (let layerIdx = 0; layerIdx < layers.length; layerIdx++) {
     const layer = layers[layerIdx];
     const isParallelLayer = layer.length > 1;
@@ -2570,6 +3096,15 @@ export async function executeDagWorkflow(
     const layerResults = await Promise.allSettled(
       layer.map(async (node): Promise<{ nodeId: string; output: NodeExecutionResult }> => {
         try {
+          // Defensive: subgraph nodes are expanded out before buildTopologicalLayers
+          // runs, so the layer list never contains them. This guard narrows the type
+          // for downstream branches and bails out on the theoretical leak.
+          if (isSubgraphNode(node)) {
+            return {
+              nodeId: node.id,
+              output: { state: 'skipped' as const, output: '' },
+            };
+          }
           // 0. Skip if this node completed successfully in a prior run (resume path)
           if (priorCompletedNodes?.has(node.id)) {
             getLog().info({ nodeId: node.id }, 'dag.node_skipped_prior_success');
@@ -2887,6 +3422,11 @@ export async function executeDagWorkflow(
             error: 'Node did not execute',
           };
 
+          // Narrowing has filtered loop/approval/cancel/bash/script/subgraph
+          // above, so only CommandNode | PromptNode remain. TS loses the
+          // SubgraphNode exclusion across the async layer.map closure — assert
+          // here.
+          const aiNode = node as CommandNode | PromptNode;
           for (let attempt = 0; attempt <= retryConfig.maxRetries; attempt++) {
             output = await executeNodeInternal(
               deps,
@@ -2894,7 +3434,7 @@ export async function executeDagWorkflow(
               conversationId,
               cwd,
               workflowRun,
-              node,
+              aiNode,
               provider,
               nodeOptions,
               artifactsDir,
@@ -3043,6 +3583,68 @@ export async function executeDagWorkflow(
         'dag.status_check_failed'
       );
     }
+  }
+
+  // ---------------------------------------------------------------------
+  // Subgraph aggregation (A.7-subgraphs)
+  // ---------------------------------------------------------------------
+  // After the layer loop, every child either has a NodeOutput or was skipped.
+  // For each non-skipped expansion, decide success/failure and emit the
+  // terminal lifecycle event with aggregated outputs.
+  for (const expansion of subgraphExpansions.values()) {
+    if (expansion.skipped) continue;
+
+    const childOutputs = expansion.childIds.map(id => nodeOutputs.get(id));
+    const failedChild = expansion.childIds.find(id => {
+      const o = nodeOutputs.get(id);
+      return o?.state === 'failed';
+    });
+
+    if (failedChild !== undefined) {
+      const failedOutput = nodeOutputs.get(failedChild);
+      const errorMsg =
+        failedOutput?.state === 'failed' && failedOutput.error
+          ? failedOutput.error
+          : `child '${failedChild}' failed`;
+      // Surface the placeholder as failed and cascade-cancel any still-running
+      // siblings via nodeOutputs (the projector handles the row-level cascade
+      // when it sees subgraph_failed).
+      nodeOutputs.set(expansion.parentNodeId, {
+        state: 'failed',
+        output: '',
+        error: errorMsg,
+      });
+      getWorkflowEventEmitter().emit({
+        type: 'subgraph_failed',
+        runId: workflowRun.id,
+        nodeId: expansion.parentNodeId,
+        failedChildNodeId: failedChild,
+        error: errorMsg,
+      });
+      continue;
+    }
+
+    // All children completed (or skipped via trigger_rule). Aggregate outputs.
+    const outputs = aggregateSubgraphOutputs(expansion.outputs, expansion.parentNodeId, nodeOutputs);
+
+    // Surface the placeholder as completed so downstream parent nodes that
+    // depended on the subgraph can read `$<parent>.output` for the JSON
+    // outputs (in addition to the namespaced child refs).
+    nodeOutputs.set(expansion.parentNodeId, {
+      state: 'completed',
+      output: JSON.stringify(outputs),
+    });
+
+    // Treat all children completed as success. Compute duration as 0 here —
+    // a future enhancement can track per-placeholder start time.
+    getWorkflowEventEmitter().emit({
+      type: 'subgraph_completed',
+      runId: workflowRun.id,
+      nodeId: expansion.parentNodeId,
+      duration: 0,
+      outputs,
+    });
+    void childOutputs;
   }
 
   /**

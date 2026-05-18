@@ -34,13 +34,17 @@ export function createNodeRunsProjector({
     try {
       switch (event.type) {
         case 'node_started': {
-          const { runId, nodeId, nodeRunId } = event;
+          const { runId, nodeId, nodeRunId, nodeType, agentProfileHint, skills, modelHint, parentSubgraphNodeRunId } = event;
           try {
             await store.createNodeRun({
               workflow_run_id: runId,
               dag_node_id: nodeId,
-              node_type: 'prompt',
+              node_type: nodeType ?? 'prompt',
               ...(nodeRunId ? { id: nodeRunId } : {}),
+              ...(agentProfileHint ? { agent_profile_hint: agentProfileHint } : {}),
+              ...(skills && skills.length > 0 ? { skills } : {}),
+              ...(modelHint ? { model_hint: modelHint } : {}),
+              ...(parentSubgraphNodeRunId ? { parent_subgraph_node_run_id: parentSubgraphNodeRunId } : {}),
             });
           } catch (err) {
             if (err instanceof DuplicateNodeRunError) {
@@ -154,6 +158,77 @@ export function createNodeRunsProjector({
               completed_at: Date.now(),
               error,
             });
+          }
+          break;
+        }
+
+        case 'subgraph_started': {
+          const { runId, nodeId, nodeRunId, subgraphRef, childCount } = event;
+          try {
+            await store.createNodeRun({
+              workflow_run_id: runId,
+              dag_node_id: nodeId,
+              node_type: 'subgraph',
+              ...(nodeRunId ? { id: nodeRunId } : {}),
+              metadata: { subgraphRef, childCount },
+            });
+          } catch (err) {
+            if (err instanceof DuplicateNodeRunError) {
+              // Already exists — mark it running.
+              const existing = await store.findNodeRun(runId, nodeId, null);
+              if (existing) {
+                await store.updateNodeRun(existing.id, {
+                  status: 'running',
+                  started_at: Date.now(),
+                });
+              }
+            } else {
+              throw err;
+            }
+          }
+          break;
+        }
+
+        case 'subgraph_completed': {
+          const { runId, nodeId, outputs } = event;
+          const row = await store.findNodeRun(runId, nodeId, null);
+          if (row) {
+            await store.updateNodeRun(row.id, {
+              status: 'completed',
+              completed_at: Date.now(),
+              ...(outputs != null ? { summary: JSON.stringify(outputs) } : {}),
+            });
+          }
+          break;
+        }
+
+        case 'subgraph_failed': {
+          const { runId, nodeId, error } = event;
+          const row = await store.findNodeRun(runId, nodeId, null);
+          if (row) {
+            await store.updateNodeRun(row.id, {
+              status: 'failed',
+              completed_at: Date.now(),
+              error,
+            });
+            // Cascade-cancel any child node_runs whose parent is this placeholder.
+            const allRows = store.listNodeRuns(runId) as Array<{
+              id: string;
+              parent_subgraph_node_run_id: string | null;
+              status: string;
+            }>;
+            const TERMINAL = new Set(['completed', 'failed', 'cancelled', 'skipped']);
+            const children = allRows.filter(
+              (r) =>
+                r.parent_subgraph_node_run_id === row.id &&
+                !TERMINAL.has(r.status),
+            );
+            for (const child of children) {
+              await store.updateNodeRun(child.id, {
+                status: 'cancelled',
+                completed_at: Date.now(),
+              });
+            }
           }
           break;
         }

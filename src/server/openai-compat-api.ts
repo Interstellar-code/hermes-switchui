@@ -1,7 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
-import { CLAUDE_API } from './gateway-capabilities'
+import { BEARER_TOKEN, CLAUDE_API } from './gateway-capabilities'
 
 /**
  * Optional bearer token for authenticated OpenAI-compatible endpoints
@@ -13,31 +10,19 @@ import { CLAUDE_API } from './gateway-capabilities'
  * populated by the time requests actually run. Reading inside the
  * function avoids that.
  *
- * Resolution order:
+ * Resolution order matches the rest of the Hermes gateway client:
  * 1. `HERMES_API_TOKEN` env var
  * 2. `CLAUDE_API_TOKEN` env var (back-compat)
- * 3. Codex OAuth access token from `~/.codex/auth.json`
+ * 3. `API_SERVER_KEY` from `~/.hermes/.env`
+ *
+ * Do not fall back to OPENAI_API_KEY or Codex OAuth tokens here. The local
+ * Hermes gateway may be OpenAI-compatible on the wire, but its auth token is
+ * the Hermes API server key. Sending unrelated OpenAI/Codex credentials causes
+ * the gateway to reject otherwise-valid Switch UI chat requests with
+ * `invalid_api_key`.
  */
 function getBearerToken(): string {
-  const fromEnv = process.env.HERMES_API_TOKEN || process.env.CLAUDE_API_TOKEN
-  if (fromEnv) return fromEnv
-
-  // Fall back to Codex OAuth token when no env var is set.
-  // This bridges the gap for users who authenticated via `codex login`
-  // but don't have HERMES_API_TOKEN configured.
-  try {
-    const codexAuthPath = join(homedir(), '.codex', 'auth.json')
-    if (existsSync(codexAuthPath)) {
-      const auth = JSON.parse(readFileSync(codexAuthPath, 'utf-8')) as {
-        tokens?: { access_token?: string }
-      }
-      if (auth.tokens?.access_token) return auth.tokens.access_token
-    }
-  } catch {
-    // Silently ignore — no Codex auth available
-  }
-
-  return ''
+  return BEARER_TOKEN
 }
 
 /** Cached first available model from /v1/models — used as fallback when no model is specified. */
@@ -158,8 +143,7 @@ function parseClaudeToolProgressChunk(payload: string): StreamChunkType | null {
     const parsed = JSON.parse(payload) as unknown
     const record = readRecord(parsed)
     if (!record) return null
-    const name =
-      readString(record.tool) || readString(record.name) || 'tool'
+    const name = readString(record.tool) || readString(record.name) || 'tool'
     const emoji = readString(record.emoji)
     const labelText = readString(record.label)
     const label = [emoji, labelText].filter(Boolean).join(' ').trim()
@@ -202,7 +186,7 @@ export async function* parseOpenAIStream(
   const decoder = new TextDecoder()
   let buffer = ''
 
-  while (true) {
+  for (;;) {
     const { done, value } = await reader.read()
     if (done) break
 
@@ -214,7 +198,7 @@ export async function* parseOpenAIStream(
       buffer = buffer.slice(boundary + 2)
 
       let eventName = ''
-      const dataLines: string[] = []
+      const dataLines: Array<string> = []
 
       for (const line of rawEvent.split('\n')) {
         const trimmed = line.trim()

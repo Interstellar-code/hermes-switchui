@@ -138,4 +138,136 @@ describe('node-runs-projector', () => {
     const rows = store.listNodeRuns(runId) as Array<{ status: string }>;
     expect(rows[0].status).toBe('completed');
   });
+
+  it('subgraph_started creates placeholder row with node_type=subgraph and metadata', async () => {
+    const runId = 'run-sg-1';
+    await seedRun(store, runId);
+
+    emitter.emit({
+      type: 'subgraph_started',
+      runId,
+      nodeId: 'sg1',
+      subgraphRef: 'my-subgraph',
+      childCount: 3,
+    });
+    await flushPromises();
+
+    const rows = store.listNodeRuns(runId) as Array<{
+      dag_node_id: string;
+      node_type: string;
+      status: string;
+      metadata: string | null;
+    }>;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].dag_node_id).toBe('sg1');
+    expect(rows[0].node_type).toBe('subgraph');
+    expect(rows[0].status).toBe('pending');
+    const meta = JSON.parse(rows[0].metadata ?? '{}') as Record<string, unknown>;
+    expect(meta.subgraphRef).toBe('my-subgraph');
+    expect(meta.childCount).toBe(3);
+  });
+
+  it('subgraph_started uses provided nodeRunId as the row id', async () => {
+    const runId = 'run-sg-2';
+    await seedRun(store, runId);
+    const fixedId = 'fixed-uuid-sg';
+
+    emitter.emit({
+      type: 'subgraph_started',
+      runId,
+      nodeId: 'sg2',
+      nodeRunId: fixedId,
+      subgraphRef: 'ref-a',
+      childCount: 1,
+    });
+    await flushPromises();
+
+    const rows = store.listNodeRuns(runId) as Array<{ id: string }>;
+    expect(rows[0].id).toBe(fixedId);
+  });
+
+  it('subgraph_completed marks placeholder completed with outputs in summary', async () => {
+    const runId = 'run-sg-3';
+    await seedRun(store, runId);
+
+    emitter.emit({
+      type: 'subgraph_started',
+      runId,
+      nodeId: 'sg3',
+      subgraphRef: 'ref-b',
+      childCount: 2,
+    });
+    await flushPromises();
+    emitter.emit({
+      type: 'subgraph_completed',
+      runId,
+      nodeId: 'sg3',
+      duration: 200,
+      outputs: { result: 'ok', count: 5 },
+    });
+    await flushPromises();
+
+    const rows = store.listNodeRuns(runId) as Array<{ status: string; summary: string | null }>;
+    expect(rows[0].status).toBe('completed');
+    const summary = JSON.parse(rows[0].summary ?? 'null') as Record<string, unknown>;
+    expect(summary.result).toBe('ok');
+    expect(summary.count).toBe(5);
+  });
+
+  it('subgraph_failed marks placeholder failed and cascade-cancels non-terminal children', async () => {
+    const runId = 'run-sg-4';
+    await seedRun(store, runId);
+    const db = (store as unknown as { db: import('better-sqlite3').Database }).db;
+
+    // Create placeholder via event
+    emitter.emit({
+      type: 'subgraph_started',
+      runId,
+      nodeId: 'sg4',
+      subgraphRef: 'ref-c',
+      childCount: 2,
+    });
+    await flushPromises();
+
+    // Get the placeholder id
+    const placeholderRows = store.listNodeRuns(runId) as Array<{ id: string }>;
+    const placeholderId = placeholderRows[0].id;
+
+    // Manually insert two child node_runs linked to the placeholder
+    const now = Date.now();
+    db.prepare(
+      `INSERT INTO node_runs (id, workflow_run_id, dag_node_id, node_type, status,
+         parent_subgraph_node_run_id, retries, max_retries, retry_delay_ms, retry_on_error)
+       VALUES (?, ?, ?, 'prompt', 'running', ?, 0, 2, 3000, 'transient')`
+    ).run('child-1', runId, 'sg4.inner-a', placeholderId);
+    db.prepare(
+      `INSERT INTO node_runs (id, workflow_run_id, dag_node_id, node_type, status,
+         parent_subgraph_node_run_id, retries, max_retries, retry_delay_ms, retry_on_error)
+       VALUES (?, ?, ?, 'prompt', 'completed', ?, 0, 2, 3000, 'transient')`
+    ).run('child-2', runId, 'sg4.inner-b', placeholderId);
+
+    emitter.emit({
+      type: 'subgraph_failed',
+      runId,
+      nodeId: 'sg4',
+      error: 'inner node exploded',
+      failedChildNodeId: 'sg4.inner-a',
+    });
+    await flushPromises();
+
+    const allRows = store.listNodeRuns(runId) as Array<{ id: string; status: string; error: string | null }>;
+    const placeholderRow = allRows.find((r) => r.id === placeholderId)!;
+    const child1Row = allRows.find((r) => r.id === 'child-1')!;
+    const child2Row = allRows.find((r) => r.id === 'child-2')!;
+
+    // Placeholder is failed with error
+    expect(placeholderRow.status).toBe('failed');
+    expect(placeholderRow.error).toBe('inner node exploded');
+
+    // Running child gets cascade-cancelled
+    expect(child1Row.status).toBe('cancelled');
+
+    // Already-completed child is NOT touched
+    expect(child2Row.status).toBe('completed');
+  });
 });

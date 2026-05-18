@@ -7,25 +7,25 @@ function freshDb(): Database.Database {
 }
 
 describe("runMigrations", () => {
-  it("fresh in-memory DB → migrations applied → schema_version='1'", () => {
+  it("fresh in-memory DB → migrations applied → schema_version='2'", () => {
     const db = freshDb();
     runMigrations(db);
     const row = db
       .prepare("SELECT value FROM schema_meta WHERE key='schema_version'")
       .get() as { value: string } | undefined;
-    expect(row?.value).toBe("1");
+    expect(row?.value).toBe("2");
     db.close();
   });
 
   it("re-running migration runner is a no-op (idempotent)", () => {
     const db = freshDb();
     runMigrations(db);
-    // Second run must not throw and version stays at '1'
+    // Second run must not throw and version stays at the latest migration's number
     expect(() => runMigrations(db)).not.toThrow();
     const row = db
       .prepare("SELECT value FROM schema_meta WHERE key='schema_version'")
       .get() as { value: string } | undefined;
-    expect(row?.value).toBe("1");
+    expect(row?.value).toBe("2");
     db.close();
   });
 

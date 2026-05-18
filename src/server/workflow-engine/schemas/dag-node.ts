@@ -10,11 +10,11 @@
  * z.union() is NOT used here — YAML nodes lack an explicit `type` discriminant,
  * so a flat schema with superRefine is cleaner than a z.union() with implicit discriminants.
  */
-import { z } from '@hono/zod-openapi';
-import { stepRetryConfigSchema } from './retry';
-import { loopNodeConfigSchema } from './loop';
-import { workflowNodeHooksSchema } from './hooks';
-import { isValidCommandName } from '../validation/command-validation';
+import { z } from '@hono/zod-openapi'
+import { isValidCommandName } from '../validation/command-validation'
+import { loopNodeConfigSchema } from './loop'
+import { stepRetryConfigSchema } from './retry'
+import { workflowNodeHooksSchema } from './hooks'
 
 // ---------------------------------------------------------------------------
 // TriggerRule
@@ -25,21 +25,22 @@ export const triggerRuleSchema = z.enum([
   'one_success',
   'none_failed_min_one_success',
   'all_done',
-]);
+])
 
-export type TriggerRule = z.infer<typeof triggerRuleSchema>;
+export type TriggerRule = z.infer<typeof triggerRuleSchema>
 
 /** Canonical list of trigger rules — derived from schema, do not duplicate. */
-export const TRIGGER_RULES: readonly TriggerRule[] = triggerRuleSchema.options;
+export const TRIGGER_RULES: ReadonlyArray<TriggerRule> =
+  triggerRuleSchema.options
 
 // ---------------------------------------------------------------------------
 // Claude SDK option schemas
 // ---------------------------------------------------------------------------
 
 /** Claude Agent SDK effort level — controls reasoning depth. Different from Codex modelReasoningEffort. */
-export const effortLevelSchema = z.enum(['low', 'medium', 'high', 'max']);
+export const effortLevelSchema = z.enum(['low', 'medium', 'high', 'max'])
 
-export type EffortLevel = z.infer<typeof effortLevelSchema>;
+export type EffortLevel = z.infer<typeof effortLevelSchema>
 
 /**
  * Claude Agent SDK ThinkingConfig — string shorthand or full object form.
@@ -48,20 +49,23 @@ export type EffortLevel = z.infer<typeof effortLevelSchema>;
 export const thinkingConfigSchema = z.preprocess(
   (val: unknown) => {
     if (typeof val === 'string') {
-      if (val === 'adaptive') return { type: 'adaptive' };
-      if (val === 'enabled') return { type: 'enabled' };
-      if (val === 'disabled') return { type: 'disabled' };
+      if (val === 'adaptive') return { type: 'adaptive' }
+      if (val === 'enabled') return { type: 'enabled' }
+      if (val === 'disabled') return { type: 'disabled' }
     }
-    return val;
+    return val
   },
   z.discriminatedUnion('type', [
     z.object({ type: z.literal('adaptive') }),
-    z.object({ type: z.literal('enabled'), budgetTokens: z.number().int().positive().optional() }),
+    z.object({
+      type: z.literal('enabled'),
+      budgetTokens: z.number().int().positive().optional(),
+    }),
     z.object({ type: z.literal('disabled') }),
-  ])
-);
+  ]),
+)
 
-export type ThinkingConfig = z.infer<typeof thinkingConfigSchema>;
+export type ThinkingConfig = z.infer<typeof thinkingConfigSchema>
 
 /**
  * Claude Agent SDK SandboxSettings — OS-level filesystem/network restrictions.
@@ -101,9 +105,9 @@ export const sandboxSettingsSchema = z
       })
       .optional(),
   })
-  .passthrough();
+  .passthrough()
 
-export type SandboxSettings = z.infer<typeof sandboxSettingsSchema>;
+export type SandboxSettings = z.infer<typeof sandboxSettingsSchema>
 
 /**
  * Claude Agent SDK AgentDefinition — inline sub-agent available via the Task tool.
@@ -118,12 +122,12 @@ export const agentDefinitionSchema = z.object({
   disallowedTools: z.array(z.string().min(1)).optional(),
   skills: z.array(z.string().min(1)).optional(),
   maxTurns: z.number().int().positive().optional(),
-});
+})
 
-export type AgentDefinition = z.infer<typeof agentDefinitionSchema>;
+export type AgentDefinition = z.infer<typeof agentDefinitionSchema>
 
 // Kebab-case: no leading/trailing/double hyphens (e.g. `brief-gen`, not `-brief`, `brief-`, `brief--gen`).
-const AGENT_ID_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const AGENT_ID_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/
 
 // ---------------------------------------------------------------------------
 // DagNodeBase — common fields shared by all node types
@@ -131,6 +135,7 @@ const AGENT_ID_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 export const dagNodeBaseSchema = z.object({
   id: z.string(),
+  phase: z.string().trim().min(1).optional(),
   depends_on: z.array(z.string()).optional(),
   when: z.string().optional(),
   trigger_rule: triggerRuleSchema.optional(),
@@ -150,17 +155,28 @@ export const dagNodeBaseSchema = z.object({
     .optional(),
   agents: z
     .record(
-      z.string().regex(AGENT_ID_REGEX, 'agent IDs must be kebab-case (a-z, 0-9, hyphen)'),
-      agentDefinitionSchema
+      z
+        .string()
+        .regex(
+          AGENT_ID_REGEX,
+          'agent IDs must be kebab-case (a-z, 0-9, hyphen)',
+        ),
+      agentDefinitionSchema,
     )
-    .refine((map: Record<string, unknown>) => Object.keys(map).length > 0, "'agents' must have at least one entry")
+    .refine(
+      (map: Record<string, unknown>) => Object.keys(map).length > 0,
+      "'agents' must have at least one entry",
+    )
     .optional(),
   effort: effortLevelSchema.optional(),
   thinking: thinkingConfigSchema.optional(),
   maxBudgetUsd: z.number().positive().optional(),
   systemPrompt: z.string().min(1).optional(),
   fallbackModel: z.string().min(1).optional(),
-  betas: z.array(z.string().min(1)).nonempty("'betas' must be a non-empty array").optional(),
+  betas: z
+    .array(z.string().min(1))
+    .nonempty("'betas' must be a non-empty array")
+    .optional(),
   sandbox: sandboxSettingsSchema.optional(),
   hermes_task: z
     .object({
@@ -169,9 +185,9 @@ export const dagNodeBaseSchema = z.object({
       model_hint: z.string().optional(),
     })
     .optional(),
-});
+})
 
-export type DagNodeBase = z.infer<typeof dagNodeBaseSchema>;
+export type DagNodeBase = z.infer<typeof dagNodeBaseSchema>
 
 // ---------------------------------------------------------------------------
 // Per-variant schemas — exported for type derivation only (use dagNodeSchema for validation)
@@ -179,31 +195,33 @@ export type DagNodeBase = z.infer<typeof dagNodeBaseSchema>;
 
 export const commandNodeSchema = dagNodeBaseSchema.extend({
   command: z.string(),
-});
+})
 
 /** DAG node that runs a named command from .archon/commands/ */
 export type CommandNode = z.infer<typeof commandNodeSchema> & {
-  prompt?: never;
-  bash?: never;
-  loop?: never;
-  approval?: never;
-  cancel?: never;
-  script?: never;
-};
+  prompt?: never
+  bash?: never
+  loop?: never
+  approval?: never
+  cancel?: never
+  script?: never
+  subgraph?: never
+}
 
 export const promptNodeSchema = dagNodeBaseSchema.extend({
   prompt: z.string(),
-});
+})
 
 /** DAG node with an inline prompt (no command file) */
 export type PromptNode = z.infer<typeof promptNodeSchema> & {
-  command?: never;
-  bash?: never;
-  loop?: never;
-  approval?: never;
-  cancel?: never;
-  script?: never;
-};
+  command?: never
+  bash?: never
+  loop?: never
+  approval?: never
+  cancel?: never
+  script?: never
+  subgraph?: never
+}
 
 /**
  * Bash node schema — extends base with `bash` (shell script) and `timeout` (ms).
@@ -212,17 +230,18 @@ export type PromptNode = z.infer<typeof promptNodeSchema> & {
 export const bashNodeSchema = dagNodeBaseSchema.extend({
   bash: z.string(),
   timeout: z.number().optional(),
-});
+})
 
 /** DAG node that runs a shell script without AI */
 export type BashNode = z.infer<typeof bashNodeSchema> & {
-  command?: never;
-  prompt?: never;
-  loop?: never;
-  approval?: never;
-  cancel?: never;
-  script?: never;
-};
+  command?: never
+  prompt?: never
+  loop?: never
+  approval?: never
+  cancel?: never
+  script?: never
+  subgraph?: never
+}
 
 /**
  * Script node schema — extends base with `script` (inline code or named script),
@@ -232,19 +251,22 @@ export type BashNode = z.infer<typeof bashNodeSchema> & {
 export const scriptNodeSchema = dagNodeBaseSchema.extend({
   script: z.string().min(1, 'script cannot be empty'),
   runtime: z.enum(['bun', 'uv']),
-  deps: z.array(z.string().min(1, 'each dep must be a non-empty string')).optional(),
+  deps: z
+    .array(z.string().min(1, 'each dep must be a non-empty string'))
+    .optional(),
   timeout: z.number().optional(),
-});
+})
 
 /** DAG node that runs a TypeScript or Python script via bun or uv */
 export type ScriptNode = z.infer<typeof scriptNodeSchema> & {
-  command?: never;
-  prompt?: never;
-  bash?: never;
-  loop?: never;
-  approval?: never;
-  cancel?: never;
-};
+  command?: never
+  prompt?: never
+  bash?: never
+  loop?: never
+  approval?: never
+  cancel?: never
+  subgraph?: never
+}
 
 /**
  * Loop node schema — extends base with `loop` config.
@@ -253,25 +275,26 @@ export type ScriptNode = z.infer<typeof scriptNodeSchema> & {
  */
 export const loopNodeSchema = dagNodeBaseSchema.extend({
   loop: loopNodeConfigSchema,
-});
+})
 
 /** DAG node that runs an AI prompt in a loop until a completion condition is met */
 export type LoopNode = z.infer<typeof loopNodeSchema> & {
-  command?: never;
-  prompt?: never;
-  bash?: never;
-  approval?: never;
-  cancel?: never;
-  script?: never;
-};
+  command?: never
+  prompt?: never
+  bash?: never
+  approval?: never
+  cancel?: never
+  script?: never
+  subgraph?: never
+}
 
 /** Schema for the `on_reject` sub-object on approval nodes. */
 export const approvalOnRejectSchema = z.object({
   prompt: z.string().min(1, "'on_reject.prompt' must be a non-empty string"),
   max_attempts: z.number().int().min(1).max(10).optional(),
-});
+})
 
-export type ApprovalOnReject = z.infer<typeof approvalOnRejectSchema>;
+export type ApprovalOnReject = z.infer<typeof approvalOnRejectSchema>
 
 /**
  * Approval node schema — pauses the workflow for human review.
@@ -283,17 +306,18 @@ export const approvalNodeSchema = dagNodeBaseSchema.extend({
     capture_response: z.boolean().optional(),
     on_reject: approvalOnRejectSchema.optional(),
   }),
-});
+})
 
 /** DAG node that pauses workflow execution for human approval */
 export type ApprovalNode = z.infer<typeof approvalNodeSchema> & {
-  command?: never;
-  prompt?: never;
-  bash?: never;
-  loop?: never;
-  cancel?: never;
-  script?: never;
-};
+  command?: never
+  prompt?: never
+  bash?: never
+  loop?: never
+  cancel?: never
+  script?: never
+  subgraph?: never
+}
 
 /**
  * Cancel node schema — terminates the workflow run with a reason string.
@@ -301,19 +325,49 @@ export type ApprovalNode = z.infer<typeof approvalNodeSchema> & {
  */
 export const cancelNodeSchema = dagNodeBaseSchema.extend({
   cancel: z.string().min(1, "'cancel' reason must not be empty"),
-});
+})
 
 /** DAG node that cancels the workflow run with a reason string */
 export type CancelNode = z.infer<typeof cancelNodeSchema> & {
-  command?: never;
-  prompt?: never;
-  bash?: never;
-  loop?: never;
-  approval?: never;
-  script?: never;
-};
+  command?: never
+  prompt?: never
+  bash?: never
+  loop?: never
+  approval?: never
+  script?: never
+  subgraph?: never
+}
 
-/** A single node in a DAG workflow. command, prompt, bash, loop, approval, cancel, and script are mutually exclusive. */
+/** Reference to a subgraph definition (A.7-subgraphs). */
+export const subgraphReferenceSchema = z.object({
+  ref: z
+    .string()
+    .min(1, "'subgraph.ref' must not be empty")
+    .regex(/^[a-z0-9][a-z0-9_-]*$/i, "'subgraph.ref' must be kebab/snake-case"),
+  inputs: z.record(z.string(), z.unknown()).optional(),
+  when: z.string().optional(),
+  timeout: z.number().int().positive().optional(),
+  max_retries: z.number().int().nonnegative().optional(),
+})
+
+export type SubgraphReference = z.infer<typeof subgraphReferenceSchema>
+
+export const subgraphNodeSchema = dagNodeBaseSchema.extend({
+  subgraph: subgraphReferenceSchema,
+})
+
+/** DAG node that expands a subgraph definition into the parent run at runtime */
+export type SubgraphNode = z.infer<typeof subgraphNodeSchema> & {
+  command?: never
+  prompt?: never
+  bash?: never
+  loop?: never
+  approval?: never
+  cancel?: never
+  script?: never
+}
+
+/** A single node in a DAG workflow. command, prompt, bash, loop, approval, cancel, script, and subgraph are mutually exclusive. */
 export type DagNode =
   | CommandNode
   | PromptNode
@@ -321,14 +375,15 @@ export type DagNode =
   | LoopNode
   | ApprovalNode
   | CancelNode
-  | ScriptNode;
+  | ScriptNode
+  | SubgraphNode
 
 // ---------------------------------------------------------------------------
 // AI-specific fields that are meaningless on non-AI nodes
 // ---------------------------------------------------------------------------
 
 /** AI-specific fields that are meaningless on bash nodes — exported for loader warnings */
-export const BASH_NODE_AI_FIELDS: readonly string[] = [
+export const BASH_NODE_AI_FIELDS: ReadonlyArray<string> = [
   'provider',
   'model',
   'context',
@@ -346,19 +401,18 @@ export const BASH_NODE_AI_FIELDS: readonly string[] = [
   'fallbackModel',
   'betas',
   'sandbox',
-];
+]
 
 /** AI-specific fields that are meaningless on script nodes — same as bash nodes */
-export const SCRIPT_NODE_AI_FIELDS: readonly string[] = BASH_NODE_AI_FIELDS;
+export const SCRIPT_NODE_AI_FIELDS: ReadonlyArray<string> = BASH_NODE_AI_FIELDS
 
 /**
  * AI-specific fields that are unsupported on loop nodes.
  * `model` and `provider` are excluded because the DAG executor resolves and
  * forwards them to each iteration's AI call (see dag-executor.ts:2602-2648).
  */
-export const LOOP_NODE_AI_FIELDS: readonly string[] = BASH_NODE_AI_FIELDS.filter(
-  f => f !== 'model' && f !== 'provider'
-);
+export const LOOP_NODE_AI_FIELDS: ReadonlyArray<string> =
+  BASH_NODE_AI_FIELDS.filter((f) => f !== 'model' && f !== 'provider')
 
 // ---------------------------------------------------------------------------
 // dagNodeSchema — flat validation schema with transform to DagNode
@@ -397,12 +451,16 @@ export const dagNodeSchema = dagNodeBaseSchema
     // Script-only
     script: z.string().optional(),
     runtime: z.enum(['bun', 'uv']).optional(),
-    deps: z.array(z.string().min(1, 'each dep must be a non-empty string')).optional(),
+    deps: z
+      .array(z.string().min(1, 'each dep must be a non-empty string'))
+      .optional(),
     // Bash/Script shared
     timeout: z.number().optional(),
+    // Subgraph reference (A.7-subgraphs)
+    subgraph: subgraphReferenceSchema.optional(),
   })
   .superRefine((data, ctx) => {
-    const id = data.id.trim();
+    const id = data.id.trim()
 
     // id must be non-empty
     if (!id) {
@@ -410,17 +468,22 @@ export const dagNodeSchema = dagNodeBaseSchema
         code: z.ZodIssueCode.custom,
         message: "missing required field 'id'",
         path: ['id'],
-      });
-      return z.NEVER;
+      })
+      return z.NEVER
     }
 
-    const hasCommand = typeof data.command === 'string' && data.command.trim().length > 0;
-    const hasPrompt = typeof data.prompt === 'string' && data.prompt.trim().length > 0;
-    const hasBash = typeof data.bash === 'string' && data.bash.trim().length > 0;
-    const hasLoop = data.loop !== undefined;
-    const hasApproval = data.approval !== undefined;
-    const hasCancel = typeof data.cancel === 'string' && data.cancel.trim().length > 0;
-    const hasScript = typeof data.script === 'string' && data.script.trim().length > 0;
+    const hasCommand =
+      typeof data.command === 'string' && data.command.trim().length > 0
+    const hasPrompt =
+      typeof data.prompt === 'string' && data.prompt.trim().length > 0
+    const hasBash = typeof data.bash === 'string' && data.bash.trim().length > 0
+    const hasLoop = data.loop !== undefined
+    const hasApproval = data.approval !== undefined
+    const hasCancel =
+      typeof data.cancel === 'string' && data.cancel.trim().length > 0
+    const hasScript =
+      typeof data.script === 'string' && data.script.trim().length > 0
+    const hasSubgraph = data.subgraph !== undefined
 
     const modeCount = [
       hasCommand,
@@ -430,15 +493,16 @@ export const dagNodeSchema = dagNodeBaseSchema
       hasApproval,
       hasCancel,
       hasScript,
-    ].filter(Boolean).length;
+      hasSubgraph,
+    ].filter(Boolean).length
 
     if (modeCount > 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message:
-          "'command', 'prompt', 'bash', 'loop', 'approval', 'cancel', and 'script' are mutually exclusive",
-      });
-      return z.NEVER;
+          "'command', 'prompt', 'bash', 'loop', 'approval', 'cancel', 'script', and 'subgraph' are mutually exclusive",
+      })
+      return z.NEVER
     }
     if (modeCount === 0) {
       if (typeof data.bash === 'string') {
@@ -446,31 +510,31 @@ export const dagNodeSchema = dagNodeBaseSchema
           code: z.ZodIssueCode.custom,
           message: 'bash script cannot be empty',
           path: ['bash'],
-        });
-        return z.NEVER;
+        })
+        return z.NEVER
       }
       if (typeof data.prompt === 'string') {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'prompt cannot be empty',
           path: ['prompt'],
-        });
-        return z.NEVER;
+        })
+        return z.NEVER
       }
       if (typeof data.script === 'string') {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'script cannot be empty',
           path: ['script'],
-        });
-        return z.NEVER;
+        })
+        return z.NEVER
       }
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message:
-          "must have either 'command', 'prompt', 'bash', 'loop', 'approval', 'cancel', or 'script'",
-      });
-      return z.NEVER;
+          "must have either 'command', 'prompt', 'bash', 'loop', 'approval', 'cancel', 'script', or 'subgraph'",
+      })
+      return z.NEVER
     }
 
     // Command name validation
@@ -479,17 +543,20 @@ export const dagNodeSchema = dagNodeBaseSchema
         code: z.ZodIssueCode.custom,
         message: `invalid command name "${(data.command ?? '').trim()}"`,
         path: ['command'],
-      });
+      })
     }
 
     // Bash node validations
     if (hasBash) {
-      if (data.timeout !== undefined && (data.timeout <= 0 || !isFinite(data.timeout))) {
+      if (
+        data.timeout !== undefined &&
+        (data.timeout <= 0 || !isFinite(data.timeout))
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "'timeout' must be a positive number (ms)",
           path: ['timeout'],
-        });
+        })
       }
     }
 
@@ -500,14 +567,17 @@ export const dagNodeSchema = dagNodeBaseSchema
           code: z.ZodIssueCode.custom,
           message: "'runtime' is required for script nodes ('bun' or 'uv')",
           path: ['runtime'],
-        });
+        })
       }
-      if (data.timeout !== undefined && (data.timeout <= 0 || !isFinite(data.timeout))) {
+      if (
+        data.timeout !== undefined &&
+        (data.timeout <= 0 || !isFinite(data.timeout))
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "'timeout' must be a positive number (ms)",
           path: ['timeout'],
-        });
+        })
       }
     }
 
@@ -515,9 +585,10 @@ export const dagNodeSchema = dagNodeBaseSchema
     if (hasLoop && data.retry !== undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "'retry' is not supported on loop nodes (loop manages its own iteration)",
+        message:
+          "'retry' is not supported on loop nodes (loop manages its own iteration)",
         path: ['retry'],
-      });
+      })
     }
 
     // idle_timeout must be finite and positive
@@ -529,55 +600,86 @@ export const dagNodeSchema = dagNodeBaseSchema
         code: z.ZodIssueCode.custom,
         message: "'idle_timeout' must be a finite positive number (ms)",
         path: ['idle_timeout'],
-      });
+      })
     }
   })
   .transform((data): DagNode => {
-    const id = data.id.trim();
+    const id = data.id.trim()
 
     // Common base fields (sparse — only include defined values)
     const base = {
       id,
+      ...(data.phase !== undefined ? { phase: data.phase } : {}),
       ...(data.depends_on !== undefined && data.depends_on.length > 0
         ? { depends_on: data.depends_on }
         : {}),
       ...(data.when !== undefined ? { when: data.when } : {}),
-      ...(data.trigger_rule !== undefined ? { trigger_rule: data.trigger_rule } : {}),
-      ...(data.idle_timeout !== undefined ? { idle_timeout: data.idle_timeout } : {}),
-    };
+      ...(data.trigger_rule !== undefined
+        ? { trigger_rule: data.trigger_rule }
+        : {}),
+      ...(data.idle_timeout !== undefined
+        ? { idle_timeout: data.idle_timeout }
+        : {}),
+    }
 
     // Shared optional fields (valid on AI and bash nodes)
     const shared = {
       ...(data.retry !== undefined ? { retry: data.retry } : {}),
-    };
+    }
 
     // AI-only fields (not applicable to bash/loop nodes)
     const aiOnly = {
       ...(data.model !== undefined ? { model: data.model } : {}),
       ...(data.provider !== undefined ? { provider: data.provider } : {}),
       ...(data.context !== undefined ? { context: data.context } : {}),
-      ...(data.output_format !== undefined ? { output_format: data.output_format } : {}),
-      ...(data.allowed_tools !== undefined ? { allowed_tools: data.allowed_tools } : {}),
-      ...(data.denied_tools !== undefined ? { denied_tools: data.denied_tools } : {}),
+      ...(data.output_format !== undefined
+        ? { output_format: data.output_format }
+        : {}),
+      ...(data.allowed_tools !== undefined
+        ? { allowed_tools: data.allowed_tools }
+        : {}),
+      ...(data.denied_tools !== undefined
+        ? { denied_tools: data.denied_tools }
+        : {}),
       ...(data.hooks !== undefined ? { hooks: data.hooks } : {}),
       ...(data.mcp !== undefined ? { mcp: data.mcp.trim() } : {}),
-      ...(data.skills !== undefined ? { skills: data.skills.map(s => s.trim()) } : {}),
+      ...(data.skills !== undefined
+        ? { skills: data.skills.map((s) => s.trim()) }
+        : {}),
       ...(data.agents !== undefined ? { agents: data.agents } : {}),
       ...(data.effort !== undefined ? { effort: data.effort } : {}),
       ...(data.thinking !== undefined ? { thinking: data.thinking } : {}),
-      ...(data.maxBudgetUsd !== undefined ? { maxBudgetUsd: data.maxBudgetUsd } : {}),
-      ...(data.systemPrompt !== undefined ? { systemPrompt: data.systemPrompt } : {}),
-      ...(data.fallbackModel !== undefined ? { fallbackModel: data.fallbackModel } : {}),
+      ...(data.maxBudgetUsd !== undefined
+        ? { maxBudgetUsd: data.maxBudgetUsd }
+        : {}),
+      ...(data.systemPrompt !== undefined
+        ? { systemPrompt: data.systemPrompt }
+        : {}),
+      ...(data.fallbackModel !== undefined
+        ? { fallbackModel: data.fallbackModel }
+        : {}),
       ...(data.betas !== undefined ? { betas: data.betas } : {}),
       ...(data.sandbox !== undefined ? { sandbox: data.sandbox } : {}),
-      ...(data.hermes_task !== undefined ? { hermes_task: data.hermes_task } : {}),
-    };
+      ...(data.hermes_task !== undefined
+        ? { hermes_task: data.hermes_task }
+        : {}),
+    }
 
     if (data.command !== undefined && data.command.trim().length > 0) {
-      return { ...base, ...shared, ...aiOnly, command: data.command.trim() } as CommandNode;
+      return {
+        ...base,
+        ...shared,
+        ...aiOnly,
+        command: data.command.trim(),
+      } as CommandNode
     }
     if (data.prompt !== undefined && data.prompt.trim().length > 0) {
-      return { ...base, ...shared, ...aiOnly, prompt: data.prompt.trim() } as PromptNode;
+      return {
+        ...base,
+        ...shared,
+        ...aiOnly,
+        prompt: data.prompt.trim(),
+      } as PromptNode
     }
     if (data.bash !== undefined && data.bash.trim().length > 0) {
       return {
@@ -585,11 +687,12 @@ export const dagNodeSchema = dagNodeBaseSchema
         ...shared,
         bash: data.bash.trim(),
         ...(data.timeout !== undefined ? { timeout: data.timeout } : {}),
-      } as BashNode;
+      } as BashNode
     }
     if (data.script !== undefined && data.script.trim().length > 0) {
       // runtime is guaranteed by superRefine to be defined at this point
-      if (!data.runtime) throw new Error('unreachable: runtime must be defined for script nodes');
+      if (!data.runtime)
+        throw new Error('unreachable: runtime must be defined for script nodes')
       return {
         ...base,
         ...shared,
@@ -597,33 +700,47 @@ export const dagNodeSchema = dagNodeBaseSchema
         runtime: data.runtime,
         ...(data.deps !== undefined ? { deps: data.deps } : {}),
         ...(data.timeout !== undefined ? { timeout: data.timeout } : {}),
-      } as ScriptNode;
+      } as ScriptNode
     }
     if (data.approval !== undefined) {
       return {
         ...base,
         ...shared,
         approval: data.approval,
-        ...(data.hermes_task !== undefined ? { hermes_task: data.hermes_task } : {}),
-      } as ApprovalNode;
+        ...(data.hermes_task !== undefined
+          ? { hermes_task: data.hermes_task }
+          : {}),
+      } as ApprovalNode
     }
     if (data.cancel !== undefined && data.cancel.trim().length > 0) {
       return {
         ...base,
         ...shared,
         cancel: data.cancel.trim(),
-        ...(data.hermes_task !== undefined ? { hermes_task: data.hermes_task } : {}),
-      } as CancelNode;
+        ...(data.hermes_task !== undefined
+          ? { hermes_task: data.hermes_task }
+          : {}),
+      } as CancelNode
+    }
+    if (data.subgraph !== undefined) {
+      return {
+        ...base,
+        ...shared,
+        subgraph: data.subgraph,
+      } as SubgraphNode
     }
     // loop — guaranteed by superRefine to be defined at this point
-    if (!data.loop) throw new Error('unreachable: loop must be defined after superRefine');
+    if (!data.loop)
+      throw new Error('unreachable: loop must be defined after superRefine')
     return {
       ...base,
       loop: data.loop,
-      ...(data.hermes_task !== undefined ? { hermes_task: data.hermes_task } : {}),
-    } as LoopNode;
+      ...(data.hermes_task !== undefined
+        ? { hermes_task: data.hermes_task }
+        : {}),
+    } as LoopNode
   })
-  .openapi('DagNode');
+  .openapi('DagNode')
 
 // ---------------------------------------------------------------------------
 // Type guards (preserved from original types.ts)
@@ -631,30 +748,37 @@ export const dagNodeSchema = dagNodeBaseSchema
 
 /** Type guard: check if a DAG node is a bash (shell script) node */
 export function isBashNode(node: DagNode): node is BashNode {
-  return 'bash' in node && typeof node.bash === 'string';
+  return 'bash' in node && typeof node.bash === 'string'
 }
 
 /** Type guard: check if a DAG node is a loop (iterative) node */
 export function isLoopNode(node: DagNode): node is LoopNode {
-  return 'loop' in node && typeof node.loop === 'object' && node.loop !== null;
+  return 'loop' in node
 }
 
 /** Type guard: check if a DAG node is an approval (human-in-the-loop) node */
 export function isApprovalNode(node: DagNode): node is ApprovalNode {
-  return 'approval' in node && typeof node.approval === 'object' && node.approval !== null;
+  return 'approval' in node
 }
 
 /** Type guard: check if a DAG node is a cancel (workflow termination) node */
 export function isCancelNode(node: DagNode): node is CancelNode {
-  return 'cancel' in node && typeof node.cancel === 'string';
+  return 'cancel' in node && typeof node.cancel === 'string'
 }
 
 /** Type guard: check if a DAG node is a script node */
 export function isScriptNode(node: DagNode): node is ScriptNode {
-  return 'script' in node && typeof node.script === 'string';
+  return 'script' in node && typeof node.script === 'string'
+}
+
+/** Type guard: validates a value is a SubgraphNode (A.7-subgraphs). */
+export function isSubgraphNode(node: DagNode): node is SubgraphNode {
+  return 'subgraph' in node && node.subgraph !== undefined
 }
 
 /** Type guard: validates a value is a known TriggerRule */
 export function isTriggerRule(value: unknown): value is TriggerRule {
-  return typeof value === 'string' && (TRIGGER_RULES as readonly string[]).includes(value);
+  return (
+    typeof value === 'string' && TRIGGER_RULES.includes(value as TriggerRule)
+  )
 }

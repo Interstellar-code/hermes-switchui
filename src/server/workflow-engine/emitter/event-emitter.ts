@@ -87,6 +87,17 @@ interface NodeStartedEvent {
   /** Pre-generated node_run UUID — forwarded by executor so the projector
    *  uses the same ID that was injected into nodeConfig['node_run_id']. */
   nodeRunId?: string;
+  /** Node type from YAML (prompt | bash | command | script | loop | approval | cancel).
+   *  Without this the projector falls back to 'prompt' for every row. */
+  nodeType?: string;
+  /** Flattened from YAML `hermes_task` — used by the projector to populate
+   *  the routing-hint columns on node_runs. */
+  agentProfileHint?: string;
+  skills?: Array<string>;
+  modelHint?: string;
+  /** When set, this node_run is a child of a subgraph placeholder. (A.7-subgraphs)
+   *  Projector forwards this to createNodeRun so the FK linkage is established. */
+  parentSubgraphNodeRunId?: string;
 }
 
 interface NodeCompletedEvent {
@@ -114,6 +125,40 @@ interface NodeSkippedEvent {
   nodeId: string;
   nodeName: string;
   reason: 'when_condition' | 'when_condition_parse_error' | 'trigger_rule' | 'prior_success';
+}
+
+// Subgraph lifecycle events (A.7-subgraphs).
+// A subgraph node produces one placeholder node_run plus one child node_run
+// per inner node. The placeholder's lifecycle is tracked via these events;
+// children continue to use the regular node_started/completed/failed events.
+
+interface SubgraphStartedEvent {
+  type: 'subgraph_started';
+  runId: string;
+  nodeId: string;          // parent subgraph-node id (placeholder)
+  subgraphRef: string;     // id of the subgraph definition being expanded
+  /** Pre-generated UUID for the placeholder node_run row. */
+  nodeRunId?: string;
+  /** Number of child nodes the expansion produced. */
+  childCount: number;
+}
+
+interface SubgraphCompletedEvent {
+  type: 'subgraph_completed';
+  runId: string;
+  nodeId: string;
+  duration: number;
+  /** Aggregated outputs as declared in the subgraph definition's `outputs:` block. */
+  outputs?: Record<string, unknown>;
+}
+
+interface SubgraphFailedEvent {
+  type: 'subgraph_failed';
+  runId: string;
+  nodeId: string;
+  /** dag_node_id of the inner child that failed. */
+  failedChildNodeId?: string;
+  error: string;
 }
 
 interface ToolStartedEvent {
@@ -195,6 +240,9 @@ export type WorkflowEmitterEvent =
   | NodeCompletedEvent
   | NodeFailedEvent
   | NodeSkippedEvent
+  | SubgraphStartedEvent
+  | SubgraphCompletedEvent
+  | SubgraphFailedEvent
   | WorkflowArtifactEvent
   | ToolStartedEvent
   | ToolCompletedEvent
