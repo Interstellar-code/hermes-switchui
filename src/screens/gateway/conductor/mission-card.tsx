@@ -1,4 +1,3 @@
-import { useAbortMission } from './use-conductor-queries'
 import { useConductorUIStore } from '@/stores/conductor-ui-store'
 
 export type MissionStatus = 'live' | 'done' | 'err'
@@ -35,17 +34,20 @@ export function MissionCard({ mission }: MissionCardProps) {
 
   const focusedMissionId = useConductorUIStore((s) => s.focusedMissionId)
   const setFocusedMissionId = useConductorUIStore((s) => s.setFocusedMissionId)
-  const { mutate: abortMission } = useAbortMission()
 
   const isFocused = focusedMissionId === id
   const actionLabel = status === 'live' ? 'abort' : status === 'err' ? 'retry' : 'replay'
+  const actionTitle =
+    status === 'live'
+      ? 'Abort not yet supported'
+      : status === 'err'
+        ? 'Retry not yet supported'
+        : 'Replay not yet supported'
   const ActionIcon = status === 'live' ? FocusIcon : ReplayIcon
 
   function handleAction(e: React.MouseEvent) {
+    // All actions (abort/retry/replay) wired to engine in a follow-up PR.
     e.stopPropagation()
-    if (status === 'live') {
-      abortMission(id)
-    }
   }
 
   return (
@@ -68,7 +70,15 @@ export function MissionCard({ mission }: MissionCardProps) {
         <button
           className="replay"
           onClick={handleAction}
-          style={{ cursor: status === 'live' ? 'pointer' : 'default', background: 'none', border: 'none', padding: 0 }}
+          title={actionTitle}
+          disabled
+          style={{
+            cursor: 'not-allowed',
+            opacity: 0.5,
+            background: 'none',
+            border: 'none',
+            padding: 0,
+          }}
         >
           <ActionIcon />
           {actionLabel}
