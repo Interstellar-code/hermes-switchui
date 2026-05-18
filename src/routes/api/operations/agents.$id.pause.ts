@@ -1,30 +1,32 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
-import { pauseAgent } from '../../../server/operations-store'
+import { CapabilityUnavailableError, pauseAgent } from '../../../server/operations-store'
 
 export const Route = createFileRoute('/api/operations/agents/$id/pause')({
   server: {
     handlers: {
       POST: async ({ request, params }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
 
         const { id } = params
         if (!id) {
-          return json({ error: 'id required' }, { status: 400 })
+          return Response.json({ error: 'id required' }, { status: 400 })
         }
         try {
           await pauseAgent(id)
-          return json({ ok: true })
+          return Response.json({ ok: true })
         } catch (error) {
+          if (error instanceof CapabilityUnavailableError) {
+            return Response.json({ available: false, error: error.message }, { status: 501 })
+          }
           const msg = error instanceof Error ? error.message : String(error)
           const status = msg.includes('not found') ? 404 : 500
-          return json({ error: msg }, { status })
+          return Response.json({ error: msg }, { status })
         }
       },
     },

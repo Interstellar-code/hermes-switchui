@@ -1,4 +1,4 @@
-import type { Agent } from './mock-data'
+import type { Agent } from '../../../server/operations-store'
 
 interface AgentCardProps {
   agent: Agent

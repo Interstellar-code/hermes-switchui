@@ -1,15 +1,17 @@
 import { useOperationsUIStore } from '../../../stores/operations-ui-store'
-import { OUTPUTS } from './mock-data'
 import { OutputsFilters } from './outputs-filters'
+import { useOperationsOutputs } from './use-operations-queries'
 
 export function OutputsHeader() {
   const autoRefresh = useOperationsUIStore((s) => s.autoRefresh)
   const setAutoRefresh = useOperationsUIStore((s) => s.setAutoRefresh)
+  const { data: outputs } = useOperationsOutputs()
+  const count = outputs?.length ?? 0
 
   return (
     <div className="out-head">
       <h4>Team outputs · today</h4>
-      <span className="ct">· {OUTPUTS.length} artifacts</span>
+      <span className="ct">· {count} artifacts</span>
       <OutputsFilters />
       <div className="right">
         <span

@@ -1,4 +1,4 @@
-import type { TeamOutput } from './mock-data'
+import type { TeamOutput } from '../../../server/operations-store'
 
 interface OutputCardProps {
   output: TeamOutput

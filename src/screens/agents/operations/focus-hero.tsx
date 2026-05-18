@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { usePauseAgent, useResumeAgent } from './use-operations-queries'
-import type { FocusData } from './mock-data'
+import type { FocusData } from '../../../server/operations-store'
 
 interface FocusHeroProps {
   data: FocusData

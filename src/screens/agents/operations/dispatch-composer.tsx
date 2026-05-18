@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react'
 import { useOperationsUIStore } from '../../../stores/operations-ui-store'
-import { DISPATCH_DATA } from './mock-data'
 import { useDispatch } from './use-operations-queries'
+
+const COMPOSER_PLACEHOLDER =
+  "describe a mission for the team... e.g. 'scan blaze's market signals for divergences and draft a brief'"
 
 export function DispatchComposer() {
   const dispatchDraft = useOperationsUIStore((s) => s.dispatchDraft)
@@ -49,7 +51,7 @@ export function DispatchComposer() {
       )}
       <textarea
         className="disp-textarea"
-        placeholder={DISPATCH_DATA.composerPlaceholder}
+        placeholder={COMPOSER_PLACEHOLDER}
         value={dispatchDraft}
         onChange={(e) => setDispatchDraft(e.target.value)}
         disabled={isPending}

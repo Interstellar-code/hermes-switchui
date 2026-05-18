@@ -1,4 +1,4 @@
-import type { FocusMission } from './mock-data'
+import type { FocusMission } from '../../../server/operations-store'
 
 interface FocusMissionProps {
   mission: FocusMission
