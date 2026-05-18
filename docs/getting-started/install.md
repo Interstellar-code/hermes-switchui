@@ -181,7 +181,7 @@ For details on tokens and reverse-proxy setups, see [Agent won't connect](../tro
 Whichever method you used, you should be able to:
 
 1. Open <http://localhost:3000> (or your remote URL) and see the Hermes Switch UI home screen.
-2. Open <http://localhost:8642/api/healthz> in the browser and see a JSON response — that confirms the agent is reachable.
+2. Open <http://localhost:8642/health> in the browser and see a JSON response — that confirms the agent is reachable.
 3. Send a test chat — see [Your first chat](first-chat.md).
 
 If chat fails or the app shows an "Agent unavailable" banner, jump to [Agent won't connect](../troubleshooting/agent-connect.md).

@@ -11,7 +11,7 @@ Hermes Switch UI itself doesn't talk to AI providers directly. It routes chat th
 
 ## Where settings live
 
-In the app, open **Settings → Model & Provider**. This screen lists every provider the agent knows about and lets you select an active one.
+In the app, open **Settings → Provider**. This screen lists every provider the agent knows about and lets you select an active one.
 
 > [SCREENSHOT: provider settings screen, matrix-dark theme]
 
@@ -21,7 +21,7 @@ You can connect a provider in three ways. Pick the one that matches what you hav
 
 ### 1. Local provider (no key needed)
 
-If you're running a local model server like **Ollama**, the app ships with a built-in card for it. Make sure the local runtime is running (`ollama serve`, for example), then open **Settings → Model & Provider** and select it. The app discovers locally available models automatically.
+If you're running a local model server like **Ollama**, the app ships with a built-in card for it. Make sure the local runtime is running (`ollama serve`, for example), then open **Settings → Provider** and select it. The app discovers locally available models automatically.
 
 Other local runtimes that expose an OpenAI-compatible API can be configured as a custom endpoint (see path 3).
 
@@ -40,7 +40,7 @@ The agent ships with cards for several hosted providers. To use one:
    ```
 
 3. Restart the Hermes Agent so it picks up the new key.
-4. Open **Settings → Model & Provider** in the app and select the provider.
+4. Open **Settings → Provider** in the app and select the provider.
 
 Only add the keys for providers you actually use. The agent doesn't require all of them.
 
@@ -69,14 +69,14 @@ CUSTOM_API_KEY=your-endpoint-api-key
 
 Restart the agent. The app's provider list will show the custom entry, and you can select it like any other.
 
-> **Note:** The provider type is `openai`, and the entry name is `manifest`. Do not use `custom` as the type or the entry key — it's a reserved name the agent treats specially and will refuse to load. This guidance also applies to the [Custom OpenAI-compatible endpoint](../providers/custom-endpoint.md) doc; use the same naming.
+> **Note:** The provider type is `openai`, and the entry name is `manifest`. Do not use `custom` as the type or the entry key — it's a reserved name the agent treats specially and will refuse to load. This guidance also applies to the [Custom OpenAI-compatible endpoint](../settings/providers/custom-endpoint.md) doc; use the same naming.
 
 ## How to test the connection
 
 The simplest test is to send a chat message:
 
 1. Open the app.
-2. Make sure your provider is selected in **Settings → Model & Provider**.
+2. Make sure your provider is selected in **Settings → Provider**.
 3. Go to the chat screen and send a short message.
 
 If the response streams in, the provider is connected. If you see an error, no response, or an "Agent unavailable" banner, see [Agent won't connect](../troubleshooting/agent-connect.md).
@@ -85,13 +85,13 @@ You can also check connection status directly in the app's status panel — the 
 
 ## Switching providers
 
-You can switch providers any time from **Settings → Model & Provider**. The change takes effect on the next message. Existing sessions stay in place; the new provider just handles future turns.
+You can switch providers any time from **Settings → Provider**. The change takes effect on the next message. Existing sessions stay in place; the new provider just handles future turns.
 
 ## Details
 
 - **Keys live with the agent, not the UI.** Put API keys in `~/.hermes/.env`, not in the app's `.env`. The app's `.env` is only for app-level settings like port, password, and gateway URL.
 - **Restart the agent after key changes.** The agent reads keys at startup.
-- **Multiple providers can coexist.** Add multiple keys at the same time and switch between them in **Settings → Model & Provider**.
+- **Multiple providers can coexist.** Add multiple keys at the same time and switch between them in **Settings → Provider**.
 - **Provider availability is detected at startup.** The app asks the agent which providers are configured and shows only those.
 
 ## Related
