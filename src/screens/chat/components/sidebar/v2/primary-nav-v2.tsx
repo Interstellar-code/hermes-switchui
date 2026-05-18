@@ -552,7 +552,7 @@ const boardsQuery = useBoards(true)
         )}
         <NavItem label="Workflows" iconKey="workflows" to="/workflows" active={isWorkflows} collapsed={collapsed} />
         <NavItem label="Conductor" iconKey="conductor" to="/conductor" active={isConductor} collapsed={collapsed} />
-        <NavItem label="Operations" iconKey="operations" to="/operations" active={isOperations} collapsed={collapsed} />
+        {/* <NavItem label="Operations" iconKey="operations" to="/operations" active={isOperations} collapsed={collapsed} /> */}
         <NavItem label="Matrix3D" iconKey="matrix3d" to="/matrix3d" active={isMatrix3D} collapsed={collapsed} />
 
         {/* KNOWLEDGE group */}
