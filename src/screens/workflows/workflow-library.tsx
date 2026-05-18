@@ -216,15 +216,6 @@ export function WorkflowLibrary({
     onClearSelection?.()
   }
 
-  function resetFilters() {
-    setSearch('')
-    setOriginFilter('all')
-    setNodeTypeFilter('all')
-    setTaskFilter('all')
-    setShowSubgraphs(false)
-    onClearSelection?.()
-  }
-
   function handleOriginClick(next: OriginFilter) {
     setOriginFilter(next)
     onClearSelection?.()
@@ -293,25 +284,6 @@ export function WorkflowLibrary({
           <h2>Filters</h2>
           <span className="wfr-ct">{TOTAL}</span>
           <div className="wfr-actions">
-            <button
-              type="button"
-              className="wfr-icon-btn"
-              title="Reset filters"
-              aria-label="Reset filters"
-              onClick={resetFilters}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                width="14"
-                height="14"
-              >
-                <path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5" />
-                <path d="M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5" />
-              </svg>
-            </button>
             <button
               type="button"
               className="wfr-icon-btn"
