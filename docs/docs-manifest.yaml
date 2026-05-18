@@ -1,0 +1,118 @@
+# Central manifest for /docs page.
+# Lists every doc that should appear in the sidebar/index, in display order.
+# Slugs are paths relative to docs/ without .md extension.
+# Title in frontmatter or first H1 is used; you can override here via `title:`.
+# Folders are inferred from slug paths (e.g. "chat/composer" goes under "chat/" folder).
+
+pages:
+  # 1. Welcome
+  - slug: welcome
+    title: Welcome
+  # 2. Getting Started
+  - slug: getting-started/install
+    title: Install
+  - slug: getting-started/first-chat
+    title: Your first chat
+  - slug: getting-started/connecting-provider
+    title: Connecting your AI provider
+  - slug: getting-started/theme
+    title: Picking a theme
+  - slug: getting-started/authoring-docs
+    title: Authoring docs
+  # 3. Chat
+  - slug: chat/sessions
+    title: Sessions and history
+  - slug: chat/composer
+    title: The composer
+  - slug: chat/context-window
+    title: Context window indicator
+  - slug: chat/files
+    title: Attaching files
+  - slug: chat/slash-commands
+    title: Slash commands
+  - slug: chat/shortcuts
+    title: Keyboard shortcuts
+  # 4. Workspace pages
+  - slug: pages/dashboard
+    title: Dashboard
+  - slug: pages/files
+    title: Files
+  - slug: pages/terminal
+    title: Terminal
+  - slug: pages/memory
+    title: Memory
+  - slug: pages/jobs
+    title: Jobs
+  - slug: pages/tasks
+    title: Tasks
+  - slug: pages/boards
+    title: Boards
+  - slug: pages/workflows
+    title: Workflows
+  - slug: pages/conductor
+    title: Conductor
+  - slug: pages/operations
+    title: Operations
+  - slug: pages/matrix3d
+    title: Matrix3D
+  - slug: pages/profiles
+    title: Profiles
+  - slug: pages/skills
+    title: Skills
+  - slug: pages/mcp
+    title: MCP
+  # 5. AI providers and models
+  - slug: providers/built-in
+    title: Built-in providers
+  - slug: providers/custom-endpoint
+    title: Connecting a custom OpenAI-compatible endpoint
+  - slug: providers/switching-models
+    title: Switching models mid-chat
+  - slug: providers/api-keys
+    title: API keys
+  # 6. Customization
+  - slug: customization/themes
+    title: Themes
+  - slug: customization/sidebar
+    title: Sidebar layout
+  - slug: customization/preferences
+    title: Preferences
+  # 7. Skills and MCP
+  - slug: skills-and-mcp/what-are-skills
+    title: What are skills
+  - slug: skills-and-mcp/installing-skill
+    title: Installing a skill from the hub
+  - slug: skills-and-mcp/building-skill
+    title: Building your own skill
+  - slug: skills-and-mcp/mcp-installing
+    title: MCP — installing servers
+  - slug: skills-and-mcp/mcp-connecting
+    title: MCP — connecting servers
+  # 8. Workflows
+  - slug: workflows/overview
+    title: Workflows overview
+  - slug: workflows/running
+    title: Running a workflow
+  - slug: workflows/editing
+    title: Editing a workflow
+  - slug: workflows/output
+    title: Reading workflow output
+  # 9. Tips and shortcuts
+  - slug: tips/shortcuts
+    title: Keyboard reference
+  - slug: tips/composer-tricks
+    title: Composer tricks
+  - slug: tips/search
+    title: Search
+  # 10. Troubleshooting
+  - slug: troubleshooting/agent-connect
+    title: Agent won't connect
+  - slug: troubleshooting/sessions
+    title: Sessions stuck or missing
+  - slug: troubleshooting/models
+    title: Models not appearing
+  - slug: troubleshooting/crash-recovery
+    title: Recovering after a crash
+  # 11. FAQ
+  - slug: faq
+    title: FAQ

@@ -27,7 +27,7 @@ export const Route = createFileRoute('/api/docs')({
         if (!page) {
           return Response.json({ ok: false, error: 'Not found' }, { status: 404 })
         }
-        const html = await renderMarkdown(page.content)
+        const html = await renderMarkdown(page.content, { slug: page.slug })
         const adj = getAdjacentPages(slug)
 
         return Response.json({

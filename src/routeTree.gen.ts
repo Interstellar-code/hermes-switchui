@@ -68,6 +68,7 @@ import { Route as ApiGatewayStatusRouteImport } from './routes/api/gateway-statu
 import { Route as ApiGatewayReprobeRouteImport } from './routes/api/gateway-reprobe'
 import { Route as ApiFilesRouteImport } from './routes/api/files'
 import { Route as ApiEventsRouteImport } from './routes/api/events'
+import { Route as ApiDocsAssetRouteImport } from './routes/api/docs-asset'
 import { Route as ApiDocsRouteImport } from './routes/api/docs'
 import { Route as ApiDashboardConfigRouteImport } from './routes/api/dashboard-config'
 import { Route as ApiCrewStatusRouteImport } from './routes/api/crew-status'
@@ -464,6 +465,11 @@ const ApiFilesRoute = ApiFilesRouteImport.update({
 const ApiEventsRoute = ApiEventsRouteImport.update({
   id: '/api/events',
   path: '/api/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDocsAssetRoute = ApiDocsAssetRouteImport.update({
+  id: '/api/docs-asset',
+  path: '/api/docs-asset',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDocsRoute = ApiDocsRouteImport.update({
@@ -1031,6 +1037,7 @@ export interface FileRoutesByFullPath {
   '/api/crew-status': typeof ApiCrewStatusRoute
   '/api/dashboard-config': typeof ApiDashboardConfigRoute
   '/api/docs': typeof ApiDocsRoute
+  '/api/docs-asset': typeof ApiDocsAssetRoute
   '/api/events': typeof ApiEventsRoute
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
@@ -1192,6 +1199,7 @@ export interface FileRoutesByTo {
   '/api/crew-status': typeof ApiCrewStatusRoute
   '/api/dashboard-config': typeof ApiDashboardConfigRoute
   '/api/docs': typeof ApiDocsRoute
+  '/api/docs-asset': typeof ApiDocsAssetRoute
   '/api/events': typeof ApiEventsRoute
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
@@ -1356,6 +1364,7 @@ export interface FileRoutesById {
   '/api/crew-status': typeof ApiCrewStatusRoute
   '/api/dashboard-config': typeof ApiDashboardConfigRoute
   '/api/docs': typeof ApiDocsRoute
+  '/api/docs-asset': typeof ApiDocsAssetRoute
   '/api/events': typeof ApiEventsRoute
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
@@ -1521,6 +1530,7 @@ export interface FileRouteTypes {
     | '/api/crew-status'
     | '/api/dashboard-config'
     | '/api/docs'
+    | '/api/docs-asset'
     | '/api/events'
     | '/api/files'
     | '/api/gateway-reprobe'
@@ -1682,6 +1692,7 @@ export interface FileRouteTypes {
     | '/api/crew-status'
     | '/api/dashboard-config'
     | '/api/docs'
+    | '/api/docs-asset'
     | '/api/events'
     | '/api/files'
     | '/api/gateway-reprobe'
@@ -1845,6 +1856,7 @@ export interface FileRouteTypes {
     | '/api/crew-status'
     | '/api/dashboard-config'
     | '/api/docs'
+    | '/api/docs-asset'
     | '/api/events'
     | '/api/files'
     | '/api/gateway-reprobe'
@@ -2009,6 +2021,7 @@ export interface RootRouteChildren {
   ApiCrewStatusRoute: typeof ApiCrewStatusRoute
   ApiDashboardConfigRoute: typeof ApiDashboardConfigRoute
   ApiDocsRoute: typeof ApiDocsRoute
+  ApiDocsAssetRoute: typeof ApiDocsAssetRoute
   ApiEventsRoute: typeof ApiEventsRoute
   ApiFilesRoute: typeof ApiFilesRoute
   ApiGatewayReprobeRoute: typeof ApiGatewayReprobeRoute
@@ -2505,6 +2518,13 @@ declare module '@tanstack/react-router' {
       path: '/api/events'
       fullPath: '/api/events'
       preLoaderRoute: typeof ApiEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/docs-asset': {
+      id: '/api/docs-asset'
+      path: '/api/docs-asset'
+      fullPath: '/api/docs-asset'
+      preLoaderRoute: typeof ApiDocsAssetRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/docs': {
@@ -3610,6 +3630,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCrewStatusRoute: ApiCrewStatusRoute,
   ApiDashboardConfigRoute: ApiDashboardConfigRoute,
   ApiDocsRoute: ApiDocsRoute,
+  ApiDocsAssetRoute: ApiDocsAssetRoute,
   ApiEventsRoute: ApiEventsRoute,
   ApiFilesRoute: ApiFilesRoute,
   ApiGatewayReprobeRoute: ApiGatewayReprobeRoute,

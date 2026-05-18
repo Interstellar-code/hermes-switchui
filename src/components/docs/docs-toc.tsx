@@ -69,7 +69,7 @@ export function DocsToc({ content }: { content: string }) {
   if (headings.length === 0) return null
 
   return (
-    <nav className="docs-toc hidden w-56 shrink-0 xl:block">
+    <nav className="docs-toc sticky top-6 hidden max-h-[calc(100vh-3rem)] w-56 shrink-0 self-start overflow-y-auto xl:block">
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--theme-muted)]">
         On this page
       </p>
