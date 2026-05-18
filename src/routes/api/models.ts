@@ -5,11 +5,7 @@ import YAML from 'yaml'
 import { json } from '@tanstack/react-start'
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
-import {
-  ensureGatewayProbed,
-  getGatewayCapabilities,
-} from '../../server/hermes-api'
-import { BEARER_TOKEN, CLAUDE_API } from '../../server/gateway-capabilities'
+import { ensureGatewayProbed } from '../../server/hermes-api'
 import {
   ensureDiscovery,
   getDiscoveredModels,
@@ -20,7 +16,6 @@ const CLAUDE_HOME =
   process.env.HERMES_HOME ??
   process.env.CLAUDE_HOME ??
   path.join(os.homedir(), '.hermes')
-const MODELS_PATH = path.join(CLAUDE_HOME, 'models.json')
 const CONFIG_PATH = path.join(CLAUDE_HOME, 'config.yaml')
 
 export type ModelEntry = {
@@ -40,57 +35,60 @@ function readString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-function normalizeModel(entry: unknown): ModelEntry | null {
-  if (typeof entry === 'string') {
-    const id = entry.trim()
-    if (!id) return null
-    return {
-      id,
-      name: id,
-      provider: id.includes('/') ? id.split('/')[0] : 'unknown',
-    }
-  }
-  const record = asRecord(entry)
-  const id =
-    readString(record.id) || readString(record.name) || readString(record.model)
-  if (!id) return null
-  return {
-    ...record,
-    id,
-    name:
-      readString(record.name) ||
-      readString(record.display_name) ||
-      readString(record.label) ||
-      id,
-    provider:
-      readString(record.provider) ||
-      readString(record.owned_by) ||
-      (id.includes('/') ? id.split('/')[0] : 'unknown'),
-  }
-}
-
 /**
- * Read user-configured models from active profile's models.json.
+ * Read configured providers + their models from config.yaml.
+ * Source of truth: `providers` map (connection) joined with `custom_providers`
+ * array (model metadata). models.json is ignored — it's a legacy cache the
+ * Hermes runtime no longer reads.
  */
-function readClaudeModelsJson(): Array<ModelEntry> {
+function readProvidersFromConfig(): Array<ModelEntry> {
   try {
-    if (!fs.existsSync(MODELS_PATH)) return []
-    const raw = fs.readFileSync(MODELS_PATH, 'utf-8')
-    const entries = JSON.parse(raw)
-    if (!Array.isArray(entries)) return []
-    return entries
-      .map((entry: unknown): ModelEntry | null => {
-        const record = asRecord(entry)
-        // models.json uses "model" field for the model ID
-        const modelId = readString(record.model) || readString(record.id)
-        if (!modelId) return null
-        return {
+    if (!fs.existsSync(CONFIG_PATH)) return []
+    const parsed = YAML.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'))
+    if (!parsed || typeof parsed !== 'object') return []
+    const config = parsed as Record<string, unknown>
+
+    const providers = asRecord(config.providers)
+    const providerKeys = Object.keys(providers).filter(
+      (k) => providers[k] && typeof providers[k] === 'object',
+    )
+    if (providerKeys.length === 0) return []
+
+    // Build a lookup: provider id → its custom_providers entry (model metadata).
+    const customProviders = Array.isArray(config.custom_providers)
+      ? (config.custom_providers as Array<unknown>)
+      : []
+    const metaByKey = new Map<string, Record<string, unknown>>()
+    for (const cp of customProviders) {
+      const rec = asRecord(cp)
+      const id = readString(rec.id)
+      if (id) metaByKey.set(id, rec)
+    }
+
+    const entries: Array<ModelEntry> = []
+    for (const key of providerKeys) {
+      const meta = metaByKey.get(key)
+      const models = meta && Array.isArray(meta.models) ? meta.models : []
+      if (models.length === 0) {
+        // No model metadata in custom_providers → expose at least `auto`.
+        entries.push({ id: 'auto', name: 'auto', provider: key })
+        continue
+      }
+      for (const m of models) {
+        const rec = asRecord(m)
+        const modelId = readString(rec.id) || readString(rec.model)
+        if (!modelId) continue
+        entries.push({
           id: modelId,
-          name: readString(record.name) || modelId,
-          provider: readString(record.provider) || 'unknown',
-        }
-      })
-      .filter((entry): entry is ModelEntry => entry !== null)
+          name: readString(rec.name) || modelId,
+          provider: key,
+          ...(typeof rec.context_length === 'number'
+            ? { context_length: rec.context_length }
+            : {}),
+        })
+      }
+    }
+    return entries
   } catch {
     return []
   }
@@ -176,26 +174,6 @@ function readClaudeDefaultModel(): ModelEntry | null {
   }
 }
 
-/**
- * Fallback: fetch models from the hermes-agent /v1/models endpoint.
- */
-async function fetchClaudeModels(): Promise<Array<ModelEntry>> {
-  const headers: Record<string, string> = {}
-  if (BEARER_TOKEN) headers['Authorization'] = `Bearer ${BEARER_TOKEN}`
-  const response = await fetch(`${CLAUDE_API}/v1/models`, { headers })
-  if (!response.ok)
-    throw new Error(`Hermes models request failed (${response.status})`)
-  const payload = asRecord(await response.json())
-  const rawModels = Array.isArray(payload.data)
-    ? payload.data
-    : Array.isArray(payload.models)
-      ? payload.models
-      : []
-  return rawModels
-    .map(normalizeModel)
-    .filter((e): e is ModelEntry => e !== null)
-}
-
 export function mergeModelEntries(
   ...sources: Array<Array<ModelEntry>>
 ): Array<ModelEntry> {
@@ -204,8 +182,14 @@ export function mergeModelEntries(
   for (const source of sources) {
     for (const entry of source) {
       const id = entry.id ?? entry.name ?? ''
-      if (!id || seen.has(id)) continue
-      seen.add(id)
+      if (!id) continue
+      const provider =
+        typeof entry.provider === 'string' && entry.provider
+          ? entry.provider
+          : ''
+      const key = `${provider}::${id}`
+      if (seen.has(key)) continue
+      seen.add(key)
       merged.push(entry)
     }
   }
@@ -222,34 +206,20 @@ export const Route = createFileRoute('/api/models')({
         await ensureGatewayProbed()
 
         try {
-          // Primary: read user-configured models from ~/.hermes/models.json
-          let gatewayModels = readClaudeModelsJson()
-          let source = 'models.json'
+          // Primary: read configured providers + models from ~/.hermes/config.yaml.
+          // Hermes runtime reads only this file; mirror it for the picker so
+          // dropdown stays in sync with what the agent actually uses.
+          let gatewayModels = readProvidersFromConfig()
+          let source = 'config.yaml'
 
-          // Ensure the default model from config.yaml is always first
+          // Ensure the default model from `model.default` lands first in the list.
           const defaultModel = readClaudeDefaultModel()
           if (defaultModel) {
             gatewayModels = gatewayModels.filter(
-              (m) => m.id !== defaultModel.id,
+              (m) =>
+                !(m.id === defaultModel.id && m.provider === defaultModel.provider),
             )
             gatewayModels.unshift(defaultModel)
-          }
-
-          if (getGatewayCapabilities().models) {
-            try {
-              const remoteModels = await fetchClaudeModels()
-              gatewayModels = mergeModelEntries(gatewayModels, remoteModels)
-              source =
-                source === 'models.json' ? 'models.json+hermes-agent' : source
-            } catch {
-              if (gatewayModels.length === 0)
-                throw new Error('Failed to fetch gateway models')
-            }
-          }
-
-          if (gatewayModels.length === 0 && getGatewayCapabilities().models) {
-            gatewayModels = await fetchClaudeModels()
-            source = 'hermes-agent'
           }
 
           // Merge auto-discovered local models (Ollama, Atomic Chat, etc.)
