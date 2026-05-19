@@ -13,12 +13,12 @@ vi.mock('./dag-executor', () => ({
   executeDagWorkflow: mocks.executeDagWorkflow,
 }))
 
-vi.mock('@archon/git', () => ({
+vi.mock('../runtime/git.js', () => ({
   getDefaultBranch: vi.fn(() => Promise.resolve('main')),
   toRepoPath: vi.fn((cwd: string) => cwd),
 }))
 
-vi.mock('@archon/providers', () => ({
+vi.mock('../runtime/providers.js', () => ({
   isRegisteredProvider: vi.fn(() => true),
   getRegisteredProviders: vi.fn(() => [{ id: 'test-provider' }]),
 }))

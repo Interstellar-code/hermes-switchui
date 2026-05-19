@@ -15,7 +15,14 @@ let engineInstance: WorkflowEngine | null = null;
 export async function getWorkflowEngine(options?: WorkflowEngineOptions): Promise<WorkflowEngine> {
   if (engineInstance) return engineInstance;
   if (!enginePromise) {
-    enginePromise = createWorkflowEngine(options).then(
+    // When WORKFLOW_BACKEND=plugin the Python plugin owns cron + kanban dispatch.
+    // Disable the TS-side counterparts to prevent double-firing.
+    const defaultOpts: WorkflowEngineOptions =
+      process.env.WORKFLOW_BACKEND === 'plugin'
+        ? { enableCronTriggers: false }
+        : {};
+    const mergedOptions = options ?? defaultOpts;
+    enginePromise = createWorkflowEngine(mergedOptions).then(
       (eng) => {
         engineInstance = eng;
         return eng;

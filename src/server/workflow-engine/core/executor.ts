@@ -4,15 +4,15 @@
 import { mkdir } from 'fs/promises';
 import type { IWorkflowPlatform, WorkflowMessageMetadata } from '../wiring/deps';
 import type { WorkflowDeps, WorkflowConfig } from '../wiring/deps';
-import * as archonPaths from '@archon/paths';
-import { createLogger, captureWorkflowInvoked, BUNDLED_VERSION } from '@archon/paths';
-import { getDefaultBranch, toRepoPath } from '@archon/git';
+import * as archonPaths from '../runtime/paths.js';
+import { createLogger, captureWorkflowInvoked, BUNDLED_VERSION } from '../runtime/paths.js';
+import { getDefaultBranch, toRepoPath } from '../runtime/git.js';
 import type { WorkflowDefinition, WorkflowRun, WorkflowExecutionResult } from '../schemas';
 import { executeDagWorkflow } from './dag-executor';
 import { logWorkflowStart, logWorkflowError } from './logger';
 import { formatDuration, parseDbTimestamp } from '../utils/duration';
 import { getWorkflowEventEmitter } from '../emitter/event-emitter';
-import { isRegisteredProvider, getRegisteredProviders } from '@archon/providers';
+import { isRegisteredProvider, getRegisteredProviders } from '../runtime/providers.js';
 import { classifyError } from './executor-shared';
 
 /** Lazy-initialized logger (deferred so test mocks can intercept createLogger) */
@@ -177,7 +177,7 @@ async function sendCriticalMessage(
  */
 async function resolveProjectPaths(
   deps: WorkflowDeps,
-  cwd: string,
+  _cwd: string,
   workflowRunId: string,
   codebaseId?: string
 ): Promise<{ artifactsDir: string; logDir: string }> {

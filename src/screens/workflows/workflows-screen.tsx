@@ -1,8 +1,19 @@
 import { useEffect } from 'react'
 import '@/styles/matrix-workflows.css'
 import { WorkflowsLayout } from './workflows-layout'
+import { useWorkflowBackendStore } from '@/stores/workflow-backend-store'
+import { ensurePluginInstalled } from '@/server/workflow-engine/ensure-plugin-installed'
 
 export function WorkflowsScreen() {
+  const backend = useWorkflowBackendStore((s) => s.backend)
+
+  // ── Auto-probe plugin on mount when backend=plugin ───────────────────────
+  useEffect(() => {
+    if (backend === 'plugin') {
+      void ensurePluginInstalled()
+    }
+  }, [backend])
+
   // ── Keyboard shortcuts ───────────────────────────────────────────────────
   useEffect(() => {
     function dispatch(msg: string) {

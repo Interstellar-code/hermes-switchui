@@ -8,6 +8,22 @@
 
 import type { ParsedWorkflow } from './types'
 import { readResolvedSessionHeaders } from '@/lib/send-stream-session-headers'
+import { useWorkflowBackendStore } from '@/stores/workflow-backend-store'
+
+/**
+ * Wrapper around fetch that injects the X-Workflow-Backend header so the
+ * server factory.ts can select the correct engine (native vs plugin).
+ * Only used for /api/workflow-* calls.
+ */
+function wfFetch(input: string, init?: RequestInit): Promise<Response> {
+  const backend =
+    typeof window !== 'undefined'
+      ? useWorkflowBackendStore.getState().backend
+      : 'native'
+  const headers = new Headers(init?.headers)
+  headers.set('X-Workflow-Backend', backend)
+  return fetch(input, { ...init, headers })
+}
 
 export interface WorkflowDefinitionRow {
   id: string
@@ -34,7 +50,7 @@ export async function listWorkflowDefinitions(params?: {
   const qs = params?.source
     ? `?source=${encodeURIComponent(params.source)}`
     : ''
-  const res = await fetch(`/api/workflow-definitions${qs}`)
+  const res = await wfFetch(`/api/workflow-definitions${qs}`)
   if (!res.ok) {
     throw new Error(`listWorkflowDefinitions failed (${res.status})`)
   }
@@ -52,7 +68,7 @@ export interface WorkflowDefinitionParsedResponse {
 export async function getWorkflowDefinitionParsed(
   id: string,
 ): Promise<WorkflowDefinitionParsedResponse> {
-  const res = await fetch(
+  const res = await wfFetch(
     `/api/workflow-definitions/${encodeURIComponent(id)}/parsed`,
   )
   if (!res.ok) {
@@ -131,7 +147,7 @@ export async function approveWorkflowRun(
   decision: 'approved' | 'rejected'
   resumedRunId: string
 }> {
-  const res = await fetch(
+  const res = await wfFetch(
     `/api/workflow-runs/${encodeURIComponent(runId)}/approve`,
     {
       method: 'POST',
@@ -177,7 +193,7 @@ export async function listWorkflowRuns(params?: {
       Array.isArray(params.status) ? params.status.join(',') : params.status,
     )
   const query = qs.toString()
-  const res = await fetch(`/api/workflow-runs${query ? `?${query}` : ''}`)
+  const res = await wfFetch(`/api/workflow-runs${query ? `?${query}` : ''}`)
   if (!res.ok) {
     throw new Error(`listWorkflowRuns failed (${res.status})`)
   }
@@ -188,7 +204,7 @@ export async function listWorkflowRuns(params?: {
 export async function getWorkflowRun(
   runId: string,
 ): Promise<WorkflowRunDetail> {
-  const res = await fetch(`/api/workflow-runs/${encodeURIComponent(runId)}`)
+  const res = await wfFetch(`/api/workflow-runs/${encodeURIComponent(runId)}`)
   if (!res.ok) {
     throw new Error(`getWorkflowRun failed (${res.status})`)
   }
@@ -196,7 +212,7 @@ export async function getWorkflowRun(
 }
 
 export async function cancelWorkflowRun(runId: string): Promise<void> {
-  const res = await fetch(
+  const res = await wfFetch(
     `/api/workflow-runs/${encodeURIComponent(runId)}?action=cancel`,
     {
       method: 'POST',
@@ -210,7 +226,7 @@ export async function cancelWorkflowRun(runId: string): Promise<void> {
 export async function launchWorkflowRun(
   input: LaunchWorkflowInput,
 ): Promise<{ run: { id: string } }> {
-  const res = await fetch(`/api/workflow-runs`, {
+  const res = await wfFetch(`/api/workflow-runs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -540,7 +556,7 @@ export interface UpsertWorkflowDefinitionError {
 export async function upsertWorkflowDefinition(
   input: UpsertWorkflowDefinitionInput,
 ): Promise<{ definition: WorkflowDefinitionRow }> {
-  const res = await fetch('/api/workflow-definitions', {
+  const res = await wfFetch('/api/workflow-definitions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -563,7 +579,7 @@ export async function upsertWorkflowDefinition(
 }
 
 export async function deleteWorkflowDefinition(id: string): Promise<void> {
-  const res = await fetch(
+  const res = await wfFetch(
     `/api/workflow-definitions/${encodeURIComponent(id)}`,
     {
       method: 'DELETE',
