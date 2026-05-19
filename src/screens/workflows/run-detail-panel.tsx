@@ -144,10 +144,31 @@ export function RunDetailPanel({ runId, onClose }: Props) {
   const cancelMutation = useCancelRun(runId)
   const approveMutation = useApproveRun(runId)
   const [approvalText, setApprovalText] = useState('')
+  const [expandedSubgraphRows, setExpandedSubgraphRows] = useState<Set<string>>(
+    new Set(),
+  )
 
   // SSE feed — conversation_id comes from the run once loaded
   const conversationId = data?.run.conversation_id ?? null
   const { events: sseEvents } = useWorkflowEvents(conversationId)
+
+  // Build tree: placeholder rows (no parent) + map from placeholder id → children.
+  // Hook must run on every render so it stays above the early returns below.
+  const { topLevelRuns, childrenByParent } = useMemo(() => {
+    const nodeRuns = data?.nodeRuns ?? []
+    const byParent = new Map<string, Array<NodeRunRow>>()
+    const childIds = new Set<string>()
+    for (const nr of nodeRuns) {
+      if (nr.parent_subgraph_node_run_id) {
+        childIds.add(nr.id)
+        const arr = byParent.get(nr.parent_subgraph_node_run_id) ?? []
+        arr.push(nr)
+        byParent.set(nr.parent_subgraph_node_run_id, arr)
+      }
+    }
+    const topLevel = nodeRuns.filter((nr) => !childIds.has(nr.id))
+    return { topLevelRuns: topLevel, childrenByParent: byParent }
+  }, [data?.nodeRuns])
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (isLoading) {
@@ -203,10 +224,8 @@ export function RunDetailPanel({ runId, onClose }: Props) {
       ? nodeRuns.find((nr) => nr.status === 'paused' && nr.approval_message)
       : undefined
 
-  // ── Subgraph tree state ───────────────────────────────────────────────────
-  const [expandedSubgraphRows, setExpandedSubgraphRows] = useState<Set<string>>(
-    new Set(),
-  )
+  // ── Subgraph tree helpers ─────────────────────────────────────────────────
+  // (state + memo are hoisted above the early returns to keep hook order stable)
   function toggleSubgraphRow(id: string) {
     setExpandedSubgraphRows((prev) => {
       const next = new Set(prev)
@@ -215,22 +234,6 @@ export function RunDetailPanel({ runId, onClose }: Props) {
       return next
     })
   }
-
-  // Build tree: placeholder rows (no parent) + map from placeholder id → children
-  const { topLevelRuns, childrenByParent } = useMemo(() => {
-    const byParent = new Map<string, Array<NodeRunRow>>()
-    const childIds = new Set<string>()
-    for (const nr of nodeRuns) {
-      if (nr.parent_subgraph_node_run_id) {
-        childIds.add(nr.id)
-        const arr = byParent.get(nr.parent_subgraph_node_run_id) ?? []
-        arr.push(nr)
-        byParent.set(nr.parent_subgraph_node_run_id, arr)
-      }
-    }
-    const topLevel = nodeRuns.filter((nr) => !childIds.has(nr.id))
-    return { topLevelRuns: topLevel, childrenByParent: byParent }
-  }, [nodeRuns])
 
   /** Compute aggregate status label for a subgraph placeholder row. */
   function subgraphAggregate(placeholderId: string): string {

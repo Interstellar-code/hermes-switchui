@@ -1,0 +1,306 @@
+name: githubawesome-monitor
+description: |
+  Polls the GithubAwesome RSS feed, diffs new posts against the local
+  tracker JSON, and dispatches each new post into the `tool-catalog-write`
+  subgraph (one workflow run per post). Emits a categorized digest of all
+  newly cataloged tools and a "Top 5 Picks" section.
+
+  Replaces the legacy hermes-agent crons:
+    - 0e810ab3a6b4 (GithubAwesome.com New Post Monitor — 12h)
+    - b41e99e56d90 (GitHubAwesome daily post check — 16:00 CEST)
+
+  Cron trigger: set payload.switchui_workflow_id = "githubawesome-monitor"
+  on the existing cron job. Schedule (e.g. */12h) stays on the hermes-agent
+  side; the cron-trigger-poller in src/server/workflow-engine/cron/ launches
+  this workflow when the tick fires.
+
+provider: claude
+model: sonnet
+effort: medium
+tags:
+  - cron-triggered
+  - tool-catalog
+
+nodes:
+  - id: fetch-and-diff
+    phase: Discover
+    script: |
+      import json
+      import os
+      import sys
+      import urllib.request
+      from xml.etree import ElementTree as ET
+      from pathlib import Path
+
+      RSS_URL = "https://githubawesome.com/rss/"
+      TRACKER = Path.home() / ".openclaw/workspace/data/githubawesome-tracker.json"
+      UA = "hermes-switchui-workflow/1.0 (+githubawesome-monitor)"
+
+      # Per tool-catalog/SKILL.md: only "GitHub Daily discoveries" is reliably
+      # single-tool. Every other RSS <category> is a roundup. RSS content
+      # truncates roundups to 1 repo, so we can NOT use a repo-count fallback.
+      SINGLE_TOOL_CATEGORY = "GitHub Daily discoveries"
+
+      def load_tracker():
+          if not TRACKER.exists():
+              return {"seenGuids": []}
+          return json.loads(TRACKER.read_text())
+
+      def fetch_url(url):
+          req = urllib.request.Request(url, headers={"User-Agent": UA})
+          with urllib.request.urlopen(req, timeout=20) as r:
+              return r.read()
+
+      def parse_rss(xml_bytes):
+          root = ET.fromstring(xml_bytes)
+          ns = {"content": "http://purl.org/rss/1.0/modules/content/"}
+          items = []
+          for item in root.iter("item"):
+              guid = (item.findtext("guid") or "").strip()
+              title = (item.findtext("title") or "").strip()
+              link = (item.findtext("link") or "").strip()
+              category = (item.findtext("category") or "").strip()
+              desc = (item.findtext("description") or "").strip()
+              encoded = (item.findtext("content:encoded", default="", namespaces=ns) or "")
+              slug = link.rstrip("/").rsplit("/", 1)[-1]
+              items.append({
+                  "guid": guid, "title": title, "link": link,
+                  "category": category, "description": desc[:600],
+                  "content_encoded": encoded, "slug": slug,
+              })
+          return items
+
+      def extract_repos(content_html):
+          import re
+          urls = re.findall(
+              r'href=["\'](https?://github\.com/[^"\'?#]+)',
+              content_html,
+          )
+          out, seen = [], set()
+          for u in urls:
+              u = u.split("?")[0].rstrip("/")
+              parts = u.replace("https://github.com/", "").split("/")
+              if len(parts) < 2:
+                  continue
+              repo = f"https://github.com/{parts[0]}/{parts[1]}"
+              if repo not in seen:
+                  seen.add(repo)
+                  out.append(repo)
+          return out
+
+      def extract_youtube(html):
+          import re
+          # Article pages embed YouTube via <iframe src="...youtube.com/embed/ID...">
+          # or plain links. Cover both.
+          m = re.search(
+              r'(?:src|href)=["\']'
+              r'(https?://(?:www\.)?(?:youtube\.com/(?:watch\?v=|embed/)[\w-]+'
+              r'|youtu\.be/[\w-]+))',
+              html,
+          )
+          return m.group(1) if m else ""
+
+      items = parse_rss(fetch_url(RSS_URL))
+
+      tracker = load_tracker()
+      seen = set(tracker.get("seenGuids", []))
+      new_posts = []
+      for it in items:
+          if it["guid"] in seen or not it["guid"]:
+              continue
+          is_multi = it["category"] != SINGLE_TOOL_CATEGORY
+          # Single-tool: trust RSS (1 repo per post, no YouTube usually).
+          # Multi-tool: hydrate full article HTML for all repos + iframe YT.
+          if is_multi:
+              try:
+                  html = fetch_url(it["link"]).decode("utf-8", "replace")
+                  repos = extract_repos(html)
+                  youtube = extract_youtube(html)
+              except Exception as e:
+                  # Fall back to RSS content; mark for manual triage.
+                  html = it["content_encoded"]
+                  repos = extract_repos(html)
+                  youtube = extract_youtube(html)
+          else:
+              repos = extract_repos(it["content_encoded"])
+              youtube = ""
+          new_posts.append({
+              "guid": it["guid"],
+              "post_url": it["link"],
+              "post_title": it["title"],
+              "post_slug": it["slug"],
+              "post_category": it["category"] or "Uncategorized",
+              "repo_links_json": json.dumps(repos),
+              "youtube_url": youtube,
+              "description": it["description"],
+              "is_multi_tool": is_multi,
+          })
+
+      # Write the full payload to ARTIFACTS_DIR so downstream nodes can read
+      # it without triple-quote/JSON-escape hell when inlining via $node.output.
+      import os as _os
+      artifacts = _os.environ.get("ARTIFACTS_DIR", "/tmp")
+      with open(f"{artifacts}/new_posts.json", "w") as f:
+          json.dump({"new_posts": new_posts, "total_seen": len(seen)}, f)
+
+      # stdout = small JSON summary used by the `when:` condition evaluator.
+      print(json.dumps({
+          "has_new_posts": "true" if new_posts else "false",
+          "count": str(len(new_posts)),
+      }))
+    runtime: uv
+
+  - id: gate-no-new
+    phase: Discover
+    depends_on:
+      - fetch-and-diff
+    when: $fetch-and-diff.output.has_new_posts == 'false'
+    cancel: "No new GithubAwesome posts."
+
+  - id: ingest-posts
+    phase: Ingest
+    depends_on:
+      - fetch-and-diff
+    when: $fetch-and-diff.output.has_new_posts == 'true'
+    script: |
+      import json
+      import os
+      import subprocess
+
+      # Catalog root: env override > $HOME/tool-catalog default.
+      # The skill at ~/.hermes/skills/media/tool-catalog/SKILL.md treats
+      # TOOL_CATALOG_ROOT as the canonical override; catalog.py honors it.
+      CATALOG_ROOT = os.environ.get(
+          "TOOL_CATALOG_ROOT",
+          os.path.expanduser("~/tool-catalog"),
+      )
+      SCRIPT = f"{CATALOG_ROOT}/scripts/catalog.py"
+      env = {**os.environ, "TOOL_CATALOG_ROOT": CATALOG_ROOT}
+
+      artifacts = os.environ.get("ARTIFACTS_DIR", "/tmp")
+      with open(f"{artifacts}/new_posts.json") as f:
+          payload = json.load(f)
+      posts = payload.get("new_posts", [])
+
+      def run(cmd):
+          r = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=60)
+          return r.returncode, r.stdout.strip(), r.stderr.strip()
+
+      results = []
+      for p in posts:
+          slug = p["post_slug"]
+          source_id = f"ga-{slug}"
+          title = p["post_title"][:200]
+          repos = json.loads(p["repo_links_json"])
+          is_multi = p["is_multi_tool"]
+          result = {"slug": slug, "is_multi": is_multi,
+                    "source_id": source_id, "actions": []}
+
+          # 1. add-source (always)
+          rc, out, err = run([
+              "python3", SCRIPT, "add-source", p["post_url"],
+              "--source-id", source_id,
+              "--source-type", "blog",
+              "--title", title,
+              "--publisher", "GithubAwesome",
+              "--content-status", "available",
+              "--summary", (p.get("description") or "")[:500],
+          ])
+          result["actions"].append({"step": "add-source", "rc": rc, "err": err[:200]})
+          if rc != 0:
+              results.append(result)
+              continue
+
+          # 2. branch on multi vs single
+          if not is_multi and repos:
+              rc, out, err = run([
+                  "python3", SCRIPT, "add-tool",
+                  "--url", repos[0],
+                  "--name", title,
+                  "--category", "Experimental / Watchlist",
+                  "--source-id", source_id,
+              ])
+              result["actions"].append({"step": "add-tool", "rc": rc, "err": err[:200],
+                                        "repo": repos[0]})
+          elif is_multi:
+              # Multi-tool roundup: file a kanban triage task. Browse AI on
+              # the YouTube URL bypasses paywalls; the tool-catalog skill
+              # documents the worker pattern for the consumer.
+              body = (
+                  f"Multi-tool roundup. URL: {p['post_url']}\n"
+                  f"YouTube: {p.get('youtube_url','')}\n"
+                  f"Repos found inline ({len(repos)}): {' '.join(repos[:10])}\n\n"
+                  "Use the tool-catalog skill. Browse AI on YouTube for paywalled posts."
+              )
+              rc, out, err = run([
+                  "hermes", "kanban", "create",
+                  f"Triage roundup: {title[:100]}",
+                  "--triage",
+                  "--body", body,
+              ])
+              result["actions"].append({"step": "kanban-triage", "rc": rc, "err": err[:200]})
+          else:
+              result["actions"].append({"step": "skipped", "reason": "no repo url"})
+
+          results.append(result)
+
+      print(json.dumps({"ingested": results, "total": len(results)}))
+    runtime: uv
+
+  - id: build-digest
+    phase: Report
+    depends_on:
+      - ingest-posts
+    prompt: |
+      You are summarizing newly cataloged GithubAwesome posts.
+
+      New posts dispatched this run (with their workflow run_ids):
+      $ingest-posts.output
+
+      Raw RSS items (with category and extracted repos):
+      $fetch-and-diff.output.new_posts
+
+      Produce a digest in this exact format:
+
+      ### [Emoji] Category Name (count)
+      - #. [Project](github_url) — What it does
+
+      Categories: Security, Research, Memory, UI, Frameworks, Multi-Agent,
+      Tools, Automation, Domain-Specific, LLM, Entertainment.
+
+      End with:
+
+      ### 🎯 Top 5 Picks for YOU
+      [Personalized recommendations based on Rohit's stack: agent
+      orchestration, MCP tooling, coding agents, memory/RAG]
+
+      [Read full article](url) | 📺 [Watch video](youtube_url)
+
+  - id: update-tracker
+    phase: Report
+    depends_on:
+      - build-digest
+    script: |
+      import json
+      import os
+      from pathlib import Path
+
+      TRACKER = Path.home() / ".openclaw/workspace/data/githubawesome-tracker.json"
+      artifacts = os.environ.get("ARTIFACTS_DIR", "/tmp")
+      with open(f"{artifacts}/new_posts.json") as f:
+          payload = json.load(f)
+      new_guids = [p["guid"] for p in payload.get("new_posts", []) if p.get("guid")]
+
+      tracker = {"seenGuids": []}
+      if TRACKER.exists():
+          tracker = json.loads(TRACKER.read_text())
+
+      existing = set(tracker.get("seenGuids", []))
+      existing.update(new_guids)
+      tracker["seenGuids"] = sorted(existing)
+
+      TRACKER.parent.mkdir(parents=True, exist_ok=True)
+      TRACKER.write_text(json.dumps(tracker, indent=2))
+      print(json.dumps({"tracker_size": len(tracker["seenGuids"]),
+                        "added": new_guids}))
+    runtime: uv

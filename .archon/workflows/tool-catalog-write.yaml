@@ -1,0 +1,162 @@
+name: tool-catalog-write
+description: |
+  Catalog a single forwarded URL into the local tool-catalog. Reads ONE
+  URL from $USER_MESSAGE, fetches it, classifies single-tool vs multi-tool
+  roundup, and writes via direct `catalog.py` shell-out.
+
+  Use when: Rohit forwards a single GithubAwesome / blog / GitHub repo URL
+  for cataloging.
+  Triggers: a URL pasted into the workflow's user_message field.
+  Does: fetch -> classify -> add-source -> add-tool (single) or kanban
+        triage task (multi, paywalled) -> return source_id + stats.
+  NOT for: bulk RSS monitoring (use githubawesome-monitor for that).
+
+provider: claude
+model: sonnet
+effort: low
+
+nodes:
+  - id: parse-input
+    phase: Discover
+    script: |
+      import json
+      import os
+      import re
+      import sys
+      import urllib.request
+
+      UA = "hermes-switchui-workflow/1.0 (+tool-catalog-write)"
+
+      msg = """$USER_MESSAGE"""
+      m = re.search(r"https?://[^\s'\"<>]+", msg)
+      if not m:
+          print("ERROR: no URL found in user_message", file=sys.stderr)
+          sys.exit(1)
+      url = m.group(0)
+      slug = url.rstrip("/").rsplit("/", 1)[-1]
+
+      req = urllib.request.Request(url, headers={"User-Agent": UA})
+      try:
+          with urllib.request.urlopen(req, timeout=20) as r:
+              html = r.read().decode("utf-8", "replace")
+      except Exception as e:
+          print(f"ERROR: fetch failed: {e}", file=sys.stderr)
+          sys.exit(2)
+
+      repos, seen = [], set()
+      for u in re.findall(r'href=["\'](https?://github\.com/[^"\'?#]+)', html):
+          u = u.split("?")[0].rstrip("/")
+          parts = u.replace("https://github.com/", "").split("/")
+          if len(parts) >= 2:
+              repo = f"https://github.com/{parts[0]}/{parts[1]}"
+              if repo not in seen:
+                  seen.add(repo)
+                  repos.append(repo)
+
+      yt_m = re.search(
+          r'(?:src|href)=["\']'
+          r'(https?://(?:www\.)?(?:youtube\.com/(?:watch\?v=|embed/)[\w-]+'
+          r'|youtu\.be/[\w-]+))',
+          html,
+      )
+      youtube = yt_m.group(1) if yt_m else ""
+
+      title_m = re.search(r"<title>([^<]+)</title>", html, re.I)
+      title = (title_m.group(1).strip() if title_m else slug)[:200]
+
+      is_multi = len(repos) >= 3
+
+      artifacts = os.environ.get("ARTIFACTS_DIR", "/tmp")
+      with open(f"{artifacts}/post.json", "w") as f:
+          json.dump({
+              "url": url, "slug": slug, "title": title,
+              "repos": repos, "youtube_url": youtube,
+              "is_multi_tool": is_multi,
+          }, f)
+
+      print(json.dumps({
+          "is_multi_tool": "true" if is_multi else "false",
+          "repo_count": str(len(repos)),
+      }))
+    runtime: uv
+
+  - id: add-source
+    phase: Catalog
+    depends_on:
+      - parse-input
+    bash: |
+      set -euo pipefail
+      ARTIFACTS="${ARTIFACTS_DIR:-/tmp}"
+      : "${TOOL_CATALOG_ROOT:=$HOME/tool-catalog}"
+      export TOOL_CATALOG_ROOT
+      URL=$(python3 -c "import json; print(json.load(open('$ARTIFACTS/post.json'))['url'])")
+      TITLE=$(python3 -c "import json; print(json.load(open('$ARTIFACTS/post.json'))['title'])")
+      SLUG=$(python3 -c "import json; print(json.load(open('$ARTIFACTS/post.json'))['slug'])")
+      python3 "$TOOL_CATALOG_ROOT/scripts/catalog.py" add-source "$URL" \
+        --source-id "ga-$SLUG" \
+        --source-type blog \
+        --title "$TITLE" \
+        --publisher GithubAwesome \
+        --content-status available
+      echo "ga-$SLUG"
+
+  - id: add-tool-single
+    phase: Catalog
+    depends_on:
+      - add-source
+    when: $parse-input.output.is_multi_tool == 'false'
+    bash: |
+      set -euo pipefail
+      ARTIFACTS="${ARTIFACTS_DIR:-/tmp}"
+      : "${TOOL_CATALOG_ROOT:=$HOME/tool-catalog}"
+      export TOOL_CATALOG_ROOT
+      REPO=$(python3 -c "import json; r=json.load(open('$ARTIFACTS/post.json'))['repos']; print(r[0] if r else '')")
+      SLUG=$(python3 -c "import json; print(json.load(open('$ARTIFACTS/post.json'))['slug'])")
+      TITLE=$(python3 -c "import json; print(json.load(open('$ARTIFACTS/post.json'))['title'])")
+      if [ -z "$REPO" ]; then
+        echo "no repo URL found; nothing to add" >&2
+        exit 0
+      fi
+      python3 "$TOOL_CATALOG_ROOT/scripts/catalog.py" add-tool \
+        --url "$REPO" \
+        --name "$TITLE" \
+        --category "Experimental / Watchlist" \
+        --source-id "ga-$SLUG"
+
+  - id: triage-multi
+    phase: Catalog
+    depends_on:
+      - add-source
+    when: $parse-input.output.is_multi_tool == 'true'
+    bash: |
+      set -euo pipefail
+      ARTIFACTS="${ARTIFACTS_DIR:-/tmp}"
+      URL=$(python3 -c "import json; print(json.load(open('$ARTIFACTS/post.json'))['url'])")
+      TITLE=$(python3 -c "import json; print(json.load(open('$ARTIFACTS/post.json'))['title'])")
+      YT=$(python3 -c "import json; print(json.load(open('$ARTIFACTS/post.json')).get('youtube_url',''))")
+      REPOS=$(python3 -c "import json; print(' '.join(json.load(open('$ARTIFACTS/post.json'))['repos']))")
+      BODY=$(printf '%s\n' \
+        "Multi-tool roundup detected. Needs manual extraction." \
+        "" \
+        "URL: $URL" \
+        "YouTube: $YT" \
+        "Repos found inline: $REPOS" \
+        "" \
+        "Use the tool-catalog skill (Browse AI on YouTube for paywalled posts) to" \
+        "extract all tools and add via catalog.py add-tool.")
+      hermes kanban create "Triage roundup: $TITLE" --triage --body "$BODY"
+
+  - id: finalize
+    phase: Report
+    depends_on:
+      - add-tool-single
+      - triage-multi
+    trigger_rule: none_failed_min_one_success
+    bash: |
+      set -euo pipefail
+      : "${TOOL_CATALOG_ROOT:=$HOME/tool-catalog}"
+      ARTIFACTS="${ARTIFACTS_DIR:-/tmp}"
+      SLUG=$(python3 -c "import json; print(json.load(open('$ARTIFACTS/post.json'))['slug'])")
+      sqlite3 "$TOOL_CATALOG_ROOT/catalog.sqlite" \
+        "SELECT COUNT(*) FROM mentions WHERE source_id='ga-$SLUG';" \
+        | awk '{print "mentions_for_source: " $1}'
