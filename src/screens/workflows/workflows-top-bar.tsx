@@ -1,3 +1,5 @@
+import { WorkflowBackendToggle } from '@/components/workflows/workflow-backend-toggle'
+
 interface WorkflowsTopBarProps {
   templateCount?: number
 }
@@ -18,6 +20,7 @@ export function WorkflowsTopBar({ templateCount = 0 }: WorkflowsTopBarProps) {
           Browse, inspect, and launch workflow templates exposed to Hermes
           Agent.
         </div>
+        <WorkflowBackendToggle />
       </div>
       <div className="health">
         <div className="stat">
