@@ -12,7 +12,7 @@
  * - findNodeRun() lookup is used by completed/failed/skipped handlers to
  *   locate the existing row before updating it.
  */
-import { createLogger } from '@archon/paths';
+import { createLogger } from '../runtime/paths.js';
 import type { WorkflowEventEmitter } from '../emitter/event-emitter.js';
 import type { SwitchUiWorkflowStore } from '../store/workflow-store.js';
 import { DuplicateNodeRunError } from '../store/types.js';

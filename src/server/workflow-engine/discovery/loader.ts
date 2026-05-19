@@ -3,7 +3,7 @@
  */
 import type { WorkflowDefinition, WorkflowLoadError, DagNode, WorkflowNodeHooks } from '../schemas';
 import { isLoopNode, isApprovalNode, isCancelNode, isScriptNode, isSubgraphNode } from '../schemas';
-import { createLogger } from '@archon/paths';
+import { createLogger } from '../runtime/paths.js';
 import {
   dagNodeSchema,
   BASH_NODE_AI_FIELDS,

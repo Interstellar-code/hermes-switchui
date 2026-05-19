@@ -101,6 +101,8 @@ pages:
     title: MCP — installing servers
   - slug: settings/mcp/connecting
     title: MCP — connecting servers
+  - slug: settings/workflows-backend-toggle
+    title: Workflows backend toggle
 
   # HELP
   - slug: help/docs

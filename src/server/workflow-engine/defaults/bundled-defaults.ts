@@ -20,7 +20,7 @@
  *     so runtime behavior is unchanged.
  */
 
-import { BUNDLED_IS_BINARY } from '@archon/paths';
+import { BUNDLED_IS_BINARY } from '../runtime/paths.js';
 
 export { BUNDLED_COMMANDS, BUNDLED_WORKFLOWS } from './bundled-defaults.generated';
 

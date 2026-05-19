@@ -18,11 +18,11 @@ import {
   getDefaultCommandsPath,
   getHomeCommandsPath,
   findMarkdownFilesRecursive,
-} from '@archon/paths';
-import { execFileAsync } from '@archon/git';
+} from '../runtime/paths.js';
+import { execFileAsync } from '../runtime/git.js';
 import { BUNDLED_COMMANDS, isBinaryBuild } from '../defaults/bundled-defaults';
 import { isValidCommandName } from './command-validation';
-import { getProviderCapabilities, isRegisteredProvider } from '@archon/providers';
+import { getProviderCapabilities, isRegisteredProvider } from '../runtime/providers.js';
 
 /** Lazy-initialized logger */
 let cachedLog: ReturnType<typeof createLogger> | undefined;

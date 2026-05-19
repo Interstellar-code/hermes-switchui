@@ -11,7 +11,7 @@
  */
 import { EventEmitter } from 'events';
 import type { ArtifactType } from '../schemas';
-import { createLogger } from '@archon/paths';
+import { createLogger } from '../runtime/paths.js';
 
 /** Lazy-initialized logger (deferred so test mocks can intercept createLogger) */
 let cachedLog: ReturnType<typeof createLogger> | undefined;

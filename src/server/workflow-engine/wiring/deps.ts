@@ -17,7 +17,7 @@ import type {
   NodeConfig,
   ProviderDefaultsMap,
   ProviderCapabilities,
-} from '@archon/providers/types';
+} from '../runtime/providers-types.js';
 
 // Re-export provider types so existing workflow engine consumers don't break
 export type {

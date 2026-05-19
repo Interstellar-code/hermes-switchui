@@ -8,7 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'fs/promises';
 import { isAbsolute, resolve as resolvePath } from 'path';
-import { execFileAsync } from '@archon/git';
+import { execFileAsync } from '../runtime/git.js';
 import { discoverScriptsForCwd } from '../discovery/script-discovery';
 import type {
   IWorkflowPlatform,
@@ -21,12 +21,12 @@ import type {
   NodeConfig,
   ProviderCapabilities,
   TokenUsage,
-} from '@archon/providers/types';
+} from '../runtime/providers-types.js';
 import {
   getProviderCapabilities,
   getRegisteredProviders,
   isRegisteredProvider,
-} from '@archon/providers';
+} from '../runtime/providers.js';
 import type {
   DagNode,
   ApprovalNode,
@@ -54,7 +54,7 @@ import {
 import type { SubgraphNode } from '../schemas';
 import { parseWorkflow } from '../discovery/loader';
 import { formatToolCall } from '../utils/tool-formatter';
-import { createLogger } from '@archon/paths';
+import { createLogger } from '../runtime/paths.js';
 import { getWorkflowEventEmitter } from '../emitter/event-emitter';
 import { evaluateCondition } from './condition-evaluator';
 import {

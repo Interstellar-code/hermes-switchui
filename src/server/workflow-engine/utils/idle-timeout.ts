@@ -99,7 +99,7 @@ export async function* withIdleTimeout<T>(
         // Generator cleanup errors are non-fatal but worth logging for diagnostics
         // Dynamic import to avoid circular deps — this module has zero @archon/* imports
         try {
-          const { createLogger } = await import('@archon/paths');
+          const { createLogger } = await import('../runtime/paths.js');
           createLogger('idle-timeout').warn(
             { err: e as Error },
             'idle_timeout.generator_cleanup_failed'
