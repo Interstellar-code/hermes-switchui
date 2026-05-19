@@ -1,5 +1,5 @@
 /**
- * ensurePluginInstalled — probes /api/dashboard/agent-plugins to check
+ * ensurePluginInstalled — probes /api/dashboard/plugins/hub to check
  * whether the workflow-engine plugin is present and enabled.
  * If not enabled, sends the enable request automatically.
  *
@@ -27,9 +27,13 @@ export interface EnsureResult {
  */
 export async function ensurePluginInstalled(): Promise<EnsureResult> {
   try {
-    const res = await fetch('/api/dashboard-proxy/api/dashboard/agent-plugins');
+    const res = await fetch('/api/dashboard-proxy/api/dashboard/plugins/hub');
     if (!res.ok) {
       return { status: 'error', message: `Probe failed: ${res.status}` };
+    }
+    const ct = res.headers.get('content-type') ?? '';
+    if (!ct.includes('application/json')) {
+      return { status: 'error', message: `Non-JSON response (${ct || 'unknown'})` };
     }
 
     const data = (await res.json()) as unknown;
