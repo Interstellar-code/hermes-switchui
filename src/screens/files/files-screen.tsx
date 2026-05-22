@@ -1325,6 +1325,7 @@ export function FilesScreen() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [promptState, setPromptState] = useState<PromptState | null>(null)
   const [promptValue, setPromptValue] = useState('')
+  const [promptError, setPromptError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<FileEntry | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
@@ -1485,28 +1486,40 @@ export function FilesScreen() {
     const value = promptValue.trim()
     if (!value) return
 
-    if (promptState.mode === 'rename') {
-      const parent = getParentPath(promptState.targetPath)
-      const nextPath = parent ? `${parent}/${value}` : value
-      await fetch('/api/files', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          action: 'rename',
-          from: promptState.targetPath,
-          to: nextPath,
-        }),
-      })
-    } else {
-      // new-folder
-      const nextPath = promptState.targetPath
-        ? `${promptState.targetPath}/${value}`
-        : value
-      await fetch('/api/files', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'mkdir', path: nextPath }),
-      })
+    setPromptError(null)
+    try {
+      let res: Response
+      if (promptState.mode === 'rename') {
+        const parent = getParentPath(promptState.targetPath)
+        const nextPath = parent ? `${parent}/${value}` : value
+        res = await fetch('/api/files', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            action: 'rename',
+            from: promptState.targetPath,
+            to: nextPath,
+          }),
+        })
+      } else {
+        // new-folder
+        const nextPath = promptState.targetPath
+          ? `${promptState.targetPath}/${value}`
+          : value
+        res = await fetch('/api/files', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'mkdir', path: nextPath }),
+        })
+      }
+      if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        setPromptError(body || `HTTP ${res.status}`)
+        return
+      }
+    } catch (err) {
+      setPromptError(err instanceof Error ? err.message : String(err))
+      return
     }
 
     setPromptState(null)
@@ -1749,7 +1762,7 @@ export function FilesScreen() {
       <DialogRoot
         open={Boolean(promptState)}
         onOpenChange={(open) => {
-          if (!open) setPromptState(null)
+          if (!open) { setPromptState(null); setPromptError(null) }
         }}
       >
         <DialogContent>
@@ -1772,6 +1785,9 @@ export function FilesScreen() {
               className="w-full rounded-md border border-primary-200 dark:border-neutral-700 bg-primary-50 dark:bg-neutral-900 px-3 py-2 text-sm text-primary-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary-300"
               autoFocus
             />
+            {promptError && (
+              <p className="text-sm text-destructive">{promptError}</p>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <DialogClose render={<Button variant="outline">Cancel</Button>} />
               <Button onClick={() => void handlePromptSubmit()}>Save</Button>
