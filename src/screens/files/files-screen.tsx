@@ -1318,6 +1318,7 @@ export function FilesScreen() {
   const [selectedEntry, setSelectedEntry] = useState<FileEntry | null>(null)
   const [treeCollapsed, setTreeCollapsed] = useState(false)
   const [treeQuery, setTreeQuery] = useState('')
+  const [debouncedTreeQuery, setDebouncedTreeQuery] = useState('')
   const uploadTargetRef = useRef('')
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -1527,9 +1528,15 @@ export function FilesScreen() {
     await loadTree()
   }, [promptState, promptValue, loadTree])
 
+  // Debounce search input so the recursive tree walk doesn't re-run per keystroke.
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedTreeQuery(treeQuery), 150)
+    return () => window.clearTimeout(id)
+  }, [treeQuery])
+
   const selectedPath = selectedEntry?.path ?? null
   const visibleEntries = useMemo(() => {
-    const query = treeQuery.trim().toLowerCase()
+    const query = debouncedTreeQuery.trim().toLowerCase()
 
     const filterItems = (items: Array<FileEntry>): Array<FileEntry> =>
       items
@@ -1552,7 +1559,7 @@ export function FilesScreen() {
         .filter((entry): entry is FileEntry => Boolean(entry))
 
     return filterItems(entries)
-  }, [entries, treeQuery])
+  }, [entries, debouncedTreeQuery])
   const entryCounts = useMemo(() => countEntries(entries), [entries])
 
   return (
