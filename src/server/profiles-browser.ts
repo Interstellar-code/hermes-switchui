@@ -228,7 +228,18 @@ export function getActiveProfileName(): string {
   }
 }
 
+// 5-second TTL cache to avoid repeated full filesystem walks on every Profiles
+// screen mount + auto-refresh. The screen tolerates a brief lag on add/remove;
+// the cache prevents N+1 sync stat/readdir calls from blocking the event loop
+// on every API hit.
+let listProfilesCache: { ts: number; results: Array<ProfileSummary> } | null = null
+const LIST_PROFILES_TTL_MS = 5000
+
 export function listProfiles(): Array<ProfileSummary> {
+  const now = Date.now()
+  if (listProfilesCache && now - listProfilesCache.ts < LIST_PROFILES_TTL_MS) {
+    return listProfilesCache.results
+  }
   const profilesRoot = getProfilesRoot()
   const activeProfile = getActiveProfileName()
   const results: Array<ProfileSummary> = []
@@ -310,6 +321,7 @@ export function listProfiles(): Array<ProfileSummary> {
   // gateway runtime). The synthetic default exists only because the root
   // ~/.hermes/config.yaml isn't a first-class profile in hermes-agent.
   if (activeProfile !== 'default') {
+    listProfilesCache = { ts: now, results }
     return results
   }
 
@@ -355,6 +367,7 @@ export function listProfiles(): Array<ProfileSummary> {
     if (!a.active && b.active) return 1
     return Date.parse(b.updatedAt || '') - Date.parse(a.updatedAt || '')
   })
+  listProfilesCache = { ts: now, results }
   return results
 }
 
@@ -414,9 +427,12 @@ export function setActiveProfile(name: string): void {
   if (!fs.existsSync(profilePath)) throw new Error('Profile not found')
   fs.mkdirSync(getClaudeRoot(), { recursive: true })
   fs.writeFileSync(getActiveProfilePath(), `${normalized}\n`, 'utf-8')
-  console.warn(
-    `[profiles] Active profile set to "${normalized}". Restart the Hermes Agent gateway for this profile switch to take effect.`,
-  )
+  listProfilesCache = null
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(
+      `[profiles] Active profile set to "${normalized}". Restart the Hermes Agent gateway for this profile switch to take effect.`,
+    )
+  }
 }
 
 export function createProfile(
@@ -468,6 +484,7 @@ export function createProfile(
   fs.mkdirSync(path.join(profilePath, 'skills'), { recursive: true })
   fs.mkdirSync(path.join(profilePath, 'sessions'), { recursive: true })
 
+  listProfilesCache = null
   return readProfile(normalized)
 }
 
@@ -481,6 +498,7 @@ export function deleteProfile(name: string): void {
   fs.mkdirSync(trashDir, { recursive: true })
   const trashName = `${normalized}-${Date.now()}`
   fs.renameSync(profilePath, path.join(trashDir, trashName))
+  listProfilesCache = null
 }
 
 export function writeProfile(
@@ -543,6 +561,7 @@ export function updateProfileConfig(
 
   fs.mkdirSync(path.dirname(configPath), { recursive: true })
   fs.writeFileSync(configPath, YAML.stringify(current), 'utf-8')
+  listProfilesCache = null
   return readProfile(normalized)
 }
 
@@ -557,5 +576,6 @@ export function renameProfile(oldName: string, newName: string): ProfileDetail {
   if (getActiveProfileName() === from) {
     fs.writeFileSync(getActiveProfilePath(), `${to}\n`, 'utf-8')
   }
+  listProfilesCache = null
   return readProfile(to)
 }
