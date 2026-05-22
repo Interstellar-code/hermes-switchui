@@ -338,7 +338,7 @@ export function PrimaryNavV2() {
   const isProfiles = pathname.startsWith('/profiles')
   const isSettings = pathname.startsWith('/settings')
   const isDocs = pathname.startsWith('/docs')
-const boardsQuery = useBoards(true)
+  const boardsQuery = useBoards(true, !collapsed)
   const boardsCount = boardsQuery.data?.boards?.length
   const boardChildren = useMemo(
     () => [

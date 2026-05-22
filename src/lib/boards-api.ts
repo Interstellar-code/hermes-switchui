@@ -67,10 +67,11 @@ export async function fetchSwitchBoard(slug: string): Promise<{ current: string 
   )
 }
 
-export function useBoards(includeArchived = false) {
+export function useBoards(includeArchived = false, enabled = true) {
   return useQuery({
     queryKey: boardsKeys.list(includeArchived),
     queryFn: () => fetchBoards(includeArchived),
+    enabled,
   })
 }
 
