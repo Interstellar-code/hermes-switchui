@@ -38,7 +38,9 @@ export function useDeleteSession(): DeleteSessionResult {
       const res = await fetch(`/api/sessions?${query.toString()}`, {
         method: 'DELETE',
       })
-      if (!res.ok) throw new Error(await readError(res))
+      // 404 = backend already lacks this session; treat as already-deleted so
+      // stale UI rows can be cleared without a hard error.
+      if (!res.ok && res.status !== 404) throw new Error(await readError(res))
       return payload
     },
     onMutate: async function onMutate(payload) {

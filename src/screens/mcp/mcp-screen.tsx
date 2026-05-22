@@ -71,9 +71,13 @@ function toView(s: McpServer): McpServerView {
   const transport = s.transportType
   const auth = s.authType
   const endpoint = endpointDisplay(s)
-  const status = s.status === 'connected' ? 'connected'
+  // Honor `enabled: false` regardless of probe result — a disabled server
+  // is not actually live in the agent runtime even if the gateway happens
+  // to report it as connected.
+  const rawStatus = s.status === 'connected' ? 'connected'
     : s.status === 'failed' ? 'error'
     : 'unknown'
+  const status = s.enabled === false ? 'disabled' : rawStatus
   const cmd = s.command || ''
 
   return {
@@ -540,6 +544,9 @@ export function McpScreen() {
         server={activeServer}
         onClose={() => setActiveServer(null)}
         onToggle={handleToggle}
+        onRefresh={() => {
+          queryClient.invalidateQueries({ queryKey: ['mcp', 'servers'] })
+        }}
       />
 
       {/* Existing dialogs (preserved) */}

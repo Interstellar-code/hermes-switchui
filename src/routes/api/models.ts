@@ -144,6 +144,31 @@ function readStreamTimeouts(): {
 }
 
 /**
+ * Read model_aliases entries from config.yaml. Each alias becomes a picker entry
+ * exposed as `provider/alias-name`, surfaced under its declared provider.
+ */
+function readModelAliasesFromConfig(): Array<ModelEntry> {
+  try {
+    if (!fs.existsSync(CONFIG_PATH)) return []
+    const parsed = YAML.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'))
+    if (!parsed || typeof parsed !== 'object') return []
+    const config = parsed as Record<string, unknown>
+    const aliases = asRecord(config.model_aliases)
+    const entries: Array<ModelEntry> = []
+    for (const [name, raw] of Object.entries(aliases)) {
+      const rec = asRecord(raw)
+      const provider = readString(rec.provider) || 'custom'
+      // Use the alias name as the model id so the gateway's resolve_alias()
+      // can map it back to the real model+base_url at request time.
+      entries.push({ id: name, name, provider })
+    }
+    return entries
+  } catch {
+    return []
+  }
+}
+
+/**
  * Read the default model from active profile's config.yaml using a proper YAML parser.
  */
 function readClaudeDefaultModel(): ModelEntry | null {
@@ -228,7 +253,8 @@ export const Route = createFileRoute('/api/models')({
           for (const m of localModels) {
             ensureProviderInConfig(m.provider)
           }
-          const models = mergeModelEntries(gatewayModels, localModels)
+          const aliasModels = readModelAliasesFromConfig()
+          const models = mergeModelEntries(gatewayModels, aliasModels, localModels)
 
           const configuredProviders = Array.from(
             new Set(

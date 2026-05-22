@@ -21,6 +21,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import { useSearchModal } from '@/hooks/use-search-modal'
 import { getTheme, getThemeVariant, isDarkTheme, setTheme } from '@/lib/theme'
 import { SettingsDialog } from '@/components/settings-dialog'
@@ -291,9 +292,24 @@ function readInitialCollapsed(): boolean {
   }
 }
 
+function useAgentVersion(): string | null {
+  const { data } = useQuery({
+    queryKey: ['agent-version'],
+    queryFn: async () => {
+      const res = await fetch('/api/agent-version', { credentials: 'same-origin' })
+      if (!res.ok) return { version: null }
+      return (await res.json()) as { version: string | null }
+    },
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  })
+  return data?.version ?? null
+}
+
 export function PrimaryNavV2() {
   const pathname = useRouterState({ select: selectPathname })
   const openSearchModal = useSearchModal((s) => s.openModal)
+  const agentVersion = useAgentVersion()
   const [collapsed, setCollapsed] = useState<boolean>(readInitialCollapsed)
   const toggleCollapsed = useCallback(() => {
     setCollapsed((c) => {
@@ -382,7 +398,7 @@ const boardsQuery = useBoards(true)
                   lineHeight: 1.2,
                 }}
               >
-                HERMES
+                HERMES{agentVersion ? ` (${agentVersion})` : ''}
               </div>
               <div
                 className="m-label"
@@ -391,7 +407,7 @@ const boardsQuery = useBoards(true)
                   opacity: 0.7,
                 }}
               >
-                v2.3.0
+                Switchui ({__APP_VERSION__})
               </div>
             </div>
           )}

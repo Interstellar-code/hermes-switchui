@@ -124,7 +124,7 @@ export function useChatSessions({
       if (activeSession.title) return activeSession.title
       if (activeSession.derivedTitle) return activeSession.derivedTitle
       if (activeSession.titleStatus === 'generating') return 'Naming…'
-      if (activeSession.titleStatus === 'error') return 'New Session'
+      if (activeSession.titleStatus === 'error') return 'Untitled (title error)'
       return 'New Session'
     }
     return activeFriendlyId === 'main' ? 'Hermes' : activeFriendlyId

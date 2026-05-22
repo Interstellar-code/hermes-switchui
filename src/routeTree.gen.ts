@@ -84,6 +84,7 @@ import { Route as ApiChatEventsRouteImport } from './routes/api/chat-events'
 import { Route as ApiAuthCheckRouteImport } from './routes/api/auth-check'
 import { Route as ApiAuthRouteImport } from './routes/api/auth'
 import { Route as ApiArtifactsRouteImport } from './routes/api/artifacts'
+import { Route as ApiAgentVersionRouteImport } from './routes/api/agent-version'
 import { Route as ApiWorkspaceAgentsRouteImport } from './routes/api/workspace.agents'
 import { Route as ApiWorkflowRunsRunIdRouteImport } from './routes/api/workflow-runs.$runId'
 import { Route as ApiWorkflowDefinitionsIdRouteImport } from './routes/api/workflow-definitions.$id'
@@ -545,6 +546,11 @@ const ApiAuthRoute = ApiAuthRouteImport.update({
 const ApiArtifactsRoute = ApiArtifactsRouteImport.update({
   id: '/api/artifacts',
   path: '/api/artifacts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentVersionRoute = ApiAgentVersionRouteImport.update({
+  id: '/api/agent-version',
+  path: '/api/agent-version',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiWorkspaceAgentsRoute = ApiWorkspaceAgentsRouteImport.update({
@@ -1022,6 +1028,7 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof TasksRoute
   '/terminal': typeof TerminalRoute
   '/workflows': typeof WorkflowsRoute
+  '/api/agent-version': typeof ApiAgentVersionRoute
   '/api/artifacts': typeof ApiArtifactsRouteWithChildren
   '/api/auth': typeof ApiAuthRoute
   '/api/auth-check': typeof ApiAuthCheckRoute
@@ -1184,6 +1191,7 @@ export interface FileRoutesByTo {
   '/tasks': typeof TasksRoute
   '/terminal': typeof TerminalRoute
   '/workflows': typeof WorkflowsRoute
+  '/api/agent-version': typeof ApiAgentVersionRoute
   '/api/artifacts': typeof ApiArtifactsRouteWithChildren
   '/api/auth': typeof ApiAuthRoute
   '/api/auth-check': typeof ApiAuthCheckRoute
@@ -1349,6 +1357,7 @@ export interface FileRoutesById {
   '/tasks': typeof TasksRoute
   '/terminal': typeof TerminalRoute
   '/workflows': typeof WorkflowsRoute
+  '/api/agent-version': typeof ApiAgentVersionRoute
   '/api/artifacts': typeof ApiArtifactsRouteWithChildren
   '/api/auth': typeof ApiAuthRoute
   '/api/auth-check': typeof ApiAuthCheckRoute
@@ -1515,6 +1524,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/terminal'
     | '/workflows'
+    | '/api/agent-version'
     | '/api/artifacts'
     | '/api/auth'
     | '/api/auth-check'
@@ -1677,6 +1687,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/terminal'
     | '/workflows'
+    | '/api/agent-version'
     | '/api/artifacts'
     | '/api/auth'
     | '/api/auth-check'
@@ -1841,6 +1852,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/terminal'
     | '/workflows'
+    | '/api/agent-version'
     | '/api/artifacts'
     | '/api/auth'
     | '/api/auth-check'
@@ -2006,6 +2018,7 @@ export interface RootRouteChildren {
   TasksRoute: typeof TasksRoute
   TerminalRoute: typeof TerminalRoute
   WorkflowsRoute: typeof WorkflowsRoute
+  ApiAgentVersionRoute: typeof ApiAgentVersionRoute
   ApiArtifactsRoute: typeof ApiArtifactsRouteWithChildren
   ApiAuthRoute: typeof ApiAuthRoute
   ApiAuthCheckRoute: typeof ApiAuthCheckRoute
@@ -2630,6 +2643,13 @@ declare module '@tanstack/react-router' {
       path: '/api/artifacts'
       fullPath: '/api/artifacts'
       preLoaderRoute: typeof ApiArtifactsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agent-version': {
+      id: '/api/agent-version'
+      path: '/api/agent-version'
+      fullPath: '/api/agent-version'
+      preLoaderRoute: typeof ApiAgentVersionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/workspace/agents': {
@@ -3615,6 +3635,7 @@ const rootRouteChildren: RootRouteChildren = {
   TasksRoute: TasksRoute,
   TerminalRoute: TerminalRoute,
   WorkflowsRoute: WorkflowsRoute,
+  ApiAgentVersionRoute: ApiAgentVersionRoute,
   ApiArtifactsRoute: ApiArtifactsRouteWithChildren,
   ApiAuthRoute: ApiAuthRoute,
   ApiAuthCheckRoute: ApiAuthCheckRoute,

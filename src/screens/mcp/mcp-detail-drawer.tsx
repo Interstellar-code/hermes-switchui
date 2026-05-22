@@ -14,11 +14,15 @@ type McpDetailDrawerProps = {
   server: McpServerView | null
   onClose: () => void
   onToggle: (server: McpServerView) => void
+  onRefresh?: () => void
 }
 
+type BusyAction = 'test' | 'discover' | 'disconnect' | null
+
 /* ── component ── */
-export function McpDetailDrawer({ server, onClose, onToggle }: McpDetailDrawerProps) {
+export function McpDetailDrawer({ server, onClose, onToggle, onRefresh }: McpDetailDrawerProps) {
   const [activeTab, setActiveTab] = useState<DrawerTab>('overview')
+  const [busy, setBusy] = useState<BusyAction>(null)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -60,6 +64,79 @@ export function McpDetailDrawer({ server, onClose, onToggle }: McpDetailDrawerPr
     if (!server) return
     writeTextToClipboard(server.endpoint)
     toast('Endpoint copied', { type: 'info', icon: '📋' })
+  }
+
+  async function postJson(path: string, body: unknown) {
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(body),
+    })
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
+    if (!res.ok || data.ok === false) {
+      throw new Error((data.error as string) || `Request failed (${res.status})`)
+    }
+    return data
+  }
+
+  async function handleTest() {
+    if (!server || busy) return
+    setBusy('test')
+    try {
+      const r = (await postJson('/api/mcp/test', { name: server.id })) as {
+        status?: string
+        discoveredTools?: unknown[]
+        latencyMs?: number
+      }
+      toast(`Test: ${r.status ?? 'ok'}${r.latencyMs ? ` (${r.latencyMs}ms)` : ''}`, { type: 'info', icon: '⚡' })
+      onRefresh?.()
+    } catch (err) {
+      toast(`Test failed: ${(err as Error).message}`, { type: 'error' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function handleDiscover() {
+    if (!server || busy) return
+    setBusy('discover')
+    try {
+      const r = (await postJson('/api/mcp/discover', { name: server.id })) as {
+        discoveredTools?: unknown[]
+      }
+      const n = Array.isArray(r.discoveredTools) ? r.discoveredTools.length : 0
+      toast(`Discovered ${n} tools`, { type: 'info', icon: '🔍' })
+      onRefresh?.()
+    } catch (err) {
+      toast(`Discover failed: ${(err as Error).message}`, { type: 'error' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function handleDisconnect() {
+    if (!server || busy) return
+    if (!window.confirm(`Disconnect ${server.id}? This removes it from your MCP config.`)) return
+    setBusy('disconnect')
+    try {
+      const res = await fetch(`/api/mcp/${encodeURIComponent(server.id)}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+      })
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
+      if (!res.ok || data.ok === false) {
+        throw new Error((data.error as string) || `Delete failed (${res.status})`)
+      }
+      toast(`${server.id} disconnected`, { type: 'info', icon: '🔌' })
+      onRefresh?.()
+      onClose()
+    } catch (err) {
+      toast(`Disconnect failed: ${(err as Error).message}`, { type: 'error' })
+    } finally {
+      setBusy(null)
+    }
   }
 
   return (
@@ -160,13 +237,16 @@ export function McpDetailDrawer({ server, onClose, onToggle }: McpDetailDrawerPr
               <div className="mcp-panel-card">
                 <div className="mcp-pc-hd"><span>Quick actions</span></div>
                 <div className="mcp-pc-bd" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button type="button" className="mcp-btn-mini">
-                    {Ico.bolt} Test connection
+                  <button type="button" className="mcp-btn-mini" onClick={handleTest} disabled={busy !== null}>
+                    {Ico.bolt} {busy === 'test' ? 'Testing…' : 'Test connection'}
                   </button>
-                  <button type="button" className="mcp-btn-mini">Discover tools</button>
-                  <button type="button" className="mcp-btn-mini">Restart</button>
+                  <button type="button" className="mcp-btn-mini" onClick={handleDiscover} disabled={busy !== null}>
+                    {busy === 'discover' ? 'Discovering…' : 'Discover tools'}
+                  </button>
                   <button type="button" className="mcp-btn-mini" onClick={handleCopyEndpoint}>Copy endpoint</button>
-                  <button type="button" className="mcp-btn-mini mcp-danger">Disconnect</button>
+                  <button type="button" className="mcp-btn-mini mcp-danger" onClick={handleDisconnect} disabled={busy !== null}>
+                    {busy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
+                  </button>
                 </div>
               </div>
             </>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
+import { toast } from '@/components/ui/toast'
 import { chatQueryKeys } from '../chat-queries'
 import {
   updateSessionTitleState,
@@ -176,10 +177,13 @@ export function useAutoSessionTitle({
       void queryClient.invalidateQueries({ queryKey: chatQueryKeys.sessions })
     },
     onError: (error, payload) => {
+      const msg = error instanceof Error ? error.message : String(error ?? '')
       updateSessionTitleState(payload.friendlyId, {
         status: 'error',
-        error: error instanceof Error ? error.message : String(error ?? ''),
+        error: msg,
       })
+      // Surface the silent failure so users know titles aren't sticking.
+      toast(`Session title update failed: ${msg.slice(0, 120)}`, { type: 'error' })
     },
   })
 
@@ -188,7 +192,12 @@ export function useAutoSessionTitle({
   useEffect(() => {
     if (!shouldGenerate) return
     if (isPending) return
-    const signature = `${sessionKey}:${proposedTitle}`
+    // Include messages.length so each new turn allows one retry. Without
+    // this, a first-turn failure (LLM error, PATCH 404, etc.) would lock
+    // the session at "untitled" forever even if later turns succeed. Once
+    // the title settles to a non-generic value, shouldGenerate goes false
+    // and the effect short-circuits, so retries are bounded.
+    const signature = `${sessionKey}:${proposedTitle}:${messages.length}`
     if (lastAttemptRef.current[friendlyId] === signature) return
     lastAttemptRef.current[friendlyId] = signature
     updateSessionTitleState(friendlyId, { status: 'generating', error: null })
@@ -197,5 +206,5 @@ export function useAutoSessionTitle({
       sessionKey: sessionKey ?? friendlyId,
       title: proposedTitle,
     })
-  }, [friendlyId, isPending, mutate, proposedTitle, sessionKey, shouldGenerate])
+  }, [friendlyId, isPending, messages.length, mutate, proposedTitle, sessionKey, shouldGenerate])
 }

@@ -3,6 +3,25 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.6] — 2026-05-22
+
+Patch release. MCP detail drawer fully wired, sidebar shows live agent + Switch UI versions, session naming retries on follow-up turns, stale-session deletes no longer error out. Repo also detached from the upstream fork (Settings → Leave fork network); homepage updated to `hermes-switchui.zi0n.space`. No breaking code changes.
+
+### Added
+
+- **Live version footer in primary nav** — replaces hard-coded `v2.3.0` label with `HERMES (<agent-version>)` + `Switchui (<package-version>)`. Agent version pulled from a new `/api/agent-version` route (proxies dashboard `/api/status`, 60s server-side cache). Package version injected at build via Vite `define: { __APP_VERSION__ }`.
+- **`src/routes/api/agent-version.ts`** — server-only route exposing the hermes-agent gateway version.
+- **`src/vite-env.d.ts`** — declares `__APP_VERSION__` global for TS.
+- **MCP picker surfaces `model_aliases:`** — `/api/models` now merges `model_aliases:` entries from `~/.hermes/config.yaml` into the picker, so user-defined aliases (e.g. `manifest`, `premium`) appear as selectable model entries.
+
+### Fixed
+
+- **MCP detail drawer quick actions wired** — `Test connection`, `Discover tools`, `Disconnect` now actually call `/api/mcp/test`, `/api/mcp/discover`, and DELETE `/api/mcp/$name`. Previously all four buttons had no `onClick` (only `Copy endpoint` worked). `Restart` removed — depended on a runtime endpoint the gateway doesn't expose. Disabled MCP servers (`enabled: false`) now correctly render as `disabled` instead of incorrectly showing `connected`/`online`.
+- **Sidebar context menu Delete actually fires** — outside-click handler was unmounting the entire menu (including the confirmation dialog) before the dialog's `onClick` could run, because `InlineDeleteDialog` is a sibling of `menuRef`, not inside it. Handler now short-circuits while a dialog is open.
+- **Session delete no longer hard-errors on 404** — `useDeleteSession` treats a 404 from the hermes-agent dashboard as already-deleted so stale UI rows can be cleared without a toast.
+- **Session title retries on follow-up turns** — `useAutoSessionTitle` signature now includes `messages.length`, so a first-turn LLM failure no longer locks the session at "untitled" forever. Each new turn re-attempts; once the title settles to a non-generic value, retries stop.
+- **Silent title-PATCH failures are now visible** — `onError` surfaces a toast (`Session title update failed: …`) and the sidebar label shows `Untitled (title error)` instead of the misleading `New Session`.
+
 ## [2.3.5] — 2026-05-09
 
 Single-system chat UI. Strips the v1 chat surface so the v2 unified sessions sidebar / matrix-themed chat surface is the only path. The `VITE_HERMES_SIDEBAR_V2` feature flag is gone — install / onboarding no longer require any env-var gymnastics to get the Switch UI.

@@ -67,16 +67,19 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
     toggleArchived(item.id)
   }, [toggleArchived, item.id])
 
-  // Close on click-outside
+  // Close on click-outside. Skip when a dialog is open — the dialog renders
+  // as a sibling of the menu, so its clicks register as "outside" and would
+  // unmount the component before the dialog's onClick fires.
   useEffect(() => {
     function handle(e: MouseEvent) {
+      if (renameOpen || deleteOpen) return
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         onClose()
       }
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
-  }, [onClose])
+  }, [onClose, renameOpen, deleteOpen])
 
   // Close on ESC
   useEffect(() => {

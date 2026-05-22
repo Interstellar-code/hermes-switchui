@@ -1,7 +1,7 @@
 import { URL, fileURLToPath } from 'node:url'
 import { execSync, spawn } from 'node:child_process'
 import type { ChildProcess } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import net from 'node:net'
 import { resolve, dirname } from 'node:path'
 import os from 'node:os'
@@ -457,6 +457,11 @@ const config = defineConfig(({ mode, command }) => {
       // builds where isSsrBuild is unreliable. Blanket process.env replacement breaks
       // server-side code in Docker (kills runtime env var access).
       // Client-side process.env is handled per-environment below.
+      __APP_VERSION__: JSON.stringify(
+        (JSON.parse(
+          readFileSync(fileURLToPath(new URL('./package.json', import.meta.url)), 'utf-8'),
+        ) as { version: string }).version,
+      ),
     },
     resolve: {
       alias: {
