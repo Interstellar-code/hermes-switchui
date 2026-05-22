@@ -14,7 +14,11 @@ export const Route = createFileRoute('/api/agent-version')({
           return json({ error: 'Unauthorized' }, { status: 401 })
         }
         const now = Date.now()
-        if (cached.version && now - cached.ts < TTL_MS) {
+        // Guard against backward clock skew (NTP correction, sleep/wake, DST):
+        // if now < cached.ts, "now - cached.ts" is negative and would keep
+        // returning stale data forever. Require monotonic forward progress
+        // before applying the TTL.
+        if (cached.version && now >= cached.ts && now - cached.ts < TTL_MS) {
           return json({ version: cached.version })
         }
         try {
