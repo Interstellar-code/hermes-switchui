@@ -304,6 +304,15 @@ export function listProfiles(): Array<ProfileSummary> {
     }
   }
 
+  // Synthetic "default" profile — only surface it when no named profile is
+  // selected. Otherwise it duplicates the active named profile's identity in
+  // the UI (e.g. both `default` and `hermes-switch` show up for the same
+  // gateway runtime). The synthetic default exists only because the root
+  // ~/.hermes/config.yaml isn't a first-class profile in hermes-agent.
+  if (activeProfile !== 'default') {
+    return results
+  }
+
   const root = getClaudeRoot()
   const config = readYamlConfig(path.join(root, 'config.yaml'))
   // Resolve model/provider for default profile too

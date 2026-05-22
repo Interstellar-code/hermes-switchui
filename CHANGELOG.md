@@ -3,6 +3,14 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.10] — 2026-05-22
+
+Patch release. Profile picker no longer duplicates the gateway's active named profile with a synthetic `default` card.
+
+### Fixed
+
+- **Synthetic `default` profile suppressed when a named profile is active** — `src/server/profiles-browser.ts` always injected a synthetic `default` card built from `~/.hermes/config.yaml`, even when a named profile (e.g. `hermes-switch`) was selected. Both cards then represented the same gateway runtime, which was confusing and caused tier/status mismatches (`default` always showed T3 because the root config has no `agent_ui:` block). The synthetic card now appears only when `~/.hermes/active_profile` is empty or set to `default` — i.e. when there genuinely is no named profile in use.
+
 ## [2.3.9] — 2026-05-22
 
 Patch release. Profile picker now distinguishes the currently-selected ("in use") profile from the agent_ui.status presentational label, and the sidebar version chip auto-refreshes on `pnpm version` bumps without a manual dev-server restart.
