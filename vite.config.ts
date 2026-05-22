@@ -198,9 +198,10 @@ const config = defineConfig(({ mode, command }) => {
       }
     })
 
-    // Wait for healthy
-    for (let i = 0; i < 15; i++) {
-      await new Promise((r) => setTimeout(r, 1000))
+    // Wait for healthy with bounded backoff (≈15s total, faster first probes).
+    const intervals = [500, 500, 750, 1000, 1500, 2000, 2500, 3000, 3250]
+    for (const wait of intervals) {
+      await new Promise((r) => setTimeout(r, wait))
       if (await isClaudeAgentHealthy()) {
         console.log('[hermes-agent] ✓ Ready on http://127.0.0.1:8642')
         return
@@ -270,14 +271,21 @@ const config = defineConfig(({ mode, command }) => {
       return
     }
 
+    let child: ChildProcess
+    try {
+      child = spawn(
+        spawnCommand.commandName,
+        spawnCommand.args,
+        spawnCommand.options,
+      )
+    } catch (err) {
+      workspaceDaemonStarting = false
+      console.error('[workspace-daemon] spawn failed:', err)
+      return
+    }
+    workspaceDaemonChild = child
     workspaceDaemonStarted = true
     workspaceDaemonStarting = false
-    const child = spawn(
-      spawnCommand.commandName,
-      spawnCommand.args,
-      spawnCommand.options,
-    )
-    workspaceDaemonChild = child
 
     child.on('exit', (code) => {
       if (workspaceDaemonChild === child) {
@@ -702,9 +710,12 @@ const config = defineConfig(({ mode, command }) => {
               }
 
               try {
-                execSync(
-                  `lsof -ti:${workspaceDaemonPort} | xargs kill -9 2>/dev/null || true`,
-                )
+                const portNum = Number.parseInt(workspaceDaemonPort, 10)
+                if (Number.isFinite(portNum) && portNum > 0 && portNum < 65536) {
+                  execSync(
+                    `lsof -ti:${portNum} | xargs kill -9 2>/dev/null || true`,
+                  )
+                }
               } catch {
                 // ignore stale cleanup failures and continue with a fresh spawn
               }
