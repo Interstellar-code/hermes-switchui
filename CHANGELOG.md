@@ -3,6 +3,14 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.8] — 2026-05-22
+
+Patch release. Fixes upload landing at workspace root (issue #34).
+
+### Fixed
+
+- **Files upload honors selected folder (#34)** — the header UPLOAD button hardcoded `''` as the target path, so every upload landed at the workspace root regardless of which folder was selected in the tree. The button now derives the target from `selectedEntry`: a selected folder uploads there, a selected file uploads to its parent, nothing selected falls back to the workspace root. Tooltip updates to reflect the resolved target.
+
 ## [2.3.7] — 2026-05-22
 
 Patch release. The workflows page Backend toggle is no longer cosmetic — `native` and `plugin` now actually return different content, and workflows created by hermes-agent via the plugin API appear in the UI without restart.

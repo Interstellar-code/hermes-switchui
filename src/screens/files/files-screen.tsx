@@ -1556,8 +1556,24 @@ export function FilesScreen() {
             <button
               type="button"
               className="files-icon-btn"
-              onClick={() => openUploadPicker('')}
-              title="Upload to workspace"
+              onClick={() => {
+                // Issue #34 — honor the currently-selected tree node so files
+                // land in the navigated folder. Folder selected → upload there;
+                // file selected → upload to its parent; nothing selected →
+                // workspace root (empty string).
+                let target = ''
+                if (selectedEntry) {
+                  target = selectedEntry.type === 'folder'
+                    ? selectedEntry.path
+                    : (getParentPath(selectedEntry.path) || '')
+                }
+                openUploadPicker(target)
+              }}
+              title={selectedEntry?.type === 'folder'
+                ? `Upload to ${selectedEntry.path}`
+                : selectedEntry
+                  ? `Upload to ${getParentPath(selectedEntry.path) || 'workspace root'}`
+                  : 'Upload to workspace root'}
             >
               ⤴
             </button>
