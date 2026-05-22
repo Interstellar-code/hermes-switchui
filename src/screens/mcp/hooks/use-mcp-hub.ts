@@ -13,7 +13,7 @@ export interface McpHubResponse {
   error?: string
 }
 
-export function useMcpHub(searchInput: string) {
+export function useMcpHub(searchInput: string, enabled = true) {
   const [debouncedQuery, setDebouncedQuery] = useState(searchInput)
 
   useEffect(() => {
@@ -27,6 +27,7 @@ export function useMcpHub(searchInput: string) {
 
   return useQuery({
     queryKey: ['mcp', 'hub-search', debouncedQuery],
+    enabled,
     queryFn: async (): Promise<McpHubResponse> => {
       const params = new URLSearchParams()
       params.set('q', debouncedQuery)

@@ -155,7 +155,10 @@ export function McpScreen() {
   /* data hooks */
   const { mode: capabilityMode } = useMcpCapabilityMode()
   const serverQuery = useMcpServers({ tab: 'all', category: 'All', search: '' })
-  const hubQuery = useMcpHub(statusFilter === 'market' ? search : '')
+  const hubQuery = useMcpHub(
+    statusFilter === 'market' ? search : '',
+    statusFilter === 'market',
+  )
 
   /* build unified server list */
   const allServers = useMemo<Array<McpServerView>>(() => {
