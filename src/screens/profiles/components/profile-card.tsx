@@ -26,12 +26,13 @@ function StatusDot({ status }: { status: string }) {
 export function ProfileCard({ agent, onClick, 'data-profile': dataProfile }: Props) {
   const tierClass = `tier-${agent.tier}`
   const builtinClass = agent.builtin ? ' builtin' : ''
+  const inUseClass = agent.active ? ' pf-card--in-use' : ''
 
   return (
     <article
-      className={`pf-card ${tierClass}${builtinClass}`}
+      className={`pf-card ${tierClass}${builtinClass}${inUseClass}`}
       onClick={onClick}
-      aria-label={`${agent.name} — ${agent.role} — Tier ${agent.tier} — ${agent.status}`}
+      aria-label={`${agent.name} — ${agent.role} — Tier ${agent.tier} — ${agent.status}${agent.active ? ' — currently selected' : ''}`}
       data-profile={dataProfile}
     >
       {/* Head: glyph + name/role + tier badge */}
@@ -47,6 +48,23 @@ export function ProfileCard({ agent, onClick, 'data-profile': dataProfile }: Pro
       {/* Status row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <StatusDot status={agent.status} />
+        {agent.active && (
+          <span
+            className="pf-in-use-badge"
+            title="Currently selected profile — the gateway is using this config"
+            style={{
+              fontSize: 10,
+              padding: '2px 6px',
+              borderRadius: 3,
+              background: 'var(--theme-accent, #00ff41)',
+              color: 'var(--theme-bg, #000)',
+              fontWeight: 700,
+              letterSpacing: '0.05em',
+            }}
+          >
+            ⚡ IN USE
+          </span>
+        )}
         {agent.builtin && (
           <span className="pf-lock-badge">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

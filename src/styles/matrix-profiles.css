@@ -1950,3 +1950,18 @@
   outline: none;
 }
 .pf-drawer-tags-add input:focus { border-color: var(--m-green-500, #00ff41); }
+
+/* Currently-selected profile (gateway is using this config). Distinct from
+   the agent_ui.status label which is purely presentational. */
+[data-screen="profiles"] .pf-card.pf-card--in-use {
+  border-color: var(--m-green-500, #00ff41);
+  box-shadow: 0 0 0 1px var(--m-green-500, #00ff41), 0 0 16px rgba(0, 255, 65, 0.25);
+}
+[data-screen="profiles"] .pf-card.pf-card--in-use::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(0, 255, 65, 0.04), transparent 40%);
+}

@@ -3,6 +3,15 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.9] — 2026-05-22
+
+Patch release. Profile picker now distinguishes the currently-selected ("in use") profile from the agent_ui.status presentational label, and the sidebar version chip auto-refreshes on `pnpm version` bumps without a manual dev-server restart.
+
+### Added
+
+- **`IN USE` badge on the currently-selected profile card** — the gateway's active profile (the one resolved from `~/.hermes/profiles/.active`) now shows an explicit `⚡ IN USE` badge plus a green-glow border. Distinct from each profile's `agent_ui.status: active | idle` label, which is purely presentational metadata set per-profile and was previously colliding semantically with the selection state. Built-in profiles (Neo, Trinity, Morpheus) still show ACTIVE from `agent_ui.status`, but the `default` profile — usually the gateway's actual selection — now correctly surfaces as `IN USE` even though its `agent_ui` block is unset.
+- **Dev-server auto-restart on `package.json` change** — Vite plugin `restart-on-package-json` watches the project's `package.json` and calls `server.restart()` whenever the version (or any other field) changes. Without this, `__APP_VERSION__` (computed once at config load via `define`) stays stale after `pnpm version` bumps and the sidebar version chip lies.
+
 ## [2.3.8] — 2026-05-22
 
 Patch release. Fixes upload landing at workspace root (issue #34).

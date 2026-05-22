@@ -565,6 +565,21 @@ const config = defineConfig(({ mode, command }) => {
       },
     },
     plugins: [
+      // Restart dev server when package.json changes so __APP_VERSION__
+      // (computed once at config load via `define`) re-evaluates and the
+      // sidebar version chip stays in sync with `pnpm version` bumps.
+      {
+        name: 'restart-on-package-json',
+        configureServer(server) {
+          const pkgPath = fileURLToPath(new URL('./package.json', import.meta.url))
+          server.watcher.add(pkgPath)
+          server.watcher.on('change', (file) => {
+            if (file === pkgPath) {
+              server.restart()
+            }
+          })
+        },
+      },
       // devtools(),
       // this is the plugin that enables path aliases
       viteTsConfigPaths({
