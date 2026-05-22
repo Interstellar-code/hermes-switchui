@@ -41,12 +41,22 @@ function readString(value: unknown): string {
  * array (model metadata). models.json is ignored — it's a legacy cache the
  * Hermes runtime no longer reads.
  */
-function readProvidersFromConfig(): Array<ModelEntry> {
+function readConfigOnce(): Record<string, unknown> | null {
   try {
-    if (!fs.existsSync(CONFIG_PATH)) return []
+    if (!fs.existsSync(CONFIG_PATH)) return null
     const parsed = YAML.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'))
-    if (!parsed || typeof parsed !== 'object') return []
-    const config = parsed as Record<string, unknown>
+    if (!parsed || typeof parsed !== 'object') return null
+    return parsed as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
+function readProvidersFromConfig(
+  config: Record<string, unknown> | null,
+): Array<ModelEntry> {
+  try {
+    if (!config) return []
 
     const providers = asRecord(config.providers)
     const providerKeys = Object.keys(providers).filter(
@@ -97,37 +107,27 @@ function readProvidersFromConfig(): Array<ModelEntry> {
 const DEFAULT_ACCEPTED_TIMEOUT_S = 120
 const DEFAULT_HANDOFF_TIMEOUT_S = 300
 
-function readStreamTimeouts(): {
+function readStreamTimeouts(config: Record<string, unknown> | null): {
   streamAcceptedTimeoutMs: number
   streamHandoffTimeoutMs: number
 } {
   let acceptedS = DEFAULT_ACCEPTED_TIMEOUT_S
   let handoffS = DEFAULT_HANDOFF_TIMEOUT_S
-  try {
-    if (fs.existsSync(CONFIG_PATH)) {
-      const parsed = YAML.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'))
-      const ws =
-        parsed &&
-        typeof parsed === 'object' &&
-        typeof (parsed as Record<string, unknown>).workspace === 'object'
-          ? ((parsed as Record<string, unknown>).workspace as Record<
-              string,
-              unknown
-            >)
-          : {}
-      if (
-        typeof ws.stream_accepted_timeout === 'number' &&
-        ws.stream_accepted_timeout > 0
-      )
-        acceptedS = ws.stream_accepted_timeout
-      if (
-        typeof ws.stream_handoff_timeout === 'number' &&
-        ws.stream_handoff_timeout > 0
-      )
-        handoffS = ws.stream_handoff_timeout
-    }
-  } catch {
-    // fall through to defaults
+  if (config) {
+    const ws =
+      typeof config.workspace === 'object'
+        ? (config.workspace as Record<string, unknown>)
+        : {}
+    if (
+      typeof ws.stream_accepted_timeout === 'number' &&
+      ws.stream_accepted_timeout > 0
+    )
+      acceptedS = ws.stream_accepted_timeout
+    if (
+      typeof ws.stream_handoff_timeout === 'number' &&
+      ws.stream_handoff_timeout > 0
+    )
+      handoffS = ws.stream_handoff_timeout
   }
   const envAccepted = parseInt(process.env.STREAM_ACCEPTED_TIMEOUT_MS ?? '', 10)
   const envHandoff = parseInt(process.env.STREAM_HANDOFF_TIMEOUT_MS ?? '', 10)
@@ -147,12 +147,11 @@ function readStreamTimeouts(): {
  * Read model_aliases entries from config.yaml. Each alias becomes a picker entry
  * exposed as `provider/alias-name`, surfaced under its declared provider.
  */
-function readModelAliasesFromConfig(): Array<ModelEntry> {
+function readModelAliasesFromConfig(
+  config: Record<string, unknown> | null,
+): Array<ModelEntry> {
   try {
-    if (!fs.existsSync(CONFIG_PATH)) return []
-    const parsed = YAML.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'))
-    if (!parsed || typeof parsed !== 'object') return []
-    const config = parsed as Record<string, unknown>
+    if (!config) return []
     const aliases = asRecord(config.model_aliases)
     const entries: Array<ModelEntry> = []
     for (const [name, raw] of Object.entries(aliases)) {
@@ -171,13 +170,11 @@ function readModelAliasesFromConfig(): Array<ModelEntry> {
 /**
  * Read the default model from active profile's config.yaml using a proper YAML parser.
  */
-function readClaudeDefaultModel(): ModelEntry | null {
+function readClaudeDefaultModel(
+  config: Record<string, unknown> | null,
+): ModelEntry | null {
   try {
-    if (!fs.existsSync(CONFIG_PATH)) return null
-    const raw = fs.readFileSync(CONFIG_PATH, 'utf-8')
-    const parsed = YAML.parse(raw)
-    if (!parsed || typeof parsed !== 'object') return null
-    const config = parsed as Record<string, unknown>
+    if (!config) return null
     let modelId = ''
     let provider = ''
     const modelField = config.model
@@ -234,11 +231,13 @@ export const Route = createFileRoute('/api/models')({
           // Primary: read configured providers + models from ~/.hermes/config.yaml.
           // Hermes runtime reads only this file; mirror it for the picker so
           // dropdown stays in sync with what the agent actually uses.
-          let gatewayModels = readProvidersFromConfig()
+          // Parse the YAML once and thread it through every reader.
+          const parsedConfig = readConfigOnce()
+          let gatewayModels = readProvidersFromConfig(parsedConfig)
           let source = 'config.yaml'
 
           // Ensure the default model from `model.default` lands first in the list.
-          const defaultModel = readClaudeDefaultModel()
+          const defaultModel = readClaudeDefaultModel(parsedConfig)
           if (defaultModel) {
             gatewayModels = gatewayModels.filter(
               (m) =>
@@ -253,7 +252,7 @@ export const Route = createFileRoute('/api/models')({
           for (const m of localModels) {
             ensureProviderInConfig(m.provider)
           }
-          const aliasModels = readModelAliasesFromConfig()
+          const aliasModels = readModelAliasesFromConfig(parsedConfig)
           const models = mergeModelEntries(gatewayModels, aliasModels, localModels)
 
           const configuredProviders = Array.from(
@@ -266,7 +265,7 @@ export const Route = createFileRoute('/api/models')({
             ),
           )
 
-          const streamTimeouts = readStreamTimeouts()
+          const streamTimeouts = readStreamTimeouts(parsedConfig)
 
           return json({
             ok: true,
