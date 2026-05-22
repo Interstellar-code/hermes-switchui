@@ -7,6 +7,35 @@ import { getProfilesRoot } from './profiles-browser'
 let bootstrapped = false
 
 /**
+ * Resolve the builtin agent list to seed.
+ *
+ * Priority:
+ *   1. `HERMES_BUILTIN_PROFILES_FILE` — JSON file with `BuiltinAgent[]`.
+ *      Downstream forks point this at their own curated list.
+ *   2. Compiled-in `BUILTIN_AGENTS` (hermes-switch, neo, trinity, morpheus).
+ *
+ * Invalid override → warns and falls back to the compiled-in list.
+ */
+function resolveBuiltinAgents(): Array<BuiltinAgent> {
+  const override = process.env.HERMES_BUILTIN_PROFILES_FILE?.trim()
+  if (!override) return BUILTIN_AGENTS
+  try {
+    const raw = fs.readFileSync(override, 'utf8')
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) {
+      throw new Error('expected top-level JSON array')
+    }
+    return parsed as Array<BuiltinAgent>
+  } catch (err) {
+    console.warn(
+      `[profiles-bootstrap] HERMES_BUILTIN_PROFILES_FILE="${override}" invalid — falling back to compiled defaults:`,
+      err,
+    )
+    return BUILTIN_AGENTS
+  }
+}
+
+/**
  * Ensures each builtin agent (hermes-switch, neo, trinity, morpheus) has a
  * disk profile at ~/.hermes/profiles/{id}/ with full layout:
  * - config.yaml
@@ -17,10 +46,22 @@ let bootstrapped = false
  *
  * Each file is guarded by fs.existsSync — never overwrites user-customized content.
  * Safe to call multiple times — idempotent per-file, not per-profile.
+ *
+ * Opt-out for downstream forks:
+ *   - `HERMES_SKIP_PROFILE_BOOTSTRAP=1` — skip bootstrap entirely.
+ *   - `HERMES_BUILTIN_PROFILES_FILE=/path/to/agents.json` — replace the
+ *     compiled-in list with a custom `BuiltinAgent[]`.
  */
 export function ensureBuiltinProfiles(): void {
   if (bootstrapped) return
   bootstrapped = true
+
+  if (process.env.HERMES_SKIP_PROFILE_BOOTSTRAP === '1') {
+    return
+  }
+
+  const agents = resolveBuiltinAgents()
+  if (agents.length === 0) return
 
   const profilesRoot = getProfilesRoot()
   try {
@@ -29,7 +70,7 @@ export function ensureBuiltinProfiles(): void {
     // ignore — likely already exists
   }
 
-  for (const agent of BUILTIN_AGENTS) {
+  for (const agent of agents) {
     const profileDir = path.join(profilesRoot, agent.id)
 
     try {
