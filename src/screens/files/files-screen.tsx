@@ -26,6 +26,8 @@ import {
 } from '@/components/ui/dialog'
 import { Markdown } from '@/components/prompt-kit/markdown'
 import '@/styles/matrix-files.css'
+import { formatBytes, formatDate } from '@/lib/format'
+import { getExt, getParentPath } from '@/lib/path-utils'
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Types
@@ -99,11 +101,6 @@ const CODE_EXTS = new Set([
 // Helpers
 // ──────────────────────────────────────────────────────────────────────────────
 
-function getExt(name: string): string {
-  const dot = name.lastIndexOf('.')
-  return dot >= 0 ? name.slice(dot + 1).toLowerCase() : ''
-}
-
 function isImageFile(name: string): boolean {
   return IMAGE_EXTS.has(getExt(name))
 }
@@ -137,28 +134,6 @@ function getFileIconClass(entry: FileEntry): string {
   return 'file'
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function getParentPath(pathValue: string): string {
-  const parts = pathValue.replace(/\\/g, '/').split('/').filter(Boolean)
-  if (parts.length <= 1) return ''
-  return parts.slice(0, -1).join('/')
-}
 
 function getPathParts(pathValue: string): Array<string> {
   return pathValue ? pathValue.split('/').filter(Boolean) : []
