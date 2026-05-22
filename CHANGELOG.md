@@ -3,6 +3,19 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.7] — 2026-05-22
+
+Patch release. The workflows page Backend toggle is no longer cosmetic — `native` and `plugin` now actually return different content, and workflows created by hermes-agent via the plugin API appear in the UI without restart.
+
+### Fixed
+
+- **Backend toggle was cosmetic** — `GET /api/workflow-definitions` ignored the `X-Workflow-Backend` header that the workflows page sent, so every fetch went to the native engine regardless of the dropdown selection. The route now resolves the engine via `factory.getEngine(request)`, so `plugin` requests reach the hermes-agent dashboard plugin via the existing `/api/dashboard-proxy/...` splat and `native` requests stay on the local SwitchUiWorkflowStore.
+
+### Notes
+
+- Native dev store (`~/.hermes/dev/...switchui-workflows.db`) and plugin canonical store (`~/.hermes/switchui-workflows.db`) are still separate databases. After this fix the toggle exposes that split honestly — plugin mode shows the full plugin catalog including workflows authored by hermes-agent itself; native mode shows only the dev-process bundled defaults plus any locally-authored entries.
+- A separate hermes-agent migration (uncommitted in `~/.hermes/hermes-agent/plugins/workflow-engine/defaults/`) seeded 22 workflows into the plugin catalog so it is now a proper superset of the SwitchUI bundled defaults. Custom workflows from the slot-a worktree (`gateway-health-check`, `pr-review-5agents`) are preserved there. Those YAMLs ship with hermes-agent, not SwitchUI, and are not part of this release.
+
 ## [2.3.6] — 2026-05-22
 
 Patch release. MCP detail drawer fully wired, sidebar shows live agent + Switch UI versions, session naming retries on follow-up turns, stale-session deletes no longer error out. Repo also detached from the upstream fork (Settings → Leave fork network); homepage updated to `hermes-switchui.zi0n.space`. No breaking code changes.

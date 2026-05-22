@@ -5,6 +5,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { getWorkflowEngine } from '../../server/workflow-engine';
+import { getEngine } from '../../server/workflow-engine/factory';
 import { parseWorkflow } from '../../server/workflow-engine/discovery/loader';
 import { writeWorkflowsManifest } from '../../server/workflow-engine/runtime/manifest';
 import { createHash } from 'node:crypto';
@@ -21,11 +22,14 @@ export const Route = createFileRoute('/api/workflow-definitions')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
-        const { store } = await getWorkflowEngine();
+        // Honor X-Workflow-Backend header — route to plugin or native engine.
+        // Without this, the dropdown toggle is cosmetic and the route always
+        // returns native dev-scoped DB even when backend=plugin is selected.
+        const engine = getEngine(request);
         const url = new URL(request.url);
         const source = url.searchParams.get('source') as
           | 'bundled' | 'user' | 'project' | null;
-        const defs = store.listWorkflowDefinitions(source ? { source } : undefined);
+        const defs = await engine.listDefinitions(source ? { source } : undefined);
         return json({ definitions: defs });
       },
       POST: async ({ request }) => {
