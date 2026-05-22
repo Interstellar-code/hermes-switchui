@@ -104,6 +104,12 @@ pages:
   - slug: settings/workflows-backend-toggle
     title: Workflows backend toggle
 
+  # HOW-TO GUIDES
+  - slug: how-to/use-the-manifest-provider-to-reduce-llm-costs
+    title: Use the Manifest provider to reduce LLM costs
+  - slug: how-to/give-your-agent-long-term-memory-with-hindsight
+    title: Give your agent long-term memory with Hindsight
+
   # HELP
   - slug: help/docs
     title: About /docs
