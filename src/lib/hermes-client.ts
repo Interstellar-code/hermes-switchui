@@ -241,7 +241,7 @@ export async function getConfigRaw(): Promise<{ yaml: string }> {
 }
 
 export async function putConfigRaw(yamlText: string): Promise<{ yaml: string }> {
-  return proxySend<{ yaml: string }>('PUT', '/api/config/raw', { yaml: yamlText })
+  return proxySend<{ yaml: string }>('PUT', '/api/config/raw', { yaml_text: yamlText })
 }
 
 // ── Model / Provider APIs ────────────────────────────────────────

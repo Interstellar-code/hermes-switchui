@@ -14,8 +14,6 @@ import { toast } from '@/components/ui/toast'
 export default function SectionRawConfig() {
   const [yamlText, setYamlText] = useState<string>('')
   const [isDirty, setIsDirty] = useState(false)
-  const fileInputRef = useState<HTMLInputElement | null>(null)[1]
-
   const { data: configData, isLoading, refetch } = useQuery({
     queryKey: ['config', 'raw'],
     queryFn: getConfigRaw,
@@ -93,12 +91,6 @@ export default function SectionRawConfig() {
       <SettingCard title="Config file path">
         <div style={{ padding: '12px', font: '500 12px var(--m-font-mono)', color: 'var(--m-text-faint)' }}>
           ~/.hermes/config.yaml
-        </div>
-      </SettingCard>
-
-      <SettingCard title="Warning">
-        <div style={{ padding: '12px', fontSize: 13, color: 'var(--m-text-warn)', lineHeight: 1.5 }}>
-          Direct YAML edits bypass form validation — corruption can break the gateway. Use the FORM sections for safer edits.
         </div>
       </SettingCard>
 

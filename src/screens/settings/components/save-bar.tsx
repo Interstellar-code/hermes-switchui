@@ -5,7 +5,7 @@
 type SaveBarProps = {
   dirtyCount: number
   onSave: () => void
-  onReset: () => void
+  onRefresh: () => void
   onExport?: () => void
   onImport?: () => void
 }
@@ -19,7 +19,7 @@ function IconSave() {
   )
 }
 
-function IconReset() {
+function IconRefresh() {
   return (
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
       <path d="M3 8a5 5 0 1 0 1.5-3.5L2 3v4h4" strokeLinecap="round" strokeLinejoin="round"/>
@@ -43,7 +43,7 @@ function IconImport() {
   )
 }
 
-export function SaveBar({ dirtyCount, onSave, onReset, onExport, onImport }: SaveBarProps) {
+export function SaveBar({ dirtyCount, onSave, onRefresh, onExport, onImport }: SaveBarProps) {
   const hasDirty = dirtyCount > 0
 
   return (
@@ -77,11 +77,11 @@ export function SaveBar({ dirtyCount, onSave, onReset, onExport, onImport }: Sav
       <button
         type="button"
         className="btn"
-        onClick={onReset}
-        disabled={!hasDirty}
+        onClick={onRefresh}
+        title="Reload config from disk"
       >
-        <IconReset />
-        Reset
+        <IconRefresh />
+        Refresh
       </button>
 
       <button

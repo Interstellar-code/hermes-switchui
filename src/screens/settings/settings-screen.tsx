@@ -9,7 +9,7 @@
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import '@/styles/matrix-skills.css'
 import '@/styles/matrix-settings.css'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { SidebarTree } from './components/sidebar-tree'
 import { SaveBar } from './components/save-bar'
 import { settingsSaver } from './lib/saver'
@@ -166,7 +166,6 @@ function IconCog() {
 
 export function SettingsScreen() {
   const dirty = useSettingsStore((s) => s.dirty)
-  const reset = useSettingsStore((s) => s.reset)
   const save = useSettingsStore((s) => s.save)
   const loaded = useSettingsStore((s) => s.loaded)
   const dirtyCount = useDirtyCount()
@@ -181,11 +180,24 @@ export function SettingsScreen() {
   })
 
   // Fetch server config and seed store on mount
-  const { data: serverConfig } = useQuery({
+  const queryClient = useQueryClient()
+  const { data: serverConfig, refetch: refetchConfig } = useQuery({
     queryKey: ['config'],
     queryFn: getConfig,
     staleTime: 60_000,
   })
+
+  async function handleRefresh() {
+    const result = await refetchConfig()
+    await queryClient.invalidateQueries({ queryKey: ['config', 'raw'] })
+    if (result.data) {
+      const flat = flattenConfig(result.data as Record<string, unknown>)
+      useSettingsStore.getState().load(flat)
+      toast('Page settings refreshed', { type: 'success' })
+    } else {
+      toast('Failed to refresh settings', { type: 'error' })
+    }
+  }
 
   useEffect(() => {
     if (!serverConfig || seedOnceRef.current || loaded) return
@@ -306,7 +318,7 @@ export function SettingsScreen() {
         <SaveBar
           dirtyCount={dirtyCount}
           onSave={handleSave}
-          onReset={reset}
+          onRefresh={handleRefresh}
           onExport={handleExport}
           onImport={handleImport}
         />
