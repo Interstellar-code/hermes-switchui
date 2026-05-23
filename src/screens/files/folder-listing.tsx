@@ -3,7 +3,6 @@ import { cn } from '@/lib/utils'
 import { formatBytes, formatDate } from '@/lib/format'
 import { getExt } from '@/lib/path-utils'
 import type { FileEntry } from './file-tree'
-import { IGNORED_DIRS } from './file-tree'
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'])
 
@@ -37,8 +36,7 @@ export function FolderListing({
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
   const rows = useMemo(() => {
-    const filtered = entries.filter((e) => !IGNORED_DIRS.has(e.name))
-    const sorted = [...filtered].sort((a, b) => {
+    const sorted = [...entries].sort((a, b) => {
       if (a.type !== b.type) return a.type === 'folder' ? -1 : 1
       let cmp = 0
       if (sortKey === 'name') {
@@ -54,6 +52,11 @@ export function FolderListing({
     })
     return sorted
   }, [entries, sortKey, sortDir])
+
+  const ariaSortFor = (key: SortKey): 'ascending' | 'descending' | 'none' => {
+    if (key !== sortKey) return 'none'
+    return sortDir === 'asc' ? 'ascending' : 'descending'
+  }
 
   const toggleSort = (key: SortKey) => {
     if (key === sortKey) {
@@ -83,29 +86,36 @@ export function FolderListing({
     )
   }
 
+  const renderSortHeader = (key: SortKey, label: string, className: string) => (
+    <th className={className} aria-sort={ariaSortFor(key)}>
+      <button
+        type="button"
+        className="files-folder-sort"
+        onClick={() => toggleSort(key)}
+      >
+        {label}
+        {arrow(key)}
+      </button>
+    </th>
+  )
+
+  const handleRowKey = (
+    event: React.KeyboardEvent<HTMLTableRowElement>,
+    entry: FileEntry,
+  ) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    onSelect(entry)
+  }
+
   return (
     <div className="files-folder-listing">
       <table>
         <thead>
           <tr>
-            <th
-              className="col-name sortable"
-              onClick={() => toggleSort('name')}
-            >
-              Name{arrow('name')}
-            </th>
-            <th
-              className="col-size sortable"
-              onClick={() => toggleSort('size')}
-            >
-              Size{arrow('size')}
-            </th>
-            <th
-              className="col-mod sortable"
-              onClick={() => toggleSort('modified')}
-            >
-              Modified{arrow('modified')}
-            </th>
+            {renderSortHeader('name', 'Name', 'col-name')}
+            {renderSortHeader('size', 'Size', 'col-size')}
+            {renderSortHeader('modified', 'Modified', 'col-mod')}
           </tr>
         </thead>
         <tbody>
@@ -115,7 +125,9 @@ export function FolderListing({
               <tr
                 key={entry.path}
                 className="files-folder-row"
+                tabIndex={0}
                 onClick={() => onSelect(entry)}
+                onKeyDown={(e) => handleRowKey(e, entry)}
                 onContextMenu={(e) => onContextMenu(e, entry)}
               >
                 <td className="col-name">

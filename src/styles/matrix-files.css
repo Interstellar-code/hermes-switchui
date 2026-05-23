@@ -845,22 +845,34 @@
       position: sticky;
       top: 0;
       background: var(--f-panel-2);
-      color: var(--f-text-3);
       text-align: left;
-      font-weight: 600;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      padding: 8px 12px;
+      padding: 0;
       border-bottom: 1px solid var(--f-border);
       user-select: none;
     }
 
-    th.sortable {
+    .files-folder-sort {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 8px 12px;
+      background: transparent;
+      border: 0;
       cursor: pointer;
+      color: var(--f-text-3);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-family: inherit;
     }
-    th.sortable:hover {
+    .files-folder-sort:hover,
+    .files-folder-sort:focus-visible {
       color: var(--f-accent);
+      outline: none;
+    }
+    .files-folder-sort:focus-visible {
+      box-shadow: inset 0 0 0 1px var(--f-accent);
     }
 
     .col-size,
@@ -878,9 +890,14 @@
     .files-folder-row {
       cursor: pointer;
       transition: background 0.08s ease;
+      outline: none;
     }
-    .files-folder-row:hover {
+    .files-folder-row:hover,
+    .files-folder-row:focus-visible {
       background: var(--f-accent-soft);
+    }
+    .files-folder-row:focus-visible {
+      box-shadow: inset 0 0 0 1px var(--f-accent);
     }
 
     .col-name {

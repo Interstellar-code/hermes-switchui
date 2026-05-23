@@ -21,21 +21,13 @@ import { Markdown } from '@/components/prompt-kit/markdown'
 import '@/styles/matrix-files.css'
 import { formatBytes, formatDate } from '@/lib/format'
 import { getExt, getParentPath } from '@/lib/path-utils'
-import { FileTree } from './file-tree'
+import { FileTree, IGNORED_DIRS } from './file-tree'
+import type { FileEntry } from './file-tree'
 import { FolderListing } from './folder-listing'
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Types
 // ──────────────────────────────────────────────────────────────────────────────
-
-type FileEntry = {
-  name: string
-  path: string
-  type: 'file' | 'folder'
-  size?: number
-  modifiedAt?: string
-  children?: Array<FileEntry>
-}
 
 type FilesListResponse = {
   root: string
@@ -64,17 +56,6 @@ type ContextMenuState = {
 // ──────────────────────────────────────────────────────────────────────────────
 // Constants
 // ──────────────────────────────────────────────────────────────────────────────
-
-const IGNORED_DIRS = new Set([
-  'node_modules',
-  '.git',
-  '.next',
-  '.turbo',
-  '.cache',
-  '__pycache__',
-  '.venv',
-  'dist',
-])
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'])
 const CODE_EXTS = new Set([
@@ -1423,13 +1404,22 @@ export function FilesScreen() {
 
   const liveSelected = useMemo(() => {
     if (!selectedPath) return null
-    return findEntryByPath(entries, selectedPath) ?? selectedEntry
-  }, [entries, selectedPath, selectedEntry, findEntryByPath])
+    return findEntryByPath(entries, selectedPath)
+  }, [entries, selectedPath, findEntryByPath])
+
+  useEffect(() => {
+    if (selectedPath && !liveSelected) {
+      setSelectedEntry(null)
+    }
+  }, [selectedPath, liveSelected])
 
   const listingFolderEntries: Array<FileEntry> = useMemo(() => {
-    if (!liveSelected) return entries
-    if (liveSelected.type !== 'folder') return []
-    return liveSelected.children ?? []
+    const source = !liveSelected
+      ? entries
+      : liveSelected.type === 'folder'
+        ? (liveSelected.children ?? [])
+        : []
+    return source.filter((e) => !IGNORED_DIRS.has(e.name))
   }, [liveSelected, entries])
 
   const visibleEntries = useMemo(() => {
