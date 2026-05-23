@@ -26,6 +26,10 @@ type FileEntry = {
   size?: number
   modifiedAt?: string
   children?: Array<FileEntry>
+  // Folder-only. Set to true when this folder has more contents on disk than
+  // were returned in `children` (recursion stopped at depth cap or entry cap).
+  // Lets clients distinguish "really empty" from "we lied to you".
+  truncated?: boolean
 }
 
 /**
@@ -115,7 +119,7 @@ const IGNORED_DIRS = new Set([
   '.DS_Store',
 ])
 
-const MAX_DIRECTORY_DEPTH = 3
+const MAX_DIRECTORY_DEPTH = 8
 const MAX_DIRECTORY_ENTRIES = 20_000
 
 type ReadDirectoryOptions = {
@@ -139,27 +143,46 @@ function parseMaxEntries(input: string | null): number | null {
   return Math.min(MAX_DIRECTORY_ENTRIES, Math.max(1, Math.floor(parsed)))
 }
 
+type ReadDirectoryResult = {
+  entries: Array<FileEntry>
+  truncated: boolean
+}
+
 async function readDirectory(
   dirPath: string,
   depth: number,
   options: ReadDirectoryOptions,
-): Promise<Array<FileEntry>> {
-  if (depth > options.maxDepth) return []
+): Promise<ReadDirectoryResult> {
+  // Depth cap: parent caller flags the folder as truncated; we can't peek
+  // inside without recursing, but we know `dirPath` has at least 1 entry only
+  // if we actually read it — so report truncated=true only when readdir shows
+  // entries we won't enumerate.
+  if (depth > options.maxDepth) {
+    try {
+      const peek = await fs.readdir(dirPath)
+      return { entries: [], truncated: peek.some((n) => !IGNORED_DIRS.has(n)) }
+    } catch {
+      return { entries: [], truncated: false }
+    }
+  }
   if (
     options.maxEntries !== null &&
     options.countedEntries.value >= options.maxEntries
   ) {
-    return []
+    return { entries: [], truncated: true }
   }
 
   const entries = await fs.readdir(dirPath, { withFileTypes: true })
   const mapped: Array<FileEntry> = []
+  let truncated = false
 
   for (const entry of entries) {
     if (
       options.maxEntries !== null &&
       options.countedEntries.value >= options.maxEntries
     ) {
+      // Some remaining siblings weren't enumerated due to the entry cap.
+      truncated = true
       break
     }
 
@@ -169,15 +192,17 @@ async function readDirectory(
     try {
       const stats = await fs.stat(fullPath)
       if (entry.isDirectory()) {
-        const children = await readDirectory(fullPath, depth + 1, options)
-        mapped.push({
+        const child = await readDirectory(fullPath, depth + 1, options)
+        const folderEntry: FileEntry = {
           name: entry.name,
           path: relativePath,
           type: 'folder',
           size: stats.size,
           modifiedAt: stats.mtime.toISOString(),
-          children,
-        })
+          children: child.entries,
+        }
+        if (child.truncated) folderEntry.truncated = true
+        mapped.push(folderEntry)
       } else {
         mapped.push({
           name: entry.name,
@@ -194,7 +219,7 @@ async function readDirectory(
     }
   }
 
-  return sortEntries(mapped)
+  return { entries: sortEntries(mapped), truncated }
 }
 
 async function readGlobDirectory(globPath: string, workspaceRoot: string) {
@@ -316,7 +341,8 @@ export const Route = createFileRoute('/api/files')({
           return json({
             root: toRelative(resolvedPath, workspaceRoot),
             base: workspaceRoot,
-            entries: tree,
+            entries: tree.entries,
+            truncated: tree.truncated,
           })
         } catch (err) {
           return json({ error: safeErrorMessage(err) }, { status: 500 })
