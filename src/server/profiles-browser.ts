@@ -422,7 +422,11 @@ export function setActiveProfile(name: string): void {
     if (fs.existsSync(activePath)) fs.unlinkSync(activePath)
     return
   }
-  const normalized = validateProfileName(trimmed)
+  // Activating a profile is a read operation — point `active_profile`
+  // at an existing directory. Builtin profiles (neo/trinity/morpheus/
+  // hermes-switch) are valid activation targets even though they cannot
+  // be created or mutated via the UI.
+  const normalized = validateProfileIdentifier(trimmed)
   const profilePath = path.join(getProfilesRoot(), normalized)
   if (!fs.existsSync(profilePath)) throw new Error('Profile not found')
   fs.mkdirSync(getClaudeRoot(), { recursive: true })
