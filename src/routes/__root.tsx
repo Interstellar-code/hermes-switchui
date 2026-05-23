@@ -16,6 +16,7 @@ import { GlobalShortcutListener } from '@/components/global-shortcut-listener'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { MobilePromptTrigger } from '@/components/mobile-prompt/MobilePromptTrigger'
 import { Toaster } from '@/components/ui/toast'
+import { GatewayRestartBanner } from '@/components/gateway-restart-banner'
 import { OnboardingTour } from '@/components/onboarding/onboarding-tour'
 import { KeyboardShortcutsModal } from '@/components/keyboard-shortcuts-modal'
 import { UpdateCenterNotifier } from '@/components/update-center-notifier'
@@ -369,6 +370,7 @@ function RootLayout() {
         <>
           <GlobalShortcutListener />
           <TerminalShortcutListener />
+          <GatewayRestartBanner />
           <WorkspaceShell>
             <ErrorBoundary
               className="h-full min-h-0 flex-1"

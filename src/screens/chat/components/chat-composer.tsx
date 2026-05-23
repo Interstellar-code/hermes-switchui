@@ -47,6 +47,7 @@ import { MOBILE_TAB_BAR_OFFSET } from '@/components/mobile-tab-bar'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 import { useSessionModelStore } from '@/stores/session-model-store'
+import { useGatewayRestartStore } from '@/stores/gateway-restart-store'
 import { Button } from '@/components/ui/button'
 import { usePinnedModels } from '@/hooks/use-pinned-models'
 // import { ModeSelector } from '@/components/mode-selector'
@@ -738,7 +739,15 @@ async function fetchProfiles(): Promise<ProfilesListResponse> {
   return (await response.json()) as ProfilesListResponse
 }
 
-async function activateProfile(name: string): Promise<void> {
+type ActivateProfileResponse = {
+  ok: boolean
+  profile: string
+  needsGatewayRestart: boolean
+}
+
+async function activateProfile(
+  name: string,
+): Promise<ActivateProfileResponse> {
   const response = await fetch('/api/profiles/activate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -747,6 +756,7 @@ async function activateProfile(name: string): Promise<void> {
   if (!response.ok) {
     throw new Error(await readResponseError(response))
   }
+  return (await response.json()) as ActivateProfileResponse
 }
 
 async function fetchWorkspaceContext(): Promise<WorkspaceDetectionResponse> {
@@ -971,7 +981,7 @@ function ChatComposerComponent({
   })
   const profileActivateMutation = useMutation({
     mutationFn: activateProfile,
-    onSuccess: async (_data, profileName) => {
+    onSuccess: async (data, profileName) => {
       // Issue #54 — invalidate every composer-facing cache touched by an
       // active-profile change. `['profiles']` is a prefix that also covers
       // `['profiles', 'composer']`, but `['dashboard', 'model-info']` and
@@ -993,7 +1003,13 @@ function ChatComposerComponent({
         }),
       ])
       setIsProfileMenuOpen(false)
-      toast(`Activated profile ${profileName}`)
+      // Issue #52 — activating a profile only updates the active_profile
+      // pointer; the running gateway process still uses its existing config
+      // until restarted. Surface a persistent banner so users know.
+      if (data?.needsGatewayRestart) {
+        useGatewayRestartStore.getState().markNeedsRestart(profileName)
+      }
+      toast(`Activated profile ${profileName} — restart gateway to apply`)
     },
     onError: (error) => {
       toast(
