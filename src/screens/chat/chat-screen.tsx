@@ -847,6 +847,11 @@ export function ChatScreen({
     }
     setPendingGeneration(false)
     setWaitingForResponse(false)
+    // Issue #53 — also drop the local `sending` flag. The composer's
+    // disabled state is keyed off `sending`, so without this the 120s
+    // failsafe (see send flow below) clears the spinner but leaves the
+    // composer + model selector unclickable until the page is reloaded.
+    setSending(false)
   }, [streamStop])
 
   const streamStart = useCallback(() => {
