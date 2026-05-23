@@ -1311,7 +1311,9 @@ export function FilesScreen() {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 5000)
     try {
-      const res = await fetch('/api/files?action=list&maxDepth=3', {
+      // Let the server enforce its MAX_DIRECTORY_DEPTH default; passing
+      // maxDepth=3 here used to defeat the server-side raise from #48.
+      const res = await fetch('/api/files?action=list', {
         signal: controller.signal,
       })
       if (!res.ok)
