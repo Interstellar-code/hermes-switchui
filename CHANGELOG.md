@@ -3,6 +3,31 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.11] — 2026-05-23
+
+Cleanup release. Closes 9 open issues from the in-repo code review.
+
+### Fixed
+
+- **#37 — files-screen rename/mkdir silent failures.** `handlePromptSubmit` now checks `res.ok` on the rename and mkdir POSTs and renders the error inline in the prompt dialog. The tree only reloads on success.
+- **#43 — agent-version cache backward-clock skew.** Added a `now >= cached.ts` prerequisite so a backward NTP/sleep jump no longer pins the cached value indefinitely.
+
+### Performance
+
+- **#38 — nav boardsQuery skipped when collapsed.** `useBoards` accepts an `enabled` flag; PrimaryNavV2 passes `!collapsed` so the badge query stops firing when the badge isn't visible.
+- **#39 — files-screen tree filter debounced.** Added a 150ms debounced copy of `treeQuery`; the recursive `visibleEntries` walk is now keyed on the debounced value while the input + visual hints stay snappy.
+- **#40 — profiles-browser memoization.** `listProfiles()` now caches results for 5 seconds; every mutating function (`createProfile`/`deleteProfile`/`updateProfileConfig`/`renameProfile`/`setActiveProfile`) invalidates the cache so the UI sees changes immediately. The dev-mode `console.warn` in `setActiveProfile` is gated behind `NODE_ENV !== 'production'`.
+- **#41 — /api/models parses config.yaml once per request.** Introduced `readConfigOnce()`; `readProvidersFromConfig`, `readClaudeDefaultModel`, `readModelAliasesFromConfig`, and `readStreamTimeouts` now accept the parsed config as a parameter instead of each reopening the file.
+- **#46 — mcp hubQuery skipped outside Market tab.** `useMcpHub` accepts an `enabled` flag; McpScreen passes `statusFilter === 'market'` so the marketplace fetch only fires when the Market tab is showing.
+
+### Refactor
+
+- **#45 — utility consolidation.** Extracted formatters to `src/lib/format.ts` (`formatBytes`, `formatDate`, `formatRelative`) and POSIX path helpers to `src/lib/path-utils.ts` (`getExt`, `getParentPath`). files-screen and profile-card now import from the shared modules.
+
+### Polish
+
+- **#44 — vite.config dev-server boot.** Sanitized the workspace-daemon stale-port cleanup before shell interpolation, moved `workspaceDaemonStarted = true` to after a successful spawn (try/catch keeps state correct on failure), and replaced the fixed 15 × 1s health-check polling loop with a bounded backoff schedule so a ready agent returns sooner.
+
 ## [2.3.10] — 2026-05-22
 
 Patch release. Profile picker no longer duplicates the gateway's active named profile with a synthetic `default` card.
