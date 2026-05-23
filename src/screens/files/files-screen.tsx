@@ -9,13 +9,6 @@ import {
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { usePageTitle } from '@/hooks/use-page-title'
-import {
-  ScrollAreaCorner,
-  ScrollAreaRoot,
-  ScrollAreaScrollbar,
-  ScrollAreaThumb,
-  ScrollAreaViewport,
-} from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import {
   DialogClose,
@@ -28,6 +21,8 @@ import { Markdown } from '@/components/prompt-kit/markdown'
 import '@/styles/matrix-files.css'
 import { formatBytes, formatDate } from '@/lib/format'
 import { getExt, getParentPath } from '@/lib/path-utils'
+import { FileTree } from './file-tree'
+import { FolderListing } from './folder-listing'
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Types
@@ -122,18 +117,6 @@ function isHtmlFile(name: string): boolean {
 function isEditableFile(name: string): boolean {
   return !isImageFile(name)
 }
-
-function getFileIconClass(entry: FileEntry): string {
-  if (entry.type === 'folder') return 'folder'
-  const ext = getExt(entry.name)
-  if (ext === 'md' || ext === 'mdx') return 'markdown'
-  if (ext === 'json') return 'json'
-  if (ext === 'ts' || ext === 'tsx' || ext === 'js' || ext === 'jsx')
-    return 'code'
-  if (IMAGE_EXTS.has(ext)) return 'image'
-  return 'file'
-}
-
 
 function getPathParts(pathValue: string): Array<string> {
   return pathValue ? pathValue.split('/').filter(Boolean) : []
@@ -627,110 +610,6 @@ function DiffModal({
         </div>
       </DialogContent>
     </DialogRoot>
-  )
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Directory tree node
-// ──────────────────────────────────────────────────────────────────────────────
-
-type TreeNodeProps = {
-  entry: FileEntry
-  depth: number
-  expanded: Set<string>
-  forceExpanded?: boolean
-  selectedPath: string | null
-  onToggle: (path: string) => void
-  onSelect: (entry: FileEntry) => void
-  onDeleteRequest: (entry: FileEntry) => void
-  onContextMenu: (e: React.MouseEvent, entry: FileEntry) => void
-}
-
-function TreeNode({
-  entry,
-  depth,
-  expanded,
-  forceExpanded = false,
-  selectedPath,
-  onToggle,
-  onSelect,
-  onDeleteRequest,
-  onContextMenu,
-}: TreeNodeProps) {
-  const isExpanded = forceExpanded || expanded.has(entry.path)
-  const isSelected = selectedPath === entry.path
-  const iconClass = getFileIconClass(entry)
-  const paddingLeft = 12 + depth * 16
-
-  const handleClick = () => {
-    onSelect(entry)
-    if (entry.type === 'folder') {
-      onToggle(entry.path)
-    }
-  }
-
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={handleClick}
-        onContextMenu={(e) => onContextMenu(e, entry)}
-        className={cn(
-          'files-tree-row',
-          entry.type === 'file' ? 'is-leaf' : '',
-          isExpanded ? 'is-expanded' : '',
-          isSelected ? 'is-active' : '',
-        )}
-        style={{ paddingLeft }}
-      >
-        <span className="chev">▶</span>
-        <span className={cn('icon', `is-${iconClass}`)} aria-hidden="true" />
-        <span className="name">{entry.name}</span>
-        {entry.type === 'file' && entry.size !== undefined ? (
-          <span className="badge">{formatBytes(entry.size)}</span>
-        ) : null}
-        <span
-          role="button"
-          tabIndex={0}
-          className="row-delete"
-          title={`Delete ${entry.type}`}
-          aria-label={`Delete ${entry.name}`}
-          onClick={(event) => {
-            event.stopPropagation()
-            onDeleteRequest(entry)
-          }}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter' && event.key !== ' ') return
-            event.preventDefault()
-            event.stopPropagation()
-            onDeleteRequest(entry)
-          }}
-        >
-          🗑
-        </span>
-      </button>
-
-      {entry.type === 'folder' && isExpanded && entry.children ? (
-        <div>
-          {entry.children
-            .filter((c) => !IGNORED_DIRS.has(c.name))
-            .map((child) => (
-              <TreeNode
-                key={child.path}
-                entry={child}
-                depth={depth + 1}
-                expanded={expanded}
-                forceExpanded={forceExpanded}
-                selectedPath={selectedPath}
-                onToggle={onToggle}
-                onSelect={onSelect}
-                onDeleteRequest={onDeleteRequest}
-                onContextMenu={onContextMenu}
-              />
-            ))}
-        </div>
-      ) : null}
-    </div>
   )
 }
 
@@ -1370,6 +1249,21 @@ export function FilesScreen() {
     setSelectedEntry(entry)
   }, [])
 
+  const handleListingSelect = useCallback((entry: FileEntry) => {
+    setSelectedEntry(entry)
+    if (entry.type === 'folder') {
+      setExpanded((prev) => {
+        const next = new Set(prev)
+        next.add(entry.path)
+        return next
+      })
+    }
+  }, [])
+
+  const handleSelectRoot = useCallback(() => {
+    setSelectedEntry(null)
+  }, [])
+
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, entry: FileEntry) => {
       e.preventDefault()
@@ -1512,6 +1406,32 @@ export function FilesScreen() {
   }, [treeQuery])
 
   const selectedPath = selectedEntry?.path ?? null
+
+  const findEntryByPath = useCallback(
+    (items: Array<FileEntry>, path: string): FileEntry | null => {
+      for (const item of items) {
+        if (item.path === path) return item
+        if (item.children) {
+          const hit = findEntryByPath(item.children, path)
+          if (hit) return hit
+        }
+      }
+      return null
+    },
+    [],
+  )
+
+  const liveSelected = useMemo(() => {
+    if (!selectedPath) return null
+    return findEntryByPath(entries, selectedPath) ?? selectedEntry
+  }, [entries, selectedPath, selectedEntry, findEntryByPath])
+
+  const listingFolderEntries: Array<FileEntry> = useMemo(() => {
+    if (!liveSelected) return entries
+    if (liveSelected.type !== 'folder') return []
+    return liveSelected.children ?? []
+  }, [liveSelected, entries])
+
   const visibleEntries = useMemo(() => {
     const query = debouncedTreeQuery.trim().toLowerCase()
 
@@ -1636,11 +1556,22 @@ export function FilesScreen() {
               {treeQuery ? 'No matches' : 'Workspace is empty'}
             </div>
           ) : (
-            visibleEntries.map((entry) => (
-              <TreeNode
-                key={entry.path}
-                entry={entry}
-                depth={0}
+            <>
+              <button
+                type="button"
+                onClick={handleSelectRoot}
+                className={cn(
+                  'files-tree-row',
+                  selectedPath === null ? 'is-active' : '',
+                )}
+                style={{ paddingLeft: 12 }}
+              >
+                <span className="chev">▼</span>
+                <span className="icon is-folder" aria-hidden="true" />
+                <span className="name">workspace</span>
+              </button>
+              <FileTree
+                entries={visibleEntries}
                 expanded={expanded}
                 forceExpanded={Boolean(treeQuery.trim())}
                 selectedPath={selectedPath}
@@ -1649,7 +1580,7 @@ export function FilesScreen() {
                 onDeleteRequest={setDeleteConfirm}
                 onContextMenu={handleContextMenu}
               />
-            ))
+            </>
           )}
         </div>
 
@@ -1672,11 +1603,55 @@ export function FilesScreen() {
       </aside>
 
       <main className="files-preview-host">
-        <FilePanel
-          selectedEntry={selectedEntry}
-          onDeleteRequest={setDeleteConfirm}
-          onUploadRequest={openUploadPicker}
-        />
+        {liveSelected && liveSelected.type === 'file' ? (
+          <FilePanel
+            selectedEntry={liveSelected}
+            onDeleteRequest={setDeleteConfirm}
+            onUploadRequest={openUploadPicker}
+          />
+        ) : (
+          <section className="files-preview" aria-label="Folder listing">
+            <div className="files-preview-top">
+              <Breadcrumb path={liveSelected?.path ?? ''} />
+              <span className="files-preview-kind">folder</span>
+              <div className="files-preview-actions">
+                <button
+                  type="button"
+                  className="files-icon-btn"
+                  onClick={() =>
+                    openUploadPicker(liveSelected?.path ?? '')
+                  }
+                  title="Upload here"
+                >
+                  ⤴
+                </button>
+                {liveSelected ? (
+                  <button
+                    type="button"
+                    className="files-icon-btn danger"
+                    onClick={() => setDeleteConfirm(liveSelected)}
+                    title="Delete folder"
+                  >
+                    🗑
+                  </button>
+                ) : null}
+              </div>
+            </div>
+            <div className="files-preview-canvas">
+              <FolderListing
+                entries={listingFolderEntries}
+                folderPath={liveSelected?.path ?? ''}
+                onSelect={handleListingSelect}
+                onContextMenu={handleContextMenu}
+              />
+            </div>
+            <div className="files-preview-foot">
+              <span>{liveSelected?.path ?? 'workspace root'}</span>
+              <span className="files-divider" />
+              <span>{listingFolderEntries.length} items</span>
+            </div>
+          </section>
+        )}
       </main>
 
       <input
