@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Telegram channel and topics flow</title>
+  <style>
+    :root {
+      --bg: #020617;
+      --panel: #0f172a;
+      --panel-2: #111827;
+      --text: #e5eefb;
+      --muted: #94a3b8;
+      --cyan: #22d3ee;
+      --cyan-2: #0891b2;
+      --emerald: #34d399;
+      --violet: #a78bfa;
+      --amber: #f59e0b;
+      --rose: #fb7185;
+      --line: #1e293b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+    }
+    .diagram-container {
+      width: 100%;
+      padding: 24px;
+      background: linear-gradient(180deg, #020617 0%, #06111f 100%);
+    }
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .title { font-size: 28px; font-weight: 700; fill: var(--text); }
+    .subtitle { font-size: 13px; fill: var(--muted); }
+    .node-title { font-size: 16px; font-weight: 700; fill: var(--text); }
+    .node-body { font-size: 12px; fill: #cbd5e1; }
+    .label { font-size: 11px; fill: var(--muted); }
+    .small { font-size: 10px; fill: var(--muted); }
+    .pill { fill: #0b1220; stroke: #243041; stroke-width: 1; }
+    .line { stroke: #334155; stroke-width: 2; fill: none; }
+    .arrow { stroke: #475569; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+    .node { fill: var(--panel); stroke: #1f2937; stroke-width: 1.5; }
+    .node-cyan { fill: rgba(34, 211, 238, 0.08); stroke: rgba(34, 211, 238, 0.55); }
+    .node-emerald { fill: rgba(52, 211, 153, 0.08); stroke: rgba(52, 211, 153, 0.55); }
+    .node-violet { fill: rgba(167, 139, 250, 0.08); stroke: rgba(167, 139, 250, 0.55); }
+    .node-amber { fill: rgba(245, 158, 11, 0.08); stroke: rgba(245, 158, 11, 0.55); }
+    .node-rose { fill: rgba(251, 113, 133, 0.08); stroke: rgba(251, 113, 133, 0.55); }
+  </style>
+</head>
+<body>
+  <div class="diagram-container">
+    <svg viewBox="0 0 1400 980" role="img" aria-label="Flow diagram for connecting Hermes to Telegram and configuring topics">
+      <defs>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L9,3 z" fill="#64748b"></path>
+        </marker>
+      </defs>
+
+      <text x="40" y="52" class="title">Connect Hermes to Telegram + configure topics</text>
+      <text x="40" y="76" class="subtitle">BotFather → Hermes gateway → home channel → choose fixed topics or user-created /topic sessions</text>
+
+      <rect x="40" y="120" rx="18" ry="18" width="280" height="130" class="node node-cyan" />
+      <text x="62" y="154" class="node-title">1. Create the bot</text>
+      <text x="62" y="180" class="node-body">Use @BotFather → /newbot</text>
+      <text x="62" y="200" class="node-body">Save TELEGRAM_BOT_TOKEN</text>
+      <text x="62" y="220" class="node-body">Optional: set description, icon, commands</text>
+
+      <rect x="380" y="120" rx="18" ry="18" width="300" height="130" class="node node-emerald" />
+      <text x="402" y="154" class="node-title">2. Configure Hermes</text>
+      <text x="402" y="180" class="node-body">Add TELEGRAM_BOT_TOKEN to ~/.hermes/.env</text>
+      <text x="402" y="200" class="node-body">Set TELEGRAM_ALLOWED_USERS</text>
+      <text x="402" y="220" class="node-body">Optional: TELEGRAM_WEBHOOK_URL for cloud</text>
+
+      <rect x="740" y="120" rx="18" ry="18" width="280" height="130" class="node node-violet" />
+      <text x="762" y="154" class="node-title">3. Start the gateway</text>
+      <text x="762" y="180" class="node-body">hermes gateway setup</text>
+      <text x="762" y="200" class="node-body">hermes gateway start</text>
+      <text x="762" y="220" class="node-body">Verify bot replies in Telegram</text>
+
+      <rect x="1080" y="120" rx="18" ry="18" width="280" height="130" class="node node-amber" />
+      <text x="1102" y="154" class="node-title">4. Set the delivery target</text>
+      <text x="1102" y="180" class="node-body">DM the bot or open a group/topic</text>
+      <text x="1102" y="200" class="node-body">Run /sethome where results should land</text>
+      <text x="1102" y="220" class="node-body">Cron + send_message can now target Telegram</text>
+
+      <path d="M320 185 L380 185" class="arrow" />
+      <path d="M680 185 L740 185" class="arrow" />
+      <path d="M1020 185 L1080 185" class="arrow" />
+
+      <rect x="40" y="330" rx="22" ry="22" width="1320" height="600" fill="#07101d" stroke="#1e293b" stroke-width="1.5" />
+      <text x="64" y="366" class="node-title">Choose your topic model</text>
+      <text x="64" y="390" class="subtitle">Hermes supports two different ways to isolate Telegram conversations into parallel contexts.</text>
+
+      <rect x="70" y="430" rx="18" ry="18" width="580" height="430" class="node node-cyan" />
+      <text x="96" y="466" class="node-title">A. Operator-defined topics in config</text>
+      <text x="96" y="490" class="node-body">Use when you want stable named workspaces like Ops, Research, Sales.</text>
+
+      <rect x="96" y="520" rx="14" ry="14" width="250" height="94" class="pill" />
+      <text x="114" y="548" class="node-title" style="font-size:14px">DM topics</text>
+      <text x="114" y="570" class="node-body">extra.dm_topics</text>
+      <text x="114" y="590" class="node-body">Hermes can create private DM topics</text>
+
+      <rect x="376" y="520" rx="14" ry="14" width="250" height="94" class="pill" />
+      <text x="394" y="548" class="node-title" style="font-size:14px">Group forum topics</text>
+      <text x="394" y="570" class="node-body">extra.group_topics</text>
+      <text x="394" y="590" class="node-body">Admin creates topics, Hermes binds thread_id</text>
+
+      <path d="M221 614 L221 670" class="arrow" />
+      <path d="M501 614 L501 670" class="arrow" />
+
+      <rect x="96" y="680" rx="14" ry="14" width="530" height="150" class="pill" />
+      <text x="116" y="710" class="node-title" style="font-size:14px">Result</text>
+      <text x="116" y="736" class="node-body">• Fixed topic names controlled in config.yaml</text>
+      <text x="116" y="758" class="node-body">• Optional skill binding per topic</text>
+      <text x="116" y="780" class="node-body">• Each topic gets its own isolated session + history</text>
+      <text x="116" y="802" class="node-body">• Best for permanent workspaces</text>
+
+      <rect x="720" y="430" rx="18" ry="18" width="610" height="430" class="node node-violet" />
+      <text x="746" y="466" class="node-title">B. User-driven multi-session DM mode</text>
+      <text x="746" y="490" class="node-body">Use when the user wants to create and manage ad-hoc threads directly from Telegram.</text>
+
+      <rect x="746" y="520" rx="14" ry="14" width="250" height="94" class="pill" />
+      <text x="764" y="548" class="node-title" style="font-size:14px">Enable /topic mode</text>
+      <text x="764" y="570" class="node-body">Run /topic in the bot DM</text>
+      <text x="764" y="590" class="node-body">Root DM becomes a lobby</text>
+
+      <rect x="1050" y="520" rx="14" ry="14" width="250" height="94" class="pill" />
+      <text x="1068" y="548" class="node-title" style="font-size:14px">Create new work threads</text>
+      <text x="1068" y="570" class="node-body">Open “All Messages” / create topic</text>
+      <text x="1068" y="590" class="node-body">Each thread binds to its own session</text>
+
+      <path d="M996 567 L1050 567" class="arrow" />
+      <path d="M1024 614 L1024 670" class="arrow" />
+
+      <rect x="746" y="680" rx="14" ry="14" width="554" height="150" class="pill" />
+      <text x="766" y="710" class="node-title" style="font-size:14px">Result</text>
+      <text x="766" y="736" class="node-body">• Users create/delete topics themselves</text>
+      <text x="766" y="758" class="node-body">• Hermes auto-binds each topic to a session ID</text>
+      <text x="766" y="780" class="node-body">• /new inside a topic resets only that thread</text>
+      <text x="766" y="802" class="node-body">• Best for ad-hoc parallel conversations</text>
+
+      <rect x="1090" y="330" rx="16" ry="16" width="270" height="72" class="node node-rose" />
+      <text x="1112" y="360" class="node-title" style="font-size:14px">Group caveat</text>
+      <text x="1112" y="382" class="node-body">Disable privacy mode or make bot admin</text>
+
+      <text x="40" y="956" class="small">Docs sources: Hermes Telegram messaging docs, /topic docs, and environment variable reference.</text>
+    </svg>
+  </div>
+</body>
+</html>

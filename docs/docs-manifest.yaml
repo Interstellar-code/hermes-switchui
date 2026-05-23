@@ -109,6 +109,8 @@ pages:
     title: Use the Manifest provider to reduce LLM costs
   - slug: how-to/give-your-agent-long-term-memory-with-hindsight
     title: Give your agent long-term memory with Hindsight
+  - slug: how-to/connect-hermes-to-telegram-and-configure-topics
+    title: Connect Hermes to Telegram and configure topics
 
   # HELP
   - slug: help/docs
@@ -129,5 +131,7 @@ pages:
     title: Sessions stuck or missing
   - slug: troubleshooting/models
     title: Models not appearing
+  - slug: troubleshooting/telegram
+    title: Telegram bot or topics not working
   - slug: troubleshooting/crash-recovery
     title: Recovering after a crash
