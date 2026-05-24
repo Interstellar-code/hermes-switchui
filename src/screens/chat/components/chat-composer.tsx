@@ -972,12 +972,24 @@ function ChatComposerComponent({
   const profileActivateMutation = useMutation({
     mutationFn: activateProfile,
     onSuccess: async (_data, profileName) => {
+      // Issue #54 — invalidate every composer-facing cache touched by an
+      // active-profile change. `['profiles']` is a prefix that also covers
+      // `['profiles', 'composer']`, but `['dashboard', 'model-info']` and
+      // `['gateway-status', 'mode']` live under their own roots and need
+      // explicit invalidation, otherwise the composer can show stale model
+      // info for up to 30 seconds after switching profiles.
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['profiles'] }),
         queryClient.invalidateQueries({ queryKey: ['workspace'] }),
         queryClient.invalidateQueries({ queryKey: ['claude', 'models'] }),
         queryClient.invalidateQueries({
           queryKey: ['claude', 'session-status-model'],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ['dashboard', 'model-info'],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ['gateway-status', 'mode'],
         }),
       ])
       setIsProfileMenuOpen(false)
