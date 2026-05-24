@@ -413,14 +413,25 @@ export function readProfile(name: string): ProfileDetail {
   }
 }
 
-export function setActiveProfile(name: string): void {
+export type SetActiveProfileResult = {
+  profile: string
+  /**
+   * The Hermes Agent gateway loads its config at startup and does NOT
+   * hot-reload when `active_profile` changes. Callers must restart the
+   * gateway for the new profile to actually take effect — surface this
+   * in the UI rather than relying on the dev-only console warning below.
+   */
+  needsGatewayRestart: boolean
+}
+
+export function setActiveProfile(name: string): SetActiveProfileResult {
   const trimmed = name.trim()
   if (!trimmed) throw new Error('Profile name is required')
   // "default" means clear the active_profile file (revert to default)
   if (trimmed === 'default') {
     const activePath = getActiveProfilePath()
     if (fs.existsSync(activePath)) fs.unlinkSync(activePath)
-    return
+    return { profile: 'default', needsGatewayRestart: true }
   }
   // Activating a profile is a read operation — point `active_profile`
   // at an existing directory. Builtin profiles (neo/trinity/morpheus/
@@ -437,6 +448,7 @@ export function setActiveProfile(name: string): void {
       `[profiles] Active profile set to "${normalized}". Restart the Hermes Agent gateway for this profile switch to take effect.`,
     )
   }
+  return { profile: normalized, needsGatewayRestart: true }
 }
 
 export function createProfile(

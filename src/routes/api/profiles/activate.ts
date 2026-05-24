@@ -15,8 +15,12 @@ export const Route = createFileRoute('/api/profiles/activate')({
         if (csrfCheck) return csrfCheck
         try {
           const body = (await request.json()) as { name?: string }
-          setActiveProfile(body.name || '')
-          return json({ ok: true })
+          const result = setActiveProfile(body.name || '')
+          return json({
+            ok: true,
+            profile: result.profile,
+            needsGatewayRestart: result.needsGatewayRestart,
+          })
         } catch (error) {
           return json(
             {
