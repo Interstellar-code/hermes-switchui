@@ -375,15 +375,21 @@
     place-items: center;
     width: 22px;
     height: 22px;
+    margin-left: 6px;
     border-radius: 7px;
     color: var(--f-text-3);
     opacity: 0;
-    transition: all 0.14s ease;
+    pointer-events: none;
+    transition: opacity 0.14s ease, color 0.14s ease, background 0.14s ease;
   }
 
+  /* Sustained hover before revealing — accidental skim-overs don't expose
+     the delete target. Issue #51. */
   .files-tree-row:hover .row-delete,
   .files-tree-row .row-delete:focus-visible {
     opacity: 1;
+    pointer-events: auto;
+    transition-delay: 300ms;
   }
 
   .files-tree-row .row-delete:hover,
