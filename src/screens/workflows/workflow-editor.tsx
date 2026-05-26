@@ -100,9 +100,11 @@ function filePathFor(def: WorkflowDefinitionRow): string {
 
 /** Kahn's algorithm: returns map of nodeId -> {cx, cy} using horizontal depth layout */
 function computeLayout(
-  nodes: Array<WorkflowDagNode>,
-  edges: Array<[string, string]>,
+  nodes: Array<WorkflowDagNode> | null | undefined,
+  edges: Array<[string, string]> | null | undefined,
 ): Record<string, { cx: number; cy: number }> {
+  nodes = nodes ?? []
+  edges = edges ?? []
   const NODE_W = 190
   const NODE_H = 78
   const GAP_X = 72
@@ -350,7 +352,7 @@ function OverviewTab({
   }
   void safeEdges
 
-  const initials = parsed.name
+  const initials = (parsed.name ?? '')
     .split(' ')
     .map((w) => w[0])
     .join('')
@@ -490,8 +492,10 @@ function DagSvgTab({ parsed }: { parsed: ParsedWorkflow }) {
     cy: number
   } | null>(null)
 
+  const safeEdges = parsed.edges ?? []
+
   // Map backend nodes to WorkflowDagNode
-  const dagNodes: Array<WorkflowDagNode> = parsed.nodes.map((n) => ({
+  const dagNodes: Array<WorkflowDagNode> = (parsed.nodes ?? []).map((n) => ({
     id: n.id,
     label: n.label ?? n.id,
     type: (n.type ?? 'prompt') as NodeType,
@@ -543,7 +547,7 @@ function DagSvgTab({ parsed }: { parsed: ParsedWorkflow }) {
   const R = 12
   const PAD = 56
 
-  const posMap = computeLayout(dagNodes, parsed.edges)
+  const posMap = computeLayout(dagNodes, safeEdges)
 
   const allCx = Object.values(posMap).map((p) => p.cx)
   const allCy = Object.values(posMap).map((p) => p.cy)
@@ -562,7 +566,7 @@ function DagSvgTab({ parsed }: { parsed: ParsedWorkflow }) {
         </div>
         <div className="dag-canvas-stats">
           <span>{dagNodes.length} nodes</span>
-          <span>{parsed.edges.length} edges</span>
+          <span>{safeEdges.length} edges</span>
           <span>{hermesTaskCount} Hermes tasks</span>
           <span>edit mode later</span>
         </div>
@@ -630,7 +634,7 @@ function DagSvgTab({ parsed }: { parsed: ParsedWorkflow }) {
           <rect width={svgW} height={svgH} fill="url(#dag-grid)" />
 
           {/* edges */}
-          {parsed.edges.map(([a, b], i) => {
+          {safeEdges.map(([a, b], i) => {
             const s = posMap[a]
             const t = posMap[b]
             const sx = s.cx + W / 2
@@ -658,7 +662,7 @@ function DagSvgTab({ parsed }: { parsed: ParsedWorkflow }) {
             const isExpanded = expandedSubgraphs.has(n.id)
             // Count how many child nodes list this node as a dependency proxy
             const childCount = isSubgraph
-              ? parsed.edges.filter(([a]) => a === n.id).length
+              ? safeEdges.filter(([a]) => a === n.id).length
               : 0
 
             if (isSubgraph) {
@@ -938,7 +942,7 @@ function DagSvgTab({ parsed }: { parsed: ParsedWorkflow }) {
           .map((n) => {
             const pos = posMap[n.id]
             // Children: nodes that have an edge FROM this subgraph node
-            const childIds = parsed.edges
+            const childIds = safeEdges
               .filter(([a]) => a === n.id)
               .map(([, b]) => b)
             const childNodes = dagNodes.filter((c) => childIds.includes(c.id))
@@ -1106,13 +1110,13 @@ function WhenToUseTab({
             These are surfaced to the user during the plan phase when this
             workflow is proposed.
           </div>
-          {parsed.required_inputs.map((r) => (
+          {(parsed.required_inputs ?? []).map((r) => (
             <div key={r} className="input-row req">
               <span className="ir-name">{r}</span>
               <span className="ir-badge req">required</span>
             </div>
           ))}
-          {parsed.required_inputs.length === 0 && (
+          {(parsed.required_inputs ?? []).length === 0 && (
             <span className="pc-empty">No required inputs</span>
           )}
         </div>
