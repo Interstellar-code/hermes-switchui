@@ -1,5 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
+// NOTE: This route queries node_runs directly from the local SQLite file because
+// WorkflowEngineInterface has no cross-run "active nodes" query (listNodeRuns
+// requires a runId). When the plugin is the active backend this returns stale data.
+// Future fix: add listActiveNodeRuns() to WorkflowEngineInterface and use getEngine(request).
 import { openDb, defaultWorkflowDbPath } from '../../../server/workflow-engine/db/client'
 import { runMigrations } from '../../../server/workflow-engine/db/migrate'
 

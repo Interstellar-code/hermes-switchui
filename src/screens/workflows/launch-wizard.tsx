@@ -633,11 +633,18 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
     if (launchMutation.isPending) return
     const conversationId = crypto.randomUUID()
     const summary = userMessage || `Launch ${wf.name}`
+    // Build variables from required + optional inputs (placeholder values replaced
+    // by user-provided form values once a Step-2 input form is wired).
+    const variables: Record<string, string> = {}
+    for (const inp of [...wf.required_inputs, ...wf.optional_inputs]) {
+      variables[inp] = ''
+    }
     launchMutation.mutate(
       {
         workflow_id: wf.id,
         conversation_id: conversationId,
         user_message: summary,
+        variables: Object.keys(variables).length > 0 ? variables : undefined,
       },
       {
         onSuccess: (result) => {

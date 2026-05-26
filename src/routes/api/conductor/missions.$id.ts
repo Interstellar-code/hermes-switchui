@@ -15,7 +15,7 @@ export const Route = createFileRoute('/api/conductor/missions/$id')({
           return json({ error: 'id required' }, { status: 400 })
         }
         try {
-          const mission = await getMission(id)
+          const mission = await getMission(request, id)
           if (!mission) {
             return json({ error: 'Mission not found' }, { status: 404 })
           }
