@@ -1,5 +1,3 @@
-// Phase 2: WorkflowBackendToggle import removed — toggle no longer rendered.
-// Phase 3 will delete workflow-backend-toggle.tsx and workflow-backend-store.ts.
 
 interface WorkflowsTopBarProps {
   templateCount?: number

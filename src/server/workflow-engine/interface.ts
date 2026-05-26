@@ -1,17 +1,111 @@
 /**
- * WorkflowEngineInterface — the 18-method contract that both NativeEngine
- * (wrapping SwitchUiWorkflowStore) and PluginClient (fetching over HTTP) satisfy.
- *
- * Phase 4: factory.ts picks the implementation per-request based on the
- * X-Workflow-Backend header.
+ * WorkflowEngineInterface — contract implemented by PluginClient, which
+ * proxies workflow operations to the hermes-agent workflow-engine plugin.
  */
-import type {
-  WorkflowRun,
-  WorkflowDefinitionRow,
-  NodeRun,
-} from './store/types.js';
 
-export type { WorkflowRun, WorkflowDefinitionRow, NodeRun };
+export const WORKFLOW_RUN_STATUS = [
+  'pending',
+  'running',
+  'paused',
+  'completed',
+  'failed',
+  'cancelled',
+] as const;
+export type WorkflowRunStatus = (typeof WORKFLOW_RUN_STATUS)[number];
+
+export const NODE_RUN_STATUS = [
+  'pending',
+  'ready',
+  'running',
+  'paused',
+  'completed',
+  'failed',
+  'cancelled',
+  'skipped',
+] as const;
+export type NodeRunStatus = (typeof NODE_RUN_STATUS)[number];
+
+export const CURRENT_PHASE = ['plan', 'route', 'execute', 'review', 'report'] as const;
+export type CurrentPhase = (typeof CURRENT_PHASE)[number];
+export type Phase = CurrentPhase;
+
+export const VALID_TRANSITIONS: Record<Phase, Phase[]> = {
+  plan: ['route', 'execute'],
+  route: ['execute'],
+  execute: ['review', 'report'],
+  review: ['execute', 'report'],
+  report: [],
+};
+
+export interface WorkflowDefinitionRow {
+  id: string;
+  name: string;
+  description: string | null;
+  source: string;
+  scope_path: string | null;
+  yaml: string;
+  checksum: string;
+  version: string | null;
+  tags: string | null;
+  kind?: 'workflow' | 'subgraph';
+  created_at: number;
+  updated_at: number;
+  node_count?: number;
+  run_count?: number;
+  last_used_at?: number | null;
+}
+
+export interface WorkflowRun {
+  id: string;
+  workflow_id: string;
+  conversation_id: string;
+  parent_conversation_id?: string | null;
+  codebase_id?: string | null;
+  working_path: string;
+  user_message: string;
+  status: WorkflowRunStatus;
+  current_phase: CurrentPhase;
+  metadata?: Record<string, unknown> | null;
+  started_at: Date;
+  completed_at?: Date | null;
+  last_heartbeat: Date;
+  error?: string | null;
+}
+
+export interface NodeRun {
+  id: string;
+  workflow_run_id: string;
+  dag_node_id: string;
+  node_type: string;
+  depends_on?: string[] | null;
+  status: NodeRunStatus;
+  skip_reason?: string | null;
+  assigned_agent?: string | null;
+  agent_profile_hint?: string | null;
+  skills?: string[] | null;
+  model_hint?: string | null;
+  allowed_tools?: string[] | null;
+  denied_tools?: string[] | null;
+  kanban_task_id?: string | null;
+  retries: number;
+  max_retries: number;
+  retry_delay_ms: number;
+  retry_on_error: string;
+  started_at?: Date | null;
+  completed_at?: Date | null;
+  idle_timeout_ms?: number | null;
+  max_runtime_seconds?: number | null;
+  summary?: string | null;
+  error?: string | null;
+  artifact_refs?: Array<{ type: string; label: string; url?: string; path?: string }> | null;
+  loop_iteration?: number | null;
+  loop_parent_node_run_id?: string | null;
+  parent_subgraph_node_run_id?: string | null;
+  approval_message?: string | null;
+  approval_response?: string | null;
+  approval_target?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
 
 export interface TriggerInfo {
   kind: string;

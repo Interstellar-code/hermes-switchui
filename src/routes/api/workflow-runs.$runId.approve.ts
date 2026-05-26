@@ -9,8 +9,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { getEngine } from '../../server/workflow-engine/factory';
-// Phase 3 delete: import { launchWorkflowRun } from '../../server/workflow-engine/runtime';
-// Phase 3 delete: import type { ApprovalReceivedEvent } from '../../server/workflow-engine/emitter/event-emitter';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -54,12 +52,7 @@ export const Route = createFileRoute('/api/workflow-runs/$runId/approve')({
         const ifaceDecision = decision === 'approved' ? 'approve' : 'reject';
         await engine.approve(runId, node_run_id, ifaceDecision, approvalResponse || undefined);
         return json({ ok: true, decision, resumedRunId: runId });
-
-        /* Phase 3 delete — native approval path:
-        // Native path: full approval orchestration with store + emitter + launchWorkflowRun.
-        // See git history for full implementation.
-        */
-      },
+},
     },
   },
 });

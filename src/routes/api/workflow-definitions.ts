@@ -5,9 +5,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { getEngine } from '../../server/workflow-engine/factory';
-import { parseWorkflow } from '../../server/workflow-engine/discovery/loader';
-// Phase 3 delete: import { writeWorkflowsManifest } from '../../server/workflow-engine/runtime/manifest';
-// Phase 3 delete: import { createHash } from 'node:crypto';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -80,41 +77,22 @@ export const Route = createFileRoute('/api/workflow-definitions')({
         if (body.version !== undefined && typeof body.version !== 'string') {
           return json({ error: 'version must be a string when provided' }, 400);
         }
-        let tags: string[] | undefined;
         if (body.tags !== undefined) {
           if (!Array.isArray(body.tags) || !body.tags.every((t) => typeof t === 'string')) {
             return json({ error: 'tags must be a string[] when provided' }, 400);
           }
-          tags = body.tags as string[];
         }
 
-        // Parse-validate YAML before persisting so a malformed/bad-schema
-        // workflow can't poison the library page later (422 on /parsed read).
-        const validation = parseWorkflow(body.yaml, body.id);
-        if (validation.error !== null) {
-          return json(
-            {
-              error: validation.error.error,
-              errorType: validation.error.errorType,
-            },
-            422,
-          );
+        // Plugin parses and validates YAML server-side; surfaces 422-style
+        // errors through the HTTP response.
+        try {
+          const def = await engine.upsertDefinition(body.yaml, body.scope_path as string | undefined);
+          return json({ definition: def });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return json({ error: msg }, 422);
         }
-
-        // Phase 2: always plugin path.
-        const def = await engine.upsertDefinition(body.yaml, body.scope_path as string | undefined);
-        return json({ definition: def });
-
-        /* Phase 3 delete — native path kept for reference:
-        // Native path: rich upsert with checksum, tags, manifest refresh.
-        // const { getWorkflowEngine } = await import('../../server/workflow-engine/index.js');
-        // const { store } = await getWorkflowEngine();
-        // const checksum = createHash('sha256').update(body.yaml.replace(/\r\n/g, '\n')).digest('hex');
-        // store.upsertWorkflowDefinition({ id: body.id, name: body.name, ... });
-        // writeWorkflowsManifest({ store });
-        // return json({ definition: store.getWorkflowDefinition(body.id) });
-        */
-      },
+},
     },
   },
 });
