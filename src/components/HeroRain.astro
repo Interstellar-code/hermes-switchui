@@ -26,13 +26,17 @@
         HERMES SWITCH UI
       </div>
       <h1 id="hero-h1">
-        YOUR AGENTS.<br/>
-        <span class="accent" id="hero-accent">ONE WORKSPACE.</span>
+        WELCOME TO<br/>
+        <span class="accent" id="hero-accent">HERMES SWITCH UI</span>
       </h1>
       <p class="hero-sub">
-        The terminal-native AI workspace where agents think, tools execute, and you stay in control.
-        Open source. Self-hosted. Agent-native.
+        A browser-based shell for the Hermes Agent runtime — chat, sessions, files, terminals, and more, all running on your own machine.
       </p>
+      <div style="margin-bottom: 24px;">
+        <span class="badge-pill" style="border-color: rgba(0, 255, 65, 0.4); color: #fff; background: rgba(0, 255, 65, 0.08); font-size: 11px;">
+          New here? Start with <strong>Your first chat</strong> — it gets you sending prompts in five minutes.
+        </span>
+      </div>
       <div class="hero-badges">
         <a href="https://github.com/nousresearch/hermes-agent" target="_blank" rel="noopener" class="badge-gh" id="hero-gh-badge">
           <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
@@ -150,18 +154,12 @@
           if (isHead) {
             // White glowing leading character
             ctx.fillStyle = `rgba(235, 255, 240, ${s.opacity * 2.5})`;
-            if (s.glow) {
-              ctx.shadowColor = G;
-              ctx.shadowBlur = 10;
-            }
           } else if (isSubHead) {
             // Bright primary green
             ctx.fillStyle = `rgba(0, 255, 65, ${s.opacity * 1.8})`;
-            ctx.shadowBlur = 0;
           } else {
             // Fading trail
             ctx.fillStyle = `rgba(0, 180, 50, ${s.opacity * fraction})`;
-            ctx.shadowBlur = 0;
           }
 
           ctx.fillText(s.chars[j], s.x, charY);
@@ -262,14 +260,6 @@
       heroHeadline.classList.add('visible');
     }, 6300);
 
-    // Glitch effect
-    setTimeout(() => {
-      const h1 = document.getElementById('hero-h1');
-      if (h1) {
-        h1.classList.add('glitch');
-        setTimeout(() => h1.classList.remove('glitch'), 400);
-      }
-    }, 6700);
   }
 
   // ── GitHub stars (hero badge) ─────────────────────────────────

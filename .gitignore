@@ -8,3 +8,7 @@ node_modules/
 # OS Metadata
 .DS_Store
 Thumbs.db
+
+# Archives
+*.zip
+
