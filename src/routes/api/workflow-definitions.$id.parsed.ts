@@ -57,6 +57,68 @@ function configPreview(node: RawNode): string {
   return str.length > 200 ? str.slice(0, 200) + '…' : str
 }
 
+/**
+ * Permissive extraction of required_inputs / optional_inputs from a parsed YAML doc.
+ * Supports three shapes:
+ *   1) top-level required_inputs / optional_inputs string arrays
+ *   2) doc.inputs as array of { name, required? } objects
+ *   3) doc.inputs as object keyed by name with { required? } values
+ */
+function parseInputs(doc: {
+  inputs?: unknown
+  required_inputs?: unknown
+  optional_inputs?: unknown
+}): { required_inputs: Array<string>; optional_inputs: Array<string> } {
+  // Shape 1: top-level string arrays
+  if (
+    Array.isArray(doc.required_inputs) ||
+    Array.isArray(doc.optional_inputs)
+  ) {
+    const req = Array.isArray(doc.required_inputs)
+      ? (doc.required_inputs as unknown[]).filter((s): s is string => typeof s === 'string')
+      : []
+    const opt = Array.isArray(doc.optional_inputs)
+      ? (doc.optional_inputs as unknown[]).filter((s): s is string => typeof s === 'string')
+      : []
+    return { required_inputs: req, optional_inputs: opt }
+  }
+
+  // Shape 2: inputs array
+  if (Array.isArray(doc.inputs)) {
+    const req: string[] = []
+    const opt: string[] = []
+    for (const item of doc.inputs as unknown[]) {
+      if (!item || typeof item !== 'object') continue
+      const entry = item as Record<string, unknown>
+      const name = typeof entry['name'] === 'string' ? entry['name'] : null
+      if (!name) continue
+      if (entry['required'] === false || entry['required'] === 'false') {
+        opt.push(name)
+      } else {
+        req.push(name)
+      }
+    }
+    return { required_inputs: req, optional_inputs: opt }
+  }
+
+  // Shape 3: inputs object { key: { required? } }
+  if (doc.inputs && typeof doc.inputs === 'object' && !Array.isArray(doc.inputs)) {
+    const req: string[] = []
+    const opt: string[] = []
+    for (const [key, val] of Object.entries(doc.inputs as Record<string, unknown>)) {
+      const entry = val && typeof val === 'object' ? (val as Record<string, unknown>) : {}
+      if (entry['required'] === false || entry['required'] === 'false') {
+        opt.push(key)
+      } else {
+        req.push(key)
+      }
+    }
+    return { required_inputs: req, optional_inputs: opt }
+  }
+
+  return { required_inputs: [], optional_inputs: [] }
+}
+
 export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
   server: {
     handlers: {
@@ -77,7 +139,14 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
           })
         }
 
-        let doc: { name?: string; description?: string; nodes?: RawNode[] }
+        let doc: {
+          name?: string
+          description?: string
+          nodes?: RawNode[]
+          inputs?: unknown
+          required_inputs?: unknown
+          optional_inputs?: unknown
+        }
         try {
           doc = parseYaml(def.yaml) ?? {}
         } catch (err) {
@@ -178,8 +247,7 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
             node_count: nodes.length,
             has_loop: nodes.some((n) => Boolean(n['loop'])),
             has_approval: nodes.some((n) => Boolean(n['approval'])),
-            required_inputs: [] as Array<string>,
-            optional_inputs: [] as Array<string>,
+            ...parseInputs(doc),
           },
         }
         return new Response(JSON.stringify(payload), {

@@ -272,8 +272,8 @@ describe('PluginClient.listPhaseTransitions', () => {
 describe('PluginClient.tryClaimApprovalForResume', () => {
   it('calls POST /runs/.../approval-claim with correct body', async () => {
     fetchMock.mockResolvedValue(fakeResponse({ claimed: true, terminalStatus: 'completed' }));
-    const result = await client.tryClaimApprovalForResume('nr-1', 'approved', 'lgtm');
-    expect(lastUrl()).toContain('approval-claim');
+    const result = await client.tryClaimApprovalForResume('run-42', 'nr-1', 'approved', 'lgtm');
+    expect(lastUrl()).toContain('/runs/run-42/approval-claim');
     const body = JSON.parse(lastInit()?.body as string);
     expect(body.nodeRunId).toBe('nr-1');
     expect(body.decision).toBe('approved');

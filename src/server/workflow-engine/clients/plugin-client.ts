@@ -252,13 +252,14 @@ export class PluginClient implements WorkflowEngineInterface {
   }
 
   async tryClaimApprovalForResume(
+    runId: string,
     nodeRunId: string,
     decision: 'approved' | 'rejected',
     approvalResponse: string,
   ): Promise<ApprovalClaimResult> {
     return _send<ApprovalClaimResult>(
       'POST',
-      `/runs/${encodeURIComponent('')}/approval-claim`,
+      `/runs/${encodeURIComponent(runId)}/approval-claim`,
       {
         nodeRunId,
         decision,

@@ -12,7 +12,7 @@ export const Route = createFileRoute('/api/conductor/missions')({
           return json({ error: 'Unauthorized' }, { status: 401 })
         }
         try {
-          const missions = await listMissions()
+          const missions = await listMissions(request)
           return json(missions)
         } catch (error) {
           return json(

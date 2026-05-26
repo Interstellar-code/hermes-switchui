@@ -11,7 +11,7 @@ export const Route = createFileRoute('/api/conductor/state')({
           return json({ error: 'Unauthorized' }, { status: 401 })
         }
         try {
-          const state = await getConductorState()
+          const state = await getConductorState(request)
           return json(state)
         } catch (error) {
           return json(

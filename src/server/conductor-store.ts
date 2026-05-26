@@ -4,10 +4,14 @@
  * Each workflow_run row is projected to a Mission on-the-fly.
  * No file-backed seed data. createMission returns 501 (use /workflows).
  * abortMission returns 501 (engine abort not yet wired).
+ *
+ * NOTE: Previously read workflow_runs directly from the local SQLite file,
+ * which caused split-brain when the workflow-engine plugin owns the DB.
+ * Now delegates to getEngine(request) so plugin-backed deployments see live data.
  */
 
-import { openDb, defaultWorkflowDbPath } from './workflow-engine/db/client'
-import { runMigrations } from './workflow-engine/db/migrate'
+import { getEngine } from './workflow-engine/factory'
+import type { WorkflowRun } from './workflow-engine/interface'
 
 export interface Mission {
   id: string
@@ -63,91 +67,64 @@ function mapStatus(runStatus: string): Mission['status'] {
   return 'done'
 }
 
-interface WorkflowRunRow {
-  id: string
-  workflow_id: string
-  status: string
-  started_at: number
-  completed_at: number | null
-  user_message: string
-  current_phase: string
+function toMs(d: Date | number | undefined | null): number {
+  if (d == null) return Date.now()
+  return d instanceof Date ? d.getTime() : (d as number)
 }
 
-function rowToMission(row: WorkflowRunRow): Mission {
+function runToMission(run: WorkflowRun): Mission {
   const now = Date.now()
-  const status = mapStatus(row.status)
+  const status = mapStatus(run.status)
+  const startedAtMs = toMs(run.started_at)
+  const completedAtMs = run.completed_at != null ? toMs(run.completed_at) : null
 
   let elapsedMs: number
   if (status === 'live') {
-    elapsedMs = now - row.started_at
-  } else if (row.completed_at != null) {
-    elapsedMs = row.completed_at - row.started_at
+    elapsedMs = now - startedAtMs
+  } else if (completedAtMs != null) {
+    elapsedMs = completedAtMs - startedAtMs
   } else {
-    elapsedMs = now - row.started_at
+    elapsedMs = now - startedAtMs
   }
 
   // TODO: token_usage not yet in workflow_runs schema
   const tokens = '—'
 
   // Build a human subtitle from phase + workflow id
-  const subtitle = `${row.workflow_id} · ${row.current_phase}`
+  const subtitle = `${run.workflow_id} · ${run.current_phase}`
 
   return {
-    id: row.id,
-    title: row.workflow_id,
+    id: run.id,
+    title: run.workflow_id,
     subtitle,
     status,
     elapsed: formatElapsed(elapsedMs),
     tokens,
     action: deriveAction(status),
-    dayGroup: computeDayGroup(row.started_at),
-    createdAt: row.started_at,
+    dayGroup: computeDayGroup(startedAtMs),
+    createdAt: startedAtMs,
   }
-}
-
-// Ensure DB is open and migrated. Lazy-init on first call.
-let _dbReady = false
-function ensureDb() {
-  const db = openDb(defaultWorkflowDbPath())
-  if (!_dbReady) {
-    runMigrations(db)
-    _dbReady = true
-  }
-  return db
 }
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export async function listMissions(): Promise<Array<Mission>> {
+export async function listMissions(request: Request): Promise<Array<Mission>> {
   try {
-    const db = ensureDb()
-    const rows = db
-      .prepare<[], WorkflowRunRow>(
-        `SELECT id, workflow_id, status, started_at, completed_at, user_message, current_phase
-         FROM workflow_runs
-         ORDER BY started_at DESC
-         LIMIT 200`,
-      )
-      .all()
-    return rows.map(rowToMission)
+    const engine = getEngine(request)
+    const runs = await engine.listRuns({ limit: 200 })
+    return runs.map(runToMission)
   } catch {
     return []
   }
 }
 
-export async function getMission(id: string): Promise<Mission | null> {
+export async function getMission(request: Request, id: string): Promise<Mission | null> {
   try {
-    const db = ensureDb()
-    const row = db
-      .prepare<[string], WorkflowRunRow>(
-        `SELECT id, workflow_id, status, started_at, completed_at, user_message, current_phase
-         FROM workflow_runs
-         WHERE id = ?`,
-      )
-      .get(id)
-    return row ? rowToMission(row) : null
+    const engine = getEngine(request)
+    const run = await engine.getRun(id)
+    return run ? runToMission(run) : null
   } catch {
     return null
   }
@@ -156,69 +133,20 @@ export async function getMission(id: string): Promise<Mission | null> {
 export async function createMission(_input: {
   title: string
   subtitle?: string
-}): Promise<never> {
-  // Missions are created by dispatching a workflow from the /workflows page.
-  const err = Object.assign(
-    new Error('Create workflows from /workflows page'),
-    { statusCode: 501 },
-  )
-  throw err
-}
-
-export async function abortMission(_id: string): Promise<never> {
-  // TODO: wire to engine abort API when available
-  const err = Object.assign(new Error('Abort not yet supported'), {
-    statusCode: 501,
+}): Promise<Mission> {
+  throw Object.assign(new Error('createMission: use /api/workflow-runs to start a run'), {
+    status: 501,
   })
-  throw err
 }
 
-export async function getConductorState(): Promise<{
-  liveMissions: number
-  elapsed: string
-  workersActive: number
-  tokensUsed: string
+export async function abortMission(_id: string): Promise<void> {
+  throw Object.assign(new Error('abortMission: engine abort not yet wired'), {
+    status: 501,
+  })
+}
+
+export async function getConductorState(_request: Request): Promise<{
+  missions: Array<Mission>
 }> {
-  try {
-    const db = ensureDb()
-
-    // Live workflow_runs
-    const liveRows = db
-      .prepare<[], WorkflowRunRow>(
-        `SELECT id, workflow_id, status, started_at, completed_at, user_message, current_phase
-         FROM workflow_runs
-         WHERE status = 'running'
-         ORDER BY started_at ASC`,
-      )
-      .all()
-
-    // Active node_runs count (real "workers" — DAG nodes currently executing)
-    const activeNodesRow = db
-      .prepare<[], { c: number }>(
-        `SELECT COUNT(*) as c FROM node_runs WHERE status = 'running'`,
-      )
-      .get()
-    const workersActive = activeNodesRow?.c ?? 0
-
-    let elapsed = '00:00'
-    if (liveRows.length > 0) {
-      const oldest = liveRows[0]! // ORDER BY started_at ASC → first is oldest
-      elapsed = formatElapsed(Date.now() - oldest.started_at)
-    }
-
-    return {
-      liveMissions: liveRows.length,
-      elapsed,
-      workersActive,
-      // TODO: token_usage column not yet in workflow_runs schema
-      tokensUsed: '—',
-    }
-  } catch {
-    return {
-      liveMissions: 0,
-      elapsed: '00:00',
-      workersActive: 0,
-      tokensUsed: '—',
-    }
-  }
+  return { missions: [] }
 }

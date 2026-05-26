@@ -189,6 +189,7 @@ export interface WorkflowEngineInterface {
     comment?: string,
   ): Promise<void>;
   tryClaimApprovalForResume(
+    runId: string,
     nodeRunId: string,
     decision: 'approved' | 'rejected',
     approvalResponse: string,

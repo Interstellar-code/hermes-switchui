@@ -5,6 +5,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { getEngine } from '../../server/workflow-engine/factory';
+import { summariseWorkflowYaml } from '../../server/workflow-yaml-summary';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -24,7 +25,11 @@ export const Route = createFileRoute('/api/workflow-definitions')({
         const source = url.searchParams.get('source') as
           | 'bundled' | 'user' | 'project' | null;
         const defs = await engine.listDefinitions(source ? { source } : undefined);
-        return json({ definitions: defs });
+        const enriched = defs.map((def) => ({
+          ...def,
+          ...summariseWorkflowYaml(def.yaml ?? ''),
+        }));
+        return json({ definitions: enriched });
       },
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
