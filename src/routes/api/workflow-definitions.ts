@@ -4,7 +4,6 @@
  */
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
-import { getWorkflowEngine } from '../../server/workflow-engine';
 import { getEngine } from '../../server/workflow-engine/factory';
 import { parseWorkflow } from '../../server/workflow-engine/discovery/loader';
 import { writeWorkflowsManifest } from '../../server/workflow-engine/runtime/manifest';
@@ -34,7 +33,7 @@ export const Route = createFileRoute('/api/workflow-definitions')({
       },
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
-        const { store } = await getWorkflowEngine();
+        const engine = getEngine(request);
         const body = (await request.json()) as {
           id?: unknown;
           name?: unknown;
@@ -104,6 +103,15 @@ export const Route = createFileRoute('/api/workflow-definitions')({
           );
         }
 
+        const backend = request.headers.get('X-Workflow-Backend') ?? 'native';
+        if (backend === 'plugin') {
+          const def = await engine.upsertDefinition(body.yaml, body.scope_path as string | undefined);
+          return json({ definition: def });
+        }
+
+        // Native path: rich upsert with checksum, tags, manifest refresh.
+        const { getWorkflowEngine } = await import('../../server/workflow-engine/index.js');
+        const { store } = await getWorkflowEngine();
         const checksum = createHash('sha256').update(body.yaml.replace(/\r\n/g, '\n')).digest('hex');
         store.upsertWorkflowDefinition({
           id: body.id,

@@ -12,7 +12,7 @@
  */
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
-import { getWorkflowEngine } from '../../server/workflow-engine'
+import { getEngine } from '../../server/workflow-engine/factory'
 import { parseWorkflow } from '../../server/workflow-engine/discovery/loader'
 import {
   isApprovalNode,
@@ -80,8 +80,8 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
         if (!isAuthenticated(request))
           return json({ error: 'Unauthorized' }, 401)
 
-        const { store } = await getWorkflowEngine()
-        const def = store.getWorkflowDefinition(params.id)
+        const engine = getEngine(request)
+        const def = await engine.getDefinition(params.id)
         if (!def) return json({ error: 'not found' }, 404)
 
         // Codex Bundle 5 Q6 — ETag based on YAML checksum lets the UI's

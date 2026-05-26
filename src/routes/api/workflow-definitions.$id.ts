@@ -4,7 +4,7 @@
  */
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
-import { getWorkflowEngine } from '../../server/workflow-engine';
+import { getEngine } from '../../server/workflow-engine/factory';
 import { writeWorkflowsManifest } from '../../server/workflow-engine/runtime/manifest';
 
 function json(body: unknown, status = 200): Response {
@@ -19,25 +19,31 @@ export const Route = createFileRoute('/api/workflow-definitions/$id')({
     handlers: {
       GET: async ({ request, params }) => {
         if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
-        const { store } = await getWorkflowEngine();
-        const def = store.getWorkflowDefinition(params.id);
+        const engine = getEngine(request);
+        const def = await engine.getDefinition(params.id);
         if (!def) return json({ error: 'not found' }, 404);
         return json({ definition: def });
       },
       DELETE: async ({ request, params }) => {
         if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
-        const { store } = await getWorkflowEngine();
-        const existing = store.getWorkflowDefinition(params.id);
+        const engine = getEngine(request);
+        const existing = await engine.getDefinition(params.id);
         if (!existing) return json({ error: 'not found' }, 404);
         if (existing.source === 'bundled') {
           return json({ error: 'bundled definitions are read-only' }, 403);
         }
-        const rowsAffected = store.deleteWorkflowDefinition(params.id);
+        const rowsAffected = await engine.deleteWorkflowDefinition(params.id);
         if (rowsAffected === 0) return json({ error: 'not found' }, 404);
-        try {
-          writeWorkflowsManifest({ store });
-        } catch (err) {
-          console.error('[workflow-definitions] manifest refresh failed after delete:', err);
+        // Only refresh native manifest on native path; plugin manages its own state.
+        const backend = request.headers.get('X-Workflow-Backend') ?? 'native';
+        if (backend !== 'plugin') {
+          const { getWorkflowEngine } = await import('../../server/workflow-engine/index.js');
+          try {
+            const { store } = await getWorkflowEngine();
+            writeWorkflowsManifest({ store });
+          } catch (err) {
+            console.error('[workflow-definitions] manifest refresh failed after delete:', err);
+          }
         }
         return json({ ok: true });
       },

@@ -4,7 +4,7 @@
  */
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
-import { getWorkflowEngine } from '../../server/workflow-engine';
+import { getEngine } from '../../server/workflow-engine/factory';
 import { launchWorkflowRun } from '../../server/workflow-engine/runtime';
 
 function json(body: unknown, status = 200): Response {
@@ -19,12 +19,21 @@ export const Route = createFileRoute('/api/workflow-runs')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
-        const { store } = await getWorkflowEngine();
+        const engine = getEngine(request);
         const url = new URL(request.url);
         const workflowId = url.searchParams.get('workflow_id');
+
+        const backend = request.headers.get('X-Workflow-Backend') ?? 'native';
+        if (backend === 'plugin') {
+          const runs = await engine.listRuns({ workflowId: workflowId ?? undefined });
+          return json({ runs });
+        }
+
+        // Native path: supports ?status= CSV filter not on WorkflowEngineInterface.
+        const { getWorkflowEngine } = await import('../../server/workflow-engine/index.js');
+        const { store } = await getWorkflowEngine();
         const statusCsv = url.searchParams.get('status');
         const statuses = statusCsv ? statusCsv.split(',') : null;
-
         const rows = store.listWorkflowRuns({
           workflowId: workflowId ?? undefined,
           statuses: statuses ?? undefined,
@@ -33,8 +42,7 @@ export const Route = createFileRoute('/api/workflow-runs')({
       },
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
-        const engine = await getWorkflowEngine();
-        const { store } = engine;
+        const engine = getEngine(request);
         const body = (await request.json()) as {
           workflow_id: string;
           conversation_id: string;
@@ -62,6 +70,28 @@ export const Route = createFileRoute('/api/workflow-runs')({
             return json({ error: 'working_path must be an absolute path with no .. segments' }, 400);
           }
         }
+
+        const backend = request.headers.get('X-Workflow-Backend') ?? 'native';
+        if (backend === 'plugin') {
+          const run = await engine.startRun(
+            body.workflow_id,
+            body.variables ?? {},
+            {
+              kind: 'manual',
+              conversation_id: body.conversation_id,
+              working_path: body.working_path,
+              user_message: body.user_message,
+              parent_conversation_id: body.parent_conversation_id,
+              codebase_id: body.codebase_id,
+            },
+          );
+          return json({ run }, 201);
+        }
+
+        // Native path: full orchestration with store + launchWorkflowRun.
+        const { getWorkflowEngine } = await import('../../server/workflow-engine/index.js');
+        const nativeEngine = await getWorkflowEngine();
+        const { store } = nativeEngine;
 
         // Definition must exist (FK on workflow_runs.workflow_id).
         const def = store.getWorkflowDefinition(body.workflow_id);
@@ -98,7 +128,7 @@ export const Route = createFileRoute('/api/workflow-runs')({
 
         // A.8: kick off the 5-phase orchestration wrapper (fire-and-forget).
         // launchWorkflowRun returns immediately; the DAG runs async.
-        void launchWorkflowRun(engine, {
+        void launchWorkflowRun(nativeEngine, {
           runId: run.id,
           workflowYaml: def.yaml,
           workflowId: body.workflow_id,

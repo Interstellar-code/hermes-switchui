@@ -148,9 +148,8 @@ export function RunDetailPanel({ runId, onClose }: Props) {
     new Set(),
   )
 
-  // SSE feed — conversation_id comes from the run once loaded
-  const conversationId = data?.run.conversation_id ?? null
-  const { events: sseEvents } = useWorkflowEvents(conversationId)
+  // SSE feed — subscribe by runId so both native and plugin paths work
+  const { events: sseEvents } = useWorkflowEvents(runId)
 
   // Build tree: placeholder rows (no parent) + map from placeholder id → children.
   // Hook must run on every render so it stays above the early returns below.
@@ -554,13 +553,13 @@ export function RunDetailPanel({ runId, onClose }: Props) {
         <section className="wfrd-section">
           <div className="wfrd-section-title">
             Live Events{' '}
-            {conversationId && <span className="wfrd-phase-pill">SSE</span>}
+            {runId && <span className="wfrd-phase-pill">SSE</span>}
           </div>
           {last20Events.length === 0 ? (
             <div className="wfrd-empty">
-              {conversationId
+              {runId
                 ? 'Waiting for events…'
-                : 'No conversation ID yet.'}
+                : 'No run ID yet.'}
             </div>
           ) : (
             <ol className="wfrd-events-list">

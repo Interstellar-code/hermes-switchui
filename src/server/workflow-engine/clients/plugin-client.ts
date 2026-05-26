@@ -160,7 +160,7 @@ export class PluginClient implements WorkflowEngineInterface {
   }
 
   async cancelRun(runId: string): Promise<void> {
-    await _send('POST', `/runs/${encodeURIComponent(runId)}?action=cancel`);
+    await _send('POST', `/runs/${encodeURIComponent(runId)}/cancel`);
   }
 
   async resumeWorkflowRun(id: string): Promise<WorkflowRun> {
@@ -240,14 +240,12 @@ export class PluginClient implements WorkflowEngineInterface {
 
   async approve(
     runId: string,
-    nodeId: string,
+    nodeRunId: string,
     decision: 'approve' | 'reject',
     comment?: string,
   ): Promise<void> {
-    // The plugin /approve endpoint expects node_run_id not dag_node_id.
-    // For compatibility, find the node_run first via nodeId as dag_node_id lookup.
     await _send('POST', `/runs/${encodeURIComponent(runId)}/approve`, {
-      node_run_id: nodeId,
+      node_run_id: nodeRunId,
       decision: decision === 'approve' ? 'approved' : 'rejected',
       response: comment,
     });
