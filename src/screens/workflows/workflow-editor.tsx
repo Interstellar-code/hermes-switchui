@@ -336,14 +336,19 @@ function OverviewTab({
   def: WorkflowDefinitionRow
   parsed: ParsedWorkflow
 }) {
+  const safeNodes = parsed.nodes ?? []
+  const safeRequired = parsed.required_inputs ?? []
+  const safeOptional = parsed.optional_inputs ?? []
+  const safeEdges = parsed.edges ?? []
   const nodeBreakdown: Record<string, number> = {}
-  for (const n of parsed.nodes) {
+  for (const n of safeNodes) {
     const t = n.type ?? 'prompt'
     nodeBreakdown[t] = (nodeBreakdown[t] ?? 0) + 1
   }
-  if (parsed.nodes.length === 0) {
-    nodeBreakdown['prompt'] = parsed.node_count
+  if (safeNodes.length === 0) {
+    nodeBreakdown['prompt'] = parsed.node_count ?? 0
   }
+  void safeEdges
 
   const initials = parsed.name
     .split(' ')
@@ -374,8 +379,8 @@ function OverviewTab({
       <div className="ov-stat-row">
         {(
           [
-            ['Nodes', parsed.node_count],
-            ['Inputs', parsed.required_inputs.length],
+            ['Nodes', parsed.node_count ?? safeNodes.length],
+            ['Inputs', safeRequired.length],
           ] as const
         ).map(([label, value]) => (
           <div key={label} className="ov-stat">
@@ -392,22 +397,21 @@ function OverviewTab({
       <div className="panel-card">
         <div className="pc-head">Inputs</div>
         <div className="pc-body">
-          {parsed.required_inputs.map((r) => (
+          {safeRequired.map((r) => (
             <div key={r} className="input-row req">
               <span className="ir-name">{r}</span>
               <span className="ir-badge req">required</span>
             </div>
           ))}
-          {parsed.optional_inputs.map((o) => (
+          {safeOptional.map((o) => (
             <div key={o} className="input-row">
               <span className="ir-name">{o}</span>
               <span className="ir-badge">optional</span>
             </div>
           ))}
-          {parsed.required_inputs.length === 0 &&
-            parsed.optional_inputs.length === 0 && (
-              <span className="pc-empty">No inputs defined</span>
-            )}
+          {safeRequired.length === 0 && safeOptional.length === 0 && (
+            <span className="pc-empty">No inputs defined</span>
+          )}
         </div>
       </div>
 
