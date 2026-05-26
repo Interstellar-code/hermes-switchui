@@ -5,7 +5,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { getEngine } from '../../server/workflow-engine/factory';
-import { launchWorkflowRun } from '../../server/workflow-engine/runtime';
+// Phase 3 delete: import { launchWorkflowRun } from '../../server/workflow-engine/runtime';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -23,13 +23,11 @@ export const Route = createFileRoute('/api/workflow-runs')({
         const url = new URL(request.url);
         const workflowId = url.searchParams.get('workflow_id');
 
-        const backend = request.headers.get('X-Workflow-Backend') ?? 'native';
-        if (backend === 'plugin') {
-          const runs = await engine.listRuns({ workflowId: workflowId ?? undefined });
-          return json({ runs });
-        }
+        // Phase 2: always plugin path.
+        const runs = await engine.listRuns({ workflowId: workflowId ?? undefined });
+        return json({ runs });
 
-        // Native path: supports ?status= CSV filter not on WorkflowEngineInterface.
+        /* Phase 3 delete — native path kept compilable:
         const { getWorkflowEngine } = await import('../../server/workflow-engine/index.js');
         const { store } = await getWorkflowEngine();
         const statusCsv = url.searchParams.get('status');
@@ -39,6 +37,7 @@ export const Route = createFileRoute('/api/workflow-runs')({
           statuses: statuses ?? undefined,
         });
         return json({ runs: rows });
+        */
       },
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
@@ -71,76 +70,41 @@ export const Route = createFileRoute('/api/workflow-runs')({
           }
         }
 
-        const backend = request.headers.get('X-Workflow-Backend') ?? 'native';
-        if (backend === 'plugin') {
-          const run = await engine.startRun(
-            body.workflow_id,
-            body.variables ?? {},
-            {
-              kind: 'manual',
-              conversation_id: body.conversation_id,
-              working_path: body.working_path,
-              user_message: body.user_message,
-              parent_conversation_id: body.parent_conversation_id,
-              codebase_id: body.codebase_id,
-            },
-          );
-          return json({ run }, 201);
-        }
-
-        // Native path: full orchestration with store + launchWorkflowRun.
-        const { getWorkflowEngine } = await import('../../server/workflow-engine/index.js');
-        const nativeEngine = await getWorkflowEngine();
-        const { store } = nativeEngine;
-
-        // Definition must exist (FK on workflow_runs.workflow_id).
-        const def = store.getWorkflowDefinition(body.workflow_id);
-        if (!def) return json({ error: `unknown workflow_id '${body.workflow_id}'` }, 404);
-
-        // Conversation-id collision guard (Bundle 5 Q4 + Bundle 4 cron dedup).
-        if (store.findRunByConversationId?.(body.conversation_id)) {
-          return json(
-            { error: 'a workflow run with this conversation_id already exists' },
-            409,
-          );
-        }
-
-        // Split-brain guard: refuse if an active run already owns this working_path.
-        if (body.working_path) {
-          const active = await store.getActiveWorkflowRunByPath(body.working_path);
-          if (active) {
-            return json(
-              { error: 'an active workflow run already exists for this working_path', activeRunId: active.id },
-              409,
-            );
-          }
-        }
-
-        const run = await store.createWorkflowRun({
-          workflow_name: body.workflow_id,
-          conversation_id: body.conversation_id,
-          working_path: body.working_path,
-          user_message: body.user_message,
-          metadata: body.variables ? { variables: body.variables } : undefined,
-          parent_conversation_id: body.parent_conversation_id,
-          codebase_id: body.codebase_id,
-        });
-
-        // A.8: kick off the 5-phase orchestration wrapper (fire-and-forget).
-        // launchWorkflowRun returns immediately; the DAG runs async.
-        void launchWorkflowRun(nativeEngine, {
-          runId: run.id,
-          workflowYaml: def.yaml,
-          workflowId: body.workflow_id,
-          conversationId: body.conversation_id,
-          cwd: body.working_path ?? process.cwd(),
-          userMessage: body.user_message,
-          conversationDbId: body.conversation_id,
-          codebaseId: body.codebase_id,
-          parentConversationId: body.parent_conversation_id,
-        });
-
+        // Phase 2: always plugin path.
+        const run = await engine.startRun(
+          body.workflow_id,
+          body.variables ?? {},
+          {
+            kind: 'manual',
+            conversation_id: body.conversation_id,
+            working_path: body.working_path,
+            user_message: body.user_message,
+            parent_conversation_id: body.parent_conversation_id,
+            codebase_id: body.codebase_id,
+          },
+        );
         return json({ run }, 201);
+
+        /* Phase 3 delete — native path kept for reference:
+        // Native path: full orchestration with store + launchWorkflowRun.
+        // const { getWorkflowEngine } = await import('../../server/workflow-engine/index.js');
+        // const nativeEngine = await getWorkflowEngine();
+        // const { store } = nativeEngine;
+        // const def = store.getWorkflowDefinition(body.workflow_id);
+        // if (!def) return json({ error: `unknown workflow_id '${body.workflow_id}'` }, 404);
+        // if (store.findRunByConversationId?.(body.conversation_id)) {
+        //   return json({ error: 'a workflow run with this conversation_id already exists' }, 409);
+        // }
+        // if (body.working_path) {
+        //   const active = await store.getActiveWorkflowRunByPath(body.working_path);
+        //   if (active) {
+        //     return json({ error: 'an active workflow run already exists for this working_path', activeRunId: active.id }, 409);
+        //   }
+        // }
+        // const nativeRun = await store.createWorkflowRun({ ... });
+        // void launchWorkflowRun(nativeEngine, { runId: nativeRun.id, ... });
+        // return json({ run: nativeRun }, 201);
+        */
       },
     },
   },

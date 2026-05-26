@@ -1,4 +1,5 @@
-import { WorkflowBackendToggle } from '@/components/workflows/workflow-backend-toggle'
+// Phase 2: WorkflowBackendToggle import removed — toggle no longer rendered.
+// Phase 3 will delete workflow-backend-toggle.tsx and workflow-backend-store.ts.
 
 interface WorkflowsTopBarProps {
   templateCount?: number
@@ -20,7 +21,6 @@ export function WorkflowsTopBar({ templateCount = 0 }: WorkflowsTopBarProps) {
           Browse, inspect, and launch workflow templates exposed to Hermes
           Agent.
         </div>
-        <WorkflowBackendToggle />
       </div>
       <div className="health">
         <div className="stat">

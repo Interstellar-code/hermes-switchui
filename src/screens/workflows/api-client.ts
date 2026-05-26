@@ -8,21 +8,13 @@
 
 import type { ParsedWorkflow } from './types'
 import { readResolvedSessionHeaders } from '@/lib/send-stream-session-headers'
-import { useWorkflowBackendStore } from '@/stores/workflow-backend-store'
 
 /**
- * Wrapper around fetch that injects the X-Workflow-Backend header so the
- * server factory.ts can select the correct engine (native vs plugin).
- * Only used for /api/workflow-* calls.
+ * Thin fetch wrapper for /api/workflow-* calls.
+ * Phase 2: X-Workflow-Backend header removed — factory.ts always uses PluginClient.
  */
 function wfFetch(input: string, init?: RequestInit): Promise<Response> {
-  const backend =
-    typeof window !== 'undefined'
-      ? useWorkflowBackendStore.getState().backend
-      : 'native'
-  const headers = new Headers(init?.headers)
-  headers.set('X-Workflow-Backend', backend)
-  return fetch(input, { ...init, headers })
+  return fetch(input, init)
 }
 
 export interface WorkflowDefinitionRow {

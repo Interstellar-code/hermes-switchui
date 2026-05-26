@@ -1,9 +1,12 @@
 /**
- * factory.ts — pick WorkflowEngineInterface implementation based on the
- * X-Workflow-Backend request header (or default 'native').
+ * factory.ts — always returns the PluginClient singleton.
+ *
+ * Phase 2: X-Workflow-Backend header removed; all workflow calls go to the
+ * Python plugin unconditionally. NativeEngine kept (unreachable) for Phase 3
+ * deletion.
  *
  * NativeEngine: thin adapter over the existing SwitchUiWorkflowStore +
- *   getWorkflowEngine() — zero behaviour change for the existing routes.
+ *   getWorkflowEngine() — kept for Phase 3 deletion; not instantiated.
  * PluginClient: delegates all calls to the Python plugin via HTTP.
  */
 import type { WorkflowEngineInterface, WorkflowRun, WorkflowDefinitionRow, NodeRun, TriggerInfo, RunEvent, PhaseTransition, ApprovalClaimResult } from './interface.js';
@@ -212,7 +215,8 @@ class NativeEngine implements WorkflowEngineInterface {
 // Singletons
 // ---------------------------------------------------------------------------
 
-let _nativeEngine: NativeEngine | null = null;
+// NativeEngine singleton kept for Phase 3 deletion — not instantiated in Phase 2.
+let _nativeEngine: NativeEngine | null = null; // eslint-disable-line @typescript-eslint/no-unused-vars
 let _pluginClient: PluginClient | null = null;
 
 // ---------------------------------------------------------------------------
@@ -220,18 +224,13 @@ let _pluginClient: PluginClient | null = null;
 // ---------------------------------------------------------------------------
 
 /**
- * Returns the appropriate WorkflowEngineInterface based on the
- * X-Workflow-Backend header value ('native' | 'plugin').
- * Defaults to 'native' if the header is absent or unknown.
+ * Always returns the PluginClient singleton.
+ * Phase 2: header-branch removed; request parameter kept for API compatibility.
  */
-export function getEngine(request: Request): WorkflowEngineInterface {
-  const backend = request.headers.get('X-Workflow-Backend') ?? 'native';
-  if (backend === 'plugin') {
-    if (!_pluginClient) _pluginClient = new PluginClient();
-    return _pluginClient;
-  }
-  if (!_nativeEngine) _nativeEngine = new NativeEngine();
-  return _nativeEngine;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function getEngine(_request: Request): WorkflowEngineInterface {
+  if (!_pluginClient) _pluginClient = new PluginClient();
+  return _pluginClient;
 }
 
 export type { WorkflowEngineInterface };
