@@ -1,0 +1,15 @@
+{
+  "name": "hermes-switchui-landing",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build && sed -i '' 's|href=\"/./_astro/|href=\"./_astro/|g' dist/index.html",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "astro": "^5.7.10"
+  }
+}

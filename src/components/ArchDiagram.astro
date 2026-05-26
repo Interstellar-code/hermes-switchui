@@ -1,0 +1,330 @@
+---
+const layers = [
+  {
+    id: 'interface',
+    label: 'INTERFACE LAYER',
+    desc: 'Where you connect — any client, any surface',
+    color: 'var(--m-green-500)',
+    nodes: [
+      { name: 'Switch UI', primary: true },
+      { name: 'Telegram' },
+      { name: 'CLI' },
+      { name: 'Discord' },
+    ],
+  },
+  {
+    id: 'gateway',
+    label: 'GATEWAY',
+    desc: 'Routes requests, manages sessions, enforces auth',
+    color: '#5fcfff',
+    nodes: [
+      { name: 'Hermes Core', primary: true },
+      { name: 'Session Mgr' },
+      { name: 'Router' },
+    ],
+  },
+  {
+    id: 'agents',
+    label: 'AGENT LAYER',
+    desc: 'Named agents running on any LLM provider',
+    color: '#7cff9b',
+    nodes: [
+      { name: 'Neo' },
+      { name: 'Trinity' },
+      { name: 'Morpheus' },
+      { name: 'Oracle' },
+    ],
+  },
+  {
+    id: 'tools',
+    label: 'TOOLS & INFRA',
+    desc: 'Real tools agents can use — all observable',
+    color: '#d6ff5f',
+    nodes: [
+      { name: 'Terminal' },
+      { name: 'Browser' },
+      { name: 'Files' },
+      { name: 'Memory' },
+      { name: 'Cron' },
+    ],
+  },
+];
+---
+
+<div class="arch-root reveal">
+  <!-- Terminal frame -->
+  <div class="arch-frame">
+    <!-- Titlebar -->
+    <div class="arch-titlebar">
+      <div class="arch-dot" style="background:#ff5f6d"></div>
+      <div class="arch-dot" style="background:#d6ff5f"></div>
+      <div class="arch-dot" style="background:#00ff41;box-shadow:0 0 6px rgba(0,255,65,.4)"></div>
+      <span class="arch-frame-title">hermes switch ui  ·  system architecture</span>
+    </div>
+
+    <!-- Diagram body -->
+    <div class="arch-body">
+      {layers.map((layer, i) => (
+        <div class="arch-layer-row">
+          <!-- Left meta column -->
+          <div class="arch-meta">
+            <div class="arch-meta-label" style={`color: ${layer.color}`}>{layer.label}</div>
+            <div class="arch-meta-desc">{layer.desc}</div>
+          </div>
+
+          <!-- Center connector + nodes -->
+          <div class="arch-center">
+            <!-- Top connector line (all but first) -->
+            {i > 0 && (
+              <div class="arch-connector">
+                <div class="arch-connector-line"></div>
+                <div class="arch-connector-dot"></div>
+                <div class="arch-connector-arrow">▼</div>
+              </div>
+            )}
+
+            <!-- Node chips -->
+            <div class="arch-nodes">
+              {layer.nodes.map((node) => (
+                <div
+                  class:list={['arch-node-chip', { 'arch-node-chip--primary': node.primary }]}
+                  style={node.primary ? `border-color: ${layer.color}; color: ${layer.color}; box-shadow: 0 0 12px ${layer.color}22;` : ''}
+                >
+                  {node.primary && <span class="arch-chip-dot" style={`background:${layer.color}`}></span>}
+                  {node.name}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <!-- Right index -->
+          <div class="arch-index" style={`color: ${layer.color}`}>
+            {String(i + 1).padStart(2, '0')}
+          </div>
+        </div>
+      ))}
+
+      <!-- Bottom status bar -->
+      <div class="arch-status-bar">
+        <span class="arch-status-item"><span class="arch-status-dot"></span>SYSTEM ONLINE</span>
+        <span class="arch-status-item">4 LAYERS · 15 NODES</span>
+        <span class="arch-status-item">LATENCY &lt;12ms</span>
+        <span class="arch-status-item">UPTIME 99.98%</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .arch-root {
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  /* Terminal frame */
+  .arch-frame {
+    background: #010402;
+    border: 1px solid rgba(0,255,65,.28);
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 24px 64px rgba(0,0,0,.72), 0 0 0 1px rgba(0,255,65,.06);
+  }
+
+  .arch-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 16px;
+    background: #030d06;
+    border-bottom: 1px solid rgba(0,255,65,.13);
+  }
+  .arch-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+  .arch-frame-title {
+    font: 500 10px var(--m-font-mono);
+    color: rgba(216,255,227,.38);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    margin-left: auto;
+  }
+
+  /* Body */
+  .arch-body {
+    padding: 32px 36px 0;
+  }
+
+  /* Each layer row */
+  .arch-layer-row {
+    display: grid;
+    grid-template-columns: 220px 1fr 36px;
+    gap: 0 24px;
+    align-items: start;
+  }
+
+  /* Left meta */
+  .arch-meta {
+    padding-top: 8px;
+    text-align: right;
+    padding-right: 16px;
+    border-right: 1px solid rgba(0,255,65,.1);
+  }
+  .arch-meta-label {
+    font: 700 9px var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: .16em;
+    margin-bottom: 4px;
+  }
+  .arch-meta-desc {
+    font: 400 11px var(--m-font-sans);
+    color: rgba(216,255,227,.35);
+    line-height: 1.45;
+  }
+
+  /* Center column */
+  .arch-center {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  /* Connector */
+  .arch-connector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 24px;
+    margin-left: 20px;
+  }
+  .arch-connector-line {
+    width: 1px;
+    height: 18px;
+    background: linear-gradient(to bottom, rgba(0,255,65,.15), rgba(0,255,65,.4));
+    position: relative;
+    overflow: hidden;
+  }
+  .arch-connector-line::after {
+    content: '';
+    position: absolute;
+    top: -100%;
+    left: 0;
+    width: 100%;
+    height: 40%;
+    background: linear-gradient(to bottom, transparent, #00ff41, transparent);
+    animation: flowDown 2s ease-in-out infinite;
+  }
+  @keyframes flowDown {
+    0%   { top: -40%; opacity: 0; }
+    20%  { opacity: 1; }
+    80%  { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+  .arch-connector-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: rgba(0,255,65,.4);
+    margin: 2px 0;
+  }
+  .arch-connector-arrow {
+    font-size: 8px;
+    color: rgba(0,255,65,.5);
+    line-height: 1;
+    margin-bottom: 10px;
+  }
+
+  /* Node chips */
+  .arch-nodes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 0 24px;
+  }
+  .arch-node-chip {
+    font: 500 11px var(--m-font-mono);
+    color: rgba(216,255,227,.55);
+    background: rgba(0,255,65,.03);
+    border: 1px solid rgba(0,255,65,.16);
+    border-radius: 4px;
+    padding: 6px 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    letter-spacing: .04em;
+    transition: all 180ms;
+    cursor: default;
+  }
+  .arch-node-chip:hover {
+    border-color: rgba(0,255,65,.4);
+    color: rgba(216,255,227,.85);
+    background: rgba(0,255,65,.06);
+    transform: translateY(-1px);
+  }
+  .arch-node-chip--primary {
+    font-weight: 700;
+  }
+  .arch-chip-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    animation: chipPulse 2s ease-in-out infinite;
+  }
+  @keyframes chipPulse {
+    0%,100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
+    50% { opacity: .7; }
+  }
+
+  /* Right index */
+  .arch-index {
+    font: 700 11px var(--m-font-mono);
+    opacity: .3;
+    padding-top: 14px;
+    letter-spacing: -1px;
+  }
+
+  /* Status bar */
+  .arch-status-bar {
+    display: flex;
+    gap: 28px;
+    padding: 12px 0 14px;
+    border-top: 1px solid rgba(0,255,65,.1);
+    margin-top: 4px;
+    flex-wrap: wrap;
+  }
+  .arch-status-item {
+    font: 600 9px var(--m-font-mono);
+    color: rgba(216,255,227,.25);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .arch-status-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: #00ff41;
+    box-shadow: 0 0 6px rgba(0,255,65,.7);
+    animation: chipPulse 2s ease-in-out infinite;
+  }
+
+  /* Responsive */
+  @media (max-width: 700px) {
+    .arch-layer-row {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+    .arch-meta {
+      text-align: left;
+      padding-right: 0;
+      border-right: none;
+      border-left: 2px solid rgba(0,255,65,.2);
+      padding-left: 12px;
+      padding-bottom: 8px;
+    }
+    .arch-index { display: none; }
+    .arch-body { padding: 20px 20px 0; }
+    .arch-connector { margin-left: 12px; }
+    .arch-status-bar { gap: 16px; }
+  }
+</style>

@@ -1,0 +1,172 @@
+---
+import LandingLayout from '../layouts/LandingLayout.astro';
+import TopNav from '../components/TopNav.astro';
+import HeroRain from '../components/HeroRain.astro';
+import UICarousel from '../components/UICarousel.astro';
+import ArchDiagram from '../components/ArchDiagram.astro';
+
+const features = [
+  {
+    key: 'chat',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><path d="M4 5h16v11H8l-4 4z"/></svg>',
+    name: 'Live Agent Streams',
+    tag: 'real-time',
+    desc: 'Token-by-token streaming with full context visibility. Watch agents reason in real-time — no black boxes, ever.',
+    num: '01',
+  },
+  {
+    key: 'cpu',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>',
+    name: 'Tool Execution',
+    tag: 'observable',
+    desc: 'Terminal, browser, file ops, and API calls — all observable and auditable. Every invocation logged and inspectable.',
+    num: '02',
+  },
+  {
+    key: 'data',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.6 3.6 3 8 3s8-1.4 8-3V6M4 12v6c0 1.6 3.6 3 8 3s8-1.4 8-3v-6"/></svg>',
+    name: 'Persistent Memory',
+    tag: 'cross-session',
+    desc: 'Agents remember across sessions. Searchable long-term memory accumulating context, project knowledge and history.',
+    num: '03',
+  },
+  {
+    key: 'shield',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6l-8-3z"/></svg>',
+    name: 'Multi-Provider Auth',
+    tag: 'pluggable',
+    desc: 'Plug in OpenAI, Anthropic, Google, or local models. One config, seamless switching, no vendor lock-in whatsoever.',
+    num: '04',
+  },
+  {
+    key: 'agent',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6"/></svg>',
+    name: 'Subagent Delegation',
+    tag: 'parallel',
+    desc: 'Orchestrate multiple agents in parallel. Delegate tasks, collect results, and synthesize outputs autonomously.',
+    num: '05',
+  },
+  {
+    key: 'cog',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1-.1A2 2 0 1 1 4.4 17l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1A2 2 0 1 1 7 4.4l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1A2 2 0 1 1 19.6 7l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+    name: 'Cron & Scheduling',
+    tag: 'automated',
+    desc: 'Scheduled tasks, periodic check-ins, and autonomous pipelines running on your cadence. Set it and forget it.',
+    num: '06',
+  },
+];
+---
+
+<LandingLayout title="Hermes Switch UI — Your Agents. One Workspace.">
+  <TopNav />
+  <HeroRain />
+
+  <!-- ─── 01 · FEATURES ───────────────────────────────────────── -->
+  <div class="glow-divider" aria-hidden="true"></div>
+  <section class="hl-section" id="features">
+    <div class="hl-section-head hl-section-head--center">
+      <div class="hl-section-label hl-section-label--center">
+        <span class="hl-label-line"></span>
+        01 // FEATURES
+        <span class="hl-label-line"></span>
+      </div>
+      <h2 class="hl-section-h2 hl-section-h2--center">Everything you need to run agents at scale.</h2>
+    </div>
+    <div class="hl-feat-grid">
+      {features.map((f) => (
+        <div class="hl-feat-card reveal">
+          <div class="hl-feat-card-top">
+            <div class="hl-feat-icon" set:html={f.icon} />
+            <span class="hl-feat-num">{f.num}</span>
+          </div>
+          <h3 class="hl-feat-name">{f.name}</h3>
+          <p class="hl-feat-desc">{f.desc}</p>
+          <span class="hl-feat-tag">{f.tag}</span>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- ─── 02 · ARCHITECTURE ────────────────────────────────────── -->
+  <div class="glow-divider" aria-hidden="true"></div>
+  <section class="hl-section" id="architecture">
+    <div class="hl-section-head hl-section-head--center">
+      <div class="hl-section-label hl-section-label--center">
+        <span class="hl-label-line"></span>
+        02 // ARCHITECTURE
+        <span class="hl-label-line"></span>
+      </div>
+      <h2 class="hl-section-h2 hl-section-h2--center">Built in layers. Inspectable at every level.</h2>
+    </div>
+    <ArchDiagram />
+  </section>
+
+
+  <!-- ─── 03 · INTERFACE CAROUSEL ────────────────────────────── -->
+  <div class="glow-divider" aria-hidden="true"></div>
+  <section class="hl-section hl-section--carousel" id="interface">
+    <div class="hl-carousel-grid-bg" aria-hidden="true"></div>
+    <div class="hl-section-head hl-section-head--center">
+      <div class="hl-section-label hl-section-label--center">
+        <span class="hl-label-line"></span>
+        03 // INTERFACE
+        <span class="hl-label-line"></span>
+      </div>
+      <h2 class="hl-section-h2 hl-section-h2--center">See the workspace in action.</h2>
+      <p class="hl-carousel-sub">Four views. One workspace. Total observability.</p>
+    </div>
+    <UICarousel />
+  </section>
+
+  <!-- ─── 04 · GET STARTED ────────────────────────────────────── -->
+  <div class="glow-divider" aria-hidden="true"></div>
+  <section class="hl-install-section" id="cta">
+    <div class="hl-install-inner">
+      <div class="hl-section-label hl-section-label--center">04 // GET STARTED</div>
+      <h2 class="hl-install-heading">
+        Deploy in <span class="hl-glow-text">minutes.</span>
+      </h2>
+      <p class="hl-install-sub">Open source. Self-hosted. No lock-in.</p>
+      <div class="hl-install-cmd">
+        <span class="hl-cmd-dollar">$</span>
+        <span class="hl-cmd-text">npm install -g @hermes/switch-ui</span>
+      </div>
+      <div class="hl-install-actions">
+        <a href="#" class="m-btn m-btn-primary m-btn-lg">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m4 12 16-8-5 18-3-7-8-3z"/></svg>
+          Install Hermes
+        </a>
+        <a href="https://github.com/nousresearch/hermes-agent" target="_blank" rel="noopener" class="m-btn m-btn-lg">GitHub →</a>
+        <a href="#" class="m-btn m-btn-lg">Docs →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FOOTER ──────────────────────────────────────────────── -->
+  <div class="glow-divider" style="opacity:0.5" aria-hidden="true"></div>
+  <footer class="hl-footer">
+    <div class="hl-footer-left">
+      <div class="hl-footer-glyph">ᕼ</div>
+      <span class="hl-footer-text">Hermes Switch UI · v2.3.0 · MIT License · <span class="hl-footer-online">SYS::ONLINE</span></span>
+    </div>
+    <div class="hl-footer-links">
+      <a href="#" class="hl-footlink">Docs</a>
+      <a href="https://github.com/nousresearch/hermes-agent" class="hl-footlink">GitHub</a>
+      <a href="#" class="hl-footlink">Discord</a>
+      <a href="#" class="hl-footlink">Changelog</a>
+    </div>
+  </footer>
+
+  <script>
+    // Scroll reveal — feature cards and arch diagram
+    (() => {
+      const els = document.querySelectorAll('.reveal');
+      if (!els.length) return;
+      const observer = new IntersectionObserver(
+        (entries) => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } }),
+        { threshold: 0.08, rootMargin: '0px 0px -32px 0px' }
+      );
+      els.forEach(el => observer.observe(el));
+    })();
+  </script>
+</LandingLayout>

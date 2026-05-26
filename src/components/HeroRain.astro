@@ -1,0 +1,287 @@
+---
+// HeroRain — Hermes Landing hero: Matrix Rain background + animated npm boot sequence
+---
+
+<section class="hero-section m-scanlines" id="hero">
+  <!-- Matrix Rain canvas -->
+  <canvas id="rain-canvas" aria-hidden="true" role="presentation"></canvas>
+
+  <!-- Radial fade overlay -->
+  <div class="hero-overlay-radial"></div>
+  <!-- Scanline overlay -->
+  <div class="hero-overlay-scan"></div>
+
+  <div class="hero-inner">
+    <!-- Boot sequence panel -->
+    <div class="boot-panel" id="boot-panel">
+      <!-- Lines rendered by JS -->
+      <div id="boot-lines"></div>
+      <div id="boot-cursor" class="m-cursor"></div>
+    </div>
+
+    <!-- Main headline — shown after boot -->
+    <div class="hero-headline" id="hero-headline" aria-live="polite">
+      <div class="hero-eyebrow">
+        <span class="eyebrow-line"></span>
+        HERMES SWITCH UI
+      </div>
+      <h1 id="hero-h1">
+        YOUR AGENTS.<br/>
+        <span class="accent" id="hero-accent">ONE WORKSPACE.</span>
+      </h1>
+      <p class="hero-sub">
+        The terminal-native AI workspace where agents think, tools execute, and you stay in control.
+        Open source. Self-hosted. Agent-native.
+      </p>
+      <div class="hero-badges">
+        <a href="https://github.com/nousresearch/hermes-agent" target="_blank" rel="noopener" class="badge-gh" id="hero-gh-badge">
+          <svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          <span id="hero-stars">GitHub</span>
+        </a>
+        <span class="badge-pill">v2.3.0 stable</span>
+        <span class="badge-pill">MIT license</span>
+        <span class="badge-pill">Open source</span>
+      </div>
+      <div class="hero-actions">
+        <a href="#cta" class="m-btn m-btn-primary m-btn-lg">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m4 12 16-8-5 18-3-7-8-3z"/></svg>
+          Install Hermes
+        </a>
+        <a href="https://github.com/nousresearch/hermes-agent" target="_blank" rel="noopener" class="m-btn m-btn-lg">View on GitHub →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(() => {
+  const G = '#00ff41';
+
+  // ── 3D Volumetric Cinematic Matrix Rain ─────────────────────────
+  const cv = document.getElementById('rain-canvas') as HTMLCanvasElement;
+  if (cv) {
+    const ctx = cv.getContext('2d')!;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const chars = 'アイウエオカキクケコサシスセソタチツテト0123456789ABCDEF<>/$#%&'.split('');
+    let w: number, h: number, raf: number, running = true;
+
+    interface Stream {
+      x: number;
+      y: number;
+      speed: number;
+      fontSize: number;
+      opacity: number;
+      trailLength: number;
+      glow: boolean;
+      chars: string[];
+    }
+
+    let streams: Stream[] = [];
+
+    function initStreams() {
+      streams = [];
+      const density = Math.floor(w / 10); // cinematic density
+      for (let i = 0; i < density; i++) {
+        // Depth-based sizing (closer is larger, faster, and brighter)
+        const depth = Math.random(); // 0 (far) to 1 (close)
+        const fontSize = Math.floor(8 + depth * 10); // 8px to 18px
+        const speed = 0.4 + depth * 1.2;
+        const opacity = 0.04 + depth * 0.16; // soft underlay to keep terminal readable
+        const glow = depth > 0.6;
+        const trailLength = Math.floor(10 + depth * 12);
+        
+        // Populate initial trail chars
+        const streamChars: string[] = [];
+        for (let j = 0; j < trailLength; j++) {
+          streamChars.push(chars[Math.floor(Math.random() * chars.length)]);
+        }
+
+        streams.push({
+          x: Math.random() * w,
+          y: Math.random() * h - h, // start scattered above screen
+          speed,
+          fontSize,
+          opacity,
+          trailLength,
+          glow,
+          chars: streamChars
+        });
+      }
+    }
+
+    function size() {
+      const r = cv.parentElement!.getBoundingClientRect();
+      w = r.width; h = r.height;
+      cv.width = w * dpr; cv.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      initStreams();
+    }
+
+    function frame() {
+      if (!running) return;
+
+      // Clean trail clearing
+      ctx.fillStyle = 'rgba(2,8,4,0.12)';
+      ctx.fillRect(0, 0, w, h);
+
+      for (let i = 0; i < streams.length; i++) {
+        const s = streams[i];
+        
+        // Randomly morph/glitch characters in the stream's trail
+        for (let j = 0; j < s.trailLength; j++) {
+          if (Math.random() < 0.03) {
+            s.chars[j] = chars[Math.floor(Math.random() * chars.length)];
+          }
+        }
+
+        // Draw the stream trail upwards from current Y
+        ctx.font = `${s.fontSize}px 'JetBrains Mono', monospace`;
+        
+        for (let j = 0; j < s.trailLength; j++) {
+          const charY = s.y - (j * s.fontSize);
+          if (charY < 0 || charY > h) continue;
+
+          const isHead = j === 0;
+          const isSubHead = j === 1;
+          const fraction = (s.trailLength - j) / s.trailLength;
+          
+          if (isHead) {
+            // White glowing leading character
+            ctx.fillStyle = `rgba(235, 255, 240, ${s.opacity * 2.5})`;
+            if (s.glow) {
+              ctx.shadowColor = G;
+              ctx.shadowBlur = 10;
+            }
+          } else if (isSubHead) {
+            // Bright primary green
+            ctx.fillStyle = `rgba(0, 255, 65, ${s.opacity * 1.8})`;
+            ctx.shadowBlur = 0;
+          } else {
+            // Fading trail
+            ctx.fillStyle = `rgba(0, 180, 50, ${s.opacity * fraction})`;
+            ctx.shadowBlur = 0;
+          }
+
+          ctx.fillText(s.chars[j], s.x, charY);
+        }
+        
+        // Move stream down
+        s.y += s.speed;
+
+        // Reset stream when it goes completely off screen
+        if (s.y - (s.trailLength * s.fontSize) > h) {
+          s.y = -s.fontSize;
+          s.x = Math.random() * w;
+          s.speed = 0.4 + Math.random() * 1.2;
+        }
+      }
+
+      raf = requestAnimationFrame(frame);
+    }
+
+    size();
+    const ro = new ResizeObserver(size);
+    ro.observe(cv.parentElement!);
+
+    const heroObs = new IntersectionObserver(([e]) => {
+      running = e.isIntersecting;
+      if (running) requestAnimationFrame(frame);
+    }, { threshold: 0 });
+    const heroEl = document.getElementById('hero');
+    if (heroEl) heroObs.observe(heroEl);
+
+    frame();
+  }
+
+  // ── Boot sequence ──────────────────────────────────────────────
+  const BOOT_SEQ = [
+    { ms:  140, type:'cmd', text:'$ npm install -g @hermes/switch-ui' },
+    { ms:  500, type:'out', text:'  ↓  resolving 247 dependencies...' },
+    { ms:  950, type:'bar', text:'install' },
+    { ms: 1650, type:'ok',  text:'  added 247 packages in 3.2s' },
+    { ms: 1950, type:'ok',  text:'  hermes-switch-ui@2.3.0  installed globally' },
+    { ms: 2350, type:'gap', text:'' },
+    { ms: 2550, type:'cmd', text:'$ hermes init' },
+    { ms: 2870, type:'ok',  text:'  ✓  Node.js 20.x detected' },
+    { ms: 3180, type:'ok',  text:'  ✓  API key validated' },
+    { ms: 3480, type:'out', text:'  >  Pulling agent profiles...' },
+    { ms: 3850, type:'bar', text:'agents' },
+    { ms: 4600, type:'ok',  text:'  ✓  neo · trinity · morpheus · oracle  loaded' },
+    { ms: 4950, type:'ok',  text:'  ✓  Connected  ·  claude-sonnet-4  active' },
+    { ms: 5350, type:'sys', text:'WORKSPACE READY' },
+    { ms: 5750, type:'ent', text:'> ENTERING MATRIX WORKSPACE...' },
+  ];
+
+  const bootLines = document.getElementById('boot-lines');
+  const bootCursor = document.getElementById('boot-cursor');
+  const bootPanel = document.getElementById('boot-panel');
+  const heroHeadline = document.getElementById('hero-headline');
+
+  function addLine(type: string, text: string) {
+    if (!bootLines) return;
+    if (type === 'gap') {
+      const gap = document.createElement('div');
+      gap.style.cssText = 'height:6px';
+      bootLines.appendChild(gap);
+      return;
+    }
+    if (type === 'bar') {
+      const wrap = document.createElement('div');
+      wrap.className = 'boot-bar';
+      const isAgents = text === 'agents';
+      wrap.innerHTML = `
+        <div class="boot-bar-track">
+          <div class="boot-bar-fill ${isAgents ? 'boot-bar-fill--slow' : ''}"></div>
+        </div>
+        <span class="boot-bar-pct">100%</span>
+      `;
+      bootLines.appendChild(wrap);
+      return;
+    }
+    const el = document.createElement('div');
+    el.className = 'boot-line boot-line--' + type;
+    el.textContent = text;
+    bootLines.appendChild(el);
+    bootLines.scrollTop = bootLines.scrollHeight;
+  }
+
+  if (bootLines && bootPanel && heroHeadline) {
+    BOOT_SEQ.forEach(({ ms, type, text }) => {
+      setTimeout(() => addLine(type, text), ms);
+    });
+
+    // Done: hide cursor, reveal headline
+    setTimeout(() => {
+      if (bootCursor) bootCursor.style.display = 'none';
+      bootPanel.style.marginBottom = '44px';
+    }, 6200);
+
+    setTimeout(() => {
+      heroHeadline.classList.add('visible');
+    }, 6300);
+
+    // Glitch effect
+    setTimeout(() => {
+      const h1 = document.getElementById('hero-h1');
+      if (h1) {
+        h1.classList.add('glitch');
+        setTimeout(() => h1.classList.remove('glitch'), 400);
+      }
+    }, 6700);
+  }
+
+  // ── GitHub stars (hero badge) ─────────────────────────────────
+  fetch('https://api.github.com/repos/nousresearch/hermes-agent')
+    .then(r => r.json())
+    .then(d => {
+      const el = document.getElementById('hero-stars');
+      if (el && d.stargazers_count != null) {
+        const n = d.stargazers_count;
+        el.textContent = `★ ${n >= 1000 ? (n/1000).toFixed(1)+'k' : n} on GitHub`;
+      }
+    })
+    .catch(() => {});
+})();
+</script>

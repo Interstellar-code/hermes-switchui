@@ -1,0 +1,216 @@
+---
+// UICarousel — 4-slide interface showcase (Agent Chat, Workspace, Tool Log, Memory)
+---
+
+<div class="carousel-root" id="ui-carousel">
+  <!-- Tab buttons -->
+  <div class="carousel-tabs" id="carousel-tabs">
+    <button class="carousel-tab is-active" data-slide="0" id="ctab-0">Agent Chat</button>
+    <button class="carousel-tab" data-slide="1" id="ctab-1">Workspace</button>
+    <button class="carousel-tab" data-slide="2" id="ctab-2">Tool Log</button>
+    <button class="carousel-tab" data-slide="3" id="ctab-3">Memory</button>
+  </div>
+
+  <div class="carousel-stage">
+    <!-- Prev arrow -->
+    <button class="carousel-arrow carousel-arrow--prev" id="carousel-prev" aria-label="Previous">←</button>
+    <!-- Next arrow -->
+    <button class="carousel-arrow carousel-arrow--next" id="carousel-next" aria-label="Next">→</button>
+
+    <!-- Terminal window -->
+    <div class="carousel-window">
+      <div class="carousel-titlebar">
+        <div class="carousel-dot" style="background:#ff5f6d"></div>
+        <div class="carousel-dot" style="background:#d6ff5f"></div>
+        <div class="carousel-dot" style="background:#00ff41;box-shadow:0 0 6px rgba(0,255,65,.4)"></div>
+        <span class="carousel-title" id="carousel-title">hermes switch ui  ·  agent chat</span>
+      </div>
+      <div class="carousel-content" id="carousel-content">
+
+        <!-- Slide 0: Agent Chat -->
+        <div class="carousel-slide" id="cslide-0">
+          <div class="slide-header">session :: neo  ·  claude-sonnet-4  ·  48,204 tokens</div>
+          <div class="sl-row"><span class="sl-green">▸ </span><span class="sl-bright">refactor auth module to use JWT rotation</span></div>
+          <div class="sl-out">  reading src/auth/session.ts...</div>
+          <div class="sl-out">  reading src/api/middleware.ts...</div>
+          <div class="sl-out sl-mb">  found 3 files  ·  analyzing patterns...</div>
+          <div class="sl-progress-wrap">
+            <div class="sl-progress-track">
+              <div class="sl-progress-bar" style="width:78%"></div>
+            </div>
+            <span class="sl-progress-label">78%  patching session.ts</span>
+          </div>
+          <div class="sl-ok">[ DONE ]  3 files modified  ·  14 tests passing</div>
+          <div class="sl-cursor"><span class="sl-dim">$ </span><span class="m-cursor"></span></div>
+        </div>
+
+        <!-- Slide 1: Workspace Dashboard -->
+        <div class="carousel-slide" id="cslide-1" style="display:none">
+          <div class="slide-header">workspace dashboard  ·  4 agents  ·  uptime 4m 32s</div>
+          <div class="dash-table-head">
+            <div></div><div>AGENT</div><div>MODEL</div><div>STATUS</div><div class="ta-r">TOKENS</div>
+          </div>
+          <div class="dash-row">
+            <div class="m-dot m-dot-on"></div>
+            <div class="dash-name">neo</div>
+            <div class="dash-model">claude-sonnet-4</div>
+            <div class="dash-status">CODING</div>
+            <div class="dash-tokens ta-r">48,204</div>
+          </div>
+          <div class="dash-row">
+            <div class="m-dot m-dot-on"></div>
+            <div class="dash-name">trinity</div>
+            <div class="dash-model">claude-sonnet-4</div>
+            <div class="dash-status">FINANCE</div>
+            <div class="dash-tokens ta-r">31,847</div>
+          </div>
+          <div class="dash-row">
+            <div class="m-dot m-dot-pulse"></div>
+            <div class="dash-name">morpheus</div>
+            <div class="dash-model">claude-opus-4</div>
+            <div class="dash-status">REVIEW</div>
+            <div class="dash-tokens ta-r">23,104</div>
+          </div>
+          <div class="dash-row">
+            <div class="m-dot m-dot-off"></div>
+            <div class="dash-name dash-name--off">oracle</div>
+            <div class="dash-model">claude-opus-4</div>
+            <div class="dash-status dash-status--off">IDLE</div>
+            <div class="dash-tokens ta-r">—</div>
+          </div>
+          <div class="dash-footer">
+            <span>TOKENS <span class="sl-green">128,420</span></span>
+            <span>TOOLS <span class="sl-green">2,847</span></span>
+            <span>LOAD <span style="color:#d6ff5f">6/10</span></span>
+          </div>
+        </div>
+
+        <!-- Slide 2: Tool Log -->
+        <div class="carousel-slide" id="cslide-2" style="display:none">
+          <div class="slide-header">tool executor  ·  live log  ·  neo session</div>
+          <div class="tool-row"><span class="tool-t">  1ms</span><span class="tool-type" style="color:#5fcfff">READ</span><span class="sl-dim2">src/auth/session.ts  ·  347 lines</span></div>
+          <div class="tool-row"><span class="tool-t">  2ms</span><span class="tool-type" style="color:#5fcfff">READ</span><span class="sl-dim2">src/api/middleware.ts  ·  128 lines</span></div>
+          <div class="tool-row"><span class="tool-t"> 18ms</span><span class="tool-type" style="color:rgba(216,255,227,.65)">BASH</span><span class="sl-dim2">npx tsc --noEmit</span></div>
+          <div class="tool-row"><span class="tool-t"> 24ms</span><span class="tool-type" style="color:#d6ff5f">WRITE</span><span class="sl-dim2">session.ts  ·  patches applied</span></div>
+          <div class="tool-row"><span class="tool-t"> 31ms</span><span class="tool-type" style="color:rgba(216,255,227,.65)">BASH</span><span class="sl-dim3">npm test --watchAll=false</span></div>
+          <div class="tool-row"><span class="tool-t">2.1s</span><span class="tool-type sl-green">TEST</span><span class="sl-dim2">14 / 14 passing  ✓</span></div>
+          <div class="tool-row"><span class="tool-t">3.4s</span><span class="tool-type" style="color:#7cff9b">GIT</span><span class="sl-dim2">commit -m "fix: auth JWT rotation"</span></div>
+        </div>
+
+        <!-- Slide 3: Memory -->
+        <div class="carousel-slide" id="cslide-3" style="display:none">
+          <div class="slide-header">memory  ·  1,247 entries  ·  12 sessions</div>
+          <div class="mem-section-label">entities</div>
+          <div class="mem-row"><span class="mem-key">○  auth-module</span><span class="mem-val">JWT rotation patterns, refresh token flow</span></div>
+          <div class="mem-row"><span class="mem-key">○  codebase</span><span class="mem-val">Next.js 14, TypeScript, Prisma ORM</span></div>
+          <div class="mem-row"><span class="mem-key">○  current-goal</span><span class="mem-val">Refactor auth to JWT v3 with rotation</span></div>
+          <div class="mem-row"><span class="mem-key">○  test-suite</span><span class="mem-val">14 tests · all passing · Jest config</span></div>
+          <div class="mem-row"><span class="mem-key">○  team-style</span><span class="mem-val">No comments, short functions, strict TS</span></div>
+          <div class="mem-ctx">
+            <div class="mem-section-label">context window</div>
+            <div class="sl-progress-wrap">
+              <div class="sl-progress-track">
+                <div class="sl-progress-bar" style="width:72%"></div>
+              </div>
+              <span class="sl-progress-label">72%  ·  128K / 200K</span>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /.carousel-content -->
+    </div><!-- /.carousel-window -->
+  </div><!-- /.carousel-stage -->
+
+  <!-- Dot indicators -->
+  <div class="carousel-dots" id="carousel-dots">
+    <button class="carousel-dot-btn is-active" data-slide="0" aria-label="Slide 1"></button>
+    <button class="carousel-dot-btn" data-slide="1" aria-label="Slide 2"></button>
+    <button class="carousel-dot-btn" data-slide="2" aria-label="Slide 3"></button>
+    <button class="carousel-dot-btn" data-slide="3" aria-label="Slide 4"></button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const TITLES = [
+    'hermes switch ui  ·  agent chat',
+    'hermes switch ui  ·  multi-agent dashboard',
+    'hermes switch ui  ·  tool execution',
+    'hermes switch ui  ·  persistent memory',
+  ];
+
+  let current = 0;
+  let timer: ReturnType<typeof setInterval> | null = null;
+
+  function goTo(idx: number) {
+    const prev = current;
+    current = ((idx % 4) + 4) % 4;
+
+    // Update slides
+    const prevSlide = document.getElementById('cslide-' + prev);
+    const nextSlide = document.getElementById('cslide-' + current);
+    const content = document.getElementById('carousel-content');
+
+    if (prevSlide && nextSlide && content) {
+      content.style.opacity = '0';
+      content.style.transition = 'opacity 280ms ease';
+      setTimeout(() => {
+        prevSlide.style.display = 'none';
+        nextSlide.style.display = 'block';
+        content.style.opacity = '1';
+      }, 280);
+    }
+
+    // Update title
+    const title = document.getElementById('carousel-title');
+    if (title) title.textContent = TITLES[current];
+
+    // Update tabs
+    document.querySelectorAll('.carousel-tab').forEach((btn, i) => {
+      btn.classList.toggle('is-active', i === current);
+    });
+
+    // Update dots
+    document.querySelectorAll('.carousel-dot-btn').forEach((btn, i) => {
+      btn.classList.toggle('is-active', i === current);
+    });
+  }
+
+  function startTimer() {
+    if (timer) clearInterval(timer);
+    timer = setInterval(() => goTo(current + 1), 4800);
+  }
+
+  function resetTimer() {
+    startTimer();
+  }
+
+  // Tab buttons
+  document.querySelectorAll<HTMLButtonElement>('.carousel-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      goTo(parseInt(btn.dataset.slide || '0', 10));
+      resetTimer();
+    });
+  });
+
+  // Dot buttons
+  document.querySelectorAll<HTMLButtonElement>('.carousel-dot-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      goTo(parseInt(btn.dataset.slide || '0', 10));
+      resetTimer();
+    });
+  });
+
+  // Arrows
+  document.getElementById('carousel-prev')?.addEventListener('click', () => {
+    goTo(current - 1);
+    resetTimer();
+  });
+  document.getElementById('carousel-next')?.addEventListener('click', () => {
+    goTo(current + 1);
+    resetTimer();
+  });
+
+  startTimer();
+})();
+</script>
