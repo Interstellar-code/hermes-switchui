@@ -9,7 +9,7 @@ export interface WorkflowSseEvent {
 const MAX_BUFFER = 500
 const FLUSH_INTERVAL_MS = 80
 
-export function useWorkflowEvents(conversationId: string | null): {
+export function useWorkflowEvents(runId: string | null): {
   events: WorkflowSseEvent[]
   status: 'idle' | 'connecting' | 'open' | 'error' | 'closed'
 } {
@@ -24,7 +24,7 @@ export function useWorkflowEvents(conversationId: string | null): {
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    if (!conversationId) {
+    if (!runId) {
       setStatus('idle')
       setEvents([])
       return
@@ -44,7 +44,7 @@ export function useWorkflowEvents(conversationId: string | null): {
     setStatus('connecting')
     setEvents([])
 
-    const url = `/api/workflow-events?conversation_id=${encodeURIComponent(conversationId)}`
+    const url = `/api/workflow-events?runId=${encodeURIComponent(runId)}`
     const es = new EventSource(url)
     esRef.current = es
 
@@ -114,7 +114,7 @@ export function useWorkflowEvents(conversationId: string | null): {
       bufferRef.current = []
       setStatus('closed')
     }
-  }, [conversationId])
+  }, [runId])
 
   return { events, status }
 }

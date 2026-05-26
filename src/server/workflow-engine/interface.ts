@@ -90,7 +90,7 @@ export interface WorkflowEngineInterface {
   // ── Approvals ──────────────────────────────────────────────────────────
   approve(
     runId: string,
-    nodeId: string,
+    nodeRunId: string,
     decision: 'approve' | 'reject',
     comment?: string,
   ): Promise<void>;

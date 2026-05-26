@@ -144,11 +144,11 @@ describe('PluginClient.startRun', () => {
 });
 
 describe('PluginClient.cancelRun', () => {
-  it('calls POST /runs/{runId}?action=cancel', async () => {
+  it('calls POST /runs/{runId}/cancel', async () => {
     fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
     await client.cancelRun('r3');
-    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r3`);
-    expect(lastUrl()).toContain('action=cancel');
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r3/cancel`);
+    expect(lastUrl()).not.toContain('action=cancel');
   });
 });
 

@@ -187,15 +187,15 @@ class NativeEngine implements WorkflowEngineInterface {
 
   async approve(
     _runId: string,
-    nodeId: string,
+    nodeRunId: string,
     decision: 'approve' | 'reject',
     comment?: string,
   ): Promise<void> {
     const { store } = await getWorkflowEngine();
-    const nodeRun = store.findNodeRunById(nodeId);
-    if (!nodeRun) throw new Error(`node_run not found: ${nodeId}`);
+    const nodeRun = store.findNodeRunById(nodeRunId);
+    if (!nodeRun) throw new Error(`node_run not found: ${nodeRunId}`);
     const tsDecision = decision === 'approve' ? 'approved' : 'rejected';
-    store.tryClaimApprovalForResume(nodeId, tsDecision, comment ?? '');
+    store.tryClaimApprovalForResume(nodeRunId, tsDecision, comment ?? '');
   }
 
   async tryClaimApprovalForResume(

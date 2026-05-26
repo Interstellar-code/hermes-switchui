@@ -8,7 +8,7 @@
  */
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
-import { getWorkflowEngine } from '../../server/workflow-engine';
+import { getEngine } from '../../server/workflow-engine/factory';
 import { launchWorkflowRun } from '../../server/workflow-engine/runtime';
 import type { ApprovalReceivedEvent } from '../../server/workflow-engine/emitter/event-emitter';
 
@@ -25,13 +25,8 @@ export const Route = createFileRoute('/api/workflow-runs/$runId/approve')({
       POST: async ({ request, params }) => {
         if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
 
-        const engine = await getWorkflowEngine();
-        const { store } = engine;
+        const engine = getEngine(request);
         const runId = params.runId;
-
-        // 1. Validate the run exists.
-        const run = await store.getWorkflowRun(runId);
-        if (!run) return json({ error: 'workflow_run not found' }, 404);
 
         // 2. Parse + validate body.
         let body: unknown;
@@ -54,6 +49,24 @@ export const Route = createFileRoute('/api/workflow-runs/$runId/approve')({
           return json({ error: "decision must be 'approved' or 'rejected'" }, 400);
         }
         const approvalResponse = typeof response === 'string' ? response : '';
+
+        const backend = request.headers.get('X-Workflow-Backend') ?? 'native';
+        if (backend === 'plugin') {
+          // Plugin handles all approval logic server-side; map 'approved'/'rejected' → 'approve'/'reject'
+          // for the interface method which accepts 'approve'|'reject'.
+          const ifaceDecision = decision === 'approved' ? 'approve' : 'reject';
+          await engine.approve(runId, node_run_id, ifaceDecision, approvalResponse || undefined);
+          return json({ ok: true, decision, resumedRunId: runId });
+        }
+
+        // Native path: full approval orchestration with store + emitter + launchWorkflowRun.
+        const { getWorkflowEngine } = await import('../../server/workflow-engine/index.js');
+        const nativeEngine = await getWorkflowEngine();
+        const { store } = nativeEngine;
+
+        // 1. Validate the run exists.
+        const run = await store.getWorkflowRun(runId);
+        if (!run) return json({ error: 'workflow_run not found' }, 404);
 
         // 3. Validate the node_run belongs to this run and is paused.
         const nodeRun = store.findNodeRunById(node_run_id);
@@ -86,7 +99,7 @@ export const Route = createFileRoute('/api/workflow-runs/$runId/approve')({
           decision,
           response: approvalResponse,
         };
-        engine.emitter.emit(approvalEvent);
+        nativeEngine.emitter.emit(approvalEvent);
 
         // 6. Flip run back to running.
         await store.resumeWorkflowRun(runId);
@@ -96,7 +109,7 @@ export const Route = createFileRoute('/api/workflow-runs/$runId/approve')({
         //    and getCompletedDagNodeOutputs to skip already-completed nodes.
         const workflowDef = store.getWorkflowDefinition(run.workflow_id);
         if (workflowDef) {
-          void launchWorkflowRun(engine, {
+          void launchWorkflowRun(nativeEngine, {
             runId,
             workflowYaml: workflowDef.yaml,
             workflowId: workflowDef.id,

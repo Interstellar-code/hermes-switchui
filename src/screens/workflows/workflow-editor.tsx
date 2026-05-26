@@ -1119,8 +1119,8 @@ function WhenToUseTab({
 
 // ── Live Events Panel (A.1.2 smoke harness) ───────────────────────────────────
 
-function LiveEventsPanel({ conversationId }: { conversationId: string }) {
-  const { events, status } = useWorkflowEvents(conversationId)
+function LiveEventsPanel({ runId }: { runId: string | null }) {
+  const { events, status } = useWorkflowEvents(runId)
   const last10 = events.slice(-10)
   return (
     <div className="panel-card" style={{ marginTop: 16 }}>
@@ -1390,7 +1390,7 @@ export function WorkflowEditor({
               workflowId={selectedId}
               onOpenRun={onOpenRun}
             />
-            <LiveEventsPanel conversationId={selectedId} />
+            <LiveEventsPanel runId={null} />
           </>
         )}
       </div>
