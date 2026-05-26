@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
-import { getWorkflowEngine } from '../../server/workflow-engine'
+// Phase 3 delete: import { getWorkflowEngine } from '../../server/workflow-engine'
 import { getEngine } from '../../server/workflow-engine/factory'
 
 /**
@@ -33,140 +33,41 @@ export const Route = createFileRoute('/api/workflow-events')({
           )
         }
 
-        const backend = request.headers.get('X-Workflow-Backend') ?? 'native'
-
-        if (backend === 'plugin') {
-          // Plugin path: iterate engine.subscribeEvents(runId) and stream SSE frames.
-          const engine = getEngine(request)
-          const encoder = new TextEncoder()
-
-          const stream = new ReadableStream({
-            async start(controller) {
-              let streamClosed = false
-              const send = (raw: string) => {
-                if (streamClosed) return
-                try { controller.enqueue(encoder.encode(raw)) } catch { /* closed */ }
-              }
-              const sendEvent = (type: string, data: unknown) => {
-                send(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`)
-              }
-
-              request.signal.addEventListener('abort', () => {
-                streamClosed = true
-                try { controller.close() } catch { /* ignore */ }
-              })
-
-              try {
-                sendEvent('connected', { runId })
-                for await (const evt of engine.subscribeEvents(runId)) {
-                  if (streamClosed) break
-                  sendEvent(evt.event_type, evt)
-                }
-              } catch (err) {
-                const errorMsg = err instanceof Error ? err.message : String(err)
-                sendEvent('error', { message: errorMsg })
-              } finally {
-                streamClosed = true
-                try { controller.close() } catch { /* ignore */ }
-              }
-            },
-            cancel() { /* cleanup handled via abort signal */ },
-          })
-
-          return new Response(stream, {
-            headers: {
-              'Content-Type': 'text/event-stream',
-              'Cache-Control': 'no-cache, no-transform',
-              Connection: 'keep-alive',
-              'X-Accel-Buffering': 'no',
-            },
-          })
-        }
-
-        // Native path: look up conversationId from run, subscribe via emitter.
+        // Phase 2: always plugin path — iterate engine.subscribeEvents(runId) and stream SSE frames.
+        const engine = getEngine(request)
         const encoder = new TextEncoder()
-        let streamClosed = false
-        let unsubscribe: (() => void) | null = null
-        let heartbeatTimer: ReturnType<typeof setInterval> | null = null
 
         const stream = new ReadableStream({
           async start(controller) {
+            let streamClosed = false
             const send = (raw: string) => {
               if (streamClosed) return
-              try {
-                controller.enqueue(encoder.encode(raw))
-              } catch {
-                /* stream closed */
-              }
+              try { controller.enqueue(encoder.encode(raw)) } catch { /* closed */ }
             }
-
             const sendEvent = (type: string, data: unknown) => {
               send(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`)
             }
 
-            const sendComment = (comment: string) => {
-              send(`:${comment}\n\n`)
-            }
-
-            const closeStream = () => {
-              if (streamClosed) return
+            request.signal.addEventListener('abort', () => {
               streamClosed = true
-              if (heartbeatTimer) {
-                clearInterval(heartbeatTimer)
-                heartbeatTimer = null
-              }
-              if (unsubscribe) {
-                unsubscribe()
-                unsubscribe = null
-              }
-              try {
-                controller.close()
-              } catch {
-                /* ignore */
-              }
-            }
-
-            // Abort when client disconnects
-            request.signal.addEventListener('abort', closeStream)
+              try { controller.close() } catch { /* ignore */ }
+            })
 
             try {
-              const nativeEngine = await getWorkflowEngine()
-
-              // Resolve conversationId from run so native emitter filter works.
-              const run = await nativeEngine.store.getWorkflowRun(runId)
-              const conversationId = run?.conversation_id ?? runId
-
               sendEvent('connected', { runId })
-
-              unsubscribe = nativeEngine.emitter.subscribeForConversation(
-                conversationId,
-                (event) => {
-                  if (streamClosed) return
-                  sendEvent(event.type, event)
-                },
-              )
-
-              // Heartbeat every 25s to survive proxies that timeout idle connections
-              heartbeatTimer = setInterval(() => {
-                sendComment('hb')
-              }, 25_000)
+              for await (const evt of engine.subscribeEvents(runId)) {
+                if (streamClosed) break
+                sendEvent(evt.event_type, evt)
+              }
             } catch (err) {
               const errorMsg = err instanceof Error ? err.message : String(err)
               sendEvent('error', { message: errorMsg })
-              closeStream()
+            } finally {
+              streamClosed = true
+              try { controller.close() } catch { /* ignore */ }
             }
           },
-          cancel() {
-            streamClosed = true
-            if (heartbeatTimer) {
-              clearInterval(heartbeatTimer)
-              heartbeatTimer = null
-            }
-            if (unsubscribe) {
-              unsubscribe()
-              unsubscribe = null
-            }
-          },
+          cancel() { /* cleanup handled via abort signal */ },
         })
 
         return new Response(stream, {
@@ -177,6 +78,11 @@ export const Route = createFileRoute('/api/workflow-events')({
             'X-Accel-Buffering': 'no',
           },
         })
+
+        /* Phase 3 delete — native SSE path:
+        // Native path: look up conversationId from run, subscribe via emitter.
+        // Uses getWorkflowEngine() + emitter.subscribeForConversation().
+        */
       },
     },
   },

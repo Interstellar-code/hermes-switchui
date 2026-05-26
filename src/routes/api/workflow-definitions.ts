@@ -6,8 +6,8 @@ import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { getEngine } from '../../server/workflow-engine/factory';
 import { parseWorkflow } from '../../server/workflow-engine/discovery/loader';
-import { writeWorkflowsManifest } from '../../server/workflow-engine/runtime/manifest';
-import { createHash } from 'node:crypto';
+// Phase 3 delete: import { writeWorkflowsManifest } from '../../server/workflow-engine/runtime/manifest';
+// Phase 3 delete: import { createHash } from 'node:crypto';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -21,9 +21,7 @@ export const Route = createFileRoute('/api/workflow-definitions')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
-        // Honor X-Workflow-Backend header — route to plugin or native engine.
-        // Without this, the dropdown toggle is cosmetic and the route always
-        // returns native dev-scoped DB even when backend=plugin is selected.
+        // Phase 2: always plugin path via getEngine().
         const engine = getEngine(request);
         const url = new URL(request.url);
         const source = url.searchParams.get('source') as
@@ -103,38 +101,19 @@ export const Route = createFileRoute('/api/workflow-definitions')({
           );
         }
 
-        const backend = request.headers.get('X-Workflow-Backend') ?? 'native';
-        if (backend === 'plugin') {
-          const def = await engine.upsertDefinition(body.yaml, body.scope_path as string | undefined);
-          return json({ definition: def });
-        }
-
-        // Native path: rich upsert with checksum, tags, manifest refresh.
-        const { getWorkflowEngine } = await import('../../server/workflow-engine/index.js');
-        const { store } = await getWorkflowEngine();
-        const checksum = createHash('sha256').update(body.yaml.replace(/\r\n/g, '\n')).digest('hex');
-        store.upsertWorkflowDefinition({
-          id: body.id,
-          name: body.name,
-          description: body.description as string | undefined,
-          source: source as 'user' | 'project',
-          scope_path: body.scope_path as string | undefined,
-          yaml: body.yaml,
-          checksum,
-          version: body.version as string | undefined,
-          tags,
-        });
-        const def = store.getWorkflowDefinition(body.id);
-
-        // A.10 Q1 — refresh manifest after upsert so it stays current.
-        try {
-          writeWorkflowsManifest({ store });
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.error('[workflow-definitions] manifest refresh failed after upsert:', err);
-        }
-
+        // Phase 2: always plugin path.
+        const def = await engine.upsertDefinition(body.yaml, body.scope_path as string | undefined);
         return json({ definition: def });
+
+        /* Phase 3 delete — native path kept for reference:
+        // Native path: rich upsert with checksum, tags, manifest refresh.
+        // const { getWorkflowEngine } = await import('../../server/workflow-engine/index.js');
+        // const { store } = await getWorkflowEngine();
+        // const checksum = createHash('sha256').update(body.yaml.replace(/\r\n/g, '\n')).digest('hex');
+        // store.upsertWorkflowDefinition({ id: body.id, name: body.name, ... });
+        // writeWorkflowsManifest({ store });
+        // return json({ definition: store.getWorkflowDefinition(body.id) });
+        */
       },
     },
   },

@@ -1,11 +1,12 @@
 /**
  * Workflow backend selection — persisted to localStorage.
  *
- * 'native'  — use the built-in SwitchUiWorkflowStore (default).
- * 'plugin'  — delegate all workflow calls to the Python workflow-engine plugin.
+ * Phase 2: default changed to 'plugin'. Rehydration migration upgrades any
+ * stored 'native' value to 'plugin' so existing sessions are migrated on
+ * next load. Phase 3 will delete this store and the toggle component.
  *
- * The selected value is injected as the X-Workflow-Backend header on all
- * workflow-related API fetches via the fetch interceptor in src/lib/api-client.ts.
+ * 'plugin'  — delegate all workflow calls to the Python workflow-engine plugin.
+ * 'native'  — legacy; kept as valid type for Phase 3 deletion.
  */
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
@@ -24,7 +25,7 @@ type Actions = {
 export const useWorkflowBackendStore = create<State & Actions>()(
   persist(
     (set, get) => ({
-      backend: 'native',
+      backend: 'plugin',
       setBackend: (backend) => set({ backend }),
       toggleBackend: () =>
         set({ backend: get().backend === 'native' ? 'plugin' : 'native' }),
@@ -33,6 +34,12 @@ export const useWorkflowBackendStore = create<State & Actions>()(
       name: 'workflowBackend',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ backend: state.backend }),
+      onRehydrateStorage: () => (state) => {
+        // Migrate stored 'native' → 'plugin' (Phase 2 cutover).
+        if (state && state.backend === 'native') {
+          state.backend = 'plugin'
+        }
+      },
     },
   ),
 )
