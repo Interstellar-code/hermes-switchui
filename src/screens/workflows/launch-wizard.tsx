@@ -589,17 +589,17 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
     const { definition: def, parsed } = data
     wf = {
       id: def.id,
-      name: parsed.name,
-      description: parsed.description,
-      required_inputs: parsed.required_inputs,
-      optional_inputs: parsed.optional_inputs,
-      nodes: parsed.nodes.map((n) => ({
+      name: parsed.name ?? '',
+      description: parsed.description ?? '',
+      required_inputs: parsed.required_inputs ?? [],
+      optional_inputs: parsed.optional_inputs ?? [],
+      nodes: (parsed.nodes ?? []).map((n) => ({
         id: n.id,
         label: n.label ?? n.id,
         type: (n.type ?? 'prompt') as NodeType,
         config: n.config,
       })),
-      edges: parsed.edges,
+      edges: parsed.edges ?? [],
     }
   }
 
