@@ -1,6 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
-// Phase 3 delete: import { getWorkflowEngine } from '../../server/workflow-engine'
 import { getEngine } from '../../server/workflow-engine/factory'
 
 /**
@@ -78,12 +77,7 @@ export const Route = createFileRoute('/api/workflow-events')({
             'X-Accel-Buffering': 'no',
           },
         })
-
-        /* Phase 3 delete — native SSE path:
-        // Native path: look up conversationId from run, subscribe via emitter.
-        // Uses getWorkflowEngine() + emitter.subscribeForConversation().
-        */
-      },
+},
     },
   },
 })

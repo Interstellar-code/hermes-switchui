@@ -11,7 +11,6 @@ import { readResolvedSessionHeaders } from '@/lib/send-stream-session-headers'
 
 /**
  * Thin fetch wrapper for /api/workflow-* calls.
- * Phase 2: X-Workflow-Backend header removed — factory.ts always uses PluginClient.
  */
 function wfFetch(input: string, init?: RequestInit): Promise<Response> {
   return fetch(input, init)

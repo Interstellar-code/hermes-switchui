@@ -178,15 +178,12 @@ async function defaultListSessions(): Promise<Array<ClaudeSession>> {
 
 async function defaultListNodeRuns(): Promise<Array<NodeRunRow>> {
   try {
-    const { getWorkflowEngine } = await import('./workflow-engine')
-    const engine = await getWorkflowEngine()
-    // The store exposes a per-run lister; we widen here by enumerating runs.
-    const runs = engine.store.listWorkflowRuns({ limit: 50 }) as Array<{
-      id: string
-    }>
+    const { PluginClient } = await import('./workflow-engine/clients/plugin-client')
+    const engine = new PluginClient()
+    const runs = await engine.listRuns({ limit: 50 })
     const all: Array<NodeRunRow> = []
     for (const r of runs) {
-      const rows = engine.store.listNodeRuns(r.id) as Array<NodeRunRow>
+      const rows = (await engine.listNodeRuns(r.id)) as unknown as Array<NodeRunRow>
       for (const row of rows) all.push(row)
     }
     return all

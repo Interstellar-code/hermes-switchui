@@ -6,8 +6,8 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { getEngine } from '../../server/workflow-engine/factory';
-import { VALID_TRANSITIONS, InvalidPhaseTransitionError } from '../../server/workflow-engine/phases';
-import type { Phase } from '../../server/workflow-engine/phases';
+import { VALID_TRANSITIONS } from '../../server/workflow-engine/interface';
+import type { Phase } from '../../server/workflow-engine/interface';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -76,8 +76,9 @@ export const Route = createFileRoute('/api/workflow-runs/$runId')({
               });
               return json({ ok: true, transition });
             } catch (err) {
-              if (err instanceof InvalidPhaseTransitionError) {
-                return json({ error: err.message }, 409);
+              const msg = err instanceof Error ? err.message : String(err);
+              if (msg.toLowerCase().includes('invalid phase transition')) {
+                return json({ error: msg }, 409);
               }
               throw err;
             }

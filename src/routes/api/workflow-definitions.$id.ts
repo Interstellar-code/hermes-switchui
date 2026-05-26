@@ -5,7 +5,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { getEngine } from '../../server/workflow-engine/factory';
-// Phase 3 delete: import { writeWorkflowsManifest } from '../../server/workflow-engine/runtime/manifest';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -35,12 +34,7 @@ export const Route = createFileRoute('/api/workflow-definitions/$id')({
         const rowsAffected = await engine.deleteWorkflowDefinition(params.id);
         if (rowsAffected === 0) return json({ error: 'not found' }, 404);
         // Phase 2: always plugin path — plugin manages its own manifest state.
-        /* Phase 3 delete — native manifest refresh:
-        // const { getWorkflowEngine } = await import('../../server/workflow-engine/index.js');
-        // const { store } = await getWorkflowEngine();
-        // writeWorkflowsManifest({ store });
-        */
-        return json({ ok: true });
+return json({ ok: true });
       },
     },
   },
