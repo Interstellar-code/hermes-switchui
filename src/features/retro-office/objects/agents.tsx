@@ -63,6 +63,7 @@ export const AgentModel = memo(function AgentModel({
   showSpeech = false,
   speechText = null,
   suppressSpeechBubble = false,
+  progress,
 }: AgentModelProps) {
   const groupRef = useRef<THREE.Group>(null);
   const leftArmRef = useRef<THREE.Group>(null);
@@ -1099,6 +1100,20 @@ export const AgentModel = memo(function AgentModel({
           depthWrite={false}
         />
       </mesh>
+      {!activeSpeechBubble && typeof progress === "number" && progress > 0 ? (
+        <Billboard position={[0, 1.22, 0]}>
+          {/* track */}
+          <mesh position={[0, 0, -0.001]}>
+            <planeGeometry args={[0.7, 0.045]} />
+            <meshBasicMaterial color="#0d1a0d" transparent opacity={0.85} />
+          </mesh>
+          {/* fill — offset left so it anchors at the left edge */}
+          <mesh position={[(progress / 100 - 1) * 0.35, 0, 0.001]}>
+            <planeGeometry args={[0.7 * (progress / 100), 0.033]} />
+            <meshBasicMaterial color="#22c55e" transparent opacity={0.9} />
+          </mesh>
+        </Billboard>
+      ) : null}
       {!activeSpeechBubble && nameplateText ? (
         <Billboard position={[0, 1.05, 0]}>
           <mesh position={[0, 0, -0.001]}>
