@@ -3,7 +3,7 @@
  * Uses a sliding window approach per key.
  */
 
-/** Maximum number of IP×endpoint keys retained. Oldest entries are evicted first. */
+/** Maximum number of IP×endpoint keys retained. Stalest entries are evicted first. */
 const MAX_STORE_SIZE = 50_000
 
 /**
@@ -12,7 +12,7 @@ const MAX_STORE_SIZE = 50_000
  */
 const CLEANUP_HORIZON_MS = 86_400_000
 
-const store = new Map<string, { timestamps: Array<number> }>()
+const store = new Map<string, { timestamps: Array<number>; lastSeen: number }>()
 
 // Cleanup interval — configurable via RATE_LIMIT_CLEANUP_MS (default 2 min)
 const _cleanupIntervalMs = (() => {
@@ -40,14 +40,29 @@ export function rateLimit(
   const now = Date.now()
   let entry = store.get(key)
   if (!entry) {
-    // Evict oldest entry when cap is reached
+    // Evict when cap is reached: prefer expired buckets, fall back to stalest lastSeen.
     if (store.size >= MAX_STORE_SIZE) {
-      const oldestKey = store.keys().next().value
-      if (oldestKey !== undefined) store.delete(oldestKey)
+      let evictKey: string | undefined
+      let oldestSeen = Infinity
+      for (const [k, e] of store) {
+        // Drop an expired bucket immediately if found
+        if (e.timestamps.every((t) => now - t >= CLEANUP_HORIZON_MS)) {
+          evictKey = k
+          break
+        }
+        if (e.lastSeen < oldestSeen) {
+          oldestSeen = e.lastSeen
+          evictKey = k
+        }
+      }
+      if (evictKey !== undefined) store.delete(evictKey)
     }
-    entry = { timestamps: [] }
+    entry = { timestamps: [], lastSeen: now }
     store.set(key, entry)
   }
+
+  // Update lastSeen on every access so hot buckets are never mistaken for stale ones
+  entry.lastSeen = now
 
   // Remove timestamps outside the window
   entry.timestamps = entry.timestamps.filter((t) => now - t < windowMs)
