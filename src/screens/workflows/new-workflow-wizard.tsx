@@ -17,6 +17,9 @@ import {
 import { chatWorkflowWizard } from './api-client'
 import type { NodeType, WorkflowSummary } from './types'
 
+// ── Module-level flags ──────────────────────────────────────────────────────
+let chatWarnFired = false
+
 // ── Constants ───────────────────────────────────────────────────────────────
 
 const STEPS = ['DESCRIBE', 'DESIGN', 'CONFIGURE', 'SAVE'] as const
@@ -578,23 +581,6 @@ function DescribeStep({
                 }}
               >
                 {label}
-                {label === 'Scratch' && (
-                  <span
-                    style={{
-                      marginLeft: 5,
-                      fontSize: 8,
-                      letterSpacing: '.06em',
-                      background: 'var(--m-green-500, #00ff41)',
-                      color: '#000',
-                      borderRadius: 3,
-                      padding: '1px 4px',
-                      verticalAlign: 'middle',
-                      fontFamily: 'var(--m-font-mono, monospace)',
-                    }}
-                  >
-                    PREVIEW
-                  </span>
-                )}
               </div>
               <div
                 style={{
@@ -1253,23 +1239,6 @@ function DesignStep({ yaml }: DesignStepProps) {
         </div>
       </div>
 
-      {/* Footer banner */}
-      <div
-        style={{
-          marginTop: 6,
-          font: '400 11px var(--m-font-sans)',
-          color: 'var(--m-text-faint)',
-          padding: '8px 12px',
-          border: '1px solid rgba(0,255,65,.15)',
-          borderLeft: '2px solid var(--m-green-500)',
-          borderRadius: 4,
-          background: 'rgba(0,255,65,.03)',
-          lineHeight: 1.5,
-        }}
-      >
-        Review the inferred structure here, then refine node types,
-        dependencies, phases, and Hermes task hints in Step 3.
-      </div>
     </div>
   )
 }
@@ -2052,8 +2021,11 @@ export function NewWorkflowWizard({
         setYaml(result.workflow_yaml)
       }
     } catch (err) {
-      // Always warn so future debugging is easier; fallback builds a local draft.
-      console.warn('[workflow-wizard] Hermes scratch chat failed — using local fallback', err)
+      // Warn once per session so future debugging is easier; fallback builds a local draft.
+      if (!chatWarnFired) {
+        chatWarnFired = true
+        console.warn('[workflow-wizard] Hermes scratch chat failed — using local fallback', err)
+      }
       const fallbackDoc = buildWorkflowFromPrompt(
         userMsg,
         name || 'My Workflow',

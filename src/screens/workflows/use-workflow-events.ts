@@ -78,9 +78,8 @@ export function useWorkflowEvents(runId: string | null): {
     })
 
     es.addEventListener('error', () => {
-      // Belt-and-suspenders: switchui sets status='error' here; the plugin also
-      // emits an SSE error frame on unknown runId (fix 7f21fa042), so both
-      // layers independently surface bad-runId failures.
+      // Defensive client-side handling; the local /api/workflow-events route also
+      // emits an SSE error event for missing runs (see Wave 1 #98).
       setStatus('error')
     })
 
