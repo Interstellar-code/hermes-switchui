@@ -5,6 +5,7 @@
  */
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
+import { requireJsonContentType } from '../../server/rate-limit'
 import { ensureGatewayProbed, getCapabilities } from '../../server/gateway-capabilities'
 import { getConfig, saveConfig } from '../../server/claude-dashboard-api'
 
@@ -32,6 +33,8 @@ export const Route = createFileRoute('/api/dashboard-config')({
       },
 
       PUT: async ({ request }) => {
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
         const authResult = isAuthenticated(request) as AuthResult
         if (authResult !== true) return authResult
         await ensureGatewayProbed()
