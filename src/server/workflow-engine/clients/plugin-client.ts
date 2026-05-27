@@ -21,6 +21,16 @@ import type {
 
 const PLUGIN_BASE = '/api/plugins/workflow-engine';
 
+// Shape returned by GET /node-runs/active (hermes-agent#16)
+export interface ActiveNodeRunSummary {
+  runId: string;
+  nodeId: string;
+  workflowId: string;
+  status: 'running' | 'waiting';
+  startedAt: string; // ISO8601
+  workerId: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Internal fetch helpers — mirrors hermes-api.ts dashboardGet / dashboardSend
 // ---------------------------------------------------------------------------
@@ -153,6 +163,9 @@ export class PluginClient implements WorkflowEngineInterface {
       variables: inputs,
       parent_conversation_id: trigger.parent_conversation_id,
       codebase_id: trigger.codebase_id,
+      ...(trigger.schedule != null && { schedule: trigger.schedule }),
+      ...(trigger.priority != null && { priority: trigger.priority }),
+      ...(trigger.maxRuntimeSeconds != null && { maxRuntimeSeconds: trigger.maxRuntimeSeconds }),
     });
     return data.run;
   }
@@ -191,6 +204,10 @@ export class PluginClient implements WorkflowEngineInterface {
   async listNodeRuns(runId: string): Promise<Array<NodeRun>> {
     const data = await _get<{ nodeRuns: Array<NodeRun> }>(`/runs/${encodeURIComponent(runId)}/nodes`);
     return data.nodeRuns;
+  }
+
+  async listActiveNodeRuns(): Promise<Array<ActiveNodeRunSummary>> {
+    return _get<Array<ActiveNodeRunSummary>>('/node-runs/active');
   }
 
   async findNodeRunById(nodeRunId: string): Promise<NodeRun | null> {

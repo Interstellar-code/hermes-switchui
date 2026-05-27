@@ -73,12 +73,20 @@ export async function getWorkflowDefinitionParsed(
   return (await res.json()) as WorkflowDefinitionParsedResponse
 }
 
+export type LaunchSchedule =
+  | { type: 'now' }
+  | { type: 'at'; at: string }
+  | { type: 'cron'; cron: string }
+
 export interface LaunchWorkflowInput {
   workflow_id: string
   conversation_id: string
   user_message: string
   working_path?: string
   variables?: Record<string, unknown>
+  schedule?: LaunchSchedule
+  priority?: number
+  maxRuntimeSeconds?: number
 }
 
 export interface PhaseTransition {

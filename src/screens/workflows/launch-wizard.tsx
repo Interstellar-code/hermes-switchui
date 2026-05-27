@@ -2,6 +2,65 @@ import { useEffect, useState } from 'react'
 import { useLaunchWorkflowRun, useWorkflowParsed } from './use-workflows'
 import type { NodeType, WorkflowDagNode } from './types'
 
+// ── Cron preview helper ───────────────────────────────────────────────────────
+
+const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** Best-effort human description of a 5-field cron expression. */
+function describeCron(expr: string): string {
+  if (!expr.trim()) return 'Enter a cron expression'
+  const parts = expr.trim().split(/\s+/)
+  if (parts.length !== 5) return 'Invalid cron (need 5 fields)'
+
+  const [min, hour, dom, month, dow] = parts
+
+  // Build time string
+  const isAnyMin = min === '*'
+  const isAnyHour = hour === '*'
+  let timeStr = 'some time'
+  if (!isAnyMin && !isAnyHour && /^\d+$/.test(min) && /^\d+$/.test(hour)) {
+    const h = Number(hour)
+    const m = Number(min)
+    const ampm = h < 12 ? 'AM' : 'PM'
+    const h12 = h % 12 === 0 ? 12 : h % 12
+    timeStr = `${h12}:${m.toString().padStart(2, '0')} ${ampm}`
+  } else if (!isAnyHour && /^\d+$/.test(hour)) {
+    const h = Number(hour)
+    const ampm = h < 12 ? 'AM' : 'PM'
+    const h12 = h % 12 === 0 ? 12 : h % 12
+    timeStr = `${h12}:xx ${ampm}`
+  }
+
+  // Build day string
+  const isAnyDom = dom === '*'
+  const isAnyDow = dow === '*'
+  const isAnyMonth = month === '*'
+
+  if (!isAnyDow) {
+    const days = dow.split(',').map((d) => {
+      const n = Number(d)
+      return isNaN(n) ? d : (DAYS_SHORT[n] ?? d)
+    })
+    const monthStr = !isAnyMonth && /^\d+$/.test(month)
+      ? ` in ${MONTHS_SHORT[Number(month) - 1] ?? month}`
+      : ''
+    return `Every ${days.join('/')} at ${timeStr}${monthStr}`
+  }
+
+  if (!isAnyDom) {
+    const monthStr = !isAnyMonth && /^\d+$/.test(month)
+      ? ` ${MONTHS_SHORT[Number(month) - 1] ?? month}`
+      : ' (monthly)'
+    return `Day ${dom}${monthStr} at ${timeStr}`
+  }
+
+  const monthStr = !isAnyMonth && /^\d+$/.test(month)
+    ? ` in ${MONTHS_SHORT[Number(month) - 1] ?? month}`
+    : ''
+  return `Daily${monthStr} at ${timeStr}`
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const AGENTS = ['Switch', 'Neo', 'Trinity', 'Morpheus'] as const
@@ -432,7 +491,7 @@ function Step3Schedule({
                 value={schedule.cron}
                 onChange={(e) => update('cron', e.target.value)}
               />
-              <div className="wfw-cron-preview">Daily at 9:00 AM</div>
+              <div className="wfw-cron-preview">{describeCron(schedule.cron)}</div>
             </div>
           )}
         </label>
@@ -491,7 +550,7 @@ function Step4Confirm({
       ? 'Run immediately'
       : schedule.mode === 'at'
         ? `Run at ${schedule.datetime || '(not set)'}`
-        : `Cron: ${schedule.cron || '(not set)'} — Daily at 9:00 AM`
+        : `Cron: ${schedule.cron || '(not set)'} — ${describeCron(schedule.cron)}`
 
   return (
     <div className="wfw-step-4">
@@ -733,12 +792,25 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
       const val = variables[inp]?.trim()
       if (val) resolvedVariables[inp] = val
     }
+    // Build schedule payload per hermes-agent#15 shape.
+    const schedulePayload =
+      schedule.mode === 'now'
+        ? { type: 'now' as const }
+        : schedule.mode === 'at'
+          ? { type: 'at' as const, at: new Date(schedule.datetime).toISOString() }
+          : { type: 'cron' as const, cron: schedule.cron }
+
+    const priorityMap: Record<Priority, number> = { low: 0, normal: 50, high: 80, urgent: 100 }
+
     launchMutation.mutate(
       {
         workflow_id: wf.id,
         conversation_id: conversationId,
         user_message: summary,
         variables: Object.keys(resolvedVariables).length > 0 ? resolvedVariables : undefined,
+        schedule: schedulePayload,
+        priority: priorityMap[schedule.priority],
+        maxRuntimeSeconds: schedule.maxRuntime > 0 ? schedule.maxRuntime : undefined,
       },
       {
         onSuccess: (result) => {
