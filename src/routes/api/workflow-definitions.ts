@@ -2,10 +2,29 @@
  * GET  /api/workflow-definitions      — list (optional ?source=bundled|user|project)
  * POST /api/workflow-definitions      — upsert a definition
  */
+import { createHash } from 'node:crypto';
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { getEngine } from '../../server/workflow-engine/factory';
 import { summariseWorkflowYaml } from '../../server/workflow-yaml-summary';
+
+// Simple in-process memoization keyed by sha256 of the yaml string.
+// Avoids re-parsing the same YAML on every list request.
+const SUMMARY_CACHE_MAX = 256;
+const _summaryCache = new Map<string, ReturnType<typeof summariseWorkflowYaml>>();
+function summariseWorkflowYamlCached(yaml: string): ReturnType<typeof summariseWorkflowYaml> {
+  const key = createHash('sha256').update(yaml).digest('hex');
+  const cached = _summaryCache.get(key);
+  if (cached) return cached;
+  const result = summariseWorkflowYaml(yaml);
+  if (_summaryCache.size >= SUMMARY_CACHE_MAX) {
+    // Evict oldest inserted entry (Map iteration order is insertion order).
+    const oldest = _summaryCache.keys().next().value;
+    if (oldest !== undefined) _summaryCache.delete(oldest);
+  }
+  _summaryCache.set(key, result);
+  return result;
+}
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -27,7 +46,8 @@ export const Route = createFileRoute('/api/workflow-definitions')({
         const defs = await engine.listDefinitions(source ? { source } : undefined);
         const enriched = defs.map((def) => ({
           ...def,
-          ...summariseWorkflowYaml(def.yaml ?? ''),
+          // Only enrich when yaml is present; omit summary fields when plugin omits yaml.
+          ...(def.yaml ? summariseWorkflowYamlCached(def.yaml) : {}),
         }));
         return json({ definitions: enriched });
       },
@@ -91,7 +111,7 @@ export const Route = createFileRoute('/api/workflow-definitions')({
         // Plugin parses and validates YAML server-side; surfaces 422-style
         // errors through the HTTP response.
         try {
-          const def = await engine.upsertDefinition(body.yaml, body.scope_path as string | undefined);
+          const def = await engine.upsertDefinition(body.yaml, body.scope_path);
           return json({ definition: def });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);

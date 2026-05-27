@@ -77,7 +77,8 @@ export const Route = createFileRoute('/api/workflow-runs/$runId')({
               return json({ ok: true, transition });
             } catch (err) {
               const msg = err instanceof Error ? err.message : String(err);
-              if (msg.toLowerCase().includes('invalid phase transition')) {
+              // Plugin returns 409 for invalid phase transitions; surface it.
+              if (msg.includes(': 409 ') || msg.toLowerCase().includes('invalid phase transition')) {
                 return json({ error: msg }, 409);
               }
               throw err;

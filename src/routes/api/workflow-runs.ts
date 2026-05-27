@@ -25,7 +25,7 @@ export const Route = createFileRoute('/api/workflow-runs')({
         // Phase 2: always plugin path.
         const runs = await engine.listRuns({ workflowId: workflowId ?? undefined });
         return json({ runs });
-},
+      },
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
         const engine = getEngine(request);
@@ -71,7 +71,7 @@ export const Route = createFileRoute('/api/workflow-runs')({
           },
         );
         return json({ run }, 201);
-},
+      },
     },
   },
 });
