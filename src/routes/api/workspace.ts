@@ -11,7 +11,6 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import YAML from 'yaml'
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { requireJsonContentType } from '../../server/rate-limit'
 import {
@@ -463,12 +462,12 @@ export const Route = createFileRoute('/api/workspace')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         try {
-          return json(await loadWorkspaceCatalog())
+          return Response.json(await loadWorkspaceCatalog())
         } catch (err) {
-          return json(
+          return Response.json(
             {
               path: '',
               folderName: '',
@@ -484,7 +483,7 @@ export const Route = createFileRoute('/api/workspace')({
       },
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         const contentTypeError = requireJsonContentType(request)
         if (contentTypeError) return contentTypeError
@@ -493,9 +492,9 @@ export const Route = createFileRoute('/api/workspace')({
             path?: string
             name?: string
           }
-          return json(await saveWorkspaceSelection(body))
+          return Response.json(await saveWorkspaceSelection(body))
         } catch (err) {
-          return json(
+          return Response.json(
             {
               ok: false,
               error: err instanceof Error ? err.message : String(err),

@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { z } from 'zod'
 
 const BodySchema = z.object({
@@ -14,12 +13,12 @@ export const Route = createFileRoute('/api/oauth/device-code')({
         try {
           body = await request.json()
         } catch {
-          return json({ error: 'Invalid JSON' }, { status: 400 })
+          return Response.json({ error: 'Invalid JSON' }, { status: 400 })
         }
 
         const parsed = BodySchema.safeParse(body)
         if (!parsed.success) {
-          return json({ error: 'Missing provider' }, { status: 400 })
+          return Response.json({ error: 'Missing provider' }, { status: 400 })
         }
 
         const { provider } = parsed.data
@@ -38,21 +37,21 @@ export const Route = createFileRoute('/api/oauth/device-code')({
             )
             const data = await res.json()
             if (!res.ok) {
-              return json(
+              return Response.json(
                 { error: data.error || 'Device code request failed' },
                 { status: res.status },
               )
             }
-            return json(data)
+            return Response.json(data)
           } catch (err) {
-            return json(
+            return Response.json(
               { error: err instanceof Error ? err.message : 'Network error' },
               { status: 500 },
             )
           }
         }
 
-        return json(
+        return Response.json(
           {
             error: `OAuth device flow not supported for provider: ${provider}`,
           },

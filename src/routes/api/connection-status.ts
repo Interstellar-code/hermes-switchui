@@ -6,7 +6,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import YAML from 'yaml'
 import {
   CLAUDE_API,
@@ -57,7 +56,7 @@ export const Route = createFileRoute('/api/connection-status')({
         // unknown as Response" cast silenced TypeScript but threw at runtime
         // because the framework received `false`, not a Response. See #261, #263.
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         const caps = await ensureGatewayProbed()

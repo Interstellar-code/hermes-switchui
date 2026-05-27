@@ -7,7 +7,6 @@
  * the reply, so we don't need to hold the stream open here).
  */
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { requireJsonContentType } from '../../server/rate-limit'
 
@@ -16,7 +15,7 @@ export const Route = createFileRoute('/api/session-send')({
     handlers: {
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
@@ -28,13 +27,13 @@ export const Route = createFileRoute('/api/session-send')({
           const sessionKey = (body.sessionKey || '').trim()
           const message = (body.message || '').trim()
           if (!sessionKey) {
-            return json(
+            return Response.json(
               { ok: false, error: 'sessionKey is required' },
               { status: 400 },
             )
           }
           if (!message) {
-            return json(
+            return Response.json(
               { ok: false, error: 'message is required' },
               { status: 400 },
             )
@@ -56,9 +55,9 @@ export const Route = createFileRoute('/api/session-send')({
           }).catch(() => {
             // swallow; UI discovers failures via next /api/session-history poll
           })
-          return json({ ok: true, sessionKey, queued: true })
+          return Response.json({ ok: true, sessionKey, queued: true })
         } catch (error) {
-          return json(
+          return Response.json(
             {
               ok: false,
               error:

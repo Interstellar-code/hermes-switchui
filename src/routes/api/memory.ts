@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { requireLocalOrAuth } from '../../server/auth-middleware'
 import {
   CLAUDE_API,
@@ -13,12 +12,12 @@ export const Route = createFileRoute('/api/memory')({
     handlers: {
       GET: async ({ request }) => {
         if (!requireLocalOrAuth(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
 
         await ensureGatewayProbed()
         if (!getCapabilities().memory) {
-          return json(
+          return Response.json(
             {
               ok: false,
               error: `Gateway does not support /api/memory on ${CLAUDE_API}`,
@@ -28,9 +27,9 @@ export const Route = createFileRoute('/api/memory')({
         }
 
         try {
-          return json(await getMemory())
+          return Response.json(await getMemory())
         } catch (err) {
-          return json(
+          return Response.json(
             { error: err instanceof Error ? err.message : String(err) },
             { status: 500 },
           )

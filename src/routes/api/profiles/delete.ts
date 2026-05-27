@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { deleteProfile } from '../../../server/profiles-browser'
 import { requireJsonContentType } from '../../../server/rate-limit'
@@ -9,7 +8,7 @@ export const Route = createFileRoute('/api/profiles/delete')({
     handlers: {
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
@@ -17,12 +16,12 @@ export const Route = createFileRoute('/api/profiles/delete')({
           const body = (await request.json()) as { name?: string }
           const name = (body.name || '').trim()
           if (name === 'default') {
-            return json({ error: 'Default profile cannot be deleted' }, { status: 403 })
+            return Response.json({ error: 'Default profile cannot be deleted' }, { status: 403 })
           }
           deleteProfile(name)
-          return json({ ok: true })
+          return Response.json({ ok: true })
         } catch (error) {
-          return json(
+          return Response.json(
             {
               error:
                 error instanceof Error

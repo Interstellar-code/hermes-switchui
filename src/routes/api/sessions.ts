@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { requireJsonContentType } from '../../server/rate-limit'
 import {
@@ -27,11 +26,11 @@ export const Route = createFileRoute('/api/sessions')({
       GET: async ({ request }) => {
         // Auth check
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         const capabilities = await ensureGatewayProbed()
         if (!capabilities.sessions) {
-          return json({
+          return Response.json({
             ok: true,
             sessions: [],
             source: 'unavailable',
@@ -64,9 +63,9 @@ export const Route = createFileRoute('/api/sessions')({
             }
           }
 
-          return json({ sessions: gatewaySessions })
+          return Response.json({ sessions: gatewaySessions })
         } catch (err) {
-          return json(
+          return Response.json(
             {
               error: err instanceof Error ? err.message : String(err),
             },
@@ -76,14 +75,14 @@ export const Route = createFileRoute('/api/sessions')({
       },
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheckPost = requireJsonContentType(request)
         if (csrfCheckPost) return csrfCheckPost
         const capabilities = await ensureGatewayProbed()
         if (!capabilities.sessions) {
           const friendlyId = randomUUID()
-          return json({
+          return Response.json({
             ...createCapabilityUnavailablePayload('sessions'),
             ok: true,
             sessionKey: friendlyId,
@@ -110,7 +109,7 @@ export const Route = createFileRoute('/api/sessions')({
           const model = requestedModel || undefined
 
           if (capabilities.dashboard.available && !capabilities.enhancedChat) {
-            return json({
+            return Response.json({
               ok: true,
               sessionKey: friendlyId,
               friendlyId,
@@ -137,7 +136,7 @@ export const Route = createFileRoute('/api/sessions')({
             model,
           })
 
-          return json({
+          return Response.json({
             ok: true,
             sessionKey: session.id,
             friendlyId: session.id,
@@ -145,7 +144,7 @@ export const Route = createFileRoute('/api/sessions')({
             modelApplied: true,
           })
         } catch (err) {
-          return json(
+          return Response.json(
             {
               ok: false,
               error: err instanceof Error ? err.message : String(err),
@@ -156,7 +155,7 @@ export const Route = createFileRoute('/api/sessions')({
       },
       PATCH: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheckPatch = requireJsonContentType(request)
         if (csrfCheckPatch) return csrfCheckPatch
@@ -172,7 +171,7 @@ export const Route = createFileRoute('/api/sessions')({
             typeof body.friendlyId === 'string' ? body.friendlyId.trim() : ''
           const sessionKey = rawSessionKey || rawFriendlyId || randomUUID()
 
-          return json({
+          return Response.json({
             ...createCapabilityUnavailablePayload('sessions'),
             ok: true,
             sessionKey,
@@ -195,7 +194,7 @@ export const Route = createFileRoute('/api/sessions')({
           const sessionKey = rawSessionKey || rawFriendlyId
 
           if (!sessionKey) {
-            return json(
+            return Response.json(
               { ok: false, error: 'sessionKey required' },
               { status: 400 },
             )
@@ -204,7 +203,7 @@ export const Route = createFileRoute('/api/sessions')({
           const localSession = getLocalSession(sessionKey)
           if (localSession) {
             if (label) updateLocalSessionTitle(sessionKey, label)
-            return json({
+            return Response.json({
               ok: true,
               sessionKey,
               friendlyId: rawFriendlyId || sessionKey,
@@ -226,7 +225,7 @@ export const Route = createFileRoute('/api/sessions')({
           }
 
           if (capabilities.dashboard.available && !capabilities.enhancedChat) {
-            return json({
+            return Response.json({
               ok: true,
               sessionKey,
               entry: {
@@ -245,13 +244,13 @@ export const Route = createFileRoute('/api/sessions')({
             title: label,
           })
 
-          return json({
+          return Response.json({
             ok: true,
             sessionKey,
             entry: toSessionSummary(session),
           })
         } catch (err) {
-          return json(
+          return Response.json(
             {
               ok: false,
               error: err instanceof Error ? err.message : String(err),
@@ -262,7 +261,7 @@ export const Route = createFileRoute('/api/sessions')({
       },
       DELETE: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         const url = new URL(request.url)
         const rawSessionKey = url.searchParams.get('sessionKey') ?? ''
@@ -270,7 +269,7 @@ export const Route = createFileRoute('/api/sessions')({
         const sessionKey = rawSessionKey.trim() || rawFriendlyId.trim()
 
         if (!sessionKey) {
-          return json(
+          return Response.json(
             { ok: false, error: 'sessionKey required' },
             { status: 400 },
           )
@@ -280,12 +279,12 @@ export const Route = createFileRoute('/api/sessions')({
         // gateway. Delete them locally without hitting the gateway.
         if (getLocalSession(sessionKey)) {
           deleteLocalSession(sessionKey)
-          return json({ ok: true, sessionKey, source: 'local' })
+          return Response.json({ ok: true, sessionKey, source: 'local' })
         }
 
         const capabilities = await ensureGatewayProbed()
         if (!capabilities.sessions) {
-          return json({
+          return Response.json({
             ...createCapabilityUnavailablePayload('sessions'),
             ok: true,
             sessionKey,
@@ -295,9 +294,9 @@ export const Route = createFileRoute('/api/sessions')({
         try {
           await deleteSession(sessionKey)
 
-          return json({ ok: true, sessionKey })
+          return Response.json({ ok: true, sessionKey })
         } catch (err) {
-          return json(
+          return Response.json(
             {
               ok: false,
               error: err instanceof Error ? err.message : String(err),

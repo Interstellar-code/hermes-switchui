@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
   CLAUDE_UPGRADE_INSTRUCTIONS,
@@ -18,15 +17,15 @@ export const Route = createFileRoute('/api/mcp/$name/logs')({
     handlers: {
       GET: async ({ request, params }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         const name = (params as { name?: string }).name?.trim() || ''
         if (!name) {
-          return json({ ok: false, error: 'Missing server name' }, { status: 400 })
+          return Response.json({ ok: false, error: 'Missing server name' }, { status: 400 })
         }
         const capabilities = await ensureGatewayProbed()
         if (capabilities.mcpFallback && !capabilities.mcp) {
-          return json(
+          return Response.json(
             {
               ok: false,
               error:
@@ -36,7 +35,7 @@ export const Route = createFileRoute('/api/mcp/$name/logs')({
           )
         }
         if (!capabilities.mcp) {
-          return json(
+          return Response.json(
             createCapabilityUnavailablePayload('mcp', {
               error: `Gateway does not support /api/mcp. ${CLAUDE_UPGRADE_INSTRUCTIONS}`,
             }),
@@ -56,7 +55,7 @@ export const Route = createFileRoute('/api/mcp/$name/logs')({
           })
         } catch (err) {
           request.signal.removeEventListener('abort', onClientAbort)
-          return json(
+          return Response.json(
             { ok: false, error: err instanceof Error ? err.message : String(err) },
             { status: 502 },
           )
@@ -64,7 +63,7 @@ export const Route = createFileRoute('/api/mcp/$name/logs')({
 
         if (!upstream.ok || !upstream.body) {
           request.signal.removeEventListener('abort', onClientAbort)
-          return json(
+          return Response.json(
             { ok: false, error: `Upstream logs failed (${upstream.status})` },
             { status: upstream.status || 502 },
           )

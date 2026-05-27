@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
   getActiveProfileName,
@@ -12,16 +11,16 @@ export const Route = createFileRoute('/api/profiles/list')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         try {
           ensureBuiltinProfiles()
-          return json({
+          return Response.json({
             profiles: listProfiles(),
             activeProfile: getActiveProfileName(),
           })
         } catch (error) {
-          return json(
+          return Response.json(
             {
               error:
                 error instanceof Error

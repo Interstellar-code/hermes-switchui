@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
   BEARER_TOKEN,
@@ -32,14 +31,14 @@ export const Route = createFileRoute('/api/mcp/$name')({
     handlers: {
       DELETE: async ({ request, params }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         // DELETE has no body, so requireJsonContentType allows it through.
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
         const capabilities = await ensureGatewayProbed()
         if (!capabilities.mcp && !capabilities.mcpFallback) {
-          return json(
+          return Response.json(
             createCapabilityUnavailablePayload('mcp', {
               error: `Gateway does not support /api/mcp. ${CLAUDE_UPGRADE_INSTRUCTIONS}`,
             }),
@@ -48,7 +47,7 @@ export const Route = createFileRoute('/api/mcp/$name')({
         }
         const name = (params as { name?: string }).name?.trim() || ''
         if (!name) {
-          return json({ ok: false, error: 'Missing server name' }, { status: 400 })
+          return Response.json({ ok: false, error: 'Missing server name' }, { status: 400 })
         }
         try {
           if (capabilities.mcp) {
@@ -58,12 +57,12 @@ export const Route = createFileRoute('/api/mcp/$name')({
             })
             if (!response.ok) {
               const body = (await response.json().catch(() => ({}))) as Record<string, unknown>
-              return json(
+              return Response.json(
                 { ok: false, error: (body.error as string) || `MCP delete failed (${response.status})` },
                 { status: response.status || 502 },
               )
             }
-            return json({ ok: true })
+            return Response.json({ ok: true })
           }
           // Phase 1.5 fallback — read map, drop entry, persist whole map.
           // We cannot use saveConfig({ mcp_servers: { [name]: null } }) because
@@ -81,15 +80,15 @@ export const Route = createFileRoute('/api/mcp/$name')({
               ? { ...(rawServers as Record<string, unknown>) }
               : {}
           if (!(name in servers)) {
-            return json({ ok: false, error: `MCP server not found: ${name}` }, { status: 404 })
+            return Response.json({ ok: false, error: `MCP server not found: ${name}` }, { status: 404 })
           }
           delete servers[name]
           // Mark the deleted key as null so deepMerge in saveConfig removes it.
           const patch: Record<string, unknown> = { mcp_servers: { ...servers, [name]: null } }
           await saveConfig(patch)
-          return json({ ok: true })
+          return Response.json({ ok: true })
         } catch (err) {
-          return json({ ok: false, error: safeErrorMessage(err) }, { status: 500 })
+          return Response.json({ ok: false, error: safeErrorMessage(err) }, { status: 500 })
         }
       },
     },

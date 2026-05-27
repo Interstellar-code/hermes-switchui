@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
   writeProfile,
@@ -30,7 +29,7 @@ export const Route = createFileRoute('/api/profiles/update')({
     handlers: {
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
@@ -42,7 +41,7 @@ export const Route = createFileRoute('/api/profiles/update')({
 
           const name = (body.name || '').trim()
           if (name === 'default') {
-            return json({ error: 'Default profile cannot be modified' }, { status: 403 })
+            return Response.json({ error: 'Default profile cannot be modified' }, { status: 403 })
           }
 
           // Support legacy { name, patch } envelope alongside new flat shape
@@ -60,10 +59,10 @@ export const Route = createFileRoute('/api/profiles/update')({
 
           if (isLegacy) {
             if (!body.patch || typeof body.patch !== 'object') {
-              return json({ error: 'patch is required' }, { status: 400 })
+              return Response.json({ error: 'patch is required' }, { status: 400 })
             }
             const profile = writeProfile(name, body.patch as Record<string, unknown>)
-            return json({ ok: true, profile })
+            return Response.json({ ok: true, profile })
           }
 
           // Guard: cannot update agent_ui.tier once already set (allow initial
@@ -72,7 +71,7 @@ export const Route = createFileRoute('/api/profiles/update')({
             const existing = readProfile(name)
             const existingTier = existing?.config?.agent_ui?.tier
             if (existingTier !== undefined && existingTier !== body.agent_ui.tier) {
-              return json(
+              return Response.json(
                 { error: 'agent_ui.tier cannot be updated after creation' },
                 { status: 400 },
               )
@@ -85,7 +84,7 @@ export const Route = createFileRoute('/api/profiles/update')({
             body.agent_ui.persona_id !== '' &&
             !body.system_prompt?.trim()
           ) {
-            return json(
+            return Response.json(
               {
                 error:
                   'system_prompt must be provided and non-empty when updating agent_ui.persona_id',
@@ -108,7 +107,7 @@ export const Route = createFileRoute('/api/profiles/update')({
             const agentUiInput = body.agent_ui as Record<string, unknown>
             const disallowed = Object.keys(agentUiInput).filter((k) => AGENT_UI_DENIED_KEYS.has(k))
             if (disallowed.length > 0) {
-              return json(
+              return Response.json(
                 { error: `agent_ui fields not allowed: ${disallowed.join(', ')}` },
                 { status: 400 },
               )
@@ -117,13 +116,13 @@ export const Route = createFileRoute('/api/profiles/update')({
           }
 
           if (Object.keys(patch).length === 0) {
-            return json({ error: 'No fields to update' }, { status: 400 })
+            return Response.json({ error: 'No fields to update' }, { status: 400 })
           }
 
           const profile = writeProfile(name, patch)
-          return json({ ok: true, profile })
+          return Response.json({ ok: true, profile })
         } catch (error) {
-          return json(
+          return Response.json(
             {
               error:
                 error instanceof Error

@@ -7,7 +7,7 @@
  *
  * NOTE: Previously read workflow_runs directly from the local SQLite file,
  * which caused split-brain when the workflow-engine plugin owns the DB.
- * Now delegates to getEngine(request) so plugin-backed deployments see live data.
+ * Now delegates to getEngine() so plugin-backed deployments see live data.
  */
 
 import { getEngine } from './workflow-engine/factory'
@@ -112,7 +112,7 @@ function runToMission(run: WorkflowRun): Mission {
 
 export async function listMissions(request: Request): Promise<Array<Mission>> {
   try {
-    const engine = getEngine(request)
+    const engine = getEngine()
     const runs = await engine.listRuns({ limit: 200 })
     return runs.map(runToMission)
   } catch {
@@ -122,7 +122,7 @@ export async function listMissions(request: Request): Promise<Array<Mission>> {
 
 export async function getMission(request: Request, id: string): Promise<Mission | null> {
   try {
-    const engine = getEngine(request)
+    const engine = getEngine()
     const run = await engine.getRun(id)
     return run ? runToMission(run) : null
   } catch {

@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
 import {
@@ -13,7 +12,7 @@ export const Route = createFileRoute('/api/knowledge/sync')({
     handlers: {
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
@@ -38,9 +37,9 @@ export const Route = createFileRoute('/api/knowledge/sync')({
 
         try {
           const result = await syncKnowledgeSource()
-          return json(result)
+          return Response.json(result)
         } catch (error) {
-          return json(
+          return Response.json(
             {
               error:
                 error instanceof Error
@@ -53,10 +52,10 @@ export const Route = createFileRoute('/api/knowledge/sync')({
       },
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const config = readKnowledgeBaseConfig()
-        return json({ source: config.source })
+        return Response.json({ source: config.source })
       },
     },
   },

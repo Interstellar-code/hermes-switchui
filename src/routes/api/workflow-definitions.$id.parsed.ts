@@ -11,12 +11,6 @@ import { parse as parseYaml } from 'yaml'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { getEngine } from '../../server/workflow-engine/factory'
 
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 type RawNode = Record<string, unknown> & { id?: unknown }
 
@@ -138,11 +132,11 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
     handlers: {
       GET: async ({ request, params }) => {
         if (!isAuthenticated(request))
-          return json({ error: 'Unauthorized' }, 401)
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-        const engine = getEngine(request)
+        const engine = getEngine()
         const def = await engine.getDefinition(params.id)
-        if (!def) return json({ error: 'not found' }, 404)
+        if (!def) return Response.json({ error: 'not found' }, { status: 404 })
 
         const etag = `"${def.checksum}"`
         const ifNoneMatch = request.headers.get('if-none-match')
@@ -165,7 +159,7 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
           doc = parseYaml(def.yaml) ?? {}
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
-          return json({ error: msg, errorType: 'yaml_parse' }, 422)
+          return Response.json({ error: msg, errorType: 'yaml_parse' }, { status: 422 })
         }
 
         const nodes: Array<RawNode> = Array.isArray(doc.nodes) ? doc.nodes : []

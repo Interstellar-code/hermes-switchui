@@ -9,7 +9,6 @@
  * POST  /api/gateway-reprobe   → returns the freshly-probed capabilities
  */
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import {
   CLAUDE_API,
   CLAUDE_DASHBOARD_URL,
@@ -26,11 +25,11 @@ export const Route = createFileRoute('/api/gateway-reprobe')({
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         const capabilities = await forceReprobeGateway()
-        return json({
+        return Response.json({
           ok: true,
           capabilities,
           mode: getGatewayMode(),

@@ -2,7 +2,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import YAML from 'yaml'
-import { json } from '@tanstack/react-start'
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { ensureGatewayProbed } from '../../server/hermes-api'
@@ -223,7 +222,7 @@ export const Route = createFileRoute('/api/models')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         await ensureGatewayProbed()
 
@@ -267,7 +266,7 @@ export const Route = createFileRoute('/api/models')({
 
           const streamTimeouts = readStreamTimeouts(parsedConfig)
 
-          return json({
+          return Response.json({
             ok: true,
             object: 'list',
             data: models,
@@ -277,7 +276,7 @@ export const Route = createFileRoute('/api/models')({
             ...streamTimeouts,
           })
         } catch (err) {
-          return json(
+          return Response.json(
             {
               ok: false,
               error: err instanceof Error ? err.message : String(err),

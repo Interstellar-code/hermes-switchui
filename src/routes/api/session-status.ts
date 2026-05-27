@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import {
   ensureGatewayProbed,
   getConfig,
@@ -17,14 +16,14 @@ export const Route = createFileRoute('/api/session-status')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         await ensureGatewayProbed()
         let requestedKey = ''
         try {
           const capabilities = getGatewayCapabilities()
           if (!capabilities.sessions) {
-            return json({
+            return Response.json({
               ok: true,
               payload: {
                 status: 'idle',
@@ -44,7 +43,7 @@ export const Route = createFileRoute('/api/session-status')({
           let sessionKey = requestedKey || 'new'
 
           if (sessionKey === 'new') {
-            return json({
+            return Response.json({
               ok: true,
               payload: {
                 status: 'idle',
@@ -64,7 +63,7 @@ export const Route = createFileRoute('/api/session-status')({
           }
 
           if (isSyntheticSessionKey(sessionKey)) {
-            return json({
+            return Response.json({
               ok: true,
               payload: {
                 status: 'idle',
@@ -86,7 +85,7 @@ export const Route = createFileRoute('/api/session-status')({
           const localSession = getLocalSession(sessionKey)
           if (localSession) {
             const contextUsage = await readContextUsage(sessionKey)
-            return json({
+            return Response.json({
               ok: true,
               payload: {
                 status: 'idle',
@@ -114,7 +113,7 @@ export const Route = createFileRoute('/api/session-status')({
           const outputTokens = session.output_tokens ?? 0
           const contextUsage = await readContextUsage(session.id)
 
-          return json({
+          return Response.json({
             ok: true,
             payload: {
               status: session.ended_at ? 'ended' : 'idle',
@@ -149,7 +148,7 @@ export const Route = createFileRoute('/api/session-status')({
           // Gateway returns 404 when the session no longer exists — surface that
           // as a graceful empty payload so clients stop retrying with backoff.
           if (/:\s*404\b/.test(msg)) {
-            return json({
+            return Response.json({
               ok: true,
               payload: {
                 status: 'idle',
@@ -164,7 +163,7 @@ export const Route = createFileRoute('/api/session-status')({
               },
             })
           }
-          return json(
+          return Response.json(
             { ok: false, error: msg },
             { status: 503 },
           )

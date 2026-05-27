@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
@@ -238,7 +237,7 @@ export const Route = createFileRoute('/api/crew-status')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         await ensureGatewayProbed()
@@ -298,7 +297,7 @@ export const Route = createFileRoute('/api/crew-status')({
           }
         })
 
-        return json({ crew, fetchedAt: Date.now() })
+        return Response.json({ crew, fetchedAt: Date.now() })
       },
     },
   },

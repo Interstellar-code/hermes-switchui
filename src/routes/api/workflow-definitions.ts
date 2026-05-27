@@ -27,20 +27,14 @@ function summariseWorkflowYamlCached(yaml: string): ReturnType<typeof summariseW
   return result;
 }
 
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
 
 export const Route = createFileRoute('/api/workflow-definitions')({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
+        if (!isAuthenticated(request)) return Response.json({ error: 'Unauthorized' }, { status: 401 });
         // Phase 2: always plugin path via getEngine().
-        const engine = getEngine(request);
+        const engine = getEngine();
         const url = new URL(request.url);
         const source = url.searchParams.get('source') as
           | 'bundled' | 'user' | 'project' | null;
@@ -50,13 +44,13 @@ export const Route = createFileRoute('/api/workflow-definitions')({
           // Only enrich when yaml is present; omit summary fields when plugin omits yaml.
           ...(def.yaml ? summariseWorkflowYamlCached(def.yaml) : {}),
         }));
-        return json({ definitions: enriched });
+        return Response.json({ definitions: enriched });
       },
       POST: async ({ request }) => {
-        if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
+        if (!isAuthenticated(request)) return Response.json({ error: 'Unauthorized' }, { status: 401 });
         const csrfCheck = requireJsonContentType(request);
         if (csrfCheck) return csrfCheck;
-        const engine = getEngine(request);
+        const engine = getEngine();
         const body = (await request.json()) as {
           id?: unknown;
           name?: unknown;
@@ -75,39 +69,39 @@ export const Route = createFileRoute('/api/workflow-definitions')({
         // scope_path: must be absolute + no '..' segments.
         // tags: array of strings if provided.
         if (typeof body.id !== 'string' || !/^[A-Za-z0-9_:.-]{1,128}$/.test(body.id)) {
-          return json({ error: 'id must be 1-128 chars of [A-Za-z0-9_:.-]' }, 400);
+          return Response.json({ error: 'id must be 1-128 chars of [A-Za-z0-9_:.-]' }, { status: 400 });
         }
         if (typeof body.name !== 'string' || body.name.length < 1 || body.name.length > 256) {
-          return json({ error: 'name must be a string 1-256 chars' }, 400);
+          return Response.json({ error: 'name must be a string 1-256 chars' }, { status: 400 });
         }
         if (typeof body.yaml !== 'string' || body.yaml.length === 0) {
-          return json({ error: 'yaml must be a non-empty string' }, 400);
+          return Response.json({ error: 'yaml must be a non-empty string' }, { status: 400 });
         }
         const MAX_YAML_BYTES = 1024 * 1024;
         if (Buffer.byteLength(body.yaml, 'utf8') > MAX_YAML_BYTES) {
-          return json({ error: `yaml exceeds ${MAX_YAML_BYTES} bytes` }, 413);
+          return Response.json({ error: `yaml exceeds ${MAX_YAML_BYTES} bytes` }, { status: 413 });
         }
         const source = body.source ?? 'project';
         if (source !== 'project' && source !== 'user' && source !== 'bundled') {
-          return json({ error: "source must be 'project' | 'user' | 'bundled'" }, 400);
+          return Response.json({ error: "source must be 'project' | 'user' | 'bundled'" }, { status: 400 });
         }
         if (source === 'bundled') {
-          return json({ error: "source='bundled' is read-only" }, 403);
+          return Response.json({ error: "source='bundled' is read-only" }, { status: 403 });
         }
         if (body.scope_path !== undefined) {
           if (typeof body.scope_path !== 'string' || !body.scope_path.startsWith('/') || body.scope_path.includes('..')) {
-            return json({ error: 'scope_path must be absolute and contain no .. segments' }, 400);
+            return Response.json({ error: 'scope_path must be absolute and contain no .. segments' }, { status: 400 });
           }
         }
         if (body.description !== undefined && typeof body.description !== 'string') {
-          return json({ error: 'description must be a string when provided' }, 400);
+          return Response.json({ error: 'description must be a string when provided' }, { status: 400 });
         }
         if (body.version !== undefined && typeof body.version !== 'string') {
-          return json({ error: 'version must be a string when provided' }, 400);
+          return Response.json({ error: 'version must be a string when provided' }, { status: 400 });
         }
         if (body.tags !== undefined) {
           if (!Array.isArray(body.tags) || !body.tags.every((t) => typeof t === 'string')) {
-            return json({ error: 'tags must be a string[] when provided' }, 400);
+            return Response.json({ error: 'tags must be a string[] when provided' }, { status: 400 });
           }
         }
 
@@ -115,10 +109,10 @@ export const Route = createFileRoute('/api/workflow-definitions')({
         // errors through the HTTP response.
         try {
           const def = await engine.upsertDefinition(body.yaml, body.scope_path);
-          return json({ definition: def });
+          return Response.json({ definition: def });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          return json({ error: msg }, 422);
+          return Response.json({ error: msg }, { status: 422 });
         }
 },
     },

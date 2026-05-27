@@ -5,7 +5,6 @@
  *   limit, includeTools pass through.
  */
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import {
   SESSIONS_API_UNAVAILABLE_MESSAGE,
   ensureGatewayProbed,
@@ -25,7 +24,7 @@ export const Route = createFileRoute('/api/session-history')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         await ensureGatewayProbed()
         const url = new URL(request.url)
@@ -36,16 +35,16 @@ export const Route = createFileRoute('/api/session-history')({
         const limit = Number(url.searchParams.get('limit') || '200')
         const includeTools = url.searchParams.get('includeTools') === 'true'
         if (!key) {
-          return json({ ok: false, messages: [], error: 'key is required' })
+          return Response.json({ ok: false, messages: [], error: 'key is required' })
         }
         // Try local store first (in-memory sessions)
         const local = getLocalSession(key)
         if (local) {
           const messages = getLocalMessages(key).slice(-limit)
-          return json({ ok: true, messages, sessionKey: key, source: 'local' })
+          return Response.json({ ok: true, messages, sessionKey: key, source: 'local' })
         }
         if (!getGatewayCapabilities().sessions) {
-          return json({
+          return Response.json({
             ok: false,
             messages: [],
             sessionKey: key,
@@ -60,14 +59,14 @@ export const Route = createFileRoute('/api/session-history')({
           void includeTools
           const rows = await getMessages(resolved.sessionKey)
           const trimmed = rows.slice(-limit)
-          return json({
+          return Response.json({
             ok: true,
             messages: trimmed.map((row) => toChatMessage(row)),
             sessionKey: resolved.sessionKey,
             source: 'gateway',
           })
         } catch (error) {
-          return json(
+          return Response.json(
             {
               ok: false,
               messages: [],

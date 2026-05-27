@@ -33,7 +33,7 @@ export const Route = createFileRoute('/api/workflow-events')({
         }
 
         // Phase 2: always plugin path — iterate engine.subscribeEvents(runId) and stream SSE frames.
-        const engine = getEngine(request)
+        const engine = getEngine()
         const encoder = new TextEncoder()
 
         const stream = new ReadableStream({

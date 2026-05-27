@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { z } from 'zod'
 import {
   createSessionCookie,
@@ -28,7 +27,7 @@ export const Route = createFileRoute('/api/auth')({
 
         // If password protection is disabled, reject auth attempts
         if (!isPasswordProtectionEnabled()) {
-          return json(
+          return Response.json(
             { ok: false, error: 'Authentication not required' },
             { status: 400 },
           )
@@ -45,7 +44,7 @@ export const Route = createFileRoute('/api/auth')({
           const parsed = AuthSchema.safeParse(raw)
 
           if (!parsed.success) {
-            return json(
+            return Response.json(
               { ok: false, error: 'Invalid request' },
               { status: 400 },
             )
@@ -59,7 +58,7 @@ export const Route = createFileRoute('/api/auth')({
           if (!valid) {
             // Add small delay to prevent brute force
             await new Promise((resolve) => setTimeout(resolve, 1000))
-            return json(
+            return Response.json(
               { ok: false, error: 'Invalid password' },
               { status: 401 },
             )
@@ -70,7 +69,7 @@ export const Route = createFileRoute('/api/auth')({
           storeSessionToken(token)
 
           // Return success with Set-Cookie header
-          return json(
+          return Response.json(
             { ok: true },
             {
               status: 200,
@@ -81,7 +80,7 @@ export const Route = createFileRoute('/api/auth')({
           )
         } catch (err) {
           if (import.meta.env.DEV) console.error('[/api/auth] Error:', err)
-          return json(
+          return Response.json(
             { ok: false, error: 'Authentication failed' },
             { status: 500 },
           )

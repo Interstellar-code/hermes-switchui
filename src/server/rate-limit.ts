@@ -3,16 +3,30 @@
  * Uses a sliding window approach per key.
  */
 
+/** Maximum number of IP×endpoint keys retained. Oldest entries are evicted first. */
+const MAX_STORE_SIZE = 50_000
+
+/**
+ * Conservative cleanup horizon: 24 h ensures timestamps are never silently
+ * purged before any realistic windowMs value.
+ */
+const CLEANUP_HORIZON_MS = 86_400_000
+
 const store = new Map<string, { timestamps: Array<number> }>()
 
-// Cleanup old entries every 5 minutes
+// Cleanup interval — configurable via RATE_LIMIT_CLEANUP_MS (default 2 min)
+const _cleanupIntervalMs = (() => {
+  const v = parseInt(process.env.RATE_LIMIT_CLEANUP_MS ?? '', 10)
+  return Number.isFinite(v) && v > 0 ? v : 120_000
+})()
+
 setInterval(() => {
   const now = Date.now()
   for (const [key, entry] of store) {
-    entry.timestamps = entry.timestamps.filter((t) => now - t < 120_000)
+    entry.timestamps = entry.timestamps.filter((t) => now - t < CLEANUP_HORIZON_MS)
     if (entry.timestamps.length === 0) store.delete(key)
   }
-}, 300_000)
+}, _cleanupIntervalMs)
 
 /**
  * Check if a request is allowed under the rate limit.
@@ -26,6 +40,11 @@ export function rateLimit(
   const now = Date.now()
   let entry = store.get(key)
   if (!entry) {
+    // Evict oldest entry when cap is reached
+    if (store.size >= MAX_STORE_SIZE) {
+      const oldestKey = store.keys().next().value
+      if (oldestKey !== undefined) store.delete(oldestKey)
+    }
     entry = { timestamps: [] }
     store.set(key, entry)
   }

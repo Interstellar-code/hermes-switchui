@@ -1,4 +1,3 @@
-import { json } from '@tanstack/react-start'
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
 import {
@@ -14,7 +13,7 @@ export const Route = createFileRoute('/api/local-providers')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
 
         const url = new URL(request.url)
@@ -29,7 +28,7 @@ export const Route = createFileRoute('/api/local-providers')({
         const status = getDiscoveryStatus()
         const models = getDiscoveredModels()
 
-        return json({
+        return Response.json({
           ok: true,
           providers: status.map((p) => ({
             ...p,

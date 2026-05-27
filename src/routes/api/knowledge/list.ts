@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
   knowledgeRootExists,
@@ -12,20 +11,20 @@ export const Route = createFileRoute('/api/knowledge/list')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         try {
           const config = readKnowledgeBaseConfig()
           const source = config.source
           const exists = knowledgeRootExists()
-          return json({
+          return Response.json({
             pages: exists ? listKnowledgePages() : [],
             exists,
             source,
           })
         } catch (error) {
-          return json(
+          return Response.json(
             {
               error:
                 error instanceof Error

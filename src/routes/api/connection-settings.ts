@@ -7,7 +7,6 @@
  * See #101.
  */
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../server/auth-middleware'
 import {
   ensureGatewayProbed,
@@ -87,13 +86,13 @@ export const Route = createFileRoute('/api/connection-settings')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
-        return json(getResolvedUrls())
+        return Response.json(getResolvedUrls())
       },
       PUT: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
@@ -107,7 +106,7 @@ export const Route = createFileRoute('/api/connection-settings')({
             if (value) {
               const check = isValidHttpUrl(value)
               if (!check.ok) {
-                return json({ error: check.reason }, { status: 400 })
+                return Response.json({ error: check.reason }, { status: 400 })
               }
             }
             setGatewayUrl(value)
@@ -118,20 +117,20 @@ export const Route = createFileRoute('/api/connection-settings')({
             if (value) {
               const check = isValidHttpUrl(value)
               if (!check.ok) {
-                return json({ error: check.reason }, { status: 400 })
+                return Response.json({ error: check.reason }, { status: 400 })
               }
             }
             setDashboardUrl(value)
           }
           // Reprobe so the UI can immediately reflect the new state.
           await ensureGatewayProbed()
-          return json({ ok: true, ...getResolvedUrls() })
+          return Response.json({ ok: true, ...getResolvedUrls() })
         } catch (error) {
           const message =
             error instanceof Error
               ? error.message
               : 'Failed to update connection settings'
-          return json({ error: message }, { status: 500 })
+          return Response.json({ error: message }, { status: 500 })
         }
       },
     },

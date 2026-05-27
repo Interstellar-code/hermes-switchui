@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
 import {
@@ -16,13 +15,13 @@ export const Route = createFileRoute('/api/sessions/send')({
     handlers: {
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
         const capabilities = await ensureGatewayProbed()
         if (!capabilities.enhancedChat) {
-          return json(
+          return Response.json(
             {
               ok: false,
               error: capabilities.dashboard.available
@@ -46,7 +45,7 @@ export const Route = createFileRoute('/api/sessions/send')({
           const message = String(body.message ?? '').trim()
 
           if (!message) {
-            return json(
+            return Response.json(
               { ok: false, error: 'message required' },
               { status: 400 },
             )
@@ -68,13 +67,13 @@ export const Route = createFileRoute('/api/sessions/send')({
             message,
           })
 
-          return json({
+          return Response.json({
             ok: true,
             sessionKey,
             runId: result.run_id ?? idempotencyKey,
           })
         } catch (error) {
-          return json(
+          return Response.json(
             {
               ok: false,
               error: error instanceof Error ? error.message : String(error),

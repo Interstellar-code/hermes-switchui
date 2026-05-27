@@ -52,13 +52,25 @@ async function proxyRequest(request: Request, splat: string) {
   const targetUrl = new URL(`${CLAUDE_API}${targetPath}`)
   targetUrl.search = incomingUrl.search
 
-  const headers = new Headers(request.headers)
-  headers.delete('host')
-  headers.delete('content-length')
-  // Read at request time — follows the same fix as PR #234.
+  // Only forward a safe subset of request headers — never pass cookies or
+  // workspace-internal auth headers to the upstream gateway.
+  const FORWARDED_REQUEST_HEADERS = ['accept', 'content-type', 'content-length', 'range']
+  const headers = new Headers()
+  for (const name of FORWARDED_REQUEST_HEADERS) {
+    const val = request.headers.get(name)
+    if (val) headers.set(name, val)
+  }
+
+  // Scope the bearer token: only attach when the resolved target host matches
+  // the configured gateway host (prevents token leakage on SSRF/misconfiguration).
   const bearer =
     process.env.HERMES_API_TOKEN || process.env.CLAUDE_API_TOKEN || BEARER_TOKEN
-  if (bearer) headers.set('Authorization', `Bearer ${bearer}`)
+  const configuredHost = (() => {
+    try { return new URL(CLAUDE_API).host } catch { return null }
+  })()
+  if (bearer && configuredHost && targetUrl.host === configuredHost) {
+    headers.set('Authorization', `Bearer ${bearer}`)
+  }
 
   const init: RequestInit = {
     method: request.method,

@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { BUILTIN_AGENTS } from '../../lib/builtin-agents'
 
@@ -60,14 +59,14 @@ export const Route = createFileRoute('/api/workspace/agents')({
     handlers: {
       GET: ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
 
         const url = new URL(request.url)
         const statsFor = url.searchParams.get('stats_for')?.trim()
-        if (statsFor) return json(buildStats(statsFor))
+        if (statsFor) return Response.json(buildStats(statsFor))
 
-        return json({ agents: BUILTIN_AGENTS.map(mapBuiltinAgent) })
+        return Response.json({ agents: BUILTIN_AGENTS.map(mapBuiltinAgent) })
       },
     },
   },

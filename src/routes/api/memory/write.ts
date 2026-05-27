@@ -1,7 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { getMemoryWorkspaceRoot } from '../../../server/memory-browser'
 import { requireJsonContentType } from '../../../server/rate-limit'
@@ -38,7 +37,7 @@ export const Route = createFileRoute('/api/memory/write')({
     handlers: {
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
@@ -54,7 +53,7 @@ export const Route = createFileRoute('/api/memory/write')({
 
           fs.mkdirSync(path.dirname(fullPath), { recursive: true })
           fs.writeFileSync(fullPath, content, 'utf-8')
-          return json({ success: true, path: relativePath })
+          return Response.json({ success: true, path: relativePath })
         } catch (error) {
           const message =
             error instanceof Error
@@ -64,7 +63,7 @@ export const Route = createFileRoute('/api/memory/write')({
             /required|absolute|traversal|outside workspace|\.md/i.test(message)
               ? 400
               : 500
-          return json({ error: message }, { status })
+          return Response.json({ error: message }, { status })
         }
       },
     },

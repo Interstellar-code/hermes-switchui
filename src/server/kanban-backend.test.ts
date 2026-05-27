@@ -21,10 +21,50 @@ const LOCAL_FAKE_CARDS = JSON.stringify([{
   updatedAt: 1,
 }])
 
+type RunCall = { sql: string; args: unknown[] }
+
+/**
+ * Create a minimal better-sqlite3 Database mock.
+ * `rows` is the per-call return for `.prepare().all()` / `.prepare().get()`.
+ */
+function makeBetterSqliteMock(options: {
+  rows?: () => unknown[]
+  statements?: string[]
+  runCalls?: RunCall[]
+}) {
+  const stmts: string[] = options.statements ?? []
+  const runCalls: RunCall[] = options.runCalls ?? []
+  const mockDb = {
+    pragma: vi.fn(),
+    prepare: vi.fn((sql: string) => {
+      stmts.push(sql)
+      return {
+        all: vi.fn(() => options.rows?.() ?? []),
+        get: vi.fn((id?: string) => {
+          const rows = options.rows?.() ?? []
+          if (id !== undefined) return rows.find((r: unknown) => (r as Record<string,unknown>)['id'] === id) ?? rows[0]
+          return rows[0]
+        }),
+        run: vi.fn((...args: unknown[]) => {
+          runCalls.push({ sql, args })
+        }),
+      }
+    }),
+  }
+  return { mockDb, runCalls }
+}
+
 async function loadKanbanBackend(options?: {
   existsSync?: (path: string) => boolean
   execFileSync?: (command: string, args?: Array<string>) => string
+  dbRows?: () => unknown[]
+  dbStatements?: string[]
+  dbRunCalls?: RunCall[]
 }) {
+  const stmts: string[] = options?.dbStatements ?? []
+  const runCalls: RunCall[] = options?.dbRunCalls ?? []
+  const { mockDb } = makeBetterSqliteMock({ rows: options?.dbRows, statements: stmts, runCalls })
+
   vi.doMock('node:fs', () => ({
     existsSync: vi.fn((p: string) => options?.existsSync?.(p) ?? false),
     readFileSync: vi.fn(() => LOCAL_FAKE_CARDS),
@@ -36,34 +76,37 @@ async function loadKanbanBackend(options?: {
     execFileSync: vi.fn((command: string, args?: Array<string>) => options?.execFileSync?.(command, args) ?? ''),
   }))
 
+  vi.doMock('better-sqlite3', () => ({
+    default: vi.fn(() => mockDb),
+  }))
+
   return import('./kanban-backend')
 }
 
 describe('kanban-backend', () => {
   it('auto-detect prefers Hermes backend when Hermes CLI and canonical storage are present', async () => {
     vi.stubEnv('CLAUDE_HOME', '/Users/aurora/.claude/profiles/swarm2')
-    const sqliteCalls: Array<{ command: string; args?: Array<string> }> = []
+    const stmts: string[] = []
+    const rows = [
+      {
+        id: 't_12345678',
+        title: 'Hermes task',
+        body: 'Backed by sqlite',
+        status: 'running',
+        assignee: 'swarm2',
+        created_at: 1777527540,
+        updated_at: 1777527644,
+      },
+    ]
     const mod = await loadKanbanBackend({
       existsSync: (target) => target === '/Users/aurora/.claude/kanban.db' || target === '/Users/aurora/.claude/kanban',
       execFileSync: (command, args = []) => {
         if (command === 'which' && args[0] === 'claude') return '/Users/aurora/.local/bin/claude\n'
         if (command === '/Users/aurora/.local/bin/claude' && args[0] === '--version') return 'claude 1.0.0\n'
-        if (command === 'sqlite3') {
-          sqliteCalls.push({ command, args })
-          return JSON.stringify([
-            {
-              id: 't_12345678',
-              title: 'Hermes task',
-              body: 'Backed by sqlite',
-              status: 'running',
-              assignee: 'swarm2',
-              created_at: 1777527540,
-              updated_at: 1777527644,
-            },
-          ])
-        }
         throw new Error(`Unexpected command: ${command} ${args.join(' ')}`)
       },
+      dbRows: () => rows,
+      dbStatements: stmts,
     })
 
     expect(mod.getKanbanBackendMeta()).toMatchObject({
@@ -82,30 +125,28 @@ describe('kanban-backend', () => {
       assignedWorker: 'swarm2',
       createdBy: 'claude-kanban',
     })
-    expect(sqliteCalls[0]?.args?.[0]).toBe('/Users/aurora/.claude/kanban.db')
   })
 
   it('auto-detect uses Hermes storage directly when the CLI is unavailable', async () => {
     vi.stubEnv('CLAUDE_HOME', '/Users/aurora/.claude/profiles/swarm2')
+    const rows = [
+      {
+        id: 't_direct',
+        title: 'Direct Hermes task',
+        body: '',
+        status: 'ready',
+        assignee: null,
+        created_at: 1777527540,
+        updated_at: 1777527644,
+      },
+    ]
     const mod = await loadKanbanBackend({
       existsSync: (target) => target === '/Users/aurora/.claude/kanban.db',
       execFileSync: (command, args = []) => {
         if (command === 'which' && args[0] === 'claude') throw new Error('not found')
-        if (command === 'sqlite3') {
-          return JSON.stringify([
-            {
-              id: 't_direct',
-              title: 'Direct Hermes task',
-              body: '',
-              status: 'ready',
-              assignee: null,
-              created_at: 1777527540,
-              updated_at: 1777527644,
-            },
-          ])
-        }
         throw new Error(`Unexpected command: ${command} ${args.join(' ')}`)
       },
+      dbRows: () => rows,
     })
 
     expect(mod.getKanbanBackendMeta()).toMatchObject({
@@ -124,9 +165,9 @@ describe('kanban-backend', () => {
       existsSync: (target) => target === '/Users/aurora/.claude/kanban.db',
       execFileSync: (command, args = []) => {
         if (command === 'which' && args[0] === 'claude') throw new Error('not found')
-        if (command === 'sqlite3') return '[]'
         throw new Error(`Unexpected command: ${command} ${args.join(' ')}`)
       },
+      dbRows: () => [],
     })
 
     expect(mod.getKanbanBackendMeta()).toMatchObject({
@@ -157,34 +198,32 @@ describe('kanban-backend', () => {
 
   it('creates and updates Hermes tasks through canonical kanban.db path', async () => {
     vi.stubEnv('CLAUDE_HOME', '/Users/aurora/.claude/profiles/swarm2')
-    const sqliteCalls: Array<string> = []
+    const stmts: string[] = []
+    const runCalls: RunCall[] = []
     let readCount = 0
     const mod = await loadKanbanBackend({
       existsSync: (target) => target === '/Users/aurora/.claude/kanban.db' || target === '/Users/aurora/.claude/kanban',
       execFileSync: (command, args = []) => {
         if (command === 'which' && args[0] === 'claude') return '/Users/aurora/.local/bin/claude\n'
         if (command === '/Users/aurora/.local/bin/claude' && args[0] === '--version') return 'claude 1.0.0\n'
-        if (command === 'sqlite3') {
-          sqliteCalls.push(args.join(' '))
-          const sql = args[2] ?? ''
-          if (sql.includes('where id =')) {
-            readCount += 1
-            return JSON.stringify([
-              {
-                id: 't_deadbeef',
-                title: readCount === 1 ? 'Created Hermes task' : 'Updated Hermes task',
-                body: 'Task body',
-                status: readCount === 1 ? 'queued' : 'done',
-                assignee: 'swarm6',
-                created_at: 1777527540,
-                updated_at: 1777527644,
-              },
-            ])
-          }
-          return '[]'
-        }
         throw new Error(`Unexpected command: ${command} ${args.join(' ')}`)
       },
+      dbRows: () => {
+        readCount += 1
+        return [
+          {
+            id: 't_deadbeef',
+            title: readCount === 1 ? 'Created Hermes task' : 'Updated Hermes task',
+            body: 'Task body',
+            status: readCount === 1 ? 'queued' : 'done',
+            assignee: 'swarm6',
+            created_at: 1777527540,
+            updated_at: 1777527644,
+          },
+        ]
+      },
+      dbStatements: stmts,
+      dbRunCalls: runCalls,
     })
 
     const created = mod.createKanbanCard({ title: 'Created Hermes task', spec: 'Task body', assignedWorker: 'swarm6', status: 'backlog' })
@@ -192,14 +231,17 @@ describe('kanban-backend', () => {
 
     expect(created).toMatchObject({ id: 't_deadbeef', title: 'Created Hermes task', status: 'backlog', assignedWorker: 'swarm6', createdBy: 'claude-kanban' })
     expect(updated).toMatchObject({ id: 't_deadbeef', title: 'Updated Hermes task', status: 'done', assignedWorker: 'swarm6' })
-    expect(sqliteCalls.every((call) => call.startsWith('/Users/aurora/.claude/kanban.db '))).toBe(true)
-    expect(sqliteCalls.some((call) => call.includes('insert into tasks'))).toBe(true)
-    expect(sqliteCalls.some((call) => call.includes('update tasks set'))).toBe(true)
 
-    // Pre-flight regression: backlog must write 'triage' not 'queued' into kanban.db.
-    // 'queued' is not a valid Agent Kanban status and silently corrupts rows.
-    const insertCall = sqliteCalls.find((call) => call.includes('insert into tasks')) ?? ''
-    expect(insertCall).toContain("'triage'")
-    expect(insertCall).not.toContain("'queued'")
+    // Verify INSERT and UPDATE statements were issued via better-sqlite3 parameterized queries
+    expect(stmts.some((s) => /insert into tasks/i.test(s))).toBe(true)
+    expect(stmts.some((s) => /update tasks set/i.test(s))).toBe(true)
+
+    // Pre-flight regression: backlog must bind 'triage' not 'queued' as the status parameter.
+    // With parameterized queries the status value is in runCalls args, not the SQL string.
+    const insertRun = runCalls.find((c) => /insert into tasks/i.test(c.sql))
+    expect(insertRun).toBeDefined()
+    // status is the 5th positional param (id, title, body, assignee, status, ...)
+    expect(insertRun?.args[4]).toBe('triage')
+    expect(insertRun?.args[4]).not.toBe('queued')
   })
 })

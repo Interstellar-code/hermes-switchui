@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
   BEARER_TOKEN,
@@ -33,14 +32,14 @@ export const Route = createFileRoute('/api/mcp/discover')({
     handlers: {
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
         const capabilities = await ensureGatewayProbed()
         if (capabilities.mcpFallback && !capabilities.mcp) {
           // Phase 1.5: live discover requires the runtime endpoint.
-          return json({
+          return Response.json({
             ok: false,
             status: 'unknown',
             discoveredTools: [],
@@ -49,7 +48,7 @@ export const Route = createFileRoute('/api/mcp/discover')({
           })
         }
         if (!capabilities.mcp) {
-          return json(
+          return Response.json(
             createCapabilityUnavailablePayload('mcp', {
               error: `Gateway does not support /api/mcp. ${CLAUDE_UPGRADE_INSTRUCTIONS}`,
             }),
@@ -60,7 +59,7 @@ export const Route = createFileRoute('/api/mcp/discover')({
           const raw = (await request.json()) as unknown
           const parsed = parseMcpServerInput(raw)
           if (!parsed.ok) {
-            return json(
+            return Response.json(
               { ok: false, error: 'Invalid MCP discover payload', errors: parsed.errors },
               { status: 400 },
             )
@@ -74,12 +73,12 @@ export const Route = createFileRoute('/api/mcp/discover')({
           })
           const payload = (await response.json().catch(() => ({}))) as unknown
           const result = normalizeTestResult(payload)
-          return json(
+          return Response.json(
             { ok: result.ok, tools: result.discoveredTools, error: result.error },
             { status: response.ok ? 200 : response.status || 502 },
           )
         } catch (err) {
-          return json({ ok: false, tools: [], error: safeErrorMessage(err) }, { status: 500 })
+          return Response.json({ ok: false, tools: [], error: safeErrorMessage(err) }, { status: 500 })
         }
       },
     },

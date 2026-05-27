@@ -2,7 +2,6 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { z } from 'zod'
 
 const BodySchema = z.object({
@@ -47,12 +46,12 @@ export const Route = createFileRoute('/api/oauth/poll-token')({
         try {
           body = await request.json()
         } catch {
-          return json({ error: 'Invalid JSON' }, { status: 400 })
+          return Response.json({ error: 'Invalid JSON' }, { status: 400 })
         }
 
         const parsed = BodySchema.safeParse(body)
         if (!parsed.success) {
-          return json(
+          return Response.json(
             { error: 'Missing provider or deviceCode' },
             { status: 400 },
           )
@@ -85,11 +84,11 @@ export const Route = createFileRoute('/api/oauth/poll-token')({
               data.error === 'authorization_pending' ||
               data.error === 'slow_down'
             ) {
-              return json({ status: 'pending' })
+              return Response.json({ status: 'pending' })
             }
 
             if (data.error) {
-              return json({
+              return Response.json({
                 status: 'error',
                 message: String(data.error_description || data.error),
               })
@@ -100,25 +99,25 @@ export const Route = createFileRoute('/api/oauth/poll-token')({
                 String(data.access_token),
                 data.refresh_token ? String(data.refresh_token) : undefined,
               )
-              return json({
+              return Response.json({
                 status: 'success',
                 accessToken: String(data.access_token),
               })
             }
 
-            return json({
+            return Response.json({
               status: 'error',
               message: 'Unexpected response from token endpoint',
             })
           } catch (err) {
-            return json({
+            return Response.json({
               status: 'error',
               message: err instanceof Error ? err.message : 'Network error',
             })
           }
         }
 
-        return json({
+        return Response.json({
           status: 'error',
           message: `OAuth device flow not supported for provider: ${provider}`,
         })

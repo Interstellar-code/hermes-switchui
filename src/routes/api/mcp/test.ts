@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
   BEARER_TOKEN,
@@ -35,7 +34,7 @@ export const Route = createFileRoute('/api/mcp/test')({
     handlers: {
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
@@ -50,7 +49,7 @@ export const Route = createFileRoute('/api/mcp/test')({
             const raw = (await request.json()) as Record<string, unknown>
             const name = typeof raw.name === 'string' ? raw.name : null
             if (!name) {
-              return json({
+              return Response.json({
                 ok: false,
                 status: 'unknown',
                 discoveredTools: [],
@@ -66,9 +65,9 @@ export const Route = createFileRoute('/api/mcp/test')({
               latencyMs: result.latencyMs,
               error: result.error,
             })
-            return json(result)
+            return Response.json(result)
           } catch (err) {
-            return json(
+            return Response.json(
               {
                 ok: false,
                 status: 'failed',
@@ -80,7 +79,7 @@ export const Route = createFileRoute('/api/mcp/test')({
           }
         }
         if (!capabilities.mcp) {
-          return json(
+          return Response.json(
             createCapabilityUnavailablePayload('mcp', {
               error: `Gateway does not support /api/mcp. ${CLAUDE_UPGRADE_INSTRUCTIONS}`,
             }),
@@ -95,7 +94,7 @@ export const Route = createFileRoute('/api/mcp/test')({
           } else {
             const parsed = parseMcpServerInput(raw)
             if (!parsed.ok) {
-              return json(
+              return Response.json(
                 { ok: false, error: 'Invalid MCP test payload', errors: parsed.errors },
                 { status: 400 },
               )
@@ -110,9 +109,9 @@ export const Route = createFileRoute('/api/mcp/test')({
           })
           const payload = (await response.json().catch(() => ({}))) as unknown
           const result = normalizeTestResult(payload)
-          return json(result, { status: response.ok ? 200 : response.status || 502 })
+          return Response.json(result, { status: response.ok ? 200 : response.status || 502 })
         } catch (err) {
-          return json({ ok: false, status: 'failed', discoveredTools: [], error: safeErrorMessage(err) }, { status: 500 })
+          return Response.json({ ok: false, status: 'failed', discoveredTools: [], error: safeErrorMessage(err) }, { status: 500 })
         }
       },
     },
