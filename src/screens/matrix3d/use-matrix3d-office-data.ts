@@ -174,6 +174,13 @@ export function inferLiveMatch(
 
     if (shouldMapWorkspaceChatToHermesSwitch) {
       if (looksLikeWorkspaceChat) return agent
+      // Broader fallback: any active agent whose id/name suggests it is the
+      // Hermes workspace chat counts — real-world sessions often have opaque
+      // keys (UUIDs, timestamps) that don't satisfy the strict heuristic.
+      // Store the first such agent as a last-resort so we can return it after
+      // the loop if nothing better matched.
+      if (!bestMatch) bestMatch = agent
+      continue
     }
 
     // The active workspace conversation can mention "Neo", "Trinity", or
@@ -187,6 +194,9 @@ export function inferLiveMatch(
       bestMatch = agent
     }
   }
+
+  // hermes-switch: return kind-matched fallback even when bestScore is 0
+  if (shouldMapWorkspaceChatToHermesSwitch) return bestMatch
 
   if (bestScore > 0) return bestMatch
   return null
@@ -786,6 +796,17 @@ ${parseLogText(gatewayLogsQuery.data)}`
     }
     return result
   }, [presence, agentView.activeAgents])
+
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    // Expose for browser console debugging: window.__matrix3dDebug
+    ;(window as any).__matrix3dDebug = {
+      presence,
+      animationState,
+      streamingTextByAgentId,
+      activeAgents: agentView.activeAgents,
+      streamingStateKeys: Array.from(useChatStore.getState().streamingState.keys()),
+    }
+  }
 
   return {
     agents,
