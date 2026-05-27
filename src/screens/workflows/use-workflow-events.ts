@@ -78,6 +78,8 @@ export function useWorkflowEvents(runId: string | null): {
     })
 
     es.addEventListener('error', () => {
+      // Defensive client-side handling; the local /api/workflow-events route also
+      // emits an SSE error event for missing runs (see Wave 1 #98).
       setStatus('error')
     })
 
