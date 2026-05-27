@@ -3,6 +3,7 @@
  */
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
+import { requireJsonContentType } from '../../server/rate-limit'
 import {
   BEARER_TOKEN,
   CLAUDE_API,
@@ -70,6 +71,8 @@ export const Route = createFileRoute('/api/claude-jobs')({
         return jobsResponse(res)
       },
       POST: async ({ request }) => {
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
         if (!isAuthenticated(request)) {
           return new Response(JSON.stringify({ error: 'Unauthorized' }), {
             status: 401,

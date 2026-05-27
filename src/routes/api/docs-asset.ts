@@ -99,7 +99,10 @@ export const Route = createFileRoute('/api/docs-asset')({
           headers['Content-Disposition'] = `attachment; filename="${filename}"`
         }
 
-        if (HTML_EXTENSIONS.has(ext)) {
+        if (FORCE_DOWNLOAD_EXTENSIONS.has(ext)) {
+          // Defense-in-depth: apply tight CSP + framing controls even for
+          // attachment responses (SVG, HTML/HTM) in case the client ignores
+          // Content-Disposition or opens the file inline.
           headers['Content-Security-Policy'] =
             "default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'self'"
           headers['X-Frame-Options'] = 'SAMEORIGIN'

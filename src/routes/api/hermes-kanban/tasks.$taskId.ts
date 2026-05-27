@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
+import { requireJsonContentType } from '../../../server/rate-limit'
 import { getKanbanTask, updateKanbanTask } from '../../../server/hermes-kanban-client'
 import { hardDeleteKanbanTask } from '../../../server/kanban-backend'
 import type { UpdateKanbanTaskInput } from '../../../lib/hermes-kanban-types'
@@ -23,6 +24,8 @@ export const Route = createFileRoute('/api/hermes-kanban/tasks/$taskId')({
       },
 
       PATCH: async ({ request, params }) => {
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
         if (!isAuthenticated(request)) {
           return json({ error: 'Unauthorized' }, { status: 401 })
         }
@@ -43,6 +46,8 @@ export const Route = createFileRoute('/api/hermes-kanban/tasks/$taskId')({
       },
 
       DELETE: async ({ request, params }) => {
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
         if (!isAuthenticated(request)) {
           return json({ error: 'Unauthorized' }, { status: 401 })
         }

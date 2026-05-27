@@ -6,6 +6,8 @@ import {
   readFileSync,
   statSync,
   writeFileSync,
+  renameSync,
+  unlinkSync,
 } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -97,22 +99,20 @@ function loadStore(): { store: SessionStore; needsMigration: boolean } {
 }
 
 function saveStore(store: SessionStore): void {
+  const tmp = `${STORE_FILE}.${process.pid}.tmp`
   try {
     const dir = dirname(STORE_FILE)
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true, mode: 0o700 })
     }
-    // Write with restrictive permissions — tokens are sensitive.
-    writeFileSync(STORE_FILE, JSON.stringify(store), { encoding: 'utf8', mode: 0o600 })
-    // Enforce 0600 even if the file already existed with looser perms.
-    try {
-      chmodSync(STORE_FILE, 0o600)
-    } catch {
-      // chmod is best-effort (e.g. Windows) — ignore failures.
-    }
+    // Write to a temp file born 0600, then rename atomically so the target
+    // file is never visible with looser permissions (chmod-after-write race).
+    writeFileSync(tmp, JSON.stringify(store), { encoding: 'utf8', mode: 0o600 })
+    renameSync(tmp, STORE_FILE)
   } catch {
     // Non-fatal — tokens are still in memory.
     console.warn(`[auth] Failed to persist session store to ${STORE_FILE}`)
+    try { unlinkSync(tmp) } catch { /* best-effort cleanup */ }
   }
 }
 
