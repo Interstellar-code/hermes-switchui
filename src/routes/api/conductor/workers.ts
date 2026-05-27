@@ -5,6 +5,8 @@ import { PluginClient } from '../../../server/workflow-engine/clients/plugin-cli
 export interface WorkerRun {
   runId: string
   nodeId: string
+  workflowId: string
+  status: 'running' | 'waiting'
   label: string
   elapsed: string
   startedAt: number
@@ -58,6 +60,8 @@ export const Route = createFileRoute('/api/conductor/workers')({
             lane.runs.push({
               runId: row.runId,
               nodeId: row.nodeId,
+              workflowId: row.workflowId,
+              status: row.status,
               label: row.nodeId,
               elapsed: formatElapsed(elapsedMs),
               startedAt,

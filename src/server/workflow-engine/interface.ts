@@ -114,6 +114,9 @@ export interface TriggerInfo {
   user_message: string;
   parent_conversation_id?: string;
   codebase_id?: string;
+  schedule?: { type: 'now' | 'at' | 'cron'; at?: string; cron?: string };
+  priority?: number;
+  maxRuntimeSeconds?: number;
   [key: string]: unknown;
 }
 
