@@ -17,11 +17,14 @@ import {
   getGatewayMode,
 } from '../../server/gateway-capabilities'
 import { isAuthenticated } from '../../server/auth-middleware'
+import { requireJsonContentType } from '../../server/rate-limit'
 
 export const Route = createFileRoute('/api/gateway-reprobe')({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
         if (!isAuthenticated(request)) {
           return json({ error: 'Unauthorized' }, { status: 401 })
         }
