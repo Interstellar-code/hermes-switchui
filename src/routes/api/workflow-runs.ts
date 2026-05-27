@@ -40,6 +40,9 @@ export const Route = createFileRoute('/api/workflow-runs')({
           variables?: Record<string, unknown>;
           parent_conversation_id?: string;
           codebase_id?: string;
+          schedule?: { type: 'now' | 'at' | 'cron'; at?: string; cron?: string };
+          priority?: number;
+          maxRuntimeSeconds?: number;
         };
         if (!body?.workflow_id || !body?.conversation_id || !body?.user_message) {
           return json({ error: 'workflow_id, conversation_id, user_message required' }, 400);
@@ -71,6 +74,9 @@ export const Route = createFileRoute('/api/workflow-runs')({
             user_message: body.user_message,
             parent_conversation_id: body.parent_conversation_id,
             codebase_id: body.codebase_id,
+            schedule: body.schedule,
+            priority: body.priority,
+            maxRuntimeSeconds: body.maxRuntimeSeconds,
           },
         );
         return json({ run }, 201);

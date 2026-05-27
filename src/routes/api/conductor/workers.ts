@@ -1,11 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
-// NOTE: This route queries node_runs directly from the local SQLite file because
-// WorkflowEngineInterface has no cross-run "active nodes" query (listNodeRuns
-// requires a runId). When the plugin is the active backend this returns stale data.
-// Future fix: add listActiveNodeRuns() to WorkflowEngineInterface and use getEngine(request).
-import { openDb, defaultWorkflowDbPath } from '../../../server/workflow-engine/db/client'
-import { runMigrations } from '../../../server/workflow-engine/db/migrate'
+import { PluginClient } from '../../../server/workflow-engine/clients/plugin-client'
 
 export interface WorkerRun {
   runId: string
@@ -23,15 +18,6 @@ export interface WorkerLane {
   runs: Array<WorkerRun>
 }
 
-interface ActiveNodeRow {
-  id: string
-  workflow_run_id: string
-  dag_node_id: string
-  node_type: string
-  assigned_agent: string | null
-  started_at: number | null
-}
-
 function formatElapsed(ms: number): string {
   const totalS = Math.max(0, Math.floor(ms / 1000))
   const mm = Math.floor(totalS / 60).toString().padStart(2, '0')
@@ -39,14 +25,7 @@ function formatElapsed(ms: number): string {
   return `${mm}:${ss}`
 }
 
-let _dbReady = false
-function ensureDb() {
-  if (_dbReady) return openDb(defaultWorkflowDbPath())
-  const db = openDb(defaultWorkflowDbPath())
-  runMigrations(db)
-  _dbReady = true
-  return db
-}
+const pluginClient = new PluginClient()
 
 export const Route = createFileRoute('/api/conductor/workers')({
   server: {
@@ -56,38 +35,30 @@ export const Route = createFileRoute('/api/conductor/workers')({
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         try {
-          const db = ensureDb()
-          const rows = db
-            .prepare<[], ActiveNodeRow>(
-              `SELECT id, workflow_run_id, dag_node_id, node_type, assigned_agent, started_at
-               FROM node_runs
-               WHERE status = 'running'
-               ORDER BY started_at ASC`,
-            )
-            .all()
+          const activeRuns = await pluginClient.listActiveNodeRuns()
 
           const now = Date.now()
 
-          // Group by assigned_agent (or fall back to 'engine' lane)
+          // Group by workerId (or fall back to 'engine' lane)
           const laneMap = new Map<string, WorkerLane>()
-          for (const row of rows) {
-            const agentKey = row.assigned_agent ?? 'engine'
+          for (const row of activeRuns) {
+            const agentKey = row.workerId ?? 'engine'
             if (!laneMap.has(agentKey)) {
               laneMap.set(agentKey, {
                 id: agentKey,
                 name: agentKey,
-                role: row.assigned_agent ? 'agent' : 'engine',
+                role: row.workerId ? 'agent' : 'engine',
                 activeCount: 0,
                 runs: [],
               })
             }
             const lane = laneMap.get(agentKey)!
-            const startedAt = row.started_at ?? now
+            const startedAt = row.startedAt ? new Date(row.startedAt).getTime() : now
             const elapsedMs = now - startedAt
             lane.runs.push({
-              runId: row.workflow_run_id,
-              nodeId: row.dag_node_id,
-              label: row.dag_node_id,
+              runId: row.runId,
+              nodeId: row.nodeId,
+              label: row.nodeId,
               elapsed: formatElapsed(elapsedMs),
               startedAt,
             })
