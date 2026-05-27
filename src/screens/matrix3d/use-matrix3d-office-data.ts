@@ -707,23 +707,6 @@ ${parseLogText(gatewayLogsQuery.data)}`
     return result
   }, [presence])
 
-  // #84 — feed events: one event per presence entry with recent activity
-  const feedEvents = useMemo((): Array<Matrix3DFeedEvent> => {
-    return presence
-      .filter((p) => p.lastActivity && p.activityScore > 0)
-      .slice(0, 20)
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        text: p.lastActivity ?? '',
-        // Derive a stable timestamp from activityScore so the value doesn't
-        // freeze at memo-creation time. Higher scores map to more recent times
-        // (within the last 5 minutes); score 0 falls back to 5 min ago.
-        ts: lastSeenByAgentId[p.id] ?? (Date.now() - 5 * 60_000),
-        kind: 'status' as const,
-      }))
-  }, [presence, lastSeenByAgentId])
-
   // #86 — deterministic desk assignment: hash agentId to a desk slot
   const deskAssignmentByDeskUid = useMemo(() => {
     const result: Record<string, string> = {}
@@ -764,6 +747,22 @@ ${parseLogText(gatewayLogsQuery.data)}`
     }
     return result
   }, [presence])
+
+  // #84 — feed events: one event per presence entry with recent activity
+  const feedEvents = useMemo((): Array<Matrix3DFeedEvent> => {
+    return presence
+      .filter((p) => p.lastActivity && p.activityScore > 0)
+      .slice(0, 20)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        text: p.lastActivity ?? '',
+        // Use lastSeenByAgentId (derived from activityScore) so the timestamp
+        // doesn't freeze at memo-creation time.
+        ts: lastSeenByAgentId[p.id] ?? (Date.now() - 5 * 60_000),
+        kind: 'status' as const,
+      }))
+  }, [presence, lastSeenByAgentId])
 
   // #88 — progress per agent: from activeAgents.progress or lastActivity parse
   const progressByAgentId = useMemo(() => {
