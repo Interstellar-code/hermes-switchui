@@ -2310,6 +2310,8 @@ export function RetroOffice3D({
   runCountByAgentId = EMPTY_NUMBER_RECORD,
   lastSeenByAgentId = EMPTY_NUMBER_RECORD,
   streamingTextByAgentId = {},
+  progressByAgentId = EMPTY_NUMBER_RECORD,
+  selectedAgentId = null,
   onStandupArrivalsChange,
   onStandupStartRequested,
   onMonitorSelect,
@@ -2427,6 +2429,10 @@ export function RetroOffice3D({
   runCountByAgentId?: Record<string, number>;
   lastSeenByAgentId?: Record<string, number>;
   streamingTextByAgentId?: Record<string, string | null>;
+  /** #88 — progress 0-100 per working agent; renders a small bar above the desk */
+  progressByAgentId?: Record<string, number>;
+  /** #89 — agent id from external selection (store); sets initial follow-cam target */
+  selectedAgentId?: string | null;
   onStandupArrivalsChange?: (arrivedAgentIds: string[]) => void;
   onStandupStartRequested?: () => void;
   onMonitorSelect?: (agentId: string | null) => void;
@@ -2666,6 +2672,13 @@ export function RetroOffice3D({
   // Follow cam: which agent to trail with a third-person perspective camera.
   const [followAgentId, setFollowAgentId] = useState<string | null>(null);
   const followAgentIdRef = useRef<string | null>(null);
+  // #89 — sync external selectedAgentId prop into follow-cam state when it changes
+  useEffect(() => {
+    if (selectedAgentId && selectedAgentId !== followAgentIdRef.current) {
+      setFollowAgentId(selectedAgentId);
+      followAgentIdRef.current = selectedAgentId;
+    }
+  }, [selectedAgentId]);
   const prevMonitorAgentIdRef = useRef<string | null>(null);
   const prevAtmUidRef = useRef<string | null>(null);
   const prevKanbanUidRef = useRef<string | null>(null);
@@ -6063,6 +6076,15 @@ export function RetroOffice3D({
                             {isRemoteAgent ? " · remote" : ""}
                             {runCount > 0 ? ` · ${runCount} runs` : ""}
                           </div>
+                          {/* #88 progress bar */}
+                          {working && (progressByAgentId[agent.id] ?? 0) > 0 ? (
+                            <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-amber-900/30">
+                              <div
+                                className="h-full rounded-full bg-green-400/80 transition-all duration-500"
+                                style={{ width: `${progressByAgentId[agent.id]}%` }}
+                              />
+                            </div>
+                          ) : null}
                         </div>
                       </button>
                       <button

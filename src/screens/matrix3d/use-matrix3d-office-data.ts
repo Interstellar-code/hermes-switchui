@@ -2,13 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { resolveCrewEffectiveStatus } from './matrix3d-presence-status'
+import { useMatrix3DStore } from './matrix3d-store'
 import type { OfficeAgent } from '@/features/retro-office/core/types'
+import type { OfficeAnimationState } from '@/lib/office/eventTriggers'
 import type { StudioGatewayAdapterType } from '@/lib/studio/settings'
 import type { CrewStatusAgent, WorkspaceAgentDirectory } from '@/lib/workspace-agents'
 import { listCrewStatusAgents, listWorkspaceAgents } from '@/lib/workspace-agents'
 import { useAgentView } from '@/hooks/use-agent-view'
 import { createDefaultAgentAvatarProfile } from '@/lib/avatars/profile'
 import { gatewayStatus as fetchGatewayStatus, getLogs } from '@/lib/hermes-client'
+import { useChatStore } from '@/stores/chat-store'
 
 type AgentLike = {
   id: string
@@ -448,6 +451,22 @@ function pickAdapterType(
   return rosterAgents[0]?.adapter_type ?? 'local'
 }
 
+/** Feed event shape matches RetroOffice3D internal FeedEvent */
+type Matrix3DFeedEvent = {
+  id: string
+  name: string
+  text: string
+  ts: number
+  kind?: 'status' | 'reply'
+}
+
+/** Monitor content per-agent for desk screens */
+type Matrix3DMonitorEntry = {
+  title?: string
+  body?: string
+  lines?: Array<string>
+}
+
 export type Matrix3DOfficeData = {
   agents: Array<OfficeAgent>
   readOnly: true
@@ -461,6 +480,35 @@ export type Matrix3DOfficeData = {
   agentSource: 'live' | 'roster' | 'none'
   presence: Array<Matrix3DAgentPresence>
   onAgentChatSelect: (agentId: string) => void
+  /** #81/#85 — drives sit-at-desk + room-routing animations */
+  animationState: Pick<
+    OfficeAnimationState,
+    | 'cleaningCues'
+    | 'danceUntilByAgentId'
+    | 'deskHoldByAgentId'
+    | 'githubHoldByAgentId'
+    | 'gymHoldByAgentId'
+    | 'phoneBoothHoldByAgentId'
+    | 'smsBoothHoldByAgentId'
+    | 'qaHoldByAgentId'
+    | 'jukeboxHoldByAgentId'
+  >
+  /** #82 — live streaming text bubbles per agent (truncated) */
+  streamingTextByAgentId: Record<string, string | null>
+  /** #83 — desk monitor content per agent */
+  monitorByAgentId: Record<string, Matrix3DMonitorEntry>
+  /** #84 — activity feed events */
+  feedEvents: Array<Matrix3DFeedEvent>
+  /** #86 — deterministic desk→agent assignment */
+  deskAssignmentByDeskUid: Record<string, string>
+  /** #87 — run counts per agent */
+  runCountByAgentId: Record<string, number>
+  /** #87 — last-seen timestamps per agent (ms) */
+  lastSeenByAgentId: Record<string, number>
+  /** #88 — progress 0-100 per working agent */
+  progressByAgentId: Record<string, number>
+  /** #89 — selected agent id from store → spotlight / follow-cam */
+  selectedAgentId: string | null
 }
 
 function shouldShowMatrix3DAgent(presence: Matrix3DAgentPresence): boolean {
@@ -580,6 +628,161 @@ ${parseLogText(gatewayLogsQuery.data)}`
     [liveSessionIds, navigate],
   )
 
+  // #89 — store-selected agent for spotlight / follow-cam
+  const selectedAgentId = useMatrix3DStore((s) => s.selectedAgentId)
+
+  // #81/#85 — animationState: derive room holds from agent status + lastActivity
+  const animationState = useMemo(() => {
+    const deskHoldByAgentId: Record<string, boolean> = {}
+    const gymHoldByAgentId: Record<string, boolean> = {}
+    const smsBoothHoldByAgentId: Record<string, boolean> = {}
+    const phoneBoothHoldByAgentId: Record<string, boolean> = {}
+    const qaHoldByAgentId: Record<string, boolean> = {}
+    const githubHoldByAgentId: Record<string, boolean> = {}
+    const jukeboxHoldByAgentId: Record<string, boolean> = {}
+
+    for (const p of presence) {
+      const id = p.id
+      const activity = (p.lastActivity ?? '').toLowerCase()
+
+      if (p.effectiveStatus === 'working') {
+        // Route to specific rooms based on activity keywords
+        if (activity.includes('github') || activity.includes('pr') || activity.includes('review')) {
+          githubHoldByAgentId[id] = true
+        } else if (activity.includes('qa') || activity.includes('test') || activity.includes('quality')) {
+          qaHoldByAgentId[id] = true
+        } else if (activity.includes('sms') || activity.includes('text message')) {
+          smsBoothHoldByAgentId[id] = true
+        } else if (activity.includes('phone') || activity.includes('call')) {
+          phoneBoothHoldByAgentId[id] = true
+        } else if (activity.includes('gym') || activity.includes('train')) {
+          gymHoldByAgentId[id] = true
+        } else if (activity.includes('jukebox') || activity.includes('music')) {
+          jukeboxHoldByAgentId[id] = true
+        } else {
+          // Default: working agents stay at desk
+          deskHoldByAgentId[id] = true
+        }
+      }
+    }
+
+    return {
+      deskHoldByAgentId,
+      gymHoldByAgentId,
+      smsBoothHoldByAgentId,
+      phoneBoothHoldByAgentId,
+      qaHoldByAgentId,
+      githubHoldByAgentId,
+      jukeboxHoldByAgentId,
+    }
+  }, [presence])
+
+  // #82 — streaming speech bubbles: current streaming text per active session (≤80 chars)
+  const streamingState = useChatStore((s) => s.streamingState)
+  const streamingTextByAgentId = useMemo(() => {
+    const result: Record<string, string | null> = {}
+    for (const p of presence) {
+      const sessionKey = p.activeSessionKey ?? p.id
+      const state = streamingState.get(sessionKey)
+      if (state?.text) {
+        result[p.id] = state.text.slice(0, 80)
+      }
+    }
+    return result
+  }, [presence, streamingState])
+
+  // #83 — monitor screens: last activity as monitor content
+  const monitorByAgentId = useMemo(() => {
+    const result: Record<string, Matrix3DMonitorEntry> = {}
+    for (const p of presence) {
+      if (p.lastActivity) {
+        result[p.id] = {
+          title: p.name,
+          body: p.lastActivity,
+        }
+      }
+    }
+    return result
+  }, [presence])
+
+  // #84 — feed events: one event per presence entry with recent activity
+  const feedEvents = useMemo((): Array<Matrix3DFeedEvent> => {
+    return presence
+      .filter((p) => p.lastActivity && p.activityScore > 0)
+      .slice(0, 20)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        text: p.lastActivity ?? '',
+        ts: Date.now(),
+        kind: 'status' as const,
+      }))
+  }, [presence])
+
+  // #86 — deterministic desk assignment: hash agentId to a desk slot
+  const deskAssignmentByDeskUid = useMemo(() => {
+    const result: Record<string, string> = {}
+    for (let i = 0; i < presence.length; i++) {
+      const p = presence[i]
+      // Use a simple hash of the agent id to pick a consistent desk index
+      let hash = 0
+      for (let j = 0; j < p.id.length; j++) {
+        hash = (hash * 31 + p.id.charCodeAt(j)) >>> 0
+      }
+      const deskUid = `desk-${(hash % 20) + 1}`
+      // Avoid collision: if taken, use positional fallback
+      const key = result[deskUid] ? `desk-pos-${i + 1}` : deskUid
+      result[key] = p.id
+    }
+    return result
+  }, [presence])
+
+  // #87 — run counts and last-seen
+  const runCountByAgentId = useMemo(() => {
+    const result: Record<string, number> = {}
+    for (const p of presence) {
+      result[p.id] = p.sessionCount + p.assignedTaskCount
+    }
+    return result
+  }, [presence])
+
+  const lastSeenByAgentId = useMemo(() => {
+    const result: Record<string, number> = {}
+    const now = Date.now()
+    for (const p of presence) {
+      if (p.effectiveStatus === 'working') {
+        result[p.id] = now
+      } else if (p.activityScore > 0) {
+        // Approximate: activity score implies recent activity within last 5min
+        result[p.id] = now - (5 - Math.min(p.activityScore, 5)) * 60_000
+      }
+    }
+    return result
+  }, [presence])
+
+  // #88 — progress per agent: from activeAgents.progress or lastActivity parse
+  const progressByAgentId = useMemo(() => {
+    const result: Record<string, number> = {}
+    for (const p of presence) {
+      // Try live agent progress first
+      const liveAgent = agentView.activeAgents.find(
+        (a) => a.id === (p.activeSessionKey ?? p.id),
+      )
+      if (liveAgent && typeof liveAgent.progress === 'number' && liveAgent.progress > 0) {
+        result[p.id] = Math.min(100, Math.max(0, liveAgent.progress))
+        continue
+      }
+      // Fall back to parsing "NN%" from lastActivity text
+      if (p.lastActivity) {
+        const match = /(\d{1,3})%/.exec(p.lastActivity)
+        if (match) {
+          result[p.id] = Math.min(100, Math.max(0, Number(match[1])))
+        }
+      }
+    }
+    return result
+  }, [presence, agentView.activeAgents])
+
   return {
     agents,
     readOnly: true,
@@ -593,5 +796,14 @@ ${parseLogText(gatewayLogsQuery.data)}`
     agentSource: hasLiveAgents ? 'live' : hasRosterAgents ? 'roster' : 'none',
     presence,
     onAgentChatSelect: handleAgentChatSelect,
+    animationState,
+    streamingTextByAgentId,
+    monitorByAgentId,
+    feedEvents,
+    deskAssignmentByDeskUid,
+    runCountByAgentId,
+    lastSeenByAgentId,
+    progressByAgentId,
+    selectedAgentId,
   }
 }
