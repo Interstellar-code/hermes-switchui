@@ -1,0 +1,95 @@
+---
+// Matrix Rain canvas — pure vanilla JS, no dependencies
+// Katakana + digits + symbols falling in green phosphor columns
+---
+<div class="hero m-scanlines m-crt" id="hero">
+  <canvas id="rain-canvas" aria-hidden="true" role="presentation"></canvas>
+  <div class="hero-content">
+    <div class="hero-eyebrow">
+      <span class="line"></span>
+      <span>Hermes Switch UI</span>
+      <span class="line"></span>
+    </div>
+    <h1>
+      <span class="hero-line1">Your agents.</span>
+      <span class="accent">One workspace.</span>
+    </h1>
+    <p class="hero-sub">
+      The terminal-native AI workspace where agents think, tools execute,
+      and you stay in control. Streams, memory, terminals — co-located and observable.
+    </p>
+    <div class="hero-actions">
+      <a href="#cta" class="m-btn m-btn-primary m-btn-lg">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+        Launch Hermes
+      </a>
+      <a href="#features" class="m-btn m-btn-lg" style="text-decoration:none;">
+        Explore Features
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </div>
+    <div class="hero-badges">
+      <span class="m-badge m-badge-accent">v2.3</span>
+      <span class="m-badge">Open Source</span>
+    </div>
+  </div>
+  <div class="hero-scroll-hint">
+    <span>scroll</span>
+    <div class="chevron"></div>
+  </div>
+</div>
+
+<script>
+  (() => {
+    const cv = document.getElementById('rain-canvas');
+    if (!cv) return;
+    const ctx = cv.getContext('2d');
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let drops, cols, w, h, raf;
+    const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789ABCDEF<>/$#'.split('');
+
+    function size() {
+      const r = cv.parentElement.getBoundingClientRect();
+      w = r.width; h = r.height;
+      cv.width = w * dpr; cv.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      cols = Math.floor(w / 14);
+      drops = Array.from({ length: cols }, () => Math.random() * h / 14);
+    }
+
+    function frame() {
+      if (!heroRunning) return;
+      ctx.fillStyle = 'rgba(2,8,4,0.10)';
+      ctx.fillRect(0, 0, w, h);
+      ctx.font = '14px JetBrains Mono, monospace';
+      for (let i = 0; i < cols; i++) {
+        const x = i * 14;
+        const y = drops[i] * 14;
+        // bright head
+        ctx.fillStyle = '#eaffef';
+        ctx.shadowColor = '#00ff41'; ctx.shadowBlur = 8;
+        ctx.fillText(chars[(Math.random() * chars.length) | 0], x, y);
+        // dimmer tail
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#00ff41';
+        ctx.fillText(chars[(Math.random() * chars.length) | 0], x, y - 14);
+        if (y > h && Math.random() > 0.975) drops[i] = 0;
+        drops[i] += 0.45 * (1 + Math.random() * 0.4);
+      }
+      raf = requestAnimationFrame(frame);
+    }
+
+    size();
+    window.addEventListener('resize', size);
+
+    // Pause canvas when hero is offscreen
+    let heroRunning = true;
+    const heroVisObs = new IntersectionObserver(([e]) => {
+      heroRunning = e.isIntersecting;
+      if (heroRunning) requestAnimationFrame(frame);
+    }, { threshold: 0 });
+    heroVisObs.observe(document.getElementById('hero'));
+
+    frame();
+  })();
+</script>

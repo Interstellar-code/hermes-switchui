@@ -1,0 +1,26 @@
+---
+export interface Props {
+  title?: string;
+}
+const { title = 'hermes — session :: neo' } = Astro.props;
+---
+<div class="terminal-mock">
+  <div class="terminal-bar">
+    <div class="terminal-dot"></div>
+    <div class="terminal-dot"></div>
+    <div class="terminal-dot"></div>
+    <span class="terminal-title">{title}</span>
+  </div>
+  <div class="terminal-body">
+    <div class="tline"><span class="prompt">▸ </span><span class="cmd">hermes chat --agent neo</span></div>
+    <div class="tline"><span class="output">connecting to neo@claude-sonnet-4...</span></div>
+    <div class="tline"><span class="success">[ OK ]</span> <span class="output">handshake complete</span></div>
+    <div class="tline" style="margin-top:8px"><span class="prompt">$ </span><span class="cmd">refactor the auth module to use JWT rotation</span></div>
+    <div class="tline"><span class="output">▸ reading src/auth/session.ts...</span></div>
+    <div class="tline"><span class="output">▸ found 3 files matching auth pattern</span></div>
+    <div class="tline"><span class="output">▸ patching session.ts — adding refresh token logic</span></div>
+    <div class="tline"><span class="output">▸ running test suite...</span></div>
+    <div class="tline"><span class="success">[ DONE ]</span> <span class="highlight">3 files modified</span> <span class="output">· 14 tests passing</span></div>
+    <div class="tline" style="margin-top:8px"><span class="prompt">$ </span><span class="m-cursor"></span></div>
+  </div>
+</div>

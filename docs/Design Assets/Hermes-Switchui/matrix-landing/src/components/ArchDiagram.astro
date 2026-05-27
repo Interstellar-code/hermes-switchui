@@ -1,0 +1,57 @@
+---
+const layers = [
+  {
+    label: 'INTERFACE LAYER',
+    nodes: [
+      { name: 'Switch UI', primary: true },
+      { name: 'Telegram' },
+      { name: 'CLI' },
+      { name: 'Discord' },
+    ],
+  },
+  {
+    label: 'GATEWAY',
+    nodes: [
+      { name: 'Hermes Core', primary: true },
+      { name: 'Session Mgr' },
+      { name: 'Router' },
+    ],
+  },
+  {
+    label: 'AGENT LAYER',
+    nodes: [
+      { name: 'Neo' },
+      { name: 'Trinity' },
+      { name: 'Morpheus' },
+      { name: 'Oracle' },
+    ],
+  },
+  {
+    label: 'TOOLS & INFRA',
+    nodes: [
+      { name: 'Terminal' },
+      { name: 'Browser' },
+      { name: 'Files' },
+      { name: 'Memory' },
+      { name: 'Cron' },
+    ],
+  },
+];
+---
+<div class="arch-diagram reveal">
+  {layers.map((layer, i) => (
+    <>
+      <div class="m-label arch-layer-label">
+        {layer.label}
+      </div>
+      <div class="arch-layer">
+        {layer.nodes.map((node) => (
+          <div class:list={['arch-node', { primary: node.primary }]}>
+            {node.name}
+          </div>
+        ))}
+      </div>
+      {i < layers.length - 1 && <div class="arch-arrow">↕</div>}
+    </>
+  ))}
+</div>

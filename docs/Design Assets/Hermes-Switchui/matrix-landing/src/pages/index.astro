@@ -1,0 +1,196 @@
+---
+import LandingLayout from '../layouts/LandingLayout.astro';
+import TopNav from '../components/TopNav.astro';
+import HeroRain from '../components/HeroRain.astro';
+import FeatureCard from '../components/FeatureCard.astro';
+import TerminalMock from '../components/TerminalMock.astro';
+import ArchDiagram from '../components/ArchDiagram.astro';
+
+// Icon SVGs — matching the Matrix Design System line-art set
+const ico = {
+  chat:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16v11H8l-4 4z"/></svg>',
+  cpu:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>',
+  data:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.6 3.6 3 8 3s8-1.4 8-3V6M4 12v6c0 1.6 3.6 3 8 3s8-1.4 8-3v-6"/></svg>',
+  shield:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6l-8-3z"/></svg>',
+  agent:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6"/></svg>',
+  cog:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1A2 2 0 1 1 4.4 17l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1A2 2 0 1 1 7 4.4l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1A2 2 0 1 1 19.6 7l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+};
+
+const features = [
+  { icon: ico.chat, title: 'Live Agent Streams', desc: 'Watch agents think in real-time. Token-by-token streaming with full context visibility — no black boxes.', tag: 'real-time' },
+  { icon: ico.cpu, title: 'Tool Execution', desc: 'Terminal, browser, file operations, and API calls — all observable, all auditable. See every tool invocation.', tag: 'observable' },
+  { icon: ico.data, title: 'Persistent Memory', desc: 'Agents remember across sessions. Searchable long-term memory that accumulates context and project knowledge.', tag: 'cross-session' },
+  { icon: ico.shield, title: 'Multi-Provider Auth', desc: 'Plug in OpenAI, Anthropic, Google, or local models. One config, seamless switching, no vendor lock-in.', tag: 'pluggable' },
+  { icon: ico.agent, title: 'Subagent Delegation', desc: 'Orchestrate multiple agents in parallel. Delegate tasks, collect results, and synthesize autonomously.', tag: 'parallel' },
+  { icon: ico.cog, title: 'Cron & Scheduling', desc: 'Set it and forget it. Scheduled tasks, periodic check-ins, and autonomous pipelines on your cadence.', tag: 'automated' },
+];
+---
+
+<LandingLayout title="Hermes Switch UI — The AI Agent Workspace">
+  <TopNav />
+  <HeroRain />
+
+  <!-- ─── 01 · FEATURES ──────────────────────────────────── -->
+  <div class="glow-divider"></div>
+  <section class="section" id="features">
+    <div class="reveal">
+      <div class="section-label">01 · Features</div>
+      <h2>Built for the way agents actually work</h2>
+      <p class="section-desc">
+        Every surface is a console. Every interaction leaves a trace.
+        Engineered for the agent-first workflow — not retrofitted from a chat paradigm.
+      </p>
+      <div class="section-rule"></div>
+    </div>
+    <div class="features-grid">
+      {features.map((f, i) => (
+        <FeatureCard icon={f.icon} title={f.title} description={f.desc} tag={f.tag} featured={i === 0} />
+      ))}
+    </div>
+  </section>
+
+  <!-- ─── 02 · WORKSPACE ─────────────────────────────────── -->
+  <div class="glow-divider"></div>
+  <section class="section" id="workspace">
+    <div class="reveal">
+      <div class="section-label">02 · Workspace</div>
+      <h2>The signal-green operating language</h2>
+      <p class="section-desc">
+        Phosphor green on terminal black — designed for long sessions,
+        high information density, and zero eye strain.
+      </p>
+      <div class="section-rule"></div>
+    </div>
+
+    <div class="showcase reveal">
+      <div>
+        <div class="kpi-row">
+          <div class="m-kpi">
+            <div class="m-kpi-label">tokens / session</div>
+            <div class="m-kpi-value m-kpi-value-glow">128,420</div>
+            <div class="m-kpi-trend m-kpi-trend-up">↑ 12.4%</div>
+          </div>
+          <div class="m-kpi">
+            <div class="m-kpi-label">tool calls</div>
+            <div class="m-kpi-value">2,847</div>
+            <div class="m-kpi-trend m-kpi-trend-up">↑ 8.1%</div>
+          </div>
+        </div>
+
+        <div class="workspace-block">
+          <div class="m-label workspace-label">context utilization</div>
+          <div class="m-progress workspace-progress">
+            <div class="workspace-progress-bar"></div>
+          </div>
+          <div class="m-mono workspace-meta">72% — 128k / 200k window</div>
+        </div>
+
+        <div class="workspace-block">
+          <div class="m-label workspace-label">agent status</div>
+          <div class="status-row">
+            <span class="m-badge"><span class="m-dot m-dot-on"></span> neo · coding</span>
+            <span class="m-badge"><span class="m-dot m-dot-on"></span> trinity · finance</span>
+            <span class="m-badge"><span class="m-dot m-dot-pulse"></span> morpheus · review</span>
+            <span class="m-badge"><span class="m-dot m-dot-off"></span> oracle · idle</span>
+          </div>
+        </div>
+
+        <div class="workspace-block">
+          <div class="m-label workspace-label">model load</div>
+          <div class="m-meter meter-wrap">
+            <span class="on"></span><span class="on"></span><span class="on"></span>
+            <span class="on"></span><span class="on"></span><span class="on"></span>
+            <span class="mid"></span><span></span><span></span><span></span>
+          </div>
+          <div class="m-mono workspace-meta">6.2 / 10 concurrent — moderate</div>
+        </div>
+      </div>
+      <TerminalMock />
+    </div>
+  </section>
+
+  <!-- ─── 03 · ARCHITECTURE ──────────────────────────────── -->
+  <div class="glow-divider"></div>
+  <section class="section" id="architecture">
+    <div class="reveal">
+      <div class="section-label">03 · Architecture</div>
+      <h2>Stack that stays out of your way</h2>
+      <p class="section-desc">
+        Modular, extensible, agent-native. Every layer is addressable,
+        every surface is observable. No magic — just clean interfaces.
+      </p>
+      <div class="section-rule"></div>
+    </div>
+    <ArchDiagram />
+  </section>
+
+  <!-- ─── 04 · CTA ───────────────────────────────────────── -->
+  <div class="glow-divider"></div>
+  <section class="cta-section" id="cta">
+    <div class="m-grid-bg"></div>
+    <div class="cta-content">
+      <div class="reveal">
+        <div class="section-label">04 · Get Started</div>
+        <h2 class="cta-heading">
+          Ready to <span class="cta-accent">switch</span> on?
+        </h2>
+        <p class="cta-subtitle">
+          Open source. Self-hosted. Agent-native.
+          Deploy in minutes, scale to as many agents as you need.
+        </p>
+        <div class="cta-actions">
+          <a href="#" class="m-btn m-btn-primary m-btn-lg">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m4 12 16-8-5 18-3-7-8-3z"/></svg>
+            Install Hermes
+          </a>
+          <a href="https://hermes-agent.nousresearch.com/docs" target="_blank" class="m-btn m-btn-lg">
+            Read the Docs
+          </a>
+        </div>
+      </div>
+
+      <div class="cta-terminal-wrap reveal">
+        <div class="terminal-mock cta-terminal">
+          <div class="terminal-bar">
+            <div class="terminal-dot"></div>
+            <div class="terminal-dot"></div>
+            <div class="terminal-dot"></div>
+            <span class="terminal-title">terminal</span>
+          </div>
+          <div class="terminal-body cta-terminal-body">
+            <div><span class="dim">$</span> <span class="cmd">npm install -g hermes-agent</span></div>
+            <div><span class="dim">$</span> <span class="cmd">hermes setup</span></div>
+            <div><span class="success">✓</span> <span class="output">connected · matrix theme active</span></div>
+            <div><span class="dim">$</span> <span class="m-cursor"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FOOTER ─────────────────────────────────────────── -->
+  <div class="glow-divider"></div>
+  <footer class="footer">
+    <div class="footer-text">
+      <span style="color:var(--m-green-500)">//</span> hermes-switchui · matrix theme · SYS::READY
+    </div>
+    <div class="footer-links">
+      <a href="https://hermes-agent.nousresearch.com/docs">Docs</a>
+      <a href="https://github.com/nousresearch/hermes-agent">GitHub</a>
+      <a href="#">Discord</a>
+    </div>
+  </footer>
+
+  <!-- Scroll reveal observer -->
+  <script>
+    (() => {
+      const els = document.querySelectorAll('.reveal');
+      if (!els.length) return;
+      const observer = new IntersectionObserver(
+        (entries) => entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add('visible'); }),
+        { threshold: 0.08, rootMargin: '0px 0px -32px 0px' }
+      );
+      els.forEach((el) => observer.observe(el));
+    })();
+  </script>
+</LandingLayout>

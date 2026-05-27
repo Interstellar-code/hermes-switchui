@@ -1,0 +1,832 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Hermes Switch UI — The AI Agent Workspace</title>
+<link rel="stylesheet" href="tokens.css" />
+<link rel="stylesheet" href="matrix-system.css" />
+<style>
+  /* ─── Landing-specific overrides ─────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--m-bg);
+    color: var(--m-text);
+    font-family: var(--m-font-sans);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* ─── Hero Section ───────────────────────────────────────────────── */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+  }
+  .hero canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+  }
+  .hero-content {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 0 24px;
+    max-width: 800px;
+  }
+  .hero-eyebrow {
+    font: 600 var(--m-text-xs) var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: var(--m-tracking-label);
+    color: var(--m-green-500);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .hero-eyebrow .eyebrow-line {
+    width: 32px;
+    height: 1px;
+    background: var(--m-green-500);
+    box-shadow: 0 0 8px rgba(0,255,65,.5);
+  }
+  .hero h1 {
+    font: 500 clamp(56px, 10vw, 96px)/0.9 var(--m-font-display);
+    color: var(--m-text-strong);
+    letter-spacing: -0.03em;
+    margin-bottom: 24px;
+  }
+  .hero h1 .accent {
+    color: var(--m-green-500);
+    text-shadow: var(--m-text-glow-lg);
+  }
+  .hero-sub {
+    font: 400 var(--m-text-md)/1.7 var(--m-font-sans);
+    color: var(--m-text-muted);
+    max-width: 520px;
+    margin: 0 auto 40px;
+  }
+  .hero-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .hero-badges {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 32px;
+    flex-wrap: wrap;
+  }
+
+  /* ─── Nav Bar ────────────────────────────────────────────────────── */
+  .topnav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 32px;
+    background: rgba(2,8,4,0.82);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--m-border-subtle);
+    transition: all var(--m-dur-base) var(--m-ease-out);
+  }
+  .topnav-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+  }
+  .topnav-brand .glyph {
+    width: 30px; height: 30px;
+    border: 1.5px solid var(--m-green-500);
+    display: grid;
+    place-items: center;
+    color: var(--m-green-500);
+    font: 700 15px var(--m-font-mono);
+    box-shadow: var(--m-glow-sm), inset 0 0 10px rgba(0,255,65,.12);
+    border-radius: 4px;
+  }
+  .topnav-brand b {
+    font: 700 15px var(--m-font-mono);
+    color: var(--m-text-strong);
+    letter-spacing: .12em;
+  }
+  .topnav-links {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .topnav-links a {
+    font: 500 var(--m-text-sm) var(--m-font-mono);
+    color: var(--m-text-muted);
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    transition: color var(--m-dur-fast);
+  }
+  .topnav-links a:hover { color: var(--m-green-500); }
+
+  /* ─── Section Layout ─────────────────────────────────────────────── */
+  .section {
+    position: relative;
+    padding: 120px 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .section-label {
+    font: 600 var(--m-text-xs) var(--m-font-mono);
+    text-transform: uppercase;
+    letter-spacing: var(--m-tracking-label);
+    color: var(--m-green-500);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-label::before {
+    content: "";
+    width: 20px;
+    height: 1px;
+    background: var(--m-green-500);
+    box-shadow: 0 0 6px rgba(0,255,65,.4);
+  }
+  .section h2 {
+    font: 600 clamp(26px, 4vw, 40px)/1.15 var(--m-font-mono);
+    color: var(--m-text-strong);
+    margin-bottom: 16px;
+    max-width: 640px;
+  }
+  .section-desc {
+    font: 400 var(--m-text-md)/1.7 var(--m-font-sans);
+    color: var(--m-text-muted);
+    max-width: 560px;
+    margin-bottom: 56px;
+  }
+  .section-rule {
+    height: 1px;
+    background: linear-gradient(90deg, var(--m-green-500), transparent);
+    margin-bottom: 48px;
+  }
+
+  /* ─── Feature Grid ───────────────────────────────────────────────── */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+  }
+  .feature-card {
+    padding: 28px 24px;
+    background: var(--m-card);
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-lg);
+    transition: all var(--m-dur-base) var(--m-ease-out);
+    position: relative;
+    overflow: hidden;
+  }
+  .feature-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--m-green-500), transparent);
+    opacity: 0;
+    transition: opacity var(--m-dur-base);
+  }
+  .feature-card:hover {
+    border-color: var(--m-border-strong);
+    box-shadow: var(--m-glow-sm);
+  }
+  .feature-card:hover::before { opacity: 1; }
+  .feature-icon {
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--m-border-strong);
+    border-radius: var(--m-radius-md);
+    display: grid;
+    place-items: center;
+    margin-bottom: 18px;
+    background: var(--m-bg-deep);
+    color: var(--m-green-500);
+  }
+  .feature-icon svg { width: 18px; height: 18px; }
+  .feature-card h3 {
+    font: 600 var(--m-text-lg)/1.3 var(--m-font-mono);
+    color: var(--m-text-strong);
+    margin-bottom: 8px;
+  }
+  .feature-card p {
+    font: 400 var(--m-text-sm)/1.6 var(--m-font-sans);
+    color: var(--m-text-muted);
+  }
+
+  /* ─── Terminal Mock ──────────────────────────────────────────────── */
+  .terminal-mock {
+    background: var(--m-bg-deep);
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-lg);
+    overflow: hidden;
+    box-shadow: var(--m-shadow-3);
+  }
+  .terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--m-sidebar);
+    border-bottom: 1px solid var(--m-border-subtle);
+  }
+  .terminal-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--m-text-faint);
+  }
+  .terminal-dot:nth-child(1) { background: var(--m-danger); }
+  .terminal-dot:nth-child(2) { background: var(--m-warning); }
+  .terminal-dot:nth-child(3) { background: var(--m-green-500); box-shadow: var(--m-glow-sm); }
+  .terminal-title {
+    font: 500 var(--m-text-xs) var(--m-font-mono);
+    color: var(--m-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    margin-left: auto;
+  }
+  .terminal-body {
+    padding: 20px 24px;
+    font-family: var(--m-font-mono);
+    font-size: var(--m-text-sm);
+    line-height: 1.8;
+    color: var(--m-text);
+    min-height: 280px;
+    position: relative;
+  }
+  .terminal-body .prompt { color: var(--m-green-500); }
+  .terminal-body .cmd { color: var(--m-text-strong); }
+  .terminal-body .output { color: var(--m-text-muted); }
+  .terminal-body .highlight { color: var(--m-green-300); }
+  .terminal-body .success { color: var(--m-green-500); text-shadow: var(--m-text-glow); }
+  .terminal-body .cursor-blink::after {
+    content: "▋";
+    color: var(--m-green-500);
+    animation: m-blink 1.06s steps(1) infinite;
+  }
+
+  /* ─── Showcase: Split layout ─────────────────────────────────────── */
+  .showcase {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+  }
+  @media (max-width: 900px) {
+    .showcase { grid-template-columns: 1fr; }
+  }
+
+  /* ─── KPI Row ────────────────────────────────────────────────────── */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+
+  /* ─── Architecture Diagram ───────────────────────────────────────── */
+  .arch-diagram {
+    background: var(--m-card);
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-lg);
+    padding: 40px;
+    position: relative;
+  }
+  .arch-layer {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .arch-node {
+    padding: 10px 16px;
+    background: var(--m-bg-deep);
+    border: 1px solid var(--m-border);
+    border-radius: var(--m-radius-md);
+    font: 500 var(--m-text-sm) var(--m-font-mono);
+    color: var(--m-text-muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    transition: all var(--m-dur-fast);
+    flex: 1;
+    min-width: 120px;
+    text-align: center;
+  }
+  .arch-node.primary {
+    border-color: var(--m-green-500);
+    color: var(--m-green-500);
+    box-shadow: var(--m-glow-sm);
+    background: rgba(0,255,65,.06);
+  }
+  .arch-arrow {
+    text-align: center;
+    color: var(--m-green-500);
+    font: 400 var(--m-text-sm) var(--m-font-mono);
+    margin: 4px 0;
+    opacity: .5;
+  }
+
+  /* ─── CTA Section ────────────────────────────────────────────────── */
+  .cta-section {
+    text-align: center;
+    padding: 120px 32px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cta-section .m-grid-bg {
+    position: absolute;
+    inset: 0;
+    opacity: .4;
+    pointer-events: none;
+  }
+  .cta-content {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ─── Footer ─────────────────────────────────────────────────────── */
+  .footer {
+    border-top: 1px solid var(--m-border-subtle);
+    padding: 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .footer-text {
+    font: 400 var(--m-text-sm) var(--m-font-mono);
+    color: var(--m-text-faint);
+    letter-spacing: .05em;
+  }
+  .footer-links {
+    display: flex;
+    gap: 24px;
+  }
+  .footer-links a {
+    font: 500 var(--m-text-sm) var(--m-font-mono);
+    color: var(--m-text-muted);
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    transition: color var(--m-dur-fast);
+  }
+  .footer-links a:hover { color: var(--m-green-500); }
+
+  /* ─── Scroll Animations ──────────────────────────────────────────── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.6s var(--m-ease-out), transform 0.6s var(--m-ease-out);
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ─── Typing animation for terminal ──────────────────────────────── */
+  @keyframes typewriter {
+    from { width: 0; }
+    to   { width: 100%; }
+  }
+  .typing-line {
+    overflow: hidden;
+    white-space: nowrap;
+    border-right: 2px solid var(--m-green-500);
+    animation: typing-fade 0.5s var(--m-ease-out) forwards;
+    opacity: 0;
+  }
+  .typing-line:nth-child(1) { animation-delay: 0.2s; }
+  .typing-line:nth-child(2) { animation-delay: 0.6s; }
+  .typing-line:nth-child(3) { animation-delay: 1.0s; }
+  .typing-line:nth-child(4) { animation-delay: 1.4s; }
+  .typing-line:nth-child(5) { animation-delay: 1.8s; }
+  .typing-line:nth-child(6) { animation-delay: 2.2s; }
+  .typing-line:nth-child(7) { animation-delay: 2.6s; }
+  .typing-line:nth-child(8) { animation-delay: 3.0s; }
+  @keyframes typing-fade {
+    from { opacity: 0; transform: translateX(-4px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  /* ─── Glow divider between sections ──────────────────────────────── */
+  .glow-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--m-green-500), transparent);
+    box-shadow: 0 0 8px rgba(0,255,65,.3);
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     NAVIGATION
+     ═══════════════════════════════════════════════════════════════ -->
+<nav class="topnav" id="topnav">
+  <a href="#" class="topnav-brand">
+    <div class="glyph">ᕼ</div>
+    <b>HERMES</b>
+  </a>
+  <div class="topnav-links">
+    <a href="#features">Features</a>
+    <a href="#workspace">Workspace</a>
+    <a href="#architecture">Stack</a>
+    <a href="https://github.com/nousresearch/hermes-agent" target="_blank">GitHub</a>
+    <a href="#" class="m-btn m-btn-primary m-btn-sm">Get Started</a>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     HERO — Matrix Rain + Type
+     ═══════════════════════════════════════════════════════════════ -->
+<section class="hero m-scanlines m-crt" id="hero">
+  <canvas id="rain-canvas"></canvas>
+  <div class="hero-content">
+    <div class="hero-eyebrow">
+      <span class="eyebrow-line"></span>
+      <span>Hermes Switch UI</span>
+      <span class="eyebrow-line"></span>
+    </div>
+    <h1>
+      Your agents.<br/>
+      <span class="accent">One workspace.</span>
+    </h1>
+    <p class="hero-sub">
+      The terminal-native AI workspace where agents think, tools execute, 
+      and you stay in control. Streams, memory, terminals — co-located and observable.
+    </p>
+    <div class="hero-actions">
+      <a href="#" class="m-btn m-btn-primary m-btn-lg">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+        Launch Hermes
+      </a>
+      <a href="#features" class="m-btn m-btn-lg" style="text-decoration:none;">
+        Explore Features
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </div>
+    <div class="hero-badges">
+      <span class="m-badge m-badge-accent">v2.3</span>
+      <span class="m-badge">Matrix Theme</span>
+      <span class="m-badge">Open Source</span>
+      <span class="m-badge"><span class="m-dot m-dot-pulse"></span> Live</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     FEATURES
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="glow-divider"></div>
+
+<section class="section" id="features">
+  <div class="reveal">
+    <div class="section-label">01 · Features</div>
+    <h2>Built for the way agents actually work</h2>
+    <p class="section-desc">
+      Every surface is a console. Every interaction leaves a trace. 
+      Hermes Switch UI is engineered for the agent-first workflow — 
+      not retrofitted from a human chat paradigm.
+    </p>
+    <div class="section-rule"></div>
+  </div>
+
+  <div class="features-grid">
+    <!-- Card 1 -->
+    <div class="feature-card reveal">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5h16v11H8l-4 4z"/></svg>
+      </div>
+      <h3>Live Agent Streams</h3>
+      <p>Watch agents think in real-time. Token-by-token streaming with full context visibility — no black boxes.</p>
+    </div>
+    <!-- Card 2 -->
+    <div class="feature-card reveal">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>
+      </div>
+      <h3>Tool Execution</h3>
+      <p>Terminal, browser, file operations, and API calls — all observable, all auditable. See every tool invocation with input/output.</p>
+    </div>
+    <!-- Card 3 -->
+    <div class="feature-card reveal">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.6 3.6 3 8 3s8-1.4 8-3V6M4 12v6c0 1.6 3.6 3 8 3s8-1.4 8-3v-6"/></svg>
+      </div>
+      <h3>Persistent Memory</h3>
+      <p>Agents remember across sessions. Searchable long-term memory that accumulates context, preferences, and project knowledge.</p>
+    </div>
+    <!-- Card 4 -->
+    <div class="feature-card reveal">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6l-8-3z"/></svg>
+      </div>
+      <h3>Multi-Provider Auth</h3>
+      <p>Plug in OpenAI, Anthropic, Google, or local models. One config, seamless switching, no vendor lock-in.</p>
+    </div>
+    <!-- Card 5 -->
+    <div class="feature-card reveal">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4.5-6 8-6s7 2 8 6"/></svg>
+      </div>
+      <h3>Subagent Delegation</h3>
+      <p>Orchestrate multiple agents in parallel. Delegate tasks, collect results, and synthesize — without babysitting.</p>
+    </div>
+    <!-- Card 6 -->
+    <div class="feature-card reveal">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1A2 2 0 1 1 4.4 17l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1A2 2 0 1 1 7 4.4l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1A2 2 0 1 1 19.6 7l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </div>
+      <h3>Cron & Scheduling</h3>
+      <p>Set it and forget it. Scheduled tasks, periodic check-ins, and autonomous pipelines that run on your cadence.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     WORKSPACE PREVIEW
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="glow-divider"></div>
+
+<section class="section" id="workspace">
+  <div class="reveal">
+    <div class="section-label">02 · Workspace</div>
+    <h2>The signal-green operating language</h2>
+    <p class="section-desc">
+      Every surface feels like a console. Phosphor green on terminal black — 
+      designed for long sessions, high information density, and zero eye strain.
+    </p>
+    <div class="section-rule"></div>
+  </div>
+
+  <div class="showcase reveal">
+    <div>
+      <div class="kpi-row">
+        <div class="m-kpi">
+          <div class="m-kpi-label">tokens / session</div>
+          <div class="m-kpi-value m-kpi-value-glow">128,420</div>
+          <div class="m-kpi-trend m-kpi-trend-up">↑ 12.4%</div>
+        </div>
+        <div class="m-kpi">
+          <div class="m-kpi-label">tool calls</div>
+          <div class="m-kpi-value">2,847</div>
+          <div class="m-kpi-trend m-kpi-trend-up">↑ 8.1%</div>
+        </div>
+      </div>
+
+      <div style="margin-top: 32px;">
+        <div class="m-label" style="margin-bottom: 12px;">context utilization</div>
+        <div class="m-progress" style="margin-bottom: 6px;">
+          <div style="width: 72%"></div>
+        </div>
+        <div class="m-mono" style="font-size: 11px; color: var(--m-text-faint);">72% — 128k / 200k window</div>
+      </div>
+
+      <div style="margin-top: 32px;">
+        <div class="m-label" style="margin-bottom: 12px;">agent status</div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <span class="m-badge"><span class="m-dot m-dot-on"></span> neo · coding</span>
+          <span class="m-badge"><span class="m-dot m-dot-on"></span> trinity · finance</span>
+          <span class="m-badge"><span class="m-dot m-dot-pulse"></span> morpheus · review</span>
+          <span class="m-badge"><span class="m-dot m-dot-off"></span> oracle · idle</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="terminal-mock">
+      <div class="terminal-bar">
+        <div class="terminal-dot"></div>
+        <div class="terminal-dot"></div>
+        <div class="terminal-dot"></div>
+        <span class="terminal-title">hermes — session :: neo</span>
+      </div>
+      <div class="terminal-body" id="terminal-demo">
+        <div class="typing-line"><span class="prompt">▸ </span><span class="cmd">hermes chat --agent neo</span></div>
+        <div class="typing-line"><span class="output">connecting to neo@claude-sonnet-4...</span></div>
+        <div class="typing-line"><span class="success">[ OK ]</span> <span class="output">handshake complete</span></div>
+        <div class="typing-line" style="margin-top: 8px;"><span class="prompt">$ </span><span class="cmd">refactor the auth module to use JWT rotation</span></div>
+        <div class="typing-line"><span class="output">▸ reading src/auth/session.ts...</span></div>
+        <div class="typing-line"><span class="output">▸ found 3 files matching auth pattern</span></div>
+        <div class="typing-line"><span class="output">▸ patching session.ts — adding refresh token logic</span></div>
+        <div class="typing-line"><span class="success">[ DONE ]</span> <span class="highlight">3 files modified</span> <span class="output">· tests passing</span></div>
+        <div class="typing-line" style="margin-top: 8px;"><span class="prompt">$ </span><span class="cursor-blink"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     ARCHITECTURE
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="glow-divider"></div>
+
+<section class="section" id="architecture">
+  <div class="reveal">
+    <div class="section-label">03 · Architecture</div>
+    <h2>Stack that stays out of your way</h2>
+    <p class="section-desc">
+      Modular, extensible, agent-native. Every layer is addressable, 
+      every surface is observable. No magic — just clean interfaces.
+    </p>
+    <div class="section-rule"></div>
+  </div>
+
+  <div class="arch-diagram reveal">
+    <!-- User Layer -->
+    <div class="m-label" style="margin-bottom: 10px;">INTERFACE LAYER</div>
+    <div class="arch-layer">
+      <div class="arch-node primary">Switch UI</div>
+      <div class="arch-node">Telegram</div>
+      <div class="arch-node">CLI</div>
+      <div class="arch-node">Discord</div>
+    </div>
+    <div class="arch-arrow">↕</div>
+
+    <!-- Gateway -->
+    <div class="m-label" style="margin-bottom: 10px; margin-top: 8px;">GATEWAY</div>
+    <div class="arch-layer">
+      <div class="arch-node primary">Hermes Core</div>
+      <div class="arch-node">Session Mgr</div>
+      <div class="arch-node">Router</div>
+    </div>
+    <div class="arch-arrow">↕</div>
+
+    <!-- Agent Layer -->
+    <div class="m-label" style="margin-bottom: 10px; margin-top: 8px;">AGENT LAYER</div>
+    <div class="arch-layer">
+      <div class="arch-node">Neo</div>
+      <div class="arch-node">Trinity</div>
+      <div class="arch-node">Morpheus</div>
+      <div class="arch-node">Oracle</div>
+    </div>
+    <div class="arch-arrow">↕</div>
+
+    <!-- Tool Layer -->
+    <div class="m-label" style="margin-bottom: 10px; margin-top: 8px;">TOOLS & INFRA</div>
+    <div class="arch-layer">
+      <div class="arch-node">Terminal</div>
+      <div class="arch-node">Browser</div>
+      <div class="arch-node">Files</div>
+      <div class="arch-node">Memory</div>
+      <div class="arch-node">Cron</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CTA
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="glow-divider"></div>
+
+<section class="cta-section">
+  <div class="m-grid-bg"></div>
+  <div class="cta-content reveal">
+    <div class="section-label" style="justify-content: center;">04 · Get Started</div>
+    <h2 style="font-size: clamp(32px, 5vw, 56px); text-align: center; margin: 0 auto 16px; font-family: var(--m-font-display); font-weight: 500; color: var(--m-text-strong);">
+      Ready to <span style="color: var(--m-green-500); text-shadow: var(--m-text-glow-lg);">switch</span> on?
+    </h2>
+    <p style="font: 400 var(--m-text-md)/1.7 var(--m-font-sans); color: var(--m-text-muted); max-width: 480px; margin: 0 auto 40px;">
+      Open source. Self-hosted. Agent-native. 
+      Deploy in minutes, scale to as many agents as you need.
+    </p>
+    <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+      <a href="#" class="m-btn m-btn-primary m-btn-lg" style="text-decoration: none;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m4 12 16-8-5 18-3-7-8-3z"/></svg>
+        Install Hermes
+      </a>
+      <a href="#" class="m-btn m-btn-lg" style="text-decoration: none;">
+        Read the Docs
+      </a>
+    </div>
+
+    <div style="margin-top: 48px;">
+      <div class="terminal-mock" style="max-width: 560px; margin: 0 auto; text-align: left;">
+        <div class="terminal-bar">
+          <div class="terminal-dot"></div>
+          <div class="terminal-dot"></div>
+          <div class="terminal-dot"></div>
+          <span class="terminal-title">terminal</span>
+        </div>
+        <div class="terminal-body" style="padding: 16px 20px; min-height: auto;">
+          <div><span style="color: var(--m-text-faint);">$</span> <span class="cmd">npm install -g hermes-agent</span></div>
+          <div><span style="color: var(--m-text-faint);">$</span> <span class="cmd">hermes setup</span></div>
+          <div><span class="success">✓</span> <span class="output">connected · matrix theme active</span></div>
+          <div><span style="color: var(--m-text-faint);">$</span> <span class="cursor-blink"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     FOOTER
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="glow-divider"></div>
+
+<footer class="footer">
+  <div class="footer-text">
+    <span style="color: var(--m-green-500);">//</span> hermes-switchui · matrix theme · <span class="m-cursor">SYS::READY</span>
+  </div>
+  <div class="footer-links">
+    <a href="#">Docs</a>
+    <a href="https://github.com/nousresearch/hermes-agent">GitHub</a>
+    <a href="#">Discord</a>
+  </div>
+</footer>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MATRIX RAIN — Canvas Animation
+     ═══════════════════════════════════════════════════════════════ -->
+<script>
+(function() {
+  const cv = document.getElementById('rain-canvas');
+  const ctx = cv.getContext('2d');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  let raf, drops, cols, w, h;
+  const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789ABCDEF<>/$#'.split('');
+
+  function size() {
+    const r = cv.parentElement.getBoundingClientRect();
+    w = r.width; h = r.height;
+    cv.width = w * dpr; cv.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cols = Math.floor(w / 14);
+    drops = Array.from({ length: cols }, () => Math.random() * h / 14);
+  }
+  size();
+  window.addEventListener('resize', size);
+
+  function frame() {
+    ctx.fillStyle = 'rgba(2,8,4,0.10)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.font = '14px JetBrains Mono, monospace';
+
+    for (let i = 0; i < cols; i++) {
+      const t = chars[(Math.random() * chars.length) | 0];
+      const x = i * 14;
+      const y = drops[i] * 14;
+
+      // bright head
+      ctx.fillStyle = '#eaffef';
+      ctx.shadowColor = '#00ff41';
+      ctx.shadowBlur = 8;
+      ctx.fillText(t, x, y);
+
+      // dimmer tail
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#00ff41';
+      ctx.fillText(chars[(Math.random() * chars.length) | 0], x, y - 14);
+
+      if (y > h && Math.random() > 0.975) drops[i] = 0;
+      drops[i] += 0.45 * (1 + Math.random() * 0.4);
+    }
+    raf = requestAnimationFrame(frame);
+  }
+  frame();
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCROLL REVEAL — IntersectionObserver
+     ═══════════════════════════════════════════════════════════════ -->
+<script>
+(function() {
+  const els = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+  els.forEach(el => observer.observe(el));
+})();
+</script>
+
+</body>
+</html>

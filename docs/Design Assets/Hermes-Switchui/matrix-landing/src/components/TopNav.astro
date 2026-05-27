@@ -1,0 +1,27 @@
+---
+---
+<nav class="topnav" id="topnav">
+  <a href="#" class="topnav-brand">
+    <div class="glyph">ᕼ</div>
+    <b>HERMES</b>
+  </a>
+  <button class="topnav-hamburger" aria-label="Toggle menu" onclick="document.querySelector('.topnav-links').classList.toggle('open')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="topnav-links">
+    <a href="#features">Features</a>
+    <a href="#workspace">Workspace</a>
+    <a href="#architecture">Stack</a>
+    <a href="https://github.com/nousresearch/hermes-agent" target="_blank">GitHub</a>
+    <a href="#cta" class="m-btn m-btn-primary m-btn-sm">Get Started</a>
+  </div>
+</nav>
+
+<script>
+  const nav = document.getElementById('topnav');
+  if (nav) {
+    window.addEventListener('scroll', () => {
+      nav.classList.toggle('scrolled', window.scrollY > 60);
+    }, { passive: true });
+  }
+</script>

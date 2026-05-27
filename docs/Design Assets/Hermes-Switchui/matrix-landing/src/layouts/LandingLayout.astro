@@ -1,0 +1,33 @@
+---
+import '../styles/landing.css';
+
+export interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = 'The terminal-native AI workspace where agents think, tools execute, and you stay in control.' } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content={description} />
+  <title>{title}</title>
+  <link rel="stylesheet" href="./styles/tokens.css" />
+  <link rel="stylesheet" href="./styles/matrix-system.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=EB+Garamond:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    .skip-link:focus { top: 0 !important; }
+  </style>
+</head>
+<body>
+  <a href="#main-content" class="skip-link" style="position:absolute;top:-100px;left:0;background:var(--m-green-500);color:#000;padding:8px 16px;z-index:200;font:600 14px sans-serif;transition:top .2s">Skip to content</a>
+  <main id="main-content">
+    <slot />
+  </main>
+</body>
+</html>

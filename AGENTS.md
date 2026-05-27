@@ -1,78 +1,78 @@
 <claude-mem-context>
 # Memory Context
 
-# [hermes-switchui] recent context, 2026-05-20 9:23am GMT+2
+# [hermes-switchui] recent context, 2026-05-27 8:42pm GMT+2
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (20,170t read) | 382,305t work | 95% savings
+Stats: 50 obs (23,266t read) | 1,088,451t work | 98% savings
 
-### May 19, 2026
-8785 1:16a 🔵 Confirmed hermes-switchui Diagram HTML Template Structure
-8786 " 🟣 Batch B: 5 More HTML Diagrams Launched for Terminal and Workflow Docs
-8787 1:18a 🟣 install-paths.html Created — First Diagram of Batch A Written to Disk
-8788 " 🔵 /api/docs-asset Route Security: HTML Diagrams Served with CSP script-src 'none' and nosniff Headers
-8789 " 🔵 Gateway Capability Probe Modes and MCP Capability Gating Confirmed from Docs
-8843 7:25a 🔵 Open PR #31 on hermes-switchui: feat(workflows) GithubAwesome RSS monitor
-8844 " ✅ PR #31 set to auto-merge on hermes-switchui
-8845 7:26a ✅ PR #31 merged immediately into hermes-switchui
-8846 " 🟣 hermes-switchui main synced: GithubAwesome RSS monitor + tool-catalog workflows landed
-9197 11:08p 🔵 Open PR #32: Workflow Engine Backend Toggle + Python Plugin Integration
-9198 " 🔵 PR #32 Fully Green and Mergeable
-S1723 Debug reported breakage on the hermes agent side (user shared an image showing an error) (May 19 at 11:08 PM)
-9199 11:16p 🔵 Hermes Agent Gateway: Health OK but /api/plugins Returns 404
-9200 11:17p 🔵 Hermes Gateway Missing All API Routes — /api/workflows and /openapi.json Also 404
-9201 " 🔵 Hermes Agent Config: Manifest Provider, Local Terminal, Multi-DB State Layout
-S1729 Patch workflow-engine plugin crash: 'PluginContext' object has no attribute 'include_router' (May 19 at 11:17 PM)
-### May 20, 2026
-9218 12:03a 🔵 Architecture Gap: Workflow Plugin Expects FastAPI App, Hermes Passes PluginContext
-9221 " 🔵 PluginContext API Surface Mapped: No ASGI/Router Exposure
-9222 12:04a 🔵 Two Parallel Plugin-Route-Mounting Systems in Hermes: web_server vs PluginContext
-9223 " 🔵 Hermes Has Two Separate HTTP Servers: FastAPI Dashboard and aiohttp Gateway
-9224 " 🔵 Full workflow-engine register() Logic: Router Mount + Two Asyncio Background Tasks
-S1731 Diagnose and fix workflow-engine plugin integration gaps in Hermes/SwitchUI — covering HTTP route mounting, background task scheduling, and the frontend plugin probe (May 20 at 12:05 AM)
-9225 12:21a 🔵 Hermes PluginContext Missing include_router and Asyncio Loop — Workflow Plugin Partially Operational
-9226 " ⚖️ Dual-Repo Sync Required: Workflow Plugin Lives in Both Hermes Agent and SwitchUI
-9228 12:23a 🔵 No hermes-agent Repository Found on Development Volume
-9230 " 🔵 WorkflowBackendToggle Component — UI Switch Between Native and Plugin Workflow Backends
-9232 12:24a 🔵 ensurePluginInstalled — Idempotent Plugin Probe with Auto-Enable via Dashboard Proxy
-9233 " 🔵 Dashboard-Proxy Route Returns HTML SPA Instead of JSON — Plugin API Unreachable
-9234 " 🔵 Hermes Agent Located at /Users/rohits/.hermes/hermes-agent — Plugin API Endpoints Confirmed
-9235 " 🔵 Plugin List Endpoint Is /api/dashboard/plugins, Not /api/dashboard/agent-plugins — ensurePluginInstalled Probes Wrong URL
-9236 " 🔴 ensurePluginInstalled Probe URL Fixed to /api/dashboard/plugins/hub with Content-Type Guard
-S1733 Diagnose workflow plugin activation gaps and fix frontend probe — tracing from PluginContext limitations through dashboard-proxy, gateway restarts, and plugin loading architecture (May 20 at 12:25 AM)
-9238 12:27a 🔵 Hermes Gateway Not Running — Port 8642 Unreachable, No Plugin Log Output
-9239 12:28a 🔵 Live Port Map: SwitchUI on 3000, Hermes Agent on 9119, Gateway (8642) Not Running
-9240 " 🔵 Hermes Gateway Was Mid-Restart — Clean Shutdown Traced, Restarting at 00:27:25
-9241 " 🔵 Gateway Error Log Shows No Workflow/Plugin Errors — MCP Server Failures and Unknown Provider 'clawbay' Noted
-9242 12:29a 🔵 Gateway Recurring SystemExit: 75 Crash — Four Instances Crashed at gateway/run.py:17085
-9243 " 🔵 Gateway Now Up — API Server on 8642, Kanban Dispatcher Embedded, Cron Ticker Confirmed
-9244 " 🔵 Parallel Codex Audit Running on hermes-switchui-a — Bundle 5 HTTP API Security Audit
-S1734 Workflow engine plugin HTTP routes confirmed mounted — traced from PluginContext gaps through dashboard restart to live route verification (May 20 at 12:29 AM)
-9245 12:30a 🔵 Dashboard Process Not Yet Restarted — Logs Show No Plugin Loading Trace in dashboard.log or dashboard.error.log
-S1736 Workflow engine plugin tested and confirmed working — patches landed across two repos (May 20 at 12:31 AM)
-S1737 Commit workflow-engine hub URL probe fix to hermes-switchui and offer to push (May 20 at 12:39 AM)
-9249 12:39a 🔵 hermes-switchui repo state: two modified files, one untracked plan doc
-9250 " 🔴 Fixed workflow-engine probe using wrong hub URL, causing JSON.parse failure
-S1738 Inspect agent logs to verify workflow engine patch is live and diagnose remaining warnings (May 20 at 12:40 AM)
-9253 12:41a 🔵 Workflow engine boots successfully but HTTP routes and background tasks not mounted due to host PluginContext limitations
-S1739 Push workflow-engine hub URL fix to hermes-switchui remote — completed successfully (May 20 at 12:41 AM)
-9254 " ✅ Pushed workflow-engine hub URL fix to hermes-switchui remote main
-9264 9:14a 🔵 Hermes Has Two Separate Plugin Systems — Workflow Plugin Violates Both Contracts
-9265 " ⚖️ Workflow Plugin Refactor Plan: Split Agent vs Dashboard Registration, Remove include_router, Add ctx.register_tool()
-9266 " 🔵 Confirmed File Layout of kanban and workflow-engine Plugins on Disk
-9267 " 🔵 Both Plugin manifest.json Files Confirmed — workflow-engine Dashboard Already Correctly Structured
-9268 9:15a 🔵 Kanban Dispatcher Now Runs Embedded in Gateway — Systemd Service is Deprecated
-9269 " 🔵 PluginContext.register_hook() API Confirmed with VALID_HOOKS Set in plugins.py
-9270 " 🔵 Complete VALID_HOOKS Set and Gateway Background Task Pattern Confirmed
-9271 " 🔵 workflow-engine plugin_api.py Uses sys.path Hack; CronPoller Has In-Process + HTTP Fallback Import Strategy
-9272 9:17a ⚖️ OMC Refactor Plan Written: workflow-plugin-refactor.md — 6-Phase Plan with Standalone Daemon Approach
-S1748 OMC refactor planning for workflow-engine Hermes plugin — full architectural review and phased plan creation using kanban plugin as reference (May 20 at 9:17 AM)
-9273 9:22a ⚖️ Codex Review Step Added to Gap-Filling Workflow
+### May 26, 2026
+S2476 Continuing hermes-switchui migration: commit and merge defensive null-safe guards for workflow-editor.tsx OverviewTab parsed shape fields (May 26 at 5:44 PM)
+S2477 Fix "TypeError: edges is not iterable" crash in workflow editor — systematic null-safety hardening of all ParsedWorkflow field consumers (May 26 at 5:48 PM)
+S2480 Push branch fix/workflows-codex-cutover-findings to GitHub remote for hermes-switchui — blocked by DNS resolution failure (May 26 at 5:58 PM)
+S2481 Push branch fix/workflows-codex-cutover-findings to GitHub — blocked by host-level DNS/NSS resolution failure (May 26 at 6:57 PM)
+S2484 User asked "what were we trying to complete?" — seeking a recap of current in-progress work on the hermes-switchui project (May 26 at 6:58 PM)
+S2485 Codex cutover review findings — apply and ship P0/P1/P2 fixes to hermes-switchui workflows feature (May 26 at 7:19 PM)
+S2486 Verify whether all files were pushed to remote after a cutover operation in hermes-switchui (May 26 at 7:20 PM)
+S2487 Record completion of workflow engine cutover to memory and update project index (May 26 at 7:40 PM)
+S2488 hermes-switchui backend audit via OMC agents → file GitHub issues for all discovered problems to tackle one-by-one (May 26 at 7:50 PM)
+13846 11:37p 🔵 PR #14 bulk.ts: Archived-Only Guard Enforced Downstream, Not in Route
+13847 " 🟣 PR #14 matrix-rain-canvas.tsx: New Canvas Component with Clean Lifecycle
+13848 " 🟣 PR #14 tasks-screen.tsx: Archive Done + Purge Archived Bulk Operations with 2-Step Confirm
+13849 " 🔄 PR #14 files-screen.tsx: Sidebar Collapse Refactored from Conditional Branches to CSS-Only
+13865 11:41p ⚖️ Sequential PR Strategy from Same Branch
+13867 11:42p 🟣 PR #24 Merged: Fix Dev Workflow DB Isolation
+13868 " 🔵 Merge Audit: Suspicious File Drops Detected in Merge 84e9b9a2
+13869 " ✅ Graphify Code Graph Updated Post-Merge
+### May 27, 2026
+13878 3:24a 🔵 Gateway Capabilities Endpoint Investigation: 127.0.0.1:9119
+13884 3:30a 🔵 Trinity Sub-Agent Delegation Not Reflected in Matrix3D Dashboard
+13888 3:31a 🔵 OMX crew-status SQLite sessions query investigation
+13893 3:43a 🔵 Matrix3DScreen exploration attempted; project wiki missing
+13897 3:52a 🟣 Finder-style two-pane layout implemented for /files screen (issue #50)
+13899 3:53a 🔵 Code review of ebd89e24 — confirmed bugs and gaps found in source
+13910 3:58a 🔵 workspace-agents.ts Agent Status Field Investigation
+13913 3:59a 🔵 workspace-agents.ts: Canonical Agent Status Field Model
+13914 " 🔵 Matrix3D Presence Merging: Three-Source Agent Data Pipeline
+13915 " 🔵 useAgentView Session Kind Filter — Prevents Chat Sessions from Becoming Phantom Agents
+13927 4:05a 🔵 Matrix3DConsole Dual-Stream Log Architecture Confirmed
+13936 4:10a 🔵 Code Review Initiated: hermes-switchui Commit 6105249f
+13937 4:14a 🔵 Phase 3 Pre-Flight Read-Only Review: feat/unified-sessions-sidebar
+13938 " ⚖️ Legacy Tasks Cleanup Plan — Structured Critique Requested
+13939 " 🔵 Concrete Code State Grounding Legacy Tasks Cleanup Plan
+13940 " 🔵 sessions-local-store.ts: Legacy Migration Implementation Verified
+13941 " 🔵 sessions-local-store.test.ts: Migration Test Coverage Verified Complete
+13942 " 🔵 apply-filters-and-decorate.ts: Archived Decoration and Date-Range Parsing Both Pass
+13943 4:16a ⚖️ Code Review Task: phaseToStatus() and __streamToolCalls Extraction in chat-tab-views-v2.tsx
+13946 4:17a 🔵 PRD Status for feat/unified-sessions-sidebar: US-001–US-004 Pass, US-005 (Codex Verdict) Pending
+13947 " 🔴 phaseToStatus() Fixed: 'failed'/'failure' Now Correctly Map to 'error' in chat-tab-views-v2.tsx
+13948 " 🔵 __streamToolCalls Field Is Untyped on ChatMessage Across the Entire Codebase
+13949 " 🔵 canExpand Logic Correctly Gates Accordion Expansion on Settled or Data-Bearing Tool Entries
+13969 4:32a 🔵 Matrix3DConsole Investigation in matrix3d-screen.tsx
+13971 " 🔵 Matrix3DConsole: Full Implementation Map in hermes-switchui
+13976 4:38a 🔵 hermes-switchui Docs Verification Pass (Round 1 Fix Audit)
+S2492 hermes-switchui docs verification pass — Task A grep checks for round-1 fixes across 7 doc files (May 27 at 4:38 AM)
+13998 4:50a 🔵 hermes-switchui Matrix3D Loading State Investigation Initiated
+14000 " 🔵 Matrix3D "BOOTING MATRIX3D" Loading UI — Root Cause Identified
+14001 4:53a 🔵 Matrix3D Route Ownership Exploration — Wiki Gap Identified
+14003 " 🔵 Matrix3D Route Ownership Fully Mapped in hermes-switchui
+14010 4:59a 🔵 Phase 1 Code Review Initiated — feat/unified-sessions-sidebar Branch (hermes-switchui)
+14012 5:00a 🔵 Phase 1 Fix Verification: DST-Safe Day Bucketing — CONFIRMED PASS
+14013 " 🔵 Phase 1 Fix Verification: Kanban Capability in /api/connection-status — CONFIRMED PASS
+14014 " 🔵 Phase 1 Fix Verification: sortItems Imported from Production — CONFIRMED PASS
+14015 " 🔵 Phase 1 Fix Verification: Memory ID encodeURIComponent — PARTIAL (Production makeId Does NOT Encode)
+14016 " 🔵 Phase 1 Fix Verification: badgeCount Field in SessionFeedItem — CONFIRMED PASS
+14017 5:02a 🔴 UI Defensive Fix for Stuck Tool Call Phases in OpenAI Responses API Path
+14018 " ⚖️ UI-Side Fix Chosen Over Patching send-stream.ts for Stuck Tool Phases
+14019 " ⚖️ hermes-switchui: Orchestrator Identity Unification Plan Reviewed
+14020 " 🔵 send-stream.ts:626-635 Intentionally Swallows tool.completed — Confirmed in Code
+14021 " 🔵 Vitest Cannot Run on External NVMe Volume Due to EPERM on .vite-temp
+14022 " 🔴 Exact Diff Confirmed for commit b085c977 — Three Files Changed
 
-Access 382k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 1088k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>
 
 ## graphify
