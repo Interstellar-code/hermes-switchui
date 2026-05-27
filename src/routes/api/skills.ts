@@ -2,7 +2,6 @@ import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../server/auth-middleware'
 import {
   BEARER_TOKEN,
@@ -419,11 +418,11 @@ export const Route = createFileRoute('/api/skills')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         const capabilities = await ensureGatewayProbed()
         if (!capabilities.skills) {
-          return json({
+          return Response.json({
             ...createCapabilityUnavailablePayload('skills'),
             items: [],
             skills: [],
@@ -511,14 +510,14 @@ export const Route = createFileRoute('/api/skills')({
           const start = (page - 1) * limit
           const skills = filtered.slice(start, start + limit)
 
-          return json({
+          return Response.json({
             skills,
             total,
             page,
             categories: KNOWN_CATEGORIES,
           })
         } catch (err) {
-          return json(
+          return Response.json(
             { error: err instanceof Error ? err.message : String(err) },
             { status: 500 },
           )
@@ -526,11 +525,11 @@ export const Route = createFileRoute('/api/skills')({
       },
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         const capabilities = await ensureGatewayProbed()
         if (!capabilities.skills) {
-          return json(
+          return Response.json(
             {
               ...createCapabilityUnavailablePayload('skills', {
                 error: `Gateway does not support /api/skills. ${CLAUDE_UPGRADE_INSTRUCTIONS}`,
@@ -576,7 +575,7 @@ export const Route = createFileRoute('/api/skills')({
 
           if (capabilities.dashboard.available) {
             if (action !== 'toggle') {
-              return json(
+              return Response.json(
                 {
                   ok: false,
                   error:
@@ -594,7 +593,7 @@ export const Route = createFileRoute('/api/skills')({
             })
 
             const result = await response.json()
-            return json(result, { status: response.status })
+            return Response.json(result, { status: response.status })
           }
 
           const headers: Record<string, string> = {
@@ -610,9 +609,9 @@ export const Route = createFileRoute('/api/skills')({
           })
 
           const result = await response.json()
-          return json(result, { status: response.status })
+          return Response.json(result, { status: response.status })
         } catch (err) {
-          return json(
+          return Response.json(
             {
               ok: false,
               error: err instanceof Error ? err.message : String(err),

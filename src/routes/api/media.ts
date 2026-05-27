@@ -3,7 +3,6 @@ import { stat } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '@/server/auth-middleware'
 
 const MEDIA_CONTENT_TYPES: Record<string, string> = {
@@ -34,13 +33,13 @@ export const Route = createFileRoute('/api/media')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
 
         const url = new URL(request.url)
         const mediaPath = url.searchParams.get('path')?.trim() ?? ''
         if (!mediaPath || !path.isAbsolute(mediaPath)) {
-          return json(
+          return Response.json(
             { ok: false, error: 'Expected an absolute file path' },
             { status: 400 },
           )
@@ -49,7 +48,7 @@ export const Route = createFileRoute('/api/media')({
         try {
           const fileStat = await stat(mediaPath)
           if (!fileStat.isFile()) {
-            return json({ ok: false, error: 'Not a file' }, { status: 400 })
+            return Response.json({ ok: false, error: 'Not a file' }, { status: 400 })
           }
 
           return new Response(
@@ -66,7 +65,7 @@ export const Route = createFileRoute('/api/media')({
         } catch (error) {
           const message =
             error instanceof Error ? error.message : 'Failed to read media file'
-          return json({ ok: false, error: message }, { status: 404 })
+          return Response.json({ ok: false, error: message }, { status: 404 })
         }
       },
     },

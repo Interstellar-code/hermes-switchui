@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { randomUUID } from 'node:crypto'
+import Database from 'better-sqlite3'
 import { getClaudeRoot, getWorkspaceClaudeHome } from './claude-paths'
 
 // ── Inline kanban card types (formerly swarm-kanban-store) ───────────────────
@@ -201,46 +202,48 @@ function detectClaudeKanban(): ClaudeDetection {
   }
 }
 
-function sqliteQuote(value: string): string {
-  return `'${value.replace(/'/g, "''")}'`
-}
+/** Cache open DB connections by path to avoid repeated open/close overhead. */
+const _dbCache = new Map<string, Database.Database>()
 
-function runSqlite(dbPath: string, sql: string): string {
-  return execFileSync('sqlite3', [dbPath, '-json', sql], {
-    encoding: 'utf8',
-    timeout: 15_000,
-  }).trim()
+function openDb(dbPath: string): Database.Database {
+  let db = _dbCache.get(dbPath)
+  if (!db) {
+    db = new Database(dbPath, { readonly: false })
+    db.pragma('journal_mode = WAL')
+    _dbCache.set(dbPath, db)
+  }
+  return db
 }
 
 function readClaudeTasks(): ClaudeTaskRow[] {
   const detection = detectClaudeKanban()
   if (!detection.available) return []
-  const query = [
-    'select',
-    'id,',
-    'title,',
-    'body,',
-    'status,',
-    'assignee,',
-    'created_at,',
-    'coalesce(last_heartbeat_at, completed_at, started_at, created_at) as updated_at',
-    'from tasks',
-    'order by created_at desc, id desc;',
-  ].join(' ')
-  const raw = runSqlite(detection.dbPath, query)
-  const parsed = raw ? (JSON.parse(raw) as ClaudeTaskRow[]) : []
-  return Array.isArray(parsed) ? parsed : []
+  try {
+    const db = openDb(detection.dbPath)
+    return db.prepare(
+      'SELECT id, title, body, status, assignee, created_at, ' +
+      'COALESCE(last_heartbeat_at, completed_at, started_at, created_at) AS updated_at ' +
+      'FROM tasks ORDER BY created_at DESC, id DESC'
+    ).all() as ClaudeTaskRow[]
+  } catch {
+    return []
+  }
 }
 
 function readClaudeTask(taskId: string): ClaudeTaskRow | null {
   const detection = detectClaudeKanban()
   if (!detection.available) return null
-  const raw = runSqlite(
-    detection.dbPath,
-    `select id, title, body, status, assignee, created_at, coalesce(last_heartbeat_at, completed_at, started_at, created_at) as updated_at from tasks where id = ${sqliteQuote(taskId)} limit 1;`,
-  )
-  const parsed = raw ? (JSON.parse(raw) as ClaudeTaskRow[]) : []
-  return Array.isArray(parsed) && parsed[0] ? parsed[0] : null
+  try {
+    const db = openDb(detection.dbPath)
+    const row = db.prepare(
+      'SELECT id, title, body, status, assignee, created_at, ' +
+      'COALESCE(last_heartbeat_at, completed_at, started_at, created_at) AS updated_at ' +
+      'FROM tasks WHERE id = ? LIMIT 1'
+    ).get(taskId) as ClaudeTaskRow | undefined
+    return row ?? null
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -262,11 +265,8 @@ export function hardDeleteKanbanTask(taskId: string): { ok: boolean; error?: str
     return { ok: false, error: 'Only archived tasks can be permanently deleted' }
   }
   try {
-    // sqlite3 CLI exits 0 for DELETE even when no rows are returned as JSON
-    execFileSync('sqlite3', [detection.dbPath, `DELETE FROM tasks WHERE id = ${sqliteQuote(taskId)} AND status = 'archived';`], {
-      encoding: 'utf8',
-      timeout: 10_000,
-    })
+    const db = openDb(detection.dbPath)
+    db.prepare("DELETE FROM tasks WHERE id = ? AND status = 'archived'").run(taskId)
     return { ok: true }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'SQLite delete failed' }
@@ -391,28 +391,24 @@ const claudeBackend: KanbanBackend = {
   create(input) {
     const detection = detectClaudeKanban()
     if (!detection.available) throw new Error(detection.reason ?? 'Hermes Kanban not detected')
+    const db = openDb(detection.dbPath)
     const nowSeconds = Math.floor(Date.now() / 1000)
     const taskId = `t_${randomUUID().replace(/-/g, '').slice(0, 8)}`
     const status = mapBoardStatus(input.status ?? 'backlog')
-    const statements = [
-      'insert into tasks (',
-      'id, title, body, assignee, status, priority, created_by, created_at, workspace_kind, workspace_path',
-      ') values (',
-      [
-        sqliteQuote(taskId),
-        sqliteQuote(input.title.trim()),
-        sqliteQuote((input.spec ?? '').trim()),
-        input.assignedWorker?.trim() ? sqliteQuote(input.assignedWorker.trim()) : 'NULL',
-        sqliteQuote(status),
-        '0',
-        sqliteQuote(input.createdBy?.trim() || 'claude-kanban'),
-        String(nowSeconds),
-        sqliteQuote('scratch'),
-        sqliteQuote(path.join(detection.workspacePath, 'workspaces', taskId)),
-      ].join(', '),
-      ');',
-    ].join(' ')
-    runSqlite(detection.dbPath, statements)
+    db.prepare(
+      'INSERT INTO tasks (id, title, body, assignee, status, priority, created_by, created_at, workspace_kind, workspace_path) ' +
+      'VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)'
+    ).run(
+      taskId,
+      input.title.trim(),
+      (input.spec ?? '').trim(),
+      input.assignedWorker?.trim() || null,
+      status,
+      input.createdBy?.trim() || 'claude-kanban',
+      nowSeconds,
+      'scratch',
+      path.join(detection.workspacePath, 'workspaces', taskId),
+    )
     const created = readClaudeTask(taskId)
     if (!created) throw new Error(`Created Hermes task ${taskId} but could not read it back`)
     return claudeTaskToCard(created)
@@ -420,22 +416,30 @@ const claudeBackend: KanbanBackend = {
   update(cardId, updates) {
     const detection = detectClaudeKanban()
     if (!detection.available) return null
-    const assignments: string[] = []
-    if (typeof updates.title === 'string' && updates.title.trim()) assignments.push(`title = ${sqliteQuote(updates.title.trim())}`)
-    if (typeof updates.spec === 'string') assignments.push(`body = ${sqliteQuote(updates.spec)}`)
-    if (updates.assignedWorker !== undefined) assignments.push(`assignee = ${updates.assignedWorker?.trim() ? sqliteQuote(updates.assignedWorker.trim()) : 'NULL'}`)
+    const db = openDb(detection.dbPath)
+    const nowSeconds = Math.floor(Date.now() / 1000)
+
+    if (typeof updates.title === 'string' && updates.title.trim()) {
+      db.prepare('UPDATE tasks SET title = ? WHERE id = ?').run(updates.title.trim(), cardId)
+    }
+    if (typeof updates.spec === 'string') {
+      db.prepare('UPDATE tasks SET body = ? WHERE id = ?').run(updates.spec, cardId)
+    }
+    if (updates.assignedWorker !== undefined) {
+      db.prepare('UPDATE tasks SET assignee = ? WHERE id = ?').run(updates.assignedWorker?.trim() || null, cardId)
+    }
     if (updates.status) {
       const status = mapBoardStatus(updates.status)
-      assignments.push(`status = ${sqliteQuote(status)}`)
-      if (status === 'running') assignments.push(`started_at = coalesce(started_at, ${Math.floor(Date.now() / 1000)})`)
-      if (status === 'done') assignments.push(`completed_at = ${Math.floor(Date.now() / 1000)}`)
-      if (status !== 'done') assignments.push('completed_at = NULL')
+      db.prepare('UPDATE tasks SET status = ? WHERE id = ?').run(status, cardId)
+      if (status === 'running') {
+        db.prepare('UPDATE tasks SET started_at = COALESCE(started_at, ?) WHERE id = ?').run(nowSeconds, cardId)
+      }
+      if (status === 'done') {
+        db.prepare('UPDATE tasks SET completed_at = ? WHERE id = ?').run(nowSeconds, cardId)
+      } else {
+        db.prepare('UPDATE tasks SET completed_at = NULL WHERE id = ?').run(cardId)
+      }
     }
-    if (assignments.length === 0) {
-      const current = readClaudeTask(cardId)
-      return current ? claudeTaskToCard(current) : null
-    }
-    runSqlite(detection.dbPath, `update tasks set ${assignments.join(', ')} where id = ${sqliteQuote(cardId)};`)
     const updated = readClaudeTask(cardId)
     return updated ? claudeTaskToCard(updated) : null
   },

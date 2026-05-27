@@ -1,7 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import YAML from 'yaml'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
@@ -24,7 +23,7 @@ export const Route = createFileRoute('/api/profiles/create')({
     handlers: {
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
@@ -47,7 +46,7 @@ export const Route = createFileRoute('/api/profiles/create')({
 
           // Validate agent_ui.tier must be 3 if provided
           if (body.agent_ui?.tier !== undefined && body.agent_ui.tier !== 3) {
-            return json(
+            return Response.json(
               { error: 'agent_ui.tier must be 3 for user-created profiles' },
               { status: 400 },
             )
@@ -58,7 +57,7 @@ export const Route = createFileRoute('/api/profiles/create')({
             body.agent_ui?.glyph !== undefined &&
             !GLYPH_RE.test(body.agent_ui.glyph)
           ) {
-            return json(
+            return Response.json(
               { error: 'agent_ui.glyph must match ^[A-Z0-9]{1,3}$' },
               { status: 400 },
             )
@@ -70,7 +69,7 @@ export const Route = createFileRoute('/api/profiles/create')({
             body.agent_ui.persona_id !== '' &&
             !body.system_prompt?.trim()
           ) {
-            return json(
+            return Response.json(
               {
                 error:
                   'system_prompt must be non-empty when agent_ui.persona_id is set',
@@ -140,12 +139,12 @@ export const Route = createFileRoute('/api/profiles/create')({
 
           if (Object.keys(patch).length > 0) {
             const updated = writeProfile(profile.name, patch)
-            return json({ ok: true, profile: updated })
+            return Response.json({ ok: true, profile: updated })
           }
 
-          return json({ ok: true, profile })
+          return Response.json({ ok: true, profile })
         } catch (error) {
-          return json(
+          return Response.json(
             {
               error:
                 error instanceof Error

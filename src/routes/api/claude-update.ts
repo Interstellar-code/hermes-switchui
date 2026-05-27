@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -132,7 +131,7 @@ export const Route = createFileRoute('/api/claude-update')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
 
         const currentHead = git(['rev-parse', 'HEAD'])
@@ -140,7 +139,7 @@ export const Route = createFileRoute('/api/claude-update')({
         const dirty = Boolean(git(['status', '--porcelain']))
         const remotes = UPDATE_REMOTE_DEFINITIONS.map((definition) => remoteStatus(definition, currentHead))
 
-        return json({
+        return Response.json({
           ok: true,
           checkedAt: Date.now(),
           app: {

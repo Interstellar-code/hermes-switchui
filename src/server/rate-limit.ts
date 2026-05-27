@@ -3,16 +3,30 @@
  * Uses a sliding window approach per key.
  */
 
-const store = new Map<string, { timestamps: Array<number> }>()
+/** Maximum number of IP×endpoint keys retained. Stalest entries are evicted first. */
+const MAX_STORE_SIZE = 50_000
 
-// Cleanup old entries every 5 minutes
+/**
+ * Conservative cleanup horizon: 24 h ensures timestamps are never silently
+ * purged before any realistic windowMs value.
+ */
+const CLEANUP_HORIZON_MS = 86_400_000
+
+const store = new Map<string, { timestamps: Array<number>; lastSeen: number }>()
+
+// Cleanup interval — configurable via RATE_LIMIT_CLEANUP_MS (default 2 min)
+const _cleanupIntervalMs = (() => {
+  const v = parseInt(process.env.RATE_LIMIT_CLEANUP_MS ?? '', 10)
+  return Number.isFinite(v) && v > 0 ? v : 120_000
+})()
+
 setInterval(() => {
   const now = Date.now()
   for (const [key, entry] of store) {
-    entry.timestamps = entry.timestamps.filter((t) => now - t < 120_000)
+    entry.timestamps = entry.timestamps.filter((t) => now - t < CLEANUP_HORIZON_MS)
     if (entry.timestamps.length === 0) store.delete(key)
   }
-}, 300_000)
+}, _cleanupIntervalMs)
 
 /**
  * Check if a request is allowed under the rate limit.
@@ -26,9 +40,29 @@ export function rateLimit(
   const now = Date.now()
   let entry = store.get(key)
   if (!entry) {
-    entry = { timestamps: [] }
+    // Evict when cap is reached: prefer expired buckets, fall back to stalest lastSeen.
+    if (store.size >= MAX_STORE_SIZE) {
+      let evictKey: string | undefined
+      let oldestSeen = Infinity
+      for (const [k, e] of store) {
+        // Drop an expired bucket immediately if found
+        if (e.timestamps.every((t) => now - t >= CLEANUP_HORIZON_MS)) {
+          evictKey = k
+          break
+        }
+        if (e.lastSeen < oldestSeen) {
+          oldestSeen = e.lastSeen
+          evictKey = k
+        }
+      }
+      if (evictKey !== undefined) store.delete(evictKey)
+    }
+    entry = { timestamps: [], lastSeen: now }
     store.set(key, entry)
   }
+
+  // Update lastSeen on every access so hot buckets are never mistaken for stale ones
+  entry.lastSeen = now
 
   // Remove timestamps outside the window
   entry.timestamps = entry.timestamps.filter((t) => now - t < windowMs)

@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
   getClientIp,
@@ -14,7 +13,7 @@ export const Route = createFileRoute('/api/update/workspace')({
     handlers: {
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
@@ -23,9 +22,9 @@ export const Route = createFileRoute('/api/update/workspace')({
         }
         try {
           const result = applyWorkspaceUpdate()
-          return json(result, { status: result.ok ? 200 : 409 })
+          return Response.json(result, { status: result.ok ? 200 : 409 })
         } catch (err) {
-          return json(
+          return Response.json(
             {
               ok: false,
               error: err instanceof Error ? err.message : String(err),

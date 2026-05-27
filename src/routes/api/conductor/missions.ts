@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
 import { createMission, listMissions } from '../../../server/conductor-store'
@@ -9,13 +8,13 @@ export const Route = createFileRoute('/api/conductor/missions')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         try {
           const missions = await listMissions(request)
-          return json(missions)
+          return Response.json(missions)
         } catch (error) {
-          return json(
+          return Response.json(
             {
               error:
                 error instanceof Error
@@ -28,7 +27,7 @@ export const Route = createFileRoute('/api/conductor/missions')({
       },
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
@@ -41,14 +40,14 @@ export const Route = createFileRoute('/api/conductor/missions')({
           const title =
             typeof body.title === 'string' ? body.title.trim() : ''
           if (!title) {
-            return json({ error: 'title required' }, { status: 400 })
+            return Response.json({ error: 'title required' }, { status: 400 })
           }
           const subtitle =
             typeof body.subtitle === 'string' ? body.subtitle.trim() : undefined
           const mission = await createMission({ title, subtitle })
-          return json(mission, { status: 201 })
+          return Response.json(mission, { status: 201 })
         } catch (error) {
-          return json(
+          return Response.json(
             {
               error:
                 error instanceof Error

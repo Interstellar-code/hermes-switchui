@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
 
@@ -49,14 +48,14 @@ export const Route = createFileRoute('/api/operations/dispatch/preview')({
     handlers: {
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
 
         const body = (await request.json().catch(() => ({}))) as PreviewRequest
         const preview = buildPreview(body.prompt ?? '', body.mode ?? 'auto')
-        return json(preview)
+        return Response.json(preview)
       },
     },
   },

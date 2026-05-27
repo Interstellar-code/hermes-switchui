@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../server/auth-middleware'
 import {
   BEARER_TOKEN,
@@ -110,11 +109,11 @@ export const Route = createFileRoute('/api/mcp')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         const capabilities = await ensureGatewayProbed()
         if (!capabilities.mcp && !capabilities.mcpFallback) {
-          return json(unavailableListPayload())
+          return Response.json(unavailableListPayload())
         }
         try {
           const url = new URL(request.url)
@@ -127,7 +126,7 @@ export const Route = createFileRoute('/api/mcp')({
               signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
             })
             if (!response.ok) {
-              return json(
+              return Response.json(
                 {
                   ...unavailableListPayload(),
                   error: `MCP list failed (${response.status})`,
@@ -171,13 +170,13 @@ export const Route = createFileRoute('/api/mcp')({
             return true
           })
 
-          return json({
+          return Response.json({
             servers: filtered,
             total: filtered.length,
             categories: [...KNOWN_CATEGORIES],
           })
         } catch (err) {
-          return json(
+          return Response.json(
             { ok: false, error: safeErrorMessage(err), servers: [], total: 0, categories: [...KNOWN_CATEGORIES] },
             { status: 500 },
           )
@@ -185,13 +184,13 @@ export const Route = createFileRoute('/api/mcp')({
       },
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
         const capabilities = await ensureGatewayProbed()
         if (!capabilities.mcp && !capabilities.mcpFallback) {
-          return json(
+          return Response.json(
             createCapabilityUnavailablePayload('mcp', {
               error: `Gateway does not support /api/mcp. ${CLAUDE_UPGRADE_INSTRUCTIONS}`,
             }),
@@ -202,7 +201,7 @@ export const Route = createFileRoute('/api/mcp')({
           const raw = (await request.json()) as unknown
           const parsed = parseMcpServerInput(raw)
           if (!parsed.ok) {
-            return json(
+            return Response.json(
               { ok: false, error: 'Invalid MCP server payload', errors: parsed.errors },
               { status: 400 },
             )
@@ -223,9 +222,9 @@ export const Route = createFileRoute('/api/mcp')({
               const errMsg =
                 ((body as Record<string, unknown>).error as string | undefined) ||
                 `MCP create failed (${response.status})`
-              return json({ ok: false, error: errMsg }, { status: response.status || 502 })
+              return Response.json({ ok: false, error: errMsg }, { status: response.status || 502 })
             }
-            return json({ ok: true, server: maskSecretsInPlace(server) })
+            return Response.json({ ok: true, server: maskSecretsInPlace(server) })
           }
           // Phase 1.5 fallback — write into config.mcp_servers and re-read.
           const { servers } = await readConfigServersMap()
@@ -233,11 +232,11 @@ export const Route = createFileRoute('/api/mcp')({
           await saveConfig({ mcp_servers: servers })
           const written = normalizeMcpServerFromConfig(input.name, servers[input.name])
           if (!written) {
-            return json({ ok: false, error: 'MCP create failed (config write)' }, { status: 500 })
+            return Response.json({ ok: false, error: 'MCP create failed (config write)' }, { status: 500 })
           }
-          return json({ ok: true, server: maskSecretsInPlace(written) })
+          return Response.json({ ok: true, server: maskSecretsInPlace(written) })
         } catch (err) {
-          return json({ ok: false, error: safeErrorMessage(err) }, { status: 500 })
+          return Response.json({ ok: false, error: safeErrorMessage(err) }, { status: 500 })
         }
       },
     },

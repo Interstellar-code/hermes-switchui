@@ -3,7 +3,6 @@ import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 
 const execFileAsync = promisify(execFile)
@@ -156,7 +155,7 @@ export const Route = createFileRoute('/api/skills/hub-search')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         try {
           const url = new URL(request.url)
@@ -170,16 +169,16 @@ export const Route = createFileRoute('/api/skills/hub-search')({
           ).trim()
 
           if (!query) {
-            return json({ results: [], source: 'idle' })
+            return Response.json({ results: [], source: 'idle' })
           }
 
           try {
-            return json(await searchPythonSkillsHub(query, limit, source))
+            return Response.json(await searchPythonSkillsHub(query, limit, source))
           } catch {
-            return json(await searchBundledSkills(query, limit))
+            return Response.json(await searchBundledSkills(query, limit))
           }
         } catch (error) {
-          return json(
+          return Response.json(
             {
               ok: false,
               error:

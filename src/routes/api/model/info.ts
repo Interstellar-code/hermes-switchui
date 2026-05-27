@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import {
   deriveFallbackModelInfoFromGateway,
   normalizeModelInfoResponse,
@@ -17,7 +16,7 @@ export const Route = createFileRoute('/api/model/info')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         await ensureGatewayProbed()
@@ -47,7 +46,7 @@ export const Route = createFileRoute('/api/model/info')({
           )
         }
 
-        return json({
+        return Response.json({
           ...resolved,
           gatewayMode,
         })

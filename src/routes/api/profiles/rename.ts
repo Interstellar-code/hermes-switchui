@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { renameProfile } from '../../../server/profiles-browser'
 import { requireJsonContentType } from '../../../server/rate-limit'
@@ -9,7 +8,7 @@ export const Route = createFileRoute('/api/profiles/rename')({
     handlers: {
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
@@ -18,12 +17,12 @@ export const Route = createFileRoute('/api/profiles/rename')({
             oldName?: string
             newName?: string
           }
-          return json({
+          return Response.json({
             ok: true,
             profile: renameProfile(body.oldName || '', body.newName || ''),
           })
         } catch (error) {
-          return json(
+          return Response.json(
             {
               error:
                 error instanceof Error

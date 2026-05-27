@@ -1,7 +1,6 @@
 import fs from 'node:fs/promises'
 import { join } from 'node:path'
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { getWorkspaceClaudeHome } from '../../server/claude-paths'
 import {
@@ -62,12 +61,12 @@ export const Route = createFileRoute('/api/logs')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
 
         const capabilities = await ensureGatewayProbed()
         if (!capabilities.health && !capabilities.chatCompletions) {
-          return json(
+          return Response.json(
             { ok: false, error: 'Hermes gateway is unavailable.' },
             { status: 503 },
           )
@@ -96,7 +95,7 @@ export const Route = createFileRoute('/api/logs')({
             signal: AbortSignal.timeout(5_000),
           })
         } catch (error) {
-          return json(
+          return Response.json(
             {
               ok: false,
               error:

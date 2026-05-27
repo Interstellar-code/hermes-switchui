@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
 import { deleteBoard, updateBoard } from '../../../server/hermes-kanban-client'
@@ -12,17 +11,17 @@ export const Route = createFileRoute('/api/hermes-kanban/boards/$slug')({
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         let body: UpdateBoardInput
         try {
           body = (await request.json()) as UpdateBoardInput
         } catch {
-          return json({ error: 'Invalid JSON body' }, { status: 400 })
+          return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
         }
         try {
           const result = await updateBoard(params.slug, body)
-          return json(result)
+          return Response.json(result)
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Update failed'
           const status = msg.includes('400')
@@ -32,7 +31,7 @@ export const Route = createFileRoute('/api/hermes-kanban/boards/$slug')({
               : msg.includes('422')
                 ? 422
                 : 503
-          return json({ error: msg }, { status })
+          return Response.json({ error: msg }, { status })
         }
       },
 
@@ -40,13 +39,13 @@ export const Route = createFileRoute('/api/hermes-kanban/boards/$slug')({
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const url = new URL(request.url)
         const hardDelete = url.searchParams.get('delete') === 'true'
         try {
           const result = await deleteBoard(params.slug, hardDelete)
-          return json(result)
+          return Response.json(result)
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Delete failed'
           const status = msg.includes('400')
@@ -56,7 +55,7 @@ export const Route = createFileRoute('/api/hermes-kanban/boards/$slug')({
               : msg.includes('422')
                 ? 422
                 : 503
-          return json({ error: msg }, { status })
+          return Response.json({ error: msg }, { status })
         }
       },
     },

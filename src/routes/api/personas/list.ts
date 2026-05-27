@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { listPersonas, type Persona } from '../../../server/personas-browser'
 
@@ -32,7 +31,7 @@ export const Route = createFileRoute('/api/personas/list')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         try {
           const url = new URL(request.url)
@@ -45,9 +44,9 @@ export const Route = createFileRoute('/api/personas/list')({
               expiresAt: now + 30_000,
             }
           }
-          return json({ personas: _cache.personas })
+          return Response.json({ personas: _cache.personas })
         } catch (error) {
-          return json(
+          return Response.json(
             {
               error: error instanceof Error ? error.message : 'Failed to list personas',
               personas: [],

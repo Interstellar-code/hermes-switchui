@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
   BEARER_TOKEN,
@@ -16,7 +15,7 @@ export const Route = createFileRoute('/api/skills/install')({
     handlers: {
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         try {
           const body = (await request.json()) as {
@@ -28,7 +27,7 @@ export const Route = createFileRoute('/api/skills/install')({
           const identifier =
             (body.identifier || body.skillId || '').trim()
           if (!identifier) {
-            return json(
+            return Response.json(
               { ok: false, error: 'identifier or skillId required' },
               { status: 400 },
             )
@@ -36,7 +35,7 @@ export const Route = createFileRoute('/api/skills/install')({
 
           const capabilities = await ensureGatewayProbed()
           if (capabilities.dashboard.available) {
-            return json(
+            return Response.json(
               {
                 ok: false,
                 error:
@@ -61,9 +60,9 @@ export const Route = createFileRoute('/api/skills/install')({
           })
 
           const result = await response.json()
-          return json(result, { status: response.status })
+          return Response.json(result, { status: response.status })
         } catch (error) {
-          return json(
+          return Response.json(
             {
               ok: false,
               error:

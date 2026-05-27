@@ -1,7 +1,6 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../server/auth-middleware'
 import {
   ensureGatewayProbed,
@@ -96,7 +95,7 @@ export const Route = createFileRoute('/api/system-metrics')({
         // isAuthenticated() returns boolean. Don't cast it to Response —
         // that throws at runtime. Match the pattern used by adjacent routes.
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         const caps = await ensureGatewayProbed()

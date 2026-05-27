@@ -3,7 +3,6 @@ import fs from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import {
   isAuthenticated,
   requireLocalOrAuth,
@@ -276,7 +275,7 @@ export const Route = createFileRoute('/api/files')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         try {
           const url = new URL(request.url)
@@ -294,7 +293,7 @@ export const Route = createFileRoute('/api/files')({
               inputPath,
               workspaceRoot,
             )
-            return json({
+            return Response.json({
               root: globListing.root,
               base: workspaceRoot,
               entries: globListing.entries,
@@ -307,13 +306,13 @@ export const Route = createFileRoute('/api/files')({
             const buffer = await fs.readFile(resolvedPath)
             if (isImageFile(resolvedPath)) {
               const mime = getMimeType(resolvedPath)
-              return json({
+              return Response.json({
                 type: 'image',
                 path: toRelative(resolvedPath, workspaceRoot),
                 content: `data:${mime};base64,${buffer.toString('base64')}`,
               })
             }
-            return json({
+            return Response.json({
               type: 'text',
               path: toRelative(resolvedPath, workspaceRoot),
               content: buffer.toString('utf8'),
@@ -338,19 +337,19 @@ export const Route = createFileRoute('/api/files')({
             countedEntries: { value: 0 },
             workspaceRoot,
           })
-          return json({
+          return Response.json({
             root: toRelative(resolvedPath, workspaceRoot),
             base: workspaceRoot,
             entries: tree.entries,
             truncated: tree.truncated,
           })
         } catch (err) {
-          return json({ error: safeErrorMessage(err) }, { status: 500 })
+          return Response.json({ error: safeErrorMessage(err) }, { status: 500 })
         }
       },
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         const ip = getClientIp(request)
         if (!rateLimit(`files:${ip}`, 30, 60_000)) {
@@ -368,12 +367,12 @@ export const Route = createFileRoute('/api/files')({
             const form = await request.formData()
             const action = String(form.get('action') || 'upload')
             if (action !== 'upload') {
-              return json({ error: 'Invalid upload request' }, { status: 400 })
+              return Response.json({ error: 'Invalid upload request' }, { status: 400 })
             }
             const file = form.get('file')
             const targetPath = String(form.get('path') || '')
             if (!(file instanceof File)) {
-              return json({ error: 'Missing file' }, { status: 400 })
+              return Response.json({ error: 'Missing file' }, { status: 400 })
             }
             const resolvedTarget = ensureWorkspacePath(
               targetPath,
@@ -389,14 +388,14 @@ export const Route = createFileRoute('/api/files')({
               rawName.includes('\\') ||
               rawName.includes('..')
             ) {
-              return json(
+              return Response.json(
                 { error: 'Invalid file name: must not contain path separators, traversal sequences, or null bytes' },
                 { status: 400 },
               )
             }
             const safeName = path.basename(rawName)
             if (!safeName || safeName === '.' || safeName === '..') {
-              return json(
+              return Response.json(
                 { error: 'Invalid file name' },
                 { status: 400 },
               )
@@ -411,7 +410,7 @@ export const Route = createFileRoute('/api/files')({
             await fs.mkdir(path.dirname(destination), { recursive: true })
             const buffer = Buffer.from(await file.arrayBuffer())
             await fs.writeFile(destination, buffer)
-            return json({
+            return Response.json({
               ok: true,
               path: toRelative(destination, workspaceRoot),
             })
@@ -429,7 +428,7 @@ export const Route = createFileRoute('/api/files')({
               workspaceRoot,
             )
             await fs.mkdir(dirPath, { recursive: true })
-            return json({ ok: true, path: toRelative(dirPath, workspaceRoot) })
+            return Response.json({ ok: true, path: toRelative(dirPath, workspaceRoot) })
           }
 
           if (action === 'rename') {
@@ -443,12 +442,12 @@ export const Route = createFileRoute('/api/files')({
             )
             await fs.mkdir(path.dirname(toPath), { recursive: true })
             await fs.rename(fromPath, toPath)
-            return json({ ok: true, path: toRelative(toPath, workspaceRoot) })
+            return Response.json({ ok: true, path: toRelative(toPath, workspaceRoot) })
           }
 
           if (action === 'delete') {
             if (!requireLocalOrAuth(request)) {
-              return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+              return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
             }
             const targetPath = ensureWorkspacePath(
               String(body.path || ''),
@@ -461,7 +460,7 @@ export const Route = createFileRoute('/api/files')({
               // Fallback to rm -rf if trash is not available
               await fs.rm(targetPath, { recursive: true, force: true })
             }
-            return json({ ok: true })
+            return Response.json({ ok: true })
           }
 
           const filePath = ensureWorkspacePath(
@@ -471,9 +470,9 @@ export const Route = createFileRoute('/api/files')({
           const content = typeof body.content === 'string' ? body.content : ''
           await fs.mkdir(path.dirname(filePath), { recursive: true })
           await fs.writeFile(filePath, content, 'utf8')
-          return json({ ok: true, path: toRelative(filePath, workspaceRoot) })
+          return Response.json({ ok: true, path: toRelative(filePath, workspaceRoot) })
         } catch (err) {
-          return json({ error: safeErrorMessage(err) }, { status: 500 })
+          return Response.json({ error: safeErrorMessage(err) }, { status: 500 })
         }
       },
     },

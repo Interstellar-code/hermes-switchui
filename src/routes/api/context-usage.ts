@@ -45,7 +45,6 @@ export function estimateContextTokensFromCacheRead(
   const assistantTurns = Math.max(1, Math.ceil(turnCount / 2))
   return Math.ceil((cumulativeCacheReadBytes / assistantTurns) * 1.2 / CHARS_PER_TOKEN)
 }
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '@/server/auth-middleware'
 import { readContextUsage } from '@/server/context-usage'
 
@@ -54,7 +53,7 @@ export const Route = createFileRoute('/api/context-usage')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
 
         const url = new URL(request.url)
@@ -64,7 +63,7 @@ export const Route = createFileRoute('/api/context-usage')({
           ''
 
         if (sessionId === 'new' || sessionId === 'main') {
-          return json({
+          return Response.json({
             ok: true,
             contextPercent: 0,
             maxTokens: 0,
@@ -76,7 +75,7 @@ export const Route = createFileRoute('/api/context-usage')({
         }
 
         const snapshot = await readContextUsage(sessionId)
-        return json(snapshot)
+        return Response.json(snapshot)
       },
     },
   },

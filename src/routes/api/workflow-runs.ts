@@ -7,31 +7,25 @@ import { isAuthenticated } from '../../server/auth-middleware';
 import { requireJsonContentType } from '../../server/rate-limit';
 import { getEngine } from '../../server/workflow-engine/factory';
 
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
 
 export const Route = createFileRoute('/api/workflow-runs')({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
-        const engine = getEngine(request);
+        if (!isAuthenticated(request)) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        const engine = getEngine();
         const url = new URL(request.url);
         const workflowId = url.searchParams.get('workflow_id');
 
         // Phase 2: always plugin path.
         const runs = await engine.listRuns({ workflowId: workflowId ?? undefined });
-        return json({ runs });
+        return Response.json({ runs });
       },
       POST: async ({ request }) => {
-        if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
+        if (!isAuthenticated(request)) return Response.json({ error: 'Unauthorized' }, { status: 401 });
         const csrfCheck = requireJsonContentType(request);
         if (csrfCheck) return csrfCheck;
-        const engine = getEngine(request);
+        const engine = getEngine();
         const body = (await request.json()) as {
           workflow_id: string;
           conversation_id: string;
@@ -45,21 +39,21 @@ export const Route = createFileRoute('/api/workflow-runs')({
           maxRuntimeSeconds?: number;
         };
         if (!body?.workflow_id || !body?.conversation_id || !body?.user_message) {
-          return json({ error: 'workflow_id, conversation_id, user_message required' }, 400);
+          return Response.json({ error: 'workflow_id, conversation_id, user_message required' }, { status: 400 });
         }
         // Codex Bundle 5 Q4 — Input validation.
         if (typeof body.workflow_id !== 'string' || !/^[A-Za-z0-9_:.-]{1,128}$/.test(body.workflow_id)) {
-          return json({ error: 'workflow_id must be 1-128 chars of [A-Za-z0-9_:.-]' }, 400);
+          return Response.json({ error: 'workflow_id must be 1-128 chars of [A-Za-z0-9_:.-]' }, { status: 400 });
         }
         if (typeof body.conversation_id !== 'string' || body.conversation_id.length < 1 || body.conversation_id.length > 256) {
-          return json({ error: 'conversation_id must be 1-256 chars' }, 400);
+          return Response.json({ error: 'conversation_id must be 1-256 chars' }, { status: 400 });
         }
         if (typeof body.user_message !== 'string' || body.user_message.length === 0) {
-          return json({ error: 'user_message must be a non-empty string' }, 400);
+          return Response.json({ error: 'user_message must be a non-empty string' }, { status: 400 });
         }
         if (body.working_path !== undefined) {
           if (typeof body.working_path !== 'string' || !body.working_path.startsWith('/') || body.working_path.includes('..')) {
-            return json({ error: 'working_path must be an absolute path with no .. segments' }, 400);
+            return Response.json({ error: 'working_path must be an absolute path with no .. segments' }, { status: 400 });
           }
         }
 
@@ -79,7 +73,7 @@ export const Route = createFileRoute('/api/workflow-runs')({
             maxRuntimeSeconds: body.maxRuntimeSeconds,
           },
         );
-        return json({ run }, 201);
+        return Response.json({ run }, { status: 201 });
       },
     },
   },

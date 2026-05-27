@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { readKnowledgePage } from '../../../server/knowledge-browser'
 
@@ -8,7 +7,7 @@ export const Route = createFileRoute('/api/knowledge/read')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         const url = new URL(request.url)
@@ -16,7 +15,7 @@ export const Route = createFileRoute('/api/knowledge/read')({
 
         try {
           const { meta, content, backlinks } = readKnowledgePage(pathParam)
-          return json({ page: meta, content, backlinks })
+          return Response.json({ page: meta, content, backlinks })
         } catch (error) {
           const message =
             error instanceof Error
@@ -30,7 +29,7 @@ export const Route = createFileRoute('/api/knowledge/read')({
               : /ENOENT/.test(message)
                 ? 404
                 : 500
-          return json({ error: message }, { status })
+          return Response.json({ error: message }, { status })
         }
       },
     },

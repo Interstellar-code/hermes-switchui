@@ -15,7 +15,6 @@
  * request instead of six, and we get a single auth surface.
  */
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
   dashboardFetch,
@@ -37,7 +36,7 @@ export const Route = createFileRoute('/api/dashboard/overview')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         try {
           const url = new URL(request.url)
@@ -55,7 +54,7 @@ export const Route = createFileRoute('/api/dashboard/overview')({
                 ? Math.min(logsLimit, 100)
                 : 24,
           })
-          return json(overview, {
+          return Response.json(overview, {
             headers: {
               // The aggregate is cheap to recompute (parallel fans-out
               // upstream), but cache for a few seconds so a noisy client
@@ -66,7 +65,7 @@ export const Route = createFileRoute('/api/dashboard/overview')({
             },
           })
         } catch (err) {
-          return json(
+          return Response.json(
             {
               error:
                 err instanceof Error ? err.message : 'overview build failed',

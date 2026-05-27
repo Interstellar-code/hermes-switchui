@@ -7,37 +7,31 @@ import { isAuthenticated } from '../../server/auth-middleware';
 import { requireJsonContentType } from '../../server/rate-limit';
 import { getEngine } from '../../server/workflow-engine/factory';
 
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
 
 export const Route = createFileRoute('/api/workflow-definitions/$id')({
   server: {
     handlers: {
       GET: async ({ request, params }) => {
-        if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
-        const engine = getEngine(request);
+        if (!isAuthenticated(request)) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        const engine = getEngine();
         const def = await engine.getDefinition(params.id);
-        if (!def) return json({ error: 'not found' }, 404);
-        return json({ definition: def });
+        if (!def) return Response.json({ error: 'not found' }, { status: 404 });
+        return Response.json({ definition: def });
       },
       DELETE: async ({ request, params }) => {
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
-        if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
-        const engine = getEngine(request);
+        if (!isAuthenticated(request)) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        const engine = getEngine();
         const existing = await engine.getDefinition(params.id);
-        if (!existing) return json({ error: 'not found' }, 404);
+        if (!existing) return Response.json({ error: 'not found' }, { status: 404 });
         if (existing.source === 'bundled') {
-          return json({ error: 'bundled definitions are read-only' }, 403);
+          return Response.json({ error: 'bundled definitions are read-only' }, { status: 403 });
         }
         const rowsAffected = await engine.deleteWorkflowDefinition(params.id);
-        if (rowsAffected === 0) return json({ error: 'not found' }, 404);
+        if (rowsAffected === 0) return Response.json({ error: 'not found' }, { status: 404 });
         // Phase 2: always plugin path — plugin manages its own manifest state.
-return json({ ok: true });
+return Response.json({ ok: true });
       },
     },
   },

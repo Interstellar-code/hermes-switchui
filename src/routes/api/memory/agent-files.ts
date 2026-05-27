@@ -18,7 +18,6 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
 import { BUILTIN_AGENTS } from '../../../lib/builtin-agents'
@@ -161,7 +160,7 @@ export const Route = createFileRoute('/api/memory/agent-files')({
       // GET /api/memory/agent-files?agent=<id>[&filename=<name>]
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         try {
           const url = new URL(request.url)
@@ -173,11 +172,11 @@ export const Route = createFileRoute('/api/memory/agent-files')({
             const fname = validateFilename(filename, agentId)
             const fullPath = resolveAgentFilePath(agentId, fname)
             if (!fullPath || !fs.existsSync(fullPath)) {
-              return json({ error: 'File not found' }, { status: 404 })
+              return Response.json({ error: 'File not found' }, { status: 404 })
             }
             const stat = fs.statSync(fullPath)
             const content = fs.readFileSync(fullPath, 'utf-8')
-            return json({
+            return Response.json({
               agent: agentId,
               filename: fname,
               content,
@@ -188,18 +187,18 @@ export const Route = createFileRoute('/api/memory/agent-files')({
 
           // List files
           const files: Array<AgentFileEntry> = listAgentFiles(agentId)
-          return json({ agent: agentId, files } satisfies AgentFilesListResponse)
+          return Response.json({ agent: agentId, files } satisfies AgentFilesListResponse)
         } catch (err) {
           const message =
             err instanceof Error ? err.message : 'Failed to list agent files'
-          return json({ error: message }, { status: 400 })
+          return Response.json({ error: message }, { status: 400 })
         }
       },
 
       // POST /api/memory/agent-files { agent, filename, content }
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
@@ -216,20 +215,20 @@ export const Route = createFileRoute('/api/memory/agent-files')({
           if (!fullPath) throw new Error('Invalid file path')
           fs.mkdirSync(path.dirname(fullPath), { recursive: true })
           fs.writeFileSync(fullPath, content, 'utf-8')
-          return json({ success: true, agent: agentId, filename })
+          return Response.json({ success: true, agent: agentId, filename })
         } catch (err) {
           const message =
             err instanceof Error ? err.message : 'Failed to write agent file'
           const status =
             /required|invalid|\.md|unknown/i.test(message) ? 400 : 500
-          return json({ error: message }, { status })
+          return Response.json({ error: message }, { status })
         }
       },
 
       // DELETE /api/memory/agent-files { agent, filename }
       DELETE: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
@@ -243,16 +242,16 @@ export const Route = createFileRoute('/api/memory/agent-files')({
           const fullPath = resolveAgentFilePath(agentId, filename)
           if (!fullPath) throw new Error('Invalid file path')
           if (!fs.existsSync(fullPath)) {
-            return json({ error: 'File not found' }, { status: 404 })
+            return Response.json({ error: 'File not found' }, { status: 404 })
           }
           fs.unlinkSync(fullPath)
-          return json({ success: true, agent: agentId, filename })
+          return Response.json({ success: true, agent: agentId, filename })
         } catch (err) {
           const message =
             err instanceof Error ? err.message : 'Failed to delete agent file'
           const status =
             /required|invalid|\.md|unknown/i.test(message) ? 400 : 500
-          return json({ error: message }, { status })
+          return Response.json({ error: message }, { status })
         }
       },
     },

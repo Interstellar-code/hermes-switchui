@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../server/auth-middleware'
 import {
   CLAUDE_API,
@@ -14,11 +13,11 @@ export const Route = createFileRoute('/api/gateway-status')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         const capabilities = await ensureGatewayProbed()
-        return json({
+        return Response.json({
           capabilities,
           mode: getGatewayMode(),
           claudeUrl: CLAUDE_API,

@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
 import {
@@ -13,12 +12,12 @@ export const Route = createFileRoute('/api/knowledge/config')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         try {
-          return json({ config: readKnowledgeBaseConfig() })
+          return Response.json({ config: readKnowledgeBaseConfig() })
         } catch (error) {
-          return json(
+          return Response.json(
             {
               error:
                 error instanceof Error
@@ -31,7 +30,7 @@ export const Route = createFileRoute('/api/knowledge/config')({
       },
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
@@ -42,9 +41,9 @@ export const Route = createFileRoute('/api/knowledge/config')({
             source: body.source ?? current.source,
           }
           writeKnowledgeBaseConfig(next)
-          return json({ config: next })
+          return Response.json({ config: next })
         } catch (error) {
-          return json(
+          return Response.json(
             {
               error:
                 error instanceof Error

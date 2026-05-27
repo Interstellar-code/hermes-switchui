@@ -1,4 +1,3 @@
-import { json } from '@tanstack/react-start'
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { requireJsonContentType } from '../../server/rate-limit'
@@ -12,13 +11,13 @@ export const Route = createFileRoute('/api/start-claude')({
           const csrfCheck = requireJsonContentType(request)
           if (csrfCheck) return csrfCheck
           if (!isAuthenticated(request)) {
-            return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+            return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
           }
 
           const result = await startClaudeAgent()
-          return json(result, { status: result.ok ? 200 : 500 })
+          return Response.json(result, { status: result.ok ? 200 : 500 })
         } catch (err) {
-          return json(
+          return Response.json(
             {
               ok: false,
               error: err instanceof Error ? err.message : String(err),

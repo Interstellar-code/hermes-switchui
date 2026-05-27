@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import {
   isAuthenticated,
   isPasswordProtectionEnabled,
@@ -20,7 +19,7 @@ export const Route = createFileRoute('/api/auth-check')({
           const reachable = caps.health || caps.chatCompletions || caps.models
 
           if (!reachable) {
-            return json(
+            return Response.json(
               {
                 authenticated: false,
                 authRequired: false,
@@ -30,7 +29,7 @@ export const Route = createFileRoute('/api/auth-check')({
             )
           }
         } catch (error) {
-          return json(
+          return Response.json(
             {
               authenticated: false,
               authRequired: false,
@@ -46,7 +45,7 @@ export const Route = createFileRoute('/api/auth-check')({
         const authRequired = isPasswordProtectionEnabled()
         const authenticated = isAuthenticated(request)
 
-        return json({
+        return Response.json({
           authenticated,
           authRequired,
         })

@@ -8,7 +8,6 @@
  * this endpoint hands off only a transient workspace session reference.
  */
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { randomUUID } from 'node:crypto'
 
@@ -39,10 +38,10 @@ export const Route = createFileRoute('/api/hermes-kanban/events-token')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const token = issueEventToken()
-        return json({ token, ttl: TOKEN_TTL_MS / 1000 })
+        return Response.json({ token, ttl: TOKEN_TTL_MS / 1000 })
       },
     },
   },

@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { getProviderUsage } from '../../server/provider-usage'
 import { isAuthenticated } from '../../server/auth-middleware'
 
@@ -33,7 +32,7 @@ export const Route = createFileRoute('/api/provider-usage')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         try {
           const url = new URL(request.url)
@@ -43,9 +42,9 @@ export const Route = createFileRoute('/api/provider-usage')({
             REQUEST_TIMEOUT_MS,
             'Provider usage request timed out',
           )
-          return json(payload)
+          return Response.json(payload)
         } catch (err) {
-          return json(
+          return Response.json(
             {
               ok: false,
               updatedAt: Date.now(),

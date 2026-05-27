@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
   BEARER_TOKEN,
@@ -57,13 +56,13 @@ export const Route = createFileRoute('/api/mcp/configure')({
     handlers: {
       PUT: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
         const capabilities = await ensureGatewayProbed()
         if (!capabilities.mcp && !capabilities.mcpFallback) {
-          return json(
+          return Response.json(
             createCapabilityUnavailablePayload('mcp', {
               error: `Gateway does not support /api/mcp. ${CLAUDE_UPGRADE_INSTRUCTIONS}`,
             }),
@@ -74,7 +73,7 @@ export const Route = createFileRoute('/api/mcp/configure')({
           const raw = (await request.json()) as unknown
           const input = readConfigure(raw)
           if (!input) {
-            return json({ ok: false, error: 'Invalid configure payload' }, { status: 400 })
+            return Response.json({ ok: false, error: 'Invalid configure payload' }, { status: 400 })
           }
           if (capabilities.mcp) {
             const response = await mcpFetch('/api/mcp/configure', {
@@ -91,9 +90,9 @@ export const Route = createFileRoute('/api/mcp/configure')({
               const errMsg =
                 ((body as Record<string, unknown>).error as string | undefined) ||
                 `MCP configure failed (${response.status})`
-              return json({ ok: false, error: errMsg }, { status: response.status || 502 })
+              return Response.json({ ok: false, error: errMsg }, { status: response.status || 502 })
             }
-            return json({ ok: true, server: maskSecretsInPlace(server) })
+            return Response.json({ ok: true, server: maskSecretsInPlace(server) })
           }
           // Phase 1.5 fallback — patch the matching `config.mcp_servers[name]`
           // entry in place. We only update the toggleable keys exposed by
@@ -110,7 +109,7 @@ export const Route = createFileRoute('/api/mcp/configure')({
               : {}
           const existing = servers[input.name]
           if (!existing || typeof existing !== 'object' || Array.isArray(existing)) {
-            return json({ ok: false, error: `MCP server not found: ${input.name}` }, { status: 404 })
+            return Response.json({ ok: false, error: `MCP server not found: ${input.name}` }, { status: 404 })
           }
           const next: Record<string, unknown> = { ...(existing as Record<string, unknown>) }
           if (typeof input.enabled === 'boolean') next.enabled = input.enabled
@@ -121,11 +120,11 @@ export const Route = createFileRoute('/api/mcp/configure')({
           await saveConfig({ mcp_servers: servers })
           const written = normalizeMcpServerFromConfig(input.name, next)
           if (!written) {
-            return json({ ok: false, error: 'MCP configure failed (config write)' }, { status: 500 })
+            return Response.json({ ok: false, error: 'MCP configure failed (config write)' }, { status: 500 })
           }
-          return json({ ok: true, server: maskSecretsInPlace(written) })
+          return Response.json({ ok: true, server: maskSecretsInPlace(written) })
         } catch (err) {
-          return json({ ok: false, error: safeErrorMessage(err) }, { status: 500 })
+          return Response.json({ ok: false, error: safeErrorMessage(err) }, { status: 500 })
         }
       },
     },

@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { readMemoryFile, resolveMemoryFilePath } from '../../../server/memory-browser'
 import fs from 'node:fs'
@@ -9,13 +8,13 @@ export const Route = createFileRoute('/api/memory/get')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
         const url = new URL(request.url)
         const rawPath = url.searchParams.get('path')
         if (!rawPath) {
-          return json({ error: 'Missing path parameter' }, { status: 400 })
+          return Response.json({ error: 'Missing path parameter' }, { status: 400 })
         }
 
         let relativePath: string
@@ -23,7 +22,7 @@ export const Route = createFileRoute('/api/memory/get')({
           // URL-decode before passing to the resolver (memory list encodes names)
           relativePath = decodeURIComponent(rawPath)
         } catch {
-          return json({ error: 'Invalid path encoding' }, { status: 400 })
+          return Response.json({ error: 'Invalid path encoding' }, { status: 400 })
         }
 
         try {
@@ -36,7 +35,7 @@ export const Route = createFileRoute('/api/memory/get')({
           const content = readMemoryFile(relativePath)
           const stat = fs.statSync(fullPath)
           const name = relativePath.split('/').pop() ?? relativePath
-          return json({
+          return Response.json({
             content,
             name,
             updatedAt: stat.mtimeMs,
@@ -50,7 +49,7 @@ export const Route = createFileRoute('/api/memory/get')({
             message.includes('required') ||
             message.includes('outside workspace') ||
             message.includes('Only Markdown')
-          return json({ error: message }, { status: isValidationError ? 400 : 500 })
+          return Response.json({ error: message }, { status: isValidationError ? 400 : 500 })
         }
       },
     },

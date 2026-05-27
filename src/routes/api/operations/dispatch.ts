@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
 import { createDispatch } from '../../../server/operations-store'
@@ -9,7 +8,7 @@ export const Route = createFileRoute('/api/operations/dispatch')({
     handlers: {
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return json({ error: 'Unauthorized' }, { status: 401 })
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
@@ -24,12 +23,12 @@ export const Route = createFileRoute('/api/operations/dispatch')({
             tags?: Array<string>
           }
           if (!body.prompt) {
-            return json({ error: 'prompt required' }, { status: 400 })
+            return Response.json({ error: 'prompt required' }, { status: 400 })
           }
           const dispatch = await createDispatch(body)
-          return json({ ok: true, dispatchId: dispatch.id })
+          return Response.json({ ok: true, dispatchId: dispatch.id })
         } catch (error) {
-          return json(
+          return Response.json(
             { error: error instanceof Error ? error.message : 'Failed to dispatch' },
             { status: 500 },
           )
