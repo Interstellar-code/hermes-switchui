@@ -207,6 +207,8 @@ function Step1Plan({
 
 // ── Step 2 — Route ────────────────────────────────────────────────────────────
 
+// Step2Route intentionally omits variables — those are collected by VariablesForm
+// rendered below Step2Route in the wizard body.
 function Step2Route({
   wf,
   agentMap,
@@ -473,12 +475,14 @@ function Step4Confirm({
   wf,
   agentMap,
   schedule,
+  variables,
   onSubmit,
   isSubmitting,
 }: {
   wf: WizardData
   agentMap: Record<string, Agent>
   schedule: ScheduleState
+  variables: Record<string, string>
   onSubmit: () => void
   isSubmitting: boolean
 }) {
@@ -519,12 +523,16 @@ function Step4Confirm({
             <div className="wfw-cc-title">Resolved Variables</div>
             {wf.required_inputs.map((inp) => (
               <div key={inp} className="wfw-cc-row">
-                <span>{inp}</span><span className="wfw-rv-val">&lt;USER_PROVIDED&gt;</span>
+                <span>{inp}</span>
+                <span className="wfw-rv-val">{variables[inp]?.trim() || '—'}</span>
               </div>
             ))}
             {wf.optional_inputs.map((inp) => (
               <div key={inp} className="wfw-cc-row">
-                <span>{inp}</span><span className="wfw-rv-val wfw-rv-val--opt">&lt;optional&gt;</span>
+                <span>{inp}</span>
+                <span className="wfw-rv-val wfw-rv-val--opt">
+                  {variables[inp]?.trim() || <em>not provided</em>}
+                </span>
               </div>
             ))}
           </div>
@@ -534,6 +542,82 @@ function Step4Confirm({
       <button className="wfw-submit-btn" onClick={onSubmit} disabled={isSubmitting}>
         {isSubmitting ? 'Launching…' : 'Submit as Workflow Run'}
       </button>
+    </div>
+  )
+}
+
+// ── Step 2b — Variables Form ──────────────────────────────────────────────────
+
+function VariablesForm({
+  wf,
+  variables,
+  setVariables,
+  onValidChange,
+}: {
+  wf: WizardData
+  variables: Record<string, string>
+  setVariables: React.Dispatch<React.SetStateAction<Record<string, string>>>
+  onValidChange: (valid: boolean) => void
+}) {
+  const hasInputs = wf.required_inputs.length > 0 || wf.optional_inputs.length > 0
+
+  function handleChange(name: string, value: string) {
+    setVariables((prev) => {
+      const next = { ...prev, [name]: value }
+      const allRequiredFilled = wf.required_inputs.every((inp) => next[inp]?.trim())
+      onValidChange(allRequiredFilled)
+      return next
+    })
+  }
+
+  // Validate on mount / when wf changes
+  useEffect(() => {
+    const allRequiredFilled = wf.required_inputs.every((inp) => variables[inp]?.trim())
+    onValidChange(allRequiredFilled)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wf.required_inputs])
+
+  if (!hasInputs) {
+    return (
+      <div className="wfw-resolved-vars" style={{ marginTop: 16 }}>
+        <div className="wfw-rv-empty">No variables required for this workflow.</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="wfw-resolved-vars" style={{ marginTop: 16 }}>
+      <div className="wfw-rv-label" style={{ marginBottom: 8 }}>Provide variables</div>
+      {wf.required_inputs.map((inp) => (
+        <div key={inp} className="wfw-input-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4, marginBottom: 10 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className="wfw-input-badge">required</span>
+            <span className="wfw-input-name">{inp}</span>
+          </label>
+          <input
+            className="wfw-cron-input"
+            style={{ width: '100%' }}
+            value={variables[inp] ?? ''}
+            onChange={(e) => handleChange(inp, e.target.value)}
+            placeholder={`Enter ${inp}…`}
+          />
+        </div>
+      ))}
+      {wf.optional_inputs.map((inp) => (
+        <div key={inp} className="wfw-input-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4, marginBottom: 10 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className="wfw-input-badge wfw-input-badge--opt">optional</span>
+            <span className="wfw-input-name">{inp}</span>
+          </label>
+          <input
+            className="wfw-cron-input"
+            style={{ width: '100%' }}
+            value={variables[inp] ?? ''}
+            onChange={(e) => handleChange(inp, e.target.value)}
+            placeholder={`Enter ${inp} (optional)…`}
+          />
+        </div>
+      ))}
     </div>
   )
 }
@@ -551,6 +635,7 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
   const [canAdvance, setCanAdvance] = useState(true)
   const [agentMap, setAgentMap] = useState<Record<string, Agent>>({})
   const [userMessage, setUserMessage] = useState('')
+  const [variables, setVariables] = useState<Record<string, string>>({})
   const [schedule, setSchedule] = useState<ScheduleState>({
     mode: 'now',
     datetime: '',
@@ -568,6 +653,7 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
     setCanAdvance(true)
     setAgentMap({})
     setUserMessage('')
+    setVariables({})
     setSchedule({ mode: 'now', datetime: '', cron: '', priority: 'normal', maxRuntime: 3600 })
   }, [workflowId])
 
@@ -620,7 +706,12 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
   function next() {
     if (step < 4) {
       setStep((s) => s + 1)
-      if (step + 1 !== 1) setCanAdvance(true)
+      // Re-check canAdvance for the upcoming step (step 2 → variables gate)
+      if (step + 1 === 2 && wf) {
+        setCanAdvance(wf.required_inputs.every((inp) => variables[inp]?.trim()))
+      } else {
+        setCanAdvance(true)
+      }
     }
   }
   function back() {
@@ -633,18 +724,21 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
     if (launchMutation.isPending) return
     const conversationId = crypto.randomUUID()
     const summary = userMessage || `Launch ${wf.name}`
-    // Build variables from required + optional inputs (placeholder values replaced
-    // by user-provided form values once a Step-2 input form is wired).
-    const variables: Record<string, string> = {}
-    for (const inp of [...wf.required_inputs, ...wf.optional_inputs]) {
-      variables[inp] = ''
+    // Collect variables: required fields (always included) + non-empty optionals.
+    const resolvedVariables: Record<string, string> = {}
+    for (const inp of wf.required_inputs) {
+      resolvedVariables[inp] = variables[inp]?.trim() ?? ''
+    }
+    for (const inp of wf.optional_inputs) {
+      const val = variables[inp]?.trim()
+      if (val) resolvedVariables[inp] = val
     }
     launchMutation.mutate(
       {
         workflow_id: wf.id,
         conversation_id: conversationId,
         user_message: summary,
-        variables: Object.keys(variables).length > 0 ? variables : undefined,
+        variables: Object.keys(resolvedVariables).length > 0 ? resolvedVariables : undefined,
       },
       {
         onSuccess: (result) => {
@@ -707,7 +801,15 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
             />
           )}
           {step === 2 && (
-            <Step2Route wf={wf} agentMap={agentMap} setAgentMap={setAgentMap} />
+            <>
+              <Step2Route wf={wf} agentMap={agentMap} setAgentMap={setAgentMap} />
+              <VariablesForm
+                wf={wf}
+                variables={variables}
+                setVariables={setVariables}
+                onValidChange={setCanAdvance}
+              />
+            </>
           )}
           {step === 3 && (
             <Step3Schedule schedule={schedule} setSchedule={setSchedule} />
@@ -717,6 +819,7 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
               wf={wf}
               agentMap={agentMap}
               schedule={schedule}
+              variables={variables}
               onSubmit={submit}
               isSubmitting={launchMutation.isPending}
             />
@@ -738,7 +841,7 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
             <button
               className="wfw-btn wfw-btn--primary"
               onClick={next}
-              disabled={step === 1 && !canAdvance}
+              disabled={(step === 1 || step === 2) && !canAdvance}
             >
               {step === 3 ? 'Next — Review' : 'Next'}
             </button>

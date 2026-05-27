@@ -636,9 +636,14 @@ function DescribeStep({
             ))}
             <div ref={msgsEndRef} />
           </div>
-          <p style={{ fontSize: 10, color: 'var(--m-text-ghost, #666)', margin: '0 0 6px', padding: '0 2px' }}>
-            Planning chat is a preview — not yet wired to an LLM.
-          </p>
+          {chatPending && (
+            <p style={{ fontSize: 10, color: 'var(--m-green-500, #00ff41)', margin: '0 0 6px', padding: '0 2px', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-current animate-pulse" style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'currentColor', animation: 'pulse 1.2s cubic-bezier(0.4,0,0.6,1) infinite' }} />
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-current animate-pulse" style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'currentColor', animation: 'pulse 1.2s cubic-bezier(0.4,0,0.6,1) 0.2s infinite' }} />
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-current animate-pulse" style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'currentColor', animation: 'pulse 1.2s cubic-bezier(0.4,0,0.6,1) 0.4s infinite' }} />
+              <span style={{ marginLeft: 4 }}>Hermes is thinking…</span>
+            </p>
+          )}
           <div className="chat-input-row">
             <input
               className="chat-inp"
@@ -2047,9 +2052,8 @@ export function NewWorkflowWizard({
         setYaml(result.workflow_yaml)
       }
     } catch (err) {
-      if (import.meta.env.DEV) {
-        console.warn('[workflow-wizard] Hermes scratch chat failed', err)
-      }
+      // Always warn so future debugging is easier; fallback builds a local draft.
+      console.warn('[workflow-wizard] Hermes scratch chat failed — using local fallback', err)
       const fallbackDoc = buildWorkflowFromPrompt(
         userMsg,
         name || 'My Workflow',
