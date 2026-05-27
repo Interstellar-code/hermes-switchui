@@ -4,11 +4,59 @@
  */
 import { randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
-import { dirname, resolve } from 'node:path'
+import { basename, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { homedir } from 'node:os'
 import EventEmitter from 'node:events'
 import type { ChildProcess } from 'node:child_process'
+
+/**
+ * Binary allowlist for terminal sessions.
+ *
+ * Only basenames listed here may be used as the first element of `command`.
+ * Operators can extend the list via TERMINAL_ALLOWED_BINARIES (comma-separated
+ * basenames, e.g. `TERMINAL_ALLOWED_BINARIES=fish,tmux`).
+ *
+ * Absolute paths are accepted only when their basename is in the allowlist
+ * AND the path does not contain `..` traversal components.
+ */
+const DEFAULT_ALLOWED_BINARIES = new Set([
+  'bash',
+  'sh',
+  'zsh',
+  'fish',
+  'dash',
+  'ksh',
+  'tcsh',
+  'csh',
+  'powershell',
+  'powershell.exe',
+  'pwsh',
+  'pwsh.exe',
+])
+
+const ALLOWED_BINARIES: Set<string> = (() => {
+  const extra = (process.env.TERMINAL_ALLOWED_BINARIES ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  return new Set([...DEFAULT_ALLOWED_BINARIES, ...extra])
+})()
+
+/**
+ * Validate that `bin` is an allowed shell binary.
+ * Returns a rejection reason string, or null if valid.
+ */
+export function isAllowedTerminalBinary(bin: string): string | null {
+  if (bin.includes('..')) {
+    return 'Command path must not contain traversal components (..)'
+  }
+  const name = basename(bin)
+  if (!ALLOWED_BINARIES.has(name)) {
+    return `Binary "${name}" is not in the terminal allowlist. Set TERMINAL_ALLOWED_BINARIES to extend.`
+  }
+  return null
+}
 
 export type TerminalSessionEvent = {
   event: string
@@ -72,6 +120,12 @@ export function createTerminalSession(params: {
   const command = params.command?.length
     ? params.command
     : [process.env.SHELL ?? defaultShell]
+
+  // Validate the binary against the allowlist before spawning.
+  const binaryError = isAllowedTerminalBinary(command[0])
+  if (binaryError) {
+    throw Object.assign(new Error(binaryError), { code: 'BINARY_NOT_ALLOWED' })
+  }
   let cwd = params.cwd ?? home
   if (cwd.startsWith('~')) {
     cwd = cwd.replace('~', home)

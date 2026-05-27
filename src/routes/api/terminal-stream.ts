@@ -3,6 +3,7 @@ import { requireLocalOrAuth } from '../../server/auth-middleware'
 import {
   createTerminalSession,
   getTerminalSession,
+  isAllowedTerminalBinary,
 } from '../../server/terminal-sessions'
 import {
   getClientIp,
@@ -53,6 +54,18 @@ export const Route = createFileRoute('/api/terminal-stream')({
         const command = Array.isArray(body.command)
           ? body.command.slice(0, 32).map((part) => String(part).slice(0, 2000))
           : undefined
+
+        // Reject disallowed binaries before opening the SSE stream so we can
+        // return a proper 400 HTTP status (rather than a 200 with an error event).
+        if (command && command.length > 0) {
+          const binError = isAllowedTerminalBinary(command[0])
+          if (binError) {
+            return new Response(JSON.stringify({ ok: false, error: binError }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            })
+          }
+        }
         // Optional attach: if the client passes an existing sessionId that's
         // still alive, reattach to it instead of spawning a fresh PTY. Lets
         // browser tabs survive transient SSE disconnects without losing the

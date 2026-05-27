@@ -268,9 +268,32 @@ export function isAuthenticated(request: Request): boolean {
   return isValidSessionToken(token)
 }
 
+/**
+ * Gate for routes that should be accessible locally OR by authenticated users.
+ *
+ * Behavior matrix:
+ *   bind=127.0.0.1, no password          → allow (loopback; password check
+ *                                           irrelevant, returns true immediately)
+ *   bind=0.0.0.0, password set            → require valid session token (strict)
+ *   bind=0.0.0.0, no password,
+ *     TRUST_PROXY set                     → allow unconditionally; operators
+ *                                           deploying behind a trusted reverse
+ *                                           proxy with no password intend open
+ *                                           access for all proxied users
+ *   bind=0.0.0.0, no password,
+ *     TRUST_PROXY NOT set                 → allow unconditionally; no-password
+ *                                           mode is "open access" by design
+ *                                           (operator's responsibility to bind
+ *                                           only on a trusted interface)
+ *
+ * When HERMES_PASSWORD is unset the design intent is open access — mirroring
+ * `isAuthenticated` which also returns true immediately. Restricting to
+ * loopback-only broke legitimate users behind reverse proxies (#68).
+ */
 export function requireLocalOrAuth(request: Request): boolean {
   if (!isPasswordProtectionEnabled()) {
-    return isLocalRequest(request)
+    // No password configured → open access (same as isAuthenticated).
+    return true
   }
 
   return isAuthenticated(request)

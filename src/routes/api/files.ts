@@ -379,9 +379,34 @@ export const Route = createFileRoute('/api/files')({
               targetPath,
               workspaceRoot,
             )
+            // Sanitize file.name to prevent path traversal. Use only the
+            // basename, rejecting names that contain directory separators,
+            // null bytes, or traversal components.
+            const rawName = file.name
+            if (
+              rawName.includes('\0') ||
+              rawName.includes('/') ||
+              rawName.includes('\\') ||
+              rawName.includes('..')
+            ) {
+              return json(
+                { error: 'Invalid file name: must not contain path separators, traversal sequences, or null bytes' },
+                { status: 400 },
+              )
+            }
+            const safeName = path.basename(rawName)
+            if (!safeName || safeName === '.' || safeName === '..') {
+              return json(
+                { error: 'Invalid file name' },
+                { status: 400 },
+              )
+            }
             const isDir = (await fs.stat(resolvedTarget)).isDirectory()
             const destination = isDir
-              ? path.join(resolvedTarget, file.name)
+              ? ensureWorkspacePath(
+                  path.join(path.relative(workspaceRoot, resolvedTarget), safeName),
+                  workspaceRoot,
+                )
               : resolvedTarget
             await fs.mkdir(path.dirname(destination), { recursive: true })
             const buffer = Buffer.from(await file.arrayBuffer())
