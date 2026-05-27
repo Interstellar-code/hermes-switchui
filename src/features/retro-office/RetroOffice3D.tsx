@@ -2674,7 +2674,12 @@ export function RetroOffice3D({
   const followAgentIdRef = useRef<string | null>(null);
   // #89 — sync external selectedAgentId prop into follow-cam state when it changes
   useEffect(() => {
-    if (selectedAgentId && selectedAgentId !== followAgentIdRef.current) {
+    if (!selectedAgentId) {
+      setFollowAgentId(null);
+      followAgentIdRef.current = null;
+      return;
+    }
+    if (selectedAgentId !== followAgentIdRef.current) {
       setFollowAgentId(selectedAgentId);
       followAgentIdRef.current = selectedAgentId;
     }
@@ -5767,6 +5772,7 @@ export function RetroOffice3D({
                     suppressSceneSpeechBubbles &&
                     standupMeeting?.currentSpeakerAgentId !== agent.id
                   }
+                  progress={progressByAgentId[agent.id]}
                 />
               );
             })}

@@ -43,4 +43,6 @@ export type AgentModelProps = {
   showSpeech?: boolean;
   speechText?: string | null;
   suppressSpeechBubble?: boolean;
+  /** #88 — 0-100 progress value; renders a narrow bar above the nameplate when set */
+  progress?: number;
 };

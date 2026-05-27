@@ -667,6 +667,8 @@ ${parseLogText(gatewayLogsQuery.data)}`
     }
 
     return {
+      cleaningCues: [],
+      danceUntilByAgentId: {},
       deskHoldByAgentId,
       gymHoldByAgentId,
       smsBoothHoldByAgentId,
@@ -714,10 +716,13 @@ ${parseLogText(gatewayLogsQuery.data)}`
         id: p.id,
         name: p.name,
         text: p.lastActivity ?? '',
-        ts: Date.now(),
+        // Derive a stable timestamp from activityScore so the value doesn't
+        // freeze at memo-creation time. Higher scores map to more recent times
+        // (within the last 5 minutes); score 0 falls back to 5 min ago.
+        ts: lastSeenByAgentId[p.id] ?? (Date.now() - 5 * 60_000),
         kind: 'status' as const,
       }))
-  }, [presence])
+  }, [presence, lastSeenByAgentId])
 
   // #86 — deterministic desk assignment: hash agentId to a desk slot
   const deskAssignmentByDeskUid = useMemo(() => {
