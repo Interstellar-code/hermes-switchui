@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
+import { requireJsonContentType } from '../../../server/rate-limit'
 import { createBoard, listBoards } from '../../../server/hermes-kanban-client'
 import type { CreateBoardInput } from '../../../lib/hermes-kanban-types'
 
@@ -23,6 +24,8 @@ export const Route = createFileRoute('/api/hermes-kanban/boards')({
       },
 
       POST: async ({ request }) => {
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
         if (!isAuthenticated(request)) {
           return json({ error: 'Unauthorized' }, { status: 401 })
         }

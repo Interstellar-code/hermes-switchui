@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
+import { requireJsonContentType } from '../../../server/rate-limit'
 import { createAgent, listAgents } from '../../../server/operations-store'
 
 export const Route = createFileRoute('/api/operations/agents')({
@@ -24,6 +25,8 @@ export const Route = createFileRoute('/api/operations/agents')({
         if (!isAuthenticated(request)) {
           return json({ error: 'Unauthorized' }, { status: 401 })
         }
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
         try {
           const body = (await request.json()) as { name?: string; role?: string; task?: string }
           const name = (body.name ?? '').trim()

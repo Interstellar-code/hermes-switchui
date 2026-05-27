@@ -4,6 +4,7 @@
  */
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
+import { requireJsonContentType } from '../../server/rate-limit'
 import {
   BEARER_TOKEN,
   CLAUDE_API,
@@ -61,6 +62,8 @@ export const Route = createFileRoute('/api/claude-jobs/$jobId')({
         })
       },
       POST: async ({ request, params }) => {
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
         if (!isAuthenticated(request)) {
           return new Response(JSON.stringify({ error: 'Unauthorized' }), {
             status: 401,
@@ -104,6 +107,8 @@ export const Route = createFileRoute('/api/claude-jobs/$jobId')({
         })
       },
       PATCH: async ({ request, params }) => {
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
         if (!isAuthenticated(request)) {
           return new Response(JSON.stringify({ error: 'Unauthorized' }), {
             status: 401,
@@ -130,6 +135,8 @@ export const Route = createFileRoute('/api/claude-jobs/$jobId')({
         })
       },
       DELETE: async ({ request, params }) => {
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
         if (!isAuthenticated(request)) {
           return new Response(JSON.stringify({ error: 'Unauthorized' }), {
             status: 401,

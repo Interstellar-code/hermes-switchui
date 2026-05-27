@@ -5,6 +5,7 @@
  */
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
+import { requireJsonContentType } from '../../server/rate-limit';
 import { getEngine } from '../../server/workflow-engine/factory';
 import { VALID_TRANSITIONS } from '../../server/workflow-engine/interface';
 import type { Phase } from '../../server/workflow-engine/interface';
@@ -47,6 +48,8 @@ export const Route = createFileRoute('/api/workflow-runs/$runId')({
         });
       },
       POST: async ({ request, params }) => {
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
         if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
         const engine = getEngine(request);
         const url = new URL(request.url);

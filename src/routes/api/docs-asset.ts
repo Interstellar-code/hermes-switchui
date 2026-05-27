@@ -11,12 +11,20 @@ const ALLOWED_EXTENSIONS: Record<string, string> = {
   '.jpeg': 'image/jpeg',
   '.gif': 'image/gif',
   '.webp': 'image/webp',
-  '.svg': 'image/svg+xml',
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
   '.html': 'text/html; charset=utf-8',
   '.htm': 'text/html; charset=utf-8',
+  '.svg': 'image/svg+xml',
 }
+
+// Extensions that must be forced to download rather than rendered inline.
+// - HTML/HTM: inline event handlers (onclick, onerror, onload) and javascript:
+//   URIs still execute even with CSP script-src 'none', so we cannot safely
+//   serve them as text/html on the API origin.
+// - SVG: inline <script> executes in Firefox when served as image/svg+xml
+//   without Content-Disposition: attachment (CVE class). Force download.
+const FORCE_DOWNLOAD_EXTENSIONS = new Set(['.html', '.htm', '.svg'])
 
 const HTML_EXTENSIONS = new Set(['.html', '.htm'])
 
@@ -80,13 +88,26 @@ export const Route = createFileRoute('/api/docs-asset')({
           'Content-Type': contentType,
           'Content-Length': String(stat.size),
           'Cache-Control': 'private, max-age=300',
+          'X-Content-Type-Options': 'nosniff',
         }
-        if (HTML_EXTENSIONS.has(ext)) {
+
+        if (FORCE_DOWNLOAD_EXTENSIONS.has(ext)) {
+          // Force download to prevent inline execution on the API origin.
+          // - HTML: inline event handlers / javascript: URIs bypass script-src 'none'.
+          // - SVG: <script> inside SVG executes in Firefox when served as image/svg+xml.
+          const filename = path.basename(normalized)
+          headers['Content-Disposition'] = `attachment; filename="${filename}"`
+        }
+
+        if (FORCE_DOWNLOAD_EXTENSIONS.has(ext)) {
+          // Defense-in-depth: apply tight CSP + framing controls even for
+          // attachment responses (SVG, HTML/HTM) in case the client ignores
+          // Content-Disposition or opens the file inline.
           headers['Content-Security-Policy'] =
             "default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'self'"
-          headers['X-Content-Type-Options'] = 'nosniff'
           headers['X-Frame-Options'] = 'SAMEORIGIN'
         }
+
         return new Response(buffer, { status: 200, headers })
       },
     },

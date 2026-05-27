@@ -186,67 +186,73 @@ export async function* parseOpenAIStream(
   const decoder = new TextDecoder()
   let buffer = ''
 
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
 
-    buffer += decoder.decode(value, { stream: true })
+      buffer += decoder.decode(value, { stream: true })
 
-    let boundary = buffer.indexOf('\n\n')
-    while (boundary >= 0) {
-      const rawEvent = buffer.slice(0, boundary)
-      buffer = buffer.slice(boundary + 2)
+      let boundary = buffer.indexOf('\n\n')
+      while (boundary >= 0) {
+        const rawEvent = buffer.slice(0, boundary)
+        buffer = buffer.slice(boundary + 2)
 
-      let eventName = ''
-      const dataLines: Array<string> = []
+        let eventName = ''
+        const dataLines: Array<string> = []
 
-      for (const line of rawEvent.split('\n')) {
-        const trimmed = line.trim()
-        if (trimmed.startsWith('event:')) {
-          eventName = trimmed.slice(6).trim()
-          continue
-        }
-        if (trimmed.startsWith('data:')) {
-          dataLines.push(trimmed.slice(5).trim())
-        }
-      }
-
-      for (const payload of dataLines) {
-        if (!payload || payload === '[DONE]') continue
-
-        if (
-          eventName === 'claude.tool.progress' ||
-          eventName === 'hermes.tool.progress'
-        ) {
-          const toolChunk = parseClaudeToolProgressChunk(payload)
-          if (toolChunk) yield toolChunk
-          continue
-        }
-
-        try {
-          const parsed = JSON.parse(payload) as {
-            choices?: Array<{
-              delta?: {
-                content?: string | null
-                reasoning?: string | null
-                reasoning_content?: string | null
-              }
-            }>
+        for (const line of rawEvent.split('\n')) {
+          const trimmed = line.trim()
+          if (trimmed.startsWith('event:')) {
+            eventName = trimmed.slice(6).trim()
+            continue
           }
-          const d = parsed.choices?.[0]?.delta
-          const content = d?.content || ''
-          const reasoning = d?.reasoning || d?.reasoning_content || ''
-          // Yield content when available; fall back to reasoning only if no content yet
-          if (content) yield { type: 'content' as const, text: content }
-          else if (reasoning)
-            yield { type: 'reasoning' as const, text: reasoning }
-        } catch {
-          // Ignore malformed chunks.
+          if (trimmed.startsWith('data:')) {
+            dataLines.push(trimmed.slice(5).trim())
+          }
         }
-      }
 
-      boundary = buffer.indexOf('\n\n')
+        for (const payload of dataLines) {
+          if (!payload || payload === '[DONE]') continue
+
+          if (
+            eventName === 'claude.tool.progress' ||
+            eventName === 'hermes.tool.progress'
+          ) {
+            const toolChunk = parseClaudeToolProgressChunk(payload)
+            if (toolChunk) yield toolChunk
+            continue
+          }
+
+          try {
+            const parsed = JSON.parse(payload) as {
+              choices?: Array<{
+                delta?: {
+                  content?: string | null
+                  reasoning?: string | null
+                  reasoning_content?: string | null
+                }
+              }>
+            }
+            const d = parsed.choices?.[0]?.delta
+            const content = d?.content || ''
+            const reasoning = d?.reasoning || d?.reasoning_content || ''
+            // Yield content when available; fall back to reasoning only if no content yet
+            if (content) yield { type: 'content' as const, text: content }
+            else if (reasoning)
+              yield { type: 'reasoning' as const, text: reasoning }
+          } catch {
+            // Ignore malformed chunks.
+          }
+        }
+
+        boundary = buffer.indexOf('\n\n')
+      }
     }
+  } finally {
+    // Always release the reader lock so the fetch connection is returned to
+    // the pool on consumer break, abort, or exception (#72).
+    await reader.cancel().catch(() => {})
   }
 }
 
