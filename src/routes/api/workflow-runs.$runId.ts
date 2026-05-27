@@ -62,7 +62,7 @@ export const Route = createFileRoute('/api/workflow-runs/$runId')({
             if (!toPhase || !Object.keys(VALID_TRANSITIONS).includes(toPhase)) {
               return Response.json(
                 { error: `?to must be one of: ${Object.keys(VALID_TRANSITIONS).join(', ')}` },
-                400,
+                { status: 400 },
               );
             }
             try {
