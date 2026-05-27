@@ -910,65 +910,6 @@ ${parseLogText(gatewayLogsQuery.data)}`
     return result
   }, [presence, agentView.activeAgents])
 
-  if (import.meta.env.DEV && typeof window !== 'undefined') {
-    const streamKeys = Array.from(useChatStore.getState().streamingState.keys())
-    // Expose for browser console debugging: window.__matrix3dDebug
-    ;(window as any).__matrix3dDebug = {
-      presence,
-      animationState,
-      streamingTextByAgentId,
-      activeAgents: agentView.activeAgents,
-      streamingStateKeys: streamKeys,
-    }
-    // Auto-log compact snapshot to console on every hook run (DEV ONLY).
-    // Throttled by stringified signature to avoid identity-only re-renders spamming.
-    const sig = JSON.stringify({
-      p: presence.map((p) => [p.id, p.effectiveStatus, p.activeSessionKey]),
-      a: agentView.activeAgents.map((a) => [a.id, a.status]),
-      sk: streamKeys,
-      dh: Object.keys(animationState.deskHoldByAgentId ?? {}),
-      st: Object.keys(streamingTextByAgentId),
-    })
-    const last = (window as any).__matrix3dDebugLastSig
-    if (sig !== last) {
-      ;(window as any).__matrix3dDebugLastSig = sig
-
-      const routing = presence
-        .filter((p) => p.effectiveStatus === 'working')
-        .map((p) => {
-          const sessionKey = p.activeSessionKey ?? p.id
-          const inferred = inferActiveRoom(streamingState.get(sessionKey))
-          return { id: p.id, room: inferred.room, signal: inferred.signal }
-        })
-      console.log('[matrix3d]', {
-        routing,
-        presence: presence.map((p) => ({
-          id: p.id,
-          source: p.source,
-          status: p.effectiveStatus,
-          sessionKey: p.activeSessionKey,
-          activity: p.lastActivity?.slice(0, 60),
-        })),
-        deskHold: animationState.deskHoldByAgentId,
-        gymHold: animationState.gymHoldByAgentId,
-        qaHold: animationState.qaHoldByAgentId,
-        githubHold: animationState.githubHoldByAgentId,
-        phoneHold: animationState.phoneBoothHoldByAgentId,
-        smsHold: animationState.smsBoothHoldByAgentId,
-        streaming: Object.fromEntries(
-          Object.entries(streamingTextByAgentId).map(([k, v]) => [k, (v ?? '').slice(0, 40)]),
-        ),
-        streamKeys,
-        activeAgents: agentView.activeAgents.map((a) => ({
-          id: a.id,
-          key: (a as { key?: string }).key,
-          name: a.name,
-          status: a.status,
-        })),
-      })
-    }
-  }
-
   return {
     agents,
     readOnly: true,
