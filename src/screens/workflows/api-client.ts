@@ -33,6 +33,11 @@ export interface WorkflowDefinitionRow {
   node_count: number
   run_count: number
   last_used_at: number | null
+  // Enriched by summariseWorkflowYaml on the list route
+  has_loop?: boolean
+  has_approval?: boolean
+  required_inputs?: Array<string>
+  optional_inputs?: Array<string>
 }
 
 export async function listWorkflowDefinitions(params?: {

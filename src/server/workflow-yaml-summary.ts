@@ -11,8 +11,8 @@ type RawNode = Record<string, unknown>
 interface WorkflowYamlSummary {
   has_loop: boolean
   has_approval: boolean
-  required_inputs: string[]
-  optional_inputs: string[]
+  required_inputs: Array<string>
+  optional_inputs: Array<string>
 }
 
 /**
@@ -23,16 +23,16 @@ interface WorkflowYamlSummary {
  *   3) doc.inputs as object keyed by name with { required? } values
  */
 function extractInputs(doc: Record<string, unknown>): {
-  required_inputs: string[]
-  optional_inputs: string[]
+  required_inputs: Array<string>
+  optional_inputs: Array<string>
 } {
   // Shape 1: top-level string arrays
   if (Array.isArray(doc['required_inputs']) || Array.isArray(doc['optional_inputs'])) {
     const req = Array.isArray(doc['required_inputs'])
-      ? (doc['required_inputs'] as unknown[]).filter((s): s is string => typeof s === 'string')
+      ? (doc['required_inputs'] as Array<unknown>).filter((s): s is string => typeof s === 'string')
       : []
     const opt = Array.isArray(doc['optional_inputs'])
-      ? (doc['optional_inputs'] as unknown[]).filter((s): s is string => typeof s === 'string')
+      ? (doc['optional_inputs'] as Array<unknown>).filter((s): s is string => typeof s === 'string')
       : []
     return { required_inputs: req, optional_inputs: opt }
   }
@@ -41,17 +41,20 @@ function extractInputs(doc: Record<string, unknown>): {
 
   // Shape 2: inputs array
   if (Array.isArray(inputs)) {
-    const req: string[] = []
-    const opt: string[] = []
-    for (const item of inputs as unknown[]) {
+    const req: Array<string> = []
+    const opt: Array<string> = []
+    for (const item of inputs as Array<unknown>) {
       if (!item || typeof item !== 'object') continue
       const entry = item as Record<string, unknown>
       const name = typeof entry['name'] === 'string' ? entry['name'] : null
       if (!name) continue
       if (entry['required'] === false || entry['required'] === 'false') {
         opt.push(name)
-      } else {
+      } else if (entry['required'] === true || entry['required'] === 'true' || entry['required'] == null) {
         req.push(name)
+      } else {
+        // Unknown value — treat as optional to avoid blocking launches.
+        opt.push(name)
       }
     }
     return { required_inputs: req, optional_inputs: opt }
@@ -59,8 +62,8 @@ function extractInputs(doc: Record<string, unknown>): {
 
   // Shape 3: inputs object { key: { required? } }
   if (inputs && typeof inputs === 'object' && !Array.isArray(inputs)) {
-    const req: string[] = []
-    const opt: string[] = []
+    const req: Array<string> = []
+    const opt: Array<string> = []
     for (const [key, val] of Object.entries(inputs as Record<string, unknown>)) {
       const entry = val && typeof val === 'object' ? (val as Record<string, unknown>) : {}
       if (entry['required'] === false || entry['required'] === 'false') {
@@ -82,8 +85,8 @@ function extractInputs(doc: Record<string, unknown>): {
 export function summariseWorkflowYaml(yaml: string): WorkflowYamlSummary {
   try {
     const doc = (parseYaml(yaml) ?? {}) as Record<string, unknown>
-    const nodes: RawNode[] = Array.isArray(doc['nodes'])
-      ? (doc['nodes'] as unknown[]).filter((n): n is RawNode => !!n && typeof n === 'object')
+    const nodes: Array<RawNode> = Array.isArray(doc['nodes'])
+      ? (doc['nodes'] as Array<unknown>).filter((n): n is RawNode => !!n && typeof n === 'object')
       : []
     return {
       has_loop: nodes.some((n) => Boolean(n['loop'])),

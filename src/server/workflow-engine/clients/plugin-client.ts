@@ -7,17 +7,17 @@
  * both in the browser (via /api/dashboard-proxy) and server-side (direct
  * dashboardFetch).
  */
+import { dashboardFetch } from '../../gateway-capabilities.js';
 import type {
+  ApprovalClaimResult,
+  NodeRun,
+  PhaseTransition,
+  RunEvent,
+  TriggerInfo,
+  WorkflowDefinitionRow,
   WorkflowEngineInterface,
   WorkflowRun,
-  WorkflowDefinitionRow,
-  NodeRun,
-  TriggerInfo,
-  RunEvent,
-  PhaseTransition,
-  ApprovalClaimResult,
 } from '../interface.js';
-import { dashboardFetch } from '../../gateway-capabilities.js';
 
 const PLUGIN_BASE = '/api/plugins/workflow-engine';
 
@@ -74,9 +74,9 @@ async function _delete(path: string): Promise<void> {
 export class PluginClient implements WorkflowEngineInterface {
   // ── Definitions ──────────────────────────────────────────────────────────
 
-  async listDefinitions(filter?: { source?: string }): Promise<WorkflowDefinitionRow[]> {
+  async listDefinitions(filter?: { source?: string }): Promise<Array<WorkflowDefinitionRow>> {
     const qs = filter?.source ? `?source=${encodeURIComponent(filter.source)}` : '';
-    const data = await _get<{ definitions: WorkflowDefinitionRow[] }>(`/definitions${qs}`);
+    const data = await _get<{ definitions: Array<WorkflowDefinitionRow> }>(`/definitions${qs}`);
     return data.definitions;
   }
 
@@ -94,9 +94,7 @@ export class PluginClient implements WorkflowEngineInterface {
     const data = await _send<{ definition: WorkflowDefinitionRow }>('POST', '/definitions', {
       yaml,
       source_path: sourcePath,
-      // id/name derived by plugin validator from YAML content
-      id: '_placeholder',
-      name: '_placeholder',
+      // id and name are derived by the plugin from YAML content — do not send placeholders.
     });
     return data.definition;
   }
@@ -123,12 +121,12 @@ export class PluginClient implements WorkflowEngineInterface {
 
   // ── Runs ─────────────────────────────────────────────────────────────────
 
-  async listRuns(opts?: { workflowId?: string; limit?: number }): Promise<WorkflowRun[]> {
+  async listRuns(opts?: { workflowId?: string; limit?: number }): Promise<Array<WorkflowRun>> {
     const params = new URLSearchParams();
     if (opts?.workflowId) params.set('workflow_id', opts.workflowId);
     if (opts?.limit != null) params.set('limit', String(opts.limit));
     const qs = params.toString() ? `?${params}` : '';
-    const data = await _get<{ runs: WorkflowRun[] }>(`/runs${qs}`);
+    const data = await _get<{ runs: Array<WorkflowRun> }>(`/runs${qs}`);
     return data.runs;
   }
 
@@ -169,19 +167,29 @@ export class PluginClient implements WorkflowEngineInterface {
   }
 
   async findRunByConversationId(conversationId: string): Promise<WorkflowRun | null> {
-    const data = await _get<{ run: WorkflowRun | null }>(`/runs/by-conversation/${encodeURIComponent(conversationId)}`);
-    return data.run;
+    try {
+      const data = await _get<{ run: WorkflowRun | null }>(`/runs/by-conversation/${encodeURIComponent(conversationId)}`);
+      return data.run;
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message.includes('404')) return null;
+      throw e;
+    }
   }
 
   async getActiveWorkflowRunByPath(path: string): Promise<WorkflowRun | null> {
-    const data = await _get<{ run: WorkflowRun | null }>(`/runs/active?scope_path=${encodeURIComponent(path)}`);
-    return data.run;
+    try {
+      const data = await _get<{ run: WorkflowRun | null }>(`/runs/active?scope_path=${encodeURIComponent(path)}`);
+      return data.run;
+    } catch (e: unknown) {
+      if (e instanceof Error && e.message.includes('404')) return null;
+      throw e;
+    }
   }
 
   // ── Node Runs ────────────────────────────────────────────────────────────
 
-  async listNodeRuns(runId: string): Promise<NodeRun[]> {
-    const data = await _get<{ nodeRuns: NodeRun[] }>(`/runs/${encodeURIComponent(runId)}/nodes`);
+  async listNodeRuns(runId: string): Promise<Array<NodeRun>> {
+    const data = await _get<{ nodeRuns: Array<NodeRun> }>(`/runs/${encodeURIComponent(runId)}/nodes`);
     return data.nodeRuns;
   }
 
@@ -202,14 +210,14 @@ export class PluginClient implements WorkflowEngineInterface {
     await _send('POST', `/runs/${encodeURIComponent(workflow_run_id)}/events`, rest);
   }
 
-  async listRecentWorkflowEvents(runId: string, limit = 200): Promise<RunEvent[]> {
-    const data = await _get<{ events: RunEvent[] }>(`/runs/${encodeURIComponent(runId)}/events?limit=${limit}`);
+  async listRecentWorkflowEvents(runId: string, limit = 200): Promise<Array<RunEvent>> {
+    const data = await _get<{ events: Array<RunEvent> }>(`/runs/${encodeURIComponent(runId)}/events?limit=${limit}`);
     return data.events;
   }
 
   subscribeEvents(runId?: string): AsyncIterable<RunEvent> {
-    // Delegate to plugin-client.sse.ts helper
-    return pluginSseStream(`${PLUGIN_BASE}/events${runId ? `?runId=${encodeURIComponent(runId)}` : ''}`);
+    // Pass relative path only — pluginSseStream prepends PLUGIN_BASE internally.
+    return pluginSseStream(`/events${runId ? `?runId=${encodeURIComponent(runId)}` : ''}`);
   }
 
   // ── Phase Transitions ────────────────────────────────────────────────────
@@ -231,8 +239,8 @@ export class PluginClient implements WorkflowEngineInterface {
     );
   }
 
-  async listPhaseTransitions(runId: string): Promise<PhaseTransition[]> {
-    const data = await _get<{ phaseTransitions: PhaseTransition[] }>(`/runs/${encodeURIComponent(runId)}/phase-transitions`);
+  async listPhaseTransitions(runId: string): Promise<Array<PhaseTransition>> {
+    const data = await _get<{ phaseTransitions: Array<PhaseTransition> }>(`/runs/${encodeURIComponent(runId)}/phase-transitions`);
     return data.phaseTransitions;
   }
 
@@ -277,11 +285,10 @@ async function* pluginSseStream(url: string): AsyncGenerator<RunEvent> {
   // Server-side: use undici fetch with streaming body
   // Browser-side: this path is not expected (SSE handled by plugin-client.sse.ts in UI layer)
   if (typeof window !== 'undefined') {
-    // Browser — yield nothing; UI layer uses EventSource directly
-    return;
+    throw new Error('pluginSseStream must not be called in browser context — use EventSource directly');
   }
   const { dashboardFetch: df } = await import('../../gateway-capabilities.js');
-  const res = await df(PLUGIN_BASE + url.replace(PLUGIN_BASE, ''));
+  const res = await df(PLUGIN_BASE + url);
   if (!res.ok || !res.body) return;
   const reader = (res.body as ReadableStream<Uint8Array>).getReader();
   const decoder = new TextDecoder();

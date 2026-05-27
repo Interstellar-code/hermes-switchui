@@ -1,10 +1,8 @@
 /**
  * POST /api/workflow-runs/:runId/approve
  *
- * A.5 approval endpoint — captures the user's decision on a paused approval
- * node, updates the node_run, emits an approval_received event, resumes the
- * workflow_run, and re-enters the DAG executor fire-and-forget via
- * launchWorkflowRun({ resumeMode: true }).
+ * Captures the user's decision on a paused approval node and delegates to
+ * the plugin engine, which handles all approval logic server-side.
  */
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
@@ -52,7 +50,7 @@ export const Route = createFileRoute('/api/workflow-runs/$runId/approve')({
         const ifaceDecision = decision === 'approved' ? 'approve' : 'reject';
         await engine.approve(runId, node_run_id, ifaceDecision, approvalResponse || undefined);
         return json({ ok: true, decision, resumedRunId: runId });
-},
+      },
     },
   },
 });

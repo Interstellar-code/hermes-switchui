@@ -69,33 +69,45 @@ function parseInputs(doc: {
   required_inputs?: unknown
   optional_inputs?: unknown
 }): { required_inputs: Array<string>; optional_inputs: Array<string> } {
-  // Shape 1: top-level string arrays
+  // Shape 1: top-level string arrays — union with nested inputs: when both present.
   if (
     Array.isArray(doc.required_inputs) ||
     Array.isArray(doc.optional_inputs)
   ) {
     const req = Array.isArray(doc.required_inputs)
-      ? (doc.required_inputs as unknown[]).filter((s): s is string => typeof s === 'string')
+      ? (doc.required_inputs as Array<unknown>).filter((s): s is string => typeof s === 'string')
       : []
     const opt = Array.isArray(doc.optional_inputs)
-      ? (doc.optional_inputs as unknown[]).filter((s): s is string => typeof s === 'string')
+      ? (doc.optional_inputs as Array<unknown>).filter((s): s is string => typeof s === 'string')
       : []
+    // Also union nested inputs: array/object when present alongside top-level arrays.
+    if (doc.inputs) {
+      const nested = parseInputs({ inputs: doc.inputs })
+      for (const n of nested.required_inputs) {
+        if (!req.includes(n) && !opt.includes(n)) req.push(n)
+      }
+      for (const n of nested.optional_inputs) {
+        if (!opt.includes(n) && !req.includes(n)) opt.push(n)
+      }
+    }
     return { required_inputs: req, optional_inputs: opt }
   }
 
   // Shape 2: inputs array
   if (Array.isArray(doc.inputs)) {
-    const req: string[] = []
-    const opt: string[] = []
-    for (const item of doc.inputs as unknown[]) {
+    const req: Array<string> = []
+    const opt: Array<string> = []
+    for (const item of doc.inputs as Array<unknown>) {
       if (!item || typeof item !== 'object') continue
       const entry = item as Record<string, unknown>
       const name = typeof entry['name'] === 'string' ? entry['name'] : null
       if (!name) continue
       if (entry['required'] === false || entry['required'] === 'false') {
         opt.push(name)
-      } else {
+      } else if (entry['required'] === true || entry['required'] === 'true' || entry['required'] == null) {
         req.push(name)
+      } else {
+        opt.push(name)
       }
     }
     return { required_inputs: req, optional_inputs: opt }
@@ -103,14 +115,16 @@ function parseInputs(doc: {
 
   // Shape 3: inputs object { key: { required? } }
   if (doc.inputs && typeof doc.inputs === 'object' && !Array.isArray(doc.inputs)) {
-    const req: string[] = []
-    const opt: string[] = []
+    const req: Array<string> = []
+    const opt: Array<string> = []
     for (const [key, val] of Object.entries(doc.inputs as Record<string, unknown>)) {
       const entry = val && typeof val === 'object' ? (val as Record<string, unknown>) : {}
       if (entry['required'] === false || entry['required'] === 'false') {
         opt.push(key)
-      } else {
+      } else if (entry['required'] === true || entry['required'] === 'true' || entry['required'] == null) {
         req.push(key)
+      } else {
+        opt.push(key)
       }
     }
     return { required_inputs: req, optional_inputs: opt }
@@ -142,7 +156,7 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
         let doc: {
           name?: string
           description?: string
-          nodes?: RawNode[]
+          nodes?: Array<RawNode>
           inputs?: unknown
           required_inputs?: unknown
           optional_inputs?: unknown
@@ -154,12 +168,12 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
           return json({ error: msg, errorType: 'yaml_parse' }, 422)
         }
 
-        const nodes: RawNode[] = Array.isArray(doc.nodes) ? doc.nodes : []
+        const nodes: Array<RawNode> = Array.isArray(doc.nodes) ? doc.nodes : []
 
         const edges: Array<[string, string]> = []
         for (const node of nodes) {
           const deps = Array.isArray(node['depends_on'])
-            ? (node['depends_on'] as unknown[]).filter(
+            ? (node['depends_on'] as Array<unknown>).filter(
                 (d): d is string => typeof d === 'string',
               )
             : []
@@ -168,8 +182,11 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
           for (const dep of deps) edges.push([dep, id])
         }
 
-        const projectedNodes = nodes.map((node) => {
+        const projectedNodes = nodes.flatMap((node) => {
           const id = typeof node.id === 'string' ? node.id : ''
+          // Skip nodes with missing/non-string id — they cannot participate in edges
+          // and would corrupt the DAG with empty-string entries.
+          if (!id) return []
           const hermesTaskRaw =
             node['hermes_task'] && typeof node['hermes_task'] === 'object'
               ? (node['hermes_task'] as Record<string, unknown>)
@@ -177,7 +194,7 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
           const hermesTask = hermesTaskRaw
             ? {
                 skills: Array.isArray(hermesTaskRaw['skills'])
-                  ? (hermesTaskRaw['skills'] as unknown[]).filter(
+                  ? (hermesTaskRaw['skills'] as Array<unknown>).filter(
                       (s): s is string => typeof s === 'string',
                     )
                   : [],
@@ -210,16 +227,16 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
               }
             : null
           const depsArr = Array.isArray(node['depends_on'])
-            ? (node['depends_on'] as unknown[]).filter(
+            ? (node['depends_on'] as Array<unknown>).filter(
                 (d): d is string => typeof d === 'string',
               )
             : []
           const skillsArr = Array.isArray(node['skills'])
-            ? (node['skills'] as unknown[]).filter(
+            ? (node['skills'] as Array<unknown>).filter(
                 (s): s is string => typeof s === 'string',
               )
             : []
-          return {
+          return [{
             id,
             label: (node['name'] as string | undefined) ?? id,
             type: nodeType(node),
@@ -234,7 +251,7 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
               null,
             provider: (node['provider'] as string | undefined) ?? null,
             config_preview: configPreview(node),
-          }
+          }]
         })
 
         const payload = {

@@ -53,6 +53,12 @@ export const Route = createFileRoute('/api/workflow-events')({
             })
 
             try {
+              // Verify the run exists before opening the stream.
+              const run = await engine.getRun(runId)
+              if (!run) {
+                sendEvent('error', { reason: 'run_not_found', runId })
+                return
+              }
               sendEvent('connected', { runId })
               for await (const evt of engine.subscribeEvents(runId)) {
                 if (streamClosed) break
@@ -60,7 +66,11 @@ export const Route = createFileRoute('/api/workflow-events')({
               }
             } catch (err) {
               const errorMsg = err instanceof Error ? err.message : String(err)
-              sendEvent('error', { message: errorMsg })
+              if (errorMsg.includes('404') || errorMsg.includes('run_not_found')) {
+                sendEvent('error', { reason: 'run_not_found', runId })
+              } else {
+                sendEvent('error', { message: errorMsg })
+              }
             } finally {
               streamClosed = true
               try { controller.close() } catch { /* ignore */ }
@@ -77,7 +87,7 @@ export const Route = createFileRoute('/api/workflow-events')({
             'X-Accel-Buffering': 'no',
           },
         })
-},
+      },
     },
   },
 })

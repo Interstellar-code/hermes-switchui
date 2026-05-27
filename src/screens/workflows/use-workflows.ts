@@ -43,10 +43,12 @@ function adaptDefinition(row: WorkflowDefinitionRow): WorkflowSummary {
     node_count: row.node_count,
     last_used_at: row.last_used_at != null ? String(row.last_used_at) : null,
     version_tier: 'v1' as VersionTier,
-    has_loop: false,
-    has_approval: false,
-    required_inputs: [],
-    optional_inputs: [],
+    // Pass through enrichment fields added by summariseWorkflowYaml on the list route.
+    // These were previously zeroed, hiding badge/input data from the UI.
+    has_loop: row.has_loop ?? false,
+    has_approval: row.has_approval ?? false,
+    required_inputs: row.required_inputs ?? [],
+    optional_inputs: row.optional_inputs ?? [],
     when_to_use: '',
     dag_depth: 0,
     max_parallelism: 0,
