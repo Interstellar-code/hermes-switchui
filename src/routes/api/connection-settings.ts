@@ -41,7 +41,9 @@ const PRIVATE_IPV4_RE =
 function isPrivateHost(hostname: string): boolean {
   const h = hostname.toLowerCase()
   // Explicitly allow loopback and localhost — these are the default gateway locations.
-  if (h === 'localhost' || h === '127.0.0.1' || h === '::1') return false
+  // The entire 127.0.0.0/8 range is loopback per RFC 5735, not just 127.0.0.1.
+  if (h === 'localhost' || h === '::1') return false
+  if (/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h)) return false
   // Allow operator-added hosts.
   if (EXTRA_ALLOWED_HOSTS.has(h)) return false
   // Block RFC-1918, link-local, CGNAT.
@@ -51,6 +53,17 @@ function isPrivateHost(hostname: string): boolean {
   return false
 }
 
+/**
+ * NOTE — lexical validation only: this function checks the URL hostname
+ * against known private/loopback ranges using string pattern matching.
+ * It does NOT perform DNS resolution, so it does NOT defend against
+ * DNS rebinding attacks (where an allowed public hostname later resolves
+ * to a private IP at request time).
+ *
+ * SSRF P2 follow-up: if this workspace is deployed remotely, add an async
+ * DNS resolution step here (e.g. dns.promises.lookup) and re-check the
+ * resolved IP against PRIVATE_IPV4_RE / isPrivateHost before proceeding.
+ */
 function isValidHttpUrl(u: string): { ok: true } | { ok: false; reason: string } {
   try {
     const parsed = new URL(u)
