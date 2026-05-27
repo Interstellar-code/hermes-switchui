@@ -26,7 +26,7 @@ function extractInputs(doc: Record<string, unknown>): {
   required_inputs: Array<string>
   optional_inputs: Array<string>
 } {
-  // Shape 1: top-level string arrays
+  // Shape 1: top-level string arrays — union with nested inputs when present
   if (Array.isArray(doc['required_inputs']) || Array.isArray(doc['optional_inputs'])) {
     const req = Array.isArray(doc['required_inputs'])
       ? (doc['required_inputs'] as Array<unknown>).filter((s): s is string => typeof s === 'string')
@@ -34,6 +34,16 @@ function extractInputs(doc: Record<string, unknown>): {
     const opt = Array.isArray(doc['optional_inputs'])
       ? (doc['optional_inputs'] as Array<unknown>).filter((s): s is string => typeof s === 'string')
       : []
+    // Also union nested inputs: array/object shape when present alongside top-level arrays.
+    if (doc['inputs']) {
+      const nested = extractInputs({ inputs: doc['inputs'] })
+      for (const n of nested.required_inputs) {
+        if (!req.includes(n) && !opt.includes(n)) req.push(n)
+      }
+      for (const n of nested.optional_inputs) {
+        if (!opt.includes(n) && !req.includes(n)) opt.push(n)
+      }
+    }
     return { required_inputs: req, optional_inputs: opt }
   }
 
@@ -68,8 +78,11 @@ function extractInputs(doc: Record<string, unknown>): {
       const entry = val && typeof val === 'object' ? (val as Record<string, unknown>) : {}
       if (entry['required'] === false || entry['required'] === 'false') {
         opt.push(key)
-      } else {
+      } else if (entry['required'] === true || entry['required'] === 'true' || entry['required'] == null) {
         req.push(key)
+      } else {
+        // Unknown value — treat as optional to avoid blocking launches.
+        opt.push(key)
       }
     }
     return { required_inputs: req, optional_inputs: opt }

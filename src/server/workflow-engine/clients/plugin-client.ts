@@ -289,7 +289,8 @@ async function* pluginSseStream(url: string): AsyncGenerator<RunEvent> {
   }
   const { dashboardFetch: df } = await import('../../gateway-capabilities.js');
   const res = await df(PLUGIN_BASE + url);
-  if (!res.ok || !res.body) return;
+  if (!res.ok) throw new Error(`Plugin SSE stream had no body`);
+  if (!res.body) throw new Error(`Plugin SSE stream had no body`);
   const reader = (res.body as ReadableStream<Uint8Array>).getReader();
   const decoder = new TextDecoder();
   let buf = '';

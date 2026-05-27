@@ -10,12 +10,18 @@ import { summariseWorkflowYaml } from '../../server/workflow-yaml-summary';
 
 // Simple in-process memoization keyed by sha256 of the yaml string.
 // Avoids re-parsing the same YAML on every list request.
+const SUMMARY_CACHE_MAX = 256;
 const _summaryCache = new Map<string, ReturnType<typeof summariseWorkflowYaml>>();
 function summariseWorkflowYamlCached(yaml: string): ReturnType<typeof summariseWorkflowYaml> {
   const key = createHash('sha256').update(yaml).digest('hex');
   const cached = _summaryCache.get(key);
   if (cached) return cached;
   const result = summariseWorkflowYaml(yaml);
+  if (_summaryCache.size >= SUMMARY_CACHE_MAX) {
+    // Evict oldest inserted entry (Map iteration order is insertion order).
+    const oldest = _summaryCache.keys().next().value;
+    if (oldest !== undefined) _summaryCache.delete(oldest);
+  }
   _summaryCache.set(key, result);
   return result;
 }
