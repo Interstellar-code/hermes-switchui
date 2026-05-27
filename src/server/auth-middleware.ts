@@ -1,9 +1,10 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import {
   chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
+  statSync,
   writeFileSync,
 } from 'node:fs'
 import { homedir } from 'node:os'
@@ -29,23 +30,70 @@ const STORE_FILE = join(
 )
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
-function loadStore(): SessionStore {
+/** Hash a raw token for storage. Prefix makes hashed vs plain distinguishable. */
+function hashToken(raw: string): string {
+  return 'sha256:' + createHash('sha256').update(raw).digest('hex')
+}
+
+function loadStore(): { store: SessionStore; needsMigration: boolean } {
+  // Ensure parent directory has restrictive permissions.
+  const dir = dirname(STORE_FILE)
   try {
-    if (existsSync(STORE_FILE)) {
-      const raw = readFileSync(STORE_FILE, 'utf8')
-      const parsed = JSON.parse(raw) as SessionStore
-      // Expire any stale tokens on load
-      const now = Date.now()
-      const valid: Record<string, number> = {}
-      for (const [token, expiry] of Object.entries(parsed.tokens)) {
-        if (expiry > now) valid[token] = expiry
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true, mode: 0o700 })
+    } else {
+      const dirStat = statSync(dir)
+      if (dirStat.mode & 0o077) {
+        console.warn(
+          `[auth] ${dir} is world/group accessible (mode ${(dirStat.mode & 0o777).toString(8)}); fixing to 0700`,
+        )
+        try { chmodSync(dir, 0o700) } catch { /* best-effort */ }
       }
-      return { tokens: valid }
     }
   } catch {
-    // Corrupt store — start fresh
+    // Non-fatal — continue loading.
   }
-  return { tokens: {} }
+
+  try {
+    if (existsSync(STORE_FILE)) {
+      // Check file permissions before reading.
+      try {
+        const fileStat = statSync(STORE_FILE)
+        if (fileStat.mode & 0o077) {
+          console.warn(
+            `[auth] ${STORE_FILE} is world/group accessible (mode ${(fileStat.mode & 0o777).toString(8)}); fixing to 0600`,
+          )
+          try { chmodSync(STORE_FILE, 0o600) } catch { /* best-effort */ }
+        }
+      } catch {
+        // Non-fatal.
+      }
+
+      const raw = readFileSync(STORE_FILE, 'utf8')
+      const parsed = JSON.parse(raw) as SessionStore
+      // Expire stale tokens and detect whether any plain (unhashed) tokens
+      // need migrating to sha256 hashes.
+      const now = Date.now()
+      const valid: Record<string, number> = {}
+      let hasPlain = false
+      for (const [token, expiry] of Object.entries(parsed.tokens)) {
+        if (expiry > now) {
+          if (token.startsWith('sha256:')) {
+            valid[token] = expiry
+          } else {
+            // Plain token from before the hashing migration — re-key as hash.
+            valid[hashToken(token)] = expiry
+            hasPlain = true
+          }
+        }
+      }
+      return { store: { tokens: valid }, needsMigration: hasPlain }
+    }
+  } catch (err) {
+    // Corrupt store — start fresh and log so operators know.
+    console.warn(`[auth] Failed to load session store (${STORE_FILE}); starting fresh:`, err)
+  }
+  return { store: { tokens: {} }, needsMigration: false }
 }
 
 function saveStore(store: SessionStore): void {
@@ -71,11 +119,16 @@ function saveStore(store: SessionStore): void {
 // In-memory working copy
 const _tokens: Map<string, number> = new Map()
 
-// Hydrate from disk on module load
-const initial = loadStore()
-for (const [token, expiry] of Object.entries(initial.tokens)) {
+// Hydrate from disk on module load; persist immediately if plain tokens were migrated.
+const { store: _initial, needsMigration: _needsMigration } = loadStore()
+for (const [token, expiry] of Object.entries(_initial.tokens)) {
   _tokens.set(token, expiry)
 }
+
+// --- Serialized write queue (#73 write-race fix) ---
+// All disk writes are funnelled through this promise chain so concurrent
+// storeSessionToken / revokeSessionToken calls never clobber each other.
+let _writeQueue: Promise<void> = Promise.resolve()
 
 /**
  * Prune expired tokens from the store (called on every write + a periodic sweep).
@@ -93,12 +146,17 @@ function _prune(): void {
 }
 
 function _persist(): void {
-  const store: SessionStore = { tokens: Object.fromEntries(_tokens) }
-  saveStore(store)
+  const snapshot = Object.fromEntries(_tokens)
+  _writeQueue = _writeQueue.then(() => {
+    saveStore({ tokens: snapshot })
+  })
 }
 
 // Sweep expired tokens every 10 minutes
 setInterval(_prune, 10 * 60 * 1000)
+
+// Persist migrated (hashed) tokens to disk now that the write queue is set up.
+if (_needsMigration) _persist()
 
 /**
  * Generate a cryptographically secure session token.
@@ -109,20 +167,23 @@ export function generateSessionToken(): string {
 
 /**
  * Store a session token as valid (30-day TTL).
+ * Only the sha256 hash of the token is written to disk (#73).
  */
 export function storeSessionToken(token: string): void {
-  _tokens.set(token, Date.now() + TOKEN_TTL_MS)
+  _tokens.set(hashToken(token), Date.now() + TOKEN_TTL_MS)
   _persist()
 }
 
 /**
  * Check if a session token is valid and not expired.
+ * Compares against the stored hash (#73).
  */
 export function isValidSessionToken(token: string): boolean {
-  const expiry = _tokens.get(token)
+  const key = hashToken(token)
+  const expiry = _tokens.get(key)
   if (expiry === undefined) return false
   if (expiry <= Date.now()) {
-    _tokens.delete(token)
+    _tokens.delete(key)
     _persist()
     return false
   }
@@ -133,7 +194,7 @@ export function isValidSessionToken(token: string): boolean {
  * Remove a session token (logout).
  */
 export function revokeSessionToken(token: string): void {
-  _tokens.delete(token)
+  _tokens.delete(hashToken(token))
   _persist()
 }
 

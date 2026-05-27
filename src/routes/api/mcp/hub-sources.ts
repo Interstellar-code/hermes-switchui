@@ -11,6 +11,7 @@
  */
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
+import { requireJsonContentType } from '../../../server/rate-limit'
 import {
   readHubSources,
   addHubSource,
@@ -49,6 +50,8 @@ export const Route = createFileRoute('/api/mcp/hub-sources')({
         if (!isAuthenticated(request)) {
           return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
         let body: unknown
         try {
           body = await request.json()

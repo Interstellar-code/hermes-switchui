@@ -5,6 +5,7 @@
 import { createHash } from 'node:crypto';
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
+import { requireJsonContentType } from '../../server/rate-limit';
 import { getEngine } from '../../server/workflow-engine/factory';
 import { summariseWorkflowYaml } from '../../server/workflow-yaml-summary';
 
@@ -53,6 +54,8 @@ export const Route = createFileRoute('/api/workflow-definitions')({
       },
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) return json({ error: 'Unauthorized' }, 401);
+        const csrfCheck = requireJsonContentType(request);
+        if (csrfCheck) return csrfCheck;
         const engine = getEngine(request);
         const body = (await request.json()) as {
           id?: unknown;

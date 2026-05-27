@@ -12,6 +12,7 @@ import {
   ensureGatewayProbed,
   getCapabilities,
 } from '../../server/gateway-capabilities'
+import { requireJsonContentType } from '../../server/rate-limit'
 import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
 
 type AuthResult = Response | true
@@ -236,6 +237,8 @@ export const Route = createFileRoute('/api/claude-config')({
       PATCH: async ({ request }) => {
         const authResult = isAuthenticated(request) as AuthResult
         if (authResult !== true) return authResult
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
         await ensureGatewayProbed()
         if (!getCapabilities().config) {
           return new Response(

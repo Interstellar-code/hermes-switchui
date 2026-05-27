@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { json } from '@tanstack/react-start'
 import { isAuthenticated } from '../../../server/auth-middleware'
+import { requireJsonContentType } from '../../../server/rate-limit'
 import {
   readKnowledgeBaseConfig,
   type KnowledgeBaseConfig,
@@ -14,6 +15,8 @@ export const Route = createFileRoute('/api/knowledge/sync')({
         if (!isAuthenticated(request)) {
           return json({ error: 'Unauthorized' }, { status: 401 })
         }
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
 
         // Optional: allow body to override source temporarily for one-shot use
         let config: KnowledgeBaseConfig | null = null

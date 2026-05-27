@@ -41,6 +41,8 @@ export const Route = createFileRoute('/api/knowledge/write')({
         if (!isAuthenticated(request)) {
           return json({ error: 'Unauthorized' }, { status: 401 })
         }
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
         let body: { path?: string }
         try {
           body = (await request.json()) as { path?: string }

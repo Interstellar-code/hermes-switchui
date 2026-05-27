@@ -9,6 +9,7 @@
  * Direct browser-to-dashboard WebSocket is explicitly out of scope for v1.
  */
 import { createFileRoute } from '@tanstack/react-router'
+import { isAuthenticated } from '../../../server/auth-middleware'
 import { CLAUDE_DASHBOARD_URL, fetchDashboardToken } from '../../../server/gateway-capabilities'
 import { consumeEventToken } from './events-token'
 
@@ -16,6 +17,17 @@ export const Route = createFileRoute('/api/hermes-kanban/events')({
   server: {
     handlers: {
       GET: async ({ request }) => {
+        // #71: Require session auth before accepting the one-time SSE token.
+        // Without this check, unauthenticated callers could reach the stream
+        // whenever HERMES_PASSWORD is set (the one-time token only gates
+        // replay; it does not verify the caller has a valid session).
+        if (!isAuthenticated(request)) {
+          return new Response(
+            'data: {"error":"unauthorized"}\n\n',
+            { status: 401, headers: { 'Content-Type': 'text/event-stream' } },
+          )
+        }
+
         const url = new URL(request.url)
         const token = url.searchParams.get('token') ?? ''
         const since = url.searchParams.get('since') ?? '0'

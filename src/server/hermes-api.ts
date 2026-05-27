@@ -486,39 +486,47 @@ export async function streamChat(
     }
   }
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
 
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() || ''
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
 
-    for (const line of lines) {
-      if (line.startsWith('event: ')) {
-        currentEvent = line.slice(7).trim()
-        if (toolDebugStream) toolDebugStream.write(`event: ${currentEvent}\n`)
-      } else if (line.startsWith('data: ')) {
-        const dataStr = line.slice(6)
-        if (dataStr === '[DONE]') {
-          if (toolDebugStream) toolDebugStream.write('data: [DONE]\n\n')
-          continue
-        }
-        if (toolDebugStream) {
-          // Truncate very long payloads so the dump stays human-readable.
-          const trimmed =
-            dataStr.length > 4000 ? dataStr.slice(0, 4000) + '...[trunc]' : dataStr
-          toolDebugStream.write(`data: ${trimmed}\n\n`)
-        }
-        try {
-          const data = JSON.parse(dataStr) as Record<string, unknown>
-          await opts.onEvent({ event: currentEvent || 'message', data })
-        } catch {
-          // skip malformed JSON
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          currentEvent = line.slice(7).trim()
+          if (toolDebugStream) toolDebugStream.write(`event: ${currentEvent}\n`)
+        } else if (line.startsWith('data: ')) {
+          const dataStr = line.slice(6)
+          if (dataStr === '[DONE]') {
+            if (toolDebugStream) toolDebugStream.write('data: [DONE]\n\n')
+            continue
+          }
+          if (toolDebugStream) {
+            // Truncate very long payloads so the dump stays human-readable.
+            const trimmed =
+              dataStr.length > 4000 ? dataStr.slice(0, 4000) + '...[trunc]' : dataStr
+            toolDebugStream.write(`data: ${trimmed}\n\n`)
+          }
+          try {
+            const data = JSON.parse(dataStr) as Record<string, unknown>
+            await opts.onEvent({ event: currentEvent || 'message', data })
+          } catch {
+            // skip malformed JSON
+          }
         }
       }
     }
+  } finally {
+    // Always release the reader lock so the underlying connection can be
+    // returned to the pool, even if opts.onEvent() throws or the caller
+    // cancels mid-stream (#72).
+    await reader.cancel().catch(() => {})
   }
+
   if (toolDebugStream) {
     try {
       toolDebugStream.end()
