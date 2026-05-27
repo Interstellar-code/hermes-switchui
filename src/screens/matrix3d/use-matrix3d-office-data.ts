@@ -11,7 +11,104 @@ import { listCrewStatusAgents, listWorkspaceAgents } from '@/lib/workspace-agent
 import { useAgentView } from '@/hooks/use-agent-view'
 import { createDefaultAgentAvatarProfile } from '@/lib/avatars/profile'
 import { gatewayStatus as fetchGatewayStatus, getLogs } from '@/lib/hermes-client'
-import { useChatStore } from '@/stores/chat-store'
+import { useChatStore, type StreamingState } from '@/stores/chat-store'
+
+/**
+ * Rooms an agent figure can be routed to in the 3D office. `desk` is the
+ * default fallback for "working but no specific signal".
+ */
+type Matrix3DRoom = 'desk' | 'github' | 'qa' | 'phone' | 'sms' | 'server'
+
+/**
+ * Infer which room an agent should be animated in based on its most recent
+ * tool / skill activity. This intentionally ignores the agent's `lastActivity`
+ * subtitle string — that field is a status summary ("auto • running • 35%"),
+ * NOT a description of what the agent is doing, so keyword-matching against it
+ * was forcing users to phrase prompts with literal room names ("go to the
+ * gym") which is absurd UX.
+ *
+ * Signals (priority order):
+ *   1. Most recent in-flight or recently-completed tool call in StreamingState
+ *      for this agent's session — name pattern routes to a specific room.
+ *   2. `skill.loaded` events (StreamingState toolCalls with phase 'skill.loaded')
+ *      → desk (research / context loading).
+ *   3. Working but no tool signal → desk (default).
+ *
+ * Rest rooms (gym, jukebox) are NOT auto-routed: they should fire only via
+ * explicit intentional signals, not heuristics, otherwise figures wander
+ * during normal work.
+ */
+function inferActiveRoom(
+  streaming: StreamingState | undefined,
+): { room: Matrix3DRoom; signal: string } {
+  if (!streaming || streaming.toolCalls.length === 0) {
+    return { room: 'desk', signal: 'no-tool-calls' }
+  }
+
+  // Find the most recent tool call (highest firstSeenAt). Prefer non-error
+  // entries — an errored tool that completed 10s ago shouldn't pin the figure.
+  const sorted = [...streaming.toolCalls].sort(
+    (a, b) => (b.firstSeenAt ?? 0) - (a.firstSeenAt ?? 0),
+  )
+  const recent = sorted.find((tc) => tc.phase !== 'error') ?? sorted[0]
+  const name = (recent.name ?? '').toLowerCase()
+
+  // GitHub family (GitHub MCP tools, gh CLI, etc.)
+  if (
+    name.includes('github') ||
+    name.startsWith('gh_') ||
+    name.startsWith('mcp_github') ||
+    name.includes('pull_request') ||
+    name.includes('issue')
+  ) {
+    return { room: 'github', signal: `tool:${recent.name}` }
+  }
+
+  // Shell / terminal / exec → server room (where the racks live)
+  if (
+    name.includes('terminal') ||
+    name === 'bash' ||
+    name === 'shell' ||
+    name.includes('exec') ||
+    name.includes('run_command')
+  ) {
+    return { room: 'server', signal: `tool:${recent.name}` }
+  }
+
+  // Phone-style call tooling
+  if (
+    name.startsWith('phone_') ||
+    name.includes('call_tool') ||
+    name.includes('voice_')
+  ) {
+    return { room: 'phone', signal: `tool:${recent.name}` }
+  }
+
+  // SMS / text send
+  if (
+    name.startsWith('sms_') ||
+    name.includes('text_send') ||
+    name.includes('twilio')
+  ) {
+    return { room: 'sms', signal: `tool:${recent.name}` }
+  }
+
+  // QA / test runs
+  if (
+    name.includes('test') ||
+    name.includes('vitest') ||
+    name.includes('pytest') ||
+    name.includes('lint') ||
+    name.includes('typecheck')
+  ) {
+    return { room: 'qa', signal: `tool:${recent.name}` }
+  }
+
+  // Everything else (web_search, browser, gmail/mcp_gmail, vision_analyze,
+  // load_mcp_server, view_skill / load_skill / skill.loaded, delegate_task,
+  // spawn_agent, file edits, read, glob, grep, etc.) → desk.
+  return { room: 'desk', signal: `tool:${recent.name}` }
+}
 
 type AgentLike = {
   id: string
@@ -641,38 +738,55 @@ ${parseLogText(gatewayLogsQuery.data)}`
   // #89 — store-selected agent for spotlight / follow-cam
   const selectedAgentId = useMatrix3DStore((s) => s.selectedAgentId)
 
-  // #81/#85 — animationState: derive room holds from agent status + lastActivity
+  // Pull streaming state up here so animationState can derive holds from real
+  // tool-call signals rather than keyword-matching the status subtitle.
+  const streamingState = useChatStore((s) => s.streamingState)
+
+  // #81/#85 — animationState: derive room holds from each agent's most recent
+  // tool call. See `inferActiveRoom` above for the routing table and rationale.
+  // The previous implementation keyword-matched against `lastActivity` (a
+  // status string like "auto • running • 35%"), which forced users to type
+  // room names in prompts to trigger animations — a broken UX.
   const animationState = useMemo(() => {
     const deskHoldByAgentId: Record<string, boolean> = {}
-    const gymHoldByAgentId: Record<string, boolean> = {}
     const smsBoothHoldByAgentId: Record<string, boolean> = {}
     const phoneBoothHoldByAgentId: Record<string, boolean> = {}
     const qaHoldByAgentId: Record<string, boolean> = {}
     const githubHoldByAgentId: Record<string, boolean> = {}
+    // gym/jukebox are rest rooms — never auto-routed. Kept as empty records
+    // so OfficeAnimationState's required shape is satisfied.
+    const gymHoldByAgentId: Record<string, boolean> = {}
     const jukeboxHoldByAgentId: Record<string, boolean> = {}
-
     for (const p of presence) {
-      const id = p.id
-      const activity = (p.lastActivity ?? '').toLowerCase()
+      if (p.effectiveStatus !== 'working') continue
 
-      if (p.effectiveStatus === 'working') {
-        // Route to specific rooms based on activity keywords
-        if (activity.includes('github') || activity.includes('pr') || activity.includes('review')) {
-          githubHoldByAgentId[id] = true
-        } else if (activity.includes('qa') || activity.includes('test') || activity.includes('quality')) {
-          qaHoldByAgentId[id] = true
-        } else if (activity.includes('sms') || activity.includes('text message')) {
-          smsBoothHoldByAgentId[id] = true
-        } else if (activity.includes('phone') || activity.includes('call')) {
-          phoneBoothHoldByAgentId[id] = true
-        } else if (activity.includes('gym') || activity.includes('train')) {
-          gymHoldByAgentId[id] = true
-        } else if (activity.includes('jukebox') || activity.includes('music')) {
-          jukeboxHoldByAgentId[id] = true
-        } else {
-          // Default: working agents stay at desk
-          deskHoldByAgentId[id] = true
-        }
+      const sessionKey = p.activeSessionKey ?? p.id
+      const streaming = streamingState.get(sessionKey)
+      const { room } = inferActiveRoom(streaming)
+
+      switch (room) {
+        case 'github':
+          githubHoldByAgentId[p.id] = true
+          break
+        case 'qa':
+          qaHoldByAgentId[p.id] = true
+          break
+        case 'phone':
+          phoneBoothHoldByAgentId[p.id] = true
+          break
+        case 'sms':
+          smsBoothHoldByAgentId[p.id] = true
+          break
+        case 'server':
+          // No dedicated server-room hold map in OfficeAnimationState yet —
+          // route to github room which currently houses the server racks
+          // visually. Update this branch once a dedicated map is added.
+          githubHoldByAgentId[p.id] = true
+          break
+        case 'desk':
+        default:
+          deskHoldByAgentId[p.id] = true
+          break
       }
     }
 
@@ -687,10 +801,9 @@ ${parseLogText(gatewayLogsQuery.data)}`
       githubHoldByAgentId,
       jukeboxHoldByAgentId,
     }
-  }, [presence])
+  }, [presence, streamingState])
 
   // #82 — streaming speech bubbles: current streaming text per active session (≤80 chars)
-  const streamingState = useChatStore((s) => s.streamingState)
   const streamingTextByAgentId = useMemo(() => {
     const result: Record<string, string | null> = {}
     for (const p of presence) {
@@ -796,17 +909,6 @@ ${parseLogText(gatewayLogsQuery.data)}`
     }
     return result
   }, [presence, agentView.activeAgents])
-
-  if (import.meta.env.DEV && typeof window !== 'undefined') {
-    // Expose for browser console debugging: window.__matrix3dDebug
-    ;(window as any).__matrix3dDebug = {
-      presence,
-      animationState,
-      streamingTextByAgentId,
-      activeAgents: agentView.activeAgents,
-      streamingStateKeys: Array.from(useChatStore.getState().streamingState.keys()),
-    }
-  }
 
   return {
     agents,
