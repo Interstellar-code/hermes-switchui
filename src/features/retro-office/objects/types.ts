@@ -42,6 +42,7 @@ export type AgentModelProps = {
   onContextMenu?: (id: string, x: number, y: number) => void;
   showSpeech?: boolean;
   speechText?: string | null;
+  speechBubbleColor?: string;
   suppressSpeechBubble?: boolean;
   /** #88 — 0-100 progress value; renders a narrow bar above the nameplate when set */
   progress?: number;

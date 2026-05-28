@@ -59,6 +59,10 @@ export type CrewStatusAgent = {
   estimatedCostUsd: number | null
   cronJobCount: number
   assignedTaskCount: number
+  activeDelegatedSessionKey: string | null
+  activeDelegatedParentSessionKey: string | null
+  activeDelegatedTitle: string | null
+  activeDelegatedLastActiveAt: number | null
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -191,11 +195,21 @@ function normalizeCrewStatusAgent(value: unknown): CrewStatusAgent | null {
     toolCallCount: asNumber(record?.toolCallCount),
     totalTokens: asNumber(record?.totalTokens),
     estimatedCostUsd:
-      typeof record?.estimatedCostUsd === 'number' && Number.isFinite(record.estimatedCostUsd)
+      typeof record?.estimatedCostUsd === 'number' &&
+      Number.isFinite(record.estimatedCostUsd)
         ? record.estimatedCostUsd
         : null,
     cronJobCount: asNumber(record?.cronJobCount),
     assignedTaskCount: asNumber(record?.assignedTaskCount),
+    activeDelegatedSessionKey: asString(record?.activeDelegatedSessionKey),
+    activeDelegatedParentSessionKey: asString(
+      record?.activeDelegatedParentSessionKey,
+    ),
+    activeDelegatedTitle: asString(record?.activeDelegatedTitle),
+    activeDelegatedLastActiveAt:
+      typeof record?.activeDelegatedLastActiveAt === 'number'
+        ? record.activeDelegatedLastActiveAt
+        : null,
   }
 }
 
@@ -210,31 +224,6 @@ function normalizeTimestamp(value: unknown): string {
     if (!Number.isNaN(parsed)) return new Date(parsed).toISOString()
   }
   return new Date(0).toISOString()
-}
-
-function normalizeCrewMember(value: unknown): CrewStatusMember | null {
-  const record = asRecord(value)
-  const id = asString(record?.id)
-  const displayName = asString(record?.displayName)
-  if (!id || !displayName) return null
-
-  return {
-    id,
-    displayName,
-    role: asString(record?.role) ?? 'Profile',
-    profileFound: asBoolean(record?.profileFound),
-    gatewayState: asString(record?.gatewayState) ?? 'unknown',
-    processAlive: asBoolean(record?.processAlive),
-    model: asString(record?.model) ?? 'unknown',
-    provider: asString(record?.provider) ?? 'Hermes',
-    lastSessionTitle: asString(record?.lastSessionTitle),
-    lastSessionAt:
-      typeof record?.lastSessionAt === 'number' ? record.lastSessionAt : null,
-    sessionCount: asNumber(record?.sessionCount),
-    totalTokens: asNumber(record?.totalTokens),
-    cronJobCount: asNumber(record?.cronJobCount),
-    assignedTaskCount: asNumber(record?.assignedTaskCount),
-  }
 }
 
 function crewStatusToWorkspaceStatus(
@@ -303,7 +292,9 @@ function extractCrewAgents(payload: unknown): Array<WorkspaceAgentDirectory> {
   return extractCrewStatusAgents(payload).map(crewMemberToWorkspaceAgent)
 }
 
-export function extractCrewStatusAgents(payload: unknown): Array<CrewStatusAgent> {
+export function extractCrewStatusAgents(
+  payload: unknown,
+): Array<CrewStatusAgent> {
   const record = asRecord(payload)
   if (!Array.isArray(record?.crew)) return []
   return record.crew

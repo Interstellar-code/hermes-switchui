@@ -36,6 +36,7 @@ export function applyAgentCollisionBumps({
   for (let i = 0; i < moved.length; i += 1) {
     const mi = moved[i];
     if ("role" in mi && mi.role === "janitor") continue;
+    if (moved[i].status === "working") continue;
     if (
       moved[i].state === "sitting" ||
       moved[i].state === "working_out" ||

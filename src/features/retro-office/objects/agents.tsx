@@ -47,6 +47,29 @@ const clampSpeechBubbleText = (value: string) => {
   return { text: `${slice}…`, truncated: true };
 };
 
+const createRoundedRectShape = (
+  width: number,
+  height: number,
+  radius: number,
+) => {
+  const x = -width / 2;
+  const y = -height / 2;
+  const r = Math.min(radius, width / 2, height / 2);
+  const shape = new THREE.Shape();
+
+  shape.moveTo(x + r, y);
+  shape.lineTo(x + width - r, y);
+  shape.quadraticCurveTo(x + width, y, x + width, y + r);
+  shape.lineTo(x + width, y + height - r);
+  shape.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  shape.lineTo(x + r, y + height);
+  shape.quadraticCurveTo(x, y + height, x, y + height - r);
+  shape.lineTo(x, y + r);
+  shape.quadraticCurveTo(x, y, x + r, y);
+
+  return shape;
+};
+
 export const AgentModel = memo(function AgentModel({
   agentId,
   name,
@@ -62,6 +85,7 @@ export const AgentModel = memo(function AgentModel({
   onContextMenu,
   showSpeech = false,
   speechText = null,
+  speechBubbleColor,
   suppressSpeechBubble = false,
   progress,
 }: AgentModelProps) {
@@ -624,6 +648,7 @@ export const AgentModel = memo(function AgentModel({
     : { text: normalizedSpeechBubbleText, truncated: false };
   const speechBubbleDisplayText = speechBubblePreview.text;
   const speechBubbleWasTruncated = speechBubblePreview.truncated;
+  const speechBubbleTone = speechBubbleColor ?? color;
   const speechBubbleTextLength = speechBubbleDisplayText.length;
   const speechBubbleWidth = activeSpeechBubble
     ? Math.min(4.6, Math.max(1.8, 1.55 + speechBubbleTextLength * 0.018))
@@ -651,10 +676,10 @@ export const AgentModel = memo(function AgentModel({
     : 0.2;
   const speechBubbleFontSize = activeSpeechBubble
     ? speechBubbleTextLength > 110
-      ? 0.188
+      ? 0.164
       : speechBubbleTextLength > 70
-        ? 0.2
-        : 0.216
+        ? 0.176
+        : 0.19
     : 0.13;
   const speechBubbleTextColor = activeSpeechBubble
     ? "#f8fafc"
@@ -664,13 +689,33 @@ export const AgentModel = memo(function AgentModel({
         ? "#b9f99d"
         : "#a0c8ff";
   const speechBubbleBorderColor = activeSpeechBubble
-    ? status === "error"
-      ? "#ff7f93"
-      : status === "working"
-        ? "#93f57d"
-        : "#8dc4ff"
+    ? speechBubbleTone
     : "transparent";
   const speechBubbleBorderInset = activeSpeechBubble ? 0.03 : 0;
+  const speechBubbleRadius = activeSpeechBubble ? 0.22 : 0.1;
+  const speechBubbleShape = useMemo(
+    () =>
+      createRoundedRectShape(
+        speechBubbleWidth,
+        speechBubbleHeight,
+        speechBubbleRadius,
+      ),
+    [speechBubbleHeight, speechBubbleRadius, speechBubbleWidth],
+  );
+  const speechBubbleBorderShape = useMemo(
+    () =>
+      createRoundedRectShape(
+        speechBubbleWidth + speechBubbleBorderInset,
+        speechBubbleHeight + speechBubbleBorderInset,
+        speechBubbleRadius + speechBubbleBorderInset,
+      ),
+    [
+      speechBubbleBorderInset,
+      speechBubbleHeight,
+      speechBubbleRadius,
+      speechBubbleWidth,
+    ],
+  );
   const nameplateText = name ? formatAgentNameplateText(name) : "";
   const subtitleText = typeof subtitle === "string" ? subtitle.trim() : "";
   const nameplateFontSize =
@@ -1174,29 +1219,60 @@ export const AgentModel = memo(function AgentModel({
       <group ref={speechBubbleRef} visible={false}>
         <Billboard position={[0, 1.45, 0]}>
           {activeSpeechBubble ? (
-            <mesh
-              position={[-speechBubbleWidth * 0.18, -speechBubbleHeight * 0.53, -0.0005]}
-              rotation={[0, 0, Math.PI / 4]}
-              renderOrder={99997}
-            >
-              <planeGeometry args={[0.22, 0.22]} />
-              <meshBasicMaterial
-                color="#1a2030"
-                transparent
-                opacity={0.82}
-                depthTest={false}
-                depthWrite={false}
-              />
-            </mesh>
+            <group renderOrder={99997}>
+              <mesh
+                position={[
+                  -speechBubbleWidth * 0.2,
+                  -speechBubbleHeight * 0.56,
+                  -0.0005,
+                ]}
+              >
+                <circleGeometry args={[0.12, 24]} />
+                <meshBasicMaterial
+                  color={speechBubbleTone}
+                  transparent
+                  opacity={0.42}
+                  depthTest={false}
+                  depthWrite={false}
+                />
+              </mesh>
+              <mesh
+                position={[
+                  -speechBubbleWidth * 0.28,
+                  -speechBubbleHeight * 0.74,
+                  -0.0005,
+                ]}
+              >
+                <circleGeometry args={[0.075, 20]} />
+                <meshBasicMaterial
+                  color={speechBubbleTone}
+                  transparent
+                  opacity={0.34}
+                  depthTest={false}
+                  depthWrite={false}
+                />
+              </mesh>
+              <mesh
+                position={[
+                  -speechBubbleWidth * 0.34,
+                  -speechBubbleHeight * 0.9,
+                  -0.0005,
+                ]}
+              >
+                <circleGeometry args={[0.045, 18]} />
+                <meshBasicMaterial
+                  color={speechBubbleTone}
+                  transparent
+                  opacity={0.28}
+                  depthTest={false}
+                  depthWrite={false}
+                />
+              </mesh>
+            </group>
           ) : null}
           {activeSpeechBubble ? (
             <mesh position={[0, 0, -0.0015]} renderOrder={99998}>
-              <planeGeometry
-                args={[
-                  speechBubbleWidth + speechBubbleBorderInset,
-                  speechBubbleHeight + speechBubbleBorderInset,
-                ]}
-              />
+              <shapeGeometry args={[speechBubbleBorderShape]} />
               <meshBasicMaterial
                 color={speechBubbleBorderColor}
                 transparent
@@ -1207,12 +1283,12 @@ export const AgentModel = memo(function AgentModel({
             </mesh>
           ) : null}
           <mesh position={[0, 0, -0.001]} renderOrder={99999}>
-            <planeGeometry args={[speechBubbleWidth, speechBubbleHeight]} />
+            <shapeGeometry args={[speechBubbleShape]} />
             <meshBasicMaterial
               ref={speechBubbleMatRef}
-              color="#1a2030"
+              color={activeSpeechBubble ? speechBubbleTone : "#1a2030"}
               transparent
-              opacity={activeSpeechBubble ? 0.76 : 0.92}
+              opacity={activeSpeechBubble ? 0.34 : 0.92}
               depthTest={false}
               depthWrite={false}
             />

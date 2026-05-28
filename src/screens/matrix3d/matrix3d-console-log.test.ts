@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { buildLogEntries, shouldSuppressConsoleLine } from './matrix3d-console-log'
+import {
+  buildLogEntries,
+  shouldSuppressConsoleLine,
+} from './matrix3d-console-log'
 
 describe('matrix3d-console-log', () => {
   it('suppresses gateway health chatter', () => {
@@ -92,5 +95,40 @@ describe('matrix3d-console-log', () => {
     expect(entries).toHaveLength(2)
     expect(entries[0]?.noisy).toBe(true)
     expect(entries[1]?.noisy).toBe(false)
+  })
+
+  it('parses full local timestamps and cleans the rendered message prefix', () => {
+    const entries = buildLogEntries(
+      {
+        lines: [
+          '2026-05-28 23:27:03,853 INFO gateway.platforms.telegram: Telegram button resolved',
+        ],
+      },
+      'gateway',
+      [],
+    )
+
+    expect(entries[0]).toMatchObject({
+      time: '23:27:03',
+      timestampMs: expect.any(Number),
+      agent: 'GATEWAY',
+      message: 'INFO gateway.platforms.telegram: Telegram button resolved',
+    })
+  })
+
+  it('does not treat aiohttp access date brackets as agent labels', () => {
+    const entries = buildLogEntries(
+      {
+        lines: [
+          '2026-05-28 23:28:23,298 INFO aiohttp.access: 127.0.0.1 [28/May/2026:23:28:23 +0200] "GET /api/tasks?include_done=false HTTP/1.1" 500 174 "-" "node"',
+        ],
+      },
+      'gateway',
+      [],
+      { includeNoise: true },
+    )
+
+    expect(entries[0]?.agent).toBe('API')
+    expect(entries[0]?.time).toBe('23:28:23')
   })
 })

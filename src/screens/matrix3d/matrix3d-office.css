@@ -243,11 +243,11 @@
   max-width: 104px;
   overflow: hidden;
   border: 1px solid;
-  border-radius: 7px 7px 7px 2px;
+  border-radius: 999px;
   margin-bottom: 3px;
   background: rgba(7, 19, 10, 0.92);
-  font: 400 8.5px/1.35 var(--m-font-mono);
-  padding: 3px 7px;
+  font: 400 7.5px/1.28 var(--m-font-mono);
+  padding: 3px 6px;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;

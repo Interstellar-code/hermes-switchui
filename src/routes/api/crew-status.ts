@@ -1,11 +1,19 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { isAuthenticated } from '../../server/auth-middleware'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
+import { createFileRoute } from '@tanstack/react-router'
 import * as yaml from 'yaml'
-import { BEARER_TOKEN, CLAUDE_API, ensureGatewayProbed } from '../../server/gateway-capabilities'
-import { getClaudeRoot, getProfileClaudeHome, getWorkspaceClaudeHome } from '../../server/claude-paths'
+import { isAuthenticated } from '../../server/auth-middleware'
+import {
+  BEARER_TOKEN,
+  CLAUDE_API,
+  ensureGatewayProbed,
+} from '../../server/gateway-capabilities'
+import {
+  getClaudeRoot,
+  getProfileClaudeHome,
+  getWorkspaceClaudeHome,
+} from '../../server/claude-paths'
 
 type CrewDefinition = {
   id: string
@@ -24,6 +32,13 @@ type DbStats = {
   lastSessionAt: number | null
 }
 
+type DelegatedActivity = {
+  activeDelegatedSessionKey: string
+  activeDelegatedParentSessionKey: string
+  activeDelegatedTitle: string | null
+  activeDelegatedLastActiveAt: number
+}
+
 function titleCase(value: string): string {
   return value
     .split(/[-_\s]+/)
@@ -32,7 +47,7 @@ function titleCase(value: string): string {
     .join(' ')
 }
 
-function buildCrewDefinitions(): CrewDefinition[] {
+function buildCrewDefinitions(): Array<CrewDefinition> {
   const profilesDir = join(getClaudeRoot(), 'profiles')
   const dynamicProfiles = existsSync(profilesDir)
     ? readdirSync(profilesDir, { withFileTypes: true })
@@ -51,7 +66,12 @@ function buildCrewDefinitions(): CrewDefinition[] {
     : []
 
   return [
-    { id: 'workspace', displayName: 'Workspace', role: 'Primary profile', profilePath: null },
+    {
+      id: 'workspace',
+      displayName: 'Workspace',
+      role: 'Primary profile',
+      profilePath: null,
+    },
     ...dynamicProfiles.map((profile) => ({
       id: profile,
       displayName: titleCase(profile),
@@ -62,12 +82,20 @@ function buildCrewDefinitions(): CrewDefinition[] {
 }
 
 function getClaudeHome(profilePath: string | null): string {
-  return profilePath ? getProfileClaudeHome(profilePath) : getWorkspaceClaudeHome()
+  return profilePath
+    ? getProfileClaudeHome(profilePath)
+    : getWorkspaceClaudeHome()
 }
 
 function readGatewayState(claudeHome: string) {
   const path = join(claudeHome, 'gateway_state.json')
-  if (!existsSync(path)) return { pid: null, gatewayState: 'unknown', platforms: {}, updatedAt: null }
+  if (!existsSync(path))
+    return {
+      pid: null,
+      gatewayState: 'unknown',
+      platforms: {},
+      updatedAt: null,
+    }
   try {
     const raw = JSON.parse(readFileSync(path, 'utf-8'))
     return {
@@ -77,7 +105,12 @@ function readGatewayState(claudeHome: string) {
       updatedAt: raw.updated_at ?? null,
     }
   } catch {
-    return { pid: null, gatewayState: 'unknown', platforms: {}, updatedAt: null }
+    return {
+      pid: null,
+      gatewayState: 'unknown',
+      platforms: {},
+      updatedAt: null,
+    }
   }
 }
 
@@ -173,7 +206,10 @@ function readConfig(claudeHome: string): { model: string; provider: string } {
   const configPath = join(claudeHome, 'config.yaml')
   if (!existsSync(configPath)) return { model: 'unknown', provider: 'unknown' }
   try {
-    const raw = yaml.parse(readFileSync(configPath, 'utf-8')) as Record<string, unknown>
+    const raw = yaml.parse(readFileSync(configPath, 'utf-8')) as Record<
+      string,
+      unknown
+    >
     const modelVal = raw.model
     const providerVal = raw.provider
 
@@ -209,6 +245,147 @@ function readCronJobCount(claudeHome: string): number {
   }
 }
 
+function readHermesSwitchDelegatedActivity(): Record<
+  string,
+  DelegatedActivity
+> {
+  const dbPath = join(getProfileClaudeHome('hermes-switch'), 'state.db')
+  if (!existsSync(dbPath)) return {}
+
+  try {
+    const script = `
+import json, re, sqlite3, sys, time
+
+path = sys.argv[1]
+cutoff = time.time() - 300
+out = {}
+
+def normalize_agent(value):
+    value = (value or '').strip().lower()
+    value = re.sub(r'[^a-z0-9_-]+', '-', value).strip('-')
+    return value
+
+def first_json_object(value):
+    if not value:
+        return None
+    try:
+        return json.loads(value)
+    except Exception:
+        return None
+
+conn = sqlite3.connect(path)
+conn.row_factory = sqlite3.Row
+cur = conn.cursor()
+
+has_sessions = cur.execute(
+  "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sessions' LIMIT 1"
+).fetchone()
+has_messages = cur.execute(
+  "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'messages' LIMIT 1"
+).fetchone()
+if has_sessions is None or has_messages is None:
+    conn.close()
+    print(json.dumps(out))
+    raise SystemExit(0)
+
+goal_to_agent = {}
+for row in cur.execute("SELECT tool_calls FROM messages WHERE tool_calls IS NOT NULL"):
+    calls = first_json_object(row["tool_calls"])
+    if not isinstance(calls, list):
+        continue
+    for call in calls:
+        fn = call.get("function") if isinstance(call, dict) else None
+        if not isinstance(fn, dict) or fn.get("name") != "delegate_task":
+            continue
+        args = first_json_object(fn.get("arguments"))
+        if not isinstance(args, dict):
+            continue
+        goal = (args.get("goal") or "").strip()
+        context = args.get("context") or ""
+        match = re.search(r"\\byou\\s+are\\s+([A-Za-z0-9_-]+)\\b", context, re.I)
+        if goal and match:
+            goal_to_agent[goal] = normalize_agent(match.group(1))
+
+fallback_keywords = [
+    ("neo", ["gateway", "logs", "log", "errors", "warnings", "infra", "technical"]),
+    ("trinity", ["finance", "financial", "market", "markets", "gold", "silver", "bitcoin", "ethereum", "crude"]),
+    ("morpheus", ["website", "marketing", "positioning", "cta", "ctas", "messaging", "design"]),
+]
+
+children = cur.execute("""
+SELECT
+  s.id,
+  s.parent_session_id,
+  s.started_at,
+  s.title,
+  MAX(m.timestamp) AS last_active
+FROM sessions s
+LEFT JOIN messages m ON m.session_id = s.id
+WHERE s.parent_session_id IS NOT NULL
+  AND s.ended_at IS NULL
+GROUP BY s.id
+HAVING last_active IS NOT NULL AND last_active >= ?
+ORDER BY last_active DESC
+""", (cutoff,)).fetchall()
+
+for child in children:
+    first = cur.execute(
+      "SELECT content FROM messages WHERE session_id = ? AND role = 'user' ORDER BY timestamp ASC, id ASC LIMIT 1",
+      (child["id"],),
+    ).fetchone()
+    prompt = ((first["content"] if first else None) or "").strip()
+    agent = goal_to_agent.get(prompt)
+    if agent is None:
+        lower = prompt.lower()
+        best_agent = None
+        best_score = 0
+        for candidate, words in fallback_keywords:
+            score = sum(1 for word in words if word in lower)
+            if score > best_score:
+                best_agent = candidate
+                best_score = score
+        agent = best_agent if best_score > 0 else None
+    if not agent:
+        continue
+
+    current = out.get(agent)
+    last_active = float(child["last_active"])
+    if current and current["activeDelegatedLastActiveAt"] >= last_active:
+        continue
+    out[agent] = {
+      "activeDelegatedSessionKey": child["id"],
+      "activeDelegatedParentSessionKey": child["parent_session_id"],
+      "activeDelegatedTitle": child["title"] or prompt[:180] or None,
+      "activeDelegatedLastActiveAt": last_active,
+    }
+
+conn.close()
+print(json.dumps(out))
+`
+    const raw = execFileSync('python3', ['-c', script, dbPath], {
+      encoding: 'utf-8',
+      timeout: 3_000,
+    })
+    return JSON.parse(raw) as Record<string, DelegatedActivity>
+  } catch {
+    return {}
+  }
+}
+
+function emptyDelegatedActivity(): {
+  activeDelegatedSessionKey: null
+  activeDelegatedParentSessionKey: null
+  activeDelegatedTitle: null
+  activeDelegatedLastActiveAt: null
+} {
+  return {
+    activeDelegatedSessionKey: null,
+    activeDelegatedParentSessionKey: null,
+    activeDelegatedTitle: null,
+    activeDelegatedLastActiveAt: null,
+  }
+}
+
 async function fetchAssignedTaskCounts(): Promise<Record<string, number>> {
   try {
     const res = await fetch(`${CLAUDE_API}/api/tasks?include_done=false`, {
@@ -217,7 +394,7 @@ async function fetchAssignedTaskCounts(): Promise<Record<string, number>> {
     })
     if (!res.ok) return {}
 
-    const data = await res.json() as {
+    const data = (await res.json()) as {
       tasks?: Array<{ assignee?: string | null; column?: string | null }>
     }
 
@@ -243,10 +420,13 @@ export const Route = createFileRoute('/api/crew-status')({
         await ensureGatewayProbed()
         const taskCounts = await fetchAssignedTaskCounts()
         const crewDefinitions = buildCrewDefinitions()
+        const delegatedActivity = readHermesSwitchDelegatedActivity()
 
         const crew = crewDefinitions.map((member) => {
           const claudeHome = getClaudeHome(member.profilePath)
           const profileFound = existsSync(claudeHome)
+          const delegated =
+            delegatedActivity[member.id] ?? emptyDelegatedActivity()
 
           if (!profileFound) {
             return {
@@ -268,6 +448,7 @@ export const Route = createFileRoute('/api/crew-status')({
               estimatedCostUsd: null,
               cronJobCount: 0,
               assignedTaskCount: taskCounts[member.id] ?? 0,
+              ...delegated,
             }
           }
 
@@ -294,6 +475,7 @@ export const Route = createFileRoute('/api/crew-status')({
             estimatedCostUsd: dbStats.estimatedCostUsd,
             cronJobCount: readCronJobCount(claudeHome),
             assignedTaskCount: taskCounts[member.id] ?? 0,
+            ...delegated,
           }
         })
 

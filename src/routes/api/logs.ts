@@ -2,7 +2,10 @@ import fs from 'node:fs/promises'
 import { join } from 'node:path'
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
-import { getWorkspaceClaudeHome } from '../../server/claude-paths'
+import {
+  getProfileClaudeHome,
+  getWorkspaceClaudeHome,
+} from '../../server/claude-paths'
 import {
   BEARER_TOKEN,
   CLAUDE_API,
@@ -27,33 +30,41 @@ function normalizeLogFile(value: string): 'agent' | 'gateway' {
     : 'agent'
 }
 
-async function readLocalLogs(file: 'agent' | 'gateway', lines: number): Promise<Response | null> {
+async function readLocalLogs(
+  file: 'agent' | 'gateway',
+  lines: number,
+): Promise<Response | null> {
   const filename = file === 'gateway' ? 'gateway.log' : 'agent.log'
   const candidates = [
+    join(getProfileClaudeHome('hermes-switch'), 'logs', filename),
     join(getWorkspaceClaudeHome(), 'logs', filename),
     file === 'gateway' ? '/tmp/hermes-switchui-gateway.log' : '',
-    file === 'gateway' ? '/tmp/hermes-switchui-gateway.log' : '',
   ].filter(Boolean)
+  const readable = []
 
   for (const path of candidates) {
     try {
-      const raw = await fs.readFile(path, 'utf-8')
-      const tail = raw
-        .split(/\r?\n/)
-        .filter(Boolean)
-        .slice(-lines)
-      return Response.json({
-        file,
-        source: 'local-fallback',
-        path,
-        lines: tail,
-      })
+      const [raw, stat] = await Promise.all([
+        fs.readFile(path, 'utf-8'),
+        fs.stat(path),
+      ])
+      readable.push({ path, raw, mtimeMs: stat.mtimeMs })
     } catch {
       // try next candidate
     }
   }
 
-  return null
+  if (readable.length === 0) return null
+
+  const [newest] = readable.sort((a, b) => b.mtimeMs - a.mtimeMs)
+  const tail = newest.raw.split(/\r?\n/).filter(Boolean).slice(-lines)
+  return Response.json({
+    file,
+    source: 'local-fallback',
+    path: newest.path,
+    mtimeMs: newest.mtimeMs,
+    lines: tail,
+  })
 }
 
 export const Route = createFileRoute('/api/logs')({
@@ -61,7 +72,10 @@ export const Route = createFileRoute('/api/logs')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json(
+            { ok: false, error: 'Unauthorized' },
+            { status: 401 },
+          )
         }
 
         const capabilities = await ensureGatewayProbed()
@@ -74,7 +88,12 @@ export const Route = createFileRoute('/api/logs')({
 
         const url = new URL(request.url)
         const file = normalizeLogFile(url.searchParams.get('file') || 'agent')
-        const lines = readPositiveInt(url.searchParams.get('lines'), 120, 1, 500)
+        const lines = readPositiveInt(
+          url.searchParams.get('lines'),
+          120,
+          1,
+          500,
+        )
         const search = new URLSearchParams()
         search.set('lines', String(lines))
         search.set('file', file)
@@ -90,22 +109,28 @@ export const Route = createFileRoute('/api/logs')({
 
         let upstream: Response
         try {
-          upstream = await fetch(`${CLAUDE_API}/api/logs?${search.toString()}`, {
-            headers,
-            signal: AbortSignal.timeout(5_000),
-          })
+          upstream = await fetch(
+            `${CLAUDE_API}/api/logs?${search.toString()}`,
+            {
+              headers,
+              signal: AbortSignal.timeout(5_000),
+            },
+          )
         } catch (error) {
           return Response.json(
             {
               ok: false,
               error:
-                error instanceof Error ? error.message : 'Failed to reach Hermes logs API.',
+                error instanceof Error
+                  ? error.message
+                  : 'Failed to reach Hermes logs API.',
             },
             { status: 502 },
           )
         }
 
-        const contentType = upstream.headers.get('content-type') || 'application/json'
+        const contentType =
+          upstream.headers.get('content-type') || 'application/json'
         const bodyText = await upstream.text()
         if (!upstream.ok) {
           if (upstream.status === 404 || upstream.status === 501) {
