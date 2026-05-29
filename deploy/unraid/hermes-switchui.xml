@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>hermes-switchui</Name>
+  <Repository>ghcr.io/interstellar-code/hermes-switchui:latest</Repository>
+  <Registry>https://github.com/Interstellar-code/hermes-switchui/pkgs/container/hermes-switchui</Registry>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/Interstellar-code/hermes-switchui/issues</Support>
+  <Project>https://github.com/Interstellar-code/hermes-switchui</Project>
+  <Overview>Hermes Switch UI bundled with the upstream Hermes Agent gateway in one self-contained container. The UI listens on port 3000; Hermes Agent state persists under /opt/data.</Overview>
+  <Category>Productivity: Tools: Network:Web</Category>
+  <WebUI>http://[IP]:[PORT:3000]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/Interstellar-code/hermes-switchui/main/deploy/unraid/hermes-switchui.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/Interstellar-code/hermes-switchui/main/public/favicon.svg</Icon>
+  <ExtraParams></ExtraParams>
+  <PostArgs></PostArgs>
+  <CPUset></CPUset>
+  <DateInstalled></DateInstalled>
+  <DonateText></DonateText>
+  <DonateLink></DonateLink>
+  <Requires>Set HERMES_PASSWORD before first start. Add at least one provider API key, or configure a local provider from onboarding.</Requires>
+  <Config Name="Web UI Port" Target="3000" Default="3000" Mode="tcp" Description="Host port for Hermes Switch UI. Container port must remain 3000." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+  <Config Name="Hermes Data" Target="/opt/data" Default="/mnt/user/appdata/hermes-switchui" Mode="rw" Description="Persistent Hermes Agent and Switch UI state: config, sessions, skills, memory, credentials, profiles, logs." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/hermes-switchui</Config>
+  <Config Name="HERMES_PASSWORD" Target="HERMES_PASSWORD" Default="" Description="Required UI login password. Use a strong secret because the app controls terminals, files, agents, and jobs." Type="Variable" Display="always" Required="true" Mask="true"></Config>
+  <Config Name="PUID" Target="PUID" Default="99" Description="Unraid file-owner UID for files created in appdata. 99 is nobody on standard Unraid." Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Description="Unraid file-owner GID for files created in appdata. 100 is users on standard Unraid." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="API_SERVER_KEY" Target="API_SERVER_KEY" Default="" Description="Optional bearer token for the bundled Hermes Agent gateway. If set, Switch UI uses the same value via HERMES_API_TOKEN." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="HERMES_API_TOKEN" Target="HERMES_API_TOKEN" Default="" Description="Optional gateway bearer token. Leave blank unless API_SERVER_KEY is set; if set, use the same value." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="ANTHROPIC_API_KEY" Target="ANTHROPIC_API_KEY" Default="" Description="Optional Anthropic provider API key for the bundled Hermes Agent." Type="Variable" Display="always" Required="false" Mask="true"></Config>
+  <Config Name="OPENAI_API_KEY" Target="OPENAI_API_KEY" Default="" Description="Optional OpenAI provider API key for the bundled Hermes Agent." Type="Variable" Display="always" Required="false" Mask="true"></Config>
+  <Config Name="OPENROUTER_API_KEY" Target="OPENROUTER_API_KEY" Default="" Description="Optional OpenRouter provider API key for the bundled Hermes Agent." Type="Variable" Display="always" Required="false" Mask="true"></Config>
+  <Config Name="GOOGLE_API_KEY" Target="GOOGLE_API_KEY" Default="" Description="Optional Google/Gemini provider API key for the bundled Hermes Agent." Type="Variable" Display="always" Required="false" Mask="true"></Config>
+  <Config Name="GROQ_API_KEY" Target="GROQ_API_KEY" Default="" Description="Optional Groq provider API key for the bundled Hermes Agent." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="MISTRAL_API_KEY" Target="MISTRAL_API_KEY" Default="" Description="Optional Mistral provider API key for the bundled Hermes Agent." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="COOKIE_SECURE" Target="COOKIE_SECURE" Default="0" Description="Set to 1 only when accessing through HTTPS. Keep 0 for normal plain-http Unraid LAN use so login cookies work." Type="Variable" Display="advanced" Required="false" Mask="false">0</Config>
+  <Config Name="TRUST_PROXY" Target="TRUST_PROXY" Default="" Description="Set to 1 only behind a trusted reverse proxy that sanitizes forwarded headers." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="HERMES_ALLOW_INSECURE_REMOTE" Target="HERMES_ALLOW_INSECURE_REMOTE" Default="0" Description="Not recommended. Bypass startup guard if HERMES_PASSWORD is unset on non-loopback bind." Type="Variable" Display="advanced-hide" Required="false" Mask="false">0</Config>
+</Container>

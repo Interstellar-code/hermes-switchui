@@ -1,0 +1,14 @@
+#!/command/with-contenv sh
+# shellcheck shell=sh
+# Self-contained Switch UI image: run the Hermes Agent gateway in-process.
+set -eu
+
+export HOME="${HERMES_HOME:-/opt/data}"
+export API_SERVER_ENABLED="${API_SERVER_ENABLED:-true}"
+export API_SERVER_HOST="${API_SERVER_HOST:-127.0.0.1}"
+
+cd "$HOME"
+# shellcheck disable=SC1091
+. /opt/hermes/.venv/bin/activate
+
+exec s6-setuidgid hermes hermes gateway run
