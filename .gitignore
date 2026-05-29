@@ -156,3 +156,6 @@ graphify-out/
 .omo/
 docs/Design Assets/Hermes-Switchui/matrix-landing/.astro/
 docs/Design Assets/Hermes-Switchui/matrix-landing/node_modules/
+
+# Local agent instructions
+AGENTS.md
