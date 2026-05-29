@@ -898,15 +898,22 @@ export const Route = createFileRoute('/api/send-stream')({
               // tool_calls" can resolve to the previous turn, surfacing stale
               // tool cards (off-by-one-turn bug).
               let liveBaselineCount = 0
-              try {
-                const baseline = (await getSessionMessagesFromAgent(
-                  sessionKey,
-                )) as unknown as Array<Record<string, unknown>>
-                if (Array.isArray(baseline)) liveBaselineCount = baseline.length
-              } catch {
-                liveBaselineCount = 0
-              }
               const livePollerPromise = (async () => {
+                // Snapshot the baseline message count INSIDE the poller rather
+                // than awaiting it before streamChat(). The old pre-await added
+                // a full gateway round-trip to first-token latency on every
+                // send. The fetch still runs first (before the 600ms delay) so
+                // the baseline is captured at run-start and the off-by-one
+                // tool-card guard still holds.
+                try {
+                  const baseline = (await getSessionMessagesFromAgent(
+                    sessionKey,
+                  )) as unknown as Array<Record<string, unknown>>
+                  if (Array.isArray(baseline))
+                    liveBaselineCount = baseline.length
+                } catch {
+                  liveBaselineCount = 0
+                }
                 // Initial small delay so the agent has time to ingest the
                 // user message before we start asking for session state.
                 await new Promise((r) => setTimeout(r, 600))

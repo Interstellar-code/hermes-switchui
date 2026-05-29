@@ -3,6 +3,7 @@
 import React, {
   createContext,
   useContext,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -116,7 +117,11 @@ function PromptInput({
   const [internalValue, setInternalValue] = useState(value || '')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  bindGlobalPromptListener()
+  // Bind once on mount — never call in the render body (side-effect-in-render
+  // violation that can contribute to React's "too many re-renders" guard).
+  useEffect(() => {
+    bindGlobalPromptListener()
+  }, [])
 
   function handleChange(newValue: string) {
     setInternalValue(newValue)

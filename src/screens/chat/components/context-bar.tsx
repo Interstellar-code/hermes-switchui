@@ -9,6 +9,7 @@ import {
   PreviewCardTrigger,
 } from '@/components/ui/preview-card'
 import { useSessionStatus } from '@/hooks/use-session-status'
+import { useContextUsageStore } from '@/stores/context-usage-store'
 import { fetchSessions } from '@/screens/chat/chat-queries'
 
 type ModelCatalogEntry = {
@@ -68,6 +69,11 @@ function ContextBarComponent({
   sessionId?: string
 }) {
   const status = useSessionStatus(sessionId)
+  // Live percent pushed from the SSE stream (usage.update / compaction events).
+  // Updates instantly during a turn; the 15s status poll only refreshes between.
+  const liveContextPercent = useContextUsageStore((s) =>
+    s.sessionKey === sessionId ? s.contextPercent : 0,
+  )
   const sessionsQuery = useQuery({
     queryKey: ['chat', 'sessions', 'raw'],
     queryFn: fetchSessions,
@@ -100,7 +106,11 @@ function ContextBarComponent({
   const fallbackPct =
     fallbackMax > 0 ? Math.min(100, (fallbackUsed / fallbackMax) * 100) : 0
   const effectivePct =
-    status.contextPercent > 0 ? status.contextPercent : fallbackPct
+    liveContextPercent > 0
+      ? Math.max(liveContextPercent, status.contextPercent)
+      : status.contextPercent > 0
+        ? status.contextPercent
+        : fallbackPct
   const effectiveUsed = status.usedTokens > 0 ? status.usedTokens : fallbackUsed
   const effectiveMax = status.maxTokens > 0 ? status.maxTokens : fallbackMax
   const [showLabel, setShowLabel] = useState(false)

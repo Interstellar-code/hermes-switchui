@@ -1165,8 +1165,12 @@ function ChatComposerComponent({
   }, [modelsQuery.data])
   // Derive the label directly from the store so navigation between sessions
   // updates without a render-window flash from a stale React-state mirror.
+  // Show the configured default (e.g. manifest/auto) until the user explicitly
+  // picks a model for THIS session. The gateway-resolved upstream model
+  // (currentModel, e.g. gpt-5.x) must NOT override the default label — that was
+  // the start-of-session desync where the pill flipped from auto to gpt-5.4.
   const modelButtonLabel =
-    persistedSessionModel || currentModel || configuredModel || '⚕ Hermes Agent'
+    persistedSessionModel || configuredModel || currentModel || '⚕ Hermes Agent'
 
   // Measure composer height and set CSS variable for scroll padding
   useLayoutEffect(() => {

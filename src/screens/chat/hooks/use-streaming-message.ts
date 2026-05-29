@@ -990,8 +990,18 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
         }
 
         const lifecyclePhase = lifecyclePhaseRef.current as StreamLifecyclePhase
-        if (!finishedRef.current && lifecyclePhase !== 'handoff') {
-          finishStream()
+        if (!finishedRef.current) {
+          // Natural HTTP stream close. If any assistant text already streamed,
+          // finalize regardless of phase: a gateway that closes the connection
+          // without an explicit `done`/`close` SSE event (e.g. upstream drop
+          // after partial output) would otherwise strand the UI on "Thinking…"
+          // until the 120s/300s no-activity timeout, forcing a manual refresh
+          // (Bug 5 "no update until refresh" + Bug 6 lingering thinking bubble).
+          // Only keep the run alive in handoff when nothing has streamed yet —
+          // a genuine background continuation the user can recover from history.
+          if (fullTextRef.current || lifecyclePhase !== 'handoff') {
+            finishStream()
+          }
         }
       } catch (err) {
         if ((err as Error).name === 'AbortError') {
