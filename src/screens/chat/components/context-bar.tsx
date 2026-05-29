@@ -306,9 +306,9 @@ function ContextBarComponent({
                 {formatTokens(effectiveUsed)} / {formatTokens(effectiveMax)}{' '}
                 tokens
               </span>
-              {status.model ? (
+              {activeModel ? (
                 <span className="max-w-[100px] truncate text-primary-400">
-                  {status.model}
+                  {activeModel}
                 </span>
               ) : null}
             </div>
@@ -411,9 +411,9 @@ function ContextBarComponent({
               {formatTokens(effectiveUsed)} / {formatTokens(effectiveMax)}{' '}
               tokens
             </span>
-            {status.model && (
+            {activeModel && (
               <span className="text-[10px] text-primary-400 truncate max-w-[100px]">
-                {status.model}
+                {activeModel}
               </span>
             )}
           </div>
