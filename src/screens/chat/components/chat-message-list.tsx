@@ -179,6 +179,9 @@ type ThinkingBubbleProps = {
   liveToolActivity?: Array<{ name: string; timestamp: number }>
   researchCard?: UseResearchCardResult
   isCompacting?: boolean
+  /** Live, human-readable summary of what the agent is doing right now,
+   *  polled from the gateway run during long quiet waits. Display only. */
+  liveProgressLabel?: string
 }
 
 /**
@@ -191,6 +194,7 @@ function ThinkingBubble({
   liveToolActivity: _liveToolActivity = [],
   researchCard,
   isCompacting = false,
+  liveProgressLabel = '',
 }: ThinkingBubbleProps) {
   const statusLabel = isCompacting ? 'Compacting context...' : 'Thinking…'
 
@@ -290,6 +294,15 @@ function ThinkingBubble({
                   ) : null}
                 </span>
               </div>
+              {liveProgressLabel && !isCompacting ? (
+                <div
+                  className="mt-1 truncate font-mono text-[11px] opacity-70"
+                  style={{ color: 'var(--theme-muted)' }}
+                  title={liveProgressLabel}
+                >
+                  {liveProgressLabel}
+                </div>
+              ) : null}
               {canExpandResearch ? (
                 <div className="mt-1 flex items-center gap-2 text-[11px] text-primary-500 dark:text-primary-400">
                   <span>
@@ -610,6 +623,8 @@ type ChatMessageListProps = {
   researchCard?: UseResearchCardResult
   hideSystemMessages?: boolean
   isCompacting?: boolean
+  /** Live progress summary polled from the gateway run during long waits. */
+  liveProgressLabel?: string
   /** True while the HTTP send request is in-flight (before waitingForResponse
    *  can confirm the server received it). Keeps the thinking indicator visible
    *  during the very first render after the user submits. */
@@ -642,6 +657,7 @@ function ChatMessageListComponent({
   researchCard,
   hideSystemMessages = false,
   isCompacting = false,
+  liveProgressLabel = '',
   sending = false,
 }: ChatMessageListProps) {
   const anchorRef = useRef<HTMLDivElement | null>(null)
@@ -1913,6 +1929,7 @@ function ChatMessageListComponent({
                   liveToolActivity={liveToolActivity}
                   researchCard={researchCard}
                   isCompacting={isCompacting}
+                  liveProgressLabel={liveProgressLabel}
                 />
                 {/* Branch from the thinking bubble into a single compact
                     TUI-style tool activity card. Use normalized streaming calls

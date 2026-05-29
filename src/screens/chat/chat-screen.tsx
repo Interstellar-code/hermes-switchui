@@ -954,6 +954,92 @@ export function ChatScreen({
     return () => window.clearInterval(interval)
   }, [waitingForResponse, resolvedSessionKey, sseConnectionState, streamFinish])
 
+  // Live progress: while waiting, poll the gateway run and surface a short
+  // human summary of what the agent is doing (a tool in flight, tools done, or
+  // an assistant-text tail) in the thinking bubble. DISPLAY ONLY — never clears
+  // the waiting state. Skips updates while live text is already streaming in.
+  const [liveProgressLabel, setLiveProgressLabel] = useState('')
+  useEffect(() => {
+    if (!waitingForResponse || !resolvedSessionKey) {
+      setLiveProgressLabel('')
+      return
+    }
+    const ac = new AbortController()
+    const verbForTool = (name: string): string => {
+      const n = (name || '').toLowerCase()
+      if (n.includes('terminal') || n.includes('bash') || n.includes('shell'))
+        return 'Running terminal'
+      if (n.includes('write') || n.includes('edit') || n.includes('create'))
+        return 'Writing file'
+      if (n.includes('read') || n.includes('view') || n.includes('cat'))
+        return 'Reading file'
+      if (
+        n.includes('search') ||
+        n.includes('grep') ||
+        n.includes('glob') ||
+        n.includes('find')
+      )
+        return 'Searching'
+      if (n.includes('skill')) return 'Loading skill'
+      if (n.includes('mcp')) return `Calling ${name}`
+      if (n.includes('fetch') || n.includes('http') || n.includes('web'))
+        return 'Fetching'
+      return name ? `Running ${name}` : 'Working'
+    }
+    const poll = async () => {
+      // Live deltas already render inline — no need for the summary line.
+      if (activeRealtimeStreamingRef.current) return
+      try {
+        const res = await fetch(
+          `/api/sessions/${encodeURIComponent(resolvedSessionKey)}/active-run`,
+          { signal: ac.signal },
+        )
+        if (!res.ok) return
+        const data = await res.json()
+        if (ac.signal.aborted || !data.ok || !data.run) return
+        const run = data.run
+        const tools: Array<{ name?: string; phase?: string; preview?: string }> =
+          Array.isArray(run.toolCalls) ? run.toolCalls : []
+        const inFlight = [...tools]
+          .reverse()
+          .find((t) => t.phase === 'calling' || t.phase === 'running')
+        let label = ''
+        if (inFlight) {
+          label = verbForTool(inFlight.name ?? '')
+          if (inFlight.preview && inFlight.preview !== inFlight.name) {
+            label = `${label}: ${inFlight.preview}`
+          }
+        } else {
+          const done = tools.filter(
+            (t) =>
+              t.phase === 'complete' ||
+              t.phase === 'done' ||
+              t.phase === 'result',
+          ).length
+          if (done > 0) {
+            label = `Ran ${done} ${done === 1 ? 'tool' : 'tools'}…`
+          } else if (
+            typeof run.assistantText === 'string' &&
+            run.assistantText.trim()
+          ) {
+            const tail = run.assistantText.trim().replace(/\s+/g, ' ')
+            label = tail.length > 80 ? `…${tail.slice(-80)}` : tail
+          }
+        }
+        // Already returned above if aborted; no await since, so safe to set.
+        setLiveProgressLabel(label)
+      } catch {
+        // ignore network/abort errors
+      }
+    }
+    void poll()
+    const interval = window.setInterval(poll, 3000)
+    return () => {
+      ac.abort()
+      window.clearInterval(interval)
+    }
+  }, [waitingForResponse, resolvedSessionKey])
+
   useAutoSessionTitle({
     friendlyId: activeFriendlyId,
     sessionKey: resolvedSessionKey,
@@ -2781,6 +2867,7 @@ export function ChatScreen({
               liveToolActivity={liveToolActivity}
               researchCard={researchCard}
               isCompacting={isCompacting}
+              liveProgressLabel={liveProgressLabel}
               sending={sending}
             />
           )}
