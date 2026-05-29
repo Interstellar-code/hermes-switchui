@@ -1002,10 +1002,46 @@ function ChatMessageListComponent({
   const toolResultsByCallId = useMemo(() => {
     const map = new Map<string, ChatMessage>()
     for (const message of messages) {
-      if (message.role !== 'toolResult') continue
-      const toolCallId = message.toolCallId
-      if (typeof toolCallId === 'string' && toolCallId.trim().length > 0) {
-        map.set(toolCallId, message)
+      // Path A: realtime SSE — separate message with role 'toolResult' and
+      // a top-level toolCallId field.
+      if (message.role === 'toolResult') {
+        const toolCallId = message.toolCallId
+        if (typeof toolCallId === 'string' && toolCallId.trim().length > 0) {
+          map.set(toolCallId, message)
+        }
+        continue
+      }
+      // Path B: history reload — hermes-api.ts embeds tool results as
+      // tool_result content blocks inside the role:'tool' message; no
+      // separate toolResult-role message exists on this path.
+      if (message.role === 'tool' && Array.isArray(message.content)) {
+        for (const block of message.content) {
+          const b = block as Record<string, unknown>
+          if (b.type !== 'tool_result' && b.type !== 'toolResult') continue
+          const callId = typeof b.toolCallId === 'string' ? b.toolCallId : ''
+          if (!callId) continue
+          // Synthesise a ChatMessage-shaped object so mapToolCallToToolPart /
+          // extractToolResultText can read it without changes.
+          const text =
+            typeof b.text === 'string'
+              ? b.text
+              : Array.isArray(b.content)
+                ? (b.content as Array<{ type?: string; text?: string }>)
+                    .filter((p) => p?.type === 'text')
+                    .map((p) => p.text ?? '')
+                    .join('')
+                : ''
+          const synthetic: ChatMessage = {
+            ...message,
+            role: 'toolResult',
+            toolCallId: callId,
+            toolName:
+              typeof b.toolName === 'string' ? b.toolName : message.toolName,
+            isError: b.isError === true,
+            content: text ? [{ type: 'text', text }] : [],
+          }
+          map.set(callId, synthetic)
+        }
       }
     }
     return map
