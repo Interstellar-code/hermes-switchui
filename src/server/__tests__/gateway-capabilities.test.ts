@@ -30,6 +30,14 @@ beforeEach(() => {
   delete process.env.CLAUDE_HOME
   delete process.env.CLAUDE_API_URL
   delete process.env.CLAUDE_DASHBOARD_URL
+  // HERMES_* take precedence over CLAUDE_* in the resolver, so clear them too —
+  // a local .env setting HERMES_API_URL would otherwise leak into these tests
+  // and report source 'env' instead of 'default'.
+  delete process.env.HERMES_HOME
+  delete process.env.HERMES_API_URL
+  delete process.env.HERMES_DASHBOARD_URL
+  delete process.env.HERMES_API_TOKEN
+  delete process.env.HERMES_DASHBOARD_TOKEN
 })
 
 async function loadMod() {
