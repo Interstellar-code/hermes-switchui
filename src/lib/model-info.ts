@@ -3,6 +3,9 @@ export type NormalizedModelInfo = {
   vanillaAgent: boolean | null
   mode: string | null
   raw: Record<string, unknown> | null
+  /** Gateway's live active model/provider (dashboard /api/model/info). */
+  activeModel: string | null
+  activeProvider: string | null
 }
 
 export type GatewayModelInfoFallbackCapabilities = {
@@ -49,6 +52,8 @@ export function deriveFallbackModelInfoFromGateway(
       vanillaAgent: false,
       mode: 'enhanced',
       raw: null,
+      activeModel: null,
+      activeProvider: null,
     }
   }
 
@@ -57,6 +62,8 @@ export function deriveFallbackModelInfoFromGateway(
     vanillaAgent: null,
     mode: null,
     raw: null,
+    activeModel: null,
+    activeProvider: null,
   }
 }
 
@@ -68,6 +75,8 @@ export function normalizeModelInfoResponse(value: unknown): NormalizedModelInfo 
       vanillaAgent: null,
       mode: null,
       raw: null,
+      activeModel: null,
+      activeProvider: null,
     }
   }
 
@@ -112,5 +121,13 @@ export function normalizeModelInfoResponse(value: unknown): NormalizedModelInfo 
     vanillaAgent,
     mode,
     raw: record,
+    activeModel:
+      readString(record.model) ??
+      readString(record.model_id) ??
+      readString(record.modelId),
+    activeProvider:
+      readString(record.provider) ??
+      readString(record.model_provider) ??
+      readString(record.modelProvider),
   }
 }

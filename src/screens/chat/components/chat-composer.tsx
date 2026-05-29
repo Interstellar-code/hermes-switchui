@@ -166,6 +166,9 @@ type ModelInfoApiResponse = {
   gatewayMode?: string | null
   supportsRuntimeSwitching?: boolean | null
   vanillaAgent?: boolean | null
+  /** Gateway's live active model/provider (what the agent actually runs). */
+  activeModel?: string | null
+  activeProvider?: string | null
 }
 
 type ModelSwitchNotice = {
@@ -1163,14 +1166,32 @@ function ChatComposerComponent({
     const first = models[0]
     return typeof first === 'string' ? first : first.id || first.name || ''
   }, [modelsQuery.data])
+  // The gateway's LIVE active model/provider (dashboard /api/model/info) — this
+  // is what the agent actually runs (e.g. manifest/auto). It is the source of
+  // truth for the label; config.yaml's static model.default (configuredModel)
+  // and the per-session session-status model (currentModel) can both disagree
+  // with the running gateway, which caused the pill to show gpt-5.4 while the
+  // agent used manifest/auto.
+  const liveActiveModel = useMemo(() => {
+    const info = modelInfoQuery.data
+    const model =
+      typeof info?.activeModel === 'string' ? info.activeModel.trim() : ''
+    if (!model) return ''
+    const provider =
+      typeof info?.activeProvider === 'string' ? info.activeProvider.trim() : ''
+    return getResolvedModelKey(model, provider)
+  }, [modelInfoQuery.data])
+
   // Derive the label directly from the store so navigation between sessions
   // updates without a render-window flash from a stale React-state mirror.
-  // Show the configured default (e.g. manifest/auto) until the user explicitly
-  // picks a model for THIS session. The gateway-resolved upstream model
-  // (currentModel, e.g. gpt-5.x) must NOT override the default label — that was
-  // the start-of-session desync where the pill flipped from auto to gpt-5.4.
+  // Priority: explicit per-session pick → live gateway model → config default →
+  // session-status model. Explicit picks win; otherwise show what's running.
   const modelButtonLabel =
-    persistedSessionModel || configuredModel || currentModel || '⚕ Hermes Agent'
+    persistedSessionModel ||
+    liveActiveModel ||
+    configuredModel ||
+    currentModel ||
+    '⚕ Hermes Agent'
 
   // Measure composer height and set CSS variable for scroll padding
   useLayoutEffect(() => {

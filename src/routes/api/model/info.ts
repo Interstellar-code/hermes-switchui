@@ -1,8 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import {
-  deriveFallbackModelInfoFromGateway,
-  normalizeModelInfoResponse,
-} from '@/lib/model-info'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
   dashboardFetch,
@@ -10,6 +6,10 @@ import {
   getCapabilities,
   getGatewayMode,
 } from '../../../server/gateway-capabilities'
+import {
+  deriveFallbackModelInfoFromGateway,
+  normalizeModelInfoResponse,
+} from '@/lib/model-info'
 
 export const Route = createFileRoute('/api/model/info')({
   server: {
@@ -37,7 +37,18 @@ export const Route = createFileRoute('/api/model/info')({
           normalized.supportsRuntimeSwitching === null &&
           normalized.vanillaAgent === null
         const resolved = shouldUseFallback
-          ? deriveFallbackModelInfoFromGateway(gatewayMode, getCapabilities())
+          ? {
+              ...deriveFallbackModelInfoFromGateway(
+                gatewayMode,
+                getCapabilities(),
+              ),
+              // Keep the gateway's live active model/provider from the dashboard
+              // payload even when runtime-switching flags fall back to gateway
+              // capabilities — otherwise the composer can't show what the agent
+              // actually uses (e.g. manifest/auto) and reverts to config.yaml.
+              activeModel: normalized.activeModel,
+              activeProvider: normalized.activeProvider,
+            }
           : normalized
 
         if (shouldUseFallback) {
