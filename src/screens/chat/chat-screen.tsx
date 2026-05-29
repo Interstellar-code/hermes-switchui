@@ -1009,8 +1009,14 @@ export function ChatScreen({
         let label = ''
         if (inFlight) {
           label = verbForTool(inFlight.name ?? '')
-          if (inFlight.preview && inFlight.preview !== inFlight.name) {
-            label = `${label}: ${inFlight.preview}`
+          // Gateway previews can lead with an emoji/symbol (e.g. "🔎 *");
+          // strip leading non-word chars and cap length for a tidy label.
+          const preview = (inFlight.preview ?? '')
+            .replace(/^[^\p{L}\p{N}/.~_-]+/u, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+          if (preview && preview !== inFlight.name) {
+            label = `${label}: ${preview.length > 48 ? `${preview.slice(0, 48)}…` : preview}`
           }
         } else {
           const done = tools.filter(
