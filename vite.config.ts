@@ -12,7 +12,6 @@ import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 // nitro plugin removed (tanstackStart handles server runtime)
 import { defineConfig, loadEnv } from 'vite'
-import viteTsConfigPaths from 'vite-tsconfig-paths'
 
 // ---------------------------------------------------------------------------
 // Hermes Agent auto-start helpers
@@ -429,12 +428,19 @@ const config = defineConfig(({ mode, command }) => {
   }
 
   return {
+    build: {
+      // Vite 8 defaults CSS minification to Lightning CSS, which rejects
+      // this app's existing layered Matrix CSS keyframes. Keep the previous
+      // esbuild minifier until those stylesheet layers are normalized.
+      cssMinify: 'esbuild',
+    },
     test: {
       exclude: [
         '**/node_modules/**',
         '**/dist/**',
         '**/skills-bundle/**',
         '**/.{idea,git,cache,output,temp}/**',
+        'e2e/**',
         '**/*.skip.test.ts',
       ],
       // Force vitest to run React through its own transform pipeline so ESM
@@ -477,6 +483,7 @@ const config = defineConfig(({ mode, command }) => {
         'lucide-react': fileURLToPath(new URL('./src/shims/lucide-react.tsx', import.meta.url)),
         'next/image': fileURLToPath(new URL('./src/shims/next-image.tsx', import.meta.url)),
       },
+      tsconfigPaths: true,
     },
     ssr: {
       external: [
@@ -589,10 +596,6 @@ const config = defineConfig(({ mode, command }) => {
         },
       },
       // devtools(),
-      // this is the plugin that enables path aliases
-      viteTsConfigPaths({
-        projects: ['./tsconfig.json'],
-      }),
       tailwindcss(),
       tanstackStart(),
       viteReact(),

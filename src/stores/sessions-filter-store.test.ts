@@ -34,7 +34,8 @@ describe('sessions-filter-store', () => {
     expect(s.dateRange).toEqual({ from: null, to: null })
     expect(s.sort).toBe('recent')
     expect(s.collapsed).toBe(false)
-    expect(s.version).toBe(1)
+    expect(s.leftPanel).toBe('sessions')
+    expect(s.version).toBe(4)
   })
 
   it('toggleSource adds and removes sources', async () => {
@@ -91,20 +92,21 @@ describe('sessions-filter-store', () => {
     expect(s.query).toBe('')
   })
 
-  it('persist shape: reading pre-seeded storage produces correct state (version: 1)', async () => {
-    // Seed localStorage with a valid v1 payload before module load
+  it('persist shape: reading pre-seeded storage produces correct state (version: 4)', async () => {
+    // Seed localStorage with a valid v4 payload before module load
     localStorageMock.setItem(
       'hermes.sessions.filter',
       JSON.stringify({
-        state: { version: 1, sources: ['cron'], state: 'all', query: '', dateRange: { from: null, to: null }, sort: 'recent', collapsed: false },
-        version: 1,
+        state: { version: 4, sources: ['cron'], state: 'all', query: '', dateRange: { from: null, to: null }, sort: 'recent', collapsed: false, leftPanel: 'files' },
+        version: 4,
       }),
     )
     const useStore = await getStore()
     await new Promise((r) => setTimeout(r, 10))
     const s = useStore.getState()
-    expect(s.version).toBe(1)
+    expect(s.version).toBe(4)
     expect(s.sources).toContain('cron')
+    expect(s.leftPanel).toBe('files')
   })
 
   it('migration: future version (v99) drops to defaults', async () => {

@@ -4,6 +4,20 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ChatMetaBarV2 } from './chat-meta-bar-v2'
 
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => ({ data: undefined }),
+}))
+
+vi.mock('@/hooks/use-session-status', () => ({
+  useSessionStatus: () => ({
+    contextPercent: 0,
+    maxTokens: 0,
+    model: '',
+    outputTokens: 0,
+    usedTokens: 0,
+  }),
+}))
+
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false })))
 })

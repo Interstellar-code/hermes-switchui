@@ -8,11 +8,11 @@ import {
   Copy01Icon,
   SidebarLeft01Icon,
 } from '@hugeicons/core-free-icons'
-import type { FitAddon } from 'xterm-addon-fit'
-import type * as FitAddonModule from 'xterm-addon-fit'
-import type { Terminal } from 'xterm'
-import type * as XtermModule from 'xterm'
-import type * as WebLinksAddonModule from 'xterm-addon-web-links'
+import type { FitAddon } from '@xterm/addon-fit'
+import type * as FitAddonModule from '@xterm/addon-fit'
+import type { Terminal } from '@xterm/xterm'
+import type * as XtermModule from '@xterm/xterm'
+import type * as WebLinksAddonModule from '@xterm/addon-web-links'
 import type { DebugAnalysis } from '@/components/terminal/debug-panel'
 import type { TerminalTab } from '@/stores/terminal-panel-store'
 import { DebugPanel } from '@/components/terminal/debug-panel'
@@ -31,12 +31,12 @@ let WebLinksAddonCtor: typeof WebLinksAddonModule.WebLinksAddon
 async function ensureXterm() {
   if (xtermLoaded) return
   const [xtermMod, fitMod, linksMod] = await Promise.all([
-    import('xterm'),
-    import('xterm-addon-fit'),
-    import('xterm-addon-web-links'),
+    import('@xterm/xterm'),
+    import('@xterm/addon-fit'),
+    import('@xterm/addon-web-links'),
   ])
   // Load CSS on client only
-  await import('xterm/css/xterm.css')
+  await import('@xterm/xterm/css/xterm.css')
   TerminalCtor = xtermMod.Terminal
   FitAddonCtor = fitMod.FitAddon
   WebLinksAddonCtor = linksMod.WebLinksAddon
