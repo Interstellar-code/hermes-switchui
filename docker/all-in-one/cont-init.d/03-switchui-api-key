@@ -1,0 +1,34 @@
+#!/command/with-contenv sh
+# shellcheck shell=sh
+# Ensure the self-contained image always has an internal gateway token.
+# Current upstream Hermes Agent requires API_SERVER_KEY even for loopback binds.
+set -eu
+
+HERMES_HOME="${HERMES_HOME:-/opt/data}"
+key_file="$HERMES_HOME/.switchui-api-server-key"
+
+if [ -n "${API_SERVER_KEY:-}" ]; then
+  key="$API_SERVER_KEY"
+else
+  if [ -s "$key_file" ]; then
+    key=$(cat "$key_file")
+  else
+    key=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 48)
+    umask 077
+    printf '%s\n' "$key" > "$key_file"
+    chown hermes:hermes "$key_file" 2>/dev/null || true
+  fi
+fi
+
+# Make the resolved token available to all with-contenv service scripts.
+mkdir -p /run/s6/container_environment
+printf '%s' "$key" > /run/s6/container_environment/API_SERVER_KEY
+if [ -z "${HERMES_API_TOKEN:-}" ]; then
+  printf '%s' "$key" > /run/s6/container_environment/HERMES_API_TOKEN
+fi
+
+# The API server must be enabled for Switch UI's bundled-agent mode.
+printf 'true' > /run/s6/container_environment/API_SERVER_ENABLED
+if [ -z "${API_SERVER_HOST:-}" ]; then
+  printf '127.0.0.1' > /run/s6/container_environment/API_SERVER_HOST
+fi

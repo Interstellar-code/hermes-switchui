@@ -276,7 +276,13 @@ Edit `.env` and add at least one LLM provider key:
 # GOOGLE_API_KEY=AIza...
 ```
 
-Using Ollama, LM Studio, or another local server? No key needed — point `hermes-agent` at your local endpoint via the onboarding flow.
+Using Ollama, LM Studio, or another local server? No key needed — point the bundled Hermes Agent at your local endpoint via onboarding/config.
+
+Set a UI password before starting the container (required because Docker binds the web server on `0.0.0.0` internally):
+
+```env
+HERMES_PASSWORD=change-me-to-a-strong-secret
+```
 
 ```bash
 docker compose up
@@ -284,7 +290,13 @@ docker compose up
 
 Open `http://localhost:3000` and complete onboarding.
 
-> **Note:** The default `docker-compose.yml` was inherited from upstream and may still reference `ghcr.io/interstellar-code/hermes-switchui:latest`. Until the Switch UI image is published, the simplest path is to pull this repo and run `docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build` so the Switch UI is built locally on top of the canonical `nousresearch/hermes-agent:latest` agent image.
+The published image is self-contained: it includes the upstream Hermes Agent plus Switch UI. The agent gateway runs inside the same container and Switch UI connects to it over `http://127.0.0.1:8642`.
+
+To build this self-contained image from local source instead of pulling GHCR:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
 
 ---
 
