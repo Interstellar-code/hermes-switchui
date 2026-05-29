@@ -102,11 +102,15 @@ function ContextBarComponent({
     staleTime: 30_000,
     enabled: Boolean(sessionId),
   })
+  // Unique key — the bare ['models'] key is also used elsewhere (chat-screen)
+  // with a queryFn that returns the raw response OBJECT, not an array; sharing
+  // the key poisons this cache and makes `.find` throw on tab refocus.
   const modelsQuery = useQuery({
-    queryKey: ['models'],
+    queryKey: ['models', 'context-bar-catalog'],
     queryFn: fetchModelCatalog,
     staleTime: 5 * 60 * 1000,
   })
+  const modelCatalog = Array.isArray(modelsQuery.data) ? modelsQuery.data : []
   // The gateway's live active model (what the agent actually runs, e.g.
   // manifest/auto). session-status can report the upstream-resolved name
   // (gpt-5.x) which has no catalog contextLength — matching the live model
@@ -131,12 +135,12 @@ function ContextBarComponent({
   // then fall back to name-only matching against the resolved active model.
   const matchingModel =
     (liveModel &&
-      modelsQuery.data?.find(
+      modelCatalog.find(
         (model) =>
           matchesModel(model, liveModel) &&
           (!liveProvider || model.provider === liveProvider),
       )) ||
-    modelsQuery.data?.find((model) => matchesModel(model, activeModel))
+    modelCatalog.find((model) => matchesModel(model, activeModel))
   const fallbackMax =
     typeof matchingModel?.contextLength === 'number' &&
     Number.isFinite(matchingModel.contextLength) &&
