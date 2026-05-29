@@ -16,6 +16,7 @@ type ModelCatalogEntry = {
   id?: string
   model?: string
   name?: string
+  provider?: string
   contextLength?: number
 }
 
@@ -34,6 +35,27 @@ async function fetchModelCatalog(): Promise<Array<ModelCatalogEntry>> {
   if (Array.isArray(payload.data)) return payload.data
   if (Array.isArray(payload.models)) return payload.models
   return []
+}
+
+type LiveModelInfo = { activeModel: string; activeProvider: string }
+
+async function fetchActiveModelInfo(): Promise<LiveModelInfo> {
+  try {
+    const response = await fetch('/api/model/info')
+    if (!response.ok) return { activeModel: '', activeProvider: '' }
+    const payload = (await response.json()) as {
+      activeModel?: string | null
+      activeProvider?: string | null
+    }
+    return {
+      activeModel:
+        typeof payload.activeModel === 'string' ? payload.activeModel : '',
+      activeProvider:
+        typeof payload.activeProvider === 'string' ? payload.activeProvider : '',
+    }
+  } catch {
+    return { activeModel: '', activeProvider: '' }
+  }
 }
 
 function normalizeModelId(value: string): string {
@@ -85,6 +107,15 @@ function ContextBarComponent({
     queryFn: fetchModelCatalog,
     staleTime: 5 * 60 * 1000,
   })
+  // The gateway's live active model (what the agent actually runs, e.g.
+  // manifest/auto). session-status can report the upstream-resolved name
+  // (gpt-5.x) which has no catalog contextLength — matching the live model
+  // ensures we find the right window size (e.g. manifest/auto → 300K).
+  const modelInfoQuery = useQuery({
+    queryKey: ['model-info', 'active'],
+    queryFn: fetchActiveModelInfo,
+    staleTime: 30_000,
+  })
   const meta = (sessionsQuery.data ?? []).find((s) => s.key === sessionId)
   const fallbackUsed =
     typeof meta?.tokenCount === 'number'
@@ -93,10 +124,19 @@ function ContextBarComponent({
           'number'
         ? Number((meta as { totalTokens?: number }).totalTokens)
         : 0
-  const activeModel = status.model || meta?.model || ''
-  const matchingModel = modelsQuery.data?.find((model) =>
-    matchesModel(model, activeModel),
-  )
+  const liveModel = modelInfoQuery.data?.activeModel || ''
+  const liveProvider = modelInfoQuery.data?.activeProvider || ''
+  const activeModel = liveModel || status.model || meta?.model || ''
+  // Prefer an exact provider+model catalog match for the live gateway model,
+  // then fall back to name-only matching against the resolved active model.
+  const matchingModel =
+    (liveModel &&
+      modelsQuery.data?.find(
+        (model) =>
+          matchesModel(model, liveModel) &&
+          (!liveProvider || model.provider === liveProvider),
+      )) ||
+    modelsQuery.data?.find((model) => matchesModel(model, activeModel))
   const fallbackMax =
     typeof matchingModel?.contextLength === 'number' &&
     Number.isFinite(matchingModel.contextLength) &&
@@ -105,14 +145,33 @@ function ContextBarComponent({
       : 200_000
   const fallbackPct =
     fallbackMax > 0 ? Math.min(100, (fallbackUsed / fallbackMax) * 100) : 0
+  // Prefer the model catalog contextLength (from config) as the authoritative
+  // window size — session-status maxTokens can be stale or smaller than the
+  // configured value. Fall back to status.maxTokens only when no catalog entry
+  // has a contextLength.
+  const effectiveMax =
+    typeof matchingModel?.contextLength === 'number' &&
+    Number.isFinite(matchingModel.contextLength) &&
+    matchingModel.contextLength > 0
+      ? matchingModel.contextLength
+      : status.maxTokens > 0
+        ? status.maxTokens
+        : fallbackMax
+  const effectiveUsed = status.usedTokens > 0 ? status.usedTokens : fallbackUsed
+  // Recompute percent from used/max so the bar stays consistent with the
+  // displayed token counts when effectiveMax differs from the server's value.
+  const serverPct =
+    effectiveUsed > 0 && effectiveMax > 0
+      ? Math.min(100, (effectiveUsed / effectiveMax) * 100)
+      : liveContextPercent > 0
+        ? Math.max(liveContextPercent, status.contextPercent)
+        : status.contextPercent > 0
+          ? status.contextPercent
+          : fallbackPct
   const effectivePct =
     liveContextPercent > 0
-      ? Math.max(liveContextPercent, status.contextPercent)
-      : status.contextPercent > 0
-        ? status.contextPercent
-        : fallbackPct
-  const effectiveUsed = status.usedTokens > 0 ? status.usedTokens : fallbackUsed
-  const effectiveMax = status.maxTokens > 0 ? status.maxTokens : fallbackMax
+      ? Math.max(liveContextPercent, serverPct)
+      : serverPct
   const [showLabel, setShowLabel] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
 

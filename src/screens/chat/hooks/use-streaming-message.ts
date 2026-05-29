@@ -997,10 +997,31 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
           // after partial output) would otherwise strand the UI on "Thinking…"
           // until the 120s/300s no-activity timeout, forcing a manual refresh
           // (Bug 5 "no update until refresh" + Bug 6 lingering thinking bubble).
-          // Only keep the run alive in handoff when nothing has streamed yet —
-          // a genuine background continuation the user can recover from history.
           if (fullTextRef.current || lifecyclePhase !== 'handoff') {
             finishStream()
+          } else {
+            // Server closed the stream (done=true) while in handoff with no
+            // streamed text — the run finished on the server side. The answer
+            // is already in session history. Do NOT call finishStream() (it
+            // would commit an empty assistant message). Instead do a lightweight
+            // clear so the thinking bubble and composer animation stop
+            // immediately without waiting for the 300s handoff timeout.
+            finishedRef.current = true
+            eventSourceRef.current = null
+            lifecyclePhaseRef.current = 'complete'
+            clearHandoffTimer()
+            clearSendStreamRun()
+            stopFrame()
+            setState((prev) => ({ ...prev, isStreaming: false }))
+            // Notify the parent so waitingForResponse is cleared. The
+            // message arg is unused by the chat-screen onComplete handler;
+            // we pass a minimal placeholder to satisfy the type.
+            onComplete?.({
+              role: 'assistant',
+              content: [{ type: 'text', text: '' }],
+              timestamp: Date.now(),
+              __streamingStatus: 'complete',
+            } as ChatMessage)
           }
         }
       } catch (err) {
@@ -1020,15 +1041,19 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
       }
     },
     [
+      clearHandoffTimer,
+      clearSendStreamRun,
       finishStream,
       markAccepted,
       markFailed,
       onAbort,
+      onComplete,
       onMessageAccepted,
       onSessionResolved,
       processEvent,
       resetActiveStreamState,
       schedulePostAcceptanceTimeout,
+      stopFrame,
     ],
   )
 

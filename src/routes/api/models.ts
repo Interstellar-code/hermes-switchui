@@ -21,6 +21,7 @@ export type ModelEntry = {
   provider?: string
   id?: string
   name?: string
+  contextLength?: number
   [key: string]: unknown
 }
 
@@ -76,23 +77,39 @@ function readProvidersFromConfig(
 
     const entries: Array<ModelEntry> = []
     for (const key of providerKeys) {
+      const providerRec = asRecord(providers[key])
+      const providerContextLength =
+        typeof providerRec.context_length === 'number'
+          ? providerRec.context_length
+          : undefined
       const meta = metaByKey.get(key)
       const models = meta && Array.isArray(meta.models) ? meta.models : []
       if (models.length === 0) {
         // No model metadata in custom_providers → expose at least `auto`.
-        entries.push({ id: 'auto', name: 'auto', provider: key })
+        entries.push({
+          id: 'auto',
+          name: 'auto',
+          provider: key,
+          ...(providerContextLength !== undefined
+            ? { contextLength: providerContextLength }
+            : {}),
+        })
         continue
       }
       for (const m of models) {
         const rec = asRecord(m)
         const modelId = readString(rec.id) || readString(rec.model)
         if (!modelId) continue
+        const modelContextLength =
+          typeof rec.context_length === 'number'
+            ? rec.context_length
+            : providerContextLength
         entries.push({
           id: modelId,
           name: readString(rec.name) || modelId,
           provider: key,
-          ...(typeof rec.context_length === 'number'
-            ? { context_length: rec.context_length }
+          ...(modelContextLength !== undefined
+            ? { contextLength: modelContextLength }
             : {}),
         })
       }
