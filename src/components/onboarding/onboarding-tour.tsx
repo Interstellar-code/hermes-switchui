@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Joyride, { ACTIONS, STATUS } from 'react-joyride'
+import { ACTIONS, Joyride, STATUS } from 'react-joyride'
 import { tourSteps } from './tour-steps'
 import type { CallBackProps, Styles } from 'react-joyride'
 import { useSettingsStore } from '@/hooks/use-settings'

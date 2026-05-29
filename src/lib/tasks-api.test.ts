@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockFetch = vi.fn()
 beforeEach(() => {
+  mockFetch.mockReset()
   vi.stubGlobal('fetch', mockFetch)
 })
 afterEach(() => {

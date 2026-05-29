@@ -18,7 +18,7 @@ describe('listProfiles', () => {
     fs.rmSync(tempHome, { recursive: true, force: true })
   })
 
-  it('always includes the default profile even when a named profile is active', () => {
+  it('shows the active named profile without duplicating the synthetic default profile', () => {
     const hermesRoot = path.join(tempHome, '.hermes')
     const profilesRoot = path.join(hermesRoot, 'profiles')
     const namedProfileRoot = path.join(profilesRoot, 'jarvis')
@@ -31,9 +31,8 @@ describe('listProfiles', () => {
     const profiles = listProfiles()
     const names = profiles.map((profile) => profile.name)
 
-    expect(names).toContain('default')
+    expect(names).not.toContain('default')
     expect(names).toContain('jarvis')
-    expect(profiles.find((profile) => profile.name === 'default')?.active).toBe(false)
     expect(profiles.find((profile) => profile.name === 'jarvis')?.active).toBe(true)
   })
 })

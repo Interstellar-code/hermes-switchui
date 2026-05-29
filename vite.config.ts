@@ -429,12 +429,19 @@ const config = defineConfig(({ mode, command }) => {
   }
 
   return {
+    build: {
+      // Vite 8 defaults CSS minification to Lightning CSS, which rejects
+      // this app's existing layered Matrix CSS keyframes. Keep the previous
+      // esbuild minifier until those stylesheet layers are normalized.
+      cssMinify: 'esbuild',
+    },
     test: {
       exclude: [
         '**/node_modules/**',
         '**/dist/**',
         '**/skills-bundle/**',
         '**/.{idea,git,cache,output,temp}/**',
+        'e2e/**',
         '**/*.skip.test.ts',
       ],
       // Force vitest to run React through its own transform pipeline so ESM

@@ -77,7 +77,9 @@ async function loadKanbanBackend(options?: {
   }))
 
   vi.doMock('better-sqlite3', () => ({
-    default: vi.fn(() => mockDb),
+    default: vi.fn(function DatabaseMock() {
+      return mockDb
+    }),
   }))
 
   return import('./kanban-backend')
