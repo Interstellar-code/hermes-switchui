@@ -925,21 +925,12 @@ export function ChatScreen({
     return () => window.clearTimeout(fallback)
   }, [waitingForResponse])
 
-  // Issue #43 + silent-failure recovery: while waiting, poll the gateway run
-  // every 5s. We poll even when the SSE socket reports "connected" because a
-  // gateway run can die silently (e.g. a subagent error that never propagates a
-  // done/error event, or a stalled 'handoff') while the TCP stream stays open —
-  // that previously hung the "Thinking…" bubble until the 120s no-activity
-  // failsafe. Clear when the run reaches a terminal status OR when it has gone
-  // STALE (no gateway events for STALE_RUN_MS). The activeRealtimeStreamingRef
-  // guard ensures we never tear down while text/tool events are streaming in,
-  // so a healthy in-progress turn is never clipped.
+  // Issue #43 polling fallback: when waiting but SSE hasn't reconnected,
+  // poll the active-run endpoint every 5s to detect completion.
   useEffect(() => {
     if (!waitingForResponse || !resolvedSessionKey) return
-    const STALE_RUN_MS = 75_000
+    if (sseConnectionState === 'connected') return // SSE will deliver the event
     const interval = window.setInterval(async () => {
-      // Live deltas are flowing — the run is alive; leave it be.
-      if (activeRealtimeStreamingRef.current) return
       try {
         const res = await fetch(
           `/api/sessions/${encodeURIComponent(resolvedSessionKey)}/active-run`,
@@ -950,13 +941,9 @@ export function ChatScreen({
         // Run not yet registered (gateway lag during silent processing) → keep waiting
         if (!data.run) return
         const status = data.run.status
+        // Treat unknown / transient statuses as still-active to avoid premature teardown
         const terminalStatuses = ['completed', 'failed', 'cancelled', 'error']
-        const lastEventAt = Number(
-          data.run.lastEventAt ?? data.run.updatedAt ?? 0,
-        )
-        const isStale =
-          lastEventAt > 0 && Date.now() - lastEventAt > STALE_RUN_MS
-        if (terminalStatuses.includes(status) || isStale) {
+        if (terminalStatuses.includes(status)) {
           streamFinish()
           refreshHistoryRef.current()
         }
@@ -965,7 +952,7 @@ export function ChatScreen({
       }
     }, 5000)
     return () => window.clearInterval(interval)
-  }, [waitingForResponse, resolvedSessionKey, streamFinish])
+  }, [waitingForResponse, resolvedSessionKey, sseConnectionState, streamFinish])
 
   useAutoSessionTitle({
     friendlyId: activeFriendlyId,
