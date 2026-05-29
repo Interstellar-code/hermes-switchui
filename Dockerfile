@@ -19,6 +19,7 @@
 # ─── Switch UI build stage ────────────────────────────────────────────────
 FROM node:22-slim AS switchui-build
 RUN corepack enable \
+  && corepack prepare pnpm@10.28.2 --activate \
   && apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates python3 make g++ \
   && rm -rf /var/lib/apt/lists/*

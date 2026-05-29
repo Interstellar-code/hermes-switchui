@@ -135,6 +135,5 @@
       "tmp": "^0.2.6",
       "dompurify": "^3.4.7"
     }
-  },
-  "packageManager": "pnpm@10.28.2"
+  }
 }
