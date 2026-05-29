@@ -202,6 +202,15 @@ function ToolRow({
         >
           {label}
         </span>
+        {argTruncated ? (
+          <span
+            className="truncate min-w-0 opacity-70"
+            style={{ color: 'var(--theme-muted)' }}
+            title={argLabel ?? undefined}
+          >
+            {argTruncated}
+          </span>
+        ) : null}
         <span className="flex-1" />
         {durationLabel ? (
           <span
