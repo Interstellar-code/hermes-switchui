@@ -987,8 +987,11 @@ export function ChatScreen({
       return name ? `Running ${name}` : 'Working'
     }
     const poll = async () => {
-      // Live deltas already render inline — no need for the summary line.
-      if (activeRealtimeStreamingRef.current) return
+      // Always poll while waiting. The thinking bubble that shows this label is
+      // already hidden once real assistant text streams in (showTypingIndicator
+      // goes false), so we don't need to gate on streaming state here — gating
+      // on it made the label go stale during the silent tool phase while the
+      // bubble was still visible.
       try {
         const res = await fetch(
           `/api/sessions/${encodeURIComponent(resolvedSessionKey)}/active-run`,
