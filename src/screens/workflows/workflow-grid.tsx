@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { relativeTime } from './types'
 import type { WorkflowSummary } from './types'
+import { provenanceOf, PROVENANCE_LABEL } from './provenance'
 
 type SortKey = 'alpha' | 'last-used' | 'nodes'
 type ViewMode = 'grid' | 'table'
@@ -145,9 +146,7 @@ function workflowInitials(name: string): string {
     .toUpperCase()
 }
 
-function sourceLabel(source: WorkflowSummary['source']): string {
-  return source === 'bundled' ? 'built-in' : source
-}
+// sourceLabel kept for reference; provenance-aware label is used in the badge
 
 function WorkflowCard({
   wf,
@@ -156,7 +155,8 @@ function WorkflowCard({
   wf: WorkflowSummary
   onSelect: (id: string) => void
 }) {
-  const srcCls = `wfg-src-badge wfg-src-${wf.source}`
+  const prov = provenanceOf(wf.source, wf.user_modified)
+  const srcCls = `wfg-src-badge wfg-src-${prov === 'modified-factory' ? 'modified' : wf.source}`
   const tagCount =
     wf.tags.length + (wf.has_loop ? 1 : 0) + (wf.has_approval ? 1 : 0)
 
@@ -178,7 +178,7 @@ function WorkflowCard({
           {wf.kind === 'subgraph' ? (
             <span className="wfg-tag wfg-tag-subgraph">SUBGRAPH</span>
           ) : (
-            <span className={srcCls}>{sourceLabel(wf.source)}</span>
+            <span className={srcCls}>{PROVENANCE_LABEL[prov]}</span>
           )}
         </div>
       </div>
@@ -250,9 +250,14 @@ function WorkflowTable({
               <div className="wfg-table-id">{wf.id}</div>
             </td>
             <td>
-              <span className={`wfg-src-badge wfg-src-${wf.source}`}>
-                {sourceLabel(wf.source)}
-              </span>
+              {(() => {
+                const p = provenanceOf(wf.source, wf.user_modified)
+                return (
+                  <span className={`wfg-src-badge wfg-src-${p === 'modified-factory' ? 'modified' : wf.source}`}>
+                    {PROVENANCE_LABEL[p]}
+                  </span>
+                )
+              })()}
             </td>
             <td>{wf.version_tier}</td>
             <td>{wf.node_count}</td>

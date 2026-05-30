@@ -483,6 +483,12 @@
     background: rgba(191, 151, 255, 0.06);
   }
 
+  .wfl-src-modified {
+    color: #ffb347;
+    border-color: rgba(255, 179, 71, 0.4);
+    background: rgba(255, 179, 71, 0.06);
+  }
+
   /* Card description */
   .wfl-card-desc {
     margin: 0 0 6px;
@@ -2799,6 +2805,12 @@
   .wfg-src-project {
     color: #5fcfff;
     border-color: rgba(95, 207, 255, 0.35);
+    background: var(--m-bg-deep, var(--theme-bg));
+  }
+
+  .wfg-src-modified {
+    color: #ffb347;
+    border-color: rgba(255, 179, 71, 0.35);
     background: var(--m-bg-deep, var(--theme-bg));
   }
 
