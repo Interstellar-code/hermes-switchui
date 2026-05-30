@@ -1026,18 +1026,40 @@ function YamlTab({
   const [buffer, setBuffer] = useState<string>(def.yaml)
   const [isEditing, setIsEditing] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
+  // Tracks whether the user has unsaved edits in `buffer`. Distinguishes a real
+  // edit from a buffer that merely lags a server refetch — without it we cannot
+  // tell "preserve the user's work" from "sync to the new server version".
+  const [userEdited, setUserEdited] = useState(false)
+  // Set when the server definition changed under the user's feet (e.g. a 409
+  // reload) while they had unsaved edits, so the UI can warn before overwrite.
+  const [serverChanged, setServerChanged] = useState(false)
   const saveMutation = useUpsertWorkflowDefinition()
   const resetMutation = useResetWorkflowDefinitionToFactory()
   const prov = provenanceOf(def.source as WorkflowSource, def.user_modified)
 
-  // Reset buffer when definition changes (different id or checksum)
-  const defKey = `${def.id}:${def.checksum ?? ''}`
-  const [lastDefKey, setLastDefKey] = useState(defKey)
-  if (defKey !== lastDefKey) {
-    setLastDefKey(defKey)
+  // Sync local state to the incoming definition.
+  // - Different workflow (id changed): full reset, discard any buffer.
+  // - Same workflow, checksum changed (refetch / 409 reload): only sync the
+  //   buffer when the user has NO unsaved edits; otherwise keep their edits and
+  //   flag that the server moved (re-save uses the new checksum, last-write-wins).
+  const [lastDefId, setLastDefId] = useState(def.id)
+  const [lastChecksum, setLastChecksum] = useState(def.checksum ?? '')
+  if (def.id !== lastDefId) {
+    setLastDefId(def.id)
+    setLastChecksum(def.checksum ?? '')
     setBuffer(def.yaml)
     setIsEditing(false)
+    setUserEdited(false)
+    setServerChanged(false)
     setValidationError(null)
+  } else if ((def.checksum ?? '') !== lastChecksum) {
+    setLastChecksum(def.checksum ?? '')
+    if (userEdited) {
+      setServerChanged(true)
+    } else {
+      setBuffer(def.yaml)
+      setIsEditing(false)
+    }
   }
 
   const isDirty = buffer !== def.yaml
@@ -1056,7 +1078,10 @@ function YamlTab({
         expected_checksum: def.checksum,
       })
       setIsEditing(false)
-      // query invalidation in the mutation hook reloads def + new checksum
+      setUserEdited(false)
+      setServerChanged(false)
+      // query invalidation in the mutation hook reloads def + new checksum;
+      // with userEdited cleared, the checksum-change branch syncs buffer.
     } catch (err: unknown) {
       const e = err as { status?: number; code?: string; serverError?: string }
       if (e.status === 409) {
@@ -1082,6 +1107,8 @@ function YamlTab({
   function handleRevert() {
     setBuffer(def.yaml)
     setIsEditing(false)
+    setUserEdited(false)
+    setServerChanged(false)
     setValidationError(null)
   }
 
@@ -1141,6 +1168,12 @@ function YamlTab({
           </button>
         </div>
       </div>
+      {serverChanged && isDirty && (
+        <div className="yaml-validation-error">
+          The shipped definition changed on the server. Your edits are kept —
+          saving now will overwrite the server version with your changes.
+        </div>
+      )}
       {validationError && (
         <div className="yaml-validation-error">{validationError}</div>
       )}
@@ -1149,7 +1182,10 @@ function YamlTab({
           <textarea
             className="yaml-editor-textarea"
             value={buffer}
-            onChange={(e) => setBuffer(e.target.value)}
+            onChange={(e) => {
+              setBuffer(e.target.value)
+              setUserEdited(true)
+            }}
             spellCheck={false}
           />
         ) : (
