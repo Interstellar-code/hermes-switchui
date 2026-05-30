@@ -24,6 +24,10 @@ export interface WorkflowDefinitionRow {
   scope_path: string | null
   yaml: string
   checksum: string
+  /** 1 once a user has edited this bundled row; absent on legacy rows = treat as 0. */
+  user_modified?: 0 | 1
+  /** sha256 of the factory yaml this row was seeded/reset from; null for pure user rows. */
+  bundled_checksum?: string | null
   version: string | null
   /** 'workflow' (default) | 'subgraph' — subgraphs are hidden from the library grid by default (A.7). */
   kind?: 'workflow' | 'subgraph'
@@ -246,11 +250,14 @@ export interface UpsertWorkflowDefinitionInput {
   id: string
   name: string
   description?: string
-  source: 'user' | 'project'
+  /** 'bundled' permitted only when editing an EXISTING factory row (server keeps source='bundled', sets user_modified=1). */
+  source: 'user' | 'project' | 'bundled'
   scope_path?: string
   yaml: string
   version?: string
   tags?: Array<string>
+  /** sha256 of the yaml from the last GET — optimistic-concurrency precondition (ETag). Triggers 409 on mismatch. */
+  expected_checksum?: string
 }
 
 export interface WorkflowWizardChatHistoryMessage {
@@ -569,9 +576,40 @@ export async function upsertWorkflowDefinition(
     const body = (await res.json().catch(() => ({
       error: `HTTP ${res.status}`,
     }))) as UpsertWorkflowDefinitionError
+    const code =
+      res.status === 409
+        ? 'conflict'
+        : res.status === 422
+          ? 'validation'
+          : undefined
     throw Object.assign(
       new Error(
         body.error || `upsertWorkflowDefinition failed (${res.status})`,
+      ),
+      {
+        status: res.status,
+        serverError: body.error,
+        ...(code != null ? { code } : {}),
+      },
+    )
+  }
+  return (await res.json()) as { definition: WorkflowDefinitionRow }
+}
+
+export async function resetWorkflowDefinitionToFactory(
+  id: string,
+): Promise<{ definition: WorkflowDefinitionRow }> {
+  const res = await wfFetch(
+    `/api/workflow-definitions/${encodeURIComponent(id)}/reset-factory`,
+    { method: 'POST' },
+  )
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({
+      error: `HTTP ${res.status}`,
+    }))) as UpsertWorkflowDefinitionError
+    throw Object.assign(
+      new Error(
+        body.error || `resetWorkflowDefinitionToFactory failed (${res.status})`,
       ),
       {
         status: res.status,

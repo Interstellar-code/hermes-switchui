@@ -21,6 +21,46 @@ import type {
 
 const PLUGIN_BASE = '/api/plugins/workflow-engine';
 
+// ---------------------------------------------------------------------------
+// Typed errors
+// ---------------------------------------------------------------------------
+
+export class WorkflowConflictError extends Error {
+  status = 409;
+  code = 'conflict' as const;
+  constructor(message: string) {
+    super(message);
+    this.name = 'WorkflowConflictError';
+  }
+}
+
+export class WorkflowValidationError extends Error {
+  status = 422;
+  code = 'validation' as const;
+  constructor(message: string) {
+    super(message);
+    this.name = 'WorkflowValidationError';
+  }
+}
+
+export class WorkflowNotFoundError extends Error {
+  status = 404;
+  code = 'not_found' as const;
+  constructor(message: string) {
+    super(message);
+    this.name = 'WorkflowNotFoundError';
+  }
+}
+
+export class WorkflowForbiddenError extends Error {
+  status = 403;
+  code = 'forbidden' as const;
+  constructor(message: string) {
+    super(message);
+    this.name = 'WorkflowForbiddenError';
+  }
+}
+
 // Shape returned by GET /node-runs/active (hermes-agent#16)
 export interface ActiveNodeRunSummary {
   runId: string;
@@ -100,12 +140,44 @@ export class PluginClient implements WorkflowEngineInterface {
     }
   }
 
-  async upsertDefinition(yaml: string, sourcePath?: string): Promise<WorkflowDefinitionRow> {
-    const data = await _send<{ definition: WorkflowDefinitionRow }>('POST', '/definitions', {
-      yaml,
-      source_path: sourcePath,
-      // id and name are derived by the plugin from YAML content — do not send placeholders.
+  async upsertDefinition(
+    yaml: string,
+    sourcePath?: string,
+    opts?: { id?: string; name?: string; expected_checksum?: string },
+  ): Promise<WorkflowDefinitionRow> {
+    const res = await _proxyFetch(`${PLUGIN_BASE}/definitions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        yaml,
+        source_path: sourcePath,
+        ...(opts?.id != null ? { id: opts.id } : {}),
+        ...(opts?.name != null ? { name: opts.name } : {}),
+        ...(opts?.expected_checksum != null ? { expected_checksum: opts.expected_checksum } : {}),
+      }),
     });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      if (res.status === 409) throw new WorkflowConflictError(text || 'Conflict: checksum mismatch');
+      if (res.status === 422) throw new WorkflowValidationError(text || 'Validation failed');
+      throw new Error(`PluginClient POST /definitions: ${res.status} ${text}`);
+    }
+    const data = (await res.json()) as { definition: WorkflowDefinitionRow };
+    return data.definition;
+  }
+
+  async resetFactoryDefinition(id: string): Promise<WorkflowDefinitionRow> {
+    const res = await _proxyFetch(
+      `${PLUGIN_BASE}/definitions/${encodeURIComponent(id)}/reset-factory`,
+      { method: 'POST' },
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      if (res.status === 404) throw new WorkflowNotFoundError(text || 'Not found');
+      if (res.status === 403) throw new WorkflowForbiddenError(text || 'Forbidden');
+      throw new Error(`PluginClient POST /definitions/${id}/reset-factory: ${res.status} ${text}`);
+    }
+    const data = (await res.json()) as { definition: WorkflowDefinitionRow };
     return data.definition;
   }
 

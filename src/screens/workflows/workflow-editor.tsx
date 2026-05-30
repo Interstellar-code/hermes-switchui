@@ -2,14 +2,19 @@ import { useState } from 'react'
 import { useWorkflowEvents } from './use-workflow-events'
 import {
   useDeleteWorkflowDefinition,
+  useResetWorkflowDefinitionToFactory,
   useUpsertWorkflowDefinition,
   useWorkflowParsed,
   useWorkflowRuns,
 } from './use-workflows'
 import { relativeTime } from './types'
+import {
+  PROVENANCE_LABEL,
+  provenanceOf,
+} from './provenance'
 import type React from 'react'
 import type { WorkflowDefinitionRow, WorkflowRunRow } from './api-client'
-import type { NodeType, ParsedWorkflow, WorkflowDagNode } from './types'
+import type { NodeType, ParsedWorkflow, WorkflowDagNode, WorkflowSource } from './types'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -225,8 +230,13 @@ function yamlLine(line: string, idx: number): React.ReactElement {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function SourceBadge({ source }: { source: string }) {
-  return <span className={`wfl-src-badge wfl-src-${source}`}>{source}</span>
+function SourceBadge({ source, userModified }: { source: string; userModified?: 0 | 1 }) {
+  const prov = provenanceOf(source as WorkflowSource, userModified)
+  return (
+    <span className={`wfl-src-badge wfl-src-${prov === 'modified-factory' ? 'modified' : source}`}>
+      {PROVENANCE_LABEL[prov]}
+    </span>
+  )
 }
 
 function WorkflowHeaderActions({
@@ -311,7 +321,7 @@ function WorkflowHeaderActions({
         className="ed-action-btn ed-action-btn--danger"
         disabled={isBundled || deleteMutation.isPending}
         onClick={handleDelete}
-        title={isBundled ? 'Bundled workflows cannot be deleted' : undefined}
+        title={isBundled ? 'Bundled workflows cannot be deleted — use Reset to factory to restore' : undefined}
       >
         {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
       </button>
@@ -369,7 +379,7 @@ function OverviewTab({
         <div className="ov-title-block">
           <h2 className="ov-name">{parsed.name}</h2>
           <div className="ov-meta">
-            <SourceBadge source={def.source} />
+            <SourceBadge source={def.source} userModified={def.user_modified} />
             <span className="ov-sep">·</span>
             <span className="ov-tier">{def.version ?? 'unversioned'}</span>
           </div>
@@ -468,7 +478,7 @@ function OverviewTab({
           <div className="ov-meta-row">
             <span className="ov-meta-key">Source</span>
             <span className="ov-meta-value">
-              <SourceBadge source={def.source} />
+              <SourceBadge source={def.source} userModified={def.user_modified} />
             </span>
           </div>
           <div className="ov-meta-row">
@@ -1007,35 +1017,119 @@ function DagSvgTab({ parsed }: { parsed: ParsedWorkflow }) {
 function YamlTab({
   def,
   parsed,
+  onRefetch,
 }: {
   def: WorkflowDefinitionRow
   parsed: ParsedWorkflow
+  onRefetch: () => void
 }) {
-  const lines = def.yaml.split('\n')
-  const isEditable = def.source !== 'bundled'
+  const [buffer, setBuffer] = useState<string>(def.yaml)
+  const [isEditing, setIsEditing] = useState(false)
+  const [validationError, setValidationError] = useState<string | null>(null)
+  // Tracks whether the user has unsaved edits in `buffer`. Distinguishes a real
+  // edit from a buffer that merely lags a server refetch — without it we cannot
+  // tell "preserve the user's work" from "sync to the new server version".
+  const [userEdited, setUserEdited] = useState(false)
+  // Set when the server definition changed under the user's feet (e.g. a 409
+  // reload) while they had unsaved edits, so the UI can warn before overwrite.
+  const [serverChanged, setServerChanged] = useState(false)
+  const saveMutation = useUpsertWorkflowDefinition()
+  const resetMutation = useResetWorkflowDefinitionToFactory()
+  const prov = provenanceOf(def.source as WorkflowSource, def.user_modified)
+
+  // Sync local state to the incoming definition.
+  // - Different workflow (id changed): full reset, discard any buffer.
+  // - Same workflow, checksum changed (refetch / 409 reload): only sync the
+  //   buffer when the user has NO unsaved edits; otherwise keep their edits and
+  //   flag that the server moved (re-save uses the new checksum, last-write-wins).
+  const [lastDefId, setLastDefId] = useState(def.id)
+  const [lastChecksum, setLastChecksum] = useState(def.checksum ?? '')
+  if (def.id !== lastDefId) {
+    setLastDefId(def.id)
+    setLastChecksum(def.checksum ?? '')
+    setBuffer(def.yaml)
+    setIsEditing(false)
+    setUserEdited(false)
+    setServerChanged(false)
+    setValidationError(null)
+  } else if ((def.checksum ?? '') !== lastChecksum) {
+    setLastChecksum(def.checksum ?? '')
+    if (userEdited) {
+      setServerChanged(true)
+    } else {
+      setBuffer(def.yaml)
+      setIsEditing(false)
+    }
+  }
+
+  const isDirty = buffer !== def.yaml
+
+  async function handleSave() {
+    setValidationError(null)
+    try {
+      await saveMutation.mutateAsync({
+        id: def.id,
+        name: def.name,
+        description: def.description ?? undefined,
+        source: def.source as WorkflowSource,
+        scope_path: def.scope_path ?? undefined,
+        yaml: buffer,
+        version: def.version ?? undefined,
+        expected_checksum: def.checksum,
+      })
+      setIsEditing(false)
+      setUserEdited(false)
+      setServerChanged(false)
+      // query invalidation in the mutation hook reloads def + new checksum;
+      // with userEdited cleared, the checksum-change branch syncs buffer.
+    } catch (err: unknown) {
+      const e = err as { status?: number; code?: string; serverError?: string }
+      if (e.status === 409) {
+        window.dispatchEvent(
+          new CustomEvent('wf-toast', {
+            detail: {
+              msg: 'Definition changed elsewhere — reloaded; re-apply your edits',
+            },
+          }),
+        )
+        onRefetch()
+        // preserve buffer — do NOT overwrite user's edits
+      } else if (e.status === 422) {
+        setValidationError(e.serverError ?? 'Validation error')
+      } else {
+        setValidationError(
+          e.serverError ?? (err instanceof Error ? err.message : 'Save failed'),
+        )
+      }
+    }
+  }
+
+  function handleRevert() {
+    setBuffer(def.yaml)
+    setIsEditing(false)
+    setUserEdited(false)
+    setServerChanged(false)
+    setValidationError(null)
+  }
+
+  function handleResetToFactory() {
+    if (
+      !window.confirm(
+        'Discard your edits and restore the shipped factory version?',
+      )
+    ) {
+      return
+    }
+    resetMutation.mutate(def.id)
+  }
+
+  const displayLines = (isEditing ? buffer : def.yaml).split('\n')
+
   return (
     <div className="yaml-tab">
       <div className="yaml-toolbar">
         <div className="yt-left">
-          {!isEditable && (
-            <>
-              <span className="bundled-lock-badge">🔒 bundled</span>
-              <button
-                className="btn-mini"
-                style={{ marginLeft: 8 }}
-                onClick={() =>
-                  window.dispatchEvent(
-                    new CustomEvent('wf-toast', {
-                      detail: { msg: 'Duplicate as user workflow coming v1.1' },
-                    }),
-                  )
-                }
-              >
-                Duplicate as user workflow
-              </button>
-            </>
-          )}
-          {isEditable && <span className="editable-indicator">● Editable</span>}
+          <span className="editable-indicator">● Editable</span>
           <span className="yaml-valid-badge">
             ✓ Parsed by workflow engine · {parsed.node_count} nodes
           </span>
@@ -1047,29 +1141,72 @@ function YamlTab({
           <button className="btn-mini" disabled>
             Format
           </button>
-          {isEditable && (
-            <>
-              <button className="btn-mini" disabled>
-                Revert
-              </button>
-              <button className="btn-mini prim" disabled>
-                Save
-              </button>
-            </>
+          {prov === 'modified-factory' && (
+            <button
+              className="btn-mini btn-mini--danger"
+              disabled={resetMutation.isPending}
+              onClick={handleResetToFactory}
+            >
+              {resetMutation.isPending ? 'Resetting…' : 'Reset to factory'}
+            </button>
           )}
+          {isDirty && (
+            <button
+              className="btn-mini"
+              disabled={saveMutation.isPending}
+              onClick={handleRevert}
+            >
+              Revert
+            </button>
+          )}
+          <button
+            className="btn-mini prim"
+            disabled={saveMutation.isPending || !isDirty}
+            onClick={() => void handleSave()}
+          >
+            {saveMutation.isPending ? 'Saving…' : 'Save'}
+          </button>
         </div>
       </div>
-      <div className="yaml-body">
-        <div className="yn-gutter">
-          {lines.map((_, i) => (
-            <div key={i} className="yn">
-              {i + 1}
-            </div>
-          ))}
+      {serverChanged && isDirty && (
+        <div className="yaml-validation-error">
+          The shipped definition changed on the server. Your edits are kept —
+          saving now will overwrite the server version with your changes.
         </div>
-        <pre className="wfe-yaml-code yaml-code">
-          {lines.map((l, i) => yamlLine(l, i))}
-        </pre>
+      )}
+      {validationError && (
+        <div className="yaml-validation-error">{validationError}</div>
+      )}
+      <div className="yaml-body">
+        {isEditing ? (
+          <textarea
+            className="yaml-editor-textarea"
+            value={buffer}
+            onChange={(e) => {
+              setBuffer(e.target.value)
+              setUserEdited(true)
+            }}
+            spellCheck={false}
+          />
+        ) : (
+          <>
+            <div className="yn-gutter">
+              {displayLines.map((_, i) => (
+                <div key={i} className="yn">
+                  {i + 1}
+                </div>
+              ))}
+            </div>
+            <pre
+              className="wfe-yaml-code yaml-code"
+              onClick={() => setIsEditing(true)}
+              title="Click to edit"
+              style={{ cursor: 'text' }}
+            >
+              {displayLines.map((l, i) => yamlLine(l, i))}
+            </pre>
+          </>
+        )}
       </div>
     </div>
   )
@@ -1387,7 +1524,7 @@ export function WorkflowEditor({
       <div className="ed-body">
         {activeTab === 'Overview' && <OverviewTab def={def} parsed={parsed} />}
         {activeTab === 'Visual DAG' && <DagSvgTab parsed={parsed} />}
-        {activeTab === 'YAML' && <YamlTab def={def} parsed={parsed} />}
+        {activeTab === 'YAML' && <YamlTab def={def} parsed={parsed} onRefetch={() => void refetch()} />}
         {activeTab === 'When-to-Use' && (
           <WhenToUseTab parsed={parsed} />
         )}

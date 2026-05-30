@@ -63,6 +63,10 @@ export interface WorkflowSummary {
   yaml: string
   /** 'workflow' (default) | 'subgraph' — subgraphs are hidden from the grid by default (A.7). */
   kind?: 'workflow' | 'subgraph'
+  /** 1 once a user has edited this bundled row; absent on legacy rows = treat as 0. */
+  user_modified?: 0 | 1
+  /** sha256 of the factory yaml this row was seeded/reset from; null for pure user rows. */
+  bundled_checksum?: string | null
 }
 
 /** Shape returned by GET /api/workflow-definitions/:id/parsed */

@@ -45,6 +45,10 @@ export interface WorkflowDefinitionRow {
   scope_path: string | null;
   yaml: string;
   checksum: string;
+  /** 1 once a user has edited this bundled row; absent on legacy rows = treat as 0. */
+  user_modified?: 0 | 1;
+  /** sha256 of the factory yaml this row was seeded/reset from; null for pure user rows. */
+  bundled_checksum?: string | null;
   version: string | null;
   tags: string | null;
   kind?: 'workflow' | 'subgraph';
@@ -149,7 +153,12 @@ export interface WorkflowEngineInterface {
   // ── Definitions ────────────────────────────────────────────────────────
   listDefinitions(filter?: { source?: string }): Promise<WorkflowDefinitionRow[]>;
   getDefinition(id: string): Promise<WorkflowDefinitionRow | null>;
-  upsertDefinition(yaml: string, sourcePath?: string): Promise<WorkflowDefinitionRow>;
+  upsertDefinition(
+    yaml: string,
+    sourcePath?: string,
+    opts?: { id?: string; name?: string; expected_checksum?: string },
+  ): Promise<WorkflowDefinitionRow>;
+  resetFactoryDefinition(id: string): Promise<WorkflowDefinitionRow>;
   parseDefinition(id: string): Promise<Record<string, unknown> | null>;
   deleteWorkflowDefinition(id: string): Promise<number>;
 

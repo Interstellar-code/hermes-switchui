@@ -41,6 +41,7 @@ const SectionShortcuts = lazy(() => import('./sections/section-shortcuts'))
 const SectionAdvanced = lazy(() => import('./sections/section-advanced'))
 const SectionRawConfig = lazy(() => import('./sections/section-raw-config'))
 const SectionDanger = lazy(() => import('./sections/section-danger'))
+const SectionWorkflows = lazy(() => import('./sections/section-workflows'))
 
 const SECTION_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   workspace: SectionWorkspace,
@@ -52,6 +53,7 @@ const SECTION_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   'agent-runtime': SectionAgentRuntime,
   'memory-wiki': SectionMemoryWiki,
   skills: SectionSkills,
+  workflows: SectionWorkflows,
   'mcp-servers': SectionMcpServers,
   'mcp-registered': SectionMcpRegistered,
   storage: SectionStorage,
@@ -90,6 +92,8 @@ const SECTIONS: Array<SectionDef> = [
   { id: 'memory-wiki', label: 'Memory & Wiki', group: 'Memory', p: 4 },
   // Skills
   { id: 'skills', label: 'Skills', group: 'Skills', p: 4 },
+  // Workflows
+  { id: 'workflows', label: 'Workflows', group: 'Workflows', p: 4 },
   // MCP
   { id: 'mcp-servers', label: 'Servers', group: 'MCP', p: 5 },
   { id: 'mcp-registered', label: 'Registered', group: 'MCP', p: 5 },
