@@ -43,7 +43,7 @@ Remaining: default toggle (recreate as read-only status), one-time import of nat
 | Route hardening + stale `localStorage['workflowBackend']` cleanup | **Buildable now** |
 | Save w/ `expected_checksum`, drop bundled-403, 409/422 | **Blocked** on Phase 3 deploy |
 | Reset-to-factory client + route + button | **Blocked** on Phase 3 deploy |
-| Native→plugin import script | **Blocked** (needs plugin dedupe semantics) |
+| Native→plugin import script | **Dropped** 2026-05-30 — native engine deleted long ago; no stranded `switchui-workflows.db` worth importing |
 | Update-available pip | **Blocked** (needs `bundled_checksum`) |
 
 ## Open question — RESOLVED recommendation
