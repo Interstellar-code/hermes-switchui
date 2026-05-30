@@ -11,6 +11,7 @@ import {
   launchWorkflowRun,
   listWorkflowDefinitions,
   listWorkflowRuns,
+  resetWorkflowDefinitionToFactory,
   upsertWorkflowDefinition,
 } from './api-client'
 import type {
@@ -142,8 +143,24 @@ export function useUpsertWorkflowDefinition() {
   return useMutation({
     mutationFn: (input: UpsertWorkflowDefinitionInput) =>
       upsertWorkflowDefinition(input),
-    onSuccess: () => {
+    onSuccess: (data) => {
       void queryClient.invalidateQueries({ queryKey: ['workflow-definitions'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['workflow-definitions', data.definition.id, 'parsed'],
+      })
+    },
+  })
+}
+
+export function useResetWorkflowDefinitionToFactory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => resetWorkflowDefinitionToFactory(id),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ['workflow-definitions'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['workflow-definitions', data.definition.id, 'parsed'],
+      })
     },
   })
 }

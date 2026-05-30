@@ -60,6 +60,7 @@ export const Route = createFileRoute('/api/workflow-definitions')({
           yaml?: unknown;
           version?: unknown;
           tags?: unknown;
+          expected_checksum?: unknown;
         };
 
         // Codex Bundle 5 Q3 — Input validation.
@@ -85,9 +86,6 @@ export const Route = createFileRoute('/api/workflow-definitions')({
         if (source !== 'project' && source !== 'user' && source !== 'bundled') {
           return Response.json({ error: "source must be 'project' | 'user' | 'bundled'" }, { status: 400 });
         }
-        if (source === 'bundled') {
-          return Response.json({ error: "source='bundled' is read-only" }, { status: 403 });
-        }
         if (body.scope_path !== undefined) {
           if (typeof body.scope_path !== 'string' || !body.scope_path.startsWith('/') || body.scope_path.includes('..')) {
             return Response.json({ error: 'scope_path must be absolute and contain no .. segments' }, { status: 400 });
@@ -105,13 +103,26 @@ export const Route = createFileRoute('/api/workflow-definitions')({
           }
         }
 
-        // Plugin parses and validates YAML server-side; surfaces 422-style
-        // errors through the HTTP response.
+        if (body.expected_checksum !== undefined && typeof body.expected_checksum !== 'string') {
+          return Response.json({ error: 'expected_checksum must be a string when provided' }, { status: 400 });
+        }
+
+        // Plugin parses and validates YAML server-side; surfaces 409/422 errors.
         try {
-          const def = await engine.upsertDefinition(body.yaml, body.scope_path);
+          const def = await engine.upsertDefinition(
+            body.yaml as string,
+            typeof body.scope_path === 'string' ? body.scope_path : undefined,
+            {
+              id: body.id as string,
+              name: body.name as string,
+              ...(typeof body.expected_checksum === 'string' ? { expected_checksum: body.expected_checksum } : {}),
+            },
+          );
           return Response.json({ definition: def });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
+          const status = (err as { status?: number }).status;
+          if (status === 409) return Response.json({ error: msg }, { status: 409 });
           return Response.json({ error: msg }, { status: 422 });
         }
 },

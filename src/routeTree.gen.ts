@@ -155,6 +155,7 @@ import { Route as ApiClaudeProxySplatRouteImport } from './routes/api/claude-pro
 import { Route as ApiClaudeJobsJobIdRouteImport } from './routes/api/claude-jobs.$jobId'
 import { Route as ApiArtifactsArtifactIdRouteImport } from './routes/api/artifacts.$artifactId'
 import { Route as ApiWorkflowRunsRunIdApproveRouteImport } from './routes/api/workflow-runs.$runId.approve'
+import { Route as ApiWorkflowDefinitionsIdResetFactoryRouteImport } from './routes/api/workflow-definitions.$id.reset-factory'
 import { Route as ApiWorkflowDefinitionsIdParsedRouteImport } from './routes/api/workflow-definitions.$id.parsed'
 import { Route as ApiSessionsSessionKeyStatusRouteImport } from './routes/api/sessions/$sessionKey.status'
 import { Route as ApiSessionsSessionKeyActiveRunRouteImport } from './routes/api/sessions/$sessionKey.active-run'
@@ -909,6 +910,12 @@ const ApiWorkflowRunsRunIdApproveRoute =
     path: '/approve',
     getParentRoute: () => ApiWorkflowRunsRunIdRoute,
   } as any)
+const ApiWorkflowDefinitionsIdResetFactoryRoute =
+  ApiWorkflowDefinitionsIdResetFactoryRouteImport.update({
+    id: '/reset-factory',
+    path: '/reset-factory',
+    getParentRoute: () => ApiWorkflowDefinitionsIdRoute,
+  } as any)
 const ApiWorkflowDefinitionsIdParsedRoute =
   ApiWorkflowDefinitionsIdParsedRouteImport.update({
     id: '/parsed',
@@ -1164,6 +1171,7 @@ export interface FileRoutesByFullPath {
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
+  '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/hermes-kanban/boards/$slug/switch': typeof ApiHermesKanbanBoardsSlugSwitchRoute
@@ -1327,6 +1335,7 @@ export interface FileRoutesByTo {
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
+  '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/hermes-kanban/boards/$slug/switch': typeof ApiHermesKanbanBoardsSlugSwitchRoute
@@ -1493,6 +1502,7 @@ export interface FileRoutesById {
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
+  '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/hermes-kanban/boards/$slug/switch': typeof ApiHermesKanbanBoardsSlugSwitchRoute
@@ -1660,6 +1670,7 @@ export interface FileRouteTypes {
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
     | '/api/workflow-definitions/$id/parsed'
+    | '/api/workflow-definitions/$id/reset-factory'
     | '/api/workflow-runs/$runId/approve'
     | '/api/conductor/missions/$id/abort'
     | '/api/hermes-kanban/boards/$slug/switch'
@@ -1823,6 +1834,7 @@ export interface FileRouteTypes {
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
     | '/api/workflow-definitions/$id/parsed'
+    | '/api/workflow-definitions/$id/reset-factory'
     | '/api/workflow-runs/$runId/approve'
     | '/api/conductor/missions/$id/abort'
     | '/api/hermes-kanban/boards/$slug/switch'
@@ -1988,6 +2000,7 @@ export interface FileRouteTypes {
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
     | '/api/workflow-definitions/$id/parsed'
+    | '/api/workflow-definitions/$id/reset-factory'
     | '/api/workflow-runs/$runId/approve'
     | '/api/conductor/missions/$id/abort'
     | '/api/hermes-kanban/boards/$slug/switch'
@@ -3142,6 +3155,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorkflowRunsRunIdApproveRouteImport
       parentRoute: typeof ApiWorkflowRunsRunIdRoute
     }
+    '/api/workflow-definitions/$id/reset-factory': {
+      id: '/api/workflow-definitions/$id/reset-factory'
+      path: '/reset-factory'
+      fullPath: '/api/workflow-definitions/$id/reset-factory'
+      preLoaderRoute: typeof ApiWorkflowDefinitionsIdResetFactoryRouteImport
+      parentRoute: typeof ApiWorkflowDefinitionsIdRoute
+    }
     '/api/workflow-definitions/$id/parsed': {
       id: '/api/workflow-definitions/$id/parsed'
       path: '/parsed'
@@ -3432,11 +3452,14 @@ const ApiSkillsRouteWithChildren = ApiSkillsRoute._addFileChildren(
 
 interface ApiWorkflowDefinitionsIdRouteChildren {
   ApiWorkflowDefinitionsIdParsedRoute: typeof ApiWorkflowDefinitionsIdParsedRoute
+  ApiWorkflowDefinitionsIdResetFactoryRoute: typeof ApiWorkflowDefinitionsIdResetFactoryRoute
 }
 
 const ApiWorkflowDefinitionsIdRouteChildren: ApiWorkflowDefinitionsIdRouteChildren =
   {
     ApiWorkflowDefinitionsIdParsedRoute: ApiWorkflowDefinitionsIdParsedRoute,
+    ApiWorkflowDefinitionsIdResetFactoryRoute:
+      ApiWorkflowDefinitionsIdResetFactoryRoute,
   }
 
 const ApiWorkflowDefinitionsIdRouteWithChildren =
