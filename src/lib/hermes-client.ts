@@ -24,10 +24,26 @@ async function proxyGet<T>(path: string): Promise<T> {
     const body = await res.text().catch(() => '')
     throw new Error(`Hermes Dashboard API ${path}: ${res.status} ${body}`)
   }
+  // A stale dashboard process serves its SPA index.html (200 text/html) for any
+  // route registered AFTER it booted — plugin API routes mount once at startup.
+  // Calling res.json() on that HTML throws an opaque parse error, so detect the
+  // non-JSON body here and surface an actionable "endpoint-unavailable" message.
+  const contentType = res.headers.get('content-type') ?? ''
+  if (!contentType.includes('json')) {
+    throw new Error(
+      `Hermes Dashboard API ${path}: endpoint-unavailable ` +
+        `(got "${contentType || 'unknown'}" instead of JSON — the dashboard ` +
+        `route is not mounted; restart the Hermes dashboard)`,
+    )
+  }
   return res.json() as Promise<T>
 }
 
-async function proxySend<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function proxySend<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<T> {
   const res = await proxyFetch(path, {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -35,7 +51,9 @@ async function proxySend<T>(method: string, path: string, body?: unknown): Promi
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(`Hermes Dashboard API ${method} ${path}: ${res.status} ${text}`)
+    throw new Error(
+      `Hermes Dashboard API ${method} ${path}: ${res.status} ${text}`,
+    )
   }
   return res.json() as Promise<T>
 }
@@ -44,7 +62,9 @@ async function proxyDelete(path: string): Promise<void> {
   const res = await proxyFetch(path, { method: 'DELETE' })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(`Hermes Dashboard API DELETE ${path}: ${res.status} ${text}`)
+    throw new Error(
+      `Hermes Dashboard API DELETE ${path}: ${res.status} ${text}`,
+    )
   }
 }
 
@@ -95,7 +115,12 @@ export type ModelOptions = {
 }
 
 export type ModelAuxiliary = {
-  tasks: Array<{ task: string; provider: string; model: string; base_url?: string }>
+  tasks: Array<{
+    task: string
+    provider: string
+    model: string
+    base_url?: string
+  }>
   main: { provider: string; model: string }
   [key: string]: unknown
 }
@@ -135,7 +160,13 @@ export type AnalyticsUsage = {
   total_estimated_cost?: number
   sessions?: number
   days?: number
-  by_day?: Array<{ date: string; sessions: number; messages: number; input_tokens: number; output_tokens: number }>
+  by_day?: Array<{
+    date: string
+    sessions: number
+    messages: number
+    input_tokens: number
+    output_tokens: number
+  }>
 }
 
 export type AnalyticsModelRow = {
@@ -164,6 +195,48 @@ export type GatewayStatus = {
   rss?: number
 }
 
+export type A2AFleetConversationSummary = {
+  contextId: string
+  peer: string
+  repo_path: string | null
+  message_count: number
+  last_ts: string | number | null
+  last_dir: string | null
+  last_text: string | null
+}
+
+export type A2AFleetConversationsResponse = {
+  count: number
+  conversations: Array<A2AFleetConversationSummary>
+}
+
+export type A2AFleetMessage = {
+  ts: string | number | null
+  dir: string
+  from: string
+  to: string
+  text: string
+}
+
+export type A2AFleetConversation = {
+  contextId: string
+  peer: string
+  repo_path: string | null
+  messages: Array<A2AFleetMessage>
+}
+
+export type A2AFleetPeer = {
+  name: string
+  repo_path: string | null
+  transcript_exists: boolean
+  message_count: number
+}
+
+export type A2AFleetPeersResponse = {
+  count: number
+  peers: Array<A2AFleetPeer>
+}
+
 // ── Skills ────────────────────────────────────────────────────────
 
 export async function listSkills(): Promise<unknown> {
@@ -178,7 +251,10 @@ export async function getSkillCategories(): Promise<unknown> {
   return proxyGet('/api/skills/categories')
 }
 
-export async function toggleSkill(name: string, enabled: boolean): Promise<unknown> {
+export async function toggleSkill(
+  name: string,
+  enabled: boolean,
+): Promise<unknown> {
   return proxySend('POST', '/api/skills/toggle', { name, enabled })
 }
 
@@ -192,6 +268,22 @@ export async function listDashboardPlugins(): Promise<unknown> {
   return proxyGet('/api/dashboard/plugins')
 }
 
+export async function getA2AFleetConversations(): Promise<A2AFleetConversationsResponse> {
+  return proxyGet('/api/plugins/a2a_fleet/conversations')
+}
+
+export async function getA2AFleetConversation(
+  contextId: string,
+): Promise<A2AFleetConversation> {
+  return proxyGet(
+    `/api/plugins/a2a_fleet/conversations/${encodeURIComponent(contextId)}`,
+  )
+}
+
+export async function getA2AFleetPeers(): Promise<A2AFleetPeersResponse> {
+  return proxyGet('/api/plugins/a2a_fleet/peers')
+}
+
 export async function installAgentPlugin(body: {
   identifier: string
   force?: boolean
@@ -201,23 +293,39 @@ export async function installAgentPlugin(body: {
 }
 
 export async function enableAgentPlugin(name: string): Promise<unknown> {
-  return proxySend('POST', `/api/dashboard/agent-plugins/${encodeURIComponent(name)}/enable`)
+  return proxySend(
+    'POST',
+    `/api/dashboard/agent-plugins/${encodeURIComponent(name)}/enable`,
+  )
 }
 
 export async function disableAgentPlugin(name: string): Promise<unknown> {
-  return proxySend('POST', `/api/dashboard/agent-plugins/${encodeURIComponent(name)}/disable`)
+  return proxySend(
+    'POST',
+    `/api/dashboard/agent-plugins/${encodeURIComponent(name)}/disable`,
+  )
 }
 
 export async function updateAgentPlugin(name: string): Promise<unknown> {
-  return proxySend('POST', `/api/dashboard/agent-plugins/${encodeURIComponent(name)}/update`)
+  return proxySend(
+    'POST',
+    `/api/dashboard/agent-plugins/${encodeURIComponent(name)}/update`,
+  )
 }
 
 export async function deleteAgentPlugin(name: string): Promise<void> {
   return proxyDelete(`/api/dashboard/agent-plugins/${encodeURIComponent(name)}`)
 }
 
-export async function setPluginVisibility(name: string, hidden: boolean): Promise<unknown> {
-  return proxySend('POST', `/api/dashboard/plugins/${encodeURIComponent(name)}/visibility`, { hidden })
+export async function setPluginVisibility(
+  name: string,
+  hidden: boolean,
+): Promise<unknown> {
+  return proxySend(
+    'POST',
+    `/api/dashboard/plugins/${encodeURIComponent(name)}/visibility`,
+    { hidden },
+  )
 }
 
 // ── Config ───────────────────────────────────────────────────────
@@ -240,8 +348,12 @@ export async function getConfigRaw(): Promise<{ yaml: string }> {
   return proxyGet<{ yaml: string }>('/api/config/raw')
 }
 
-export async function putConfigRaw(yamlText: string): Promise<{ yaml: string }> {
-  return proxySend<{ yaml: string }>('PUT', '/api/config/raw', { yaml_text: yamlText })
+export async function putConfigRaw(
+  yamlText: string,
+): Promise<{ yaml: string }> {
+  return proxySend<{ yaml: string }>('PUT', '/api/config/raw', {
+    yaml_text: yamlText,
+  })
 }
 
 // ── Model / Provider APIs ────────────────────────────────────────
@@ -293,11 +405,15 @@ export async function deleteEnv(key: string): Promise<void> {
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(`Hermes Dashboard API DELETE /api/env: ${res.status} ${text}`)
+    throw new Error(
+      `Hermes Dashboard API DELETE /api/env: ${res.status} ${text}`,
+    )
   }
 }
 
-export async function revealEnv(key: string): Promise<{ key: string; value: string }> {
+export async function revealEnv(
+  key: string,
+): Promise<{ key: string; value: string }> {
   const res = await proxyFetch('/api/env/reveal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -308,7 +424,9 @@ export async function revealEnv(key: string): Promise<{ key: string; value: stri
   }
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(`Hermes Dashboard API POST /api/env/reveal: ${res.status} ${text}`)
+    throw new Error(
+      `Hermes Dashboard API POST /api/env/reveal: ${res.status} ${text}`,
+    )
   }
   return res.json() as Promise<{ key: string; value: string }>
 }
@@ -316,7 +434,9 @@ export async function revealEnv(key: string): Promise<{ key: string; value: stri
 // ── OAuth providers ───────────────────────────────────────────────
 
 export async function listOAuthProviders(): Promise<Array<OAuthProvider>> {
-  const res = await proxyGet<{ providers?: Array<OAuthProvider> } | Array<OAuthProvider>>('/api/providers/oauth')
+  const res = await proxyGet<
+    { providers?: Array<OAuthProvider> } | Array<OAuthProvider>
+  >('/api/providers/oauth')
   if (Array.isArray(res)) return res
   return res.providers ?? []
 }
@@ -345,7 +465,12 @@ export async function gatewayRestart(): Promise<unknown> {
   return proxySend('POST', '/api/gateway/restart')
 }
 
-export async function getLogs(params?: { lines?: number; file?: string; level?: string; component?: string }): Promise<unknown> {
+export async function getLogs(params?: {
+  lines?: number
+  file?: string
+  level?: string
+  component?: string
+}): Promise<unknown> {
   const search = new URLSearchParams()
   if (params?.lines) search.set('lines', String(params.lines))
   if (params?.file) search.set('file', params.file)

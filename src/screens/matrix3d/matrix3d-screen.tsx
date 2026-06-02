@@ -1,12 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import ReactMarkdown from 'react-markdown'
+import remarkBreaks from 'remark-breaks'
+import remarkGfm from 'remark-gfm'
 import { Matrix3DCanvas } from './components/matrix3d-canvas'
 import { TYPE_LABELS, buildLogEntries } from './matrix3d-console-log'
 import { useMatrix3DOfficeData } from './use-matrix3d-office-data'
 import type { OfficeAgent } from '@/features/retro-office/core/types'
+import type {
+  A2AFleetConversationSummary,
+  A2AFleetMessage,
+} from '@/lib/hermes-client'
 import type { Matrix3DConsoleEntry } from './matrix3d-console-log'
 import type { Matrix3DAgentPresence } from './use-matrix3d-office-data'
-import { getLogs } from '@/lib/hermes-client'
+import {
+  getA2AFleetConversation,
+  getA2AFleetConversations,
+  getLogs,
+} from '@/lib/hermes-client'
 import './matrix3d-office.css'
 
 type Matrix3DAgentCardModel = {
@@ -25,6 +36,10 @@ type Matrix3DSelectedAgent = {
   card: Matrix3DAgentCardModel
   presence?: Matrix3DAgentPresence
 }
+
+type A2AMessageKind = 'orchestrator' | 'ack' | 'executor'
+type A2AConversationFilter = 'all' | A2AMessageKind
+type Matrix3DBottomMode = 'agents' | 'a2a'
 
 const FALLBACK_CARD_NAMES = ['HERMES', 'NEO', 'TRINITY', 'MORPHEUS']
 const MATRIX3D_IDENTITY_COLORS = ['#00ff41', '#38bdf8', '#f59e0b', '#a78bfa']
@@ -71,7 +86,10 @@ function agentIdentityColor(agent: OfficeAgent, index: number): string {
   for (const [token, color] of Object.entries(MATRIX3D_NAMED_COLORS)) {
     if (identity.includes(token)) return color
   }
-  return agent.color || MATRIX3D_IDENTITY_COLORS[index % MATRIX3D_IDENTITY_COLORS.length]
+  return (
+    agent.color ||
+    MATRIX3D_IDENTITY_COLORS[index % MATRIX3D_IDENTITY_COLORS.length]
+  )
 }
 
 function pluralize(
@@ -138,6 +156,154 @@ function formatPanelValue(value: string | number | null | undefined): string {
     return Number.isFinite(value) ? String(value) : '—'
   const text = value.trim()
   return text || '—'
+}
+
+function parseTimestampMs(
+  value: string | number | null | undefined,
+): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value < 10_000_000_000 ? value * 1000 : value
+  }
+
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  const numeric = Number(trimmed)
+  if (Number.isFinite(numeric)) {
+    return numeric < 10_000_000_000 ? numeric * 1000 : numeric
+  }
+
+  const parsed = Date.parse(trimmed)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function formatRelativeTimestamp(
+  value: string | number | null | undefined,
+): string {
+  const timestamp = parseTimestampMs(value)
+  if (!timestamp) return 'unknown'
+
+  const seconds = Math.round((timestamp - Date.now()) / 1000)
+  const abs = Math.abs(seconds)
+  const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+
+  if (abs < 60) return formatter.format(seconds, 'second')
+  const minutes = Math.round(seconds / 60)
+  if (Math.abs(minutes) < 60) return formatter.format(minutes, 'minute')
+  const hours = Math.round(minutes / 60)
+  if (Math.abs(hours) < 24) return formatter.format(hours, 'hour')
+  const days = Math.round(hours / 24)
+  return formatter.format(days, 'day')
+}
+
+function formatAbsoluteTimestamp(
+  value: string | number | null | undefined,
+): string {
+  const timestamp = parseTimestampMs(value)
+  if (!timestamp) return '—'
+  return new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(timestamp)
+}
+
+function a2aMessageKind(dir: string): A2AMessageKind {
+  if (dir === 'claude->hermes (ack)') return 'ack'
+  if (dir === 'hermes->claude') return 'orchestrator'
+  return 'executor'
+}
+
+function a2aMessageLabel(message: A2AFleetMessage): string {
+  const kind = a2aMessageKind(message.dir)
+  if (kind === 'orchestrator') return message.from || 'Hermes'
+  if (kind === 'ack') return '[queued]'
+  return message.from || 'Claude Code'
+}
+
+function a2aConversationTitle(
+  conversation: A2AFleetConversationSummary,
+): string {
+  return conversation.peer.trim() || conversation.contextId
+}
+
+function a2aConversationMatchesFilter(
+  conversation: A2AFleetConversationSummary,
+  query: string,
+  filter: A2AConversationFilter,
+): boolean {
+  if (
+    filter !== 'all' &&
+    a2aMessageKind(conversation.last_dir || '') !== filter
+  ) {
+    return false
+  }
+
+  const normalizedQuery = query.trim().toLowerCase()
+  if (!normalizedQuery) return true
+
+  return [
+    conversation.peer,
+    conversation.contextId,
+    conversation.repo_path,
+    conversation.last_dir,
+    conversation.last_text,
+  ]
+    .filter((value): value is string => typeof value === 'string')
+    .some((value) => value.toLowerCase().includes(normalizedQuery))
+}
+
+function a2aMessageMatchesFilter(
+  message: A2AFleetMessage,
+  query: string,
+  filter: A2AConversationFilter,
+): boolean {
+  if (filter !== 'all' && a2aMessageKind(message.dir) !== filter) {
+    return false
+  }
+
+  const normalizedQuery = query.trim().toLowerCase()
+  if (!normalizedQuery) return true
+
+  return [message.from, message.to, message.dir, message.text]
+    .filter((value): value is string => typeof value === 'string')
+    .some((value) => value.toLowerCase().includes(normalizedQuery))
+}
+
+function repoBasename(path: string | null | undefined): string {
+  if (!path) return ''
+  const parts = path.split('/').filter(Boolean)
+  return parts[parts.length - 1] || path
+}
+
+function copyText(value: string | null | undefined): void {
+  if (!value) return
+  void navigator.clipboard.writeText(value).catch(() => undefined)
+}
+
+function NetworkGlyph({ size = 13 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M12 5v5m0 4v5M7 8.5l-2.5 2m12.5-2 2.5 2M7 15.5l-2.5-2m12.5 2 2.5-2"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="12" cy="4" r="2" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="12" cy="20" r="2" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="3.5" cy="12" r="2" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="20.5" cy="12" r="2" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  )
 }
 
 function toCardAgent(
@@ -600,10 +766,284 @@ function Matrix3DConsole({
   )
 }
 
+function A2AFleetTab() {
+  const [selectedContextId, setSelectedContextId] = useState<string | null>(
+    null,
+  )
+  const [searchQuery, setSearchQuery] = useState('')
+  const [conversationFilter, setConversationFilter] =
+    useState<A2AConversationFilter>('all')
+  const [threadSearchQuery, setThreadSearchQuery] = useState('')
+  const [threadFilter, setThreadFilter] = useState<A2AConversationFilter>('all')
+  const threadRef = useRef<HTMLDivElement | null>(null)
+  const conversationsQuery = useQuery({
+    queryKey: ['matrix3d', 'a2a-fleet', 'conversations'],
+    queryFn: getA2AFleetConversations,
+    staleTime: 1_000,
+    refetchInterval: 2_000,
+    retry: false,
+  })
+  const conversations = conversationsQuery.data?.conversations ?? []
+  const filteredConversations = useMemo(
+    () =>
+      conversations.filter((conversation) =>
+        a2aConversationMatchesFilter(
+          conversation,
+          searchQuery,
+          conversationFilter,
+        ),
+      ),
+    [conversationFilter, conversations, searchQuery],
+  )
+  const selectedConversation = useMemo(
+    () =>
+      selectedContextId
+        ? conversations.find(
+            (conversation) => conversation.contextId === selectedContextId,
+          )
+        : null,
+    [conversations, selectedContextId],
+  )
+
+  useEffect(() => {
+    if (conversations.length === 0 || filteredConversations.length === 0) {
+      if (selectedContextId) setSelectedContextId(null)
+      return
+    }
+
+    if (
+      !selectedContextId ||
+      !filteredConversations.some(
+        (conversation) => conversation.contextId === selectedContextId,
+      )
+    ) {
+      setSelectedContextId(filteredConversations[0]?.contextId ?? null)
+    }
+  }, [conversations.length, filteredConversations, selectedContextId])
+
+  const threadQuery = useQuery({
+    queryKey: ['matrix3d', 'a2a-fleet', 'conversation', selectedContextId],
+    queryFn: () => getA2AFleetConversation(selectedContextId ?? ''),
+    enabled: Boolean(selectedContextId),
+    staleTime: 1_000,
+    refetchInterval: 2_000,
+    retry: false,
+  })
+  const messages = threadQuery.data?.messages ?? []
+  const filteredMessages = useMemo(
+    () =>
+      messages.filter((message) =>
+        a2aMessageMatchesFilter(message, threadSearchQuery, threadFilter),
+      ),
+    [messages, threadFilter, threadSearchQuery],
+  )
+  const lastMessageKey =
+    messages.length > 0
+      ? `${messages.length}:${messages[messages.length - 1]?.ts ?? ''}:${messages[messages.length - 1]?.text ?? ''}`
+      : 'empty'
+  const errorMessage =
+    conversationsQuery.error instanceof Error
+      ? conversationsQuery.error.message
+      : threadQuery.error instanceof Error
+        ? threadQuery.error.message
+        : ''
+  const isMissingRoute =
+    errorMessage.includes('404') ||
+    errorMessage.includes('endpoint-unavailable')
+
+  useEffect(() => {
+    const thread = threadRef.current
+    if (!thread) return
+    thread.scrollTop = thread.scrollHeight
+  }, [lastMessageKey, selectedContextId, threadFilter, threadSearchQuery])
+
+  return (
+    <div className="matrix3d-a2a">
+      <MatrixRain />
+      <div className="matrix3d-a2a-body">
+        <div className="matrix3d-a2a-list" aria-label="A2A conversations">
+          <div className="matrix3d-a2a-search">
+            <input
+              aria-label="Search A2A conversations"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search peer, context, repo, text…"
+            />
+            <select
+              aria-label="Filter A2A conversations"
+              value={conversationFilter}
+              onChange={(event) =>
+                setConversationFilter(
+                  event.target.value as A2AConversationFilter,
+                )
+              }
+            >
+              <option value="all">All</option>
+              <option value="orchestrator">Hermes</option>
+              <option value="executor">Claude</option>
+              <option value="ack">Queued</option>
+            </select>
+          </div>
+          {filteredConversations.length > 0 ? (
+            filteredConversations.map((conversation) => (
+              <button
+                key={conversation.contextId}
+                type="button"
+                className={`matrix3d-a2a-conversation${
+                  conversation.contextId === selectedContextId
+                    ? ' is-selected'
+                    : ''
+                }`}
+                onClick={() => setSelectedContextId(conversation.contextId)}
+              >
+                <div className="matrix3d-a2a-conversation-top">
+                  <span className="matrix3d-a2a-peer">
+                    {a2aConversationTitle(conversation)}
+                  </span>
+                  <span className="matrix3d-a2a-count">
+                    {conversation.message_count}
+                  </span>
+                </div>
+                <div className="matrix3d-a2a-context">
+                  {conversation.contextId}
+                </div>
+                <div className="matrix3d-a2a-preview">
+                  {conversation.last_text || 'No message preview.'}
+                </div>
+                <div className="matrix3d-a2a-meta">
+                  <span>{formatRelativeTimestamp(conversation.last_ts)}</span>
+                  <span>{conversation.last_dir || '—'}</span>
+                </div>
+              </button>
+            ))
+          ) : (
+            <div className="matrix3d-a2a-empty">
+              {conversationsQuery.isError
+                ? isMissingRoute
+                  ? 'A2A backend not ready — restart the Hermes dashboard (the plugin API mounts only at dashboard startup).'
+                  : 'Could not load A2A conversations from Hermes.'
+                : conversations.length > 0
+                  ? 'No A2A conversations match the current search/filter.'
+                  : 'No A2A conversations yet — deploy a Claude Code executor from Hermes.'}
+            </div>
+          )}
+        </div>
+        <div className="matrix3d-a2a-thread-wrap">
+          <div className="matrix3d-a2a-thread-head">
+            <div className="matrix3d-a2a-thread-id">
+              <div className="matrix3d-a2a-thread-title">
+                {selectedConversation
+                  ? a2aConversationTitle(selectedConversation)
+                  : 'No conversation selected'}
+              </div>
+              <div className="matrix3d-a2a-thread-meta">
+                <span>{pluralize(messages.length, 'message')}</span>
+                {selectedConversation?.last_ts ? (
+                  <span>
+                    Updated{' '}
+                    {formatRelativeTimestamp(selectedConversation.last_ts)}
+                  </span>
+                ) : null}
+                {selectedConversation?.repo_path ? (
+                  <span>{repoBasename(selectedConversation.repo_path)}</span>
+                ) : null}
+              </div>
+            </div>
+            <div className="matrix3d-a2a-thread-tools">
+              <input
+                aria-label="Search selected A2A thread"
+                value={threadSearchQuery}
+                onChange={(event) => setThreadSearchQuery(event.target.value)}
+                placeholder="Search thread…"
+              />
+              <select
+                aria-label="Filter selected A2A thread"
+                value={threadFilter}
+                onChange={(event) =>
+                  setThreadFilter(event.target.value as A2AConversationFilter)
+                }
+              >
+                <option value="all">All</option>
+                <option value="orchestrator">Hermes</option>
+                <option value="executor">Claude</option>
+                <option value="ack">Queued</option>
+              </select>
+              <button
+                type="button"
+                disabled={!selectedConversation}
+                onClick={() => copyText(selectedConversation?.contextId)}
+              >
+                Copy ID
+              </button>
+              <button
+                type="button"
+                disabled={!selectedConversation?.repo_path}
+                onClick={() => copyText(selectedConversation?.repo_path)}
+              >
+                Copy Repo
+              </button>
+              {threadQuery.isFetching ? (
+                <span className="matrix3d-a2a-thread-state">Sync</span>
+              ) : null}
+            </div>
+          </div>
+          <div
+            ref={threadRef}
+            className="matrix3d-a2a-thread"
+            aria-live="polite"
+          >
+            {filteredMessages.length > 0 ? (
+              filteredMessages.map((message, index) => {
+                const kind = a2aMessageKind(message.dir)
+                return (
+                  <div
+                    key={`${message.ts ?? index}-${message.dir}-${index}`}
+                    className={`matrix3d-a2a-message is-${kind}`}
+                  >
+                    <div className="matrix3d-a2a-message-meta">
+                      <span>{a2aMessageLabel(message)}</span>
+                      <span>{formatAbsoluteTimestamp(message.ts)}</span>
+                    </div>
+                    <div className="matrix3d-a2a-bubble">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm, remarkBreaks]}
+                        components={{
+                          a: ({ href, children }) => (
+                            <a href={href} target="_blank" rel="noreferrer">
+                              {children}
+                            </a>
+                          ),
+                        }}
+                      >
+                        {message.text || ' '}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+                )
+              })
+            ) : (
+              <div className="matrix3d-a2a-empty">
+                {threadQuery.isError
+                  ? 'Could not load the selected A2A thread.'
+                  : messages.length > 0
+                    ? 'No messages match the current thread search/filter.'
+                    : selectedContextId
+                      ? 'Waiting for messages…'
+                      : 'Select a conversation to inspect its thread.'}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function Matrix3DScreen() {
   const officeData = useMatrix3DOfficeData()
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false)
+  const [bottomMode, setBottomMode] = useState<Matrix3DBottomMode>('agents')
   const cardAgents = useMemo(
     () =>
       officeData.agents.map((agent, index) =>
@@ -752,7 +1192,11 @@ export function Matrix3DScreen() {
         </section>
 
         <section
-          className={`matrix3d-bottom-zone${isSidePanelOpen ? '' : ' is-side-collapsed'}`}
+          className={`matrix3d-bottom-zone${
+            isSidePanelOpen && bottomMode === 'agents'
+              ? ''
+              : ' is-side-collapsed'
+          }`}
           aria-label="Matrix3D Office agents and console"
         >
           <div className="matrix3d-bottom-main">
@@ -761,8 +1205,37 @@ export function Matrix3DScreen() {
                 <div className="matrix3d-roster-pulse" />
                 <span className="matrix3d-roster-label">{rosterLabel}</span>
                 <span className="matrix3d-roster-summary">{rosterSummary}</span>
+                <div className="matrix3d-roster-tabs" role="tablist">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={bottomMode === 'agents'}
+                    className={`matrix3d-roster-tab${
+                      bottomMode === 'agents' ? ' is-on' : ''
+                    }`}
+                    onClick={() => setBottomMode('agents')}
+                  >
+                    Active Agents
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={bottomMode === 'a2a'}
+                    className={`matrix3d-roster-tab${
+                      bottomMode === 'a2a' ? ' is-on' : ''
+                    }`}
+                    onClick={() => {
+                      setBottomMode('a2a')
+                      setSelectedAgentId(null)
+                      setIsSidePanelOpen(false)
+                    }}
+                  >
+                    <NetworkGlyph size={11} />
+                    A2A Fleet
+                  </button>
+                </div>
               </div>
-              {cardAgents.length > 0 ? (
+              {bottomMode === 'agents' && cardAgents.length > 0 ? (
                 <div className="matrix3d-roster-rail">
                   {cardAgents.map((agent) => (
                     <Matrix3DAgentCard
@@ -770,27 +1243,34 @@ export function Matrix3DScreen() {
                       agent={agent}
                       selected={agent.id === selectedAgent?.card.id}
                       onClick={() => {
+                        setBottomMode('agents')
                         setSelectedAgentId(agent.id)
                         setIsSidePanelOpen(true)
                       }}
                     />
                   ))}
                 </div>
-              ) : (
+              ) : bottomMode === 'agents' ? (
                 <div className="matrix3d-roster-empty">
                   No Hermes profiles or live sessions returned by the workspace
                   yet.
                 </div>
-              )}
+              ) : null}
             </div>
-            <Matrix3DConsole
-              entries={entries}
-              isLoading={agentLogsQuery.isLoading || gatewayLogsQuery.isLoading}
-              isError={Boolean(
-                agentLogsQuery.isError && gatewayLogsQuery.isError,
-              )}
-              agentTabs={consoleAgentTabs}
-            />
+            {bottomMode === 'agents' ? (
+              <Matrix3DConsole
+                entries={entries}
+                isLoading={
+                  agentLogsQuery.isLoading || gatewayLogsQuery.isLoading
+                }
+                isError={Boolean(
+                  agentLogsQuery.isError && gatewayLogsQuery.isError,
+                )}
+                agentTabs={consoleAgentTabs}
+              />
+            ) : (
+              <A2AFleetTab />
+            )}
           </div>
           <aside
             className="matrix3d-side-panel"

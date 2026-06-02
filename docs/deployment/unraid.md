@@ -13,6 +13,8 @@ This deployment uses one container that includes both Hermes Switch UI and the u
 | Appdata path | `/mnt/user/appdata/hermes-switchui` → `/opt/data` read/write |
 | PUID / PGID | `99` / `100` on standard Unraid |
 | Required env | `HERMES_PASSWORD=<strong secret>` |
+| Extra Parameters | `--restart=unless-stopped --shm-size=1g` |
+| Internal data env | `HERMES_HOME=/opt/data` |
 
 Unraid's own Docker docs recommend bridge mode for most applications because only explicitly mapped ports are reachable, and they recommend keeping application data in appdata-style host paths so updates do not wipe state.
 
@@ -37,9 +39,11 @@ Then open **Docker → Add Container** and select the template.
 1. Set `HERMES_PASSWORD`.
 2. Add one provider key (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `GOOGLE_API_KEY`, etc.) or configure a local provider during onboarding.
 3. Keep container port `3000` unchanged; only change the host port if needed.
-4. Start the container.
-5. Open `http://<unraid-ip>:3000/`.
-6. Check logs if startup fails:
+4. Keep `HERMES_HOME=/opt/data`; it must match the appdata mount target.
+5. Keep `PUID=99` and `PGID=100` unless your Unraid appdata ownership policy differs.
+6. Start the container.
+7. Open `http://<unraid-ip>:3000/`.
+8. Check logs if startup fails:
 
 ```bash
 docker logs hermes-switchui
@@ -48,6 +52,10 @@ docker logs hermes-switchui
 ## Optional agent API exposure
 
 The bundled Hermes Agent gateway listens on `127.0.0.1:8642` inside the container by default. Do not publish it unless another host process needs direct API access. If you expose it, set a strong `API_SERVER_KEY` and set `HERMES_API_TOKEN` to the same value.
+
+## Advanced logging
+
+Set `HERMES_LOG_LEVEL=DEBUG` only while troubleshooting Hermes Agent runtime issues such as platform adapters, Matrix E2EE, or MCP startup. Leave it blank for normal INFO-level logs.
 
 ## Runtime test command
 

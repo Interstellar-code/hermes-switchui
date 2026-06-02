@@ -18,7 +18,7 @@
   --m-border-faint: rgba(0, 255, 65, 0.06);
   --m-border-strong: rgba(0, 255, 65, 0.5);
   --m-fill-sub: rgba(0, 255, 65, 0.06);
-  --m-font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  --m-font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
 
   display: flex;
   height: 100%;
@@ -49,7 +49,11 @@
   border: 1px solid rgba(0, 255, 65, 0.15);
   border-radius: 22px;
   background:
-    radial-gradient(ellipse 70% 48% at 52% 42%, rgba(0, 255, 65, 0.075) 0%, transparent 68%),
+    radial-gradient(
+      ellipse 70% 48% at 52% 42%,
+      rgba(0, 255, 65, 0.075) 0%,
+      transparent 68%
+    ),
     linear-gradient(180deg, rgba(0, 40, 18, 0.45) 0%, rgba(1, 12, 5, 0.94) 70%),
     #010b05;
   box-shadow:
@@ -80,8 +84,17 @@
 .matrix3d-canvas-glow {
   inset: 0;
   background:
-    radial-gradient(ellipse 80% 60% at 50% 35%, rgba(0, 255, 65, 0.1) 0%, transparent 70%),
-    linear-gradient(180deg, rgba(0, 255, 65, 0.035) 0%, transparent 42%, rgba(0, 255, 65, 0.025) 100%);
+    radial-gradient(
+      ellipse 80% 60% at 50% 35%,
+      rgba(0, 255, 65, 0.1) 0%,
+      transparent 70%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(0, 255, 65, 0.035) 0%,
+      transparent 42%,
+      rgba(0, 255, 65, 0.025) 100%
+    );
 }
 
 .matrix3d-canvas-title-bar {
@@ -193,6 +206,40 @@
   font: 400 9.5px var(--m-font-mono);
 }
 
+.matrix3d-roster-tabs {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+}
+
+.matrix3d-roster-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--m-text-ghost);
+  cursor: pointer;
+  font: 600 8.5px var(--m-font-mono);
+  letter-spacing: 0.13em;
+  padding: 3px 8px;
+  text-transform: uppercase;
+}
+
+.matrix3d-roster-tab:hover {
+  border-color: var(--m-border-faint);
+  color: var(--m-text-muted);
+}
+
+.matrix3d-roster-tab.is-on {
+  border-color: var(--m-border-sub);
+  background: var(--m-fill-sub);
+  color: var(--m-green-500);
+  box-shadow: 0 0 12px rgba(0, 255, 65, 0.08);
+}
+
 .matrix3d-roster-rail {
   display: flex;
   gap: 8px;
@@ -216,7 +263,10 @@
   padding: 7px 6px 8px;
   color: inherit;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
 }
 
 .matrix3d-agent-card:hover {
@@ -333,6 +383,9 @@
 }
 
 .matrix3d-console-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   border: 1px solid transparent;
   border-radius: 999px;
   background: transparent;
@@ -422,13 +475,420 @@
   white-space: nowrap;
 }
 
-.matrix3d-type-sys { color: var(--m-text-faint); background: rgba(216, 255, 227, 0.04); }
-.matrix3d-type-route { color: var(--m-green-500); background: rgba(0, 255, 65, 0.10); }
-.matrix3d-type-tool { color: var(--m-warning); background: rgba(214, 255, 95, 0.10); }
-.matrix3d-type-trace { color: var(--m-info); background: rgba(95, 207, 255, 0.10); }
-.matrix3d-type-review { color: var(--m-purple); background: rgba(167, 139, 250, 0.10); }
-.matrix3d-type-dispatch { color: var(--m-pink); background: rgba(255, 95, 162, 0.10); }
-.matrix3d-type-err { color: var(--m-danger); background: rgba(255, 95, 109, 0.10); }
+.matrix3d-type-sys {
+  color: var(--m-text-faint);
+  background: rgba(216, 255, 227, 0.04);
+}
+.matrix3d-type-route {
+  color: var(--m-green-500);
+  background: rgba(0, 255, 65, 0.1);
+}
+.matrix3d-type-tool {
+  color: var(--m-warning);
+  background: rgba(214, 255, 95, 0.1);
+}
+.matrix3d-type-trace {
+  color: var(--m-info);
+  background: rgba(95, 207, 255, 0.1);
+}
+.matrix3d-type-review {
+  color: var(--m-purple);
+  background: rgba(167, 139, 250, 0.1);
+}
+.matrix3d-type-dispatch {
+  color: var(--m-pink);
+  background: rgba(255, 95, 162, 0.1);
+}
+.matrix3d-type-err {
+  color: var(--m-danger);
+  background: rgba(255, 95, 109, 0.1);
+}
+
+.matrix3d-a2a {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.matrix3d-a2a-body {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: minmax(230px, 0.34fr) minmax(0, 1fr);
+}
+
+.matrix3d-a2a-list {
+  min-width: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--m-border-faint);
+  background: rgba(1, 8, 4, 0.48);
+  scrollbar-color: rgba(0, 255, 65, 0.12) transparent;
+  scrollbar-width: thin;
+}
+
+.matrix3d-a2a-search {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 6px;
+  border-bottom: 1px solid var(--m-border-faint);
+  background: rgba(2, 10, 5, 0.94);
+  padding: 7px 9px;
+}
+
+.matrix3d-a2a-search input,
+.matrix3d-a2a-search select {
+  min-width: 0;
+  border: 1px solid var(--m-border-faint);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.24);
+  color: var(--m-text-muted);
+  font: 500 9.5px var(--m-font-mono);
+  outline: none;
+}
+
+.matrix3d-a2a-search input {
+  padding: 5px 8px;
+}
+
+.matrix3d-a2a-search select {
+  cursor: pointer;
+  padding: 5px 6px;
+  text-transform: uppercase;
+}
+
+.matrix3d-a2a-search input:focus,
+.matrix3d-a2a-search select:focus {
+  border-color: var(--m-border-sub);
+  box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.08);
+}
+
+.matrix3d-a2a-search input::placeholder {
+  color: var(--m-text-ghost);
+}
+
+.matrix3d-a2a-conversation {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--m-border-faint);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 9px 11px;
+  text-align: left;
+}
+
+.matrix3d-a2a-conversation:hover,
+.matrix3d-a2a-conversation.is-selected {
+  background: rgba(0, 255, 65, 0.055);
+}
+
+.matrix3d-a2a-conversation.is-selected {
+  box-shadow: inset 2px 0 0 var(--m-green-500);
+}
+
+.matrix3d-a2a-conversation-top,
+.matrix3d-a2a-meta,
+.matrix3d-a2a-message-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.matrix3d-a2a-peer {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--m-text);
+  font: 700 10.5px var(--m-font-mono);
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.matrix3d-a2a-count {
+  border: 1px solid rgba(0, 255, 65, 0.2);
+  border-radius: 999px;
+  background: rgba(0, 255, 65, 0.08);
+  color: var(--m-green-500);
+  font: 700 8.5px var(--m-font-mono);
+  padding: 1px 6px;
+}
+
+.matrix3d-a2a-context,
+.matrix3d-a2a-preview,
+.matrix3d-a2a-meta,
+.matrix3d-a2a-thread-sub {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.matrix3d-a2a-context {
+  margin-top: 4px;
+  color: var(--m-text-ghost);
+  font: 500 8.5px var(--m-font-mono);
+}
+
+.matrix3d-a2a-preview {
+  margin-top: 6px;
+  color: var(--m-text-muted);
+  font: 400 10px/1.45 var(--m-font-mono);
+}
+
+.matrix3d-a2a-meta {
+  margin-top: 6px;
+  color: var(--m-text-ghost);
+  font: 500 8.5px var(--m-font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.matrix3d-a2a-thread-wrap {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.matrix3d-a2a-thread-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--m-border-faint);
+  background: rgba(3, 16, 8, 0.64);
+  padding: 8px 13px;
+}
+
+.matrix3d-a2a-thread-id {
+  min-width: 0;
+}
+
+.matrix3d-a2a-thread-title {
+  color: var(--m-green-500);
+  font: 700 11px var(--m-font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.matrix3d-a2a-thread-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 3px;
+}
+
+.matrix3d-a2a-thread-meta span {
+  max-width: 220px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 255, 65, 0.11);
+  border-radius: 999px;
+  background: rgba(0, 255, 65, 0.035);
+  color: var(--m-text-ghost);
+  font: 600 8px var(--m-font-mono);
+  letter-spacing: 0.08em;
+  padding: 1px 6px;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.matrix3d-a2a-thread-tools {
+  display: flex;
+  min-width: min(620px, 58%);
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.matrix3d-a2a-thread-tools input,
+.matrix3d-a2a-thread-tools select,
+.matrix3d-a2a-thread-tools button {
+  border: 1px solid var(--m-border-faint);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--m-text-muted);
+  font: 600 8.5px var(--m-font-mono);
+  outline: none;
+}
+
+.matrix3d-a2a-thread-tools input {
+  min-width: 110px;
+  flex: 1 1 140px;
+  padding: 5px 7px;
+}
+
+.matrix3d-a2a-thread-tools select {
+  flex: 0 0 82px;
+  cursor: pointer;
+  padding: 5px 5px;
+  text-transform: uppercase;
+}
+
+.matrix3d-a2a-thread-tools button {
+  flex: 0 0 auto;
+  cursor: pointer;
+  letter-spacing: 0.08em;
+  padding: 5px 7px;
+  text-transform: uppercase;
+}
+
+.matrix3d-a2a-thread-tools button:hover:not(:disabled),
+.matrix3d-a2a-thread-tools input:focus,
+.matrix3d-a2a-thread-tools select:focus {
+  border-color: var(--m-border-sub);
+  color: var(--m-green-500);
+}
+
+.matrix3d-a2a-thread-tools button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.matrix3d-a2a-thread-tools input::placeholder {
+  color: var(--m-text-ghost);
+}
+
+.matrix3d-a2a-thread-state {
+  flex: 0 0 auto;
+  color: var(--m-text-ghost);
+  font: 600 8.5px var(--m-font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.matrix3d-a2a-thread {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 9px;
+  overflow-y: auto;
+  padding: 12px 14px 16px;
+  scrollbar-color: rgba(0, 255, 65, 0.12) transparent;
+  scrollbar-width: thin;
+}
+
+.matrix3d-a2a-message {
+  display: flex;
+  max-width: min(78%, 760px);
+  flex-direction: column;
+  gap: 4px;
+}
+
+.matrix3d-a2a-message.is-orchestrator {
+  align-self: flex-end;
+}
+
+.matrix3d-a2a-message.is-executor {
+  align-self: flex-start;
+}
+
+.matrix3d-a2a-message.is-ack {
+  max-width: 56%;
+  align-self: center;
+  opacity: 0.72;
+}
+
+.matrix3d-a2a-message-meta {
+  color: var(--m-text-ghost);
+  font: 600 8.5px var(--m-font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.matrix3d-a2a-bubble {
+  border: 1px solid var(--m-border-faint);
+  border-radius: 11px;
+  background: rgba(5, 20, 10, 0.78);
+  color: var(--m-text-muted);
+  font: 400 11px/1.5 var(--m-font-mono);
+  padding: 8px 10px;
+}
+
+.matrix3d-a2a-message.is-orchestrator .matrix3d-a2a-bubble {
+  border-color: rgba(0, 255, 65, 0.24);
+  background: rgba(0, 255, 65, 0.08);
+  color: rgba(217, 255, 227, 0.92);
+}
+
+.matrix3d-a2a-message.is-executor .matrix3d-a2a-bubble {
+  border-color: rgba(95, 207, 255, 0.24);
+  background: rgba(95, 207, 255, 0.08);
+  color: rgba(218, 244, 255, 0.92);
+}
+
+.matrix3d-a2a-message.is-ack .matrix3d-a2a-bubble {
+  border-color: rgba(216, 255, 227, 0.1);
+  background: rgba(216, 255, 227, 0.035);
+  color: var(--m-text-ghost);
+  font-size: 9.5px;
+  padding-block: 5px;
+}
+
+.matrix3d-a2a-bubble p {
+  margin: 0;
+}
+
+.matrix3d-a2a-bubble p + p,
+.matrix3d-a2a-bubble ul,
+.matrix3d-a2a-bubble ol,
+.matrix3d-a2a-bubble pre,
+.matrix3d-a2a-bubble blockquote {
+  margin: 0.55em 0 0;
+}
+
+.matrix3d-a2a-bubble ul,
+.matrix3d-a2a-bubble ol {
+  padding-left: 1.35em;
+}
+
+.matrix3d-a2a-bubble code {
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.26);
+  color: var(--m-green-500);
+  padding: 0.05em 0.35em;
+}
+
+.matrix3d-a2a-bubble pre {
+  overflow-x: auto;
+  border: 1px solid var(--m-border-faint);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 8px;
+}
+
+.matrix3d-a2a-bubble pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.matrix3d-a2a-bubble a {
+  color: var(--m-info);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.matrix3d-a2a-empty {
+  padding: 22px 14px;
+  color: var(--m-text-ghost);
+  font: 600 10px/1.55 var(--m-font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
 
 .matrix3d-side-panel {
   min-width: 0;
@@ -436,7 +896,11 @@
   flex-direction: column;
   overflow: hidden;
   border-left: 1px solid var(--m-border-sub);
-  background: linear-gradient(180deg, rgba(4, 16, 8, 0.98), rgba(3, 10, 6, 0.98));
+  background: linear-gradient(
+    180deg,
+    rgba(4, 16, 8, 0.98),
+    rgba(3, 10, 6, 0.98)
+  );
 }
 
 .matrix3d-bottom-zone.is-side-collapsed .matrix3d-side-panel {
@@ -658,29 +1122,59 @@
   font: 600 10px var(--m-font-mono);
 }
 
-.matrix3d-sprite-idle { animation: matrix3d-sprite-idle 3s ease-in-out infinite; }
-.matrix3d-sprite-working { animation: matrix3d-sprite-work 0.85s ease-in-out infinite; }
-.matrix3d-sprite-error { animation: matrix3d-sprite-error 1.1s ease-in-out infinite; }
+.matrix3d-sprite-idle {
+  animation: matrix3d-sprite-idle 3s ease-in-out infinite;
+}
+.matrix3d-sprite-working {
+  animation: matrix3d-sprite-work 0.85s ease-in-out infinite;
+}
+.matrix3d-sprite-error {
+  animation: matrix3d-sprite-error 1.1s ease-in-out infinite;
+}
 
 @keyframes matrix3d-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.45; transform: scale(1.2); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.2);
+  }
 }
 
 @keyframes matrix3d-sprite-idle {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
 }
 
 @keyframes matrix3d-sprite-work {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  30% { transform: translateY(-5px) rotate(-2deg); }
-  70% { transform: translateY(-3px) rotate(1.5deg); }
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  30% {
+    transform: translateY(-5px) rotate(-2deg);
+  }
+  70% {
+    transform: translateY(-3px) rotate(1.5deg);
+  }
 }
 
 @keyframes matrix3d-sprite-error {
-  0%, 100% { filter: none; }
-  50% { filter: hue-rotate(150deg) brightness(1.4); }
+  0%,
+  100% {
+    filter: none;
+  }
+  50% {
+    filter: hue-rotate(150deg) brightness(1.4);
+  }
 }
 
 @media (max-width: 900px) {
@@ -705,6 +1199,20 @@
 
   .matrix3d-console-duration {
     display: none;
+  }
+
+  .matrix3d-a2a-body {
+    grid-template-columns: 1fr;
+  }
+
+  .matrix3d-a2a-list {
+    max-height: 170px;
+    border-right: none;
+    border-bottom: 1px solid var(--m-border-faint);
+  }
+
+  .matrix3d-a2a-message {
+    max-width: 94%;
   }
 }
 

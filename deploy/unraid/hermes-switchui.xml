@@ -4,16 +4,16 @@
   <Repository>ghcr.io/interstellar-code/hermes-switchui:latest</Repository>
   <Registry>https://github.com/Interstellar-code/hermes-switchui/pkgs/container/hermes-switchui</Registry>
   <Network>bridge</Network>
-  <Shell>sh</Shell>
+  <Shell>bash</Shell>
   <Privileged>false</Privileged>
   <Support>https://github.com/Interstellar-code/hermes-switchui/issues</Support>
   <Project>https://github.com/Interstellar-code/hermes-switchui</Project>
-  <Overview>Hermes Switch UI bundled with the upstream Hermes Agent gateway in one self-contained container. The UI listens on port 3000; Hermes Agent state persists under /opt/data.</Overview>
+  <Overview>Hermes Switch UI bundled with the upstream Hermes Agent gateway in one self-contained container. The UI listens on port 3000; Hermes Agent state persists under /opt/data. BEFORE STARTING: set HERMES_PASSWORD and add at least one provider key, or configure a local provider from onboarding.</Overview>
   <Category>Productivity: Tools: Network:Web</Category>
   <WebUI>http://[IP]:[PORT:3000]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/Interstellar-code/hermes-switchui/main/deploy/unraid/hermes-switchui.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/Interstellar-code/hermes-switchui/main/public/favicon.svg</Icon>
-  <ExtraParams></ExtraParams>
+  <ExtraParams>--restart=unless-stopped --shm-size=1g</ExtraParams>
   <PostArgs></PostArgs>
   <CPUset></CPUset>
   <DateInstalled></DateInstalled>
@@ -21,10 +21,12 @@
   <DonateLink></DonateLink>
   <Requires>Set HERMES_PASSWORD before first start. Add at least one provider API key, or configure a local provider from onboarding.</Requires>
   <Config Name="Web UI Port" Target="3000" Default="3000" Mode="tcp" Description="Host port for Hermes Switch UI. Container port must remain 3000." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
-  <Config Name="Hermes Data" Target="/opt/data" Default="/mnt/user/appdata/hermes-switchui" Mode="rw" Description="Persistent Hermes Agent and Switch UI state: config, sessions, skills, memory, credentials, profiles, logs." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/hermes-switchui</Config>
+  <Config Name="Hermes Data" Target="/opt/data" Default="/mnt/user/appdata/hermes-switchui" Mode="rw" Description="Persistent Hermes Agent and Switch UI state: config, sessions, skills, memory, credentials, profiles, logs, and Matrix crypto store." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/hermes-switchui</Config>
   <Config Name="HERMES_PASSWORD" Target="HERMES_PASSWORD" Default="" Description="Required UI login password. Use a strong secret because the app controls terminals, files, agents, and jobs." Type="Variable" Display="always" Required="true" Mask="true"></Config>
-  <Config Name="PUID" Target="PUID" Default="99" Description="Unraid file-owner UID for files created in appdata. 99 is nobody on standard Unraid." Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
-  <Config Name="PGID" Target="PGID" Default="100" Description="Unraid file-owner GID for files created in appdata. 100 is users on standard Unraid." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Description="User ID the container process uses for appdata ownership. Default 99 = nobody on standard Unraid." Type="Variable" Display="always" Required="true" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Description="Group ID the container process uses for appdata ownership. Default 100 = users on standard Unraid." Type="Variable" Display="always" Required="true" Mask="false">100</Config>
+  <Config Name="HERMES_HOME" Target="HERMES_HOME" Default="/opt/data" Description="Internal container path for Hermes data. Must match the container mount point. Do not change." Type="Variable" Display="advanced" Required="true" Mask="false">/opt/data</Config>
+  <Config Name="HERMES_LOG_LEVEL" Target="HERMES_LOG_LEVEL" Default="" Description="Set to DEBUG for verbose Hermes Agent logging. Leave blank for normal INFO-level logs." Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="API_SERVER_KEY" Target="API_SERVER_KEY" Default="" Description="Optional bearer token for the bundled Hermes Agent gateway. If set, Switch UI uses the same value via HERMES_API_TOKEN." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
   <Config Name="HERMES_API_TOKEN" Target="HERMES_API_TOKEN" Default="" Description="Optional gateway bearer token. Leave blank unless API_SERVER_KEY is set; if set, use the same value." Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
   <Config Name="ANTHROPIC_API_KEY" Target="ANTHROPIC_API_KEY" Default="" Description="Optional Anthropic provider API key for the bundled Hermes Agent." Type="Variable" Display="always" Required="false" Mask="true"></Config>
