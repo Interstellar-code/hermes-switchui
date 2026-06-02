@@ -809,6 +809,19 @@ export const Route = createFileRoute('/api/send-stream')({
                   closeStream()
                 } catch (err) {
                   if (!streamClosed) {
+                    // Persist any partial text accumulated before the error so a
+                    // long response that fails near the end is not silently lost
+                    // from the local session store. Mirrors the success-path
+                    // append above. See #128.
+                    if (accumulated) {
+                      appendLocalMessage(portableSessionKey, {
+                        id: crypto.randomUUID(),
+                        role: 'assistant',
+                        content: accumulated,
+                        timestamp: Date.now(),
+                      })
+                      touchLocalSession(portableSessionKey)
+                    }
                     const errorMessage = normalizeClaudeErrorMessage(err)
                     persistActiveRun((runSessionKey, activeId) =>
                       markRunStatus(runSessionKey, activeId, 'error', errorMessage),
