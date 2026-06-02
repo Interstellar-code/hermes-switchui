@@ -604,6 +604,13 @@
   gap: 8px;
 }
 
+.matrix3d-a2a-peer-wrap {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
 .matrix3d-a2a-peer {
   min-width: 0;
   overflow: hidden;
@@ -613,6 +620,31 @@
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+/* Protocol badge — color driven by inline --a2a-mode-accent (per executor
+   mode). Falls back to ghost text when no mode/accent is provided. */
+.matrix3d-a2a-mode-badge {
+  flex: 0 0 auto;
+  border: 1px solid
+    color-mix(in srgb, var(--a2a-mode-accent, var(--m-text-ghost)) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(
+    in srgb,
+    var(--a2a-mode-accent, var(--m-text-ghost)) 14%,
+    transparent
+  );
+  color: var(--a2a-mode-accent, var(--m-text-ghost));
+  font: 700 8px var(--m-font-mono);
+  letter-spacing: 0.1em;
+  padding: 1px 6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.matrix3d-a2a-thread-title .matrix3d-a2a-mode-badge {
+  margin-right: 7px;
+  vertical-align: middle;
 }
 
 .matrix3d-a2a-count {
@@ -826,9 +858,25 @@
 }
 
 .matrix3d-a2a-message.is-executor .matrix3d-a2a-bubble {
-  border-color: rgba(95, 207, 255, 0.24);
-  background: rgba(95, 207, 255, 0.08);
+  border-color: color-mix(
+    in srgb,
+    var(--a2a-mode-accent, rgb(95, 207, 255)) 28%,
+    transparent
+  );
+  background: color-mix(
+    in srgb,
+    var(--a2a-mode-accent, rgb(95, 207, 255)) 9%,
+    transparent
+  );
   color: rgba(218, 244, 255, 0.92);
+}
+
+.matrix3d-a2a-message.is-executor .matrix3d-a2a-message-meta {
+  color: color-mix(
+    in srgb,
+    var(--a2a-mode-accent, var(--m-text-ghost)) 70%,
+    var(--m-text-ghost)
+  );
 }
 
 .matrix3d-a2a-message.is-ack .matrix3d-a2a-bubble {

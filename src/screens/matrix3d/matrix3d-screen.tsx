@@ -6,6 +6,15 @@ import remarkGfm from 'remark-gfm'
 import { Matrix3DCanvas } from './components/matrix3d-canvas'
 import { TYPE_LABELS, buildLogEntries } from './matrix3d-console-log'
 import { useMatrix3DOfficeData } from './use-matrix3d-office-data'
+import {
+  a2aMessageKind,
+  a2aMessageLabel,
+  modeAccent,
+  modeLabel,
+  normalizeMode,
+} from './a2a-modes'
+import type { CSSProperties } from 'react'
+import type { A2AMessageKind } from './a2a-modes'
 import type { OfficeAgent } from '@/features/retro-office/core/types'
 import type {
   A2AFleetConversationSummary,
@@ -37,7 +46,6 @@ type Matrix3DSelectedAgent = {
   presence?: Matrix3DAgentPresence
 }
 
-type A2AMessageKind = 'orchestrator' | 'ack' | 'executor'
 type A2AConversationFilter = 'all' | A2AMessageKind
 type Matrix3DBottomMode = 'agents' | 'a2a'
 
@@ -207,19 +215,6 @@ function formatAbsoluteTimestamp(
     minute: '2-digit',
     second: '2-digit',
   }).format(timestamp)
-}
-
-function a2aMessageKind(dir: string): A2AMessageKind {
-  if (dir === 'claude->hermes (ack)') return 'ack'
-  if (dir === 'hermes->claude') return 'orchestrator'
-  return 'executor'
-}
-
-function a2aMessageLabel(message: A2AFleetMessage): string {
-  const kind = a2aMessageKind(message.dir)
-  if (kind === 'orchestrator') return message.from || 'Hermes'
-  if (kind === 'ack') return '[queued]'
-  return message.from || 'Claude Code'
 }
 
 function a2aConversationTitle(
@@ -773,6 +768,7 @@ function A2AFleetTab() {
   const [searchQuery, setSearchQuery] = useState('')
   const [conversationFilter, setConversationFilter] =
     useState<A2AConversationFilter>('all')
+  const [modeFilter, setModeFilter] = useState<string>('all')
   const [threadSearchQuery, setThreadSearchQuery] = useState('')
   const [threadFilter, setThreadFilter] = useState<A2AConversationFilter>('all')
   const threadRef = useRef<HTMLDivElement | null>(null)
@@ -784,16 +780,27 @@ function A2AFleetTab() {
     retry: false,
   })
   const conversations = conversationsQuery.data?.conversations ?? []
+  const availableModes = useMemo(() => {
+    const seen = new Set<string>()
+    for (const conversation of conversations) {
+      const key = normalizeMode(conversation.mode)
+      if (key) seen.add(key)
+    }
+    return Array.from(seen).sort()
+  }, [conversations])
   const filteredConversations = useMemo(
     () =>
-      conversations.filter((conversation) =>
-        a2aConversationMatchesFilter(
-          conversation,
-          searchQuery,
-          conversationFilter,
-        ),
+      conversations.filter(
+        (conversation) =>
+          (modeFilter === 'all' ||
+            normalizeMode(conversation.mode) === modeFilter) &&
+          a2aConversationMatchesFilter(
+            conversation,
+            searchQuery,
+            conversationFilter,
+          ),
       ),
-    [conversationFilter, conversations, searchQuery],
+    [conversationFilter, conversations, modeFilter, searchQuery],
   )
   const selectedConversation = useMemo(
     () =>
@@ -880,9 +887,27 @@ function A2AFleetTab() {
             >
               <option value="all">All</option>
               <option value="orchestrator">Hermes</option>
-              <option value="executor">Claude</option>
+              <option value="executor">Executor</option>
               <option value="ack">Queued</option>
             </select>
+            {availableModes.length > 0 ? (
+              <select
+                aria-label="Filter A2A conversations by protocol"
+                value={
+                  modeFilter !== 'all' && !availableModes.includes(modeFilter)
+                    ? 'all'
+                    : modeFilter
+                }
+                onChange={(event) => setModeFilter(event.target.value)}
+              >
+                <option value="all">All protocols</option>
+                {availableModes.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {modeLabel(mode)}
+                  </option>
+                ))}
+              </select>
+            ) : null}
           </div>
           {filteredConversations.length > 0 ? (
             filteredConversations.map((conversation) => (
@@ -897,8 +922,22 @@ function A2AFleetTab() {
                 onClick={() => setSelectedContextId(conversation.contextId)}
               >
                 <div className="matrix3d-a2a-conversation-top">
-                  <span className="matrix3d-a2a-peer">
-                    {a2aConversationTitle(conversation)}
+                  <span className="matrix3d-a2a-peer-wrap">
+                    {conversation.mode ? (
+                      <span
+                        className="matrix3d-a2a-mode-badge"
+                        style={
+                          {
+                            '--a2a-mode-accent': modeAccent(conversation.mode),
+                          } as CSSProperties
+                        }
+                      >
+                        {modeLabel(conversation.mode)}
+                      </span>
+                    ) : null}
+                    <span className="matrix3d-a2a-peer">
+                      {a2aConversationTitle(conversation)}
+                    </span>
                   </span>
                   <span className="matrix3d-a2a-count">
                     {conversation.message_count}
@@ -924,7 +963,7 @@ function A2AFleetTab() {
                   : 'Could not load A2A conversations from Hermes.'
                 : conversations.length > 0
                   ? 'No A2A conversations match the current search/filter.'
-                  : 'No A2A conversations yet — deploy a Claude Code executor from Hermes.'}
+                  : 'No A2A conversations yet — deploy an executor from Hermes.'}
             </div>
           )}
         </div>
@@ -932,6 +971,20 @@ function A2AFleetTab() {
           <div className="matrix3d-a2a-thread-head">
             <div className="matrix3d-a2a-thread-id">
               <div className="matrix3d-a2a-thread-title">
+                {selectedConversation?.mode ? (
+                  <span
+                    className="matrix3d-a2a-mode-badge"
+                    style={
+                      {
+                        '--a2a-mode-accent': modeAccent(
+                          selectedConversation.mode,
+                        ),
+                      } as CSSProperties
+                    }
+                  >
+                    {modeLabel(selectedConversation.mode)}
+                  </span>
+                ) : null}
                 {selectedConversation
                   ? a2aConversationTitle(selectedConversation)
                   : 'No conversation selected'}
@@ -965,7 +1018,7 @@ function A2AFleetTab() {
               >
                 <option value="all">All</option>
                 <option value="orchestrator">Hermes</option>
-                <option value="executor">Claude</option>
+                <option value="executor">Executor</option>
                 <option value="ack">Queued</option>
               </select>
               <button
@@ -999,9 +1052,20 @@ function A2AFleetTab() {
                   <div
                     key={`${message.ts ?? index}-${message.dir}-${index}`}
                     className={`matrix3d-a2a-message is-${kind}`}
+                    style={
+                      kind === 'executor' && selectedConversation?.mode
+                        ? ({
+                            '--a2a-mode-accent': modeAccent(
+                              selectedConversation.mode,
+                            ),
+                          } as CSSProperties)
+                        : undefined
+                    }
                   >
                     <div className="matrix3d-a2a-message-meta">
-                      <span>{a2aMessageLabel(message)}</span>
+                      <span>
+                        {a2aMessageLabel(message, selectedConversation?.mode)}
+                      </span>
                       <span>{formatAbsoluteTimestamp(message.ts)}</span>
                     </div>
                     <div className="matrix3d-a2a-bubble">

@@ -198,6 +198,7 @@ export type GatewayStatus = {
 export type A2AFleetConversationSummary = {
   contextId: string
   peer: string
+  mode?: string | null
   repo_path: string | null
   message_count: number
   last_ts: string | number | null
@@ -221,12 +222,14 @@ export type A2AFleetMessage = {
 export type A2AFleetConversation = {
   contextId: string
   peer: string
+  mode?: string | null
   repo_path: string | null
   messages: Array<A2AFleetMessage>
 }
 
 export type A2AFleetPeer = {
   name: string
+  mode?: string | null
   repo_path: string | null
   transcript_exists: boolean
   message_count: number
