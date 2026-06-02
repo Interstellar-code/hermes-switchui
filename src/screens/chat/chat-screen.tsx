@@ -1249,6 +1249,12 @@ export function ChatScreen({
         activeSendRef.current = null
         setSending(false)
         if (isMissingAuth(messageText)) {
+          // Clear waiting before the early return — otherwise an auth-failure
+          // error strands waitingSessionKeys for the full 120s TTL and the
+          // composer shows a stuck spinner if the user returns to the session
+          // within that window. See #120.
+          setPendingGeneration(false)
+          setWaitingForResponse(false)
           if (!embedded) {
             try {
               navigate({ to: '/', replace: true })
