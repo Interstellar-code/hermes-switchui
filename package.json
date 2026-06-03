@@ -1,7 +1,7 @@
 {
   "name": "hermes-switchui-landing",
   "type": "module",
-  "version": "1.0.0",
+  "version": "2.3.18",
   "private": true,
   "scripts": {
     "dev": "astro dev",

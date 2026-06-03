@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.18] - 2026-06-03
+
+### Changed
+- **Accurate Links & Repo**: Pointed all GitHub links, star badges, and stars API calls to the public product repo `Interstellar-code/hermes-switchui` (was `nousresearch/hermes-agent`) across `index.astro`, `HeroRain.astro`, `TopNav.astro`, and `DocsLayout.astro`.
+- **Real Install Flow**: Replaced the placeholder `npm install -g @hermes/switch-ui` command with the real one-line installer (`curl -fsSL .../hermes-switchui/main/install.sh | bash`); updated the hero boot animation to match (real installer, v2.3.18, Node 22.x).
+- **Version Sync**: Bumped version to `v2.3.18` (matching the app) in the hero badge, nav, footer, `package.json`, and `README.md`.
+
+### Fixed
+- **Dead Links**: Removed the dead Discord footer link and pointed the Changelog link to GitHub Releases.
+
+---
+
 ## [2.3.0] - 2026-05-26
 
 ### Added
@@ -19,4 +31,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[2.3.0]: https://github.com/nousresearch/hermes-agent/compare/v2.2.0...v2.3.0
+[2.3.18]: https://github.com/Interstellar-code/hermes-switchui/compare/v2.3.0...v2.3.18
+[2.3.0]: https://github.com/Interstellar-code/hermes-switchui/compare/v2.2.0...v2.3.0
