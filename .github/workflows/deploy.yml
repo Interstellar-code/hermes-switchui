@@ -41,7 +41,7 @@ jobs:
 
       - name: Deploy dist/ to web root
         run: |
-          rsync -az --delete \
+          rsync -az --delete --exclude='.DS_Store' \
             -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || '22' }}" \
             dist/ \
             "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/"
