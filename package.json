@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
-    "build": "astro build && sed -i '' 's|href=\"/./_astro/|href=\"./_astro/|g' dist/index.html",
+    "build": "astro build && node scripts/postbuild.mjs",
     "preview": "astro preview"
   },
   "dependencies": {
