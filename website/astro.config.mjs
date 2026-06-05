@@ -5,7 +5,7 @@ export default defineConfig({
   srcDir: './src',
   outDir: './dist',
   publicDir: './public',
-  base: '.',
+  base: process.env.SITE_BASE || '/',
   vite: {
     build: {
       cssMinify: false,

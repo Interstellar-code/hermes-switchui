@@ -3,6 +3,19 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.26] — 2026-06-05
+
+Website served in-app.
+
+### Added
+
+- **`/website` serves the Astro marketing site.** The bundled `website/` Astro site is now reachable at `http://localhost:3000/website/` from the app (dev and production node). New splat route `src/routes/website.$.ts` serves `website/dist/` (content-typed, path-traversal-guarded, public/no-auth) with `website.index.ts` for the bare path.
+- Astro `base` is env-driven (`SITE_BASE`): the app build (`build:website`) builds with `base: /website`; the VPS deploy keeps `base: /` (root). `pnpm build` now builds the website before `vite build`.
+
+### Notes
+
+- Docker: `.dockerignore` excludes `website/`, so `/website` won't serve inside the Docker image yet — a separate follow-up.
+
 ## [2.3.25] — 2026-06-05
 
 Security + tooling.

@@ -28,9 +28,11 @@ import { Route as AgoraRouteImport } from './routes/agora'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as DocsRouteRouteImport } from './routes/docs/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as WebsiteIndexRouteImport } from './routes/website.index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as DocsIndexRouteImport } from './routes/docs/index'
 import { Route as ChatIndexRouteImport } from './routes/chat/index'
+import { Route as WebsiteSplatRouteImport } from './routes/website.$'
 import { Route as SettingsProvidersRouteImport } from './routes/settings/providers'
 import { Route as DocsSplatRouteImport } from './routes/docs/$'
 import { Route as ChatSessionKeyRouteImport } from './routes/chat/$sessionKey'
@@ -269,6 +271,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WebsiteIndexRoute = WebsiteIndexRouteImport.update({
+  id: '/website/',
+  path: '/website/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -282,6 +289,11 @@ const DocsIndexRoute = DocsIndexRouteImport.update({
 const ChatIndexRoute = ChatIndexRouteImport.update({
   id: '/chat/',
   path: '/chat/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WebsiteSplatRoute = WebsiteSplatRouteImport.update({
+  id: '/website/$',
+  path: '/website/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsProvidersRoute = SettingsProvidersRouteImport.update({
@@ -1089,9 +1101,11 @@ export interface FileRoutesByFullPath {
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
   '/docs/$': typeof DocsSplatRoute
   '/settings/providers': typeof SettingsProvidersRoute
+  '/website/$': typeof WebsiteSplatRoute
   '/chat/': typeof ChatIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/website/': typeof WebsiteIndexRoute
   '/api/artifacts/$artifactId': typeof ApiArtifactsArtifactIdRoute
   '/api/claude-jobs/$jobId': typeof ApiClaudeJobsJobIdRoute
   '/api/claude-proxy/$': typeof ApiClaudeProxySplatRoute
@@ -1253,9 +1267,11 @@ export interface FileRoutesByTo {
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
   '/docs/$': typeof DocsSplatRoute
   '/settings/providers': typeof SettingsProvidersRoute
+  '/website/$': typeof WebsiteSplatRoute
   '/chat': typeof ChatIndexRoute
   '/docs': typeof DocsIndexRoute
   '/settings': typeof SettingsIndexRoute
+  '/website': typeof WebsiteIndexRoute
   '/api/artifacts/$artifactId': typeof ApiArtifactsArtifactIdRoute
   '/api/claude-jobs/$jobId': typeof ApiClaudeJobsJobIdRoute
   '/api/claude-proxy/$': typeof ApiClaudeProxySplatRoute
@@ -1420,9 +1436,11 @@ export interface FileRoutesById {
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
   '/docs/$': typeof DocsSplatRoute
   '/settings/providers': typeof SettingsProvidersRoute
+  '/website/$': typeof WebsiteSplatRoute
   '/chat/': typeof ChatIndexRoute
   '/docs/': typeof DocsIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/website/': typeof WebsiteIndexRoute
   '/api/artifacts/$artifactId': typeof ApiArtifactsArtifactIdRoute
   '/api/claude-jobs/$jobId': typeof ApiClaudeJobsJobIdRoute
   '/api/claude-proxy/$': typeof ApiClaudeProxySplatRoute
@@ -1588,9 +1606,11 @@ export interface FileRouteTypes {
     | '/chat/$sessionKey'
     | '/docs/$'
     | '/settings/providers'
+    | '/website/$'
     | '/chat/'
     | '/docs/'
     | '/settings/'
+    | '/website/'
     | '/api/artifacts/$artifactId'
     | '/api/claude-jobs/$jobId'
     | '/api/claude-proxy/$'
@@ -1752,9 +1772,11 @@ export interface FileRouteTypes {
     | '/chat/$sessionKey'
     | '/docs/$'
     | '/settings/providers'
+    | '/website/$'
     | '/chat'
     | '/docs'
     | '/settings'
+    | '/website'
     | '/api/artifacts/$artifactId'
     | '/api/claude-jobs/$jobId'
     | '/api/claude-proxy/$'
@@ -1918,9 +1940,11 @@ export interface FileRouteTypes {
     | '/chat/$sessionKey'
     | '/docs/$'
     | '/settings/providers'
+    | '/website/$'
     | '/chat/'
     | '/docs/'
     | '/settings/'
+    | '/website/'
     | '/api/artifacts/$artifactId'
     | '/api/claude-jobs/$jobId'
     | '/api/claude-proxy/$'
@@ -2083,7 +2107,9 @@ export interface RootRouteChildren {
   ApiWorkflowRunsRoute: typeof ApiWorkflowRunsRouteWithChildren
   ApiWorkspaceRoute: typeof ApiWorkspaceRouteWithChildren
   ChatSessionKeyRoute: typeof ChatSessionKeyRoute
+  WebsiteSplatRoute: typeof WebsiteSplatRoute
   ChatIndexRoute: typeof ChatIndexRoute
+  WebsiteIndexRoute: typeof WebsiteIndexRoute
   ApiClaudeProxySplatRoute: typeof ApiClaudeProxySplatRoute
   ApiConductorMissionsRoute: typeof ApiConductorMissionsRouteWithChildren
   ApiConductorStateRoute: typeof ApiConductorStateRoute
@@ -2266,6 +2292,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/website/': {
+      id: '/website/'
+      path: '/website'
+      fullPath: '/website/'
+      preLoaderRoute: typeof WebsiteIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/': {
       id: '/settings/'
       path: '/'
@@ -2285,6 +2318,13 @@ declare module '@tanstack/react-router' {
       path: '/chat'
       fullPath: '/chat/'
       preLoaderRoute: typeof ChatIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/website/$': {
+      id: '/website/$'
+      path: '/website/$'
+      fullPath: '/website/$'
+      preLoaderRoute: typeof WebsiteSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings/providers': {
@@ -3710,7 +3750,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWorkflowRunsRoute: ApiWorkflowRunsRouteWithChildren,
   ApiWorkspaceRoute: ApiWorkspaceRouteWithChildren,
   ChatSessionKeyRoute: ChatSessionKeyRoute,
+  WebsiteSplatRoute: WebsiteSplatRoute,
   ChatIndexRoute: ChatIndexRoute,
+  WebsiteIndexRoute: WebsiteIndexRoute,
   ApiClaudeProxySplatRoute: ApiClaudeProxySplatRoute,
   ApiConductorMissionsRoute: ApiConductorMissionsRouteWithChildren,
   ApiConductorStateRoute: ApiConductorStateRoute,
