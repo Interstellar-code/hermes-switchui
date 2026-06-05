@@ -3,6 +3,14 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.23] — 2026-06-05
+
+Visual bug-report widget.
+
+### Added
+
+- **Userback feedback widget.** Any user can file a bug report with a screenshot/annotation from inside Switch UI. On by default; override your token or disable via `VITE_USERBACK_TOKEN` (`=off` to disable). CSP `script-src`/`style-src`/`font-src` widened to allow `static.userback.io`.
+
 ## [2.3.22] — 2026-06-05
 
 Dashboard banner bugfix + dynamic detection.

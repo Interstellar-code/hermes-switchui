@@ -18,6 +18,7 @@ import { MobilePromptTrigger } from '@/components/mobile-prompt/MobilePromptTrig
 import { Toaster } from '@/components/ui/toast'
 import { GatewayRestartBanner } from '@/components/gateway-restart-banner'
 import { DashboardUnavailableBanner } from '@/components/dashboard-unavailable-banner'
+import { UserbackWidget } from '@/components/userback-widget'
 import { OnboardingTour } from '@/components/onboarding/onboarding-tour'
 import { KeyboardShortcutsModal } from '@/components/keyboard-shortcuts-modal'
 import { UpdateCenterNotifier } from '@/components/update-center-notifier'
@@ -37,10 +38,10 @@ const APP_CSP = [
   "object-src 'none'",
   "form-action 'self'",
   // frame-ancestors is ignored in meta CSP and must be sent as an HTTP header.
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval' blob: https://cdn.jsdelivr.net",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://static.userback.io https://*.userback.io",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://static.userback.io https://*.userback.io",
   "img-src 'self' data: blob: https:",
-  "font-src 'self' data: https://fonts.gstatic.com",
+  "font-src 'self' data: https://fonts.gstatic.com https://static.userback.io https://*.userback.io",
   "connect-src 'self' ws: wss: http: https:",
   "child-src 'self' blob:",
   "worker-src 'self' blob:",
@@ -369,6 +370,7 @@ function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <Toaster />
+      <UserbackWidget />
       {mounted && rootSurfaceState.showLogin ? <LoginScreen /> : null}
       {mounted && rootSurfaceState.showOnboarding ? <ClaudeOnboarding /> : null}
       {rootSurfaceState.showWorkspaceShell ? (
