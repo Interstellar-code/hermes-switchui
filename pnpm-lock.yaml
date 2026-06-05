@@ -26,7 +26,7 @@ importers:
         version: 10.0.0(@dnd-kit/core@6.3.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)
       '@hono/zod-openapi':
         specifier: ^1.4.0
-        version: 1.4.0(hono@4.12.18)(zod@4.4.3)
+        version: 1.4.0(hono@4.12.23)(zod@4.4.3)
       '@hugeicons/core-free-icons':
         specifier: ^4.2.0
         version: 4.2.0
@@ -108,6 +108,9 @@ importers:
       gray-matter:
         specifier: ^4.0.3
         version: 4.0.3
+      hono:
+        specifier: ^4.12.23
+        version: 4.12.23
       marked:
         specifier: ^18.0.5
         version: 18.0.5
@@ -4047,8 +4050,8 @@ packages:
   hoist-non-react-statics@3.3.2:
     resolution: {integrity: sha512-/gGivxi8JPKWNm/W0jSmzcMPpfpPLc3dY/6GxhX2hQ9iGj3aDfklV4ET7NjKpSinLpJ5vafa9iiGIEZg10SfBw==}
 
-  hono@4.12.18:
-    resolution: {integrity: sha512-RWzP96k/yv0PQfyXnWjs6zot20TqfpfsNXhOnev8d1InAxubW93L11/oNUc3tQqn2G0bSdAOBpX+2uDFHV7kdQ==}
+  hono@4.12.23:
+    resolution: {integrity: sha512-eIaZ9qDgu7XV0pxOCrg7/WhnQ6Ivm22UcxhXx/A3dcbqbbYgBEkc6e/J/s7j2tS96zoB0S9VBdLwQNCWwUo4LA==}
     engines: {node: '>=16.9.0'}
 
   hosted-git-info@4.1.0:
@@ -7234,17 +7237,17 @@ snapshots:
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
 
-  '@hono/zod-openapi@1.4.0(hono@4.12.18)(zod@4.4.3)':
+  '@hono/zod-openapi@1.4.0(hono@4.12.23)(zod@4.4.3)':
     dependencies:
       '@asteasolutions/zod-to-openapi': 8.5.0(zod@4.4.3)
-      '@hono/zod-validator': 0.8.0(hono@4.12.18)(zod@4.4.3)
-      hono: 4.12.18
+      '@hono/zod-validator': 0.8.0(hono@4.12.23)(zod@4.4.3)
+      hono: 4.12.23
       openapi3-ts: 4.5.0
       zod: 4.4.3
 
-  '@hono/zod-validator@0.8.0(hono@4.12.18)(zod@4.4.3)':
+  '@hono/zod-validator@0.8.0(hono@4.12.23)(zod@4.4.3)':
     dependencies:
-      hono: 4.12.18
+      hono: 4.12.23
       zod: 4.4.3
 
   '@hugeicons/core-free-icons@4.2.0': {}
@@ -10894,7 +10897,7 @@ snapshots:
     dependencies:
       react-is: 16.13.1
 
-  hono@4.12.18: {}
+  hono@4.12.23: {}
 
   hosted-git-info@4.1.0:
     dependencies:
