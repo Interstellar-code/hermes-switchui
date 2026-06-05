@@ -299,9 +299,39 @@ cat <<EOF
   (Manage it with: hermes gateway status | stop | restart)
   Note: WSL has no systemd by default — stick with 'pnpm start:all' there.
 
+  ── IMPORTANT: the Hermes dashboard (port 9119) ──
+  Switch UI needs TWO backends:
+    • gateway   (:8642) — chat
+    • dashboard (:9119) — sessions, skills, memory, kanban, jobs
+  Without the dashboard those features WILL NOT WORK. Start it
+  (headless — keep it running in its own terminal or as a service):
+
+       hermes dashboard --no-open --skip-build
+
 EOF
 yellow "  Note: if the Hermes Agent gateway was already running before"
 yellow "  this install, restart it (or just use 'pnpm start:all') so"
 yellow "  API_SERVER_ENABLED=true takes effect."
+echo ""
+
+# ─── backend reachability check ───────────────────────────────────────────
+# Probe both backends so the user knows BEFORE opening the UI whether the
+# dashboard (the rich-features backend) is up. The dashboard is not started
+# by this installer or by 'pnpm start:all' — its absence is the #1 reason
+# the app looks installed but half the features are dead.
+cyan "→ Checking backends…"
+gw_up=0; dash_up=0
+if command -v curl &>/dev/null; then
+  curl -fsS -o /dev/null --max-time 2 "http://127.0.0.1:${GATEWAY_PORT}/health" 2>/dev/null && gw_up=1 || true
+  curl -fsS -o /dev/null --max-time 2 "http://127.0.0.1:9119" 2>/dev/null && dash_up=1 || true
+fi
+if [[ "$gw_up" == "1" ]]; then green "  gateway   :${GATEWAY_PORT} reachable ✓"; else yellow "  gateway   :${GATEWAY_PORT} not running (start with 'pnpm start:all')"; fi
+if [[ "$dash_up" == "1" ]]; then
+  green "  dashboard :9119 reachable ✓"
+else
+  red   "  dashboard :9119 NOT running ⚠"
+  yellow "    Sessions, skills, memory, kanban and jobs will NOT work until"
+  yellow "    you start it:  hermes dashboard --no-open --skip-build"
+fi
 echo ""
 cyan "Happy building. 🚀"

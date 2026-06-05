@@ -123,6 +123,38 @@ See the [full Docker section](#-docker-quickstart) for provider keys, local-mode
 
 ---
 
+### Two backends: gateway + dashboard
+
+Switch UI talks to **two** Hermes Agent processes:
+
+| Process | Port | Powers | Started by |
+|---|---|---|---|
+| `hermes gateway run` | 8642 | Chat (portable mode) | `pnpm start:all` |
+| `hermes dashboard` | 9119 | Sessions, skills, memory, kanban, jobs, config | **you, separately** |
+
+**The dashboard is not optional for the full experience.** Without it, chat works but sessions/skills/memory/kanban/jobs return errors — Switch UI shows a "Limited mode — Hermes dashboard not connected" banner when this happens. Start it headless (it serves the management APIs; you don't need its own browser UI):
+
+```bash
+hermes dashboard --no-open --skip-build
+```
+
+Keep it running in its own terminal, or run it as a background service:
+
+```bash
+# Linux (systemd --user)
+systemctl --user enable --now --unit hermes-dashboard \
+  hermes dashboard --no-open --skip-build     # or write a ~/.config/systemd/user/hermes-dashboard.service unit
+
+# macOS / generic — keep it alive in the background
+nohup hermes dashboard --no-open --skip-build >~/.hermes/dashboard.log 2>&1 &
+
+# manage it
+hermes dashboard --status   # list running dashboard processes
+hermes dashboard --stop     # stop them
+```
+
+> `hermes dashboard` has no native `install` service command (unlike `hermes gateway install`). On Linux, write a `systemd --user` unit; on macOS, a launchd plist or `nohup`. On loopback (default `127.0.0.1:9119`) Switch UI auto-handles the dashboard's session token — no manual token needed.
+
 ### Run as a background service (always-on)
 
 `pnpm start:all` runs the gateway in the foreground — great for trying things out, gone when you close the terminal. To keep Hermes running across reboots, install the gateway as a native OS service:

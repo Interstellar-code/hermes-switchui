@@ -3,6 +3,25 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.21] — 2026-06-05
+
+Config single-source + dashboard awareness.
+
+### Fixed
+
+- **`.env` is now the single source of truth for gateway/dashboard URLs.** Removed the `~/.hermes/workspace-overrides.json` layer — an upstream-Workspace remnant that silently outranked `.env` with no reachability check, so a stale override (e.g. carried over from another machine) sent every gateway+dashboard call to the wrong host on an otherwise-correct local install. URL resolution is now `HERMES_API_URL`/`CLAUDE_API_URL` → default only.
+- **Auto-clean stale overrides.** On startup, any existing `workspace-overrides.json` is renamed to `.bak` with a one-line notice.
+
+### Added
+
+- **Dashboard-availability warning (installer).** `install.sh` now probes the gateway (:8642) and dashboard (:9119) at the end of install and prints a loud warning when the dashboard isn't running — sessions/skills/memory/kanban/jobs depend on it. The two-backend model is spelled out in the banner.
+- **Dashboard-availability warning (UI).** A persistent "Limited mode — Hermes dashboard not connected" banner appears when the gateway is reachable but the dashboard (port 9119) is not, with the `hermes dashboard --no-open --skip-build` start command.
+
+### Changed
+
+- Settings → Connection now persists URL changes to the project `.env` (instant in-process update, survives restart) instead of the removed JSON file.
+- README: new "Two backends: gateway + dashboard" section + dashboard-as-service guidance.
+
 ## [2.3.20] — 2026-06-05
 
 Install-flow hardening.

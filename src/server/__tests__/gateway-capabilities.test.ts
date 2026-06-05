@@ -1,19 +1,21 @@
-import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { existsSync, readFileSync, writeFileSync, mkdirSync } = vi.hoisted(() => ({
-  existsSync: vi.fn().mockReturnValue(false),
-  readFileSync: vi.fn().mockReturnValue(''),
-  writeFileSync: vi.fn().mockImplementation(() => {}),
-  mkdirSync: vi.fn().mockImplementation(() => {}),
-}))
+const { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } =
+  vi.hoisted(() => ({
+    existsSync: vi.fn().mockReturnValue(false),
+    readFileSync: vi.fn().mockReturnValue(''),
+    writeFileSync: vi.fn().mockImplementation(() => {}),
+    mkdirSync: vi.fn().mockImplementation(() => {}),
+    renameSync: vi.fn().mockImplementation(() => {}),
+  }))
 
 vi.mock('node:fs', () => ({
-  default: { existsSync, readFileSync, writeFileSync, mkdirSync },
+  default: { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync },
   existsSync,
   readFileSync,
   writeFileSync,
   mkdirSync,
+  renameSync,
 }))
 
 const { homedir } = vi.hoisted(() => ({
@@ -51,12 +53,32 @@ describe('gateway-capabilities', () => {
     expect(mod.CLAUDE_API).toBe('http://127.0.0.1:8642')
   })
 
-  it('setGatewayUrl fallback uses 8642 when env override is cleared', async () => {
+  it('setGatewayUrl mutates CLAUDE_API in-process', async () => {
+    const mod = await loadMod()
+    mod.setGatewayUrl('http://tailscale:9999')
+    expect(mod.CLAUDE_API).toBe('http://tailscale:9999')
+  })
+
+  it('setGatewayUrl persists to switchui .env (not workspace-overrides.json)', async () => {
+    const mod = await loadMod()
+    mod.setGatewayUrl('http://tailscale:9999')
+    // Must write to a path ending in .env, never workspace-overrides.json
+    const calls = writeFileSync.mock.calls.filter(
+      (c: Array<string>) => c[0].endsWith('.env'),
+    )
+    expect(calls.length).toBeGreaterThan(0)
+    const overridesCalls = writeFileSync.mock.calls.filter(
+      (c: Array<string>) => c[0].includes('workspace-overrides.json'),
+    )
+    expect(overridesCalls.length).toBe(0)
+  })
+
+  it('setGatewayUrl(null) reverts CLAUDE_API to env/default', async () => {
     const mod = await loadMod()
     mod.setGatewayUrl('http://tailscale:9999')
     expect(mod.CLAUDE_API).toBe('http://tailscale:9999')
 
-    const fallback = mod.setGatewayUrl(null as any)
+    const fallback = mod.setGatewayUrl(null)
     expect(fallback).toBe('http://127.0.0.1:8642')
     expect(mod.CLAUDE_API).toBe('http://127.0.0.1:8642')
   })
@@ -105,7 +127,7 @@ describe('gateway-capabilities', () => {
       try {
         expect(mod.isLocalhostDeployment()).toBe(false)
       } finally {
-        mod.setGatewayUrl(null as never)
+        mod.setGatewayUrl(null)
       }
     })
   })

@@ -1,8 +1,9 @@
 /**
  * Workspace connection settings — read/write the gateway + dashboard URLs the
- * workspace uses. Writes to ~/.hermes/workspace-overrides.json and updates
- * the in-process CLAUDE_API / CLAUDE_DASHBOARD_URL live, so users can
- * relocate to a Tailscale/LAN address without restarting the workspace.
+ * workspace uses. Writes to the switchui project .env (single source of truth)
+ * and updates the in-process CLAUDE_API / CLAUDE_DASHBOARD_URL live, so users
+ * can relocate to a Tailscale/LAN address without restarting the workspace.
+ * The .env write ensures the URL survives a restart.
  *
  * See #101.
  */

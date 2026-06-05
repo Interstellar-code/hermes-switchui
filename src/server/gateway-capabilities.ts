@@ -9,21 +9,20 @@
  * older all-in-one web API on the gateway port.
  *
  * Precedence for gateway/dashboard URLs:
- *   1. Runtime override saved via setGatewayUrl() / setDashboardUrl()
- *      (persisted to ~/.hermes/workspace-overrides.json) — set from the UI
- *      so remote / Tailscale users can relocate without a restart (#101).
- *   2. process.env.HERMES_API_URL / HERMES_DASHBOARD_URL at process start.
+ *   1. process.env.HERMES_API_URL / HERMES_DASHBOARD_URL (from switchui .env or shell).
+ *   2. Runtime override via setGatewayUrl() / setDashboardUrl() — mutates the
+ *      in-process let AND persists to switchui .env so the value survives restarts.
+ *      Pass empty/null to clear the override and fall back to env/default.
  *   3. Default localhost (8642 / 9119).
+ *
+ * NOTE: the legacy ~/.hermes/workspace-overrides.json config layer has been
+ * removed. On first startup after upgrade, any stale overrides file is renamed
+ * to workspace-overrides.json.bak automatically.
  */
 
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
-
-type WorkspaceOverrides = {
-  claudeApiUrl?: string
-  claudeDashboardUrl?: string
-}
 
 function hermesHome(): string {
   return (
@@ -33,73 +32,110 @@ function hermesHome(): string {
   )
 }
 
-function overridesPath(): string {
-  return path.join(hermesHome(), 'workspace-overrides.json')
-}
-
-function readOverrides(): WorkspaceOverrides {
-  try {
-    const raw = fs.readFileSync(overridesPath(), 'utf-8')
-    const parsed = JSON.parse(raw) as unknown
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
-function writeOverrides(next: WorkspaceOverrides): void {
-  const file = overridesPath()
-  try {
-    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 })
-    fs.writeFileSync(file, JSON.stringify(next, null, 2), {
-      encoding: 'utf-8',
-      mode: 0o600,
-    })
-  } catch {
-    console.warn(`[gateway] failed to persist workspace overrides to ${file}`)
-  }
-}
-
 function normalizeUrl(u: string): string {
   return u.trim().replace(/\/+$/, '')
 }
 
-const _initialOverrides = readOverrides()
+// ── .env persistence helpers ──────────────────────────────────────────────────
+// The switchui project .env lives at <projectRoot>/.env (process.cwd() when
+// the server runs via pnpm start / pnpm dev from the project root).
+// Writing here does NOT update the live process.env — the in-process `let`
+// mutation in setGatewayUrl/setDashboardUrl covers the current session.
+// The .env write is only for the value to survive a restart.
+
+function switchuiEnvPath(): string {
+  return path.join(process.cwd(), '.env')
+}
+
+function readSwitchuiEnv(): string {
+  try {
+    return fs.readFileSync(switchuiEnvPath(), 'utf-8')
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Upsert or delete a single key in the switchui project .env file.
+ * Preserves all other lines and comments. Warn-only on failure — must
+ * not throw because the in-process mutation already handled the live session.
+ */
+function persistEnvUrl(key: string, value: string | null): void {
+  try {
+    const envPath = switchuiEnvPath()
+    const raw = readSwitchuiEnv()
+    const lines = raw.length ? raw.split('\n') : []
+    const keyPattern = new RegExp(`^${key}\\s*=`)
+    const existingIdx = lines.findIndex((l) => keyPattern.test(l))
+
+    if (value === null || value === '') {
+      // Remove the key if present.
+      if (existingIdx >= 0) lines.splice(existingIdx, 1)
+    } else {
+      const entry = `${key}=${value}`
+      if (existingIdx >= 0) {
+        lines[existingIdx] = entry
+      } else {
+        lines.push(entry)
+      }
+    }
+
+    // Trim trailing blank lines added by splice/push, keep one trailing newline.
+    const content = lines.join('\n').replace(/\n+$/, '') + '\n'
+    fs.writeFileSync(envPath, content, { encoding: 'utf-8', mode: 0o600 })
+  } catch (err) {
+    console.warn(`[gateway] failed to persist ${key} to switchui .env:`, err)
+  }
+}
+
+// ── One-time migration: rename stale workspace-overrides.json ─────────────────
+// Upstream-Workspace remnant: if the file exists it silently outranks .env,
+// sending gateway/dashboard calls to the wrong host on a fresh local install.
+// Rename it once at module load so it no longer poisons URL resolution.
+;(function migrateStaleOverrides() {
+  try {
+    const legacyPath = path.join(hermesHome(), 'workspace-overrides.json')
+    if (fs.existsSync(legacyPath)) {
+      fs.renameSync(legacyPath, legacyPath + '.bak')
+      console.warn(
+        '[gateway] Removed legacy workspace-overrides.json (now using .env). Backed up to workspace-overrides.json.bak',
+      )
+    }
+  } catch {
+    // warn-only — never block startup
+  }
+})()
 
 export let CLAUDE_API = normalizeUrl(
-  _initialOverrides.claudeApiUrl ||
-    process.env.HERMES_API_URL ||
+  process.env.HERMES_API_URL ||
     process.env.CLAUDE_API_URL ||
     'http://127.0.0.1:8642',
 )
 export let CLAUDE_DASHBOARD_URL = normalizeUrl(
-  _initialOverrides.claudeDashboardUrl ||
-    process.env.HERMES_DASHBOARD_URL ||
+  process.env.HERMES_DASHBOARD_URL ||
     process.env.CLAUDE_DASHBOARD_URL ||
     'http://127.0.0.1:9119',
 )
 
 /**
- * Update the gateway URL at runtime, persist it, and reset the probe cache
- * so the next call to ensureGatewayProbed() re-detects capabilities.
- * Returns the saved URL (normalized). Pass an empty string to clear the
- * override and fall back to env/default.
+ * Update the gateway URL at runtime, persist it to switchui .env, and reset
+ * the probe cache so the next call to ensureGatewayProbed() re-detects
+ * capabilities. Returns the saved URL (normalized). Pass an empty string or
+ * null to clear the override and fall back to env/default.
  */
 export function setGatewayUrl(input: string | null | undefined): string {
   const normalized = input ? normalizeUrl(input) : ''
-  const overrides = readOverrides()
   if (normalized) {
-    overrides.claudeApiUrl = normalized
     CLAUDE_API = normalized
+    persistEnvUrl('HERMES_API_URL', normalized)
   } else {
-    delete overrides.claudeApiUrl
     CLAUDE_API = normalizeUrl(
       process.env.HERMES_API_URL ||
         process.env.CLAUDE_API_URL ||
         'http://127.0.0.1:8642',
     )
+    persistEnvUrl('HERMES_API_URL', null)
   }
-  writeOverrides(overrides)
   // Force reprobe on the next capability check.
   probePromise = null
   lastProbeAt = 0
@@ -111,19 +147,17 @@ export function setGatewayUrl(input: string | null | undefined): string {
  */
 export function setDashboardUrl(input: string | null | undefined): string {
   const normalized = input ? normalizeUrl(input) : ''
-  const overrides = readOverrides()
   if (normalized) {
-    overrides.claudeDashboardUrl = normalized
     CLAUDE_DASHBOARD_URL = normalized
+    persistEnvUrl('HERMES_DASHBOARD_URL', normalized)
   } else {
-    delete overrides.claudeDashboardUrl
     CLAUDE_DASHBOARD_URL = normalizeUrl(
       process.env.HERMES_DASHBOARD_URL ||
         process.env.CLAUDE_DASHBOARD_URL ||
         'http://127.0.0.1:9119',
     )
+    persistEnvUrl('HERMES_DASHBOARD_URL', null)
   }
-  writeOverrides(overrides)
   probePromise = null
   lastProbeAt = 0
   return CLAUDE_DASHBOARD_URL
@@ -135,12 +169,8 @@ export function getResolvedUrls(): {
   dashboard: string
   source: 'override' | 'env' | 'default'
 } {
-  const overrides = readOverrides()
-  const source = overrides.claudeApiUrl
-    ? 'override'
-    : process.env.HERMES_API_URL || process.env.CLAUDE_API_URL
-      ? 'env'
-      : 'default'
+  const source =
+    process.env.HERMES_API_URL || process.env.CLAUDE_API_URL ? 'env' : 'default'
   return { gateway: CLAUDE_API, dashboard: CLAUDE_DASHBOARD_URL, source }
 }
 
