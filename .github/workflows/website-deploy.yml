@@ -1,0 +1,61 @@
+name: Deploy website to VPS
+
+# Build the Astro landing site (website/) in CI and rsync the result to the
+# Virtualmin/Apache web root over SSH. Runs only when website/ changes, or
+# manually. Requires repo secrets: SSH_PRIVATE_KEY, SSH_HOST, SSH_PORT (opt),
+# SSH_USER, DEPLOY_PATH.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/website-deploy.yml'
+  workflow_dispatch:
+
+# Never let two deploys race against the same web root.
+concurrency:
+  group: deploy-website-prod
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: website
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, Linux, X64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static site
+        run: npm run build
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.SSH_PORT || '22' }}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy dist/ to web root
+        run: |
+          rsync -az --delete --exclude='.DS_Store' \
+            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || '22' }}" \
+            dist/ \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
