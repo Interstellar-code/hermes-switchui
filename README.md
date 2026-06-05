@@ -51,30 +51,106 @@
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Installation
 
 Three paths — pick the one that matches you:
 
 | Path | Best for | Time |
 |---|---|---|
-| **🐳 [Docker Compose](#-docker-quickstart)** | Self-hosters, home labs | ~2 min |
-| **🌐 One-line install** | Local dev on macOS/Linux | ~3 min |
-| **🔌 Attach to existing `hermes-agent`** | You already run Hermes Agent | ~1 min |
+| **🌐 [One-line install](#1-one-line-install-recommended)** | Local dev on macOS/Linux | ~3 min |
+| **🔧 [Manual install](#2-manual-install)** | Existing `hermes-agent`, custom setups | ~3 min |
+| **🐳 [Docker Compose](#3-docker-compose)** | Self-hosters, home labs | ~2 min |
 
-### One-line install
+### Prerequisites
+
+- **Node.js 22+** — [nodejs.org](https://nodejs.org/)
+- **pnpm** — `corepack enable` (bundled with Node 22) or see [pnpm.io](https://pnpm.io/installation)
+- **git**
+- **`hermes-agent`** — installed via its own [installer](https://github.com/Interstellar-code/hermes-agent) (the one-line install does this for you)
+
+> **Security note:** if you bind the UI to a non-loopback address (`HOST=0.0.0.0`, Docker, LAN, Tailscale), set `HERMES_PASSWORD`. The server refuses to start on a non-loopback host without it. See [Security & deployment](#-security--deployment-env-vars).
+
+### 1. One-line install (recommended)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Interstellar-code/hermes-switchui/main/install.sh | bash
 ```
 
-Installs `hermes-agent` via Nous's official installer, clones this repo, sets up `.env`, installs dependencies. Then:
+The installer checks Node 22 / git / pnpm, installs `hermes-agent` via the Interstellar-code fork installer, clones this repo, sets up `.env`, enables the Hermes API server, and installs dependencies. It's idempotent — safe to re-run. When it finishes:
 
 ```bash
-hermes gateway run                 # terminal 1
-cd ~/hermes-switchui && pnpm dev   # terminal 2
+cd ~/hermes-switchui
+pnpm start:all                     # starts the gateway + UI together
+```
+
+Open http://localhost:3000. The first-run **onboarding wizard** (in the browser) walks you through picking a provider and entering your API key — no config files to hand-edit.
+
+### 2. Manual install
+
+```bash
+# 1) Install the Hermes Agent backend (its own installer)
+curl -fsSL https://raw.githubusercontent.com/Interstellar-code/hermes-agent/main/scripts/install.sh | bash
+hermes setup                       # pick provider/model interactively
+
+# 2) Enable the API server so Switch UI can reach it
+echo 'API_SERVER_ENABLED=true' >> ~/.hermes/.env
+
+# 3) Clone and run Switch UI
+git clone https://github.com/Interstellar-code/hermes-switchui.git
+cd hermes-switchui
+cp .env.example .env
+pnpm install
+pnpm start:all                     # gateway + UI; or `pnpm dev` if the gateway runs elsewhere
+```
+
+Open http://localhost:3000 and complete onboarding. If you point Switch UI at a backend that exposes Hermes Agent gateway APIs, enhanced features (sessions, memory, skills, jobs) unlock automatically. Already running `hermes-agent`? See [Attach to existing `hermes-agent`](#already-running-hermes-agent-attach-switch-ui-to-it).
+
+### 3. Docker Compose
+
+```bash
+git clone https://github.com/Interstellar-code/hermes-switchui.git
+cd hermes-switchui
+cp .env.example .env
+# Set HERMES_PASSWORD (required — the container binds 0.0.0.0 internally)
+docker compose up
 ```
 
 Open http://localhost:3000.
+
+> **What's in the image:** the published `ghcr.io/interstellar-code/hermes-switchui` image is **self-contained** — it bundles the upstream Hermes Agent *and* the Switch UI under one s6-supervised container. The agent gateway runs inside the container and the UI connects to it over `http://127.0.0.1:8642`. You do **not** need to run `hermes-agent` separately for the default Docker path. If you instead want to point the container at an *external* gateway, override `HERMES_API_URL` in `.env`.
+
+See the [full Docker section](#-docker-quickstart) for provider keys, local-model setup, and building from source.
+
+---
+
+### Run as a background service (always-on)
+
+`pnpm start:all` runs the gateway in the foreground — great for trying things out, gone when you close the terminal. To keep Hermes running across reboots, install the gateway as a native OS service:
+
+```bash
+hermes gateway install     # Linux: systemd · macOS: launchd
+hermes gateway start
+```
+
+Then you only need to launch the UI:
+
+```bash
+cd ~/hermes-switchui
+pnpm dev                   # gateway already running as a service
+```
+
+Manage the service with:
+
+```bash
+hermes gateway status      # is it running?
+hermes gateway restart     # after changing provider/config in ~/.hermes
+hermes gateway stop
+hermes gateway uninstall   # remove the service
+```
+
+> **WSL caveat:** WSL does not ship systemd by default, so `hermes gateway install` may fail there. On WSL (and Docker/Termux), run the gateway in the foreground with `pnpm start:all` or `hermes gateway run` instead.
+
+> **Tip:** the gateway only reads `~/.hermes/config.yaml` at startup. After changing your provider or API key (in the onboarding wizard or by hand), run `hermes gateway restart` for it to take effect.
 
 ---
 
@@ -147,7 +223,7 @@ Switch UI talks to any backend that supports:
 Example Hermes Agent setup (from scratch):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Interstellar-code/hermes-agent/main/scripts/install.sh | bash
 hermes setup
 hermes gateway run
 ```

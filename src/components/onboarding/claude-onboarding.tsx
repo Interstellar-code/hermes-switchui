@@ -1130,6 +1130,27 @@ export function ClaudeOnboarding() {
                   Available now: {enhancedFeatures.join(', ')}.
                 </p>
               ) : null}
+              {canEditConfig ? (
+                <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-3 text-left text-xs text-yellow-200">
+                  <p className="font-medium">One more step</p>
+                  <p className="mt-1">
+                    Provider changes are written to{' '}
+                    <code>~/.hermes/config.yaml</code>, but the Hermes Agent
+                    gateway only reads its config at startup. Restart it to apply
+                    your selection:
+                  </p>
+                  <div
+                    className="mt-2 rounded-lg px-3 py-2 font-mono text-[11px]"
+                    style={{ background: 'rgba(0,0,0,0.2)' }}
+                  >
+                    pnpm start:all
+                  </div>
+                  <p className="mt-2" style={mutedStyle}>
+                    (or re-run <code>hermes gateway run</code> if you start the
+                    agent separately).
+                  </p>
+                </div>
+              ) : null}
               <button
                 onClick={complete}
                 className="w-full rounded-xl bg-accent-500 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-600"

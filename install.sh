@@ -6,7 +6,7 @@
 #
 # What it does:
 #   1. Verifies Node 22+, git, pnpm
-#   2. Installs hermes-agent via Nous's official upstream installer
+#   2. Installs hermes-agent via the Interstellar-code fork installer
 #   3. Clones hermes-switchui
 #   4. Sets up .env, enables the Hermes API server, installs deps,
 #      and links bundled skills
@@ -18,7 +18,7 @@ set -euo pipefail
 REPO_URL="${REPO_URL:-https://github.com/Interstellar-code/hermes-switchui.git}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/hermes-switchui}"
 GATEWAY_PORT="${GATEWAY_PORT:-8642}"
-NOUS_INSTALLER_URL="${NOUS_INSTALLER_URL:-https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh}"
+HERMES_AGENT_INSTALLER_URL="${HERMES_AGENT_INSTALLER_URL:-https://raw.githubusercontent.com/Interstellar-code/hermes-agent/main/scripts/install.sh}"
 
 # ─── helpers ──────────────────────────────────────────────────────────────
 
@@ -34,8 +34,8 @@ banner() {
   cat <<'EOF'
 
    ╭────────────────────────────────────────────╮
-   │  HERMES WORKSPACE — zero-fork installer   │
-   │  Interstellar-code/hermes-switchui               │
+   │  HERMES SWITCH UI — installer              │
+   │  Interstellar-code/hermes-switchui         │
    ╰────────────────────────────────────────────╯
 
 EOF
@@ -88,32 +88,63 @@ ensure_env_key() {
 banner
 cyan "→ Checking prerequisites…"
 
-need node "Install Node 22+: https://nodejs.org/"
+need node "$(cat <<'MSG'
+Node.js 22+ is required.
+  • macOS (Homebrew):  brew install node@22
+  • Linux (nvm):       nvm install 22 && nvm use 22
+  • Or download:       https://nodejs.org/  (pick the LTS 22.x build)
+MSG
+)"
 node_major=$(node -v | sed -E 's/v([0-9]+).*/\1/')
 if [[ "$node_major" -lt 22 ]]; then
-  red "Node $node_major detected; need 22+."
+  red "Node $node_major detected; Hermes Switch UI needs Node 22 or newer."
+  yellow "  Upgrade Node, then re-run this installer:"
+  yellow "    • macOS (Homebrew):  brew install node@22 && brew link --overwrite node@22"
+  yellow "    • Linux (nvm):       nvm install 22 && nvm use 22"
+  yellow "    • Or download LTS:   https://nodejs.org/"
   exit 1
 fi
 green "  Node $(node -v) ✓"
 
-need git "Install git: https://git-scm.com/"
+need git "$(cat <<'MSG'
+git is required to clone the repository.
+  • macOS:  xcode-select --install   (or: brew install git)
+  • Debian/Ubuntu:  sudo apt install git
+  • Fedora:  sudo dnf install git
+  • Or download:  https://git-scm.com/
+MSG
+)"
 green "  git $(git --version | awk '{print $3}') ✓"
 
-need curl "Install curl (usually: apt install curl / brew install curl)"
+need curl "$(cat <<'MSG'
+curl is required to fetch the hermes-agent installer.
+  • Debian/Ubuntu:  sudo apt install curl
+  • Fedora:  sudo dnf install curl
+  • macOS:  curl ships with the OS (check your PATH if missing)
+MSG
+)"
 green "  curl ✓"
 
 if ! command -v pnpm &>/dev/null; then
   yellow "  pnpm not found — installing via corepack…"
-  corepack enable 2>/dev/null || npm install -g pnpm
+  if ! corepack enable 2>/dev/null && ! npm install -g pnpm; then
+    red "  Could not install pnpm automatically."
+    yellow "  Install it manually, then re-run this script:"
+    yellow "    • corepack enable        (bundled with Node 22)"
+    yellow "    • npm install -g pnpm"
+    yellow "    • https://pnpm.io/installation"
+    exit 1
+  fi
 fi
 green "  pnpm $(pnpm --version) ✓"
 
-# ─── install hermes-agent (delegate to Nous upstream installer) ──────────
-# hermes-agent is NOT on PyPI. It installs from source via Nous's own
-# script, which handles PEP 668, uv, Python toolchain, Termux, etc. We
-# only need to ensure `hermes` ends up on PATH before continuing.
+# ─── install hermes-agent (Interstellar fork installer) ──────────────────
+# hermes-agent is NOT on PyPI. It installs from source via the
+# Interstellar-code/hermes-agent install script, which handles PEP 668,
+# uv, Python toolchain, Termux, etc. We only need to ensure `hermes` ends
+# up on PATH before continuing.
 
-cyan "→ Installing hermes-agent (via Nous upstream installer)…"
+cyan "→ Installing hermes-agent (Interstellar fork installer)…"
 # Pick up hermes if it was installed in a prior run but not on PATH yet
 ensure_path "$HOME/.hermes/bin"
 ensure_path "$HOME/.local/bin"
@@ -121,20 +152,20 @@ ensure_path "$HOME/.local/bin"
 if command -v hermes &>/dev/null; then
   green "  hermes-agent already installed ✓ ($(command -v hermes))"
 else
-  yellow "  Delegating to: $NOUS_INSTALLER_URL"
-  if ! curl -fsSL "$NOUS_INSTALLER_URL" | bash; then
-    red "  Nous installer failed. See its output above for details."
+  yellow "  Delegating to: $HERMES_AGENT_INSTALLER_URL"
+  if ! curl -fsSL "$HERMES_AGENT_INSTALLER_URL" | bash; then
+    red "  hermes-agent installer failed. See its output above for details."
     red "  You can retry manually:"
-    red "    curl -fsSL $NOUS_INSTALLER_URL | bash"
+    red "    curl -fsSL $HERMES_AGENT_INSTALLER_URL | bash"
     exit 1
   fi
-  # Nous typically installs `hermes` to ~/.hermes/bin or ~/.local/bin
+  # The installer typically puts `hermes` in ~/.hermes/bin or ~/.local/bin
   ensure_path "$HOME/.hermes/bin"
   ensure_path "$HOME/.local/bin"
   if ! command -v hermes &>/dev/null; then
     red "  hermes-agent installed, but 'hermes' is not on PATH in this shell."
     yellow "  Open a new shell (or: source ~/.bashrc / ~/.zshrc) and re-run:"
-    yellow "    curl -fsSL https://hermes-switchui.com/install.sh | bash"
+    yellow "    curl -fsSL https://raw.githubusercontent.com/Interstellar-code/hermes-switchui/main/install.sh | bash"
     exit 1
   fi
   green "  hermes-agent installed ✓ ($(command -v hermes))"
@@ -217,24 +248,36 @@ fi
 
 bold ""
 bold "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-green "  Install complete!"
+green "  ✓ Install complete!"
 bold "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 cat <<EOF
 
-Next steps (two terminals):
+  Installed to:   $INSTALL_DIR
 
-  1) Start the Hermes Agent gateway:
-       hermes gateway run
-     (first run may prompt for hermes setup)
+  Start everything (gateway + UI) with one command:
 
-  2) Start the workspace UI:
-       cd $INSTALL_DIR && pnpm dev
+       cd $INSTALL_DIR
+       pnpm start:all
 
-  3) Open http://localhost:3000
+  Then open:      http://localhost:3000
 
-If the gateway was already running before this install,
-restart it so API_SERVER_ENABLED=true takes effect.
+  On first launch, the in-browser onboarding wizard walks you
+  through picking a provider and entering your API key — no need
+  to hand-edit any config files.
+
+  ── Want Hermes always on (survives reboot)? ──
+  Install the gateway as a background service:
+
+       hermes gateway install     # Linux: systemd · macOS: launchd
+       hermes gateway start
+
+  Then you only need the UI:  pnpm dev
+  (Manage it with: hermes gateway status | stop | restart)
+  Note: WSL has no systemd by default — stick with 'pnpm start:all' there.
 
 EOF
-
+yellow "  Note: if the Hermes Agent gateway was already running before"
+yellow "  this install, restart it (or just use 'pnpm start:all') so"
+yellow "  API_SERVER_ENABLED=true takes effect."
+echo ""
 cyan "Happy building. 🚀"

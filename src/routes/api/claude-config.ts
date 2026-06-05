@@ -308,7 +308,12 @@ export const Route = createFileRoute('/api/claude-config')({
 
         return Response.json({
           ok: true,
-          message: 'Config updated. Restart Claude to apply changes.',
+          message:
+            'Config saved to ~/.hermes/config.yaml. The Hermes Agent gateway only ' +
+            'reads its config at startup, so restart it (re-run `hermes gateway run`, ' +
+            'or `pnpm start:all` if you launched everything together) for the provider ' +
+            'change to take effect.',
+          requiresGatewayRestart: true,
         })
       },
     },
