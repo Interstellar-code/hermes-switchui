@@ -1,0 +1,229 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+---
+
+<DocsLayout title="Welcome" activeKey="welcome">
+  
+  <h1 id="welcome" class="docs-title">Welcome</h1>
+  <p class="docs-subtitle">An introduction to Hermes Switch UI and what you can do with it.</p>
+
+  <p>
+    A browser-based shell for the Hermes Agent runtime — chat, sessions, files, terminals, and more, all running on your own machine.
+  </p>
+
+  <div class="docs-alert">
+    <div class="docs-alert-title">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      Quick Start
+    </div>
+    <div class="docs-alert-body">
+      <p>New here? Start with <strong>Your first chat</strong> — it gets you sending prompts in five minutes.</p>
+    </div>
+  </div>
+
+  <h2 id="what-is-hermes-switch-ui">What is Hermes Switch UI</h2>
+  <p>
+    Hermes Switch UI is the front-end for the Hermes Agent — a local AI assistant runtime. The app runs in your browser at <code>http://localhost:3000</code> (by default) and talks to the Hermes Agent gateway on port <code>8642</code>. From here on this guide refers to it as "the app".
+  </p>
+
+  <p>Two paired processes work together:</p>
+
+  <div class="process-box">
+    <div class="process-card">
+      <div class="process-card-title">
+        Hermes Switch UI
+        <span class="process-card-port">Port 3000</span>
+      </div>
+      <div class="process-card-desc">
+        The web-based terminal-native app that you interact with. Houses the UI components, configurations, and user feedback controls.
+      </div>
+    </div>
+    <div class="process-card">
+      <div class="process-card-title">
+        Hermes Agent
+        <span class="process-card-port">Port 8642</span>
+      </div>
+      <div class="process-card-desc">
+        The local backend engine that manages AI provider API integrations, handles persistent session histories, hosts tool suites, and manages localized secure storage.
+      </div>
+    </div>
+  </div>
+
+  <p>
+    You configure your AI provider once and the app routes chats, tool calls, and streaming responses through the agent.
+  </p>
+
+  <h2 id="architecture-at-a-glance">Architecture at a glance</h2>
+  <p>
+    The two processes talk to each other locally, and the agent is the only thing that talks to the outside world. Your provider choice, sessions, memory, and skills all live behind the agent on disk.
+  </p>
+
+  <h2 id="what-happens-when-you-send-a-message">What happens when you send a message</h2>
+  <p>
+    A chat round-trip is fully streamed. You see tokens land as the provider emits them, and the agent persists the session as it goes.
+  </p>
+
+  <!-- INTERACTIVE APP MOCKUP (REPLACING SCREENSHOT PLACEHOLDER) -->
+  <div class="ui-mockup-wrapper">
+    <div class="ui-mockup-bar">
+      <div class="ui-mockup-dots">
+        <div class="ui-mockup-dot dot-green"></div>
+        <div class="ui-mockup-dot"></div>
+        <div class="ui-mockup-dot"></div>
+      </div>
+      <div class="ui-mockup-title">Hermes Switch UI — Home [Matrix Dark Theme]</div>
+      <div class="ui-mockup-status">
+        <span class="ui-mockup-pulse"></span>
+        SYS::CONNECTED
+      </div>
+    </div>
+    
+    <div class="ui-mockup-body">
+      <!-- MOCK SIDEBAR -->
+      <div class="ui-mockup-sidebar">
+        <div class="ui-mockup-sidebar-title">Core</div>
+        <div class="ui-mockup-sidebar-links">
+          <div class="ui-mockup-sidebar-link active">
+            <span>💬</span> Chat
+          </div>
+          <div class="ui-mockup-sidebar-link">
+            <span>📚</span> Sessions
+          </div>
+          <div class="ui-mockup-sidebar-link">
+            <span>📁</span> Files
+          </div>
+          <div class="ui-mockup-sidebar-link">
+            <span>💻</span> Terminal
+          </div>
+        </div>
+        
+        <div class="ui-mockup-sidebar-title" style="margin-top: 8px;">Extended</div>
+        <div class="ui-mockup-sidebar-links">
+          <div class="ui-mockup-sidebar-link">
+            <span>🗂️</span> Boards
+          </div>
+          <div class="ui-mockup-sidebar-link">
+            <span>⚡</span> Skills
+          </div>
+          <div class="ui-mockup-sidebar-link">
+            <span>🧠</span> Memory
+          </div>
+        </div>
+      </div>
+
+      <!-- MOCK CHAT INTERFACE -->
+      <div class="ui-mockup-main">
+        <div class="ui-mockup-chat-area">
+          <div class="ui-mockup-bubble user">
+            <div class="ui-mockup-bubble-label">User Input</div>
+            Can you explain the main benefit of running Hermes locally?
+          </div>
+          
+          <div class="ui-mockup-bubble agent">
+            <div class="ui-mockup-bubble-label">Hermes Agent [Streaming...]</div>
+            Running locally gives you 100% data privacy. All provider configurations, session histories, vector memory, and active tools reside on your local machine, keeping your workspace secure.
+          </div>
+        </div>
+
+        <div class="ui-mockup-input-box">
+          <div class="ui-mockup-input-text">
+            <span>> Enter prompt...</span>
+            <span class="ui-mockup-cursor"></span>
+          </div>
+          <div class="ui-mockup-send">SEND [⌘ENTER]</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2 id="what-you-can-do">What you can do</h2>
+  
+  <h3>Core Features</h3>
+  <div class="docs-feature-grid">
+    <div class="docs-feature-item">
+      <div class="docs-feature-name">Chat</div>
+      <div class="docs-feature-desc">Conversations with your chosen AI provider, with streaming responses, sessions, and a context-window indicator.</div>
+    </div>
+    <div class="docs-feature-item">
+      <div class="docs-feature-name">Sessions</div>
+      <div class="docs-feature-desc">Browse past chats and resume them from your persistent local workspace storage.</div>
+    </div>
+    <div class="docs-feature-item">
+      <div class="docs-feature-name">Files</div>
+      <div class="docs-feature-desc">Read, write, and browse files that the agent has secure local file system permissions to access.</div>
+    </div>
+    <div class="docs-feature-item">
+      <div class="docs-feature-name">Terminal</div>
+      <div class="docs-feature-desc">Open a real, high-performance PTY terminal inside the browser shell app.</div>
+    </div>
+    <div class="docs-feature-item" style="grid-column: span 2;">
+      <div class="docs-feature-name">Dashboard</div>
+      <div class="docs-feature-desc">Monitor health, concurrent jobs, backend process logs, and network gateway connection status.</div>
+    </div>
+  </div>
+
+  <h3>Extended Features</h3>
+  <div class="docs-feature-grid">
+    <div class="docs-feature-item">
+      <div class="docs-feature-name">Boards</div>
+      <div class="docs-feature-desc">Kanban board for agent task queues (when the agent's kanban plugin is installed).</div>
+    </div>
+    <div class="docs-feature-item">
+      <div class="docs-feature-name">Workflows</div>
+      <div class="docs-feature-desc">Multi-step agent flows and logic graphs defined as interactive node networks.</div>
+    </div>
+    <div class="docs-feature-item">
+      <div class="docs-feature-name">Conductor</div>
+      <div class="docs-feature-desc">A higher-level mission-control surface for coordinating complex multi-agent runs.</div>
+    </div>
+    <div class="docs-feature-item">
+      <div class="docs-feature-name">Operations</div>
+      <div class="docs-feature-desc">Live operational view of agent system and network activity in real-time.</div>
+    </div>
+    <div class="docs-feature-item">
+      <div class="docs-feature-name">Matrix3D</div>
+      <div class="docs-feature-desc">A gorgeous, immersive 3D office visualization of running agents.</div>
+    </div>
+    <div class="docs-feature-item">
+      <div class="docs-feature-name">Profiles</div>
+      <div class="docs-feature-desc">Save, select, and customize agent personas with preloaded context.</div>
+    </div>
+    <div class="docs-feature-item">
+      <div class="docs-feature-name">Skills</div>
+      <div class="docs-feature-desc">Browse, customize, and edit skills that the agent can programmatically invoke.</div>
+    </div>
+    <div class="docs-feature-item">
+      <div class="docs-feature-name">MCP</div>
+      <div class="docs-feature-desc">Manage Model Context Protocol servers the agent connects to for additional tools and resources.</div>
+    </div>
+    <div class="docs-feature-item">
+      <div class="docs-feature-name">Memory</div>
+      <div class="docs-feature-desc">View, manage, and edit the agent's persistent long-term memory files.</div>
+    </div>
+    <div class="docs-feature-item">
+      <div class="docs-feature-name">Jobs</div>
+      <div class="docs-feature-desc">Track the background job queues, progress, and historical performance.</div>
+    </div>
+    <div class="docs-feature-item">
+      <div class="docs-feature-name">Tasks</div>
+      <div class="docs-feature-desc">Detailed tracking and checklists for multi-phase agent planning.</div>
+    </div>
+    <div class="docs-feature-item">
+      <div class="docs-feature-name">Agora</div>
+      <div class="docs-feature-desc">A vibrant community hub for discovering and sharing skills, agents, and presets.</div>
+    </div>
+  </div>
+
+  <p>
+    Pages that depend on optional gateway or dashboard endpoints (Conductor, Tasks, MCP, etc.) detect missing capabilities at startup and degrade gracefully instead of erroring.
+  </p>
+
+  <h2 id="how-its-structured">How it's structured</h2>
+  <p>
+    The sidebar on the left holds the page navigation. The main area in the center is the active page. Connection status and other ambient info show in the header or status panel where relevant.
+  </p>
+  <p>
+    The app probes the Hermes Agent on startup to figure out which features are available, then enables or hides pages accordingly. You can re-probe at any time from the connection status panel.
+  </p>
+
+</DocsLayout>

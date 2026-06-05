@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hermes Switch UI — Landing Concepts</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles/tokens.css" />
+  <link rel="stylesheet" href="./styles/matrix-system.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; }
+    html { scroll-behavior: smooth; }
+    body { background: #020804; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
+    #root { min-height: 100vh; }
+
+    /* ── Variant switcher ─────────────────────────────────── */
+    .sw-panel {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      z-index: 99999;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(2,8,4,.96);
+      border: 1px solid rgba(0,255,65,.32);
+      border-radius: 6px;
+      padding: 8px 10px;
+      backdrop-filter: blur(18px);
+      box-shadow: 0 0 24px rgba(0,255,65,.14), 0 12px 40px rgba(0,0,0,.65);
+      user-select: none;
+    }
+    .sw-label {
+      font: 500 9px 'JetBrains Mono', monospace;
+      text-transform: uppercase;
+      letter-spacing: .22em;
+      color: rgba(216,255,227,.32);
+      padding-right: 4px;
+      white-space: nowrap;
+    }
+    .sw-btn {
+      font: 600 10px 'JetBrains Mono', monospace;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      padding: 5px 11px;
+      background: transparent;
+      border: 1px solid rgba(0,255,65,.18);
+      border-radius: 4px;
+      color: rgba(216,255,227,.48);
+      cursor: pointer;
+      transition: all 130ms;
+      white-space: nowrap;
+    }
+    .sw-btn:hover { border-color: rgba(0,255,65,.5); color: #d8ffe3; }
+    .sw-btn.sw-on {
+      background: rgba(0,255,65,.12);
+      border-color: #00ff41;
+      color: #00ff41;
+      box-shadow: 0 0 8px rgba(0,255,65,.3);
+    }
+    .sw-sep {
+      width: 1px; height: 20px;
+      background: rgba(0,255,65,.16);
+      margin: 0 2px;
+    }
+
+    /* ── Variant label watermark ─────────────────────────── */
+    .sw-watermark {
+      position: fixed;
+      top: 64px; left: 50%;
+      transform: translateX(-50%);
+      z-index: 99998;
+      font: 600 9px 'JetBrains Mono', monospace;
+      text-transform: uppercase;
+      letter-spacing: .22em;
+      color: rgba(0,255,65,.35);
+      padding: 3px 10px;
+      border: 1px solid rgba(0,255,65,.14);
+      border-radius: 999px;
+      background: rgba(2,8,4,.7);
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    /* ── Transition between variants ────────────────────── */
+    .vswitch-enter { animation: vEnter .28s cubic-bezier(.22,1,.36,1) both; }
+    @keyframes vEnter { from { transform:translateY(8px); } to { transform:none; } }
+  </style>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Load shared components first, then variants, then mount -->
+  <script type="text/babel" src="./shared.jsx" data-presets="react"></script>
+  <script type="text/babel" src="./variant-a.jsx" data-presets="react"></script>
+  <script type="text/babel" src="./variant-b.jsx" data-presets="react"></script>
+  <script type="text/babel" src="./variant-c.jsx" data-presets="react"></script>
+
+  <script type="text/babel" data-presets="react">
+    var { useState, useEffect, useRef } = React;
+
+    const VARIANTS = [
+      { id: 'a', label: 'A · Console',  desc: 'OS terminal process-monitor' },
+      { id: 'b', label: 'B · Phosphor', desc: 'Cinematic editorial poster' },
+      { id: 'c', label: 'C · Breach',   desc: 'Hacker infiltration HUD' },
+    ];
+
+    function App() {
+      const [active, setActive]   = useState('a');
+      const [animKey, setAnimKey] = useState(0);
+      const prevRef = useRef('a');
+
+      const switchTo = (id) => {
+        if (id === active) return;
+        prevRef.current = active;
+        window.scrollTo(0, 0);
+        setActive(id);
+        setAnimKey(k => k + 1);
+      };
+
+      // Keyboard shortcut: 1/2/3 to switch variants
+      useEffect(() => {
+        const fn = (e) => {
+          if (e.target.tagName === 'INPUT') return;
+          if (e.key === '1') switchTo('a');
+          if (e.key === '2') switchTo('b');
+          if (e.key === '3') switchTo('c');
+        };
+        window.addEventListener('keydown', fn);
+        return () => window.removeEventListener('keydown', fn);
+      }, [active]);
+
+      const comp = { a: window.VariantA, b: window.VariantB, c: window.VariantC };
+      const ActiveVariant = comp[active];
+      const activeInfo = VARIANTS.find(v => v.id === active);
+
+      return (
+        <>
+          <div key={animKey} className="vswitch-enter">
+            <ActiveVariant key={active} />
+          </div>
+
+          {/* Watermark */}
+          <div className="sw-watermark">{activeInfo.desc}</div>
+
+          {/* Switcher panel */}
+          <div className="sw-panel">
+            <span className="sw-label">Variant</span>
+            <div className="sw-sep"></div>
+            {VARIANTS.map(v => (
+              <button
+                key={v.id}
+                className={`sw-btn${active === v.id ? ' sw-on' : ''}`}
+                onClick={() => switchTo(v.id)}
+                title={v.desc}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+        </>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
