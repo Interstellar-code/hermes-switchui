@@ -7,6 +7,7 @@ import {
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
+import type { FileEntry } from './file-tree'
 import { cn } from '@/lib/utils'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { Button } from '@/components/ui/button'
@@ -22,7 +23,6 @@ import '@/styles/matrix-files.css'
 import { formatBytes, formatDate } from '@/lib/format'
 import { getExt, getParentPath } from '@/lib/path-utils'
 import { FileTree, IGNORED_DIRS } from './file-tree'
-import type { FileEntry } from './file-tree'
 import { FolderListing } from './folder-listing'
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -1143,12 +1143,47 @@ function FilePanel({
 // Main FilesScreen
 // ──────────────────────────────────────────────────────────────────────────────
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Workspace catalog type (mirrors WorkspaceDetectionResponse from api/workspace)
+// ──────────────────────────────────────────────────────────────────────────────
+
+type WorkspaceCatalog = {
+  path: string
+  folderName: string
+  source: string
+  isValid: boolean
+  workspaces: Array<{ path: string; name?: string }>
+  last: string
+}
+
 export function FilesScreen() {
   usePageTitle('Files')
 
   const [entries, setEntries] = useState<Array<FileEntry>>([])
   const [treeLoading, setTreeLoading] = useState(false)
   const [treeError, setTreeError] = useState<string | null>(null)
+
+  // Workspace catalog — used to detect fresh-install / no-valid-workspace state
+  const [workspaceCatalog, setWorkspaceCatalog] =
+    useState<WorkspaceCatalog | null>(null)
+  const [pickerPath, setPickerPath] = useState('')
+  const [pickerError, setPickerError] = useState<string | null>(null)
+  const [pickerSaving, setPickerSaving] = useState(false)
+
+  const loadWorkspaceCatalog = useCallback(async () => {
+    try {
+      const res = await fetch('/api/workspace')
+      if (!res.ok) return
+      const data = (await res.json()) as WorkspaceCatalog
+      setWorkspaceCatalog(data)
+    } catch {
+      // non-fatal — picker just won't show
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadWorkspaceCatalog()
+  }, [loadWorkspaceCatalog])
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   const [selectedEntry, setSelectedEntry] = useState<FileEntry | null>(null)
   const [treeCollapsed, setTreeCollapsed] = useState(false)
@@ -1199,6 +1234,49 @@ export function FilesScreen() {
   useEffect(() => {
     void loadTree()
   }, [loadTree])
+
+  // Detect fresh-install / no-valid-workspace state:
+  // show picker when the workspace is invalid OR is the throwaway auto-created
+  // ~/workspace that the server creates as a last resort.
+  const needsWorkspacePicker =
+    workspaceCatalog !== null &&
+    (!workspaceCatalog.isValid ||
+      workspaceCatalog.source === 'home.workspace.created')
+
+  const handlePickerSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
+      const trimmed = pickerPath.trim()
+      if (!trimmed) {
+        setPickerError('Please enter a folder path.')
+        return
+      }
+      setPickerError(null)
+      setPickerSaving(true)
+      try {
+        const res = await fetch('/api/workspace', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: trimmed }),
+        })
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as {
+            error?: string
+          }
+          throw new Error(body.error ?? `HTTP ${res.status}`)
+        }
+        const catalog = (await res.json()) as WorkspaceCatalog
+        setWorkspaceCatalog(catalog)
+        // Reload the file tree with the new workspace
+        await loadTree()
+      } catch (err) {
+        setPickerError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setPickerSaving(false)
+      }
+    },
+    [pickerPath, loadTree],
+  )
 
   // Close context menu on outside click / escape
   useEffect(() => {
@@ -1448,6 +1526,161 @@ export function FilesScreen() {
     return filterItems(entries)
   }, [entries, debouncedTreeQuery])
   const entryCounts = useMemo(() => countEntries(entries), [entries])
+
+  // ── First-run workspace picker ──────────────────────────────────────────────
+  if (needsWorkspacePicker) {
+    const knownWorkspaces = workspaceCatalog.workspaces
+    return (
+      <div
+        data-screen="files"
+        className="files-shell"
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        <div
+          className="files-workspace-picker"
+          style={{
+            maxWidth: 480,
+            width: '100%',
+            padding: '2rem',
+            borderRadius: 10,
+            background: 'var(--theme-card, #111)',
+            border: '1.5px solid var(--theme-border, #333)',
+          }}
+        >
+          <h2
+            style={{
+              margin: '0 0 0.5rem',
+              fontSize: 18,
+              fontWeight: 700,
+              color: 'var(--theme-text)',
+            }}
+          >
+            Choose your workspace folder
+          </h2>
+          <p
+            style={{
+              margin: '0 0 1.25rem',
+              fontSize: 13,
+              color: 'var(--theme-muted)',
+              lineHeight: 1.5,
+            }}
+          >
+            Pick the project folder you want to browse and work in. Enter an
+            absolute path below or select from previously used workspaces.
+          </p>
+
+          {knownWorkspaces.length > 0 && (
+            <div style={{ marginBottom: '1rem' }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  color: 'var(--theme-muted)',
+                  marginBottom: '0.4rem',
+                }}
+              >
+                Recent workspaces
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {knownWorkspaces.map((ws) => (
+                  <button
+                    key={ws.path}
+                    type="button"
+                    onClick={() => setPickerPath(ws.path)}
+                    style={{
+                      textAlign: 'left',
+                      padding: '6px 10px',
+                      borderRadius: 6,
+                      border: '1px solid var(--theme-border, #333)',
+                      background:
+                        pickerPath === ws.path
+                          ? 'var(--theme-accent-subtle, #1a2a1a)'
+                          : 'transparent',
+                      cursor: 'pointer',
+                      color: 'var(--theme-text)',
+                      fontSize: 12,
+                    }}
+                  >
+                    <span style={{ fontWeight: 600 }}>
+                      {ws.name ?? ws.path.split('/').at(-1)}
+                    </span>
+                    <span
+                      style={{
+                        display: 'block',
+                        fontSize: 10,
+                        color: 'var(--theme-muted)',
+                        marginTop: 1,
+                      }}
+                    >
+                      {ws.path}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={(e) => { void handlePickerSubmit(e) }}>
+            <label
+              htmlFor="workspace-path-input"
+              style={{
+                display: 'block',
+                fontSize: 12,
+                fontWeight: 600,
+                marginBottom: '0.35rem',
+                color: 'var(--theme-muted)',
+              }}
+            >
+              Folder path
+            </label>
+            <input
+              id="workspace-path-input"
+              type="text"
+              value={pickerPath}
+              onChange={(e) => {
+                setPickerPath(e.target.value)
+                setPickerError(null)
+              }}
+              placeholder="/home/user/my-project"
+              autoFocus
+              style={{
+                width: '100%',
+                padding: '8px 10px',
+                borderRadius: 6,
+                border: `1.5px solid ${pickerError ? 'var(--theme-error, #e55)' : 'var(--theme-border, #333)'}`,
+                background: 'var(--theme-bg, #0a0a0a)',
+                color: 'var(--theme-text)',
+                fontSize: 13,
+                fontFamily: 'var(--font-mono, monospace)',
+                boxSizing: 'border-box',
+                outline: 'none',
+              }}
+            />
+            {pickerError && (
+              <div
+                style={{
+                  marginTop: '0.35rem',
+                  fontSize: 12,
+                  color: 'var(--theme-error, #e55)',
+                }}
+              >
+                {pickerError}
+              </div>
+            )}
+            <Button
+              type="submit"
+              disabled={pickerSaving || !pickerPath.trim()}
+              style={{ marginTop: '0.85rem', width: '100%' }}
+            >
+              {pickerSaving ? 'Saving…' : 'Use this folder'}
+            </Button>
+          </form>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div

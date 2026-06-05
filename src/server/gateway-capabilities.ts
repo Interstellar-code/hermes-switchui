@@ -662,23 +662,24 @@ export function isLocalhostDeployment(): boolean {
 }
 
 /**
- * Probe whether the dashboard's `/api/config` payload includes an
- * `mcp_servers` entry. The presence of the key (even if empty) signals that
- * config-fallback CRUD is safe to expose.
+ * Probe whether the dashboard's `/api/config` payload is reachable and
+ * parseable. We deliberately do NOT require an `mcp_servers` key to already
+ * exist: a fresh install has no `mcp_servers` entry yet, and requiring it
+ * locked the user out of the MCP page entirely (issue #185 — chicken-and-egg:
+ * you can't add a server because the key is missing, and the key is missing
+ * because you've never added a server). The config-fallback write path
+ * (`readConfigServersMap` in routes/api/mcp.ts) creates `mcp_servers: {}` on
+ * first write, so a reachable config is sufficient to safely expose CRUD.
  *
- * Used as part of the `mcpFallback` capability gate.
+ * Used as part of the `mcpFallback` capability gate (still guarded by
+ * `isLocalhostDeployment()` so remote deploys never get plaintext config writes).
  */
 async function probeMcpConfigKey(): Promise<boolean> {
   try {
     const { getConfig } = await import('./claude-dashboard-api')
-    const cfg = await getConfig()
-    if (typeof cfg !== 'object') return false
-    if ('mcp_servers' in cfg) return true
-    const inner =
-      cfg.config && typeof cfg.config === 'object'
-        ? (cfg.config as Record<string, unknown>)
-        : null
-    return inner ? 'mcp_servers' in inner : false
+    // Reachable + parseable config is enough; the key is created on first write.
+    await getConfig()
+    return true
   } catch {
     return false
   }

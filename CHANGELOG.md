@@ -3,6 +3,15 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.24] — 2026-06-05
+
+Fresh-install fixes: MCP page + File Manager.
+
+### Fixed
+
+- **MCP servers page empty on fresh installs (#185).** The `mcpFallback` capability gate required the agent's `config.yaml` to already contain an `mcp_servers` key — which a fresh install doesn't have — so `/mcp` returned an unavailable payload even when the dashboard was running. Chicken-and-egg: you couldn't add a server because the key was missing, and the key was missing because no server was ever added. `probeMcpConfigKey()` now gates on config *reachability* (not key presence); the write path already creates `mcp_servers` on first add, and the `isLocalhostDeployment()` safety gate is kept.
+- **File Manager blank on fresh installs.** When no real workspace is selected (or the throwaway auto-created `~/workspace` default), `/files` now shows a first-run "Choose your workspace folder" picker instead of an empty view. It reuses the existing `POST /api/workspace` mechanism (shared with the chat composer), surfaces known workspaces as quick-picks, and loads the chosen folder immediately.
+
 ## [2.3.23] — 2026-06-05
 
 Visual bug-report widget.
