@@ -175,8 +175,18 @@ fi
 
 cyan "→ Cloning hermes-switchui…"
 if [[ -d "$INSTALL_DIR/.git" ]]; then
-  yellow "  $INSTALL_DIR exists; pulling latest"
-  git -C "$INSTALL_DIR" pull --ff-only
+  # Re-run path: never let a pull abort the installer. Users edit .env (and
+  # other files) in place, so the working tree is almost always dirty.
+  if [[ -n "$(git -C "$INSTALL_DIR" status --porcelain 2>/dev/null)" ]]; then
+    yellow "  Local changes detected in $INSTALL_DIR — skipping update."
+    yellow "  Commit/stash manually to update."
+  else
+    yellow "  $INSTALL_DIR exists; pulling latest"
+    if ! git -C "$INSTALL_DIR" pull --ff-only; then
+      yellow "  Could not fast-forward $INSTALL_DIR (diverged?) — skipping update."
+      yellow "  Reconcile manually (e.g. git pull) to update."
+    fi
+  fi
 elif [[ -e "$INSTALL_DIR" ]]; then
   red "Path exists but is not a git repo: $INSTALL_DIR"
   red "Move/remove it or set INSTALL_DIR=..."
@@ -203,6 +213,20 @@ if [[ -z "$HERMES_ENV_PATH" ]]; then
 fi
 ensure_env_key "$HERMES_ENV_PATH" "API_SERVER_ENABLED" "true"
 green "  Hermes env updated: $HERMES_ENV_PATH ✓"
+
+# API_SERVER_ENABLED is read at gateway startup. If a gateway is already
+# running, the flag won't apply until it restarts — warn but never auto-kill.
+if command -v hermes &>/dev/null; then
+  GW_STATUS="$(hermes gateway status 2>/dev/null || true)"
+  if echo "$GW_STATUS" | grep -qiE "running|active|online"; then
+    yellow ""
+    yellow "⚠  A Hermes gateway is already running."
+    yellow "   API_SERVER_ENABLED=true takes effect only after a restart:"
+    yellow "     hermes gateway restart"
+    yellow "   (or stop it before running 'pnpm start:all')."
+    yellow ""
+  fi
+fi
 
 # Guard against a common foot-gun: users editing ~/.hermes/.env by hand and
 # writing env var names without underscores (APISERVERENABLED vs

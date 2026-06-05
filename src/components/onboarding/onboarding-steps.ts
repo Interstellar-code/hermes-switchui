@@ -54,6 +54,7 @@ export const ONBOARDING_STEPS: Array<OnboardingStep> = [
     icon: Settings01Icon,
     iconBg: 'bg-cyan-500',
     component: ModelConfigurationStep,
+    canProceedByDefault: false,
   },
   {
     id: 'ready',

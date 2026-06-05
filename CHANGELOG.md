@@ -3,6 +3,22 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.20] — 2026-06-05
+
+Install-flow hardening.
+
+### Fixed
+
+- **Safe installer re-runs.** `install.sh` no longer aborts on re-run when the working tree is dirty (users edit `.env` in place) — it skips the pull with a note, and catches a diverged fast-forward instead of dying under `set -euo pipefail`.
+- **Port preflight.** New `scripts/check-ports.mjs` runs as `prestart:all` and fails fast with an actionable message (naming `GATEWAY_PORT` / `PORT`) when 8642 or 3000 is already bound, instead of `concurrently` silently swallowing the gateway bind failure.
+- **Actionable connection-check.** The onboarding connection step now distinguishes "gateway not running" vs "HTTP API disabled (`API_SERVER_ENABLED`)" vs reachable-but-unusable, each with its own fix hint.
+- **Provider gate.** The onboarding model step blocks completion when no provider/model is configured, so users can't click through into a dead chat. Externally-managed backends still pass.
+- **Restart hint.** After enabling `API_SERVER_ENABLED=true`, `install.sh` warns to `hermes gateway restart` if a gateway is already running.
+
+### Changed
+
+- The "install for full features" hint in `gateway-capabilities.ts` now points at the Interstellar-code fork installer.
+
 ## [2.3.19] — 2026-06-05
 
 Install & onboarding polish.

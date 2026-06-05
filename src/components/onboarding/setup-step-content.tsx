@@ -23,19 +23,25 @@ type AuthCheckResponse = {
 type ClaudeConfigResponse = {
   activeProvider?: string
   activeModel?: string
+  code?: string
 }
 
 type ConnectionStatus = 'checking' | 'connected' | 'disconnected'
+
+/** Which actionable hint to show when the connection check fails. */
+type FailureKind = 'not-running' | 'api-disabled' | 'generic'
 
 export function ConnectionCheckStep({
   setCanProceed,
 }: OnboardingStepComponentProps) {
   const [status, setStatus] = useState<ConnectionStatus>('checking')
   const [lastError, setLastError] = useState<string | null>(null)
+  const [failureKind, setFailureKind] = useState<FailureKind>('generic')
 
   const checkConnection = useCallback(async () => {
     setStatus('checking')
     setLastError(null)
+    setFailureKind('generic')
 
     try {
       const response = await fetch('/api/auth-check', {
@@ -44,19 +50,55 @@ export function ConnectionCheckStep({
       const data = (await response.json()) as AuthCheckResponse
       const connected =
         response.ok &&
-        data.error !== 'server_timeout' &&
+        data.error !== 'claude_agent_timeout' &&
+        data.error !== 'claude_agent_unreachable' &&
         (data.authenticated === true || data.authRequired === false)
 
-      setStatus(connected ? 'connected' : 'disconnected')
-      if (!connected) {
-        setLastError(
-          data.error === 'server_timeout'
-            ? 'Hermes Agent did not respond in time.'
-            : 'Hermes Agent is not reachable yet.',
-        )
+      if (connected) {
+        setStatus('connected')
+        return
       }
-    } catch (error) {
+
       setStatus('disconnected')
+
+      // 503 + claude_agent_unreachable/timeout means we couldn't even open a
+      // socket to the gateway: it isn't running.
+      if (
+        data.error === 'claude_agent_unreachable' ||
+        data.error === 'claude_agent_timeout'
+      ) {
+        setFailureKind('not-running')
+        setLastError(
+          data.error === 'claude_agent_timeout'
+            ? 'Hermes Agent did not respond in time.'
+            : 'Hermes Agent is not reachable.',
+        )
+        return
+      }
+
+      // Reachable (auth-check passed the socket probe) but not usable. Probe
+      // claude-config: a `capability_unavailable` code means the gateway is up
+      // but its HTTP API surface is disabled.
+      try {
+        const cfgRes = await fetch('/api/claude-config', {
+          signal: AbortSignal.timeout(5000),
+        })
+        const cfg = (await cfgRes.json()) as ClaudeConfigResponse
+        if (cfgRes.status === 403 || cfg.code === 'capability_unavailable') {
+          setFailureKind('api-disabled')
+          setLastError('Gateway HTTP API is disabled.')
+          return
+        }
+      } catch {
+        // fall through to generic
+      }
+
+      setFailureKind('generic')
+      setLastError('Gateway reachable but not ready.')
+    } catch (error) {
+      // fetch threw — DNS/TCP refused/network error: nothing is listening.
+      setStatus('disconnected')
+      setFailureKind('not-running')
       setLastError(
         error instanceof Error ? error.message : 'Connection check failed.',
       )
@@ -110,31 +152,58 @@ export function ConnectionCheckStep({
 
       {status === 'disconnected' && (
         <div className="mb-6 w-full rounded-2xl border border-red-200 bg-red-50 p-4 text-left">
-          <p className="mb-3 text-sm font-medium text-red-700">
-            Make sure the Hermes Agent HTTP API server is enabled:
-          </p>
-          <div className="space-y-2">
-            <div>
-              <p className="text-xs font-medium text-red-700 mb-1">
-                1. Enable the API server in <code>~/.hermes/.env</code>:
+          {failureKind === 'not-running' && (
+            <>
+              <p className="mb-3 text-sm font-medium text-red-700">
+                Gateway not running. Start it:
               </p>
               <code className="block overflow-x-auto rounded-lg bg-red-100 px-3 py-2 text-xs text-red-900">
-                API_SERVER_ENABLED=true
+                pnpm start:all
               </code>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-red-700 mb-1">
-                2. Restart the gateway:
+              <p className="mt-2 text-xs text-red-700">
+                or <code>hermes gateway start</code>.
               </p>
-              <code className="block overflow-x-auto rounded-lg bg-red-100 px-3 py-2 text-xs text-red-900">
-                cd hermes-agent && hermes --gateway
-              </code>
-            </div>
-          </div>
-          <p className="mt-3 text-xs text-red-700">
-            Or point <code>HERMES_API_URL</code> at any OpenAI-compatible
-            backend (Ollama, LiteLLM, vLLM, etc.).
-          </p>
+            </>
+          )}
+
+          {failureKind === 'api-disabled' && (
+            <>
+              <p className="mb-3 text-sm font-medium text-red-700">
+                Gateway is running but its HTTP API is disabled.
+              </p>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs font-medium text-red-700 mb-1">
+                    1. Enable the API server in <code>~/.hermes/.env</code>:
+                  </p>
+                  <code className="block overflow-x-auto rounded-lg bg-red-100 px-3 py-2 text-xs text-red-900">
+                    API_SERVER_ENABLED=true
+                  </code>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-red-700 mb-1">
+                    2. Restart the gateway:
+                  </p>
+                  <code className="block overflow-x-auto rounded-lg bg-red-100 px-3 py-2 text-xs text-red-900">
+                    hermes gateway restart
+                  </code>
+                </div>
+              </div>
+            </>
+          )}
+
+          {failureKind === 'generic' && (
+            <>
+              <p className="mb-3 text-sm font-medium text-red-700">
+                Backend reachable but not usable.
+              </p>
+              <p className="text-xs text-red-700">
+                Check that <code>HERMES_API_URL</code> points at a working
+                OpenAI-compatible backend (Ollama, LiteLLM, vLLM, etc.).
+              </p>
+            </>
+          )}
+
           {lastError && (
             <p className="mt-3 text-xs text-red-700">{lastError}</p>
           )}
@@ -158,10 +227,6 @@ export function ModelConfigurationStep({
 }: OnboardingStepComponentProps) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [config, setConfig] = useState<ClaudeConfigResponse | null>(null)
-
-  useEffect(() => {
-    setCanProceed(true)
-  }, [setCanProceed])
 
   useEffect(() => {
     let cancelled = false
@@ -197,6 +262,13 @@ export function ModelConfigurationStep({
   const provider = config?.activeProvider?.trim()
   const model = config?.activeModel?.trim()
   const hasModel = Boolean(provider && model)
+
+  // Gate completion: a configured provider/model unblocks the step. If config
+  // couldn't load (portable/externally-managed backend), don't hard-block the
+  // happy path — let the user proceed and verify via the chat test.
+  useEffect(() => {
+    setCanProceed(status === 'ready' ? hasModel : status === 'error')
+  }, [setCanProceed, status, hasModel])
 
   return (
     <div className="flex w-full flex-col items-center text-center">
@@ -252,9 +324,10 @@ export function ModelConfigurationStep({
               className="mt-0.5 size-5 shrink-0"
             />
             <p className="text-sm">
-              No model is reported yet. If your backend manages models
-              externally, finish setup there and use the chat test to verify the
-              connection.
+              No provider or model is configured yet. Configure one below before
+              continuing — otherwise chat will not respond. Open{' '}
+              <span className="font-medium">Provider Settings</span> and pick a
+              provider and model to finish setup.
             </p>
           </div>
         )}
