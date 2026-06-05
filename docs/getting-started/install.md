@@ -5,7 +5,14 @@ description: How to install and launch Hermes Switch UI.
 
 # Install
 
-> Hermes Switch UI runs as two paired processes: the web app on port `3000` and the **Hermes Agent** gateway on port `8642`. Most install methods set both up for you.
+> Hermes Switch UI talks to **two** Hermes Agent backends:
+>
+> | Process | Port | Powers |
+> |---|---|---|
+> | `hermes gateway run` | `8642` | Chat (portable mode) |
+> | `hermes dashboard` | `9119` | Sessions, skills, memory, kanban, jobs, MCP, config |
+>
+> Plus the web app itself on port `3000`. **The dashboard is not optional for the full experience** — without it, chat works but sessions/skills/memory/kanban/MCP show errors, and the UI displays a "Limited mode — Hermes dashboard not connected" banner. Docker and the one-line installer set everything up; for manual/dev installs you start the dashboard yourself (see below).
 
 <iframe
   src="/api/docs-asset?path=diagrams/install-paths.html"
@@ -19,7 +26,8 @@ Pick the method that matches how you plan to use the app:
 
 | Method | Best for | What you get |
 |--------|----------|--------------|
-| **Docker** | Most users | Pre-built images, both processes managed by Docker, survives reboots |
+| **One-line installer** | macOS / Linux, quickest native setup | Installs the agent + clones + configures `.env`; one command to launch |
+| **Docker** | Most users | Pre-built images, all processes managed by Docker, survives reboots |
 | **Electron desktop** | Single-user laptops | Native app, auto-updater, no terminal required after install |
 | **Development (`pnpm dev`)** | Contributors, debugging | Source checkout, hot reload, you control everything |
 | **Production node build** | Self-hosted server, remote deploy | Standalone Node server, no Docker |
@@ -30,10 +38,39 @@ Pick the method that matches how you plan to use the app:
 
 Common to every method:
 
-- An **AI provider key** (one or more): OpenAI, Anthropic, OpenRouter, Google, or a reachable local server like Ollama or LM Studio. Without at least one provider configured, chat will not work — see [Connecting your AI provider](connecting-provider.md).
-- Free TCP ports: `3000` (UI) and `8642` (agent).
+- An **AI provider key** (one or more): OpenAI, Anthropic, OpenRouter, Google, or a reachable local server like Ollama or LM Studio. Without at least one provider configured, chat will not work — see [Connecting your AI provider](connecting-provider.md). You can also set the provider and key from the **in-browser onboarding wizard** on first launch — no need to hand-edit config.
+- Free TCP ports: `3000` (UI), `8642` (gateway), and `9119` (dashboard).
 
 Method-specific prerequisites are listed under each section.
+
+---
+
+## One-line installer (macOS / Linux)
+
+The quickest native setup. Installs the Hermes Agent (Interstellar fork), clones Switch UI, writes `.env`, enables the agent's HTTP API, and installs dependencies — all idempotent (safe to re-run).
+
+**You need:** Node.js 22+, `git`, `curl`, and `pnpm` (the script installs `pnpm` via corepack if missing).
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Interstellar-code/hermes-switchui/main/install.sh | bash
+```
+
+When it finishes:
+
+```bash
+cd ~/hermes-switchui
+pnpm start:all          # starts the gateway + UI together
+```
+
+Then start the **dashboard** (needed for sessions/skills/memory/kanban/MCP) in its own terminal:
+
+```bash
+hermes dashboard --no-open --skip-build
+```
+
+Open <http://localhost:3000>. The first-run **onboarding wizard** walks you through picking a provider and entering your API key.
+
+> The installer checks both backends at the end and warns loudly if the dashboard (`:9119`) isn't running.
 
 ---
 
@@ -102,9 +139,9 @@ For contributors or anyone who wants to run from source with hot reload.
 
 **You need:**
 
-- **Node.js** 20 or newer
+- **Node.js** 22 or newer
 - **pnpm** (`npm install -g pnpm` if you do not have it)
-- **Hermes Agent** installed locally
+- **Hermes Agent** installed locally (via the [one-line installer](#one-line-installer-macos--linux) or its own installer)
 
 Steps:
 
@@ -122,20 +159,49 @@ Steps:
    cp .env.example .env
    ```
    You only need to fill values if you want non-default behavior (binding to LAN, setting a password, etc.). For local development, the defaults work.
-4. Start the dev server:
+4. Start the gateway + UI together:
    ```bash
-   pnpm dev
+   pnpm start:all
    ```
-   This launches the Vite dev server on port `3000` and **auto-starts the Hermes Agent sidecar** on port `8642`.
-5. Open <http://localhost:3000>.
+   This runs `hermes gateway run` (port `8642`) and `pnpm dev` (Vite on port `3000`) together via `concurrently`. A port preflight check runs first and fails fast if `8642` or `3000` is already in use.
 
-The dev server hot-reloads UI changes. Restart only if you change server-side code or env vars.
+   > **Note:** `pnpm dev` alone runs *only* the Vite UI — it does **not** start the agent. Use `pnpm start:all` to launch both, or run `hermes gateway run` separately.
+5. Start the **dashboard** (sessions/skills/memory/kanban/MCP) in another terminal:
+   ```bash
+   hermes dashboard --no-open --skip-build
+   ```
+6. Open <http://localhost:3000>.
 
-**Running the UI and agent in separate terminals** (useful when debugging the agent):
+The dev server hot-reloads UI changes. Restart only if you change server-side code, env vars, or dependency versions (`vite` / `@tanstack/*` cannot hot-swap — restart `start:all`).
+
+### Config lives in `.env`
+
+Gateway/dashboard URLs resolve from environment variables (`HERMES_API_URL`, `HERMES_DASHBOARD_URL`) → built-in loopback defaults (`127.0.0.1:8642` / `:9119`). The one-line installer writes `HERMES_API_URL` into the project `.env` for you. Changing the workspace URLs from **Settings → Connection** persists to `.env` and survives restarts — there is no separate override file.
+
+### Enabling the agent's HTTP API
+
+The UI reaches the gateway over its HTTP API, which is opt-in. Add to `~/.hermes/.env`:
 ```bash
-pnpm start:all
+API_SERVER_ENABLED=true
 ```
-This runs `hermes gateway run` and `pnpm dev` together using `concurrently`.
+The one-line installer sets this for you. If the gateway was already running, restart it (`hermes gateway restart`) so the flag takes effect.
+
+### react-grab (dev overlay)
+
+The dev server loads the `react-grab` inspection overlay automatically. Opt out with `VITE_REACT_GRAB=0` in `.env`. Production builds strip it.
+
+---
+
+## Run as a background service (always-on)
+
+Instead of keeping `pnpm start:all` in the foreground, install the gateway as a native OS service:
+
+```bash
+hermes gateway install     # Linux: systemd · macOS: launchd
+hermes gateway start
+```
+
+The **dashboard** has no native service installer — run it persistently with `nohup hermes dashboard --no-open --skip-build &` (macOS) or a `systemd --user` unit (Linux). On WSL (no systemd by default), stick with `pnpm start:all` + a foreground `hermes dashboard`.
 
 ---
 
@@ -143,7 +209,7 @@ This runs `hermes gateway run` and `pnpm dev` together using `concurrently`.
 
 For self-hosted deployments without Docker (a bare VM, Unraid Node.js plugin, etc.).
 
-**You need:** Node.js 20+, pnpm, and Hermes Agent running separately.
+**You need:** Node.js 22+, pnpm, and Hermes Agent running separately (gateway on `8642` and, for full features, the dashboard on `9119`).
 
 1. Clone and install (as above).
 2. Build:
@@ -189,10 +255,11 @@ For details on tokens and reverse-proxy setups, see [Agent won't connect](../tro
 Whichever method you used, you should be able to:
 
 1. Open <http://localhost:3000> (or your remote URL) and see the Hermes Switch UI home screen.
-2. Open <http://localhost:8642/health> in the browser and see a JSON response — that confirms the agent is reachable.
-3. Send a test chat — see [Your first chat](first-chat.md).
+2. Open <http://localhost:8642/health> in the browser and see a JSON response — that confirms the **gateway** is reachable.
+3. Confirm the **dashboard** is up at <http://localhost:9119> — if it isn't, the UI shows a "Limited mode — Hermes dashboard not connected" banner and sessions/skills/memory/kanban/MCP won't work. Start it with `hermes dashboard --no-open --skip-build`.
+4. Send a test chat — see [Your first chat](first-chat.md).
 
-If chat fails or the app shows an "Agent unavailable" banner, jump to [Agent won't connect](../troubleshooting/agent-connect.md).
+If chat fails or the app shows an "Agent unavailable" banner, jump to [Agent won't connect](../troubleshooting/agent-connect.md). If the **MCP** or **Files** pages look empty on a brand-new install, they self-resolve once the dashboard is running and (for Files) once you pick a workspace folder in the first-run picker.
 
 ## Related
 
