@@ -98,7 +98,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
-    "@tanstack/eslint-config": "^0.3.4",
+    "@tanstack/eslint-config": "^0.4.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.2.0",
     "@types/better-sqlite3": "^7.6.13",
