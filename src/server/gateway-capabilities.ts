@@ -180,20 +180,26 @@ export const CLAUDE_UPGRADE_INSTRUCTIONS =
 export const SESSIONS_API_UNAVAILABLE_MESSAGE = `Your Hermes backend does not support the sessions API. ${CLAUDE_UPGRADE_INSTRUCTIONS}`
 
 const PROBE_TIMEOUT_MS = 3_000
-// Probe TTL: 120s when the gateway is healthy, 15s when it isn't. The
-// shorter window during 'disconnected' state means a Docker stack where
-// the workspace boots before the agent recovers within ~15s of the agent
-// becoming reachable, instead of being stuck on the first failed probe
-// for two minutes. See #275.
+// Probe TTL: 120s when fully healthy, 15s otherwise. The shorter window
+// applies both when the gateway is unreachable (Docker boot race, see #275)
+// AND when the gateway is up but the dashboard (port 9119) is missing — so
+// starting the dashboard is reflected within ~15s instead of being stuck on a
+// stale 'healthy' probe for two minutes. Recovery of a partial state must be
+// dynamic.
 const PROBE_TTL_MS = 120_000
 const PROBE_TTL_DISCONNECTED_MS = 15_000
 
 function effectiveProbeTtl(caps: {
   health: boolean
   chatCompletions: boolean
+  dashboard: { available: boolean }
 }): number {
-  if (caps.health || caps.chatCompletions) return PROBE_TTL_MS
-  return PROBE_TTL_DISCONNECTED_MS
+  // Gateway down → re-probe often so we notice it come back.
+  if (!caps.health && !caps.chatCompletions) return PROBE_TTL_DISCONNECTED_MS
+  // Gateway up but dashboard down → still a partial state; re-probe often so
+  // the "Limited mode" banner clears quickly once the dashboard is started.
+  if (!caps.dashboard.available) return PROBE_TTL_DISCONNECTED_MS
+  return PROBE_TTL_MS
 }
 const DASHBOARD_TOKEN_REGEX =
   /window\.__(?:CLAUDE|HERMES)_SESSION_TOKEN__\s*=\s*["'](.+?)["']/

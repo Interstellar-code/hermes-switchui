@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 
@@ -7,7 +7,11 @@ const START_HINT = 'hermes dashboard --no-open --skip-build'
 const SESSION_DISMISSED_KEY = 'hermes-dashboard-banner-dismissed'
 
 interface GatewayStatus {
-  capabilities: Record<string, boolean>
+  capabilities: {
+    health?: boolean
+    // dashboard is a nested object, NOT a flat boolean
+    dashboard?: { available?: boolean }
+  }
 }
 
 function useGatewayStatus() {
@@ -18,8 +22,12 @@ function useGatewayStatus() {
       if (!res.ok) throw new Error('gateway-status fetch failed')
       return res.json()
     },
-    staleTime: 60_000,
-    refetchInterval: 60_000,
+    // Poll often: this drives a "Limited mode" banner that must clear quickly
+    // once the dashboard is started. Pairs with the server's short probe TTL
+    // while the dashboard is down (see effectiveProbeTtl in gateway-capabilities).
+    staleTime: 10_000,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
   })
 }
 
@@ -40,10 +48,19 @@ export function DashboardUnavailableBanner() {
   )
   const [copied, setCopied] = useState(false)
 
-  if (isLoading || !data) return null
+  const gatewayReachable = data?.capabilities.health === true
+  const dashboardAvailable = data?.capabilities.dashboard?.available === true
 
-  const gatewayReachable = data.capabilities['health'] === true
-  const dashboardAvailable = data.capabilities['dashboard'] === true
+  // Once the dashboard recovers, drop the per-session dismissal so the banner
+  // shows again if it later goes down. Keeps the dismissed state from going stale.
+  useEffect(() => {
+    if (dashboardAvailable && dismissed) {
+      sessionStorage.removeItem(SESSION_DISMISSED_KEY)
+      setDismissed(false)
+    }
+  }, [dashboardAvailable, dismissed])
+
+  if (isLoading || !data) return null
 
   // Only show when gateway is up but dashboard is down
   if (!gatewayReachable || dashboardAvailable || dismissed) return null

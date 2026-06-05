@@ -3,6 +3,19 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.22] — 2026-06-05
+
+Dashboard banner bugfix + dynamic detection.
+
+### Fixed
+
+- **False "Limited mode" banner.** The dashboard-unavailable banner read `capabilities.dashboard` (a nested `{ available }` object) as if it were a boolean, so the check was always false and the banner showed permanently whenever the gateway was up — even with the dashboard connected. It now reads `capabilities.dashboard?.available`.
+- **Dynamic recovery.** The banner polls every 15s (was 60s) with refetch-on-focus, and the server probe TTL now treats gateway-up/dashboard-down as a partial state (15s re-probe instead of 120s), so the banner clears within ~15s of starting the dashboard. The per-session dismissal is auto-cleared when the dashboard recovers.
+
+### Changed
+
+- **react-grab** dev overlay is gated to the dev server only (stripped from production builds) and can be opted out in dev with `VITE_REACT_GRAB=0`.
+
 ## [2.3.21] — 2026-06-05
 
 Config single-source + dashboard awareness.

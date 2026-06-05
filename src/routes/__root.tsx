@@ -272,7 +272,11 @@ function RootLayout() {
   useApplyChatWidth()
 
   useEffect(() => {
-    if (import.meta.env.DEV) {
+    // react-grab is a dev inspection overlay. Loaded only when the Vite dev
+    // server is running (DEV=true). Production builds (`pnpm build`) strip this
+    // dynamic import entirely via dead-code elimination, so end users running a
+    // production build never get it. Opt OUT in dev with VITE_REACT_GRAB=0.
+    if (import.meta.env.DEV && import.meta.env.VITE_REACT_GRAB !== '0') {
       void import('react-grab')
     }
   }, [])
