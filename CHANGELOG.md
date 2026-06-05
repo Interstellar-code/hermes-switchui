@@ -3,6 +3,17 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.19] — 2026-06-05
+
+Install & onboarding polish.
+
+### Changed
+
+- **install.sh now installs the Interstellar-code fork of `hermes-agent`** instead of the NousResearch upstream installer. Friendlier per-OS prereq hints and a clearer final banner.
+- **Background-service guidance.** The installer banner and README now document `hermes gateway install` (systemd on Linux / launchd on macOS) for always-on setups, plus `pnpm dev`-only afterward, with a WSL "no systemd by default" caveat.
+- **Onboarding honesty.** After saving a provider/API key, the wizard and the `/api/claude-config` PATCH response now state that the gateway reads config at startup only — restart (`hermes gateway restart` / `pnpm start:all`) for changes to take effect.
+- **README install section** rewritten: three paths (one-liner / manual / Docker), prerequisites, security note, and a new "Run as a background service" subsection. Stale NousResearch install URLs swapped to the Interstellar-code fork.
+
 ## [2.3.11] — 2026-05-23
 
 Cleanup release. Closes 9 open issues from the in-repo code review.
