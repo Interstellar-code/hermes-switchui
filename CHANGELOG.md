@@ -3,6 +3,18 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.25] — 2026-06-05
+
+Security + tooling.
+
+### Security
+
+- **Cleared 4 moderate `hono` advisories** (GHSA-3hrh-pfw6-9m5x, GHSA-f577-qrjj-4474, GHSA-2gcr-mfcq-wcc3). `hono` was a transitive peer of `@hono/zod-openapi` resolving to the vulnerable 4.12.18; pinned `hono` as a direct dependency at `^4.12.23`. `pnpm audit` is now clean.
+
+### Changed
+
+- Bumped `@tanstack/eslint-config` 0.3.4 → 0.4.0 (lint tooling current; no behavior change). Repo-wide lint debt tracked in #186.
+
 ## [2.3.24] — 2026-06-05
 
 Fresh-install fixes: MCP page + File Manager.
