@@ -480,7 +480,6 @@ const config = defineConfig(({ mode, command }) => {
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
-        'lucide-react': fileURLToPath(new URL('./src/shims/lucide-react.tsx', import.meta.url)),
         'next/image': fileURLToPath(new URL('./src/shims/next-image.tsx', import.meta.url)),
       },
       tsconfigPaths: true,
