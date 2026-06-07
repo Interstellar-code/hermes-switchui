@@ -21,9 +21,9 @@ import { Button } from '@/components/ui/button'
 import {
   DialogContent,
   DialogDescription,
-  DialogRoot,
+  Dialog,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/shadcn/ui/dialog'
 import { toast } from '@/components/ui/toast'
 import type { HubMcpEntry } from '../hooks/use-mcp-hub'
 import type { McpClientInput } from '@/types/mcp'
@@ -191,7 +191,7 @@ export function InstallConfirmationDialog({ entry, onClose, onInstalled }: Props
     (placeholders !== null && hasUnfilledPlaceholders(placeholders, overrides))
 
   return (
-    <DialogRoot open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="w-[min(640px,95vw)] border-primary-200 bg-primary-50/95 backdrop-blur-sm">
         {entry && trustConfig && template ? (
           <div className="flex flex-col gap-4 p-1">
@@ -348,6 +348,6 @@ export function InstallConfirmationDialog({ entry, onClose, onInstalled }: Props
           </div>
         ) : null}
       </DialogContent>
-    </DialogRoot>
+    </Dialog>
   )
 }

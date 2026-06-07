@@ -15,9 +15,9 @@ import {
   DialogClose,
   DialogContent,
   DialogDescription,
-  DialogRoot,
+  Dialog,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/shadcn/ui/dialog'
 import { Markdown } from '@/components/prompt-kit/markdown'
 import '@/styles/matrix-files.css'
 import { formatBytes, formatDate } from '@/lib/format'
@@ -460,7 +460,7 @@ function DiffModal({
   if (!open) return null
 
   return (
-    <DialogRoot
+    <Dialog
       open={open}
       onOpenChange={(isOpen) => {
         if (!isOpen) onCancel()
@@ -590,7 +590,7 @@ function DiffModal({
           </div>
         </div>
       </DialogContent>
-    </DialogRoot>
+    </Dialog>
   )
 }
 
@@ -1941,7 +1941,7 @@ export function FilesScreen() {
       ) : null}
 
       {/* ── Rename / New-folder prompt dialog ─────────────────────────────── */}
-      <DialogRoot
+      <Dialog
         open={Boolean(promptState)}
         onOpenChange={(open) => {
           if (!open) { setPromptState(null); setPromptError(null) }
@@ -1971,15 +1971,17 @@ export function FilesScreen() {
               <p className="text-sm text-destructive">{promptError}</p>
             )}
             <div className="flex justify-end gap-2 pt-2">
-              <DialogClose render={<Button variant="outline">Cancel</Button>} />
+              <DialogClose asChild>
+                <Button variant="outline">Cancel</Button>
+              </DialogClose>
               <Button onClick={() => void handlePromptSubmit()}>Save</Button>
             </div>
           </div>
         </DialogContent>
-      </DialogRoot>
+      </Dialog>
 
       {/* ── Delete confirm dialog ──────────────────────────────────────────── */}
-      <DialogRoot
+      <Dialog
         open={Boolean(deleteConfirm)}
         onOpenChange={(open) => {
           if (!open) { setDeleteConfirm(null); setDeleteError(null) }
@@ -2001,7 +2003,9 @@ export function FilesScreen() {
               <p className="text-sm text-destructive">{deleteError}</p>
             )}
             <div className="flex justify-end gap-2 pt-2">
-              <DialogClose render={<Button variant="outline">Cancel</Button>} />
+              <DialogClose asChild>
+                <Button variant="outline">Cancel</Button>
+              </DialogClose>
               <Button
                 variant="destructive"
                 onClick={() => void handleDeleteConfirmed()}
@@ -2011,7 +2015,7 @@ export function FilesScreen() {
             </div>
           </div>
         </DialogContent>
-      </DialogRoot>
+      </Dialog>
     </div>
   )
 }

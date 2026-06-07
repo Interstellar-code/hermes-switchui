@@ -5,7 +5,7 @@ import {
   DialogClose,
   DialogDescription,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/shadcn/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { formatModelName } from '@/lib/format-model-name'
 

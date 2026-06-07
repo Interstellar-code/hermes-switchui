@@ -3,9 +3,9 @@ import { Button } from '@/components/ui/button'
 import {
   DialogContent,
   DialogDescription,
-  DialogRoot,
+  Dialog,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/shadcn/ui/dialog'
 import { toast } from '@/components/ui/toast'
 import { killAgentSession } from '@/lib/gateway-api'
 
@@ -46,7 +46,7 @@ export function KillConfirmDialog({
   }
 
   return (
-    <DialogRoot
+    <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
         if (pending && !nextOpen) return
@@ -86,6 +86,6 @@ export function KillConfirmDialog({
           </div>
         </div>
       </DialogContent>
-    </DialogRoot>
+    </Dialog>
   )
 }
