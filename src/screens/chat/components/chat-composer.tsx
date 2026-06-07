@@ -111,7 +111,7 @@ type ChatComposerHandle = {
   insertText: (value: string) => void
 }
 
-function nextThinkingLevel(level: ThinkingLevel): ThinkingLevel {
+export function nextThinkingLevel(level: ThinkingLevel): ThinkingLevel {
   if (level === 'off') return 'low'
   if (level === 'low') return 'medium'
   if (level === 'medium') return 'high'
@@ -135,7 +135,7 @@ type GatewayStatusApiResponse = {
   mode?: string
 }
 
-type ProfileSummary = {
+export type ProfileSummary = {
   name: string
   active?: boolean
   model?: string
@@ -143,17 +143,17 @@ type ProfileSummary = {
   skillCount?: number
 }
 
-type ProfilesListResponse = {
+export type ProfilesListResponse = {
   profiles?: Array<ProfileSummary>
   activeProfile?: string
 }
 
-type WorkspaceEntry = {
+export type WorkspaceEntry = {
   name: string
   path: string
 }
 
-type WorkspaceDetectionResponse = {
+export type WorkspaceDetectionResponse = {
   path?: string
   folderName?: string
   source?: string
@@ -162,7 +162,7 @@ type WorkspaceDetectionResponse = {
   last?: string
 }
 
-type ModelInfoApiResponse = {
+export type ModelInfoApiResponse = {
   gatewayMode?: string | null
   supportsRuntimeSwitching?: boolean | null
   vanillaAgent?: boolean | null
@@ -171,7 +171,7 @@ type ModelInfoApiResponse = {
   activeProvider?: string | null
 }
 
-type ModelSwitchNotice = {
+export type ModelSwitchNotice = {
   tone: 'success' | 'error'
   message: string
   retryModel?: string
@@ -313,7 +313,7 @@ async function fetchModelsForProvider(
 
 const LOCAL_PROVIDERS_SET = new Set(['ollama', 'atomic-chat'])
 
-async function switchModel(
+export async function switchModel(
   model: string,
   provider?: string,
   _sessionKey?: string,
@@ -519,7 +519,7 @@ function readText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-function getResolvedModelKey(model: string, provider?: string): string {
+export function getResolvedModelKey(model: string, provider?: string): string {
   const normalizedModel = model.trim()
   const normalizedProvider = typeof provider === 'string' ? provider.trim() : ''
 
@@ -717,7 +717,7 @@ async function fetchCurrentModelFromStatus(): Promise<string> {
   }
 }
 
-async function fetchGatewayMode(): Promise<string | null> {
+export async function fetchGatewayMode(): Promise<string | null> {
   const response = await fetch('/api/gateway-status')
   if (!response.ok) {
     throw new Error(await readResponseError(response))
@@ -726,7 +726,7 @@ async function fetchGatewayMode(): Promise<string | null> {
   return typeof payload.mode === 'string' ? payload.mode : null
 }
 
-async function fetchModelInfo(): Promise<ModelInfoApiResponse | null> {
+export async function fetchModelInfo(): Promise<ModelInfoApiResponse | null> {
   const response = await fetch('/api/model/info')
   if (!response.ok) {
     throw new Error(await readResponseError(response))
@@ -734,7 +734,7 @@ async function fetchModelInfo(): Promise<ModelInfoApiResponse | null> {
   return (await response.json()) as ModelInfoApiResponse
 }
 
-async function fetchProfiles(): Promise<ProfilesListResponse> {
+export async function fetchProfiles(): Promise<ProfilesListResponse> {
   const response = await fetch('/api/profiles/list')
   if (!response.ok) {
     throw new Error(await readResponseError(response))
@@ -742,13 +742,13 @@ async function fetchProfiles(): Promise<ProfilesListResponse> {
   return (await response.json()) as ProfilesListResponse
 }
 
-type ActivateProfileResponse = {
+export type ActivateProfileResponse = {
   ok: boolean
   profile: string
   needsGatewayRestart: boolean
 }
 
-async function activateProfile(
+export async function activateProfile(
   name: string,
 ): Promise<ActivateProfileResponse> {
   const response = await fetch('/api/profiles/activate', {
@@ -762,7 +762,7 @@ async function activateProfile(
   return (await response.json()) as ActivateProfileResponse
 }
 
-async function fetchWorkspaceContext(): Promise<WorkspaceDetectionResponse> {
+export async function fetchWorkspaceContext(): Promise<WorkspaceDetectionResponse> {
   const response = await fetch('/api/workspace')
   if (!response.ok) {
     throw new Error(await readResponseError(response))
@@ -770,13 +770,13 @@ async function fetchWorkspaceContext(): Promise<WorkspaceDetectionResponse> {
   return (await response.json()) as WorkspaceDetectionResponse
 }
 
-function shortPathLabel(pathValue: string): string {
+export function shortPathLabel(pathValue: string): string {
   if (!pathValue) return 'Workspace'
   const parts = pathValue.replace(/\\/g, '/').split('/').filter(Boolean)
   return parts.at(-1) || pathValue
 }
 
-function thinkingLabel(level: ThinkingLevel): string {
+export function thinkingLabel(level: ThinkingLevel): string {
   if (level === 'off') return 'None'
   if (level === 'low') return 'Low'
   if (level === 'medium') return 'Medium'
@@ -784,7 +784,7 @@ function thinkingLabel(level: ThinkingLevel): string {
   return 'Adaptive'
 }
 
-function profileMeta(profile: ProfileSummary): string {
+export function profileMeta(profile: ProfileSummary): string {
   return [profile.model, profile.provider]
     .map((value) => (typeof value === 'string' ? value.trim() : ''))
     .filter(Boolean)
