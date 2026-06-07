@@ -140,46 +140,6 @@ function ChatMetaBarV2Component({
           )}
         />
         <span className="m-label m-label-accent">live</span>
-        {displayTokPerSec && (
-          <>
-            <span className="opacity-40">·</span>
-            <span className="m-timestamp" data-testid="tok-per-sec">{displayTokPerSec}</span>
-          </>
-        )}
-      </span>
-
-      <Sep />
-
-      {/* Model */}
-      <span className="m-mono shrink-0 truncate max-w-[140px]" data-testid="meta-model">
-        {displayModel}
-      </span>
-
-      <Sep />
-
-      {/* Context */}
-      <span className="m-mono shrink-0 whitespace-nowrap" data-testid="meta-ctx">
-        {pct > 0 || status.usedTokens > 0 ? (
-          <>
-            <span className="m-label">ctx</span>{' '}{pct}%
-            {status.maxTokens > 0 && (
-              <>
-                {' '}·{' '}
-                {formatTokensShort(status.usedTokens)} /{' '}
-                {formatTokensShort(status.maxTokens)}
-              </>
-            )}
-          </>
-        ) : (
-          <><span className="m-label">ctx</span>{' '}—</>
-        )}
-      </span>
-
-      <Sep />
-
-      {/* Tools */}
-      <span className="shrink-0 whitespace-nowrap" data-testid="meta-tools">
-        <span className="m-label">tools</span>{' · '}<span className="m-mono">{displayToolCount > 0 ? displayToolCount : '—'}</span>
       </span>
 
       <Sep />

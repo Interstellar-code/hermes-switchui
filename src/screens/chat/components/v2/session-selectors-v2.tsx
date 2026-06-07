@@ -413,7 +413,7 @@ function SessionSelectorsV2Component({
             <button
               type="button"
               onClick={() => setModelMenuOpen((o) => !o)}
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-1.5 py-0.5 text-[10px] text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              className="inline-flex items-center gap-1 rounded-md border border-[var(--theme-accent-border)] bg-[var(--theme-accent-subtle)] px-2 py-0.5 text-[11px] text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               <Bot className="size-3" />
               <span className="max-w-32 truncate font-medium">
@@ -518,7 +518,7 @@ function SessionSelectorsV2Component({
                   ? `${activeProfile.name}${profileMeta(activeProfile) ? ` · ${profileMeta(activeProfile)}` : ''}`
                   : activeProfileName
               }
-              className="inline-flex max-w-28 items-center gap-1 rounded-md border border-border bg-card px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+              className="inline-flex max-w-28 items-center gap-1 rounded-md border border-[var(--theme-accent-border)] bg-[var(--theme-accent-subtle)] px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
             >
               <UserRound className="size-3" />
               <span className="truncate">{activeProfileName}</span>
@@ -590,7 +590,7 @@ function SessionSelectorsV2Component({
               type="button"
               onClick={() => setWorkspaceMenuOpen((o) => !o)}
               title={detectedWorkspacePath || 'Workspace context'}
-              className="hidden max-w-32 items-center gap-1 rounded-md border border-border bg-card px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50 sm:inline-flex"
+              className="hidden max-w-32 items-center gap-1 rounded-md border border-[var(--theme-accent-border)] bg-[var(--theme-accent-subtle)] px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50 sm:inline-flex"
             >
               <Briefcase className="size-3" />
               <span className="truncate">{workspaceButtonLabel}</span>
@@ -679,7 +679,7 @@ function SessionSelectorsV2Component({
               }}
               title={`Reasoning effort: ${thinkingLabel(thinkingLevel)} (⇧-click to cycle)`}
               className={cn(
-                'hidden items-center gap-1 rounded-md border border-border bg-card px-1.5 py-0.5 text-[10px] font-medium text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50 sm:inline-flex',
+                'hidden items-center gap-1 rounded-md border border-[var(--theme-accent-border)] bg-[var(--theme-accent-subtle)] px-2 py-0.5 text-[11px] font-medium text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50 sm:inline-flex',
                 thinkingLevel === 'off' && 'opacity-70',
               )}
             >
