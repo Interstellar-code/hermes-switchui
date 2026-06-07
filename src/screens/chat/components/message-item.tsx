@@ -136,6 +136,7 @@ type MessageItemProps = {
   toolCalls?: Array<StreamToolCall>
   lifecycleEvents?: Array<LifecycleEvent>
   onRetryMessage?: (message: ChatMessage) => void
+  onReplyMessage?: (message: ChatMessage) => void
   forceActionsVisible?: boolean
   wrapperRef?: React.RefObject<HTMLDivElement | null>
   wrapperClassName?: string
@@ -1905,6 +1906,7 @@ function MessageItemComponent({
   toolCalls: streamToolCalls = [],
   lifecycleEvents = [],
   onRetryMessage,
+  onReplyMessage,
   forceActionsVisible = false,
   wrapperRef,
   wrapperClassName,
@@ -2722,6 +2724,7 @@ function MessageItemComponent({
               ? () => onRetryMessage(message)
               : undefined
           }
+          onReply={onReplyMessage ? () => onReplyMessage(message) : undefined}
         />
       )}
     </div>
@@ -2737,6 +2740,7 @@ function areMessagesEqual(
   }
   if (prevProps.wrapperClassName !== nextProps.wrapperClassName) return false
   if (prevProps.onRetryMessage !== nextProps.onRetryMessage) return false
+  if (prevProps.onReplyMessage !== nextProps.onReplyMessage) return false
   if (prevProps.toolCalls !== nextProps.toolCalls) return false
   if (prevProps.lifecycleEvents !== nextProps.lifecycleEvents) return false
   if (prevProps.wrapperDataMessageId !== nextProps.wrapperDataMessageId) {

@@ -594,6 +594,7 @@ function escapeAttributeSelector(value: string): string {
 type ChatMessageListProps = {
   messages: Array<ChatMessage>
   onRetryMessage?: (message: ChatMessage) => void
+  onReplyMessage?: (message: ChatMessage) => void
   onRefresh?: () => void | Promise<unknown>
   loading: boolean
   empty: boolean
@@ -634,6 +635,7 @@ type ChatMessageListProps = {
 function ChatMessageListComponent({
   messages,
   onRetryMessage,
+  onReplyMessage,
   onRefresh: _onRefresh,
   loading,
   empty,
@@ -1377,6 +1379,7 @@ function ChatMessageListComponent({
             message={chatMessage}
             attachedToolMessages={entry.attachedToolMessages}
             onRetryMessage={effectiveOnRetry}
+            onReplyMessage={onReplyMessage}
             toolResultsByCallId={hasToolCalls ? toolResultsByCallId : undefined}
             forceActionsVisible={forceActionsVisible}
             wrapperClassName={spacingClass}
@@ -1411,6 +1414,7 @@ function ChatMessageListComponent({
         message={chatMessage}
         attachedToolMessages={entry.attachedToolMessages}
         onRetryMessage={effectiveOnRetry}
+        onReplyMessage={onReplyMessage}
         toolResultsByCallId={hasToolCalls ? toolResultsByCallId : undefined}
         forceActionsVisible={forceActionsVisible}
         wrapperClassName={spacingClass}
@@ -2097,6 +2101,7 @@ function areChatMessageListEqual(
   return (
     prev.messages === next.messages &&
     prev.onRetryMessage === next.onRetryMessage &&
+    prev.onReplyMessage === next.onReplyMessage &&
     prev.onRefresh === next.onRefresh &&
     prev.loading === next.loading &&
     prev.empty === next.empty &&
