@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ArrowUp, Paperclip, X } from 'lucide-react'
+import { ArrowUp, Paperclip, Reply, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/shadcn/ui/button'
@@ -17,6 +17,7 @@ import {
   CommandList,
 } from '@/components/shadcn/ui/command'
 
+import { MOCK_REPLY_TARGET } from './mock-data'
 import { useAutocomplete } from './use-autocomplete'
 
 // ─── Sent-message log (sandbox-only; replaces real send) ───────────────────
@@ -43,6 +44,9 @@ function readFileAsDataUrl(file: File): Promise<string> {
 export function ComposerShadcn() {
   const [value, setValue] = React.useState('')
   const [attachments, setAttachments] = React.useState<Attachment[]>([])
+  const [replyTo, setReplyTo] = React.useState<typeof MOCK_REPLY_TARGET | null>(
+    null,
+  )
   const [sent, setSent] = React.useState<SentEntry[]>([])
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
@@ -110,6 +114,16 @@ export function ComposerShadcn() {
   const removeAttachment = (id: string) =>
     setAttachments((prev) => prev.filter((a) => a.id !== id))
 
+  // ─── Feature 4: reply-to quoting ─────────────────────────────────────────
+  const clearReply = () => setReplyTo(null)
+
+  const buildOutgoing = () => {
+    const replyPrefix = replyTo
+      ? `> [Re: #${replyTo.seq}] ${replyTo.preview}\n\n`
+      : ''
+    return replyPrefix + value
+  }
+
   const handleSend = () => {
     if (!canSend) {
       return
@@ -117,13 +131,14 @@ export function ComposerShadcn() {
     setSent((prev) => [
       {
         id: `sent-${prev.length + 1}`,
-        text: value,
+        text: buildOutgoing(),
         attachmentCount: attachments.length,
       },
       ...prev,
     ])
     setValue('')
     setAttachments([])
+    setReplyTo(null)
     autocomplete.dismiss()
   }
 
@@ -177,6 +192,27 @@ export function ComposerShadcn() {
       <Popover open={autocomplete.isOpen}>
         <PopoverAnchor asChild>
           <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm ring-1 ring-border focus-within:ring-2 focus-within:ring-ring">
+            {/* Feature 4: reply-to chip */}
+            {replyTo && (
+              <div className="flex items-center gap-2 px-4 pt-3">
+                <div className="flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-border bg-muted px-3 py-1.5 text-xs text-muted-foreground">
+                  <Reply className="size-3 shrink-0 text-primary" />
+                  <span className="shrink-0 font-medium text-primary">
+                    #{replyTo.seq}
+                  </span>
+                  <span className="truncate">{replyTo.preview}</span>
+                  <button
+                    type="button"
+                    onClick={clearReply}
+                    className="ml-1 shrink-0 transition-colors hover:text-foreground"
+                    aria-label="Dismiss reply"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Feature 3: attachment thumbnails */}
             {attachments.length > 0 && (
               <div className="flex items-center gap-2 overflow-x-auto px-4 pt-3">
@@ -234,6 +270,18 @@ export function ComposerShadcn() {
               >
                 <Paperclip className="size-4" />
               </Button>
+
+              {/* Feature 4: reply demo trigger (sandbox affordance) */}
+              {!replyTo && (
+                <button
+                  type="button"
+                  onClick={() => setReplyTo(MOCK_REPLY_TARGET)}
+                  className="flex h-8 items-center gap-1 rounded-lg px-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                >
+                  <Reply className="size-3.5" />
+                  <span className="hidden sm:inline">Reply</span>
+                </button>
+              )}
 
               <div className="flex-1" />
 
