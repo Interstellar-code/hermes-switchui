@@ -33,8 +33,6 @@
 //  - Mobile docking / portal behavior — the live composer docks fixed to the
 //    viewport bottom on mobile; this drop-in stays inline (honors `embedded`
 //    only insofar as it never docks).
-//  - Image compression + transport-size guards — attachments are read as data
-//    URLs without the live composer's compression/limit pipeline.
 
 import * as React from 'react'
 import {
@@ -83,12 +81,16 @@ import { formatModelName } from '@/lib/format-model-name'
 
 import { ContextBar } from './context-bar'
 import {
+  MAX_ATTACHMENT_FILE_SIZE,
   activateProfile,
+  compressImageToDataUrl,
   fetchGatewayMode,
   fetchModelInfo,
   fetchProfiles,
   fetchWorkspaceContext,
+  formatFileSize,
   getResolvedModelKey,
+  isCanvasSupported,
   nextThinkingLevel,
   profileMeta,
   shortPathLabel,
@@ -216,8 +218,6 @@ function groupModelsByProvider(
 }
 
 // ─── Attachment helpers (parity-correct ChatComposerAttachment shape) ──────
-// NOTE: this intentionally omits the live composer's image compression +
-// transport-size guards (see PARITY-GAP TODOs). It produces the same shape.
 function readFileAsDataUrl(file: File): Promise<string | null> {
   return new Promise((resolve) => {
     const reader = new FileReader()
@@ -229,10 +229,31 @@ function readFileAsDataUrl(file: File): Promise<string | null> {
 
 async function buildAttachment(
   file: File,
+  onOversize?: (message: string) => void,
 ): Promise<ChatComposerAttachment | null> {
+  // Reject files that exceed the input cap before any processing.
+  if (file.size > MAX_ATTACHMENT_FILE_SIZE) {
+    onOversize?.(
+      `"${file.name || 'file'}" is ${formatFileSize(file.size)}. Max upload input size is ${formatFileSize(MAX_ATTACHMENT_FILE_SIZE)}.`,
+    )
+    return null
+  }
+
   const isImage = file.type.startsWith('image/')
-  const dataUrl = await readFileAsDataUrl(file)
+
+  let dataUrl: string | null
+  if (isImage && isCanvasSupported()) {
+    // Compress: resize to 1920px longest side, iteratively lower JPEG quality
+    // until under MAX_TRANSPORT_IMAGE_SIZE (1 MB). Fall back to raw read on
+    // compression failure (e.g. unsupported format like SVG/AVIF/HEIC).
+    const compressed = await compressImageToDataUrl(file).catch(() => null)
+    dataUrl = compressed ?? (await readFileAsDataUrl(file))
+  } else {
+    dataUrl = await readFileAsDataUrl(file)
+  }
+
   if (!dataUrl) return null
+
   return {
     id: crypto.randomUUID(),
     name: file.name || (isImage ? 'pasted-image' : 'pasted-file'),
@@ -619,7 +640,11 @@ function ChatComposerShadcn({
   const addFiles = React.useCallback(
     async (files: Array<File>) => {
       if (disabled || files.length === 0) return
-      const built = await Promise.all(files.map(buildAttachment))
+      const onOversize = (message: string) =>
+        setModelNotice({ tone: 'error', message })
+      const built = await Promise.all(
+        files.map((f) => buildAttachment(f, onOversize)),
+      )
       const valid = built.filter(
         (a): a is ChatComposerAttachment => a !== null,
       )

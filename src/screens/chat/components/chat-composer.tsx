@@ -365,13 +365,13 @@ export async function switchModel(
 }
 
 /** Maximum file size accepted from picker/drop before processing (50MB). */
-const MAX_ATTACHMENT_FILE_SIZE = 50 * 1024 * 1024
+export const MAX_ATTACHMENT_FILE_SIZE = 50 * 1024 * 1024
 /** Longest side target for resized images. */
-const MAX_IMAGE_DIMENSION = 1920
+export const MAX_IMAGE_DIMENSION = 1920
 /** Initial JPEG compression quality (0-1). */
-const IMAGE_QUALITY = 0.85
+export const IMAGE_QUALITY = 0.85
 /** Safe image attachment limit after processing (1MB). */
-const MAX_TRANSPORT_IMAGE_SIZE = 1 * 1024 * 1024
+export const MAX_TRANSPORT_IMAGE_SIZE = 1 * 1024 * 1024
 
 const IMAGE_EXTENSION_TO_MIME: Record<string, string> = {
   png: 'image/png',
@@ -435,7 +435,7 @@ function isTextFile(file: File): boolean {
   return inferTextMimeTypeFromFileName(file.name).length > 0
 }
 
-function formatFileSize(size: number): string {
+export function formatFileSize(size: number): string {
   if (!Number.isFinite(size) || size <= 0) return ''
   const units = ['B', 'KB', 'MB', 'GB'] as const
   let value = size
@@ -530,7 +530,7 @@ export function getResolvedModelKey(model: string, provider?: string): string {
   return `${normalizedProvider}/${normalizedModel}`
 }
 
-function isCanvasSupported(): boolean {
+export function isCanvasSupported(): boolean {
   if (typeof document === 'undefined') return false
   try {
     const canvas = document.createElement('canvas')
@@ -553,7 +553,7 @@ function readDataUrlMimeType(dataUrl: string): string | null {
   return match?.[1]?.trim() || null
 }
 
-async function compressImageToDataUrl(file: File): Promise<string> {
+export async function compressImageToDataUrl(file: File): Promise<string> {
   if (!isCanvasSupported()) {
     throw new Error('Image compression not available')
   }
