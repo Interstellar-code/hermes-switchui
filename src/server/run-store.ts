@@ -35,6 +35,10 @@ export type PersistedRunState = {
 }
 
 const RUNS_ROOT = path.join(getHermesRoot(), 'webui-mvp', 'runs')
+const RUN_STORE_PROCESS_STARTED_AT = Date.now()
+const RECOVERABLE_HANDOFF_MS = 30_000
+const RECOVERABLE_ACCEPTED_MS = 30_000
+const RECOVERABLE_ACTIVE_MS = 10 * 60_000
 
 function encodeSessionKey(sessionKey: string): string {
   return encodeURIComponent(sessionKey || 'main')
@@ -185,6 +189,32 @@ export async function markRunStatus(
   }))
 }
 
+function getRunActivityAt(run: PersistedRunState): number {
+  return run.lastEventAt || run.updatedAt || run.createdAt
+}
+
+export function isRecoverablePersistedRun(
+  run: PersistedRunState,
+  now = Date.now(),
+  processStartedAt = RUN_STORE_PROCESS_STARTED_AT,
+): boolean {
+  if (run.status === 'complete' || run.status === 'error') return false
+  if (run.status === 'stalled') return false
+
+  const lastActivityAt = getRunActivityAt(run)
+  if (lastActivityAt < processStartedAt) return false
+
+  if (run.status === 'accepted') {
+    return now - lastActivityAt <= RECOVERABLE_ACCEPTED_MS
+  }
+
+  if (run.status === 'handoff') {
+    return now - lastActivityAt <= RECOVERABLE_HANDOFF_MS
+  }
+
+  return now - lastActivityAt <= RECOVERABLE_ACTIVE_MS
+}
+
 export async function getActiveRunForSession(
   sessionKey: string,
 ): Promise<PersistedRunState | null> {
@@ -204,7 +234,7 @@ export async function getActiveRunForSession(
     )
     const candidates = runs
       .filter((run): run is PersistedRunState => Boolean(run))
-      .filter((run) => !['complete', 'error'].includes(run.status))
+      .filter((run) => isRecoverablePersistedRun(run))
       .sort((a, b) => b.updatedAt - a.updatedAt)
     return candidates[0] ?? null
   } catch {

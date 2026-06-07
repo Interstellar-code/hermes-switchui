@@ -18,7 +18,7 @@ import {
 import {
   advanceStickyStreamingText,
   createOptimisticMessage,
-  hasUnansweredLatestUserTurn,
+  isChatRuntimeBusy,
 } from './chat-screen-utils'
 import {
   appendHistoryMessage,
@@ -49,7 +49,10 @@ import { useSmoothStreamingText } from './hooks/use-smooth-streaming-text'
 import { useStreamingMessage } from './hooks/use-streaming-message'
 import { playChatComplete } from '@/lib/sounds'
 import { useChatSettingsStore } from '@/hooks/use-chat-settings'
-import { useActiveRunCheck } from './hooks/use-active-run-check'
+import {
+  isRecoverableActiveRun,
+  useActiveRunCheck,
+} from './hooks/use-active-run-check'
 import { useChatMobile } from './hooks/use-chat-mobile'
 import { useChatSessions } from './hooks/use-chat-sessions'
 import { useAutoSessionTitle } from './hooks/use-auto-session-title'
@@ -523,18 +526,28 @@ export function ChatScreen({
   // System-messages visibility toggle (default: hidden)
   const [hideSystemMessages, setHideSystemMessages] = useState(true)
   // Tool-display mode: expanded | collapsed | hidden (persisted across sessions)
-  const [toolDisplayMode, setToolDisplayMode] = useState<ToolDisplayMode>(() => {
-    if (typeof window === 'undefined') return 'collapsed'
-    const stored = localStorage.getItem('switchui:tool-display-mode')
-    if (stored === 'expanded' || stored === 'collapsed' || stored === 'hidden') {
-      return stored
-    }
-    return 'collapsed'
-  })
+  const [toolDisplayMode, setToolDisplayMode] = useState<ToolDisplayMode>(
+    () => {
+      if (typeof window === 'undefined') return 'collapsed'
+      const stored = localStorage.getItem('switchui:tool-display-mode')
+      if (
+        stored === 'expanded' ||
+        stored === 'collapsed' ||
+        stored === 'hidden'
+      ) {
+        return stored
+      }
+      return 'collapsed'
+    },
+  )
   const cycleToolDisplayMode = useCallback(() => {
     setToolDisplayMode((prev) => {
       const next: ToolDisplayMode =
-        prev === 'expanded' ? 'collapsed' : prev === 'collapsed' ? 'hidden' : 'expanded'
+        prev === 'expanded'
+          ? 'collapsed'
+          : prev === 'collapsed'
+            ? 'hidden'
+            : 'expanded'
       localStorage.setItem('switchui:tool-display-mode', next)
       return next
     })
@@ -1007,12 +1020,13 @@ export function ChatScreen({
         if (!res.ok) return
         const data = await res.json()
         if (!data.ok) return
-        // Run not yet registered (gateway lag during silent processing) → keep waiting
-        if (!data.run) return
-        const status = data.run.status
-        // Treat unknown / transient statuses as still-active to avoid premature teardown
-        const terminalStatuses = ['completed', 'failed', 'cancelled', 'error']
-        if (terminalStatuses.includes(status)) {
+        const hasLocalRuntimeActivity =
+          Boolean(activeSendRef.current) || activeRealtimeStreamingRef.current
+        // A persisted waiting flag can survive refresh/gateway restart after the
+        // actual run has disappeared. Once the server confirms there is no
+        // recoverable run and this tab has no local send/stream, clear the stale
+        // waiting state instead of letting the thinking bubble self-perpetuate.
+        if (!isRecoverableActiveRun(data.run) && !hasLocalRuntimeActivity) {
           streamFinish()
           refreshHistoryRef.current()
         }
@@ -1606,27 +1620,14 @@ export function ChatScreen({
     isPortableMode,
     localStreamingMessageId,
   ])
-  const [thinkingIndicatorVisible, setThinkingIndicatorVisible] = useState(false)
-  const thinkingIndicatorVisibleRef = useRef(false)
-  const handleThinkingIndicatorChange = useCallback((visible: boolean) => {
-    thinkingIndicatorVisibleRef.current = visible
-    setThinkingIndicatorVisible(visible)
-  }, [])
-  const latestUserTurnIsUnanswered = useMemo(
-    () => hasUnansweredLatestUserTurn(finalDisplayMessages),
-    [finalDisplayMessages],
-  )
-  const latestUserTurnIsUnansweredRef = useRef(false)
-  latestUserTurnIsUnansweredRef.current = latestUserTurnIsUnanswered
-  const isComposerLoading =
-    sending ||
-    waitingForResponse ||
-    thinkingIndicatorVisible ||
-    latestUserTurnIsUnanswered ||
-    Boolean(activeSendRef.current) ||
-    activeIsRealtimeStreaming ||
-    derivedStreamingInfo.isStreaming ||
-    hasPendingGeneration()
+  const isComposerLoading = isChatRuntimeBusy({
+    sending,
+    waitingForResponse,
+    hasActiveSend: Boolean(activeSendRef.current),
+    activeIsRealtimeStreaming,
+    derivedIsStreaming: derivedStreamingInfo.isStreaming,
+    hasPendingGeneration: hasPendingGeneration(),
+  })
   const isComposerLoadingRef = useRef(isComposerLoading)
 
   const messageCountAtSendRef = useRef(0)
@@ -2578,8 +2579,6 @@ export function ChatScreen({
       const shouldQueueInsteadOfSend =
         Boolean(queueSessionKeyForSend) &&
         (isComposerLoadingRef.current ||
-          thinkingIndicatorVisibleRef.current ||
-          latestUserTurnIsUnansweredRef.current ||
           Boolean(activeSendRef.current) ||
           hasPendingGeneration() ||
           (queueSessionKeyForSend
@@ -2691,12 +2690,8 @@ export function ChatScreen({
       expandCustomSlashCommand,
     ],
   )
-  const wasQueueDrainLoadingRef = useRef(false)
-
   useEffect(() => {
-    const wasLoading = wasQueueDrainLoadingRef.current
-    wasQueueDrainLoadingRef.current = isComposerLoading
-    if (!wasLoading || isComposerLoading) return
+    if (isComposerLoading) return
 
     const sessionKey = activeQueueSessionKey || lastQueueSessionKeyRef.current
     if (!sessionKey) return
@@ -3049,7 +3044,6 @@ export function ChatScreen({
                 })
               }}
               onRefresh={handleRefreshHistory}
-              onThinkingIndicatorChange={handleThinkingIndicatorChange}
               loading={historyLoading}
               empty={historyEmpty}
               emptyState={
@@ -3110,9 +3104,7 @@ export function ChatScreen({
               replyTo={replyTo}
               onClearReply={() => setReplyTo(null)}
               systemMessagesHidden={hideSystemMessages}
-              onToggleSystemMessages={() =>
-                setHideSystemMessages((v) => !v)
-              }
+              onToggleSystemMessages={() => setHideSystemMessages((v) => !v)}
               toolDisplayMode={toolDisplayMode}
               onCycleToolDisplayMode={cycleToolDisplayMode}
               onNewSession={() => {
