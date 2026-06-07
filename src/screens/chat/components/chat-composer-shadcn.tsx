@@ -42,10 +42,13 @@ import {
   Briefcase,
   Check,
   ChevronDown,
+  Eye,
+  EyeOff,
   Globe,
   Mic,
   Paperclip,
   Square,
+  SquarePen,
   UserRound,
   X,
   Zap,
@@ -136,6 +139,10 @@ type ChatComposerShadcnProps = {
   onAbort?: () => void
   embedded?: boolean
   hideModelSelector?: boolean
+  replyTo?: { seq: number; role: string; preview: string } | null
+  onClearReply?: () => void
+  systemMessagesHidden?: boolean
+  onToggleSystemMessages?: () => void
 }
 
 const MAX_TEXTAREA_HEIGHT = 240
@@ -284,11 +291,15 @@ function ChatComposerShadcn({
   onAbort,
   thinkingLevel: externalThinkingLevel,
   onThinkingLevelChange,
-  onNewSession: _onNewSession,
+  onNewSession,
   onToggleWebSearch,
   webSearchEnabled,
   embedded: _embedded,
   hideModelSelector = false,
+  replyTo,
+  onClearReply,
+  systemMessagesHidden,
+  onToggleSystemMessages,
 }: ChatComposerShadcnProps) {
   const queryClient = useQueryClient()
   const [value, setValue] = React.useState('')
@@ -741,10 +752,14 @@ function ChatComposerShadcn({
 
   const handleSubmit = React.useCallback(() => {
     if (disabled || submittingRef.current) return
-    const body = value.trim()
-    if (body.length === 0 && attachments.length === 0) return
+    const rawBody = value.trim()
+    if (rawBody.length === 0 && attachments.length === 0) return
     submittingRef.current = true
     const attachmentPayload = attachments.map((a) => ({ ...a }))
+    // Prepend a markdown blockquote when replying to a prior message.
+    const body = replyTo
+      ? `> [Re: #${replyTo.seq}] ${replyTo.preview}\n\n${rawBody}`
+      : rawBody
     try {
       // Fast mode is incompatible with extended thinking — disable if thinking
       // is on (mirrors the live composer's effectiveFastMode rule).
@@ -759,11 +774,14 @@ function ChatComposerShadcn({
     setValue('')
     setAttachments([])
     setIsSlashMenuDismissed(false)
+    onClearReply?.()
     focusPrompt()
   }, [
     disabled,
     value,
     attachments,
+    replyTo,
+    onClearReply,
     onSubmit,
     helpers,
     focusPrompt,
@@ -840,6 +858,28 @@ function ChatComposerShadcn({
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* reply-to chip — shows when a message is being replied to */}
+        {replyTo && (
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-accent px-3 py-1.5 text-xs text-accent-foreground">
+            <span className="flex-1 truncate">
+              Replying to #{replyTo.seq} ({replyTo.role}):{' '}
+              <span className="opacity-70">
+                {replyTo.preview.length > 80
+                  ? `${replyTo.preview.slice(0, 80)}…`
+                  : replyTo.preview}
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={() => onClearReply?.()}
+              className="shrink-0 opacity-70 transition-opacity hover:opacity-100"
+              aria-label="Clear reply"
+            >
+              <X className="size-3.5" />
+            </button>
           </div>
         )}
 
@@ -1335,6 +1375,56 @@ function ChatComposerShadcn({
                       })}
                     </PopoverContent>
                   </Popover>
+                )}
+
+                {/* system-messages toggle — Eye/EyeOff based on systemMessagesHidden */}
+                {onToggleSystemMessages && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={onToggleSystemMessages}
+                        aria-label={
+                          systemMessagesHidden
+                            ? 'Show system messages'
+                            : 'Hide system messages'
+                        }
+                        aria-pressed={!systemMessagesHidden}
+                        className={cn(!systemMessagesHidden && 'text-primary')}
+                      >
+                        {systemMessagesHidden ? (
+                          <EyeOff className="size-4" />
+                        ) : (
+                          <Eye className="size-4" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {systemMessagesHidden
+                        ? 'Show system messages'
+                        : 'Hide system messages'}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+
+                {/* new-chat button */}
+                {onNewSession && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={onNewSession}
+                        aria-label="New chat"
+                      >
+                        <SquarePen className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>New chat</TooltipContent>
+                  </Tooltip>
                 )}
 
                 <div className="flex-1" />

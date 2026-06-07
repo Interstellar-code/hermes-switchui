@@ -505,6 +505,14 @@ export function ChatScreen({
   >([])
   const [isCompacting, setIsCompacting] = useState(false)
   const [researchResetKey, setResearchResetKey] = useState(0)
+  // Reply-to state — cleared on session change
+  const [replyTo, setReplyTo] = useState<{
+    seq: number
+    role: string
+    preview: string
+  } | null>(null)
+  // System-messages visibility toggle (default: hidden)
+  const [hideSystemMessages, setHideSystemMessages] = useState(true)
   // Per-session thinking level — stored in sessionStorage keyed by session
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>(() => {
     if (typeof window === 'undefined') return 'low'
@@ -520,6 +528,11 @@ export function ChatScreen({
   useEffect(() => {
     useContextUsageStore.getState().setSessionKey(activeFriendlyId || null)
   }, [activeFriendlyId])
+
+  // Clear reply-to when the user navigates to a different session.
+  useEffect(() => {
+    setReplyTo(null)
+  }, [activeFriendlyId, isNewChat])
 
   const pendingStartRef = useRef(false)
   // Feature flag (default OFF): swap in the drop-in shadcn composer.
@@ -2843,6 +2856,15 @@ export function ChatScreen({
             <ChatMessageList
               messages={finalDisplayMessages}
               onRetryMessage={handleRetryMessage}
+              onReplyMessage={(msg) => {
+                const preview = textFromMessage(msg) ?? ''
+                const seq = finalDisplayMessages.indexOf(msg) + 1
+                setReplyTo({
+                  seq,
+                  role: msg.role ?? 'assistant',
+                  preview,
+                })
+              }}
               onRefresh={handleRefreshHistory}
               loading={historyLoading}
               empty={historyEmpty}
@@ -2878,7 +2900,7 @@ export function ChatScreen({
                 undefined
               }
               lifecycleEvents={realtimeLifecycleEvents}
-              hideSystemMessages
+              hideSystemMessages={hideSystemMessages}
               activeToolCalls={activeToolCalls}
               liveToolActivity={liveToolActivity}
               researchCard={researchCard}
@@ -2905,6 +2927,21 @@ export function ChatScreen({
               focusKey={`${isNewChat ? 'new' : activeFriendlyId}:${activeCanonicalKey ?? ''}`}
               thinkingLevel={thinkingLevel}
               onThinkingLevelChange={handleThinkingLevelChange}
+              replyTo={replyTo}
+              onClearReply={() => setReplyTo(null)}
+              systemMessagesHidden={hideSystemMessages}
+              onToggleSystemMessages={() =>
+                setHideSystemMessages((v) => !v)
+              }
+              onNewSession={() => {
+                if (!embedded) {
+                  try {
+                    navigate({ to: '/', replace: true })
+                  } catch {
+                    /* router not ready */
+                  }
+                }
+              }}
             />
           ) : null}
         </main>
