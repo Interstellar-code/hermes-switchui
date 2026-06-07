@@ -23,6 +23,7 @@ import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as FilesRouteImport } from './routes/files'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ConductorRouteImport } from './routes/conductor'
+import { Route as ComposerPreviewRouteImport } from './routes/composer-preview'
 import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as AgoraRouteImport } from './routes/agora'
 import { Route as SplatRouteImport } from './routes/$'
@@ -244,6 +245,11 @@ const DashboardRoute = DashboardRouteImport.update({
 const ConductorRoute = ConductorRouteImport.update({
   id: '/conductor',
   path: '/conductor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ComposerPreviewRoute = ComposerPreviewRouteImport.update({
+  id: '/composer-preview',
+  path: '/composer-preview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BoardsRoute = BoardsRouteImport.update({
@@ -1033,6 +1039,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/agora': typeof AgoraRoute
   '/boards': typeof BoardsRoute
+  '/composer-preview': typeof ComposerPreviewRoute
   '/conductor': typeof ConductorRoute
   '/dashboard': typeof DashboardRoute
   '/files': typeof FilesRoute
@@ -1200,6 +1207,7 @@ export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/agora': typeof AgoraRoute
   '/boards': typeof BoardsRoute
+  '/composer-preview': typeof ComposerPreviewRoute
   '/conductor': typeof ConductorRoute
   '/dashboard': typeof DashboardRoute
   '/files': typeof FilesRoute
@@ -1368,6 +1376,7 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/agora': typeof AgoraRoute
   '/boards': typeof BoardsRoute
+  '/composer-preview': typeof ComposerPreviewRoute
   '/conductor': typeof ConductorRoute
   '/dashboard': typeof DashboardRoute
   '/files': typeof FilesRoute
@@ -1538,6 +1547,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/agora'
     | '/boards'
+    | '/composer-preview'
     | '/conductor'
     | '/dashboard'
     | '/files'
@@ -1705,6 +1715,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/agora'
     | '/boards'
+    | '/composer-preview'
     | '/conductor'
     | '/dashboard'
     | '/files'
@@ -1872,6 +1883,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/agora'
     | '/boards'
+    | '/composer-preview'
     | '/conductor'
     | '/dashboard'
     | '/files'
@@ -2041,6 +2053,7 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AgoraRoute: typeof AgoraRoute
   BoardsRoute: typeof BoardsRoute
+  ComposerPreviewRoute: typeof ComposerPreviewRoute
   ConductorRoute: typeof ConductorRoute
   DashboardRoute: typeof DashboardRoute
   FilesRoute: typeof FilesRoute
@@ -2255,6 +2268,13 @@ declare module '@tanstack/react-router' {
       path: '/conductor'
       fullPath: '/conductor'
       preLoaderRoute: typeof ConductorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/composer-preview': {
+      id: '/composer-preview'
+      path: '/composer-preview'
+      fullPath: '/composer-preview'
+      preLoaderRoute: typeof ComposerPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/boards': {
@@ -3684,6 +3704,7 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   AgoraRoute: AgoraRoute,
   BoardsRoute: BoardsRoute,
+  ComposerPreviewRoute: ComposerPreviewRoute,
   ConductorRoute: ConductorRoute,
   DashboardRoute: DashboardRoute,
   FilesRoute: FilesRoute,
