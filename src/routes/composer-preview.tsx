@@ -2,6 +2,7 @@ import * as React from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 
 import { ComposerShadcn } from '@/screens/chat/components/composer-shadcn/composer-shadcn'
+import { useShadcnComposer } from '@/lib/feature-flags'
 
 // Dev-only sandbox themes to prove the composer inherits the token bridge.
 const PREVIEW_THEMES = [
@@ -14,6 +15,7 @@ const PREVIEW_THEMES = [
 
 function ComposerPreviewPage() {
   const [theme, setTheme] = React.useState<string>('claude-nous')
+  const [shadcnComposerEnabled, setShadcnComposerEnabled] = useShadcnComposer()
 
   // Apply the chosen theme locally to the <html> element for the sandbox.
   React.useEffect(() => {
@@ -36,6 +38,18 @@ function ComposerPreviewPage() {
             Isolated preview of the cherry-picked operator1 composer features on
             shadcn/ui. Mock data only — not wired to chat.
           </p>
+          {/* Dev toggle for the live drop-in shadcn composer flag (Phase 2 #12).
+              Flips localStorage `switchui:shadcn-composer`; affects /chat. */}
+          <label className="flex w-fit items-center gap-2 rounded-md border border-border bg-card px-2 py-1 text-xs text-card-foreground">
+            <input
+              type="checkbox"
+              checked={shadcnComposerEnabled}
+              onChange={(e) => setShadcnComposerEnabled(e.target.checked)}
+            />
+            <span>
+              Use shadcn composer on <code>/chat</code> (default OFF)
+            </span>
+          </label>
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <span className="text-xs text-muted-foreground">Theme:</span>
             {PREVIEW_THEMES.map((t) => (
