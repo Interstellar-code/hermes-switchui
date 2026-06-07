@@ -757,8 +757,13 @@ function ChatComposerShadcn({
     submittingRef.current = true
     const attachmentPayload = attachments.map((a) => ({ ...a }))
     // Prepend a markdown blockquote when replying to a prior message.
+    // Collapse to a single line + truncate so it renders as one clean quote
+    // rather than dumping the whole replied message into the bubble.
+    const replySnippet = replyTo
+      ? replyTo.preview.replace(/\s+/g, ' ').trim()
+      : ''
     const body = replyTo
-      ? `> [Re: #${replyTo.seq}] ${replyTo.preview}\n\n${rawBody}`
+      ? `> [Re: #${replyTo.seq}] ${replySnippet.length > 140 ? `${replySnippet.slice(0, 140)}…` : replySnippet}\n\n${rawBody}`
       : rawBody
     try {
       // Fast mode is incompatible with extended thinking — disable if thinking
