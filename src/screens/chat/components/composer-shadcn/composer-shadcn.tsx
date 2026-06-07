@@ -1,5 +1,16 @@
 import * as React from 'react'
-import { ArrowUp, ListPlus, Paperclip, Reply, X } from 'lucide-react'
+import {
+  ArrowUp,
+  Bot,
+  Brain,
+  Check,
+  ChevronDown,
+  Image as ImageIcon,
+  ListPlus,
+  Paperclip,
+  Reply,
+  X,
+} from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/shadcn/ui/button'
@@ -16,8 +27,20 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/shadcn/ui/command'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/shadcn/ui/tooltip'
 
-import { MOCK_CONTEXT, MOCK_REPLY_TARGET } from './mock-data'
+import {
+  MOCK_CONTEXT,
+  MOCK_MODELS,
+  MOCK_REPLY_TARGET,
+  MOCK_SESSION,
+  type MockModel,
+} from './mock-data'
 import { useAutocomplete } from './use-autocomplete'
 
 const QUEUE_STORAGE_KEY = 'composer-shadcn:queue'
@@ -59,6 +82,15 @@ function readFileAsDataUrl(file: File): Promise<string> {
   })
 }
 
+function groupModelsByProvider(models: MockModel[]): Record<string, MockModel[]> {
+  const groups: Record<string, MockModel[]> = {}
+  for (const m of models) {
+    const key = m.provider || 'other'
+    ;(groups[key] ??= []).push(m)
+  }
+  return groups
+}
+
 export function ComposerShadcn() {
   const [value, setValue] = React.useState('')
   const [attachments, setAttachments] = React.useState<Attachment[]>([])
@@ -67,11 +99,17 @@ export function ComposerShadcn() {
   )
   const [queue, setQueue] = React.useState<QueueItem[]>([])
   const [queueRunning, setQueueRunning] = React.useState(false)
+  const [activeModelId, setActiveModelId] = React.useState(MOCK_MODELS[0].id)
+  const [modelMenuOpen, setModelMenuOpen] = React.useState(false)
   const [sent, setSent] = React.useState<SentEntry[]>([])
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const autocomplete = useAutocomplete()
+
+  const activeModel =
+    MOCK_MODELS.find((m) => m.id === activeModelId) ?? MOCK_MODELS[0]
+  const modelGroups = groupModelsByProvider(MOCK_MODELS)
 
   // ─── Feature 1: auto-grow textarea ───────────────────────────────────────
   React.useLayoutEffect(() => {
@@ -258,7 +296,84 @@ export function ComposerShadcn() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
+    <TooltipProvider delayDuration={200}>
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
+        {/* ─── Feature 7: inline model + session badges row ───────────────── */}
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-card-foreground">
+            <span aria-hidden>{MOCK_SESSION.agentEmoji}</span>
+            <span className="font-medium">{MOCK_SESSION.agentName}</span>
+          </span>
+          <span className="inline-flex items-center rounded-md border border-border bg-muted px-2 py-1 text-muted-foreground">
+            {MOCK_SESSION.agentRole}
+          </span>
+          <span className="inline-flex items-center rounded-md border border-border bg-muted px-2 py-1 text-muted-foreground">
+            {MOCK_SESSION.kind} · {MOCK_SESSION.channel}
+          </span>
+          <span className="inline-flex items-center rounded-md border border-border bg-muted px-2 py-1 text-muted-foreground">
+            {MOCK_SESSION.project}
+          </span>
+
+          {/* Model selector badge (provider-grouped) */}
+          <Popover open={modelMenuOpen} onOpenChange={setModelMenuOpen}>
+            <PopoverAnchor asChild>
+              <button
+                type="button"
+                onClick={() => setModelMenuOpen((o) => !o)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                <Bot className="size-3.5" />
+                <span className="font-medium">{activeModel.name}</span>
+                {activeModel.reasoning ? (
+                  <Brain className="size-3 text-secondary-foreground" />
+                ) : null}
+                <ChevronDown className="size-3 opacity-60" />
+              </button>
+            </PopoverAnchor>
+            <PopoverContent
+              align="start"
+              className="w-72 p-0"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+              <div className="max-h-80 overflow-y-auto">
+                {Object.entries(modelGroups).map(([provider, models]) => (
+                  <div key={provider}>
+                    <div className="sticky top-0 border-b border-border bg-popover px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      {provider}
+                    </div>
+                    {models.map((m) => {
+                      const selected = m.id === activeModelId
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveModelId(m.id)
+                            setModelMenuOpen(false)
+                          }}
+                          className={cn(
+                            'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground',
+                            selected && 'bg-accent/50',
+                          )}
+                        >
+                          <span className="flex-1 truncate">{m.name}</span>
+                          {m.reasoning ? (
+                            <Brain className="size-3 text-secondary-foreground" />
+                          ) : null}
+                          {m.vision ? (
+                            <ImageIcon className="size-3 text-muted-foreground" />
+                          ) : null}
+                          {selected ? <Check className="size-3.5" /> : null}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+
       {/* ─── Feature 5: queue panel ──────────────────────────────────────── */}
       {queue.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -389,16 +504,21 @@ export function ComposerShadcn() {
                 hidden
                 onChange={handleFilePick}
               />
-              {/* Feature 3: file-picker */}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => fileInputRef.current?.click()}
-                aria-label="Attach image"
-              >
-                <Paperclip className="size-4" />
-              </Button>
+              {/* Feature 3: file-picker (Feature 7: tooltip) */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    aria-label="Attach image"
+                  >
+                    <Paperclip className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Attach image</TooltipContent>
+              </Tooltip>
 
               {/* Feature 4: reply demo trigger (sandbox affordance) */}
               {!replyTo && (
@@ -423,6 +543,12 @@ export function ComposerShadcn() {
                 title={`Context: ${(ctxRatio * 100).toFixed(0)}% used`}
               >
                 {fmtTokens(MOCK_CONTEXT.used)} / {fmtTokens(MOCK_CONTEXT.total)}
+              </span>
+
+              {/* Feature 7: compact model badge */}
+              <span className="mr-1 hidden items-center gap-1 rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline-flex">
+                <Bot className="size-3" />
+                {activeModel.name}
               </span>
 
               {/* Feature 5: add-to-queue */}
@@ -509,6 +635,7 @@ export function ComposerShadcn() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </TooltipProvider>
   )
 }
