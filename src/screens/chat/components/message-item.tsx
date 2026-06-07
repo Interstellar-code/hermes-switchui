@@ -1,6 +1,8 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import type { Components } from 'react-markdown'
 import { ArrowDown01Icon, Idea01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
+import { Reply } from 'lucide-react'
 import {
   getMessageTimestamp,
   getToolCallsFromMessage,
@@ -40,6 +42,118 @@ import { TuiActivityCard } from './tui-activity-card'
 const WORDS_PER_TICK = 4
 const TICK_INTERVAL_MS = 50
 const STUCK_SENDING_THRESHOLD_MS = 120_000
+const REPLY_REFERENCE_SNIPPET_LIMIT = 80
+const SENTINEL_REPLY_MARKER_PATTERN =
+  /^\u200B\[reply:#(\d+)\]\s*([^\r\n]*)(?:\r?\n){2}/
+const BLOCKQUOTE_REPLY_MARKER_PATTERN =
+  /^>\s*\[Re:\s*#(\d+)\]\s*([^\r\n]*)(?:\r?\n){2}/
+
+type ReplyReference = {
+  seq: number
+  snippet: string
+  body: string
+}
+
+const USER_REPLY_MARKDOWN_COMPONENTS = {
+  p: function UserReplyParagraph({ children }) {
+    return (
+      <p className="text-pretty leading-relaxed text-current">{children}</p>
+    )
+  },
+  strong: function UserReplyStrong({ children }) {
+    return <strong className="font-semibold text-current">{children}</strong>
+  },
+  em: function UserReplyEmphasis({ children }) {
+    return <em className="italic text-current">{children}</em>
+  },
+  a: function UserReplyAnchor({ children, href }) {
+    return (
+      <a
+        href={href}
+        className="text-current underline underline-offset-4"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {children}
+      </a>
+    )
+  },
+  code: function UserReplyCode({ children, className }) {
+    if (className?.includes('language-')) {
+      return (
+        <code className="block overflow-x-auto whitespace-pre rounded-md border border-border/60 bg-background/20 p-2 font-mono text-[0.9em] text-current">
+          {children}
+        </code>
+      )
+    }
+    return (
+      <code className="rounded border border-border/60 bg-background/20 px-1.5 py-0.5 font-mono text-[0.9em] text-current">
+        {children}
+      </code>
+    )
+  },
+  pre: function UserReplyPre({ children }) {
+    return <pre className="overflow-x-auto">{children}</pre>
+  },
+  ul: function UserReplyUnorderedList({ children }) {
+    return <ul className="ml-4 list-disc text-current">{children}</ul>
+  },
+  ol: function UserReplyOrderedList({ children }) {
+    return <ol className="ml-4 list-decimal text-current">{children}</ol>
+  },
+  li: function UserReplyListItem({ children }) {
+    return <li className="leading-relaxed text-current">{children}</li>
+  },
+  blockquote: function UserReplyBlockquote({ children }) {
+    return (
+      <blockquote className="border-l-2 border-l-primary pl-3 text-current">
+        {children}
+      </blockquote>
+    )
+  },
+} satisfies Partial<Components>
+
+function normalizeReplyReferenceSnippet(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function truncateReplyReferenceSnippet(value: string): string {
+  if (value.length <= REPLY_REFERENCE_SNIPPET_LIMIT) return value
+  return `${value.slice(0, REPLY_REFERENCE_SNIPPET_LIMIT).trimEnd()}…`
+}
+
+function parseReplyReference(content: string): ReplyReference | null {
+  const match =
+    content.match(SENTINEL_REPLY_MARKER_PATTERN) ??
+    content.match(BLOCKQUOTE_REPLY_MARKER_PATTERN)
+  if (!match) return null
+
+  const seq = Number.parseInt(match[1] ?? '', 10)
+  if (!Number.isFinite(seq)) return null
+
+  return {
+    seq,
+    snippet: normalizeReplyReferenceSnippet(match[2] ?? ''),
+    body: content.slice(match[0].length),
+  }
+}
+
+function ReplyReferenceBlock({ reference }: { reference: ReplyReference }) {
+  const snippet = truncateReplyReferenceSnippet(reference.snippet)
+
+  return (
+    <div className="rounded-lg border border-border/70 border-l-2 border-l-primary bg-muted px-2.5 py-1.5 text-xs text-muted-foreground">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <Reply className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+        <span className="shrink-0 font-medium text-foreground">
+          Reply to #{reference.seq}
+        </span>
+        <span className="shrink-0">·</span>
+        <span className="min-w-0 truncate">{snippet || 'Message'}</span>
+      </div>
+    </div>
+  )
+}
 
 function isWhitespaceCharacter(value: string): boolean {
   return /\s/.test(value)
@@ -136,6 +250,7 @@ type MessageItemProps = {
   toolCalls?: Array<StreamToolCall>
   lifecycleEvents?: Array<LifecycleEvent>
   onRetryMessage?: (message: ChatMessage) => void
+  onReplyMessage?: (message: ChatMessage) => void
   forceActionsVisible?: boolean
   wrapperRef?: React.RefObject<HTMLDivElement | null>
   wrapperClassName?: string
@@ -147,7 +262,7 @@ type MessageItemProps = {
   streamingThinking?: string
   simulateStreaming?: boolean
   streamingKey?: string | null
-  expandAllToolSections?: boolean
+  toolDisplayMode?: ToolDisplayMode
   isLastAssistant?: boolean
 }
 
@@ -165,6 +280,8 @@ type InlineToolSection = {
     | 'output-available'
     | 'output-error'
 }
+
+export type ToolDisplayMode = 'expanded' | 'collapsed' | 'hidden'
 
 export type InlineRenderPlanItem =
   | { kind: 'text'; text: string }
@@ -1905,6 +2022,7 @@ function MessageItemComponent({
   toolCalls: streamToolCalls = [],
   lifecycleEvents = [],
   onRetryMessage,
+  onReplyMessage,
   forceActionsVisible = false,
   wrapperRef,
   wrapperClassName,
@@ -1916,7 +2034,7 @@ function MessageItemComponent({
   streamingThinking,
   simulateStreaming: _simulateStreaming = false,
   streamingKey: _streamingKey,
-  expandAllToolSections = false,
+  toolDisplayMode = 'collapsed' as ToolDisplayMode,
   isLastAssistant = false,
 }: MessageItemProps) {
   const role = message.role || 'assistant'
@@ -2106,6 +2224,12 @@ function MessageItemComponent({
       ? remoteStreamingThinking
       : thinkingFromMessage(message)
   const isUser = role === 'user'
+  const userReplyReference = useMemo(
+    () => (isUser ? parseReplyReference(displayText) : null),
+    [displayText, isUser],
+  )
+  const userDisplayText = userReplyReference?.body ?? displayText
+  const hasUserDisplayText = userDisplayText.trim().length > 0
   const execNotification = isUser ? readExecNotification(message) : null
   const timestamp = getMessageTimestamp(message)
   const attachments = Array.isArray(message.attachments)
@@ -2445,6 +2569,7 @@ function MessageItemComponent({
           renders its own branched TuiActivityCard so we don't double up. */}
       {!isUser &&
       finalToolSections.length > 0 &&
+      toolDisplayMode !== 'hidden' &&
       (hasText || !effectiveIsStreaming) ? (
         <div className="w-full max-w-[var(--chat-content-max-width)] flex">
           <div className="w-6 shrink-0" aria-hidden />
@@ -2453,7 +2578,7 @@ function MessageItemComponent({
               toolSections={finalToolSections}
               thinking={null}
               isStreaming={effectiveIsStreaming}
-              expandAll={expandAllToolSections}
+              expandAll={toolDisplayMode === 'expanded'}
               formatLabel={formatToolDisplayLabel}
               formatArg={keyArgLabel}
             />
@@ -2539,6 +2664,9 @@ function MessageItemComponent({
                   }
             }
           >
+            {isUser && userReplyReference ? (
+              <ReplyReferenceBlock reference={userReplyReference} />
+            ) : null}
             {hasAttachments && (
               <div className="flex flex-wrap gap-2">
                 {attachments.map((attachment) => {
@@ -2622,7 +2750,19 @@ function MessageItemComponent({
             )}
             {hasText &&
               (isUser ? (
-                <span className="text-pretty">{displayText}</span>
+                userReplyReference ? (
+                  hasUserDisplayText ? (
+                    <MessageContent
+                      markdown
+                      components={USER_REPLY_MARKDOWN_COMPONENTS}
+                      className="bg-transparent text-current text-pretty"
+                    >
+                      {userDisplayText}
+                    </MessageContent>
+                  ) : null
+                ) : (
+                  <span className="text-pretty">{displayText}</span>
+                )
               ) : hasRevealedText ? (
                 <div className="relative">
                   {assistantCorruptionWarning ? (
@@ -2722,6 +2862,7 @@ function MessageItemComponent({
               ? () => onRetryMessage(message)
               : undefined
           }
+          onReply={onReplyMessage ? () => onReplyMessage(message) : undefined}
         />
       )}
     </div>
@@ -2737,6 +2878,7 @@ function areMessagesEqual(
   }
   if (prevProps.wrapperClassName !== nextProps.wrapperClassName) return false
   if (prevProps.onRetryMessage !== nextProps.onRetryMessage) return false
+  if (prevProps.onReplyMessage !== nextProps.onReplyMessage) return false
   if (prevProps.toolCalls !== nextProps.toolCalls) return false
   if (prevProps.lifecycleEvents !== nextProps.lifecycleEvents) return false
   if (prevProps.wrapperDataMessageId !== nextProps.wrapperDataMessageId) {
@@ -2763,7 +2905,7 @@ function areMessagesEqual(
   if (prevProps.streamingKey !== nextProps.streamingKey) {
     return false
   }
-  if (prevProps.expandAllToolSections !== nextProps.expandAllToolSections) {
+  if (prevProps.toolDisplayMode !== nextProps.toolDisplayMode) {
     return false
   }
   if (

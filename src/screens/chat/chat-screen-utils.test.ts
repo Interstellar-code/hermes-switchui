@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { advanceStickyStreamingText } from './chat-screen-utils'
+import {
+  advanceStickyStreamingText,
+  hasUnansweredLatestUserTurn,
+} from './chat-screen-utils'
+import type { ChatMessage } from './types'
 
 describe('advanceStickyStreamingText', () => {
   it('preserves the last non-empty streaming text when a tool phase temporarily reports empty text', () => {
@@ -48,5 +52,66 @@ describe('advanceStickyStreamingText', () => {
     })
 
     expect(next).toEqual({ runId: null, text: '' })
+  })
+})
+
+describe('hasUnansweredLatestUserTurn', () => {
+  it('treats the latest accepted optimistic user message as an open turn until an assistant answer arrives', () => {
+    const messages: Array<ChatMessage> = [
+      {
+        role: 'user',
+        status: 'queued',
+        __optimisticId: 'opt-1',
+        content: [{ type: 'text', text: 'first prompt' }],
+      },
+    ]
+
+    expect(hasUnansweredLatestUserTurn(messages)).toBe(true)
+  })
+
+  it('keeps the turn open while only a streaming assistant placeholder follows the latest user', () => {
+    const messages: Array<ChatMessage> = [
+      {
+        role: 'user',
+        status: 'queued',
+        __optimisticId: 'opt-1',
+        content: [{ type: 'text', text: 'first prompt' }],
+      },
+      {
+        role: 'assistant',
+        __streamingStatus: 'streaming',
+        content: [],
+      },
+    ]
+
+    expect(hasUnansweredLatestUserTurn(messages)).toBe(true)
+  })
+
+  it('closes the turn once a final assistant text answer follows the latest user', () => {
+    const messages: Array<ChatMessage> = [
+      {
+        role: 'user',
+        status: 'queued',
+        __optimisticId: 'opt-1',
+        content: [{ type: 'text', text: 'first prompt' }],
+      },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'answer' }],
+      },
+    ]
+
+    expect(hasUnansweredLatestUserTurn(messages)).toBe(false)
+  })
+
+  it('does not lock old non-optimistic user-only history forever', () => {
+    const messages: Array<ChatMessage> = [
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'old imported user message' }],
+      },
+    ]
+
+    expect(hasUnansweredLatestUserTurn(messages)).toBe(false)
   })
 })

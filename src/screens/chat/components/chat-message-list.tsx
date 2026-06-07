@@ -11,6 +11,7 @@ import {
   textFromMessage,
 } from '../utils'
 import { MessageItem } from './message-item'
+import type { ToolDisplayMode } from './message-item'
 import { TuiActivityCard } from './tui-activity-card'
 import { ScrollToBottomButton } from './scroll-to-bottom-button'
 import { ResearchCard } from './research-card'
@@ -594,7 +595,9 @@ function escapeAttributeSelector(value: string): string {
 type ChatMessageListProps = {
   messages: Array<ChatMessage>
   onRetryMessage?: (message: ChatMessage) => void
+  onReplyMessage?: (message: ChatMessage) => void
   onRefresh?: () => void | Promise<unknown>
+  onThinkingIndicatorChange?: (visible: boolean) => void
   loading: boolean
   empty: boolean
   emptyState?: React.ReactNode
@@ -629,12 +632,47 @@ type ChatMessageListProps = {
    *  can confirm the server received it). Keeps the thinking indicator visible
    *  during the very first render after the user submits. */
   sending?: boolean
+  /** Controls how tool-call sections render: expanded, collapsed (default), or hidden. */
+  toolDisplayMode?: ToolDisplayMode
+}
+
+export function isThinkingIndicatorSurfaceVisible({
+  showTypingIndicator,
+  showResearchCard,
+  isCompacting,
+  liveToolActivityCount,
+  isStreaming,
+  streamingText,
+  activeToolCallCount,
+}: {
+  showTypingIndicator: boolean
+  showResearchCard: boolean
+  isCompacting: boolean
+  liveToolActivityCount: number
+  isStreaming: boolean
+  streamingText?: string
+  activeToolCallCount: number
+}): boolean {
+  if (isStreaming && streamingText && streamingText.trim().length > 0) {
+    return false
+  }
+
+  return (
+    showTypingIndicator ||
+    showResearchCard ||
+    isCompacting ||
+    liveToolActivityCount > 0 ||
+    (isStreaming && !streamingText) ||
+    (isStreaming && activeToolCallCount > 0)
+  )
 }
 
 function ChatMessageListComponent({
   messages,
   onRetryMessage,
+  onReplyMessage,
   onRefresh: _onRefresh,
+  onThinkingIndicatorChange,
   loading,
   empty,
   emptyState,
@@ -659,6 +697,7 @@ function ChatMessageListComponent({
   isCompacting = false,
   liveProgressLabel = '',
   sending = false,
+  toolDisplayMode = 'collapsed' as ToolDisplayMode,
 }: ChatMessageListProps) {
   const anchorRef = useRef<HTMLDivElement | null>(null)
   const lastUserRef = useRef<HTMLDivElement | null>(null)
@@ -674,8 +713,6 @@ function ChatMessageListComponent({
   const isNearBottomRef = useRef(true)
   const [isNearBottom, setIsNearBottom] = useState(true)
   const [unreadCount, setUnreadCount] = useState(0)
-  const [expandAllToolSections, setExpandAllToolSections] = useState(false)
-
   // Bug 2 fix: grace period — keep thinking indicator alive briefly after
   // waitingForResponse clears so the response message has time to render.
   const [thinkingGrace, setThinkingGrace] = useState(false)
@@ -1213,6 +1250,27 @@ function ChatMessageListComponent({
     researchCard && researchCard.steps.length > 0,
   )
 
+  const thinkingIndicatorVisible = isThinkingIndicatorSurfaceVisible({
+    showTypingIndicator,
+    showResearchCard,
+    isCompacting,
+    liveToolActivityCount: liveToolActivity.length,
+    isStreaming,
+    streamingText,
+    activeToolCallCount: activeToolCalls.length,
+  })
+
+  useEffect(() => {
+    onThinkingIndicatorChange?.(thinkingIndicatorVisible)
+  }, [onThinkingIndicatorChange, thinkingIndicatorVisible])
+
+  useEffect(
+    () => () => {
+      onThinkingIndicatorChange?.(false)
+    },
+    [onThinkingIndicatorChange],
+  )
+
   const shouldBottomPin =
     visibleEntries.length > 0 ||
     showToolOnlyNotice ||
@@ -1377,6 +1435,7 @@ function ChatMessageListComponent({
             message={chatMessage}
             attachedToolMessages={entry.attachedToolMessages}
             onRetryMessage={effectiveOnRetry}
+            onReplyMessage={onReplyMessage}
             toolResultsByCallId={hasToolCalls ? toolResultsByCallId : undefined}
             forceActionsVisible={forceActionsVisible}
             wrapperClassName={spacingClass}
@@ -1399,7 +1458,7 @@ function ChatMessageListComponent({
             lifecycleEvents={messageIsStreaming ? lifecycleEvents : undefined}
             simulateStreaming={simulateStreaming}
             streamingKey={signature}
-            expandAllToolSections={expandAllToolSections}
+            toolDisplayMode={toolDisplayMode}
           />
         </div>
       )
@@ -1411,6 +1470,7 @@ function ChatMessageListComponent({
         message={chatMessage}
         attachedToolMessages={entry.attachedToolMessages}
         onRetryMessage={effectiveOnRetry}
+        onReplyMessage={onReplyMessage}
         toolResultsByCallId={hasToolCalls ? toolResultsByCallId : undefined}
         forceActionsVisible={forceActionsVisible}
         wrapperClassName={spacingClass}
@@ -1431,7 +1491,7 @@ function ChatMessageListComponent({
         lifecycleEvents={messageIsStreaming ? lifecycleEvents : undefined}
         simulateStreaming={simulateStreaming}
         streamingKey={signature}
-        expandAllToolSections={expandAllToolSections}
+        toolDisplayMode={toolDisplayMode}
       />
     )
   }
@@ -1483,10 +1543,6 @@ function ChatMessageListComponent({
     scrollToBottom,
     streamingText,
   ])
-
-  useEffect(() => {
-    setExpandAllToolSections(false)
-  }, [sessionKey])
 
   useEffect(() => {
     if (!isMessageSearchOpen) return
@@ -1766,24 +1822,23 @@ function ChatMessageListComponent({
                       </p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setExpandAllToolSections(true)}
-                    disabled={expandAllToolSections}
+                  <span
                     className={cn(
-                      'shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors',
-                      expandAllToolSections
-                        ? 'border-amber-300 bg-amber-100 text-amber-700 cursor-default'
-                        : 'border-amber-300 bg-amber-100/80 text-amber-800 hover:bg-amber-200 dark:hover:bg-amber-900/30 hover:border-amber-400',
+                      'shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium',
+                      toolDisplayMode === 'expanded'
+                        ? 'border-amber-300 bg-amber-100 text-amber-700'
+                        : toolDisplayMode === 'hidden'
+                          ? 'border-amber-300 bg-amber-100/80 text-amber-500'
+                          : 'border-amber-300 bg-amber-100/80 text-amber-800',
                     )}
-                    aria-label={
-                      expandAllToolSections
-                        ? 'All tool sections expanded'
-                        : 'Expand all tool sections'
-                    }
+                    aria-label={`Tool sections: ${toolDisplayMode}`}
                   >
-                    {expandAllToolSections ? '✓ Expanded' : 'Show All'}
-                  </button>
+                    {toolDisplayMode === 'expanded'
+                      ? '✓ Expanded'
+                      : toolDisplayMode === 'hidden'
+                        ? '⊘ Hidden'
+                        : 'Collapsed'}
+                  </span>
                 </div>
               </div>
             ) : null}
@@ -1876,7 +1931,7 @@ function ChatMessageListComponent({
                         }
                         simulateStreaming={simulateStreaming}
                         streamingKey={signature}
-                        expandAllToolSections={expandAllToolSections}
+                        toolDisplayMode={toolDisplayMode}
                         isLastAssistant={forceActionsVisible}
                       />
                     )
@@ -1908,17 +1963,7 @@ function ChatMessageListComponent({
                 streaming text starts arriving — the per-message TUI card
                 above the assistant bubble takes over from there to avoid
                 a duplicated activity surface. */}
-            {(showTypingIndicator ||
-              showResearchCard ||
-              isCompacting ||
-              liveToolActivity.length > 0 ||
-              (isStreaming && !streamingText) ||
-              (isStreaming && activeToolCalls.length > 0)) &&
-            !(
-              isStreaming &&
-              streamingText &&
-              streamingText.trim().length > 0
-            ) ? (
+            {thinkingIndicatorVisible ? (
               <div
                 className="flex flex-col gap-1 py-1.5 px-1 animate-in fade-in duration-300 md:gap-1.5 md:py-2"
                 role="status"
@@ -2097,7 +2142,9 @@ function areChatMessageListEqual(
   return (
     prev.messages === next.messages &&
     prev.onRetryMessage === next.onRetryMessage &&
+    prev.onReplyMessage === next.onReplyMessage &&
     prev.onRefresh === next.onRefresh &&
+    prev.onThinkingIndicatorChange === next.onThinkingIndicatorChange &&
     prev.loading === next.loading &&
     prev.empty === next.empty &&
     prev.emptyState === next.emptyState &&
@@ -2119,7 +2166,10 @@ function areChatMessageListEqual(
     prev.liveToolActivity === next.liveToolActivity &&
     prev.researchCard === next.researchCard &&
     prev.hideSystemMessages === next.hideSystemMessages &&
-    prev.sending === next.sending
+    prev.isCompacting === next.isCompacting &&
+    prev.liveProgressLabel === next.liveProgressLabel &&
+    prev.sending === next.sending &&
+    prev.toolDisplayMode === next.toolDisplayMode
   )
 }
 

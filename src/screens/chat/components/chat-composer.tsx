@@ -111,7 +111,7 @@ type ChatComposerHandle = {
   insertText: (value: string) => void
 }
 
-function nextThinkingLevel(level: ThinkingLevel): ThinkingLevel {
+export function nextThinkingLevel(level: ThinkingLevel): ThinkingLevel {
   if (level === 'off') return 'low'
   if (level === 'low') return 'medium'
   if (level === 'medium') return 'high'
@@ -135,7 +135,7 @@ type GatewayStatusApiResponse = {
   mode?: string
 }
 
-type ProfileSummary = {
+export type ProfileSummary = {
   name: string
   active?: boolean
   model?: string
@@ -143,17 +143,17 @@ type ProfileSummary = {
   skillCount?: number
 }
 
-type ProfilesListResponse = {
+export type ProfilesListResponse = {
   profiles?: Array<ProfileSummary>
   activeProfile?: string
 }
 
-type WorkspaceEntry = {
+export type WorkspaceEntry = {
   name: string
   path: string
 }
 
-type WorkspaceDetectionResponse = {
+export type WorkspaceDetectionResponse = {
   path?: string
   folderName?: string
   source?: string
@@ -162,7 +162,7 @@ type WorkspaceDetectionResponse = {
   last?: string
 }
 
-type ModelInfoApiResponse = {
+export type ModelInfoApiResponse = {
   gatewayMode?: string | null
   supportsRuntimeSwitching?: boolean | null
   vanillaAgent?: boolean | null
@@ -171,7 +171,7 @@ type ModelInfoApiResponse = {
   activeProvider?: string | null
 }
 
-type ModelSwitchNotice = {
+export type ModelSwitchNotice = {
   tone: 'success' | 'error'
   message: string
   retryModel?: string
@@ -313,7 +313,7 @@ async function fetchModelsForProvider(
 
 const LOCAL_PROVIDERS_SET = new Set(['ollama', 'atomic-chat'])
 
-async function switchModel(
+export async function switchModel(
   model: string,
   provider?: string,
   _sessionKey?: string,
@@ -365,13 +365,13 @@ async function switchModel(
 }
 
 /** Maximum file size accepted from picker/drop before processing (50MB). */
-const MAX_ATTACHMENT_FILE_SIZE = 50 * 1024 * 1024
+export const MAX_ATTACHMENT_FILE_SIZE = 50 * 1024 * 1024
 /** Longest side target for resized images. */
-const MAX_IMAGE_DIMENSION = 1920
+export const MAX_IMAGE_DIMENSION = 1920
 /** Initial JPEG compression quality (0-1). */
-const IMAGE_QUALITY = 0.85
+export const IMAGE_QUALITY = 0.85
 /** Safe image attachment limit after processing (1MB). */
-const MAX_TRANSPORT_IMAGE_SIZE = 1 * 1024 * 1024
+export const MAX_TRANSPORT_IMAGE_SIZE = 1 * 1024 * 1024
 
 const IMAGE_EXTENSION_TO_MIME: Record<string, string> = {
   png: 'image/png',
@@ -435,7 +435,7 @@ function isTextFile(file: File): boolean {
   return inferTextMimeTypeFromFileName(file.name).length > 0
 }
 
-function formatFileSize(size: number): string {
+export function formatFileSize(size: number): string {
   if (!Number.isFinite(size) || size <= 0) return ''
   const units = ['B', 'KB', 'MB', 'GB'] as const
   let value = size
@@ -519,7 +519,7 @@ function readText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-function getResolvedModelKey(model: string, provider?: string): string {
+export function getResolvedModelKey(model: string, provider?: string): string {
   const normalizedModel = model.trim()
   const normalizedProvider = typeof provider === 'string' ? provider.trim() : ''
 
@@ -530,7 +530,7 @@ function getResolvedModelKey(model: string, provider?: string): string {
   return `${normalizedProvider}/${normalizedModel}`
 }
 
-function isCanvasSupported(): boolean {
+export function isCanvasSupported(): boolean {
   if (typeof document === 'undefined') return false
   try {
     const canvas = document.createElement('canvas')
@@ -553,7 +553,7 @@ function readDataUrlMimeType(dataUrl: string): string | null {
   return match?.[1]?.trim() || null
 }
 
-async function compressImageToDataUrl(file: File): Promise<string> {
+export async function compressImageToDataUrl(file: File): Promise<string> {
   if (!isCanvasSupported()) {
     throw new Error('Image compression not available')
   }
@@ -717,7 +717,7 @@ async function fetchCurrentModelFromStatus(): Promise<string> {
   }
 }
 
-async function fetchGatewayMode(): Promise<string | null> {
+export async function fetchGatewayMode(): Promise<string | null> {
   const response = await fetch('/api/gateway-status')
   if (!response.ok) {
     throw new Error(await readResponseError(response))
@@ -726,7 +726,7 @@ async function fetchGatewayMode(): Promise<string | null> {
   return typeof payload.mode === 'string' ? payload.mode : null
 }
 
-async function fetchModelInfo(): Promise<ModelInfoApiResponse | null> {
+export async function fetchModelInfo(): Promise<ModelInfoApiResponse | null> {
   const response = await fetch('/api/model/info')
   if (!response.ok) {
     throw new Error(await readResponseError(response))
@@ -734,7 +734,7 @@ async function fetchModelInfo(): Promise<ModelInfoApiResponse | null> {
   return (await response.json()) as ModelInfoApiResponse
 }
 
-async function fetchProfiles(): Promise<ProfilesListResponse> {
+export async function fetchProfiles(): Promise<ProfilesListResponse> {
   const response = await fetch('/api/profiles/list')
   if (!response.ok) {
     throw new Error(await readResponseError(response))
@@ -742,13 +742,13 @@ async function fetchProfiles(): Promise<ProfilesListResponse> {
   return (await response.json()) as ProfilesListResponse
 }
 
-type ActivateProfileResponse = {
+export type ActivateProfileResponse = {
   ok: boolean
   profile: string
   needsGatewayRestart: boolean
 }
 
-async function activateProfile(
+export async function activateProfile(
   name: string,
 ): Promise<ActivateProfileResponse> {
   const response = await fetch('/api/profiles/activate', {
@@ -762,7 +762,7 @@ async function activateProfile(
   return (await response.json()) as ActivateProfileResponse
 }
 
-async function fetchWorkspaceContext(): Promise<WorkspaceDetectionResponse> {
+export async function fetchWorkspaceContext(): Promise<WorkspaceDetectionResponse> {
   const response = await fetch('/api/workspace')
   if (!response.ok) {
     throw new Error(await readResponseError(response))
@@ -770,13 +770,13 @@ async function fetchWorkspaceContext(): Promise<WorkspaceDetectionResponse> {
   return (await response.json()) as WorkspaceDetectionResponse
 }
 
-function shortPathLabel(pathValue: string): string {
+export function shortPathLabel(pathValue: string): string {
   if (!pathValue) return 'Workspace'
   const parts = pathValue.replace(/\\/g, '/').split('/').filter(Boolean)
   return parts.at(-1) || pathValue
 }
 
-function thinkingLabel(level: ThinkingLevel): string {
+export function thinkingLabel(level: ThinkingLevel): string {
   if (level === 'off') return 'None'
   if (level === 'low') return 'Low'
   if (level === 'medium') return 'Medium'
@@ -784,7 +784,7 @@ function thinkingLabel(level: ThinkingLevel): string {
   return 'Adaptive'
 }
 
-function profileMeta(profile: ProfileSummary): string {
+export function profileMeta(profile: ProfileSummary): string {
   return [profile.model, profile.provider]
     .map((value) => (typeof value === 'string' ? value.trim() : ''))
     .filter(Boolean)

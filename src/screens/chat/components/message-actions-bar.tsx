@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Copy01Icon, RefreshIcon, Tick02Icon } from '@hugeicons/core-free-icons'
+import { Reply } from 'lucide-react'
 import { MessageTimestamp } from './message-timestamp'
 import {
   TooltipContent,
@@ -19,6 +20,7 @@ type MessageActionsBarProps = {
   isQueued?: boolean
   isFailed?: boolean
   onRetry?: () => void
+  onReply?: () => void
 }
 
 async function copyToClipboard(text: string): Promise<boolean> {
@@ -54,6 +56,7 @@ export function MessageActionsBar({
   isQueued = false,
   isFailed = false,
   onRetry,
+  onReply,
 }: MessageActionsBarProps) {
   const [copied, setCopied] = useState(false)
 
@@ -110,6 +113,20 @@ export function MessageActionsBar({
           <TooltipContent side="top">Copy</TooltipContent>
         </TooltipRoot>
       </TooltipProvider>
+      {onReply && (
+        <TooltipProvider>
+          <TooltipRoot>
+            <TooltipTrigger
+              type="button"
+              onClick={onReply}
+              className="inline-flex items-center justify-center rounded border border-transparent bg-transparent p-1 text-primary-700 hover:text-primary-900 hover:bg-primary-100 dark:hover:bg-primary-800"
+            >
+              <Reply size={16} strokeWidth={1.6} />
+            </TooltipTrigger>
+            <TooltipContent side="top">Reply</TooltipContent>
+          </TooltipRoot>
+        </TooltipProvider>
+      )}
       <MessageTimestamp timestamp={timestamp} />
     </div>
   )
