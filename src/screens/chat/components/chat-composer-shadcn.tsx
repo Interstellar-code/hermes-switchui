@@ -70,7 +70,6 @@ import { useSessionModelStore } from '@/stores/session-model-store'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { useVoiceRecorder } from '@/hooks/use-voice-recorder'
 import { formatModelName } from '@/lib/format-model-name'
-import type { ModelCatalogEntry } from '@/lib/model-types'
 import type {
   ChatComposerAttachment,
   ChatComposerHandle,
