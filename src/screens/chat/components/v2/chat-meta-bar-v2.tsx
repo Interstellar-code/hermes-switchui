@@ -2,6 +2,8 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSessionStatus } from '@/hooks/use-session-status'
 import { cn } from '@/lib/utils'
+import { SessionSelectorsV2 } from './session-selectors-v2'
+import type { ThinkingLevel } from '../chat-composer'
 
 type ProfilesResponse = {
   activeProfile?: string
@@ -33,6 +35,9 @@ function Sep() {
 
 type ChatMetaBarV2Props = {
   sessionKey: string | null | undefined
+  /** Session key the selectors use for per-session model persistence
+   *  (undefined for new chats). Falls back to `sessionKey` if omitted. */
+  selectorSessionKey?: string | null | undefined
   /** Whether a streaming run is currently active */
   isStreaming?: boolean
   /** Approximate tok/s from parent, or null */
@@ -43,15 +48,25 @@ type ChatMetaBarV2Props = {
   profile?: string
   /** Fallback model name when session-status hasn't returned model yet */
   modelFallback?: string
+  /** Current thinking level (controlled by chat-screen) for the selectors */
+  thinkingLevel?: ThinkingLevel
+  /** Setter for the thinking-level selector */
+  onThinkingLevelChange?: (level: ThinkingLevel) => void
+  /** Hide the model/profile/workspace/thinking selectors */
+  hideSelectors?: boolean
 }
 
 function ChatMetaBarV2Component({
   sessionKey,
+  selectorSessionKey,
   isStreaming = false,
   tokPerSec = null,
   toolCount: toolCountProp,
   profile,
   modelFallback,
+  thinkingLevel,
+  onThinkingLevelChange,
+  hideSelectors = false,
 }: ChatMetaBarV2Props) {
   const status = useSessionStatus(sessionKey)
 
@@ -173,6 +188,24 @@ function ChatMetaBarV2Component({
       <span className="shrink-0 whitespace-nowrap" data-testid="meta-profile">
         <span className="m-label">profile</span>{' · '}<span className="m-mono">{displayProfile}</span>
       </span>
+
+      {!hideSelectors && (
+        <>
+          <Sep />
+          {/* Relocated model / profile / workspace / thinking selectors */}
+          <span className="shrink-0" data-testid="meta-selectors">
+            <SessionSelectorsV2
+              sessionKey={
+                (selectorSessionKey === undefined
+                  ? sessionKey
+                  : selectorSessionKey) ?? undefined
+              }
+              thinkingLevel={thinkingLevel}
+              onThinkingLevelChange={onThinkingLevelChange}
+            />
+          </span>
+        </>
+      )}
 
       {/* Spacer */}
       <span className="flex-1" />

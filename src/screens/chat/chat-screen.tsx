@@ -2789,9 +2789,16 @@ export function ChatScreen({
               />
               <ChatMetaBarV2
                 sessionKey={activeSessionKey || activeFriendlyId}
+                selectorSessionKey={
+                  isNewChat
+                    ? undefined
+                    : forcedSessionKey || resolvedSessionKey || activeSessionKey
+                }
                 isStreaming={isRealtimeStreaming}
                 toolCount={totalToolCount}
                 modelFallback={sessionModelFallback}
+                thinkingLevel={thinkingLevel}
+                onThinkingLevelChange={handleThinkingLevelChange}
               />
             </>
           ) : null}
@@ -2939,7 +2946,6 @@ export function ChatScreen({
               // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
               focusKey={`${isNewChat ? 'new' : activeFriendlyId}:${activeCanonicalKey ?? ''}`}
               thinkingLevel={thinkingLevel}
-              onThinkingLevelChange={handleThinkingLevelChange}
               replyTo={replyTo}
               onClearReply={() => setReplyTo(null)}
               systemMessagesHidden={hideSystemMessages}
