@@ -5,10 +5,13 @@ import {
   Brain,
   Check,
   ChevronDown,
+  Eye,
+  EyeOff,
   Image as ImageIcon,
   ListPlus,
   Paperclip,
   Reply,
+  Wrench,
   X,
 } from 'lucide-react'
 
@@ -44,6 +47,8 @@ import {
 import { useAutocomplete } from './use-autocomplete'
 
 const QUEUE_STORAGE_KEY = 'composer-shadcn:queue'
+
+type ToolDisplayMode = 'expanded' | 'collapsed' | 'hidden'
 
 // ─── Sent-message log (sandbox-only; replaces real send) ───────────────────
 type SentEntry = { id: string; text: string; attachmentCount: number }
@@ -101,6 +106,7 @@ export function ComposerShadcn() {
   const [queueRunning, setQueueRunning] = React.useState(false)
   const [activeModelId, setActiveModelId] = React.useState(MOCK_MODELS[0].id)
   const [modelMenuOpen, setModelMenuOpen] = React.useState(false)
+  const [toolMode, setToolMode] = React.useState<ToolDisplayMode>('collapsed')
   const [sent, setSent] = React.useState<SentEntry[]>([])
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
@@ -250,6 +256,12 @@ export function ComposerShadcn() {
   }
   const removeQueueItem = (id: string) =>
     setQueue((prev) => prev.filter((q) => q.id !== id))
+
+  // ─── Feature 8: tool-display toggle (cycle expanded→collapsed→hidden) ─────
+  const cycleToolMode = () =>
+    setToolMode((prev) =>
+      prev === 'collapsed' ? 'expanded' : prev === 'expanded' ? 'hidden' : 'collapsed',
+    )
 
   const updateValue = React.useCallback((next: string, cursor?: number) => {
     setValue(next)
@@ -518,6 +530,38 @@ export function ComposerShadcn() {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Attach image</TooltipContent>
+              </Tooltip>
+
+              {/* Feature 8: tool-display toggle */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={cycleToolMode}
+                    className={cn(
+                      'flex h-8 items-center gap-1 rounded-lg px-2 text-xs transition-colors hover:bg-accent',
+                      toolMode === 'hidden'
+                        ? 'text-muted-foreground/40'
+                        : 'text-muted-foreground hover:text-accent-foreground',
+                    )}
+                  >
+                    {toolMode === 'hidden' ? (
+                      <EyeOff className="size-3.5" />
+                    ) : toolMode === 'expanded' ? (
+                      <Eye className="size-3.5" />
+                    ) : (
+                      <Wrench className="size-3.5" />
+                    )}
+                    <span className="hidden sm:inline">
+                      {toolMode === 'collapsed'
+                        ? 'Tools'
+                        : toolMode === 'expanded'
+                          ? 'Expanded'
+                          : 'Hidden'}
+                    </span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Tool display: {toolMode}</TooltipContent>
               </Tooltip>
 
               {/* Feature 4: reply demo trigger (sandbox affordance) */}
