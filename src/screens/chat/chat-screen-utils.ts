@@ -63,3 +63,85 @@ export function createOptimisticMessage(
 
   return { clientId, optimisticId, optimisticMessage }
 }
+
+function readMessageText(message: ChatMessage): string {
+  const content = Array.isArray(message.content) ? message.content : []
+  const contentText = content
+    .map((part) => (part.type === 'text' ? (part.text ?? '') : ''))
+    .join('\n')
+  const streamingText =
+    typeof message.__streamingText === 'string' ? message.__streamingText : ''
+  return `${contentText}\n${streamingText}`.trim()
+}
+
+function readStatus(message: ChatMessage): string {
+  const status = (message as Record<string, unknown>).status
+  return typeof status === 'string' ? status.toLowerCase().trim() : ''
+}
+
+function isPendingUserMessage(message: ChatMessage): boolean {
+  if (message.role !== 'user') return false
+
+  const status = readStatus(message)
+  if (
+    status === 'error' ||
+    status === 'failed' ||
+    status === 'cancelled' ||
+    status === 'canceled' ||
+    status === 'aborted' ||
+    status === 'sent' ||
+    status === 'done'
+  ) {
+    return false
+  }
+
+  if (status === 'sending' || status === 'queued' || status === 'pending') {
+    return true
+  }
+
+  const raw = message as Record<string, unknown>
+  return (
+    typeof raw.__optimisticId === 'string' ||
+    typeof raw.clientId === 'string' ||
+    typeof raw.client_id === 'string'
+  )
+}
+
+function isFinalAssistantAnswer(message: ChatMessage): boolean {
+  if (message.role !== 'assistant') return false
+  if (message.__streamingStatus === 'streaming') return false
+  return readMessageText(message).trim().length > 0
+}
+
+export function hasUnansweredLatestUserTurn(
+  messages: Array<ChatMessage>,
+): boolean {
+  let latestUserIndex = -1
+  for (let index = messages.length - 1; index >= 0; index--) {
+    if (messages[index]?.role === 'user') {
+      latestUserIndex = index
+      break
+    }
+  }
+
+  if (latestUserIndex < 0) return false
+
+  const latestUser = messages[latestUserIndex]
+  if (!latestUser || !isPendingUserMessage(latestUser)) return false
+
+  const afterLatestUser = messages.slice(latestUserIndex + 1)
+  if (afterLatestUser.length === 0) return true
+
+  for (const message of afterLatestUser) {
+    if (isFinalAssistantAnswer(message)) return false
+    if (
+      message.role === 'assistant' ||
+      message.role === 'tool' ||
+      message.role === 'toolResult'
+    ) {
+      return true
+    }
+  }
+
+  return true
+}

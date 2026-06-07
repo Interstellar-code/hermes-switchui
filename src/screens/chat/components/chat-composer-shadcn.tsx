@@ -36,35 +36,23 @@
 import * as React from 'react'
 import {
   ArrowUp,
+  Check,
+  Clock,
   Eye,
   EyeOff,
   Globe,
+  ListPlus,
   Mic,
   Paperclip,
   Reply,
   Square,
   SquarePen,
+  Trash2,
   X,
   Zap,
 } from 'lucide-react'
 
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/shadcn/ui/button'
-import { Textarea } from '@/components/shadcn/ui/textarea'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/shadcn/ui/tooltip'
-import {
-  SlashCommandMenu,
-  type SlashCommandDefinition,
-  type SlashCommandMenuHandle,
-} from '@/components/slash-command-menu'
-import { useVoiceInput } from '@/hooks/use-voice-input'
-import { useVoiceRecorder } from '@/hooks/use-voice-recorder'
-
+import { useShallow } from 'zustand/react/shallow'
 import { ContextBar } from './context-bar'
 import {
   MAX_ATTACHMENT_FILE_SIZE,
@@ -80,6 +68,31 @@ import type {
   ThinkingLevel,
 } from './chat-composer'
 import type { Ref } from 'react'
+import type {MessageQueueActivity, QueuedChatMessage} from '@/stores/chat-store';
+import type {SlashCommandDefinition, SlashCommandMenuHandle} from '@/components/slash-command-menu';
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/shadcn/ui/button'
+import { Textarea } from '@/components/shadcn/ui/textarea'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/shadcn/ui/tooltip'
+import {
+  
+  SlashCommandMenu
+  
+} from '@/components/slash-command-menu'
+import {
+  
+  
+  normalizeMessageQueueSessionKey,
+  useChatStore
+} from '@/stores/chat-store'
+import { useVoiceInput } from '@/hooks/use-voice-input'
+import { useVoiceRecorder } from '@/hooks/use-voice-recorder'
+
 
 // Mirror of the live composer's ChatComposerProps. Imported types keep the
 // payload shapes identical; we re-declare the prop bag locally (the live one is
@@ -114,6 +127,8 @@ type ChatComposerShadcnProps = {
 const MAX_TEXTAREA_HEIGHT = 240
 const REPLY_MARKER_SNIPPET_LIMIT = 140
 const REPLY_PREVIEW_SNIPPET_LIMIT = 80
+const QUEUE_ACTIVITY_VISIBLE_MS = 12_000
+const EMPTY_MESSAGE_QUEUE: Array<QueuedChatMessage> = []
 
 function normalizeReplySnippet(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
@@ -192,6 +207,14 @@ function readSlashCommandQuery(value: string): string | null {
   return value.slice(1)
 }
 
+function getQueuedMessagePreview(item: QueuedChatMessage): string {
+  const text = item.text.trim()
+  if (text.length > 0) return text
+  const attachmentCount = item.attachments.length
+  if (attachmentCount === 1) return '1 attachment'
+  return `${attachmentCount} attachments`
+}
+
 function ChatComposerShadcn({
   onSubmit,
   isLoading,
@@ -230,6 +253,42 @@ function ChatComposerShadcn({
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const slashMenuRef = React.useRef<SlashCommandMenuHandle | null>(null)
   const submittingRef = React.useRef(false)
+  const queueSessionKey = sessionKey
+    ? normalizeMessageQueueSessionKey(sessionKey)
+    : null
+  const queuedMessages = useChatStore((s) =>
+    queueSessionKey
+      ? (s.messageQueue[queueSessionKey] ?? EMPTY_MESSAGE_QUEUE)
+      : EMPTY_MESSAGE_QUEUE,
+  )
+  const queueActivity = useChatStore((s) =>
+    queueSessionKey ? (s.messageQueueActivity[queueSessionKey] ?? null) : null,
+  )
+  const { enqueue, removeQueued, clearQueue } = useChatStore(
+    useShallow((s) => ({
+      enqueue: s.enqueue,
+      removeQueued: s.removeQueued,
+      clearQueue: s.clearQueue,
+    })),
+  )
+  const [visibleQueueActivity, setVisibleQueueActivity] =
+    React.useState<MessageQueueActivity | null>(null)
+
+  React.useEffect(() => {
+    if (!queueActivity) {
+      setVisibleQueueActivity(null)
+      return
+    }
+
+    setVisibleQueueActivity(queueActivity)
+    const timeout = window.setTimeout(() => {
+      setVisibleQueueActivity((current) =>
+        current?.occurredAt === queueActivity.occurredAt ? null : current,
+      )
+    }, QUEUE_ACTIVITY_VISIBLE_MS)
+
+    return () => window.clearTimeout(timeout)
+  }, [queueActivity])
 
   // ─── web-search toggle (honor external controller, else internal) ────────
   const toggleWebSearch = React.useCallback(() => {
@@ -433,10 +492,20 @@ function ChatComposerShadcn({
 
   // ─── submit ──────────────────────────────────────────────────────────────
   const canSend =
-    !disabled && (value.trim().length > 0 || attachments.length > 0)
+    !disabled &&
+    !isLoading &&
+    (value.trim().length > 0 || attachments.length > 0)
+  const canQueue =
+    !disabled &&
+    isLoading &&
+    queueSessionKey !== null &&
+    (value.trim().length > 0 || attachments.length > 0)
+  const showQueuePanel =
+    queueSessionKey !== null &&
+    (queuedMessages.length > 0 || visibleQueueActivity !== null)
 
   const handleSubmit = React.useCallback(() => {
-    if (disabled || submittingRef.current) return
+    if (disabled || isLoading || submittingRef.current) return
     const rawBody = value.trim()
     if (rawBody.length === 0 && attachments.length === 0) return
     submittingRef.current = true
@@ -460,6 +529,7 @@ function ChatComposerShadcn({
     focusPrompt()
   }, [
     disabled,
+    isLoading,
     value,
     attachments,
     replyTo,
@@ -469,6 +539,43 @@ function ChatComposerShadcn({
     focusPrompt,
     fastMode,
     thinkingLevel,
+  ])
+
+  const handleQueueSubmit = React.useCallback(() => {
+    if (!queueSessionKey || disabled || submittingRef.current) return
+    const rawBody = value.trim()
+    if (rawBody.length === 0 && attachments.length === 0) return
+
+    const replySnippet = replyTo
+      ? replyTo.preview.replace(/\s+/g, ' ').trim()
+      : ''
+    const body = replyTo
+      ? `> [Re: #${replyTo.seq}] ${replySnippet.length > 140 ? `${replySnippet.slice(0, 140)}…` : replySnippet}\n\n${rawBody}`
+      : rawBody
+
+    submittingRef.current = true
+    enqueue(queueSessionKey, {
+      id: crypto.randomUUID(),
+      text: body,
+      attachments: attachments.map((a) => ({ ...a })),
+    })
+    window.setTimeout(() => {
+      submittingRef.current = false
+    }, 300)
+    setValue('')
+    setAttachments([])
+    setIsSlashMenuDismissed(false)
+    onClearReply?.()
+    focusPrompt()
+  }, [
+    attachments,
+    disabled,
+    enqueue,
+    focusPrompt,
+    onClearReply,
+    queueSessionKey,
+    replyTo,
+    value,
   ])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -499,6 +606,10 @@ function ChatComposerShadcn({
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
+      if (isLoading) {
+        handleQueueSubmit()
+        return
+      }
       handleSubmit()
     }
   }
@@ -593,6 +704,116 @@ function ChatComposerShadcn({
             </button>
           </div>
         )}
+
+        {/* per-session forward-send queue */}
+        {showQueuePanel && queueSessionKey ? (
+          <div
+            className="overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm"
+            aria-live="polite"
+          >
+            <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 px-3 py-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <ListPlus className="size-3.5 shrink-0 text-muted-foreground" />
+                <span className="truncate text-xs font-medium">
+                  Message queue
+                </span>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                  {queuedMessages.length > 0
+                    ? queuedMessages.length
+                    : visibleQueueActivity?.phase === 'sending'
+                      ? isLoading
+                        ? 'sending'
+                        : 'sent'
+                      : 'queued'}
+                </span>
+                {isLoading ? (
+                  <span className="hidden items-center gap-1 text-[11px] text-muted-foreground sm:inline-flex">
+                    <Clock className="size-3" />
+                    Waiting for stream to finish
+                  </span>
+                ) : null}
+              </div>
+              {queuedMessages.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => clearQueue(queueSessionKey)}
+                  className="h-6 px-2 text-xs"
+                >
+                  <Trash2 className="size-3" />
+                  Clear all
+                </Button>
+              ) : null}
+            </div>
+            <div className="max-h-40 overflow-y-auto">
+              {visibleQueueActivity ? (
+                <div
+                  className={cn(
+                    'flex items-center gap-2 px-3 py-2 text-sm',
+                    queuedMessages.length > 0 && 'border-b border-border/60',
+                  )}
+                >
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                    {visibleQueueActivity.phase === 'sending' ? (
+                      <ArrowUp className="size-3" />
+                    ) : (
+                      <Check className="size-3" />
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-medium text-muted-foreground">
+                      {visibleQueueActivity.phase === 'sending'
+                        ? isLoading
+                          ? 'Sending queued message now'
+                          : 'Last queued message was sent'
+                        : 'Message added to queue'}
+                    </div>
+                    <div className="truncate">
+                      {getQueuedMessagePreview(visibleQueueActivity.item)}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+              {queuedMessages.map((item, index) => {
+                const attachmentCount = item.attachments.length
+                const label = getQueuedMessagePreview(item)
+                return (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-2 text-sm',
+                      index < queuedMessages.length - 1 &&
+                        'border-b border-border/60',
+                    )}
+                  >
+                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-medium text-muted-foreground">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate">{label}</div>
+                      {attachmentCount > 0 ? (
+                        <div className="truncate text-xs text-muted-foreground">
+                          {attachmentCount}{' '}
+                          {attachmentCount === 1 ? 'attachment' : 'attachments'}
+                        </div>
+                      ) : null}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => removeQueued(queueSessionKey, item.id)}
+                      aria-label="Remove queued message"
+                    >
+                      <X className="size-3" />
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ) : null}
 
         {/* composer card; SlashCommandMenu positions itself absolutely
             relative to this wrapper (it renders its own container). */}
@@ -785,21 +1006,42 @@ function ChatComposerShadcn({
 
                 {/* send / stop */}
                 {isLoading ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        variant="destructive"
-                        onClick={() => onAbort?.()}
-                        aria-label="Stop generation"
-                        className="rounded-full"
-                      >
-                        <Square className="size-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Stop generation</TooltipContent>
-                  </Tooltip>
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={handleQueueSubmit}
+                          disabled={!canQueue}
+                          aria-label="Add to queue"
+                          className="rounded-full"
+                        >
+                          <ListPlus className="size-4" />
+                          <span className="hidden sm:inline">
+                            Add to queue
+                          </span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Add to queue</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="destructive"
+                          onClick={() => onAbort?.()}
+                          aria-label="Stop generation"
+                          className="rounded-full"
+                        >
+                          <Square className="size-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Stop generation</TooltipContent>
+                    </Tooltip>
+                  </>
                 ) : (
                   <Button
                     type="button"

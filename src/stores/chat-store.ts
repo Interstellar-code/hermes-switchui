@@ -6,6 +6,7 @@ import type {
   ThinkingContent,
   ToolCallContent,
 } from '../screens/chat/types'
+import type { ChatComposerAttachment } from '../screens/chat/components/chat-composer'
 
 let _streamingPersistTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -96,6 +97,18 @@ export type StreamingState = {
   }>
 }
 
+export type QueuedChatMessage = {
+  id: string
+  text: string
+  attachments: Array<ChatComposerAttachment>
+}
+
+export type MessageQueueActivity = {
+  phase: 'queued' | 'sending'
+  item: QueuedChatMessage
+  occurredAt: number
+}
+
 type ChatState = {
   connectionState: ConnectionState
   lastError: string | null
@@ -111,6 +124,10 @@ type ChatState = {
    * a fallback in case a stale event slips through after transport issues.
    */
   sendStreamRunIds: Set<string>
+  /** Forward-send queue, keyed by sessionKey */
+  messageQueue: Record<string, Array<QueuedChatMessage>>
+  /** Recent queue activity, keyed by sessionKey, for visible queue feedback */
+  messageQueueActivity: Record<string, MessageQueueActivity>
 
   // Actions
   setConnectionState: (state: ConnectionState, error?: string) => void
@@ -131,6 +148,14 @@ type ChatState = {
   unregisterSendStreamRun: (runId: string) => void
   /** Check if a runId is being handled by send-stream */
   isSendStreamRun: (runId: string | undefined) => boolean
+  /** Add a normal send payload to a session queue */
+  enqueue: (sessionKey: string, item: QueuedChatMessage) => void
+  /** Remove and return the oldest queued send for a session */
+  dequeue: (sessionKey: string) => QueuedChatMessage | null
+  /** Remove one queued send by id */
+  removeQueued: (sessionKey: string, id: string) => void
+  /** Clear all queued sends for a session */
+  clearQueue: (sessionKey: string) => void
 
   /** Sessions currently waiting for a response — survives component unmount */
   waitingSessionKeys: Set<string>
@@ -295,6 +320,104 @@ function restoreWaitingSessions(): {
   return { keys, meta }
 }
 
+const MESSAGE_QUEUE_STORAGE_PREFIX = 'switchui:message-queue:'
+
+export function normalizeMessageQueueSessionKey(sessionKey: string): string {
+  return normalizeString(sessionKey) || 'main'
+}
+
+function messageQueueStorageKey(sessionKey: string): string {
+  return `${MESSAGE_QUEUE_STORAGE_PREFIX}${normalizeMessageQueueSessionKey(sessionKey)}`
+}
+
+function readQueuedMessages(sessionKey: string): Array<QueuedChatMessage> {
+  if (typeof localStorage === 'undefined') return []
+
+  const storageKey = messageQueueStorageKey(sessionKey)
+  try {
+    const raw = localStorage.getItem(storageKey)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(isQueuedChatMessage)
+  } catch {
+    localStorage.removeItem(storageKey)
+    return []
+  }
+}
+
+function persistQueuedMessages(
+  sessionKey: string,
+  queue: Array<QueuedChatMessage>,
+): void {
+  if (typeof localStorage === 'undefined') return
+
+  const storageKey = messageQueueStorageKey(sessionKey)
+  if (queue.length === 0) {
+    localStorage.removeItem(storageKey)
+    return
+  }
+  localStorage.setItem(storageKey, JSON.stringify(queue))
+}
+
+function restoreMessageQueues(): Record<string, Array<QueuedChatMessage>> {
+  const restored: Record<string, Array<QueuedChatMessage>> = {}
+  if (typeof localStorage === 'undefined') return restored
+
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const storageKey = localStorage.key(i)
+    if (!storageKey?.startsWith(MESSAGE_QUEUE_STORAGE_PREFIX)) continue
+
+    const sessionKey = storageKey.slice(MESSAGE_QUEUE_STORAGE_PREFIX.length)
+    const queue = readQueuedMessages(sessionKey)
+    if (queue.length > 0) {
+      restored[sessionKey] = queue
+    } else {
+      localStorage.removeItem(storageKey)
+    }
+  }
+  return restored
+}
+
+function isQueuedChatMessage(value: unknown): value is QueuedChatMessage {
+  if (!value || typeof value !== 'object') return false
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.id === 'string' &&
+    record.id.trim().length > 0 &&
+    typeof record.text === 'string' &&
+    Array.isArray(record.attachments)
+  )
+}
+
+function setQueueForSession(
+  queues: Record<string, Array<QueuedChatMessage>>,
+  sessionKey: string,
+  queue: Array<QueuedChatMessage>,
+): Record<string, Array<QueuedChatMessage>> {
+  const next = { ...queues }
+  if (queue.length === 0) {
+    delete next[sessionKey]
+  } else {
+    next[sessionKey] = queue
+  }
+  return next
+}
+
+function setQueueActivityForSession(
+  activity: Record<string, MessageQueueActivity>,
+  sessionKey: string,
+  nextActivity: MessageQueueActivity | null,
+): Record<string, MessageQueueActivity> {
+  const next = { ...activity }
+  if (nextActivity) {
+    next[sessionKey] = nextActivity
+  } else {
+    delete next[sessionKey]
+  }
+  return next
+}
+
 let realtimeMessageSequence = 0
 
 function normalizeString(value: unknown): string {
@@ -405,7 +528,7 @@ function stripFinalTagsFromMessage(msg: ChatMessage): ChatMessage {
       modified = true
       return { ...part, text: stripped }
     })
-    nextMessage.content = nextContent as typeof msg.content
+    nextMessage.content = nextContent
   }
 
   for (const key of ['text', 'body', 'message'] as const) {
@@ -632,6 +755,7 @@ function messageMultipartSignature(
 }
 
 const _restoredWaiting = restoreWaitingSessions()
+const _restoredQueues = restoreMessageQueues()
 
 export const useChatStore = create<ChatState>((set, get) => ({
   connectionState: 'disconnected',
@@ -640,6 +764,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   streamingState: new Map(),
   lastEventAt: 0,
   sendStreamRunIds: new Set(),
+  messageQueue: _restoredQueues,
+  messageQueueActivity: {},
   waitingSessionKeys: _restoredWaiting.keys,
   waitingSessionMeta: _restoredWaiting.meta,
 
@@ -662,6 +788,73 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isSendStreamRun: (runId) => {
     if (!runId) return false
     return get().sendStreamRunIds.has(runId)
+  },
+
+  enqueue: (sessionKey, item) => {
+    const key = normalizeMessageQueueSessionKey(sessionKey)
+    const current = get().messageQueue[key] ?? readQueuedMessages(key)
+    const nextQueue = [...current, item]
+    persistQueuedMessages(key, nextQueue)
+    set((state) => ({
+      messageQueue: setQueueForSession(state.messageQueue, key, nextQueue),
+      messageQueueActivity: setQueueActivityForSession(
+        state.messageQueueActivity,
+        key,
+        {
+          phase: 'queued',
+          item,
+          occurredAt: Date.now(),
+        },
+      ),
+    }))
+  },
+
+  dequeue: (sessionKey) => {
+    const key = normalizeMessageQueueSessionKey(sessionKey)
+    const current = get().messageQueue[key] ?? readQueuedMessages(key)
+    const [nextItem, ...remaining] = current
+    if (!nextItem) return null
+    persistQueuedMessages(key, remaining)
+    set((state) => ({
+      messageQueue: setQueueForSession(state.messageQueue, key, remaining),
+      messageQueueActivity: setQueueActivityForSession(
+        state.messageQueueActivity,
+        key,
+        {
+          phase: 'sending',
+          item: nextItem,
+          occurredAt: Date.now(),
+        },
+      ),
+    }))
+    return nextItem
+  },
+
+  removeQueued: (sessionKey, id) => {
+    const key = normalizeMessageQueueSessionKey(sessionKey)
+    const current = get().messageQueue[key] ?? readQueuedMessages(key)
+    const nextQueue = current.filter((item) => item.id !== id)
+    persistQueuedMessages(key, nextQueue)
+    set((state) => ({
+      messageQueue: setQueueForSession(state.messageQueue, key, nextQueue),
+      messageQueueActivity:
+        nextQueue.length === 0
+          ? setQueueActivityForSession(state.messageQueueActivity, key, null)
+          : state.messageQueueActivity,
+    }))
+  },
+
+  clearQueue: (sessionKey) => {
+    const key = normalizeMessageQueueSessionKey(sessionKey)
+    persistQueuedMessages(key, [])
+    set((state) => ({
+      messageQueue: setQueueForSession(state.messageQueue, key, []),
+      messageQueueActivity: setQueueActivityForSession(
+        state.messageQueueActivity,
+        key,
+        null,
+      ),
+    }))
   },
 
   setSessionWaiting: (sessionKey, runId) => {
@@ -1049,14 +1242,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
             content.push({
               type: 'thinking',
               thinking: streaming.thinking,
-            } as ThinkingContent)
+            })
           }
 
           if (cleanStreamText) {
             content.push({
               type: 'text',
               text: cleanStreamText,
-            } as TextContent)
+            })
           }
 
           for (const toolCall of streaming.toolCalls) {
@@ -1065,7 +1258,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               id: toolCall.id,
               name: toolCall.name,
               arguments: toolCall.args as Record<string, unknown> | undefined,
-            } as ToolCallContent)
+            })
           }
 
           completeMessage = {
@@ -1337,7 +1530,7 @@ function ensureAssistantTextContent(msg: ChatMessage): ChatMessage {
 
   return {
     ...msg,
-    content: [{ type: 'text', text } as TextContent],
+    content: [{ type: 'text', text }],
   }
 }
 
