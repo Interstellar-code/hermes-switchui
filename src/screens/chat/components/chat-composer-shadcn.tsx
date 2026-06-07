@@ -448,13 +448,6 @@ function ChatComposerShadcn({
     shortPathLabel(detectedWorkspacePath) ||
     'Workspace'
 
-  const closeAllMenus = React.useCallback(() => {
-    setModelMenuOpen(false)
-    setProfileMenuOpen(false)
-    setWorkspaceMenuOpen(false)
-    setThinkingMenuOpen(false)
-  }, [])
-
   const selectModel = React.useCallback(
     (modelId: string, provider?: string) => {
       const model = modelId.trim()

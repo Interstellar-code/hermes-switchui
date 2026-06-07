@@ -30,9 +30,7 @@ import {
 } from './chat-queries'
 import { ChatMessageList } from './components/chat-message-list'
 import { ChatEmptyState } from './components/chat-empty-state'
-import { ChatComposer } from './components/chat-composer'
 import { ChatComposerShadcn } from './components/chat-composer-shadcn'
-import { useShadcnComposer } from '@/lib/feature-flags'
 import { ConnectionStatusMessage } from './components/connection-status-message'
 import {
   consumePendingSend,
@@ -525,7 +523,6 @@ export function ChatScreen({
 
   const pendingStartRef = useRef(false)
   // Feature flag (default OFF): swap in the drop-in shadcn composer.
-  const [shadcnComposerEnabled] = useShadcnComposer()
   const composerHandleRef = useRef<ChatComposerHandle | null>(null)
   // Idempotency guard prevents duplicate sends on paste/attach double-fire.
   const lastSendKeyRef = useRef('')
@@ -2891,45 +2888,24 @@ export function ChatScreen({
             />
           )}
           {showComposer ? (
-            shadcnComposerEnabled ? (
-              <ChatComposerShadcn
-                onSubmit={send}
-                onAbort={handleAbortStreaming}
-                isLoading={sending || waitingForResponse}
-                disabled={sending || hideUi}
-                sessionKey={
-                  isNewChat
-                    ? undefined
-                    : forcedSessionKey || resolvedSessionKey || activeSessionKey
-                }
-                wrapperRef={composerRef}
-                composerRef={composerHandleRef}
-                embedded={embedded}
-                // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
-                focusKey={`${isNewChat ? 'new' : activeFriendlyId}:${activeCanonicalKey ?? ''}`}
-                thinkingLevel={thinkingLevel}
-                onThinkingLevelChange={handleThinkingLevelChange}
-              />
-            ) : (
-              <ChatComposer
-                onSubmit={send}
-                onAbort={handleAbortStreaming}
-                isLoading={sending || waitingForResponse}
-                disabled={sending || hideUi}
-                sessionKey={
-                  isNewChat
-                    ? undefined
-                    : forcedSessionKey || resolvedSessionKey || activeSessionKey
-                }
-                wrapperRef={composerRef}
-                composerRef={composerHandleRef}
-                embedded={embedded}
-                // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
-                focusKey={`${isNewChat ? 'new' : activeFriendlyId}:${activeCanonicalKey ?? ''}`}
-                thinkingLevel={thinkingLevel}
-                onThinkingLevelChange={handleThinkingLevelChange}
-              />
-            )
+            <ChatComposerShadcn
+              onSubmit={send}
+              onAbort={handleAbortStreaming}
+              isLoading={sending || waitingForResponse}
+              disabled={sending || hideUi}
+              sessionKey={
+                isNewChat
+                  ? undefined
+                  : forcedSessionKey || resolvedSessionKey || activeSessionKey
+              }
+              wrapperRef={composerRef}
+              composerRef={composerHandleRef}
+              embedded={embedded}
+              // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
+              focusKey={`${isNewChat ? 'new' : activeFriendlyId}:${activeCanonicalKey ?? ''}`}
+              thinkingLevel={thinkingLevel}
+              onThinkingLevelChange={handleThinkingLevelChange}
+            />
           ) : null}
         </main>
         {!compact && !isFocusMode && <AgentViewPanel />}
