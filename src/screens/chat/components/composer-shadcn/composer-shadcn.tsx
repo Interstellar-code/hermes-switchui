@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ArrowUp } from 'lucide-react'
+import { ArrowUp, Paperclip, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/shadcn/ui/button'
@@ -22,11 +22,31 @@ import { useAutocomplete } from './use-autocomplete'
 // ─── Sent-message log (sandbox-only; replaces real send) ───────────────────
 type SentEntry = { id: string; text: string; attachmentCount: number }
 
+type Attachment = {
+  id: string
+  preview: string // base64 data URL
+  fileName: string
+  fileType: string
+}
+
+let attachmentCounter = 0
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
 export function ComposerShadcn() {
   const [value, setValue] = React.useState('')
+  const [attachments, setAttachments] = React.useState<Attachment[]>([])
   const [sent, setSent] = React.useState<SentEntry[]>([])
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
   const autocomplete = useAutocomplete()
 
   // ─── Feature 1: auto-grow textarea ───────────────────────────────────────
@@ -39,17 +59,71 @@ export function ComposerShadcn() {
     ta.style.height = `${Math.min(ta.scrollHeight, 240)}px`
   }, [value])
 
-  const canSend = value.trim().length > 0
+  const canSend = value.trim().length > 0 || attachments.length > 0
+
+  // ─── Feature 3: image paste / attach ─────────────────────────────────────
+  const addFiles = React.useCallback(async (files: File[]) => {
+    const images = files.filter((f) => f.type.startsWith('image/'))
+    if (images.length === 0) {
+      return
+    }
+    const next: Attachment[] = []
+    for (const file of images) {
+      const preview = await readFileAsDataUrl(file)
+      next.push({
+        id: `att-${++attachmentCounter}`,
+        preview,
+        fileName: file.name,
+        fileType: file.type,
+      })
+    }
+    setAttachments((prev) => [...prev, ...next])
+  }, [])
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items
+    if (!items) {
+      return
+    }
+    const files: File[] = []
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const f = items[i].getAsFile()
+        if (f) {
+          files.push(f)
+        }
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault()
+      void addFiles(files)
+    }
+  }
+
+  const handleFilePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      void addFiles(Array.from(e.target.files))
+    }
+    e.target.value = ''
+  }
+
+  const removeAttachment = (id: string) =>
+    setAttachments((prev) => prev.filter((a) => a.id !== id))
 
   const handleSend = () => {
     if (!canSend) {
       return
     }
     setSent((prev) => [
-      { id: `sent-${prev.length + 1}`, text: value, attachmentCount: 0 },
+      {
+        id: `sent-${prev.length + 1}`,
+        text: value,
+        attachmentCount: attachments.length,
+      },
       ...prev,
     ])
     setValue('')
+    setAttachments([])
     autocomplete.dismiss()
   }
 
@@ -103,21 +177,64 @@ export function ComposerShadcn() {
       <Popover open={autocomplete.isOpen}>
         <PopoverAnchor asChild>
           <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm ring-1 ring-border focus-within:ring-2 focus-within:ring-ring">
+            {/* Feature 3: attachment thumbnails */}
+            {attachments.length > 0 && (
+              <div className="flex items-center gap-2 overflow-x-auto px-4 pt-3">
+                {attachments.map((att) => (
+                  <div key={att.id} className="group/att relative shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={att.preview}
+                      alt={att.fileName}
+                      className="size-12 rounded-lg border border-border object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(att.id)}
+                      className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full border border-border bg-background opacity-0 shadow-sm transition-opacity hover:border-destructive hover:bg-destructive hover:text-destructive-foreground group-hover/att:opacity-100"
+                      aria-label="Remove attachment"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Feature 1: textarea */}
-            <div className="px-2 pt-2">
+            <div className="px-2 pt-2" onPaste={handlePaste}>
               <Textarea
                 ref={textareaRef}
                 value={value}
                 onChange={handleChange}
                 onKeyDown={handleKeyDown}
                 rows={1}
-                placeholder="Message the agent…  (try / or @)"
+                placeholder="Message the agent…  (try / or @, paste an image)"
                 className="max-h-60 min-h-[56px] resize-none border-0 bg-transparent px-2 py-2 text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
               />
             </div>
 
             {/* Footer toolbar */}
             <div className="flex items-center gap-1 px-3 pb-2 pt-1">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                hidden
+                onChange={handleFilePick}
+              />
+              {/* Feature 3: file-picker */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Attach image"
+              >
+                <Paperclip className="size-4" />
+              </Button>
+
               <div className="flex-1" />
 
               {/* Feature 1: send */}
