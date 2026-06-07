@@ -9,8 +9,17 @@ import {
 } from 'react'
 import type { Ref } from 'react'
 
-import { useAutocompleteFilter } from '@/components/ui/autocomplete'
-import { Command, CommandItem, CommandList } from '@/components/ui/command'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from '@/components/shadcn/ui/popover'
+import {
+  Command,
+  CommandEmpty,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
 import { cn } from '@/lib/utils'
 
 export type SlashCommandDefinition = {
@@ -41,25 +50,37 @@ export const DEFAULT_SLASH_COMMANDS: Array<SlashCommandDefinition> = [
   { command: '/help', description: 'Show available commands' },
 ]
 
-const SlashCommandMenu = forwardRef(function SlashCommandMenu(
+function normalizeSearchValue(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replace(/\p{Diacritic}/gu, '')
+    .trim()
+    .toLocaleLowerCase()
+}
+
+function slashCommandMatches(
+  item: SlashCommandDefinition,
+  query: string,
+): boolean {
+  const normalizedQuery = normalizeSearchValue(query)
+  if (!normalizedQuery) return true
+
+  return normalizeSearchValue(`${item.command} ${item.description}`).includes(
+    normalizedQuery,
+  )
+}
+
+const SlashCommandMenu = forwardRef(function SlashCommandMenuInner(
   { open, query, onSelect }: SlashCommandMenuProps,
   ref: Ref<SlashCommandMenuHandle>,
 ) {
   const [activeIndex, setActiveIndex] = useState(0)
-  const filter = useAutocompleteFilter({ sensitivity: 'base' })
 
   const filteredCommands = useMemo(() => {
-    const normalizedQuery = query.trim()
-    if (!normalizedQuery) return DEFAULT_SLASH_COMMANDS
-
     return DEFAULT_SLASH_COMMANDS.filter((item) =>
-      filter.contains(
-        item,
-        normalizedQuery,
-        (target) => `${target.command} ${target.description}`,
-      ),
+      slashCommandMatches(item, query),
     )
-  }, [filter, query])
+  }, [query])
 
   useEffect(() => {
     setActiveIndex(0)
@@ -90,8 +111,11 @@ const SlashCommandMenu = forwardRef(function SlashCommandMenu(
       },
       selectActive() {
         if (!open || filteredCommands.length === 0) return false
-        const selected = filteredCommands[activeIndex]
-        if (!selected) return false
+        const selectedIndex = Math.max(
+          0,
+          Math.min(activeIndex, filteredCommands.length - 1),
+        )
+        const selected = filteredCommands[selectedIndex]
         onSelect(selected)
         return true
       },
@@ -103,33 +127,42 @@ const SlashCommandMenu = forwardRef(function SlashCommandMenu(
 
   return (
     <div className="pointer-events-none absolute inset-x-2 bottom-[calc(100%+0.5rem)] z-[70]">
-      <div
-        className="pointer-events-auto overflow-hidden rounded-xl border border-primary-200 shadow-lg"
-        style={{
-          background: 'var(--color-surface, var(--theme-card, #1a1f2e))',
-        }}
-      >
-        <Command
-          items={filteredCommands}
-          value={query}
-          onValueChange={() => {}}
-          mode="none"
-          autoHighlight={false}
-          keepHighlight={false}
+      <Popover modal={false} open={open}>
+        <PopoverAnchor asChild>
+          <span aria-hidden="true" className="block h-px w-full" />
+        </PopoverAnchor>
+        <PopoverContent
+          align="start"
+          className="pointer-events-auto overflow-hidden rounded-xl border border-primary-200 p-0 shadow-lg"
+          onCloseAutoFocus={(event) => event.preventDefault()}
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          side="top"
+          sideOffset={8}
+          style={{
+            background: 'var(--color-surface, var(--theme-card, #1a1f2e))',
+            maxWidth: 'calc(100vw - 1rem)',
+            minWidth: '16rem',
+            width:
+              'var(--radix-popover-trigger-width, min(28rem, calc(100vw - 1rem)))',
+          }}
         >
-          {filteredCommands.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-primary-600">
-              No commands found
-            </div>
-          ) : (
+          <Command
+            autoHighlight={false}
+            keepHighlight={false}
+            mode="none"
+            shouldFilter={false}
+            value={query}
+            onValueChange={() => {}}
+          >
             <CommandList className="max-h-60 min-h-0">
+              <CommandEmpty>No commands found</CommandEmpty>
               {filteredCommands.map((item, index) => (
                 <CommandItem
                   key={item.command}
                   value={item.command}
                   onMouseDown={(event) => event.preventDefault()}
                   onMouseMove={() => setActiveIndex(index)}
-                  onClick={() => onSelect(item)}
+                  onSelect={() => onSelect(item)}
                   className={cn(
                     'flex flex-col items-start gap-0.5 rounded-md px-3 py-2',
                     index === activeIndex && 'bg-primary-100 text-primary-900',
@@ -142,9 +175,9 @@ const SlashCommandMenu = forwardRef(function SlashCommandMenu(
                 </CommandItem>
               ))}
             </CommandList>
-          )}
-        </Command>
-      </div>
+          </Command>
+        </PopoverContent>
+      </Popover>
     </div>
   )
 })

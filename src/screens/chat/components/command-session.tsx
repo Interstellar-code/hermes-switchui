@@ -17,7 +17,6 @@ import {
   CommandPanel,
   CommandSeparator,
 } from '@/components/ui/command'
-import { useAutocompleteFilter } from '@/components/ui/autocomplete'
 
 type CommandSession = {
   key: string
@@ -52,6 +51,20 @@ function getSessionLabel(session: CommandSession) {
   )
 }
 
+function normalizeSessionSearchValue(value: string): string {
+  return value
+    .normalize('NFKD')
+    .replace(/\p{Diacritic}/gu, '')
+    .trim()
+    .toLocaleLowerCase()
+}
+
+function sessionItemMatches(item: CommandSessionItem, query: string): boolean {
+  const normalizedQuery = normalizeSessionSearchValue(query)
+  if (!normalizedQuery) return true
+  return normalizeSessionSearchValue(item.label).includes(normalizedQuery)
+}
+
 function CommandSessionDialog({
   sessions,
   open,
@@ -59,7 +72,6 @@ function CommandSessionDialog({
   onSelect,
 }: CommandSessionProps) {
   const [value, setValue] = useState('')
-  const filter = useAutocompleteFilter({ sensitivity: 'base' })
 
   const groupedItems = useMemo<Array<CommandSessionGroup>>(() => {
     return [
@@ -82,12 +94,10 @@ function CommandSessionDialog({
     return groupedItems
       .map((group) => ({
         ...group,
-        items: group.items.filter((item) =>
-          filter.contains(item, query, (target) => target.label),
-        ),
+        items: group.items.filter((item) => sessionItemMatches(item, query)),
       }))
       .filter((group) => group.items.length > 0)
-  }, [filter, groupedItems, value])
+  }, [groupedItems, value])
 
   const isEmpty = filteredGroups.length === 0
 
@@ -113,7 +123,7 @@ function CommandSessionDialog({
                     <CommandGroup items={group.items}>
                       <CommandGroupLabel>{group.value}</CommandGroupLabel>
                       <CommandCollection>
-                        {(item) => (
+                        {(item: CommandSessionItem) => (
                           <CommandItem
                             key={item.value}
                             value={item.label}
