@@ -13,10 +13,13 @@ import {
   Popover,
   PopoverAnchor,
   PopoverContent,
+  PopoverTrigger,
 } from '@/components/shadcn/ui/popover'
+import { Button } from '@/components/shadcn/ui/button'
 import {
   Command,
   CommandEmpty,
+  CommandInput,
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
@@ -39,6 +42,11 @@ export type SlashCommandMenuProps = {
 export type SlashCommandMenuHandle = {
   moveSelection: (step: number) => void
   selectActive: () => boolean
+}
+
+export type SlashCommandPickerProps = {
+  disabled?: boolean
+  onSelect: (command: SlashCommandDefinition) => void
 }
 
 export const DEFAULT_SLASH_COMMANDS: Array<SlashCommandDefinition> = [
@@ -89,26 +97,22 @@ function normalizeSearchValue(value: string): string {
     .toLocaleLowerCase()
 }
 
-function slashCommandMatches(
+export function slashCommandMatches(
   item: SlashCommandDefinition,
   query: string,
 ): boolean {
   const normalizedQuery = normalizeSearchValue(query)
   if (!normalizedQuery) return true
 
-  return normalizeSearchValue(`${item.command} ${item.description}`).includes(
-    normalizedQuery,
-  )
+  return normalizeSearchValue(
+    `${item.command} ${item.description} ${item.source ?? ''}`,
+  ).includes(normalizedQuery)
 }
 
-const SlashCommandMenu = forwardRef(function SlashCommandMenuInner(
-  { open, query, onSelect }: SlashCommandMenuProps,
-  ref: Ref<SlashCommandMenuHandle>,
-) {
-  const [activeIndex, setActiveIndex] = useState(0)
+export function useSlashCommandDefinitions(): Array<SlashCommandDefinition> {
   const commandsQuery = useEnabledUserCommands()
 
-  const commands = useMemo<Array<SlashCommandDefinition>>(() => {
+  return useMemo<Array<SlashCommandDefinition>>(() => {
     const userCommands = commandsQuery.data.map((command) => ({
       command: command.slash,
       description: command.description || command.name,
@@ -117,6 +121,14 @@ const SlashCommandMenu = forwardRef(function SlashCommandMenuInner(
     }))
     return [...DEFAULT_SLASH_COMMANDS, ...userCommands]
   }, [commandsQuery.data])
+}
+
+const SlashCommandMenu = forwardRef(function SlashCommandMenuInner(
+  { open, query, onSelect }: SlashCommandMenuProps,
+  ref: Ref<SlashCommandMenuHandle>,
+) {
+  const [activeIndex, setActiveIndex] = useState(0)
+  const commands = useSlashCommandDefinitions()
 
   const filteredCommands = useMemo(() => {
     return commands.filter((item) => slashCommandMatches(item, query))
@@ -223,4 +235,93 @@ const SlashCommandMenu = forwardRef(function SlashCommandMenuInner(
   )
 })
 
-export { SlashCommandMenu }
+function SlashCommandPicker({ disabled, onSelect }: SlashCommandPickerProps) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const commands = useSlashCommandDefinitions()
+
+  const filteredCommands = useMemo(() => {
+    return commands.filter((item) => slashCommandMatches(item, query))
+  }, [commands, query])
+
+  useEffect(() => {
+    if (disabled) setOpen(false)
+  }, [disabled])
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (disabled) {
+      setOpen(false)
+      return
+    }
+    setOpen(nextOpen)
+    if (!nextOpen) setQuery('')
+  }
+
+  const handleSelect = (command: SlashCommandDefinition) => {
+    onSelect(command)
+    setOpen(false)
+    setQuery('')
+  }
+
+  return (
+    <Popover modal={false} open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={disabled}
+          aria-label="Browse slash commands"
+          aria-expanded={open}
+          title="Slash commands"
+          className={cn(open && 'text-primary')}
+        >
+          <span className="text-base font-semibold leading-none">/</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-[min(24rem,calc(100vw_-_1rem))] overflow-hidden rounded-xl border border-primary-200 p-0 shadow-lg"
+        onCloseAutoFocus={(event) => event.preventDefault()}
+        side="top"
+        sideOffset={8}
+        style={{
+          background: 'var(--color-surface, var(--theme-card, #1a1f2e))',
+        }}
+      >
+        <Command
+          items={filteredCommands}
+          mode="none"
+          shouldFilter={false}
+          value={query}
+          onValueChange={setQuery}
+        >
+          <CommandInput placeholder="Search slash commands" />
+          <CommandList className="max-h-72 min-h-0">
+            <CommandEmpty>No slash commands found</CommandEmpty>
+            {filteredCommands.map((item) => (
+              <CommandItem
+                key={item.command}
+                value={`${item.command} ${item.description}`}
+                onSelect={() => handleSelect(item)}
+                className="flex flex-col items-start gap-1 rounded-md px-3 py-2"
+              >
+                <span className="flex w-full items-center gap-2">
+                  <span className="text-sm font-semibold">{item.command}</span>
+                  <span className="ml-auto rounded-full border border-primary-200 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-primary-600">
+                    {item.source === 'user' ? 'Custom' : 'Built-in'}
+                  </span>
+                </span>
+                <span className="text-xs text-primary-600">
+                  {item.description}
+                </span>
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+export { SlashCommandMenu, SlashCommandPicker }
