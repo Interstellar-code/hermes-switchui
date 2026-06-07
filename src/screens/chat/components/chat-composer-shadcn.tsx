@@ -1012,7 +1012,7 @@ function ChatComposerShadcn({
                         <Button
                           type="button"
                           size="sm"
-                          variant="secondary"
+                          variant="default"
                           onClick={handleQueueSubmit}
                           disabled={!canQueue}
                           aria-label="Add to queue"
