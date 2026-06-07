@@ -1,11 +1,11 @@
 import { Avatar } from '@base-ui/react/avatar'
 import { Markdown } from './markdown'
 import {
+  Tooltip,
   TooltipContent,
   TooltipProvider,
-  TooltipRoot,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
+} from '@/components/shadcn/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 export type MessageProps = {
@@ -100,7 +100,7 @@ export type MessageActionProps = {
   tooltip: React.ReactNode
   children: React.ReactNode
   side?: 'top' | 'bottom' | 'left' | 'right'
-} & React.ComponentProps<typeof TooltipRoot>
+} & React.ComponentProps<typeof Tooltip>
 
 function MessageAction({
   tooltip,
@@ -111,12 +111,12 @@ function MessageAction({
 }: MessageActionProps) {
   return (
     <TooltipProvider>
-      <TooltipRoot {...props}>
+      <Tooltip {...props}>
         <TooltipTrigger>{children}</TooltipTrigger>
         <TooltipContent side={side} className={className}>
           {tooltip}
         </TooltipContent>
-      </TooltipRoot>
+      </Tooltip>
     </TooltipProvider>
   )
 }

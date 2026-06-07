@@ -31,10 +31,10 @@ import { assignPersona } from '@/lib/agent-personas'
 import { formatCost, formatRuntime } from '@/hooks/use-agent-view'
 import { toggleAgentPause } from '@/lib/gateway-api'
 import {
+  Tooltip,
   TooltipContent,
-  TooltipRoot,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
+} from '@/components/shadcn/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 export type AgentNodeStatus = AgentProgressStatus
@@ -552,7 +552,7 @@ export function AgentCard({
         /* Expanded mode: horizontal layout for non-main agents */
         <div className="flex items-start gap-2.5">
           {/* Left: Progress ring + avatar with tooltip */}
-          <TooltipRoot>
+          <Tooltip>
             <TooltipTrigger className="relative flex-shrink-0 size-14 cursor-default">
               <AgentProgress
                 value={node.progress}
@@ -609,7 +609,7 @@ export function AgentCard({
               <span className="font-medium tabular-nums">{node.progress}%</span>{' '}
               complete
             </TooltipContent>
-          </TooltipRoot>
+          </Tooltip>
 
           {/* Right: Text content */}
           <div className="flex-1 min-w-0 pt-0.5">

@@ -2,11 +2,11 @@ import { memo, useCallback, useMemo, useState } from 'react'
 import type { OrchestratorState } from '@/hooks/use-orchestrator-state'
 import { useOrchestratorState } from '@/hooks/use-orchestrator-state'
 import {
+  Tooltip,
   TooltipContent,
   TooltipProvider,
-  TooltipRoot,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
+} from '@/components/shadcn/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 /* ── Avatar types ─────────────────────────────────────── */
@@ -1739,31 +1739,31 @@ function OrchestratorAvatarComponent({ size = 48, compact = false }: Orchestrato
   return (
     <div className="relative flex flex-col items-center gap-1">
       <TooltipProvider>
-        <TooltipRoot>
-          <TooltipTrigger
-            render={
-              <div
-                className="relative flex items-center justify-center rounded-full transition-all duration-300"
-                style={{ width: size + 4, height: size + 4 }}
-              >
-                <Renderer state={state} size={size} />
-                {/* State dot */}
-                <span
-                  className="absolute bottom-0 right-0 block rounded-full border-2 border-primary-50"
-                  style={{
-                    width: Math.max(8, size / 6),
-                    height: Math.max(8, size / 6),
-                    backgroundColor: dotColor,
-                    transition: 'background-color 300ms ease',
-                  }}
-                />
-              </div>
-            }
-          />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div
+              className="relative flex items-center justify-center rounded-full transition-all duration-300"
+              style={{ width: size + 4, height: size + 4 }}
+              tabIndex={0}
+              role="button"
+            >
+              <Renderer state={state} size={size} />
+              {/* State dot */}
+              <span
+                className="absolute bottom-0 right-0 block rounded-full border-2 border-primary-50"
+                style={{
+                  width: Math.max(8, size / 6),
+                  height: Math.max(8, size / 6),
+                  backgroundColor: dotColor,
+                  transition: 'background-color 300ms ease',
+                }}
+              />
+            </div>
+          </TooltipTrigger>
           <TooltipContent side="right" className="text-xs">
             {tooltipText}
           </TooltipContent>
-        </TooltipRoot>
+        </Tooltip>
       </TooltipProvider>
 
       {/* Edit pencil overlay */}
