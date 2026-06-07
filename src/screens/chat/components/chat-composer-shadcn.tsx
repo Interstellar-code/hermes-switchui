@@ -41,6 +41,7 @@ import {
   Globe,
   Mic,
   Paperclip,
+  Reply,
   Square,
   SquarePen,
   X,
@@ -111,6 +112,29 @@ type ChatComposerShadcnProps = {
 }
 
 const MAX_TEXTAREA_HEIGHT = 240
+const REPLY_MARKER_SNIPPET_LIMIT = 140
+const REPLY_PREVIEW_SNIPPET_LIMIT = 80
+
+function normalizeReplySnippet(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function truncateReplySnippet(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value
+  return `${value.slice(0, maxLength).trimEnd()}…`
+}
+
+function formatReplyMarker(replyTo: {
+  seq: number
+  role: string
+  preview: string
+}): string {
+  const snippet = truncateReplySnippet(
+    normalizeReplySnippet(replyTo.preview),
+    REPLY_MARKER_SNIPPET_LIMIT,
+  )
+  return `> [Re: #${replyTo.seq}] ${snippet}\n\n`
+}
 
 // ─── Attachment helpers (parity-correct ChatComposerAttachment shape) ──────
 function readFileAsDataUrl(file: File): Promise<string | null> {
@@ -417,15 +441,7 @@ function ChatComposerShadcn({
     if (rawBody.length === 0 && attachments.length === 0) return
     submittingRef.current = true
     const attachmentPayload = attachments.map((a) => ({ ...a }))
-    // Prepend a markdown blockquote when replying to a prior message.
-    // Collapse to a single line + truncate so it renders as one clean quote
-    // rather than dumping the whole replied message into the bubble.
-    const replySnippet = replyTo
-      ? replyTo.preview.replace(/\s+/g, ' ').trim()
-      : ''
-    const body = replyTo
-      ? `> [Re: #${replyTo.seq}] ${replySnippet.length > 140 ? `${replySnippet.slice(0, 140)}…` : replySnippet}\n\n${rawBody}`
-      : rawBody
+    const body = replyTo ? `${formatReplyMarker(replyTo)}${rawBody}` : rawBody
     try {
       // Fast mode is incompatible with extended thinking — disable if thinking
       // is on (mirrors the live composer's effectiveFastMode rule).
@@ -527,19 +543,27 @@ function ChatComposerShadcn({
 
         {/* reply-to chip — shows when a message is being replied to */}
         {replyTo && (
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-accent px-3 py-1.5 text-xs text-accent-foreground">
-            <span className="flex-1 truncate">
-              Replying to #{replyTo.seq} ({replyTo.role}):{' '}
-              <span className="opacity-70">
-                {replyTo.preview.length > 80
-                  ? `${replyTo.preview.slice(0, 80)}…`
-                  : replyTo.preview}
+          <div className="flex items-start gap-2 rounded-lg border border-border/70 border-l-2 border-l-primary bg-muted px-3 py-2 text-xs text-muted-foreground">
+            <Reply
+              className="mt-0.5 size-3.5 shrink-0 text-primary"
+              aria-hidden="true"
+            />
+            <div className="min-w-0 flex-1">
+              <span className="font-medium text-foreground">
+                Reply to #{replyTo.seq}
               </span>
-            </span>
+              <span className="mx-1 text-muted-foreground">·</span>
+              <span className="align-bottom">
+                {truncateReplySnippet(
+                  normalizeReplySnippet(replyTo.preview),
+                  REPLY_PREVIEW_SNIPPET_LIMIT,
+                ) || `${replyTo.role} message`}
+              </span>
+            </div>
             <button
               type="button"
               onClick={() => onClearReply?.()}
-              className="shrink-0 opacity-70 transition-opacity hover:opacity-100"
+              className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
               aria-label="Clear reply"
             >
               <X className="size-3.5" />
