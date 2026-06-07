@@ -41,18 +41,22 @@ import {
   Eye,
   EyeOff,
   Globe,
+  ListCollapse,
   ListPlus,
+  ListTree,
   Mic,
   Paperclip,
   Reply,
   Square,
   SquarePen,
   Trash2,
+  Wrench,
   X,
   Zap,
 } from 'lucide-react'
 
 import { useShallow } from 'zustand/react/shallow'
+import type { ToolDisplayMode } from './message-item'
 import { ContextBar } from './context-bar'
 import {
   MAX_ATTACHMENT_FILE_SIZE,
@@ -122,6 +126,8 @@ type ChatComposerShadcnProps = {
   onClearReply?: () => void
   systemMessagesHidden?: boolean
   onToggleSystemMessages?: () => void
+  toolDisplayMode?: ToolDisplayMode
+  onCycleToolDisplayMode?: () => void
 }
 
 const MAX_TEXTAREA_HEIGHT = 240
@@ -233,6 +239,8 @@ function ChatComposerShadcn({
   onClearReply,
   systemMessagesHidden,
   onToggleSystemMessages,
+  toolDisplayMode = 'collapsed',
+  onCycleToolDisplayMode,
 }: ChatComposerShadcnProps) {
   const [value, setValue] = React.useState('')
   const [attachments, setAttachments] = React.useState<
@@ -977,6 +985,47 @@ function ChatComposerShadcn({
                       {systemMessagesHidden
                         ? 'Show system messages'
                         : 'Hide system messages'}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+
+                {/* tool-display mode cycle: expanded → collapsed → hidden */}
+                {onCycleToolDisplayMode && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={onCycleToolDisplayMode}
+                        aria-label={
+                          toolDisplayMode === 'expanded'
+                            ? 'Tool sections expanded — click to collapse'
+                            : toolDisplayMode === 'collapsed'
+                              ? 'Tool sections collapsed — click to hide'
+                              : 'Tool sections hidden — click to expand'
+                        }
+                        aria-pressed={toolDisplayMode !== 'hidden'}
+                        className={cn(
+                          toolDisplayMode === 'expanded' && 'text-primary',
+                          toolDisplayMode === 'hidden' && 'opacity-40',
+                        )}
+                      >
+                        {toolDisplayMode === 'expanded' ? (
+                          <ListTree className="size-4" />
+                        ) : toolDisplayMode === 'collapsed' ? (
+                          <ListCollapse className="size-4" />
+                        ) : (
+                          <Wrench className="size-4" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {toolDisplayMode === 'expanded'
+                        ? 'Tools: expanded'
+                        : toolDisplayMode === 'collapsed'
+                          ? 'Tools: collapsed'
+                          : 'Tools: hidden'}
                     </TooltipContent>
                   </Tooltip>
                 )}

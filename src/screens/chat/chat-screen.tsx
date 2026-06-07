@@ -30,6 +30,7 @@ import {
   updateSessionLastMessage,
 } from './chat-queries'
 import { ChatMessageList } from './components/chat-message-list'
+import type { ToolDisplayMode } from './components/message-item'
 import { ChatEmptyState } from './components/chat-empty-state'
 import { ChatComposerShadcn } from './components/chat-composer-shadcn'
 import { ConnectionStatusMessage } from './components/connection-status-message'
@@ -514,6 +515,23 @@ export function ChatScreen({
   } | null>(null)
   // System-messages visibility toggle (default: hidden)
   const [hideSystemMessages, setHideSystemMessages] = useState(true)
+  // Tool-display mode: expanded | collapsed | hidden (persisted across sessions)
+  const [toolDisplayMode, setToolDisplayMode] = useState<ToolDisplayMode>(() => {
+    if (typeof window === 'undefined') return 'collapsed'
+    const stored = localStorage.getItem('switchui:tool-display-mode')
+    if (stored === 'expanded' || stored === 'collapsed' || stored === 'hidden') {
+      return stored
+    }
+    return 'collapsed'
+  })
+  const cycleToolDisplayMode = useCallback(() => {
+    setToolDisplayMode((prev) => {
+      const next: ToolDisplayMode =
+        prev === 'expanded' ? 'collapsed' : prev === 'collapsed' ? 'hidden' : 'expanded'
+      localStorage.setItem('switchui:tool-display-mode', next)
+      return next
+    })
+  }, [])
   // Per-session thinking level — stored in sessionStorage keyed by session
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>(() => {
     if (typeof window === 'undefined') return 'low'
@@ -3051,6 +3069,7 @@ export function ChatScreen({
               isCompacting={isCompacting}
               liveProgressLabel={liveProgressLabel}
               sending={sending}
+              toolDisplayMode={toolDisplayMode}
             />
           )}
           {showComposer ? (
@@ -3072,6 +3091,8 @@ export function ChatScreen({
               onToggleSystemMessages={() =>
                 setHideSystemMessages((v) => !v)
               }
+              toolDisplayMode={toolDisplayMode}
+              onCycleToolDisplayMode={cycleToolDisplayMode}
               onNewSession={() => {
                 if (!embedded) {
                   try {

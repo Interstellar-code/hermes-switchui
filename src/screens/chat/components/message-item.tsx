@@ -262,7 +262,7 @@ type MessageItemProps = {
   streamingThinking?: string
   simulateStreaming?: boolean
   streamingKey?: string | null
-  expandAllToolSections?: boolean
+  toolDisplayMode?: ToolDisplayMode
   isLastAssistant?: boolean
 }
 
@@ -280,6 +280,8 @@ type InlineToolSection = {
     | 'output-available'
     | 'output-error'
 }
+
+export type ToolDisplayMode = 'expanded' | 'collapsed' | 'hidden'
 
 export type InlineRenderPlanItem =
   | { kind: 'text'; text: string }
@@ -2032,7 +2034,7 @@ function MessageItemComponent({
   streamingThinking,
   simulateStreaming: _simulateStreaming = false,
   streamingKey: _streamingKey,
-  expandAllToolSections = false,
+  toolDisplayMode = 'collapsed' as ToolDisplayMode,
   isLastAssistant = false,
 }: MessageItemProps) {
   const role = message.role || 'assistant'
@@ -2567,6 +2569,7 @@ function MessageItemComponent({
           renders its own branched TuiActivityCard so we don't double up. */}
       {!isUser &&
       finalToolSections.length > 0 &&
+      toolDisplayMode !== 'hidden' &&
       (hasText || !effectiveIsStreaming) ? (
         <div className="w-full max-w-[var(--chat-content-max-width)] flex">
           <div className="w-6 shrink-0" aria-hidden />
@@ -2575,7 +2578,7 @@ function MessageItemComponent({
               toolSections={finalToolSections}
               thinking={null}
               isStreaming={effectiveIsStreaming}
-              expandAll={expandAllToolSections}
+              expandAll={toolDisplayMode === 'expanded'}
               formatLabel={formatToolDisplayLabel}
               formatArg={keyArgLabel}
             />
@@ -2902,7 +2905,7 @@ function areMessagesEqual(
   if (prevProps.streamingKey !== nextProps.streamingKey) {
     return false
   }
-  if (prevProps.expandAllToolSections !== nextProps.expandAllToolSections) {
+  if (prevProps.toolDisplayMode !== nextProps.toolDisplayMode) {
     return false
   }
   if (

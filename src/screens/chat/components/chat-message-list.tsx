@@ -11,6 +11,7 @@ import {
   textFromMessage,
 } from '../utils'
 import { MessageItem } from './message-item'
+import type { ToolDisplayMode } from './message-item'
 import { TuiActivityCard } from './tui-activity-card'
 import { ScrollToBottomButton } from './scroll-to-bottom-button'
 import { ResearchCard } from './research-card'
@@ -631,6 +632,8 @@ type ChatMessageListProps = {
    *  can confirm the server received it). Keeps the thinking indicator visible
    *  during the very first render after the user submits. */
   sending?: boolean
+  /** Controls how tool-call sections render: expanded, collapsed (default), or hidden. */
+  toolDisplayMode?: ToolDisplayMode
 }
 
 export function isThinkingIndicatorSurfaceVisible({
@@ -694,6 +697,7 @@ function ChatMessageListComponent({
   isCompacting = false,
   liveProgressLabel = '',
   sending = false,
+  toolDisplayMode = 'collapsed' as ToolDisplayMode,
 }: ChatMessageListProps) {
   const anchorRef = useRef<HTMLDivElement | null>(null)
   const lastUserRef = useRef<HTMLDivElement | null>(null)
@@ -709,8 +713,6 @@ function ChatMessageListComponent({
   const isNearBottomRef = useRef(true)
   const [isNearBottom, setIsNearBottom] = useState(true)
   const [unreadCount, setUnreadCount] = useState(0)
-  const [expandAllToolSections, setExpandAllToolSections] = useState(false)
-
   // Bug 2 fix: grace period — keep thinking indicator alive briefly after
   // waitingForResponse clears so the response message has time to render.
   const [thinkingGrace, setThinkingGrace] = useState(false)
@@ -1456,7 +1458,7 @@ function ChatMessageListComponent({
             lifecycleEvents={messageIsStreaming ? lifecycleEvents : undefined}
             simulateStreaming={simulateStreaming}
             streamingKey={signature}
-            expandAllToolSections={expandAllToolSections}
+            toolDisplayMode={toolDisplayMode}
           />
         </div>
       )
@@ -1489,7 +1491,7 @@ function ChatMessageListComponent({
         lifecycleEvents={messageIsStreaming ? lifecycleEvents : undefined}
         simulateStreaming={simulateStreaming}
         streamingKey={signature}
-        expandAllToolSections={expandAllToolSections}
+        toolDisplayMode={toolDisplayMode}
       />
     )
   }
@@ -1541,10 +1543,6 @@ function ChatMessageListComponent({
     scrollToBottom,
     streamingText,
   ])
-
-  useEffect(() => {
-    setExpandAllToolSections(false)
-  }, [sessionKey])
 
   useEffect(() => {
     if (!isMessageSearchOpen) return
@@ -1824,24 +1822,23 @@ function ChatMessageListComponent({
                       </p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setExpandAllToolSections(true)}
-                    disabled={expandAllToolSections}
+                  <span
                     className={cn(
-                      'shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors',
-                      expandAllToolSections
-                        ? 'border-amber-300 bg-amber-100 text-amber-700 cursor-default'
-                        : 'border-amber-300 bg-amber-100/80 text-amber-800 hover:bg-amber-200 dark:hover:bg-amber-900/30 hover:border-amber-400',
+                      'shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium',
+                      toolDisplayMode === 'expanded'
+                        ? 'border-amber-300 bg-amber-100 text-amber-700'
+                        : toolDisplayMode === 'hidden'
+                          ? 'border-amber-300 bg-amber-100/80 text-amber-500'
+                          : 'border-amber-300 bg-amber-100/80 text-amber-800',
                     )}
-                    aria-label={
-                      expandAllToolSections
-                        ? 'All tool sections expanded'
-                        : 'Expand all tool sections'
-                    }
+                    aria-label={`Tool sections: ${toolDisplayMode}`}
                   >
-                    {expandAllToolSections ? '✓ Expanded' : 'Show All'}
-                  </button>
+                    {toolDisplayMode === 'expanded'
+                      ? '✓ Expanded'
+                      : toolDisplayMode === 'hidden'
+                        ? '⊘ Hidden'
+                        : 'Collapsed'}
+                  </span>
                 </div>
               </div>
             ) : null}
@@ -1934,7 +1931,7 @@ function ChatMessageListComponent({
                         }
                         simulateStreaming={simulateStreaming}
                         streamingKey={signature}
-                        expandAllToolSections={expandAllToolSections}
+                        toolDisplayMode={toolDisplayMode}
                         isLastAssistant={forceActionsVisible}
                       />
                     )
@@ -2171,7 +2168,8 @@ function areChatMessageListEqual(
     prev.hideSystemMessages === next.hideSystemMessages &&
     prev.isCompacting === next.isCompacting &&
     prev.liveProgressLabel === next.liveProgressLabel &&
-    prev.sending === next.sending
+    prev.sending === next.sending &&
+    prev.toolDisplayMode === next.toolDisplayMode
   )
 }
 
