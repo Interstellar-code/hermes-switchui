@@ -2550,10 +2550,7 @@ export function ChatScreen({
       const trimmedBody = body.trim()
       if (trimmedBody.length === 0 && attachments.length === 0) return
       if (attachments.length === 0 && handleUiSlashCommand(trimmedBody)) return
-      const messageBody =
-        attachments.length === 0
-          ? (expandCustomSlashCommand(trimmedBody) ?? trimmedBody)
-          : trimmedBody
+      const messageBody = expandCustomSlashCommand(trimmedBody) ?? trimmedBody
 
       // Deduplicate sends with identical content within a 500ms window.
       // This prevents double-fire from paste events that trigger multiple send paths.

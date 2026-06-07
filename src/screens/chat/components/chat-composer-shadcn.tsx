@@ -56,7 +56,6 @@ import {
 } from 'lucide-react'
 
 import { useShallow } from 'zustand/react/shallow'
-import type { ToolDisplayMode } from './message-item'
 import { ContextBar } from './context-bar'
 import {
   MAX_ATTACHMENT_FILE_SIZE,
@@ -71,9 +70,13 @@ import type {
   ModelSwitchNotice,
   ThinkingLevel,
 } from './chat-composer'
+import type { ToolDisplayMode } from './message-item'
 import type { Ref } from 'react'
 import type {MessageQueueActivity, QueuedChatMessage} from '@/stores/chat-store';
-import type {SlashCommandDefinition, SlashCommandMenuHandle} from '@/components/slash-command-menu';
+import type {
+  SlashCommandDefinition,
+  SlashCommandMenuHandle,
+} from '@/components/slash-command-menu'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/shadcn/ui/button'
 import { Textarea } from '@/components/shadcn/ui/textarea'
@@ -84,9 +87,8 @@ import {
   TooltipTrigger,
 } from '@/components/shadcn/ui/tooltip'
 import {
-  
-  SlashCommandMenu
-  
+  SlashCommandMenu,
+  SlashCommandPicker,
 } from '@/components/slash-command-menu'
 import {
   
@@ -876,6 +878,11 @@ function ChatComposerShadcn({
                   </TooltipTrigger>
                   <TooltipContent>Attach file</TooltipContent>
                 </Tooltip>
+
+                <SlashCommandPicker
+                  disabled={disabled}
+                  onSelect={handleSelectSlashCommand}
+                />
 
                 {/* voice (mic) — preserves switchui voice parity */}
                 {voiceSupported && (

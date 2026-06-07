@@ -115,6 +115,14 @@ function readString(value: unknown, field: string): string | undefined {
   return value.trim()
 }
 
+function assertCommandInput(
+  input: unknown,
+): asserts input is CreateUserCommandInput {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw new CommandValidationError('request body must be an object')
+  }
+}
+
 function readBoolean(value: unknown, field: string): boolean | undefined {
   if (value === undefined) return undefined
   if (typeof value !== 'boolean') {
@@ -237,6 +245,7 @@ export function getEnabledUserCommandBySlash(
 export function createUserCommand(
   input: CreateUserCommandInput,
 ): UserCommandRecord {
+  assertCommandInput(input)
   const slashInput = readString(input.slash, 'slash')
   if (!slashInput) throw new CommandValidationError('slash is required')
   const slash = validateSlash(slashInput)
@@ -287,6 +296,7 @@ export function updateUserCommand(
   commandId: string,
   input: UpdateUserCommandInput,
 ): UserCommandRecord {
+  assertCommandInput(input)
   const existing = getUserCommand(commandId)
   if (!existing) throw new CommandNotFoundError('Command not found')
 

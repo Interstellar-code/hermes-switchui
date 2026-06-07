@@ -73,6 +73,20 @@ describe('commands-store', () => {
     ).toThrow(/reserved/i)
   })
 
+  it('rejects non-object payloads as validation errors', () => {
+    expect(() =>
+      createUserCommand(
+        null as unknown as Parameters<typeof createUserCommand>[0],
+      ),
+    ).toThrow(/body must be an object/i)
+    expect(() =>
+      updateUserCommand(
+        'cmd_missing',
+        [] as unknown as Parameters<typeof updateUserCommand>[1],
+      ),
+    ).toThrow(/body must be an object/i)
+  })
+
   it('updates and deletes commands', () => {
     const created = createUserCommand({
       slash: '/review',
