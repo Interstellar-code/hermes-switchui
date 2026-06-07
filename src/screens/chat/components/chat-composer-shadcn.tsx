@@ -784,7 +784,7 @@ function ChatComposerShadcn({
     <TooltipProvider delayDuration={200}>
       <div
         ref={wrapperRef}
-        className="mx-auto flex w-full max-w-3xl flex-col gap-2"
+        className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-3 pt-2 pb-6 sm:px-5 md:pb-8"
       >
         {/* attachment thumbnails / chips */}
         {attachments.length > 0 && (
