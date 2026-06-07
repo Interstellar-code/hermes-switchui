@@ -3,6 +3,36 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.27] — 2026-06-07
+
+Shadcn composer cutover at /chat + reply / queue / tool-display features.
+
+### Added
+
+- **shadcn/ui is now the default chat composer at `/chat`** (#187, #189). The base-ui `ChatComposer` has been replaced by a new `ChatComposerShadcn` that reuses the same `ChatComposerProps` / `Handle` / `Helpers` / `Attachment` contract and delegates all send/streaming logic to `chat-screen`. Coexistence guardrail holds: shadcn lives only under `src/components/shadcn/ui/`, base-ui stays under `src/components/ui/`, and all shadcn primitives inherit the 13-theme palette via the `--theme-*` token bridge in `src/styles.css`. Phase 0 (`feat(ui): shadcn/ui Phase 0 — isolated coexistence + token bridge`) and Phase 1 plan executed end-to-end (see `.omc/plans/shadcn-adoption.md`).
+- **Tool-display 3-state toggle.** A new footer button on the composer cycles tool-section visibility `expanded → collapsed → hidden` (with a distinct icon + label + muted styling per mode). State is persisted to `localStorage` under `switchui:tool-display-mode` and per-message rendering skips the entire tool-section block in `hidden` mode. Maps to the operator1 `setToolDisplayMode` cycle.
+- **Reply-to quote.** A new `Reply` button on `MessageActionsBar` quotes the target message into the composer; outgoing messages are prepended with a styled `> [Re: #N]` blockquote (left-accent `border-l-2 border-primary`, `CornerUpLeft` icon) — the raw marker is kept in the outgoing text for LLM context and reload persistence.
+- **Reply chip + system-message toggle + new-chat button.** Dismissible reply chip above the textarea; `Eye`/`EyeOff` toolbar button hides system messages; `SquarePen` toolbar button issues a `navigate({ to: '/', replace: true })` new-chat.
+- **Queue composer sends while streaming.** Per-session persisted FIFO queue: stage sends during an active stream, drain FIFO as each response completes. The native Hermes `/queue` is client-coordinated and returns `{type:send}` over REST+SSE, so this client-side FIFO is functionally equivalent.
+- **Toolbar parity** on `ChatComposerShadcn`: profile, workspace, thinking-level (with Shift-click quick-cycle), fast-mode, web-search, and live model switch (per-session persistence + gateway `switchModel` with the zero-fork guard). Reuses the live composer's exported helpers/types — no behavior duplication.
+- **Cherry-picked sandbox composer features** (now live in the cutover composer): auto-growing textarea with Enter-to-send / Shift+Enter-newline, caret-anchored slash (`/`) + `@` autocomplete popover (shadcn `Popover` + `Command`), image paste + file-picker attachments (with thumbnail chips), reply-to chip, message queue with start/stop/clear (persisted to `localStorage`), color-coded live context counter, and an inline agent + session badges row with a provider-grouped model selector popover.
+- **shadcn composer primitives** under `src/components/shadcn/ui/`: `button`, `popover`, `tooltip`, `dialog`, `command`, `input`, `textarea` (all generated via `shadcn@4.10.0`). Radix deps (`@radix-ui/react-popover`, `@radix-ui/react-tooltip`, `@radix-ui/react-dialog`) and `cmdk` installed as direct dependencies.
+
+### Changed
+
+- **Selectors relocated from composer toolbar to meta bar.** Model / profile / workspace / thinking dropdowns moved out of `ChatComposerShadcn` into a new self-contained `SessionSelectorsV2` component rendered by the meta bar. Composer toolbar is now icons + context ring + send only. The meta bar now highlights the 4 relocated selector chips with an accent border + subtle accent fill so they read as interactive controls, and drops the read-only status (tok/s, model echo, ctx%, token count, tools) to remove the confusing double model indicator. The composer still owns thinking-level (read-only) for the fast-mode gate.
+- **Reply reference redesigned** as a styled quote block (bg-muted, `border-l-2 border-primary`, `CornerUpLeft` icon) above the message body instead of being inlined as raw `> [Re: #N]` markdown.
+- **Composer image compression pipeline ported** to `ChatComposerShadcn` (helpers exported from the live composer; 50 MB size cap, canvas compression with graceful fallback).
+- **Sandbox composer artifacts removed** at cutover: the `switchui:shadcn-composer` feature flag, the `/composer-preview` dev route, and the `composer-shadcn/` sandbox directory are deleted (route tree regenerated). The previous `ChatComposer` is kept on disk for revert only.
+
+### Fixed
+
+- **Runtime `React is not defined` at `/chat`** — the tool-display toggle wiring used `React.useCallback` against an unimported `React` global; switched to the already-imported named `useCallback`, and added the missing `ToolDisplayMode` type import.
+- **Add-to-queue button rendered as washed-out `secondary` on Matrix dark** — the button uses `primary` variant to match the send button, since queueing is the primary action while streaming.
+- **Composer docked flush to viewport bottom** — restored outer padding `px-3 pt-2 pb-6 sm:px-5 md:pb-8` so the composer has the same bottom gap as the original.
+- **Reply preview showed raw markdown** — table pipes / headers stripped so the quote snippet reads as clean prose.
+- **Reply quote dumped the full multi-line message** — collapsed whitespace and capped at 140 chars with ellipsis so it renders as one clean blockquote line.
+
 ## [2.3.26] — 2026-06-05
 
 Website served in-app.
