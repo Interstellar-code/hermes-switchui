@@ -56,6 +56,13 @@ export const MOBILE_HAMBURGER_NAV_ITEMS = [
     match: (p: string) => p.startsWith('/jobs'),
   },
   {
+    id: 'commands',
+    label: 'Commands',
+    icon: CommandLineIcon,
+    to: '/commands',
+    match: (p: string) => p.startsWith('/commands'),
+  },
+  {
     id: 'conductor',
     label: 'Conductor',
     icon: Rocket01Icon,

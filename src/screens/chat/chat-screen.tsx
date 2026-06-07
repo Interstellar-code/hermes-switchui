@@ -86,6 +86,11 @@ import { TerminalPanel } from '@/components/terminal-panel'
 import { AgentViewPanel } from '@/components/agent-view/agent-view-panel'
 import { useTerminalPanelStore } from '@/stores/terminal-panel-store'
 import { useModelSuggestions } from '@/hooks/use-model-suggestions'
+import {
+  expandUserCommandPrompt,
+  findEnabledCommandBySlash,
+  useEnabledUserCommands,
+} from '@/lib/commands-api'
 import { ModelSuggestionToast } from '@/components/model-suggestion-toast'
 import { _localModelOverride } from '@/screens/chat/local-model-override'
 import { useSessionModelStore } from '@/stores/session-model-store'
@@ -476,6 +481,8 @@ export function ChatScreen({
   const chatFocusMode = useWorkspaceStore((s) => s.chatFocusMode)
   const setChatFocusMode = useWorkspaceStore((s) => s.setChatFocusMode)
   const queryClient = useQueryClient()
+  const userCommandsQuery = useEnabledUserCommands()
+  const enabledUserCommands = userCommandsQuery.data
   const [activeTab, setActiveTab] = useState<SourceTab>('chat')
   const [sending, setSending] = useState(false)
   const [_creatingSession, setCreatingSession] = useState(false)
@@ -2521,6 +2528,18 @@ export function ChatScreen({
     ],
   )
 
+  const expandCustomSlashCommand = useCallback(
+    (body: string): string | null => {
+      const trimmed = body.trim()
+      if (!trimmed.startsWith('/')) return null
+      const [slashToken = '', ...inputParts] = trimmed.split(/\s+/)
+      const command = findEnabledCommandBySlash(enabledUserCommands, slashToken)
+      if (!command) return null
+      return expandUserCommandPrompt(command, inputParts.join(' '))
+    },
+    [enabledUserCommands],
+  )
+
   const send = useCallback(
     (
       body: string,
@@ -2531,10 +2550,14 @@ export function ChatScreen({
       const trimmedBody = body.trim()
       if (trimmedBody.length === 0 && attachments.length === 0) return
       if (attachments.length === 0 && handleUiSlashCommand(trimmedBody)) return
+      const messageBody =
+        attachments.length === 0
+          ? (expandCustomSlashCommand(trimmedBody) ?? trimmedBody)
+          : trimmedBody
 
       // Deduplicate sends with identical content within a 500ms window.
       // This prevents double-fire from paste events that trigger multiple send paths.
-      const sendKey = `${trimmedBody}|${attachments.map((a) => `${a.name}:${a.size}`).join(',')}`
+      const sendKey = `${messageBody}|${attachments.map((a) => `${a.name}:${a.size}`).join(',')}`
       const now = Date.now()
       if (
         sendKey === lastSendKeyRef.current &&
@@ -2569,7 +2592,7 @@ export function ChatScreen({
       if (shouldQueueInsteadOfSend && queueSessionKeyForSend) {
         useChatStore.getState().enqueue(queueSessionKeyForSend, {
           id: crypto.randomUUID(),
-          text: trimmedBody,
+          text: messageBody,
           attachments: attachments.map((attachment) => ({ ...attachment })),
         })
         helpers.reset()
@@ -2597,7 +2620,7 @@ export function ChatScreen({
         // In enhanced mode, create a UUID thread for the sessions API.
         const threadId = isPortableMode ? 'main' : crypto.randomUUID()
         const { optimisticMessage } = createOptimisticMessage(
-          trimmedBody,
+          messageBody,
           attachmentPayload,
         )
         appendHistoryMessage(queryClient, threadId, threadId, optimisticMessage)
@@ -2620,7 +2643,7 @@ export function ChatScreen({
         sendMessage(
           threadId,
           threadId,
-          trimmedBody,
+          messageBody,
           attachmentPayload,
           fastMode,
           true,
@@ -2645,7 +2668,7 @@ export function ChatScreen({
       sendMessage(
         sessionKeyForSend,
         isPortableMode ? 'main' : activeFriendlyId,
-        trimmedBody,
+        messageBody,
         attachmentPayload,
         fastMode,
       )
@@ -2668,6 +2691,7 @@ export function ChatScreen({
       queryClient,
       resolvedSessionKey,
       handleUiSlashCommand,
+      expandCustomSlashCommand,
     ],
   )
   const wasQueueDrainLoadingRef = useRef(false)
@@ -2729,6 +2753,7 @@ export function ChatScreen({
   }, [runPaletteSlashCommand])
 
   useEffect(() => {
+    if (userCommandsQuery.isPending) return
     const pendingCommand = window.sessionStorage.getItem(
       CHAT_PENDING_COMMAND_STORAGE_KEY,
     )
@@ -2736,7 +2761,7 @@ export function ChatScreen({
 
     window.sessionStorage.removeItem(CHAT_PENDING_COMMAND_STORAGE_KEY)
     runPaletteSlashCommand(pendingCommand)
-  }, [runPaletteSlashCommand])
+  }, [runPaletteSlashCommand, userCommandsQuery.isPending])
 
   const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar)
 

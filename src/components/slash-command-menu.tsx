@@ -20,11 +20,14 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
+import { useEnabledUserCommands } from '@/lib/commands-api'
 import { cn } from '@/lib/utils'
 
 export type SlashCommandDefinition = {
   command: string
   description: string
+  prompt?: string
+  source?: 'builtin' | 'user'
 }
 
 export type SlashCommandMenuProps = {
@@ -39,15 +42,43 @@ export type SlashCommandMenuHandle = {
 }
 
 export const DEFAULT_SLASH_COMMANDS: Array<SlashCommandDefinition> = [
-  { command: '/new', description: 'Start new session' },
-  { command: '/clear', description: 'Clear screen and start fresh' },
-  { command: '/model', description: 'Show or change the current model' },
-  { command: '/save', description: 'Save the current conversation' },
-  { command: '/skills', description: 'Browse and manage skills' },
-  { command: '/plugins', description: 'List installed plugins and their status' },
-  { command: '/mcp', description: 'Manage MCP servers' },
-  { command: '/skin', description: 'Change the display theme' },
-  { command: '/help', description: 'Show available commands' },
+  { command: '/new', description: 'Start new session', source: 'builtin' },
+  {
+    command: '/clear',
+    description: 'Clear screen and start fresh',
+    source: 'builtin',
+  },
+  {
+    command: '/model',
+    description: 'Show or change the current model',
+    source: 'builtin',
+  },
+  {
+    command: '/save',
+    description: 'Save the current conversation',
+    source: 'builtin',
+  },
+  {
+    command: '/skills',
+    description: 'Browse and manage skills',
+    source: 'builtin',
+  },
+  {
+    command: '/plugins',
+    description: 'List installed plugins and their status',
+    source: 'builtin',
+  },
+  { command: '/mcp', description: 'Manage MCP servers', source: 'builtin' },
+  {
+    command: '/skin',
+    description: 'Change the display theme',
+    source: 'builtin',
+  },
+  {
+    command: '/help',
+    description: 'Show available commands',
+    source: 'builtin',
+  },
 ]
 
 function normalizeSearchValue(value: string): string {
@@ -75,12 +106,21 @@ const SlashCommandMenu = forwardRef(function SlashCommandMenuInner(
   ref: Ref<SlashCommandMenuHandle>,
 ) {
   const [activeIndex, setActiveIndex] = useState(0)
+  const commandsQuery = useEnabledUserCommands()
+
+  const commands = useMemo<Array<SlashCommandDefinition>>(() => {
+    const userCommands = commandsQuery.data.map((command) => ({
+      command: command.slash,
+      description: command.description || command.name,
+      prompt: command.prompt,
+      source: 'user' as const,
+    }))
+    return [...DEFAULT_SLASH_COMMANDS, ...userCommands]
+  }, [commandsQuery.data])
 
   const filteredCommands = useMemo(() => {
-    return DEFAULT_SLASH_COMMANDS.filter((item) =>
-      slashCommandMatches(item, query),
-    )
-  }, [query])
+    return commands.filter((item) => slashCommandMatches(item, query))
+  }, [commands, query])
 
   useEffect(() => {
     setActiveIndex(0)
@@ -171,6 +211,7 @@ const SlashCommandMenu = forwardRef(function SlashCommandMenuInner(
                   <span className="text-sm font-semibold">{item.command}</span>
                   <span className="text-xs text-primary-600">
                     {item.description}
+                    {item.source === 'user' ? ' · Custom' : ''}
                   </span>
                 </CommandItem>
               ))}

@@ -53,6 +53,7 @@ const ICONS = {
   jobs: 'M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zM8 5v3.5l2.5 1.5',
   tasks: 'M3 4h10M3 8h7M3 12h5',
   workflows: 'M2 4h12M2 8h8M2 12h5M11 9l2 2 4-4',
+  commands: 'M3 3h10v10H3V3zM5 6l2 2-2 2M8.5 10h2.5',
   boards: 'M3 3h4v4H3V3zM9 3h4v4H9V3zM3 9h4v4H3V9zM9 9h4v4H9V9z',
   conductor: 'M8 2L2 14h12L8 2zM8 8v3',
   operations: 'M3 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM9 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM1 14c0-2.5 2-4 5-4s5 1.5 5 4M11 11c1.5 0 3 .8 3 3',
@@ -327,6 +328,7 @@ export function PrimaryNavV2() {
   const isJobs = pathname.startsWith('/jobs')
   const isTasks = pathname.startsWith('/tasks')
   const isWorkflows = pathname.startsWith('/workflows')
+  const isCommands = pathname.startsWith('/commands')
   const isBoards = pathname.startsWith('/boards')
   const isConductor = pathname.startsWith('/conductor')
   // const isOperations = pathname.startsWith('/operations')
@@ -569,6 +571,7 @@ export function PrimaryNavV2() {
           </div>
         )}
         <NavItem label="Workflows" iconKey="workflows" to="/workflows" active={isWorkflows} collapsed={collapsed} />
+        <NavItem label="Commands" iconKey="commands" to="/commands" active={isCommands} collapsed={collapsed} />
         <NavItem label="Conductor" iconKey="conductor" to="/conductor" active={isConductor} collapsed={collapsed} />
         {/* <NavItem label="Operations" iconKey="operations" to="/operations" active={isOperations} collapsed={collapsed} /> */}
         <NavItem label="Matrix3D" iconKey="matrix3d" to="/matrix3d" active={isMatrix3D} collapsed={collapsed} />
