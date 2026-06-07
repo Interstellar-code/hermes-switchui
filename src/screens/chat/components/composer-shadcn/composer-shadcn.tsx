@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ArrowUp, Paperclip, Reply, X } from 'lucide-react'
+import { ArrowUp, ListPlus, Paperclip, Reply, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/shadcn/ui/button'
@@ -20,6 +20,8 @@ import {
 import { MOCK_REPLY_TARGET } from './mock-data'
 import { useAutocomplete } from './use-autocomplete'
 
+const QUEUE_STORAGE_KEY = 'composer-shadcn:queue'
+
 // ─── Sent-message log (sandbox-only; replaces real send) ───────────────────
 type SentEntry = { id: string; text: string; attachmentCount: number }
 
@@ -28,6 +30,12 @@ type Attachment = {
   preview: string // base64 data URL
   fileName: string
   fileType: string
+}
+
+type QueueItem = {
+  id: string
+  text: string
+  status: 'pending' | 'sent'
 }
 
 let attachmentCounter = 0
@@ -47,6 +55,8 @@ export function ComposerShadcn() {
   const [replyTo, setReplyTo] = React.useState<typeof MOCK_REPLY_TARGET | null>(
     null,
   )
+  const [queue, setQueue] = React.useState<QueueItem[]>([])
+  const [queueRunning, setQueueRunning] = React.useState(false)
   const [sent, setSent] = React.useState<SentEntry[]>([])
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
@@ -62,6 +72,25 @@ export function ComposerShadcn() {
     ta.style.height = 'auto'
     ta.style.height = `${Math.min(ta.scrollHeight, 240)}px`
   }, [value])
+
+  // ─── Feature 5: queue persistence (localStorage) ─────────────────────────
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem(QUEUE_STORAGE_KEY)
+      if (raw) {
+        setQueue(JSON.parse(raw) as QueueItem[])
+      }
+    } catch {
+      // ignore malformed storage
+    }
+  }, [])
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue))
+    } catch {
+      // ignore quota errors
+    }
+  }, [queue])
 
   const canSend = value.trim().length > 0 || attachments.length > 0
 
@@ -142,6 +171,26 @@ export function ComposerShadcn() {
     autocomplete.dismiss()
   }
 
+  // ─── Feature 5: message queue controls ───────────────────────────────────
+  const addToQueue = () => {
+    if (!value.trim()) {
+      return
+    }
+    setQueue((prev) => [
+      ...prev,
+      { id: `q-${Date.now()}`, text: value.trim(), status: 'pending' },
+    ])
+    setValue('')
+  }
+  const startQueue = () => setQueueRunning(true)
+  const stopQueue = () => setQueueRunning(false)
+  const clearQueue = () => {
+    setQueue([])
+    setQueueRunning(false)
+  }
+  const removeQueueItem = (id: string) =>
+    setQueue((prev) => prev.filter((q) => q.id !== id))
+
   const updateValue = React.useCallback((next: string, cursor?: number) => {
     setValue(next)
     const pos = cursor ?? next.length
@@ -188,6 +237,64 @@ export function ComposerShadcn() {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
+      {/* ─── Feature 5: queue panel ──────────────────────────────────────── */}
+      {queue.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border bg-muted px-3 py-1.5">
+            <span className="text-[11px] font-medium text-muted-foreground">
+              Queue ({queue.length})
+              {queueRunning ? (
+                <span className="ml-2 text-primary">running…</span>
+              ) : null}
+            </span>
+            <div className="flex items-center gap-1">
+              {queueRunning ? (
+                <button
+                  type="button"
+                  onClick={stopQueue}
+                  className="rounded-md bg-destructive/10 px-2 py-0.5 text-[10px] font-medium text-destructive transition-colors hover:bg-destructive/20"
+                >
+                  Stop
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={startQueue}
+                  className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary transition-colors hover:bg-primary/20"
+                >
+                  Start
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={clearQueue}
+                className="rounded-md px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          <div className="max-h-32 overflow-y-auto">
+            {queue.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center gap-2 px-3 py-1.5 text-xs text-foreground"
+              >
+                <span className="flex-1 truncate">{item.text}</span>
+                <button
+                  type="button"
+                  onClick={() => removeQueueItem(item.id)}
+                  className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                  aria-label="Remove from queue"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ─── Composer card ───────────────────────────────────────────────── */}
       <Popover open={autocomplete.isOpen}>
         <PopoverAnchor asChild>
@@ -284,6 +391,18 @@ export function ComposerShadcn() {
               )}
 
               <div className="flex-1" />
+
+              {/* Feature 5: add-to-queue */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={addToQueue}
+                disabled={!value.trim()}
+                aria-label="Add to queue"
+              >
+                <ListPlus className="size-4" />
+              </Button>
 
               {/* Feature 1: send */}
               <Button
