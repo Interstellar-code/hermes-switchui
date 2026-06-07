@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildDisplayEntries,
   getTrailingToolOnlyTurnSummary,
+  isThinkingIndicatorSurfaceVisible,
 } from './chat-message-list'
 import type { ChatMessage } from '../types'
 
@@ -81,5 +82,34 @@ describe('getTrailingToolOnlyTurnSummary', () => {
     ])
 
     expect(summary).toBeNull()
+  })
+})
+
+describe('isThinkingIndicatorSurfaceVisible', () => {
+  it('reports the local thinking grace indicator as an active send boundary', () => {
+    expect(
+      isThinkingIndicatorSurfaceVisible({
+        showTypingIndicator: true,
+        showResearchCard: false,
+        isCompacting: false,
+        liveToolActivityCount: 0,
+        isStreaming: false,
+        activeToolCallCount: 0,
+      }),
+    ).toBe(true)
+  })
+
+  it('stops reporting the detached indicator once assistant text is visible', () => {
+    expect(
+      isThinkingIndicatorSurfaceVisible({
+        showTypingIndicator: true,
+        showResearchCard: true,
+        isCompacting: false,
+        liveToolActivityCount: 1,
+        isStreaming: true,
+        streamingText: 'Assistant response',
+        activeToolCallCount: 1,
+      }),
+    ).toBe(false)
   })
 })

@@ -18,6 +18,7 @@ import {
 import {
   advanceStickyStreamingText,
   createOptimisticMessage,
+  hasUnansweredLatestUserTurn,
 } from './chat-screen-utils'
 import {
   appendHistoryMessage,
@@ -609,12 +610,41 @@ export function ChatScreen({
   const waitingForResponse = waitingStoreKey
     ? storeWaitingForSession
     : hasPendingSend() || hasPendingGeneration()
+  const activeQueueSessionKey = useMemo(() => {
+    if (isPortableMode) return 'main'
+    const activeSendSessionKey = activeSendRef.current?.sessionKey
+    if (activeSendSessionKey) return activeSendSessionKey
+    return (
+      forcedSessionKey ||
+      resolvedSessionKey ||
+      activeSessionKey ||
+      activeCanonicalKey ||
+      (!isNewChat ? activeFriendlyId : '')
+    )
+  }, [
+    activeCanonicalKey,
+    activeFriendlyId,
+    activeSessionKey,
+    forcedSessionKey,
+    isNewChat,
+    isPortableMode,
+    resolvedSessionKey,
+    sending,
+    waitingForResponse,
+  ])
+  const lastQueueSessionKeyRef = useRef('')
 
   // Keep the waiting-state ref in sync after commit; mutating it during render
   // can create inconsistent reads when React replays renders in DevTools/StrictMode.
   useEffect(() => {
     sessionKeyForWaiting.current = resolvedSessionKey
   }, [resolvedSessionKey])
+
+  useEffect(() => {
+    if (activeQueueSessionKey) {
+      lastQueueSessionKeyRef.current = activeQueueSessionKey
+    }
+  }, [activeQueueSessionKey])
 
   const setWaitingForResponse = useCallback((waiting: boolean) => {
     const store = useChatStore.getState()
@@ -1015,8 +1045,11 @@ export function ChatScreen({
         const data = await res.json()
         if (ac.signal.aborted || !data.ok || !data.run) return
         const run = data.run
-        const tools: Array<{ name?: string; phase?: string; preview?: string }> =
-          Array.isArray(run.toolCalls) ? run.toolCalls : []
+        const tools: Array<{
+          name?: string
+          phase?: string
+          preview?: string
+        }> = Array.isArray(run.toolCalls) ? run.toolCalls : []
         const inFlight = [...tools]
           .reverse()
           .find((t) => t.phase === 'calling' || t.phase === 'running')
@@ -1548,11 +1581,37 @@ export function ChatScreen({
     isPortableMode,
     localStreamingMessageId,
   ])
+  const [thinkingIndicatorVisible, setThinkingIndicatorVisible] = useState(false)
+  const thinkingIndicatorVisibleRef = useRef(false)
+  const handleThinkingIndicatorChange = useCallback((visible: boolean) => {
+    thinkingIndicatorVisibleRef.current = visible
+    setThinkingIndicatorVisible(visible)
+  }, [])
+  const latestUserTurnIsUnanswered = useMemo(
+    () => hasUnansweredLatestUserTurn(finalDisplayMessages),
+    [finalDisplayMessages],
+  )
+  const latestUserTurnIsUnansweredRef = useRef(false)
+  latestUserTurnIsUnansweredRef.current = latestUserTurnIsUnanswered
+  const isComposerLoading =
+    sending ||
+    waitingForResponse ||
+    thinkingIndicatorVisible ||
+    latestUserTurnIsUnanswered ||
+    Boolean(activeSendRef.current) ||
+    activeIsRealtimeStreaming ||
+    derivedStreamingInfo.isStreaming ||
+    hasPendingGeneration()
+  const isComposerLoadingRef = useRef(isComposerLoading)
 
   const messageCountAtSendRef = useRef(0)
   const lastAssistantIdAtSendRef = useRef<string | null>(null)
   const prevIsRealtimeStreamingRef = useRef(activeIsRealtimeStreaming)
   const activeRealtimeStreamingRef = useRef(activeIsRealtimeStreaming)
+
+  useEffect(() => {
+    isComposerLoadingRef.current = isComposerLoading
+  }, [isComposerLoading])
 
   useEffect(() => {
     activeRealtimeStreamingRef.current = activeIsRealtimeStreaming
@@ -2467,6 +2526,38 @@ export function ChatScreen({
       lastSendKeyRef.current = sendKey
       lastSendAtRef.current = now
 
+      const queueSessionKeyForSend =
+        activeQueueSessionKey ||
+        activeSendRef.current?.sessionKey ||
+        lastQueueSessionKeyRef.current ||
+        (isPortableMode
+          ? 'main'
+          : forcedSessionKey ||
+            resolvedSessionKey ||
+            activeSessionKey ||
+            activeCanonicalKey ||
+            activeFriendlyId)
+      const shouldQueueInsteadOfSend =
+        Boolean(queueSessionKeyForSend) &&
+        (isComposerLoadingRef.current ||
+          thinkingIndicatorVisibleRef.current ||
+          latestUserTurnIsUnansweredRef.current ||
+          Boolean(activeSendRef.current) ||
+          hasPendingGeneration() ||
+          (queueSessionKeyForSend
+            ? useChatStore.getState().isSessionWaiting(queueSessionKeyForSend)
+            : false))
+
+      if (shouldQueueInsteadOfSend && queueSessionKeyForSend) {
+        useChatStore.getState().enqueue(queueSessionKeyForSend, {
+          id: crypto.randomUUID(),
+          text: trimmedBody,
+          attachments: attachments.map((attachment) => ({ ...attachment })),
+        })
+        helpers.reset()
+        return
+      }
+
       // Haptic feedback on mobile when message is sent
       if (isMobile) hapticTap()
 
@@ -2544,9 +2635,13 @@ export function ChatScreen({
     [
       activeFriendlyId,
       activeSessionKey,
+      activeCanonicalKey,
+      activeQueueSessionKey,
       createSessionForMessage,
       forcedSessionKey,
+      isComposerLoadingRef,
       isNewChat,
+      isPortableMode,
       navigate,
       onSessionResolved,
       scrollChatToBottom,
@@ -2557,6 +2652,21 @@ export function ChatScreen({
       handleUiSlashCommand,
     ],
   )
+  const wasQueueDrainLoadingRef = useRef(false)
+
+  useEffect(() => {
+    const wasLoading = wasQueueDrainLoadingRef.current
+    wasQueueDrainLoadingRef.current = isComposerLoading
+    if (!wasLoading || isComposerLoading) return
+
+    const sessionKey = activeQueueSessionKey || lastQueueSessionKeyRef.current
+    if (!sessionKey) return
+
+    const nextQueued = useChatStore.getState().dequeue(sessionKey)
+    if (!nextQueued) return
+
+    send(nextQueued.text, nextQueued.attachments, false, commandHelpers)
+  }, [activeQueueSessionKey, isComposerLoading, send])
 
   const handleAbortStreaming = useCallback(() => {
     const activeSend = activeSendRef.current
@@ -2695,13 +2805,18 @@ export function ChatScreen({
   const totalToolCount = useMemo(() => {
     const resultTsMap = buildResultTsMap(realtimeMessages)
     const streamingEntries = extractStreamingEntries(activeToolCalls)
-    const completedEntries = extractStreamToolCallsFromMessages(realtimeMessages, resultTsMap)
+    const completedEntries = extractStreamToolCallsFromMessages(
+      realtimeMessages,
+      resultTsMap,
+    )
     const messageEntries = extractToolEntries(realtimeMessages)
-    return mergeToolEntries(streamingEntries, completedEntries, messageEntries).length
+    return mergeToolEntries(streamingEntries, completedEntries, messageEntries)
+      .length
   }, [realtimeMessages, activeToolCalls])
 
   const sessionModelFallback =
-    (typeof (activeSession as { model?: unknown } | null | undefined)?.model === 'string'
+    (typeof (activeSession as { model?: unknown } | null | undefined)?.model ===
+    'string'
       ? ((activeSession as { model?: string }).model as string)
       : undefined) ?? undefined
 
@@ -2848,9 +2963,17 @@ export function ChatScreen({
           )}
 
           {activeTab === 'tool' ? (
-            <ToolTabView messages={realtimeMessages} streamingToolCalls={activeToolCalls} events={realtimeLifecycleEvents} />
+            <ToolTabView
+              messages={realtimeMessages}
+              streamingToolCalls={activeToolCalls}
+              events={realtimeLifecycleEvents}
+            />
           ) : activeTab === 'skills' ? (
-            <ChatSkillsTabV2 messages={realtimeMessages} streamingToolCalls={activeToolCalls} events={realtimeLifecycleEvents} />
+            <ChatSkillsTabV2
+              messages={realtimeMessages}
+              streamingToolCalls={activeToolCalls}
+              events={realtimeLifecycleEvents}
+            />
           ) : null}
           {hideUi || activeTab !== 'chat' ? null : (
             <ChatMessageList
@@ -2866,6 +2989,7 @@ export function ChatScreen({
                 })
               }}
               onRefresh={handleRefreshHistory}
+              onThinkingIndicatorChange={handleThinkingIndicatorChange}
               loading={historyLoading}
               empty={historyEmpty}
               emptyState={
@@ -2913,13 +3037,9 @@ export function ChatScreen({
             <ChatComposerShadcn
               onSubmit={send}
               onAbort={handleAbortStreaming}
-              isLoading={sending || waitingForResponse}
-              disabled={sending || hideUi}
-              sessionKey={
-                isNewChat
-                  ? undefined
-                  : forcedSessionKey || resolvedSessionKey || activeSessionKey
-              }
+              isLoading={isComposerLoading}
+              disabled={hideUi}
+              sessionKey={activeQueueSessionKey || undefined}
               wrapperRef={composerRef}
               composerRef={composerHandleRef}
               embedded={embedded}

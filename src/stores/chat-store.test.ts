@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest'
-import { useChatStore } from './chat-store'
+import { beforeEach, describe, expect, it } from 'vitest'
+
+import {
+  normalizeMessageQueueSessionKey,
+  useChatStore,
+  type QueuedChatMessage,
+} from './chat-store'
 import type { ChatMessage } from '../screens/chat/types'
 
 function textMessage(
@@ -66,5 +71,59 @@ describe('chat-store history merge ordering', () => {
       'local-2',
       'local-3',
     ])
+  })
+})
+
+const queuedItem: QueuedChatMessage = {
+  id: 'queued-1',
+  text: 'queued hello',
+  attachments: [],
+}
+
+describe('chat message queue state', () => {
+  beforeEach(() => {
+    useChatStore.setState({
+      messageQueue: {},
+      messageQueueActivity: {},
+    })
+  })
+
+  it('normalizes empty queue session keys to main', () => {
+    expect(normalizeMessageQueueSessionKey('   ')).toBe('main')
+    expect(normalizeMessageQueueSessionKey(' session-1 ')).toBe('session-1')
+  })
+
+  it('records visible queue activity when enqueueing and dequeueing', () => {
+    useChatStore.getState().enqueue(' session-1 ', queuedItem)
+
+    expect(useChatStore.getState().messageQueue['session-1']).toEqual([
+      queuedItem,
+    ])
+    expect(
+      useChatStore.getState().messageQueueActivity['session-1'],
+    ).toMatchObject({
+      phase: 'queued',
+      item: queuedItem,
+    })
+
+    expect(useChatStore.getState().dequeue('session-1')).toEqual(queuedItem)
+
+    expect(useChatStore.getState().messageQueue['session-1']).toBeUndefined()
+    expect(
+      useChatStore.getState().messageQueueActivity['session-1'],
+    ).toMatchObject({
+      phase: 'sending',
+      item: queuedItem,
+    })
+  })
+
+  it('clears stale queue activity when the queue is cleared', () => {
+    useChatStore.getState().enqueue('session-1', queuedItem)
+    useChatStore.getState().clearQueue('session-1')
+
+    expect(useChatStore.getState().messageQueue['session-1']).toBeUndefined()
+    expect(
+      useChatStore.getState().messageQueueActivity['session-1'],
+    ).toBeUndefined()
   })
 })

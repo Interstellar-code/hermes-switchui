@@ -596,6 +596,7 @@ type ChatMessageListProps = {
   onRetryMessage?: (message: ChatMessage) => void
   onReplyMessage?: (message: ChatMessage) => void
   onRefresh?: () => void | Promise<unknown>
+  onThinkingIndicatorChange?: (visible: boolean) => void
   loading: boolean
   empty: boolean
   emptyState?: React.ReactNode
@@ -632,11 +633,43 @@ type ChatMessageListProps = {
   sending?: boolean
 }
 
+export function isThinkingIndicatorSurfaceVisible({
+  showTypingIndicator,
+  showResearchCard,
+  isCompacting,
+  liveToolActivityCount,
+  isStreaming,
+  streamingText,
+  activeToolCallCount,
+}: {
+  showTypingIndicator: boolean
+  showResearchCard: boolean
+  isCompacting: boolean
+  liveToolActivityCount: number
+  isStreaming: boolean
+  streamingText?: string
+  activeToolCallCount: number
+}): boolean {
+  if (isStreaming && streamingText && streamingText.trim().length > 0) {
+    return false
+  }
+
+  return (
+    showTypingIndicator ||
+    showResearchCard ||
+    isCompacting ||
+    liveToolActivityCount > 0 ||
+    (isStreaming && !streamingText) ||
+    (isStreaming && activeToolCallCount > 0)
+  )
+}
+
 function ChatMessageListComponent({
   messages,
   onRetryMessage,
   onReplyMessage,
   onRefresh: _onRefresh,
+  onThinkingIndicatorChange,
   loading,
   empty,
   emptyState,
@@ -1213,6 +1246,27 @@ function ChatMessageListComponent({
 
   const showResearchCard = Boolean(
     researchCard && researchCard.steps.length > 0,
+  )
+
+  const thinkingIndicatorVisible = isThinkingIndicatorSurfaceVisible({
+    showTypingIndicator,
+    showResearchCard,
+    isCompacting,
+    liveToolActivityCount: liveToolActivity.length,
+    isStreaming,
+    streamingText,
+    activeToolCallCount: activeToolCalls.length,
+  })
+
+  useEffect(() => {
+    onThinkingIndicatorChange?.(thinkingIndicatorVisible)
+  }, [onThinkingIndicatorChange, thinkingIndicatorVisible])
+
+  useEffect(
+    () => () => {
+      onThinkingIndicatorChange?.(false)
+    },
+    [onThinkingIndicatorChange],
   )
 
   const shouldBottomPin =
@@ -1912,17 +1966,7 @@ function ChatMessageListComponent({
                 streaming text starts arriving — the per-message TUI card
                 above the assistant bubble takes over from there to avoid
                 a duplicated activity surface. */}
-            {(showTypingIndicator ||
-              showResearchCard ||
-              isCompacting ||
-              liveToolActivity.length > 0 ||
-              (isStreaming && !streamingText) ||
-              (isStreaming && activeToolCalls.length > 0)) &&
-            !(
-              isStreaming &&
-              streamingText &&
-              streamingText.trim().length > 0
-            ) ? (
+            {thinkingIndicatorVisible ? (
               <div
                 className="flex flex-col gap-1 py-1.5 px-1 animate-in fade-in duration-300 md:gap-1.5 md:py-2"
                 role="status"
@@ -2103,6 +2147,7 @@ function areChatMessageListEqual(
     prev.onRetryMessage === next.onRetryMessage &&
     prev.onReplyMessage === next.onReplyMessage &&
     prev.onRefresh === next.onRefresh &&
+    prev.onThinkingIndicatorChange === next.onThinkingIndicatorChange &&
     prev.loading === next.loading &&
     prev.empty === next.empty &&
     prev.emptyState === next.emptyState &&
@@ -2124,6 +2169,8 @@ function areChatMessageListEqual(
     prev.liveToolActivity === next.liveToolActivity &&
     prev.researchCard === next.researchCard &&
     prev.hideSystemMessages === next.hideSystemMessages &&
+    prev.isCompacting === next.isCompacting &&
+    prev.liveProgressLabel === next.liveProgressLabel &&
     prev.sending === next.sending
   )
 }
