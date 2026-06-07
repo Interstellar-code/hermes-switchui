@@ -17,7 +17,7 @@ import {
   CommandList,
 } from '@/components/shadcn/ui/command'
 
-import { MOCK_REPLY_TARGET } from './mock-data'
+import { MOCK_CONTEXT, MOCK_REPLY_TARGET } from './mock-data'
 import { useAutocomplete } from './use-autocomplete'
 
 const QUEUE_STORAGE_KEY = 'composer-shadcn:queue'
@@ -39,6 +39,16 @@ type QueueItem = {
 }
 
 let attachmentCounter = 0
+
+function fmtTokens(n: number): string {
+  if (n >= 1_000_000) {
+    return `${(n / 1_000_000).toFixed(1)}M`
+  }
+  if (n >= 1000) {
+    return `${(n / 1000).toFixed(1)}k`
+  }
+  return String(n)
+}
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -93,6 +103,18 @@ export function ComposerShadcn() {
   }, [queue])
 
   const canSend = value.trim().length > 0 || attachments.length > 0
+
+  // ─── Feature 6: live context counter ─────────────────────────────────────
+  const ctxRatio =
+    MOCK_CONTEXT.total > 0
+      ? Math.min(MOCK_CONTEXT.used / MOCK_CONTEXT.total, 1)
+      : 0
+  const ctxColor =
+    ctxRatio >= 0.85
+      ? 'text-destructive'
+      : ctxRatio >= 0.6
+        ? 'text-secondary-foreground'
+        : 'text-muted-foreground'
 
   // ─── Feature 3: image paste / attach ─────────────────────────────────────
   const addFiles = React.useCallback(async (files: File[]) => {
@@ -391,6 +413,17 @@ export function ComposerShadcn() {
               )}
 
               <div className="flex-1" />
+
+              {/* Feature 6: live context counter (color-coded by fill ratio) */}
+              <span
+                className={cn(
+                  'mr-1 select-none font-mono text-[11px] tabular-nums',
+                  ctxColor,
+                )}
+                title={`Context: ${(ctxRatio * 100).toFixed(0)}% used`}
+              >
+                {fmtTokens(MOCK_CONTEXT.used)} / {fmtTokens(MOCK_CONTEXT.total)}
+              </span>
 
               {/* Feature 5: add-to-queue */}
               <Button
