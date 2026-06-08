@@ -53,6 +53,7 @@ import {
   isRecoverableActiveRun,
   useActiveRunCheck,
 } from './hooks/use-active-run-check'
+import { useDrainWatchdog } from './hooks/use-drain-watchdog'
 import { useChatMobile } from './hooks/use-chat-mobile'
 import { useChatSessions } from './hooks/use-chat-sessions'
 import { useAutoSessionTitle } from './hooks/use-auto-session-title'
@@ -2701,6 +2702,35 @@ export function ChatScreen({
 
     send(nextQueued.text, nextQueued.attachments, false, commandHelpers)
   }, [activeQueueSessionKey, isComposerLoading, send])
+
+  // Drain-watchdog escape hatch (Phase 1.1). If an SSE completion event is
+  // dropped, the busy signals never clear and the queue stalls. This watchdog
+  // arms only while a non-empty queue is blocked behind a busy composer; on
+  // sustained SSE silence it asks the server whether the run is still live and,
+  // if not, releases the stuck busy state so the drain effect above fires.
+  //
+  // reconcile reuses the happy-path finalize so isComposerLoading goes false:
+  //   - activeSendRef.current = null  (clears hasActiveSend)
+  //   - clearStreamingSession         (clears any stuck realtime streaming state)
+  //   - streamFinish()                (clears sending / waitingForResponse /
+  //                                     pendingGeneration — same as onComplete)
+  // It deliberately does NOT dequeue/send; the drain effect owns that, so there
+  // is no double-send.
+  const reconcileStuckBusyState = useCallback(
+    (sessionKey: string) => {
+      activeSendRef.current = null
+      if (sessionKey) {
+        useChatStore.getState().clearStreamingSession(sessionKey)
+      }
+      streamFinish()
+    },
+    [streamFinish],
+  )
+  useDrainWatchdog({
+    sessionKey: activeQueueSessionKey || lastQueueSessionKeyRef.current,
+    isComposerLoading,
+    reconcile: reconcileStuckBusyState,
+  })
 
   const handleAbortStreaming = useCallback(() => {
     const activeSend = activeSendRef.current
