@@ -30,7 +30,6 @@ import {
   updateSessionLastMessage,
 } from './chat-queries'
 import { ChatMessageList } from './components/chat-message-list'
-import type { ToolDisplayMode } from './components/message-item'
 import { ChatEmptyState } from './components/chat-empty-state'
 import { ChatComposerShadcn } from './components/chat-composer-shadcn'
 import { ConnectionStatusMessage } from './components/connection-status-message'
@@ -47,12 +46,24 @@ import { useChatHistory } from './hooks/use-chat-history'
 import { useRealtimeChatHistory } from './hooks/use-realtime-chat-history'
 import { useSmoothStreamingText } from './hooks/use-smooth-streaming-text'
 import { useStreamingMessage } from './hooks/use-streaming-message'
-import { playChatComplete } from '@/lib/sounds'
-import { useChatSettingsStore } from '@/hooks/use-chat-settings'
 import {
   isRecoverableActiveRun,
   useActiveRunCheck,
 } from './hooks/use-active-run-check'
+import type { ToolDisplayMode } from './components/message-item'
+import type {
+  ChatComposerAttachment,
+  ChatComposerHandle,
+  ChatComposerHelpers,
+  ThinkingLevel,
+} from './components/chat-composer-types'
+import type { ApprovalRequest } from '@/screens/gateway/lib/approvals-store'
+import type { ChatAttachment, ChatMessage, SessionMeta } from './types'
+import type { ChatRunCommandDetail } from './chat-events'
+import type {AgentActivity} from '@/stores/chat-activity-store';
+import type { SourceTab } from './components/v2/chat-header-v2'
+import { playChatComplete } from '@/lib/sounds'
+import { useChatSettingsStore } from '@/hooks/use-chat-settings'
 import { useDrainWatchdog } from './hooks/use-drain-watchdog'
 import { useChatMobile } from './hooks/use-chat-mobile'
 import { useChatSessions } from './hooks/use-chat-sessions'
@@ -64,15 +75,6 @@ import {
   CHAT_PENDING_COMMAND_STORAGE_KEY,
   CHAT_RUN_COMMAND_EVENT,
 } from './chat-events'
-import type {
-  ChatComposerAttachment,
-  ChatComposerHandle,
-  ChatComposerHelpers,
-  ThinkingLevel,
-} from './components/chat-composer-types'
-import type { ApprovalRequest } from '@/screens/gateway/lib/approvals-store'
-import type { ChatAttachment, ChatMessage, SessionMeta } from './types'
-import type { ChatRunCommandDetail } from './chat-events'
 import {
   addApproval,
   loadApprovals,
@@ -81,6 +83,7 @@ import {
 import { stripQueuedWrapper } from '@/lib/strip-queued-wrapper'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toast'
+import { Button } from '@/components/ui/button'
 import { hapticTap } from '@/lib/haptics'
 import { FileExplorerSidebar } from '@/components/file-explorer'
 import { SEARCH_MODAL_EVENTS } from '@/hooks/use-search-modal'
@@ -109,21 +112,20 @@ import { useResearchCard } from '@/hooks/use-research-card'
 import { useTapDebug } from '@/hooks/use-tap-debug'
 import { useChatMode } from '@/hooks/use-chat-mode'
 import {
-  useChatActivityStore,
-  type AgentActivity,
+  
+  useChatActivityStore
 } from '@/stores/chat-activity-store'
 import { ChatHeaderV2 } from './components/v2/chat-header-v2'
 import { ChatMetaBarV2 } from './components/v2/chat-meta-bar-v2'
 import {
   ToolTabView,
   buildResultTsMap,
-  extractStreamingEntries,
   extractStreamToolCallsFromMessages,
+  extractStreamingEntries,
   extractToolEntries,
   mergeToolEntries,
 } from './components/v2/chat-tab-views-v2'
 import { ChatSkillsTabV2 } from './components/v2/chat-skills-tab-v2'
-import type { SourceTab } from './components/v2/chat-header-v2'
 
 type ChatScreenProps = {
   activeFriendlyId: string
@@ -1251,7 +1253,7 @@ export function ChatScreen({
     messages: historyMessages.map((m) => ({
       role: m.role as 'user' | 'assistant',
       content: textFromMessage(m),
-    })) as any,
+    })),
     availableModels: availableModelIds,
   })
 
@@ -1754,9 +1756,7 @@ export function ChatScreen({
   }, [suggestion, resolvedSessionKey, dismiss])
 
   // Sync chat activity to global store for sidebar orchestrator avatar
-  const setLocalActivity = useChatActivityStore((s) => s.setLocalActivity) as (
-    next: AgentActivity,
-  ) => void
+  const setLocalActivity = useChatActivityStore((s) => s.setLocalActivity)
   useEffect(() => {
     if (liveToolActivity.length > 0) {
       setLocalActivity('tool-use')
