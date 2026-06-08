@@ -244,3 +244,133 @@ describe('runPhase state machine (Track 2 / Phase 2.1)', () => {
     expect(useChatStore.getState().getRunPhase('s1')).toBe('streaming')
   })
 })
+
+describe('selectIsComposerBusy (Track 2 / Phase 2.2)', () => {
+  beforeEach(() => {
+    useChatStore.setState({
+      runPhase: new Map(),
+      waitingSessionKeys: new Set(),
+      waitingSessionMeta: {},
+      interruptedSessionKeys: new Set(),
+    })
+  })
+
+  it('returns false for idle session with no signals', () => {
+    expect(
+      useChatStore.getState().selectIsComposerBusy(
+        's1',
+        { hasActiveSend: false },
+        { activeIsRealtimeStreaming: false, derivedIsStreaming: false },
+        { hasPendingSend: false, hasPendingGeneration: false },
+      ),
+    ).toBe(false)
+  })
+
+  it('returns true when runPhase is streaming', () => {
+    useChatStore
+      .getState()
+      .setRunPhase('s1', 'streaming', 'liveness-snapshot')
+    expect(
+      useChatStore.getState().selectIsComposerBusy(
+        's1',
+        { hasActiveSend: false },
+        { activeIsRealtimeStreaming: false, derivedIsStreaming: false },
+        { hasPendingSend: false, hasPendingGeneration: false },
+      ),
+    ).toBe(true)
+  })
+
+  it('returns true when runPhase is sending', () => {
+    useChatStore.getState().setRunPhase('s1', 'sending', 'active-send-set')
+    expect(
+      useChatStore.getState().selectIsComposerBusy(
+        's1',
+        { hasActiveSend: false },
+        { activeIsRealtimeStreaming: false, derivedIsStreaming: false },
+        { hasPendingSend: false, hasPendingGeneration: false },
+      ),
+    ).toBe(true)
+  })
+
+  it('returns true when refSignal.hasActiveSend is true', () => {
+    expect(
+      useChatStore.getState().selectIsComposerBusy(
+        's1',
+        { hasActiveSend: true },
+        { activeIsRealtimeStreaming: false, derivedIsStreaming: false },
+        { hasPendingSend: false, hasPendingGeneration: false },
+      ),
+    ).toBe(true)
+  })
+
+  it('returns true when derived.activeIsRealtimeStreaming is true', () => {
+    expect(
+      useChatStore.getState().selectIsComposerBusy(
+        's1',
+        { hasActiveSend: false },
+        { activeIsRealtimeStreaming: true, derivedIsStreaming: false },
+        { hasPendingSend: false, hasPendingGeneration: false },
+      ),
+    ).toBe(true)
+  })
+
+  it('returns true when derived.derivedIsStreaming is true', () => {
+    expect(
+      useChatStore.getState().selectIsComposerBusy(
+        's1',
+        { hasActiveSend: false },
+        { activeIsRealtimeStreaming: false, derivedIsStreaming: true },
+        { hasPendingSend: false, hasPendingGeneration: false },
+      ),
+    ).toBe(true)
+  })
+
+  it('returns true when pending.hasPendingSend is true', () => {
+    expect(
+      useChatStore.getState().selectIsComposerBusy(
+        's1',
+        { hasActiveSend: false },
+        { activeIsRealtimeStreaming: false, derivedIsStreaming: false },
+        { hasPendingSend: true, hasPendingGeneration: false },
+      ),
+    ).toBe(true)
+  })
+
+  it('returns true when pending.hasPendingGeneration is true', () => {
+    expect(
+      useChatStore.getState().selectIsComposerBusy(
+        's1',
+        { hasActiveSend: false },
+        { activeIsRealtimeStreaming: false, derivedIsStreaming: false },
+        { hasPendingSend: false, hasPendingGeneration: true },
+      ),
+    ).toBe(true)
+  })
+
+  it('returns false when runPhase is interrupted (non-busy terminal)', () => {
+    useChatStore.getState().setSessionInterrupted('s1')
+    expect(
+      useChatStore.getState().selectIsComposerBusy(
+        's1',
+        { hasActiveSend: false },
+        { activeIsRealtimeStreaming: false, derivedIsStreaming: false },
+        { hasPendingSend: false, hasPendingGeneration: false },
+      ),
+    ).toBe(false)
+  })
+
+  it('returns false when runPhase is complete (non-busy terminal)', () => {
+    useChatStore
+      .getState()
+      .setRunPhase('s1', 'streaming', 'liveness-snapshot')
+    useChatStore.getState().setRunPhase('s1', 'complete', 'sse-complete')
+    expect(
+      useChatStore.getState().selectIsComposerBusy(
+        's1',
+        { hasActiveSend: false },
+        { activeIsRealtimeStreaming: false, derivedIsStreaming: false },
+        { hasPendingSend: false, hasPendingGeneration: false },
+      ),
+    ).toBe(false)
+  })
+})

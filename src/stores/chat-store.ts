@@ -200,6 +200,22 @@ type ChatState = {
   getRunPhase: (sessionKey: string) => RunPhase
   /** True when the run phase is busy (sending or streaming). */
   isRunPhaseBusy: (sessionKey: string) => boolean
+  /**
+   * Phase 2.2 cutover selector. Replaces the legacy 6-signal
+   * `isComposerLoading` composition. Composes:
+   *  - runPhase state machine (sending/streaming)
+   *  - ref-based active-send (refSignal)
+   *  - derived streaming signals (passed in from caller)
+   *  - pending-send store (sending/pending generation)
+   *
+   * Returns true when the composer should be disabled.
+   */
+  selectIsComposerBusy: (
+    sessionKey: string,
+    refSignal: { hasActiveSend: boolean },
+    derived: { activeIsRealtimeStreaming: boolean; derivedIsStreaming: boolean },
+    pending: { hasPendingSend: boolean; hasPendingGeneration: boolean },
+  ) => boolean
 }
 
 function isStreamingToolCall(value: unknown): value is StreamingToolCall {
@@ -973,6 +989,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   isRunPhaseBusy: (sessionKey) => {
     return isRunPhaseBusy(get().runPhase.get(sessionKey) ?? 'idle')
+  },
+
+  selectIsComposerBusy: (sessionKey, refSignal, derived, pending) => {
+    const phaseBusy = isRunPhaseBusy(get().runPhase.get(sessionKey) ?? 'idle')
+    return (
+      phaseBusy ||
+      refSignal.hasActiveSend ||
+      derived.activeIsRealtimeStreaming ||
+      derived.derivedIsStreaming ||
+      pending.hasPendingSend ||
+      pending.hasPendingGeneration
+    )
   },
 
   processEvent: (event) => {

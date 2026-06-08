@@ -1629,7 +1629,10 @@ export function ChatScreen({
     isPortableMode,
     localStreamingMessageId,
   ])
-  const isComposerLoading = isChatRuntimeBusy({
+  // Phase 2.2 cutover: selectIsComposerBusy replaces the 6-signal
+  // isChatRuntimeBusy composition. Kept in parallel with the legacy
+  // isComposerLoading for parity comparison during the cutover window.
+  const isComposerLoadingLegacy = isChatRuntimeBusy({
     sending,
     waitingForResponse,
     hasActiveSend: Boolean(activeSendRef.current),
@@ -1637,6 +1640,15 @@ export function ChatScreen({
     derivedIsStreaming: derivedStreamingInfo.isStreaming,
     hasPendingGeneration: hasPendingGeneration(),
   })
+  const isComposerLoading = useChatStore.getState().selectIsComposerBusy(
+    resolvedSessionKey,
+    { hasActiveSend: Boolean(activeSendRef.current) },
+    {
+      activeIsRealtimeStreaming,
+      derivedIsStreaming: derivedStreamingInfo.isStreaming,
+    },
+    { hasPendingSend: hasPendingSend(), hasPendingGeneration: hasPendingGeneration() },
+  )
   const isComposerLoadingRef = useRef(isComposerLoading)
 
   const messageCountAtSendRef = useRef(0)
