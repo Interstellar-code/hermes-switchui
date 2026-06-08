@@ -7,7 +7,7 @@ import {
   useMemo,
   useState,
 } from 'react'
-import type { Ref } from 'react'
+import type { ReactNode, Ref } from 'react'
 
 import {
   Popover,
@@ -26,11 +26,13 @@ import {
 import { useEnabledUserCommands } from '@/lib/commands-api'
 import { cn } from '@/lib/utils'
 
+export type SlashCommandSource = 'builtin' | 'user'
+
 export type SlashCommandDefinition = {
   command: string
   description: string
   prompt?: string
-  source?: 'builtin' | 'user'
+  source?: SlashCommandSource
 }
 
 export type SlashCommandMenuProps = {
@@ -89,6 +91,47 @@ export const DEFAULT_SLASH_COMMANDS: Array<SlashCommandDefinition> = [
   },
 ]
 
+type SourceFilter = 'all' | SlashCommandSource
+
+type TabDef = {
+  id: SourceFilter
+  label: string
+  icon: ReactNode
+}
+
+const SOURCE_TABS: Array<TabDef> = [
+  {
+    id: 'all',
+    label: 'all',
+    icon: (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M3 6h18M3 12h18M3 18h18" />
+      </svg>
+    ),
+  },
+  {
+    id: 'builtin',
+    label: 'built-in',
+    icon: (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M12 2L2 7l10 5 10-5-10-5z" />
+        <path d="M2 17l10 5 10-5" />
+        <path d="M2 12l10 5 10-5" />
+      </svg>
+    ),
+  },
+  {
+    id: 'user',
+    label: 'custom',
+    icon: (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </svg>
+    ),
+  },
+]
+
 function normalizeSearchValue(value: string): string {
   return value
     .normalize('NFKD')
@@ -123,20 +166,100 @@ export function useSlashCommandDefinitions(): Array<SlashCommandDefinition> {
   }, [commandsQuery.data])
 }
 
+function CommandSourceTabs({
+  activeTab,
+  onTabChange,
+  counts,
+}: {
+  activeTab: SourceFilter
+  onTabChange: (tab: SourceFilter) => void
+  counts: Record<SourceFilter, number>
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Filter slash commands by source"
+      className="flex items-center gap-0.5 rounded-md p-0.5 mx-2 mt-2"
+      style={{
+        background: 'var(--m-surface-2, var(--theme-card2, rgba(0,0,0,0.15)))',
+        border: '1px solid var(--m-border, var(--theme-border, rgba(255,255,255,0.08)))',
+      }}
+    >
+      {SOURCE_TABS.map((tab) => {
+        const isActive = tab.id === activeTab
+        const count = counts[tab.id] || 0
+        return (
+          <button
+            key={tab.id}
+            role="tab"
+            aria-selected={isActive}
+            aria-controls="slash-command-list"
+            type="button"
+            onClick={() => onTabChange(tab.id)}
+            className={cn(
+              'flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-mono font-medium transition-all duration-150 select-none',
+              isActive
+                ? 'text-[var(--m-green,#4ade80)]'
+                : 'text-[var(--m-muted,var(--theme-muted,#6b7280))] hover:text-[var(--m-text,var(--theme-text))]',
+            )}
+            style={
+              isActive
+                ? {
+                    background: 'var(--m-green-10, rgba(74,222,128,0.10))',
+                    border: '1px solid var(--m-green-30, rgba(74,222,128,0.30))',
+                    boxShadow: 'inset 0 1px 3px rgba(74,222,128,0.10)',
+                  }
+                : {
+                    background: 'transparent',
+                    border: '1px solid transparent',
+                  }
+            }
+          >
+            <span className={isActive ? 'text-[var(--m-green,#4ade80)]' : ''}>
+              {tab.icon}
+            </span>
+            {tab.label}
+            <span
+              className="ml-0.5 tabular-nums opacity-60"
+              style={{ color: 'var(--m-muted,var(--theme-muted,#6b7280))' }}
+            >
+              {count}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 const SlashCommandMenu = forwardRef(function SlashCommandMenuInner(
   { open, query, onSelect }: SlashCommandMenuProps,
   ref: Ref<SlashCommandMenuHandle>,
 ) {
   const [activeIndex, setActiveIndex] = useState(0)
+  const [sourceTab, setSourceTab] = useState<SourceFilter>('all')
   const commands = useSlashCommandDefinitions()
 
-  const filteredCommands = useMemo(() => {
-    return commands.filter((item) => slashCommandMatches(item, query))
+  const sourceCounts = useMemo<Record<SourceFilter, number>>(() => {
+    const matching = commands.filter((item) => slashCommandMatches(item, query))
+    return {
+      all: matching.length,
+      builtin: matching.filter((item) => (item.source ?? 'builtin') === 'builtin').length,
+      user: matching.filter((item) => item.source === 'user').length,
+    }
   }, [commands, query])
+
+  const filteredCommands = useMemo(() => {
+    const matching = commands.filter((item) => slashCommandMatches(item, query))
+    if (sourceTab === 'all') return matching
+    return matching.filter((item) =>
+      sourceTab === 'user' ? item.source === 'user' : (item.source ?? 'builtin') === sourceTab,
+    )
+  }, [commands, query, sourceTab])
 
   useEffect(() => {
     setActiveIndex(0)
-  }, [open, query])
+  }, [open, query, sourceTab])
 
   useEffect(() => {
     if (filteredCommands.length === 0) {
@@ -185,13 +308,14 @@ const SlashCommandMenu = forwardRef(function SlashCommandMenuInner(
         </PopoverAnchor>
         <PopoverContent
           align="start"
-          className="pointer-events-auto overflow-hidden rounded-xl border border-primary-200 p-0 shadow-lg"
+          className="pointer-events-auto overflow-hidden rounded-xl border p-0 shadow-lg"
           onCloseAutoFocus={(event) => event.preventDefault()}
           onOpenAutoFocus={(event) => event.preventDefault()}
           side="top"
           sideOffset={8}
           style={{
             background: 'var(--color-surface, var(--theme-card, #1a1f2e))',
+            borderColor: 'var(--m-border, var(--theme-border, rgba(255,255,255,0.08)))',
             maxWidth: 'calc(100vw - 1rem)',
             minWidth: '16rem',
             width:
@@ -206,7 +330,12 @@ const SlashCommandMenu = forwardRef(function SlashCommandMenuInner(
             value={query}
             onValueChange={() => {}}
           >
-            <CommandList className="max-h-60 min-h-0">
+            <CommandSourceTabs
+              activeTab={sourceTab}
+              onTabChange={setSourceTab}
+              counts={sourceCounts}
+            />
+            <CommandList id="slash-command-list" className="max-h-60 min-h-0 px-1 pb-1">
               <CommandEmpty>No commands found</CommandEmpty>
               {filteredCommands.map((item, index) => (
                 <CommandItem
@@ -216,14 +345,28 @@ const SlashCommandMenu = forwardRef(function SlashCommandMenuInner(
                   onMouseMove={() => setActiveIndex(index)}
                   onSelect={() => onSelect(item)}
                   className={cn(
-                    'flex flex-col items-start gap-0.5 rounded-md px-3 py-2',
+                    'flex flex-col items-start gap-0.5 rounded-md px-3 py-2 mx-1',
                     index === activeIndex && 'bg-primary-100 text-primary-900',
                   )}
                 >
-                  <span className="text-sm font-semibold">{item.command}</span>
+                  <span className="flex w-full items-center gap-2">
+                    <span className="text-sm font-semibold font-mono">{item.command}</span>
+                    <span
+                      className="ml-auto rounded-full border px-1.5 py-0.5 text-[10px] uppercase tracking-wide"
+                      style={{
+                        borderColor: item.source === 'user'
+                          ? 'var(--m-green-30, rgba(74,222,128,0.30))'
+                          : 'var(--m-border, var(--theme-border, rgba(255,255,255,0.08)))',
+                        color: item.source === 'user'
+                          ? 'var(--m-green,#4ade80)'
+                          : 'var(--m-muted,var(--theme-muted,#6b7280))',
+                      }}
+                    >
+                      {item.source === 'user' ? 'Custom' : 'Built-in'}
+                    </span>
+                  </span>
                   <span className="text-xs text-primary-600">
                     {item.description}
-                    {item.source === 'user' ? ' · Custom' : ''}
                   </span>
                 </CommandItem>
               ))}
@@ -238,11 +381,25 @@ const SlashCommandMenu = forwardRef(function SlashCommandMenuInner(
 function SlashCommandPicker({ disabled, onSelect }: SlashCommandPickerProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [sourceTab, setSourceTab] = useState<SourceFilter>('all')
   const commands = useSlashCommandDefinitions()
 
-  const filteredCommands = useMemo(() => {
-    return commands.filter((item) => slashCommandMatches(item, query))
+  const sourceCounts = useMemo<Record<SourceFilter, number>>(() => {
+    const matching = commands.filter((item) => slashCommandMatches(item, query))
+    return {
+      all: matching.length,
+      builtin: matching.filter((item) => (item.source ?? 'builtin') === 'builtin').length,
+      user: matching.filter((item) => item.source === 'user').length,
+    }
   }, [commands, query])
+
+  const filteredCommands = useMemo(() => {
+    const matching = commands.filter((item) => slashCommandMatches(item, query))
+    if (sourceTab === 'all') return matching
+    return matching.filter((item) =>
+      sourceTab === 'user' ? item.source === 'user' : (item.source ?? 'builtin') === sourceTab,
+    )
+  }, [commands, query, sourceTab])
 
   useEffect(() => {
     if (disabled) setOpen(false)
@@ -254,13 +411,17 @@ function SlashCommandPicker({ disabled, onSelect }: SlashCommandPickerProps) {
       return
     }
     setOpen(nextOpen)
-    if (!nextOpen) setQuery('')
+    if (!nextOpen) {
+      setQuery('')
+      setSourceTab('all')
+    }
   }
 
   const handleSelect = (command: SlashCommandDefinition) => {
     onSelect(command)
     setOpen(false)
     setQuery('')
+    setSourceTab('all')
   }
 
   return (
@@ -281,12 +442,13 @@ function SlashCommandPicker({ disabled, onSelect }: SlashCommandPickerProps) {
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="w-[min(24rem,calc(100vw_-_1rem))] overflow-hidden rounded-xl border border-primary-200 p-0 shadow-lg"
+        className="w-[min(24rem,calc(100vw_-_1rem))] overflow-hidden rounded-xl border p-0 shadow-lg"
         onCloseAutoFocus={(event) => event.preventDefault()}
         side="top"
         sideOffset={8}
         style={{
           background: 'var(--color-surface, var(--theme-card, #1a1f2e))',
+          borderColor: 'var(--m-border, var(--theme-border, rgba(255,255,255,0.08)))',
         }}
       >
         <Command
@@ -297,18 +459,33 @@ function SlashCommandPicker({ disabled, onSelect }: SlashCommandPickerProps) {
           onValueChange={setQuery}
         >
           <CommandInput placeholder="Search slash commands" />
-          <CommandList className="max-h-72 min-h-0">
+          <CommandSourceTabs
+            activeTab={sourceTab}
+            onTabChange={setSourceTab}
+            counts={sourceCounts}
+          />
+          <CommandList id="slash-command-list" className="max-h-72 min-h-0 px-1 pb-1">
             <CommandEmpty>No slash commands found</CommandEmpty>
             {filteredCommands.map((item) => (
               <CommandItem
                 key={item.command}
                 value={`${item.command} ${item.description}`}
                 onSelect={() => handleSelect(item)}
-                className="flex flex-col items-start gap-1 rounded-md px-3 py-2"
+                className="flex flex-col items-start gap-1 rounded-md px-3 py-2 mx-1"
               >
                 <span className="flex w-full items-center gap-2">
-                  <span className="text-sm font-semibold">{item.command}</span>
-                  <span className="ml-auto rounded-full border border-primary-200 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-primary-600">
+                  <span className="text-sm font-semibold font-mono">{item.command}</span>
+                  <span
+                    className="ml-auto rounded-full border px-1.5 py-0.5 text-[10px] uppercase tracking-wide"
+                    style={{
+                      borderColor: item.source === 'user'
+                        ? 'var(--m-green-30, rgba(74,222,128,0.30))'
+                        : 'var(--m-border, var(--theme-border, rgba(255,255,255,0.08)))',
+                      color: item.source === 'user'
+                        ? 'var(--m-green,#4ade80)'
+                        : 'var(--m-muted,var(--theme-muted,#6b7280))',
+                    }}
+                  >
                     {item.source === 'user' ? 'Custom' : 'Built-in'}
                   </span>
                 </span>
