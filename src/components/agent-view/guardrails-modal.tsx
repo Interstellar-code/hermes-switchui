@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { DialogContent, DialogDescription, DialogRoot, DialogTitle } from '@/components/ui/dialog'
+import { DialogContent, DialogDescription, Dialog, DialogTitle } from '@/components/shadcn/ui/dialog'
 import { toast } from '@/components/ui/toast'
 
 type GuardrailsModalProps = {
@@ -98,7 +98,7 @@ export function GuardrailsModal({ open, agentName, agentId, sessionKey, onOpenCh
   ]
 
   return (
-    <DialogRoot open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[min(560px,92vw)]">
         <div className="space-y-4 p-5">
           <div className="space-y-1">
@@ -181,6 +181,6 @@ export function GuardrailsModal({ open, agentName, agentId, sessionKey, onOpenCh
           </div>
         </div>
       </DialogContent>
-    </DialogRoot>
+    </Dialog>
   )
 }

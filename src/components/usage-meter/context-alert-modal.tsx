@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { DialogContent, DialogRoot } from '@/components/ui/dialog'
+import { DialogContent, Dialog } from '@/components/shadcn/ui/dialog'
 import { cn } from '@/lib/utils'
 
 type ContextAlertModalProps = {
@@ -38,7 +38,7 @@ function ContextAlertModalComponent({
       : 'text-amber-600'
 
   return (
-    <DialogRoot
+    <Dialog
       open={open}
       onOpenChange={(o) => {
         if (!o) onClose()
@@ -155,7 +155,7 @@ function ContextAlertModalComponent({
           </div>
         </div>
       </DialogContent>
-    </DialogRoot>
+    </Dialog>
   )
 }
 

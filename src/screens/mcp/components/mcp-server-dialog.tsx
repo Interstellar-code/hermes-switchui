@@ -3,9 +3,9 @@ import { Button } from '@/components/ui/button'
 import {
   DialogContent,
   DialogDescription,
-  DialogRoot,
+  Dialog,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/shadcn/ui/dialog'
 import {
   ScrollAreaRoot,
   ScrollAreaScrollbar,
@@ -108,7 +108,7 @@ export function McpServerDialog({ open, initial, onClose }: Props) {
     : ''
 
   return (
-    <DialogRoot
+    <Dialog
       open={open}
       onOpenChange={(next) => {
         if (!next) onClose()
@@ -329,6 +329,6 @@ export function McpServerDialog({ open, initial, onClose }: Props) {
           </div>
         </div>
       </DialogContent>
-    </DialogRoot>
+    </Dialog>
   )
 }

@@ -10,9 +10,9 @@ import { Button } from '@/components/ui/button'
 import {
   DialogContent,
   DialogDescription,
-  DialogRoot,
+  Dialog,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/shadcn/ui/dialog'
 import { toast } from '@/components/ui/toast'
 import {
   useMcpHubSources,
@@ -346,7 +346,7 @@ export function SourcesManagerDialog({ open, onClose }: Props) {
   const saving = addMutation.isPending || updateMutation.isPending
 
   return (
-    <DialogRoot open={open} onOpenChange={(o) => { if (!o) handleClose() }}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose() }}>
       <DialogContent className="w-[min(560px,95vw)] border-primary-200 bg-primary-50/95 backdrop-blur-sm">
         <div className="border-b border-primary-200 px-5 py-4">
           <div className="flex items-center justify-between gap-3">
@@ -439,6 +439,6 @@ export function SourcesManagerDialog({ open, onClose }: Props) {
           )}
         </div>
       </DialogContent>
-    </DialogRoot>
+    </Dialog>
   )
 }

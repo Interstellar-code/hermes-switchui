@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import {
   DialogContent,
-  DialogRoot,
+  Dialog,
   DialogTitle,
   DialogDescription,
-} from '@/components/ui/dialog'
+} from '@/components/shadcn/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { HermesKanbanStatus } from '@/lib/hermes-kanban-types'
@@ -164,7 +164,7 @@ export function TaskDialog({
   const labelClass = 'block text-xs font-medium text-[var(--theme-muted)] mb-1'
 
   return (
-    <DialogRoot open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[min(520px,95vw)] border-[var(--theme-border)] bg-[var(--theme-bg)] overflow-hidden">
         {/* Accent top border */}
         <div
@@ -321,6 +321,6 @@ export function TaskDialog({
           </form>
         </div>
       </DialogContent>
-    </DialogRoot>
+    </Dialog>
   )
 }

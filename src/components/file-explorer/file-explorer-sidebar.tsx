@@ -25,9 +25,9 @@ import {
   DialogClose,
   DialogContent,
   DialogDescription,
-  DialogRoot,
+  Dialog,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/shadcn/ui/dialog'
 import { Button } from '@/components/ui/button'
 
 export type FileEntry = {
@@ -617,7 +617,7 @@ export function FileExplorerSidebar({
         </div>
       ) : null}
 
-      <DialogRoot
+      <Dialog
         open={Boolean(promptState)}
         onOpenChange={(open) => {
           if (!open) setPromptState(null)
@@ -645,12 +645,14 @@ export function FileExplorerSidebar({
               autoFocus
             />
             <div className="flex justify-end gap-2 pt-2">
-              <DialogClose render={<Button variant="outline">Cancel</Button>} />
+              <DialogClose asChild>
+                <Button variant="outline">Cancel</Button>
+              </DialogClose>
               <Button onClick={handlePromptSubmit}>Save</Button>
             </div>
           </div>
         </DialogContent>
-      </DialogRoot>
+      </Dialog>
 
       <FilePreviewDialog
         path={previewPath}

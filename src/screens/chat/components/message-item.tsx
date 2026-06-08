@@ -24,9 +24,9 @@ import {
 import {
   DialogClose,
   DialogContent,
-  DialogRoot,
+  Dialog,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/shadcn/ui/dialog'
 import {
   selectChatProfileAvatarDataUrl,
   selectChatProfileDisplayName,
@@ -1603,7 +1603,7 @@ function InlineArtifactCard({ artifact }: { artifact: InlineArtifact }) {
         {previewArtifact(artifact, true)}
       </button>
 
-      <DialogRoot open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="w-[min(960px,94vw)] max-w-none p-0">
           <div className="flex items-center justify-between gap-3 border-b border-primary-200 px-5 py-4">
             <div className="min-w-0">
@@ -1614,11 +1614,13 @@ function InlineArtifactCard({ artifact }: { artifact: InlineArtifact }) {
                 {artifact.type}
               </div>
             </div>
-            <DialogClose render={<Button variant="outline">Close</Button>} />
+            <DialogClose asChild>
+              <Button variant="outline">Close</Button>
+            </DialogClose>
           </div>
           <div className="p-5">{previewArtifact(artifact)}</div>
         </DialogContent>
-      </DialogRoot>
+      </Dialog>
     </>
   )
 }

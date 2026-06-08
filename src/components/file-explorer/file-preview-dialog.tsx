@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   DialogClose,
   DialogContent,
-  DialogRoot,
+  Dialog,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from '@/components/shadcn/ui/dialog'
 import { Button } from '@/components/ui/button'
 
 const LANGUAGE_MAP: Record<string, string> = {
@@ -107,7 +107,7 @@ export default function FilePreviewDialog({
   }, [content, onSaved, path])
 
   return (
-    <DialogRoot
+    <Dialog
       open={Boolean(path)}
       onOpenChange={(open) => {
         if (!open) onClose()
@@ -124,7 +124,9 @@ export default function FilePreviewDialog({
                 Save
               </Button>
             ) : null}
-            <DialogClose render={<Button variant="outline">Close</Button>} />
+            <DialogClose asChild>
+              <Button variant="outline">Close</Button>
+            </DialogClose>
           </div>
         </div>
 
@@ -158,6 +160,6 @@ export default function FilePreviewDialog({
           )}
         </div>
       </DialogContent>
-    </DialogRoot>
+    </Dialog>
   )
 }

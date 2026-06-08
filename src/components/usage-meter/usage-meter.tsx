@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { UsageDetailsModal } from './usage-details-modal'
-import { DialogContent, DialogRoot } from '@/components/ui/dialog'
+import { DialogContent, Dialog } from '@/components/shadcn/ui/dialog'
 import {
   MenuContent,
   MenuItem,
@@ -809,11 +809,11 @@ export function UsageMeter() {
         </MenuContent>
       </MenuRoot>
 
-      <DialogRoot open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="w-[min(720px,94vw)]">
           <UsageDetailsModal {...detailProps} />
         </DialogContent>
-      </DialogRoot>
+      </Dialog>
 
     </>
   )

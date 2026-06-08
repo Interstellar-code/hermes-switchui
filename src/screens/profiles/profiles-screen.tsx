@@ -12,7 +12,7 @@ import type { AgentUIMetadata, ProfileSummary } from '@/server/profiles-browser'
 import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
 import { useProfilesFilterStore, useProfilesViewStore, usePageSize } from '@/stores/profiles-screen-store'
 import { Button } from '@/components/ui/button'
-import { DialogContent, DialogRoot, DialogTitle } from '@/components/ui/dialog'
+import { DialogContent, Dialog, DialogTitle } from '@/components/shadcn/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/toast'
 import '@/styles/matrix-profiles.css'
@@ -480,7 +480,7 @@ export function ProfilesScreen() {
       />
 
       {/* ── Rename dialog ── */}
-      <DialogRoot
+      <Dialog
         open={Boolean(renameTarget)}
         onOpenChange={(open) => {
           if (!open) { setRenameTarget(null); setRenameValue('') }
@@ -524,7 +524,7 @@ export function ProfilesScreen() {
             </Button>
           </div>
         </DialogContent>
-      </DialogRoot>
+      </Dialog>
 
       <ConfirmDialog
         open={deleteConfirmName !== null}

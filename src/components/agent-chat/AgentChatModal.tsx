@@ -5,7 +5,7 @@ import { AgentChatInput } from './AgentChatInput'
 import { AgentChatMessages } from './AgentChatMessages'
 import type { AgentChatMessage } from './AgentChatMessages'
 import type { ChatMessage } from '@/screens/chat/types'
-import { DialogContent, DialogRoot } from '@/components/ui/dialog'
+import { DialogContent, Dialog } from '@/components/shadcn/ui/dialog'
 import {
   getMessageTimestamp,
   readError,
@@ -301,7 +301,7 @@ export function AgentChatModal({
   }
 
   return (
-    <DialogRoot open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="h-[min(85vh,720px)] w-[min(860px,96vw)] overflow-hidden rounded-3xl border border-primary-300/70 bg-primary-100/55 p-0 backdrop-blur-xl max-md:bottom-0 max-md:left-0 max-md:h-[90dvh] max-md:w-screen max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-b-none max-md:rounded-t-3xl max-md:top-auto z-50">
         <motion.div
           initial={false}
@@ -346,6 +346,6 @@ export function AgentChatModal({
           />
         </motion.div>
       </DialogContent>
-    </DialogRoot>
+    </Dialog>
   )
 }
