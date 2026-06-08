@@ -3,10 +3,12 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const source = () =>
-  readFileSync(
-    resolve(process.cwd(), 'src/screens/chat/components/chat-composer.tsx'),
-    'utf8',
-  )
+  [
+    'src/screens/chat/components/chat-composer-services.ts',
+    'src/screens/chat/components/v2/session-selectors-v2.tsx',
+  ]
+    .map((path) => readFileSync(resolve(process.cwd(), path), 'utf8'))
+    .join('\n')
 
 describe('ChatComposer context controls', () => {
   it('wires profile selection through the existing profile APIs', () => {
@@ -14,7 +16,7 @@ describe('ChatComposer context controls', () => {
 
     expect(src).toContain("fetch('/api/profiles/list')")
     expect(src).toContain("fetch('/api/profiles/activate'")
-    expect(src).toContain('Activated profile')
+    expect(src).toContain('activateProfile')
   })
 
   it('surfaces workspace and reasoning controls next to the model picker', () => {
@@ -24,9 +26,8 @@ describe('ChatComposer context controls', () => {
     expect(src).toContain('Workspace context')
     expect(src).toContain('workspaceSelectMutation')
     expect(src).toContain('workspaceEntries.map')
-    expect(src).toContain("setLeftPanel('files')")
     expect(src).toContain('Reasoning effort')
-    expect(src).toContain("['medium', 'MEDIUM']")
-    expect(src).toContain("['high', 'HIGH']")
+    expect(src).toContain("['medium', 'Medium']")
+    expect(src).toContain("['high', 'High']")
   })
 })

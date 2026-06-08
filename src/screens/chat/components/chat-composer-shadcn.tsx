@@ -62,17 +62,17 @@ import {
   compressImageToDataUrl,
   formatFileSize,
   isCanvasSupported,
-} from './chat-composer'
+} from './chat-composer-attachments'
 import type {
   ChatComposerAttachment,
   ChatComposerHandle,
   ChatComposerHelpers,
   ModelSwitchNotice,
   ThinkingLevel,
-} from './chat-composer'
+} from './chat-composer-types'
 import type { ToolDisplayMode } from './message-item'
 import type { Ref } from 'react'
-import type {MessageQueueActivity, QueuedChatMessage} from '@/stores/chat-store';
+import type { MessageQueueActivity, QueuedChatMessage } from '@/stores/chat-store'
 import type {
   SlashCommandDefinition,
   SlashCommandMenuHandle,
@@ -90,19 +90,13 @@ import {
   SlashCommandMenu,
   SlashCommandPicker,
 } from '@/components/slash-command-menu'
-import {
-  
-  
-  normalizeMessageQueueSessionKey,
-  useChatStore
-} from '@/stores/chat-store'
+import { normalizeMessageQueueSessionKey, useChatStore } from '@/stores/chat-store'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { useVoiceRecorder } from '@/hooks/use-voice-recorder'
 
 
-// Mirror of the live composer's ChatComposerProps. Imported types keep the
-// payload shapes identical; we re-declare the prop bag locally (the live one is
-// not exported) so the swap stays additive without editing chat-composer.tsx.
+// Mirror of the shared ChatComposerProps contract. Imported types keep the
+// payload shapes identical while this shadcn implementation owns the UI.
 type ChatComposerShadcnProps = {
   onSubmit: (
     value: string,

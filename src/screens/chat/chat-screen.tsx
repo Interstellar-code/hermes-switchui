@@ -68,7 +68,7 @@ import type {
   ChatComposerHandle,
   ChatComposerHelpers,
   ThinkingLevel,
-} from './components/chat-composer'
+} from './components/chat-composer-types'
 import type { ApprovalRequest } from '@/screens/gateway/lib/approvals-store'
 import type { ChatAttachment, ChatMessage, SessionMeta } from './types'
 import type { ChatRunCommandDetail } from './chat-events'

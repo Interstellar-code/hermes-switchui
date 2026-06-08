@@ -6,7 +6,7 @@ import type {
   ThinkingContent,
   ToolCallContent,
 } from '../screens/chat/types'
-import type { ChatComposerAttachment } from '../screens/chat/components/chat-composer'
+import type { ChatComposerAttachment } from '../screens/chat/components/chat-composer-types'
 
 let _streamingPersistTimer: ReturnType<typeof setTimeout> | null = null
 

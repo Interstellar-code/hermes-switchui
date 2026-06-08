@@ -9,11 +9,8 @@
 // + `cn`. No `@/components/ui/*`. No hardcoded colors — theme via the shadcn
 // token bridge classes which forward to `--theme-*`.
 //
-// Helpers (fetchProfiles / activateProfile / profileMeta / fetchWorkspaceContext
-// / shortPathLabel / getResolvedModelKey / switchModel / nextThinkingLevel /
-// thinkingLabel / fetchGatewayMode / fetchModelInfo) are imported from
-// `../chat-composer`, which exports them additively. The zero-fork model-switch
-// guard is imported from `../chat-composer-model-switch`.
+// Shared profile/workspace/model helpers live outside the composer UI so
+// selectors and composer implementations do not depend on a dead component.
 
 import * as React from 'react'
 import {
@@ -51,7 +48,7 @@ import {
   shortPathLabel,
   switchModel,
   thinkingLabel,
-} from '../chat-composer'
+} from '../chat-composer-services'
 import {
   MODEL_SWITCH_BLOCKED_TOAST,
   getZeroForkModelInfoFlags,
@@ -61,7 +58,7 @@ import type {
   ModelSwitchNotice,
   ThinkingLevel,
   WorkspaceDetectionResponse,
-} from '../chat-composer'
+} from '../chat-composer-types'
 
 // ─── Model catalog (curated /api/models) ───────────────────────────────────
 type NormalizedModel = {
@@ -239,9 +236,7 @@ function SessionSelectorsV2Component({
       setModelNotice({
         tone: 'error',
         message:
-          error instanceof Error
-            ? error.message
-            : 'Failed to activate profile',
+          error instanceof Error ? error.message : 'Failed to activate profile',
       })
     },
   })
@@ -268,17 +263,12 @@ function SessionSelectorsV2Component({
       setModelNotice({
         tone: 'error',
         message:
-          error instanceof Error
-            ? error.message
-            : 'Failed to switch workspace',
+          error instanceof Error ? error.message : 'Failed to switch workspace',
       })
     },
   })
 
-  const models = React.useMemo(
-    () => modelsQuery.data ?? [],
-    [modelsQuery.data],
-  )
+  const models = React.useMemo(() => modelsQuery.data ?? [], [modelsQuery.data])
   const modelGroups = React.useMemo(
     () => groupModelsByProvider(models),
     [models],
@@ -354,9 +344,7 @@ function SessionSelectorsV2Component({
           setModelNotice({
             tone: 'error',
             message:
-              error instanceof Error
-                ? error.message
-                : 'Failed to switch model',
+              error instanceof Error ? error.message : 'Failed to switch model',
             retryModel: model,
             retryProvider: provider,
           })

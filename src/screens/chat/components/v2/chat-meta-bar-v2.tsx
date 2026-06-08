@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSessionStatus } from '@/hooks/use-session-status'
 import { cn } from '@/lib/utils'
 import { SessionSelectorsV2 } from './session-selectors-v2'
-import type { ThinkingLevel } from '../chat-composer'
+import type { ThinkingLevel } from '../chat-composer-types'
 
 type ProfilesResponse = {
   activeProfile?: string
@@ -124,7 +124,8 @@ function ChatMetaBarV2Component({
       )}
       style={{
         background: 'var(--m-surface-1, var(--theme-card, rgba(0,0,0,0.2)))',
-        borderColor: 'var(--m-border, var(--theme-border, rgba(255,255,255,0.08)))',
+        borderColor:
+          'var(--m-border, var(--theme-border, rgba(255,255,255,0.08)))',
         color: 'var(--m-muted, var(--theme-muted, #9ca3af))',
       }}
     >
@@ -146,7 +147,9 @@ function ChatMetaBarV2Component({
 
       {/* Profile */}
       <span className="shrink-0 whitespace-nowrap" data-testid="meta-profile">
-        <span className="m-label">profile</span>{' · '}<span className="m-mono">{displayProfile}</span>
+        <span className="m-label">profile</span>
+        {' · '}
+        <span className="m-mono">{displayProfile}</span>
       </span>
 
       {!hideSelectors && (
