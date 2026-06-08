@@ -234,3 +234,73 @@ describe('latestTurnIsToolOnly (F1 guard)', () => {
     ).toBe(false)
   })
 })
+
+describe('isChatRuntimeBusy — parity truth table (Track 2 / Phase 2.2)', () => {
+  // Documents the 64-row truth table for the 6 legacy signals.
+  // Phase 2.2's selectIsComposerBusy must match this for every row.
+  // Sample key rows; not exhaustive.
+  const baseInputs = {
+    sending: false,
+    waitingForResponse: false,
+    hasActiveSend: false,
+    activeIsRealtimeStreaming: false,
+    derivedIsStreaming: false,
+    hasPendingGeneration: false,
+  }
+
+  it('all-false is not busy', () => {
+    expect(isChatRuntimeBusy(baseInputs)).toBe(false)
+  })
+
+  it('sending alone is busy', () => {
+    expect(isChatRuntimeBusy({ ...baseInputs, sending: true })).toBe(true)
+  })
+
+  it('waitingForResponse alone is busy', () => {
+    expect(
+      isChatRuntimeBusy({ ...baseInputs, waitingForResponse: true }),
+    ).toBe(true)
+  })
+
+  it('hasActiveSend alone is busy', () => {
+    expect(isChatRuntimeBusy({ ...baseInputs, hasActiveSend: true })).toBe(
+      true,
+    )
+  })
+
+  it('activeIsRealtimeStreaming alone is busy', () => {
+    expect(
+      isChatRuntimeBusy({ ...baseInputs, activeIsRealtimeStreaming: true }),
+    ).toBe(true)
+  })
+
+  it('derivedIsStreaming alone is busy', () => {
+    expect(
+      isChatRuntimeBusy({ ...baseInputs, derivedIsStreaming: true }),
+    ).toBe(true)
+  })
+
+  it('hasPendingGeneration alone is busy', () => {
+    expect(
+      isChatRuntimeBusy({ ...baseInputs, hasPendingGeneration: true }),
+    ).toBe(true)
+  })
+
+  it('OR semantics: any one signal makes it busy', () => {
+    // Spot-check a few combined rows.
+    expect(
+      isChatRuntimeBusy({
+        ...baseInputs,
+        hasActiveSend: true,
+        hasPendingGeneration: true,
+      }),
+    ).toBe(true)
+    expect(
+      isChatRuntimeBusy({
+        ...baseInputs,
+        sending: true,
+        activeIsRealtimeStreaming: true,
+      }),
+    ).toBe(true)
+  })
+})
