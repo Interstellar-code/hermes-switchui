@@ -1,3 +1,7 @@
+import {
+  HERMES_SESSION_ID_HEADER,
+  HERMES_SESSION_KEY_HEADER,
+} from '../lib/send-stream-session-headers'
 import { BEARER_TOKEN, CLAUDE_API } from './gateway-capabilities'
 
 /**
@@ -74,6 +78,7 @@ export type OpenAIChatOptions = {
   temperature?: number
   signal?: AbortSignal
   sessionId?: string
+  stableSessionKey?: string
   /** Override the base URL (e.g. for local providers). Bypasses gateway. */
   baseUrl?: string
 }
@@ -276,7 +281,15 @@ export async function openaiChat(
   // Only send session header when authenticated — gateways without
   // API_SERVER_KEY reject this header with an auth error.
   if (options.sessionId && bearer) {
-    headers['X-Claude-Session-Id'] = options.sessionId
+    // Gateway binds the portable run to a state.db session via this header
+    // (must be X-Hermes-Session-Id, not the legacy X-Claude-Session-Id the
+    // gateway ignores). The value matches the sessionKey the reload path reads
+    // back via getMessages(), so portable transcripts survive reload.
+    headers[HERMES_SESSION_ID_HEADER] = options.sessionId
+  }
+  if (!options.baseUrl && (options.stableSessionKey || options.sessionId)) {
+    headers[HERMES_SESSION_KEY_HEADER] =
+      options.stableSessionKey || options.sessionId || ''
   }
 
   const endpoint = options.baseUrl

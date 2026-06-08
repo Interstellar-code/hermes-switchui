@@ -1,5 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { buildResolvedSessionHeaders } from '../../lib/send-stream-session-headers'
+import {
+  buildResolvedSessionHeaders,
+  HERMES_SESSION_KEY_HEADER,
+} from '../../lib/send-stream-session-headers'
 import {
   collectSyntheticLiveToolEvents,
   createSyntheticLiveToolTracker,
@@ -305,6 +308,8 @@ export const Route = createFileRoute('/api/send-stream')({
 
         const rawSessionKey =
           typeof body.sessionKey === 'string' ? body.sessionKey.trim() : ''
+        const headerSessionKey =
+          request.headers.get(HERMES_SESSION_KEY_HEADER)?.trim() || ''
         const requestedFriendlyId =
           typeof body.friendlyId === 'string' ? body.friendlyId.trim() : ''
         const message = String(body.message ?? '')
@@ -369,6 +374,15 @@ export const Route = createFileRoute('/api/send-stream')({
         if (chatMode === 'portable' && sessionKey === 'new') {
           sessionKey = crypto.randomUUID()
           resolvedFriendlyId = sessionKey
+        }
+        let stableSessionKey =
+          headerSessionKey ||
+          requestedFriendlyId ||
+          rawSessionKey ||
+          resolvedFriendlyId ||
+          sessionKey
+        if (stableSessionKey === 'new') {
+          stableSessionKey = sessionKey
         }
 
         // Create streaming response using the SHARED server connection
@@ -575,6 +589,7 @@ export const Route = createFileRoute('/api/send-stream')({
                         model:
                           typeof body.model === 'string' ? body.model : undefined,
                         sessionId: portableSessionKey,
+                        stableSessionKey,
                         signal: abortController.signal,
                       })
                       for await (const ev of responsesStream) {
@@ -715,6 +730,7 @@ export const Route = createFileRoute('/api/send-stream')({
                     signal: abortController.signal,
                     stream: true,
                     sessionId: portableSessionKey,
+                    stableSessionKey,
                     baseUrl: localBaseUrl,
                   })
 
@@ -886,6 +902,9 @@ export const Route = createFileRoute('/api/send-stream')({
                   sessionKey = session.id
                   resolvedFriendlyId = session.id
                 }
+                if (stableSessionKey === 'new') {
+                  stableSessionKey = sessionKey
+                }
               }
 
               let startedSent = false
@@ -986,6 +1005,7 @@ export const Route = createFileRoute('/api/send-stream')({
                 },
                 {
                   signal: abortController.signal,
+                  stableSessionKey,
                   async onEvent({ event, data }) {
                     const sessionKeyFromEvent =
                       typeof data.session_id === 'string' &&

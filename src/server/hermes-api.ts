@@ -5,6 +5,7 @@
  * Replaces legacy WebSocket connection for the Hermes Switch UI fork.
  */
 
+import { HERMES_SESSION_KEY_HEADER } from '../lib/send-stream-session-headers'
 import {
   BEARER_TOKEN,
   CLAUDE_API,
@@ -87,10 +88,14 @@ async function claudeGet<T>(path: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
-async function claudePost<T>(path: string, body?: unknown): Promise<T> {
+async function claudePost<T>(
+  path: string,
+  body?: unknown,
+  extraHeaders: Record<string, string> = {},
+): Promise<T> {
   const res = await fetch(`${CLAUDE_API}${path}`, {
     method: 'POST',
-    headers: { ..._authHeaders(), 'Content-Type': 'application/json' },
+    headers: { ..._authHeaders(), 'Content-Type': 'application/json', ...extraHeaders },
     body: body ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {
@@ -420,6 +425,7 @@ export function toSessionSummary(
 
 type StreamChatOptions = {
   signal?: AbortSignal
+  stableSessionKey?: string
   onEvent: (payload: {
     event: string
     data: Record<string, unknown>
@@ -440,11 +446,16 @@ export async function streamChat(
   },
   opts: StreamChatOptions,
 ): Promise<void> {
+  const headers: Record<string, string> = {
+    ..._authHeaders(),
+    'Content-Type': 'application/json',
+    [HERMES_SESSION_KEY_HEADER]: opts.stableSessionKey || sessionId,
+  }
   const res = await fetch(
     `${CLAUDE_API}/api/sessions/${sessionId}/chat/stream`,
     {
       method: 'POST',
-      headers: { ..._authHeaders(), 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(body),
       signal: opts.signal,
     },
@@ -541,14 +552,16 @@ export async function sendChat(
   sessionId: string,
   messageOrOpts: string | { message: string; model?: string },
   model?: string,
+  options: { stableSessionKey?: string } = {},
 ): Promise<Record<string, unknown>> {
   const msg =
     typeof messageOrOpts === 'string' ? messageOrOpts : messageOrOpts.message
   const mdl = typeof messageOrOpts === 'string' ? model : messageOrOpts.model
-  return claudePost(`/api/sessions/${sessionId}/chat`, {
-    message: msg,
-    model: mdl,
-  })
+  return claudePost(
+    `/api/sessions/${sessionId}/chat`,
+    { message: msg, model: mdl },
+    { [HERMES_SESSION_KEY_HEADER]: options.stableSessionKey || sessionId },
+  )
 }
 
 // ── Memory ───────────────────────────────────────────────────────
