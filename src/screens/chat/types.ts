@@ -27,7 +27,21 @@ export type ThinkingContent = {
   thinkingSignature?: string
 }
 
-export type MessageContent = TextContent | ToolCallContent | ThinkingContent
+export type MessageContent =
+  | TextContent
+  | ToolCallContent
+  | ToolResultContent
+  | ThinkingContent
+
+export type StreamingToolCall = {
+  id: string
+  name: string
+  phase: string
+  args?: unknown
+  preview?: string
+  result?: string
+  firstSeenAt?: number
+}
 
 export type ChatAttachment = {
   id?: string
@@ -41,17 +55,45 @@ export type ChatAttachment = {
   height?: number
 }
 
-export type StreamingStatus = 'idle' | 'streaming' | 'complete' | 'error'
+export type StreamingStatus =
+  | 'idle'
+  | 'streaming'
+  | 'complete'
+  | 'interrupted'
+  | 'error'
 
 export type ChatMessage = {
   role?: string
+  id?: string
+  messageId?: string
+  clientId?: string
+  client_id?: string
+  nonce?: string
+  idempotencyKey?: string
+  status?: string
   content?: Array<MessageContent>
   attachments?: Array<ChatAttachment>
   toolCallId?: string
   toolName?: string
   details?: Record<string, unknown>
   isError?: boolean
-  timestamp?: number
+  timestamp?: number | string
+  createdAt?: number | string
+  created_at?: number | string
+  time?: number | string
+  ts?: number | string
+  text?: string
+  body?: string
+  message?: string
+  streamToolCalls?: Array<StreamingToolCall>
+  __streamToolCalls?: Array<StreamingToolCall>
+  __receiveTime?: number
+  __historyIndex?: number
+  historyIndex?: number
+  __realtimeSequence?: number
+  __realtimeSource?: string
+  __execNotification?: unknown
+  __isNarration?: boolean
   [key: string]: unknown
   __optimisticId?: string
   __streamingStatus?: StreamingStatus

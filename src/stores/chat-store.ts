@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type {
   ChatMessage,
   MessageContent,
+  StreamingToolCall,
   TextContent,
   ThinkingContent,
   ToolCallContent,
@@ -86,15 +87,7 @@ export type StreamingState = {
     timestamp: number
     isError: boolean
   }>
-  toolCalls: Array<{
-    id: string
-    name: string
-    phase: string
-    args?: unknown
-    preview?: string
-    result?: string
-    firstSeenAt?: number
-  }>
+  toolCalls: Array<StreamingToolCall>
 }
 
 export type QueuedChatMessage = {
@@ -159,13 +152,42 @@ type ChatState = {
 
   /** Sessions currently waiting for a response — survives component unmount */
   waitingSessionKeys: Set<string>
-  waitingSessionMeta: Record<string, { since: number; runId: string | null }>
+  waitingSessionMeta: Record<
+    string,
+    { since: number; runId: string | null } | undefined
+  >
   /** Mark a session as waiting for a response */
   setSessionWaiting: (sessionKey: string, runId?: string | null) => void
   /** Clear waiting state for a session */
   clearSessionWaiting: (sessionKey: string) => void
   /** Check if a session is waiting for a response */
   isSessionWaiting: (sessionKey: string) => boolean
+}
+
+function isStreamingToolCall(value: unknown): value is StreamingToolCall {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const record = value as Record<string, unknown>
+  return (
+    typeof record.id === 'string' &&
+    typeof record.name === 'string' &&
+    typeof record.phase === 'string'
+  )
+}
+
+function readStreamingToolCalls(value: unknown): Array<StreamingToolCall> {
+  return Array.isArray(value) ? value.filter(isStreamingToolCall) : []
+}
+
+function getMessageAttachments(
+  msg: ChatMessage | null | undefined,
+): Array<Record<string, unknown>> {
+  return Array.isArray(msg?.attachments)
+    ? msg.attachments.map((attachment) => ({ ...attachment }))
+    : []
+}
+
+function hasMessageAttachments(msg: ChatMessage | null | undefined): boolean {
+  return Array.isArray(msg?.attachments) && msg.attachments.length > 0
 }
 
 const createEmptyStreamingState = (): StreamingState => ({
@@ -520,7 +542,7 @@ function stripFinalTagsFromMessage(msg: ChatMessage): ChatMessage {
   if (Array.isArray(msg.content)) {
     const nextContent = msg.content.map((part) => {
       if (part.type !== 'text') return part
-      const raw = (part as any).text ?? ''
+      const raw = part.text ?? ''
       const stripped = stripFinalTags(
         typeof raw === 'string' ? raw : String(raw),
       )
@@ -546,9 +568,9 @@ function stripFinalTagsFromMessage(msg: ChatMessage): ChatMessage {
 
 function getMessageId(msg: ChatMessage | null | undefined): string | undefined {
   if (!msg) return undefined
-  const id = (msg as { id?: string }).id
+  const id = msg.id
   if (typeof id === 'string' && id.trim().length > 0) return id
-  const messageId = (msg as { messageId?: string }).messageId
+  const messageId = msg.messageId
   if (typeof messageId === 'string' && messageId.trim().length > 0)
     return messageId
   return undefined
@@ -558,10 +580,10 @@ function getClientNonce(msg: ChatMessage | null | undefined): string {
   if (!msg) return ''
   const raw = msg as Record<string, unknown>
   return (
-    normalizeString(raw.clientId) ||
-    normalizeString(raw.client_id) ||
-    normalizeString(raw.nonce) ||
-    normalizeString(raw.idempotencyKey)
+    normalizeString(msg.clientId) ||
+    normalizeString(msg.client_id) ||
+    normalizeString(msg.nonce) ||
+    normalizeString(msg.idempotencyKey)
   )
 }
 
@@ -569,9 +591,8 @@ function getMessageEventTime(
   msg: ChatMessage | null | undefined,
 ): number | undefined {
   if (!msg) return undefined
-  const raw = msg as Record<string, unknown>
   for (const key of ['createdAt', 'timestamp'] as const) {
-    const value = raw[key]
+    const value = msg[key]
     if (typeof value === 'number' && Number.isFinite(value)) return value
     if (typeof value === 'string' && value.trim().length > 0) {
       const parsed = Date.parse(value)
@@ -585,7 +606,7 @@ function getMessageReceiveTime(
   msg: ChatMessage | null | undefined,
 ): number | undefined {
   if (!msg) return undefined
-  const value = (msg as Record<string, unknown>).__receiveTime
+  const value = msg.__receiveTime
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
@@ -593,8 +614,7 @@ function getMessageHistoryIndex(
   msg: ChatMessage | null | undefined,
 ): number | undefined {
   if (!msg) return undefined
-  const raw = msg as Record<string, unknown>
-  const value = raw.__historyIndex ?? raw.historyIndex
+  const value = msg.__historyIndex ?? msg.historyIndex
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
@@ -602,7 +622,7 @@ function getMessageRealtimeSequence(
   msg: ChatMessage | null | undefined,
 ): number | undefined {
   if (!msg) return undefined
-  const value = (msg as Record<string, unknown>).__realtimeSequence
+  const value = msg.__realtimeSequence
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
@@ -615,10 +635,9 @@ function hasToolCalls(msg: ChatMessage | null | undefined): boolean {
     if (contentHasToolCalls) return true
   }
 
-  const raw = msg as Record<string, unknown>
   return (
-    (Array.isArray(raw.streamToolCalls) && raw.streamToolCalls.length > 0) ||
-    (Array.isArray(raw.__streamToolCalls) && raw.__streamToolCalls.length > 0)
+    readStreamingToolCalls(msg.streamToolCalls).length > 0 ||
+    readStreamingToolCalls(msg.__streamToolCalls).length > 0
   )
 }
 
@@ -690,10 +709,7 @@ function isExternalInboundUserSource(source: unknown): boolean {
 }
 
 function getAttachmentSignature(msg: ChatMessage | null | undefined): string {
-  if (!msg) return ''
-  const attachments = Array.isArray((msg as any).attachments)
-    ? ((msg as any).attachments as Array<Record<string, unknown>>)
-    : []
+  const attachments = getMessageAttachments(msg)
   if (attachments.length === 0) return ''
   return attachments
     .map((attachment) => {
@@ -707,10 +723,9 @@ function isOptimisticUserCandidate(
   msg: ChatMessage | null | undefined,
 ): boolean {
   if (!msg || msg.role !== 'user') return false
-  const raw = msg as Record<string, unknown>
   return (
-    normalizeString(raw.__optimisticId).length > 0 ||
-    ['sending', 'queued', 'sent', 'done'].includes(normalizeString(raw.status))
+    normalizeString(msg.__optimisticId).length > 0 ||
+    ['sending', 'queued', 'sent', 'done'].includes(normalizeString(msg.status))
   )
 }
 
@@ -721,13 +736,12 @@ function messageMultipartSignature(
   let content = Array.isArray(msg.content)
     ? msg.content
         .map((part) => {
-          if (part.type === 'text')
-            return `t:${String((part as any).text ?? '').trim()}`
+          if (part.type === 'text') return `t:${String(part.text ?? '').trim()}`
           if (part.type === 'thinking')
-            return `h:${String((part as any).thinking ?? '').trim()}`
+            return `h:${String(part.thinking ?? '').trim()}`
           if (part.type === 'toolCall')
-            return `tc:${String((part as any).id ?? '')}:${String((part as any).name ?? '')}`
-          return `p:${String((part as any).type ?? '')}`
+            return `tc:${String(part.id ?? '')}:${String(part.name ?? '')}`
+          return `p:${String(part.type)}`
         })
         .join('|')
     : ''
@@ -743,14 +757,12 @@ function messageMultipartSignature(
       }
     }
   }
-  const attachments = Array.isArray((msg as any).attachments)
-    ? (msg as any).attachments
-        .map(
-          (attachment: any) =>
-            `${String(attachment?.name ?? '')}:${String(attachment?.size ?? '')}:${String(attachment?.contentType ?? '')}`,
-        )
-        .join('|')
-    : ''
+  const attachments = getMessageAttachments(msg)
+    .map(
+      (attachment) =>
+        `${String(attachment.name ?? '')}:${String(attachment.size ?? '')}:${String(attachment.contentType ?? '')}`,
+    )
+    .join('|')
   return `${msg.role ?? 'unknown'}:${content}:${attachments}`
 }
 
@@ -812,8 +824,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   dequeue: (sessionKey) => {
     const key = normalizeMessageQueueSessionKey(sessionKey)
     const current = get().messageQueue[key] ?? readQueuedMessages(key)
+    if (current.length === 0) return null
     const [nextItem, ...remaining] = current
-    if (!nextItem) return null
     persistQueuedMessages(key, remaining)
     set((state) => ({
       messageQueue: setQueueForSession(state.messageQueue, key, remaining),
@@ -952,8 +964,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   return false
                 }
                 return (
-                  normalizeString((existing as any).status) === 'sending' ||
-                  Boolean((existing as any).__optimisticId)
+                  normalizeString(existing.status) === 'sending' ||
+                  Boolean(existing.__optimisticId)
                 )
               })
             : -1
@@ -991,7 +1003,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const newPlainText = extractMessageText(normalizedMessage)
         const isExternalInboundUser =
           normalizedMessage.role === 'user' &&
-          isExternalInboundUserSource((event as any).source)
+          isExternalInboundUserSource(
+            event.type === 'user_message' ? event.source : undefined,
+          )
         const incomingEventTime =
           getMessageEventTime(normalizedMessage) ?? incomingReceiveTime
 
@@ -1034,7 +1048,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const incomingMessage: ChatMessage = {
           ...normalizedMessage,
           __realtimeSource:
-            event.type === 'user_message' ? (event as any).source : undefined,
+            event.type === 'user_message' ? event.source : undefined,
           __receiveTime: incomingReceiveTime,
           __realtimeSequence: realtimeMessageSequence++,
           status: undefined,
@@ -1044,12 +1058,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
           const optimisticMessage = sessionMessages[optimisticIndex]
           const incomingText = extractMessageText(incomingMessage)
           const optimisticText = extractMessageText(optimisticMessage)
-          const incomingHasAttachments =
-            Array.isArray((incomingMessage as any).attachments) &&
-            (incomingMessage as any).attachments.length > 0
+          const incomingHasAttachments = hasMessageAttachments(incomingMessage)
           const optimisticHasAttachments =
-            Array.isArray((optimisticMessage as any).attachments) &&
-            (optimisticMessage as any).attachments.length > 0
+            hasMessageAttachments(optimisticMessage)
 
           sessionMessages[optimisticIndex] = {
             ...optimisticMessage,
@@ -1167,11 +1178,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             ...nextToolCalls[existingToolIndex],
             phase: event.phase,
             args: event.args ?? nextToolCalls[existingToolIndex].args,
-            preview:
-              (event as any).preview ??
-              nextToolCalls[existingToolIndex].preview,
-            result:
-              (event as any).result ?? nextToolCalls[existingToolIndex].result,
+            preview: event.preview ?? nextToolCalls[existingToolIndex].preview,
+            result: event.result ?? nextToolCalls[existingToolIndex].result,
           }
         } else {
           // Create entry for ANY phase (complete, error, skill.loaded, artifact.created, etc.)
@@ -1181,8 +1189,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             name: event.name,
             phase: event.phase,
             args: event.args,
-            preview: (event as any).preview,
-            result: (event as any).result,
+            preview: event.preview,
+            result: event.result,
             firstSeenAt: now,
           })
         }
@@ -1217,17 +1225,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
           // ToolCallPill can render them even after streaming state is cleared.
           // Fast tool runs clear streaming state before React renders — embedding
           // __streamToolCalls ensures pills survive in the history message.
-          const streamToolCallsToEmbed = streaming?.toolCalls?.length
-            ? streaming.toolCalls
-            : undefined
+          const streamToolCallsToEmbed =
+            streaming && streaming.toolCalls.length > 0
+              ? streaming.toolCalls
+              : undefined
           completeMessage = {
             ...cleanedMessage,
             timestamp: getMessageEventTime(cleanedMessage) ?? now,
             __receiveTime: now,
             __realtimeSequence: realtimeMessageSequence++,
-            __streamingStatus: (event.state === 'interrupted'
-              ? 'interrupted'
-              : 'complete') as any,
+            __streamingStatus:
+              event.state === 'interrupted' ? 'interrupted' : 'complete',
             ...(streamToolCallsToEmbed
               ? { __streamToolCalls: streamToolCallsToEmbed }
               : {}),
@@ -1406,10 +1414,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (histText === rtText) return true
       }
 
-      const histRaw = histMsg as Record<string, unknown>
       const histIsOptimistic =
-        normalizeString(histRaw.status) === 'sending' ||
-        normalizeString(histRaw.__optimisticId).length > 0
+        normalizeString(histMsg.status) === 'sending' ||
+        normalizeString(histMsg.__optimisticId).length > 0
 
       if (histIsOptimistic && histMsg.role === rtMsg.role) {
         if (rtText) {
@@ -1417,12 +1424,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           if (histText === rtText) return true
           if (histText && rtText.startsWith(histText)) return true
         }
-        const rtAttachments = Array.isArray((rtMsg as any).attachments)
-          ? ((rtMsg as any).attachments as Array<Record<string, unknown>>)
-          : []
-        const histAttachments = Array.isArray((histMsg as any).attachments)
-          ? ((histMsg as any).attachments as Array<Record<string, unknown>>)
-          : []
+        const rtAttachments = getMessageAttachments(rtMsg)
+        const histAttachments = getMessageAttachments(histMsg)
         if (
           rtAttachments.length > 0 &&
           rtAttachments.length == histAttachments.length
@@ -1452,8 +1455,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (!matchingRealtime) return histMsg
       // Preserve attachments from the optimistic/realtime message when history doesn't have them
       const merged = mergeRealtimeAssistantMetadata(histMsg, matchingRealtime)
-      const rtAttachments = (matchingRealtime as any).attachments
-      const histAttachments = (merged as any).attachments
+      const rtAttachments = matchingRealtime.attachments
+      const histAttachments = merged.attachments
       if (
         Array.isArray(rtAttachments) &&
         rtAttachments.length > 0 &&
@@ -1490,7 +1493,7 @@ function extractTextFromContent(
     content
       .filter(
         (c): c is TextContent =>
-          c.type === 'text' && typeof (c as any).text === 'string',
+          c.type === 'text' && typeof c.text === 'string',
       )
       .map((c) => c.text)
       .join('\n')
@@ -1545,21 +1548,15 @@ function mergeRealtimeAssistantMetadata(
     return historyMessage
   }
 
-  const realtimeToolCalls = Array.isArray(
-    (realtimeMessage as any).__streamToolCalls,
+  const realtimeToolCalls = readStreamingToolCalls(
+    realtimeMessage.__streamToolCalls,
   )
-    ? (realtimeMessage as any).__streamToolCalls
-    : []
-  const historyToolCalls = Array.isArray(
-    (historyMessage as any).__streamToolCalls,
+  const historyToolCalls = readStreamingToolCalls(
+    historyMessage.__streamToolCalls,
   )
-    ? (historyMessage as any).__streamToolCalls
-    : []
-  const historyStreamToolCalls = Array.isArray(
-    (historyMessage as any).streamToolCalls,
+  const historyStreamToolCalls = readStreamingToolCalls(
+    historyMessage.streamToolCalls,
   )
-    ? (historyMessage as any).streamToolCalls
-    : []
 
   if (
     realtimeToolCalls.length === 0 ||
