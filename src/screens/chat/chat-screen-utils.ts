@@ -21,11 +21,12 @@ export function advanceStickyStreamingText(params: {
   const nextRunId = runId ?? previousState.runId ?? 'streaming'
   const isNewRun = nextRunId !== previousState.runId
   const candidateText = smoothedText || rawText
-  const nextText = candidateText.length > 0
-    ? candidateText
-    : isNewRun
-      ? ''
-      : previousState.text
+  const nextText =
+    candidateText.length > 0
+      ? candidateText
+      : isNewRun
+        ? ''
+        : previousState.text
 
   return {
     runId: nextRunId,
@@ -127,7 +128,7 @@ export function hasUnansweredLatestUserTurn(
   if (latestUserIndex < 0) return false
 
   const latestUser = messages[latestUserIndex]
-  if (!latestUser || !isPendingUserMessage(latestUser)) return false
+  if (!isPendingUserMessage(latestUser)) return false
 
   const afterLatestUser = messages.slice(latestUserIndex + 1)
   if (afterLatestUser.length === 0) return true
@@ -144,4 +145,38 @@ export function hasUnansweredLatestUserTurn(
   }
 
   return true
+}
+
+export type ChatRuntimeBusyState = {
+  sending: boolean
+  waitingForResponse: boolean
+  hasActiveSend: boolean
+  activeIsRealtimeStreaming: boolean
+  derivedIsStreaming: boolean
+  hasPendingGeneration: boolean
+}
+
+/**
+ * Runtime activity is the source of truth for disabling the composer and
+ * deferring new sends. UI-only projections (for example the detached thinking
+ * bubble) and history shape (for example an unanswered old user turn) must not
+ * feed this value, otherwise interrupted sessions can self-lock and queue every
+ * future message even after the backend has no active run.
+ */
+export function isChatRuntimeBusy({
+  sending,
+  waitingForResponse,
+  hasActiveSend,
+  activeIsRealtimeStreaming,
+  derivedIsStreaming,
+  hasPendingGeneration,
+}: ChatRuntimeBusyState): boolean {
+  return (
+    sending ||
+    waitingForResponse ||
+    hasActiveSend ||
+    activeIsRealtimeStreaming ||
+    derivedIsStreaming ||
+    hasPendingGeneration
+  )
 }

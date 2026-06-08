@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   advanceStickyStreamingText,
   hasUnansweredLatestUserTurn,
+  isChatRuntimeBusy,
 } from './chat-screen-utils'
 import type { ChatMessage } from './types'
 
@@ -113,5 +114,43 @@ describe('hasUnansweredLatestUserTurn', () => {
     ]
 
     expect(hasUnansweredLatestUserTurn(messages)).toBe(false)
+  })
+})
+
+describe('isChatRuntimeBusy', () => {
+  it('does not treat an orphaned unanswered user turn as active runtime work', () => {
+    const messages: Array<ChatMessage> = [
+      {
+        role: 'user',
+        status: 'queued',
+        __optimisticId: 'opt-interrupted',
+        content: [{ type: 'text', text: 'interrupted prompt' }],
+      },
+    ]
+
+    expect(hasUnansweredLatestUserTurn(messages)).toBe(true)
+    expect(
+      isChatRuntimeBusy({
+        sending: false,
+        waitingForResponse: false,
+        hasActiveSend: false,
+        activeIsRealtimeStreaming: false,
+        derivedIsStreaming: false,
+        hasPendingGeneration: false,
+      }),
+    ).toBe(false)
+  })
+
+  it('reports real runtime activity as busy', () => {
+    expect(
+      isChatRuntimeBusy({
+        sending: false,
+        waitingForResponse: true,
+        hasActiveSend: false,
+        activeIsRealtimeStreaming: false,
+        derivedIsStreaming: false,
+        hasPendingGeneration: false,
+      }),
+    ).toBe(true)
   })
 })
