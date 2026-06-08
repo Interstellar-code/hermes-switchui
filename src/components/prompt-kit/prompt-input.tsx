@@ -9,11 +9,11 @@ import React, {
   useState,
 } from 'react'
 import {
+  Tooltip,
   TooltipContent,
   TooltipProvider,
-  TooltipRoot,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
+} from '@/components/shadcn/ui/tooltip'
 import { cn } from '@/lib/utils'
 import {
   selectEnterBehavior,
@@ -362,7 +362,7 @@ export type PromptInputActionProps = {
   tooltip: React.ReactNode
   children: React.ReactNode
   side?: 'top' | 'bottom' | 'left' | 'right'
-} & React.ComponentProps<typeof TooltipRoot>
+} & React.ComponentProps<typeof Tooltip>
 
 function PromptInputAction({
   tooltip,
@@ -379,16 +379,18 @@ function PromptInputAction({
   )
 
   return (
-    <TooltipRoot {...props}>
+    <Tooltip {...props}>
       <TooltipTrigger
+        asChild
         disabled={disabled}
         onClick={(event) => event.stopPropagation()}
-        render={trigger}
-      />
+      >
+        {trigger}
+      </TooltipTrigger>
       <TooltipContent side={side} className={className}>
         {tooltip}
       </TooltipContent>
-    </TooltipRoot>
+    </Tooltip>
   )
 }
 

@@ -2,11 +2,11 @@
 
 import { useSyncExternalStore } from 'react'
 import {
+  Tooltip,
   TooltipContent,
   TooltipProvider,
-  TooltipRoot,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
+} from '@/components/shadcn/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 export type AgentAvatarPreference = 'lobster' | 'logo'
@@ -119,7 +119,7 @@ function AgentAvatar({
 
   return (
     <TooltipProvider>
-      <TooltipRoot>
+      <Tooltip>
         <TooltipTrigger
           type="button"
           className={cn(
@@ -153,7 +153,7 @@ function AgentAvatar({
           )}
         </TooltipTrigger>
         <TooltipContent side="top">Click to switch avatar</TooltipContent>
-      </TooltipRoot>
+      </Tooltip>
     </TooltipProvider>
   )
 }

@@ -11,11 +11,11 @@ import {
   MenuTrigger,
 } from '@/components/ui/menu'
 import {
+  Tooltip,
   TooltipContent,
   TooltipProvider,
-  TooltipRoot,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
+} from '@/components/shadcn/ui/tooltip'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -45,27 +45,25 @@ export function ExportMenu({ onExport, disabled }: ExportMenuProps) {
   return (
     <MenuRoot open={disabled ? false : open} onOpenChange={handleOpenChange}>
       <TooltipProvider>
-        <TooltipRoot>
-          <TooltipTrigger
-            render={
-              <MenuTrigger
-                type="button"
-                className={cn(
-                  buttonVariants({ size: 'icon-sm', variant: 'ghost' }),
-                )}
-                aria-label="Download conversation"
-                aria-disabled={disabled ? true : undefined}
-              >
-                <HugeiconsIcon
-                  icon={Download01Icon}
-                  size={20}
-                  strokeWidth={1.5}
-                />
-              </MenuTrigger>
-            }
-          />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <MenuTrigger
+              type="button"
+              className={cn(
+                buttonVariants({ size: 'icon-sm', variant: 'ghost' }),
+              )}
+              aria-label="Download conversation"
+              aria-disabled={disabled ? true : undefined}
+            >
+              <HugeiconsIcon
+                icon={Download01Icon}
+                size={20}
+                strokeWidth={1.5}
+              />
+            </MenuTrigger>
+          </TooltipTrigger>
           <TooltipContent side="top">Download</TooltipContent>
-        </TooltipRoot>
+        </Tooltip>
       </TooltipProvider>
       <MenuContent side="bottom" align="end">
         {formats.map(function renderFormat({ format, label, ext }) {

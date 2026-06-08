@@ -4,11 +4,11 @@ import { Copy01Icon, RefreshIcon, Tick02Icon } from '@hugeicons/core-free-icons'
 import { Reply } from 'lucide-react'
 import { MessageTimestamp } from './message-timestamp'
 import {
+  Tooltip,
   TooltipContent,
   TooltipProvider,
-  TooltipRoot,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
+} from '@/components/shadcn/ui/tooltip'
 import { writeTextToClipboard } from '@/lib/clipboard'
 import { cn } from '@/lib/utils'
 
@@ -82,7 +82,7 @@ export function MessageActionsBar({
     >
       {isFailed && onRetry && (
         <TooltipProvider>
-          <TooltipRoot>
+          <Tooltip>
             <TooltipTrigger
               type="button"
               onClick={onRetry}
@@ -92,11 +92,11 @@ export function MessageActionsBar({
               <span className="text-[11px] font-medium">Retry</span>
             </TooltipTrigger>
             <TooltipContent side="top">Resend failed message</TooltipContent>
-          </TooltipRoot>
+          </Tooltip>
         </TooltipProvider>
       )}
       <TooltipProvider>
-        <TooltipRoot>
+        <Tooltip>
           <TooltipTrigger
             type="button"
             onClick={() => {
@@ -111,11 +111,11 @@ export function MessageActionsBar({
             />
           </TooltipTrigger>
           <TooltipContent side="top">Copy</TooltipContent>
-        </TooltipRoot>
+        </Tooltip>
       </TooltipProvider>
       {onReply && (
         <TooltipProvider>
-          <TooltipRoot>
+          <Tooltip>
             <TooltipTrigger
               type="button"
               onClick={onReply}
@@ -124,7 +124,7 @@ export function MessageActionsBar({
               <Reply size={16} strokeWidth={1.6} />
             </TooltipTrigger>
             <TooltipContent side="top">Reply</TooltipContent>
-          </TooltipRoot>
+          </Tooltip>
         </TooltipProvider>
       )}
       <MessageTimestamp timestamp={timestamp} />

@@ -19,11 +19,11 @@ import { chatQueryKeys, moveHistoryMessages } from '@/screens/chat/chat-queries'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { Button } from '@/components/ui/button'
 import {
+  Tooltip,
   TooltipContent,
   TooltipProvider,
-  TooltipRoot,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
+} from '@/components/shadcn/ui/tooltip'
 
 export function ChatPanel() {
   const isOpen = useWorkspaceStore((s) => s.chatPanelOpen)
@@ -162,46 +162,40 @@ export function ChatPanel() {
               </div>
               <div className="flex items-center gap-0.5">
                 <TooltipProvider>
-                  <TooltipRoot>
-                    <TooltipTrigger
-                      onClick={handleNewChat}
-                      render={
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          className="text-primary-600 hover:text-primary-900"
-                          aria-label="New chat"
-                        >
-                          <HugeiconsIcon
-                            icon={PencilEdit02Icon}
-                            size={14}
-                            strokeWidth={1.5}
-                          />
-                        </Button>
-                      }
-                    />
+                  <Tooltip>
+                    <TooltipTrigger asChild onClick={handleNewChat}>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        className="text-primary-600 hover:text-primary-900"
+                        aria-label="New chat"
+                      >
+                        <HugeiconsIcon
+                          icon={PencilEdit02Icon}
+                          size={14}
+                          strokeWidth={1.5}
+                        />
+                      </Button>
+                    </TooltipTrigger>
                     <TooltipContent side="bottom">New chat</TooltipContent>
-                  </TooltipRoot>
-                  <TooltipRoot>
-                    <TooltipTrigger
-                      onClick={handleExpand}
-                      render={
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          className="text-primary-600 hover:text-primary-900"
-                          aria-label="Expand to full chat"
-                        >
-                          <HugeiconsIcon
-                            icon={ArrowExpand01Icon}
-                            size={14}
-                            strokeWidth={1.5}
-                          />
-                        </Button>
-                      }
-                    />
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild onClick={handleExpand}>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        className="text-primary-600 hover:text-primary-900"
+                        aria-label="Expand to full chat"
+                      >
+                        <HugeiconsIcon
+                          icon={ArrowExpand01Icon}
+                          size={14}
+                          strokeWidth={1.5}
+                        />
+                      </Button>
+                    </TooltipTrigger>
                     <TooltipContent side="bottom">Full view</TooltipContent>
-                  </TooltipRoot>
+                  </Tooltip>
                 </TooltipProvider>
                 <Button
                   size="icon-sm"
