@@ -1,4 +1,7 @@
+import '@/styles/matrix-mcp.css'
+
 import { useMemo, useState } from 'react'
+import type { FormEvent } from 'react'
 import type { UserCommandRecord } from '@/lib/commands-api'
 import {
   useCreateUserCommand,
@@ -8,6 +11,7 @@ import {
 } from '@/lib/commands-api'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toast'
+import { Ico } from '@/screens/mcp/icons'
 
 type CommandFormState = {
   id: string | null
@@ -17,6 +21,8 @@ type CommandFormState = {
   prompt: string
   enabled: boolean
 }
+
+type StatusFilter = 'all' | 'enabled' | 'disabled'
 
 const EMPTY_FORM: CommandFormState = {
   id: null,
@@ -53,6 +59,26 @@ function formatDate(value: string): string {
   }).format(date)
 }
 
+function commandMatches(command: UserCommandRecord, query: string): boolean {
+  const normalized = query.trim().toLowerCase()
+  if (!normalized) return true
+  return `${command.name} ${command.slash} ${command.description} ${command.prompt}`
+    .toLowerCase()
+    .includes(normalized)
+}
+
+function commandInitials(command: UserCommandRecord): string {
+  return (
+    command.name
+      .split(/\s+/)
+      .map((part) => part[0])
+      .filter(Boolean)
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || '/'
+  )
+}
+
 export function CommandsScreen() {
   const commandsQuery = useUserCommands()
   const createCommand = useCreateUserCommand()
@@ -60,25 +86,37 @@ export function CommandsScreen() {
   const deleteCommand = useDeleteUserCommand()
   const [form, setForm] = useState<CommandFormState>(EMPTY_FORM)
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
   const commands = commandsQuery.data ?? []
-  const filteredCommands = useMemo(() => {
-    const query = search.trim().toLowerCase()
-    if (!query) return commands
-    return commands.filter((command) =>
-      `${command.name} ${command.slash} ${command.description} ${command.prompt}`
-        .toLowerCase()
-        .includes(query),
-    )
-  }, [commands, search])
-
+  const enabledCount = commands.filter((command) => command.enabled).length
+  const disabledCount = commands.length - enabledCount
   const isEditing = form.id !== null
   const isBusy =
     createCommand.isPending ||
     updateCommand.isPending ||
     deleteCommand.isPending
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  const filteredCommands = useMemo(() => {
+    return commands.filter((command) => {
+      const statusMatches =
+        statusFilter === 'all' ||
+        (statusFilter === 'enabled' && command.enabled) ||
+        (statusFilter === 'disabled' && !command.enabled)
+      return statusMatches && commandMatches(command, search)
+    })
+  }, [commands, search, statusFilter])
+
+  function resetFilters() {
+    setSearch('')
+    setStatusFilter('all')
+  }
+
+  function startNewCommand() {
+    setForm(EMPTY_FORM)
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const payload = {
       name: form.name.trim(),
@@ -133,266 +171,385 @@ export function CommandsScreen() {
   }
 
   return (
-    <main className="flex h-full min-h-0 flex-col bg-surface text-primary-900">
-      <header className="border-b border-primary-200 px-6 py-5">
-        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary-500">
-              SwitchUI
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold text-primary-950">
-              Commands
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm text-primary-600">
-              Create slash-command prompt macros for chat. These are stored in
-              the SwitchUI SQLite database and expand into normal chat messages;
-              they do not run shell commands.
-            </p>
-          </div>
-          <div className="rounded-full border border-primary-200 px-3 py-1 text-xs text-primary-600">
-            {commands.length} total · {commands.filter((c) => c.enabled).length}{' '}
-            enabled
-          </div>
+    <div className="mcp-shell" data-screen="mcp">
+      <aside className="mcp-filter">
+        <div className="mcp-filter-hdr">
+          <h3>Commands</h3>
+          <span className="mcp-ct">{filteredCommands.length}</span>
+          <span className="mcp-actions">
+            <button
+              type="button"
+              className="mcp-ico-btn"
+              onClick={resetFilters}
+              title="Reset filters"
+            >
+              {Ico.refresh}
+            </button>
+          </span>
         </div>
-      </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 overflow-auto p-5 xl:grid-cols-[minmax(0,1fr)_25rem]">
-        <section className="min-h-0 rounded-2xl border border-primary-200 bg-primary-50/50 p-4 shadow-sm">
-          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-primary-700">
-                Command Library
-              </h2>
-              <p className="mt-1 text-xs text-primary-500">
-                Use <code>{'{{input}}'}</code> inside a prompt to place text
-                typed after the slash command.
-              </p>
-            </div>
+        <div className="mcp-filter-search">
+          <div className="flex items-center gap-2 px-2 py-1.5">
+            {Ico.search}
             <input
+              placeholder="search commands…"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search commands"
-              className="rounded-xl border border-primary-200 bg-surface px-3 py-2 text-sm text-primary-900 outline-none focus:border-accent-400"
             />
           </div>
+        </div>
 
-          {commandsQuery.isLoading ? (
-            <div className="rounded-xl border border-primary-200 bg-surface p-6 text-sm text-primary-500">
-              Loading commands…
-            </div>
-          ) : commandsQuery.error ? (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-              {commandsQuery.error instanceof Error
-                ? commandsQuery.error.message
-                : 'Failed to load commands'}
-            </div>
-          ) : filteredCommands.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-primary-200 bg-surface p-8 text-center">
-              <h3 className="text-sm font-semibold text-primary-800">
-                No commands yet
-              </h3>
-              <p className="mt-1 text-sm text-primary-500">
-                Create your first prompt macro from the form on the right.
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-3">
-              {filteredCommands.map((command) => (
-                <article
-                  key={command.id}
-                  className={cn(
-                    'rounded-xl border bg-surface p-4 shadow-sm transition',
-                    command.enabled
-                      ? 'border-primary-200'
-                      : 'border-primary-100 opacity-65',
-                  )}
+        <div className="mcp-filter-body">
+          <div className="mcp-filter-grp">
+            <h4>Status</h4>
+            <div className="mcp-seg-stack">
+              {(
+                [
+                  { id: 'all', label: 'All', count: commands.length },
+                  { id: 'enabled', label: 'Enabled', count: enabledCount },
+                  { id: 'disabled', label: 'Disabled', count: disabledCount },
+                ] as const
+              ).map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={cn(statusFilter === option.id && 'on')}
+                  onClick={() => setStatusFilter(option.id)}
                 >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <code className="rounded-lg bg-primary-900 px-2 py-1 text-xs font-semibold text-primary-50">
-                          {command.slash}
-                        </code>
-                        <h3 className="text-base font-semibold text-primary-950">
-                          {command.name}
-                        </h3>
-                        <span
-                          className={cn(
-                            'rounded-full px-2 py-0.5 text-[11px] font-medium',
-                            command.enabled
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-primary-100 text-primary-500',
-                          )}
-                        >
-                          {command.enabled ? 'Enabled' : 'Disabled'}
-                        </span>
-                      </div>
-                      {command.description ? (
-                        <p className="mt-2 text-sm text-primary-600">
-                          {command.description}
-                        </p>
-                      ) : null}
-                      <pre className="mt-3 max-h-32 overflow-auto whitespace-pre-wrap rounded-xl border border-primary-100 bg-primary-50 p-3 text-xs leading-relaxed text-primary-700">
-                        {command.prompt}
-                      </pre>
-                      <p className="mt-2 text-[11px] text-primary-400">
-                        Updated {formatDate(command.updatedAt)}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleToggle(command)}
-                        disabled={isBusy}
-                        className="rounded-lg border border-primary-200 px-3 py-1.5 text-xs font-medium text-primary-700 hover:bg-primary-50 disabled:opacity-50"
-                      >
-                        {command.enabled ? 'Disable' : 'Enable'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setForm(commandToForm(command))}
-                        disabled={isBusy}
-                        className="rounded-lg border border-primary-200 px-3 py-1.5 text-xs font-medium text-primary-700 hover:bg-primary-50 disabled:opacity-50"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleDelete(command)}
-                        disabled={isBusy}
-                        className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </article>
+                  {option.label}
+                  <span className="mcp-ct">{option.count}</span>
+                </button>
               ))}
             </div>
-          )}
-        </section>
-
-        <aside className="rounded-2xl border border-primary-200 bg-surface p-4 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-primary-700">
-              {isEditing ? 'Edit Command' : 'New Command'}
-            </h2>
-            {isEditing ? (
-              <button
-                type="button"
-                onClick={() => setForm(EMPTY_FORM)}
-                className="text-xs font-medium text-primary-500 hover:text-primary-800"
-              >
-                Cancel
-              </button>
-            ) : null}
           </div>
 
-          <form className="grid gap-4" onSubmit={handleSubmit}>
-            <label className="grid gap-1.5 text-sm font-medium text-primary-700">
-              Name
-              <input
-                required
-                value={form.name}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    name: event.target.value,
-                  }))
-                }
-                placeholder="Code review"
-                className="rounded-xl border border-primary-200 bg-primary-50/60 px-3 py-2 text-sm text-primary-900 outline-none focus:border-accent-400"
-              />
-            </label>
+          <div className="mcp-filter-grp">
+            <h4>Usage</h4>
+            <div className="grid gap-2 px-2 text-xs leading-relaxed text-[var(--m-text-muted,var(--theme-muted))]">
+              <p>
+                Slash commands expand into normal chat text. They are prompt
+                macros, not shell commands.
+              </p>
+              <p>
+                Use{' '}
+                <code className="text-[var(--m-green-500)]">{'{{input}}'}</code>{' '}
+                in a prompt to insert text typed after the trigger.
+              </p>
+            </div>
+          </div>
+        </div>
 
-            <label className="grid gap-1.5 text-sm font-medium text-primary-700">
-              Slash trigger
-              <input
-                required
-                value={form.slash}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    slash: event.target.value,
-                  }))
-                }
-                onBlur={() =>
-                  setForm((current) => ({
-                    ...current,
-                    slash: normalizeSlash(current.slash),
-                  }))
-                }
-                placeholder="/review"
-                className="rounded-xl border border-primary-200 bg-primary-50/60 px-3 py-2 font-mono text-sm text-primary-900 outline-none focus:border-accent-400"
-              />
-              <span className="text-xs font-normal text-primary-500">
-                Lowercase letters, numbers, and hyphens. Built-ins like /new are
-                reserved.
-              </span>
-            </label>
+        <div className="mcp-filter-foot">
+          <button
+            type="button"
+            className="mcp-btn mcp-btn-sm mcp-btn-primary justify-center"
+            onClick={startNewCommand}
+          >
+            {Ico.plus} New Command
+          </button>
+          <span className="text-center font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--m-text-faint,var(--theme-muted))]">
+            switchui sqlite
+          </span>
+        </div>
+      </aside>
 
-            <label className="grid gap-1.5 text-sm font-medium text-primary-700">
-              Description
-              <input
-                value={form.description}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    description: event.target.value,
-                  }))
-                }
-                placeholder="Review the message for bugs"
-                className="rounded-xl border border-primary-200 bg-primary-50/60 px-3 py-2 text-sm text-primary-900 outline-none focus:border-accent-400"
-              />
-            </label>
-
-            <label className="grid gap-1.5 text-sm font-medium text-primary-700">
-              Prompt macro
-              <textarea
-                required
-                value={form.prompt}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    prompt: event.target.value,
-                  }))
-                }
-                placeholder={
-                  'Review this for correctness, risks, and missing tests:\n\n{{input}}'
-                }
-                rows={10}
-                className="resize-y rounded-xl border border-primary-200 bg-primary-50/60 px-3 py-2 text-sm leading-relaxed text-primary-900 outline-none focus:border-accent-400"
-              />
-            </label>
-
-            <label className="flex items-center gap-2 text-sm font-medium text-primary-700">
-              <input
-                type="checkbox"
-                checked={form.enabled}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    enabled: event.target.checked,
-                  }))
-                }
-              />
-              Enabled in slash menu and command palette
-            </label>
-
+      <main className="mcp-main">
+        <div className="mcp-top">
+          <div>
+            <div className="mcp-crumbs">
+              Hermes Switch UI<span className="mcp-sep">·</span>Commands
+            </div>
+            <h1>Slash Commands</h1>
+            <div className="mcp-sub">
+              Create reusable prompt macros for Chat Composer. Commands are
+              stored in SwitchUI SQLite and appear in the slash picker.
+            </div>
+          </div>
+          <div className="mcp-right">
+            <div className="mcp-stat">
+              <span>Total</span>
+              <b>{commands.length}</b>
+            </div>
+            <div className="mcp-stat">
+              <span>Enabled</span>
+              <b>{enabledCount}</b>
+            </div>
             <button
-              type="submit"
-              disabled={isBusy}
-              className="rounded-xl bg-accent-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-accent-600 disabled:opacity-50"
+              type="button"
+              className="mcp-btn mcp-btn-primary"
+              onClick={startNewCommand}
             >
-              {isBusy
-                ? 'Saving…'
-                : isEditing
-                  ? 'Save command'
-                  : 'Create command'}
+              {Ico.plus} New Command
             </button>
-          </form>
-        </aside>
-      </div>
-    </main>
+          </div>
+        </div>
+
+        <div className="mcp-toolbar">
+          <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--m-text-faint,var(--theme-muted))]">
+            {filteredCommands.length} of {commands.length}
+          </span>
+          <span className="mcp-grow" />
+          <span className="mcp-sort">prompt macros · slash menu</span>
+        </div>
+
+        <div className="mcp-canvas">
+          <div className="grid min-h-full grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_25rem]">
+            <section className="min-w-0">
+              {commandsQuery.isLoading ? (
+                <div className="mcp-empty">
+                  <div className="mcp-glyph">…</div>
+                  Loading commands…
+                </div>
+              ) : commandsQuery.error ? (
+                <div className="mcp-empty text-red-400">
+                  <div className="mcp-glyph">!</div>
+                  {commandsQuery.error instanceof Error
+                    ? commandsQuery.error.message
+                    : 'Failed to load commands'}
+                </div>
+              ) : filteredCommands.length === 0 ? (
+                <div className="mcp-empty">
+                  <div className="mcp-glyph">∅</div>
+                  no commands match.
+                  <br />
+                  <span className="text-[var(--m-text-muted,var(--theme-muted))]">
+                    clear filters or create a new command.
+                  </span>
+                </div>
+              ) : (
+                <div className="mcp-grid">
+                  {filteredCommands.map((command) => (
+                    <article
+                      key={command.id}
+                      className={cn(
+                        'mcp-card',
+                        command.enabled ? 'mcp-connected' : 'opacity-70',
+                      )}
+                    >
+                      <div className="mcp-hd">
+                        <div className="mcp-glyph">
+                          {commandInitials(command)}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="mcp-name">{command.name}</div>
+                          <div className="mcp-by">{command.slash}</div>
+                        </div>
+                        <div className="mcp-right">
+                          <span
+                            className={cn(
+                              'mcp-status-pill',
+                              command.enabled ? 'mcp-ok' : 'mcp-unknown',
+                            )}
+                          >
+                            <span className="mcp-d" />
+                            {command.enabled ? 'enabled' : 'disabled'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mcp-endpoint whitespace-normal">
+                        <span className="mcp-scheme">/</span>
+                        <span>{command.slash.replace(/^\//, '')}</span>
+                      </div>
+
+                      <div className="mcp-kvgrid">
+                        <div className="mcp-kv">
+                          <span className="mcp-lbl">Updated</span>
+                          <b className="mcp-zero text-[11px]">
+                            {formatDate(command.updatedAt)}
+                          </b>
+                        </div>
+                        <div className="mcp-kv">
+                          <span className="mcp-lbl">Source</span>
+                          <b className="mcp-live">SwitchUI</b>
+                        </div>
+                      </div>
+
+                      <div className="mcp-bd whitespace-normal">
+                        {command.description || 'No description yet.'}
+                      </div>
+
+                      <pre className="mt-3 max-h-28 overflow-auto whitespace-pre-wrap rounded-md border border-[var(--m-border-subtle,var(--theme-border))] bg-[var(--m-bg-deep,var(--theme-bg))] p-3 text-xs leading-relaxed text-[var(--m-text-muted,var(--theme-muted))]">
+                        {command.prompt}
+                      </pre>
+
+                      <div className="mcp-ft">
+                        <button
+                          type="button"
+                          className="mcp-btn-mini"
+                          disabled={isBusy}
+                          onClick={() => setForm(commandToForm(command))}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="mcp-btn-mini"
+                          disabled={isBusy}
+                          onClick={() => void handleToggle(command)}
+                        >
+                          {command.enabled ? 'Disable' : 'Enable'}
+                        </button>
+                        <span className="mcp-grow" />
+                        <button
+                          type="button"
+                          className="mcp-btn-mini mcp-danger"
+                          disabled={isBusy}
+                          onClick={() => void handleDelete(command)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <aside className="mcp-card sticky top-0 self-start whitespace-normal">
+              <div className="mcp-hd">
+                <div className="mcp-glyph">/</div>
+                <div>
+                  <div className="mcp-name">
+                    {isEditing ? 'Edit Command' : 'New Command'}
+                  </div>
+                  <div className="mcp-by">Prompt macro editor</div>
+                </div>
+                {isEditing ? (
+                  <button
+                    type="button"
+                    className="mcp-ico-btn mcp-right"
+                    onClick={startNewCommand}
+                    title="Cancel edit"
+                  >
+                    {Ico.x}
+                  </button>
+                ) : null}
+              </div>
+
+              <form className="grid gap-3" onSubmit={handleSubmit}>
+                <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--m-text-muted,var(--theme-muted))]">
+                  Name
+                  <input
+                    required
+                    value={form.name}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
+                    }
+                    placeholder="Code review"
+                    className="rounded-md border border-[var(--m-border,var(--theme-border))] bg-[var(--m-bg-deep,var(--theme-bg))] px-3 py-2 font-sans text-sm normal-case tracking-normal text-[var(--m-text,var(--theme-text))] outline-none focus:border-[var(--m-green-500,var(--theme-accent))]"
+                  />
+                </label>
+
+                <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--m-text-muted,var(--theme-muted))]">
+                  Slash trigger
+                  <input
+                    required
+                    value={form.slash}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        slash: event.target.value,
+                      }))
+                    }
+                    onBlur={() =>
+                      setForm((current) => ({
+                        ...current,
+                        slash: normalizeSlash(current.slash),
+                      }))
+                    }
+                    placeholder="/review"
+                    className="rounded-md border border-[var(--m-border,var(--theme-border))] bg-[var(--m-bg-deep,var(--theme-bg))] px-3 py-2 font-mono text-sm normal-case tracking-normal text-[var(--m-text,var(--theme-text))] outline-none focus:border-[var(--m-green-500,var(--theme-accent))]"
+                  />
+                  <span className="font-sans text-[11px] font-normal normal-case leading-relaxed tracking-normal text-[var(--m-text-faint,var(--theme-muted))]">
+                    Built-ins like /new and /help are reserved.
+                  </span>
+                </label>
+
+                <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--m-text-muted,var(--theme-muted))]">
+                  Description
+                  <input
+                    value={form.description}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        description: event.target.value,
+                      }))
+                    }
+                    placeholder="Review the message for bugs"
+                    className="rounded-md border border-[var(--m-border,var(--theme-border))] bg-[var(--m-bg-deep,var(--theme-bg))] px-3 py-2 font-sans text-sm normal-case tracking-normal text-[var(--m-text,var(--theme-text))] outline-none focus:border-[var(--m-green-500,var(--theme-accent))]"
+                  />
+                </label>
+
+                <label className="grid gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--m-text-muted,var(--theme-muted))]">
+                  Prompt macro
+                  <textarea
+                    required
+                    value={form.prompt}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        prompt: event.target.value,
+                      }))
+                    }
+                    placeholder={
+                      'Review this for correctness, risks, and missing tests:\n\n{{input}}'
+                    }
+                    rows={10}
+                    className="resize-y rounded-md border border-[var(--m-border,var(--theme-border))] bg-[var(--m-bg-deep,var(--theme-bg))] px-3 py-2 font-sans text-sm normal-case leading-relaxed tracking-normal text-[var(--m-text,var(--theme-text))] outline-none focus:border-[var(--m-green-500,var(--theme-accent))]"
+                  />
+                </label>
+
+                <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--m-text-muted,var(--theme-muted))]">
+                  <input
+                    type="checkbox"
+                    checked={form.enabled}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        enabled: event.target.checked,
+                      }))
+                    }
+                  />
+                  Enabled in slash menu
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={isBusy}
+                  className="mcp-btn mcp-btn-primary justify-center"
+                >
+                  {isBusy
+                    ? 'Saving…'
+                    : isEditing
+                      ? 'Save Command'
+                      : 'Create Command'}
+                </button>
+              </form>
+            </aside>
+          </div>
+        </div>
+
+        <footer className="mcp-foot">
+          <span>
+            <b>{commands.length}</b> commands
+          </span>
+          <span className="mcp-sep" />
+          <span>
+            <b className="mcp-ok">{enabledCount}</b> enabled
+          </span>
+          <span className="mcp-sep" />
+          <span>
+            storage <b>switchui.db</b>
+          </span>
+          <span className="mcp-foot-updated">
+            updated <b>now</b>
+          </span>
+        </footer>
+      </main>
+    </div>
   )
 }
