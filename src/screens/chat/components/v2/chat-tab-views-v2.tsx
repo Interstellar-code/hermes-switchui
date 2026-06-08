@@ -133,7 +133,7 @@ type RootLevelResult = {
   timestamp?: number
 }
 
-/** Determine phase → status. Canonical mapping per v1 message-item.tsx:376-389. */
+/** Determine phase → status. Unknown phases fail closed to avoid phantom spinners. */
 function phaseToStatus(phase: string): 'running' | 'done' | 'error' {
   if (phase === 'error' || phase === 'failed' || phase === 'failure') return 'error'
   if (
@@ -145,8 +145,7 @@ function phaseToStatus(phase: string): 'running' | 'done' | 'error' {
     return 'done'
   if (phase === 'start' || phase === 'started' || phase === 'calling' || phase === 'running')
     return 'running'
-  // Unknown phases default to running, matching v1 message-item.tsx:389.
-  return 'running'
+  return 'done'
 }
 
 /** Build FlatToolEntry list from streaming tool calls */

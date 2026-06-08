@@ -162,14 +162,15 @@ describe('ToolTabView streaming tool calls', () => {
     expect(container.textContent).toContain(expected)
   })
 
-  it('unknown phase falls back to running (matches v1 message-item)', () => {
+  it('unknown phase fails closed to done to avoid phantom running spinners', () => {
     const streamingToolCalls = [
       { id: 'c-unk', name: 'mystery', phase: 'mystery-phase', args: { a: 1 } },
     ]
     const container = renderInto(
       <ToolTabView messages={[]} streamingToolCalls={streamingToolCalls} />,
     )
-    expect(container.textContent).toContain('running')
+    expect(container.textContent).toContain('done')
+    expect(container.textContent).not.toContain('running')
   })
 
   it('messageSettled overrides stuck running phase to done (Responses API gap)', () => {

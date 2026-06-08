@@ -18,8 +18,6 @@ type ChatActivityState = {
   changedAt: number
   setLocalActivity: (activity: AgentActivity) => void
   setGatewayActivity: (activity: AgentActivity) => void
-  /** Polling interval ref */
-  _pollTimer: ReturnType<typeof setInterval> | null
   startGatewayPoll: () => void
   stopGatewayPoll: () => void
 }
@@ -103,12 +101,14 @@ async function pollGatewayState(): Promise<AgentActivity> {
   }
 }
 
+let gatewayPollTimer: ReturnType<typeof setInterval> | null = null
+let gatewayPollGeneration = 0
+
 export const useChatActivityStore = create<ChatActivityState>((set, get) => ({
   activity: 'idle',
   localActivity: 'idle',
   gatewayActivity: 'idle',
   changedAt: Date.now(),
-  _pollTimer: null,
 
   setLocalActivity: (localActivity) => {
     const state = get()
@@ -130,22 +130,22 @@ export const useChatActivityStore = create<ChatActivityState>((set, get) => ({
   },
 
   startGatewayPoll: () => {
-    const state = get()
-    if (state._pollTimer) return
+    if (gatewayPollTimer) return
+    const pollGeneration = ++gatewayPollGeneration
     const tick = async () => {
       const detected = await pollGatewayState()
-      get().setGatewayActivity(detected)
+      if (gatewayPollTimer && pollGeneration === gatewayPollGeneration) {
+        get().setGatewayActivity(detected)
+      }
     }
     void tick()
-    const timer = setInterval(tick, 3000)
-    set({ _pollTimer: timer })
+    gatewayPollTimer = setInterval(tick, 3000)
   },
 
   stopGatewayPoll: () => {
-    const timer = get()._pollTimer
-    if (timer) {
-      clearInterval(timer)
-      set({ _pollTimer: null })
-    }
+    if (!gatewayPollTimer) return
+    clearInterval(gatewayPollTimer)
+    gatewayPollTimer = null
+    gatewayPollGeneration += 1
   },
 }))
