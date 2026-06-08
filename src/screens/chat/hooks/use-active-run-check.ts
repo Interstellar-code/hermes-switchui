@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useChatStore } from '../../../stores/chat-store'
 
-type ActiveRunStatus =
+export type ActiveRunStatus =
   | 'accepted'
   | 'active'
   | 'handoff'
@@ -9,21 +9,40 @@ type ActiveRunStatus =
   | 'complete'
   | 'error'
 
-type ActiveRunResponse = {
-  ok: boolean
-  run: {
-    runId: string
-    status: ActiveRunStatus
-    sessionKey: string
-    startedAt: number
-  } | null
+export type ActiveRunSnapshot = {
+  runId: string
+  status: ActiveRunStatus
+  sessionKey: string
+  startedAt?: number
+  createdAt?: number
+  updatedAt?: number
+  lastEventAt?: number
 }
 
-const ACTIVE_STATUSES: ReadonlySet<string> = new Set([
-  'accepted',
-  'active',
-  'handoff',
-])
+type ActiveRunResponse = {
+  ok: boolean
+  run: ActiveRunSnapshot | null
+}
+
+const RECOVERABLE_HANDOFF_WINDOW_MS = 30_000
+const ACTIVE_RUN_CHECK_RETRY_MS = 1_500
+const ACTIVE_RUN_CHECK_MAX_ATTEMPTS = 3
+
+export function isRecoverableActiveRun(
+  run: ActiveRunSnapshot | null,
+  now = Date.now(),
+): run is ActiveRunSnapshot {
+  if (!run) return false
+  if (run.status === 'accepted' || run.status === 'active') return true
+  if (run.status !== 'handoff') return false
+
+  const lastActivityAt =
+    run.lastEventAt ?? run.updatedAt ?? run.startedAt ?? run.createdAt
+  return (
+    typeof lastActivityAt === 'number' &&
+    now - lastActivityAt <= RECOVERABLE_HANDOFF_WINDOW_MS
+  )
+}
 
 /**
  * On mount, checks whether the server has an active run for this session.
@@ -41,37 +60,40 @@ export function useActiveRunCheck({
   sessionKey: string
   enabled: boolean
 }): void {
-  const hasCheckedRef = useRef(false)
-  const sessionKeyRef = useRef(sessionKey)
-  sessionKeyRef.current = sessionKey
-
   useEffect(() => {
     if (!enabled || !sessionKey || sessionKey === 'new') return
-    if (hasCheckedRef.current) return
-    hasCheckedRef.current = true
 
     const controller = new AbortController()
+    let retryTimer: number | null = null
+    let attempts = 0
 
     async function check() {
+      attempts += 1
       try {
         const response = await fetch(
           `/api/sessions/${encodeURIComponent(sessionKey)}/active-run`,
           { signal: controller.signal },
         )
-        if (!response.ok) return
+        if (!response.ok)
+          throw new Error(`Active run check failed: ${response.status}`)
 
         const data = (await response.json()) as ActiveRunResponse
-        if (!data.ok) return
+        if (!data.ok) throw new Error('Active run check returned an error')
 
         const store = useChatStore.getState()
-        if (data.run && ACTIVE_STATUSES.has(data.run.status)) {
+        if (isRecoverableActiveRun(data.run)) {
           store.setSessionWaiting(sessionKey, data.run.runId)
         } else if (store.isSessionWaiting(sessionKey)) {
           // Server says run is done but we still have stale waiting state
           store.clearSessionWaiting(sessionKey)
         }
       } catch {
-        // Network error or abort — ignore
+        if (
+          !controller.signal.aborted &&
+          attempts < ACTIVE_RUN_CHECK_MAX_ATTEMPTS
+        ) {
+          retryTimer = window.setTimeout(check, ACTIVE_RUN_CHECK_RETRY_MS)
+        }
       }
     }
 
@@ -79,11 +101,7 @@ export function useActiveRunCheck({
 
     return () => {
       controller.abort()
+      if (retryTimer) window.clearTimeout(retryTimer)
     }
   }, [sessionKey, enabled])
-
-  // Reset check flag when session changes
-  useEffect(() => {
-    hasCheckedRef.current = false
-  }, [sessionKey])
 }

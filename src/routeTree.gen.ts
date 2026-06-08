@@ -23,6 +23,7 @@ import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as FilesRouteImport } from './routes/files'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ConductorRouteImport } from './routes/conductor'
+import { Route as CommandsRouteImport } from './routes/commands'
 import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as AgoraRouteImport } from './routes/agora'
 import { Route as SplatRouteImport } from './routes/$'
@@ -77,6 +78,7 @@ import { Route as ApiCrewStatusRouteImport } from './routes/api/crew-status'
 import { Route as ApiContextUsageRouteImport } from './routes/api/context-usage'
 import { Route as ApiConnectionStatusRouteImport } from './routes/api/connection-status'
 import { Route as ApiConnectionSettingsRouteImport } from './routes/api/connection-settings'
+import { Route as ApiCommandsRouteImport } from './routes/api/commands'
 import { Route as ApiClaudeUpdateRouteImport } from './routes/api/claude-update'
 import { Route as ApiClaudeTasksAssigneesRouteImport } from './routes/api/claude-tasks-assignees'
 import { Route as ApiClaudeTasksRouteImport } from './routes/api/claude-tasks'
@@ -152,6 +154,7 @@ import { Route as ApiDashboardProxySplatRouteImport } from './routes/api/dashboa
 import { Route as ApiConductorWorkersRouteImport } from './routes/api/conductor/workers'
 import { Route as ApiConductorStateRouteImport } from './routes/api/conductor/state'
 import { Route as ApiConductorMissionsRouteImport } from './routes/api/conductor/missions'
+import { Route as ApiCommandsIdRouteImport } from './routes/api/commands.$id'
 import { Route as ApiClaudeTasksTaskIdRouteImport } from './routes/api/claude-tasks.$taskId'
 import { Route as ApiClaudeProxySplatRouteImport } from './routes/api/claude-proxy/$'
 import { Route as ApiClaudeJobsJobIdRouteImport } from './routes/api/claude-jobs.$jobId'
@@ -244,6 +247,11 @@ const DashboardRoute = DashboardRouteImport.update({
 const ConductorRoute = ConductorRouteImport.update({
   id: '/conductor',
   path: '/conductor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CommandsRoute = CommandsRouteImport.update({
+  id: '/commands',
+  path: '/commands',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BoardsRoute = BoardsRouteImport.update({
@@ -514,6 +522,11 @@ const ApiConnectionStatusRoute = ApiConnectionStatusRouteImport.update({
 const ApiConnectionSettingsRoute = ApiConnectionSettingsRouteImport.update({
   id: '/api/connection-settings',
   path: '/api/connection-settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCommandsRoute = ApiCommandsRouteImport.update({
+  id: '/api/commands',
+  path: '/api/commands',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiClaudeUpdateRoute = ApiClaudeUpdateRouteImport.update({
@@ -896,6 +909,11 @@ const ApiConductorMissionsRoute = ApiConductorMissionsRouteImport.update({
   path: '/api/conductor/missions',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCommandsIdRoute = ApiCommandsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiCommandsRoute,
+} as any)
 const ApiClaudeTasksTaskIdRoute = ApiClaudeTasksTaskIdRouteImport.update({
   id: '/$taskId',
   path: '/$taskId',
@@ -1033,6 +1051,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/agora': typeof AgoraRoute
   '/boards': typeof BoardsRoute
+  '/commands': typeof CommandsRoute
   '/conductor': typeof ConductorRoute
   '/dashboard': typeof DashboardRoute
   '/files': typeof FilesRoute
@@ -1057,6 +1076,7 @@ export interface FileRoutesByFullPath {
   '/api/claude-tasks': typeof ApiClaudeTasksRouteWithChildren
   '/api/claude-tasks-assignees': typeof ApiClaudeTasksAssigneesRoute
   '/api/claude-update': typeof ApiClaudeUpdateRoute
+  '/api/commands': typeof ApiCommandsRouteWithChildren
   '/api/connection-settings': typeof ApiConnectionSettingsRoute
   '/api/connection-status': typeof ApiConnectionStatusRoute
   '/api/context-usage': typeof ApiContextUsageRoute
@@ -1110,6 +1130,7 @@ export interface FileRoutesByFullPath {
   '/api/claude-jobs/$jobId': typeof ApiClaudeJobsJobIdRoute
   '/api/claude-proxy/$': typeof ApiClaudeProxySplatRoute
   '/api/claude-tasks/$taskId': typeof ApiClaudeTasksTaskIdRoute
+  '/api/commands/$id': typeof ApiCommandsIdRoute
   '/api/conductor/missions': typeof ApiConductorMissionsRouteWithChildren
   '/api/conductor/state': typeof ApiConductorStateRoute
   '/api/conductor/workers': typeof ApiConductorWorkersRoute
@@ -1200,6 +1221,7 @@ export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/agora': typeof AgoraRoute
   '/boards': typeof BoardsRoute
+  '/commands': typeof CommandsRoute
   '/conductor': typeof ConductorRoute
   '/dashboard': typeof DashboardRoute
   '/files': typeof FilesRoute
@@ -1223,6 +1245,7 @@ export interface FileRoutesByTo {
   '/api/claude-tasks': typeof ApiClaudeTasksRouteWithChildren
   '/api/claude-tasks-assignees': typeof ApiClaudeTasksAssigneesRoute
   '/api/claude-update': typeof ApiClaudeUpdateRoute
+  '/api/commands': typeof ApiCommandsRouteWithChildren
   '/api/connection-settings': typeof ApiConnectionSettingsRoute
   '/api/connection-status': typeof ApiConnectionStatusRoute
   '/api/context-usage': typeof ApiContextUsageRoute
@@ -1276,6 +1299,7 @@ export interface FileRoutesByTo {
   '/api/claude-jobs/$jobId': typeof ApiClaudeJobsJobIdRoute
   '/api/claude-proxy/$': typeof ApiClaudeProxySplatRoute
   '/api/claude-tasks/$taskId': typeof ApiClaudeTasksTaskIdRoute
+  '/api/commands/$id': typeof ApiCommandsIdRoute
   '/api/conductor/missions': typeof ApiConductorMissionsRouteWithChildren
   '/api/conductor/state': typeof ApiConductorStateRoute
   '/api/conductor/workers': typeof ApiConductorWorkersRoute
@@ -1368,6 +1392,7 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/agora': typeof AgoraRoute
   '/boards': typeof BoardsRoute
+  '/commands': typeof CommandsRoute
   '/conductor': typeof ConductorRoute
   '/dashboard': typeof DashboardRoute
   '/files': typeof FilesRoute
@@ -1392,6 +1417,7 @@ export interface FileRoutesById {
   '/api/claude-tasks': typeof ApiClaudeTasksRouteWithChildren
   '/api/claude-tasks-assignees': typeof ApiClaudeTasksAssigneesRoute
   '/api/claude-update': typeof ApiClaudeUpdateRoute
+  '/api/commands': typeof ApiCommandsRouteWithChildren
   '/api/connection-settings': typeof ApiConnectionSettingsRoute
   '/api/connection-status': typeof ApiConnectionStatusRoute
   '/api/context-usage': typeof ApiContextUsageRoute
@@ -1445,6 +1471,7 @@ export interface FileRoutesById {
   '/api/claude-jobs/$jobId': typeof ApiClaudeJobsJobIdRoute
   '/api/claude-proxy/$': typeof ApiClaudeProxySplatRoute
   '/api/claude-tasks/$taskId': typeof ApiClaudeTasksTaskIdRoute
+  '/api/commands/$id': typeof ApiCommandsIdRoute
   '/api/conductor/missions': typeof ApiConductorMissionsRouteWithChildren
   '/api/conductor/state': typeof ApiConductorStateRoute
   '/api/conductor/workers': typeof ApiConductorWorkersRoute
@@ -1538,6 +1565,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/agora'
     | '/boards'
+    | '/commands'
     | '/conductor'
     | '/dashboard'
     | '/files'
@@ -1562,6 +1590,7 @@ export interface FileRouteTypes {
     | '/api/claude-tasks'
     | '/api/claude-tasks-assignees'
     | '/api/claude-update'
+    | '/api/commands'
     | '/api/connection-settings'
     | '/api/connection-status'
     | '/api/context-usage'
@@ -1615,6 +1644,7 @@ export interface FileRouteTypes {
     | '/api/claude-jobs/$jobId'
     | '/api/claude-proxy/$'
     | '/api/claude-tasks/$taskId'
+    | '/api/commands/$id'
     | '/api/conductor/missions'
     | '/api/conductor/state'
     | '/api/conductor/workers'
@@ -1705,6 +1735,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/agora'
     | '/boards'
+    | '/commands'
     | '/conductor'
     | '/dashboard'
     | '/files'
@@ -1728,6 +1759,7 @@ export interface FileRouteTypes {
     | '/api/claude-tasks'
     | '/api/claude-tasks-assignees'
     | '/api/claude-update'
+    | '/api/commands'
     | '/api/connection-settings'
     | '/api/connection-status'
     | '/api/context-usage'
@@ -1781,6 +1813,7 @@ export interface FileRouteTypes {
     | '/api/claude-jobs/$jobId'
     | '/api/claude-proxy/$'
     | '/api/claude-tasks/$taskId'
+    | '/api/commands/$id'
     | '/api/conductor/missions'
     | '/api/conductor/state'
     | '/api/conductor/workers'
@@ -1872,6 +1905,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/agora'
     | '/boards'
+    | '/commands'
     | '/conductor'
     | '/dashboard'
     | '/files'
@@ -1896,6 +1930,7 @@ export interface FileRouteTypes {
     | '/api/claude-tasks'
     | '/api/claude-tasks-assignees'
     | '/api/claude-update'
+    | '/api/commands'
     | '/api/connection-settings'
     | '/api/connection-status'
     | '/api/context-usage'
@@ -1949,6 +1984,7 @@ export interface FileRouteTypes {
     | '/api/claude-jobs/$jobId'
     | '/api/claude-proxy/$'
     | '/api/claude-tasks/$taskId'
+    | '/api/commands/$id'
     | '/api/conductor/missions'
     | '/api/conductor/state'
     | '/api/conductor/workers'
@@ -2041,6 +2077,7 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AgoraRoute: typeof AgoraRoute
   BoardsRoute: typeof BoardsRoute
+  CommandsRoute: typeof CommandsRoute
   ConductorRoute: typeof ConductorRoute
   DashboardRoute: typeof DashboardRoute
   FilesRoute: typeof FilesRoute
@@ -2065,6 +2102,7 @@ export interface RootRouteChildren {
   ApiClaudeTasksRoute: typeof ApiClaudeTasksRouteWithChildren
   ApiClaudeTasksAssigneesRoute: typeof ApiClaudeTasksAssigneesRoute
   ApiClaudeUpdateRoute: typeof ApiClaudeUpdateRoute
+  ApiCommandsRoute: typeof ApiCommandsRouteWithChildren
   ApiConnectionSettingsRoute: typeof ApiConnectionSettingsRoute
   ApiConnectionStatusRoute: typeof ApiConnectionStatusRoute
   ApiContextUsageRoute: typeof ApiContextUsageRoute
@@ -2255,6 +2293,13 @@ declare module '@tanstack/react-router' {
       path: '/conductor'
       fullPath: '/conductor'
       preLoaderRoute: typeof ConductorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/commands': {
+      id: '/commands'
+      path: '/commands'
+      fullPath: '/commands'
+      preLoaderRoute: typeof CommandsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/boards': {
@@ -2633,6 +2678,13 @@ declare module '@tanstack/react-router' {
       path: '/api/connection-settings'
       fullPath: '/api/connection-settings'
       preLoaderRoute: typeof ApiConnectionSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/commands': {
+      id: '/api/commands'
+      path: '/api/commands'
+      fullPath: '/api/commands'
+      preLoaderRoute: typeof ApiCommandsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/claude-update': {
@@ -3160,6 +3212,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiConductorMissionsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/commands/$id': {
+      id: '/api/commands/$id'
+      path: '/$id'
+      fullPath: '/api/commands/$id'
+      preLoaderRoute: typeof ApiCommandsIdRouteImport
+      parentRoute: typeof ApiCommandsRoute
+    }
     '/api/claude-tasks/$taskId': {
       id: '/api/claude-tasks/$taskId'
       path: '/$taskId'
@@ -3386,6 +3445,18 @@ const ApiClaudeTasksRouteChildren: ApiClaudeTasksRouteChildren = {
 
 const ApiClaudeTasksRouteWithChildren = ApiClaudeTasksRoute._addFileChildren(
   ApiClaudeTasksRouteChildren,
+)
+
+interface ApiCommandsRouteChildren {
+  ApiCommandsIdRoute: typeof ApiCommandsIdRoute
+}
+
+const ApiCommandsRouteChildren: ApiCommandsRouteChildren = {
+  ApiCommandsIdRoute: ApiCommandsIdRoute,
+}
+
+const ApiCommandsRouteWithChildren = ApiCommandsRoute._addFileChildren(
+  ApiCommandsRouteChildren,
 )
 
 interface ApiMcpNameRouteChildren {
@@ -3684,6 +3755,7 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   AgoraRoute: AgoraRoute,
   BoardsRoute: BoardsRoute,
+  CommandsRoute: CommandsRoute,
   ConductorRoute: ConductorRoute,
   DashboardRoute: DashboardRoute,
   FilesRoute: FilesRoute,
@@ -3708,6 +3780,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiClaudeTasksRoute: ApiClaudeTasksRouteWithChildren,
   ApiClaudeTasksAssigneesRoute: ApiClaudeTasksAssigneesRoute,
   ApiClaudeUpdateRoute: ApiClaudeUpdateRoute,
+  ApiCommandsRoute: ApiCommandsRouteWithChildren,
   ApiConnectionSettingsRoute: ApiConnectionSettingsRoute,
   ApiConnectionStatusRoute: ApiConnectionStatusRoute,
   ApiContextUsageRoute: ApiContextUsageRoute,

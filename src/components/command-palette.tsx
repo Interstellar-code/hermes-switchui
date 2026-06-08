@@ -34,6 +34,7 @@ import {
   CHAT_PENDING_COMMAND_STORAGE_KEY,
   CHAT_RUN_COMMAND_EVENT,
 } from '@/screens/chat/chat-events'
+import { useEnabledUserCommands } from '@/lib/commands-api'
 import { cn } from '@/lib/utils'
 
 type CommandPaletteProps = {
@@ -47,9 +48,7 @@ type CommandAction = {
   label: string
   keywords: string
   shortcut?: string
-  icon: React.ComponentProps<
-    typeof import('@hugeicons/react').HugeiconsIcon
-  >['icon']
+  icon: React.ComponentProps<typeof HugeiconsIcon>['icon']
   onSelect: () => void
 }
 
@@ -106,6 +105,8 @@ function scoreCommandAction(action: CommandAction, query: string) {
 
 export function CommandPalette({ pathname, sessions }: CommandPaletteProps) {
   const navigate = useNavigate()
+  const userCommandsQuery = useEnabledUserCommands()
+  const userCommands = userCommandsQuery.data
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -195,6 +196,15 @@ export function CommandPalette({ pathname, sessions }: CommandPaletteProps) {
         onSelect: () => void navigate({ to: '/terminal' }),
       },
       {
+        id: 'screen-commands',
+        group: 'Screens',
+        label: 'Commands',
+        keywords: 'slash commands prompt macros custom shortcuts',
+        shortcut: 'Go',
+        icon: CommandLineIcon,
+        onSelect: () => void navigate({ to: '/commands' }),
+      },
+      {
         id: 'screen-memory',
         group: 'Screens',
         label: 'Memory',
@@ -255,8 +265,8 @@ export function CommandPalette({ pathname, sessions }: CommandPaletteProps) {
     [navigate, sessions],
   )
 
-  const slashCommandActions = useMemo<Array<CommandAction>>(
-    () => [
+  const slashCommandActions = useMemo<Array<CommandAction>>(() => {
+    const builtinActions: Array<CommandAction> = [
       {
         id: 'slash-new',
         group: 'Slash Commands',
@@ -320,9 +330,22 @@ export function CommandPalette({ pathname, sessions }: CommandPaletteProps) {
         icon: CommandLineIcon,
         onSelect: () => runSlashCommand('/save'),
       },
-    ],
-    [pathname],
-  )
+    ]
+
+    const customActions = userCommands.map(
+      (command): CommandAction => ({
+        id: `slash-user-${command.id}`,
+        group: 'Slash Commands',
+        label: command.slash,
+        keywords: `${command.name} ${command.description} custom prompt macro`,
+        shortcut: 'Run',
+        icon: CommandLineIcon,
+        onSelect: () => runSlashCommand(command.slash),
+      }),
+    )
+
+    return [...builtinActions, ...customActions]
+  }, [pathname, userCommands])
 
   const actions = useMemo(
     () => [...screenActions, ...recentSessionActions, ...slashCommandActions],
