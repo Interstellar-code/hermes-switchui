@@ -1,4 +1,11 @@
 import { create } from 'zustand'
+import {
+  
+  
+  isRunPhaseBusy,
+  reduceRunPhase
+} from './run-phase'
+import type {RunPhase, RunPhaseTrigger} from './run-phase';
 import type {
   ChatMessage,
   MessageContent,
@@ -175,6 +182,24 @@ type ChatState = {
   clearSessionInterrupted: (sessionKey: string) => void
   /** Check if a session is in the interrupted state */
   isSessionInterrupted: (sessionKey: string) => boolean
+
+  /**
+   * Layer 3 run-phase state machine (Track 2 / Phase 2.1). One phase per
+   * session, driven by SSE events + liveness snapshot + active-send ref
+   * ONLY — never by history shape (F2 fence).
+   *
+   * Replaces the legacy 6-signal `isComposerLoading` composition in
+   * `chat-screen.tsx:1632`. Cutover happens in Phase 2.2 (one-line swap).
+   * Until then, this runs in parallel — the legacy signals continue to
+   * feed `isChatRuntimeBusy`.
+   */
+  runPhase: Map<string, RunPhase>
+  /** Transition a session's run phase via the reducer (fence-enforced). */
+  setRunPhase: (sessionKey: string, next: RunPhase, trigger: RunPhaseTrigger) => void
+  /** Read the current run phase for a session (defaults to 'idle'). */
+  getRunPhase: (sessionKey: string) => RunPhase
+  /** True when the run phase is busy (sending or streaming). */
+  isRunPhaseBusy: (sessionKey: string) => boolean
 }
 
 function isStreamingToolCall(value: unknown): value is StreamingToolCall {
@@ -794,6 +819,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   waitingSessionKeys: _restoredWaiting.keys,
   waitingSessionMeta: _restoredWaiting.meta,
   interruptedSessionKeys: new Set(),
+  runPhase: new Map(),
 
   setConnectionState: (connectionState, error) => {
     set({ connectionState, lastError: error ?? null })
@@ -893,6 +919,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const nextMeta = { ...get().waitingSessionMeta, [sessionKey]: meta }
     persistWaitingState(sessionKey, meta)
     set({ waitingSessionKeys: nextKeys, waitingSessionMeta: nextMeta })
+    get().setRunPhase(sessionKey, 'streaming', 'liveness-snapshot')
   },
 
   clearSessionWaiting: (sessionKey) => {
@@ -901,6 +928,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { [sessionKey]: _, ...nextMeta } = get().waitingSessionMeta
     removeWaitingState(sessionKey)
     set({ waitingSessionKeys: nextKeys, waitingSessionMeta: nextMeta })
+    get().setRunPhase(sessionKey, 'idle', 'liveness-clear')
   },
 
   isSessionWaiting: (sessionKey) => {
@@ -911,16 +939,40 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const nextKeys = new Set(get().interruptedSessionKeys)
     nextKeys.add(sessionKey)
     set({ interruptedSessionKeys: nextKeys })
+    get().setRunPhase(sessionKey, 'interrupted', 'predicate-clear')
   },
 
   clearSessionInterrupted: (sessionKey) => {
     const nextKeys = new Set(get().interruptedSessionKeys)
     nextKeys.delete(sessionKey)
     set({ interruptedSessionKeys: nextKeys })
+    get().setRunPhase(sessionKey, 'idle', 'predicate-clear')
   },
 
   isSessionInterrupted: (sessionKey) => {
     return get().interruptedSessionKeys.has(sessionKey)
+  },
+
+  setRunPhase: (sessionKey, next, trigger) => {
+    const current = get().runPhase.get(sessionKey) ?? 'idle'
+    const resolved = reduceRunPhase(current, next, trigger)
+    if (resolved === null) {
+      // Fence guard: a caller tried an illegal transition (e.g. predicate
+      // → streaming). Log for observability and drop. See run-phase.ts.
+      return
+    }
+    if (resolved === current) return
+    const nextMap = new Map(get().runPhase)
+    nextMap.set(sessionKey, resolved)
+    set({ runPhase: nextMap })
+  },
+
+  getRunPhase: (sessionKey) => {
+    return get().runPhase.get(sessionKey) ?? 'idle'
+  },
+
+  isRunPhaseBusy: (sessionKey) => {
+    return isRunPhaseBusy(get().runPhase.get(sessionKey) ?? 'idle')
   },
 
   processEvent: (event) => {

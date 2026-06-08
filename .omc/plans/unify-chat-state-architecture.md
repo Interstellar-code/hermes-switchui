@@ -204,9 +204,53 @@ Fix (no history-as-authority): on an idle gap of **N=5s** with no SSE event duri
   - unanswered + non-tool-only + no snapshot → `interrupted` affordance (not thinking).
   - SwitchUI restart mid-run → `interrupted` (not auto-streaming) (#8).
 
-### TRACK 2 — Sustainability consolidation (separate justification, after Track 1)
+### TRACK 2 — Sustainability consolidation
 
-**Phase 2.0 — Inventory** — grep map every read/write of the 4 stores → adapter migration checklist (gates Phase 2.3 deletes).
+**Phase 2.0 — Inventory** ✅ DONE (this section). Grep map of every read/write of the 4 stores, producing the adapter migration checklist for Phase 2.3.
+
+**Inventory results (verified against live code 2026-06-08):**
+
+| # | Store | Location | Keys / fields | Status |
+|---|---|---|---|---|
+| 1 | Zustand `chat-store.ts` (in-memory) | `src/stores/chat-store.ts:105-178` | 7 state slices (`realtimeMessages`, `streamingState`, `lastEventAt`, `sendStreamRunIds`, `messageQueue`, `messageQueueActivity`, `waitingSessionKeys`+`Meta`, `interruptedSessionKeys`) + 19 actions | All consolidated in one Zustand slice — Layer 3 |
+| 2 | sessionStorage (tab-scoped) | `src/stores/chat-store.ts:200-352` | `claude_streaming_<sk>` (60s), `claude_recovery_msg_<sk>` (5min), `claude_waiting_<sk>` (120s) | Adapter `runPersistence` (Phase 2.3) |
+| 3 | localStorage (cross-tab) | `src/stores/chat-store.ts:358-411` | `switchui:message-queue:<sk>` | **MIGRATE** to sessionStorage in Phase 2.3 (R3/Q1 decided) |
+| 4 | run-store JSON (server-side) | `src/server/run-store.ts:37,38,196-216` | `~/.hermes/webui-mvp/runs/<sk>/<runId>.json` | **Out of scope** (server-side, separate process) |
+
+**Extra direct chat storage I/O outside `chat-store.ts`:**
+- `use-active-run-check.ts:57` — feature flag `switchui:recovery-reconcile-v1` — keep (not run state)
+- `use-realtime-chat-history.ts:79` — real-time history cache — already separate concern
+- `chat-screen.tsx:533,552,590,2829` — UI prefs (`switchui:tool-display-mode`, `claude-file-explorer-collapsed`) — not run state
+
+**Adapter migration checklist (gates Phase 2.3 deletes):**
+
+| Operation | Key | TTL | Adapter | Migration |
+|---|---|---|---|---|
+| Persist streaming | `claude_streaming_<sk>` | 60s | `persistStreamingState` | byte-identical |
+| Restore streaming | `claude_streaming_<sk>` | 60s | `restoreStreamingState` | byte-identical |
+| Persist recovery msg | `claude_recovery_msg_<sk>` | 5min | `persistRecoveryMessage` | byte-identical |
+| Restore recovery msg | `claude_recovery_msg_<sk>` | 5min | `restoreRecoveryMessage` | byte-identical |
+| Clear recovery msg | `claude_recovery_msg_<sk>` | — | `clearRecoveryMessage` | byte-identical |
+| Persist waiting | `claude_waiting_<sk>` | 120s | `persistWaitingState` | byte-identical |
+| Remove waiting | `claude_waiting_<sk>` | — | `removeWaitingState` | byte-identical |
+| Restore all waiting | `claude_waiting_*` | 120s | `restoreWaitingSessions` | byte-identical |
+| Read queue | `switchui:message-queue:<sk>` | — | `readQueuedMessages` | **CHANGE: sessionStorage, drain from localStorage on first read** |
+| Write queue | `switchui:message-queue:<sk>` | — | `writeQueuedMessages` | **CHANGE: sessionStorage** |
+| Clear queue | `switchui:message-queue:<sk>` | — | `clearQueuedMessages` | **CHANGE: sessionStorage** |
+
+**`isComposerLoading` signals (`chat-screen.tsx:1632-1639` — 6 inputs):**
+1. `sending` (in-memory)
+2. `waitingForResponse` (sessionStorage-backed `claude_waiting_`)
+3. `hasActiveSend` (ref: `activeSendRef.current`)
+4. `activeIsRealtimeStreaming` (in-memory, derived)
+5. `derivedIsStreaming: derivedStreamingInfo.isStreaming` (in-memory, derived)
+6. `hasPendingGeneration` (in-memory, derived)
+
+**F2 fence guard for `runPhase` (Phase 2.1):**
+- `runPhase` → `streaming` ONLY via: SSE event handlers, `setSessionWaiting` (liveness snapshot), `setActiveSend` (ref)
+- `runPhase` ← `streaming` via: `clearSessionWaiting`, `clearStreamingSession`, SSE completion, `streamFinish()`
+- `runPhase` → `interrupted` from predicate (clear-only, Phase 1.2)
+- `runPhase` ← `streaming` from history shape: **NEVER** (F2)
 
 **Phase 2.1 — Layer 3 `runPhase` slice** — add state machine + reducers driven by SSE events + liveness snapshot ONLY (never history). Add `selectRunPhase`, `selectIsComposerBusy`. Parallel path, no cutover.
 - **Acceptance:** `selectIsComposerBusy` parity table vs legacy 4-signal `isComposerLoading`; **busy never settable from history shape** (lint/test guard).
