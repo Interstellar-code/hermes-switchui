@@ -162,6 +162,19 @@ type ChatState = {
   clearSessionWaiting: (sessionKey: string) => void
   /** Check if a session is waiting for a response */
   isSessionWaiting: (sessionKey: string) => boolean
+  /**
+   * Sessions where the liveness snapshot is absent but the history predicate
+   * (`hasUnansweredLatestUserTurn` + F1 guard) indicates a turn was likely
+   * interrupted — shows the "Run lost — resend?" affordance. Distinct from
+   * `waitingSessionKeys` (live run) and from idle (answered).
+   */
+  interruptedSessionKeys: Set<string>
+  /** Mark a session as interrupted (recovery predicate fired, no live run) */
+  setSessionInterrupted: (sessionKey: string) => void
+  /** Clear interrupted state for a session */
+  clearSessionInterrupted: (sessionKey: string) => void
+  /** Check if a session is in the interrupted state */
+  isSessionInterrupted: (sessionKey: string) => boolean
 }
 
 function isStreamingToolCall(value: unknown): value is StreamingToolCall {
@@ -780,6 +793,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messageQueueActivity: {},
   waitingSessionKeys: _restoredWaiting.keys,
   waitingSessionMeta: _restoredWaiting.meta,
+  interruptedSessionKeys: new Set(),
 
   setConnectionState: (connectionState, error) => {
     set({ connectionState, lastError: error ?? null })
@@ -891,6 +905,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   isSessionWaiting: (sessionKey) => {
     return get().waitingSessionKeys.has(sessionKey)
+  },
+
+  setSessionInterrupted: (sessionKey) => {
+    const nextKeys = new Set(get().interruptedSessionKeys)
+    nextKeys.add(sessionKey)
+    set({ interruptedSessionKeys: nextKeys })
+  },
+
+  clearSessionInterrupted: (sessionKey) => {
+    const nextKeys = new Set(get().interruptedSessionKeys)
+    nextKeys.delete(sessionKey)
+    set({ interruptedSessionKeys: nextKeys })
+  },
+
+  isSessionInterrupted: (sessionKey) => {
+    return get().interruptedSessionKeys.has(sessionKey)
   },
 
   processEvent: (event) => {

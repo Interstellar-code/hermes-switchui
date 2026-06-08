@@ -696,12 +696,20 @@ export function ChatScreen({
     }
   }, [])
 
+  // Snapshot cached history for the recovery predicate. Cheap reference
+  // pass; the predicate runs only on mount/relist of the active session.
+  const recoveryMessages = (historyQuery.data as { messages?: Array<ChatMessage> })?.messages
+
   // On remount, check if the server still has an active run for this session.
   // If so, re-set waitingForResponse in the store so the UI shows the spinner.
+  // Phase 1.2: also consult the history predicate (clear-only, with F1 guard)
+  // to surface the "interrupted" affordance when liveness is silent but the
+  // latest user turn was never answered.
   useActiveRunCheck({
     sessionKey: resolvedSessionKey,
     enabled:
       !isNewChat && resolvedSessionKey.length > 0 && historyQuery.isSuccess,
+    messages: recoveryMessages,
   })
 
   // Wire SSE realtime stream for instant message delivery
@@ -2326,6 +2334,29 @@ export function ChatScreen({
     [retryQueuedMessage],
   )
 
+  const isCurrentSessionInterrupted = useChatStore((state) =>
+    resolvedSessionKey ? state.isSessionInterrupted(resolvedSessionKey) : false,
+  )
+
+  const handleResendInterrupted = useCallback(() => {
+    if (!resolvedSessionKey) return
+    const store = useChatStore.getState()
+    store.clearSessionInterrupted(resolvedSessionKey)
+    const lastUser = [...finalDisplayMessages]
+      .reverse()
+      .find((m) => m?.role === 'user' && !m.__optimisticId)
+    if (lastUser && typeof lastUser.content !== 'undefined') {
+      const text = readMessageText(lastUser)
+      if (text.trim()) {
+        send(text, [], false, commandHelpers)
+      }
+    } else {
+      // No user message found — still clear the flag and let the user
+      // re-type. This handles the "interrupted but history is empty" edge.
+      void historyQuery.refetch()
+    }
+  }, [resolvedSessionKey, finalDisplayMessages, send, commandHelpers, historyQuery])
+
   useEffect(() => {
     if (false) {
       // Server connection checks removed — Hermes Agent uses direct API
@@ -2985,6 +3016,24 @@ export function ChatScreen({
 
           {errorNotice && (
             <div className="sticky top-0 z-20 px-4 py-2">{errorNotice}</div>
+          )}
+          {isCurrentSessionInterrupted && (
+            <div
+              role="status"
+              className="mx-4 mb-2 flex items-center justify-between gap-3 rounded-xl border border-amber-300/60 bg-amber-50/90 px-4 py-2.5 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-900/15 dark:text-amber-200"
+            >
+              <span className="min-w-0 flex-1">
+                Run may have continued server-side — resend?
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleResendInterrupted}
+                aria-label="Resend last user message"
+              >
+                Resend
+              </Button>
+            </div>
           )}
           {pendingApprovals.length > 0 && (
             <div className="mx-4 mb-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800/50 dark:bg-amber-900/15">

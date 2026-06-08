@@ -127,3 +127,38 @@ describe('chat message queue state', () => {
     ).toBeUndefined()
   })
 })
+
+describe('chat session interrupted state (Track 1.2)', () => {
+  beforeEach(() => {
+    useChatStore.setState({
+      interruptedSessionKeys: new Set(),
+      waitingSessionKeys: new Set(),
+      waitingSessionMeta: {},
+    })
+  })
+
+  it('marks and clears interrupted sessions', () => {
+    useChatStore.getState().setSessionInterrupted('session-A')
+    expect(useChatStore.getState().isSessionInterrupted('session-A')).toBe(true)
+    expect(useChatStore.getState().isSessionInterrupted('session-B')).toBe(
+      false,
+    )
+
+    useChatStore.getState().clearSessionInterrupted('session-A')
+    expect(useChatStore.getState().isSessionInterrupted('session-A')).toBe(
+      false,
+    )
+  })
+
+  it('is independent of waiting state', () => {
+    useChatStore.getState().setSessionWaiting('session-A', 'run-1')
+    useChatStore.getState().setSessionInterrupted('session-A')
+
+    expect(useChatStore.getState().isSessionWaiting('session-A')).toBe(true)
+    expect(useChatStore.getState().isSessionInterrupted('session-A')).toBe(true)
+
+    useChatStore.getState().clearSessionWaiting('session-A')
+    expect(useChatStore.getState().isSessionWaiting('session-A')).toBe(false)
+    expect(useChatStore.getState().isSessionInterrupted('session-A')).toBe(true)
+  })
+})

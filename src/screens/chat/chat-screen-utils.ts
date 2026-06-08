@@ -147,6 +147,58 @@ export function hasUnansweredLatestUserTurn(
   return true
 }
 
+/**
+ * F1 guard for `hasUnansweredLatestUserTurn`.
+ *
+ * A turn is "tool-only completed" when the latest user message is followed
+ * exclusively by tool/toolResult/streaming-placeholder messages (no final
+ * assistant text answer). This pattern arises when an agent finishes a run
+ * by executing tools but never emits a final synthesis — the user sees
+ * tool output but no conversational reply. Reading this as "unanswered"
+ * would cause the recovery predicate to surface a phantom `interrupted`
+ * affordance for what is actually a completed run.
+ *
+ * Returns `false` when:
+ *  - there is no latest user turn
+ *  - a final assistant text answer already follows
+ *  - the turn is already answered by any user-visible assistant message
+ */
+export function latestTurnIsToolOnly(messages: Array<ChatMessage>): boolean {
+  let latestUserIndex = -1
+  for (let index = messages.length - 1; index >= 0; index--) {
+    if (messages[index]?.role === 'user') {
+      latestUserIndex = index
+      break
+    }
+  }
+
+  if (latestUserIndex < 0) return false
+
+  const afterLatestUser = messages.slice(latestUserIndex + 1)
+  if (afterLatestUser.length === 0) return false
+
+  let sawAnyToolOutput = false
+  for (const message of afterLatestUser) {
+    if (isFinalAssistantAnswer(message)) return false
+    if (message.role === 'tool' || message.role === 'toolResult') {
+      sawAnyToolOutput = true
+      continue
+    }
+    if (message.role === 'assistant') {
+      // Streaming assistant placeholder without text content — part of a
+      // tool-only flow. Don't conclude tool-only yet; keep scanning.
+      if (message.__streamingStatus === 'streaming') continue
+      // Any other assistant message (with text or final) means the turn
+      // is no longer tool-only.
+      return false
+    }
+    // Unknown role (system, etc.) — not a tool-only turn.
+    return false
+  }
+
+  return sawAnyToolOutput
+}
+
 export type ChatRuntimeBusyState = {
   sending: boolean
   waitingForResponse: boolean

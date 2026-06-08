@@ -4,6 +4,7 @@ import {
   advanceStickyStreamingText,
   hasUnansweredLatestUserTurn,
   isChatRuntimeBusy,
+  latestTurnIsToolOnly,
 } from './chat-screen-utils'
 import type { ChatMessage } from './types'
 
@@ -152,5 +153,84 @@ describe('isChatRuntimeBusy', () => {
         hasPendingGeneration: false,
       }),
     ).toBe(true)
+  })
+})
+
+describe('latestTurnIsToolOnly (F1 guard)', () => {
+  it('returns false when there is no user turn', () => {
+    expect(latestTurnIsToolOnly([])).toBe(false)
+  })
+
+  it('returns false when only the user turn exists (no follow-up yet)', () => {
+    expect(
+      latestTurnIsToolOnly([
+        {
+          role: 'user',
+          status: 'queued',
+          __optimisticId: 'opt-1',
+          content: [{ type: 'text', text: 'first prompt' }],
+        },
+      ]),
+    ).toBe(false)
+  })
+
+  it('returns true when only tool results follow the user turn', () => {
+    expect(
+      latestTurnIsToolOnly([
+        {
+          role: 'user',
+          status: 'queued',
+          __optimisticId: 'opt-1',
+          content: [{ type: 'text', text: 'run ls' }],
+        },
+        {
+          role: 'tool',
+          content: [{ type: 'text', text: 'file1\nfile2' }],
+        },
+      ]),
+    ).toBe(true)
+  })
+
+  it('returns true when tool results + streaming assistant placeholder follow', () => {
+    expect(
+      latestTurnIsToolOnly([
+        {
+          role: 'user',
+          status: 'queued',
+          __optimisticId: 'opt-1',
+          content: [{ type: 'text', text: 'run ls' }],
+        },
+        {
+          role: 'tool',
+          content: [{ type: 'text', text: 'file1\nfile2' }],
+        },
+        {
+          role: 'assistant',
+          __streamingStatus: 'streaming',
+          content: [],
+        },
+      ]),
+    ).toBe(true)
+  })
+
+  it('returns false when a final assistant text answer follows', () => {
+    expect(
+      latestTurnIsToolOnly([
+        {
+          role: 'user',
+          status: 'queued',
+          __optimisticId: 'opt-1',
+          content: [{ type: 'text', text: 'run ls' }],
+        },
+        {
+          role: 'tool',
+          content: [{ type: 'text', text: 'file1\nfile2' }],
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Here are the files.' }],
+        },
+      ]),
+    ).toBe(false)
   })
 })
