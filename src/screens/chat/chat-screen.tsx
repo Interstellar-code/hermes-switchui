@@ -2346,29 +2346,6 @@ export function ChatScreen({
     [retryQueuedMessage],
   )
 
-  const isCurrentSessionInterrupted = useChatStore((state) =>
-    resolvedSessionKey ? state.isSessionInterrupted(resolvedSessionKey) : false,
-  )
-
-  const handleResendInterrupted = useCallback(() => {
-    if (!resolvedSessionKey) return
-    const store = useChatStore.getState()
-    store.clearSessionInterrupted(resolvedSessionKey)
-    const lastUser = [...finalDisplayMessages]
-      .reverse()
-      .find((m) => m?.role === 'user' && !m.__optimisticId)
-    if (lastUser && typeof lastUser.content !== 'undefined') {
-      const text = readMessageText(lastUser)
-      if (text.trim()) {
-        send(text, [], false, commandHelpers)
-      }
-    } else {
-      // No user message found — still clear the flag and let the user
-      // re-type. This handles the "interrupted but history is empty" edge.
-      void historyQuery.refetch()
-    }
-  }, [resolvedSessionKey, finalDisplayMessages, send, commandHelpers, historyQuery])
-
   useEffect(() => {
     if (false) {
       // Server connection checks removed — Hermes Agent uses direct API
@@ -2734,6 +2711,32 @@ export function ChatScreen({
       expandCustomSlashCommand,
     ],
   )
+
+  // Phase 1.2: interrupted affordance handlers. Placed AFTER `send` so
+  // the closure can capture it without a temporal-dead-zone error.
+  const isCurrentSessionInterrupted = useChatStore((state) =>
+    resolvedSessionKey ? state.isSessionInterrupted(resolvedSessionKey) : false,
+  )
+
+  const handleResendInterrupted = useCallback(() => {
+    if (!resolvedSessionKey) return
+    const store = useChatStore.getState()
+    store.clearSessionInterrupted(resolvedSessionKey)
+    const lastUser = [...finalDisplayMessages]
+      .reverse()
+      .find((m) => m?.role === 'user' && !m.__optimisticId)
+    if (lastUser && typeof lastUser.content !== 'undefined') {
+      const text = readMessageText(lastUser)
+      if (text.trim()) {
+        send(text, [], false, commandHelpers)
+      }
+    } else {
+      // No user message found — still clear the flag and let the user
+      // re-type. This handles the "interrupted but history is empty" edge.
+      void historyQuery.refetch()
+    }
+  }, [resolvedSessionKey, finalDisplayMessages, send, commandHelpers, historyQuery])
+
   useEffect(() => {
     if (isComposerLoading) return
 
