@@ -33,6 +33,7 @@ import { toggleAgentPause } from '@/lib/gateway-api'
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from '@/components/shadcn/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -552,9 +553,10 @@ export function AgentCard({
         /* Expanded mode: horizontal layout for non-main agents */
         <div className="flex items-start gap-2.5">
           {/* Left: Progress ring + avatar with tooltip */}
-          <Tooltip>
-            <TooltipTrigger className="relative flex-shrink-0 size-14 cursor-default">
-              <AgentProgress
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger className="relative flex-shrink-0 size-14 cursor-default">
+                <AgentProgress
                 value={node.progress}
                 status={node.status}
                 size={56}
@@ -610,6 +612,7 @@ export function AgentCard({
               complete
             </TooltipContent>
           </Tooltip>
+          </TooltipProvider>
 
           {/* Right: Text content */}
           <div className="flex-1 min-w-0 pt-0.5">
