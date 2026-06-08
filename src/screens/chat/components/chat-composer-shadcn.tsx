@@ -28,11 +28,6 @@
 // longer owns the thinking-level setter (`onThinkingLevelChange` lives on the
 // meta-bar selectors now).
 //
-// ─── REMAINING PARITY-GAP TODOs (out of scope for this pass) ────────────────
-//  - Mobile docking / portal behavior — the live composer docks fixed to the
-//    viewport bottom on mobile; this drop-in stays inline (honors `embedded`
-//    only insofar as it never docks).
-
 import * as React from 'react'
 import {
   ArrowUp,
@@ -91,6 +86,7 @@ import {
   SlashCommandPicker,
 } from '@/components/slash-command-menu'
 import { normalizeMessageQueueSessionKey, useChatStore } from '@/stores/chat-store'
+import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { useVoiceRecorder } from '@/hooks/use-voice-recorder'
 
@@ -230,7 +226,7 @@ function ChatComposerShadcn({
   onNewSession,
   onToggleWebSearch,
   webSearchEnabled,
-  embedded: _embedded,
+  embedded = false,
   replyTo,
   onClearReply,
   systemMessagesHidden,
@@ -275,8 +271,18 @@ function ChatComposerShadcn({
       clearQueue: s.clearQueue,
     })),
   )
+  const setMobileComposerFocused = useWorkspaceStore(
+    (state) => state.setMobileComposerFocused,
+  )
   const [visibleQueueActivity, setVisibleQueueActivity] =
     React.useState<MessageQueueActivity | null>(null)
+
+  React.useEffect(
+    () => () => {
+      setMobileComposerFocused(false)
+    },
+    [setMobileComposerFocused],
+  )
 
   React.useEffect(() => {
     if (!queueActivity) {
@@ -622,7 +628,12 @@ function ChatComposerShadcn({
     <TooltipProvider delayDuration={200}>
       <div
         ref={wrapperRef}
-        className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-3 pt-2 pb-6 sm:px-5 md:pb-8"
+        className={cn(
+          'mx-auto flex w-full max-w-3xl flex-col gap-2 px-3 pt-2 sm:px-5',
+          embedded
+            ? 'pb-6 md:pb-8'
+            : 'fixed inset-x-0 bottom-[var(--kb-inset,0px)] z-[70] pb-[max(env(safe-area-inset-bottom,0px),1rem)] md:static md:inset-auto md:z-auto md:pb-8',
+        )}
       >
         {/* attachment thumbnails / chips */}
         {attachments.length > 0 && (
@@ -837,6 +848,8 @@ function ChatComposerShadcn({
                   ref={textareaRef}
                   value={value}
                   disabled={disabled}
+                  onFocus={() => setMobileComposerFocused(true)}
+                  onBlur={() => setMobileComposerFocused(false)}
                   onChange={(e) => {
                     setIsSlashMenuDismissed(false)
                     setValue(e.target.value)
