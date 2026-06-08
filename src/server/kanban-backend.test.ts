@@ -161,6 +161,32 @@ describe('kanban-backend', () => {
     expect(mod.listKanbanCards()[0]).toMatchObject({ id: 't_direct', status: 'ready' })
   })
 
+  it('normalizes ISO-8601 Hermes task timestamps without numeric coercion errors', async () => {
+    vi.stubEnv('CLAUDE_HOME', '/Users/aurora/.claude/profiles/swarm2')
+    const mod = await loadKanbanBackend({
+      existsSync: (target) => target === '/Users/aurora/.claude/kanban.db',
+      execFileSync: (command, args = []) => {
+        if (command === 'which' && args[0] === 'claude') throw new Error('not found')
+        throw new Error(`Unexpected command: ${command} ${args.join(' ')}`)
+      },
+      dbRows: () => [{
+        id: 't_iso',
+        title: 'ISO timestamp task',
+        body: '',
+        status: 'ready',
+        assignee: null,
+        created_at: '2026-05-10T15:00:00Z',
+        updated_at: '2026-05-10T16:30:00Z',
+      }],
+    })
+
+    expect(mod.listKanbanCards()[0]).toMatchObject({
+      id: 't_iso',
+      createdAt: Date.parse('2026-05-10T15:00:00Z'),
+      updatedAt: Date.parse('2026-05-10T16:30:00Z'),
+    })
+  })
+
   it('resolves canonical Kanban paths from legacy profile-home env fallback too', async () => {
     vi.stubEnv('CLAUDE_HOME', '/Users/aurora/.claude/profiles/swarm5/home')
     const mod = await loadKanbanBackend({
