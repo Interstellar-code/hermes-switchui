@@ -9,6 +9,18 @@ import { writeTextToClipboard } from '@/lib/clipboard'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
+function isMatrixTheme(): boolean {
+  if (typeof document === 'undefined') return false
+  const theme = document.documentElement.getAttribute('data-theme')?.toLowerCase() ?? ''
+  return theme === 'matrix' || theme.startsWith('matrix-')
+}
+
+function shikiThemeName(resolved: string): string {
+  if (resolved === 'dark') return 'vitesse-dark'
+  if (isMatrixTheme()) return 'vitesse-dark'
+  return 'vitesse-light'
+}
+
 type CodeBlockProps = {
   content: string
   ariaLabel?: string
@@ -46,7 +58,7 @@ export function CodeBlock({
   }, [content])
 
   const normalizedLanguage = normalizeLanguage(language || 'text')
-  const themeName = resolvedTheme === 'dark' ? 'vitesse-dark' : 'vitesse-light'
+  const themeName = shikiThemeName(resolvedTheme)
   const lineCount = useMemo(
     () => Math.max(1, content.split('\n').length),
     [content],
