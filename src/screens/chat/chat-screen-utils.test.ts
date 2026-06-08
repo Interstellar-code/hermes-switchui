@@ -4,6 +4,7 @@ import {
   advanceStickyStreamingText,
   hasUnansweredLatestUserTurn,
   isChatRuntimeBusy,
+  latestTurnIsToolOnly,
 } from './chat-screen-utils'
 import type { ChatMessage } from './types'
 
@@ -150,6 +151,155 @@ describe('isChatRuntimeBusy', () => {
         activeIsRealtimeStreaming: false,
         derivedIsStreaming: false,
         hasPendingGeneration: false,
+      }),
+    ).toBe(true)
+  })
+})
+
+describe('latestTurnIsToolOnly (F1 guard)', () => {
+  it('returns false when there is no user turn', () => {
+    expect(latestTurnIsToolOnly([])).toBe(false)
+  })
+
+  it('returns false when only the user turn exists (no follow-up yet)', () => {
+    expect(
+      latestTurnIsToolOnly([
+        {
+          role: 'user',
+          status: 'queued',
+          __optimisticId: 'opt-1',
+          content: [{ type: 'text', text: 'first prompt' }],
+        },
+      ]),
+    ).toBe(false)
+  })
+
+  it('returns true when only tool results follow the user turn', () => {
+    expect(
+      latestTurnIsToolOnly([
+        {
+          role: 'user',
+          status: 'queued',
+          __optimisticId: 'opt-1',
+          content: [{ type: 'text', text: 'run ls' }],
+        },
+        {
+          role: 'tool',
+          content: [{ type: 'text', text: 'file1\nfile2' }],
+        },
+      ]),
+    ).toBe(true)
+  })
+
+  it('returns true when tool results + streaming assistant placeholder follow', () => {
+    expect(
+      latestTurnIsToolOnly([
+        {
+          role: 'user',
+          status: 'queued',
+          __optimisticId: 'opt-1',
+          content: [{ type: 'text', text: 'run ls' }],
+        },
+        {
+          role: 'tool',
+          content: [{ type: 'text', text: 'file1\nfile2' }],
+        },
+        {
+          role: 'assistant',
+          __streamingStatus: 'streaming',
+          content: [],
+        },
+      ]),
+    ).toBe(true)
+  })
+
+  it('returns false when a final assistant text answer follows', () => {
+    expect(
+      latestTurnIsToolOnly([
+        {
+          role: 'user',
+          status: 'queued',
+          __optimisticId: 'opt-1',
+          content: [{ type: 'text', text: 'run ls' }],
+        },
+        {
+          role: 'tool',
+          content: [{ type: 'text', text: 'file1\nfile2' }],
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Here are the files.' }],
+        },
+      ]),
+    ).toBe(false)
+  })
+})
+
+describe('isChatRuntimeBusy — parity truth table (Track 2 / Phase 2.2)', () => {
+  // Documents the 64-row truth table for the 6 legacy signals.
+  // Phase 2.2's selectIsComposerBusy must match this for every row.
+  // Sample key rows; not exhaustive.
+  const baseInputs = {
+    sending: false,
+    waitingForResponse: false,
+    hasActiveSend: false,
+    activeIsRealtimeStreaming: false,
+    derivedIsStreaming: false,
+    hasPendingGeneration: false,
+  }
+
+  it('all-false is not busy', () => {
+    expect(isChatRuntimeBusy(baseInputs)).toBe(false)
+  })
+
+  it('sending alone is busy', () => {
+    expect(isChatRuntimeBusy({ ...baseInputs, sending: true })).toBe(true)
+  })
+
+  it('waitingForResponse alone is busy', () => {
+    expect(
+      isChatRuntimeBusy({ ...baseInputs, waitingForResponse: true }),
+    ).toBe(true)
+  })
+
+  it('hasActiveSend alone is busy', () => {
+    expect(isChatRuntimeBusy({ ...baseInputs, hasActiveSend: true })).toBe(
+      true,
+    )
+  })
+
+  it('activeIsRealtimeStreaming alone is busy', () => {
+    expect(
+      isChatRuntimeBusy({ ...baseInputs, activeIsRealtimeStreaming: true }),
+    ).toBe(true)
+  })
+
+  it('derivedIsStreaming alone is busy', () => {
+    expect(
+      isChatRuntimeBusy({ ...baseInputs, derivedIsStreaming: true }),
+    ).toBe(true)
+  })
+
+  it('hasPendingGeneration alone is busy', () => {
+    expect(
+      isChatRuntimeBusy({ ...baseInputs, hasPendingGeneration: true }),
+    ).toBe(true)
+  })
+
+  it('OR semantics: any one signal makes it busy', () => {
+    // Spot-check a few combined rows.
+    expect(
+      isChatRuntimeBusy({
+        ...baseInputs,
+        hasActiveSend: true,
+        hasPendingGeneration: true,
+      }),
+    ).toBe(true)
+    expect(
+      isChatRuntimeBusy({
+        ...baseInputs,
+        sending: true,
+        activeIsRealtimeStreaming: true,
       }),
     ).toBe(true)
   })

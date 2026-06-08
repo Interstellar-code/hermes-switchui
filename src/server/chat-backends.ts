@@ -12,6 +12,7 @@ export type UnifiedChatOptions = {
   temperature?: number
   signal?: AbortSignal
   sessionId?: string
+  stableSessionKey?: string
   systemMessage?: string
   attachments?: Array<Record<string, unknown>>
 }
@@ -46,6 +47,7 @@ async function* streamClaudeChat(
     },
     {
       signal: options.signal,
+      stableSessionKey: options.stableSessionKey || options.sessionId,
       onEvent({ event, data }) {
         if (
           event === 'assistant.delta' &&
@@ -108,6 +110,8 @@ export async function sendChatUnified(
       temperature: options.temperature,
       signal: options.signal,
       stream: false,
+      sessionId: options.sessionId,
+      stableSessionKey: options.stableSessionKey,
     })
   }
 
@@ -134,6 +138,8 @@ export async function streamChatUnified(
       temperature: options.temperature,
       signal: options.signal,
       stream: true,
+      sessionId: options.sessionId,
+      stableSessionKey: options.stableSessionKey,
     })
     // Adapt StreamChunkType to plain string for legacy callers
     async function* toStringStream() {

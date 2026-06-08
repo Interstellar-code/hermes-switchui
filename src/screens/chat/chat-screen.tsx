@@ -53,6 +53,7 @@ import {
   isRecoverableActiveRun,
   useActiveRunCheck,
 } from './hooks/use-active-run-check'
+import { useDrainWatchdog } from './hooks/use-drain-watchdog'
 import { useChatMobile } from './hooks/use-chat-mobile'
 import { useChatSessions } from './hooks/use-chat-sessions'
 import { useAutoSessionTitle } from './hooks/use-auto-session-title'
@@ -695,12 +696,20 @@ export function ChatScreen({
     }
   }, [])
 
+  // Snapshot cached history for the recovery predicate. Cheap reference
+  // pass; the predicate runs only on mount/relist of the active session.
+  const recoveryMessages = (historyQuery.data as { messages?: Array<ChatMessage> })?.messages
+
   // On remount, check if the server still has an active run for this session.
   // If so, re-set waitingForResponse in the store so the UI shows the spinner.
+  // Phase 1.2: also consult the history predicate (clear-only, with F1 guard)
+  // to surface the "interrupted" affordance when liveness is silent but the
+  // latest user turn was never answered.
   useActiveRunCheck({
     sessionKey: resolvedSessionKey,
     enabled:
       !isNewChat && resolvedSessionKey.length > 0 && historyQuery.isSuccess,
+    messages: recoveryMessages,
   })
 
   // Wire SSE realtime stream for instant message delivery
@@ -1620,7 +1629,10 @@ export function ChatScreen({
     isPortableMode,
     localStreamingMessageId,
   ])
-  const isComposerLoading = isChatRuntimeBusy({
+  // Phase 2.2 cutover: selectIsComposerBusy replaces the 6-signal
+  // isChatRuntimeBusy composition. Kept in parallel with the legacy
+  // isComposerLoading for parity comparison during the cutover window.
+  const isComposerLoadingLegacy = isChatRuntimeBusy({
     sending,
     waitingForResponse,
     hasActiveSend: Boolean(activeSendRef.current),
@@ -1628,6 +1640,15 @@ export function ChatScreen({
     derivedIsStreaming: derivedStreamingInfo.isStreaming,
     hasPendingGeneration: hasPendingGeneration(),
   })
+  const isComposerLoading = useChatStore.getState().selectIsComposerBusy(
+    resolvedSessionKey,
+    { hasActiveSend: Boolean(activeSendRef.current) },
+    {
+      activeIsRealtimeStreaming,
+      derivedIsStreaming: derivedStreamingInfo.isStreaming,
+    },
+    { hasPendingSend: hasPendingSend(), hasPendingGeneration: hasPendingGeneration() },
+  )
   const isComposerLoadingRef = useRef(isComposerLoading)
 
   const messageCountAtSendRef = useRef(0)
@@ -2690,6 +2711,32 @@ export function ChatScreen({
       expandCustomSlashCommand,
     ],
   )
+
+  // Phase 1.2: interrupted affordance handlers. Placed AFTER `send` so
+  // the closure can capture it without a temporal-dead-zone error.
+  const isCurrentSessionInterrupted = useChatStore((state) =>
+    resolvedSessionKey ? state.isSessionInterrupted(resolvedSessionKey) : false,
+  )
+
+  const handleResendInterrupted = useCallback(() => {
+    if (!resolvedSessionKey) return
+    const store = useChatStore.getState()
+    store.clearSessionInterrupted(resolvedSessionKey)
+    const lastUser = [...finalDisplayMessages]
+      .reverse()
+      .find((m) => m?.role === 'user' && !m.__optimisticId)
+    if (lastUser && typeof lastUser.content !== 'undefined') {
+      const text = readMessageText(lastUser)
+      if (text.trim()) {
+        send(text, [], false, commandHelpers)
+      }
+    } else {
+      // No user message found — still clear the flag and let the user
+      // re-type. This handles the "interrupted but history is empty" edge.
+      void historyQuery.refetch()
+    }
+  }, [resolvedSessionKey, finalDisplayMessages, send, commandHelpers, historyQuery])
+
   useEffect(() => {
     if (isComposerLoading) return
 
@@ -2701,6 +2748,35 @@ export function ChatScreen({
 
     send(nextQueued.text, nextQueued.attachments, false, commandHelpers)
   }, [activeQueueSessionKey, isComposerLoading, send])
+
+  // Drain-watchdog escape hatch (Phase 1.1). If an SSE completion event is
+  // dropped, the busy signals never clear and the queue stalls. This watchdog
+  // arms only while a non-empty queue is blocked behind a busy composer; on
+  // sustained SSE silence it asks the server whether the run is still live and,
+  // if not, releases the stuck busy state so the drain effect above fires.
+  //
+  // reconcile reuses the happy-path finalize so isComposerLoading goes false:
+  //   - activeSendRef.current = null  (clears hasActiveSend)
+  //   - clearStreamingSession         (clears any stuck realtime streaming state)
+  //   - streamFinish()                (clears sending / waitingForResponse /
+  //                                     pendingGeneration — same as onComplete)
+  // It deliberately does NOT dequeue/send; the drain effect owns that, so there
+  // is no double-send.
+  const reconcileStuckBusyState = useCallback(
+    (sessionKey: string) => {
+      activeSendRef.current = null
+      if (sessionKey) {
+        useChatStore.getState().clearStreamingSession(sessionKey)
+      }
+      streamFinish()
+    },
+    [streamFinish],
+  )
+  useDrainWatchdog({
+    sessionKey: activeQueueSessionKey || lastQueueSessionKeyRef.current,
+    isComposerLoading,
+    reconcile: reconcileStuckBusyState,
+  })
 
   const handleAbortStreaming = useCallback(() => {
     const activeSend = activeSendRef.current
@@ -2955,6 +3031,24 @@ export function ChatScreen({
 
           {errorNotice && (
             <div className="sticky top-0 z-20 px-4 py-2">{errorNotice}</div>
+          )}
+          {isCurrentSessionInterrupted && (
+            <div
+              role="status"
+              className="mx-4 mb-2 flex items-center justify-between gap-3 rounded-xl border border-amber-300/60 bg-amber-50/90 px-4 py-2.5 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-900/15 dark:text-amber-200"
+            >
+              <span className="min-w-0 flex-1">
+                Run may have continued server-side — resend?
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleResendInterrupted}
+                aria-label="Resend last user message"
+              >
+                Resend
+              </Button>
+            </div>
           )}
           {pendingApprovals.length > 0 && (
             <div className="mx-4 mb-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800/50 dark:bg-amber-900/15">

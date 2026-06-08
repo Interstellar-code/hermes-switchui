@@ -18,6 +18,7 @@
  * `send-stream.ts` can translate to its existing `tool.*` events without
  * caring about Responses-spec quirks.
  */
+import { HERMES_SESSION_KEY_HEADER } from '../lib/send-stream-session-headers'
 import { BEARER_TOKEN, CLAUDE_API } from './gateway-capabilities'
 
 export type ResponsesStreamEvent =
@@ -52,6 +53,7 @@ export type ResponsesChatRequest = {
   instructions?: string
   model?: string
   sessionId?: string
+  stableSessionKey?: string
   signal?: AbortSignal
 }
 
@@ -111,6 +113,9 @@ export async function* streamResponses(
   }
   if (req.sessionId && BEARER_TOKEN) {
     headers['X-Hermes-Session-Id'] = req.sessionId
+  }
+  if (req.stableSessionKey || req.sessionId) {
+    headers[HERMES_SESSION_KEY_HEADER] = req.stableSessionKey || req.sessionId || ''
   }
 
   const body: Record<string, unknown> = {

@@ -1,4 +1,9 @@
 export const HERMES_SESSION_KEY_HEADER = 'X-Hermes-Session-Key'
+// The gateway reads X-Hermes-Session-Id to bind a /v1/chat/completions run to a
+// state.db session (api_server.py). SwitchUI historically sent the value under
+// X-Claude-Session-Id, which the gateway ignored — so portable transcripts were
+// persisted under a fingerprint-derived id and lost on reload.
+export const HERMES_SESSION_ID_HEADER = 'X-Hermes-Session-Id'
 export const HERMES_FRIENDLY_ID_HEADER = 'X-Hermes-Friendly-Id'
 export const LEGACY_CLAUDE_SESSION_KEY_HEADER = 'x-claude-session-key'
 export const LEGACY_CLAUDE_FRIENDLY_ID_HEADER = 'x-claude-friendly-id'

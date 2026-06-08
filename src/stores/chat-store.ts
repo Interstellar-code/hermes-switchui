@@ -1,4 +1,25 @@
 import { create } from 'zustand'
+import {
+  
+  
+  isRunPhaseBusy,
+  reduceRunPhase
+} from './run-phase'
+import {
+  clearQueuedMessages,
+  clearRecoveryMessage as clearRecoveryMessageAdapter,
+  persistRecoveryMessage as persistRecoveryMessageAdapter,
+  persistStreamingState as persistStreamingStateAdapter,
+  persistWaitingState,
+  readQueuedMessages,
+  removeStreamingState,
+  removeWaitingState,
+  restoreAllWaitingSessions,
+  restoreRecoveryMessage,
+  restoreStreamingState as restoreStreamingStateAdapter,
+  writeQueuedMessages,
+} from './run-persistence'
+import type {RunPhase, RunPhaseTrigger} from './run-phase';
 import type {
   ChatMessage,
   MessageContent,
@@ -8,6 +29,8 @@ import type {
   ToolCallContent,
 } from '../screens/chat/types'
 import type { ChatComposerAttachment } from '../screens/chat/components/chat-composer-types'
+
+const MESSAGE_QUEUE_PREFIX = 'switchui:message-queue:'
 
 let _streamingPersistTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -162,6 +185,53 @@ type ChatState = {
   clearSessionWaiting: (sessionKey: string) => void
   /** Check if a session is waiting for a response */
   isSessionWaiting: (sessionKey: string) => boolean
+  /**
+   * Sessions where the liveness snapshot is absent but the history predicate
+   * (`hasUnansweredLatestUserTurn` + F1 guard) indicates a turn was likely
+   * interrupted — shows the "Run lost — resend?" affordance. Distinct from
+   * `waitingSessionKeys` (live run) and from idle (answered).
+   */
+  interruptedSessionKeys: Set<string>
+  /** Mark a session as interrupted (recovery predicate fired, no live run) */
+  setSessionInterrupted: (sessionKey: string) => void
+  /** Clear interrupted state for a session */
+  clearSessionInterrupted: (sessionKey: string) => void
+  /** Check if a session is in the interrupted state */
+  isSessionInterrupted: (sessionKey: string) => boolean
+
+  /**
+   * Layer 3 run-phase state machine (Track 2 / Phase 2.1). One phase per
+   * session, driven by SSE events + liveness snapshot + active-send ref
+   * ONLY — never by history shape (F2 fence).
+   *
+   * Replaces the legacy 6-signal `isComposerLoading` composition in
+   * `chat-screen.tsx:1632`. Cutover happens in Phase 2.2 (one-line swap).
+   * Until then, this runs in parallel — the legacy signals continue to
+   * feed `isChatRuntimeBusy`.
+   */
+  runPhase: Map<string, RunPhase>
+  /** Transition a session's run phase via the reducer (fence-enforced). */
+  setRunPhase: (sessionKey: string, next: RunPhase, trigger: RunPhaseTrigger) => void
+  /** Read the current run phase for a session (defaults to 'idle'). */
+  getRunPhase: (sessionKey: string) => RunPhase
+  /** True when the run phase is busy (sending or streaming). */
+  isRunPhaseBusy: (sessionKey: string) => boolean
+  /**
+   * Phase 2.2 cutover selector. Replaces the legacy 6-signal
+   * `isComposerLoading` composition. Composes:
+   *  - runPhase state machine (sending/streaming)
+   *  - ref-based active-send (refSignal)
+   *  - derived streaming signals (passed in from caller)
+   *  - pending-send store (sending/pending generation)
+   *
+   * Returns true when the composer should be disabled.
+   */
+  selectIsComposerBusy: (
+    sessionKey: string,
+    refSignal: { hasActiveSend: boolean },
+    derived: { activeIsRealtimeStreaming: boolean; derivedIsStreaming: boolean },
+    pending: { hasPendingSend: boolean; hasPendingGeneration: boolean },
+  ) => boolean
 }
 
 function isStreamingToolCall(value: unknown): value is StreamingToolCall {
@@ -198,204 +268,76 @@ const createEmptyStreamingState = (): StreamingState => ({
   toolCalls: [],
 })
 
-function persistStreamingState(
+function persistStreamingStateDebounced(
   sessionKey: string,
   state: StreamingState,
 ): void {
-  if (typeof sessionStorage === 'undefined') return
   if (_streamingPersistTimer) clearTimeout(_streamingPersistTimer)
   _streamingPersistTimer = setTimeout(() => {
-    sessionStorage.setItem(
-      `claude_streaming_${sessionKey}`,
-      JSON.stringify({ ...state, _savedAt: Date.now() }),
-    )
+    persistStreamingState(sessionKey, state)
   }, 500)
 }
 
 export function restoreStreamingState(
   sessionKey: string,
 ): StreamingState | null {
-  if (typeof sessionStorage === 'undefined') return null
-
-  const storageKey = `claude_streaming_${sessionKey}`
-  const raw = sessionStorage.getItem(storageKey)
-  if (!raw) return null
-
-  try {
-    const parsed = JSON.parse(raw) as StreamingState & { _savedAt?: unknown }
-    const savedAt =
-      typeof parsed._savedAt === 'number' && Number.isFinite(parsed._savedAt)
-        ? parsed._savedAt
-        : null
-
-    if (!savedAt || Date.now() - savedAt > 60_000) {
-      sessionStorage.removeItem(storageKey)
-      return null
-    }
-
-    const { _savedAt, ...streamingState } = parsed
-    return streamingState
-  } catch {
-    sessionStorage.removeItem(storageKey)
-    return null
-  }
+  return restoreStreamingStateAdapter(sessionKey) as StreamingState | null
 }
-
-const RECOVERY_MSG_PREFIX = 'claude_recovery_msg_'
-const RECOVERY_MSG_TTL_MS = 5 * 60 * 1000
 
 export function persistRecoveryMessage(
   sessionKey: string,
   message: ChatMessage,
 ): void {
-  if (typeof sessionStorage === 'undefined') return
-  try {
-    sessionStorage.setItem(
-      `${RECOVERY_MSG_PREFIX}${sessionKey}`,
-      JSON.stringify({ message, storedAt: Date.now() }),
-    )
-  } catch {
-    // Ignore storage write failures (quota, private mode, etc.).
-  }
+  persistRecoveryMessageAdapter(sessionKey, message)
 }
 
 export function readRecoveryMessage(sessionKey: string): ChatMessage | null {
-  if (typeof sessionStorage === 'undefined') return null
-  const key = `${RECOVERY_MSG_PREFIX}${sessionKey}`
-  const raw = sessionStorage.getItem(key)
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw) as {
-      message?: ChatMessage
-      storedAt?: number
-    }
-    if (!parsed.message) return null
-    if (
-      typeof parsed.storedAt !== 'number' ||
-      Date.now() - parsed.storedAt > RECOVERY_MSG_TTL_MS
-    ) {
-      sessionStorage.removeItem(key)
-      return null
-    }
-    return parsed.message
-  } catch {
-    sessionStorage.removeItem(key)
-    return null
-  }
+  return restoreRecoveryMessage(sessionKey) as ChatMessage | null
 }
 
 export function clearRecoveryMessage(sessionKey: string): void {
-  if (typeof sessionStorage === 'undefined') return
-  sessionStorage.removeItem(`${RECOVERY_MSG_PREFIX}${sessionKey}`)
+  clearRecoveryMessageAdapter(sessionKey)
 }
-
-const WAITING_TTL_MS = 120_000
-const WAITING_STORAGE_PREFIX = 'claude_waiting_'
-
-function persistWaitingState(
-  sessionKey: string,
-  meta: { since: number; runId: string | null },
-): void {
-  if (typeof sessionStorage === 'undefined') return
-  sessionStorage.setItem(
-    `${WAITING_STORAGE_PREFIX}${sessionKey}`,
-    JSON.stringify(meta),
-  )
-}
-
-function removeWaitingState(sessionKey: string): void {
-  if (typeof sessionStorage === 'undefined') return
-  sessionStorage.removeItem(`${WAITING_STORAGE_PREFIX}${sessionKey}`)
-}
-
-function restoreWaitingSessions(): {
-  keys: Set<string>
-  meta: Record<string, { since: number; runId: string | null }>
-} {
-  const keys = new Set<string>()
-  const meta: Record<string, { since: number; runId: string | null }> = {}
-  if (typeof sessionStorage === 'undefined') return { keys, meta }
-
-  const now = Date.now()
-  for (let i = sessionStorage.length - 1; i >= 0; i--) {
-    const storageKey = sessionStorage.key(i)
-    if (!storageKey || !storageKey.startsWith(WAITING_STORAGE_PREFIX)) continue
-    const sessionKey = storageKey.slice(WAITING_STORAGE_PREFIX.length)
-    try {
-      const parsed = JSON.parse(sessionStorage.getItem(storageKey) ?? '')
-      if (
-        typeof parsed.since === 'number' &&
-        now - parsed.since < WAITING_TTL_MS
-      ) {
-        keys.add(sessionKey)
-        meta[sessionKey] = {
-          since: parsed.since,
-          runId: typeof parsed.runId === 'string' ? parsed.runId : null,
-        }
-      } else {
-        sessionStorage.removeItem(storageKey)
-      }
-    } catch {
-      sessionStorage.removeItem(storageKey)
-    }
-  }
-  return { keys, meta }
-}
-
-const MESSAGE_QUEUE_STORAGE_PREFIX = 'switchui:message-queue:'
 
 export function normalizeMessageQueueSessionKey(sessionKey: string): string {
   return normalizeString(sessionKey) || 'main'
 }
 
-function messageQueueStorageKey(sessionKey: string): string {
-  return `${MESSAGE_QUEUE_STORAGE_PREFIX}${normalizeMessageQueueSessionKey(sessionKey)}`
-}
-
-function readQueuedMessages(sessionKey: string): Array<QueuedChatMessage> {
-  if (typeof localStorage === 'undefined') return []
-
-  const storageKey = messageQueueStorageKey(sessionKey)
-  try {
-    const raw = localStorage.getItem(storageKey)
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter(isQueuedChatMessage)
-  } catch {
-    localStorage.removeItem(storageKey)
-    return []
-  }
+function readQueuedMessagesAdapter(
+  sessionKey: string,
+): Array<QueuedChatMessage> {
+  return readQueuedMessages<QueuedChatMessage>(sessionKey).filter(
+    isQueuedChatMessage,
+  )
 }
 
 function persistQueuedMessages(
   sessionKey: string,
   queue: Array<QueuedChatMessage>,
 ): void {
-  if (typeof localStorage === 'undefined') return
-
-  const storageKey = messageQueueStorageKey(sessionKey)
   if (queue.length === 0) {
-    localStorage.removeItem(storageKey)
+    clearQueuedMessages(sessionKey)
     return
   }
-  localStorage.setItem(storageKey, JSON.stringify(queue))
+  writeQueuedMessages(sessionKey, queue)
 }
 
 function restoreMessageQueues(): Record<string, Array<QueuedChatMessage>> {
   const restored: Record<string, Array<QueuedChatMessage>> = {}
-  if (typeof localStorage === 'undefined') return restored
+  if (typeof sessionStorage === 'undefined') return restored
 
-  for (let i = localStorage.length - 1; i >= 0; i--) {
-    const storageKey = localStorage.key(i)
-    if (!storageKey?.startsWith(MESSAGE_QUEUE_STORAGE_PREFIX)) continue
+  for (let i = sessionStorage.length - 1; i >= 0; i--) {
+    const storageKey = sessionStorage.key(i)
+    if (!storageKey?.startsWith(MESSAGE_QUEUE_PREFIX)) continue
 
-    const sessionKey = storageKey.slice(MESSAGE_QUEUE_STORAGE_PREFIX.length)
-    const queue = readQueuedMessages(sessionKey)
+    const sessionKey = storageKey.slice(MESSAGE_QUEUE_PREFIX.length)
+    const queue = readQueuedMessages<QueuedChatMessage>(sessionKey).filter(
+      isQueuedChatMessage,
+    )
     if (queue.length > 0) {
       restored[sessionKey] = queue
     } else {
-      localStorage.removeItem(storageKey)
+      clearQueuedMessages(sessionKey)
     }
   }
   return restored
@@ -766,7 +708,7 @@ function messageMultipartSignature(
   return `${msg.role ?? 'unknown'}:${content}:${attachments}`
 }
 
-const _restoredWaiting = restoreWaitingSessions()
+const _restoredWaiting = restoreAllWaitingSessions()
 const _restoredQueues = restoreMessageQueues()
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -780,6 +722,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messageQueueActivity: {},
   waitingSessionKeys: _restoredWaiting.keys,
   waitingSessionMeta: _restoredWaiting.meta,
+  interruptedSessionKeys: new Set(),
+  runPhase: new Map(),
 
   setConnectionState: (connectionState, error) => {
     set({ connectionState, lastError: error ?? null })
@@ -879,6 +823,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const nextMeta = { ...get().waitingSessionMeta, [sessionKey]: meta }
     persistWaitingState(sessionKey, meta)
     set({ waitingSessionKeys: nextKeys, waitingSessionMeta: nextMeta })
+    get().setRunPhase(sessionKey, 'streaming', 'liveness-snapshot')
   },
 
   clearSessionWaiting: (sessionKey) => {
@@ -887,10 +832,63 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { [sessionKey]: _, ...nextMeta } = get().waitingSessionMeta
     removeWaitingState(sessionKey)
     set({ waitingSessionKeys: nextKeys, waitingSessionMeta: nextMeta })
+    get().setRunPhase(sessionKey, 'idle', 'liveness-clear')
   },
 
   isSessionWaiting: (sessionKey) => {
     return get().waitingSessionKeys.has(sessionKey)
+  },
+
+  setSessionInterrupted: (sessionKey) => {
+    const nextKeys = new Set(get().interruptedSessionKeys)
+    nextKeys.add(sessionKey)
+    set({ interruptedSessionKeys: nextKeys })
+    get().setRunPhase(sessionKey, 'interrupted', 'predicate-clear')
+  },
+
+  clearSessionInterrupted: (sessionKey) => {
+    const nextKeys = new Set(get().interruptedSessionKeys)
+    nextKeys.delete(sessionKey)
+    set({ interruptedSessionKeys: nextKeys })
+    get().setRunPhase(sessionKey, 'idle', 'predicate-clear')
+  },
+
+  isSessionInterrupted: (sessionKey) => {
+    return get().interruptedSessionKeys.has(sessionKey)
+  },
+
+  setRunPhase: (sessionKey, next, trigger) => {
+    const current = get().runPhase.get(sessionKey) ?? 'idle'
+    const resolved = reduceRunPhase(current, next, trigger)
+    if (resolved === null) {
+      // Fence guard: a caller tried an illegal transition (e.g. predicate
+      // → streaming). Log for observability and drop. See run-phase.ts.
+      return
+    }
+    if (resolved === current) return
+    const nextMap = new Map(get().runPhase)
+    nextMap.set(sessionKey, resolved)
+    set({ runPhase: nextMap })
+  },
+
+  getRunPhase: (sessionKey) => {
+    return get().runPhase.get(sessionKey) ?? 'idle'
+  },
+
+  isRunPhaseBusy: (sessionKey) => {
+    return isRunPhaseBusy(get().runPhase.get(sessionKey) ?? 'idle')
+  },
+
+  selectIsComposerBusy: (sessionKey, refSignal, derived, pending) => {
+    const phaseBusy = isRunPhaseBusy(get().runPhase.get(sessionKey) ?? 'idle')
+    return (
+      phaseBusy ||
+      refSignal.hasActiveSend ||
+      derived.activeIsRealtimeStreaming ||
+      derived.derivedIsStreaming ||
+      pending.hasPendingSend ||
+      pending.hasPendingGeneration
+    )
   },
 
   processEvent: (event) => {
@@ -1342,9 +1340,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // injects an invisible streaming placeholder that causes a blank gap.
         streamingMap.delete(sessionKey)
         set({ streamingState: streamingMap, lastEventAt: now })
-        if (typeof sessionStorage !== 'undefined') {
-          sessionStorage.removeItem(`claude_streaming_${sessionKey}`)
-        }
+        removeStreamingState(sessionKey)
         break
       }
     }
