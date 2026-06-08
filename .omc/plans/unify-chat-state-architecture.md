@@ -14,6 +14,24 @@
 
 ---
 
+## IMPLEMENTATION PROGRESS (live — updated 2026-06-08)
+
+Branch: `feat/track1-chat-state-reliability`. Locked decisions: Q1 queue→sessionStorage(tab-scoped); Q2 portable persistence = header fix (no endpoint); Q3 interrupted = button-only resend; Q4 = Track 1 first.
+
+| Item | Status | Evidence |
+|---|---|---|
+| **Track 3 — portable persistence** | ✅ DONE | Commit `192abff3`. STEP-0 proved gateway already persists; bug was header mismatch. `openai-compat-api.ts` now sends `X-Hermes-Session-Id` (via `HERMES_SESSION_ID_HEADER`). Typecheck clean. **Pending: runtime GUI proof** (portable chat → reload → transcript present). |
+| **Phase 1.0 — verification (no code)** | ✅ DONE | active-run endpoint returns only recoverable runs (complete/error filtered server-side); F1 tool-only false-positive confirmed (`chat-screen-utils.ts:136-144`); fence confirmed (`isChatRuntimeBusy:159-182`). |
+| **Phase 1.1 — SSE-desync drain stall fix** | ✅ DONE + REVIEWED | Commit `6b3bf9ea`. New `useDrainWatchdog` hook (escape hatch): arms only when busy+queued; on `DRAIN_WATCHDOG_IDLE_MS`=5s SSE silence polls active-run; recoverable→no-op (R5 honored), not-recoverable→`reconcileStuckBusyState` (reuses `streamFinish()`+`clearStreamingSession()`+`activeSendRef=null`); never dequeues (no double-send). Fence-clean (zero history→busy coupling). 21 tests green. Reviewer verdict: PASS. `clearStreamingSession` deletes the streamingState map entry (`chat-store.ts:1408`) → `isRealtimeStreaming` (derived, `use-realtime-chat-history.ts:545`) clears transitively, so reconcile covers ALL 6 `isComposerLoading` signals. |
+| **Phase 1.2 — liveness recovery + interrupted affordance** | ✅ DONE | Commit `cea955b1`. `useActiveRunCheck` rewritten snapshot-first: liveness = authority, predicate = clear-only. F1 guard via new `latestTurnIsToolOnly` helper. Empty-history guard for portable. "Run may have continued server-side — resend?" banner (button-only, Q3). Feature flag `localStorage.switchui:recovery-reconcile-v1=0` reverts to legacy. **Fence-clean:** predicate path never calls `setSessionWaiting` (line 134 `setSessionWaiting` is only reachable from the `isRecoverableActiveRun` branch). 10 recovery + 5 F1 + 2 store = 17 new tests, all 38 Phase 1 tests green. |
+| **Track 2 — storage consolidation** | ⬜ NOT STARTED | Deferred until Track 1 ships + debated separately (Q4). |
+
+**Phase 1.1 deferred follow-ups (fold into Phase 1.2's shared reconciliation, do NOT block):**
+- Watchdog latches off after one "recoverable" probe (`reconciledOrLive`) → if a run reads live then later drops its completion in the same armed window, it won't re-probe (falls back to 120s waiting TTL). Fix: don't latch on live; re-probe at `IDLE_MS` cadence (throttle via `lastProbeAt`). Requires updating the "recoverable→no-op" test's `toHaveBeenCalledTimes(1)` assertion.
+- `lastEventAt` is GLOBAL not per-session → a second concurrently-streaming session masks silence on the stalled one. F3 multi-run is documented out-of-scope; note only.
+
+---
+
 ## 0. Corrected premise (grounding overrode the briefing)
 
 Two of the "5 stores" in the original mental model were stale. Verified against live code:
