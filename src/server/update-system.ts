@@ -200,12 +200,40 @@ function listDirtyFiles(repoPath: string, limit = 24): Array<string> {
   const out: Array<string> = []
   for (const line of raw.split('\n')) {
     if (!line.trim()) continue
-    // porcelain format: XY <space> path  (path may be quoted with renames)
-    const path = line.slice(3).trim()
+    // porcelain format: XY <space> path — but exec() trims the overall
+    // output so the leading space (index-only = '') on the first line may
+    // be lost.  Use a regex to strip 1-2 status chars + separator space.
+    const path = line.replace(/^[A-Z?! ]{1,2}\s+/, '').trim()
     if (path) out.push(path)
     if (out.length >= limit) break
   }
   return out
+}
+
+/**
+ * Returns true when the only dirty file in the repo is `package.json` and the
+ * diff is limited to a trivial version-string bump (e.g. `"version":
+ * "2.3.27"` → `"version": "2.3.28"`).  This lets the update card show the
+ * "Update" button when the server has already bumped the version but the
+ * local checkout is one commit behind.
+ */
+export function isOnlyTrivialDirty(repoPath: string): boolean {
+  const dirtyFiles = listDirtyFiles(repoPath)
+  if (dirtyFiles.length !== 1 || dirtyFiles[0] !== 'package.json') return false
+  const diff = git(['diff', 'package.json'], repoPath)
+  if (!diff) return false
+  // Every added/removed line must be a version-only change:
+  //   +/-  "version": "<semver>"
+  const diffLines = diff.split('\n')
+  for (const line of diffLines) {
+    if (!line.startsWith('+') && !line.startsWith('-')) continue
+    if (line.startsWith('+++') || line.startsWith('---')) continue
+    const content = line.slice(1).trim()
+    if (content === '') continue
+    // Allow only lines like "version": "x.y.z" (with or without surrounding whitespace / quotes)
+    if (!/^[\s]*"version"\s*:\s*"[^"]+"[\s]*,?[\s]*$/.test(content)) return false
+  }
+  return true
 }
 
 function canFastForward(repoPath: string, remoteRef: string): boolean {
@@ -338,6 +366,7 @@ export function readWorkspaceUpdateStatus(
   const latestHead =
     repoMatches && supportedBranch ? remoteHead(gitRepo, 'origin') : null
   const dirty = isDirty(gitRepo)
+  const trivialDirty = dirty && isOnlyTrivialDirty(gitRepo)
   const updateAvailable = Boolean(
     supportedBranch && currentHead && latestHead && currentHead !== latestHead,
   )
@@ -345,7 +374,7 @@ export function readWorkspaceUpdateStatus(
   const canSync = updateAvailable ? canResetToRemote(gitRepo, remoteRef) : true
   const ff = updateAvailable ? canFastForward(gitRepo, remoteRef) : true
   const canUpdate = Boolean(
-    repoMatches && supportedBranch && updateAvailable && !dirty && canSync,
+    repoMatches && supportedBranch && updateAvailable && (!dirty || trivialDirty) && canSync,
   )
 
   return {
@@ -364,7 +393,7 @@ export function readWorkspaceUpdateStatus(
       ? 'unsupported'
       : !supportedBranch
         ? 'unsupported'
-        : dirty
+        : dirty && !trivialDirty
           ? 'blocked'
           : updateAvailable
             ? canSync
@@ -375,14 +404,14 @@ export function readWorkspaceUpdateStatus(
       ? 'Switch UI origin remote does not look like hermes-switchui.'
       : !supportedBranch
         ? 'Switch UI one-click updates are only enabled on main/master branches.'
-        : dirty
+        : dirty && !trivialDirty
           ? 'Switch UI checkout has local changes. Commit, stash, or remove the listed files before updating.'
           : updateAvailable && !canSync
             ? 'Switch UI update could not verify the remote branch ref.'
             : updateAvailable && !ff
               ? 'Switch UI branch diverged from origin. One-click update will realign to the remote branch.'
               : null,
-    blockingFiles: dirty ? listDirtyFiles(gitRepo) : undefined,
+    blockingFiles: dirty && !trivialDirty ? listDirtyFiles(gitRepo) : undefined,
     updateMode: 'git-ff',
   }
 }
@@ -443,12 +472,13 @@ export function readAgentUpdateStatus(): ProductUpdateStatus {
   const latestHead = repoMatches ? remoteHead(repoPath, 'origin') : null
   const remoteRef = repoMatches ? `origin/${branch || 'main'}` : null
   const dirty = isDirty(repoPath)
+  const trivialDirty = dirty && isOnlyTrivialDirty(repoPath)
   const updateAvailable = Boolean(
     currentHead && latestHead && currentHead !== latestHead && remoteRef,
   )
   const canSync = remoteRef ? canResetToRemote(repoPath, remoteRef) : false
   const ff = remoteRef ? canFastForward(repoPath, remoteRef) : false
-  const canUpdate = Boolean(repoMatches && updateAvailable && !dirty && canSync)
+  const canUpdate = Boolean(repoMatches && updateAvailable && (!dirty || trivialDirty) && canSync)
 
   return {
     id: 'agent',
@@ -464,7 +494,7 @@ export function readAgentUpdateStatus(): ProductUpdateStatus {
     canUpdate,
     state: !repoMatches
       ? 'unsupported'
-      : dirty
+      : dirty && !trivialDirty
         ? 'blocked'
         : updateAvailable && canSync
           ? 'available'
@@ -473,14 +503,14 @@ export function readAgentUpdateStatus(): ProductUpdateStatus {
             : 'current',
     reason: !repoMatches
       ? 'Hermes Agent origin remote does not look like hermes-agent.'
-      : dirty
+      : dirty && !trivialDirty
         ? 'Hermes Agent checkout has local changes. Commit, stash, or remove the listed files before updating.'
         : updateAvailable && !canSync
           ? 'Hermes Agent update could not verify the remote branch ref.'
           : updateAvailable && !ff
             ? 'Hermes Agent branch diverged from origin. One-click update will realign to the remote branch.'
             : null,
-    blockingFiles: dirty ? listDirtyFiles(repoPath) : undefined,
+    blockingFiles: dirty && !trivialDirty ? listDirtyFiles(repoPath) : undefined,
     updateMode: 'hermes-update',
   }
 }
