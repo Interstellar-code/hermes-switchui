@@ -3,6 +3,15 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.34] — 2026-06-09
+
+Regression fix: Task sessions disappeared from the sidebar after the 2.3.33 CLI/A2A change.
+
+### Fixed
+
+- **Task chip went empty after 2.3.33.** The CLI/A2A classifier branches were evaluated before the `isTaskTriggered` heuristic, so kanban-task sessions that run via the CLI (source `cli`) were reclassified out of the Task chip into CLI. `task` is a heuristic overlay that can ride on any source, so it is now checked before `cli`/`a2a` (still after telegram/cron/api). Task sessions are back; only non-task CLI/A2A land in the new chips.
+- Hardening: extracted the classifier into an exported pure `classifySessionSource()` and deleted the test's drifted copy (which had silently kept the old order and asserted the bug). The test now exercises the real classifier, so this regression can't pass green again.
+
 ## [2.3.33] — 2026-06-09
 
 CLI and A2A sessions are first-class in the sidebar, more session types are deletable, and console noise is gone.
