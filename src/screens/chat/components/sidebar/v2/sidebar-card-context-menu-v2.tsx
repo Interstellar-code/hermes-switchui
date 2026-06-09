@@ -59,8 +59,16 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   const menuRef = useRef<HTMLDivElement>(null)
-  // chat / cron / api are all backed by chat sessions
-  const isChatItem = item.src === 'chat' || item.src === 'cron' || item.src === 'api' || item.src === 'task'
+  // chat / cron / api / task / tg / cli / a2a are all backed by chat sessions
+  // and share the same delete/rename path (gateway DELETE /api/sessions/<id>).
+  const isChatItem =
+    item.src === 'chat' ||
+    item.src === 'cron' ||
+    item.src === 'api' ||
+    item.src === 'task' ||
+    item.src === 'tg' ||
+    item.src === 'cli' ||
+    item.src === 'a2a'
   const rawId = item.id.split(':').slice(1).join(':')
 
   const handleArchiveToggle = useCallback(() => {
