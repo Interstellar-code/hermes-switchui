@@ -31,6 +31,27 @@ type ChatSkillsTabV2Props = {
   events?: Array<LifecycleEvent>
 }
 
+// Skill-system tool names per Hermes Agent canonical taxonomy:
+//   'skill' (legacy gateway skill.loaded), 'skills_list' (Tier-0 enumerate),
+//   'skill_view' (Tier-1/2 load), 'skill_manage' (create/edit/delete).
+const SKILL_TOOL_NAMES = new Set(['skills_list', 'skill_view', 'skill_manage'])
+const isSkillSystemEntry = (e: { name: string }) =>
+  e.name === 'skill' || SKILL_TOOL_NAMES.has(e.name)
+
+/** Count skill-system tool invocations across history + live stream. Shared with the tab badge. */
+export function countSkillEntries(
+  messages: Array<ChatMessage>,
+  streamingToolCalls: Array<StreamingToolCall> = [],
+): number {
+  const resultTsMap = buildResultTsMap(messages)
+  const allEntries = mergeToolEntries(
+    extractStreamingEntries(streamingToolCalls),
+    extractStreamToolCallsFromMessages(messages, resultTsMap),
+    extractToolEntries(messages),
+  )
+  return allEntries.filter(isSkillSystemEntry).length
+}
+
 type SkillInvocation = {
   key: string
   timestamp?: number
@@ -216,13 +237,6 @@ export function ChatSkillsTabV2({ messages, streamingToolCalls = [], events: _ev
   const allEntries = mergeToolEntries(streamingEntries, completedEntries, messageEntries)
 
   // Filter to skill-system entries per Hermes Agent canonical taxonomy:
-  //   - name === 'skill'        → legacy gateway-translated skill.loaded event
-  //   - name === 'skills_list'  → Tier-0 enumerate
-  //   - name === 'skill_view'   → Tier-1/2 load or drill
-  //   - name === 'skill_manage' → create/edit/patch/delete
-  const SKILL_TOOL_NAMES = new Set(['skills_list', 'skill_view', 'skill_manage'])
-  const isSkillSystemEntry = (e: { name: string }) =>
-    e.name === 'skill' || SKILL_TOOL_NAMES.has(e.name)
   const skillEntries = allEntries.filter(isSkillSystemEntry)
 
   /**

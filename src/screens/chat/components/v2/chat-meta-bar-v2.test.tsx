@@ -119,22 +119,9 @@ describe('ChatMetaBarV2', () => {
     expect(container.querySelector('[data-testid="meta-cost"]')).toBeNull()
   })
 
-  it('shows tokens field when session has token usage', () => {
-    mockStatus.totalTokens = 2_037_419
-    const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
-    const tok = container.querySelector('[data-testid="meta-tokens"]')
-    expect(tok?.textContent).toContain('2.0M')
-  })
-
-  it('hides tokens field when no usage', () => {
-    const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
-    expect(container.querySelector('[data-testid="meta-tokens"]')).toBeNull()
-  })
-
-  it('shows api-call count when greater than zero', () => {
+  it('never renders an api-call count field', () => {
     mockStatus.apiCallCount = 42
     const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
-    const api = container.querySelector('[data-testid="meta-apicalls"]')
-    expect(api?.textContent).toContain('42')
+    expect(container.querySelector('[data-testid="meta-apicalls"]')).toBeNull()
   })
 })

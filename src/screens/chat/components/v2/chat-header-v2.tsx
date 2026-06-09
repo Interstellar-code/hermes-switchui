@@ -11,6 +11,7 @@ type ChatHeaderV2Props = {
   sessionKey: string
   activeTab: SourceTab
   onTabChange: (tab: SourceTab) => void
+  tabCounts?: Partial<Record<SourceTab, number>>
 }
 
 function ChatHeaderV2Component({
@@ -18,6 +19,7 @@ function ChatHeaderV2Component({
   sessionKey,
   activeTab,
   onTabChange,
+  tabCounts,
 }: ChatHeaderV2Props) {
   const displayTitle = activeTitle || 'New Chat'
 
@@ -47,7 +49,11 @@ function ChatHeaderV2Component({
 
       {/* Center: source tabs */}
       <div className="shrink-0">
-        <ChatSourceTabsV2 activeTab={activeTab} onTabChange={onTabChange} />
+        <ChatSourceTabsV2
+          activeTab={activeTab}
+          onTabChange={onTabChange}
+          counts={tabCounts}
+        />
       </div>
 
       {/* File explorer toggle */}

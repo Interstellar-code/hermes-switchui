@@ -126,7 +126,10 @@ import {
   extractToolEntries,
   mergeToolEntries,
 } from './components/v2/chat-tab-views-v2'
-import { ChatSkillsTabV2 } from './components/v2/chat-skills-tab-v2'
+import {
+  ChatSkillsTabV2,
+  countSkillEntries,
+} from './components/v2/chat-skills-tab-v2'
 
 type ChatScreenProps = {
   activeFriendlyId: string
@@ -2982,6 +2985,11 @@ export function ChatScreen({
       .length
   }, [realtimeMessages, activeToolCalls])
 
+  const totalSkillCount = useMemo(
+    () => countSkillEntries(realtimeMessages, activeToolCalls),
+    [realtimeMessages, activeToolCalls],
+  )
+
   const sessionModelFallback =
     (typeof (activeSession as { model?: unknown } | null | undefined)?.model ===
     'string'
@@ -3069,6 +3077,11 @@ export function ChatScreen({
                 sessionKey={activeSessionKey || activeFriendlyId}
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
+                tabCounts={{
+                  chat: finalDisplayMessages.length,
+                  tool: totalToolCount,
+                  skills: totalSkillCount,
+                }}
               />
               <ChatMetaBarV2
                 sessionKey={activeSessionKey || activeFriendlyId}

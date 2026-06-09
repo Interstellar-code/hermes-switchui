@@ -80,7 +80,6 @@ function ChatMetaBarV2Component({
 
   const inTok = status.inputTokens || 0
   const outTok = status.outputTokens || 0
-  const totalTok = status.totalTokens || inTok + outTok
   const tokenBreakdown =
     status.cacheReadTokens || status.cacheWriteTokens || status.reasoningTokens
       ? `in ${formatTokens(inTok)} · out ${formatTokens(
@@ -117,19 +116,6 @@ function ChatMetaBarV2Component({
         </>
       )}
 
-      {/* Tokens (cache/reasoning breakdown in tooltip) */}
-      {totalTok > 0 && (
-        <span
-          className="shrink-0 whitespace-nowrap"
-          data-testid="meta-tokens"
-          title={tokenBreakdown}
-        >
-          <span className="m-label">tok</span>
-          {' · '}
-          <span className="m-mono">{formatTokens(totalTok)}</span>
-        </span>
-      )}
-
       {/* Cost — only when the provider actually bills (subscription gateways report 0) */}
       {displayCost && (
         <>
@@ -142,21 +128,6 @@ function ChatMetaBarV2Component({
             <span className="m-label">cost</span>
             {' · '}
             <span className="m-mono">{displayCost}</span>
-          </span>
-        </>
-      )}
-
-      {/* API call count */}
-      {status.apiCallCount > 0 && (
-        <>
-          <Sep />
-          <span
-            className="shrink-0 whitespace-nowrap"
-            data-testid="meta-apicalls"
-          >
-            <span className="m-label">api</span>
-            {' · '}
-            <span className="m-mono">{status.apiCallCount}</span>
           </span>
         </>
       )}

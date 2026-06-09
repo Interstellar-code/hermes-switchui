@@ -44,9 +44,11 @@ const TABS: Array<TabDef> = [
 type ChatSourceTabsV2Props = {
   activeTab: SourceTab
   onTabChange: (tab: SourceTab) => void
+  /** Per-tab item counts (messages / tools / skills). Rendered as a badge when > 0. */
+  counts?: Partial<Record<SourceTab, number>>
 }
 
-export function ChatSourceTabsV2({ activeTab, onTabChange }: ChatSourceTabsV2Props) {
+export function ChatSourceTabsV2({ activeTab, onTabChange, counts }: ChatSourceTabsV2Props) {
   return (
     <div
       role="tablist"
@@ -59,6 +61,7 @@ export function ChatSourceTabsV2({ activeTab, onTabChange }: ChatSourceTabsV2Pro
     >
       {TABS.map((tab) => {
         const isActive = tab.id === activeTab
+        const count = counts?.[tab.id] ?? 0
         return (
           <button
             key={tab.id}
@@ -89,6 +92,14 @@ export function ChatSourceTabsV2({ activeTab, onTabChange }: ChatSourceTabsV2Pro
               {tab.icon}
             </span>
             {tab.label}
+            {count > 0 && (
+              <span
+                data-testid={`tab-count-${tab.id}`}
+                className="ml-0.5 tabular-nums opacity-70"
+              >
+                {count}
+              </span>
+            )}
           </button>
         )
       })}
