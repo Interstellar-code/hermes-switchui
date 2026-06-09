@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path'
 import { homedir } from 'node:os'
 
 const CLAUDE_HEALTH_TIMEOUT_MS = 2_000
-const CLAUDE_START_PORT = 8642
+const DEFAULT_GATEWAY_PORT = 8642
 
 let startPromise: Promise<StartClaudeAgentResult> | null = null
 
@@ -52,6 +52,64 @@ function readClaudeEnv(): Record<string, string> {
   }
 }
 
+/** Parse a port out of a URL string; returns null if absent/invalid. */
+function parsePort(url: string | undefined): number | null {
+  if (!url?.trim()) return null
+  try {
+    const u = new URL(url.trim())
+    if (u.port) return Number(u.port)
+    // No explicit port → infer from scheme
+    return u.protocol === 'https:' ? 443 : 80
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Resolve the gateway port the running agent actually uses, in priority order:
+ *   1. HERMES_API_URL / CLAUDE_API_URL (what switchui is configured to talk to —
+ *      install.sh writes this from GATEWAY_PORT).
+ *   2. API_SERVER_PORT in the gateway's own ~/.hermes/.env.
+ *   3. Default 8642.
+ * This lets a gateway running on a custom port be detected instead of hardcoding 8642.
+ */
+export function resolveGatewayPort(): number {
+  const fromUrl =
+    parsePort(process.env.HERMES_API_URL) ?? parsePort(process.env.CLAUDE_API_URL)
+  if (fromUrl) return fromUrl
+
+  const env = readClaudeEnv()
+  const fromEnv = Number(env.API_SERVER_PORT)
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv
+
+  return DEFAULT_GATEWAY_PORT
+}
+
+/** Base URL of the gateway switchui should probe/start. Honors a custom host. */
+export function resolveGatewayUrl(): string {
+  const configured = process.env.HERMES_API_URL?.trim() || process.env.CLAUDE_API_URL?.trim()
+  if (configured) {
+    try {
+      return new URL(configured).origin
+    } catch {
+      /* fall through to localhost + resolved port */
+    }
+  }
+  return `http://127.0.0.1:${resolveGatewayPort()}`
+}
+
+/** Look up an executable by name on PATH (first hit wins). */
+function findOnPath(name: string): string | null {
+  const pathEnv = process.env.PATH
+  if (!pathEnv) return null
+  for (const dir of pathEnv.split(':')) {
+    if (!dir) continue
+    const candidate = resolve(dir, name)
+    if (existsSync(candidate)) return candidate
+  }
+  return null
+}
+
 /** Same directory resolution logic as vite.config.ts. Kept in sync. */
 export function resolveClaudeAgentDir(
   env: Record<string, string | undefined> = process.env,
@@ -77,16 +135,23 @@ export function resolveClaudeAgentDir(
   return null
 }
 
-/** Find the `claude` CLI binary installed by Nous's installer (or on PATH). */
+/**
+ * Find the gateway CLI binary. The Interstellar fork installer ships `hermes`
+ * (to ~/.hermes/bin or ~/.local/bin); legacy Nous installs shipped `claude`.
+ * Checks well-known locations first, then falls back to a PATH lookup.
+ */
 export function resolveClaudeBinary(): string | null {
   const candidates = [
+    resolve(homedir(), '.hermes', 'bin', 'hermes'),
+    resolve(homedir(), '.local', 'bin', 'hermes'),
+    // legacy Nous 'claude' binary
     resolve(homedir(), '.claude', 'bin', 'claude'),
     resolve(homedir(), '.local', 'bin', 'claude'),
   ]
   for (const c of candidates) {
     if (existsSync(c)) return c
   }
-  return null
+  return findOnPath('hermes') ?? findOnPath('claude')
 }
 
 export function resolveClaudePython(agentDir: string): string {
@@ -101,10 +166,10 @@ export function resolveClaudePython(agentDir: string): string {
 }
 
 export async function isClaudeAgentHealthy(
-  port = CLAUDE_START_PORT,
+  baseUrl: string = resolveGatewayUrl(),
 ): Promise<boolean> {
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/health`, {
+    const response = await fetch(new URL('/health', baseUrl), {
       signal: AbortSignal.timeout(CLAUDE_HEALTH_TIMEOUT_MS),
     })
     return response.ok
@@ -148,7 +213,7 @@ export async function startClaudeAgent(): Promise<StartClaudeAgentResult> {
           '--host',
           '0.0.0.0',
           '--port',
-          String(CLAUDE_START_PORT),
+          String(resolveGatewayPort()),
         ]
         cwd = agentDir
       } else {
