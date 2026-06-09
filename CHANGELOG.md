@@ -3,6 +3,17 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.37] — 2026-06-10
+
+Astro/Starlight docs rendering is cleaner for authoring examples and starts with a quieter sidebar.
+
+### Fixed
+
+- **Markdown image examples in the website docs authoring guide no longer look like broken images.** The authoring guide now keeps the `![alt](...)` examples inside valid markdown code fences, so Starlight renders them as examples instead of attempting to interpret them as content.
+- **The Mermaid authoring sample is now a proper fenced-code example again.** The instructional Mermaid block is displayed as markdown source, while the separate rendered example continues to become an SVG diagram.
+- **Website docs sidebar groups default to collapsed.** Starlight sidebar groups are now generated with `collapsed: true`, so `/website/docs/...` loads with a compact left navigation instead of every group expanded.
+- **Website docs sidebar links no longer double-prefix the site base.** Starlight already includes the Astro `SITE_BASE` in generated hrefs, so the docs prefixer now strips that base before adding `/docs`; links now resolve to `/website/docs/<slug>/` instead of `/website/docs/website/<slug>/`.
+
 ## [2.3.36] — 2026-06-09
 
 Website docs now stay inside the embedded `/website/docs/...` Starlight preview and render diagrams with more usable horizontal space.

@@ -28,6 +28,19 @@ const mermaidScript = `
   }
 `;
 
+function collapseSidebarGroups(items) {
+  return items.map((item) => {
+    if ('items' in item) {
+      return {
+        ...item,
+        collapsed: true,
+        items: collapseSidebarGroups(item.items),
+      };
+    }
+    return item;
+  });
+}
+
 export default defineConfig({
   site: 'https://hermes-switchui.zi0n.space',
   srcDir: './src',
@@ -49,7 +62,7 @@ export default defineConfig({
       editLink: {
         baseUrl: 'https://github.com/Interstellar-code/hermes-switchui/edit/main/website/',
       },
-      sidebar: [
+      sidebar: collapseSidebarGroups([
         {
           label: 'Getting Started',
           items: [
@@ -165,7 +178,7 @@ export default defineConfig({
           label: 'FAQ',
           items: [{ label: 'FAQ', slug: 'faq' }],
         },
-      ],
+      ]),
     }),
   ],
   markdown: {

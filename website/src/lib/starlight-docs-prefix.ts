@@ -7,10 +7,25 @@ import type {
 const BASE = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
 const DOCS_PREFIX = `${BASE}/docs`
 
+function joinUrl(...parts: string[]): string {
+  return parts
+    .filter(Boolean)
+    .join('/')
+    .replace(/\/+/g, '/')
+}
+
 function prefixHref(href: string): string {
   if (/^(https?:|mailto:|#)/i.test(href)) return href
-  if (href === '/') return `${DOCS_PREFIX}/`
-  return `${DOCS_PREFIX}${href}`.replace(/\/+/g, '/').replace(/(?<!:)\/\//g, '/')
+
+  let path = href
+  if (BASE && (path === BASE || path.startsWith(`${BASE}/`))) {
+    path = path.slice(BASE.length) || '/'
+  }
+
+  if (path === '/') return `${DOCS_PREFIX}/`
+  if (path === '/docs' || path.startsWith('/docs/')) return joinUrl(BASE, path)
+
+  return joinUrl(DOCS_PREFIX, path.replace(/^\/+/, ''))
 }
 
 function prefixSidebarEntry(entry: SidebarEntry): SidebarEntry {
