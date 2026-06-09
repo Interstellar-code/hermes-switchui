@@ -3,6 +3,16 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.31] — 2026-06-09
+
+Embedded docs flow diagrams render again instead of downloading.
+
+### Fixed
+
+- **Flow diagrams on `/docs` pages downloaded instead of rendering.** The security hardening in `6480a703` (#111) added a blanket `Content-Disposition: attachment` for `.html`/`.svg` served by `/api/docs-asset`, which also caught the first-party flow diagrams the docs embed via `<iframe src="/api/docs-asset?path=diagrams/*.html">`. The diagrams are static, in-repo, and script-free, so they are now served inline: `docs-asset.ts` exempts the `docs/diagrams/` subtree from force-download (tight CSP — no script source, inline + Google Fonts styling only — plus `X-Frame-Options: SAMEORIGIN`), and `docs-render.ts` rewrites the docs-asset iframes to carry `sandbox=""` + `referrerpolicy="no-referrer"`. Arbitrary `.html`/`.svg` anywhere else is still forced to download.
+
+Security posture unchanged for every path except the trusted `docs/diagrams/` subtree, which now renders inside a sandboxed iframe.
+
 ## [2.3.30] — 2026-06-09
 
 Gateway startup reliability: find the renamed `hermes` binary and honor a custom gateway port.
