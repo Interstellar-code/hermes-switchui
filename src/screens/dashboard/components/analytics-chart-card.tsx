@@ -197,7 +197,7 @@ export function AnalyticsChartCard({
 
         {hasData ? (
           <div className="h-[200px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 1, height: 1 }}>
               <AreaChart
                 data={data}
                 margin={{ top: 4, right: 4, left: -22, bottom: 0 }}
