@@ -23,7 +23,6 @@ import type {
   SessionFeedSort,
   SessionSource,
   SessionSourceResult,
-  SessionState,
   SessionsFeedOptions,
   SessionsFeedResult,
 } from './sessions-feed-types'
@@ -153,11 +152,15 @@ export function useChatSessionsFeed(): SessionSourceResult {
             ? 'tg'
             : s.source === 'cron' || s.key.startsWith('cron_')
               ? 'cron'
-              : s.source === 'api_server' || s.key.startsWith('api-')
+              : s.source === 'api_server'
                 ? 'api'
-                : isTaskTriggered
-                  ? 'task'
-                  : 'chat'
+                : s.source === 'cli'
+                  ? 'cli'
+                  : s.source === 'a2a_fleet'
+                    ? 'a2a'
+                    : isTaskTriggered
+                      ? 'task'
+                      : 'chat'
         return {
           id: makeId('chat', s.key),
           src: kind,
@@ -262,8 +265,10 @@ const SOURCE_ORDER: Record<SessionSource, number> = {
   task: 1,
   cron: 2,
   api: 3,
-  tool: 4,
-  tg: 5,
+  cli: 4,
+  a2a: 5,
+  tool: 6,
+  tg: 7,
 }
 
 export function sortItems(

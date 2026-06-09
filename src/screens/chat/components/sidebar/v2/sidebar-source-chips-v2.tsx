@@ -64,6 +64,27 @@ const SOURCE_DEFS: Array<{ id: SessionSource; label: string; icon: React.ReactNo
     ),
   },
   {
+    id: 'cli',
+    label: 'CLI',
+    icon: (
+      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden>
+        <polyline points="2,5 6,8 2,11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <line x1="8" y1="11" x2="14" y2="11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    id: 'a2a',
+    label: 'A2A',
+    icon: (
+      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden>
+        <circle cx="3" cy="8" r="2" stroke="currentColor" strokeWidth="1.5" />
+        <circle cx="13" cy="8" r="2" stroke="currentColor" strokeWidth="1.5" />
+        <line x1="5" y1="8" x2="11" y2="8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     id: 'tg',
     label: 'TELEGRAM',
     icon: (
@@ -81,6 +102,8 @@ const SOURCE_COLORS: Record<SessionSource, string> = {
   task: '#ff9f5f',
   cron: '#d6ff5f',
   api: '#5fcfff',
+  cli: '#5fffd6',
+  a2a: '#c85fff',
   tool: '#b98aff',
   tg: '#ff5fa2',
 }

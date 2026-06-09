@@ -25,6 +25,8 @@ const RAIL_COLORS: Record<string, string> = {
   task: '#ff9f5f',
   cron: '#d6ff5f',
   api: '#5fcfff',
+  cli: '#5fffd6',
+  a2a: '#c85fff',
   tg: '#ff5fa2',
   tool: '#b98aff',
 }
@@ -33,6 +35,9 @@ const RAIL_GLOW: Record<string, string> = {
   chat: '0 0 6px var(--m-green-500, #00ff41)',
   task: '0 0 6px #5fcfff66',
   cron: '0 0 6px #d6ff5f66',
+  api: '0 0 6px #5fcfff66',
+  cli: '0 0 6px #5fffd666',
+  a2a: '0 0 6px #c85fff66',
   tg: '0 0 6px #ff5fa266',
   mem: '0 0 6px #7dff9a66',
   tool: '0 0 6px #b98aff66',
@@ -102,8 +107,8 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
   // `tool` has no detail route — left non-clickable intentionally.
   // TODO: wire `tool` when a tool-run detail route is added.
   const rawId = item.id.split(':').slice(1).join(':')
-  // chat / cron / api / tg are all backed by chat sessions — only the key
-  // prefix differs. All navigate via /chat/$sessionKey.
+  // chat / cron / api / cli / a2a / tg are all backed by chat sessions — only
+  // the gateway source tag differs. All navigate via /chat/$sessionKey.
   // `tg` sessions arrive from useChatSessionsFeed() with src='tg' because
   // the gateway tags them source='telegram'; their rawId is the session key
   // and maps directly to the /chat/$sessionKey route.
@@ -111,6 +116,8 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
     item.src === 'chat' ||
     item.src === 'cron' ||
     item.src === 'api' ||
+    item.src === 'cli' ||
+    item.src === 'a2a' ||
     item.src === 'task' ||
     item.src === 'tg'
   // cron/task: no chat_session_key available from the gateway — these
