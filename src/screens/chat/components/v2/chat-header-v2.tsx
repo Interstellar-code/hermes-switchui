@@ -3,6 +3,8 @@ import { ChatSourceTabsV2 } from './chat-source-tabs-v2'
 import { ChatHeaderActionsV2 } from './chat-header-actions-v2'
 import type { SourceTab } from './chat-source-tabs-v2'
 import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
+import { useSessionStatus } from '@/hooks/use-session-status'
+import { formatCostUsd } from '@/lib/format'
 
 type ChatHeaderV2Props = {
   activeTitle: string
@@ -51,6 +53,9 @@ function ChatHeaderV2Component({
       {/* File explorer toggle */}
       <FileExplorerToggle />
 
+      {/* Session cost pill */}
+      <SessionCostPill sessionKey={sessionKey} />
+
       {/* Right: actions */}
       <div className="shrink-0">
         <ChatHeaderActionsV2
@@ -86,6 +91,21 @@ function FileExplorerToggle() {
         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
       </svg>
     </button>
+  )
+}
+
+function SessionCostPill({ sessionKey }: { sessionKey: string }) {
+  const status = useSessionStatus(sessionKey)
+  if (!status.cost || status.cost <= 0) return null
+  return (
+    <span
+      data-testid="header-cost"
+      title="Session cost"
+      className="flex items-center h-7 px-2 rounded text-[11px] font-mono shrink-0"
+      style={{ color: 'var(--m-muted,var(--theme-muted,#6b7280))' }}
+    >
+      {formatCostUsd(status.cost)}
+    </span>
   )
 }
 

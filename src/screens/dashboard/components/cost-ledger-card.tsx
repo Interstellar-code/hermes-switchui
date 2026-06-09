@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import type { DashboardOverview } from '@/server/dashboard-aggregator'
+import { formatCostUsd, formatTokens } from '@/lib/format'
 
 const SUBSCRIPTION_PATTERNS: Array<RegExp> = [
   /(^|[\s\-:/])codex(\b|[-/])/i,
@@ -17,22 +18,6 @@ const SUBSCRIPTION_PATTERNS: Array<RegExp> = [
 
 function isSubscription(modelId: string): boolean {
   return SUBSCRIPTION_PATTERNS.some((re) => re.test(modelId))
-}
-
-function formatTokens(n: number): string {
-  if (!n || n <= 0) return '0'
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return String(n)
-}
-
-function formatCostUsd(usd: number): string {
-  if (usd <= 0) return '$0'
-  if (usd < 0.01) return '<$0.01'
-  if (usd < 1) return `$${usd.toFixed(3)}`
-  if (usd < 100) return `$${usd.toFixed(2)}`
-  return `$${Math.round(usd).toLocaleString()}`
 }
 
 /**

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { SessionSelectorsV2 } from './session-selectors-v2'
 import type { ThinkingLevel } from '../chat-composer-types'
 import { useSessionStatus } from '@/hooks/use-session-status'
+import { formatCostUsd, formatTokens } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 type ProfilesResponse = {
@@ -103,6 +104,14 @@ function ChatMetaBarV2Component({
   const displayToolCount = toolCountProp ?? 0
   const displayProfile = resolvedProfile ?? 'default'
 
+  const displayCost = status.cost > 0 ? formatCostUsd(status.cost) : null
+  const tokenBreakdown =
+    status.cacheReadTokens || status.cacheWriteTokens || status.reasoningTokens
+      ? `cache r/w ${formatTokens(status.cacheReadTokens)}/${formatTokens(
+          status.cacheWriteTokens,
+        )} · reasoning ${formatTokens(status.reasoningTokens)}`
+      : undefined
+
   const sessionLabel = sessionKey ?? '—'
 
   return (
@@ -157,6 +166,37 @@ function ChatMetaBarV2Component({
         {' · '}
         <span className="m-mono">{displayToolCount}</span>
       </span>
+
+      {/* Cost (cache/reasoning token breakdown in tooltip) */}
+      {displayCost && (
+        <>
+          <Sep />
+          <span
+            className="shrink-0 whitespace-nowrap"
+            data-testid="meta-cost"
+            title={tokenBreakdown}
+          >
+            <span className="m-label">cost</span>
+            {' · '}
+            <span className="m-mono">{displayCost}</span>
+          </span>
+        </>
+      )}
+
+      {/* API call count */}
+      {status.apiCallCount > 0 && (
+        <>
+          <Sep />
+          <span
+            className="shrink-0 whitespace-nowrap"
+            data-testid="meta-apicalls"
+          >
+            <span className="m-label">api</span>
+            {' · '}
+            <span className="m-mono">{status.apiCallCount}</span>
+          </span>
+        </>
+      )}
 
       {!hideSelectors && (
         <>

@@ -52,6 +52,14 @@ export type ClaudeSession = {
   tool_call_count?: number
   input_tokens?: number
   output_tokens?: number
+  cache_read_tokens?: number
+  cache_write_tokens?: number
+  reasoning_tokens?: number
+  actual_cost_usd?: number | null
+  estimated_cost_usd?: number | null
+  api_call_count?: number
+  has_model_config?: boolean
+  has_system_prompt?: boolean
   parent_session_id?: string | null
   last_active?: number | null
   preview?: string | null
@@ -403,7 +411,14 @@ export function toSessionSummary(
     tool_call_count: session.tool_call_count ?? 0,
     messageCount: session.message_count ?? 0,
     toolCallCount: session.tool_call_count ?? 0,
-    cost: 0,
+    cost: session.actual_cost_usd ?? session.estimated_cost_usd ?? 0,
+    estimatedCost: session.estimated_cost_usd ?? 0,
+    cacheReadTokens: session.cache_read_tokens ?? 0,
+    cacheWriteTokens: session.cache_write_tokens ?? 0,
+    reasoningTokens: session.reasoning_tokens ?? 0,
+    apiCallCount: session.api_call_count ?? 0,
+    source: session.source ?? '',
+    endReason: session.end_reason ?? '',
     createdAt: session.started_at ? session.started_at * 1000 : Date.now(),
     startedAt: session.started_at ? session.started_at * 1000 : Date.now(),
     updatedAt: session.last_active

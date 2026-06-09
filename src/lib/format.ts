@@ -24,6 +24,24 @@ export function formatDate(iso: string): string {
   })
 }
 
+/** Format a token count as `K` / `M` / `B` (e.g. 12_300 → "12.3K"). */
+export function formatTokens(n: number): string {
+  if (!n || n <= 0) return '0'
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return String(n)
+}
+
+/** Format a USD cost with sub-cent / sub-dollar precision (e.g. 0.0123 → "$0.012"). */
+export function formatCostUsd(usd: number): string {
+  if (usd <= 0) return '$0'
+  if (usd < 0.01) return '<$0.01'
+  if (usd < 1) return `$${usd.toFixed(3)}`
+  if (usd < 100) return `$${usd.toFixed(2)}`
+  return `$${Math.round(usd).toLocaleString()}`
+}
+
 /** Format a unix-epoch (seconds) timestamp as relative-to-now ("3h ago"). */
 export function formatRelative(epochSeconds: number): string {
   const diff = Math.floor(Date.now() / 1000 - epochSeconds)

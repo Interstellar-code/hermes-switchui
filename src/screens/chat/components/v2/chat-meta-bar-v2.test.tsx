@@ -18,17 +18,31 @@ vi.mock('@tanstack/react-query', () => ({
   }),
 }))
 
-vi.mock('@/hooks/use-session-status', () => ({
-  useSessionStatus: () => ({
+const { mockStatus, baseStatus } = vi.hoisted(() => {
+  const baseStatus = {
     contextPercent: 0,
     maxTokens: 0,
     model: '',
     outputTokens: 0,
     usedTokens: 0,
-  }),
+    cost: 0,
+    estimatedCost: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    reasoningTokens: 0,
+    apiCallCount: 0,
+    source: '',
+    endReason: '',
+  }
+  return { baseStatus, mockStatus: { ...baseStatus } }
+})
+
+vi.mock('@/hooks/use-session-status', () => ({
+  useSessionStatus: () => mockStatus,
 }))
 
 beforeEach(() => {
+  Object.assign(mockStatus, baseStatus)
   vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false })))
 })
 
@@ -96,5 +110,25 @@ describe('ChatMetaBarV2', () => {
     const container = renderInto(<ChatMetaBarV2 sessionKey="t_49b85d13" />)
     const selectors = container.querySelector('[data-testid="meta-selectors"]')
     expect(selectors).not.toBeNull()
+  })
+
+  it('shows cost field when session has spend', () => {
+    mockStatus.cost = 0.0123
+    const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
+    const cost = container.querySelector('[data-testid="meta-cost"]')
+    expect(cost?.textContent).toContain('$0.012')
+  })
+
+  it('hides cost field when cost is zero', () => {
+    mockStatus.cost = 0
+    const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
+    expect(container.querySelector('[data-testid="meta-cost"]')).toBeNull()
+  })
+
+  it('shows api-call count when greater than zero', () => {
+    mockStatus.apiCallCount = 42
+    const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
+    const api = container.querySelector('[data-testid="meta-apicalls"]')
+    expect(api?.textContent).toContain('42')
   })
 })

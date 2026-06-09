@@ -12,6 +12,14 @@ export type SessionStatusPayload = {
   inputTokens: number
   outputTokens: number
   totalTokens: number
+  cost: number
+  estimatedCost: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  reasoningTokens: number
+  apiCallCount: number
+  source: string
+  endReason: string
 }
 
 const EMPTY_PAYLOAD: SessionStatusPayload = {
@@ -26,6 +34,14 @@ const EMPTY_PAYLOAD: SessionStatusPayload = {
   inputTokens: 0,
   outputTokens: 0,
   totalTokens: 0,
+  cost: 0,
+  estimatedCost: 0,
+  cacheReadTokens: 0,
+  cacheWriteTokens: 0,
+  reasoningTokens: 0,
+  apiCallCount: 0,
+  source: '',
+  endReason: '',
 }
 
 const BACKOFF_INIT_MS = 5_000
@@ -80,6 +96,14 @@ export function useSessionStatus(sessionKey: string | null | undefined): Session
             inputTokens: Number(p.inputTokens ?? 0),
             outputTokens: Number(p.outputTokens ?? 0),
             totalTokens: Number(p.totalTokens ?? 0),
+            cost: Number(p.cost ?? 0),
+            estimatedCost: Number(p.estimatedCost ?? 0),
+            cacheReadTokens: Number(p.cacheReadTokens ?? 0),
+            cacheWriteTokens: Number(p.cacheWriteTokens ?? 0),
+            reasoningTokens: Number(p.reasoningTokens ?? 0),
+            apiCallCount: Number(p.apiCallCount ?? 0),
+            source: String(p.source ?? ''),
+            endReason: String(p.endReason ?? ''),
           })
           scheduleNext(POLL_MS)
           return
