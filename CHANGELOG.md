@@ -3,6 +3,20 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.29] — 2026-06-09
+
+Sidebar session delete reliability, Telegram session visibility, and chat source-tab counts.
+
+### Fixed
+
+- **Sidebar session delete now refreshes the list.** Deleting a session removed it on the backend but left the card visible, because the V2 sidebar renders from a separate TanStack Query cache (`['sessions-feed','chat','v3-task-split']`) than the delete mutation invalidated (`['chat','sessions']`). The feed key is now exported as `SESSIONS_FEED_KEY` and invalidated on mutate/error/success, with tombstone filtering for instant optimistic removal. The delete dialog no longer unmounts mid-request, and gateway-owned sessions (e.g. cron) the dashboard 404s now fall through to the gateway DELETE (404 treated as success).
+- **Telegram sessions now appear in the sidebar.** The feed classified sessions by key-prefix only, so timestamp-keyed Telegram rows fell into the `chat` bucket and the `tg` filter chip stayed empty. The feed now classifies by the authoritative gateway `source` field (`telegram → tg`); `source` is preserved through `normalizeSessions` and typed on `SessionMeta`; the TELEGRAM chip shows whenever it has items.
+
+### Changed
+
+- **Chat meta bar slimmed.** Removed the redundant total-token field (the context-window ring already shows it) and the api-call count.
+- **Source tabs show counts.** The chat / tool / skills tabs now display message, tool-invocation, and skill-invocation counts. Skill count uses a shared `countSkillEntries` helper so the badge and the skills tab agree.
+
 ## [2.3.27] — 2026-06-07
 
 Shadcn composer cutover at /chat + reply / queue / tool-display features.
