@@ -167,4 +167,43 @@ describe('/api/docs-asset', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff')
   })
+
+  it('force-downloads .html outside diagrams/ (Content-Disposition: attachment)', async () => {
+    fs.writeFileSync(
+      path.join(tmpDocsRoot, 'images', 'diagram.html'),
+      '<!DOCTYPE html><html><body>x</body></html>',
+    )
+    const res = await invoke('images/diagram.html')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Disposition')).toContain('attachment')
+  })
+
+  it('serves diagrams/*.html INLINE (no Content-Disposition) so the iframe renders', async () => {
+    fs.mkdirSync(path.join(tmpDocsRoot, 'diagrams'), { recursive: true })
+    fs.writeFileSync(
+      path.join(tmpDocsRoot, 'diagrams', 'flow.html'),
+      '<!DOCTYPE html><html><body>flow</body></html>',
+    )
+    const res = await invoke('diagrams/flow.html')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe('text/html; charset=utf-8')
+    expect(res.headers.get('Content-Disposition')).toBeNull()
+  })
+
+  it('locks down inline diagrams: CSP blocks scripts, allows Google Fonts', async () => {
+    fs.mkdirSync(path.join(tmpDocsRoot, 'diagrams'), { recursive: true })
+    fs.writeFileSync(
+      path.join(tmpDocsRoot, 'diagrams', 'flow.html'),
+      '<!DOCTYPE html><html><body>flow</body></html>',
+    )
+    const res = await invoke('diagrams/flow.html')
+    expect(res.status).toBe(200)
+    const csp = res.headers.get('Content-Security-Policy') ?? ''
+    expect(csp).toContain("default-src 'none'")
+    expect(csp).toContain('https://fonts.googleapis.com')
+    expect(csp).toContain('https://fonts.gstatic.com')
+    // no script source is ever permitted
+    expect(csp).not.toContain('script-src ')
+    expect(res.headers.get('X-Frame-Options')).toBe('SAMEORIGIN')
+  })
 })

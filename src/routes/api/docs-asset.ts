@@ -91,18 +91,30 @@ export const Route = createFileRoute('/api/docs-asset')({
           'X-Content-Type-Options': 'nosniff',
         }
 
-        if (FORCE_DOWNLOAD_EXTENSIONS.has(ext)) {
+        // First-party flow diagrams (docs/diagrams/*.html) are authored in-repo
+        // and embedded inline via a sandboxed <iframe> (docs-render injects
+        // sandbox=""). They are exempt from the force-download rule so the frame
+        // renders instead of downloading, but are still locked down: no scripts
+        // of any kind, only inline + Google Fonts styling. The iframe sandbox is
+        // the primary control; this CSP is defense-in-depth. The exemption is
+        // scoped to the diagrams/ subtree so arbitrary uploaded HTML elsewhere
+        // is unaffected.
+        const isInlineDiagram =
+          HTML_EXTENSIONS.has(ext) && normalized.startsWith('diagrams/')
+
+        if (isInlineDiagram) {
+          headers['Content-Security-Policy'] =
+            "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; frame-ancestors 'self'"
+          headers['X-Frame-Options'] = 'SAMEORIGIN'
+        } else if (FORCE_DOWNLOAD_EXTENSIONS.has(ext)) {
           // Force download to prevent inline execution on the API origin.
           // - HTML: inline event handlers / javascript: URIs bypass script-src 'none'.
           // - SVG: <script> inside SVG executes in Firefox when served as image/svg+xml.
           const filename = path.basename(normalized)
           headers['Content-Disposition'] = `attachment; filename="${filename}"`
-        }
-
-        if (FORCE_DOWNLOAD_EXTENSIONS.has(ext)) {
-          // Defense-in-depth: apply tight CSP + framing controls even for
-          // attachment responses (SVG, HTML/HTM) in case the client ignores
-          // Content-Disposition or opens the file inline.
+          // Defense-in-depth: tight CSP + framing controls even for attachment
+          // responses in case the client ignores Content-Disposition or opens
+          // the file inline.
           headers['Content-Security-Policy'] =
             "default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'self'"
           headers['X-Frame-Options'] = 'SAMEORIGIN'

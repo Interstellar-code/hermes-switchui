@@ -38,6 +38,38 @@ function rehypeMermaid() {
 }
 
 /**
+ * Hardens author-embedded `<iframe>`s that point at the docs-asset endpoint
+ * (the in-repo flow diagrams) by forcing a maximally-restrictive `sandbox`.
+ * `sandbox=""` runs the framed document in a unique opaque origin with scripts,
+ * forms, popups, and same-origin access all disabled — so even if a diagram
+ * ever shipped an inline handler or `javascript:` URI, it cannot execute or
+ * reach the app. This is the browser-level counterpart to the docs-asset CSP;
+ * together they let the trusted, script-free diagrams render inline safely.
+ */
+function rehypeSandboxDocAssetIframes() {
+  // Author-embedded iframes arrive as raw HTML passthrough (the pipeline has no
+  // rehype-raw), so they are `raw` text nodes — not parsed `element` nodes — and
+  // a visit('element') pass would never see them. Rewrite the raw string to
+  // inject the sandbox/referrer attributes on any <iframe> targeting our asset
+  // endpoint. `[^>]*` spans newlines, so multi-line iframe tags are covered.
+  const IFRAME_OPEN = /<iframe\b([^>]*)>/gi
+  const ASSET_SRC = /\bsrc=["'](?:\/api\/docs-asset|\/api\/docs\/asset)/i
+  return (tree: Root) => {
+    visit(tree, 'raw', (node: { type: 'raw'; value: string }) => {
+      if (!node.value.includes('<iframe')) return
+      node.value = node.value.replace(IFRAME_OPEN, (match, attrs: string) => {
+        if (!ASSET_SRC.test(attrs)) return match
+        let a = attrs
+        // Empty token list = every sandbox restriction applied.
+        if (!/\bsandbox=/i.test(a)) a += ' sandbox=""'
+        if (!/\breferrerpolicy=/i.test(a)) a += ' referrerpolicy="no-referrer"'
+        return `<iframe${a}>`
+      })
+    })
+  }
+}
+
+/**
  * Rewrites relative `src` attributes on `<img>` elements to go through the
  * auth-gated `/api/docs/asset?path=` endpoint. Absolute URLs (http/https),
  * data: URIs, and root-relative /... paths that already start with / are
@@ -148,6 +180,7 @@ export async function renderMarkdown(
       },
     })
     .use(rehypeMermaid)
+    .use(rehypeSandboxDocAssetIframes)
 
   if (ctx) {
     processor = processor.use(rehypeRewriteDocLinks, ctx)

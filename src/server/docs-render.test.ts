@@ -29,6 +29,33 @@ describe('docs-render', () => {
     expect(html).toContain('<th>a</th>')
   })
 
+  describe('rehypeSandboxDocAssetIframes', () => {
+    it('forces sandbox="" on iframes pointing at the docs-asset endpoint', async () => {
+      const md = '<iframe src="/api/docs-asset?path=diagrams/flow.html"></iframe>'
+      const html = await renderMarkdown(md)
+      expect(html).toContain('sandbox=""')
+      expect(html).toContain('referrerpolicy="no-referrer"')
+    })
+
+    it('injects sandbox on multi-line iframe tags (production diagram form)', async () => {
+      const md = [
+        '<iframe',
+        '  src="/api/docs-asset?path=diagrams/flow.html"',
+        '  width="100%"',
+        '  height="900"',
+        '></iframe>',
+      ].join('\n')
+      const html = await renderMarkdown(md)
+      expect(html).toContain('sandbox=""')
+    })
+
+    it('leaves foreign iframes untouched (no sandbox injected)', async () => {
+      const md = '<iframe src="https://example.com/widget"></iframe>'
+      const html = await renderMarkdown(md)
+      expect(html).not.toContain('sandbox=')
+    })
+  })
+
   describe('rehypeRewriteDocLinks', () => {
     it('rewrites a relative .md link to /docs/ path', async () => {
       const md = '[Connect](connecting-provider.md)'
