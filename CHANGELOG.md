@@ -3,6 +3,17 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.30] — 2026-06-09
+
+Gateway startup reliability: find the renamed `hermes` binary and honor a custom gateway port.
+
+### Fixed
+
+- **"hermes-agent not found" on fresh Interstellar installs.** `resolveClaudeBinary()` only looked for a `claude` binary under `~/.claude/bin` and `~/.local/bin`, but the Interstellar fork installer ships the gateway CLI as `hermes` (to `~/.hermes/bin` or `~/.local/bin`). A correctly installed gateway was reported missing and `startClaudeAgent()` returned the installer error. Resolution now checks the `hermes` locations first, keeps the legacy `claude` paths as a fallback, and finally does a `PATH` lookup (`hermes` then `claude`).
+- **Gateway connection failure on non-default ports.** The health probe and uvicorn fallback launch hardcoded port `8642`, so a gateway on any other port could not be detected. New `resolveGatewayPort()` / `resolveGatewayUrl()` derive the target in priority order: `HERMES_API_URL` / `CLAUDE_API_URL` → `API_SERVER_PORT` in `~/.hermes/.env` → default `8642`. `isClaudeAgentHealthy()` now probes the resolved base URL, so the health check matches where REST traffic already goes.
+
+Runtime-only change — no migration. Installs running the local agent on `8642` with no env override resolve to exactly the previous values and are unaffected.
+
 ## [2.3.29] — 2026-06-09
 
 Sidebar session delete reliability, Telegram session visibility, and chat source-tab counts.
