@@ -7,6 +7,7 @@ import {
 } from '../chat-queries'
 import { clearPendingSendForSession, resetPendingSend } from '../pending-send'
 import { clearSessionDeleted, markSessionDeleted } from '../session-tombstones'
+import { SESSIONS_FEED_KEY } from '../sessions-feed'
 import { readError } from '../utils'
 import { clearSessionTitleState } from '../session-title-store'
 import { useSessionModelStore } from '@/stores/session-model-store'
@@ -48,7 +49,16 @@ export function useDeleteSession(): DeleteSessionResult {
       markSessionDeleted(payload.sessionKey || payload.friendlyId)
       clearPendingSendForSession(payload.sessionKey, payload.friendlyId)
       await queryClient.cancelQueries({ queryKey: chatQueryKeys.sessions })
-      const previousSessions = queryClient.getQueryData(chatQueryKeys.sessions)
+      // Optimistically drop the card from the V2 sidebar feed (tombstone-backed)
+      queryClient.invalidateQueries({ queryKey: SESSIONS_FEED_KEY })
+    },
+    onError: function onError(err, _payload, _context) {
+      clearSessionDeleted(_payload.sessionKey || _payload.friendlyId)
+      setError(err instanceof Error ? err.message : String(err))
+      // Delete failed — tombstone cleared, refetch to restore the card
+      queryClient.invalidateQueries({ queryKey: SESSIONS_FEED_KEY })
+    },
+    onSuccess: function onSuccess(payload) {
       removeSessionFromCache(
         queryClient,
         payload.sessionKey,
@@ -61,30 +71,18 @@ export function useDeleteSession(): DeleteSessionResult {
           payload.sessionKey || payload.friendlyId,
         )
       }
-      return { previousSessions, isActive: payload.isActive }
-    },
-    onError: function onError(err, _payload, context) {
-      if (context?.previousSessions) {
-        queryClient.setQueryData(
-          chatQueryKeys.sessions,
-          context.previousSessions,
-        )
-      }
-      clearSessionDeleted(_payload.sessionKey || _payload.friendlyId)
-      setError(err instanceof Error ? err.message : String(err))
-    },
-    onSuccess: function onSuccess(payload) {
       if (payload.isActive) {
         resetPendingSend()
       }
       clearSessionTitleState(payload.friendlyId || payload.sessionKey)
-      // Clear any browser-local per-session model preference for this key.
       const clearModel = useSessionModelStore.getState().clearModel
       if (payload.sessionKey) clearModel(payload.sessionKey)
       if (payload.friendlyId && payload.friendlyId !== payload.sessionKey) {
         clearModel(payload.friendlyId)
       }
       queryClient.invalidateQueries({ queryKey: chatQueryKeys.sessions })
+      // V2 sidebar reads a separate feed query — refetch it so the card is removed
+      queryClient.invalidateQueries({ queryKey: SESSIONS_FEED_KEY })
     },
     onSettled: function onSettled() {
       setDeleting(false)

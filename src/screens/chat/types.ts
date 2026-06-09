@@ -147,6 +147,8 @@ export type SessionMeta = {
   model?: string
   status?: string
   kind?: string
+  /** Gateway origin: 'telegram' | 'cron' | 'cli' | 'api_server' | 'a2a_fleet' | 'local' | '' */
+  source?: string
 }
 
 export type PathsPayload = {

@@ -15,6 +15,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { fetchSessions } from './chat-queries'
+import { filterSessionsWithTombstones } from './session-tombstones'
 import type {
   SessionBadge,
   SessionDayBucket,
@@ -65,6 +66,9 @@ async function fetchCapabilities(): Promise<CapabilityMap> {
 }
 
 const CAPABILITIES_QUERY_KEY = ['sessions-feed', 'capabilities'] as const
+
+/** Query key for the V2 sidebar chat feed. Exported so mutations (e.g. delete) can invalidate it. */
+export const SESSIONS_FEED_KEY = ['sessions-feed', 'chat'] as const
 
 // ── Day bucketing ──────────────────────────────────────────────────────────────
 
@@ -126,7 +130,7 @@ export function useChatSessionsFeed(): SessionSourceResult {
   const query = useQuery({
     queryKey: ['sessions-feed', 'chat', 'v3-task-split'],
     queryFn: async () => {
-      const sessions = await fetchSessions()
+      const sessions = filterSessionsWithTombstones(await fetchSessions())
       const nowMs = Date.now()
       return sessions.map((s): SessionFeedItem => {
         const when = s.updatedAt ?? 0
@@ -142,13 +146,18 @@ export function useChatSessionsFeed(): SessionSourceResult {
         const isTaskTriggered =
           titleLower.startsWith('work kanban task ') ||
           previewLower.startsWith('work kanban task ')
-        const kind: SessionSource = s.key.startsWith('cron_')
-          ? 'cron'
-          : s.key.startsWith('api-')
-            ? 'api'
-            : isTaskTriggered
-              ? 'task'
-              : 'chat'
+        // Prefer the authoritative gateway `source` field; fall back to key-prefix
+        // heuristics for rows that predate source tagging.
+        const kind: SessionSource =
+          s.source === 'telegram'
+            ? 'tg'
+            : s.source === 'cron' || s.key.startsWith('cron_')
+              ? 'cron'
+              : s.source === 'api_server' || s.key.startsWith('api-')
+                ? 'api'
+                : isTaskTriggered
+                  ? 'task'
+                  : 'chat'
         return {
           id: makeId('chat', s.key),
           src: kind,

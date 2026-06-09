@@ -249,8 +249,14 @@ export async function updateSession(
 
 export async function deleteSession(sessionId: string): Promise<void> {
   if (getCapabilities().dashboard.available) {
-    await deleteDashboardSession(sessionId)
-    return
+    try {
+      await deleteDashboardSession(sessionId)
+      return
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      // Dashboard doesn't own this session — fall through to gateway DELETE
+      if (!msg.includes(': 404')) throw err
+    }
   }
   return claudeDeleteReq(`/api/sessions/${sessionId}`)
 }

@@ -296,11 +296,13 @@ export const Route = createFileRoute('/api/sessions')({
 
           return Response.json({ ok: true, sessionKey })
         } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          // 404 from gateway means session already gone — treat as success
+          if (msg.includes(': 404')) {
+            return Response.json({ ok: true, sessionKey, alreadyDeleted: true })
+          }
           return Response.json(
-            {
-              ok: false,
-              error: err instanceof Error ? err.message : String(err),
-            },
+            { ok: false, error: msg },
             { status: 500 },
           )
         }

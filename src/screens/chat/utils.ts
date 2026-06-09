@@ -289,6 +289,9 @@ export function normalizeSessions(
       kind: typeof (session as Record<string, unknown>).kind === 'string'
         ? ((session as Record<string, unknown>).kind as string)
         : undefined,
+      source: typeof (session as Record<string, unknown>).source === 'string'
+        ? ((session as Record<string, unknown>).source as string)
+        : undefined,
     }
   })
 }

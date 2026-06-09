@@ -144,11 +144,19 @@ export function SidebarSourceChipsV2({
 
       {/* Per-source chips — hidden if not available */}
       {SOURCE_DEFS.map(({ id, label, icon }) => {
-        // If sourceResults provided, hide unavailable sources
-        if (sourceResults && availabilityMap[id] === false) return null
+        const count = sourceCounts?.[id]
+        // Hide a source only when it's both unavailable AND has no items.
+        // Telegram items arrive via the chat query, so its dedicated feed
+        // reports available:false even though tg cards exist — count is truth.
+        if (
+          sourceResults &&
+          availabilityMap[id] === false &&
+          !(count && count > 0)
+        ) {
+          return null
+        }
 
         const active = sources.includes(id)
-        const count = sourceCounts?.[id]
 
         return (
           <Chip
