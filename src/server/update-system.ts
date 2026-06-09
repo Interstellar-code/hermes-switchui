@@ -70,6 +70,78 @@ export type ApplyUpdateResult = {
   error?: string
 }
 
+// ---------------------------------------------------------------------------
+// Pure helpers — no git/network/fs calls; take primitives, return values.
+// Extracted so the update-availability and presentation logic can be unit-
+// tested without any I/O.
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true only when the local checkout is strictly BEHIND the remote tip:
+ * the repo is on a supported branch, both HEADs are known, they differ, AND
+ * local is a strict ancestor of remote (localBehindRemote).
+ *
+ * `localBehindRemote` is computed by the caller as
+ *   `headsDiffer && canFastForward(repo, remoteRef)`
+ * and passed in; this helper just ANDs the pieces together.
+ */
+export function isUpdateAvailable(opts: {
+  supportedBranch: boolean
+  currentHead: string | null
+  latestHead: string | null
+  localBehindRemote: boolean
+}): boolean {
+  return Boolean(
+    opts.supportedBranch &&
+      opts.currentHead &&
+      opts.latestHead &&
+      opts.currentHead !== opts.latestHead &&
+      opts.localBehindRemote,
+  )
+}
+
+/**
+ * Derives the UI-visible state, reason string, and blocked flag for a product
+ * update, given the pre-computed boolean inputs.
+ *
+ * Callers keep their own `!repoMatches` / `!supportedBranch` → 'unsupported'
+ * branches — those are NOT folded into this helper.
+ *
+ * Truth table (assuming repoMatches & supportedBranch are already true):
+ *   !updateAvailable                              → 'current', null, false
+ *   updateAvailable && dirty && !trivialDirty     → 'blocked', labels.localChanges, true
+ *   updateAvailable && !canSync                   → 'blocked', labels.verifyRef, false
+ *   updateAvailable && canSync && !ff             → 'available', labels.diverged, false
+ *   updateAvailable && canSync && ff              → 'available', null, false
+ */
+export function resolveUpdatePresentation(opts: {
+  updateAvailable: boolean
+  dirty: boolean
+  trivialDirty: boolean
+  canSync: boolean
+  ff: boolean
+  labels: { localChanges: string; verifyRef: string; diverged: string }
+}): { state: 'available' | 'blocked' | 'current'; reason: string | null; blocked: boolean } {
+  const { updateAvailable, dirty, trivialDirty, canSync, ff, labels } = opts
+  const state: 'available' | 'blocked' | 'current' = !updateAvailable
+    ? 'current'
+    : dirty && !trivialDirty
+      ? 'blocked'
+      : canSync
+        ? 'available'
+        : 'blocked'
+  const reason: string | null = !updateAvailable
+    ? null
+    : dirty && !trivialDirty
+      ? labels.localChanges
+      : !canSync
+        ? labels.verifyRef
+        : !ff
+          ? labels.diverged
+          : null
+  return { state, reason, blocked: state === 'blocked' }
+}
+
 function pendingNotesPath(): string {
   return join(process.cwd(), '.runtime', 'pending-update-release-notes.json')
 }
@@ -367,10 +439,16 @@ export function readWorkspaceUpdateStatus(
     repoMatches && supportedBranch ? remoteHead(gitRepo, 'origin') : null
   const dirty = isDirty(gitRepo)
   const trivialDirty = dirty && isOnlyTrivialDirty(gitRepo)
-  const updateAvailable = Boolean(
+  const remoteRef = `origin/${branch || 'main'}`
+  // Only advertise an update when the local checkout is strictly BEHIND the
+  // remote: local HEAD is an ancestor of origin's branch tip AND they differ.
+  // A checkout that is ahead of or diverged from origin is NOT out of date —
+  // treating any SHA mismatch as an update wrongly nags on dev machines and
+  // would hard-reset local commits on "update".
+  const headsDiffer = Boolean(
     supportedBranch && currentHead && latestHead && currentHead !== latestHead,
   )
-  const remoteRef = `origin/${branch || 'main'}`
+  const updateAvailable = headsDiffer && canFastForward(gitRepo, remoteRef)
   const canSync = updateAvailable ? canResetToRemote(gitRepo, remoteRef) : true
   const ff = updateAvailable ? canFastForward(gitRepo, remoteRef) : true
   const canUpdate = Boolean(
@@ -389,29 +467,38 @@ export function readWorkspaceUpdateStatus(
     latestHead,
     updateAvailable,
     canUpdate,
-    state: !repoMatches
-      ? 'unsupported'
-      : !supportedBranch
-        ? 'unsupported'
-        : dirty && !trivialDirty
-          ? 'blocked'
-          : updateAvailable
-            ? canSync
-              ? 'available'
-              : 'blocked'
-            : 'current',
-    reason: !repoMatches
-      ? 'Switch UI origin remote does not look like hermes-switchui.'
-      : !supportedBranch
-        ? 'Switch UI one-click updates are only enabled on main/master branches.'
-        : dirty && !trivialDirty
-          ? 'Switch UI checkout has local changes. Commit, stash, or remove the listed files before updating.'
-          : updateAvailable && !canSync
-            ? 'Switch UI update could not verify the remote branch ref.'
-            : updateAvailable && !ff
-              ? 'Switch UI branch diverged from origin. One-click update will realign to the remote branch.'
-              : null,
-    blockingFiles: dirty && !trivialDirty ? listDirtyFiles(gitRepo) : undefined,
+    ...((): Pick<ProductUpdateStatus, 'state' | 'reason' | 'blockingFiles'> => {
+      if (!repoMatches)
+        return {
+          state: 'unsupported',
+          reason: 'Switch UI origin remote does not look like hermes-switchui.',
+        }
+      if (!supportedBranch)
+        return {
+          state: 'unsupported',
+          reason: 'Switch UI one-click updates are only enabled on main/master branches.',
+        }
+      const presentation = resolveUpdatePresentation({
+        updateAvailable,
+        dirty,
+        trivialDirty,
+        canSync,
+        ff,
+        labels: {
+          localChanges:
+            'Switch UI checkout has local changes. Commit, stash, or remove the listed files before updating.',
+          verifyRef: 'Switch UI update could not verify the remote branch ref.',
+          diverged:
+            'Switch UI branch diverged from origin. One-click update will realign to the remote branch.',
+        },
+      })
+      return {
+        state: presentation.state,
+        reason: presentation.reason,
+        blockingFiles:
+          updateAvailable && dirty && !trivialDirty ? listDirtyFiles(gitRepo) : undefined,
+      }
+    })(),
     updateMode: 'git-ff',
   }
 }
@@ -473,9 +560,14 @@ export function readAgentUpdateStatus(): ProductUpdateStatus {
   const remoteRef = repoMatches ? `origin/${branch || 'main'}` : null
   const dirty = isDirty(repoPath)
   const trivialDirty = dirty && isOnlyTrivialDirty(repoPath)
-  const updateAvailable = Boolean(
+  // Mirror the workspace rule: only an update when local is strictly BEHIND
+  // remote (local HEAD is an ancestor of the remote branch tip), never when
+  // the checkout is ahead of or diverged from origin.
+  const headsDiffer = Boolean(
     currentHead && latestHead && currentHead !== latestHead && remoteRef,
   )
+  const updateAvailable =
+    headsDiffer && remoteRef ? canFastForward(repoPath, remoteRef) : false
   const canSync = remoteRef ? canResetToRemote(repoPath, remoteRef) : false
   const ff = remoteRef ? canFastForward(repoPath, remoteRef) : false
   const canUpdate = Boolean(repoMatches && updateAvailable && (!dirty || trivialDirty) && canSync)
@@ -492,25 +584,33 @@ export function readAgentUpdateStatus(): ProductUpdateStatus {
     latestHead,
     updateAvailable,
     canUpdate,
-    state: !repoMatches
-      ? 'unsupported'
-      : dirty && !trivialDirty
-        ? 'blocked'
-        : updateAvailable && canSync
-          ? 'available'
-          : updateAvailable
-            ? 'blocked'
-            : 'current',
-    reason: !repoMatches
-      ? 'Hermes Agent origin remote does not look like hermes-agent.'
-      : dirty && !trivialDirty
-        ? 'Hermes Agent checkout has local changes. Commit, stash, or remove the listed files before updating.'
-        : updateAvailable && !canSync
-          ? 'Hermes Agent update could not verify the remote branch ref.'
-          : updateAvailable && !ff
-            ? 'Hermes Agent branch diverged from origin. One-click update will realign to the remote branch.'
-            : null,
-    blockingFiles: dirty && !trivialDirty ? listDirtyFiles(repoPath) : undefined,
+    ...((): Pick<ProductUpdateStatus, 'state' | 'reason' | 'blockingFiles'> => {
+      if (!repoMatches)
+        return {
+          state: 'unsupported',
+          reason: 'Hermes Agent origin remote does not look like hermes-agent.',
+        }
+      const presentation = resolveUpdatePresentation({
+        updateAvailable,
+        dirty,
+        trivialDirty,
+        canSync,
+        ff,
+        labels: {
+          localChanges:
+            'Hermes Agent checkout has local changes. Commit, stash, or remove the listed files before updating.',
+          verifyRef: 'Hermes Agent update could not verify the remote branch ref.',
+          diverged:
+            'Hermes Agent branch diverged from origin. One-click update will realign to the remote branch.',
+        },
+      })
+      return {
+        state: presentation.state,
+        reason: presentation.reason,
+        blockingFiles:
+          updateAvailable && dirty && !trivialDirty ? listDirtyFiles(repoPath) : undefined,
+      }
+    })(),
     updateMode: 'hermes-update',
   }
 }
