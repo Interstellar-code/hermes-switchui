@@ -23,7 +23,9 @@ const { mockStatus, baseStatus } = vi.hoisted(() => {
     contextPercent: 0,
     maxTokens: 0,
     model: '',
+    inputTokens: 0,
     outputTokens: 0,
+    totalTokens: 0,
     usedTokens: 0,
     cost: 0,
     estimatedCost: 0,
@@ -60,20 +62,18 @@ function renderInto(ui: React.ReactElement): HTMLElement {
 }
 
 describe('ChatMetaBarV2', () => {
-  it('renders tools field with count', () => {
+  it('does not render the removed tools field', () => {
     const container = renderInto(
       <ChatMetaBarV2 sessionKey="t_49b85d13" isStreaming={false} toolCount={14} profile="default" />,
     )
-    const tools = container.querySelector('[data-testid="meta-tools"]')
-    expect(tools?.textContent).toContain('14')
+    expect(container.querySelector('[data-testid="meta-tools"]')).toBeNull()
   })
 
-  it('renders profile field', () => {
+  it('does not render the removed profile field', () => {
     const container = renderInto(
       <ChatMetaBarV2 sessionKey="abc" isStreaming={false} toolCount={0} profile="default" />,
     )
-    const profile = container.querySelector('[data-testid="meta-profile"]')
-    expect(profile?.textContent).toContain('default')
+    expect(container.querySelector('[data-testid="meta-profile"]')).toBeNull()
   })
 
   it('renders session id field', () => {
@@ -100,12 +100,6 @@ describe('ChatMetaBarV2', () => {
     expect(tps).toBeNull()
   })
 
-  it('shows default profile placeholder when not provided', () => {
-    const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
-    const profile = container.querySelector('[data-testid="meta-profile"]')
-    expect(profile?.textContent).toContain('default')
-  })
-
   it('renders selectors slot (model/provider live here, not a standalone field)', () => {
     const container = renderInto(<ChatMetaBarV2 sessionKey="t_49b85d13" />)
     const selectors = container.querySelector('[data-testid="meta-selectors"]')
@@ -123,6 +117,18 @@ describe('ChatMetaBarV2', () => {
     mockStatus.cost = 0
     const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
     expect(container.querySelector('[data-testid="meta-cost"]')).toBeNull()
+  })
+
+  it('shows tokens field when session has token usage', () => {
+    mockStatus.totalTokens = 2_037_419
+    const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
+    const tok = container.querySelector('[data-testid="meta-tokens"]')
+    expect(tok?.textContent).toContain('2.0M')
+  })
+
+  it('hides tokens field when no usage', () => {
+    const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
+    expect(container.querySelector('[data-testid="meta-tokens"]')).toBeNull()
   })
 
   it('shows api-call count when greater than zero', () => {

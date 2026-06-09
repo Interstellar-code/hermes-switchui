@@ -1,21 +1,9 @@
 import { memo, useEffect, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { SessionSelectorsV2 } from './session-selectors-v2'
 import type { ThinkingLevel } from '../chat-composer-types'
 import { useSessionStatus } from '@/hooks/use-session-status'
 import { formatCostUsd, formatTokens } from '@/lib/format'
 import { cn } from '@/lib/utils'
-
-type ProfilesResponse = {
-  activeProfile?: string
-  profiles?: Array<{ name: string; active?: boolean }>
-}
-
-async function fetchProfiles(): Promise<ProfilesResponse> {
-  const res = await fetch('/api/profiles/list')
-  if (!res.ok) return {}
-  return (await res.json()) as ProfilesResponse
-}
 
 function Sep() {
   return (
@@ -56,25 +44,11 @@ function ChatMetaBarV2Component({
   selectorSessionKey,
   isStreaming = false,
   tokPerSec = null,
-  toolCount: toolCountProp,
-  profile,
   thinkingLevel,
   onThinkingLevelChange,
   hideSelectors = false,
 }: ChatMetaBarV2Props) {
   const status = useSessionStatus(sessionKey)
-
-  const profilesQuery = useQuery({
-    queryKey: ['profiles', 'list'],
-    queryFn: fetchProfiles,
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
-  })
-  const resolvedProfile =
-    profile ??
-    profilesQuery.data?.activeProfile ??
-    profilesQuery.data?.profiles?.find((p) => p.active)?.name ??
-    null
 
   // Derive tok/s from usedTokens deltas while streaming.
   const [derivedTokPerSec, setDerivedTokPerSec] = useState<number | null>(null)
@@ -101,16 +75,20 @@ function ChatMetaBarV2Component({
     isStreaming && effectiveTokPerSec != null && effectiveTokPerSec > 0
       ? `${Math.round(effectiveTokPerSec)} tok/s`
       : null
-  const displayToolCount = toolCountProp ?? 0
-  const displayProfile = resolvedProfile ?? 'default'
 
   const displayCost = status.cost > 0 ? formatCostUsd(status.cost) : null
+
+  const inTok = status.inputTokens || 0
+  const outTok = status.outputTokens || 0
+  const totalTok = status.totalTokens || inTok + outTok
   const tokenBreakdown =
     status.cacheReadTokens || status.cacheWriteTokens || status.reasoningTokens
-      ? `cache r/w ${formatTokens(status.cacheReadTokens)}/${formatTokens(
+      ? `in ${formatTokens(inTok)} · out ${formatTokens(
+          outTok,
+        )} · cache r/w ${formatTokens(status.cacheReadTokens)}/${formatTokens(
           status.cacheWriteTokens,
         )} · reasoning ${formatTokens(status.reasoningTokens)}`
-      : undefined
+      : `in ${formatTokens(inTok)} · out ${formatTokens(outTok)}`
 
   const sessionLabel = sessionKey ?? '—'
 
@@ -129,45 +107,30 @@ function ChatMetaBarV2Component({
         color: 'var(--m-muted, var(--theme-muted, #9ca3af))',
       }}
     >
-      {/* Live indicator + tok/s */}
-      <span className="flex items-center gap-1 shrink-0">
-        <span
-          aria-hidden="true"
-          className={cn(
-            'inline-block w-1.5 h-1.5 rounded-full',
-            isStreaming
-              ? 'bg-[var(--m-green,#4ade80)] animate-pulse'
-              : 'bg-[var(--m-green,#4ade80)] opacity-70',
-          )}
-        />
-        <span className="m-label m-label-accent">live</span>
-        {displayTokPerSec != null && (
+      {/* tok/s (while streaming) */}
+      {displayTokPerSec != null && (
+        <>
           <span className="m-mono shrink-0" data-testid="tok-per-sec">
-            {' · '}
             {displayTokPerSec}
           </span>
-        )}
-      </span>
+          <Sep />
+        </>
+      )}
 
-      <Sep />
+      {/* Tokens (cache/reasoning breakdown in tooltip) */}
+      {totalTok > 0 && (
+        <span
+          className="shrink-0 whitespace-nowrap"
+          data-testid="meta-tokens"
+          title={tokenBreakdown}
+        >
+          <span className="m-label">tok</span>
+          {' · '}
+          <span className="m-mono">{formatTokens(totalTok)}</span>
+        </span>
+      )}
 
-      {/* Profile */}
-      <span className="shrink-0 whitespace-nowrap" data-testid="meta-profile">
-        <span className="m-label">profile</span>
-        {' · '}
-        <span className="m-mono">{displayProfile}</span>
-      </span>
-
-      <Sep />
-
-      {/* Tools */}
-      <span className="shrink-0 whitespace-nowrap" data-testid="meta-tools">
-        <span className="m-label">tools</span>
-        {' · '}
-        <span className="m-mono">{displayToolCount}</span>
-      </span>
-
-      {/* Cost (cache/reasoning token breakdown in tooltip) */}
+      {/* Cost — only when the provider actually bills (subscription gateways report 0) */}
       {displayCost && (
         <>
           <Sep />
