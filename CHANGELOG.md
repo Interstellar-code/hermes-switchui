@@ -3,6 +3,16 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.32] — 2026-06-09
+
+Telegram sessions are clickable, the updater stops false-nagging, and a dashboard console warning is gone.
+
+### Fixed
+
+- **In-app updater falsely offered updates (and could destroy local commits).** The updater advertised an update whenever local git HEAD differed from the remote HEAD — direction-blind — and showed the "local changes, commit/stash" block whenever the checkout was dirty, even with no update pending. On a checkout ahead of or diverged from origin this nagged constantly, and the offered update runs `git reset --hard origin/<branch>`, which would have destroyed unpushed local commits. An update is now offered only when local is strictly **behind** remote (local HEAD is an ancestor of the remote tip), and the dirty-block only appears when an update actually exists. Decision logic extracted into pure unit-tested helpers (`isUpdateAvailable`, `resolveUpdatePresentation`). Applies to both the Switch UI and Hermes Agent update paths.
+- **Telegram sessions were not clickable in the V2 sidebar.** `isChatItem` omitted `src === 'tg'`, so Telegram rows fell through to the non-clickable branch instead of the `<Link to="/chat/$sessionKey">`. They share the same chat key/route as every other source; adding `'tg'` makes them open normally.
+- **recharts `width(-1)/height(-1)` console warning on the dashboard.** recharts 3.x defaults `ResponsiveContainer` `initialDimension` to `{-1,-1}` for SSR; set `initialDimension={{width:1,height:1}}` on the initial-mount chart.
+
 ## [2.3.31] — 2026-06-09
 
 Embedded docs flow diagrams render again instead of downloading.
