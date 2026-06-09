@@ -30,6 +30,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # GitHub-hosted runners ship ~14GB free; the multi-arch buildx export
+      # plus node_modules + GHA cache can exhaust it (ResourceExhausted: no
+      # space left on device at the image-copy stage). Reclaim ~25GB of
+      # preinstalled toolchains we don't use before building.
+      - name: Free disk space
+        run: |
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /usr/local/lib/android \
+            /usr/local/share/boost \
+            "${AGENT_TOOLSDIRECTORY:-/opt/hostedtoolcache}" \
+            /usr/local/share/powershell \
+            /usr/share/swift || true
+          sudo docker image prune -af || true
+          df -h /
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
