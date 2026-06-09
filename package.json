@@ -9,7 +9,7 @@
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "rm -f src/routeTree.gen.ts && NODE_OPTIONS=\"--max-old-space-size=2048\" vite dev",
-    "build:website": "cd website && npm install && SITE_BASE=/website npm run build",
+    "build:website": "if [ -d website ]; then cd website && npm install && SITE_BASE=/website npm run build; else echo 'website/ not present (excluded from Docker context) — skipping marketing site build'; fi",
     "build": "pnpm build:website && vite build",
     "prestart:all": "node scripts/check-ports.mjs",
     "start:all": "concurrently \"hermes gateway run\" \"pnpm dev\"",
