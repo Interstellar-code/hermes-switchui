@@ -99,14 +99,21 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
     item.live || isActive ? (RAIL_GLOW[item.src] ?? 'none') : 'none'
 
   // Determine link target per source.
-  // `tool` and `tg` have no detail route — left non-clickable intentionally.
-  // TODO: wire `tg` when a Telegram session detail route is added.
+  // `tool` has no detail route — left non-clickable intentionally.
   // TODO: wire `tool` when a tool-run detail route is added.
   const rawId = item.id.split(':').slice(1).join(':')
-  // chat / cron / api are all backed by chat sessions — only the key prefix
-  // differs. All three navigate via /chat/$sessionKey.
-  const isChatItem = item.src === 'chat' || item.src === 'cron' || item.src === 'api' || item.src === 'task'
-  // cron/task/mem: no chat_session_key available from the gateway — these
+  // chat / cron / api / tg are all backed by chat sessions — only the key
+  // prefix differs. All navigate via /chat/$sessionKey.
+  // `tg` sessions arrive from useChatSessionsFeed() with src='tg' because
+  // the gateway tags them source='telegram'; their rawId is the session key
+  // and maps directly to the /chat/$sessionKey route.
+  const isChatItem =
+    item.src === 'chat' ||
+    item.src === 'cron' ||
+    item.src === 'api' ||
+    item.src === 'task' ||
+    item.src === 'tg'
+  // cron/task: no chat_session_key available from the gateway — these
   // sources carry no field that maps to a /chat/$sessionKey route. Clicking
   // navigates to the global list pages which is disorienting inside the chat
   // layout. Kept non-clickable until the backend exposes a session mapping.
