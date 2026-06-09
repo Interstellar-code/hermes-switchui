@@ -4,6 +4,7 @@ import TopNav from '../components/TopNav.astro';
 import HeroRain from '../components/HeroRain.astro';
 import UICarousel from '../components/UICarousel.astro';
 import ArchDiagram from '../components/ArchDiagram.astro';
+import { SITE_VERSION } from '../site-version';
 
 const coreFeatures = [
   {
@@ -256,7 +257,7 @@ const extendedFeatures = [
   <footer class="hl-footer">
     <div class="hl-footer-left">
       <div class="hl-footer-glyph">ᕼ</div>
-      <span class="hl-footer-text">Hermes Switch UI · v2.3.18 · MIT License · <span class="hl-footer-online">SYS::ONLINE</span></span>
+      <span class="hl-footer-text">Hermes Switch UI · v{SITE_VERSION} · MIT License · <span class="hl-footer-online">SYS::ONLINE</span></span>
     </div>
     <div class="hl-footer-links">
       <a href="/docs/welcome" class="hl-footlink">Docs Portal</a>

@@ -1,5 +1,6 @@
 ---
 // HeroRain — Hermes Landing hero: Matrix Rain background + animated npm boot sequence
+import { SITE_VERSION } from '../site-version';
 ---
 
 <section class="hero-section m-scanlines" id="hero">
@@ -44,7 +45,7 @@
           </svg>
           <span id="hero-stars">GitHub</span>
         </a>
-        <span class="badge-pill">v2.3.18 stable</span>
+        <span class="badge-pill">v{SITE_VERSION} stable</span>
         <span class="badge-pill">MIT license</span>
         <span class="badge-pill">Open source</span>
       </div>
@@ -60,6 +61,7 @@
 </section>
 
 <script>
+import { SITE_VERSION } from '../site-version';
 (() => {
   const G = '#00ff41';
 
@@ -199,7 +201,7 @@
     { ms:  500, type:'out', text:'  ↓  cloning hermes-switchui + resolving deps...' },
     { ms:  950, type:'bar', text:'install' },
     { ms: 1650, type:'ok',  text:'  dependencies installed via pnpm' },
-    { ms: 1950, type:'ok',  text:'  hermes-switchui@2.3.18  ready' },
+    { ms: 1950, type:'ok',  text:`  hermes-switchui@${SITE_VERSION}  ready` },
     { ms: 2350, type:'gap', text:'' },
     { ms: 2550, type:'cmd', text:'$ hermes gateway run' },
     { ms: 2870, type:'ok',  text:'  ✓  Node.js 22.x detected' },
