@@ -3,6 +3,19 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.36] — 2026-06-09
+
+Website docs now stay inside the embedded `/website/docs/...` Starlight preview and render diagrams with more usable horizontal space.
+
+### Added
+
+- **Mermaid diagrams render in the Astro/Starlight docs build.** The website build ships a local Mermaid runtime under the site base, rewrites Mermaid fences into client-rendered diagram containers, and includes a live rendered example in the docs authoring guide.
+
+### Fixed
+
+- **Website Docs navigation no longer jumps to the Switch UI app docs.** Website docs links, sidebar entries, docs asset URLs, and the docs index redirect are base-aware, so the embedded preview keeps navigation under `/website/docs/...`.
+- **Large embedded HTML diagrams have more room in Starlight.** The generated docs page now narrows the right table-of-contents rail to match the left sidebar and expands the main content area, so iframe diagrams render at a much wider viewport.
+
 ## [2.3.35] — 2026-06-09
 
 Website/docs split is now clean: app docs stay at `/docs`, the Astro site builds from the root `docs/` tree, and the embedded `/website` preview works again inside Switch UI.

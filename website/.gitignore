@@ -1,6 +1,7 @@
 # Astro
 .astro/
 dist/
+public/vendor/
 
 # Dependencies
 node_modules/
@@ -11,4 +12,3 @@ Thumbs.db
 
 # Archives
 *.zip
-

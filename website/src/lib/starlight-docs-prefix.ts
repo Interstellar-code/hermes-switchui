@@ -4,7 +4,8 @@ import type {
   StarlightRouteData,
 } from '../../node_modules/@astrojs/starlight/utils/routing/types'
 
-const DOCS_PREFIX = '/docs'
+const BASE = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
+const DOCS_PREFIX = `${BASE}/docs`
 
 function prefixHref(href: string): string {
   if (/^(https?:|mailto:|#)/i.test(href)) return href

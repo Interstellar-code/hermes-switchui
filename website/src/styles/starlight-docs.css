@@ -1,0 +1,65 @@
+/*
+  Hermes website documentation tweaks.
+
+  Starlight owns the docs shell; this file only adjusts the generated docs
+  preview so root-level docs render comfortably inside the embedded /website
+  route and static diagram iframes get enough horizontal space.
+*/
+
+@media (min-width: 72rem) {
+  html[data-has-sidebar][data-has-toc] {
+    --sl-sidebar-width: 17rem;
+    --sl-content-width: min(82rem, calc(100vw - 34rem));
+  }
+
+  html[data-has-sidebar][data-has-toc] .right-sidebar-container {
+    max-width: 17rem;
+    flex: 0 0 17rem;
+  }
+
+  html[data-has-sidebar][data-has-toc] .right-sidebar {
+    width: 17rem;
+  }
+
+  html[data-has-sidebar][data-has-toc] .main-pane {
+    flex: 1 1 auto;
+  }
+}
+
+@media (min-width: 90rem) {
+  html[data-has-sidebar][data-has-toc] {
+    --sl-sidebar-width: 16rem;
+    --sl-content-width: min(88rem, calc(100vw - 32rem));
+  }
+
+  html[data-has-sidebar][data-has-toc] .right-sidebar-container,
+  html[data-has-sidebar][data-has-toc] .right-sidebar {
+    width: 16rem;
+    max-width: 16rem;
+  }
+}
+
+.sl-markdown-content iframe {
+  display: block;
+  width: 100%;
+  min-height: min(900px, calc(100vh - var(--sl-nav-height) - 4rem));
+  border: 0;
+  border-radius: 0.75rem;
+  background: var(--sl-color-black);
+}
+
+.sl-markdown-content .docs-mermaid {
+  margin-block: 1.5rem;
+  padding: 1rem;
+  overflow-x: auto;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.75rem;
+  background: var(--sl-color-gray-7);
+}
+
+.sl-markdown-content .docs-mermaid svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+}

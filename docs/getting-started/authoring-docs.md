@@ -135,6 +135,15 @@ graph LR
 
 The renderer converts these to SVG client-side. Mermaid is well-suited to workflow diagrams, architecture overviews, and sequence diagrams. Keep diagrams focused — one concept per diagram.
 
+Rendered example:
+
+```mermaid
+graph LR
+  A[Markdown in docs/] --> B[Astro content pipeline]
+  B --> C[Starlight docs page]
+  C --> D[Rendered SVG diagram]
+```
+
 ### HTML diagrams (architecture)
 
 For richer diagrams — system architecture, infra topology, cloud diagrams — you can embed a standalone HTML file. The Hermes Agent's `architecture-diagram` skill generates dark-themed SVG diagrams as HTML files which you can drop into docs.

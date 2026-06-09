@@ -2,16 +2,50 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import { rehypeRewriteDocsLinksAndAssets } from './src/lib/docs-rewrites.mjs';
 
+const siteBase = process.env.SITE_BASE || '/';
+const normalizedBase = siteBase === '/' ? '' : siteBase.replace(/\/$/, '');
+const mermaidScript = `
+  import mermaid from '${normalizedBase}/vendor/mermaid/mermaid.esm.min.mjs';
+
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: 'strict',
+    theme: prefersDark ? 'dark' : 'default',
+  });
+
+  const renderMermaid = async () => {
+    const nodes = Array.from(document.querySelectorAll('.mermaid[data-mermaid-source]'));
+    if (nodes.length === 0) return;
+    await mermaid.run({ nodes });
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaid, { once: true });
+  } else {
+    renderMermaid();
+  }
+`;
+
 export default defineConfig({
   site: 'https://hermes-switchui.zi0n.space',
   srcDir: './src',
   outDir: './dist',
   publicDir: './public',
-  base: process.env.SITE_BASE || '/',
+  base: siteBase,
   integrations: [
     starlight({
       title: 'Hermes Switch UI',
       description: 'Documentation for Hermes Switch UI — the browser-based shell for the Hermes Agent runtime.',
+      customCss: ['/src/styles/starlight-docs.css'],
+      head: [
+        {
+          tag: 'script',
+          attrs: { type: 'module' },
+          content: mermaidScript,
+        },
+      ],
       editLink: {
         baseUrl: 'https://github.com/Interstellar-code/hermes-switchui/edit/main/website/',
       },

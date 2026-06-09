@@ -2,9 +2,17 @@ import path from 'node:path';
 import { visit } from 'unist-util-visit';
 
 const DOCS_ROOT = path.resolve(process.cwd(), '..', 'docs');
-const DOCS_BASE = '/docs';
-const ASSET_BASE = '/docs-assets';
+const BASE = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+const DOCS_BASE = `${BASE}/docs`;
+const ASSET_BASE = `${BASE}/docs-assets`;
 const DOC_EXT_RE = /\.(markdown|mdown|mkdn|mkd|mdwn|md|mdx)$/i;
+
+function textContent(node) {
+  if (!node) return '';
+  if (typeof node.value === 'string') return node.value;
+  if (!Array.isArray(node.children)) return '';
+  return node.children.map(textContent).join('');
+}
 
 function toPosix(value) {
   return value.split(path.sep).join('/');
@@ -75,6 +83,21 @@ export function rehypeRewriteDocsLinksAndAssets() {
     });
 
     visit(tree, 'element', (node) => {
+      if (node.tagName === 'pre') {
+        const code = node.children?.find?.((child) => child.type === 'element' && child.tagName === 'code');
+        const className = code?.properties?.className;
+        const classes = Array.isArray(className) ? className : typeof className === 'string' ? className.split(/\s+/) : [];
+        if (classes.includes('language-mermaid')) {
+          node.tagName = 'div';
+          node.properties = {
+            className: ['mermaid', 'docs-mermaid'],
+            'data-mermaid-source': 'true',
+          };
+          node.children = [{ type: 'text', value: textContent(code).trim() }];
+          return;
+        }
+      }
+
       if (node.tagName === 'a') {
         const href = node.properties?.href;
         if (typeof href === 'string') {
