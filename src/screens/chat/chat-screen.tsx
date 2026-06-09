@@ -19,6 +19,7 @@ import {
   advanceStickyStreamingText,
   createOptimisticMessage,
   isChatRuntimeBusy,
+  readMessageText,
 } from './chat-screen-utils'
 import {
   appendHistoryMessage,
@@ -2488,7 +2489,11 @@ export function ChatScreen({
       const trimmedCommand = command.trim()
       if (!trimmedCommand.startsWith('/')) return false
 
-      if (trimmedCommand === '/new') {
+      // Token + argument split (commands like `/title <name>` carry an arg).
+      const [slashToken = '', ...slashArgParts] = trimmedCommand.split(/\s+/)
+      const slashArg = slashArgParts.join(' ').trim()
+
+      if (trimmedCommand === '/new' || trimmedCommand === '/reset') {
         // Use the explicit 'new' session sentinel rather than '/chat' alone.
         // The /chat index route redirects to the last-active session via
         // localStorage, so '/new' must route directly to the new sentinel.
@@ -2537,15 +2542,67 @@ export function ChatScreen({
         return true
       }
 
+      if (slashToken === '/stop') {
+        // Inline abort — mirrors handleAbortStreaming, which is declared later
+        // in the component; referencing it here would hit the same render-time
+        // TDZ as the interrupted-affordance handlers.
+        const activeSend = activeSendRef.current
+        if (activeSend?.clientId) {
+          updateHistoryMessageByClientIdEverywhere(
+            queryClient,
+            activeSend.clientId,
+            (message) => ({ ...message, status: 'sent' }),
+          )
+        }
+        activeSendRef.current = null
+        cancelStreaming()
+        setSending(false)
+        setPendingGeneration(false)
+        setWaitingForResponse(false)
+        toast('Agent stopped', { type: 'info' })
+        return true
+      }
+
+      if (slashToken === '/title') {
+        if (!slashArg) {
+          toast('Usage: /title <name>', { type: 'info' })
+          return true
+        }
+        const sessionKey =
+          forcedSessionKey ||
+          resolvedSessionKey ||
+          activeSessionKey ||
+          activeFriendlyId
+        if (sessionKey) {
+          void renameSession(sessionKey, activeFriendlyId ?? null, slashArg)
+          toast(`Title set: ${slashArg}`, { type: 'success' })
+        }
+        return true
+      }
+
+      if (slashToken === '/reasoning') {
+        const level = slashArg.toLowerCase()
+        if (level === 'off' || level === 'low' || level === 'adaptive') {
+          handleThinkingLevelChange(level)
+          toast(`Reasoning: ${level}`, { type: 'success' })
+        } else {
+          toast('Usage: /reasoning <off | low | adaptive>', { type: 'info' })
+        }
+        return true
+      }
+
       return false
     },
     [
       activeFriendlyId,
       activeSessionKey,
+      cancelStreaming,
       finalDisplayMessages,
       forcedSessionKey,
+      handleThinkingLevelChange,
       navigate,
       queryClient,
+      renameSession,
       resolvedSessionKey,
     ],
   )

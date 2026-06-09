@@ -65,7 +65,7 @@ export function createOptimisticMessage(
   return { clientId, optimisticId, optimisticMessage }
 }
 
-function readMessageText(message: ChatMessage): string {
+export function readMessageText(message: ChatMessage): string {
   const content = Array.isArray(message.content) ? message.content : []
   const contentText = content
     .map((part) => (part.type === 'text' ? (part.text ?? '') : ''))

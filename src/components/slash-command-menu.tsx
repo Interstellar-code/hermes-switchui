@@ -54,8 +54,28 @@ export type SlashCommandPickerProps = {
 export const DEFAULT_SLASH_COMMANDS: Array<SlashCommandDefinition> = [
   { command: '/new', description: 'Start new session', source: 'builtin' },
   {
+    command: '/reset',
+    description: 'Start a fresh conversation',
+    source: 'builtin',
+  },
+  {
     command: '/clear',
     description: 'Clear screen and start fresh',
+    source: 'builtin',
+  },
+  {
+    command: '/stop',
+    description: 'Stop the running agent',
+    source: 'builtin',
+  },
+  {
+    command: '/title',
+    description: 'Set the session title (/title <name>)',
+    source: 'builtin',
+  },
+  {
+    command: '/reasoning',
+    description: 'Change reasoning effort (off | low | adaptive)',
     source: 'builtin',
   },
   {
