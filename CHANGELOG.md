@@ -3,6 +3,24 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.33] — 2026-06-09
+
+CLI and A2A sessions are first-class in the sidebar, more session types are deletable, and console noise is gone.
+
+### Added
+
+- **CLI and A2A sessions are now first-class sources.** Sessions started from the Hermes CLI (`cli`, 116) and A2A fleet runs (`a2a_fleet`, 55) were classified into the generic "chat" bucket — reachable but indistinguishable and unfilterable. They now have their own classifier branches and sidebar chips (CLI teal, A2A violet) with rail colors, matching how Telegram/API are handled.
+
+### Fixed
+
+- **Delete was unavailable for Telegram, CLI, and A2A sessions.** The row context menu gated Delete/Rename on a stale allowlist (`chat`/`cron`/`api`/`task`) that omitted `tg`, `cli`, and `a2a`, so those sessions offered only Archive. All are backed by ordinary gateway sessions and share the same `DELETE /api/sessions/<id>` path; the allowlist now includes them.
+- Removed a dead `s.key.startsWith('api-')` classifier fallback (no current session id uses that prefix).
+
+### Changed
+
+- Removed an unconditional `tap-debug` `console.info` that logged `[tap-debug:chat-main] toggle via overlay…` on every chat mount.
+- CI: the Docker publish workflow now frees ~25GB of unused preinstalled toolchains before buildx, preventing the intermittent `ResourceExhausted: no space left on device` failures at the image-export stage.
+
 ## [2.3.32] — 2026-06-09
 
 Telegram sessions are clickable, the updater stops false-nagging, and a dashboard console warning is gone.
