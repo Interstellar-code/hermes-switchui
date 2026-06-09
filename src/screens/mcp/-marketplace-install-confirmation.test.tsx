@@ -11,10 +11,12 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+
 // Mock UI primitives before importing the component so vi.mock hoisting works.
 // The factories use the same React import as the test (ESM) to avoid dual-instance.
-vi.mock('@/components/ui/dialog', () => ({
-  DialogRoot: ({ open, children, onOpenChange }: {
+vi.mock('@/components/shadcn/ui/dialog', () => ({
+  Dialog: ({ open, children, onOpenChange }: {
     open: boolean
     onOpenChange?: (v: boolean) => void
     children: React.ReactNode
@@ -65,14 +67,6 @@ async function renderInto(element: React.ReactElement) {
       document.body.removeChild(container)
     },
   }
-}
-
-function q(container: HTMLElement, selector: string) {
-  return container.querySelector(selector)
-}
-
-function textOf(el: Element | null) {
-  return el?.textContent ?? ''
 }
 
 // ---------------------------------------------------------------------------

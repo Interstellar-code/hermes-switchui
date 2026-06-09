@@ -12,8 +12,10 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 
-vi.mock('@/components/ui/dialog', () => ({
-  DialogRoot: ({ open, children }: {
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+
+vi.mock('@/components/shadcn/ui/dialog', () => ({
+  Dialog: ({ open, children }: {
     open: boolean
     children: React.ReactNode
   }) => open ? React.createElement('div', { 'data-testid': 'dialog-root' }, children) : null,
