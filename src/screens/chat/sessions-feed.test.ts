@@ -12,26 +12,8 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { getDayBucket, sortItems } from './sessions-feed'
+import { classifySessionSource, getDayBucket, sortItems } from './sessions-feed'
 import type { SessionFeedItem, SessionSource } from './sessions-feed-types'
-
-// ── Classifier logic (unit-tested inline — the real classifier lives inside
-//    useChatSessionsFeed which requires React hooks; we test the mapping logic
-//    directly here as a pure function mirror) ──────────────────────────────────
-
-function classifySource(
-  source: string | undefined,
-  key: string,
-  isTaskTriggered: boolean,
-): SessionSource {
-  if (source === 'telegram') return 'tg'
-  if (source === 'cron' || key.startsWith('cron_')) return 'cron'
-  if (source === 'api_server') return 'api'
-  if (source === 'cli') return 'cli'
-  if (source === 'a2a_fleet') return 'a2a'
-  if (isTaskTriggered) return 'task'
-  return 'chat'
-}
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -232,47 +214,49 @@ describe('sortItems', () => {
 
 describe('source classifier', () => {
   it('source=telegram → tg', () => {
-    expect(classifySource('telegram', 'some_key', false)).toBe('tg')
+    expect(classifySessionSource('telegram', 'some_key', false)).toBe('tg')
   })
 
   it('source=cron → cron', () => {
-    expect(classifySource('cron', 'some_key', false)).toBe('cron')
+    expect(classifySessionSource('cron', 'some_key', false)).toBe('cron')
   })
 
   it('key prefix cron_ → cron (even with no source field)', () => {
-    expect(classifySource(undefined, 'cron_job_20260101_120000', false)).toBe('cron')
+    expect(classifySessionSource(undefined, 'cron_job_20260101_120000', false)).toBe('cron')
   })
 
   it('source=api_server → api', () => {
-    expect(classifySource('api_server', 'some_key', false)).toBe('api')
+    expect(classifySessionSource('api_server', 'some_key', false)).toBe('api')
   })
 
-  it('source=cli → cli', () => {
-    expect(classifySource('cli', 'some_key', false)).toBe('cli')
+  it('source=cli (non-task) → cli', () => {
+    expect(classifySessionSource('cli', 'some_key', false)).toBe('cli')
   })
 
-  it('source=a2a_fleet → a2a', () => {
-    expect(classifySource('a2a_fleet', 'some_key', false)).toBe('a2a')
+  it('source=a2a_fleet (non-task) → a2a', () => {
+    expect(classifySessionSource('a2a_fleet', 'some_key', false)).toBe('a2a')
   })
 
-  it('task-triggered heuristic → task', () => {
-    expect(classifySource(undefined, 'some_key', true)).toBe('task')
+  it('task-triggered heuristic (unknown source) → task', () => {
+    expect(classifySessionSource(undefined, 'some_key', true)).toBe('task')
   })
 
-  it('source=cli takes precedence over isTaskTriggered', () => {
-    expect(classifySource('cli', 'some_key', true)).toBe('cli')
+  it('isTaskTriggered takes precedence over cli/a2a source', () => {
+    expect(classifySessionSource('cli', 'some_key', true)).toBe('task')
+    expect(classifySessionSource('a2a_fleet', 'some_key', true)).toBe('task')
   })
 
-  it('source=a2a_fleet takes precedence over isTaskTriggered', () => {
-    expect(classifySource('a2a_fleet', 'some_key', true)).toBe('a2a')
+  it('non-task cli/a2a still map to their own source', () => {
+    expect(classifySessionSource('cli', 'some_key', false)).toBe('cli')
+    expect(classifySessionSource('a2a_fleet', 'some_key', false)).toBe('a2a')
   })
 
   it('unknown source with no heuristic match → chat', () => {
-    expect(classifySource('unknown_source', 'abc123', false)).toBe('chat')
+    expect(classifySessionSource('unknown_source', 'abc123', false)).toBe('chat')
   })
 
   it('no source field, no prefix, not task → chat', () => {
-    expect(classifySource(undefined, 'abc123', false)).toBe('chat')
+    expect(classifySessionSource(undefined, 'abc123', false)).toBe('chat')
   })
 })
 

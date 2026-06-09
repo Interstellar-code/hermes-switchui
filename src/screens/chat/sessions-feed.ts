@@ -106,6 +106,37 @@ function makeId(src: SessionSource, rawId: string): string {
   return `${src}:${rawId}`
 }
 
+// ── Source classifier ──────────────────────────────────────────────────────────
+
+/**
+ * Classify a gateway session entry into a SessionSource.
+ *
+ * Precedence (highest to lowest):
+ *   1. telegram  → 'tg'
+ *   2. cron source or cron_ key prefix → 'cron'
+ *   3. api_server → 'api'
+ *   4. isTaskTriggered heuristic → 'task'
+ *      (`task` is a heuristic overlay that can ride on any source — including
+ *      cli/a2a where kanban workers run. It MUST be checked before cli/a2a so
+ *      task-triggered sessions are not stolen out of the Task chip.)
+ *   5. cli  → 'cli'
+ *   6. a2a_fleet → 'a2a'
+ *   7. else → 'chat'
+ */
+export function classifySessionSource(
+  source: string | null | undefined,
+  key: string,
+  isTaskTriggered: boolean,
+): SessionSource {
+  if (source === 'telegram') return 'tg'
+  if (source === 'cron' || key.startsWith('cron_')) return 'cron'
+  if (source === 'api_server') return 'api'
+  if (isTaskTriggered) return 'task'
+  if (source === 'cli') return 'cli'
+  if (source === 'a2a_fleet') return 'a2a'
+  return 'chat'
+}
+
 // ── State normalization ────────────────────────────────────────────────────────
 
 // ── Chat source hook ───────────────────────────────────────────────────────────
@@ -147,20 +178,7 @@ export function useChatSessionsFeed(): SessionSourceResult {
           previewLower.startsWith('work kanban task ')
         // Prefer the authoritative gateway `source` field; fall back to key-prefix
         // heuristics for rows that predate source tagging.
-        const kind: SessionSource =
-          s.source === 'telegram'
-            ? 'tg'
-            : s.source === 'cron' || s.key.startsWith('cron_')
-              ? 'cron'
-              : s.source === 'api_server'
-                ? 'api'
-                : s.source === 'cli'
-                  ? 'cli'
-                  : s.source === 'a2a_fleet'
-                    ? 'a2a'
-                    : isTaskTriggered
-                      ? 'task'
-                      : 'chat'
+        const kind = classifySessionSource(s.source, s.key, isTaskTriggered)
         return {
           id: makeId('chat', s.key),
           src: kind,
