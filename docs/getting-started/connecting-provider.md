@@ -40,7 +40,7 @@ The agent ships with cards for several hosted providers. To use one:
 1. Get an API key from the provider.
 2. Add it to the agent's environment file at `~/.hermes/.env`. Use the variable name the provider expects:
 
-   ```env
+   ```bash
    ANTHROPIC_API_KEY=sk-ant-...
    OPENAI_API_KEY=sk-...
    OPENROUTER_API_KEY=sk-or-v1-...
@@ -69,7 +69,7 @@ providers:
 
 Then add the matching key to `~/.hermes/.env`:
 
-```env
+```bash
 CUSTOM_API_KEY=your-endpoint-api-key
 ```
 

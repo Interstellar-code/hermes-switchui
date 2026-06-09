@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — MCP Server Lifecycle</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #34d399; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Hermes Switch UI — MCP Server Lifecycle</h1>
+      </div>
+      <p class="subtitle">Discover → Install → Activate → Handshake → Available → Use · capability-gated page</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 780">
+        <defs>
+          <marker id="arrow-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrow-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrow-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <marker id="arrow-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ========== Capability gate banner ========== -->
+        <rect x="22" y="22" width="1156" height="48" rx="6" fill="rgba(251,191,36,0.07)" stroke="#fbbf24" stroke-width="1" opacity="0.4"/>
+        <rect x="20" y="20" width="1156" height="48" rx="6" fill="rgba(251,191,36,0.08)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="36" y="40" font-family="JetBrains Mono" font-size="9" fill="rgba(251,191,36,0.7)" letter-spacing="1.5" font-weight="600">CAPABILITY GATE</text>
+        <text x="36" y="57" font-family="JetBrains Mono" font-size="10" fill="#fbbf24">MCP page requires gateway to report  <tspan font-weight="700">mcp</tspan>  or  <tspan font-weight="700">mcpFallback</tspan>  capability at startup probe. Missing → page shows backend-unavailable state.</text>
+
+        <!-- ========== Stage flow: horizontal pipeline ========== -->
+        <!-- Stage numbers / labels row -->
+        <text x="100" y="108" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.5)" text-anchor="middle" letter-spacing="1">① DISCOVER</text>
+        <text x="290" y="108" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.5)" text-anchor="middle" letter-spacing="1">② INSTALL</text>
+        <text x="490" y="108" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.5)" text-anchor="middle" letter-spacing="1">③ ACTIVATE</text>
+        <text x="690" y="108" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.5)" text-anchor="middle" letter-spacing="1">④ HANDSHAKE</text>
+        <text x="900" y="108" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.5)" text-anchor="middle" letter-spacing="1">⑤ AVAILABLE</text>
+        <text x="1100" y="108" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.5)" text-anchor="middle" letter-spacing="1">⑥ USE</text>
+
+        <!-- ===== Stage 1: Discover ===== -->
+        <rect x="22" y="118" width="156" height="180" rx="6" fill="rgba(34,211,238,0.07)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="20" y="116" width="156" height="180" rx="6" fill="rgba(34,211,238,0.10)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="98" y="140" font-family="JetBrains Mono" font-size="11" fill="#22d3ee" text-anchor="middle" font-weight="700">Discover</text>
+        <!-- Hub path -->
+        <rect x="36" y="150" width="124" height="44" rx="3" fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.4)" stroke-width="1"/>
+        <text x="98" y="168" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.8)" text-anchor="middle" font-weight="600">MCP Hub</text>
+        <text x="98" y="182" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)" text-anchor="middle">search + browse</text>
+        <text x="98" y="193" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.5)" text-anchor="middle">/api/mcp/hub-search</text>
+        <!-- divider -->
+        <text x="98" y="208" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.3)" text-anchor="middle">— or —</text>
+        <!-- Manual path -->
+        <rect x="36" y="212" width="124" height="44" rx="3" fill="rgba(34,211,238,0.05)" stroke="rgba(34,211,238,0.3)" stroke-width="1"/>
+        <text x="98" y="230" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.7)" text-anchor="middle" font-weight="600">Manual Entry</text>
+        <text x="98" y="244" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)" text-anchor="middle">name · URL · cmd</text>
+        <text x="98" y="256" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.4)" text-anchor="middle">transport: http | stdio</text>
+        <text x="98" y="272" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.4)" text-anchor="middle">source: configured | preset</text>
+
+        <!-- → arrow 1→2 -->
+        <line x1="176" y1="206" x2="210" y2="206" stroke="#22d3ee" stroke-width="2" marker-end="url(#arrow-cyan)"/>
+
+        <!-- ===== Stage 2: Install ===== -->
+        <rect x="212" y="118" width="156" height="180" rx="6" fill="rgba(34,211,238,0.07)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="210" y="116" width="156" height="180" rx="6" fill="rgba(34,211,238,0.10)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="288" y="140" font-family="JetBrains Mono" font-size="11" fill="#22d3ee" text-anchor="middle" font-weight="700">Install</text>
+        <rect x="226" y="150" width="124" height="130" rx="3" fill="rgba(34,211,238,0.06)" stroke="rgba(34,211,238,0.3)" stroke-width="1"/>
+        <text x="288" y="170" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.7)" text-anchor="middle" font-weight="600">Config written to</text>
+        <text x="288" y="184" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)" text-anchor="middle">~/.hermes/</text>
+        <text x="288" y="196" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)" text-anchor="middle">mcp_servers/</text>
+        <text x="288" y="216" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)" text-anchor="middle">POST /api/mcp/configure</text>
+        <text x="288" y="230" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)" text-anchor="middle">or preset install</text>
+        <text x="288" y="244" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)" text-anchor="middle">POST /api/mcp/presets</text>
+        <text x="288" y="262" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.4)" text-anchor="middle">auth: bearer | oauth | none</text>
+        <text x="288" y="274" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.4)" text-anchor="middle">toolMode: all | include | exclude</text>
+
+        <!-- → arrow 2→3 -->
+        <line x1="366" y1="206" x2="400" y2="206" stroke="#22d3ee" stroke-width="2" marker-end="url(#arrow-cyan)"/>
+
+        <!-- ===== Stage 3: Activate ===== -->
+        <rect x="402" y="118" width="156" height="180" rx="6" fill="rgba(34,211,238,0.07)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="400" y="116" width="156" height="180" rx="6" fill="rgba(34,211,238,0.10)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="478" y="140" font-family="JetBrains Mono" font-size="11" fill="#22d3ee" text-anchor="middle" font-weight="700">Activate</text>
+        <rect x="416" y="150" width="124" height="130" rx="3" fill="rgba(34,211,238,0.06)" stroke="rgba(34,211,238,0.3)" stroke-width="1"/>
+        <text x="478" y="170" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.7)" text-anchor="middle" font-weight="600">Gateway loads config</text>
+        <text x="478" y="186" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)" text-anchor="middle">on restart or reload</text>
+        <text x="478" y="206" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)" text-anchor="middle">toggle via detail drawer</text>
+        <text x="478" y="220" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)" text-anchor="middle">PATCH /api/mcp/$name</text>
+        <text x="478" y="240" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.4)" text-anchor="middle">enabled: true → gateway</text>
+        <text x="478" y="252" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.4)" text-anchor="middle">spins up the server</text>
+        <text x="478" y="268" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.35)" text-anchor="middle">status: connected | failed | unknown</text>
+
+        <!-- → arrow 3→4 -->
+        <line x1="556" y1="206" x2="590" y2="206" stroke="#34d399" stroke-width="2" marker-end="url(#arrow-emerald)"/>
+
+        <!-- ===== Stage 4: Handshake ===== -->
+        <rect x="592" y="118" width="196" height="180" rx="6" fill="rgba(52,211,153,0.07)" stroke="#34d399" stroke-width="1" opacity="0.4"/>
+        <rect x="590" y="116" width="196" height="180" rx="6" fill="rgba(52,211,153,0.10)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="688" y="140" font-family="JetBrains Mono" font-size="11" fill="#34d399" text-anchor="middle" font-weight="700">Handshake</text>
+        <text x="688" y="157" font-family="JetBrains Mono" font-size="8" fill="rgba(52,211,153,0.6)" text-anchor="middle">MCP protocol negotiation</text>
+        <!-- handshake items -->
+        <rect x="606" y="164" width="164" height="28" rx="3" fill="rgba(52,211,153,0.08)" stroke="rgba(52,211,153,0.3)" stroke-width="1"/>
+        <text x="688" y="182" font-family="JetBrains Mono" font-size="9" fill="#34d399" text-anchor="middle">list tools →</text>
+        <rect x="606" y="198" width="164" height="28" rx="3" fill="rgba(52,211,153,0.08)" stroke="rgba(52,211,153,0.3)" stroke-width="1"/>
+        <text x="688" y="216" font-family="JetBrains Mono" font-size="9" fill="#34d399" text-anchor="middle">list prompts →</text>
+        <rect x="606" y="232" width="164" height="28" rx="3" fill="rgba(52,211,153,0.08)" stroke="rgba(52,211,153,0.3)" stroke-width="1"/>
+        <text x="688" y="250" font-family="JetBrains Mono" font-size="9" fill="#34d399" text-anchor="middle">list resources →</text>
+        <text x="688" y="276" font-family="JetBrains Mono" font-size="7" fill="rgba(52,211,153,0.5)" text-anchor="middle">discoveredToolsCount populated</text>
+
+        <!-- → arrow 4→5 -->
+        <line x1="786" y1="206" x2="820" y2="206" stroke="#34d399" stroke-width="2" marker-end="url(#arrow-emerald)"/>
+
+        <!-- ===== Stage 5: Available ===== -->
+        <rect x="822" y="118" width="156" height="180" rx="6" fill="rgba(52,211,153,0.07)" stroke="#34d399" stroke-width="1" opacity="0.4"/>
+        <rect x="820" y="116" width="156" height="180" rx="6" fill="rgba(52,211,153,0.10)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="898" y="140" font-family="JetBrains Mono" font-size="11" fill="#34d399" text-anchor="middle" font-weight="700">Available</text>
+        <rect x="836" y="150" width="124" height="130" rx="3" fill="rgba(52,211,153,0.06)" stroke="rgba(52,211,153,0.3)" stroke-width="1"/>
+        <text x="898" y="170" font-family="JetBrains Mono" font-size="9" fill="rgba(52,211,153,0.8)" text-anchor="middle" font-weight="600">status: connected</text>
+        <circle cx="898" cy="188" r="5" fill="#34d399" opacity="0.9"/>
+        <text x="898" y="206" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)" text-anchor="middle">tools appear in</text>
+        <text x="898" y="218" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)" text-anchor="middle">agent context</text>
+        <text x="898" y="236" font-family="JetBrains Mono" font-size="8" fill="rgba(52,211,153,0.6)" text-anchor="middle">GET /api/mcp</text>
+        <text x="898" y="250" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.5)" text-anchor="middle">server list + status</text>
+        <text x="898" y="264" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.4)" text-anchor="middle">GET /api/mcp/$name</text>
+        <text x="898" y="276" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.4)" text-anchor="middle">detail + logs</text>
+
+        <!-- → arrow 5→6 -->
+        <line x1="976" y1="206" x2="1010" y2="206" stroke="#a78bfa" stroke-width="2" marker-end="url(#arrow-violet)"/>
+
+        <!-- ===== Stage 6: Use ===== -->
+        <rect x="1012" y="118" width="168" height="180" rx="6" fill="rgba(167,139,250,0.07)" stroke="#a78bfa" stroke-width="1" opacity="0.4"/>
+        <rect x="1010" y="116" width="168" height="180" rx="6" fill="rgba(167,139,250,0.10)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="1094" y="140" font-family="JetBrains Mono" font-size="11" fill="#a78bfa" text-anchor="middle" font-weight="700">Use</text>
+        <text x="1094" y="158" font-family="JetBrains Mono" font-size="8" fill="rgba(167,139,250,0.6)" text-anchor="middle">agent invokes tool</text>
+        <!-- flow -->
+        <rect x="1026" y="164" width="136" height="24" rx="3" fill="rgba(167,139,250,0.10)" stroke="rgba(167,139,250,0.4)" stroke-width="1"/>
+        <text x="1094" y="180" font-family="JetBrains Mono" font-size="8" fill="#a78bfa" text-anchor="middle">agent → tool call</text>
+        <line x1="1094" y1="188" x2="1094" y2="198" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#arrow-violet)"/>
+        <rect x="1026" y="200" width="136" height="24" rx="3" fill="rgba(167,139,250,0.10)" stroke="rgba(167,139,250,0.4)" stroke-width="1"/>
+        <text x="1094" y="216" font-family="JetBrains Mono" font-size="8" fill="#a78bfa" text-anchor="middle">MCP server executes</text>
+        <line x1="1094" y1="224" x2="1094" y2="234" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#arrow-violet)"/>
+        <rect x="1026" y="236" width="136" height="24" rx="3" fill="rgba(167,139,250,0.10)" stroke="rgba(167,139,250,0.4)" stroke-width="1"/>
+        <text x="1094" y="252" font-family="JetBrains Mono" font-size="8" fill="#a78bfa" text-anchor="middle">tool result → agent</text>
+        <text x="1094" y="276" font-family="JetBrains Mono" font-size="7" fill="rgba(167,139,250,0.5)" text-anchor="middle">POST /api/mcp/test</text>
+
+        <!-- ========== Capability gate detail block ========== -->
+        <rect x="22" y="324" width="756" height="130" rx="6" fill="rgba(251,191,36,0.05)" stroke="#fbbf24" stroke-width="1" opacity="0.4"/>
+        <rect x="20" y="322" width="756" height="130" rx="6" fill="rgba(251,191,36,0.06)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="36" y="344" font-family="JetBrains Mono" font-size="9" fill="rgba(251,191,36,0.7)" letter-spacing="1.5" font-weight="600">CAPABILITY GATING DETAIL</text>
+        <!-- Gate states -->
+        <rect x="36" y="354" width="220" height="84" rx="4" fill="rgba(52,211,153,0.08)" stroke="#34d399" stroke-width="1"/>
+        <text x="146" y="372" font-family="JetBrains Mono" font-size="9" fill="#34d399" text-anchor="middle" font-weight="600">mcp capability</text>
+        <text x="146" y="388" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)" text-anchor="middle">Full MCP runtime endpoints</text>
+        <text x="146" y="402" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)" text-anchor="middle">All actions available</text>
+        <text x="146" y="418" font-family="JetBrains Mono" font-size="8" fill="rgba(52,211,153,0.6)" text-anchor="middle">zero-fork / enhanced-fork mode</text>
+        <text x="146" y="430" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.5)" text-anchor="middle">gateway probed at startup</text>
+
+        <rect x="276" y="354" width="220" height="84" rx="4" fill="rgba(251,191,36,0.08)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="386" y="372" font-family="JetBrains Mono" font-size="9" fill="#fbbf24" text-anchor="middle" font-weight="600">mcpFallback capability</text>
+        <text x="386" y="388" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)" text-anchor="middle">Dashboard config only</text>
+        <text x="386" y="402" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)" text-anchor="middle">mcp_servers map exposed</text>
+        <text x="386" y="418" font-family="JetBrains Mono" font-size="8" fill="rgba(251,191,36,0.6)" text-anchor="middle">some actions limited</text>
+        <text x="386" y="430" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.5)" text-anchor="middle">portable / partial mode</text>
+
+        <rect x="516" y="354" width="220" height="84" rx="4" fill="rgba(251,113,133,0.08)" stroke="#fb7185" stroke-width="1"/>
+        <text x="626" y="372" font-family="JetBrains Mono" font-size="9" fill="#fb7185" text-anchor="middle" font-weight="600">no mcp capability</text>
+        <text x="626" y="388" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)" text-anchor="middle">Page renders</text>
+        <text x="626" y="402" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)" text-anchor="middle">backend-unavailable state</text>
+        <text x="626" y="418" font-family="JetBrains Mono" font-size="8" fill="rgba(251,113,133,0.6)" text-anchor="middle">no server list shown</text>
+        <text x="626" y="430" font-family="JetBrains Mono" font-size="7" fill="rgba(148,163,184,0.5)" text-anchor="middle">disconnected / zero mode</text>
+
+        <!-- ========== McpServer shape ========== -->
+        <rect x="802" y="322" width="376" height="130" rx="6" fill="rgba(34,211,238,0.06)" stroke="#22d3ee" stroke-width="1" opacity="0.4"/>
+        <rect x="800" y="320" width="376" height="130" rx="6" fill="rgba(34,211,238,0.06)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="816" y="342" font-family="JetBrains Mono" font-size="9" fill="rgba(34,211,238,0.7)" letter-spacing="1.5" font-weight="600">McpServer TYPE SHAPE (src/types/mcp.ts)</text>
+        <text x="816" y="360" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">id · name · enabled · transportType (http | stdio)</text>
+        <text x="816" y="376" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.7)">authType (none | bearer | oauth) · toolMode (all | include | exclude)</text>
+        <text x="816" y="392" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">discoveredTools: McpDiscoveredTool[] · discoveredToolsCount</text>
+        <text x="816" y="408" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.6)">status: connected | failed | unknown · lastTestedAt · lastError</text>
+        <text x="816" y="424" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">source: configured | preset · authEnvRef (env-reference for secrets)</text>
+        <text x="816" y="440" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.4)">McpMaskedValue type — secrets never exposed to client</text>
+
+        <!-- ========== Error / disconnect path ========== -->
+        <rect x="20" y="480" width="1156" height="80" rx="6" fill="rgba(251,113,133,0.05)" stroke="#fb7185" stroke-width="1" opacity="0.4"/>
+        <rect x="20" y="478" width="1156" height="80" rx="6" fill="rgba(251,113,133,0.05)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="36" y="500" font-family="JetBrains Mono" font-size="9" fill="rgba(251,113,133,0.7)" letter-spacing="1.5" font-weight="600">ERROR / DISCONNECT PATHS</text>
+        <text x="36" y="518" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.7)">Handshake fails → status: failed · lastError populated · server shown with red indicator in list</text>
+        <text x="36" y="534" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.7)">Disconnect (toggle off) → gateway stops server · status: unknown · tools removed from agent context</text>
+        <text x="36" y="550" font-family="JetBrains Mono" font-size="9" fill="rgba(148,163,184,0.6)">Test action → POST /api/mcp/test → McpTestResult { ok, latencyMs, discoveredTools, error }</text>
+        <!-- error arrow looping back -->
+        <text x="900" y="518" font-family="JetBrains Mono" font-size="8" fill="rgba(251,113,133,0.5)">retry → back to Activate stage</text>
+        <line x1="878" y1="510" x2="840" y2="510" stroke="#fb7185" stroke-width="1.2" stroke-dasharray="4 2" marker-end="url(#arrow-slate)"/>
+
+        <!-- ========== Legend ========== -->
+        <text x="20" y="598" font-family="JetBrains Mono" font-size="9" fill="white" font-weight="600">Stage color key</text>
+        <rect x="20" y="608" width="10" height="10" rx="2" fill="rgba(34,211,238,0.2)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="36" y="618" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">cyan — UI-driven stages (Discover, Install, Activate)</text>
+        <rect x="340" y="608" width="10" height="10" rx="2" fill="rgba(52,211,153,0.2)" stroke="#34d399" stroke-width="1"/>
+        <text x="356" y="618" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">emerald — gateway/MCP protocol (Handshake, Available)</text>
+        <rect x="700" y="608" width="10" height="10" rx="2" fill="rgba(167,139,250,0.2)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="716" y="618" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">violet — agent tool invocation (Use)</text>
+
+        <text x="20" y="645" font-family="JetBrains Mono" font-size="8" fill="rgba(148,163,184,0.5)">Routes: /api/mcp (list) · /api/mcp/$name (detail) · /api/mcp/configure · /api/mcp/discover · /api/mcp/hub-search · /api/mcp/presets · /api/mcp/test · /api/mcp/$name.logs</text>
+
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot cyan"></div><h3>Discover → Install → Activate</h3></div>
+        <ul>
+          <li>• Discover via MCP Hub search (<code>/api/mcp/hub-search</code>) or manual entry</li>
+          <li>• Install writes config to <code>~/.hermes/mcp_servers/</code></li>
+          <li>• <code>POST /api/mcp/configure</code> or preset install</li>
+          <li>• Activate: toggle in detail drawer → gateway spins server up</li>
+          <li>• auth: none | bearer | oauth · toolMode: all | include | exclude</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot emerald"></div><h3>Handshake → Available</h3></div>
+        <ul>
+          <li>• MCP protocol: list tools, list prompts, list resources</li>
+          <li>• <code>discoveredToolsCount</code> populated on success</li>
+          <li>• <code>status: connected</code> — tools appear in agent context</li>
+          <li>• <code>GET /api/mcp</code> — server list with status indicators</li>
+          <li>• Test via <code>POST /api/mcp/test</code> → latency + tool count</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-dot violet"></div><h3>Use + Error Paths</h3></div>
+        <ul>
+          <li>• Agent calls tool → MCP server executes → result back to agent</li>
+          <li>• Handshake fail → <code>status: failed</code> · <code>lastError</code> set</li>
+          <li>• Disconnect toggle → tools removed from context</li>
+          <li>• Retry path: re-enable → back to Activate stage</li>
+          <li>• Secrets: <code>McpMaskedValue</code> — never sent to client</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">hermes-switchui · MCP Server Lifecycle · src/types/mcp.ts · src/routes/api/mcp/</p>
+  </div>
+</body>
+</html>

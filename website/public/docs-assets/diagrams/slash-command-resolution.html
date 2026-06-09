@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Slash Command Resolution</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #22d3ee; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Hermes Switch UI — Slash Command Resolution</h1>
+      </div>
+      <p class="subtitle">How /command input is dispatched — client-side handlers vs. agent passthrough</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 720">
+        <defs>
+          <marker id="arrow-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrow-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrow-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <marker id="arrow-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#0f172a" stroke-width="1"/>
+          </pattern>
+        </defs>
+
+        <rect width="1200" height="720" fill="url(#grid)" />
+
+        <!-- ① User types / in composer -->
+        <rect x="34" y="52" width="148" height="64" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="30" y="48" width="148" height="64" rx="6" fill="#1e293b" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="104" y="72" fill="white" font-size="10" font-weight="600" text-anchor="middle">User types /</text>
+        <text x="104" y="88" fill="#94a3b8" font-size="8" text-anchor="middle">in Composer (chat-</text>
+        <text x="104" y="102" fill="#22d3ee" font-size="8" text-anchor="middle">composer.tsx)</text>
+        <text x="104" y="42" fill="#94a3b8" font-size="8" text-anchor="middle" font-weight="600">① TYPE</text>
+
+        <line x1="178" y1="80" x2="220" y2="80" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+        <!-- ② Slash menu appears -->
+        <rect x="226" y="52" width="168" height="64" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="222" y="48" width="168" height="64" rx="6" fill="#1e293b" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="306" y="72" fill="white" font-size="10" font-weight="600" text-anchor="middle">Slash menu opens</text>
+        <text x="306" y="88" fill="#94a3b8" font-size="8" text-anchor="middle">DEFAULT_SLASH_COMMANDS</text>
+        <text x="306" y="102" fill="#22d3ee" font-size="8" text-anchor="middle">filtered list + descriptions</text>
+        <text x="306" y="42" fill="#94a3b8" font-size="8" text-anchor="middle" font-weight="600">② MENU</text>
+
+        <line x1="390" y1="80" x2="432" y2="80" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+        <!-- ③ User picks command -->
+        <rect x="438" y="52" width="148" height="64" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="434" y="48" width="148" height="64" rx="6" fill="#1e293b" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="508" y="72" fill="white" font-size="10" font-weight="600" text-anchor="middle">User selects</text>
+        <text x="508" y="88" fill="#94a3b8" font-size="8" text-anchor="middle">Enter / click / arrow keys</text>
+        <text x="508" y="102" fill="#22d3ee" font-size="8" text-anchor="middle">command string resolved</text>
+        <text x="508" y="42" fill="#94a3b8" font-size="8" text-anchor="middle" font-weight="600">③ SELECT</text>
+
+        <line x1="582" y1="80" x2="624" y2="80" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+        <!-- ④ Dispatch decision diamond -->
+        <polygon points="700,80 748,116 700,152 652,116" fill="#0f172a" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="700" y="113" fill="#fbbf24" font-size="8" text-anchor="middle" font-weight="600">known</text>
+        <text x="700" y="125" fill="#fbbf24" font-size="8" text-anchor="middle" font-weight="600">command?</text>
+        <text x="700" y="42" fill="#fbbf24" font-size="8" text-anchor="middle" font-weight="600">④ DISPATCH</text>
+
+        <!-- yes → client-side path (down) -->
+        <line x1="700" y1="152" x2="700" y2="220" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <text x="714" y="192" fill="#34d399" font-size="8" font-weight="600">yes</text>
+
+        <!-- no → passthrough path (right) -->
+        <line x1="748" y1="116" x2="890" y2="116" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-slate)"/>
+        <text x="820" y="108" fill="#94a3b8" font-size="8" text-anchor="middle" font-weight="600">no (passthrough)</text>
+
+        <!-- ============ CLIENT-SIDE HANDLER BRANCH ============ -->
+        <text x="340" y="220" fill="#34d399" font-size="9" font-weight="600" letter-spacing="0.06em">CLIENT-SIDE HANDLERS — never reach the agent</text>
+        <line x1="180" y1="230" x2="980" y2="230" stroke="#1e293b" stroke-width="1" stroke-dasharray="3,3"/>
+
+        <!-- handler grid: 4 across, 2 rows -->
+        <!-- row 1 -->
+        <rect x="54" y="246" width="128" height="60" rx="5" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="50" y="242" width="128" height="60" rx="5" fill="#0c1a30" stroke="#34d399" stroke-width="1.2"/>
+        <text x="114" y="264" fill="#34d399" font-size="10" font-weight="700" text-anchor="middle">/new</text>
+        <text x="114" y="280" fill="#94a3b8" font-size="7.5" text-anchor="middle">new chat session</text>
+        <text x="114" y="294" fill="#475569" font-size="7" text-anchor="middle">navigate fresh session</text>
+
+        <rect x="214" y="246" width="128" height="60" rx="5" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="210" y="242" width="128" height="60" rx="5" fill="#0c1a30" stroke="#34d399" stroke-width="1.2"/>
+        <text x="274" y="264" fill="#34d399" font-size="10" font-weight="700" text-anchor="middle">/clear</text>
+        <text x="274" y="280" fill="#94a3b8" font-size="7.5" text-anchor="middle">clear message history</text>
+        <text x="274" y="294" fill="#475569" font-size="7" text-anchor="middle">reset visible thread</text>
+
+        <rect x="374" y="246" width="128" height="60" rx="5" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="370" y="242" width="128" height="60" rx="5" fill="#0c1a30" stroke="#34d399" stroke-width="1.2"/>
+        <text x="434" y="264" fill="#34d399" font-size="10" font-weight="700" text-anchor="middle">/model</text>
+        <text x="434" y="280" fill="#94a3b8" font-size="7.5" text-anchor="middle">open model selector</text>
+        <text x="434" y="294" fill="#475569" font-size="7" text-anchor="middle">custom browser event</text>
+
+        <rect x="534" y="246" width="128" height="60" rx="5" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="530" y="242" width="128" height="60" rx="5" fill="#0c1a30" stroke="#34d399" stroke-width="1.2"/>
+        <text x="594" y="264" fill="#34d399" font-size="10" font-weight="700" text-anchor="middle">/skin</text>
+        <text x="594" y="280" fill="#94a3b8" font-size="7.5" text-anchor="middle">open theme picker</text>
+        <text x="594" y="294" fill="#475569" font-size="7" text-anchor="middle">appearance settings</text>
+
+        <!-- row 2 -->
+        <rect x="54" y="326" width="128" height="60" rx="5" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="50" y="322" width="128" height="60" rx="5" fill="#0c1a30" stroke="#34d399" stroke-width="1.2"/>
+        <text x="114" y="344" fill="#34d399" font-size="10" font-weight="700" text-anchor="middle">/save</text>
+        <text x="114" y="360" fill="#94a3b8" font-size="7.5" text-anchor="middle">save conversation</text>
+        <text x="114" y="374" fill="#475569" font-size="7" text-anchor="middle">persist session locally</text>
+
+        <rect x="214" y="326" width="128" height="60" rx="5" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="210" y="322" width="128" height="60" rx="5" fill="#0c1a30" stroke="#34d399" stroke-width="1.2"/>
+        <text x="274" y="344" fill="#34d399" font-size="10" font-weight="700" text-anchor="middle">/skills</text>
+        <text x="274" y="360" fill="#94a3b8" font-size="7.5" text-anchor="middle">browse skills page</text>
+        <text x="274" y="374" fill="#475569" font-size="7" text-anchor="middle">navigate /skills</text>
+
+        <rect x="374" y="326" width="128" height="60" rx="5" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="370" y="322" width="128" height="60" rx="5" fill="#0c1a30" stroke="#34d399" stroke-width="1.2"/>
+        <text x="434" y="344" fill="#34d399" font-size="10" font-weight="700" text-anchor="middle">/plugins</text>
+        <text x="434" y="360" fill="#94a3b8" font-size="7.5" text-anchor="middle">list plugins</text>
+        <text x="434" y="374" fill="#475569" font-size="7" text-anchor="middle">navigate /plugins</text>
+
+        <rect x="534" y="326" width="128" height="60" rx="5" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="530" y="322" width="128" height="60" rx="5" fill="#0c1a30" stroke="#34d399" stroke-width="1.2"/>
+        <text x="594" y="344" fill="#34d399" font-size="10" font-weight="700" text-anchor="middle">/mcp</text>
+        <text x="594" y="360" fill="#94a3b8" font-size="7.5" text-anchor="middle">MCP server panel</text>
+        <text x="594" y="374" fill="#475569" font-size="7" text-anchor="middle">navigate /mcp</text>
+
+        <!-- /help — third row small -->
+        <rect x="694" y="246" width="128" height="60" rx="5" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="690" y="242" width="128" height="60" rx="5" fill="#0c1a30" stroke="#34d399" stroke-width="1.2"/>
+        <text x="754" y="264" fill="#34d399" font-size="10" font-weight="700" text-anchor="middle">/help</text>
+        <text x="754" y="280" fill="#94a3b8" font-size="7.5" text-anchor="middle">show shortcuts modal</text>
+        <text x="754" y="294" fill="#475569" font-size="7" text-anchor="middle">keyboard shortcut help</text>
+
+        <!-- connect dispatch to client handlers -->
+        <line x1="700" y1="242" x2="700" y2="220" stroke="#34d399" stroke-width="1" stroke-dasharray="3,2"/>
+
+        <!-- ============ PASSTHROUGH BRANCH ============ -->
+        <rect x="896" y="88" width="168" height="64" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="892" y="84" width="168" height="64" rx="6" fill="#1e293b" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="976" y="108" fill="white" font-size="10" font-weight="600" text-anchor="middle">Passthrough</text>
+        <text x="976" y="124" fill="#94a3b8" font-size="8" text-anchor="middle">text forwarded as-is</text>
+        <text x="976" y="138" fill="#a78bfa" font-size="8" text-anchor="middle">to hermes-agent gateway</text>
+
+        <line x1="976" y1="148" x2="976" y2="218" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrow-violet)"/>
+
+        <rect x="896" y="222" width="168" height="64" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="892" y="218" width="168" height="64" rx="6" fill="#1e293b" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="976" y="242" fill="white" font-size="10" font-weight="600" text-anchor="middle">hermes-agent</text>
+        <text x="976" y="258" fill="#94a3b8" font-size="8" text-anchor="middle">receives /custom-text</text>
+        <text x="976" y="272" fill="#a78bfa" font-size="8" text-anchor="middle">model responds normally</text>
+
+        <!-- divider between two paths -->
+        <line x1="870" y1="60" x2="870" y2="460" stroke="#1e293b" stroke-width="1" stroke-dasharray="5,4"/>
+        <text x="882" y="50" fill="#a78bfa" font-size="8" font-weight="600">PASSTHROUGH</text>
+
+        <!-- Legend -->
+        <text x="30" y="618" fill="white" font-size="10" font-weight="600">Legend</text>
+        <line x1="100" y1="614" x2="130" y2="614" stroke="#22d3ee" stroke-width="2"/>
+        <text x="136" y="618" fill="#94a3b8" font-size="9">user input / UI</text>
+        <line x1="280" y1="614" x2="310" y2="614" stroke="#34d399" stroke-width="2"/>
+        <text x="316" y="618" fill="#94a3b8" font-size="9">client-side handler (stays in browser)</text>
+        <line x1="590" y1="614" x2="620" y2="614" stroke="#a78bfa" stroke-width="2"/>
+        <text x="626" y="618" fill="#94a3b8" font-size="9">passthrough to agent</text>
+        <polygon points="840,610 848,617 840,624 832,617" fill="#0f172a" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="856" y="618" fill="#fbbf24" font-size="9">dispatch decision</text>
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot emerald"></div>
+          <h3>Client-side handlers</h3>
+        </div>
+        <ul>
+          <li>· /new — navigate to fresh session</li>
+          <li>· /clear — reset visible message thread</li>
+          <li>· /model — open model selector (custom event)</li>
+          <li>· /skin — open appearance settings (custom event)</li>
+          <li>· /save — persist current conversation</li>
+          <li>· /skills /plugins /mcp — navigate panels</li>
+          <li>· /help — show keyboard shortcuts modal</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot violet"></div>
+          <h3>Passthrough</h3>
+        </div>
+        <ul>
+          <li>· Any /text not in DEFAULT_SLASH_COMMANDS</li>
+          <li>· Forwarded to hermes-agent as plain message</li>
+          <li>· Model receives the literal text including /</li>
+          <li>· Useful for custom agent commands</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot cyan"></div>
+          <h3>Menu UX</h3>
+        </div>
+        <ul>
+          <li>· / must be the very first character</li>
+          <li>· Continue typing to filter the list</li>
+          <li>· Arrow keys to navigate, Enter to select</li>
+          <li>· Escape dismisses without action</li>
+          <li>· Composer text cleared after panel command</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer">
+      Hermes Switch UI · Slash Command Resolution · chat-composer.tsx · DEFAULT_SLASH_COMMANDS dispatch
+    </div>
+  </div>
+</body>
+</html>

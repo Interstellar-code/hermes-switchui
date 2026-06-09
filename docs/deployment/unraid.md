@@ -1,3 +1,8 @@
+---
+title: Unraid deployment
+description: Run Hermes Switch UI and the Hermes Agent gateway together in a single self-contained Unraid container.
+---
+
 # Unraid deployment: Hermes Switch UI self-contained image
 
 This deployment uses one container that includes both Hermes Switch UI and the upstream Hermes Agent gateway. The UI talks to the bundled gateway over container-local loopback (`http://127.0.0.1:8642`).

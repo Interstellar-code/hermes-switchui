@@ -1,6 +1,6 @@
 {
   "name": "hermes-switchui",
-  "version": "2.3.34",
+  "version": "2.3.35",
   "description": "Hermes SwitchUI \u2014 Interstellar Code's opinionated workspace for Hermes Agent",
   "author": "Interstellar Code (https://github.com/Interstellar-code)",
   "license": "MIT",
@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "rm -f src/routeTree.gen.ts && NODE_OPTIONS=\"--max-old-space-size=2048\" vite dev",
     "build:website": "if [ -d website ]; then PUBLIC_SITE_VERSION=$(node -p \"require('./package.json').version\") && cd website && npm install && SITE_BASE=/website PUBLIC_SITE_VERSION=$PUBLIC_SITE_VERSION npm run build; else echo 'website/ not present (excluded from Docker context) \u2014 skipping marketing site build'; fi",
-    "build": "vite build",
+    "build": "pnpm build:website && vite build",
     "prestart:all": "node scripts/check-ports.mjs",
     "start:all": "concurrently \"hermes gateway run\" \"pnpm dev\"",
     "start": "NODE_OPTIONS=\"--max-old-space-size=2048\" node .output/server/index.mjs",

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Crash Recovery Flow</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #22d3ee; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Crash Recovery Flow</h1>
+      </div>
+      <p class="subtitle">After a crash — identify what's broken → find which file owns it → apply the fix</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 860">
+        <defs>
+          <marker id="arrowhead-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <marker id="arrowhead-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrowhead-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrowhead-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <marker id="arrowhead-rose" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fb7185" />
+          </marker>
+          <marker id="arrowhead-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ============ Root: What's broken? ============ -->
+        <rect x="440" y="28" width="320" height="52" rx="6" fill="#0f172a"/>
+        <rect x="440" y="28" width="320" height="52" rx="6" fill="rgba(127, 29, 29, 0.4)" stroke="#fb7185" stroke-width="2"/>
+        <text x="600" y="50" fill="white" font-size="13" font-weight="700" text-anchor="middle">After a crash — what's broken?</text>
+        <text x="600" y="68" fill="#94a3b8" font-size="9" text-anchor="middle">identify the symptom → find the owning file → apply fix</text>
+
+        <!-- Branch lines from root -->
+        <line x1="490" y1="80" x2="100" y2="170" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowhead-slate)"/>
+        <line x1="535" y1="80" x2="300" y2="170" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowhead-slate)"/>
+        <line x1="600" y1="80" x2="600" y2="170" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowhead-slate)"/>
+        <line x1="670" y1="80" x2="880" y2="170" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowhead-slate)"/>
+        <line x1="710" y1="80" x2="1090" y2="170" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrowhead-slate)"/>
+
+        <!-- ============ Branch 1: Chat history missing ============ -->
+        <rect x="30" y="174" width="160" height="52" rx="6" fill="#0f172a"/>
+        <rect x="30" y="174" width="160" height="52" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="110" y="194" fill="white" font-size="10" font-weight="600" text-anchor="middle">Chat history</text>
+        <text x="110" y="208" fill="#94a3b8" font-size="8" text-anchor="middle">missing after restart</text>
+        <text x="110" y="220" fill="#475569" font-size="8" text-anchor="middle">sessions empty</text>
+
+        <!-- File owner -->
+        <rect x="30" y="250" width="160" height="44" rx="4" fill="#0f172a"/>
+        <rect x="30" y="250" width="160" height="44" rx="4" fill="rgba(76, 29, 149, 0.3)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="110" y="267" fill="#a78bfa" font-size="9" font-weight="600" text-anchor="middle">Owner</text>
+        <text x="110" y="281" fill="#94a3b8" font-size="8" text-anchor="middle">~/.hermes/sessions.db</text>
+
+        <!-- Fix -->
+        <rect x="30" y="312" width="160" height="64" rx="4" fill="#0f172a"/>
+        <rect x="30" y="312" width="160" height="64" rx="4" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="110" y="330" fill="#34d399" font-size="9" font-weight="600" text-anchor="middle">Fix</text>
+        <text x="110" y="344" fill="#94a3b8" font-size="8" text-anchor="middle">restart agent → reload</text>
+        <text x="110" y="357" fill="#94a3b8" font-size="8" text-anchor="middle">if DB corrupted: restore</text>
+        <text x="110" y="370" fill="#94a3b8" font-size="8" text-anchor="middle">sessions.db.bak.*</text>
+
+        <line x1="110" y1="226" x2="110" y2="248" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#arrowhead-cyan)"/>
+        <line x1="110" y1="294" x2="110" y2="310" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#arrowhead-violet)"/>
+
+        <!-- ============ Branch 2: Auth tokens broken ============ -->
+        <rect x="220" y="174" width="160" height="52" rx="6" fill="#0f172a"/>
+        <rect x="220" y="174" width="160" height="52" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="300" y="194" fill="white" font-size="10" font-weight="600" text-anchor="middle">Auth tokens broken</text>
+        <text x="300" y="208" fill="#94a3b8" font-size="8" text-anchor="middle">logged out / 401</text>
+        <text x="300" y="220" fill="#475569" font-size="8" text-anchor="middle">browser sessions invalid</text>
+
+        <rect x="220" y="250" width="160" height="44" rx="4" fill="#0f172a"/>
+        <rect x="220" y="250" width="160" height="44" rx="4" fill="rgba(76, 29, 149, 0.3)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="300" y="267" fill="#a78bfa" font-size="9" font-weight="600" text-anchor="middle">Owner</text>
+        <text x="300" y="281" fill="#94a3b8" font-size="8" text-anchor="middle">workspace-sessions.json</text>
+
+        <rect x="220" y="312" width="160" height="64" rx="4" fill="#0f172a"/>
+        <rect x="220" y="312" width="160" height="64" rx="4" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="300" y="330" fill="#34d399" font-size="9" font-weight="600" text-anchor="middle">Fix</text>
+        <text x="300" y="344" fill="#94a3b8" font-size="8" text-anchor="middle">rm workspace-sessions.json</text>
+        <text x="300" y="357" fill="#94a3b8" font-size="8" text-anchor="middle">file recreated on next</text>
+        <text x="300" y="370" fill="#94a3b8" font-size="8" text-anchor="middle">authenticated request</text>
+
+        <line x1="300" y1="226" x2="300" y2="248" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#arrowhead-cyan)"/>
+        <line x1="300" y1="294" x2="300" y2="310" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#arrowhead-violet)"/>
+
+        <!-- ============ Branch 3: UI overrides broken ============ -->
+        <rect x="520" y="174" width="160" height="52" rx="6" fill="#0f172a"/>
+        <rect x="520" y="174" width="160" height="52" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="600" y="194" fill="white" font-size="10" font-weight="600" text-anchor="middle">URL overrides lost</text>
+        <text x="600" y="208" fill="#94a3b8" font-size="8" text-anchor="middle">custom gateway / dashboard</text>
+        <text x="600" y="220" fill="#475569" font-size="8" text-anchor="middle">URL reverted to default</text>
+
+        <rect x="520" y="250" width="160" height="44" rx="4" fill="#0f172a"/>
+        <rect x="520" y="250" width="160" height="44" rx="4" fill="rgba(76, 29, 149, 0.3)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="600" y="267" fill="#a78bfa" font-size="9" font-weight="600" text-anchor="middle">Owner</text>
+        <text x="600" y="281" fill="#94a3b8" font-size="8" text-anchor="middle">workspace-overrides.json</text>
+
+        <rect x="520" y="312" width="160" height="64" rx="4" fill="#0f172a"/>
+        <rect x="520" y="312" width="160" height="64" rx="4" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="600" y="330" fill="#34d399" font-size="9" font-weight="600" text-anchor="middle">Fix</text>
+        <text x="600" y="344" fill="#94a3b8" font-size="8" text-anchor="middle">usually auto-restored</text>
+        <text x="600" y="357" fill="#94a3b8" font-size="8" text-anchor="middle">to reset: rm overrides.json</text>
+        <text x="600" y="370" fill="#94a3b8" font-size="8" text-anchor="middle">falls back to HERMES_API_URL</text>
+
+        <line x1="600" y1="226" x2="600" y2="248" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#arrowhead-cyan)"/>
+        <line x1="600" y1="294" x2="600" y2="310" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#arrowhead-violet)"/>
+
+        <!-- ============ Branch 4: Theme / prefs gone ============ -->
+        <rect x="808" y="174" width="160" height="52" rx="6" fill="#0f172a"/>
+        <rect x="808" y="174" width="160" height="52" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="888" y="194" fill="white" font-size="10" font-weight="600" text-anchor="middle">Theme / prefs gone</text>
+        <text x="888" y="208" fill="#94a3b8" font-size="8" text-anchor="middle">theme reset to default</text>
+        <text x="888" y="220" fill="#475569" font-size="8" text-anchor="middle">localStorage cleared</text>
+
+        <rect x="808" y="250" width="160" height="44" rx="4" fill="#0f172a"/>
+        <rect x="808" y="250" width="160" height="44" rx="4" fill="rgba(76, 29, 149, 0.3)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="888" y="267" fill="#a78bfa" font-size="9" font-weight="600" text-anchor="middle">Owner</text>
+        <text x="888" y="281" fill="#94a3b8" font-size="8" text-anchor="middle">browser localStorage</text>
+
+        <rect x="808" y="312" width="160" height="64" rx="4" fill="#0f172a"/>
+        <rect x="808" y="312" width="160" height="64" rx="4" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="888" y="330" fill="#34d399" font-size="9" font-weight="600" text-anchor="middle">Fix</text>
+        <text x="888" y="344" fill="#94a3b8" font-size="8" text-anchor="middle">reselect theme in</text>
+        <text x="888" y="357" fill="#94a3b8" font-size="8" text-anchor="middle">Settings → Appearance</text>
+        <text x="888" y="370" fill="#94a3b8" font-size="8" text-anchor="middle">key: claude-theme</text>
+
+        <line x1="888" y1="226" x2="888" y2="248" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#arrowhead-cyan)"/>
+        <line x1="888" y1="294" x2="888" y2="310" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#arrowhead-violet)"/>
+
+        <!-- ============ Branch 5: Specific session corrupted ============ -->
+        <rect x="1010" y="174" width="160" height="52" rx="6" fill="#0f172a"/>
+        <rect x="1010" y="174" width="160" height="52" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="1090" y="194" fill="white" font-size="10" font-weight="600" text-anchor="middle">One session broken</text>
+        <text x="1090" y="208" fill="#94a3b8" font-size="8" text-anchor="middle">errors / stuck loading</text>
+        <text x="1090" y="220" fill="#475569" font-size="8" text-anchor="middle">only that session</text>
+
+        <rect x="1010" y="250" width="160" height="44" rx="4" fill="#0f172a"/>
+        <rect x="1010" y="250" width="160" height="44" rx="4" fill="rgba(76, 29, 149, 0.3)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="1090" y="267" fill="#a78bfa" font-size="9" font-weight="600" text-anchor="middle">Owner</text>
+        <text x="1090" y="281" fill="#94a3b8" font-size="8" text-anchor="middle">sessions.db (row)</text>
+
+        <rect x="1010" y="312" width="160" height="64" rx="4" fill="#0f172a"/>
+        <rect x="1010" y="312" width="160" height="64" rx="4" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="1090" y="330" fill="#34d399" font-size="9" font-weight="600" text-anchor="middle">Fix</text>
+        <text x="1090" y="344" fill="#94a3b8" font-size="8" text-anchor="middle">delete session from</text>
+        <text x="1090" y="357" fill="#94a3b8" font-size="8" text-anchor="middle">sidebar context menu</text>
+        <text x="1090" y="370" fill="#94a3b8" font-size="8" text-anchor="middle">create new session</text>
+
+        <line x1="1090" y1="226" x2="1090" y2="248" stroke="#22d3ee" stroke-width="1.2" marker-end="url(#arrowhead-cyan)"/>
+        <line x1="1090" y1="294" x2="1090" y2="310" stroke="#a78bfa" stroke-width="1.2" marker-end="url(#arrowhead-violet)"/>
+
+        <!-- ============ Full reset (bottom) ============ -->
+        <rect x="40" y="430" width="1120" height="56" rx="8" fill="#0f172a"/>
+        <rect x="40" y="430" width="1120" height="56" rx="8" fill="rgba(127, 29, 29, 0.2)" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="6,4"/>
+        <text x="600" y="452" fill="#fb7185" font-size="11" font-weight="600" text-anchor="middle">LAST RESORT — Full reset (when nothing else works)</text>
+        <text x="600" y="470" fill="#94a3b8" font-size="8" text-anchor="middle">1. stop agent + UI  •  2. backup ~/.hermes/  •  3. rm workspace-sessions.json workspace-overrides.json  •  4. if DB corrupted: rename sessions.db + kanban.db  •  5. restart agent → UI</text>
+
+        <!-- ============ File ownership map ============ -->
+        <text x="40" y="524" fill="white" font-size="10" font-weight="600">File ownership map — what each file owns</text>
+
+        <rect x="40" y="540" width="520" height="180" rx="8" fill="rgba(15, 23, 42, 0.4)" stroke="#1e293b" stroke-width="1"/>
+
+        <!-- rows -->
+        <text x="56" y="562" fill="#a78bfa" font-size="9" font-weight="600">~/.hermes/sessions.db</text>
+        <text x="310" y="562" fill="#94a3b8" font-size="8">chat history, message threads</text>
+
+        <text x="56" y="580" fill="#a78bfa" font-size="9" font-weight="600">~/.hermes/response_store.db</text>
+        <text x="310" y="580" fill="#94a3b8" font-size="8">streaming response cache</text>
+
+        <text x="56" y="598" fill="#a78bfa" font-size="9" font-weight="600">~/.hermes/kanban.db</text>
+        <text x="310" y="598" fill="#94a3b8" font-size="8">tasks + boards (kanban plugin)</text>
+
+        <text x="56" y="616" fill="#a78bfa" font-size="9" font-weight="600">~/.hermes/workspace-sessions.json</text>
+        <text x="310" y="616" fill="#94a3b8" font-size="8">browser login tokens (safe to delete)</text>
+
+        <text x="56" y="634" fill="#a78bfa" font-size="9" font-weight="600">~/.hermes/workspace-overrides.json</text>
+        <text x="310" y="634" fill="#94a3b8" font-size="8">custom gateway / dashboard URL overrides</text>
+
+        <text x="56" y="652" fill="#a78bfa" font-size="9" font-weight="600">~/.hermes/config.yaml</text>
+        <text x="310" y="652" fill="#94a3b8" font-size="8">provider config, model.default</text>
+
+        <text x="56" y="670" fill="#a78bfa" font-size="9" font-weight="600">~/.hermes/.env</text>
+        <text x="310" y="670" fill="#94a3b8" font-size="8">API keys (plain text)</text>
+
+        <text x="56" y="688" fill="#22d3ee" font-size="9" font-weight="600">browser localStorage</text>
+        <text x="310" y="688" fill="#94a3b8" font-size="8">claude-theme, UI preferences</text>
+
+        <text x="56" y="706" fill="#22d3ee" font-size="9" font-weight="600">~/.hermes/kanban.db.bak.*</text>
+        <text x="310" y="706" fill="#94a3b8" font-size="8">timestamped DB backups (auto-created)</text>
+
+        <!-- safety note -->
+        <rect x="580" y="540" width="580" height="180" rx="8" fill="rgba(6, 78, 59, 0.1)" stroke="#34d399" stroke-width="1"/>
+        <text x="870" y="562" fill="#34d399" font-size="10" font-weight="600" text-anchor="middle">What survives a crash</text>
+        <text x="870" y="582" fill="#94a3b8" font-size="8" text-anchor="middle">UI server crash: all data safe (agent still running)</text>
+        <text x="870" y="600" fill="#94a3b8" font-size="8" text-anchor="middle">Agent crash: chat history in sessions.db, recoverable</text>
+        <text x="870" y="618" fill="#94a3b8" font-size="8" text-anchor="middle">Browser tab crash: zero data loss (nothing stored there)</text>
+        <text x="870" y="638" fill="#94a3b8" font-size="8" text-anchor="middle">Machine reboot: all ~/.hermes/ files survive</text>
+        <text x="870" y="658" fill="#94a3b8" font-size="8" text-anchor="middle">localStorage cleared: theme + prefs lost (non-critical)</text>
+        <text x="870" y="682" fill="#fbbf24" font-size="8" font-weight="600" text-anchor="middle">Always backup ~/.hermes/ before a full reset</text>
+        <text x="870" y="698" fill="#94a3b8" font-size="8" text-anchor="middle">cp -r ~/.hermes/ ~/.hermes-backup-$(date +%Y%m%d)</text>
+
+        <!-- ============ Legend ============ -->
+        <text x="40" y="746" fill="white" font-size="10" font-weight="600">Legend</text>
+        <rect x="40" y="758" width="14" height="10" rx="2" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="60" y="766" fill="#94a3b8" font-size="9">Symptom</text>
+        <rect x="160" y="758" width="14" height="10" rx="2" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="180" y="766" fill="#94a3b8" font-size="9">File owner</text>
+        <rect x="280" y="758" width="14" height="10" rx="2" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1"/>
+        <text x="300" y="766" fill="#94a3b8" font-size="9">Fix</text>
+        <rect x="360" y="758" width="14" height="10" rx="2" fill="rgba(127, 29, 29, 0.2)" stroke="#fb7185" stroke-width="1"/>
+        <text x="380" y="766" fill="#94a3b8" font-size="9">Last resort / data risk</text>
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot violet"></div><h3>File ownership at a glance</h3></div>
+        <ul>
+          <li>• Chat history → sessions.db</li>
+          <li>• Browser login sessions → workspace-sessions.json</li>
+          <li>• Gateway/dashboard URL overrides → workspace-overrides.json</li>
+          <li>• Theme + UI prefs → browser localStorage (claude-theme key)</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot emerald"></div><h3>Safe files to delete</h3></div>
+        <ul>
+          <li>• workspace-sessions.json — forces re-login, no chat data lost</li>
+          <li>• workspace-overrides.json — resets to HERMES_API_URL default</li>
+          <li>• Browser localStorage — resets theme and UI prefs only</li>
+          <li>• All recreated automatically on next startup</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot rose"></div><h3>Risky files (backup first)</h3></div>
+        <ul>
+          <li>• sessions.db — deleting loses all chat history</li>
+          <li>• kanban.db — deleting loses all tasks and boards</li>
+          <li>• config.yaml — deleting requires provider reconfiguration</li>
+          <li>• .env — deleting requires re-entering all API keys</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">
+      Hermes Switch UI  •  crash recovery flow  •  symptom → file owner → fix → full reset as last resort
+    </p>
+  </div>
+</body>
+</html>

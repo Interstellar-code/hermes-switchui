@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — MCP Protocol Handshake</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #22d3ee; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>MCP Protocol Handshake</h1>
+      </div>
+      <p class="subtitle">How the Hermes Agent establishes a session with an MCP server — initialize through tool invocation</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 900">
+        <defs>
+          <marker id="arrow-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrow-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrow-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <marker id="arrow-rose" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fb7185" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ============ Participant headers ============ -->
+        <!-- Switch UI (left observer) -->
+        <rect x="30" y="40" width="140" height="60" rx="6" fill="#0f172a"/>
+        <rect x="30" y="40" width="140" height="60" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="100" y="65" fill="white" font-size="12" font-weight="600" text-anchor="middle">Switch UI</text>
+        <text x="100" y="82" fill="#94a3b8" font-size="9" text-anchor="middle">status indicator</text>
+
+        <!-- Hermes Agent (MCP host) -->
+        <rect x="360" y="40" width="200" height="60" rx="6" fill="#0f172a"/>
+        <rect x="360" y="40" width="200" height="60" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="460" y="62" fill="white" font-size="12" font-weight="600" text-anchor="middle">Hermes Agent</text>
+        <text x="460" y="78" fill="#34d399" font-size="9" text-anchor="middle">MCP host  •  port 8642</text>
+
+        <!-- MCP Server -->
+        <rect x="760" y="40" width="200" height="60" rx="6" fill="#0f172a"/>
+        <rect x="760" y="40" width="200" height="60" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="860" y="62" fill="white" font-size="12" font-weight="600" text-anchor="middle">MCP Server</text>
+        <text x="860" y="78" fill="#a78bfa" font-size="9" text-anchor="middle">stdio or HTTP transport</text>
+
+        <!-- ============ Lifelines ============ -->
+        <line x1="100" y1="100" x2="100" y2="840" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>
+        <line x1="460" y1="100" x2="460" y2="840" stroke="#34d399" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>
+        <line x1="860" y1="100" x2="860" y2="840" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>
+
+        <!-- Activation bars -->
+        <rect x="456" y="150" width="8" height="550" rx="2" fill="rgba(6, 78, 59, 0.5)" stroke="#34d399" stroke-width="0.5"/>
+        <rect x="856" y="210" width="8" height="490" rx="2" fill="rgba(76, 29, 149, 0.5)" stroke="#a78bfa" stroke-width="0.5"/>
+
+        <!-- ============ Time labels (left) ============ -->
+        <text x="20" y="167" fill="#475569" font-size="9" font-weight="600">spawn</text>
+        <text x="20" y="237" fill="#475569" font-size="9" font-weight="600">init</text>
+        <text x="20" y="310" fill="#475569" font-size="9" font-weight="600">caps</text>
+        <text x="20" y="390" fill="#475569" font-size="9" font-weight="600">tools</text>
+        <text x="20" y="470" fill="#475569" font-size="9" font-weight="600">prompts</text>
+        <text x="20" y="550" fill="#475569" font-size="9" font-weight="600">resources</text>
+        <text x="20" y="630" fill="#475569" font-size="9" font-weight="600">indexed</text>
+        <text x="20" y="710" fill="#475569" font-size="9" font-weight="600">chat</text>
+        <text x="20" y="790" fill="#475569" font-size="9" font-weight="600">result</text>
+
+        <!-- ============ Step 1: Agent spawns / connects ============ -->
+        <line x1="468" y1="160" x2="852" y2="160" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrow-emerald)"/>
+        <text x="660" y="153" fill="white" font-size="10" font-weight="500" text-anchor="middle">1. Spawn / connect to server</text>
+        <text x="660" y="169" fill="#34d399" font-size="8" text-anchor="middle">stdio: fork process  •  HTTP: open connection</text>
+
+        <!-- ============ Step 2: initialize request ============ -->
+        <line x1="468" y1="230" x2="852" y2="230" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrow-emerald)"/>
+        <text x="660" y="223" fill="white" font-size="10" font-weight="500" text-anchor="middle">2. initialize request</text>
+        <text x="660" y="239" fill="#34d399" font-size="8" text-anchor="middle">protocolVersion, clientInfo, client capabilities</text>
+
+        <!-- ============ Step 3: initialize response ============ -->
+        <line x1="852" y1="300" x2="468" y2="300" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow-violet)"/>
+        <text x="660" y="293" fill="white" font-size="10" font-weight="500" text-anchor="middle">3. initialize response</text>
+        <text x="660" y="309" fill="#a78bfa" font-size="8" text-anchor="middle">serverInfo, server capabilities (tools, prompts, resources)</text>
+
+        <!-- ============ Step 4: tools/list ============ -->
+        <line x1="468" y1="370" x2="852" y2="370" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrow-emerald)"/>
+        <text x="660" y="363" fill="white" font-size="10" font-weight="500" text-anchor="middle">4. tools/list</text>
+        <text x="660" y="379" fill="#34d399" font-size="8" text-anchor="middle">enumerate available tools</text>
+
+        <!-- tools/list response -->
+        <line x1="852" y1="400" x2="468" y2="400" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow-violet)"/>
+        <text x="660" y="393" fill="white" font-size="10" font-weight="500" text-anchor="middle">tools/list response</text>
+        <text x="660" y="409" fill="#a78bfa" font-size="8" text-anchor="middle">array of tool definitions (name, description, inputSchema)</text>
+
+        <!-- ============ Step 5: prompts/list ============ -->
+        <line x1="468" y1="450" x2="852" y2="450" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrow-emerald)"/>
+        <text x="660" y="443" fill="white" font-size="10" font-weight="500" text-anchor="middle">5. prompts/list</text>
+        <text x="660" y="459" fill="#34d399" font-size="8" text-anchor="middle">enumerate available prompts</text>
+
+        <!-- prompts/list response -->
+        <line x1="852" y1="480" x2="468" y2="480" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow-violet)"/>
+        <text x="660" y="473" fill="white" font-size="10" font-weight="500" text-anchor="middle">prompts/list response</text>
+        <text x="660" y="489" fill="#a78bfa" font-size="8" text-anchor="middle">array of prompt templates</text>
+
+        <!-- ============ Step 6: resources/list ============ -->
+        <line x1="468" y1="530" x2="852" y2="530" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrow-emerald)"/>
+        <text x="660" y="523" fill="white" font-size="10" font-weight="500" text-anchor="middle">6. resources/list</text>
+        <text x="660" y="539" fill="#34d399" font-size="8" text-anchor="middle">enumerate available resources</text>
+
+        <!-- resources/list response -->
+        <line x1="852" y1="560" x2="468" y2="560" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow-violet)"/>
+        <text x="660" y="553" fill="white" font-size="10" font-weight="500" text-anchor="middle">resources/list response</text>
+        <text x="660" y="569" fill="#a78bfa" font-size="8" text-anchor="middle">array of resource URIs</text>
+
+        <!-- ============ Step 7: Agent indexes capabilities ============ -->
+        <!-- self-arrow on Agent -->
+        <path d="M 468 615 Q 550 615 550 630 Q 550 648 468 648" fill="none" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrow-emerald)"/>
+        <text x="570" y="628" fill="white" font-size="10" font-weight="500">7. Index capabilities</text>
+        <text x="570" y="643" fill="#34d399" font-size="8">tools + prompts + resources now available in chat</text>
+
+        <!-- Agent → Switch UI: Connected -->
+        <line x1="456" y1="660" x2="108" y2="660" stroke="#22d3ee" stroke-width="1.8" marker-end="url(#arrow-cyan)"/>
+        <text x="278" y="653" fill="white" font-size="10" font-weight="500" text-anchor="middle">Status → Connected</text>
+        <text x="278" y="669" fill="#22d3ee" font-size="8" text-anchor="middle">UI indicator updates</text>
+
+        <!-- ============ Step 8: On chat — tools/call ============ -->
+        <line x1="468" y1="710" x2="852" y2="710" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrow-emerald)"/>
+        <text x="660" y="703" fill="white" font-size="10" font-weight="500" text-anchor="middle">8. tools/call (on chat turn)</text>
+        <text x="660" y="719" fill="#34d399" font-size="8" text-anchor="middle">toolName, arguments — agent decided to use this tool</text>
+
+        <!-- tools/call response -->
+        <line x1="852" y1="760" x2="468" y2="760" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow-violet)"/>
+        <text x="660" y="753" fill="white" font-size="10" font-weight="500" text-anchor="middle">tools/call result</text>
+        <text x="660" y="769" fill="#a78bfa" font-size="8" text-anchor="middle">content array returned to agent context</text>
+
+        <!-- ============ Error path ============ -->
+        <!-- error box -->
+        <rect x="870" y="145" width="300" height="100" rx="6" fill="#0f172a"/>
+        <rect x="870" y="145" width="300" height="100" rx="6" fill="rgba(136, 19, 55, 0.2)" stroke="#fb7185" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="1020" y="168" fill="#fb7185" font-size="10" font-weight="600" text-anchor="middle">Error path</text>
+        <text x="1020" y="185" fill="#94a3b8" font-size="8" text-anchor="middle">server fails to start / handshake timeout</text>
+        <text x="1020" y="200" fill="#94a3b8" font-size="8" text-anchor="middle">→ agent marks server unavailable</text>
+        <text x="1020" y="215" fill="#fb7185" font-size="8" text-anchor="middle">→ UI shows Disconnected / error log</text>
+        <text x="1020" y="230" fill="#94a3b8" font-size="8" text-anchor="middle">check env vars and command path</text>
+
+        <!-- error connector -->
+        <path d="M 868 190 L 870 190" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="3,3"/>
+
+        <!-- ============ Legend ============ -->
+        <text x="30" y="840" fill="white" font-size="10" font-weight="600">Transport</text>
+        <line x1="120" y1="836" x2="160" y2="836" stroke="#34d399" stroke-width="2"/>
+        <text x="168" y="839" fill="#94a3b8" font-size="9">emerald = Agent → Server (request)</text>
+        <line x1="450" y1="836" x2="490" y2="836" stroke="#a78bfa" stroke-width="2"/>
+        <text x="498" y="839" fill="#94a3b8" font-size="9">violet = Server → Agent (response)</text>
+        <line x1="780" y1="836" x2="820" y2="836" stroke="#22d3ee" stroke-width="2"/>
+        <text x="828" y="839" fill="#94a3b8" font-size="9">cyan = Agent → Switch UI (status)</text>
+
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot emerald"></div><h3>Handshake phase</h3></div>
+        <ul>
+          <li>• Agent spawns (stdio) or connects (HTTP) to the server</li>
+          <li>• <code>initialize</code> exchange negotiates protocol version and capabilities</li>
+          <li>• Agent then calls <code>tools/list</code>, <code>prompts/list</code>, <code>resources/list</code></li>
+          <li>• All capabilities indexed in-memory — available immediately in chat</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot violet"></div><h3>Tool invocation</h3></div>
+        <ul>
+          <li>• During a chat turn the agent decides which tool to call</li>
+          <li>• Sends <code>tools/call</code> with tool name and arguments</li>
+          <li>• Server executes the tool and returns a content array</li>
+          <li>• Result injected back into agent context for the response</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot rose"></div><h3>Failure modes</h3></div>
+        <ul>
+          <li>• Server fails to start → check command path and dependencies</li>
+          <li>• Handshake timeout → server may be slow or unreachable</li>
+          <li>• Missing env var → credentials not in <code>~/.hermes/.env</code></li>
+          <li>• Agent marks server unavailable; UI shows Disconnected</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">
+      Hermes Switch UI  •  MCP protocol handshake  •  spawn → initialize → capability lists → tools/call
+    </p>
+  </div>
+</body>
+</html>

@@ -45,7 +45,7 @@ If the agent has `API_SERVER_KEY` set (common for Docker or `0.0.0.0` deployment
 
 **Fix:** Copy the value:
 
-```env
+```bash
 # in hermes-switchui/.env
 HERMES_API_TOKEN=<same-secret-as-API_SERVER_KEY>
 ```

@@ -1,3 +1,8 @@
+---
+title: Telegram bot or topics not working
+description: Troubleshoot Telegram bot reply failures, topic routing issues, and Hermes delivery problems.
+---
+
 # Telegram bot not responding or topics not working
 
 > Use this checklist when your Hermes Telegram bot is online but messages, topics, permissions, or deliveries are not behaving the way you expect.

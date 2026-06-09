@@ -1,3 +1,8 @@
+---
+title: Connect Hermes to Telegram and configure topics
+description: Connect Hermes to Telegram, control who can talk to it, and split conversations across Telegram topics.
+---
+
 # Connect Hermes to Telegram and configure topics
 
 > Connect your Hermes agent to Telegram, lock down who can talk to it, choose where replies get delivered, and optionally split work into separate Telegram topics.

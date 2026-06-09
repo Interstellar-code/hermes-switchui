@@ -5,10 +5,11 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
-    "build": "astro build && node scripts/postbuild.mjs",
+    "build": "node scripts/sync-docs-assets.mjs && astro build && node scripts/postbuild.mjs",
     "preview": "astro preview"
   },
   "dependencies": {
+    "@astrojs/starlight": "^0.37.7",
     "astro": "^5.7.10"
   }
 }

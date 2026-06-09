@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Skill Authoring Flow</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #22d3ee; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Skill Authoring Flow</h1>
+      </div>
+      <p class="subtitle">Step-by-step workflow for creating a custom skill — scaffold to publish</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 560">
+        <defs>
+          <marker id="arrow-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrow-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrow-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <marker id="arrow-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ============ Step number circles ============ -->
+        <!-- Step 1 -->
+        <circle cx="110" cy="60" r="16" fill="#0f172a" stroke="#a78bfa" stroke-width="2"/>
+        <text x="110" y="65" fill="#a78bfa" font-size="12" font-weight="700" text-anchor="middle">1</text>
+
+        <!-- Step 2 -->
+        <circle cx="310" cy="60" r="16" fill="#0f172a" stroke="#34d399" stroke-width="2"/>
+        <text x="310" y="65" fill="#34d399" font-size="12" font-weight="700" text-anchor="middle">2</text>
+
+        <!-- Step 3 -->
+        <circle cx="510" cy="60" r="16" fill="#0f172a" stroke="#22d3ee" stroke-width="2"/>
+        <text x="510" y="65" fill="#22d3ee" font-size="12" font-weight="700" text-anchor="middle">3</text>
+
+        <!-- Step 4 -->
+        <circle cx="710" cy="60" r="16" fill="#0f172a" stroke="#fbbf24" stroke-width="2"/>
+        <text x="710" y="65" fill="#fbbf24" font-size="12" font-weight="700" text-anchor="middle">4</text>
+
+        <!-- Step 5 -->
+        <circle cx="910" cy="60" r="16" fill="#0f172a" stroke="#34d399" stroke-width="2"/>
+        <text x="910" y="65" fill="#34d399" font-size="12" font-weight="700" text-anchor="middle">5</text>
+
+        <!-- Step 6 (optional) -->
+        <circle cx="1110" cy="60" r="16" fill="#0f172a" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/>
+        <text x="1110" y="65" fill="#94a3b8" font-size="12" font-weight="700" text-anchor="middle">6</text>
+
+        <!-- ============ Step arrows (top row) ============ -->
+        <line x1="128" y1="60" x2="292" y2="60" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-slate)"/>
+        <line x1="328" y1="60" x2="492" y2="60" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-slate)"/>
+        <line x1="528" y1="60" x2="692" y2="60" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-slate)"/>
+        <line x1="728" y1="60" x2="892" y2="60" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow-slate)"/>
+        <line x1="928" y1="60" x2="1092" y2="60" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#arrow-slate)"/>
+        <!-- iterate back arrow -->
+        <path d="M 910 76 L 910 120 L 710 120 L 710 76" fill="none" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrow-amber)"/>
+        <text x="810" y="115" fill="#fbbf24" font-size="8" text-anchor="middle">iterate</text>
+
+        <!-- ============ Step 1: Scaffold ============ -->
+        <rect x="30" y="100" width="160" height="180" rx="6" fill="#0f172a"/>
+        <rect x="30" y="100" width="160" height="180" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="110" y="124" fill="white" font-size="11" font-weight="600" text-anchor="middle">Scaffold folder</text>
+        <text x="110" y="142" fill="#94a3b8" font-size="9" text-anchor="middle">create directory</text>
+        <line x1="46" y1="152" x2="174" y2="152" stroke="#1e293b" stroke-width="1"/>
+        <text x="46" y="168" fill="#a78bfa" font-size="8">mkdir -p</text>
+        <text x="46" y="182" fill="#94a3b8" font-size="8">~/.hermes/skills/</text>
+        <text x="46" y="196" fill="#94a3b8" font-size="8">&lt;name&gt;/</text>
+        <line x1="46" y1="208" x2="174" y2="208" stroke="#1e293b" stroke-width="1"/>
+        <text x="46" y="222" fill="#94a3b8" font-size="8">one directory</text>
+        <text x="46" y="236" fill="#94a3b8" font-size="8">per skill</text>
+        <text x="46" y="258" fill="#475569" font-size="8">name matches</text>
+        <text x="46" y="270" fill="#475569" font-size="8">skill identifier</text>
+
+        <!-- ============ Step 2: Write SKILL.md ============ -->
+        <rect x="230" y="100" width="160" height="180" rx="6" fill="#0f172a"/>
+        <rect x="230" y="100" width="160" height="180" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="310" y="124" fill="white" font-size="11" font-weight="600" text-anchor="middle">Write SKILL.md</text>
+        <text x="310" y="142" fill="#94a3b8" font-size="9" text-anchor="middle">frontmatter + body</text>
+        <line x1="246" y1="152" x2="374" y2="152" stroke="#1e293b" stroke-width="1"/>
+        <text x="246" y="168" fill="#34d399" font-size="8">--- (frontmatter)</text>
+        <text x="246" y="182" fill="#94a3b8" font-size="8">name: My Skill</text>
+        <text x="246" y="196" fill="#94a3b8" font-size="8">description: ...</text>
+        <text x="246" y="210" fill="#94a3b8" font-size="8">triggers: [...]</text>
+        <text x="246" y="224" fill="#94a3b8" font-size="8">tags: [...]</text>
+        <text x="246" y="238" fill="#34d399" font-size="8">---</text>
+        <text x="246" y="254" fill="#94a3b8" font-size="8"># instructions</text>
+        <text x="246" y="268" fill="#475569" font-size="8">Markdown body</text>
+
+        <!-- ============ Step 3: Add references + templates ============ -->
+        <rect x="430" y="100" width="160" height="180" rx="6" fill="#0f172a"/>
+        <rect x="430" y="100" width="160" height="180" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="510" y="122" fill="white" font-size="11" font-weight="600" text-anchor="middle">Add references/</text>
+        <text x="510" y="138" fill="white" font-size="11" font-weight="600" text-anchor="middle">+ templates/</text>
+        <text x="510" y="154" fill="#22d3ee" font-size="8" text-anchor="middle">as needed</text>
+        <line x1="446" y1="162" x2="574" y2="162" stroke="#1e293b" stroke-width="1"/>
+        <text x="446" y="178" fill="#94a3b8" font-size="8">references/</text>
+        <text x="446" y="192" fill="#475569" font-size="8">  data files, docs</text>
+        <text x="446" y="210" fill="#94a3b8" font-size="8">templates/</text>
+        <text x="446" y="224" fill="#475569" font-size="8">  file scaffolds</text>
+        <text x="446" y="242" fill="#94a3b8" font-size="8">scripts/</text>
+        <text x="446" y="256" fill="#475569" font-size="8">  shell helpers</text>
+        <text x="446" y="270" fill="#fbbf24" font-size="7">(elevated trust)</text>
+
+        <!-- ============ Step 4: Test in chat ============ -->
+        <rect x="630" y="100" width="160" height="180" rx="6" fill="#0f172a"/>
+        <rect x="630" y="100" width="160" height="180" rx="6" fill="rgba(120, 53, 15, 0.4)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="710" y="124" fill="white" font-size="11" font-weight="600" text-anchor="middle">Test in chat</text>
+        <text x="710" y="142" fill="#94a3b8" font-size="9" text-anchor="middle">invoke in conversation</text>
+        <line x1="646" y1="152" x2="774" y2="152" stroke="#1e293b" stroke-width="1"/>
+        <text x="646" y="168" fill="#94a3b8" font-size="8">restart agent or</text>
+        <text x="646" y="182" fill="#94a3b8" font-size="8">trigger reload</text>
+        <line x1="646" y1="194" x2="774" y2="194" stroke="#1e293b" stroke-width="1"/>
+        <text x="646" y="210" fill="#94a3b8" font-size="8">open Skills page →</text>
+        <text x="646" y="224" fill="#94a3b8" font-size="8">confirm skill appears</text>
+        <line x1="646" y1="236" x2="774" y2="236" stroke="#1e293b" stroke-width="1"/>
+        <text x="646" y="252" fill="#94a3b8" font-size="8">type trigger phrase</text>
+        <text x="646" y="266" fill="#fbbf24" font-size="8">→ skill activates</text>
+
+        <!-- ============ Step 5: Iterate ============ -->
+        <rect x="830" y="100" width="160" height="180" rx="6" fill="#0f172a"/>
+        <rect x="830" y="100" width="160" height="180" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="910" y="124" fill="white" font-size="11" font-weight="600" text-anchor="middle">Iterate</text>
+        <text x="910" y="142" fill="#94a3b8" font-size="9" text-anchor="middle">refine until correct</text>
+        <line x1="846" y1="152" x2="974" y2="152" stroke="#1e293b" stroke-width="1"/>
+        <text x="846" y="168" fill="#94a3b8" font-size="8">edit SKILL.md body</text>
+        <text x="846" y="182" fill="#94a3b8" font-size="8">adjust triggers</text>
+        <text x="846" y="196" fill="#94a3b8" font-size="8">add/remove files</text>
+        <line x1="846" y1="208" x2="974" y2="208" stroke="#1e293b" stroke-width="1"/>
+        <text x="846" y="224" fill="#94a3b8" font-size="8">reload → test again</text>
+        <text x="846" y="238" fill="#34d399" font-size="8">until behaviour</text>
+        <text x="846" y="252" fill="#34d399" font-size="8">is correct</text>
+
+        <!-- ============ Step 6: Publish (optional) ============ -->
+        <rect x="1030" y="100" width="160" height="180" rx="6" fill="#0f172a"/>
+        <rect x="1030" y="100" width="160" height="180" rx="6" fill="rgba(30, 41, 59, 0.3)" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5,3"/>
+        <text x="1110" y="124" fill="white" font-size="11" font-weight="600" text-anchor="middle">Publish to Hub</text>
+        <text x="1110" y="140" fill="#94a3b8" font-size="8" text-anchor="middle">optional</text>
+        <line x1="1046" y1="150" x2="1174" y2="150" stroke="#1e293b" stroke-width="1"/>
+        <text x="1046" y="166" fill="#94a3b8" font-size="8">package skill dir</text>
+        <text x="1046" y="180" fill="#94a3b8" font-size="8">submit to Skills Hub</text>
+        <line x1="1046" y1="192" x2="1174" y2="192" stroke="#1e293b" stroke-width="1"/>
+        <text x="1046" y="208" fill="#94a3b8" font-size="8">hub review process</text>
+        <text x="1046" y="222" fill="#94a3b8" font-size="8">security scan</text>
+        <line x1="1046" y1="234" x2="1174" y2="234" stroke="#1e293b" stroke-width="1"/>
+        <text x="1046" y="250" fill="#94a3b8" font-size="8">others can install</text>
+        <text x="1046" y="264" fill="#94a3b8" font-size="8">via Marketplace</text>
+
+        <!-- ============ Detail sub-flows ============ -->
+        <!-- Verify path from step 4 downward -->
+        <rect x="630" y="320" width="160" height="60" rx="6" fill="#0f172a"/>
+        <rect x="630" y="320" width="160" height="60" rx="6" fill="rgba(136, 19, 55, 0.25)" stroke="#fb7185" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="710" y="344" fill="#fb7185" font-size="10" font-weight="600" text-anchor="middle">Skill not found?</text>
+        <text x="710" y="360" fill="#94a3b8" font-size="8" text-anchor="middle">check dir name matches</text>
+        <text x="710" y="374" fill="#94a3b8" font-size="8" text-anchor="middle">SKILL.md is present</text>
+        <line x1="710" y1="280" x2="710" y2="318" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow-slate)"/>
+
+        <!-- Skill verify path -->
+        <rect x="830" y="320" width="160" height="60" rx="6" fill="#0f172a"/>
+        <rect x="830" y="320" width="160" height="60" rx="6" fill="rgba(6, 78, 59, 0.25)" stroke="#34d399" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="910" y="344" fill="#34d399" font-size="10" font-weight="600" text-anchor="middle">Verify install</text>
+        <text x="910" y="360" fill="#94a3b8" font-size="8" text-anchor="middle">Skills page → Installed</text>
+        <text x="910" y="374" fill="#94a3b8" font-size="8" text-anchor="middle">confirm name + triggers</text>
+        <line x1="910" y1="280" x2="910" y2="318" stroke="#34d399" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow-emerald)"/>
+
+        <!-- ============ Legend ============ -->
+        <text x="30" y="430" fill="white" font-size="10" font-weight="600">Legend</text>
+        <rect x="100" y="422" width="12" height="10" rx="2" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="118" y="431" fill="#94a3b8" font-size="9">Scaffold</text>
+        <rect x="200" y="422" width="12" height="10" rx="2" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1"/>
+        <text x="218" y="431" fill="#94a3b8" font-size="9">Author / Iterate</text>
+        <rect x="340" y="422" width="12" height="10" rx="2" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="358" y="431" fill="#94a3b8" font-size="9">Optional content</text>
+        <rect x="490" y="422" width="12" height="10" rx="2" fill="rgba(120, 53, 15, 0.4)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="508" y="431" fill="#94a3b8" font-size="9">Test</text>
+        <rect x="560" y="422" width="12" height="10" rx="2" fill="rgba(30, 41, 59, 0.3)" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3"/>
+        <text x="578" y="431" fill="#94a3b8" font-size="9">Publish (optional)</text>
+        <line x1="700" y1="427" x2="730" y2="427" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <text x="738" y="431" fill="#94a3b8" font-size="9">iterate loop</text>
+
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot violet"></div><h3>Steps 1–2: Scaffold &amp; manifest</h3></div>
+        <ul>
+          <li>• Create <code>~/.hermes/skills/&lt;name&gt;/</code> directory</li>
+          <li>• Write <code>SKILL.md</code> with YAML frontmatter (name, description, triggers)</li>
+          <li>• Add Markdown body with agent instructions</li>
+          <li>• Directory name becomes the skill identifier</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot amber"></div><h3>Steps 4–5: Test &amp; iterate</h3></div>
+        <ul>
+          <li>• Restart the agent or trigger a skills reload</li>
+          <li>• Check the Skills page — skill should appear in Installed</li>
+          <li>• Type a trigger phrase in chat to invoke the skill</li>
+          <li>• Edit SKILL.md and reload until behaviour is correct</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot rose"></div><h3>Common issues</h3></div>
+        <ul>
+          <li>• Skill not appearing — check directory name and SKILL.md presence</li>
+          <li>• Trigger not firing — confirm agent reloaded after edit</li>
+          <li>• Scripts not running — elevated trust must be enabled in agent config</li>
+          <li>• Wrong behaviour — refine the Markdown body instructions</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">
+      Hermes Switch UI  •  skill authoring flow  •  scaffold → manifest → test → iterate → publish
+    </p>
+  </div>
+</body>
+</html>

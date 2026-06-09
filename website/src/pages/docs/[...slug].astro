@@ -1,0 +1,31 @@
+---
+import { render } from 'astro:content';
+import Page from '@astrojs/starlight/components/Page.astro';
+import {
+  getRouteBySlugParam,
+  paths,
+} from '../../../node_modules/@astrojs/starlight/utils/routing/index';
+import { useRouteData } from '../../../node_modules/@astrojs/starlight/utils/routing/data';
+import { attachRouteDataAndRunMiddleware } from '../../../node_modules/@astrojs/starlight/utils/routing/middleware';
+import { prefixRouteData } from '../../lib/starlight-docs-prefix';
+
+export const prerender = true;
+
+export function getStaticPaths() {
+  return paths;
+}
+
+const route = getRouteBySlugParam(Astro.params.slug);
+
+if (!route) {
+  return new Response(null, { status: 404 });
+}
+
+const renderResult = await render(route.entry);
+const routeData = prefixRouteData(useRouteData(Astro, route, renderResult), Astro.url.pathname);
+await attachRouteDataAndRunMiddleware(Astro, routeData);
+
+const { Content, entry } = Astro.locals.starlightRoute;
+---
+
+<Page>{Content && <Content frontmatter={entry.data} />}</Page>

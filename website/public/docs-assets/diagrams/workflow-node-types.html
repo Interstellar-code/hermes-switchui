@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Workflow Node Types</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #22d3ee; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Hermes Switch UI — Workflow Node Types</h1>
+      </div>
+      <p class="subtitle">All 8 DAG node variants defined in schemas/dag-node.ts, grouped by category</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 720">
+        <defs>
+          <marker id="arrowhead-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <marker id="arrowhead-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrowhead-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <marker id="arrowhead-rose" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fb7185" />
+          </marker>
+          <marker id="arrowhead-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ============ Section title: AI / LLM nodes ============ -->
+        <text x="30" y="48" fill="#34d399" font-size="11" font-weight="600">AI / LLM nodes</text>
+        <line x1="30" y1="54" x2="360" y2="54" stroke="#34d399" stroke-width="0.75" opacity="0.5"/>
+
+        <!-- command node -->
+        <rect x="30" y="68" width="155" height="100" rx="6" fill="#0f172a"/>
+        <rect x="30" y="68" width="155" height="100" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="107" y="88" fill="white" font-size="11" font-weight="700" text-anchor="middle">command</text>
+        <text x="107" y="104" fill="#34d399" font-size="8" text-anchor="middle">Claude Agent SDK · tool use</text>
+        <line x1="40" y1="112" x2="175" y2="112" stroke="#1e293b" stroke-width="0.75"/>
+        <text x="40" y="126" fill="#94a3b8" font-size="8">in: prompt, allowed_tools</text>
+        <text x="40" y="140" fill="#94a3b8" font-size="8">    agent_hint, effort</text>
+        <text x="40" y="154" fill="#94a3b8" font-size="8">out: text, tool results</text>
+
+        <!-- prompt node -->
+        <rect x="205" y="68" width="155" height="100" rx="6" fill="#0f172a"/>
+        <rect x="205" y="68" width="155" height="100" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="282" y="88" fill="white" font-size="11" font-weight="700" text-anchor="middle">prompt</text>
+        <text x="282" y="104" fill="#34d399" font-size="8" text-anchor="middle">raw LLM call · no tool loop</text>
+        <line x1="215" y1="112" x2="350" y2="112" stroke="#1e293b" stroke-width="0.75"/>
+        <text x="215" y="126" fill="#94a3b8" font-size="8">in: prompt text, model_hint</text>
+        <text x="215" y="140" fill="#94a3b8" font-size="8">    output_format</text>
+        <text x="215" y="154" fill="#94a3b8" font-size="8">out: text response</text>
+
+        <!-- loop node -->
+        <rect x="380" y="68" width="155" height="100" rx="6" fill="#0f172a"/>
+        <rect x="380" y="68" width="155" height="100" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="457" y="88" fill="white" font-size="11" font-weight="700" text-anchor="middle">loop</text>
+        <text x="457" y="104" fill="#34d399" font-size="8" text-anchor="middle">iterates until condition met</text>
+        <line x1="390" y1="112" x2="525" y2="112" stroke="#1e293b" stroke-width="0.75"/>
+        <text x="390" y="126" fill="#94a3b8" font-size="8">in: prompt, loop config</text>
+        <text x="390" y="140" fill="#94a3b8" font-size="8">    completion condition</text>
+        <text x="390" y="154" fill="#94a3b8" font-size="8">out: last iteration output</text>
+
+        <!-- ============ Section title: Execution nodes ============ -->
+        <text x="30" y="218" fill="#fbbf24" font-size="11" font-weight="600">Execution nodes</text>
+        <line x1="30" y1="224" x2="360" y2="224" stroke="#fbbf24" stroke-width="0.75" opacity="0.5"/>
+
+        <!-- bash node -->
+        <rect x="30" y="238" width="155" height="100" rx="6" fill="#0f172a"/>
+        <rect x="30" y="238" width="155" height="100" rx="6" fill="rgba(120, 53, 15, 0.4)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="107" y="258" fill="white" font-size="11" font-weight="700" text-anchor="middle">bash</text>
+        <text x="107" y="274" fill="#fbbf24" font-size="8" text-anchor="middle">inline shell command</text>
+        <line x1="40" y1="282" x2="175" y2="282" stroke="#1e293b" stroke-width="0.75"/>
+        <text x="40" y="296" fill="#94a3b8" font-size="8">in: bash string, env vars</text>
+        <text x="40" y="310" fill="#94a3b8" font-size="8">    cwd, timeout</text>
+        <text x="40" y="324" fill="#94a3b8" font-size="8">out: stdout, exit code</text>
+
+        <!-- script node -->
+        <rect x="205" y="238" width="155" height="100" rx="6" fill="#0f172a"/>
+        <rect x="205" y="238" width="155" height="100" rx="6" fill="rgba(120, 53, 15, 0.4)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="282" y="258" fill="white" font-size="11" font-weight="700" text-anchor="middle">script</text>
+        <text x="282" y="274" fill="#fbbf24" font-size="8" text-anchor="middle">TS / Python file via bun/uv</text>
+        <line x1="215" y1="282" x2="350" y2="282" stroke="#1e293b" stroke-width="0.75"/>
+        <text x="215" y="296" fill="#94a3b8" font-size="8">in: script path, args</text>
+        <text x="215" y="310" fill="#94a3b8" font-size="8">    interpreter (bun|uv)</text>
+        <text x="215" y="324" fill="#94a3b8" font-size="8">out: stdout, exit code</text>
+
+        <!-- ============ Section title: Control-flow nodes ============ -->
+        <text x="30" y="398" fill="#fb7185" font-size="11" font-weight="600">Control-flow nodes</text>
+        <line x1="30" y1="404" x2="360" y2="404" stroke="#fb7185" stroke-width="0.75" opacity="0.5"/>
+
+        <!-- approval node -->
+        <rect x="30" y="418" width="155" height="110" rx="6" fill="#0f172a"/>
+        <rect x="30" y="418" width="155" height="110" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="107" y="438" fill="white" font-size="11" font-weight="700" text-anchor="middle">approval</text>
+        <text x="107" y="454" fill="#fb7185" font-size="8" text-anchor="middle">human-in-the-loop gate</text>
+        <line x1="40" y1="462" x2="175" y2="462" stroke="#1e293b" stroke-width="0.75"/>
+        <text x="40" y="476" fill="#94a3b8" font-size="8">in: message, capture_response</text>
+        <text x="40" y="490" fill="#94a3b8" font-size="8">    on_reject config</text>
+        <text x="40" y="504" fill="#94a3b8" font-size="8">pauses: waits for POST /approve</text>
+        <text x="40" y="518" fill="#94a3b8" font-size="8">out: approved / rejected</text>
+
+        <!-- cancel node -->
+        <rect x="205" y="418" width="155" height="110" rx="6" fill="#0f172a"/>
+        <rect x="205" y="418" width="155" height="110" rx="6" fill="rgba(136, 19, 55, 0.4)" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="282" y="438" fill="white" font-size="11" font-weight="700" text-anchor="middle">cancel</text>
+        <text x="282" y="454" fill="#fb7185" font-size="8" text-anchor="middle">terminate run with reason</text>
+        <line x1="215" y1="462" x2="350" y2="462" stroke="#1e293b" stroke-width="0.75"/>
+        <text x="215" y="476" fill="#94a3b8" font-size="8">in: reason string</text>
+        <text x="215" y="490" fill="#94a3b8" font-size="8">effect: marks run cancelled</text>
+        <text x="215" y="504" fill="#94a3b8" font-size="8">    skips remaining nodes</text>
+        <text x="215" y="518" fill="#94a3b8" font-size="8">out: n/a</text>
+
+        <!-- ============ Section title: Structural nodes ============ -->
+        <text x="30" y="590" fill="#a78bfa" font-size="11" font-weight="600">Structural nodes</text>
+        <line x1="30" y1="596" x2="360" y2="596" stroke="#a78bfa" stroke-width="0.75" opacity="0.5"/>
+
+        <!-- subgraph node -->
+        <rect x="30" y="610" width="330" height="90" rx="6" fill="#0f172a"/>
+        <rect x="30" y="610" width="330" height="90" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="195" y="630" fill="white" font-size="11" font-weight="700" text-anchor="middle">subgraph</text>
+        <text x="195" y="646" fill="#a78bfa" font-size="8" text-anchor="middle">references another workflow definition — enables nesting and reuse</text>
+        <line x1="40" y1="654" x2="350" y2="654" stroke="#1e293b" stroke-width="0.75"/>
+        <text x="40" y="668" fill="#94a3b8" font-size="8">in: ref (workflow id), inputs map, when condition, timeout, max_retries</text>
+        <text x="40" y="682" fill="#94a3b8" font-size="8">out: all outputs from the referenced workflow's terminal nodes</text>
+
+        <!-- ============ Right column: DAG base + edges ============ -->
+
+        <!-- DagNodeBase -->
+        <rect x="580" y="68" width="580" height="160" rx="8" fill="#0f172a"/>
+        <rect x="580" y="68" width="580" height="160" rx="8" fill="rgba(15, 23, 42, 0.6)" stroke="#475569" stroke-width="1.5"/>
+        <text x="870" y="90" fill="white" font-size="12" font-weight="700" text-anchor="middle">DagNodeBase (shared by all node types)</text>
+        <line x1="590" y1="98" x2="1150" y2="98" stroke="#1e293b" stroke-width="0.75"/>
+        <text x="590" y="114" fill="#94a3b8" font-size="9">id          — unique node identifier (kebab/snake-case)</text>
+        <text x="590" y="130" fill="#94a3b8" font-size="9">depends_on  — array of upstream node IDs</text>
+        <text x="590" y="146" fill="#94a3b8" font-size="9">trigger_rule — all_success | one_success | none_failed_min_one_success | all_done</text>
+        <text x="590" y="162" fill="#94a3b8" font-size="9">retry       — max_attempts, delay_ms, backoff_factor</text>
+        <text x="590" y="178" fill="#94a3b8" font-size="9">hooks       — on_success / on_failure bash commands</text>
+        <text x="590" y="194" fill="#94a3b8" font-size="9">when        — conditional expression; node skipped when false</text>
+        <text x="590" y="210" fill="#94a3b8" font-size="9">timeout     — max duration in seconds</text>
+
+        <!-- Edge syntax -->
+        <rect x="580" y="258" width="580" height="160" rx="8" fill="#0f172a"/>
+        <rect x="580" y="258" width="580" height="160" rx="8" fill="rgba(15, 23, 42, 0.6)" stroke="#475569" stroke-width="1.5"/>
+        <text x="870" y="280" fill="white" font-size="12" font-weight="700" text-anchor="middle">Edge syntax — how nodes connect</text>
+        <line x1="590" y1="288" x2="1150" y2="288" stroke="#1e293b" stroke-width="0.75"/>
+        <text x="590" y="306" fill="#94a3b8" font-size="9">Edges are declared implicitly via depends_on on the downstream node:</text>
+        <text x="590" y="322" fill="#34d399" font-size="9">  - id: fetch-data</text>
+        <text x="590" y="338" fill="#34d399" font-size="9">    command: ...</text>
+        <text x="590" y="354" fill="#34d399" font-size="9">  - id: process-data</text>
+        <text x="590" y="370" fill="#34d399" font-size="9">    depends_on: [fetch-data]   # ← this is the edge</text>
+        <text x="590" y="386" fill="#34d399" font-size="9">    command: ...</text>
+        <text x="590" y="402" fill="#94a3b8" font-size="9">  trigger_rule controls when a node fires with multiple parents</text>
+
+        <!-- Subgraph nesting -->
+        <rect x="580" y="448" width="580" height="252" rx="8" fill="#0f172a"/>
+        <rect x="580" y="448" width="580" height="252" rx="8" fill="rgba(76, 29, 149, 0.2)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="870" y="470" fill="white" font-size="12" font-weight="700" text-anchor="middle">Subgraph nesting concept</text>
+        <line x1="590" y1="478" x2="1150" y2="478" stroke="#1e293b" stroke-width="0.75"/>
+
+        <!-- outer workflow box -->
+        <rect x="600" y="492" width="540" height="190" rx="6" fill="rgba(6, 78, 59, 0.15)" stroke="#34d399" stroke-width="1" stroke-dasharray="6,3"/>
+        <text x="870" y="510" fill="#34d399" font-size="9" text-anchor="middle">Outer workflow</text>
+
+        <!-- node A -->
+        <rect x="620" y="524" width="100" height="40" rx="4" fill="#0f172a"/>
+        <rect x="620" y="524" width="100" height="40" rx="4" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1"/>
+        <text x="670" y="548" fill="white" font-size="9" text-anchor="middle">node-A (command)</text>
+
+        <!-- arrow A → subgraph -->
+        <line x1="722" y1="544" x2="760" y2="544" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arrowhead-slate)"/>
+
+        <!-- subgraph node box (outer) -->
+        <rect x="762" y="520" width="200" height="120" rx="6" fill="rgba(76, 29, 149, 0.15)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="862" y="538" fill="#a78bfa" font-size="9" text-anchor="middle">node-B (subgraph)</text>
+        <text x="862" y="550" fill="#94a3b8" font-size="8" text-anchor="middle">ref: helper-workflow</text>
+
+        <!-- inner workflow box -->
+        <rect x="775" y="558" width="175" height="70" rx="4" fill="rgba(6, 78, 59, 0.15)" stroke="#34d399" stroke-width="0.75" stroke-dasharray="4,2"/>
+        <text x="862" y="573" fill="#34d399" font-size="8" text-anchor="middle">helper-workflow</text>
+        <rect x="785" y="580" width="65" height="36" rx="3" fill="#0f172a"/>
+        <rect x="785" y="580" width="65" height="36" rx="3" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="0.75"/>
+        <text x="817" y="602" fill="white" font-size="7" text-anchor="middle">step-1</text>
+        <line x1="852" y1="598" x2="862" y2="598" stroke="#94a3b8" stroke-width="0.75" marker-end="url(#arrowhead-slate)"/>
+        <rect x="864" y="580" width="65" height="36" rx="3" fill="#0f172a"/>
+        <rect x="864" y="580" width="65" height="36" rx="3" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="0.75"/>
+        <text x="896" y="602" fill="white" font-size="7" text-anchor="middle">step-2</text>
+
+        <!-- arrow subgraph → node C -->
+        <line x1="964" y1="544" x2="1000" y2="544" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arrowhead-slate)"/>
+
+        <!-- node C -->
+        <rect x="1002" y="524" width="108" height="40" rx="4" fill="#0f172a"/>
+        <rect x="1002" y="524" width="108" height="40" rx="4" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1"/>
+        <text x="1056" y="548" fill="white" font-size="9" text-anchor="middle">node-C (bash)</text>
+
+        <text x="870" y="670" fill="#94a3b8" font-size="8" text-anchor="middle">A subgraph node runs the entire referenced workflow as a single step, passing inputs and collecting outputs.</text>
+
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot emerald"></div><h3>AI / LLM nodes</h3></div>
+        <ul>
+          <li>• command — Claude Agent SDK with tool use</li>
+          <li>• prompt — raw LLM call, no tool loop</li>
+          <li>• loop — iterates with completion condition</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot amber"></div><h3>Execution nodes</h3></div>
+        <ul>
+          <li>• bash — inline shell command string</li>
+          <li>• script — TypeScript or Python file via bun/uv</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot rose"></div><h3>Control-flow + Structural</h3></div>
+        <ul>
+          <li>• approval — pauses for human review</li>
+          <li>• cancel — terminates run with reason</li>
+          <li>• subgraph — nests another workflow definition</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">
+      Hermes Switch UI  •  workflow node types  •  src/server/workflow-engine/schemas/dag-node.ts
+    </p>
+  </div>
+</body>
+</html>

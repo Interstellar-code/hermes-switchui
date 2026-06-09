@@ -71,7 +71,7 @@ A few details matter here:
 
 Open `~/.hermes/.env` and add the key that matches `key_env`:
 
-```env
+```bash
 CUSTOM_API_KEY=your-endpoint-api-key
 ```
 

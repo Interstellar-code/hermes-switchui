@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Skills Loading Pipeline</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #22d3ee; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Skills Loading Pipeline</h1>
+      </div>
+      <p class="subtitle">How skills travel from disk to active context — filesystem scan through chat-turn injection</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 640">
+        <defs>
+          <marker id="arrow-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8" />
+          </marker>
+          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+          </marker>
+          <marker id="arrow-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" />
+          </marker>
+          <marker id="arrow-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa" />
+          </marker>
+          <marker id="arrow-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+        </defs>
+
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <!-- ============ Phase label: startup ============ -->
+        <text x="30" y="36" fill="#475569" font-size="9" font-weight="600">AGENT STARTUP</text>
+        <line x1="30" y1="40" x2="800" y2="40" stroke="#1e293b" stroke-width="1" stroke-dasharray="4,4"/>
+
+        <!-- ============ Phase label: chat turn ============ -->
+        <text x="30" y="406" fill="#475569" font-size="9" font-weight="600">CHAT TURN</text>
+        <line x1="30" y1="410" x2="1170" y2="410" stroke="#1e293b" stroke-width="1" stroke-dasharray="4,4"/>
+
+        <!-- ============ Step 1: Filesystem ============ -->
+        <!-- outer rect (double-rect technique) -->
+        <rect x="30" y="60" width="160" height="80" rx="6" fill="#0f172a"/>
+        <rect x="30" y="60" width="160" height="80" rx="6" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="110" y="88" fill="white" font-size="11" font-weight="600" text-anchor="middle">~/.hermes/skills/</text>
+        <text x="110" y="104" fill="#94a3b8" font-size="8" text-anchor="middle">filesystem on agent host</text>
+        <text x="110" y="118" fill="#a78bfa" font-size="8" text-anchor="middle">one directory per skill</text>
+
+        <!-- ============ Step 2: Skills Loader ============ -->
+        <rect x="250" y="60" width="160" height="80" rx="6" fill="#0f172a"/>
+        <rect x="250" y="60" width="160" height="80" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="330" y="88" fill="white" font-size="11" font-weight="600" text-anchor="middle">Skills Loader</text>
+        <text x="330" y="104" fill="#94a3b8" font-size="8" text-anchor="middle">Hermes Agent module</text>
+        <text x="330" y="118" fill="#34d399" font-size="8" text-anchor="middle">scans dir at startup</text>
+
+        <!-- ============ Step 3: Manifest Validation ============ -->
+        <rect x="470" y="60" width="160" height="80" rx="6" fill="#0f172a"/>
+        <rect x="470" y="60" width="160" height="80" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="550" y="82" fill="white" font-size="11" font-weight="600" text-anchor="middle">Manifest</text>
+        <text x="550" y="97" fill="white" font-size="11" font-weight="600" text-anchor="middle">Validation</text>
+        <text x="550" y="113" fill="#94a3b8" font-size="8" text-anchor="middle">parses SKILL.md frontmatter</text>
+        <text x="550" y="126" fill="#34d399" font-size="8" text-anchor="middle">name, triggers, tags, version</text>
+
+        <!-- ============ Step 4: Skill Index ============ -->
+        <rect x="690" y="60" width="160" height="80" rx="6" fill="#0f172a"/>
+        <rect x="690" y="60" width="160" height="80" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="770" y="88" fill="white" font-size="11" font-weight="600" text-anchor="middle">Skill Index</text>
+        <text x="770" y="104" fill="#94a3b8" font-size="8" text-anchor="middle">in-memory registry</text>
+        <text x="770" y="118" fill="#34d399" font-size="8" text-anchor="middle">all validated skills</text>
+
+        <!-- invalid path from Manifest Validation down -->
+        <path d="M 550 140 L 550 185 L 550 210" fill="none" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow-slate)"/>
+        <!-- invalid label box -->
+        <rect x="470" y="185" width="160" height="38" rx="6" fill="#0f172a"/>
+        <rect x="470" y="185" width="160" height="38" rx="6" fill="rgba(136, 19, 55, 0.3)" stroke="#fb7185" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="550" y="200" fill="#fb7185" font-size="9" font-weight="600" text-anchor="middle">Invalid manifest</text>
+        <text x="550" y="215" fill="#94a3b8" font-size="8" text-anchor="middle">skipped, logged as warning</text>
+
+        <!-- ============ Step 5: Enable filter ============ -->
+        <!-- enabled filter box -->
+        <rect x="690" y="185" width="160" height="38" rx="6" fill="#0f172a"/>
+        <rect x="690" y="185" width="160" height="38" rx="6" fill="rgba(6, 78, 59, 0.25)" stroke="#34d399" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="770" y="200" fill="white" font-size="9" font-weight="600" text-anchor="middle">Filter: enabled flag</text>
+        <text x="770" y="215" fill="#94a3b8" font-size="8" text-anchor="middle">disabled skills excluded</text>
+
+        <!-- ============ Step 6: Active skills pool ============ -->
+        <rect x="910" y="60" width="160" height="80" rx="6" fill="#0f172a"/>
+        <rect x="910" y="60" width="160" height="80" rx="6" fill="rgba(8, 51, 68, 0.5)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="990" y="85" fill="white" font-size="11" font-weight="600" text-anchor="middle">Active Skills Pool</text>
+        <text x="990" y="101" fill="#94a3b8" font-size="8" text-anchor="middle">ready for context injection</text>
+        <text x="990" y="117" fill="#22d3ee" font-size="8" text-anchor="middle">exposed via /api/skills</text>
+
+        <!-- ============ Arrows: startup phase ============ -->
+        <!-- Filesystem → Skills Loader -->
+        <line x1="190" y1="100" x2="248" y2="100" stroke="#a78bfa" stroke-width="1.8" marker-end="url(#arrow-violet)"/>
+        <text x="219" y="93" fill="#94a3b8" font-size="8" text-anchor="middle">scan</text>
+
+        <!-- Skills Loader → Manifest Validation -->
+        <line x1="410" y1="100" x2="468" y2="100" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrow-emerald)"/>
+        <text x="439" y="93" fill="#94a3b8" font-size="8" text-anchor="middle">parse</text>
+
+        <!-- Manifest Validation → Skill Index (valid path) -->
+        <line x1="630" y1="100" x2="688" y2="100" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrow-emerald)"/>
+        <text x="659" y="93" fill="#94a3b8" font-size="8" text-anchor="middle">valid</text>
+
+        <!-- Skill Index → Enable filter (down) -->
+        <line x1="770" y1="140" x2="770" y2="183" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+
+        <!-- Enable filter → Active Skills Pool -->
+        <path d="M 850 204 L 880 204 L 880 100 L 908 100" fill="none" stroke="#22d3ee" stroke-width="1.8" marker-end="url(#arrow-cyan)"/>
+        <text x="870" y="165" fill="#22d3ee" font-size="8" text-anchor="middle">enabled</text>
+
+        <!-- ============ UI sub-flow (Skills Page) ============ -->
+        <!-- UI boundary box -->
+        <rect x="910" y="170" width="260" height="80" rx="8" fill="rgba(8, 51, 68, 0.08)" stroke="#22d3ee" stroke-width="1" stroke-dasharray="8,4"/>
+        <text x="926" y="188" fill="#22d3ee" font-size="9" font-weight="600">Skills Page (Switch UI)</text>
+
+        <rect x="920" y="195" width="110" height="42" rx="6" fill="#0f172a"/>
+        <rect x="920" y="195" width="110" height="42" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="975" y="213" fill="white" font-size="9" font-weight="600" text-anchor="middle">Installed</text>
+        <text x="975" y="228" fill="#94a3b8" font-size="7" text-anchor="middle">enabled skills</text>
+
+        <rect x="1045" y="195" width="110" height="42" rx="6" fill="#0f172a"/>
+        <rect x="1045" y="195" width="110" height="42" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="1100" y="213" fill="white" font-size="9" font-weight="600" text-anchor="middle">Hub</text>
+        <text x="1100" y="228" fill="#94a3b8" font-size="7" text-anchor="middle">browseable skills</text>
+
+        <!-- Active pool → UI -->
+        <line x1="990" y1="140" x2="990" y2="193" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+        <!-- ============ CHAT TURN phase ============ -->
+
+        <!-- Chat turn boxes -->
+        <!-- User message -->
+        <rect x="30" y="430" width="140" height="60" rx="6" fill="#0f172a"/>
+        <rect x="30" y="430" width="140" height="60" rx="6" fill="rgba(30, 41, 59, 0.5)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="100" y="455" fill="white" font-size="11" font-weight="600" text-anchor="middle">User Message</text>
+        <text x="100" y="471" fill="#94a3b8" font-size="8" text-anchor="middle">chat composer</text>
+
+        <!-- Trigger matcher -->
+        <rect x="230" y="430" width="160" height="60" rx="6" fill="#0f172a"/>
+        <rect x="230" y="430" width="160" height="60" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="310" y="455" fill="white" font-size="11" font-weight="600" text-anchor="middle">Trigger Matcher</text>
+        <text x="310" y="471" fill="#94a3b8" font-size="8" text-anchor="middle">checks active skills list</text>
+
+        <!-- No match path -->
+        <rect x="230" y="520" width="160" height="38" rx="6" fill="#0f172a"/>
+        <rect x="230" y="520" width="160" height="38" rx="6" fill="rgba(30, 41, 59, 0.3)" stroke="#475569" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="310" y="536" fill="#94a3b8" font-size="9" text-anchor="middle">no match</text>
+        <text x="310" y="550" fill="#475569" font-size="8" text-anchor="middle">normal freeform response</text>
+
+        <!-- Skill content injector -->
+        <rect x="450" y="430" width="160" height="60" rx="6" fill="#0f172a"/>
+        <rect x="450" y="430" width="160" height="60" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="530" y="452" fill="white" font-size="11" font-weight="600" text-anchor="middle">Skill Content</text>
+        <text x="530" y="467" fill="white" font-size="11" font-weight="600" text-anchor="middle">Injector</text>
+        <text x="530" y="482" fill="#94a3b8" font-size="8" text-anchor="middle">appends skill body to context</text>
+
+        <!-- Agent context -->
+        <rect x="670" y="430" width="160" height="60" rx="6" fill="#0f172a"/>
+        <rect x="670" y="430" width="160" height="60" rx="6" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="750" y="452" fill="white" font-size="11" font-weight="600" text-anchor="middle">Agent Context</text>
+        <text x="750" y="467" fill="white" font-size="11" font-weight="600" text-anchor="middle">Window</text>
+        <text x="750" y="482" fill="#34d399" font-size="8" text-anchor="middle">system + skill + user prompt</text>
+
+        <!-- Skill tool call -->
+        <rect x="890" y="430" width="160" height="60" rx="6" fill="#0f172a"/>
+        <rect x="890" y="430" width="160" height="60" rx="6" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="970" y="452" fill="white" font-size="11" font-weight="600" text-anchor="middle">Agent executes</text>
+        <text x="970" y="467" fill="white" font-size="11" font-weight="600" text-anchor="middle">skill behaviour</text>
+        <text x="970" y="482" fill="#22d3ee" font-size="8" text-anchor="middle">follows skill instructions</text>
+
+        <!-- Chat turn arrows -->
+        <line x1="170" y1="460" x2="228" y2="460" stroke="#94a3b8" stroke-width="1.8" marker-end="url(#arrow-slate)"/>
+
+        <!-- Trigger → no match (down) -->
+        <line x1="310" y1="490" x2="310" y2="518" stroke="#475569" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow-slate)"/>
+
+        <!-- Trigger → injector (match) -->
+        <line x1="390" y1="460" x2="448" y2="460" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrow-emerald)"/>
+        <text x="419" y="453" fill="#34d399" font-size="8" text-anchor="middle">match</text>
+
+        <!-- Injector → context -->
+        <line x1="610" y1="460" x2="668" y2="460" stroke="#34d399" stroke-width="1.8" marker-end="url(#arrow-emerald)"/>
+
+        <!-- Context → execute -->
+        <line x1="830" y1="460" x2="888" y2="460" stroke="#22d3ee" stroke-width="1.8" marker-end="url(#arrow-cyan)"/>
+
+        <!-- Active skills pool connects down to trigger matcher -->
+        <path d="M 990 250 L 990 390 L 310 390 L 310 428" fill="none" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrow-cyan)"/>
+        <text x="650" y="383" fill="#22d3ee" font-size="8" text-anchor="middle">active skills available to matcher</text>
+
+        <!-- ============ Legend ============ -->
+        <text x="30" y="595" fill="white" font-size="10" font-weight="600">Legend</text>
+        <rect x="100" y="587" width="12" height="10" rx="2" fill="rgba(76, 29, 149, 0.4)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="118" y="596" fill="#94a3b8" font-size="9">Storage</text>
+        <rect x="200" y="587" width="12" height="10" rx="2" fill="rgba(6, 78, 59, 0.4)" stroke="#34d399" stroke-width="1"/>
+        <text x="218" y="596" fill="#94a3b8" font-size="9">Hermes Agent</text>
+        <rect x="330" y="587" width="12" height="10" rx="2" fill="rgba(8, 51, 68, 0.4)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="348" y="596" fill="#94a3b8" font-size="9">Switch UI / Active Pool</text>
+        <rect x="490" y="587" width="12" height="10" rx="2" fill="rgba(136, 19, 55, 0.3)" stroke="#fb7185" stroke-width="1" stroke-dasharray="3,3"/>
+        <text x="508" y="596" fill="#94a3b8" font-size="9">Error / skip path</text>
+
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header"><div class="card-dot violet"></div><h3>Filesystem scan</h3></div>
+        <ul>
+          <li>• Agent reads <code>~/.hermes/skills/</code> at startup</li>
+          <li>• Each subdirectory is a candidate skill</li>
+          <li>• Directories without a valid SKILL.md are skipped</li>
+          <li>• Reload can be triggered without full restart</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot emerald"></div><h3>Manifest validation</h3></div>
+        <ul>
+          <li>• SKILL.md frontmatter parsed for name, description, triggers</li>
+          <li>• Missing required fields → skill skipped with warning</li>
+          <li>• Security risk score computed from content</li>
+          <li>• Validated skills added to the in-memory index</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-dot cyan"></div><h3>Chat-turn injection</h3></div>
+        <ul>
+          <li>• On each turn, trigger phrases matched against user message</li>
+          <li>• Matching skill body prepended to agent context</li>
+          <li>• Agent follows skill instructions for that turn</li>
+          <li>• Disabled skills are excluded from matching</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">
+      Hermes Switch UI  •  skills loading pipeline  •  disk scan → validation → index → chat injection
+    </p>
+  </div>
+</body>
+</html>

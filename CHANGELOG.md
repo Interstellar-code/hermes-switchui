@@ -3,6 +3,20 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.35] — 2026-06-09
+
+Website/docs split is now clean: app docs stay at `/docs`, the Astro site builds from the root `docs/` tree, and the embedded `/website` preview works again inside Switch UI.
+
+### Added
+
+- **Website docs now use the repo-root `docs/` folder as their single source of truth.** Starlight loads the canonical markdown from `docs/`, builds website docs under `/docs/...`, and syncs diagrams/images/screenshots into static `/docs-assets/...` so the website no longer depends on app-only `/api/docs*` endpoints.
+
+### Fixed
+
+- **Embedded `/website` preview inside Switch UI was broken by wrong asset base paths.** The Astro build was emitting module URLs that did not line up with the app-served `/website/...` route, so the browser fetched HTML instead of JavaScript and failed strict MIME checks. `build:website` now builds with `SITE_BASE=/website`, and the embedded preview serves JS from `/website/_astro/...` correctly again.
+- **Website docs duplicated both `/docs/...` and root-level doc routes.** Postbuild cleanup now removes the duplicate root doc outputs after Starlight generation, rewrites sitemap entries, and rebuilds Pagefind from the cleaned `dist` so the public website exposes only `/docs/...`.
+- **Some canonical docs pages could not be loaded by Starlight.** Missing frontmatter was added to the remaining markdown files that lacked required `title`/`description` metadata, and unsupported fenced `env` blocks were normalized so the shared root docs tree builds cleanly in the website pipeline.
+
 ## [2.3.34] — 2026-06-09
 
 Regression fix: Task sessions disappeared from the sidebar after the 2.3.33 CLI/A2A change.

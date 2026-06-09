@@ -1,3 +1,8 @@
+---
+title: Workflows backend toggle
+description: Choose between the built-in Switch UI workflow engine and the Hermes plugin-backed workflow engine.
+---
+
 # Workflows backend toggle
 
 Switch UI ships two workflow engine backends. You can switch between them in **Settings → Workflows → Backend**.
