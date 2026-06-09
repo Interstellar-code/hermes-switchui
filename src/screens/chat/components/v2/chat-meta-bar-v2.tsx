@@ -1,9 +1,9 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useSessionStatus } from '@/hooks/use-session-status'
-import { cn } from '@/lib/utils'
 import { SessionSelectorsV2 } from './session-selectors-v2'
 import type { ThinkingLevel } from '../chat-composer-types'
+import { useSessionStatus } from '@/hooks/use-session-status'
+import { cn } from '@/lib/utils'
 
 type ProfilesResponse = {
   activeProfile?: string
@@ -14,12 +14,6 @@ async function fetchProfiles(): Promise<ProfilesResponse> {
   const res = await fetch('/api/profiles/list')
   if (!res.ok) return {}
   return (await res.json()) as ProfilesResponse
-}
-
-function formatTokensShort(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}k`
-  return String(n)
 }
 
 function Sep() {
@@ -63,7 +57,6 @@ function ChatMetaBarV2Component({
   tokPerSec = null,
   toolCount: toolCountProp,
   profile,
-  modelFallback,
   thinkingLevel,
   onThinkingLevelChange,
   hideSelectors = false,
@@ -102,8 +95,6 @@ function ChatMetaBarV2Component({
     lastSampleRef.current = { tokens, t: now }
   }, [isStreaming, status.usedTokens, status.outputTokens])
 
-  const pct = Math.round(Math.min(Math.max(status.contextPercent, 0), 100))
-  const displayModel = status.model || modelFallback || '—'
   const effectiveTokPerSec = tokPerSec ?? derivedTokPerSec
   const displayTokPerSec =
     isStreaming && effectiveTokPerSec != null && effectiveTokPerSec > 0
@@ -141,6 +132,12 @@ function ChatMetaBarV2Component({
           )}
         />
         <span className="m-label m-label-accent">live</span>
+        {displayTokPerSec != null && (
+          <span className="m-mono shrink-0" data-testid="tok-per-sec">
+            {' · '}
+            {displayTokPerSec}
+          </span>
+        )}
       </span>
 
       <Sep />
@@ -150,6 +147,15 @@ function ChatMetaBarV2Component({
         <span className="m-label">profile</span>
         {' · '}
         <span className="m-mono">{displayProfile}</span>
+      </span>
+
+      <Sep />
+
+      {/* Tools */}
+      <span className="shrink-0 whitespace-nowrap" data-testid="meta-tools">
+        <span className="m-label">tools</span>
+        {' · '}
+        <span className="m-mono">{displayToolCount}</span>
       </span>
 
       {!hideSelectors && (

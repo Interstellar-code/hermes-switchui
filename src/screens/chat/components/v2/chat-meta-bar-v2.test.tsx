@@ -6,6 +6,16 @@ import { ChatMetaBarV2 } from './chat-meta-bar-v2'
 
 vi.mock('@tanstack/react-query', () => ({
   useQuery: () => ({ data: undefined }),
+  useMutation: () => ({
+    mutate: () => undefined,
+    mutateAsync: () => Promise.resolve(),
+    isPending: false,
+  }),
+  useQueryClient: () => ({
+    invalidateQueries: () => Promise.resolve(),
+    setQueryData: () => undefined,
+    getQueryData: () => undefined,
+  }),
 }))
 
 vi.mock('@/hooks/use-session-status', () => ({
@@ -82,9 +92,9 @@ describe('ChatMetaBarV2', () => {
     expect(profile?.textContent).toContain('default')
   })
 
-  it('renders model field (— placeholder before fetch resolves)', () => {
-    const container = renderInto(<ChatMetaBarV2 sessionKey={null} />)
-    const model = container.querySelector('[data-testid="meta-model"]')
-    expect(model?.textContent).toContain('—')
+  it('renders selectors slot (model/provider live here, not a standalone field)', () => {
+    const container = renderInto(<ChatMetaBarV2 sessionKey="t_49b85d13" />)
+    const selectors = container.querySelector('[data-testid="meta-selectors"]')
+    expect(selectors).not.toBeNull()
   })
 })
