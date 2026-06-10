@@ -43,6 +43,43 @@ function dashboardJobPath(
   return query ? `${path}?${query}` : path
 }
 
+function isRunHistoryAction(action: string): boolean {
+  return action === 'runs' || action === 'output'
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function synthesizeRunsFromJobDetail(value: unknown): { runs: unknown[] } {
+  const job = asRecord(value)
+  const explicitRuns = job.runs
+  if (Array.isArray(explicitRuns)) return { runs: explicitRuns }
+
+  const lastRun = asRecord(job.lastRun ?? job.last_run)
+  if (Object.keys(lastRun).length > 0) return { runs: [lastRun] }
+
+  const lastRunAt = job.last_run_at ?? job.lastRunAt
+  if (typeof lastRunAt !== 'string' || !lastRunAt.trim()) return { runs: [] }
+
+  return {
+    runs: [
+      {
+        id: job.last_run_id ?? job.lastRunId ?? `last-run-${lastRunAt}`,
+        status: job.last_status ?? job.lastRunStatus ?? job.last_run_success,
+        startedAt: lastRunAt,
+        finishedAt: job.last_completed_at ?? job.lastRunCompletedAt,
+        error: job.last_error ?? job.last_run_error,
+        deliverySummary: job.last_delivery_error
+          ? `Delivery error: ${job.last_delivery_error}`
+          : undefined,
+      },
+    ],
+  }
+}
+
 function collectLinkedSessionKeys(value: unknown): Set<string> {
   const keys = new Set<string>()
   const seen = new Set<unknown>()
@@ -92,9 +129,33 @@ async function readJsonSafely(response: Response): Promise<unknown> {
   }
 }
 
+async function dashboardRunHistoryResponse(
+  jobId: string,
+  action: string,
+  url: URL,
+): Promise<Response> {
+  const runsResponse = await dashboardFetch(dashboardJobPath(jobId, action, url))
+  if (runsResponse.ok || !isRunHistoryAction(action)) return runsResponse
+
+  const detailResponse = await dashboardFetch(`/api/cron/jobs/${jobId}`)
+  if (!detailResponse.ok) return runsResponse
+
+  return new Response(
+    JSON.stringify(synthesizeRunsFromJobDetail(await readJsonSafely(detailResponse))),
+    {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    },
+  )
+}
+
 async function collectDashboardRunSessionKeys(jobId: string): Promise<string[]> {
   try {
-    const runsResponse = await dashboardFetch(`/api/cron/jobs/${jobId}/runs?limit=100`)
+    const runsResponse = await dashboardRunHistoryResponse(
+      jobId,
+      'runs',
+      new URL(`http://localhost/api/claude-jobs/${jobId}?action=runs&limit=100`),
+    )
     if (!runsResponse.ok) return []
     return [...collectLinkedSessionKeys(await readJsonSafely(runsResponse))]
   } catch {
@@ -142,9 +203,9 @@ export const Route = createFileRoute('/api/claude-jobs/$jobId')({
         const action = url.searchParams.get('action') || ''
 
         if (capabilities.dashboard.available) {
-          const res = await dashboardFetch(
-            dashboardJobPath(params.jobId, action, url),
-          )
+          const res = isRunHistoryAction(action)
+            ? await dashboardRunHistoryResponse(params.jobId, action, url)
+            : await dashboardFetch(dashboardJobPath(params.jobId, action, url))
           return new Response(await res.text(), {
             status: res.status,
             headers: { 'Content-Type': 'application/json' },

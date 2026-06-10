@@ -101,6 +101,50 @@ describe('/api/claude-jobs/:jobId', () => {
     )
   })
 
+  it('falls back to job detail when the dashboard has no dedicated runs endpoint', async () => {
+    mockDashboardFetch.mockImplementation(async (path) => {
+      if (path === '/api/cron/jobs/nightly/runs?limit=10') {
+        return new Response(
+          JSON.stringify({
+            detail: 'No such API endpoint: /api/cron/jobs/nightly/runs',
+          }),
+          { status: 404, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      if (path === '/api/cron/jobs/nightly') {
+        return new Response(
+          JSON.stringify({
+            id: 'nightly',
+            last_run_at: '2026-06-09T09:03:41.114606+02:00',
+            last_status: 'ok',
+            last_error: null,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      throw new Error(`unexpected dashboardFetch ${path}`)
+    })
+
+    const request = new Request(
+      'http://localhost/api/claude-jobs/nightly?action=runs&limit=10',
+    )
+
+    const response = await handlers.GET({
+      request,
+      params: { jobId: 'nightly' },
+    })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.runs).toEqual([
+      {
+        id: 'last-run-2026-06-09T09:03:41.114606+02:00',
+        status: 'ok',
+        startedAt: '2026-06-09T09:03:41.114606+02:00',
+      },
+    ])
+  })
+
   it('proxies a bodyless cron delete without requiring a JSON content type', async () => {
     const request = new Request('http://localhost/api/claude-jobs/nightly', {
       method: 'DELETE',
