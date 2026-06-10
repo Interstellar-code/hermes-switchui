@@ -3,6 +3,15 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.38] — 2026-06-10
+
+Version alignment release for the website/docs deployment.
+
+### Fixed
+
+- **Website version display now follows the root package version for direct Astro builds.** `website/astro.config.mjs` reads the root `package.json` and injects `PUBLIC_SITE_VERSION`, so standalone Virtualmin deployments no longer fall back to stale hard-coded labels.
+- **GitHub release/version drift is resolved.** This patch becomes the canonical latest release after the website/docs Matrix styling deployment, keeping package metadata, the live website badge, git tag, and GitHub Releases aligned.
+
 ## [2.3.37] — 2026-06-10
 
 Astro/Starlight docs rendering is cleaner for authoring examples and starts with a quieter sidebar.

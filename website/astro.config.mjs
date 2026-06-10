@@ -1,9 +1,15 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { rehypeRewriteDocsLinksAndAssets } from './src/lib/docs-rewrites.mjs';
 
 const siteBase = process.env.SITE_BASE || '/';
 const normalizedBase = siteBase === '/' ? '' : siteBase.replace(/\/$/, '');
+const rootPackageJson = JSON.parse(
+  readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8'),
+);
+const publicSiteVersion = process.env.PUBLIC_SITE_VERSION || rootPackageJson.version;
 const mermaidScript = `
   import mermaid from '${normalizedBase}/vendor/mermaid/mermaid.esm.min.mjs';
 
@@ -47,6 +53,11 @@ export default defineConfig({
   outDir: './dist',
   publicDir: './public',
   base: siteBase,
+  vite: {
+    define: {
+      'import.meta.env.PUBLIC_SITE_VERSION': JSON.stringify(publicSiteVersion),
+    },
+  },
   integrations: [
     starlight({
       title: 'Hermes Switch UI',
