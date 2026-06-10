@@ -158,6 +158,16 @@ export default defineConfig({
           ],
         },
         {
+          label: 'Plugins',
+          items: [
+            { label: 'Overview', slug: 'plugins/overview' },
+            { label: 'A2A Fleet', slug: 'plugins/a2a-fleet' },
+            { label: 'Workflow Engine', slug: 'plugins/workflow-engine' },
+            { label: 'Lazy Load MCP', slug: 'plugins/lazy-load-mcp' },
+            { label: 'Matrix Coder', slug: 'plugins/matrix-coder' },
+          ],
+        },
+        {
           label: 'Knowledge',
           items: [{ label: 'Memory', slug: 'knowledge/memory' }],
         },

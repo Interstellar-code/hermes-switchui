@@ -3,6 +3,14 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.41] — 2026-06-10
+
+Expose the new Plugins docs on the marketing/Starlight site.
+
+### Fixed
+
+- **Plugins docs now appear on the deployed docs site.** The Astro Starlight site (`website/`) sources pages from the repo `docs/` via a glob loader and a manual sidebar — neither included the new `plugins/` tree, so the section was missing from `hermes-switchui.zi0n.space/docs`. Added `plugins/**` to the content glob (`website/src/content.config.ts`) and a Plugins group (after MCP) to the Starlight sidebar (`website/astro.config.mjs`). The Matrix Coder intent-detection diagram renders via the existing `/api/docs-asset` → `/docs-assets` iframe rewrite.
+
 ## [2.3.40] — 2026-06-10
 
 Docs plugins section, plus a website version-display fix.

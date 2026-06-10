@@ -25,6 +25,7 @@ export const collections = {
         `how-to/**/*.${DOC_GLOB}`,
         `knowledge/**/*.${DOC_GLOB}`,
         `main/**/*.${DOC_GLOB}`,
+        `plugins/**/*.${DOC_GLOB}`,
         `settings/**/*.${DOC_GLOB}`,
         `tips/**/*.${DOC_GLOB}`,
         `troubleshooting/**/*.${DOC_GLOB}`,
