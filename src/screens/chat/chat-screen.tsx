@@ -51,6 +51,7 @@ import {
   isRecoverableActiveRun,
   useActiveRunCheck,
 } from './hooks/use-active-run-check'
+import { SESSIONS_FEED_KEY } from './sessions-feed'
 import type { ToolDisplayMode } from './components/message-item'
 import type {
   ChatComposerAttachment,
@@ -1326,6 +1327,10 @@ export function ChatScreen({
       activeSendRef.current = null
       refreshHistoryRef.current()
       setSending(false)
+      // Invalidate the sidebar feed so the session moves into today's bucket
+      // immediately after the assistant response completes (last_active is
+      // freshest at this point — gateway updatedAt reflects the just-finished turn).
+      void queryClient.invalidateQueries({ queryKey: SESSIONS_FEED_KEY })
       // Clear waitingForResponse so ThinkingBubble hides and message renders
       streamFinish()
       // Play notification sound if the user opted in (Settings → Chat).

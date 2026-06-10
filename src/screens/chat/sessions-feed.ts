@@ -269,7 +269,7 @@ export function useChatSessionsFeed(): SessionSourceResult {
       })
     },
     staleTime: 30_000,
-    refetchInterval: false,
+    refetchInterval: 60_000,
   })
 
   const queryHasData = Array.isArray(query.data)
