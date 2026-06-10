@@ -3,6 +3,21 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.39] — 2026-06-10
+
+Cron run-history reliability release.
+
+### Fixed
+
+- **Cron job mutations send a valid JSON body.** Bodyless POSTs (e.g. "Run now") now send `{}` so SwitchUI's `application/json` CSRF check no longer rejects them with a Content-Type error.
+- **Cron deletes reach the jobs backend.** Delete requests are routed to the gateway jobs endpoint instead of failing silently.
+- **Cron run history stays in sync with linked chats.** The detail drawer and the dashboard-backed history now read from the same `/api/cron/jobs/:id/runs` source instead of disagreeing.
+
+### Changed
+
+- **Cron history falls back gracefully when `/runs` is unavailable.** When the gateway only advertises `/api/cron/jobs` (no `/runs` endpoint), the jobs page surfaces the latest run from job detail instead of showing nothing.
+- **Cron run sessions are named from their jobs and linked by run ID.** Run history and session search resolve cron chats by discovered `chatSessionKey` first, then fall back to `cron_<jobId>_<timestamp>` IDs, so runs link to the right conversation.
+
 ## [2.3.38] — 2026-06-10
 
 Version alignment release for the website/docs deployment.
