@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   buildCronRunSessionKey,
   findJobById,
@@ -8,6 +8,7 @@ import {
   isTerminalJobState,
   normalizeJobState,
   normalizeJobsResponse,
+  triggerJob,
 } from './jobs-api'
 import type { HermesJob, JobOutput } from './jobs-api'
 
@@ -72,5 +73,28 @@ describe('job helpers', () => {
     expect(getJobErrorText({ ...job, last_run_error: '  boom  ' })).toBe('boom')
     expect(getJobErrorText({ ...job, last_run_error: null, error: 'oops' })).toBe('oops')
     expect(getJobErrorText(null)).toBeNull()
+  })
+})
+
+describe('job mutations', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('sends JSON content type when triggering a cron job', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ job }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+
+    await expect(triggerJob('job-1')).resolves.toEqual(job)
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/claude-jobs/job-1?action=run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
   })
 })

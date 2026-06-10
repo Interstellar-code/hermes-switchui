@@ -369,6 +369,8 @@ export async function resumeJob(jobId: string): Promise<ClaudeJob> {
 export async function triggerJob(jobId: string): Promise<ClaudeJob> {
   const res = await fetch(`${CLAUDE_API}/${jobId}?action=run`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
