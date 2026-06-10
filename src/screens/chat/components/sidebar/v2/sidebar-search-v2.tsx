@@ -63,7 +63,7 @@ export function SidebarSearchV2() {
 
         <input
           type="text"
-          placeholder="search sessions, tools, content..."
+          placeholder="search sessions, IDs, tools, content..."
           value={localQuery}
           onChange={handleChange}
           className="m-mono flex-1 min-w-0 outline-none bg-transparent"

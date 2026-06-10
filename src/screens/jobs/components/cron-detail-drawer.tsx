@@ -10,7 +10,7 @@ import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import type { ClaudeJob, JobOutput } from '@/lib/jobs-api'
 import { toast } from '@/components/ui/toast'
-import { fetchJobOutput } from '@/lib/jobs-api'
+import { buildCronRunSessionKey, fetchJobOutput } from '@/lib/jobs-api'
 
 type Tab = 'overview' | 'prompt' | 'history'
 
@@ -37,9 +37,8 @@ function relativeTime(value?: string | null): string {
 }
 
 function cronExpr(job: ClaudeJob): string {
-  const s = job.schedule
-  if (!s || typeof s !== 'object') return ''
-  return typeof s.cron_expression === 'string' ? s.cron_expression : ''
+  const expr = job.schedule.cron_expression
+  return typeof expr === 'string' ? expr : ''
 }
 
 function friendlySchedule(job: ClaudeJob): string {
@@ -205,7 +204,7 @@ function TabOverview({
 
 function TabPrompt({ job }: { job: ClaudeJob }) {
   function copyPrompt() {
-    void navigator.clipboard.writeText(job.prompt ?? '').then(() => toast('Prompt copied'))
+    void navigator.clipboard.writeText(job.prompt).then(() => toast('Prompt copied'))
   }
 
   return (
@@ -307,12 +306,22 @@ function TabHistory({ job }: { job: ClaudeJob }) {
             const isExpanded = expanded.has(out.filename)
             const preview = out.content.slice(0, 200)
             const hasMore = out.content.length > 200
+            const chatSessionKey =
+              out.chatSessionKey ?? buildCronRunSessionKey(job.id, out.timestamp)
             return (
               <div key={out.filename} className="cr-drawer-history-item">
                 <div className="cr-drawer-history-meta">
                   <span className="cr-drawer-history-time">{relativeTime(out.timestamp)}</span>
                   <span className="cr-drawer-history-filename">{out.filename}</span>
                   <span className="cr-drawer-history-size">{out.size}B</span>
+                  {chatSessionKey && (
+                    <a
+                      className="cr-drawer-retry-btn"
+                      href={`/chat/${encodeURIComponent(chatSessionKey)}`}
+                    >
+                      Open chat
+                    </a>
+                  )}
                 </div>
                 <pre className="cr-drawer-history-preview">
                   {isExpanded ? out.content : preview}

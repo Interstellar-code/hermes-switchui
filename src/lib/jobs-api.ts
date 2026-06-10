@@ -35,6 +35,33 @@ export type JobOutput = {
   source?: 'runs' | 'lastRunFallback'
   totalRuns?: number
   historyNote?: string
+  chatSessionKey?: string
+}
+
+function padCronSessionPart(value: number, size = 2): string {
+  return String(value).padStart(size, '0')
+}
+
+export function buildCronRunSessionKey(
+  jobId: string,
+  timestamp: string | null | undefined,
+): string | null {
+  if (!jobId.trim() || !timestamp) return null
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return null
+
+  const datePart = [
+    padCronSessionPart(date.getFullYear(), 4),
+    padCronSessionPart(date.getMonth() + 1),
+    padCronSessionPart(date.getDate()),
+  ].join('')
+  const timePart = [
+    padCronSessionPart(date.getHours()),
+    padCronSessionPart(date.getMinutes()),
+    padCronSessionPart(date.getSeconds()),
+  ].join('')
+
+  return `cron_${jobId}_${datePart}_${timePart}`
 }
 
 function stringifyJobOutput(value: unknown): string {
@@ -91,6 +118,12 @@ function normalizeJobOutputs(data: unknown): Array<JobOutput> {
       source: historySource,
       totalRuns,
       historyNote,
+      chatSessionKey:
+        typeof row.chatSessionKey === 'string'
+          ? row.chatSessionKey
+          : typeof row.sessionKey === 'string'
+            ? row.sessionKey
+            : undefined,
     }
   })
 }

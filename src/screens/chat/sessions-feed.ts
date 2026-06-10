@@ -16,6 +16,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { fetchSessions } from './chat-queries'
 import { filterSessionsWithTombstones } from './session-tombstones'
+import { matchesSessionSearch } from './session-search'
 import type { ClaudeJob } from '@/lib/jobs-api'
 import type {
   SessionBadge,
@@ -303,21 +304,6 @@ export function useTelegramSessionsFeed(): SessionSourceResult {
 
 // ── Filter helpers ─────────────────────────────────────────────────────────────
 
-function matchesQuery(item: SessionFeedItem, q: string): boolean {
-  const lower = q.toLowerCase()
-  if (item.title.toLowerCase().includes(lower)) return true
-  if (item.sub?.toLowerCase().includes(lower)) return true
-  for (const badge of item.badges) {
-    if (badge.text.toLowerCase().includes(lower)) return true
-  }
-  // Also search sourceMeta string values
-  for (const val of Object.values(item.sourceMeta)) {
-    if (typeof val === 'string' && val.toLowerCase().includes(lower))
-      return true
-  }
-  return false
-}
-
 function matchesDateRange(
   item: SessionFeedItem,
   from: string | null,
@@ -452,7 +438,7 @@ export function useSessionsFeed(
     // Text search
     const trimmedQuery = query.trim()
     if (trimmedQuery.length > 0) {
-      merged = merged.filter((item) => matchesQuery(item, trimmedQuery))
+      merged = merged.filter((item) => matchesSessionSearch(item, trimmedQuery))
     }
 
     // Date range

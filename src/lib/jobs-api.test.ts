@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildCronRunSessionKey,
   findJobById,
   getJobErrorText,
   getLatestJobOutputText,
@@ -38,6 +39,14 @@ describe('job helpers', () => {
     expect(findJobById([job], 'job-1')).toEqual(job)
     expect(findJobById([job], 'missing')).toBeNull()
     expect(findJobById([job], null)).toBeNull()
+  })
+
+  it('builds cron run session keys from local run timestamps', () => {
+    expect(
+      buildCronRunSessionKey('e99a58ad005a', '2026-06-10T07:30:51'),
+    ).toBe('cron_e99a58ad005a_20260610_073051')
+    expect(buildCronRunSessionKey('e99a58ad005a', 'not-a-date')).toBeNull()
+    expect(buildCronRunSessionKey('', '2026-06-10T07:30:51')).toBeNull()
   })
 
   it('normalizes and classifies job states', () => {

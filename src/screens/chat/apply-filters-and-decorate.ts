@@ -7,6 +7,7 @@
  */
 
 import { sortItems } from './sessions-feed'
+import { matchesSessionSearch } from './session-search'
 import type { SessionFeedItem, SessionSource } from './sessions-feed-types'
 import type { FilterState } from '@/stores/sessions-filter-store'
 import type { LocalState } from '@/stores/sessions-local-store'
@@ -28,18 +29,6 @@ export type FilterAndDecorateResult = {
 }
 
 // ── Filter helpers (pure, no imports from sessions-feed for these) ─────────────
-
-function matchesSearch(item: SessionFeedItem, lower: string): boolean {
-  if (item.title.toLowerCase().includes(lower)) return true
-  if (item.sub?.toLowerCase().includes(lower)) return true
-  for (const badge of item.badges) {
-    if (badge.text.toLowerCase().includes(lower)) return true
-  }
-  for (const val of Object.values(item.sourceMeta)) {
-    if (typeof val === 'string' && val.toLowerCase().includes(lower)) return true
-  }
-  return false
-}
 
 function matchesDateRange(
   item: SessionFeedItem,
@@ -111,7 +100,7 @@ export function applyFiltersAndDecorate(
     }
 
     // Search
-    if (lowerQuery.length > 0 && !matchesSearch(item, lowerQuery)) return false
+    if (lowerQuery.length > 0 && !matchesSessionSearch(item, lowerQuery)) return false
 
     // Date range
     if (!matchesDateRange(item, filter.dateRange.from, filter.dateRange.to)) return false

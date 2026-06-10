@@ -53,7 +53,10 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {}
 }
 
-function synthesizeRunsFromJobDetail(value: unknown): { runs: Array<unknown>; historySource?: string; totalRuns?: number; historyNote?: string } {
+function synthesizeRunsFromJobDetail(
+  value: unknown,
+  chatSessionKey?: string,
+): { runs: Array<unknown>; historySource?: string; totalRuns?: number; historyNote?: string } {
   const job = asRecord(value)
   const explicitRuns = job.runs
   if (Array.isArray(explicitRuns)) return { runs: explicitRuns, historySource: 'runs' }
@@ -70,7 +73,12 @@ function synthesizeRunsFromJobDetail(value: unknown): { runs: Array<unknown>; hi
 
   const lastRun = asRecord(job.lastRun ?? job.last_run)
   if (Object.keys(lastRun).length > 0) {
-    return { runs: [lastRun], historySource: 'lastRunFallback', totalRuns, historyNote }
+    return {
+      runs: [{ ...lastRun, ...(chatSessionKey ? { chatSessionKey } : {}) }],
+      historySource: 'lastRunFallback',
+      totalRuns,
+      historyNote,
+    }
   }
 
   const lastRunAt = job.last_run_at ?? job.lastRunAt
@@ -92,6 +100,7 @@ function synthesizeRunsFromJobDetail(value: unknown): { runs: Array<unknown>; hi
         deliverySummary: job.last_delivery_error
           ? `Delivery error: ${job.last_delivery_error}`
           : undefined,
+        ...(chatSessionKey ? { chatSessionKey } : {}),
       },
     ],
   }
@@ -160,6 +169,11 @@ async function collectCronSessionKeysFromSessions(jobId: string): Promise<Array<
   }
 }
 
+async function getLatestCronSessionKey(jobId: string): Promise<string | undefined> {
+  const keys = await collectCronSessionKeysFromSessions(jobId)
+  return keys.sort().at(-1)
+}
+
 async function readJsonSafely(response: Response): Promise<unknown> {
   const text = await response.text()
   if (!text.trim()) return null
@@ -181,8 +195,11 @@ async function dashboardRunHistoryResponse(
   const detailResponse = await dashboardFetch(`/api/cron/jobs/${jobId}`)
   if (!detailResponse.ok) return runsResponse
 
+  const detail = await readJsonSafely(detailResponse)
+  const latestSessionKey = await getLatestCronSessionKey(jobId)
+
   return new Response(
-    JSON.stringify(synthesizeRunsFromJobDetail(await readJsonSafely(detailResponse))),
+    JSON.stringify(synthesizeRunsFromJobDetail(detail, latestSessionKey)),
     {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
