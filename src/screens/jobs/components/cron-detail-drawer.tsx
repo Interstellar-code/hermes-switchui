@@ -8,13 +8,13 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
+import type { ClaudeJob, JobOutput } from '@/lib/jobs-api'
 import { toast } from '@/components/ui/toast'
 import { fetchJobOutput } from '@/lib/jobs-api'
-import type { ClaudeJob, JobOutput } from '@/lib/jobs-api'
 
 type Tab = 'overview' | 'prompt' | 'history'
 
-const TABS: { id: Tab; label: string }[] = [
+const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'prompt', label: 'Prompt' },
   { id: 'history', label: 'Run History' },
@@ -39,7 +39,7 @@ function relativeTime(value?: string | null): string {
 function cronExpr(job: ClaudeJob): string {
   const s = job.schedule
   if (!s || typeof s !== 'object') return ''
-  return ((s as Record<string, unknown>).cron_expression as string) ?? ''
+  return typeof s.cron_expression === 'string' ? s.cron_expression : ''
 }
 
 function friendlySchedule(job: ClaudeJob): string {
@@ -64,9 +64,9 @@ function jobStatus(job: ClaudeJob): 'active' | 'paused' | 'error' | 'idle' {
   return 'idle'
 }
 
-function getTagsMeta(job: ClaudeJob): { agentId: string | null; tz: string | null; isDraft: boolean; userTags: string[] } {
-  const tags: string[] = Array.isArray((job as unknown as Record<string, unknown>).tags)
-    ? ((job as unknown as Record<string, unknown>).tags as string[])
+function getTagsMeta(job: ClaudeJob): { agentId: string | null; tz: string | null; isDraft: boolean; userTags: Array<string> } {
+  const tags: Array<string> = Array.isArray((job as unknown as Record<string, unknown>).tags)
+    ? ((job as unknown as Record<string, unknown>).tags as Array<string>)
     : []
   return {
     agentId: tags.find((t) => t.startsWith('agent:'))?.slice('agent:'.length) ?? null,
@@ -79,8 +79,8 @@ function getTagsMeta(job: ClaudeJob): { agentId: string | null; tz: string | nul
 }
 
 function getGlyph(job: ClaudeJob): string {
-  const tags: string[] = Array.isArray((job as unknown as Record<string, unknown>).tags)
-    ? ((job as unknown as Record<string, unknown>).tags as string[])
+  const tags: Array<string> = Array.isArray((job as unknown as Record<string, unknown>).tags)
+    ? ((job as unknown as Record<string, unknown>).tags as Array<string>)
     : []
   const glyphTag = tags.find((t) => t.startsWith('glyph:'))
   return glyphTag ? glyphTag.slice('glyph:'.length) : '⚙'
@@ -108,7 +108,7 @@ function TabOverview({
   const friendly = friendlySchedule(job)
   const meta = getTagsMeta(job)
   const isBuiltin = Array.isArray((job as unknown as Record<string, unknown>).tags)
-    ? ((job as unknown as Record<string, unknown>).tags as string[]).includes('builtin')
+    ? ((job as unknown as Record<string, unknown>).tags as Array<string>).includes('builtin')
     : false
 
   return (
@@ -268,7 +268,17 @@ function TabHistory({ job }: { job: ClaudeJob }) {
     )
   }
 
-  const outputs: JobOutput[] = historyQuery.data ?? []
+  const outputs: Array<JobOutput> = historyQuery.data ?? []
+  const fallbackOutput = outputs.find((out) => out.source === 'lastRunFallback')
+  const completedRuns =
+    fallbackOutput?.totalRuns ?? job.repeat?.completed ?? job.run_count
+  const historyNote =
+    fallbackOutput?.historyNote ??
+    (fallbackOutput
+      ? completedRuns && completedRuns > 1
+        ? `Gateway exposes only the latest run here; ${completedRuns} total runs are recorded for this cron job.`
+        : 'Gateway exposes only the latest run for this cron job.'
+      : null)
 
   if (outputs.length === 0) {
     return (
@@ -283,7 +293,15 @@ function TabHistory({ job }: { job: ClaudeJob }) {
   return (
     <div className="cr-drawer-tab-body">
       <div className="cr-drawer-section">
-        <div className="cr-drawer-section-title">Recent runs ({outputs.length})</div>
+        <div className="cr-drawer-section-title">
+          {fallbackOutput ? 'Latest run' : `Recent runs (${outputs.length})`}
+        </div>
+        {historyNote && (
+          <div className="cr-drawer-empty-msg">
+            {historyNote} Deleting this cron still scans for all linked chat sessions named
+            {' '}<code>{`cron_${job.id}_…`}</code>.
+          </div>
+        )}
         <div className="cr-drawer-history-list">
           {outputs.map((out) => {
             const isExpanded = expanded.has(out.filename)

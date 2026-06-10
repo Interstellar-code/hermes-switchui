@@ -32,6 +32,9 @@ export type JobOutput = {
   timestamp: string
   content: string
   size: number
+  source?: 'runs' | 'lastRunFallback'
+  totalRuns?: number
+  historyNote?: string
 }
 
 function stringifyJobOutput(value: unknown): string {
@@ -49,6 +52,11 @@ function normalizeJobOutputs(data: unknown): Array<JobOutput> {
   const record = data as Record<string, unknown>
   if (Array.isArray(record.outputs)) return record.outputs as Array<JobOutput>
 
+  const historySource =
+    record.historySource === 'lastRunFallback' ? 'lastRunFallback' : 'runs'
+  const totalRuns = typeof record.totalRuns === 'number' ? record.totalRuns : undefined
+  const historyNote =
+    typeof record.historyNote === 'string' ? record.historyNote : undefined
   const runs = Array.isArray(record.runs) ? record.runs : []
   return runs.map((run, index) => {
     const row =
@@ -80,6 +88,9 @@ function normalizeJobOutputs(data: unknown): Array<JobOutput> {
       timestamp,
       content,
       size: content.length,
+      source: historySource,
+      totalRuns,
+      historyNote,
     }
   })
 }

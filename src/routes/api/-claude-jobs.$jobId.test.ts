@@ -1,5 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { isAuthenticated } from '../../server/auth-middleware'
+import { requireJsonContentType } from '../../server/rate-limit'
+import {
+  dashboardFetch,
+  ensureGatewayProbed,
+} from '../../server/gateway-capabilities'
+import { deleteSession, listSessions } from '../../server/hermes-api'
+import { Route } from './claude-jobs.$jobId'
+
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (options: unknown) => ({ options }),
 }))
@@ -22,22 +31,15 @@ vi.mock('../../server/gateway-capabilities', () => ({
 
 vi.mock('../../server/hermes-api', () => ({
   deleteSession: vi.fn(),
+  listSessions: vi.fn(),
 }))
-
-import { isAuthenticated } from '../../server/auth-middleware'
-import { requireJsonContentType } from '../../server/rate-limit'
-import {
-  dashboardFetch,
-  ensureGatewayProbed,
-} from '../../server/gateway-capabilities'
-import { deleteSession } from '../../server/hermes-api'
-import { Route } from './claude-jobs.$jobId'
 
 const mockIsAuthenticated = vi.mocked(isAuthenticated)
 const mockRequireJsonContentType = vi.mocked(requireJsonContentType)
 const mockDashboardFetch = vi.mocked(dashboardFetch)
 const mockEnsureGatewayProbed = vi.mocked(ensureGatewayProbed)
 const mockDeleteSession = vi.mocked(deleteSession)
+const mockListSessions = vi.mocked(listSessions)
 
 type GetHandler = (ctx: {
   request: Request
@@ -71,6 +73,7 @@ describe('/api/claude-jobs/:jobId', () => {
       }),
     )
     mockDeleteSession.mockResolvedValue(undefined)
+    mockListSessions.mockResolvedValue([])
   })
 
   it('proxies run history to dashboard runs and preserves the limit query', async () => {
@@ -204,4 +207,54 @@ describe('/api/claude-jobs/:jobId', () => {
       failed: [],
     })
   })
+  it('deletes all cron-prefixed chat sessions when full run history is unavailable', async () => {
+    mockListSessions.mockResolvedValue([
+      { id: 'cron_nightly_20260610_060000' },
+      { friendlyId: 'cron_nightly_20260609_060000' },
+      { id: 'cron_other_20260610_060000' },
+    ] as Awaited<ReturnType<typeof listSessions>>)
+    mockDashboardFetch.mockImplementation(async (path, init) => {
+      if (path === '/api/cron/jobs/nightly/runs?limit=100') {
+        return new Response(JSON.stringify({ detail: 'No such API endpoint' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (path === '/api/cron/jobs/nightly') {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            last_run_at: '2026-06-10T06:00:00Z',
+            repeat: { completed: 2 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      if (init?.method === 'DELETE') {
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      throw new Error(`unexpected dashboardFetch ${path}`)
+    })
+
+    const response = await handlers.DELETE({
+      request: new Request('http://localhost/api/claude-jobs/nightly', {
+        method: 'DELETE',
+      }),
+      params: { jobId: 'nightly' },
+    })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mockDeleteSession).toHaveBeenCalledWith('cron_nightly_20260610_060000')
+    expect(mockDeleteSession).toHaveBeenCalledWith('cron_nightly_20260609_060000')
+    expect(mockDeleteSession).not.toHaveBeenCalledWith('cron_other_20260610_060000')
+    expect(body.sessionCleanup.deleted).toEqual([
+      'cron_nightly_20260610_060000',
+      'cron_nightly_20260609_060000',
+    ])
+  })
+
 })

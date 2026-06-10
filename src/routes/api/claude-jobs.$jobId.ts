@@ -12,7 +12,7 @@ import {
   dashboardFetch,
   ensureGatewayProbed,
 } from '../../server/gateway-capabilities'
-import { deleteSession } from '../../server/hermes-api'
+import { deleteSession, listSessions } from '../../server/hermes-api'
 
 function authHeaders(): Record<string, string> {
   return BEARER_TOKEN ? { Authorization: `Bearer ${BEARER_TOKEN}` } : {}
@@ -53,18 +53,35 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {}
 }
 
-function synthesizeRunsFromJobDetail(value: unknown): { runs: unknown[] } {
+function synthesizeRunsFromJobDetail(value: unknown): { runs: Array<unknown>; historySource?: string; totalRuns?: number; historyNote?: string } {
   const job = asRecord(value)
   const explicitRuns = job.runs
-  if (Array.isArray(explicitRuns)) return { runs: explicitRuns }
+  if (Array.isArray(explicitRuns)) return { runs: explicitRuns, historySource: 'runs' }
+
+  const totalRuns =
+    typeof asRecord(job.repeat).completed === 'number'
+      ? (asRecord(job.repeat).completed as number)
+      : typeof job.run_count === 'number'
+        ? job.run_count
+        : undefined
+  const historyNote = totalRuns && totalRuns > 1
+    ? `Gateway exposes only the latest run here; ${totalRuns} total runs are recorded for this cron job.`
+    : 'Gateway exposes only the latest run for this cron job.'
 
   const lastRun = asRecord(job.lastRun ?? job.last_run)
-  if (Object.keys(lastRun).length > 0) return { runs: [lastRun] }
+  if (Object.keys(lastRun).length > 0) {
+    return { runs: [lastRun], historySource: 'lastRunFallback', totalRuns, historyNote }
+  }
 
   const lastRunAt = job.last_run_at ?? job.lastRunAt
-  if (typeof lastRunAt !== 'string' || !lastRunAt.trim()) return { runs: [] }
+  if (typeof lastRunAt !== 'string' || !lastRunAt.trim()) {
+    return { runs: [], historySource: 'lastRunFallback', totalRuns, historyNote }
+  }
 
   return {
+    historySource: 'lastRunFallback',
+    totalRuns,
+    historyNote,
     runs: [
       {
         id: job.last_run_id ?? job.lastRunId ?? `last-run-${lastRunAt}`,
@@ -119,6 +136,30 @@ function collectLinkedSessionKeys(value: unknown): Set<string> {
   return keys
 }
 
+function sessionKeyFromRecord(value: unknown): string | null {
+  const record = asRecord(value)
+  for (const field of ['key', 'friendlyId', 'friendly_id', 'sessionKey', 'session_key', 'id']) {
+    const candidate = record[field]
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim()
+  }
+  return null
+}
+
+async function collectCronSessionKeysFromSessions(jobId: string): Promise<Array<string>> {
+  const prefix = `cron_${jobId}_`
+  try {
+    const sessions = await listSessions(1000, 0)
+    const keys = new Set<string>()
+    for (const session of sessions as Array<unknown>) {
+      const key = sessionKeyFromRecord(session)
+      if (key?.startsWith(prefix)) keys.add(key)
+    }
+    return [...keys]
+  } catch {
+    return []
+  }
+}
+
 async function readJsonSafely(response: Response): Promise<unknown> {
   const text = await response.text()
   if (!text.trim()) return null
@@ -149,25 +190,30 @@ async function dashboardRunHistoryResponse(
   )
 }
 
-async function collectDashboardRunSessionKeys(jobId: string): Promise<string[]> {
+async function collectDashboardRunSessionKeys(jobId: string): Promise<Array<string>> {
   try {
+    const keys = new Set<string>(await collectCronSessionKeysFromSessions(jobId))
     const runsResponse = await dashboardRunHistoryResponse(
       jobId,
       'runs',
       new URL(`http://localhost/api/claude-jobs/${jobId}?action=runs&limit=100`),
     )
-    if (!runsResponse.ok) return []
-    return [...collectLinkedSessionKeys(await readJsonSafely(runsResponse))]
+    if (runsResponse.ok) {
+      for (const key of collectLinkedSessionKeys(await readJsonSafely(runsResponse))) {
+        keys.add(key)
+      }
+    }
+    return [...keys]
   } catch {
     return []
   }
 }
 
-async function deleteLinkedSessions(sessionKeys: string[]): Promise<{
-  deleted: string[]
+async function deleteLinkedSessions(sessionKeys: Array<string>): Promise<{
+  deleted: Array<string>
   failed: Array<{ sessionKey: string; error: string }>
 }> {
-  const deleted: string[] = []
+  const deleted: Array<string> = []
   const failed: Array<{ sessionKey: string; error: string }> = []
 
   for (const sessionKey of sessionKeys) {
