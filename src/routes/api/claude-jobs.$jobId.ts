@@ -135,8 +135,6 @@ export const Route = createFileRoute('/api/claude-jobs/$jobId')({
         })
       },
       DELETE: async ({ request, params }) => {
-        const csrfCheck = requireJsonContentType(request)
-        if (csrfCheck) return csrfCheck
         if (!isAuthenticated(request)) {
           return new Response(JSON.stringify({ error: 'Unauthorized' }), {
             status: 401,
