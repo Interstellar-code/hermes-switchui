@@ -39,7 +39,7 @@ const docsHref = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/docs/welcome/`;
       </svg>
       <span id="gh-stars-count">★ —</span>
     </a>
-    <span class="nav-version">v{SITE_VERSION}</span>
+    <span class="nav-version">v<span id="site-version-nav">{SITE_VERSION}</span></span>
     <span class="nav-access">ACCESS GRANTED</span>
     <a href="#cta" class="m-btn m-btn-primary m-btn-sm">Install →</a>
   </div>
@@ -82,4 +82,47 @@ const docsHref = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/docs/welcome/`;
       }
     })
     .catch(() => {});
+
+  // GitHub latest release — dynamic version badge with sessionStorage caching
+  (() => {
+    const CACHE_KEY = 'hsui_latest_release';
+    const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+    function applyVersion(tag: string) {
+      const nav = document.getElementById('site-version-nav');
+      const hero = document.getElementById('site-version-hero');
+      const footer = document.getElementById('site-version-footer');
+      if (nav) nav.textContent = tag;
+      if (hero) hero.textContent = tag;
+      if (footer) footer.textContent = tag;
+    }
+
+    function fetchAndCache() {
+      fetch('https://api.github.com/repos/Interstellar-code/hermes-switchui/releases/latest')
+        .then(r => r.json())
+        .then(d => {
+          const tag = (d.tag_name || '').replace(/^v/, '');
+          if (tag) {
+            try {
+              sessionStorage.setItem(CACHE_KEY, JSON.stringify({ tag, ts: Date.now() }));
+            } catch (_) {}
+            applyVersion(tag);
+          }
+        })
+        .catch(() => {});
+    }
+
+    try {
+      const raw = sessionStorage.getItem(CACHE_KEY);
+      if (raw) {
+        const cached = JSON.parse(raw) as { tag: string; ts: number };
+        if (cached.tag && Date.now() - cached.ts < CACHE_TTL) {
+          applyVersion(cached.tag);
+          return;
+        }
+      }
+    } catch (_) {}
+
+    fetchAndCache();
+  })();
 </script>
