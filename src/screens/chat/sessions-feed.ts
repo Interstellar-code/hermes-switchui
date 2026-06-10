@@ -16,6 +16,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { fetchSessions } from './chat-queries'
 import { filterSessionsWithTombstones } from './session-tombstones'
+import type { ClaudeJob } from '@/lib/jobs-api'
 import type {
   SessionBadge,
   SessionDayBucket,
@@ -26,6 +27,7 @@ import type {
   SessionsFeedOptions,
   SessionsFeedResult,
 } from './sessions-feed-types'
+import { fetchJobs, findJobById } from '@/lib/jobs-api'
 
 // ── Capability accessor ────────────────────────────────────────────────────────
 // We read capabilities from the /api/connection-status endpoint (already used
@@ -106,6 +108,47 @@ function makeId(src: SessionSource, rawId: string): string {
   return `${src}:${rawId}`
 }
 
+type CronSessionParts = {
+  jobId: string
+  runStartedAt: Date | null
+}
+
+export function parseCronSessionKey(key: string): CronSessionParts | null {
+  const match = /^cron_([0-9a-f]{12})_(\d{8})_(\d{6})$/.exec(key)
+  if (!match) return null
+  const [, jobId, datePart, timePart] = match
+  const year = Number(datePart.slice(0, 4))
+  const month = Number(datePart.slice(4, 6)) - 1
+  const day = Number(datePart.slice(6, 8))
+  const hour = Number(timePart.slice(0, 2))
+  const minute = Number(timePart.slice(2, 4))
+  const second = Number(timePart.slice(4, 6))
+  const runStartedAt = new Date(year, month, day, hour, minute, second)
+  return {
+    jobId,
+    runStartedAt: Number.isNaN(runStartedAt.getTime()) ? null : runStartedAt,
+  }
+}
+
+export function formatCronRunTitle(job: ClaudeJob | null, parts: CronSessionParts): string {
+  const jobName = job ? job.name.trim() : ''
+  const name = jobName || `Cron ${parts.jobId}`
+  if (!parts.runStartedAt) return name
+  const runLabel = parts.runStartedAt.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+  return `${name} — ${runLabel}`
+}
+
+export function getCronSessionSub(job: ClaudeJob | null, fallback: string | null): string | null {
+  const prompt = job ? job.prompt.trim() : ''
+  if (!prompt) return fallback
+  return prompt.split(/\n+/)[0]?.trim() || fallback
+}
+
 // ── Source classifier ──────────────────────────────────────────────────────────
 
 /**
@@ -161,11 +204,25 @@ export function useChatSessionsFeed(): SessionSourceResult {
     queryKey: ['sessions-feed', 'chat', 'v3-task-split'],
     queryFn: async () => {
       const sessions = filterSessionsWithTombstones(await fetchSessions())
+      const cronJobIds = new Set<string>()
+      for (const session of sessions) {
+        const parts = parseCronSessionKey(session.key)
+        if (parts) cronJobIds.add(parts.jobId)
+      }
+      const jobs = cronJobIds.size > 0 ? await fetchJobs().catch(() => []) : []
       const nowMs = Date.now()
       return sessions.map((s): SessionFeedItem => {
         const when = s.updatedAt ?? 0
-        const rawTitle = s.title ?? s.derivedTitle ?? s.label ?? s.key
-        const rawSub = s.preview ?? null
+        const cronParts = parseCronSessionKey(s.key)
+        const cronJob = cronParts ? findJobById(jobs, cronParts.jobId) : null
+        const fallbackTitle = s.title ?? s.derivedTitle ?? s.label ?? s.key
+        const fallbackSub = s.preview ?? null
+        const rawTitle = cronParts
+          ? formatCronRunTitle(cronJob, cronParts)
+          : fallbackTitle
+        const rawSub = cronParts
+          ? getCronSessionSub(cronJob, fallbackSub)
+          : fallbackSub
         const badges: Array<SessionBadge> = []
         // Detect session origin by key prefix:
         //   cron_{jobId}_{YYYYMMDD_HHMMSS} — scheduled cron run (scheduler.py:1003)
@@ -202,6 +259,10 @@ export function useChatSessionsFeed(): SessionSourceResult {
             messageCount: s.messageCount,
             toolCallCount: s.toolCallCount,
             model: s.model,
+            cronJobId: cronParts?.jobId,
+            cronJobName: cronJob?.name,
+            originalTitle: fallbackTitle,
+            originalPreview: fallbackSub,
           },
         }
       })

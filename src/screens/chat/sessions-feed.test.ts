@@ -12,7 +12,14 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { classifySessionSource, getDayBucket, sortItems } from './sessions-feed'
+import {
+  classifySessionSource,
+  formatCronRunTitle,
+  getCronSessionSub,
+  getDayBucket,
+  parseCronSessionKey,
+  sortItems,
+} from './sessions-feed'
 import type { SessionFeedItem, SessionSource } from './sessions-feed-types'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -133,13 +140,13 @@ describe('ID namespacing', () => {
   })
 
   it('task item id has task: prefix', () => {
-    const item = makeItem({ src: 'task' as any, id: 'task:t-42' })
+    const item = makeItem({ src: 'task', id: 'task:t-42' })
     expect(item.id).toBe('task:t-42')
     expect(item.id.startsWith('task:')).toBe(true)
   })
 
   it('cron item id has cron: prefix', () => {
-    const item = makeItem({ src: 'cron' as any, id: 'cron:job-7' })
+    const item = makeItem({ src: 'cron', id: 'cron:job-7' })
     expect(item.id.startsWith('cron:')).toBe(true)
   })
 
@@ -170,8 +177,8 @@ describe('ID namespacing', () => {
 describe('sortItems', () => {
   const base = Date.now()
   const older = makeItem({ src: 'chat', id: 'chat:old', when: base - 3600_000, tokens: 500 })
-  const newer = makeItem({ src: 'cron' as any, id: 'cron:new', when: base - 600_000, tokens: 100 })
-  const newest = makeItem({ src: 'task' as any, id: 'task:newest', when: base - 60_000, tokens: null })
+  const newer = makeItem({ src: 'cron', id: 'cron:new', when: base - 600_000, tokens: 100 })
+  const newest = makeItem({ src: 'task', id: 'task:newest', when: base - 60_000, tokens: null })
 
   it('recent sort orders by descending when', () => {
     const sorted = sortItems([older, newest, newer], 'recent')
@@ -203,7 +210,7 @@ describe('sortItems', () => {
 
   it('tokens sort: items without tokens (null) sort after items with tokens', () => {
     const withTokens = makeItem({ src: 'chat', id: 'chat:t', when: base, tokens: 1 })
-    const noTokens = makeItem({ src: 'cron' as any, id: 'cron:n', when: base + 1000, tokens: null })
+    const noTokens = makeItem({ src: 'cron', id: 'cron:n', when: base + 1000, tokens: null })
     const sorted = sortItems([noTokens, withTokens], 'tokens')
     expect(sorted[0].id).toBe('chat:t')
     expect(sorted[1].id).toBe('cron:n')
@@ -329,7 +336,7 @@ describe('per-source error isolation', () => {
     const chatError = new Error('chat down')
     const sources = [
       { src: 'chat' as SessionSource, items: [] as Array<SessionFeedItem>, available: true, loading: false, error: chatError },
-      { src: 'cron' as any as SessionSource, items: [makeItem({ src: 'cron' as any, id: 'cron:1' })], available: true, loading: false, error: null },
+      { src: 'cron' as any as SessionSource, items: [makeItem({ src: 'cron', id: 'cron:1' })], available: true, loading: false, error: null },
     ]
 
     const chatSource = sources.find((s) => s.src === 'chat')
@@ -343,7 +350,7 @@ describe('per-source error isolation', () => {
   it('one loading source does not mark entire feed as not loading', () => {
     const sources = [
       { src: 'chat' as SessionSource, items: [] as Array<SessionFeedItem>, available: true, loading: true, error: null },
-      { src: 'cron' as any as SessionSource, items: [makeItem({ src: 'cron' as any, id: 'cron:1' })], available: true, loading: false, error: null },
+      { src: 'cron' as any as SessionSource, items: [makeItem({ src: 'cron', id: 'cron:1' })], available: true, loading: false, error: null },
     ]
 
     const loading = sources.some((s) => s.available && s.loading)
@@ -370,5 +377,55 @@ describe('per-source error isolation', () => {
 
     expect(merged).toHaveLength(1)
     expect(merged[0].src).toBe('mem')
+  })
+})
+
+
+describe('cron run display names', () => {
+  it('parses cron session keys into job id and run timestamp', () => {
+    const parsed = parseCronSessionKey('cron_e99a58ad005a_20260610_073051')
+
+    expect(parsed?.jobId).toBe('e99a58ad005a')
+    expect(parsed?.runStartedAt?.getFullYear()).toBe(2026)
+    expect(parsed?.runStartedAt?.getMonth()).toBe(5)
+    expect(parsed?.runStartedAt?.getDate()).toBe(10)
+    expect(parsed?.runStartedAt?.getHours()).toBe(7)
+    expect(parsed?.runStartedAt?.getMinutes()).toBe(30)
+  })
+
+  it('uses cron job name instead of injected prompt preview for run title', () => {
+    const parsed = parseCronSessionKey('cron_e99a58ad005a_20260610_073051')
+    expect(parsed).not.toBeNull()
+
+    const title = formatCronRunTitle(
+      {
+        id: 'e99a58ad005a',
+        name: 'daily-brief',
+        prompt: '[IMPORTANT: You are running as a scheduled cron job. DELIVERY: ...]',
+        schedule: {},
+        enabled: true,
+        state: 'scheduled',
+      },
+      parsed!,
+    )
+
+    expect(title).toContain('daily-brief —')
+    expect(title).not.toContain('[IMPORTANT')
+  })
+
+  it('uses first line of cron prompt as subtext', () => {
+    expect(
+      getCronSessionSub(
+        {
+          id: 'e99a58ad005a',
+          name: 'daily-brief',
+          prompt: 'Generate Daily Brief for Rohit\n\nIMPORTANT: Read tracker file FIRST',
+          schedule: {},
+          enabled: true,
+          state: 'scheduled',
+        },
+        '[IMPORTANT: You are running as a scheduled cron job.]',
+      ),
+    ).toBe('Generate Daily Brief for Rohit')
   })
 })
