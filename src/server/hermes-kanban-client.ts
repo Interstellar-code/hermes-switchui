@@ -22,10 +22,16 @@ import type {
 
 const BASE = '/api/plugins/kanban'
 
+// Must exceed the worst-case dashboardFetch auth flow: a cold-cache 401 retry
+// triggers two HTML-scrape token fetches at PROBE_TIMEOUT_MS (3 000 ms) each,
+// totalling up to 6 s.  12 s gives a comfortable buffer without masking real
+// hangs.  Callers may still supply a tighter signal via init.signal.
+const KANBAN_FETCH_TIMEOUT_MS = 12_000
+
 async function kanbanFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await dashboardFetch(path, {
     ...init,
-    signal: init.signal ?? AbortSignal.timeout(5_000),
+    signal: init.signal ?? AbortSignal.timeout(KANBAN_FETCH_TIMEOUT_MS),
   })
   if (!res.ok) {
     let detail = `Kanban API error ${res.status}`
