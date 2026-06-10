@@ -35,6 +35,10 @@ function crew(overrides: Partial<CrewStatusAgent>): CrewStatusAgent {
     activeDelegatedParentSessionKey: null,
     activeDelegatedTitle: null,
     activeDelegatedLastActiveAt: null,
+    isActive: false,
+    activeSessionKey: null,
+    activeSessionTitle: null,
+    activeSessionLastActiveAt: null,
     ...overrides,
   }
 }
@@ -132,7 +136,6 @@ describe('scoreLiveMatch', () => {
       ],
       [],
       [],
-      {},
       {},
     )
 

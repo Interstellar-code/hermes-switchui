@@ -26,27 +26,6 @@ import {
 } from '@/lib/hermes-client'
 import { useChatStore } from '@/stores/chat-store'
 
-/**
- * Per-profile live activity, sourced deterministically from the gateway
- * dashboard's `/api/sessions?profile=<name>` endpoint (added upstream in
- * hermes-agent: each session now carries a `profile` field and the endpoint
- * can be scoped to a specific profile's state.db). A configured Tier1/Tier2
- * profile is "working" when ANY of its sessions reports `is_active` (the
- * dashboard computes this as ended_at IS NULL && last_active < 300s).
- *
- * This replaces the fragile log-keyword + token-delta heuristic for crew
- * agents: the join is now profile-id ↔ crew-id, not name fuzzing.
- */
-export type Matrix3DProfileActivity = {
-  active: boolean
-  title: string | null
-  sessionKey: string | null
-  lastActiveMs: number | null
-}
-
-// crew-status ids vs profile dir names differ only for the default profile:
-// crew calls it "workspace", the gateway profile dir is "default".
-const CREW_ID_TO_PROFILE_NAME: Record<string, string> = { workspace: 'default' }
 const IDLE_LEISURE_AREAS: Array<OfficeIdleLeisureArea> = [
   'pingpong',
   'sofa',
@@ -60,10 +39,6 @@ const NAMED_AGENT_IDENTITY_COLORS: Record<string, string> = {
   morpheus: '#a78bfa',
   neo: '#38bdf8',
   trinity: '#f59e0b',
-}
-
-export function profileNameForCrewId(crewId: string): string {
-  return CREW_ID_TO_PROFILE_NAME[crewId] ?? crewId
 }
 
 function stableHash(value: string): number {
@@ -82,56 +57,6 @@ export function idleLeisureAreaForAgent(
   return IDLE_LEISURE_AREAS[
     (agentIndex + rotationBucket) % IDLE_LEISURE_AREAS.length
   ]
-}
-
-async function fetchSessionsForProfile(
-  profileName: string,
-): Promise<Matrix3DProfileActivity> {
-  const empty: Matrix3DProfileActivity = {
-    active: false,
-    title: null,
-    sessionKey: null,
-    lastActiveMs: null,
-  }
-  try {
-    const res = await fetch(
-      `/api/dashboard-proxy/api/sessions?profile=${encodeURIComponent(
-        profileName,
-      )}&limit=25`,
-    )
-    if (!res.ok) return empty
-    const data = (await res.json()) as {
-      sessions?: Array<Record<string, unknown>>
-    }
-    const sessions = Array.isArray(data.sessions) ? data.sessions : []
-    const live = sessions.find((s) => s.is_active === true)
-    if (!live) return empty
-    const lastActive =
-      typeof live.last_active === 'number' ? live.last_active * 1000 : null
-    return {
-      active: true,
-      title:
-        (typeof live.title === 'string' && live.title) ||
-        (typeof live.preview === 'string' && live.preview) ||
-        null,
-      sessionKey: typeof live.id === 'string' ? live.id : null,
-      lastActiveMs: lastActive,
-    }
-  } catch {
-    return empty
-  }
-}
-
-export async function fetchProfileActivity(
-  crewIds: Array<string>,
-): Promise<Record<string, Matrix3DProfileActivity>> {
-  const out: Record<string, Matrix3DProfileActivity> = {}
-  await Promise.all(
-    crewIds.map(async (crewId) => {
-      out[crewId] = await fetchSessionsForProfile(profileNameForCrewId(crewId))
-    }),
-  )
-  return out
 }
 
 /**
@@ -625,7 +550,6 @@ export function mergePresence(
   fallbackAgents: Array<WorkspaceAgentDirectory>,
   activeAgents: ReturnType<typeof useAgentView>['activeAgents'],
   activityBoosts: Record<string, number>,
-  profileActivity: Partial<Record<string, Matrix3DProfileActivity>>,
 ): Array<Matrix3DAgentPresence> {
   if (crewAgents.length > 0) {
     const matchedSessionIds = new Set<string>()
@@ -635,13 +559,14 @@ export function mergePresence(
 
       const rosterStatus = crewRosterStatus(agent)
       const boost = activityBoosts[agent.id] ?? 0
-      // Deterministic per-profile live signal takes precedence over the
-      // heuristic. A profile with an is_active session is unambiguously
-      // working, regardless of whether a live session matched by name.
-      const profileLive = profileActivity[agent.id]
+      // Deterministic own-db / delegated-session signals take precedence over
+      // the heuristic. A profile whose own db reports an active session, or one
+      // that has been assigned a live delegated child session, is unambiguously
+      // working — regardless of whether a live session matched by name.
+      const ownLive = agent.isActive
       const delegatedLive = Boolean(agent.activeDelegatedSessionKey)
       const effectiveStatus: OfficeAgent['status'] =
-        profileLive?.active || delegatedLive
+        ownLive || delegatedLive
           ? 'working'
           : resolveCrewEffectiveStatus({
               liveStatus: live?.status ?? null,
@@ -670,8 +595,8 @@ export function mergePresence(
               status: live.status,
               progress: live.progress,
             })
-          : profileLive?.active && profileLive.title
-            ? profileLive.title
+          : ownLive && agent.activeSessionTitle
+            ? agent.activeSessionTitle
             : delegatedLive && agent.activeDelegatedTitle
               ? agent.activeDelegatedTitle
               : agent.lastSessionTitle ||
@@ -680,11 +605,10 @@ export function mergePresence(
         assignedTaskCount: agent.assignedTaskCount,
         activeSessionKey:
           live?.id ??
-          profileLive?.sessionKey ??
+          agent.activeSessionKey ??
           agent.activeDelegatedSessionKey ??
           null,
-        activityScore:
-          profileLive?.active || delegatedLive ? Math.max(boost, 5) : boost,
+        activityScore: ownLive || delegatedLive ? Math.max(boost, 5) : boost,
       } satisfies Matrix3DAgentPresence
     })
 
@@ -951,20 +875,6 @@ export function useMatrix3DOfficeData(): Matrix3DOfficeData {
     retry: false,
   })
 
-  const crewAgentIds = (crewStatusQuery.data ?? []).map((a) => a.id)
-  const profileActivityQuery = useQuery({
-    queryKey: [
-      'matrix3d',
-      'profile-activity',
-      [...crewAgentIds].sort().join(','),
-    ],
-    queryFn: () => fetchProfileActivity(crewAgentIds),
-    enabled: crewAgentIds.length > 0,
-    staleTime: 4_000,
-    refetchInterval: 4_000,
-    retry: false,
-  })
-
   const previousCrewRef = useRef<Record<string, CrewActivitySnapshot>>({})
   const [activityBoosts, setActivityBoosts] = useState<Record<string, number>>(
     {},
@@ -996,8 +906,6 @@ ${parseLogText(gatewayLogsQuery.data)}`
     setActivityBoosts(nextBoosts)
   }, [crewAgents, gatewayLogsQuery.data, logsQuery.data])
 
-  const profileActivity = profileActivityQuery.data ?? {}
-
   const presence = useMemo(
     () =>
       mergePresence(
@@ -1005,15 +913,8 @@ ${parseLogText(gatewayLogsQuery.data)}`
         rosterAgents,
         agentView.activeAgents,
         activityBoosts,
-        profileActivity,
       ).filter(shouldShowMatrix3DAgent),
-    [
-      activityBoosts,
-      agentView.activeAgents,
-      crewAgents,
-      rosterAgents,
-      profileActivity,
-    ],
+    [activityBoosts, agentView.activeAgents, crewAgents, rosterAgents],
   )
 
   const agents = useMemo(() => presence.map(toOfficeAgent), [presence])

@@ -63,6 +63,10 @@ export type CrewStatusAgent = {
   activeDelegatedParentSessionKey: string | null
   activeDelegatedTitle: string | null
   activeDelegatedLastActiveAt: number | null
+  isActive: boolean
+  activeSessionKey: string | null
+  activeSessionTitle: string | null
+  activeSessionLastActiveAt: number | null
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -209,6 +213,13 @@ function normalizeCrewStatusAgent(value: unknown): CrewStatusAgent | null {
     activeDelegatedLastActiveAt:
       typeof record?.activeDelegatedLastActiveAt === 'number'
         ? record.activeDelegatedLastActiveAt
+        : null,
+    isActive: asBoolean(record?.isActive),
+    activeSessionKey: asString(record?.activeSessionKey),
+    activeSessionTitle: asString(record?.activeSessionTitle),
+    activeSessionLastActiveAt:
+      typeof record?.activeSessionLastActiveAt === 'number'
+        ? record.activeSessionLastActiveAt
         : null,
   }
 }

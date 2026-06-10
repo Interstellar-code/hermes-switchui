@@ -14,6 +14,14 @@ import {
   getProfileClaudeHome,
   getWorkspaceClaudeHome,
 } from '../../server/claude-paths'
+import {
+  assignDelegatedSessions,
+  emptyDelegatedAssignment,
+} from '../../lib/crew-delegation'
+import type {
+  CrewOwnActivity,
+  DelegatedChildSession,
+} from '../../lib/crew-delegation'
 
 type CrewDefinition = {
   id: string
@@ -30,13 +38,6 @@ type DbStats = {
   estimatedCostUsd: number | null
   lastSessionTitle: string | null
   lastSessionAt: number | null
-}
-
-type DelegatedActivity = {
-  activeDelegatedSessionKey: string
-  activeDelegatedParentSessionKey: string
-  activeDelegatedTitle: string | null
-  activeDelegatedLastActiveAt: number
 }
 
 function titleCase(value: string): string {
@@ -245,35 +246,28 @@ function readCronJobCount(claudeHome: string): number {
   }
 }
 
-function readHermesSwitchDelegatedActivity(): Record<
-  string,
-  DelegatedActivity
-> {
+/**
+ * Active child sessions inside the hermes-switch profile's own state.db.
+ *
+ * `delegate_task` tool-call args carry NO agent identity, so delegated work
+ * runs as anonymous child sessions (`parent_session_id` set) under
+ * hermes-switch. We surface the active ones unattributed; assignment to crew
+ * avatars happens deterministically in `assignDelegatedSessions` (see
+ * src/lib/crew-delegation.ts). Read-only, SELECTs only, no schema writes.
+ */
+function readDelegatedChildSessions(): Array<DelegatedChildSession> {
   const dbPath = join(getProfileClaudeHome('hermes-switch'), 'state.db')
-  if (!existsSync(dbPath)) return {}
+  if (!existsSync(dbPath)) return []
 
   try {
     const script = `
-import json, re, sqlite3, sys, time
+import json, sqlite3, sys, time
 
 path = sys.argv[1]
-cutoff = time.time() - 300
-out = {}
+cutoff = time.time() - 180
+out = []
 
-def normalize_agent(value):
-    value = (value or '').strip().lower()
-    value = re.sub(r'[^a-z0-9_-]+', '-', value).strip('-')
-    return value
-
-def first_json_object(value):
-    if not value:
-        return None
-    try:
-        return json.loads(value)
-    except Exception:
-        return None
-
-conn = sqlite3.connect(path)
+conn = sqlite3.connect("file:" + path + "?mode=ro", uri=True)
 conn.row_factory = sqlite3.Row
 cur = conn.cursor()
 
@@ -288,75 +282,122 @@ if has_sessions is None or has_messages is None:
     print(json.dumps(out))
     raise SystemExit(0)
 
-goal_to_agent = {}
-for row in cur.execute("SELECT tool_calls FROM messages WHERE tool_calls IS NOT NULL"):
-    calls = first_json_object(row["tool_calls"])
-    if not isinstance(calls, list):
-        continue
-    for call in calls:
-        fn = call.get("function") if isinstance(call, dict) else None
-        if not isinstance(fn, dict) or fn.get("name") != "delegate_task":
-            continue
-        args = first_json_object(fn.get("arguments"))
-        if not isinstance(args, dict):
-            continue
-        goal = (args.get("goal") or "").strip()
-        context = args.get("context") or ""
-        match = re.search(r"\\byou\\s+are\\s+([A-Za-z0-9_-]+)\\b", context, re.I)
-        if goal and match:
-            goal_to_agent[goal] = normalize_agent(match.group(1))
+has_ended_at = cur.execute(
+  "SELECT 1 FROM pragma_table_info('sessions') WHERE name='ended_at'"
+).fetchone()
+ended_at_clause = "AND s.ended_at IS NULL" if has_ended_at else ""
 
-fallback_keywords = [
-    ("neo", ["gateway", "logs", "log", "errors", "warnings", "infra", "technical"]),
-    ("trinity", ["finance", "financial", "market", "markets", "gold", "silver", "bitcoin", "ethereum", "crude"]),
-    ("morpheus", ["website", "marketing", "positioning", "cta", "ctas", "messaging", "design"]),
-]
-
-children = cur.execute("""
+children = cur.execute(f"""
 SELECT
   s.id,
   s.parent_session_id,
-  s.started_at,
   s.title,
+  s.started_at,
   MAX(m.timestamp) AS last_active
 FROM sessions s
 LEFT JOIN messages m ON m.session_id = s.id
 WHERE s.parent_session_id IS NOT NULL
-  AND s.ended_at IS NULL
+  {ended_at_clause}
+GROUP BY s.id
+HAVING (last_active IS NOT NULL AND last_active >= ?)
+    OR (last_active IS NULL AND s.started_at >= ?)
+ORDER BY COALESCE(last_active, s.started_at) DESC
+""", (cutoff, cutoff)).fetchall()
+
+for child in children:
+    title = child["title"]
+    if not title:
+        first = cur.execute(
+          "SELECT content FROM messages WHERE session_id = ? AND role = 'user' ORDER BY timestamp ASC, id ASC LIMIT 1",
+          (child["id"],),
+        ).fetchone()
+        prompt = ((first["content"] if first else None) or "").strip()
+        title = prompt[:140] or None
+    raw_ts = child["last_active"] if child["last_active"] is not None else child["started_at"]
+    out.append({
+      "sessionKey": child["id"],
+      "parentSessionKey": child["parent_session_id"],
+      "title": title,
+      "lastActiveAt": float(raw_ts) * 1000,
+    })
+
+conn.close()
+print(json.dumps(out))
+`
+    const raw = execFileSync('python3', ['-c', script, dbPath], {
+      encoding: 'utf-8',
+      timeout: 3_000,
+    })
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as Array<DelegatedChildSession>) : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Own-db live activity for a single profile: a profile is active when ANY of
+ * its sessions has an un-ended session with a message in the last 180s.
+ * Read-only, SELECTs only, no schema writes.
+ */
+function readCrewOwnActivity(claudeHome: string): CrewOwnActivity {
+  const empty: CrewOwnActivity = {
+    isActive: false,
+    activeSessionKey: null,
+    activeSessionTitle: null,
+    activeSessionLastActiveAt: null,
+  }
+  const dbPath = join(claudeHome, 'state.db')
+  if (!existsSync(dbPath)) return empty
+
+  try {
+    const script = `
+import json, sqlite3, sys, time
+
+path = sys.argv[1]
+cutoff = time.time() - 180
+out = {"isActive": False, "activeSessionKey": None, "activeSessionTitle": None, "activeSessionLastActiveAt": None}
+
+conn = sqlite3.connect("file:" + path + "?mode=ro", uri=True)
+conn.row_factory = sqlite3.Row
+cur = conn.cursor()
+
+has_sessions = cur.execute(
+  "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sessions' LIMIT 1"
+).fetchone()
+has_messages = cur.execute(
+  "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'messages' LIMIT 1"
+).fetchone()
+if has_sessions is None or has_messages is None:
+    conn.close()
+    print(json.dumps(out))
+    raise SystemExit(0)
+
+has_ended_at = cur.execute(
+  "SELECT 1 FROM pragma_table_info('sessions') WHERE name='ended_at'"
+).fetchone()
+ended_at_clause = "WHERE s.ended_at IS NULL" if has_ended_at else ""
+
+row = cur.execute(f"""
+SELECT
+  s.id,
+  s.title,
+  MAX(m.timestamp) AS last_active
+FROM sessions s
+LEFT JOIN messages m ON m.session_id = s.id
+{ended_at_clause}
 GROUP BY s.id
 HAVING last_active IS NOT NULL AND last_active >= ?
 ORDER BY last_active DESC
-""", (cutoff,)).fetchall()
+LIMIT 1
+""", (cutoff,)).fetchone()
 
-for child in children:
-    first = cur.execute(
-      "SELECT content FROM messages WHERE session_id = ? AND role = 'user' ORDER BY timestamp ASC, id ASC LIMIT 1",
-      (child["id"],),
-    ).fetchone()
-    prompt = ((first["content"] if first else None) or "").strip()
-    agent = goal_to_agent.get(prompt)
-    if agent is None:
-        lower = prompt.lower()
-        best_agent = None
-        best_score = 0
-        for candidate, words in fallback_keywords:
-            score = sum(1 for word in words if word in lower)
-            if score > best_score:
-                best_agent = candidate
-                best_score = score
-        agent = best_agent if best_score > 0 else None
-    if not agent:
-        continue
-
-    current = out.get(agent)
-    last_active = float(child["last_active"])
-    if current and current["activeDelegatedLastActiveAt"] >= last_active:
-        continue
-    out[agent] = {
-      "activeDelegatedSessionKey": child["id"],
-      "activeDelegatedParentSessionKey": child["parent_session_id"],
-      "activeDelegatedTitle": child["title"] or prompt[:180] or None,
-      "activeDelegatedLastActiveAt": last_active,
+if row is not None:
+    out = {
+      "isActive": True,
+      "activeSessionKey": row["id"],
+      "activeSessionTitle": row["title"],
+      "activeSessionLastActiveAt": float(row["last_active"]) * 1000,
     }
 
 conn.close()
@@ -366,23 +407,13 @@ print(json.dumps(out))
       encoding: 'utf-8',
       timeout: 3_000,
     })
-    return JSON.parse(raw) as Record<string, DelegatedActivity>
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object') {
+      return parsed as CrewOwnActivity
+    }
+    return empty
   } catch {
-    return {}
-  }
-}
-
-function emptyDelegatedActivity(): {
-  activeDelegatedSessionKey: null
-  activeDelegatedParentSessionKey: null
-  activeDelegatedTitle: null
-  activeDelegatedLastActiveAt: null
-} {
-  return {
-    activeDelegatedSessionKey: null,
-    activeDelegatedParentSessionKey: null,
-    activeDelegatedTitle: null,
-    activeDelegatedLastActiveAt: null,
+    return empty
   }
 }
 
@@ -420,13 +451,37 @@ export const Route = createFileRoute('/api/crew-status')({
         await ensureGatewayProbed()
         const taskCounts = await fetchAssignedTaskCounts()
         const crewDefinitions = buildCrewDefinitions()
-        const delegatedActivity = readHermesSwitchDelegatedActivity()
+
+        // Anonymous delegated child sessions live in the hermes-switch profile's
+        // own db. Read them once, plus each profile's own-db live activity, then
+        // deterministically round-robin the delegated sessions across tier-2
+        // avatars (see src/lib/crew-delegation.ts).
+        const delegatedSessions = readDelegatedChildSessions()
+        const ownActivity: Record<string, CrewOwnActivity> = {}
+        for (const member of crewDefinitions) {
+          const claudeHome = getClaudeHome(member.profilePath)
+          ownActivity[member.id] = existsSync(claudeHome)
+            ? readCrewOwnActivity(claudeHome)
+            : {
+                isActive: false,
+                activeSessionKey: null,
+                activeSessionTitle: null,
+                activeSessionLastActiveAt: null,
+              }
+        }
+
+        const delegatedAssignments = assignDelegatedSessions(
+          crewDefinitions.map((member) => member.id),
+          delegatedSessions,
+          ownActivity,
+        )
 
         const crew = crewDefinitions.map((member) => {
           const claudeHome = getClaudeHome(member.profilePath)
           const profileFound = existsSync(claudeHome)
+          const own = ownActivity[member.id]
           const delegated =
-            delegatedActivity[member.id] ?? emptyDelegatedActivity()
+            delegatedAssignments[member.id] ?? emptyDelegatedAssignment()
 
           if (!profileFound) {
             return {
@@ -448,6 +503,10 @@ export const Route = createFileRoute('/api/crew-status')({
               estimatedCostUsd: null,
               cronJobCount: 0,
               assignedTaskCount: taskCounts[member.id] ?? 0,
+              isActive: own.isActive,
+              activeSessionKey: own.activeSessionKey,
+              activeSessionTitle: own.activeSessionTitle,
+              activeSessionLastActiveAt: own.activeSessionLastActiveAt,
               ...delegated,
             }
           }
@@ -475,11 +534,19 @@ export const Route = createFileRoute('/api/crew-status')({
             estimatedCostUsd: dbStats.estimatedCostUsd,
             cronJobCount: readCronJobCount(claudeHome),
             assignedTaskCount: taskCounts[member.id] ?? 0,
+            isActive: own.isActive,
+            activeSessionKey: own.activeSessionKey,
+            activeSessionTitle: own.activeSessionTitle,
+            activeSessionLastActiveAt: own.activeSessionLastActiveAt,
             ...delegated,
           }
         })
 
-        return Response.json({ crew, fetchedAt: Date.now() })
+        return Response.json({
+          crew,
+          delegatedSessions,
+          fetchedAt: Date.now(),
+        })
       },
     },
   },
