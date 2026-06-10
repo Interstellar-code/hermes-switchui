@@ -2839,16 +2839,14 @@ export function RetroOffice3D({
     () => ({ pos: CAM_POS, target: cameraTarget, zoom: cameraZoom }),
     [CAM_POS, cameraTarget, cameraZoom]
   );
-  const canvasResetKey = useMemo(
-    () =>
-      [
-        remoteOfficeEnabled ? "remote" : "local",
-        gatewayStatus ?? "unknown",
-        String(agents.length),
-        String(officeCenterSignal),
-      ].join(":"),
-    [agents.length, gatewayStatus, officeCenterSignal, remoteOfficeEnabled],
-  );
+  // Only remoteOfficeEnabled legitimately requires a full canvas teardown
+  // (switches local vs remote renderer). The other former members —
+  // agents.length, gatewayStatus, officeCenterSignal — change frequently and
+  // caused the browser WebGL context pool (~16 contexts) to be exhausted,
+  // producing "THREE.WebGLRenderer: Context Lost". officeCenterSignal recenter
+  // is handled imperatively by the useEffect below (cameraPresetRef), so it
+  // does not need a remount.
+  const canvasResetKey = remoteOfficeEnabled ? "remote" : "local";
   // New Idea 7: heatmap mode.
   const [heatmapMode, setHeatmapMode] = useState(false);
   const [trailMode, setTrailMode] = useState(false);
