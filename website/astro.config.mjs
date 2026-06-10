@@ -52,6 +52,9 @@ export default defineConfig({
       title: 'Hermes Switch UI',
       description: 'Documentation for Hermes Switch UI — the browser-based shell for the Hermes Agent runtime.',
       customCss: ['/src/styles/starlight-docs.css'],
+      components: {
+        SiteTitle: './src/components/StarlightSiteTitle.astro',
+      },
       head: [
         {
           tag: 'script',

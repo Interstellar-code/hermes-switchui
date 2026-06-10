@@ -1,0 +1,8 @@
+---
+const { siteTitle } = Astro.locals.starlightRoute;
+const websiteHref = import.meta.env.BASE_URL;
+---
+
+<a href={websiteHref} class="site-title sl-flex" aria-label={`${siteTitle} website`}>
+  <span translate="no">{siteTitle}</span>
+</a>
