@@ -12,6 +12,7 @@ import {
   dashboardFetch,
   ensureGatewayProbed,
 } from '../../server/gateway-capabilities'
+import { deleteSession } from '../../server/hermes-api'
 
 function authHeaders(): Record<string, string> {
   return BEARER_TOKEN ? { Authorization: `Bearer ${BEARER_TOKEN}` } : {}
@@ -24,6 +25,105 @@ function notSupported(): Response {
     }),
     { status: 404, headers: { 'Content-Type': 'application/json' } },
   )
+}
+
+function dashboardJobPath(
+  jobId: string,
+  action: string,
+  url: URL,
+): string {
+  const dashboardAction =
+    action === 'run' ? 'trigger' : action === 'output' ? 'runs' : action
+  const path = dashboardAction
+    ? `/api/cron/jobs/${jobId}/${dashboardAction}`
+    : `/api/cron/jobs/${jobId}`
+  const search = new URLSearchParams(url.searchParams)
+  search.delete('action')
+  const query = search.toString()
+  return query ? `${path}?${query}` : path
+}
+
+function collectLinkedSessionKeys(value: unknown): Set<string> {
+  const keys = new Set<string>()
+  const seen = new Set<unknown>()
+  const sessionKeyFields = new Set([
+    'chatSessionKey',
+    'chat_session_key',
+    'friendlyId',
+    'friendly_id',
+    'sessionKey',
+    'session_key',
+    'sessionId',
+    'session_id',
+  ])
+
+  function visit(node: unknown): void {
+    if (!node || typeof node !== 'object' || seen.has(node)) return
+    seen.add(node)
+
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item)
+      return
+    }
+
+    for (const [field, child] of Object.entries(node)) {
+      if (
+        sessionKeyFields.has(field) &&
+        typeof child === 'string' &&
+        child.trim()
+      ) {
+        keys.add(child.trim())
+      }
+      visit(child)
+    }
+  }
+
+  visit(value)
+  return keys
+}
+
+async function readJsonSafely(response: Response): Promise<unknown> {
+  const text = await response.text()
+  if (!text.trim()) return null
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    return null
+  }
+}
+
+async function collectDashboardRunSessionKeys(jobId: string): Promise<string[]> {
+  try {
+    const runsResponse = await dashboardFetch(`/api/cron/jobs/${jobId}/runs?limit=100`)
+    if (!runsResponse.ok) return []
+    return [...collectLinkedSessionKeys(await readJsonSafely(runsResponse))]
+  } catch {
+    return []
+  }
+}
+
+async function deleteLinkedSessions(sessionKeys: string[]): Promise<{
+  deleted: string[]
+  failed: Array<{ sessionKey: string; error: string }>
+}> {
+  const deleted: string[] = []
+  const failed: Array<{ sessionKey: string; error: string }> = []
+
+  for (const sessionKey of sessionKeys) {
+    try {
+      await deleteSession(sessionKey)
+      deleted.push(sessionKey)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.includes(': 404')) {
+        deleted.push(sessionKey)
+      } else {
+        failed.push({ sessionKey, error: message })
+      }
+    }
+  }
+
+  return { deleted, failed }
 }
 
 export const Route = createFileRoute('/api/claude-jobs/$jobId')({
@@ -42,10 +142,9 @@ export const Route = createFileRoute('/api/claude-jobs/$jobId')({
         const action = url.searchParams.get('action') || ''
 
         if (capabilities.dashboard.available) {
-          const dashboardPath = action
-            ? `/api/cron/jobs/${params.jobId}/${action === 'run' ? 'trigger' : action}`
-            : `/api/cron/jobs/${params.jobId}`
-          const res = await dashboardFetch(dashboardPath)
+          const res = await dashboardFetch(
+            dashboardJobPath(params.jobId, action, url),
+          )
           return new Response(await res.text(), {
             status: res.status,
             headers: { 'Content-Type': 'application/json' },
@@ -143,6 +242,9 @@ export const Route = createFileRoute('/api/claude-jobs/$jobId')({
         const capabilities = await ensureGatewayProbed()
         if (!capabilities.jobs) return notSupported()
 
+        const linkedSessionKeys = capabilities.dashboard.available
+          ? await collectDashboardRunSessionKeys(params.jobId)
+          : []
         const res = capabilities.dashboard.available
           ? await dashboardFetch(`/api/cron/jobs/${params.jobId}`, {
               method: 'DELETE',
@@ -151,7 +253,24 @@ export const Route = createFileRoute('/api/claude-jobs/$jobId')({
               method: 'DELETE',
               headers: authHeaders(),
             })
-        return new Response(await res.text(), {
+        const text = await res.text()
+        if (res.ok && linkedSessionKeys.length > 0) {
+          const sessionCleanup = await deleteLinkedSessions(linkedSessionKeys)
+          let payload: Record<string, unknown> = {}
+          try {
+            payload = text.trim()
+              ? (JSON.parse(text) as Record<string, unknown>)
+              : {}
+          } catch {
+            payload = { ok: true, message: text }
+          }
+          return new Response(JSON.stringify({ ...payload, sessionCleanup }), {
+            status: res.status,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+
+        return new Response(text, {
           status: res.status,
           headers: { 'Content-Type': 'application/json' },
         })

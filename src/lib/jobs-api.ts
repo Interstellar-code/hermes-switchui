@@ -34,6 +34,56 @@ export type JobOutput = {
   size: number
 }
 
+function stringifyJobOutput(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (value === null || value === undefined) return ''
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
+function normalizeJobOutputs(data: unknown): Array<JobOutput> {
+  if (!data || typeof data !== 'object') return []
+  const record = data as Record<string, unknown>
+  if (Array.isArray(record.outputs)) return record.outputs as Array<JobOutput>
+
+  const runs = Array.isArray(record.runs) ? record.runs : []
+  return runs.map((run, index) => {
+    const row =
+      run && typeof run === 'object' ? (run as Record<string, unknown>) : {}
+    const output = row.output
+    const content =
+      stringifyJobOutput(output) ||
+      stringifyJobOutput(row.deliverySummary) ||
+      stringifyJobOutput(row.summary) ||
+      stringifyJobOutput(row.error) ||
+      stringifyJobOutput(row)
+    const timestamp =
+      typeof row.startedAt === 'string'
+        ? row.startedAt
+        : typeof row.started_at === 'string'
+          ? row.started_at
+          : typeof row.createdAt === 'string'
+            ? row.createdAt
+            : typeof row.timestamp === 'string'
+              ? row.timestamp
+              : ''
+    const filename =
+      (typeof row.id === 'string' && row.id) ||
+      (typeof row.runId === 'string' && row.runId) ||
+      `run-${index + 1}`
+
+    return {
+      filename,
+      timestamp,
+      content,
+      size: content.length,
+    }
+  })
+}
+
 type JobMutationInput = {
   schedule: string
   prompt: string
@@ -289,7 +339,7 @@ export async function fetchJobOutput(
   jobId: string,
   limit = 10,
 ): Promise<Array<JobOutput>> {
-  const res = await fetch(`${CLAUDE_API}/${jobId}?action=output&limit=${limit}`)
+  const res = await fetch(`${CLAUDE_API}/${jobId}?action=runs&limit=${limit}`)
   if (!res.ok) throw new Error(`Failed to fetch output: ${res.status}`)
-  return (await res.json()).outputs ?? []
+  return normalizeJobOutputs(await res.json())
 }
