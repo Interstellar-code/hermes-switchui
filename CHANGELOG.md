@@ -3,6 +3,16 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.42] — 2026-06-11
+
+Matrix3D agent-activity reliability and 3D-canvas/console-error fixes.
+
+### Fixed
+
+- **Matrix3D crew characters now reflect real per-agent activity.** The tier-2 characters (MORPHEUS/NEO/TRINITY) were stuck out of sync because all three legacy "working" signals were dead: the gateway never supported `?profile=` session filtering, the `delegate_task` payload carries no agent identity (so the `"you are <name>"` heuristic never matched), and name-fuzzy matching scored zero against UUID session keys. Crew activity is now derived from per-profile `state.db` ground truth (recent `messages.timestamp` within a 180s window, `ended_at`-guarded, ms-normalized) plus a deterministic, stable avatar assignment of active delegated child sessions (`src/lib/crew-delegation.ts`). Working agents without an open UI stream now route to a desk with their own task text instead of replaying the main agent's bubble. This is an interim DB-backed fix; the push-based replacement is tracked in #202 / hermes-agent#132.
+- **3D office no longer loses its WebGL context.** `canvasResetKey` fed the `<Canvas>` React key from frequently-changing reactive values (`agents.length`, `gatewayStatus`, `officeCenterSignal`), so every agent-count change, gateway reconnect, or recenter destroyed and remounted the Three.js renderer — exhausting the browser's ~16 WebGL-context cap and throwing `THREE.WebGLRenderer: Context Lost`. The key is now just `remoteOfficeEnabled`; recenter keeps working through its existing imperative `useEffect`. (#203)
+- **Kanban boards no longer 503 on archived queries.** `GET /api/hermes-kanban/boards?include_archived=true` returned a 503 on every call (~5s) even though the upstream dashboard answered 200 in ~31ms. The `kanbanFetch` 5s `AbortSignal` was shorter than the worst-case double HTML-scrape auth retry (2×`PROBE_TIMEOUT_MS` = 6s), so the abort fired mid-auth and a synthetic 503 was returned. Raised to `KANBAN_FETCH_TIMEOUT_MS = 12_000`; fast calls are unaffected. (#205)
+
 ## [2.3.41] — 2026-06-10
 
 Expose the new Plugins docs on the marketing/Starlight site.
