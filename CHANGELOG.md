@@ -3,6 +3,19 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.40] — 2026-06-10
+
+Docs plugins section, plus a website version-display fix.
+
+### Fixed
+
+- **Website version now updates with every release.** `website/astro.config.mjs` had two `vite:` keys in the same config object; the second silently overwrote the first, so the `PUBLIC_SITE_VERSION` `define` never applied and every site label fell back to a frozen literal (`2.3.38`). The blocks are merged, so the nav badge, hero badge, install terminal, and footer now reflect the real package version.
+
+### Added
+
+- **Docs › Plugins section.** A dedicated Plugins group in the docs sidebar (after MCP) documenting the four custom Hermes Agent plugins bundled with Switch UI: A2A Fleet, Workflow Engine, Lazy Load MCP, and Matrix Coder.
+- **Matrix Coder intent-detection docs + diagram.** The Matrix Coder page now explains how the `pre_llm_call` hook decides whether a specialist persona activates (explicit trigger ▸ implicit inference ▸ no-op), with an architecture diagram of the full routing path.
+
 ## [2.3.39] — 2026-06-10
 
 Cron run-history reliability release.

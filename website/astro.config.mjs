@@ -57,6 +57,9 @@ export default defineConfig({
     define: {
       'import.meta.env.PUBLIC_SITE_VERSION': JSON.stringify(publicSiteVersion),
     },
+    build: {
+      cssMinify: false,
+    },
   },
   integrations: [
     starlight({
@@ -197,10 +200,5 @@ export default defineConfig({
   ],
   markdown: {
     rehypePlugins: [rehypeRewriteDocsLinksAndAssets],
-  },
-  vite: {
-    build: {
-      cssMinify: false,
-    },
   },
 });

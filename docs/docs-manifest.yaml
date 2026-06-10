@@ -104,6 +104,18 @@ pages:
   - slug: settings/workflows-backend-toggle
     title: Workflows backend toggle
 
+  # PLUGINS — custom Hermes Agent plugins bundled with Switch UI
+  - slug: plugins/overview
+    title: Plugins overview
+  - slug: plugins/a2a-fleet
+    title: A2A Fleet
+  - slug: plugins/workflow-engine
+    title: Workflow Engine
+  - slug: plugins/lazy-load-mcp
+    title: Lazy Load MCP
+  - slug: plugins/matrix-coder
+    title: Matrix Coder
+
   # HOW-TO GUIDES
   - slug: how-to/use-the-manifest-provider-to-reduce-llm-costs
     title: Use the Manifest provider to reduce LLM costs

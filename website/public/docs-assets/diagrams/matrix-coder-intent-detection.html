@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hermes Switch UI — Matrix Coder Intent Detection</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+    .pulse-dot {
+      width: 12px; height: 12px; background: #22c55e; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1000px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .card-dot.green  { background: #22c55e; }
+    .card-dot.amber  { background: #fbbf24; }
+    .card-dot.slate  { background: #475569; }
+    .card-dot.violet { background: #a78bfa; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer { text-align: center; margin-top: 1.5rem; color: #475569; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Matrix Coder — Intent Detection &amp; Routing</h1>
+      </div>
+      <p class="subtitle">How the pre_llm_call hook decides whether a specialist persona activates — every turn, local heuristics only, no extra LLM call</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1200 900">
+        <defs>
+          <marker id="arrow-slate" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#475569" />
+          </marker>
+          <marker id="arrow-green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22c55e" />
+          </marker>
+          <marker id="arrow-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24" />
+          </marker>
+          <marker id="arrow-red" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#f87171" />
+          </marker>
+          <marker id="arrow-muted" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#334155" />
+          </marker>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#0f172a" stroke-width="1"/>
+          </pattern>
+        </defs>
+
+        <rect width="1200" height="900" fill="url(#grid)" />
+
+        <!-- ============================================================ -->
+        <!-- PRECEDENCE CALLOUT — top right                               -->
+        <!-- ============================================================ -->
+        <rect x="830" y="20" width="346" height="36" rx="5" fill="rgba(34,197,94,0.07)" stroke="rgba(34,197,94,0.35)" stroke-width="1"/>
+        <text x="848" y="36" font-family="JetBrains Mono" font-size="8" fill="#22c55e" font-weight="700" letter-spacing="0.5">PRECEDENCE</text>
+        <text x="920" y="36" font-family="JetBrains Mono" font-size="8" fill="#4ade80">explicit trigger</text>
+        <text x="1035" y="36" font-family="JetBrains Mono" font-size="8" fill="#94a3b8">▸</text>
+        <text x="1050" y="36" font-family="JetBrains Mono" font-size="8" fill="#94a3b8">implicit inference</text>
+        <text x="1148" y="36" font-family="JetBrains Mono" font-size="8" fill="#475569">▸ no-op</text>
+
+        <!-- ============================================================ -->
+        <!-- ENTRY NODE                                                   -->
+        <!-- ============================================================ -->
+        <rect x="484" y="20" width="232" height="52" rx="6" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+        <rect x="480" y="16" width="232" height="52" rx="6" fill="rgba(15,23,42,0.8)" stroke="#22c55e" stroke-width="1.5"/>
+        <text x="596" y="39" font-family="JetBrains Mono" font-size="10" fill="white" font-weight="700" text-anchor="middle">Every conversation turn</text>
+        <text x="596" y="55" font-family="JetBrains Mono" font-size="8" fill="#4ade80" text-anchor="middle">pre_llm_call → _inject_persona</text>
+
+        <!-- Entry down arrow -->
+        <line x1="596" y1="68" x2="596" y2="100" stroke="#22c55e" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+
+        <!-- ============================================================ -->
+        <!-- GUARD: cron / system-preamble                                -->
+        <!-- ============================================================ -->
+        <polygon points="596,100 646,128 596,156 546,128" fill="#0f172a" stroke="#f87171" stroke-width="1.5"/>
+        <text x="596" y="125" font-family="JetBrains Mono" font-size="8" fill="#f87171" text-anchor="middle" font-weight="600">cron or</text>
+        <text x="596" y="137" font-family="JetBrains Mono" font-size="8" fill="#f87171" text-anchor="middle" font-weight="600">sys-preamble?</text>
+
+        <!-- Guard YES → early bail right -->
+        <line x1="646" y1="128" x2="790" y2="128" stroke="#f87171" stroke-width="1.5" marker-end="url(#arrow-red)"/>
+        <text x="710" y="121" font-family="JetBrains Mono" font-size="8" fill="#f87171" text-anchor="middle" font-weight="600">yes</text>
+        <rect x="794" y="108" width="146" height="40" rx="5" fill="#0f172a" stroke="#f87171" stroke-width="1"/>
+        <text x="867" y="126" font-family="JetBrains Mono" font-size="9" fill="#f87171" text-anchor="middle" font-weight="600">inject nothing</text>
+        <text x="867" y="140" font-family="JetBrains Mono" font-size="8" fill="#475569" text-anchor="middle">skip / bail early</text>
+
+        <!-- Guard NO → continue down -->
+        <line x1="596" y1="156" x2="596" y2="190" stroke="#22c55e" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+        <text x="608" y="177" font-family="JetBrains Mono" font-size="8" fill="#22c55e" font-weight="600">no</text>
+
+        <!-- ============================================================ -->
+        <!-- DECISION 1: explicit trigger?                                -->
+        <!-- ============================================================ -->
+        <polygon points="596,190 658,222 596,254 534,222" fill="#0f172a" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="596" y="218" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" text-anchor="middle" font-weight="600">starts with</text>
+        <text x="596" y="230" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" text-anchor="middle" font-weight="600">`matrix`?</text>
+        <text x="596" y="182" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" text-anchor="middle" font-weight="600">DECISION 1 — explicit trigger</text>
+
+        <!-- D1 YES → right: parse_trigger path -->
+        <line x1="658" y1="222" x2="790" y2="222" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+        <text x="718" y="215" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" text-anchor="middle" font-weight="600">yes — EXPLICIT</text>
+
+        <!-- parse_trigger box -->
+        <rect x="794" y="174" width="380" height="100" rx="6" fill="rgba(251,191,36,0.06)" stroke="#fbbf24" stroke-width="1.2"/>
+        <text x="814" y="194" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" font-weight="700" letter-spacing="0.5">parse_trigger( message )</text>
+        <text x="814" y="210" font-family="JetBrains Mono" font-size="8" fill="#94a3b8">grammar:  matrix &lt;role&gt; [&lt;lens&gt;] [@&lt;domain&gt;] [:] &lt;goal&gt;</text>
+        <text x="814" y="226" font-family="JetBrains Mono" font-size="7.5" fill="#94a3b8">role  ∈  {review, executor, explore, plan, debug, test, verify, simplify}</text>
+        <text x="814" y="240" font-family="JetBrains Mono" font-size="7.5" fill="#94a3b8">      OR  workflow ∈  {ralph, autopilot, ultrawork, ultraqa}</text>
+        <text x="814" y="254" font-family="JetBrains Mono" font-size="7.5" fill="#94a3b8">lens  (review only) ∈  {security, code, api, performance, quality, deps}</text>
+        <text x="814" y="268" font-family="JetBrains Mono" font-size="7.5" fill="#94a3b8">@domain  ∈  {frontend, backend-api, data-db, infra-cli, plugin-skill-authoring}</text>
+
+        <!-- parse_trigger → explicit outcome -->
+        <line x1="984" y1="274" x2="984" y2="318" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+
+        <!-- OUTCOME A: EXPLICIT persona injected -->
+        <rect x="836" y="322" width="296" height="60" rx="6" fill="rgba(34,197,94,0.12)" stroke="#22c55e" stroke-width="1.8"/>
+        <text x="984" y="342" font-family="JetBrains Mono" font-size="10" fill="#4ade80" text-anchor="middle" font-weight="700">MATRIX — persona injected</text>
+        <text x="984" y="358" font-family="JetBrains Mono" font-size="8" fill="#94a3b8" text-anchor="middle">explicit always wins · role + optional domain pack</text>
+        <text x="984" y="372" font-family="JetBrains Mono" font-size="7.5" fill="#22c55e" text-anchor="middle">composed into THIS turn's context</text>
+        <!-- outcome label -->
+        <text x="984" y="316" font-family="JetBrains Mono" font-size="8" fill="#22c55e" text-anchor="middle" font-weight="700">OUTCOME A</text>
+
+        <!-- D1 NO → down -->
+        <line x1="596" y1="254" x2="596" y2="294" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow-slate)"/>
+        <text x="608" y="278" font-family="JetBrains Mono" font-size="8" fill="#475569" font-weight="600">no</text>
+
+        <!-- clear stale persona note -->
+        <rect x="480" y="266" width="232" height="24" rx="4" fill="rgba(71,85,105,0.2)" stroke="#334155" stroke-width="1"/>
+        <text x="596" y="282" font-family="JetBrains Mono" font-size="7.5" fill="#64748b" text-anchor="middle">clear any stale persona from prior turn</text>
+
+        <!-- ============================================================ -->
+        <!-- DECISION 2: coding intent?                                   -->
+        <!-- ============================================================ -->
+        <polygon points="596,294 660,330 596,366 532,330" fill="#0f172a" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="596" y="326" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" text-anchor="middle" font-weight="600">coding</text>
+        <text x="596" y="338" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" text-anchor="middle" font-weight="600">intent?</text>
+        <text x="596" y="290" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" text-anchor="middle" font-weight="600">DECISION 2 — has_coding_intent()</text>
+
+        <!-- D2 NO → left: inject nothing -->
+        <line x1="532" y1="330" x2="388" y2="330" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow-slate)"/>
+        <text x="462" y="322" font-family="JetBrains Mono" font-size="8" fill="#475569" text-anchor="middle" font-weight="600">no intent</text>
+
+        <!-- OUTCOME B: no-op -->
+        <rect x="244" y="308" width="140" height="44" rx="6" fill="rgba(71,85,105,0.15)" stroke="#334155" stroke-width="1.5"/>
+        <text x="314" y="328" font-family="JetBrains Mono" font-size="9" fill="#64748b" text-anchor="middle" font-weight="600">inject nothing</text>
+        <text x="314" y="342" font-family="JetBrains Mono" font-size="7.5" fill="#475569" text-anchor="middle">ordinary chat → Hermes</text>
+        <text x="314" y="302" font-family="JetBrains Mono" font-size="8" fill="#475569" text-anchor="middle" font-weight="700">OUTCOME B</text>
+
+        <!-- D2 YES → down -->
+        <line x1="596" y1="366" x2="596" y2="410" stroke="#22c55e" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+        <text x="608" y="392" font-family="JetBrains Mono" font-size="8" fill="#22c55e" font-weight="600">yes</text>
+
+        <!-- ---- coding signal detail box (left) ---- -->
+        <rect x="26" y="290" width="210" height="118" rx="6" fill="rgba(15,23,42,0.6)" stroke="#1e293b" stroke-width="1"/>
+        <text x="42" y="310" font-family="JetBrains Mono" font-size="7.5" fill="#64748b" font-weight="600" letter-spacing="0.5">CODING SIGNAL — true when ANY:</text>
+        <text x="42" y="326" font-family="JetBrains Mono" font-size="7" fill="#475569">· file path / code extension (.py .tsx .sql…)</text>
+        <text x="42" y="340" font-family="JetBrains Mono" font-size="7" fill="#475569">· starts with role word + technical term</text>
+        <text x="42" y="354" font-family="JetBrains Mono" font-size="7" fill="#475569">· coding term + (action term OR ? OR</text>
+        <text x="42" y="366" font-family="JetBrains Mono" font-size="7" fill="#475569">  starts with is/does/why/where/how)</text>
+        <text x="42" y="382" font-family="JetBrains Mono" font-size="7" fill="#334155">  bail → "handle it directly" / "let Hermes do it"</text>
+        <text x="42" y="397" font-family="JetBrains Mono" font-size="7" fill="#475569">· none of above → None (no coding intent)</text>
+
+        <!-- ---- infer role/lens/domain note ---- -->
+        <rect x="480" y="374" width="232" height="32" rx="4" fill="rgba(71,85,105,0.15)" stroke="#334155" stroke-width="1"/>
+        <text x="596" y="389" font-family="JetBrains Mono" font-size="7.5" fill="#64748b" text-anchor="middle">infer role · lens (review) · @domain</text>
+        <text x="596" y="401" font-family="JetBrains Mono" font-size="7" fill="#475569" text-anchor="middle">priority: review→verify→debug→test→simplify→explore→plan→executor</text>
+
+        <!-- ============================================================ -->
+        <!-- DECISION 3: trivial / implicit gate                          -->
+        <!-- ============================================================ -->
+        <polygon points="596,410 668,448 596,486 524,448" fill="#0f172a" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="596" y="443" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" text-anchor="middle" font-weight="600">trivial</text>
+        <text x="596" y="455" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" text-anchor="middle" font-weight="600">request?</text>
+        <text x="596" y="406" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" text-anchor="middle" font-weight="600">DECISION 3 — implicit_intake_gate()</text>
+
+        <!-- D3 YES → left: DIRECT recommendation -->
+        <line x1="524" y1="448" x2="388" y2="448" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+        <text x="455" y="441" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" text-anchor="middle" font-weight="600">yes — DIRECT</text>
+
+        <!-- OUTCOME C: DIRECT recommendation -->
+        <rect x="200" y="420" width="184" height="62" rx="6" fill="rgba(251,191,36,0.10)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="292" y="441" font-family="JetBrains Mono" font-size="9" fill="#fbbf24" text-anchor="middle" font-weight="700">DIRECT verdict</text>
+        <text x="292" y="455" font-family="JetBrains Mono" font-size="7.5" fill="#94a3b8" text-anchor="middle">recommend only · no persona</text>
+        <text x="292" y="468" font-family="JetBrains Mono" font-size="7" fill="#78716c" text-anchor="middle">"Efficient for Hermes to handle…"</text>
+        <text x="292" y="414" font-family="JetBrains Mono" font-size="8" fill="#fbbf24" text-anchor="middle" font-weight="700">OUTCOME C</text>
+
+        <!-- trivial gate detail (bottom-left) -->
+        <rect x="26" y="420" width="170" height="84" rx="5" fill="rgba(15,23,42,0.6)" stroke="#1e293b" stroke-width="1"/>
+        <text x="42" y="438" font-family="JetBrains Mono" font-size="7" fill="#64748b" font-weight="600">TRIVIAL if ALL:</text>
+        <text x="42" y="452" font-family="JetBrains Mono" font-size="7" fill="#475569">· role ∈ {executor, simplify}</text>
+        <text x="42" y="464" font-family="JetBrains Mono" font-size="7" fill="#475569">· mechanical (typo, rename, comment</text>
+        <text x="42" y="476" font-family="JetBrains Mono" font-size="7" fill="#475569">  format, README)</text>
+        <text x="42" y="488" font-family="JetBrains Mono" font-size="7" fill="#475569">· ≤ 10 words AND NOT security</text>
+        <text x="42" y="500" font-family="JetBrains Mono" font-size="7" fill="#475569">· else → MATRIX verdict</text>
+
+        <!-- D3 NO → down: inject persona (implicit) -->
+        <line x1="596" y1="486" x2="596" y2="534" stroke="#22c55e" stroke-width="1.5" marker-end="url(#arrow-green)"/>
+        <text x="608" y="515" font-family="JetBrains Mono" font-size="8" fill="#22c55e" font-weight="600">no</text>
+
+        <!-- OUTCOME D: implicit MATRIX persona -->
+        <rect x="452" y="538" width="288" height="60" rx="6" fill="rgba(34,197,94,0.12)" stroke="#22c55e" stroke-width="1.8"/>
+        <text x="596" y="558" font-family="JetBrains Mono" font-size="10" fill="#4ade80" text-anchor="middle" font-weight="700">MATRIX — persona injected</text>
+        <text x="596" y="573" font-family="JetBrains Mono" font-size="8" fill="#94a3b8" text-anchor="middle">inferred specialist persona for the route</text>
+        <text x="596" y="587" font-family="JetBrains Mono" font-size="7.5" fill="#22c55e" text-anchor="middle">composed into THIS turn's context</text>
+        <text x="596" y="532" font-family="JetBrains Mono" font-size="8" fill="#22c55e" text-anchor="middle" font-weight="700">OUTCOME D</text>
+
+        <!-- ============================================================ -->
+        <!-- ROUTE NAME FORMAT chip                                        -->
+        <!-- ============================================================ -->
+        <rect x="794" y="430" width="380" height="70" rx="6" fill="rgba(15,23,42,0.7)" stroke="#1e293b" stroke-width="1"/>
+        <text x="814" y="450" font-family="JetBrains Mono" font-size="8" fill="#64748b" font-weight="600" letter-spacing="0.5">ROUTE NAME FORMAT</text>
+        <text x="824" y="466" font-family="JetBrains Mono" font-size="9" fill="#4ade80">role</text>
+        <text x="858" y="466" font-family="JetBrains Mono" font-size="9" fill="#475569">·</text>
+        <text x="868" y="466" font-family="JetBrains Mono" font-size="9" fill="#4ade80">review:lens</text>
+        <text x="958" y="466" font-family="JetBrains Mono" font-size="9" fill="#475569">·</text>
+        <text x="968" y="466" font-family="JetBrains Mono" font-size="9" fill="#4ade80">role@domain</text>
+        <text x="1070" y="466" font-family="JetBrains Mono" font-size="9" fill="#475569">·</text>
+        <text x="1080" y="466" font-family="JetBrains Mono" font-size="9" fill="#4ade80">review:lens@domain</text>
+        <text x="814" y="488" font-family="JetBrains Mono" font-size="7.5" fill="#475569">e.g.  debug · review:security@backend-api · plan@frontend</text>
+
+        <!-- ============================================================ -->
+        <!-- POST-TURN CLEAR BAND                                         -->
+        <!-- ============================================================ -->
+        <rect x="26" y="618" width="1148" height="46" rx="6" fill="rgba(15,23,42,0.7)" stroke="#1e293b" stroke-width="1"/>
+        <text x="600" y="637" font-family="JetBrains Mono" font-size="9" fill="#64748b" text-anchor="middle" font-weight="600" letter-spacing="0.5">POST-TURN — post_llm_call hook: _clear_persona()</text>
+        <text x="600" y="653" font-family="JetBrains Mono" font-size="8" fill="#475569" text-anchor="middle">Active persona cleared after every turn. Persona is pure TEXT injected into context — no subagent/persona API. Re-asserted each turn from scratch.</text>
+
+        <!-- Arrow from outcomes to clear band -->
+        <line x1="596" y1="598" x2="596" y2="618" stroke="#334155" stroke-width="1.2" marker-end="url(#arrow-muted)"/>
+        <line x1="984" y1="382" x2="984" y2="610" stroke="#334155" stroke-width="1" stroke-dasharray="4,3"/>
+        <line x1="984" y1="610" x2="640" y2="618" stroke="#334155" stroke-width="1" marker-end="url(#arrow-muted)"/>
+
+        <!-- ============================================================ -->
+        <!-- LEGEND                                                       -->
+        <!-- ============================================================ -->
+        <text x="26" y="700" font-family="JetBrains Mono" font-size="9" fill="white" font-weight="600">Legend</text>
+
+        <!-- green outcome swatch -->
+        <rect x="86" y="690" width="14" height="14" rx="2" fill="rgba(34,197,94,0.2)" stroke="#22c55e" stroke-width="1.2"/>
+        <text x="106" y="701" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">persona active (MATRIX verdict)</text>
+
+        <!-- amber outcome swatch -->
+        <rect x="320" y="690" width="14" height="14" rx="2" fill="rgba(251,191,36,0.15)" stroke="#fbbf24" stroke-width="1.2"/>
+        <text x="340" y="701" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">DIRECT recommendation</text>
+
+        <!-- slate/grey swatch -->
+        <rect x="530" y="690" width="14" height="14" rx="2" fill="rgba(71,85,105,0.2)" stroke="#475569" stroke-width="1.2"/>
+        <text x="550" y="701" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">no-op / inject nothing</text>
+
+        <!-- red swatch -->
+        <rect x="720" y="690" width="14" height="14" rx="2" fill="rgba(248,113,113,0.2)" stroke="#f87171" stroke-width="1.2"/>
+        <text x="740" y="701" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">guard / early bail</text>
+
+        <!-- diamond swatch -->
+        <polygon points="918,697 926,704 918,711 910,704" fill="#0f172a" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="934" y="706" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">decision diamond</text>
+
+        <!-- ============================================================ -->
+        <!-- SMALL REFERENCE: hook file paths                            -->
+        <!-- ============================================================ -->
+        <text x="26" y="728" font-family="JetBrains Mono" font-size="7.5" fill="#334155">core/intent_gate.py · has_coding_intent() · parse_trigger() · implicit_intake_gate()</text>
+        <text x="26" y="742" font-family="JetBrains Mono" font-size="7.5" fill="#334155">core/intake.py · _inject_persona() pre_llm_call · _clear_persona() post_llm_call</text>
+
+      </svg>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot green"></div>
+          <h3>MATRIX verdict (persona active)</h3>
+        </div>
+        <ul>
+          <li>· Outcome A — user wrote <code>matrix review:security@backend-api fix the auth flow</code></li>
+          <li>· Outcome D — implicit: message contains a .tsx path + "fix" keyword</li>
+          <li>· Role + optional lens + optional @domain compose the specialist persona</li>
+          <li>· Persona text is injected into the current turn's LLM context</li>
+          <li>· Unknown first token → role defaults to <code>review</code>; rest is the goal</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot amber"></div>
+          <h3>DIRECT recommendation (Outcome C)</h3>
+        </div>
+        <ul>
+          <li>· role ∈ {executor, simplify} AND mechanical task (typo, rename, comment, format, README)</li>
+          <li>· Message is ≤ 10 words AND not security-sensitive</li>
+          <li>· Injects a visible tip only — no specialist persona</li>
+          <li>· User can override: "invoke Matrix Coder anyway, or let Hermes do it?"</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot slate"></div>
+          <h3>No-op paths</h3>
+        </div>
+        <ul>
+          <li>· Cron session or system-preamble → bail immediately (early guard)</li>
+          <li>· <code>has_coding_intent()</code> returns None → ordinary chat passes through to Hermes</li>
+          <li>· "handle it directly" / "let Hermes do it" phrases also short-circuit to None</li>
+          <li>· Post-turn: <code>_clear_persona()</code> always runs — no persona leaks between turns</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot violet"></div>
+          <h3>Route name format</h3>
+        </div>
+        <ul>
+          <li>· <code>role</code> — e.g. <code>debug</code></li>
+          <li>· <code>review:lens</code> — e.g. <code>review:security</code></li>
+          <li>· <code>role@domain</code> — e.g. <code>plan@frontend</code></li>
+          <li>· <code>review:lens@domain</code> — e.g. <code>review:api@backend-api</code></li>
+          <li>· Domains: frontend, backend-api, data-db, infra-cli, plugin-skill-authoring</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer">
+      Hermes Switch UI · Matrix Coder plugin · core/intent_gate.py + core/intake.py
+    </div>
+  </div>
+</body>
+</html>
