@@ -58,6 +58,7 @@ const ICONS = {
   conductor: 'M8 2L2 14h12L8 2zM8 8v3',
   operations: 'M3 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM9 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM1 14c0-2.5 2-4 5-4s5 1.5 5 4M11 11c1.5 0 3 .8 3 3',
   matrix3d: 'M8 2l5 3v6l-5 3-5-3V5l5-3zM8 2v12M3 5l5 3 5-3M3 11l5-3 5 3',
+  selfImprove: 'M2 12l4-4 3 3 5-7M13 4h1v4',
 
   memory: 'M5 3h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM6 7h4M6 9h2',
   skills: 'M8 2l1.8 3.8 4.2.6-3 3 .7 4.1L8 11.5l-3.7 2L5 9.4l-3-3 4.2-.6z',
@@ -333,6 +334,7 @@ export function PrimaryNavV2() {
   const isConductor = pathname.startsWith('/conductor')
   // const isOperations = pathname.startsWith('/operations')
   const isMatrix3D = pathname.startsWith('/matrix3d')
+  const isSelfImprove = pathname.startsWith('/self-improve')
 
   const isMemory = pathname.startsWith('/memory')
   const isSkills = pathname.startsWith('/skills')
@@ -575,6 +577,7 @@ export function PrimaryNavV2() {
         <NavItem label="Conductor" iconKey="conductor" to="/conductor" active={isConductor} collapsed={collapsed} />
         {/* <NavItem label="Operations" iconKey="operations" to="/operations" active={isOperations} collapsed={collapsed} /> */}
         <NavItem label="Matrix3D" iconKey="matrix3d" to="/matrix3d" active={isMatrix3D} collapsed={collapsed} />
+        <NavItem label="Self-Improve" iconKey="selfImprove" to="/self-improve" active={isSelfImprove} collapsed={collapsed} />
 
         {/* KNOWLEDGE group */}
         {!collapsed && <GroupLabel label="Knowledge" />}
