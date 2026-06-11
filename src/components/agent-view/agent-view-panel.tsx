@@ -651,7 +651,16 @@ export function AgentViewPanel() {
 
   const activeNodes = useMemo(
     function buildActiveNodes() {
+      // Dedupe by id: merged agent sources can briefly report the same agent
+      // twice, and duplicate keys inside AnimatePresence break its child diff
+      // (re-render loop). Keep the first occurrence.
+      const seenIds = new Set<string>()
       return activeAgents
+        .filter(function dropDuplicateAgents(agent) {
+          if (seenIds.has(agent.id)) return false
+          seenIds.add(agent.id)
+          return true
+        })
         .map(function mapAgentToNode(agent) {
           const runtimeSeconds = Math.max(
             1,

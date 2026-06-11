@@ -92,6 +92,7 @@ import { SIDEBAR_TOGGLE_EVENT } from '@/hooks/use-global-shortcuts'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { TerminalPanel } from '@/components/terminal-panel'
 import { AgentViewPanel } from '@/components/agent-view/agent-view-panel'
+import { ErrorBoundary } from '@/components/error-boundary'
 import { useTerminalPanelStore } from '@/stores/terminal-panel-store'
 import { useModelSuggestions } from '@/hooks/use-model-suggestions'
 import {
@@ -3344,7 +3345,18 @@ export function ChatScreen({
             />
           ) : null}
         </main>
-        {!compact && !isFocusMode && <AgentViewPanel />}
+        {/* Isolated boundary: an AgentViewPanel crash (e.g. AnimatePresence
+            re-render loop) must degrade to a retry card, never take down chat. */}
+        {!compact && !isFocusMode && (
+          <ErrorBoundary
+            inline
+            className="m-2 w-72 self-start"
+            title="Agent panel crashed"
+            description="Chat is unaffected. Retry to remount the panel."
+          >
+            <AgentViewPanel />
+          </ErrorBoundary>
+        )}
       </div>
       {!compact && !hideUi && !isMobile && !isFocusMode && <TerminalPanel />}
 
