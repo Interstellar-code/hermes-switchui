@@ -9,6 +9,7 @@ import {
   textFromMessage,
 } from '../utils'
 import { MessageActionsBar } from './message-actions-bar'
+import { useSharedTicker } from '@/screens/chat/hooks/use-shared-ticker'
 import type { ChatAttachment, ChatMessage, ToolCallContent } from '../types'
 import type { ToolPart } from '@/components/prompt-kit/tool'
 import { AssistantAvatar, UserAvatar } from '@/components/avatars'
@@ -495,6 +496,18 @@ function toolResultsSignature(
       return toolResultSignature(toolResultsByCallId.get(toolCall.id))
     })
     .join('||')
+}
+
+function attachedToolMessagesSignature(
+  attachedToolMessages: Array<ChatMessage> | undefined,
+): string {
+  if (!attachedToolMessages || attachedToolMessages.length === 0) return ''
+  // The parent (chat-message-list buildDisplayEntries) constructs a fresh array
+  // every render, so reference comparison would defeat memoization. Compare by a
+  // per-message content signature mirroring toolResultSignature (the same fields
+  // attachedToolSections consumes in render: content text, toolCallId, toolName,
+  // isError, details).
+  return attachedToolMessages.map(toolResultSignature).join('||')
 }
 
 function normalizeTimestamp(value: unknown): number | null {
@@ -1050,22 +1063,23 @@ const TOOL_VERBS: Record<string, string> = {
   speak: 'Speaking',
 }
 
+// Issue #214: elapsed/dots derive from shared module-level tickers instead of
+// per-card setInterval timers. One timer per interval is shared by every card.
 function useElapsedTime(active: boolean): string {
-  const [elapsed, setElapsed] = useState(0)
   const startRef = useRef<number>(Date.now())
-
-  useEffect(() => {
-    if (!active) return
+  const activeRef = useRef(false)
+  if (active && !activeRef.current) {
     startRef.current = Date.now()
-    setElapsed(0)
-    const interval = setInterval(() => {
-      const secs = Math.floor((Date.now() - startRef.current) / 1000)
-      setElapsed(secs)
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [active])
+    activeRef.current = true
+  } else if (!active && activeRef.current) {
+    activeRef.current = false
+  }
+  useSharedTicker(1000)
+  const elapsed = active
+    ? Math.floor((Date.now() - startRef.current) / 1000)
+    : 0
 
-  if (!active && elapsed === 0) return ''
+  if (!active) return ''
   if (elapsed < 60) return `${elapsed}s`
   const m = Math.floor(elapsed / 60)
   const s = elapsed % 60
@@ -1073,12 +1087,8 @@ function useElapsedTime(active: boolean): string {
 }
 
 function useAnimatedDots(): string {
-  const [dots, setDots] = useState(0)
-  useEffect(() => {
-    const interval = setInterval(() => setDots((d) => (d + 1) % 4), 500)
-    return () => clearInterval(interval)
-  }, [])
-  return '.'.repeat(dots)
+  const tick = useSharedTicker(500)
+  return '.'.repeat(tick % 4)
 }
 
 function ToolCallPill({ toolCall }: { toolCall: StreamToolCall }) {
@@ -1763,13 +1773,19 @@ function InlineToolSectionItem({
     shouldTruncateOutput && !showFullOutput
       ? `${outputText.slice(0, 800)}…`
       : outputText
-  const [elapsed, setElapsed] = useState(0)
-  useEffect(() => {
-    if (!isRunning) return
-    setElapsed(0)
-    const id = window.setInterval(() => setElapsed((s) => s + 1), 1000)
-    return () => window.clearInterval(id)
-  }, [isRunning, toolSection.key])
+  // Issue #214: shared 1s ticker instead of a per-section interval. Start time
+  // resets when the section starts running or its key changes.
+  const elapsedStartRef = useRef<number>(Date.now())
+  const elapsedKeyRef = useRef<string | null>(null)
+  const elapsedKey = isRunning ? toolSection.key : null
+  if (elapsedKeyRef.current !== elapsedKey) {
+    elapsedKeyRef.current = elapsedKey
+    if (isRunning) elapsedStartRef.current = Date.now()
+  }
+  useSharedTicker(1000)
+  const elapsed = isRunning
+    ? Math.floor((Date.now() - elapsedStartRef.current) / 1000)
+    : 0
   const elapsedLabel =
     elapsed >= 60
       ? `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`
@@ -2910,7 +2926,7 @@ function MessageItemComponent({
   )
 }
 
-function areMessagesEqual(
+export function areMessagesEqual(
   prevProps: MessageItemProps,
   nextProps: MessageItemProps,
 ): boolean {
@@ -2996,6 +3012,18 @@ function areMessagesEqual(
     toolResultsSignature(prevProps.message, prevProps.toolResultsByCallId) !==
     toolResultsSignature(nextProps.message, nextProps.toolResultsByCallId)
   ) {
+    return false
+  }
+  if (
+    attachedToolMessagesSignature(prevProps.attachedToolMessages) !==
+    attachedToolMessagesSignature(nextProps.attachedToolMessages)
+  ) {
+    return false
+  }
+  // isLastAssistant gates the assistant metadata footer (token usage / cost /
+  // model label). When a newer message arrives this can flip while every other
+  // compared field stays equal, so it must be compared to avoid a stale footer.
+  if (prevProps.isLastAssistant !== nextProps.isLastAssistant) {
     return false
   }
   if (rawTimestamp(prevProps.message) !== rawTimestamp(nextProps.message)) {

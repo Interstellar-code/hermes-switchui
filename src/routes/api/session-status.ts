@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
   ensureGatewayProbed,
-  getConfig,
+  getConfigCached,
   getGatewayCapabilities,
   getSession,
   listSessions,
@@ -106,7 +106,7 @@ export const Route = createFileRoute('/api/session-status')({
 
           const session = await getSession(sessionKey)
           const config = capabilities.config
-            ? await getConfig()
+            ? await getConfigCached()
             : ({ model: '', provider: '' } as const)
 
           const inputTokens = session.input_tokens ?? 0

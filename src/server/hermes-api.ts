@@ -722,10 +722,37 @@ export async function getConfig(): Promise<ClaudeConfig> {
   return dashboardGet<ClaudeConfig>('/api/config')
 }
 
+// Issue #214: config rarely changes but is read on every session-status poll.
+// Cache the resolved config for a short TTL to collapse the per-poll gateway
+// round-trip. The cache is invalidated whenever patchConfig writes.
+let configCache: { value: ClaudeConfig; expiresAt: number } | null = null
+
+export async function getConfigCached(
+  ttlMs = 30_000,
+): Promise<ClaudeConfig> {
+  const now = Date.now()
+  if (configCache && configCache.expiresAt > now) {
+    return configCache.value
+  }
+  const value = await getConfig()
+  configCache = { value, expiresAt: now + ttlMs }
+  return value
+}
+
+export function invalidateConfigCache(): void {
+  configCache = null
+}
+
 export async function patchConfig(
   patch: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  return dashboardSend<Record<string, unknown>>('PATCH', '/api/config', patch)
+  const result = await dashboardSend<Record<string, unknown>>(
+    'PATCH',
+    '/api/config',
+    patch,
+  )
+  invalidateConfigCache()
+  return result
 }
 
 // ── Model / Provider APIs ────────────────────────────────────────

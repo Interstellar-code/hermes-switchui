@@ -29,10 +29,50 @@ import type {
   ToolCallContent,
 } from '../screens/chat/types'
 import type { ChatComposerAttachment } from '../screens/chat/components/chat-composer-types'
+import { isInternalSystemMessage } from '../screens/chat/internal-message-filter'
 
 const MESSAGE_QUEUE_PREFIX = 'switchui:message-queue:'
 
-let _streamingPersistTimer: ReturnType<typeof setTimeout> | null = null
+/**
+ * Per-session trailing-debounce timers for streaming-state persistence.
+ * Streaming chunks arrive per-token; persisting (JSON.stringify +
+ * sessionStorage.setItem) on every one is wasteful. We coalesce writes per
+ * session and flush immediately at critical transitions (done / clearSession)
+ * so recovery state is never stale. Keyed by sessionKey.
+ */
+export const STREAMING_PERSIST_DEBOUNCE_MS = 150
+const _streamingPersistTimers = new Map<
+  string,
+  ReturnType<typeof setTimeout>
+>()
+const _streamingPersistPending = new Map<string, StreamingState>()
+
+/** Schedule a trailing-debounced persist for a session's streaming state. */
+function schedulePersistStreamingState(
+  sessionKey: string,
+  state: StreamingState,
+): void {
+  _streamingPersistPending.set(sessionKey, state)
+  const existing = _streamingPersistTimers.get(sessionKey)
+  if (existing) clearTimeout(existing)
+  _streamingPersistTimers.set(
+    sessionKey,
+    setTimeout(() => {
+      _streamingPersistTimers.delete(sessionKey)
+      const pending = _streamingPersistPending.get(sessionKey)
+      _streamingPersistPending.delete(sessionKey)
+      if (pending) persistStreamingStateAdapter(sessionKey, pending)
+    }, STREAMING_PERSIST_DEBOUNCE_MS),
+  )
+}
+
+/** Cancel a pending debounced persist without flushing (state is being removed). */
+function cancelPersistStreamingState(sessionKey: string): void {
+  const existing = _streamingPersistTimers.get(sessionKey)
+  if (existing) clearTimeout(existing)
+  _streamingPersistTimers.delete(sessionKey)
+  _streamingPersistPending.delete(sessionKey)
+}
 
 export type ChatStreamEvent =
   | {
@@ -204,10 +244,10 @@ type ChatState = {
    * session, driven by SSE events + liveness snapshot + active-send ref
    * ONLY — never by history shape (F2 fence).
    *
-   * Replaces the legacy 6-signal `isComposerLoading` composition in
-   * `chat-screen.tsx:1632`. Cutover happens in Phase 2.2 (one-line swap).
-   * Until then, this runs in parallel — the legacy signals continue to
-   * feed `isChatRuntimeBusy`.
+   * Drives `selectIsComposerBusy`, the sole composer busy signal in
+   * `chat-screen.tsx` (Phase 2.2 cutover complete). The legacy 6-signal
+   * `isChatRuntimeBusy` composition is no longer wired into the screen;
+   * the function remains only for its parity test coverage.
    */
   runPhase: Map<string, RunPhase>
   /** Transition a session's run phase via the reducer (fence-enforced). */
@@ -217,8 +257,8 @@ type ChatState = {
   /** True when the run phase is busy (sending or streaming). */
   isRunPhaseBusy: (sessionKey: string) => boolean
   /**
-   * Phase 2.2 cutover selector. Replaces the legacy 6-signal
-   * `isComposerLoading` composition. Composes:
+   * Phase 2.2 cutover selector (now the sole composer busy signal,
+   * read reactively in `chat-screen.tsx`). Composes:
    *  - runPhase state machine (sending/streaming)
    *  - ref-based active-send (refSignal)
    *  - derived streaming signals (passed in from caller)
@@ -267,16 +307,6 @@ const createEmptyStreamingState = (): StreamingState => ({
   lifecycleEvents: [],
   toolCalls: [],
 })
-
-function persistStreamingStateDebounced(
-  sessionKey: string,
-  state: StreamingState,
-): void {
-  if (_streamingPersistTimer) clearTimeout(_streamingPersistTimer)
-  _streamingPersistTimer = setTimeout(() => {
-    persistStreamingState(sessionKey, state)
-  }, 500)
-}
 
 export function restoreStreamingState(
   sessionKey: string,
@@ -529,19 +559,39 @@ function getClientNonce(msg: ChatMessage | null | undefined): string {
   )
 }
 
+/**
+ * Cache of derived event time per message object. The comparator
+ * (`compareMessagesByTime`) calls `getMessageEventTime` O(n log n) times during
+ * a sort, and the string branch runs `Date.parse` on every call. Message time
+ * fields are immutable after creation, so memoizing by object identity is safe
+ * and removes the repeated parse from the sort hot path. `null` is the cached
+ * sentinel for "no derivable time".
+ */
+const _eventTimeCache = new WeakMap<object, number | null>()
+
 function getMessageEventTime(
   msg: ChatMessage | null | undefined,
 ): number | undefined {
   if (!msg) return undefined
+  const cached = _eventTimeCache.get(msg)
+  if (cached !== undefined) return cached ?? undefined
+  let resolved: number | null = null
   for (const key of ['createdAt', 'timestamp'] as const) {
     const value = msg[key]
-    if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      resolved = value
+      break
+    }
     if (typeof value === 'string' && value.trim().length > 0) {
       const parsed = Date.parse(value)
-      if (Number.isFinite(parsed)) return parsed
+      if (Number.isFinite(parsed)) {
+        resolved = parsed
+        break
+      }
     }
   }
-  return undefined
+  _eventTimeCache.set(msg, resolved)
+  return resolved ?? undefined
 }
 
 function getMessageReceiveTime(
@@ -639,6 +689,36 @@ function sortMessagesChronologically(
       return left.index - right.index
     })
     .map(({ message }) => message)
+}
+
+/**
+ * Append `incoming` to `sessionMessages`, re-sorting ONLY when the new message
+ * lands out-of-order relative to the current last element. Messages arrive
+ * nearly in-order over SSE, so the common path is a pure push (no map→sort→map
+ * over the whole array with its multi-fallback comparator).
+ *
+ * Ordering semantics are identical to calling `sortMessagesChronologically`
+ * on the appended array: when the incoming message sorts at-or-after the
+ * current tail (`compareMessagesByTime(last, incoming) <= 0`), a stable sort
+ * would leave it at the end anyway, so we skip the sort. Otherwise we fall back
+ * to the full chronological sort.
+ *
+ * `sessionMessages` is mutated in place (it is already a fresh copy at every
+ * call site) and the resulting array is returned.
+ */
+function appendMessageOrdered(
+  sessionMessages: Array<ChatMessage>,
+  incoming: ChatMessage,
+): Array<ChatMessage> {
+  const last =
+    sessionMessages.length > 0
+      ? sessionMessages[sessionMessages.length - 1]
+      : undefined
+  sessionMessages.push(incoming)
+  if (last && compareMessagesByTime(last, incoming) > 0) {
+    return sortMessagesChronologically(sessionMessages)
+  }
+  return sessionMessages
 }
 
 function isExternalInboundUserSource(source: unknown): boolean {
@@ -917,16 +997,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // server-injected control messages — mirror the filter in use-chat-history.ts.
         if (event.message.role === 'user') {
           const rawText = extractMessageText(event.message)
-          if (
-            rawText.startsWith('Pre-compaction memory flush') ||
-            rawText.includes('Store durable memories now') ||
-            rawText.includes('APPEND new content only and do not overwrite') ||
-            rawText.startsWith('A subagent task') ||
-            rawText.startsWith('[Queued announce messages') ||
-            rawText.includes('Summarize this naturally for the user') ||
-            (rawText.includes('Stats: runtime') &&
-              rawText.includes('sessionKey agent:'))
-          ) {
+          if (isInternalSystemMessage(rawText)) {
             break
           }
         }
@@ -1096,8 +1167,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
 
         if (duplicateIndex === -1) {
-          sessionMessages.push(incomingMessage)
-          messages.set(sessionKey, sortMessagesChronologically(sessionMessages))
+          messages.set(
+            sessionKey,
+            appendMessageOrdered(sessionMessages, incomingMessage),
+          )
           set({ realtimeMessages: messages, lastEventAt: now })
         }
         break
@@ -1119,7 +1192,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         streamingMap.set(sessionKey, next)
         set({ streamingState: streamingMap, lastEventAt: now })
-        persistStreamingState(sessionKey, next)
+        schedulePersistStreamingState(sessionKey, next)
 
         break
       }
@@ -1135,7 +1208,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         streamingMap.set(sessionKey, next)
         set({ streamingState: streamingMap, lastEventAt: now })
-        persistStreamingState(sessionKey, next)
+        schedulePersistStreamingState(sessionKey, next)
         break
       }
 
@@ -1154,7 +1227,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         streamingMap.set(sessionKey, next)
         set({ streamingState: streamingMap, lastEventAt: now })
-        persistStreamingState(sessionKey, next)
+        schedulePersistStreamingState(sessionKey, next)
         break
       }
 
@@ -1201,7 +1274,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         streamingMap.set(sessionKey, next)
         set({ streamingState: streamingMap, lastEventAt: now })
-        persistStreamingState(sessionKey, next)
+        schedulePersistStreamingState(sessionKey, next)
         break
       }
 
@@ -1297,10 +1370,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
           })
 
           if (!isDuplicate) {
-            sessionMessages.push(completeMessage)
             messages.set(
               sessionKey,
-              sortMessagesChronologically(sessionMessages),
+              appendMessageOrdered(sessionMessages, completeMessage),
             )
             set({ realtimeMessages: messages })
           } else {
@@ -1340,6 +1412,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // injects an invisible streaming placeholder that causes a blank gap.
         streamingMap.delete(sessionKey)
         set({ streamingState: streamingMap, lastEventAt: now })
+        // Cancel any pending debounced persist — the streaming key is being
+        // removed and the final message is persisted via persistRecoveryMessage
+        // above. Flushing here would resurrect just-deleted streaming state.
+        cancelPersistStreamingState(sessionKey)
         removeStreamingState(sessionKey)
         break
       }
@@ -1355,6 +1431,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   clearSession: (sessionKey) => {
+    // Cancel any pending debounced streaming persist for this session so a
+    // trailing timer can't re-write state after the session is cleared.
+    cancelPersistStreamingState(sessionKey)
     const messages = new Map(get().realtimeMessages)
     const streaming = new Map(get().streamingState)
     messages.delete(sessionKey)
@@ -1369,6 +1448,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   clearStreamingSession: (sessionKey) => {
+    cancelPersistStreamingState(sessionKey)
     const streaming = new Map(get().streamingState)
     if (!streaming.has(sessionKey)) return
     streaming.delete(sessionKey)
