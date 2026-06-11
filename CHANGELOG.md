@@ -3,6 +3,18 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.43] — 2026-06-11
+
+Dynamic website version badge and sidebar last-activity ordering.
+
+### Added
+
+- **Marketing-site version badge is now fetched at runtime.** It was baked at build time via the `PUBLIC_SITE_VERSION` vite define, so it froze at the last deployed version until a manual rebuild+rsync. It now mirrors the GitHub-stars badge: the build-baked value renders initially (no flash, works without JS), then the nav pill, hero badge, and footer are patched from `GET /repos/Interstellar-code/hermes-switchui/releases/latest` (`tag_name`), sessionStorage-cached for 10 minutes to respect the unauthenticated rate limit. The badge now tracks the latest GitHub release with no site redeploy. (The hero terminal boot line stays build-baked — it animates before any API round-trip resolves.)
+
+### Fixed
+
+- **Resumed chats now jump to "Today" in the V2 sidebar on send.** The sidebar already buckets by `last_active`, but nothing refetched the feed after a send, so a resumed older session stayed in its old date group for the 30s stale window until an incidental refetch. The feed is now invalidated in the stream-end handler so it reorders the moment the assistant response completes, plus a 60s background refetch so sessions resumed from external clients (cron/cli/a2a) reorder too.
+
 ## [2.3.42] — 2026-06-11
 
 Matrix3D agent-activity reliability and 3D-canvas/console-error fixes.
