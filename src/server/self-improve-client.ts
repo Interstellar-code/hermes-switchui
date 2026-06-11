@@ -9,9 +9,15 @@ import type {
   Baseline,
   BaselinesResponse,
   CollectResponse,
+  CreateExperimentBody,
+  Experiment,
+  ExperimentHistoryResponse,
+  ExperimentsResponse,
   MetricsResponse,
   MetricsSnapshot,
   PluginHealth,
+  ProposeResponse,
+  ProposeSkippedResponse,
 } from '../lib/self-improve-types'
 
 const BASE = '/api/plugins/karpathy-self-improve'
@@ -78,5 +84,70 @@ export async function collectMetrics(): Promise<CollectResponse> {
   return selfImproveFetch<CollectResponse>(`${BASE}/metrics/collect`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+// ── Experiments ───────────────────────────────────────────────────────────────
+
+export async function listExperiments(params?: {
+  profile?: string
+  state?: string
+}): Promise<Array<Experiment>> {
+  const q = new URLSearchParams()
+  if (params?.profile) q.set('profile', params.profile)
+  if (params?.state) q.set('state', params.state)
+  const qs = q.toString()
+  const { experiments } = await selfImproveFetch<ExperimentsResponse>(
+    `${BASE}/experiments${qs ? `?${qs}` : ''}`,
+  )
+  return experiments
+}
+
+export async function getExperiment(id: number): Promise<Experiment> {
+  return selfImproveFetch<Experiment>(`${BASE}/experiments/${id}`)
+}
+
+export async function getExperimentHistory(id: number): Promise<ExperimentHistoryResponse> {
+  return selfImproveFetch<ExperimentHistoryResponse>(`${BASE}/experiments/${id}/history`)
+}
+
+export async function createExperiment(body: CreateExperimentBody): Promise<{ experiment_id: number }> {
+  return selfImproveFetch<{ experiment_id: number }>(`${BASE}/experiments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function approveExperiment(
+  id: number,
+  actor: string,
+): Promise<{ ok: boolean; state: string }> {
+  return selfImproveFetch<{ ok: boolean; state: string }>(`${BASE}/experiments/${id}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ actor }),
+  })
+}
+
+export async function rejectExperiment(
+  id: number,
+  actor: string,
+  reason: string,
+): Promise<{ ok: boolean; state: string }> {
+  return selfImproveFetch<{ ok: boolean; state: string }>(`${BASE}/experiments/${id}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ actor, reason }),
+  })
+}
+
+export async function proposeExperiment(
+  profile: string,
+): Promise<ProposeResponse | ProposeSkippedResponse> {
+  return selfImproveFetch<ProposeResponse | ProposeSkippedResponse>(`${BASE}/propose`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile }),
   })
 }

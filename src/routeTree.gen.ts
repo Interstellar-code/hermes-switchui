@@ -101,8 +101,10 @@ import { Route as ApiSkillsToggleRouteImport } from './routes/api/skills/toggle'
 import { Route as ApiSkillsInstallRouteImport } from './routes/api/skills/install'
 import { Route as ApiSkillsHubSearchRouteImport } from './routes/api/skills/hub-search'
 import { Route as ApiSessionsSendRouteImport } from './routes/api/sessions/send'
+import { Route as ApiSelfImproveProposeRouteImport } from './routes/api/self-improve/propose'
 import { Route as ApiSelfImproveMetricsRouteImport } from './routes/api/self-improve/metrics'
 import { Route as ApiSelfImproveHealthRouteImport } from './routes/api/self-improve/health'
+import { Route as ApiSelfImproveExperimentsRouteImport } from './routes/api/self-improve/experiments'
 import { Route as ApiSelfImproveBaselinesRouteImport } from './routes/api/self-improve/baselines'
 import { Route as ApiProfilesUpdateRouteImport } from './routes/api/profiles/update'
 import { Route as ApiProfilesRenameRouteImport } from './routes/api/profiles/rename'
@@ -169,6 +171,7 @@ import { Route as ApiWorkflowDefinitionsIdParsedRouteImport } from './routes/api
 import { Route as ApiSessionsSessionKeyStatusRouteImport } from './routes/api/sessions/$sessionKey.status'
 import { Route as ApiSessionsSessionKeyActiveRunRouteImport } from './routes/api/sessions/$sessionKey.active-run'
 import { Route as ApiSelfImproveMetricsLatestRouteImport } from './routes/api/self-improve/metrics.latest'
+import { Route as ApiSelfImproveExperimentsIdRouteImport } from './routes/api/self-improve/experiments.$id'
 import { Route as ApiOperationsDispatchPreviewRouteImport } from './routes/api/operations/dispatch.preview'
 import { Route as ApiOperationsAgentsIdRouteImport } from './routes/api/operations/agents.$id'
 import { Route as ApiMcpHubSourcesIdRouteImport } from './routes/api/mcp/hub-sources.$id'
@@ -176,6 +179,9 @@ import { Route as ApiMcpNameLogsRouteImport } from './routes/api/mcp/$name.logs'
 import { Route as ApiHermesKanbanTasksTaskIdRouteImport } from './routes/api/hermes-kanban/tasks.$taskId'
 import { Route as ApiHermesKanbanBoardsSlugRouteImport } from './routes/api/hermes-kanban/boards.$slug'
 import { Route as ApiConductorMissionsIdRouteImport } from './routes/api/conductor/missions.$id'
+import { Route as ApiSelfImproveExperimentsIdRejectRouteImport } from './routes/api/self-improve/experiments.$id.reject'
+import { Route as ApiSelfImproveExperimentsIdHistoryRouteImport } from './routes/api/self-improve/experiments.$id.history'
+import { Route as ApiSelfImproveExperimentsIdApproveRouteImport } from './routes/api/self-improve/experiments.$id.approve'
 import { Route as ApiOperationsAgentsIdResumeRouteImport } from './routes/api/operations/agents.$id.resume'
 import { Route as ApiOperationsAgentsIdPauseRouteImport } from './routes/api/operations/agents.$id.pause'
 import { Route as ApiHermesKanbanTasksTaskIdLogRouteImport } from './routes/api/hermes-kanban/tasks.$taskId.log'
@@ -645,6 +651,11 @@ const ApiSessionsSendRoute = ApiSessionsSendRouteImport.update({
   path: '/send',
   getParentRoute: () => ApiSessionsRoute,
 } as any)
+const ApiSelfImproveProposeRoute = ApiSelfImproveProposeRouteImport.update({
+  id: '/api/self-improve/propose',
+  path: '/api/self-improve/propose',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSelfImproveMetricsRoute = ApiSelfImproveMetricsRouteImport.update({
   id: '/api/self-improve/metrics',
   path: '/api/self-improve/metrics',
@@ -655,6 +666,12 @@ const ApiSelfImproveHealthRoute = ApiSelfImproveHealthRouteImport.update({
   path: '/api/self-improve/health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSelfImproveExperimentsRoute =
+  ApiSelfImproveExperimentsRouteImport.update({
+    id: '/api/self-improve/experiments',
+    path: '/api/self-improve/experiments',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiSelfImproveBaselinesRoute = ApiSelfImproveBaselinesRouteImport.update({
   id: '/api/self-improve/baselines',
   path: '/api/self-improve/baselines',
@@ -995,6 +1012,12 @@ const ApiSelfImproveMetricsLatestRoute =
     path: '/latest',
     getParentRoute: () => ApiSelfImproveMetricsRoute,
   } as any)
+const ApiSelfImproveExperimentsIdRoute =
+  ApiSelfImproveExperimentsIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => ApiSelfImproveExperimentsRoute,
+  } as any)
 const ApiOperationsDispatchPreviewRoute =
   ApiOperationsDispatchPreviewRouteImport.update({
     id: '/preview',
@@ -1033,6 +1056,24 @@ const ApiConductorMissionsIdRoute = ApiConductorMissionsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ApiConductorMissionsRoute,
 } as any)
+const ApiSelfImproveExperimentsIdRejectRoute =
+  ApiSelfImproveExperimentsIdRejectRouteImport.update({
+    id: '/reject',
+    path: '/reject',
+    getParentRoute: () => ApiSelfImproveExperimentsIdRoute,
+  } as any)
+const ApiSelfImproveExperimentsIdHistoryRoute =
+  ApiSelfImproveExperimentsIdHistoryRouteImport.update({
+    id: '/history',
+    path: '/history',
+    getParentRoute: () => ApiSelfImproveExperimentsIdRoute,
+  } as any)
+const ApiSelfImproveExperimentsIdApproveRoute =
+  ApiSelfImproveExperimentsIdApproveRouteImport.update({
+    id: '/approve',
+    path: '/approve',
+    getParentRoute: () => ApiSelfImproveExperimentsIdRoute,
+  } as any)
 const ApiOperationsAgentsIdResumeRoute =
   ApiOperationsAgentsIdResumeRouteImport.update({
     id: '/resume',
@@ -1218,8 +1259,10 @@ export interface FileRoutesByFullPath {
   '/api/profiles/rename': typeof ApiProfilesRenameRoute
   '/api/profiles/update': typeof ApiProfilesUpdateRoute
   '/api/self-improve/baselines': typeof ApiSelfImproveBaselinesRoute
+  '/api/self-improve/experiments': typeof ApiSelfImproveExperimentsRouteWithChildren
   '/api/self-improve/health': typeof ApiSelfImproveHealthRoute
   '/api/self-improve/metrics': typeof ApiSelfImproveMetricsRouteWithChildren
+  '/api/self-improve/propose': typeof ApiSelfImproveProposeRoute
   '/api/sessions/send': typeof ApiSessionsSendRoute
   '/api/skills/hub-search': typeof ApiSkillsHubSearchRoute
   '/api/skills/install': typeof ApiSkillsInstallRoute
@@ -1238,6 +1281,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
+  '/api/self-improve/experiments/$id': typeof ApiSelfImproveExperimentsIdRouteWithChildren
   '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
@@ -1250,6 +1294,9 @@ export interface FileRoutesByFullPath {
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
   '/api/operations/agents/$id/pause': typeof ApiOperationsAgentsIdPauseRoute
   '/api/operations/agents/$id/resume': typeof ApiOperationsAgentsIdResumeRoute
+  '/api/self-improve/experiments/$id/approve': typeof ApiSelfImproveExperimentsIdApproveRoute
+  '/api/self-improve/experiments/$id/history': typeof ApiSelfImproveExperimentsIdHistoryRoute
+  '/api/self-improve/experiments/$id/reject': typeof ApiSelfImproveExperimentsIdRejectRoute
   '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform': typeof ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute
 }
 export interface FileRoutesByTo {
@@ -1392,8 +1439,10 @@ export interface FileRoutesByTo {
   '/api/profiles/rename': typeof ApiProfilesRenameRoute
   '/api/profiles/update': typeof ApiProfilesUpdateRoute
   '/api/self-improve/baselines': typeof ApiSelfImproveBaselinesRoute
+  '/api/self-improve/experiments': typeof ApiSelfImproveExperimentsRouteWithChildren
   '/api/self-improve/health': typeof ApiSelfImproveHealthRoute
   '/api/self-improve/metrics': typeof ApiSelfImproveMetricsRouteWithChildren
+  '/api/self-improve/propose': typeof ApiSelfImproveProposeRoute
   '/api/sessions/send': typeof ApiSessionsSendRoute
   '/api/skills/hub-search': typeof ApiSkillsHubSearchRoute
   '/api/skills/install': typeof ApiSkillsInstallRoute
@@ -1412,6 +1461,7 @@ export interface FileRoutesByTo {
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
+  '/api/self-improve/experiments/$id': typeof ApiSelfImproveExperimentsIdRouteWithChildren
   '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
@@ -1424,6 +1474,9 @@ export interface FileRoutesByTo {
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
   '/api/operations/agents/$id/pause': typeof ApiOperationsAgentsIdPauseRoute
   '/api/operations/agents/$id/resume': typeof ApiOperationsAgentsIdResumeRoute
+  '/api/self-improve/experiments/$id/approve': typeof ApiSelfImproveExperimentsIdApproveRoute
+  '/api/self-improve/experiments/$id/history': typeof ApiSelfImproveExperimentsIdHistoryRoute
+  '/api/self-improve/experiments/$id/reject': typeof ApiSelfImproveExperimentsIdRejectRoute
   '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform': typeof ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute
 }
 export interface FileRoutesById {
@@ -1569,8 +1622,10 @@ export interface FileRoutesById {
   '/api/profiles/rename': typeof ApiProfilesRenameRoute
   '/api/profiles/update': typeof ApiProfilesUpdateRoute
   '/api/self-improve/baselines': typeof ApiSelfImproveBaselinesRoute
+  '/api/self-improve/experiments': typeof ApiSelfImproveExperimentsRouteWithChildren
   '/api/self-improve/health': typeof ApiSelfImproveHealthRoute
   '/api/self-improve/metrics': typeof ApiSelfImproveMetricsRouteWithChildren
+  '/api/self-improve/propose': typeof ApiSelfImproveProposeRoute
   '/api/sessions/send': typeof ApiSessionsSendRoute
   '/api/skills/hub-search': typeof ApiSkillsHubSearchRoute
   '/api/skills/install': typeof ApiSkillsInstallRoute
@@ -1589,6 +1644,7 @@ export interface FileRoutesById {
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
+  '/api/self-improve/experiments/$id': typeof ApiSelfImproveExperimentsIdRouteWithChildren
   '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
@@ -1601,6 +1657,9 @@ export interface FileRoutesById {
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
   '/api/operations/agents/$id/pause': typeof ApiOperationsAgentsIdPauseRoute
   '/api/operations/agents/$id/resume': typeof ApiOperationsAgentsIdResumeRoute
+  '/api/self-improve/experiments/$id/approve': typeof ApiSelfImproveExperimentsIdApproveRoute
+  '/api/self-improve/experiments/$id/history': typeof ApiSelfImproveExperimentsIdHistoryRoute
+  '/api/self-improve/experiments/$id/reject': typeof ApiSelfImproveExperimentsIdRejectRoute
   '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform': typeof ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute
 }
 export interface FileRouteTypes {
@@ -1747,8 +1806,10 @@ export interface FileRouteTypes {
     | '/api/profiles/rename'
     | '/api/profiles/update'
     | '/api/self-improve/baselines'
+    | '/api/self-improve/experiments'
     | '/api/self-improve/health'
     | '/api/self-improve/metrics'
+    | '/api/self-improve/propose'
     | '/api/sessions/send'
     | '/api/skills/hub-search'
     | '/api/skills/install'
@@ -1767,6 +1828,7 @@ export interface FileRouteTypes {
     | '/api/mcp/hub-sources/$id'
     | '/api/operations/agents/$id'
     | '/api/operations/dispatch/preview'
+    | '/api/self-improve/experiments/$id'
     | '/api/self-improve/metrics/latest'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
@@ -1779,6 +1841,9 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/tasks/$taskId/log'
     | '/api/operations/agents/$id/pause'
     | '/api/operations/agents/$id/resume'
+    | '/api/self-improve/experiments/$id/approve'
+    | '/api/self-improve/experiments/$id/history'
+    | '/api/self-improve/experiments/$id/reject'
     | '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -1921,8 +1986,10 @@ export interface FileRouteTypes {
     | '/api/profiles/rename'
     | '/api/profiles/update'
     | '/api/self-improve/baselines'
+    | '/api/self-improve/experiments'
     | '/api/self-improve/health'
     | '/api/self-improve/metrics'
+    | '/api/self-improve/propose'
     | '/api/sessions/send'
     | '/api/skills/hub-search'
     | '/api/skills/install'
@@ -1941,6 +2008,7 @@ export interface FileRouteTypes {
     | '/api/mcp/hub-sources/$id'
     | '/api/operations/agents/$id'
     | '/api/operations/dispatch/preview'
+    | '/api/self-improve/experiments/$id'
     | '/api/self-improve/metrics/latest'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
@@ -1953,6 +2021,9 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/tasks/$taskId/log'
     | '/api/operations/agents/$id/pause'
     | '/api/operations/agents/$id/resume'
+    | '/api/self-improve/experiments/$id/approve'
+    | '/api/self-improve/experiments/$id/history'
+    | '/api/self-improve/experiments/$id/reject'
     | '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform'
   id:
     | '__root__'
@@ -2097,8 +2168,10 @@ export interface FileRouteTypes {
     | '/api/profiles/rename'
     | '/api/profiles/update'
     | '/api/self-improve/baselines'
+    | '/api/self-improve/experiments'
     | '/api/self-improve/health'
     | '/api/self-improve/metrics'
+    | '/api/self-improve/propose'
     | '/api/sessions/send'
     | '/api/skills/hub-search'
     | '/api/skills/install'
@@ -2117,6 +2190,7 @@ export interface FileRouteTypes {
     | '/api/mcp/hub-sources/$id'
     | '/api/operations/agents/$id'
     | '/api/operations/dispatch/preview'
+    | '/api/self-improve/experiments/$id'
     | '/api/self-improve/metrics/latest'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
@@ -2129,6 +2203,9 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/tasks/$taskId/log'
     | '/api/operations/agents/$id/pause'
     | '/api/operations/agents/$id/resume'
+    | '/api/self-improve/experiments/$id/approve'
+    | '/api/self-improve/experiments/$id/history'
+    | '/api/self-improve/experiments/$id/reject'
     | '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform'
   fileRoutesById: FileRoutesById
 }
@@ -2253,8 +2330,10 @@ export interface RootRouteChildren {
   ApiProfilesRenameRoute: typeof ApiProfilesRenameRoute
   ApiProfilesUpdateRoute: typeof ApiProfilesUpdateRoute
   ApiSelfImproveBaselinesRoute: typeof ApiSelfImproveBaselinesRoute
+  ApiSelfImproveExperimentsRoute: typeof ApiSelfImproveExperimentsRouteWithChildren
   ApiSelfImproveHealthRoute: typeof ApiSelfImproveHealthRoute
   ApiSelfImproveMetricsRoute: typeof ApiSelfImproveMetricsRouteWithChildren
+  ApiSelfImproveProposeRoute: typeof ApiSelfImproveProposeRoute
   ApiUpdateAgentRoute: typeof ApiUpdateAgentRoute
   ApiUpdateStatusRoute: typeof ApiUpdateStatusRoute
   ApiUpdateWorkspaceRoute: typeof ApiUpdateWorkspaceRoute
@@ -2906,6 +2985,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSessionsSendRouteImport
       parentRoute: typeof ApiSessionsRoute
     }
+    '/api/self-improve/propose': {
+      id: '/api/self-improve/propose'
+      path: '/api/self-improve/propose'
+      fullPath: '/api/self-improve/propose'
+      preLoaderRoute: typeof ApiSelfImproveProposeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/self-improve/metrics': {
       id: '/api/self-improve/metrics'
       path: '/api/self-improve/metrics'
@@ -2918,6 +3004,13 @@ declare module '@tanstack/react-router' {
       path: '/api/self-improve/health'
       fullPath: '/api/self-improve/health'
       preLoaderRoute: typeof ApiSelfImproveHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/self-improve/experiments': {
+      id: '/api/self-improve/experiments'
+      path: '/api/self-improve/experiments'
+      fullPath: '/api/self-improve/experiments'
+      preLoaderRoute: typeof ApiSelfImproveExperimentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/self-improve/baselines': {
@@ -3382,6 +3475,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSelfImproveMetricsLatestRouteImport
       parentRoute: typeof ApiSelfImproveMetricsRoute
     }
+    '/api/self-improve/experiments/$id': {
+      id: '/api/self-improve/experiments/$id'
+      path: '/$id'
+      fullPath: '/api/self-improve/experiments/$id'
+      preLoaderRoute: typeof ApiSelfImproveExperimentsIdRouteImport
+      parentRoute: typeof ApiSelfImproveExperimentsRoute
+    }
     '/api/operations/dispatch/preview': {
       id: '/api/operations/dispatch/preview'
       path: '/preview'
@@ -3430,6 +3530,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/conductor/missions/$id'
       preLoaderRoute: typeof ApiConductorMissionsIdRouteImport
       parentRoute: typeof ApiConductorMissionsRoute
+    }
+    '/api/self-improve/experiments/$id/reject': {
+      id: '/api/self-improve/experiments/$id/reject'
+      path: '/reject'
+      fullPath: '/api/self-improve/experiments/$id/reject'
+      preLoaderRoute: typeof ApiSelfImproveExperimentsIdRejectRouteImport
+      parentRoute: typeof ApiSelfImproveExperimentsIdRoute
+    }
+    '/api/self-improve/experiments/$id/history': {
+      id: '/api/self-improve/experiments/$id/history'
+      path: '/history'
+      fullPath: '/api/self-improve/experiments/$id/history'
+      preLoaderRoute: typeof ApiSelfImproveExperimentsIdHistoryRouteImport
+      parentRoute: typeof ApiSelfImproveExperimentsIdRoute
+    }
+    '/api/self-improve/experiments/$id/approve': {
+      id: '/api/self-improve/experiments/$id/approve'
+      path: '/approve'
+      fullPath: '/api/self-improve/experiments/$id/approve'
+      preLoaderRoute: typeof ApiSelfImproveExperimentsIdApproveRouteImport
+      parentRoute: typeof ApiSelfImproveExperimentsIdRoute
     }
     '/api/operations/agents/$id/resume': {
       id: '/api/operations/agents/$id/resume'
@@ -3849,6 +3970,42 @@ const ApiOperationsDispatchRouteWithChildren =
     ApiOperationsDispatchRouteChildren,
   )
 
+interface ApiSelfImproveExperimentsIdRouteChildren {
+  ApiSelfImproveExperimentsIdApproveRoute: typeof ApiSelfImproveExperimentsIdApproveRoute
+  ApiSelfImproveExperimentsIdHistoryRoute: typeof ApiSelfImproveExperimentsIdHistoryRoute
+  ApiSelfImproveExperimentsIdRejectRoute: typeof ApiSelfImproveExperimentsIdRejectRoute
+}
+
+const ApiSelfImproveExperimentsIdRouteChildren: ApiSelfImproveExperimentsIdRouteChildren =
+  {
+    ApiSelfImproveExperimentsIdApproveRoute:
+      ApiSelfImproveExperimentsIdApproveRoute,
+    ApiSelfImproveExperimentsIdHistoryRoute:
+      ApiSelfImproveExperimentsIdHistoryRoute,
+    ApiSelfImproveExperimentsIdRejectRoute:
+      ApiSelfImproveExperimentsIdRejectRoute,
+  }
+
+const ApiSelfImproveExperimentsIdRouteWithChildren =
+  ApiSelfImproveExperimentsIdRoute._addFileChildren(
+    ApiSelfImproveExperimentsIdRouteChildren,
+  )
+
+interface ApiSelfImproveExperimentsRouteChildren {
+  ApiSelfImproveExperimentsIdRoute: typeof ApiSelfImproveExperimentsIdRouteWithChildren
+}
+
+const ApiSelfImproveExperimentsRouteChildren: ApiSelfImproveExperimentsRouteChildren =
+  {
+    ApiSelfImproveExperimentsIdRoute:
+      ApiSelfImproveExperimentsIdRouteWithChildren,
+  }
+
+const ApiSelfImproveExperimentsRouteWithChildren =
+  ApiSelfImproveExperimentsRoute._addFileChildren(
+    ApiSelfImproveExperimentsRouteChildren,
+  )
+
 interface ApiSelfImproveMetricsRouteChildren {
   ApiSelfImproveMetricsLatestRoute: typeof ApiSelfImproveMetricsLatestRoute
 }
@@ -3984,8 +4141,10 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProfilesRenameRoute: ApiProfilesRenameRoute,
   ApiProfilesUpdateRoute: ApiProfilesUpdateRoute,
   ApiSelfImproveBaselinesRoute: ApiSelfImproveBaselinesRoute,
+  ApiSelfImproveExperimentsRoute: ApiSelfImproveExperimentsRouteWithChildren,
   ApiSelfImproveHealthRoute: ApiSelfImproveHealthRoute,
   ApiSelfImproveMetricsRoute: ApiSelfImproveMetricsRouteWithChildren,
+  ApiSelfImproveProposeRoute: ApiSelfImproveProposeRoute,
   ApiUpdateAgentRoute: ApiUpdateAgentRoute,
   ApiUpdateStatusRoute: ApiUpdateStatusRoute,
   ApiUpdateWorkspaceRoute: ApiUpdateWorkspaceRoute,

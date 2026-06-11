@@ -308,3 +308,233 @@
 .si-retry-btn:hover {
   background: var(--theme-hover, rgba(255,255,255,0.06));
 }
+
+/* ── Proposals section ───────────────────────────────────────────────────────*/
+
+.si-proposals-section {
+  margin-top: 32px;
+  border-top: 1px solid var(--theme-border, #2a2a2a);
+  padding-top: 24px;
+}
+
+.si-proposals-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.si-proposals-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--theme-text, #e8e8e8);
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+
+.si-propose-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.si-propose-select {
+  padding: 4px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--theme-border, #333);
+  background: var(--theme-surface, #1a1a1a);
+  color: var(--theme-text, #e8e8e8);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.si-proposals-loading {
+  padding: 12px 0;
+}
+
+.si-empty-state--proposals {
+  padding: 20px 0;
+}
+
+.si-proposals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ── Proposal card ───────────────────────────────────────────────────────────*/
+
+.si-proposal-card {
+  border: 1px solid var(--theme-border, #2a2a2a);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--theme-surface, #111);
+}
+
+.si-proposal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+}
+
+.si-proposal-profile {
+  font-weight: 600;
+  color: var(--theme-accent, #4ade80);
+  font-size: 13px;
+}
+
+.si-proposal-file {
+  font-family: monospace;
+  color: var(--theme-text, #e8e8e8);
+  font-size: 11px;
+  background: var(--theme-code-bg, rgba(255,255,255,0.05));
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.si-proposal-score {
+  color: var(--theme-text, #e8e8e8);
+}
+
+.si-proposal-date {
+  margin-left: auto;
+}
+
+.si-proposal-model {
+  font-size: 11px;
+}
+
+.si-proposal-rationale {
+  font-size: 13px;
+  color: var(--theme-text, #d0d0d0);
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.si-proposal-diff {
+  margin-bottom: 12px;
+  max-height: 300px;
+  overflow: auto;
+  border-radius: 4px;
+  border: 1px solid var(--theme-border, #2a2a2a);
+}
+
+.si-proposal-evals {
+  margin-bottom: 12px;
+}
+
+.si-proposal-evals-loading {
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+  font-style: italic;
+}
+
+/* ── Action buttons ──────────────────────────────────────────────────────────*/
+
+.si-proposal-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.si-action-btn {
+  padding: 5px 12px;
+  border-radius: 5px;
+  border: 1px solid var(--theme-border, #333);
+  background: none;
+  color: var(--theme-text, #e8e8e8);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.1s;
+  font-family: inherit;
+}
+
+.si-action-btn:hover:not(:disabled) {
+  background: var(--theme-hover, rgba(255,255,255,0.06));
+}
+
+.si-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.si-action-btn--approve {
+  border-color: var(--m-green-400, #4ade80);
+  color: var(--m-green-400, #4ade80);
+}
+
+.si-action-btn--approve:hover:not(:disabled) {
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.si-action-btn--reject {
+  border-color: #f87171;
+  color: #f87171;
+}
+
+.si-action-btn--reject:hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.si-action-btn--edit {
+  border-color: var(--theme-accent-muted, #888);
+}
+
+/* ── Inline dialogs ──────────────────────────────────────────────────────────*/
+
+.si-inline-dialog {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--theme-border, #2a2a2a);
+  border-radius: 6px;
+  background: var(--theme-bg, #0d0d0d);
+}
+
+.si-inline-dialog-label {
+  display: block;
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.si-inline-dialog-note {
+  font-size: 11px;
+  color: var(--theme-muted, #888);
+  font-style: italic;
+  margin: 0 0 10px;
+}
+
+.si-inline-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--theme-surface, #1a1a1a);
+  border: 1px solid var(--theme-border, #333);
+  border-radius: 4px;
+  color: var(--theme-text, #e8e8e8);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 8px;
+  resize: vertical;
+  margin-bottom: 10px;
+}
+
+.si-inline-textarea--diff {
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.si-inline-dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
