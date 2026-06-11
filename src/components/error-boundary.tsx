@@ -8,6 +8,12 @@ type ErrorBoundaryProps = {
   className?: string
   title?: string
   description?: string
+  /**
+   * Compact fallback for non-critical UI regions (side panels, widgets):
+   * small card with Retry instead of the full-page error state, so a crash
+   * in a decorative subtree never takes down the screen around it.
+   */
+  inline?: boolean
 }
 
 type ErrorBoundaryState = {
@@ -77,6 +83,10 @@ export class ErrorBoundary extends Component<
     window.location.reload()
   }
 
+  reset() {
+    this.setState({ error: null, componentStack: null })
+  }
+
   copyDetails() {
     if (typeof window === 'undefined' || !this.state.error) return
     const text = [
@@ -93,6 +103,33 @@ export class ErrorBoundary extends Component<
 
   render() {
     if (!this.state.error) return this.props.children
+
+    if (this.props.inline) {
+      return (
+        <div
+          className={cn(
+            'flex flex-col items-center gap-2 rounded-xl border border-primary-200 bg-primary-100 p-4 text-center',
+            this.props.className,
+          )}
+        >
+          <p className="text-sm font-medium text-primary-900">
+            {this.props.title ?? 'This panel crashed'}
+          </p>
+          <p className="text-xs text-primary-600">
+            {this.props.description ??
+              'The rest of the page is unaffected. Details saved to the crash log.'}
+          </p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => this.reset()}>
+              Retry
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => this.copyDetails()}>
+              Copy details
+            </Button>
+          </div>
+        </div>
+      )
+    }
 
     const title = this.props.title ?? 'Something went wrong'
     const description =
