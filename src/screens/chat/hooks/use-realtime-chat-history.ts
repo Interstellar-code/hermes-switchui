@@ -5,6 +5,7 @@ import { useChatStore } from '../../../stores/chat-store'
 import { appendHistoryMessage, chatQueryKeys } from '../chat-queries'
 import { toast } from '../../../components/ui/toast'
 import { textFromMessage } from '../utils'
+import { isInternalSystemMessage } from '../internal-message-filter'
 import type { ChatMessage } from '../types'
 import type { StreamingState } from '../../../stores/chat-store'
 
@@ -193,16 +194,7 @@ export function useRealtimeChatHistory({
         // bypassing the store filter entirely.
         if (message.role === 'user') {
           const msgText = extractUserMessageText(message)
-          if (
-            msgText.startsWith('Pre-compaction memory flush') ||
-            msgText.startsWith('Store durable memories now') ||
-            msgText.startsWith('APPEND new content only and do not overwrite') ||
-            msgText.startsWith('A subagent task') ||
-            msgText.startsWith('[Queued announce messages') ||
-            msgText.startsWith('Summarize this naturally for the user') ||
-            (msgText.startsWith('Stats: runtime') &&
-              msgText.includes('sessionKey agent:'))
-          ) {
+          if (isInternalSystemMessage(msgText)) {
             onUserMessage?.(message, source)
             return
           }
