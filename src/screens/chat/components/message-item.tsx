@@ -113,6 +113,39 @@ const USER_REPLY_MARKDOWN_COMPONENTS = {
   },
 } satisfies Partial<Components>
 
+// User messages render through Markdown so pasted structure (tables, lists,
+// bold) displays formatted in the user's own bubble. Extends the reply set
+// with table components that inherit the bubble foreground via text-current.
+const USER_MARKDOWN_COMPONENTS = {
+  ...USER_REPLY_MARKDOWN_COMPONENTS,
+  table: function UserTable({ children }) {
+    return (
+      <div className="my-2 max-w-full overflow-x-auto rounded-md border border-current/20">
+        <table className="w-full border-collapse text-left text-[0.9em] text-current">
+          {children}
+        </table>
+      </div>
+    )
+  },
+  thead: function UserThead({ children }) {
+    return <thead className="border-b border-current/20">{children}</thead>
+  },
+  tbody: function UserTbody({ children }) {
+    return <tbody>{children}</tbody>
+  },
+  tr: function UserTr({ children }) {
+    return <tr className="border-b border-current/10 last:border-0">{children}</tr>
+  },
+  th: function UserTh({ children }) {
+    return (
+      <th className="px-2.5 py-1.5 font-semibold text-current">{children}</th>
+    )
+  },
+  td: function UserTd({ children }) {
+    return <td className="px-2.5 py-1.5 align-top text-current">{children}</td>
+  },
+} satisfies Partial<Components>
+
 function normalizeReplyReferenceSnippet(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
 }
@@ -2763,7 +2796,13 @@ function MessageItemComponent({
                     </MessageContent>
                   ) : null
                 ) : (
-                  <span className="text-pretty">{displayText}</span>
+                  <MessageContent
+                    markdown
+                    components={USER_MARKDOWN_COMPONENTS}
+                    className="bg-transparent text-current text-pretty"
+                  >
+                    {displayText}
+                  </MessageContent>
                 )
               ) : hasRevealedText ? (
                 <div className="relative">

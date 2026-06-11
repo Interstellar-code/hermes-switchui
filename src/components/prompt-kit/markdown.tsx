@@ -1,14 +1,15 @@
 import { marked } from 'marked'
-import { memo, useId, useMemo } from 'react'
+import { memo, useCallback, useId, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
-
-export const MARKDOWN_REMARK_PLUGINS = [remarkGfm, remarkBreaks]
 import { CodeBlock } from './code-block'
 import type { Components } from 'react-markdown'
 import { cn } from '@/lib/utils'
+import { writeRichTextToClipboard } from '@/lib/clipboard'
 import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
+
+export const MARKDOWN_REMARK_PLUGINS = [remarkGfm, remarkBreaks]
 
 export type MarkdownProps = {
   children: string
@@ -64,6 +65,64 @@ function textFromNode(node: React.ReactNode): string {
     return textFromNode(element.props.children)
   }
   return ''
+}
+
+function escapeTableCell(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().replace(/\|/g, '\\|')
+}
+
+/** Serialize a rendered HTML table back into GitHub-flavored Markdown. */
+function tableElementToMarkdown(table: HTMLTableElement): string {
+  const rows = Array.from(table.rows)
+  if (rows.length === 0) return ''
+  const lines: Array<string> = []
+  rows.forEach((row, rowIndex) => {
+    const cells = Array.from(row.cells).map((cell) =>
+      escapeTableCell(cell.textContent),
+    )
+    lines.push(`| ${cells.join(' | ')} |`)
+    if (rowIndex === 0) {
+      lines.push(`| ${cells.map(() => '---').join(' | ')} |`)
+    }
+  })
+  return lines.join('\n')
+}
+
+function CopyIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  )
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  )
 }
 
 function slugifyHeading(children: React.ReactNode): string {
@@ -257,11 +316,43 @@ const INITIAL_COMPONENTS: Partial<Components> = {
     return <hr className="my-3 border-primary-200" />
   },
   table: function TableComponent({ children }) {
+    const tableRef = useRef<HTMLTableElement>(null)
+    const [copied, setCopied] = useState(false)
+    const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    const handleCopy = useCallback(async () => {
+      const el = tableRef.current
+      if (!el) return
+      const markdown = tableElementToMarkdown(el)
+      try {
+        await writeRichTextToClipboard(el.outerHTML, markdown)
+        setCopied(true)
+        if (resetTimer.current) clearTimeout(resetTimer.current)
+        resetTimer.current = setTimeout(() => setCopied(false), 1500)
+      } catch {
+        // Clipboard unavailable — leave the button state unchanged.
+      }
+    }, [])
+
     return (
-      <div className="my-3 max-w-full overflow-x-auto rounded-lg border border-primary-200 bg-primary-50/20">
-        <table className="w-full min-w-max border-collapse text-sm sm:min-w-full tabular-nums">
-          {children}
-        </table>
+      <div className="group relative my-3">
+        <button
+          type="button"
+          onClick={handleCopy}
+          aria-label={copied ? 'Table copied' : 'Copy table'}
+          title={copied ? 'Copied' : 'Copy table'}
+          className="absolute right-1.5 top-1.5 z-20 flex h-7 w-7 items-center justify-center rounded-md border border-primary-200 bg-primary-50/80 text-primary-700 opacity-0 backdrop-blur transition-opacity hover:bg-primary-100 focus-visible:opacity-100 group-hover:opacity-100"
+        >
+          {copied ? <CheckIcon /> : <CopyIcon />}
+        </button>
+        <div className="max-w-full overflow-x-auto rounded-lg border border-primary-200 bg-primary-50/20">
+          <table
+            ref={tableRef}
+            className="w-full min-w-max border-collapse text-sm sm:min-w-full tabular-nums"
+          >
+            {children}
+          </table>
+        </div>
       </div>
     )
   },
@@ -288,14 +379,14 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   },
   th: function ThComponent({ children }) {
     return (
-      <th className="px-3 py-2 text-left font-medium text-primary-950 whitespace-nowrap">
+      <th className="border-r border-primary-200 px-3 py-2 text-left font-medium text-primary-950 whitespace-nowrap last:border-r-0 max-sm:border-r-0">
         {children}
       </th>
     )
   },
   td: function TdComponent({ children }) {
     return (
-      <td className="px-3 py-2 text-primary-950 align-top max-sm:grid max-sm:grid-cols-[minmax(0,9rem)_1fr] max-sm:gap-3 max-sm:border-b max-sm:border-primary-100 max-sm:px-3 max-sm:py-2 max-sm:last:border-b-0 max-sm:before:content-[attr(data-label)] max-sm:before:text-xs max-sm:before:font-medium max-sm:before:text-primary-700">
+      <td className="border-r border-primary-100 px-3 py-2 text-primary-950 align-top last:border-r-0 max-sm:border-r-0 max-sm:grid max-sm:grid-cols-[minmax(0,9rem)_1fr] max-sm:gap-3 max-sm:border-b max-sm:border-primary-100 max-sm:px-3 max-sm:py-2 max-sm:last:border-b-0 max-sm:before:content-[attr(data-label)] max-sm:before:text-xs max-sm:before:font-medium max-sm:before:text-primary-700">
         {children}
       </td>
     )

@@ -73,6 +73,7 @@ import type {
   SlashCommandMenuHandle,
 } from '@/components/slash-command-menu'
 import { cn } from '@/lib/utils'
+import { htmlToMarkdown } from '@/lib/html-to-markdown'
 import { Button } from '@/components/shadcn/ui/button'
 import { Textarea } from '@/components/shadcn/ui/textarea'
 import {
@@ -420,19 +421,54 @@ function ChatComposerShadcn({
     [disabled, focusPrompt],
   )
 
+  const insertAtCursor = React.useCallback(
+    (text: string) => {
+      const el = textareaRef.current
+      setIsSlashMenuDismissed(false)
+      if (!el) {
+        insertText(text)
+        return
+      }
+      const start = el.selectionStart
+      const end = el.selectionEnd
+      const next = value.slice(0, start) + text + value.slice(end)
+      setValue(next)
+      const caret = start + text.length
+      requestAnimationFrame(() => {
+        el.focus()
+        el.setSelectionRange(caret, caret)
+      })
+    },
+    [value, insertText],
+  )
+
   const handlePaste = (e: React.ClipboardEvent) => {
-    const items = e.clipboardData?.items
-    if (!items) return
+    const data = e.clipboardData
+
+    // 1) File paste → attachment (existing behavior).
     const files: Array<File> = []
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].kind === 'file') {
-        const f = items[i].getAsFile()
+    for (let i = 0; i < data.items.length; i++) {
+      const item = data.items[i]
+      if (item.kind === 'file') {
+        const f = item.getAsFile()
         if (f) files.push(f)
       }
     }
     if (files.length > 0) {
       e.preventDefault()
       void addFiles(files)
+      return
+    }
+
+    // 2) Rich text paste → convert HTML to Markdown so structure (tables,
+    //    lists, bold, links) survives instead of collapsing to flat text.
+    const html = data.getData('text/html')
+    if (!html.trim()) return
+    const markdown = htmlToMarkdown(html)
+    const plain = data.getData('text/plain')
+    if (markdown && markdown !== plain.trim()) {
+      e.preventDefault()
+      insertAtCursor(markdown)
     }
   }
 
