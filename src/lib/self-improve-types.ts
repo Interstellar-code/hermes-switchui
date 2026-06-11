@@ -154,3 +154,43 @@ export interface ProposeSkippedResponse {
   skipped: true
   reason: string
 }
+
+// ── P3: Scenarios ─────────────────────────────────────────────────────────────
+
+export interface Scenario {
+  id: number
+  profile: string
+  name: string
+  input: string
+  checks: string // JSON-encoded array
+  holdout: 0 | 1
+  created_at: string
+}
+
+export interface ScenariosResponse {
+  scenarios: Array<Scenario>
+}
+
+export interface CreateScenarioBody {
+  profile: string
+  name: string
+  input?: string
+  checks?: Array<string> | string
+  holdout?: boolean
+}
+
+export interface CreateScenarioResponse {
+  scenario_id: number
+}
+
+export interface DeleteScenarioResponse {
+  ok: true
+}
+
+// ── P3: Pause / Resume ────────────────────────────────────────────────────────
+
+export interface PauseResumeResponse {
+  ok: boolean
+  profile: string
+  paused: boolean
+}

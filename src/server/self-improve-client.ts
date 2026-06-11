@@ -10,14 +10,20 @@ import type {
   BaselinesResponse,
   CollectResponse,
   CreateExperimentBody,
+  CreateScenarioBody,
+  CreateScenarioResponse,
+  DeleteScenarioResponse,
   Experiment,
   ExperimentHistoryResponse,
   ExperimentsResponse,
   MetricsResponse,
   MetricsSnapshot,
+  PauseResumeResponse,
   PluginHealth,
   ProposeResponse,
   ProposeSkippedResponse,
+  Scenario,
+  ScenariosResponse,
 } from '../lib/self-improve-types'
 
 const BASE = '/api/plugins/karpathy-self-improve'
@@ -172,6 +178,71 @@ export async function verifyExperiment(
 ): Promise<{ ok: boolean; state: 'verified' }> {
   return selfImproveFetch<{ ok: boolean; state: 'verified' }>(
     `${BASE}/experiments/${id}/verify`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    },
+  )
+}
+
+// ── P3: Scenarios ─────────────────────────────────────────────────────────────
+
+export async function listScenarios(
+  profile: string,
+  includeHoldout = false,
+): Promise<Array<Scenario>> {
+  const q = new URLSearchParams()
+  q.set('profile', profile)
+  q.set('include_holdout', includeHoldout ? '1' : '0')
+  const { scenarios } = await selfImproveFetch<ScenariosResponse>(
+    `${BASE}/scenarios?${q.toString()}`,
+  )
+  return scenarios
+}
+
+export async function createScenario(
+  body: CreateScenarioBody,
+): Promise<CreateScenarioResponse> {
+  return selfImproveFetch<CreateScenarioResponse>(
+    `${BASE}/scenarios`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+  )
+}
+
+export async function deleteScenario(
+  id: number,
+): Promise<DeleteScenarioResponse> {
+  return selfImproveFetch<DeleteScenarioResponse>(
+    `${BASE}/scenarios/${id}`,
+    { method: 'DELETE' },
+  )
+}
+
+// ── P3: Pause / Resume ────────────────────────────────────────────────────────
+
+export async function pauseProfile(
+  profile: string,
+): Promise<PauseResumeResponse> {
+  return selfImproveFetch<PauseResumeResponse>(
+    `${BASE}/profiles/${encodeURIComponent(profile)}/pause`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    },
+  )
+}
+
+export async function resumeProfile(
+  profile: string,
+): Promise<PauseResumeResponse> {
+  return selfImproveFetch<PauseResumeResponse>(
+    `${BASE}/profiles/${encodeURIComponent(profile)}/resume`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

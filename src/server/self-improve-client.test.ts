@@ -4,6 +4,8 @@ import {
   approveExperiment,
   collectMetrics,
   createExperiment,
+  createScenario,
+  deleteScenario,
   getExperiment,
   getExperimentHistory,
   getHealth,
@@ -11,8 +13,11 @@ import {
   listBaselines,
   listExperiments,
   listMetrics,
+  listScenarios,
+  pauseProfile,
   proposeExperiment,
   rejectExperiment,
+  resumeProfile,
   revertExperiment,
   verifyExperiment,
 } from './self-improve-client'
@@ -394,5 +399,156 @@ describe('revertExperiment', () => {
   it('throws on error response', async () => {
     mockFetch.mockResolvedValue(errorResponse(503, { detail: 'Plugin down' }))
     await expect(revertExperiment(7, 'reason')).rejects.toThrow()
+  })
+})
+
+// ── P3: listScenarios ─────────────────────────────────────────────────────────
+
+describe('listScenarios', () => {
+  it('GETs /scenarios with profile param always set', async () => {
+    mockFetch.mockResolvedValue(jsonOk({ scenarios: [] }))
+    const result = await listScenarios('default')
+    expect(result).toEqual([])
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/scenarios\?.*profile=default/),
+      expect.anything(),
+    )
+  })
+
+  it('passes include_holdout=0 by default', async () => {
+    mockFetch.mockResolvedValue(jsonOk({ scenarios: [] }))
+    await listScenarios('myprofile')
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('include_holdout=0'),
+      expect.anything(),
+    )
+  })
+
+  it('passes include_holdout=1 when requested', async () => {
+    mockFetch.mockResolvedValue(jsonOk({ scenarios: [] }))
+    await listScenarios('myprofile', true)
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('include_holdout=1'),
+      expect.anything(),
+    )
+  })
+
+  it('returns scenario array from response', async () => {
+    const scenario = { id: 1, profile: 'default', name: 'test', input: 'hi', checks: '[]', holdout: 0, created_at: '2026-01-01T00:00:00Z' }
+    mockFetch.mockResolvedValue(jsonOk({ scenarios: [scenario] }))
+    const result = await listScenarios('default')
+    expect(result).toHaveLength(1)
+    expect(result[0].name).toBe('test')
+  })
+
+  it('throws on error response', async () => {
+    mockFetch.mockResolvedValue(errorResponse(503, { detail: 'Plugin down' }))
+    await expect(listScenarios('default')).rejects.toThrow()
+  })
+})
+
+// ── P3: createScenario ────────────────────────────────────────────────────────
+
+describe('createScenario', () => {
+  it('POSTs to /scenarios with required fields', async () => {
+    mockFetch.mockResolvedValue(jsonOk({ scenario_id: 42 }))
+    const result = await createScenario({ profile: 'default', name: 'greeting' })
+    expect(result.scenario_id).toBe(42)
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/scenarios'),
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('"profile":"default"'),
+      }),
+    )
+  })
+
+  it('includes checks array in body when provided', async () => {
+    mockFetch.mockResolvedValue(jsonOk({ scenario_id: 7 }))
+    await createScenario({ profile: 'p', name: 'n', checks: ['check1', 'check2'] })
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        body: expect.stringContaining('"checks"'),
+      }),
+    )
+  })
+
+  it('throws on 422 validation error', async () => {
+    mockFetch.mockResolvedValue(errorResponse(422, { detail: 'Invalid body' }))
+    await expect(createScenario({ profile: 'p', name: 'n' })).rejects.toThrow()
+  })
+})
+
+// ── P3: deleteScenario ────────────────────────────────────────────────────────
+
+describe('deleteScenario', () => {
+  it('DELETEs /scenarios/{id}', async () => {
+    mockFetch.mockResolvedValue(jsonOk({ ok: true }))
+    const result = await deleteScenario(5)
+    expect(result.ok).toBe(true)
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/scenarios/5'),
+      expect.objectContaining({ method: 'DELETE' }),
+    )
+  })
+
+  it('throws on 404', async () => {
+    mockFetch.mockResolvedValue(errorResponse(404, { detail: 'Not found' }))
+    await expect(deleteScenario(99)).rejects.toThrow()
+  })
+
+  it('throws on 503', async () => {
+    mockFetch.mockResolvedValue(errorResponse(503, { detail: 'Plugin down' }))
+    await expect(deleteScenario(1)).rejects.toThrow()
+  })
+})
+
+// ── P3: pauseProfile ──────────────────────────────────────────────────────────
+
+describe('pauseProfile', () => {
+  it('POSTs to /profiles/{profile}/pause and returns paused=true', async () => {
+    mockFetch.mockResolvedValue(jsonOk({ ok: true, profile: 'default', paused: true }))
+    const result = await pauseProfile('default')
+    expect(result.ok).toBe(true)
+    expect(result.paused).toBe(true)
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/profiles/default/pause'),
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
+  it('URL-encodes profile name', async () => {
+    mockFetch.mockResolvedValue(jsonOk({ ok: true, profile: 'my profile', paused: true }))
+    await pauseProfile('my profile')
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/profiles/my%20profile/pause'),
+      expect.anything(),
+    )
+  })
+
+  it('throws on error response', async () => {
+    mockFetch.mockResolvedValue(errorResponse(503, { detail: 'Plugin down' }))
+    await expect(pauseProfile('default')).rejects.toThrow()
+  })
+})
+
+// ── P3: resumeProfile ─────────────────────────────────────────────────────────
+
+describe('resumeProfile', () => {
+  it('POSTs to /profiles/{profile}/resume and returns paused=false', async () => {
+    mockFetch.mockResolvedValue(jsonOk({ ok: true, profile: 'default', paused: false }))
+    const result = await resumeProfile('default')
+    expect(result.ok).toBe(true)
+    expect(result.paused).toBe(false)
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/profiles/default/resume'),
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
+  it('throws on error response', async () => {
+    mockFetch.mockResolvedValue(errorResponse(503, { detail: 'Plugin down' }))
+    await expect(resumeProfile('default')).rejects.toThrow()
   })
 })

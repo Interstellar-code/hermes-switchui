@@ -5,19 +5,25 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { DiffView } from './components/diff-view'
 import { EvalTable } from './components/eval-table'
 import { HistoryDrawer } from './components/history-drawer'
-import type { Baseline, Experiment, MetricsSnapshot, PluginHealth } from '@/lib/self-improve-types'
+import { BaselineChart } from './components/baseline-chart'
+import type { Baseline, Experiment, MetricsSnapshot, PluginHealth, Scenario } from '@/lib/self-improve-types'
 import { toast } from '@/components/ui/toast'
 import {
   applyExperiment,
   approveExperiment,
   createExperiment,
+  createScenario,
+  deleteScenario,
   fetchBaselines,
   fetchExperimentHistory,
   fetchExperiments,
   fetchHealth,
   fetchLatestMetrics,
   fetchMetrics,
+  fetchScenarios,
+  pauseProfile,
   rejectExperiment,
+  resumeProfile,
   revertExperiment,
   triggerCollect,
   triggerPropose,
@@ -34,6 +40,10 @@ const QK_HISTORY = ['self-improve', 'metrics-history'] as const
 const QK_BASELINES = ['self-improve', 'baselines'] as const
 const QK_PROPOSED = ['self-improve', 'experiments', 'proposed'] as const
 const QK_LIFECYCLE = ['self-improve', 'experiments', 'lifecycle'] as const
+
+// P3 query keys — scenarios are per-profile so the key includes profile + holdout flag
+const qkScenarios = (profile: string, includeHoldout: boolean) =>
+  ['self-improve', 'scenarios', profile, includeHoldout] as const
 
 // ── Actor ─────────────────────────────────────────────────────────────────────
 
@@ -847,6 +857,346 @@ function LifecycleSection({ profiles: _profiles }: LifecycleSectionProps) {
   )
 }
 
+// ── P3: Baseline chart section ────────────────────────────────────────────────
+
+interface BaselineChartSectionProps {
+  profiles: Array<string>
+  baselines: Array<Baseline>
+}
+
+function BaselineChartSection({ profiles, baselines }: BaselineChartSectionProps) {
+  const [selectedProfile, setSelectedProfile] = useState(profiles[0] ?? '')
+  const profile = selectedProfile || (profiles[0] ?? '')
+
+  return (
+    <div className="si-baseline-chart-section">
+      <div className="si-section-header">
+        <h2 className="si-section-title">Baseline Curve</h2>
+        {profiles.length > 1 && (
+          <select
+            className="si-propose-select"
+            value={profile}
+            onChange={(e) => setSelectedProfile(e.target.value)}
+          >
+            {profiles.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+        )}
+      </div>
+      <BaselineChart baselines={baselines} profile={profile} />
+    </div>
+  )
+}
+
+// ── P3: Scenario section ──────────────────────────────────────────────────────
+
+interface ScenarioSectionProps {
+  profiles: Array<string>
+}
+
+function ScenarioSection({ profiles }: ScenarioSectionProps) {
+  const queryClient = useQueryClient()
+  const [selectedProfile, setSelectedProfile] = useState(profiles[0] ?? '')
+  const [includeHoldout, setIncludeHoldout] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Scenario | null>(null)
+  const [pauseTarget, setPauseTarget] = useState<string | null>(null)
+  const [resumeTarget, setResumeTarget] = useState<string | null>(null)
+
+  // Create form state
+  const [newName, setNewName] = useState('')
+  const [newInput, setNewInput] = useState('')
+  const [newChecks, setNewChecks] = useState('')
+  const [newHoldout, setNewHoldout] = useState(false)
+
+  const profile = selectedProfile || (profiles[0] ?? '')
+  const scenariosQK = qkScenarios(profile, includeHoldout)
+
+  const scenariosQuery = useQuery({
+    queryKey: scenariosQK,
+    queryFn: () => fetchScenarios(profile, includeHoldout),
+    enabled: !!profile,
+  })
+
+  function invalidateScenarios() {
+    void queryClient.invalidateQueries({ queryKey: ['self-improve', 'scenarios', profile] })
+  }
+
+  const createMutation = useMutation({
+    mutationFn: () => {
+      const checksArr = newChecks
+        .split(/[\n,]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+      return createScenario({
+        profile,
+        name: newName.trim(),
+        input: newInput,
+        checks: checksArr.length > 0 ? checksArr : undefined,
+        holdout: newHoldout,
+      })
+    },
+    onSuccess: (data) => {
+      invalidateScenarios()
+      toast(`Scenario #${data.scenario_id} created`)
+      setCreateOpen(false)
+      setNewName('')
+      setNewInput('')
+      setNewChecks('')
+      setNewHoldout(false)
+    },
+    onError: (e) => toast(e instanceof Error ? e.message : 'Create failed', { type: 'error' }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteScenario(id),
+    onSuccess: () => {
+      invalidateScenarios()
+      toast('Scenario deleted')
+      setDeleteTarget(null)
+    },
+    onError: (e) => toast(e instanceof Error ? e.message : 'Delete failed', { type: 'error' }),
+  })
+
+  const pauseMutation = useMutation({
+    mutationFn: (p: string) => pauseProfile(p),
+    onSuccess: (data) => {
+      toast(`Profile "${data.profile}" paused`)
+      setPauseTarget(null)
+    },
+    onError: (e) => toast(e instanceof Error ? e.message : 'Pause failed', { type: 'error' }),
+  })
+
+  const resumeMutation = useMutation({
+    mutationFn: (p: string) => resumeProfile(p),
+    onSuccess: (data) => {
+      toast(`Profile "${data.profile}" resumed`)
+      setResumeTarget(null)
+    },
+    onError: (e) => toast(e instanceof Error ? e.message : 'Resume failed', { type: 'error' }),
+  })
+
+  const scenarios = scenariosQuery.data ?? []
+
+  return (
+    <div className="si-scenario-section">
+      <div className="si-section-header">
+        <h2 className="si-section-title">Scenarios</h2>
+        <div className="si-scenario-controls">
+          {profiles.length > 1 && (
+            <select
+              className="si-propose-select"
+              value={profile}
+              onChange={(e) => setSelectedProfile(e.target.value)}
+            >
+              {profiles.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          )}
+          <label className="si-holdout-toggle">
+            <input
+              type="checkbox"
+              checked={includeHoldout}
+              onChange={(e) => setIncludeHoldout(e.target.checked)}
+            />
+            Show held-out
+          </label>
+          <button
+            type="button"
+            className="si-collect-btn"
+            onClick={() => setPauseTarget(profile)}
+          >
+            Pause
+          </button>
+          <button
+            type="button"
+            className="si-collect-btn si-btn-resume"
+            onClick={() => setResumeTarget(profile)}
+          >
+            Resume
+          </button>
+          <button
+            type="button"
+            className="si-collect-btn si-btn-primary"
+            onClick={() => setCreateOpen(true)}
+          >
+            + New scenario
+          </button>
+        </div>
+      </div>
+
+      <p className="si-pause-note">
+        Note: paused state is not yet readable from the API — Pause/Resume are fire-and-confirm actions.
+      </p>
+
+      {scenariosQuery.isLoading && <div className="si-loading">Loading scenarios…</div>}
+      {scenariosQuery.isError && (
+        <div className="si-error">
+          {scenariosQuery.error instanceof Error
+            ? scenariosQuery.error.message
+            : 'Failed to load scenarios'}
+        </div>
+      )}
+
+      {!scenariosQuery.isLoading && !scenariosQuery.isError && scenarios.length === 0 && (
+        <div className="si-empty">
+          <p>No scenarios for <strong>{profile}</strong>.</p>
+          {!includeHoldout && <p className="si-empty-sub">Try enabling "Show held-out" to see holdout scenarios.</p>}
+        </div>
+      )}
+
+      {scenarios.length > 0 && (
+        <table className="si-scenario-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Input</th>
+              <th>Checks</th>
+              <th>Created</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {scenarios.map((s) => (
+              <tr key={s.id} className={s.holdout ? 'si-scenario-holdout' : ''}>
+                <td className="si-scenario-id">#{s.id}</td>
+                <td>
+                  {s.name}
+                  {s.holdout === 1 && <span className="si-badge si-badge-holdout">holdout</span>}
+                </td>
+                <td className="si-scenario-input" title={s.input}>{s.input ? s.input.slice(0, 60) + (s.input.length > 60 ? '…' : '') : '—'}</td>
+                <td className="si-scenario-checks">
+                  {s.checks && s.checks !== '[]' ? (
+                    (() => {
+                      try {
+                        const arr = JSON.parse(s.checks) as Array<string>
+                        return arr.length > 0 ? arr.slice(0, 2).join(', ') + (arr.length > 2 ? ` +${arr.length - 2}` : '') : '—'
+                      } catch {
+                        return s.checks.slice(0, 40)
+                      }
+                    })()
+                  ) : '—'}
+                </td>
+                <td className="si-scenario-date">{s.created_at.slice(0, 10)}</td>
+                <td>
+                  <button
+                    type="button"
+                    className="si-action-btn si-action-btn--danger"
+                    onClick={() => setDeleteTarget(s)}
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {/* Create dialog */}
+      {createOpen && (
+        <div className="si-dialog-overlay" onClick={() => setCreateOpen(false)}>
+          <div className="si-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3 className="si-dialog-title">New Scenario</h3>
+            <label className="si-dialog-label">
+              Profile
+              <input className="si-dialog-input" value={profile} readOnly />
+            </label>
+            <label className="si-dialog-label">
+              Name <span className="si-required">*</span>
+              <input
+                className="si-dialog-input"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="e.g. basic-greeting"
+                autoFocus
+              />
+            </label>
+            <label className="si-dialog-label">
+              Input
+              <textarea
+                className="si-dialog-textarea"
+                value={newInput}
+                onChange={(e) => setNewInput(e.target.value)}
+                placeholder="User input for this scenario"
+                rows={3}
+              />
+            </label>
+            <label className="si-dialog-label">
+              Checks (newline or comma separated)
+              <textarea
+                className="si-dialog-textarea"
+                value={newChecks}
+                onChange={(e) => setNewChecks(e.target.value)}
+                placeholder={"contains greeting\nno profanity"}
+                rows={3}
+              />
+            </label>
+            <label className="si-dialog-label si-dialog-label--inline">
+              <input
+                type="checkbox"
+                checked={newHoldout}
+                onChange={(e) => setNewHoldout(e.target.checked)}
+              />
+              Hold-out (exclude from training eval)
+            </label>
+            <div className="si-dialog-actions">
+              <button
+                type="button"
+                className="si-action-btn"
+                onClick={() => setCreateOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="si-collect-btn si-btn-primary"
+                disabled={!newName.trim() || createMutation.isPending}
+                onClick={() => createMutation.mutate()}
+              >
+                {createMutation.isPending ? 'Creating…' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirm */}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete scenario"
+        message={`Delete scenario "${deleteTarget?.name ?? ''}" (#${deleteTarget?.id ?? ''})? This cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id) }}
+        onCancel={() => setDeleteTarget(null)}
+      />
+
+      {/* Pause confirm */}
+      <ConfirmDialog
+        open={pauseTarget !== null}
+        title="Pause profile"
+        message={`Pause self-improvement for profile "${pauseTarget ?? ''}"? Note: paused state is not readable from the API — this is fire-and-confirm.`}
+        confirmLabel="Pause"
+        onConfirm={() => { if (pauseTarget) pauseMutation.mutate(pauseTarget) }}
+        onCancel={() => setPauseTarget(null)}
+      />
+
+      {/* Resume confirm */}
+      <ConfirmDialog
+        open={resumeTarget !== null}
+        title="Resume profile"
+        message={`Resume self-improvement for profile "${resumeTarget ?? ''}"? Note: paused state is not readable from the API — this is fire-and-confirm.`}
+        confirmLabel="Resume"
+        onConfirm={() => { if (resumeTarget) resumeMutation.mutate(resumeTarget) }}
+        onCancel={() => setResumeTarget(null)}
+      />
+    </div>
+  )
+}
+
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export function SelfImproveScreen() {
@@ -952,6 +1302,19 @@ export function SelfImproveScreen() {
 
       {/* Lifecycle section — approved/live/verified/reverted experiments */}
       <LifecycleSection profiles={snapshots.map((s) => s.profile)} />
+
+      {/* P3: Baseline curve chart — score over time per profile */}
+      {snapshots.length > 0 && (
+        <BaselineChartSection
+          profiles={snapshots.map((s) => s.profile)}
+          baselines={baselines}
+        />
+      )}
+
+      {/* P3: Scenario management — list/create/delete scenarios per profile */}
+      {snapshots.length > 0 && (
+        <ScenarioSection profiles={snapshots.map((s) => s.profile)} />
+      )}
     </div>
   )
 }

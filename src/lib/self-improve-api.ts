@@ -7,14 +7,20 @@ import type {
   BaselinesResponse,
   CollectResponse,
   CreateExperimentBody,
+  CreateScenarioBody,
+  CreateScenarioResponse,
+  DeleteScenarioResponse,
   Experiment,
   ExperimentHistoryResponse,
   ExperimentsResponse,
   MetricsResponse,
   MetricsSnapshot,
+  PauseResumeResponse,
   PluginHealth,
   ProposeResponse,
   ProposeSkippedResponse,
+  Scenario,
+  ScenariosResponse,
 } from './self-improve-types'
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -179,6 +185,63 @@ export async function revertExperiment(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason }),
+    },
+  )
+}
+
+// ── P3: Scenarios ─────────────────────────────────────────────────────────────
+
+export async function fetchScenarios(
+  profile: string,
+  includeHoldout = false,
+): Promise<Array<Scenario>> {
+  const q = new URLSearchParams()
+  q.set('profile', profile)
+  q.set('include_holdout', includeHoldout ? '1' : '0')
+  const { scenarios } = await apiFetch<ScenariosResponse>(
+    `/api/self-improve/scenarios?${q.toString()}`,
+  )
+  return scenarios
+}
+
+export async function createScenario(
+  body: CreateScenarioBody,
+): Promise<CreateScenarioResponse> {
+  return apiFetch<CreateScenarioResponse>('/api/self-improve/scenarios', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteScenario(id: number): Promise<DeleteScenarioResponse> {
+  return apiFetch<DeleteScenarioResponse>(`/api/self-improve/scenarios/${id}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+}
+
+// ── P3: Pause / Resume ────────────────────────────────────────────────────────
+
+export async function pauseProfile(profile: string): Promise<PauseResumeResponse> {
+  return apiFetch<PauseResumeResponse>(
+    `/api/self-improve/profiles/${encodeURIComponent(profile)}/pause`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    },
+  )
+}
+
+export async function resumeProfile(profile: string): Promise<PauseResumeResponse> {
+  return apiFetch<PauseResumeResponse>(
+    `/api/self-improve/profiles/${encodeURIComponent(profile)}/resume`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
     },
   )
 }
