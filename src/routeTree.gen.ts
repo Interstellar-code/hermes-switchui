@@ -14,6 +14,7 @@ import { Route as TerminalRouteImport } from './routes/terminal'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as SkillsRouteImport } from './routes/skills'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SelfImproveRouteImport } from './routes/self-improve'
 import { Route as ProfilesRouteImport } from './routes/profiles'
 import { Route as OperationsRouteImport } from './routes/operations'
 import { Route as MemoryRouteImport } from './routes/memory'
@@ -100,6 +101,9 @@ import { Route as ApiSkillsToggleRouteImport } from './routes/api/skills/toggle'
 import { Route as ApiSkillsInstallRouteImport } from './routes/api/skills/install'
 import { Route as ApiSkillsHubSearchRouteImport } from './routes/api/skills/hub-search'
 import { Route as ApiSessionsSendRouteImport } from './routes/api/sessions/send'
+import { Route as ApiSelfImproveMetricsRouteImport } from './routes/api/self-improve/metrics'
+import { Route as ApiSelfImproveHealthRouteImport } from './routes/api/self-improve/health'
+import { Route as ApiSelfImproveBaselinesRouteImport } from './routes/api/self-improve/baselines'
 import { Route as ApiProfilesUpdateRouteImport } from './routes/api/profiles/update'
 import { Route as ApiProfilesRenameRouteImport } from './routes/api/profiles/rename'
 import { Route as ApiProfilesReadRouteImport } from './routes/api/profiles/read'
@@ -164,6 +168,7 @@ import { Route as ApiWorkflowDefinitionsIdResetFactoryRouteImport } from './rout
 import { Route as ApiWorkflowDefinitionsIdParsedRouteImport } from './routes/api/workflow-definitions.$id.parsed'
 import { Route as ApiSessionsSessionKeyStatusRouteImport } from './routes/api/sessions/$sessionKey.status'
 import { Route as ApiSessionsSessionKeyActiveRunRouteImport } from './routes/api/sessions/$sessionKey.active-run'
+import { Route as ApiSelfImproveMetricsLatestRouteImport } from './routes/api/self-improve/metrics.latest'
 import { Route as ApiOperationsDispatchPreviewRouteImport } from './routes/api/operations/dispatch.preview'
 import { Route as ApiOperationsAgentsIdRouteImport } from './routes/api/operations/agents.$id'
 import { Route as ApiMcpHubSourcesIdRouteImport } from './routes/api/mcp/hub-sources.$id'
@@ -202,6 +207,11 @@ const SkillsRoute = SkillsRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SelfImproveRoute = SelfImproveRouteImport.update({
+  id: '/self-improve',
+  path: '/self-improve',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfilesRoute = ProfilesRouteImport.update({
@@ -635,6 +645,21 @@ const ApiSessionsSendRoute = ApiSessionsSendRouteImport.update({
   path: '/send',
   getParentRoute: () => ApiSessionsRoute,
 } as any)
+const ApiSelfImproveMetricsRoute = ApiSelfImproveMetricsRouteImport.update({
+  id: '/api/self-improve/metrics',
+  path: '/api/self-improve/metrics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSelfImproveHealthRoute = ApiSelfImproveHealthRouteImport.update({
+  id: '/api/self-improve/health',
+  path: '/api/self-improve/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSelfImproveBaselinesRoute = ApiSelfImproveBaselinesRouteImport.update({
+  id: '/api/self-improve/baselines',
+  path: '/api/self-improve/baselines',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProfilesUpdateRoute = ApiProfilesUpdateRouteImport.update({
   id: '/api/profiles/update',
   path: '/api/profiles/update',
@@ -964,6 +989,12 @@ const ApiSessionsSessionKeyActiveRunRoute =
     path: '/$sessionKey/active-run',
     getParentRoute: () => ApiSessionsRoute,
   } as any)
+const ApiSelfImproveMetricsLatestRoute =
+  ApiSelfImproveMetricsLatestRouteImport.update({
+    id: '/latest',
+    path: '/latest',
+    getParentRoute: () => ApiSelfImproveMetricsRoute,
+  } as any)
 const ApiOperationsDispatchPreviewRoute =
   ApiOperationsDispatchPreviewRouteImport.update({
     id: '/preview',
@@ -1061,6 +1092,7 @@ export interface FileRoutesByFullPath {
   '/memory': typeof MemoryRoute
   '/operations': typeof OperationsRoute
   '/profiles': typeof ProfilesRoute
+  '/self-improve': typeof SelfImproveRoute
   '/settings': typeof SettingsRouteWithChildren
   '/skills': typeof SkillsRoute
   '/tasks': typeof TasksRoute
@@ -1185,6 +1217,9 @@ export interface FileRoutesByFullPath {
   '/api/profiles/read': typeof ApiProfilesReadRoute
   '/api/profiles/rename': typeof ApiProfilesRenameRoute
   '/api/profiles/update': typeof ApiProfilesUpdateRoute
+  '/api/self-improve/baselines': typeof ApiSelfImproveBaselinesRoute
+  '/api/self-improve/health': typeof ApiSelfImproveHealthRoute
+  '/api/self-improve/metrics': typeof ApiSelfImproveMetricsRouteWithChildren
   '/api/sessions/send': typeof ApiSessionsSendRoute
   '/api/skills/hub-search': typeof ApiSkillsHubSearchRoute
   '/api/skills/install': typeof ApiSkillsInstallRoute
@@ -1203,6 +1238,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
+  '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
@@ -1231,6 +1267,7 @@ export interface FileRoutesByTo {
   '/memory': typeof MemoryRoute
   '/operations': typeof OperationsRoute
   '/profiles': typeof ProfilesRoute
+  '/self-improve': typeof SelfImproveRoute
   '/skills': typeof SkillsRoute
   '/tasks': typeof TasksRoute
   '/terminal': typeof TerminalRoute
@@ -1354,6 +1391,9 @@ export interface FileRoutesByTo {
   '/api/profiles/read': typeof ApiProfilesReadRoute
   '/api/profiles/rename': typeof ApiProfilesRenameRoute
   '/api/profiles/update': typeof ApiProfilesUpdateRoute
+  '/api/self-improve/baselines': typeof ApiSelfImproveBaselinesRoute
+  '/api/self-improve/health': typeof ApiSelfImproveHealthRoute
+  '/api/self-improve/metrics': typeof ApiSelfImproveMetricsRouteWithChildren
   '/api/sessions/send': typeof ApiSessionsSendRoute
   '/api/skills/hub-search': typeof ApiSkillsHubSearchRoute
   '/api/skills/install': typeof ApiSkillsInstallRoute
@@ -1372,6 +1412,7 @@ export interface FileRoutesByTo {
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
+  '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
@@ -1402,6 +1443,7 @@ export interface FileRoutesById {
   '/memory': typeof MemoryRoute
   '/operations': typeof OperationsRoute
   '/profiles': typeof ProfilesRoute
+  '/self-improve': typeof SelfImproveRoute
   '/settings': typeof SettingsRouteWithChildren
   '/skills': typeof SkillsRoute
   '/tasks': typeof TasksRoute
@@ -1526,6 +1568,9 @@ export interface FileRoutesById {
   '/api/profiles/read': typeof ApiProfilesReadRoute
   '/api/profiles/rename': typeof ApiProfilesRenameRoute
   '/api/profiles/update': typeof ApiProfilesUpdateRoute
+  '/api/self-improve/baselines': typeof ApiSelfImproveBaselinesRoute
+  '/api/self-improve/health': typeof ApiSelfImproveHealthRoute
+  '/api/self-improve/metrics': typeof ApiSelfImproveMetricsRouteWithChildren
   '/api/sessions/send': typeof ApiSessionsSendRoute
   '/api/skills/hub-search': typeof ApiSkillsHubSearchRoute
   '/api/skills/install': typeof ApiSkillsInstallRoute
@@ -1544,6 +1589,7 @@ export interface FileRoutesById {
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
+  '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
@@ -1575,6 +1621,7 @@ export interface FileRouteTypes {
     | '/memory'
     | '/operations'
     | '/profiles'
+    | '/self-improve'
     | '/settings'
     | '/skills'
     | '/tasks'
@@ -1699,6 +1746,9 @@ export interface FileRouteTypes {
     | '/api/profiles/read'
     | '/api/profiles/rename'
     | '/api/profiles/update'
+    | '/api/self-improve/baselines'
+    | '/api/self-improve/health'
+    | '/api/self-improve/metrics'
     | '/api/sessions/send'
     | '/api/skills/hub-search'
     | '/api/skills/install'
@@ -1717,6 +1767,7 @@ export interface FileRouteTypes {
     | '/api/mcp/hub-sources/$id'
     | '/api/operations/agents/$id'
     | '/api/operations/dispatch/preview'
+    | '/api/self-improve/metrics/latest'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
     | '/api/workflow-definitions/$id/parsed'
@@ -1745,6 +1796,7 @@ export interface FileRouteTypes {
     | '/memory'
     | '/operations'
     | '/profiles'
+    | '/self-improve'
     | '/skills'
     | '/tasks'
     | '/terminal'
@@ -1868,6 +1920,9 @@ export interface FileRouteTypes {
     | '/api/profiles/read'
     | '/api/profiles/rename'
     | '/api/profiles/update'
+    | '/api/self-improve/baselines'
+    | '/api/self-improve/health'
+    | '/api/self-improve/metrics'
     | '/api/sessions/send'
     | '/api/skills/hub-search'
     | '/api/skills/install'
@@ -1886,6 +1941,7 @@ export interface FileRouteTypes {
     | '/api/mcp/hub-sources/$id'
     | '/api/operations/agents/$id'
     | '/api/operations/dispatch/preview'
+    | '/api/self-improve/metrics/latest'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
     | '/api/workflow-definitions/$id/parsed'
@@ -1915,6 +1971,7 @@ export interface FileRouteTypes {
     | '/memory'
     | '/operations'
     | '/profiles'
+    | '/self-improve'
     | '/settings'
     | '/skills'
     | '/tasks'
@@ -2039,6 +2096,9 @@ export interface FileRouteTypes {
     | '/api/profiles/read'
     | '/api/profiles/rename'
     | '/api/profiles/update'
+    | '/api/self-improve/baselines'
+    | '/api/self-improve/health'
+    | '/api/self-improve/metrics'
     | '/api/sessions/send'
     | '/api/skills/hub-search'
     | '/api/skills/install'
@@ -2057,6 +2117,7 @@ export interface FileRouteTypes {
     | '/api/mcp/hub-sources/$id'
     | '/api/operations/agents/$id'
     | '/api/operations/dispatch/preview'
+    | '/api/self-improve/metrics/latest'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/status'
     | '/api/workflow-definitions/$id/parsed'
@@ -2087,6 +2148,7 @@ export interface RootRouteChildren {
   MemoryRoute: typeof MemoryRoute
   OperationsRoute: typeof OperationsRoute
   ProfilesRoute: typeof ProfilesRoute
+  SelfImproveRoute: typeof SelfImproveRoute
   SettingsRoute: typeof SettingsRouteWithChildren
   SkillsRoute: typeof SkillsRoute
   TasksRoute: typeof TasksRoute
@@ -2190,6 +2252,9 @@ export interface RootRouteChildren {
   ApiProfilesReadRoute: typeof ApiProfilesReadRoute
   ApiProfilesRenameRoute: typeof ApiProfilesRenameRoute
   ApiProfilesUpdateRoute: typeof ApiProfilesUpdateRoute
+  ApiSelfImproveBaselinesRoute: typeof ApiSelfImproveBaselinesRoute
+  ApiSelfImproveHealthRoute: typeof ApiSelfImproveHealthRoute
+  ApiSelfImproveMetricsRoute: typeof ApiSelfImproveMetricsRouteWithChildren
   ApiUpdateAgentRoute: typeof ApiUpdateAgentRoute
   ApiUpdateStatusRoute: typeof ApiUpdateStatusRoute
   ApiUpdateWorkspaceRoute: typeof ApiUpdateWorkspaceRoute
@@ -2230,6 +2295,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/self-improve': {
+      id: '/self-improve'
+      path: '/self-improve'
+      fullPath: '/self-improve'
+      preLoaderRoute: typeof SelfImproveRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profiles': {
@@ -2834,6 +2906,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSessionsSendRouteImport
       parentRoute: typeof ApiSessionsRoute
     }
+    '/api/self-improve/metrics': {
+      id: '/api/self-improve/metrics'
+      path: '/api/self-improve/metrics'
+      fullPath: '/api/self-improve/metrics'
+      preLoaderRoute: typeof ApiSelfImproveMetricsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/self-improve/health': {
+      id: '/api/self-improve/health'
+      path: '/api/self-improve/health'
+      fullPath: '/api/self-improve/health'
+      preLoaderRoute: typeof ApiSelfImproveHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/self-improve/baselines': {
+      id: '/api/self-improve/baselines'
+      path: '/api/self-improve/baselines'
+      fullPath: '/api/self-improve/baselines'
+      preLoaderRoute: typeof ApiSelfImproveBaselinesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/profiles/update': {
       id: '/api/profiles/update'
       path: '/api/profiles/update'
@@ -3281,6 +3374,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/sessions/$sessionKey/active-run'
       preLoaderRoute: typeof ApiSessionsSessionKeyActiveRunRouteImport
       parentRoute: typeof ApiSessionsRoute
+    }
+    '/api/self-improve/metrics/latest': {
+      id: '/api/self-improve/metrics/latest'
+      path: '/latest'
+      fullPath: '/api/self-improve/metrics/latest'
+      preLoaderRoute: typeof ApiSelfImproveMetricsLatestRouteImport
+      parentRoute: typeof ApiSelfImproveMetricsRoute
     }
     '/api/operations/dispatch/preview': {
       id: '/api/operations/dispatch/preview'
@@ -3749,6 +3849,19 @@ const ApiOperationsDispatchRouteWithChildren =
     ApiOperationsDispatchRouteChildren,
   )
 
+interface ApiSelfImproveMetricsRouteChildren {
+  ApiSelfImproveMetricsLatestRoute: typeof ApiSelfImproveMetricsLatestRoute
+}
+
+const ApiSelfImproveMetricsRouteChildren: ApiSelfImproveMetricsRouteChildren = {
+  ApiSelfImproveMetricsLatestRoute: ApiSelfImproveMetricsLatestRoute,
+}
+
+const ApiSelfImproveMetricsRouteWithChildren =
+  ApiSelfImproveMetricsRoute._addFileChildren(
+    ApiSelfImproveMetricsRouteChildren,
+  )
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DocsRouteRoute: DocsRouteRouteWithChildren,
@@ -3765,6 +3878,7 @@ const rootRouteChildren: RootRouteChildren = {
   MemoryRoute: MemoryRoute,
   OperationsRoute: OperationsRoute,
   ProfilesRoute: ProfilesRoute,
+  SelfImproveRoute: SelfImproveRoute,
   SettingsRoute: SettingsRouteWithChildren,
   SkillsRoute: SkillsRoute,
   TasksRoute: TasksRoute,
@@ -3869,6 +3983,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProfilesReadRoute: ApiProfilesReadRoute,
   ApiProfilesRenameRoute: ApiProfilesRenameRoute,
   ApiProfilesUpdateRoute: ApiProfilesUpdateRoute,
+  ApiSelfImproveBaselinesRoute: ApiSelfImproveBaselinesRoute,
+  ApiSelfImproveHealthRoute: ApiSelfImproveHealthRoute,
+  ApiSelfImproveMetricsRoute: ApiSelfImproveMetricsRouteWithChildren,
   ApiUpdateAgentRoute: ApiUpdateAgentRoute,
   ApiUpdateStatusRoute: ApiUpdateStatusRoute,
   ApiUpdateWorkspaceRoute: ApiUpdateWorkspaceRoute,

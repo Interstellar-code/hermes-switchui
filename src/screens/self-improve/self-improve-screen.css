@@ -1,0 +1,310 @@
+/* Self-Improve screen styles — follows matrix-crons.css conventions */
+
+/* ── Layout ──────────────────────────────────────────────────────────────────*/
+
+.si-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: auto;
+  padding: 24px;
+  box-sizing: border-box;
+  color: var(--theme-text, var(--m-text, #e8e8e8));
+  background: var(--theme-bg, var(--m-bg, #0d0d0d));
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────────*/
+
+.si-header {
+  margin-bottom: 20px;
+}
+
+.si-title-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.si-title {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--theme-text, #e8e8e8);
+  margin: 0;
+}
+
+/* ── Health strip ────────────────────────────────────────────────────────────*/
+
+.si-health-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--theme-muted, #888);
+}
+
+.si-health-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.si-health-dot--ok {
+  background: var(--m-green-400, var(--theme-accent, #4ade80));
+}
+
+.si-health-dot--err {
+  background: #f87171;
+}
+
+.si-health-label {
+  font-weight: 600;
+  color: var(--theme-text, #e8e8e8);
+}
+
+.si-health-version {
+  color: var(--theme-muted, #888);
+}
+
+.si-health-sep {
+  color: var(--theme-border, #333);
+}
+
+.si-health-db--missing {
+  color: #f87171;
+}
+
+/* ── Collect button ──────────────────────────────────────────────────────────*/
+
+.si-collect-btn {
+  padding: 5px 14px;
+  border-radius: 5px;
+  border: 1px solid var(--theme-border, #333);
+  background: none;
+  color: var(--theme-text, #e8e8e8);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  font-family: inherit;
+}
+
+.si-collect-btn:hover:not(:disabled) {
+  background: var(--theme-hover, rgba(255,255,255,0.06));
+}
+
+.si-collect-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Cards grid ──────────────────────────────────────────────────────────────*/
+
+.si-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* ── Card ────────────────────────────────────────────────────────────────────*/
+
+.si-card {
+  background: var(--theme-surface, var(--m-surface, #161616));
+  border: 1px solid var(--theme-border, #2a2a2a);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.si-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 8px;
+}
+
+.si-profile-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--m-green-400, var(--theme-accent, #4ade80));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.si-captured-at {
+  font-size: 10px;
+  color: var(--theme-muted, #888);
+  flex-shrink: 0;
+}
+
+.si-no-sessions-note {
+  font-size: 10px;
+  color: var(--theme-muted, #888);
+  margin-bottom: 10px;
+  line-height: 1.4;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--theme-hover, rgba(255,255,255,0.04));
+  border-left: 2px solid var(--theme-border, #333);
+}
+
+/* ── Metrics grid ────────────────────────────────────────────────────────────*/
+
+.si-metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 8px;
+}
+
+.si-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.si-metric--wide {
+  grid-column: 1 / -1;
+}
+
+.si-metric-label {
+  font-size: 10px;
+  color: var(--theme-muted, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+.si-metric-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--theme-text, #e8e8e8);
+  line-height: 1.2;
+}
+
+.si-metric-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.si-metric-sub {
+  font-size: 10px;
+  color: var(--theme-muted, #888);
+}
+
+/* ── Delta badge ─────────────────────────────────────────────────────────────*/
+
+.si-delta {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--theme-hover, rgba(255,255,255,0.06));
+  color: var(--theme-muted, #888);
+}
+
+.si-delta--up {
+  color: #f87171;
+}
+
+.si-delta--down {
+  color: var(--m-green-400, #4ade80);
+}
+
+/* ── Sparkline ───────────────────────────────────────────────────────────────*/
+
+.si-sparkline {
+  display: block;
+  flex-shrink: 0;
+}
+
+.si-sparkline polyline {
+  stroke: var(--theme-muted, #888);
+}
+
+.si-sparkline--up polyline {
+  stroke: #f87171;
+}
+
+.si-sparkline--down polyline {
+  stroke: var(--m-green-400, #4ade80);
+}
+
+.si-sparkline--flat polyline {
+  stroke: var(--theme-muted, #888);
+}
+
+.si-spark-empty {
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+}
+
+/* ── Skeleton ────────────────────────────────────────────────────────────────*/
+
+.si-card--skeleton {
+  pointer-events: none;
+}
+
+.si-skeleton-line {
+  height: 12px;
+  border-radius: 4px;
+  background: var(--theme-hover, rgba(255,255,255,0.07));
+  animation: si-pulse 1.4s ease-in-out infinite;
+  margin-bottom: 4px;
+}
+
+@keyframes si-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ── Error / empty states ────────────────────────────────────────────────────*/
+
+.si-error-state,
+.si-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--theme-muted, #888);
+}
+
+.si-error-msg {
+  color: #f87171;
+  font-size: 13px;
+  margin: 0;
+}
+
+.si-empty-state p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.si-empty-sub {
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+}
+
+.si-retry-btn {
+  margin-top: 4px;
+  padding: 5px 14px;
+  border-radius: 5px;
+  border: 1px solid var(--theme-border, #333);
+  background: none;
+  color: var(--theme-text, #e8e8e8);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.si-retry-btn:hover {
+  background: var(--theme-hover, rgba(255,255,255,0.06));
+}

@@ -82,6 +82,13 @@ export const MOBILE_NAV_TABS: Array<TabItem> = [
     match: (p) => p.startsWith('/jobs'),
   },
   {
+    id: 'self-improve',
+    label: 'Self-Improve',
+    icon: Rocket01Icon,
+    to: '/self-improve',
+    match: (p) => p.startsWith('/self-improve'),
+  },
+  {
     id: 'commands',
     label: 'Commands',
     icon: CommandLineIcon,
