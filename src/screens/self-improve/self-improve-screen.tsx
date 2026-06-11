@@ -7,6 +7,7 @@ import { EvalTable } from './components/eval-table'
 import { HistoryDrawer } from './components/history-drawer'
 import { BaselineChart } from './components/baseline-chart'
 import type { Baseline, Experiment, MetricsSnapshot, PluginHealth, Scenario } from '@/lib/self-improve-types'
+import { useAgentProfiles } from '@/hooks/use-agent-profiles'
 import { toast } from '@/components/ui/toast'
 import {
   applyExperiment,
@@ -458,11 +459,12 @@ function ProposalCard({ exp, onApproved, onRejected }: ProposalCardProps) {
 
 interface ProposalsSectionProps {
   profiles: Array<string>
+  defaultProfile?: string
 }
 
-function ProposalsSection({ profiles }: ProposalsSectionProps) {
+function ProposalsSection({ profiles, defaultProfile }: ProposalsSectionProps) {
   const queryClient = useQueryClient()
-  const [proposeProfile, setProposeProfile] = useState(profiles[0] ?? '')
+  const [proposeProfile, setProposeProfile] = useState(defaultProfile ?? (profiles.length > 0 ? profiles[0] : ''))
 
   const proposedQuery = useQuery({
     queryKey: QK_PROPOSED,
@@ -893,11 +895,12 @@ function BaselineChartSection({ profiles, baselines }: BaselineChartSectionProps
 
 interface ScenarioSectionProps {
   profiles: Array<string>
+  defaultProfile?: string
 }
 
-function ScenarioSection({ profiles }: ScenarioSectionProps) {
+function ScenarioSection({ profiles, defaultProfile }: ScenarioSectionProps) {
   const queryClient = useQueryClient()
-  const [selectedProfile, setSelectedProfile] = useState(profiles[0] ?? '')
+  const [selectedProfile, setSelectedProfile] = useState(defaultProfile ?? (profiles.length > 0 ? profiles[0] : ''))
   const [includeHoldout, setIncludeHoldout] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Scenario | null>(null)
@@ -1251,6 +1254,8 @@ export function SelfImproveScreen() {
   const history = historyQuery.data ?? []
   const baselines = baselinesQuery.data ?? []
 
+  const { profiles: agentProfiles, activeProfile } = useAgentProfiles()
+
   return (
     <div className="si-screen">
       {/* Page header */}
@@ -1298,22 +1303,22 @@ export function SelfImproveScreen() {
       )}
 
       {/* Proposals section — always visible so users can trigger propose even before metrics */}
-      <ProposalsSection profiles={snapshots.map((s) => s.profile)} />
+      <ProposalsSection profiles={agentProfiles} defaultProfile={activeProfile} />
 
       {/* Lifecycle section — approved/live/verified/reverted experiments */}
-      <LifecycleSection profiles={snapshots.map((s) => s.profile)} />
+      <LifecycleSection profiles={agentProfiles} />
 
       {/* P3: Baseline curve chart — score over time per profile */}
       {snapshots.length > 0 && (
         <BaselineChartSection
-          profiles={snapshots.map((s) => s.profile)}
+          profiles={agentProfiles}
           baselines={baselines}
         />
       )}
 
       {/* P3: Scenario management — list/create/delete scenarios per profile */}
       {snapshots.length > 0 && (
-        <ScenarioSection profiles={snapshots.map((s) => s.profile)} />
+        <ScenarioSection profiles={agentProfiles} defaultProfile={activeProfile} />
       )}
     </div>
   )
