@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  applyExperiment,
   approveExperiment,
   collectMetrics,
   createExperiment,
@@ -12,6 +13,8 @@ import {
   listMetrics,
   proposeExperiment,
   rejectExperiment,
+  revertExperiment,
+  verifyExperiment,
 } from './self-improve-client'
 
 import { dashboardFetch } from './gateway-capabilities'
@@ -313,5 +316,83 @@ describe('proposeExperiment', () => {
   it('throws on error response', async () => {
     mockFetch.mockResolvedValue(errorResponse(503, { detail: 'Plugin down' }))
     await expect(proposeExperiment('default')).rejects.toThrow()
+  })
+})
+
+// ── P2 lifecycle actions ──────────────────────────────────────────────────────
+
+describe('applyExperiment', () => {
+  it('POSTs to apply endpoint and returns ok + state + sha', async () => {
+    mockFetch.mockResolvedValue(
+      jsonOk({ ok: true, state: 'live', apply_commit_sha: 'abc1234' }),
+    )
+    const result = await applyExperiment(5)
+    expect(result.ok).toBe(true)
+    expect(result.state).toBe('live')
+    expect(result.apply_commit_sha).toBe('abc1234')
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/experiments/5/apply'),
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
+  it('throws on error response', async () => {
+    mockFetch.mockResolvedValue(errorResponse(422, { detail: 'Invalid state' }))
+    await expect(applyExperiment(5)).rejects.toThrow('422')
+  })
+
+  it('throws on 503', async () => {
+    mockFetch.mockResolvedValue(errorResponse(503, { detail: 'Plugin down' }))
+    await expect(applyExperiment(5)).rejects.toThrow()
+  })
+})
+
+describe('verifyExperiment', () => {
+  it('POSTs to verify endpoint and returns ok + state', async () => {
+    mockFetch.mockResolvedValue(jsonOk({ ok: true, state: 'verified' }))
+    const result = await verifyExperiment(3)
+    expect(result.ok).toBe(true)
+    expect(result.state).toBe('verified')
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/experiments/3/verify'),
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
+  it('throws on error response', async () => {
+    mockFetch.mockResolvedValue(errorResponse(404, { detail: 'Not found' }))
+    await expect(verifyExperiment(3)).rejects.toThrow()
+  })
+})
+
+describe('revertExperiment', () => {
+  it('POSTs to revert endpoint with reason in body', async () => {
+    mockFetch.mockResolvedValue(jsonOk({ ok: true, state: 'reverted' }))
+    const result = await revertExperiment(7, 'regression detected')
+    expect(result.ok).toBe(true)
+    expect(result.state).toBe('reverted')
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/experiments/7/revert'),
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('"reason":"regression detected"'),
+      }),
+    )
+  })
+
+  it('sends empty reason when not provided', async () => {
+    mockFetch.mockResolvedValue(jsonOk({ ok: true, state: 'reverted' }))
+    await revertExperiment(7, '')
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/experiments/7/revert'),
+      expect.objectContaining({
+        body: expect.stringContaining('"reason":""'),
+      }),
+    )
+  })
+
+  it('throws on error response', async () => {
+    mockFetch.mockResolvedValue(errorResponse(503, { detail: 'Plugin down' }))
+    await expect(revertExperiment(7, 'reason')).rejects.toThrow()
   })
 })

@@ -151,3 +151,45 @@ export async function proposeExperiment(
     body: JSON.stringify({ profile }),
   })
 }
+
+// ── Lifecycle actions (P2) ────────────────────────────────────────────────────
+
+export async function applyExperiment(
+  id: number,
+): Promise<{ ok: boolean; state: 'live'; apply_commit_sha: string }> {
+  return selfImproveFetch<{ ok: boolean; state: 'live'; apply_commit_sha: string }>(
+    `${BASE}/experiments/${id}/apply`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    },
+  )
+}
+
+export async function verifyExperiment(
+  id: number,
+): Promise<{ ok: boolean; state: 'verified' }> {
+  return selfImproveFetch<{ ok: boolean; state: 'verified' }>(
+    `${BASE}/experiments/${id}/verify`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    },
+  )
+}
+
+export async function revertExperiment(
+  id: number,
+  reason: string,
+): Promise<{ ok: boolean; state: 'reverted' }> {
+  return selfImproveFetch<{ ok: boolean; state: 'reverted' }>(
+    `${BASE}/experiments/${id}/revert`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    },
+  )
+}
