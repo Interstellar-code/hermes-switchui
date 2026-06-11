@@ -509,7 +509,7 @@ function ProposalsSection({ profiles }: ProposalsSectionProps) {
             disabled={proposeMutation.isPending}
             onClick={() => proposeMutation.mutate(proposeProfile || (profiles[0] ?? ''))}
           >
-            {proposeMutation.isPending ? 'Proposing…' : `Propose${profiles.length === 1 ? ` (${profiles[0]})` : ''}`}
+            {proposeMutation.isPending ? 'Proposing…' : `Propose${profiles.length === 1 ? ` · ${profiles[0]}` : ''}`}
           </button>
         </div>
       </div>
