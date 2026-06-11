@@ -87,10 +87,40 @@ export type ClaudeConfig = {
 
 // ── Helpers ───────────────────────────────────────────────────────
 
+// Hard cap on how long any non-streaming gateway/dashboard request may hang.
+// Without this, a stalled/unreachable gateway turns into an indefinitely
+// pending fetch — which collapsed into an empty chat downstream (#217).
+const GATEWAY_REQUEST_TIMEOUT_MS = 10_000
+
+// Captured upstream error bodies are bounded so a huge HTML/error page can't
+// balloon the thrown message (#217).
+const ERROR_BODY_CAP = 500
+
+/** Translate a fetch abort/timeout into a recognizable thrown error so routes
+ *  can map it to 503/504. AbortSignal.timeout() rejects with a TimeoutError;
+ *  a caller-cancelled signal rejects with AbortError. */
+function _asGatewayError(err: unknown, path: string): Error {
+  if (err instanceof DOMException && err.name === 'TimeoutError') {
+    return new Error(`Hermes Agent API ${path}: gateway timeout`)
+  }
+  if (err instanceof Error && err.name === 'TimeoutError') {
+    return new Error(`Hermes Agent API ${path}: gateway timeout`)
+  }
+  return err instanceof Error ? err : new Error(String(err))
+}
+
 async function claudeGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${CLAUDE_API}${path}`, { headers: _authHeaders() })
+  let res: Response
+  try {
+    res = await fetch(`${CLAUDE_API}${path}`, {
+      headers: _authHeaders(),
+      signal: AbortSignal.timeout(GATEWAY_REQUEST_TIMEOUT_MS),
+    })
+  } catch (err) {
+    throw _asGatewayError(err, path)
+  }
   if (!res.ok) {
-    const body = await res.text().catch(() => '')
+    const body = (await res.text().catch(() => '')).slice(0, ERROR_BODY_CAP)
     throw new Error(`Hermes Agent API ${path}: ${res.status} ${body}`)
   }
   return res.json() as Promise<T>
@@ -101,38 +131,56 @@ async function claudePost<T>(
   body?: unknown,
   extraHeaders: Record<string, string> = {},
 ): Promise<T> {
-  const res = await fetch(`${CLAUDE_API}${path}`, {
-    method: 'POST',
-    headers: { ..._authHeaders(), 'Content-Type': 'application/json', ...extraHeaders },
-    body: body ? JSON.stringify(body) : undefined,
-  })
+  let res: Response
+  try {
+    res = await fetch(`${CLAUDE_API}${path}`, {
+      method: 'POST',
+      headers: { ..._authHeaders(), 'Content-Type': 'application/json', ...extraHeaders },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(GATEWAY_REQUEST_TIMEOUT_MS),
+    })
+  } catch (err) {
+    throw _asGatewayError(err, `POST ${path}`)
+  }
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
+    const text = (await res.text().catch(() => '')).slice(0, ERROR_BODY_CAP)
     throw new Error(`Hermes Agent API POST ${path}: ${res.status} ${text}`)
   }
   return res.json() as Promise<T>
 }
 
 async function claudePatch<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${CLAUDE_API}${path}`, {
-    method: 'PATCH',
-    headers: { ..._authHeaders(), 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+  let res: Response
+  try {
+    res = await fetch(`${CLAUDE_API}${path}`, {
+      method: 'PATCH',
+      headers: { ..._authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(GATEWAY_REQUEST_TIMEOUT_MS),
+    })
+  } catch (err) {
+    throw _asGatewayError(err, `PATCH ${path}`)
+  }
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
+    const text = (await res.text().catch(() => '')).slice(0, ERROR_BODY_CAP)
     throw new Error(`Hermes Agent API PATCH ${path}: ${res.status} ${text}`)
   }
   return res.json() as Promise<T>
 }
 
 async function claudeDeleteReq(path: string): Promise<void> {
-  const res = await fetch(`${CLAUDE_API}${path}`, {
-    method: 'DELETE',
-    headers: _authHeaders(),
-  })
+  let res: Response
+  try {
+    res = await fetch(`${CLAUDE_API}${path}`, {
+      method: 'DELETE',
+      headers: _authHeaders(),
+      signal: AbortSignal.timeout(GATEWAY_REQUEST_TIMEOUT_MS),
+    })
+  } catch (err) {
+    throw _asGatewayError(err, `DELETE ${path}`)
+  }
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
+    const text = (await res.text().catch(() => '')).slice(0, ERROR_BODY_CAP)
     throw new Error(`Hermes Agent API DELETE ${path}: ${res.status} ${text}`)
   }
 }
@@ -155,31 +203,52 @@ function _dashboardProxyFetch(path: string, init?: RequestInit): Promise<Respons
 }
 
 async function dashboardGet<T>(path: string): Promise<T> {
-  const res = await _dashboardProxyFetch(path)
+  let res: Response
+  try {
+    res = await _dashboardProxyFetch(path, {
+      signal: AbortSignal.timeout(GATEWAY_REQUEST_TIMEOUT_MS),
+    })
+  } catch (err) {
+    throw _asGatewayError(err, `dashboard ${path}`)
+  }
   if (!res.ok) {
-    const body = await res.text().catch(() => '')
+    const body = (await res.text().catch(() => '')).slice(0, ERROR_BODY_CAP)
     throw new Error(`Hermes Dashboard API ${path}: ${res.status} ${body}`)
   }
   return res.json() as Promise<T>
 }
 
 async function dashboardSend<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await _dashboardProxyFetch(path, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  })
+  let res: Response
+  try {
+    res = await _dashboardProxyFetch(path, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(GATEWAY_REQUEST_TIMEOUT_MS),
+    })
+  } catch (err) {
+    throw _asGatewayError(err, `dashboard ${method} ${path}`)
+  }
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
+    const text = (await res.text().catch(() => '')).slice(0, ERROR_BODY_CAP)
     throw new Error(`Hermes Dashboard API ${method} ${path}: ${res.status} ${text}`)
   }
   return res.json() as Promise<T>
 }
 
 async function dashboardDelete(path: string): Promise<void> {
-  const res = await _dashboardProxyFetch(path, { method: 'DELETE' })
+  let res: Response
+  try {
+    res = await _dashboardProxyFetch(path, {
+      method: 'DELETE',
+      signal: AbortSignal.timeout(GATEWAY_REQUEST_TIMEOUT_MS),
+    })
+  } catch (err) {
+    throw _asGatewayError(err, `dashboard DELETE ${path}`)
+  }
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
+    const text = (await res.text().catch(() => '')).slice(0, ERROR_BODY_CAP)
     throw new Error(`Hermes Dashboard API DELETE ${path}: ${res.status} ${text}`)
   }
 }

@@ -384,7 +384,6 @@ export function useRealtimeChatHistory({
   const mergeHistoryMessages = useChatStore((s) => s.mergeHistoryMessages)
   const clearSession = useChatStore((s) => s.clearSession)
   const lastEventAt = useChatStore((s) => s.lastEventAt)
-  const clearRealtimeBuffer = useChatStore((s) => s.clearRealtimeBuffer)
   const realtimeMessages = useChatStore(
     (s) => s.realtimeMessages.get(effectiveSessionKey) ?? EMPTY_MESSAGES,
   )
@@ -396,9 +395,6 @@ export function useRealtimeChatHistory({
   const streamingStateRef = useRef(streamingState)
   const lastStreamClearTimeRef = useRef<number>(0)
   const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const delayedClearSessionTimeoutRef = useRef<ReturnType<
-    typeof setTimeout
-  > | null>(null)
   const activeSessionKeyRef = useRef(effectiveSessionKey)
   const isUnmountingRef = useRef(false)
   activeSessionKeyRef.current = effectiveSessionKey
@@ -424,38 +420,30 @@ export function useRealtimeChatHistory({
     }
   }, [clearCompletedStreaming, streamingState])
 
-  // Merge history with real-time messages
-  // Re-merge when realtime events arrive (lastEventAt changes)
+  // Merge history with real-time messages.
+  //
+  // Subscribe to `realtimeMessages` directly in the dep array so a buffer
+  // change recomputes the merge even when it doesn't bump `lastEventAt` — e.g.
+  // a deterministic buffer clear on session switch (#220). `lastEventAt` is
+  // retained because streaming events mutate buffer entries in place and bump
+  // the proxy without changing the array reference, so it still triggers
+  // recompute for those.
   const mergedMessages = useMemo(() => {
     if (effectiveSessionKey === 'new') return historyMessages
     return mergeHistoryMessages(effectiveSessionKey, historyMessages)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveSessionKey, historyMessages, mergeHistoryMessages, lastEventAt])
+  }, [
+    effectiveSessionKey,
+    historyMessages,
+    mergeHistoryMessages,
+    lastEventAt,
+    realtimeMessages,
+  ])
 
   useEffect(() => {
     if (!portableMode) return
     if (mergedMessages.length === 0) return
     persistPortableHistory(mergedMessages)
   }, [mergedMessages, portableMode])
-
-  // History has caught up — cleanup realtime buffer outside render
-  // DISABLED: This was aggressively clearing realtime messages before history
-  // caught up, causing the "message appears then disappears" bug.
-  // TODO: Re-enable with smarter timing (e.g. only after history confirms the message)
-  useEffect(() => {
-    return // disabled
-    if (portableMode) return
-    if (!effectiveSessionKey || effectiveSessionKey === 'new') return
-    if (realtimeMessages.length === 0) return
-    if (mergedMessages.length !== historyMessages.length) return
-    clearRealtimeBuffer(effectiveSessionKey)
-  }, [
-    clearRealtimeBuffer,
-    effectiveSessionKey,
-    historyMessages.length,
-    mergedMessages.length,
-    realtimeMessages.length,
-  ])
 
   useEffect(() => {
     if (!onCompactionStart) return
@@ -506,26 +494,28 @@ export function useRealtimeChatHistory({
     }
   }, [effectiveFriendlyId, effectiveSessionKey, enabled, queryClient])
 
-  // Clear realtime buffer when session changes
+  // Clear the PREVIOUS session's realtime buffer deterministically when the
+  // session changes (#220).
+  //
+  // realtimeMessages is a per-session Map and mergeHistoryMessages only reads
+  // the active session's buffer, so the session we navigate AWAY from is no
+  // longer rendered — clearing it immediately is safe and bounds Map growth.
+  // The old 5s setTimeout misfired on rapid A→B→A switches (it could wipe a
+  // session we'd switched back to, or never fire and leak buffers).
+  //
+  // Handoff protection preserved: we never clear the now-active key (guarded by
+  // activeSessionKeyRef), and we skip clearing on true unmount
+  // (isUnmountingRef) so a remount of the same session keeps its in-flight
+  // final assistant message until history catches up.
   useEffect(() => {
     if (!effectiveSessionKey || effectiveSessionKey === 'new') return undefined
-    if (delayedClearSessionTimeoutRef.current) {
-      clearTimeout(delayedClearSessionTimeoutRef.current)
-      delayedClearSessionTimeoutRef.current = null
-    }
-
-    // Clear on unmount/session change after a delay
-    // to allow history to catch up
+    const keyForThisEffect = effectiveSessionKey
     return () => {
       if (isUnmountingRef.current) return
-      if (delayedClearSessionTimeoutRef.current) {
-        clearTimeout(delayedClearSessionTimeoutRef.current)
-      }
-      delayedClearSessionTimeoutRef.current = setTimeout(() => {
-        delayedClearSessionTimeoutRef.current = null
-        if (activeSessionKeyRef.current === effectiveSessionKey) return
-        clearSession(effectiveSessionKey)
-      }, 5000)
+      // Only clear if we actually moved to a different session; never clear the
+      // session we are currently viewing.
+      if (activeSessionKeyRef.current === keyForThisEffect) return
+      clearSession(keyForThisEffect)
     }
   }, [effectiveSessionKey, clearSession])
 
@@ -534,10 +524,6 @@ export function useRealtimeChatHistory({
     return () => {
       isUnmountingRef.current = true
       if (syncIntervalRef.current) clearInterval(syncIntervalRef.current)
-      if (delayedClearSessionTimeoutRef.current) {
-        clearTimeout(delayedClearSessionTimeoutRef.current)
-        delayedClearSessionTimeoutRef.current = null
-      }
     }
   }, [])
 

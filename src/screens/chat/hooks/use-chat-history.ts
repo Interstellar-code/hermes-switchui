@@ -12,6 +12,7 @@ import {
 import {
   clearRecoveryMessage,
   readRecoveryMessage,
+  useChatStore,
 } from '../../../stores/chat-store'
 import { useChatSettingsStore } from '../../../hooks/use-chat-settings'
 import type { PendingSendPayload } from '../pending-send'
@@ -392,9 +393,22 @@ export function useChatHistory({
       return queryClient.getQueryData(historyKey)
     },
     refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+    // Don't refetch history on window focus while the active session is
+    // streaming: a focus-refetch mid-stream races the live stream and can
+    // momentarily replace in-flight content with a stale server snapshot
+    // (#215). Read the store non-reactively inside the callback so this
+    // option itself doesn't subscribe to streaming changes.
+    refetchOnWindowFocus: function shouldRefetchOnFocus() {
+      const getStreamingState = useChatStore.getState().getStreamingState
+      const isStreaming =
+        Boolean(getStreamingState(effectiveSessionKeyForHistory)) ||
+        Boolean(getStreamingState(effectiveFriendlyId))
+      return !isStreaming
+    },
     refetchInterval: historyRefetchInterval,
-    staleTime: 0, // Always refetch on mount — prevents stale data after tab navigation
+    // Small staleTime so a focus/mount immediately after a refetch doesn't
+    // re-hit the server, while still refetching on mount after navigation.
+    staleTime: 5_000,
     gcTime: 1000 * 60 * 10,
     structuralSharing: true,
     notifyOnChangeProps: ['data', 'error', 'isError'],

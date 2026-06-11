@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { toast } from '@/components/ui/toast'
 import { chatQueryKeys } from '../chat-queries'
+import { invalidateSessionLists } from '../sessions-feed'
 import {
   updateSessionTitleState,
   useSessionTitleInfo,
@@ -174,7 +175,9 @@ export function useAutoSessionTitle({
     },
     onSuccess: (payload) => {
       applyTitle(payload.friendlyId, payload.title, 'auto')
-      void queryClient.invalidateQueries({ queryKey: chatQueryKeys.sessions })
+      // Invalidate both session-list caches so the V2 sidebar and legacy
+      // consumers both pick up the auto-generated title (#218).
+      invalidateSessionLists(queryClient)
     },
     onError: (error, payload) => {
       const msg = error instanceof Error ? error.message : String(error ?? '')
