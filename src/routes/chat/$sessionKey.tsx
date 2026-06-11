@@ -5,6 +5,7 @@ import {
   moveHistoryMessages,
   reconcileSessionDraft,
 } from '../../screens/chat/chat-queries'
+import { invalidateSessionLists } from '../../screens/chat/sessions-feed'
 import { ErrorBoundary } from '@/components/error-boundary'
 
 const ChatScreen = lazy(async () => {
@@ -102,7 +103,7 @@ function ChatRoute() {
         payload.friendlyId,
         payload.sessionKey,
       )
-      queryClient.invalidateQueries({ queryKey: ['chat', 'sessions'] })
+      invalidateSessionLists(queryClient)
       setForcedSession({
         friendlyId: payload.friendlyId,
         sessionKey: payload.sessionKey,

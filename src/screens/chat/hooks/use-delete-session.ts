@@ -7,7 +7,7 @@ import {
 } from '../chat-queries'
 import { clearPendingSendForSession, resetPendingSend } from '../pending-send'
 import { clearSessionDeleted, markSessionDeleted } from '../session-tombstones'
-import { SESSIONS_FEED_KEY } from '../sessions-feed'
+import { SESSIONS_FEED_KEY, invalidateSessionLists } from '../sessions-feed'
 import { readError } from '../utils'
 import { clearSessionTitleState } from '../session-title-store'
 import { useSessionModelStore } from '@/stores/session-model-store'
@@ -80,9 +80,8 @@ export function useDeleteSession(): DeleteSessionResult {
       if (payload.friendlyId && payload.friendlyId !== payload.sessionKey) {
         clearModel(payload.friendlyId)
       }
-      queryClient.invalidateQueries({ queryKey: chatQueryKeys.sessions })
-      // V2 sidebar reads a separate feed query — refetch it so the card is removed
-      queryClient.invalidateQueries({ queryKey: SESSIONS_FEED_KEY })
+      // Refetch both session-list caches so the card is removed everywhere (#218).
+      invalidateSessionLists(queryClient)
     },
     onSettled: function onSettled() {
       setDeleting(false)

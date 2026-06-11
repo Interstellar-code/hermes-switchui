@@ -13,8 +13,9 @@
  */
 
 import { useQuery } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
-import { fetchSessions } from './chat-queries'
+import { chatQueryKeys, fetchSessions } from './chat-queries'
 import { filterSessionsWithTombstones } from './session-tombstones'
 import { matchesSessionSearch } from './session-search'
 import type { ClaudeJob } from '@/lib/jobs-api'
@@ -71,6 +72,20 @@ const CAPABILITIES_QUERY_KEY = ['sessions-feed', 'capabilities'] as const
 
 /** Query key for the V2 sidebar chat feed. Exported so mutations (e.g. delete) can invalidate it. */
 export const SESSIONS_FEED_KEY = ['sessions-feed', 'chat'] as const
+
+/**
+ * Invalidate BOTH session-list caches that hold the sidebar session list:
+ *   - `SESSIONS_FEED_KEY` (['sessions-feed','chat']) — read by the V2 sidebar feed
+ *   - `chatQueryKeys.sessions` (['chat','sessions']) — read by legacy session consumers
+ *
+ * Any session-mutating site (rename, auto-title, create, delete, assistant-done)
+ * must call this so the two caches stay in sync. Using only one key leaves the
+ * other stale, producing the asymmetric-invalidation bug (#218).
+ */
+export function invalidateSessionLists(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({ queryKey: SESSIONS_FEED_KEY })
+  void queryClient.invalidateQueries({ queryKey: chatQueryKeys.sessions })
+}
 
 // ── Day bucketing ──────────────────────────────────────────────────────────────
 

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { chatQueryKeys } from '../chat-queries'
+import { invalidateSessionLists } from '../sessions-feed'
 import { readError } from '../utils'
 import { updateSessionTitleState } from '../session-title-store'
 
@@ -90,8 +91,9 @@ export function useRenameSession(): RenameSessionResult {
         status: 'ready',
         error: null,
       })
-      // Invalidate to ensure we have the latest data
-      queryClient.invalidateQueries({ queryKey: chatQueryKeys.sessions })
+      // Invalidate both session-list caches so the V2 sidebar and legacy
+      // consumers both pick up the renamed title (#218).
+      invalidateSessionLists(queryClient)
     },
     onSettled: function onSettled() {
       setRenaming(false)
