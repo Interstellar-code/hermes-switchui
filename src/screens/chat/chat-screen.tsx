@@ -1565,12 +1565,22 @@ export function ChatScreen({
       phase: toolCall.phase,
     }))
 
+    // The live streaming text is intentionally NOT baked into the array here.
+    // Embedding the per-frame text (stableActiveStreamingText) would change the
+    // memo's output identity on every requestAnimationFrame tick (~60×/sec),
+    // forcing ChatMessageList — and its full filter/dedup/sort/group/signature
+    // pipeline — to recompute over the entire message set each frame (#212).
+    // Instead the placeholder carries STABLE content and the live text reaches
+    // the streaming bubble exclusively via the dedicated `streamingText` prop on
+    // ChatMessageList → MessageItem. The `streamingText` prop on MessageItem
+    // takes precedence over message.__streamingText, so the typewriter reveal is
+    // driven entirely by that prop path and only the streaming leaf re-renders.
     const streamingMsg = {
       role: 'assistant',
       content: [],
       __optimisticId: 'streaming-current',
       __streamingStatus: 'streaming',
-      __streamingText: stableActiveStreamingText,
+      __streamingText: '',
       __streamingThinking: realtimeStreamingThinking,
       __streamToolCalls: streamToolCalls,
     } as ChatMessage
@@ -1599,10 +1609,13 @@ export function ChatScreen({
       nextMessages.push(streamingMsg)
     }
     return nextMessages
+    // NOTE: activeRealtimeStreamingText / stableActiveStreamingText are
+    // deliberately excluded from deps. The per-frame live text must NOT change
+    // this array's identity (#212); it flows to the streaming bubble via the
+    // dedicated `streamingText` prop on ChatMessageList instead.
   }, [
     activeToolCalls,
     activeIsRealtimeStreaming,
-    activeRealtimeStreamingText,
     realtimeMessages,
     realtimeStreamingThinking,
   ])

@@ -330,47 +330,33 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
 
   const pushTargetText = useCallback(
     (target: string) => {
+      // #212: this hook no longer runs its own requestAnimationFrame typewriter.
+      // The single, path-agnostic reveal animation lives in useSmoothStreamingText
+      // (consumed in chat-screen.tsx). Running a second rAF loop here was
+      // redundant — on the realtime path its output (state.streamingText) was
+      // unused, and on the portable path it caused double-smoothing. We now push
+      // the full accumulated text synchronously so the store/state holds the raw
+      // target and useSmoothStreamingText performs the one-and-only reveal.
+      const previous = fullTextRef.current
       fullTextRef.current = target
       targetTextRef.current = target
+      renderedTextRef.current = target
 
-      if (
-        renderedTextRef.current.length > target.length ||
-        !target.startsWith(renderedTextRef.current)
-      ) {
-        renderedTextRef.current = ''
+      if (target === previous) return
+
+      setState((prev) =>
+        prev.streamingText === target
+          ? prev
+          : { ...prev, streamingText: target },
+      )
+
+      const delta =
+        target.length > previous.length && target.startsWith(previous)
+          ? target.slice(previous.length)
+          : target
+      if (delta) {
+        onChunk?.(delta, target)
       }
-
-      if (frameRef.current !== null) return
-
-      const tick = () => {
-        const current = renderedTextRef.current
-        const nextTarget = targetTextRef.current
-
-        if (current === nextTarget) {
-          frameRef.current = null
-          return
-        }
-
-        const remaining = nextTarget.length - current.length
-        const step = remaining > 48 ? Math.ceil(remaining / 6) : 1
-        const nextLength = Math.min(nextTarget.length, current.length + step)
-        const nextText = nextTarget.slice(0, nextLength)
-        const delta = nextText.slice(current.length)
-
-        renderedTextRef.current = nextText
-        setState((prev) => ({
-          ...prev,
-          streamingText: nextText,
-        }))
-
-        if (delta) {
-          onChunk?.(delta, nextText)
-        }
-
-        frameRef.current = window.requestAnimationFrame(tick)
-      }
-
-      frameRef.current = window.requestAnimationFrame(tick)
     },
     [onChunk],
   )

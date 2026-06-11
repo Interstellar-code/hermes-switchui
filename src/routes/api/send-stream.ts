@@ -923,7 +923,12 @@ export const Route = createFileRoute('/api/send-stream')({
               // any real live events that might arrive.
               const syntheticLiveToolTracker = createSyntheticLiveToolTracker()
               let liveRunActive = true
-              const livePollIntervalMs = 800
+              // Each tick refetches the ENTIRE session transcript (the gateway
+              // exposes no since/offset param yet — #216). Widened from 800ms
+              // to 1500ms to roughly halve that full-history fetch volume
+              // during a run; the streamClosed guard below also short-circuits
+              // the loop the moment the stream ends.
+              const livePollIntervalMs = 1500
               // Snapshot the session message count at run-start so the poller
               // and the post-run backfill only consider messages persisted by
               // THIS run. Without this, "the most recent assistant with
