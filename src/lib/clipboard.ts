@@ -35,3 +35,32 @@ export async function writeTextToClipboard(text: string): Promise<void> {
     textarea.remove()
   }
 }
+
+/**
+ * Copy both a rich (text/html) and a plain (text/plain) representation to the
+ * clipboard so the content keeps its formatting when pasted into rich editors
+ * (e.g. a table stays a table) while remaining usable as plain text elsewhere.
+ *
+ * Falls back to copying only the plain-text payload on browsers without the
+ * async ClipboardItem API.
+ */
+export async function writeRichTextToClipboard(
+  html: string,
+  plainText: string,
+): Promise<void> {
+  if (typeof navigator !== 'undefined' && typeof ClipboardItem !== 'undefined') {
+    try {
+      const item = new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([plainText], { type: 'text/plain' }),
+      })
+      // navigator.clipboard is absent on insecure origins; the throw is caught.
+      await navigator.clipboard.write([item])
+      return
+    } catch {
+      // Fall through to plain-text copy below.
+    }
+  }
+
+  await writeTextToClipboard(plainText)
+}
