@@ -139,7 +139,7 @@ export const useChatActivityStore = create<ChatActivityState>((set, get) => ({
       }
     }
     void tick()
-    gatewayPollTimer = setInterval(tick, 3000)
+    gatewayPollTimer = setInterval(tick, 10_000)
   },
 
   stopGatewayPoll: () => {

@@ -71,7 +71,10 @@ export function useChatSessions({
   const sessionsQuery = useQuery({
     queryKey: chatQueryKeys.sessions,
     queryFn: fetchSessions,
-    refetchInterval: 5000,
+    // Session mutations invalidate this cache via invalidateSessionLists (#218),
+    // so polling is only a safety net for out-of-band gateway changes. The
+    // /api/sessions payload is ~400KB — keep the interval wide.
+    refetchInterval: 30_000,
   })
   const storedTitles = useSessionTitles()
 
