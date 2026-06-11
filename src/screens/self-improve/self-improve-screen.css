@@ -1195,3 +1195,495 @@
   gap: 8px;
   margin-top: 4px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* UX Redesign #210 — new component styles                                    */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Intro card (FIX 5) ───────────────────────────────────────────────────── */
+
+.si-intro-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: rgba(124, 106, 247, 0.08);
+  border: 1px solid rgba(124, 106, 247, 0.25);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  color: var(--theme-text, #e8e8e8);
+  line-height: 1.5;
+}
+
+.si-intro-text {
+  flex: 1;
+}
+
+.si-intro-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--theme-muted, #888);
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.si-intro-dismiss:hover {
+  color: var(--theme-text, #e8e8e8);
+}
+
+/* ── Header controls ──────────────────────────────────────────────────────── */
+
+.si-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Global profile scope select (FIX 1) ─────────────────────────────────── */
+
+.si-profile-scope-select {
+  background: var(--theme-surface, #1a1a2e);
+  border: 1px solid var(--theme-border, #2a2a3e);
+  border-radius: 6px;
+  color: var(--theme-text, #e8e8e8);
+  font-size: 13px;
+  padding: 5px 10px;
+  outline: none;
+  cursor: pointer;
+}
+
+.si-profile-scope-select:focus {
+  border-color: var(--theme-accent, #7c6af7);
+}
+
+/* ── Section header + caption ─────────────────────────────────────────────── */
+
+.si-section-caption {
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+  margin-left: 8px;
+}
+
+/* ── Experiments feed (FIX 2) ────────────────────────────────────────────── */
+
+.si-experiments-section {
+  margin-top: 32px;
+}
+
+.si-exp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+/* ── Experiment card ──────────────────────────────────────────────────────── */
+
+.si-exp-card {
+  background: var(--theme-card, #12121f);
+  border: 1px solid var(--theme-border, #2a2a3e);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.si-exp-card:hover {
+  border-color: rgba(124, 106, 247, 0.35);
+}
+
+.si-exp-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.si-exp-file {
+  font-family: var(--m-font-mono, 'JetBrains Mono', 'Fira Code', monospace);
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--theme-border, #2a2a3e);
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--theme-text, #e8e8e8);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.si-exp-time {
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+}
+
+.si-exp-id {
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+  font-family: var(--m-font-mono, monospace);
+  margin-left: auto;
+}
+
+/* ── Summary sentence ─────────────────────────────────────────────────────── */
+
+.si-exp-summary {
+  font-size: 14px;
+  color: var(--theme-text, #e8e8e8);
+  line-height: 1.5;
+  margin: 0;
+  font-weight: 450;
+}
+
+/* ── Hero diff ────────────────────────────────────────────────────────────── */
+
+.si-exp-diff-wrap {
+  border: 1px solid var(--theme-border, #2a2a3e);
+  border-radius: 6px;
+  overflow: hidden;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.si-exp-diff {
+  margin: 0;
+}
+
+/* ── Score context (FIX 3) ────────────────────────────────────────────────── */
+
+.si-score-context {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0 4px;
+}
+
+.si-score-context-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+  margin-bottom: 4px;
+}
+
+.si-score-context-subtitle {
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+}
+
+.si-score-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.si-score-bar-label {
+  width: 64px;
+  flex-shrink: 0;
+  color: var(--theme-muted, #888);
+}
+
+.si-score-bar-track {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: visible;
+}
+
+.si-score-bar-fill {
+  height: 100%;
+  background: var(--m-green-400, #4ade80);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.si-score-bar-baseline {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 14px;
+  background: var(--theme-accent, #7c6af7);
+  border-radius: 1px;
+  transform: translateX(-50%);
+}
+
+.si-score-bar-value {
+  width: 44px;
+  text-align: right;
+  color: var(--theme-text, #e8e8e8);
+  font-family: var(--m-font-mono, monospace);
+  font-size: 12px;
+}
+
+.si-score-bar-empty {
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+  font-style: italic;
+}
+
+/* Score delta — direction-correct: up=green=good (NOT the inverted .si-delta--up) */
+
+.si-score-delta {
+  font-size: 12px;
+  font-family: var(--m-font-mono, monospace);
+  font-weight: 600;
+}
+
+.si-score-delta--up {
+  color: var(--m-green-400, #4ade80);
+}
+
+.si-score-delta--down {
+  color: var(--theme-error, #f87171);
+}
+
+.si-score-delta--flat {
+  color: var(--theme-muted, #888);
+}
+
+.si-score-atomic {
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+  margin-top: 2px;
+}
+
+/* ── Lifecycle stepper (FIX 2) ────────────────────────────────────────────── */
+
+.si-stepper {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  overflow-x: auto;
+  padding: 8px 0 4px;
+}
+
+.si-stepper-item {
+  display: flex;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+
+.si-stepper-connector {
+  width: 28px;
+  height: 2px;
+  background: var(--theme-border, #2a2a3e);
+  margin-top: 10px;
+  flex-shrink: 0;
+}
+
+.si-stepper-connector--done {
+  background: var(--m-green-400, #4ade80);
+}
+
+.si-stepper-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 72px;
+}
+
+.si-stepper-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  border: 2px solid var(--theme-border, #2a2a3e);
+  background: var(--theme-card, #12121f);
+  color: var(--theme-muted, #888);
+}
+
+.si-stepper-step--done .si-stepper-dot {
+  border-color: var(--m-green-400, #4ade80);
+  color: var(--m-green-400, #4ade80);
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.si-stepper-step--current .si-stepper-dot {
+  border-color: var(--theme-accent, #7c6af7);
+  color: var(--theme-accent, #7c6af7);
+  background: rgba(124, 106, 247, 0.15);
+}
+
+.si-stepper-step--reverted .si-stepper-dot {
+  border-color: var(--theme-error, #f87171);
+  color: var(--theme-error, #f87171);
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.si-stepper-label {
+  font-size: 11px;
+  color: var(--theme-muted, #888);
+  text-align: center;
+}
+
+.si-stepper-step--done .si-stepper-label {
+  color: var(--theme-text, #e8e8e8);
+}
+
+.si-stepper-step--current .si-stepper-label {
+  color: var(--theme-accent, #7c6af7);
+  font-weight: 600;
+}
+
+.si-stepper-step--reverted .si-stepper-label {
+  color: var(--theme-error, #f87171);
+  font-weight: 600;
+}
+
+.si-stepper-ts {
+  font-size: 10px;
+  color: var(--theme-muted, #888);
+  text-align: center;
+  font-family: var(--m-font-mono, monospace);
+}
+
+/* ── Scenario checklist (FIX 2) ───────────────────────────────────────────── */
+
+.si-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.si-checklist-summary {
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+  margin-bottom: 4px;
+}
+
+.si-checklist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.si-checklist-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--theme-text, #e8e8e8);
+  padding: 2px 0;
+}
+
+.si-checklist-row--fail {
+  color: var(--theme-error, #f87171);
+}
+
+.si-checklist-icon {
+  font-size: 12px;
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.si-checklist-name {
+  flex: 1;
+}
+
+.si-checklist-holdout {
+  font-size: 10px;
+  color: var(--theme-muted, #888);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--theme-border, #2a2a3e);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: var(--m-font-mono, monospace);
+}
+
+.si-checklist-empty {
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+  font-style: italic;
+}
+
+/* ── InfoTooltip (FIX 5) ─────────────────────────────────────────────────── */
+
+.si-tooltip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.si-tooltip-trigger {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: inherit;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-bottom: 1px dotted currentColor;
+  line-height: inherit;
+}
+
+.si-tooltip-icon {
+  font-size: 11px;
+  color: var(--theme-muted, #888);
+  line-height: 1;
+}
+
+.si-tooltip-bubble {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--theme-surface, #1a1a2e);
+  border: 1px solid var(--theme-border, #2a2a3e);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--theme-text, #e8e8e8);
+  line-height: 1.4;
+  white-space: normal;
+  min-width: 180px;
+  max-width: 280px;
+  z-index: 100;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Empty/limit states (FIX 4) ───────────────────────────────────────────── */
+
+.si-empty-state {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--theme-muted, #888);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.si-empty-state p {
+  margin: 0 0 6px;
+}
+
+.si-empty-sub {
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+}
+
+/* ── Baseline chart section ───────────────────────────────────────────────── */
+
+.si-baseline-chart-section {
+  margin-top: 32px;
+}
+

@@ -2,33 +2,25 @@
 
 import { useCallback, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { DiffView } from './components/diff-view'
-import { EvalTable } from './components/eval-table'
-import { HistoryDrawer } from './components/history-drawer'
 import { BaselineChart } from './components/baseline-chart'
-import type { Baseline, Experiment, MetricsSnapshot, PluginHealth, Scenario } from '@/lib/self-improve-types'
+import { ExperimentCard } from './components/experiment-card'
+import { ProfileScopeSelect } from './components/profile-scope-select'
+import type { Baseline, MetricsSnapshot, PluginHealth, Scenario } from '@/lib/self-improve-types'
 import { useAgentProfiles } from '@/hooks/use-agent-profiles'
 import { toast } from '@/components/ui/toast'
 import {
-  applyExperiment,
-  approveExperiment,
-  createExperiment,
   createScenario,
   deleteScenario,
   fetchBaselines,
-  fetchExperimentHistory,
   fetchExperiments,
   fetchHealth,
   fetchLatestMetrics,
   fetchMetrics,
   fetchScenarios,
   pauseProfile,
-  rejectExperiment,
   resumeProfile,
-  revertExperiment,
   triggerCollect,
   triggerPropose,
-  verifyExperiment,
 } from '@/lib/self-improve-api'
 import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 import './self-improve-screen.css'
@@ -39,16 +31,9 @@ const QK_HEALTH = ['self-improve', 'health'] as const
 const QK_LATEST = ['self-improve', 'metrics-latest'] as const
 const QK_HISTORY = ['self-improve', 'metrics-history'] as const
 const QK_BASELINES = ['self-improve', 'baselines'] as const
-const QK_PROPOSED = ['self-improve', 'experiments', 'proposed'] as const
-const QK_LIFECYCLE = ['self-improve', 'experiments', 'lifecycle'] as const
-
 // P3 query keys — scenarios are per-profile so the key includes profile + holdout flag
 const qkScenarios = (profile: string, includeHoldout: boolean) =>
   ['self-improve', 'scenarios', profile, includeHoldout] as const
-
-// ── Actor ─────────────────────────────────────────────────────────────────────
-
-const ACTOR = 'switchui-user'
 
 const REFETCH_INTERVAL = 30_000
 
@@ -244,649 +229,87 @@ function SkeletonCards() {
   )
 }
 
-// ── Proposal card ─────────────────────────────────────────────────────────────
+// ── Experiments feed (unified proposals + lifecycle) ─────────────────────────
 
-interface ProposalCardProps {
-  exp: Experiment
-  onApproved: () => void
-  onRejected: () => void
+interface ExperimentsFeedProps {
+  profile: string
+  baselines: Array<Baseline>
+  onMutated: () => void
 }
 
-function ProposalCard({ exp, onApproved, onRejected }: ProposalCardProps) {
+function ExperimentsFeed({ profile, baselines, onMutated }: ExperimentsFeedProps) {
   const queryClient = useQueryClient()
-  const [rejectOpen, setRejectOpen] = useState(false)
-  const [rejectReason, setRejectReason] = useState('')
-  const [editOpen, setEditOpen] = useState(false)
-  const [editDiff, setEditDiff] = useState(exp.diff)
-  const [editRationale, setEditRationale] = useState(exp.rationale)
 
-  const historyQuery = useQuery({
-    queryKey: ['self-improve', 'experiment-history', exp.id],
-    queryFn: () => fetchExperimentHistory(exp.id),
-  })
-
-  const invalidateProposed = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: QK_PROPOSED })
-  }, [queryClient])
-
-  const approveMutation = useMutation({
-    mutationFn: () => approveExperiment(exp.id, ACTOR),
-    onSuccess: () => {
-      invalidateProposed()
-      toast(`Experiment #${exp.id} approved`)
-      onApproved()
-    },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Approve failed', { type: 'error' }),
-  })
-
-  const rejectMutation = useMutation({
-    mutationFn: (reason: string) => rejectExperiment(exp.id, ACTOR, reason),
-    onSuccess: () => {
-      invalidateProposed()
-      toast(`Experiment #${exp.id} rejected`)
-      setRejectOpen(false)
-      setRejectReason('')
-      onRejected()
-    },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Reject failed', { type: 'error' }),
-  })
-
-  const editApproveMutation = useMutation({
-    mutationFn: async () => {
-      const { experiment_id: newId } = await createExperiment({
-        profile: exp.profile,
-        file: exp.file,
-        diff: editDiff,
-        rationale: editRationale,
-      })
-      await approveExperiment(newId, ACTOR)
-    },
-    onSuccess: () => {
-      invalidateProposed()
-      toast(`Edited proposal created and approved`)
-      setEditOpen(false)
-      onApproved()
-    },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Edit-approve failed', { type: 'error' }),
-  })
-
-  const createdAt = new Date(exp.created_at).toLocaleString()
-  const offlineScore = exp.offline_score !== null ? exp.offline_score.toFixed(3) : '—'
-
-  return (
-    <div className="si-proposal-card">
-      {/* Header */}
-      <div className="si-proposal-header">
-        <span className="si-proposal-profile">{exp.profile}</span>
-        <span className="si-proposal-file">{exp.file}</span>
-        <span className="si-proposal-score">score: {offlineScore}</span>
-        <span className="si-proposal-date">{createdAt}</span>
-        {exp.proposer_model && (
-          <span className="si-proposal-model">proposer: {exp.proposer_model}</span>
-        )}
-        {exp.judge_model && (
-          <span className="si-proposal-model">judge: {exp.judge_model}</span>
-        )}
-      </div>
-
-      {/* Rationale */}
-      {exp.rationale && (
-        <p className="si-proposal-rationale">{exp.rationale}</p>
-      )}
-
-      {/* Diff */}
-      <DiffView diff={exp.diff} className="si-proposal-diff" />
-
-      {/* Eval table */}
-      <div className="si-proposal-evals">
-        {historyQuery.isPending ? (
-          <div className="si-proposal-evals-loading">loading evals…</div>
-        ) : historyQuery.data ? (
-          <EvalTable
-            evalRuns={historyQuery.data.eval_runs}
-            scenarioResults={historyQuery.data.scenario_results}
-          />
-        ) : null}
-      </div>
-
-      {/* Actions */}
-      <div className="si-proposal-actions">
-        <button
-          type="button"
-          className="si-action-btn si-action-btn--approve"
-          disabled={approveMutation.isPending || editApproveMutation.isPending}
-          onClick={() => approveMutation.mutate()}
-        >
-          {approveMutation.isPending ? 'Approving…' : 'Approve'}
-        </button>
-        <button
-          type="button"
-          className="si-action-btn si-action-btn--reject"
-          disabled={rejectMutation.isPending || editApproveMutation.isPending}
-          onClick={() => setRejectOpen(true)}
-        >
-          Reject
-        </button>
-        <button
-          type="button"
-          className="si-action-btn si-action-btn--edit"
-          disabled={approveMutation.isPending || editApproveMutation.isPending}
-          onClick={() => {
-            setEditDiff(exp.diff)
-            setEditRationale(exp.rationale)
-            setEditOpen(true)
-          }}
-        >
-          Edit &amp; approve
-        </button>
-      </div>
-
-      {/* Reject inline dialog */}
-      {rejectOpen && (
-        <div className="si-inline-dialog">
-          <p className="si-inline-dialog-label">Reason for rejection:</p>
-          <textarea
-            className="si-inline-textarea"
-            rows={3}
-            value={rejectReason}
-            onChange={(e) => setRejectReason(e.target.value)}
-            placeholder="Optional reason…"
-          />
-          <div className="si-inline-dialog-actions">
-            <button
-              type="button"
-              className="si-action-btn"
-              onClick={() => { setRejectOpen(false); setRejectReason('') }}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="si-action-btn si-action-btn--reject"
-              disabled={rejectMutation.isPending}
-              onClick={() => rejectMutation.mutate(rejectReason)}
-            >
-              {rejectMutation.isPending ? 'Rejecting…' : 'Confirm reject'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Edit-then-approve inline dialog */}
-      {editOpen && (
-        <div className="si-inline-dialog">
-          <p className="si-inline-dialog-note">
-            This creates a new edited proposal and approves it immediately.
-          </p>
-          <label className="si-inline-dialog-label">Rationale</label>
-          <textarea
-            className="si-inline-textarea"
-            rows={3}
-            value={editRationale}
-            onChange={(e) => setEditRationale(e.target.value)}
-          />
-          <label className="si-inline-dialog-label">Diff</label>
-          <textarea
-            className="si-inline-textarea si-inline-textarea--diff"
-            rows={10}
-            value={editDiff}
-            onChange={(e) => setEditDiff(e.target.value)}
-          />
-          <div className="si-inline-dialog-actions">
-            <button
-              type="button"
-              className="si-action-btn"
-              onClick={() => setEditOpen(false)}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="si-action-btn si-action-btn--approve"
-              disabled={editApproveMutation.isPending}
-              onClick={() => editApproveMutation.mutate()}
-            >
-              {editApproveMutation.isPending ? 'Saving…' : 'Create & approve'}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Proposals section ─────────────────────────────────────────────────────────
-
-interface ProposalsSectionProps {
-  profiles: Array<string>
-  defaultProfile?: string
-}
-
-function ProposalsSection({ profiles, defaultProfile }: ProposalsSectionProps) {
-  const queryClient = useQueryClient()
-  const [proposeProfile, setProposeProfile] = useState(defaultProfile ?? (profiles.length > 0 ? profiles[0] : ''))
-
-  const proposedQuery = useQuery({
-    queryKey: QK_PROPOSED,
-    queryFn: () => fetchExperiments({ state: 'proposed' }),
-    refetchInterval: 30_000,
+  const experimentsQuery = useQuery({
+    queryKey: ['self-improve', 'experiments', 'all', profile],
+    queryFn: () => fetchExperiments({ profile: profile || undefined }),
+    refetchInterval: REFETCH_INTERVAL,
   })
 
   const proposeMutation = useMutation({
-    mutationFn: (profile: string) => triggerPropose(profile),
+    mutationFn: (p: string) => triggerPropose(p),
     onSuccess: (data) => {
       if ('skipped' in data) {
         toast(`Propose skipped: ${data.reason}`)
       } else {
         toast(`Proposal created (experiment #${'experiment_id' in data ? data.experiment_id : '?'})`)
-        void queryClient.invalidateQueries({ queryKey: QK_PROPOSED })
+        void queryClient.invalidateQueries({ queryKey: ['self-improve', 'experiments'] })
       }
+      onMutated()
     },
     onError: (e) => toast(e instanceof Error ? e.message : 'Propose failed', { type: 'error' }),
   })
 
-  const handleApprovedOrRejected = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: QK_PROPOSED })
-  }, [queryClient])
-
-  return (
-    <div className="si-proposals-section">
-      <div className="si-proposals-header">
-        <h2 className="si-proposals-title">Proposals</h2>
-        <div className="si-propose-controls">
-          {profiles.length > 1 && (
-            <select
-              className="si-propose-select"
-              value={proposeProfile}
-              onChange={(e) => setProposeProfile(e.target.value)}
-            >
-              {profiles.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          )}
-          <button
-            type="button"
-            className="si-collect-btn"
-            disabled={proposeMutation.isPending}
-            onClick={() => proposeMutation.mutate(proposeProfile || (profiles[0] ?? ''))}
-          >
-            {proposeMutation.isPending ? 'Proposing…' : `Propose${profiles.length === 1 ? ` · ${profiles[0]}` : ''}`}
-          </button>
-        </div>
-      </div>
-
-      {proposedQuery.isLoading ? (
-        <div className="si-proposals-loading">
-          <div className="si-skeleton-line" style={{ width: '60%' }} />
-          <div className="si-skeleton-line" style={{ width: '40%', marginTop: 8 }} />
-        </div>
-      ) : proposedQuery.isError ? (
-        <div className="si-error-state">
-          <p className="si-error-msg">
-            {proposedQuery.error instanceof Error ? proposedQuery.error.message : 'Failed to load proposals'}
-          </p>
-        </div>
-      ) : !proposedQuery.data || proposedQuery.data.length === 0 ? (
-        <div className="si-empty-state si-empty-state--proposals">
-          <p>No pending proposals.</p>
-          <p className="si-empty-sub">Click <strong>Propose</strong> to trigger the agent to generate a new improvement proposal.</p>
-        </div>
-      ) : (
-        <div className="si-proposals-list">
-          {proposedQuery.data.map((exp) => (
-            <ProposalCard
-              key={exp.id}
-              exp={exp}
-              onApproved={handleApprovedOrRejected}
-              onRejected={handleApprovedOrRejected}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+  const experiments = (experimentsQuery.data ?? []).slice().sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   )
-}
-
-// ── Lifecycle section (P2) ────────────────────────────────────────────────────
-
-const LIFECYCLE_STATES = ['approved', 'live', 'verified', 'reverted', 'rejected'] as const
-
-function stateBadgeClass(state: string): string {
-  switch (state) {
-    case 'approved': return 'si-state-badge--approved'
-    case 'live': return 'si-state-badge--live'
-    case 'verified': return 'si-state-badge--verified'
-    case 'reverted': return 'si-state-badge--reverted'
-    case 'rejected': return 'si-state-badge--rejected'
-    default: return ''
-  }
-}
-
-interface LifecycleCardProps {
-  exp: Experiment
-  onMutated: () => void
-  onHistoryOpen: (id: number) => void
-}
-
-function LifecycleCard({ exp, onMutated, onHistoryOpen }: LifecycleCardProps) {
-  const queryClient = useQueryClient()
-  const [applyOpen, setApplyOpen] = useState(false)
-  const [verifyOpen, setVerifyOpen] = useState(false)
-  const [revertOpen, setRevertOpen] = useState(false)
-  const [revertReason, setRevertReason] = useState('')
-
-  function invalidateAll() {
-    void queryClient.invalidateQueries({ queryKey: QK_LIFECYCLE })
-    void queryClient.invalidateQueries({ queryKey: QK_PROPOSED })
-    void queryClient.invalidateQueries({ queryKey: QK_LATEST })
-    void queryClient.invalidateQueries({ queryKey: QK_BASELINES })
-  }
-
-  const applyMutation = useMutation({
-    mutationFn: () => applyExperiment(exp.id),
-    onSuccess: () => {
-      invalidateAll()
-      toast(`Experiment #${exp.id} applied — now live`)
-      onMutated()
-    },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Apply failed', { type: 'error' }),
-  })
-
-  const verifyMutation = useMutation({
-    mutationFn: () => verifyExperiment(exp.id),
-    onSuccess: () => {
-      invalidateAll()
-      toast(`Experiment #${exp.id} verified — promoted to baseline`)
-      onMutated()
-    },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Verify failed', { type: 'error' }),
-  })
-
-  const revertMutation = useMutation({
-    mutationFn: () => revertExperiment(exp.id, revertReason),
-    onSuccess: () => {
-      invalidateAll()
-      toast(`Experiment #${exp.id} reverted`)
-      setRevertOpen(false)
-      setRevertReason('')
-      onMutated()
-    },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Revert failed', { type: 'error' }),
-  })
-
-  const isBusy = applyMutation.isPending || verifyMutation.isPending || revertMutation.isPending
-
-  // Live observation progress
-  const progressPct =
-    exp.live_sessions_target != null && exp.live_sessions_target > 0
-      ? Math.min(100, (exp.live_sessions_observed / exp.live_sessions_target) * 100)
-      : null
 
   return (
-    <div className="si-lc-card">
-      {/* Card header */}
-      <div className="si-lc-header">
-        <span className="si-proposal-profile">{exp.profile}</span>
-        <span className="si-proposal-file">{exp.file}</span>
-        <span className={`si-state-badge ${stateBadgeClass(exp.state)}`}>{exp.state}</span>
-        <span className="si-lc-id">#{exp.id}</span>
-      </div>
-
-      {/* Scores + verdict */}
-      <div className="si-lc-scores">
-        <span className="si-lc-score-item">
-          <span className="si-metric-label">offline</span>
-          <span className="si-metric-value">{exp.offline_score != null ? exp.offline_score.toFixed(3) : '—'}</span>
-        </span>
-        {exp.live_score != null && (
-          <span className="si-lc-score-item">
-            <span className="si-metric-label">live</span>
-            <span className="si-metric-value">{exp.live_score.toFixed(3)}</span>
-          </span>
-        )}
-        {exp.verdict && (
-          <span className="si-lc-verdict">{exp.verdict}</span>
-        )}
-      </div>
-
-      {/* Live observation window */}
-      {exp.state === 'live' && (
-        <div className="si-lc-obs-window">
-          <span className="si-lc-obs-label">
-            {exp.live_sessions_target != null && exp.live_sessions_target > 0
-              ? `${exp.live_sessions_observed} / ${exp.live_sessions_target} sessions observed`
-              : `${exp.live_sessions_observed} sessions observed`}
-          </span>
-          {progressPct != null && (
-            <div className="si-lc-progress-track">
-              <div
-                className="si-lc-progress-fill"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Commit SHAs */}
-      {(exp.base_commit_sha ?? exp.apply_commit_sha ?? exp.revert_commit_sha) && (
-        <div className="si-lc-commits">
-          {exp.base_commit_sha && (
-            <span className="si-lc-sha" title="base commit">base: <code>{exp.base_commit_sha.slice(0, 7)}</code></span>
-          )}
-          {exp.apply_commit_sha && (
-            <span className="si-lc-sha" title="apply commit">apply: <code>{exp.apply_commit_sha.slice(0, 7)}</code></span>
-          )}
-          {exp.revert_commit_sha && (
-            <span className="si-lc-sha" title="revert commit">revert: <code>{exp.revert_commit_sha.slice(0, 7)}</code></span>
-          )}
-        </div>
-      )}
-
-      {/* Timestamps */}
-      <div className="si-lc-timestamps">
-        {exp.approved_at && <span><span className="si-metric-label">approved</span> {relativeTime(exp.approved_at)}</span>}
-        {exp.applied_at && <span><span className="si-metric-label">applied</span> {relativeTime(exp.applied_at)}</span>}
-        {exp.verified_at && <span><span className="si-metric-label">verified</span> {relativeTime(exp.verified_at)}</span>}
-        {exp.reverted_at && <span><span className="si-metric-label">reverted</span> {relativeTime(exp.reverted_at)}</span>}
-      </div>
-
-      {/* Actions */}
-      <div className="si-proposal-actions">
-        {exp.state === 'approved' && (
-          <button
-            type="button"
-            className="si-action-btn si-action-btn--approve"
-            disabled={isBusy}
-            onClick={() => setApplyOpen(true)}
-          >
-            {applyMutation.isPending ? 'Applying…' : 'Apply'}
-          </button>
-        )}
-        {exp.state === 'live' && (
-          <button
-            type="button"
-            className="si-action-btn si-action-btn--approve"
-            disabled={isBusy}
-            onClick={() => setVerifyOpen(true)}
-          >
-            {verifyMutation.isPending ? 'Verifying…' : 'Verify'}
-          </button>
-        )}
-        {(exp.state === 'live' || exp.state === 'verified') && (
-          <button
-            type="button"
-            className="si-action-btn si-action-btn--reject"
-            disabled={isBusy}
-            onClick={() => setRevertOpen(true)}
-          >
-            {revertMutation.isPending ? 'Reverting…' : 'Revert'}
-          </button>
-        )}
+    <div className="si-experiments-section">
+      <div className="si-section-header">
+        <h2 className="si-section-title">Experiments</h2>
         <button
           type="button"
-          className="si-action-btn"
-          onClick={() => onHistoryOpen(exp.id)}
+          className="si-collect-btn si-btn-primary"
+          disabled={proposeMutation.isPending || !profile}
+          onClick={() => proposeMutation.mutate(profile)}
         >
-          History
+          {proposeMutation.isPending
+            ? 'Proposing…'
+            : profile
+              ? `Propose · ${profile}`
+              : 'Propose'}
         </button>
       </div>
 
-      {/* Inline revert reason dialog */}
-      {revertOpen && (
-        <div className="si-inline-dialog">
-          <label className="si-inline-dialog-label">Revert reason</label>
-          <p className="si-inline-dialog-note">
-            This will git-revert the applied commit and mark the experiment reverted.
-          </p>
-          <textarea
-            className="si-inline-textarea"
-            rows={3}
-            placeholder="Describe why you are reverting…"
-            value={revertReason}
-            onChange={(e) => setRevertReason(e.target.value)}
-          />
-          <div className="si-inline-dialog-actions">
-            <button
-              type="button"
-              className="si-action-btn"
-              onClick={() => { setRevertOpen(false); setRevertReason('') }}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="si-action-btn si-action-btn--reject"
-              disabled={revertMutation.isPending}
-              onClick={() => revertMutation.mutate()}
-            >
-              {revertMutation.isPending ? 'Reverting…' : 'Confirm Revert'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Apply confirm dialog */}
-      <ConfirmDialog
-        open={applyOpen}
-        title="Apply experiment?"
-        message={`This will write the diff to "${exp.file}" in profile "${exp.profile}" and create a git commit. Proceed?`}
-        confirmLabel="Apply"
-        onConfirm={() => { setApplyOpen(false); applyMutation.mutate() }}
-        onCancel={() => setApplyOpen(false)}
-      />
-
-      {/* Verify confirm dialog */}
-      <ConfirmDialog
-        open={verifyOpen}
-        title="Verify experiment?"
-        message={`Mark experiment #${exp.id} as verified and promote it to the baseline?`}
-        confirmLabel="Verify"
-        onConfirm={() => { setVerifyOpen(false); verifyMutation.mutate() }}
-        onCancel={() => setVerifyOpen(false)}
-      />
-    </div>
-  )
-}
-
-interface LifecycleSectionProps {
-  profiles: Array<string>
-}
-
-function LifecycleSection({ profiles: _profiles }: LifecycleSectionProps) {
-  const queryClient = useQueryClient()
-  const [historyId, setHistoryId] = useState<number | null>(null)
-
-  // Fetch all lifecycle-relevant states in one call; filter client-side.
-  // Simpler and avoids N profile queries — the list is small.
-  const lifecycleQuery = useQuery({
-    queryKey: QK_LIFECYCLE,
-    queryFn: () => fetchExperiments({}),
-    refetchInterval: REFETCH_INTERVAL,
-  })
-
-  function handleMutated() {
-    void queryClient.invalidateQueries({ queryKey: QK_LIFECYCLE })
-  }
-
-  const lifecycleExps = (lifecycleQuery.data ?? []).filter((e) =>
-    (LIFECYCLE_STATES as ReadonlyArray<string>).includes(e.state) && e.state !== 'proposed',
-  )
-
-  return (
-    <div className="si-lifecycle-section">
-      <div className="si-proposals-header">
-        <h2 className="si-proposals-title">Lifecycle</h2>
-        {lifecycleQuery.isFetching && (
-          <span className="si-proposals-loading" style={{ fontSize: 11, color: 'var(--theme-muted,#888)' }}>
-            Refreshing…
-          </span>
-        )}
-      </div>
-
-      {lifecycleQuery.isLoading ? (
-        <div className="si-proposals-loading">Loading experiments…</div>
-      ) : lifecycleQuery.isError ? (
+      {experimentsQuery.isLoading ? (
+        <div className="si-loading">Loading experiments…</div>
+      ) : experimentsQuery.isError ? (
         <div className="si-error-msg">
-          {lifecycleQuery.error instanceof Error
-            ? lifecycleQuery.error.message
-            : 'Failed to load lifecycle experiments'}
+          {experimentsQuery.error instanceof Error
+            ? experimentsQuery.error.message
+            : 'Failed to load experiments'}
         </div>
-      ) : lifecycleExps.length === 0 ? (
+      ) : experiments.length === 0 ? (
         <div className="si-empty-state si-empty-state--proposals">
-          <p>No approved, live, or verified experiments.</p>
-          <p className="si-empty-sub">Approve a proposal to start the lifecycle.</p>
+          <p>No experiments yet for this profile.</p>
+          <p className="si-empty-sub">
+            Click <strong>Propose</strong> to have the agent generate an improvement proposal.
+          </p>
         </div>
       ) : (
-        <div className="si-lc-list">
-          {lifecycleExps.map((exp) => (
-            <LifecycleCard
+        <div className="si-exp-list">
+          {experiments.map((exp) => (
+            <ExperimentCard
               key={exp.id}
               exp={exp}
-              onMutated={handleMutated}
-              onHistoryOpen={setHistoryId}
+              profile={profile}
+              baselines={baselines}
+              onMutated={onMutated}
             />
           ))}
         </div>
       )}
-
-      <HistoryDrawer
-        experimentId={historyId}
-        onClose={() => setHistoryId(null)}
-      />
-    </div>
-  )
-}
-
-// ── P3: Baseline chart section ────────────────────────────────────────────────
-
-interface BaselineChartSectionProps {
-  profiles: Array<string>
-  baselines: Array<Baseline>
-}
-
-function BaselineChartSection({ profiles, baselines }: BaselineChartSectionProps) {
-  const [selectedProfile, setSelectedProfile] = useState(profiles[0] ?? '')
-  const profile = selectedProfile || (profiles[0] ?? '')
-
-  return (
-    <div className="si-baseline-chart-section">
-      <div className="si-section-header">
-        <h2 className="si-section-title">Baseline Curve</h2>
-        {profiles.length > 1 && (
-          <select
-            className="si-propose-select"
-            value={profile}
-            onChange={(e) => setSelectedProfile(e.target.value)}
-          >
-            {profiles.map((p) => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </select>
-        )}
-      </div>
-      <BaselineChart baselines={baselines} profile={profile} />
     </div>
   )
 }
@@ -894,13 +317,11 @@ function BaselineChartSection({ profiles, baselines }: BaselineChartSectionProps
 // ── P3: Scenario section ──────────────────────────────────────────────────────
 
 interface ScenarioSectionProps {
-  profiles: Array<string>
-  defaultProfile?: string
+  profile: string
 }
 
-function ScenarioSection({ profiles, defaultProfile }: ScenarioSectionProps) {
+function ScenarioSection({ profile }: ScenarioSectionProps) {
   const queryClient = useQueryClient()
-  const [selectedProfile, setSelectedProfile] = useState(defaultProfile ?? (profiles.length > 0 ? profiles[0] : ''))
   const [includeHoldout, setIncludeHoldout] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Scenario | null>(null)
@@ -913,7 +334,6 @@ function ScenarioSection({ profiles, defaultProfile }: ScenarioSectionProps) {
   const [newChecks, setNewChecks] = useState('')
   const [newHoldout, setNewHoldout] = useState(false)
 
-  const profile = selectedProfile || (profiles[0] ?? '')
   const scenariosQK = qkScenarios(profile, includeHoldout)
 
   const scenariosQuery = useQuery({
@@ -987,17 +407,6 @@ function ScenarioSection({ profiles, defaultProfile }: ScenarioSectionProps) {
       <div className="si-section-header">
         <h2 className="si-section-title">Scenarios</h2>
         <div className="si-scenario-controls">
-          {profiles.length > 1 && (
-            <select
-              className="si-propose-select"
-              value={profile}
-              onChange={(e) => setSelectedProfile(e.target.value)}
-            >
-              {profiles.map((p) => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          )}
           <label className="si-holdout-toggle">
             <input
               type="checkbox"
@@ -1205,6 +614,28 @@ function ScenarioSection({ profiles, defaultProfile }: ScenarioSectionProps) {
 export function SelfImproveScreen() {
   const queryClient = useQueryClient()
 
+  // ── Global profile selector (FIX 1) ──────────────────────────────────────
+  const { profiles: agentProfiles, activeProfile } = useAgentProfiles()
+  const [profile, setProfile] = useState(
+    activeProfile.length > 0
+      ? activeProfile
+      : agentProfiles.length > 0
+        ? agentProfiles[0]
+        : '',
+  )
+
+  // Dismissible intro card — persisted to localStorage
+  const [introDismissed, setIntroDismissed] = useState(
+    typeof window !== 'undefined' && window.localStorage.getItem('si-intro-dismissed') === 'true',
+  )
+
+  function dismissIntro() {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('si-intro-dismissed', 'true')
+    }
+    setIntroDismissed(true)
+  }
+
   const healthQuery = useQuery({
     queryKey: QK_HEALTH,
     queryFn: fetchHealth,
@@ -1254,27 +685,54 @@ export function SelfImproveScreen() {
   const history = historyQuery.data ?? []
   const baselines = baselinesQuery.data ?? []
 
-  const { profiles: agentProfiles, activeProfile } = useAgentProfiles()
+  // The metrics snapshot for the currently-selected profile
+  const activeSnapshot = snapshots.find((s) => s.profile === profile) ?? null
 
   return (
     <div className="si-screen">
-      {/* Page header */}
+      {/* ── Dismissible intro card (FIX 5) ── */}
+      {!introDismissed && (
+        <div className="si-intro-card">
+          <span className="si-intro-text">
+            This page lets the agent propose one small edit to a profile's instructions, test it
+            against behavior scenarios (graded by a different model), and keep it only if it scores
+            better — with your approval. Each kept change is committed to git.
+          </span>
+          <button
+            type="button"
+            className="si-intro-dismiss"
+            onClick={dismissIntro}
+            aria-label="Dismiss intro"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* ── Page header with global profile selector ── */}
       <div className="si-header">
         <div className="si-title-row">
           <h1 className="si-title">Self-Improve</h1>
-          <button
-            type="button"
-            className="si-collect-btn"
-            disabled={collectMutation.isPending}
-            onClick={() => collectMutation.mutate()}
-          >
-            {collectMutation.isPending ? 'Collecting…' : 'Collect now'}
-          </button>
+          <div className="si-header-controls">
+            <ProfileScopeSelect
+              value={profile}
+              onChange={setProfile}
+              profiles={agentProfiles}
+            />
+            <button
+              type="button"
+              className="si-collect-btn"
+              disabled={collectMutation.isPending}
+              onClick={() => collectMutation.mutate()}
+            >
+              {collectMutation.isPending ? 'Collecting…' : 'Collect now'}
+            </button>
+          </div>
         </div>
         {healthQuery.data && <HealthStrip health={healthQuery.data} />}
       </div>
 
-      {/* Content */}
+      {/* ── Metrics scorecard for selected profile (FIX 1) ── */}
       {isLoading ? (
         <SkeletonCards />
       ) : isError ? (
@@ -1284,42 +742,53 @@ export function SelfImproveScreen() {
             Retry
           </button>
         </div>
-      ) : snapshots.length === 0 ? (
-        <div className="si-empty-state">
-          <p>No metrics collected yet.</p>
-          <p className="si-empty-sub">Click <strong>Collect now</strong> to run the first snapshot, or wait for the agent to emit metrics.</p>
+      ) : activeSnapshot !== null ? (
+        <div className="si-cards-grid">
+          <ProfileCard
+            snapshot={activeSnapshot}
+            history={history}
+            baselines={baselines}
+          />
         </div>
       ) : (
-        <div className="si-cards-grid">
-          {snapshots.map((snap) => (
-            <ProfileCard
-              key={snap.profile}
-              snapshot={snap}
-              history={history}
-              baselines={baselines}
-            />
-          ))}
+        <div className="si-empty-state">
+          <p>
+            {profile
+              ? `No metrics collected yet for profile "${profile}".`
+              : 'No metrics collected yet.'}
+          </p>
+          <p className="si-empty-sub">
+            Click <strong>Collect now</strong> to run the first snapshot, or wait for the agent to
+            emit metrics.
+          </p>
         </div>
       )}
 
-      {/* Proposals section — always visible so users can trigger propose even before metrics */}
-      <ProposalsSection profiles={agentProfiles} defaultProfile={activeProfile} />
+      {/* ── Unified experiments feed (FIX 2) ── */}
+      <ExperimentsFeed profile={profile} baselines={baselines} onMutated={invalidateAll} />
 
-      {/* Lifecycle section — approved/live/verified/reverted experiments */}
-      <LifecycleSection profiles={agentProfiles} />
+      {/* ── Baseline curve — scoped to selected profile (FIX 1) ── */}
+      <div className="si-baseline-chart-section">
+        <div className="si-section-header">
+          <h2 className="si-section-title">Baseline Curve</h2>
+          <span className="si-section-caption">
+            Score = fraction of behavior scenarios passed (0–100%). Higher is better.
+          </span>
+        </div>
+        {baselines.length > 0 ? (
+          <BaselineChart baselines={baselines} profile={profile} />
+        ) : (
+          <div className="si-empty-state">
+            <p>No baseline data yet.</p>
+            <p className="si-empty-sub">
+              Baselines are created when an experiment is verified and promoted.
+            </p>
+          </div>
+        )}
+      </div>
 
-      {/* P3: Baseline curve chart — score over time per profile */}
-      {snapshots.length > 0 && (
-        <BaselineChartSection
-          profiles={agentProfiles}
-          baselines={baselines}
-        />
-      )}
-
-      {/* P3: Scenario management — list/create/delete scenarios per profile */}
-      {snapshots.length > 0 && (
-        <ScenarioSection profiles={agentProfiles} defaultProfile={activeProfile} />
-      )}
+      {/* ── Scenario management — scoped to selected profile (FIX 1) ── */}
+      <ScenarioSection profile={profile} />
     </div>
   )
 }
