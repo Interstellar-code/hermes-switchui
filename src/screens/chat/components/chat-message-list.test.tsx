@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildDisplayEntries,
+  computeCollapsedHeadCount,
   getTrailingToolOnlyTurnSummary,
   isThinkingIndicatorSurfaceVisible,
 } from './chat-message-list'
@@ -111,5 +112,66 @@ describe('isThinkingIndicatorSurfaceVisible', () => {
         activeToolCallCount: 1,
       }),
     ).toBe(false)
+  })
+})
+
+describe('computeCollapsedHeadCount', () => {
+  it('does not collapse short threads (returns 0 at or below threshold)', () => {
+    expect(
+      computeCollapsedHeadCount({
+        totalEntries: 80,
+        expanded: false,
+        searchActive: false,
+        threshold: 80,
+        keepTail: 60,
+      }),
+    ).toBe(0)
+  })
+
+  it('collapses the head of long threads, keeping the tail rendered', () => {
+    expect(
+      computeCollapsedHeadCount({
+        totalEntries: 200,
+        expanded: false,
+        searchActive: false,
+        threshold: 80,
+        keepTail: 60,
+      }),
+    ).toBe(140)
+  })
+
+  it('renders everything once the head is expanded', () => {
+    expect(
+      computeCollapsedHeadCount({
+        totalEntries: 200,
+        expanded: true,
+        searchActive: false,
+        threshold: 80,
+        keepTail: 60,
+      }),
+    ).toBe(0)
+  })
+
+  it('never collapses while a message search is active', () => {
+    expect(
+      computeCollapsedHeadCount({
+        totalEntries: 500,
+        expanded: false,
+        searchActive: true,
+        threshold: 80,
+        keepTail: 60,
+      }),
+    ).toBe(0)
+  })
+
+  it('uses default threshold/keepTail when not provided', () => {
+    // default threshold 80, keepTail 60 → 81 entries hides 21 head
+    expect(
+      computeCollapsedHeadCount({
+        totalEntries: 81,
+        expanded: false,
+        searchActive: false,
+      }),
+    ).toBe(21)
   })
 })

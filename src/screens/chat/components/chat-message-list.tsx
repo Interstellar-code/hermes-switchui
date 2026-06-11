@@ -371,10 +371,73 @@ function ThinkingBubble({
   )
 }
 
-const VIRTUAL_ROW_HEIGHT = 136
-const VIRTUAL_OVERSCAN = 8
 const NEAR_BOTTOM_THRESHOLD = 200
 // Pull-to-refresh constants removed
+
+// Issue #213: long sessions used to mount N full markdown subtrees because
+// virtualization was disabled (scroll glitches). Instead of reviving the
+// fragile fixed-row-height spacer windowing against an externally-owned scroll
+// viewport, we render only the tail of long threads and collapse the older head
+// behind a "Show earlier messages" affordance. The tail always contains the
+// streaming entry, the pinned last user+assistant group, and everything near
+// the bottom viewport, so streaming / pin-to-bottom / auto-scroll are untouched.
+// Below the threshold, behavior is byte-identical to before.
+const COLLAPSE_THRESHOLD = 80
+const COLLAPSE_KEEP_TAIL = 60
+
+/**
+ * Pure helper: how many leading entries to hide (collapse) at the head of the
+ * thread. Returns 0 (no collapsing — fully equivalent to prior behavior) unless
+ * the thread is long, the head is not expanded, and we are not in search mode.
+ *
+ * Hiding only the head keeps every absolute index into `visibleEntries`
+ * (spacing/grouping classes, pin-group slicing, search match indices) valid —
+ * we trim what gets *rendered*, never the array the rest of the component
+ * reasons about.
+ */
+export function computeCollapsedHeadCount(params: {
+  totalEntries: number
+  expanded: boolean
+  searchActive: boolean
+  threshold?: number
+  keepTail?: number
+}): number {
+  const {
+    totalEntries,
+    expanded,
+    searchActive,
+    threshold = COLLAPSE_THRESHOLD,
+    keepTail = COLLAPSE_KEEP_TAIL,
+  } = params
+  // Search must see every match — never collapse while searching.
+  if (searchActive) return 0
+  if (expanded) return 0
+  if (totalEntries <= threshold) return 0
+  return Math.max(0, totalEntries - keepTail)
+}
+
+function ShowEarlierMessagesButton({
+  hiddenCount,
+  onExpand,
+}: {
+  hiddenCount: number
+  onExpand: () => void
+}) {
+  return (
+    <div className="mb-2 flex justify-center md:mb-3">
+      <button
+        type="button"
+        onClick={onExpand}
+        className="inline-flex items-center gap-1.5 rounded-full border border-primary-200 bg-primary-50/90 px-3 py-1.5 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-100 hover:text-primary-800 dark:border-primary-800 dark:bg-primary-900/80 dark:text-primary-300 dark:hover:bg-primary-800 dark:hover:text-primary-100"
+        aria-label={`Show ${hiddenCount} earlier messages`}
+      >
+        <HugeiconsIcon icon={ArrowUp01Icon} size={14} strokeWidth={1.8} />
+        Show {hiddenCount} earlier{' '}
+        {hiddenCount === 1 ? 'message' : 'messages'}
+      </button>
+    </div>
+  )
+}
 
 const HIDDEN_SYSTEM_USER_PREFIXES = [
   'Pre-compaction memory flush',
@@ -713,6 +776,9 @@ function ChatMessageListComponent({
   const isNearBottomRef = useRef(true)
   const [isNearBottom, setIsNearBottom] = useState(true)
   const [unreadCount, setUnreadCount] = useState(0)
+  // Issue #213: when a long thread collapses its older head, this flips to true
+  // once the user clicks "Show earlier messages" to render the full history.
+  const [headExpanded, setHeadExpanded] = useState(false)
   // Bug 2 fix: grace period — keep thinking indicator alive briefly after
   // waitingForResponse clears so the response message has time to render.
   const [thinkingGrace, setThinkingGrace] = useState(false)
@@ -727,11 +793,6 @@ function ChatMessageListComponent({
     return window.matchMedia('(max-width: 767px)').matches
   })
   // Pull-to-refresh removed (was buggy on mobile)
-  const [scrollMetrics] = useState({
-    scrollTop: 0,
-    scrollHeight: 0,
-    clientHeight: 0,
-  })
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -741,6 +802,13 @@ function ChatMessageListComponent({
     media.addEventListener('change', updateIsMobile)
     return () => media.removeEventListener('change', updateIsMobile)
   }, [])
+
+  // Issue #213: re-collapse the older head when switching sessions so a freshly
+  // opened long thread starts windowed (cheap) instead of inheriting a prior
+  // session's expanded state.
+  useEffect(() => {
+    setHeadExpanded(false)
+  }, [sessionKey])
 
   // Bug 2 fix: refs used by grace-period effects (declared here so hooks run in
   // consistent order; actual logic is after displayMessages useMemo below).
@@ -1330,39 +1398,28 @@ function ChatMessageListComponent({
   // Pin the last user+assistant group without adding bottom padding.
   const groupStartIndex = typeof lastUserIndex === 'number' ? lastUserIndex : -1
   const hasGroup = pinToTop && groupStartIndex >= 0
-  const shouldVirtualize = false // Disabled — causes scroll glitches
 
-  const virtualRange = useMemo(() => {
-    if (!shouldVirtualize || scrollMetrics.clientHeight <= 0) {
-      return {
-        startIndex: 0,
-        endIndex: visibleEntries.length,
-        topSpacerHeight: 0,
-        bottomSpacerHeight: 0,
-      }
-    }
+  // Issue #213: number of leading entries to hide. 0 => render everything (the
+  // prior behavior, exact for short threads). For long threads it hides all but
+  // the last COLLAPSE_KEEP_TAIL entries until the user expands the head. We only
+  // trim the *rendered* head — `visibleEntries` itself is never sliced, so every
+  // absolute-index consumer (spacing/group classes, pin slicing, search) stays
+  // correct. The collapsed head is clamped below groupStartIndex so the pinned
+  // last user+assistant group is never collapsed away.
+  const rawCollapsedHeadCount = computeCollapsedHeadCount({
+    totalEntries: visibleEntries.length,
+    expanded: headExpanded,
+    searchActive: isMessageSearchActive,
+  })
+  const collapsedHeadCount =
+    hasGroup && groupStartIndex >= 0
+      ? Math.min(rawCollapsedHeadCount, groupStartIndex)
+      : rawCollapsedHeadCount
+  const hiddenHeadCount = collapsedHeadCount
 
-    const startIndex = Math.max(
-      0,
-      Math.floor(scrollMetrics.scrollTop / VIRTUAL_ROW_HEIGHT) -
-        VIRTUAL_OVERSCAN,
-    )
-    const visibleCount = Math.ceil(
-      scrollMetrics.clientHeight / VIRTUAL_ROW_HEIGHT,
-    )
-    const endIndex = Math.min(
-      visibleEntries.length,
-      startIndex + visibleCount + VIRTUAL_OVERSCAN * 2,
-    )
-
-    return {
-      startIndex,
-      endIndex,
-      topSpacerHeight: startIndex * VIRTUAL_ROW_HEIGHT,
-      bottomSpacerHeight:
-        (visibleEntries.length - endIndex) * VIRTUAL_ROW_HEIGHT,
-    }
-  }, [scrollMetrics, shouldVirtualize, visibleEntries.length])
+  const handleExpandHead = useCallback(() => {
+    setHeadExpanded(true)
+  }, [])
 
   function isMessageStreaming(message: ChatMessage, index: number) {
     if (!isStreaming || !streamingMessageId) return false
@@ -1868,7 +1925,17 @@ function ChatMessageListComponent({
               </div>
             ) : hasGroup ? (
               <>
-                {visibleEntries.slice(0, groupStartIndex).map(renderMessage)}
+                {hiddenHeadCount > 0 ? (
+                  <ShowEarlierMessagesButton
+                    hiddenCount={hiddenHeadCount}
+                    onExpand={handleExpandHead}
+                  />
+                ) : null}
+                {visibleEntries
+                  .slice(hiddenHeadCount, groupStartIndex)
+                  .map((entry, index) =>
+                    renderMessage(entry, hiddenHeadCount + index),
+                  )}
                 {/* // Keep the last exchange pinned without extra tail gap. // Account
               for space-y-6 (24px) when pinning. */}
                 <div
@@ -1940,23 +2007,17 @@ function ChatMessageListComponent({
               </>
             ) : (
               <>
-                {shouldVirtualize && virtualRange.topSpacerHeight > 0 ? (
-                  <div
-                    aria-hidden="true"
-                    style={{ height: `${virtualRange.topSpacerHeight}px` }}
+                {hiddenHeadCount > 0 ? (
+                  <ShowEarlierMessagesButton
+                    hiddenCount={hiddenHeadCount}
+                    onExpand={handleExpandHead}
                   />
                 ) : null}
                 {visibleEntries
-                  .slice(virtualRange.startIndex, virtualRange.endIndex)
+                  .slice(hiddenHeadCount)
                   .map((entry, index) =>
-                    renderMessage(entry, virtualRange.startIndex + index),
+                    renderMessage(entry, hiddenHeadCount + index),
                   )}
-                {shouldVirtualize && virtualRange.bottomSpacerHeight > 0 ? (
-                  <div
-                    aria-hidden="true"
-                    style={{ height: `${virtualRange.bottomSpacerHeight}px` }}
-                  />
-                ) : null}
               </>
             )}
             {/* Bottom shimmer + branch TUI card. Hide as soon as the

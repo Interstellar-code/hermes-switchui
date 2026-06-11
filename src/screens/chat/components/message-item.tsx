@@ -497,6 +497,18 @@ function toolResultsSignature(
     .join('||')
 }
 
+function attachedToolMessagesSignature(
+  attachedToolMessages: Array<ChatMessage> | undefined,
+): string {
+  if (!attachedToolMessages || attachedToolMessages.length === 0) return ''
+  // The parent (chat-message-list buildDisplayEntries) constructs a fresh array
+  // every render, so reference comparison would defeat memoization. Compare by a
+  // per-message content signature mirroring toolResultSignature (the same fields
+  // attachedToolSections consumes in render: content text, toolCallId, toolName,
+  // isError, details).
+  return attachedToolMessages.map(toolResultSignature).join('||')
+}
+
 function normalizeTimestamp(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
     if (value < 1_000_000_000_000) return value * 1000
@@ -2910,7 +2922,7 @@ function MessageItemComponent({
   )
 }
 
-function areMessagesEqual(
+export function areMessagesEqual(
   prevProps: MessageItemProps,
   nextProps: MessageItemProps,
 ): boolean {
@@ -2996,6 +3008,18 @@ function areMessagesEqual(
     toolResultsSignature(prevProps.message, prevProps.toolResultsByCallId) !==
     toolResultsSignature(nextProps.message, nextProps.toolResultsByCallId)
   ) {
+    return false
+  }
+  if (
+    attachedToolMessagesSignature(prevProps.attachedToolMessages) !==
+    attachedToolMessagesSignature(nextProps.attachedToolMessages)
+  ) {
+    return false
+  }
+  // isLastAssistant gates the assistant metadata footer (token usage / cost /
+  // model label). When a newer message arrives this can flip while every other
+  // compared field stays equal, so it must be compared to avoid a stale footer.
+  if (prevProps.isLastAssistant !== nextProps.isLastAssistant) {
     return false
   }
   if (rawTimestamp(prevProps.message) !== rawTimestamp(nextProps.message)) {
