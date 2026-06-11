@@ -26,6 +26,7 @@ import { AssistantAvatar } from '@/components/avatars'
 import { cn } from '@/lib/utils'
 import { hapticTap } from '@/lib/haptics'
 import { CHAT_OPEN_MESSAGE_SEARCH_EVENT } from '@/screens/chat/chat-events'
+import { useSharedTicker } from '@/screens/chat/hooks/use-shared-ticker'
 
 /** Duration (ms) the thinking indicator stays visible after waitingForResponse
  *  clears, giving the first response message time to render before the
@@ -118,20 +119,23 @@ function ToolCallCard({ name, phase }: { name: string; phase: string }) {
   const isError = phase === 'error' || phase === 'failed'
   const isRunning = !isDone && !isError
 
-  const [elapsed, setElapsed] = useState(0)
-  useEffect(() => {
-    if (!isRunning) return
-    setElapsed(0)
-    const id = window.setInterval(() => setElapsed((s) => s + 1), 1000)
-    return () => window.clearInterval(id)
-  }, [isRunning])
-
-  const [dots, setDots] = useState(0)
-  useEffect(() => {
-    if (!isRunning) return
-    const id = window.setInterval(() => setDots((d) => (d + 1) % 4), 400)
-    return () => window.clearInterval(id)
-  }, [isRunning])
+  // Issue #214: derive elapsed from a shared 1s ticker instead of a per-card
+  // interval. The start time is captured once when the card enters the running
+  // state; the tick value only forces a re-render.
+  const startRef = useRef<number>(Date.now())
+  const runStartedRef = useRef(false)
+  if (isRunning && !runStartedRef.current) {
+    startRef.current = Date.now()
+    runStartedRef.current = true
+  } else if (!isRunning && runStartedRef.current) {
+    runStartedRef.current = false
+  }
+  useSharedTicker(1000)
+  const dotTick = useSharedTicker(400)
+  const dots = '.'.repeat(dotTick % 4)
+  const elapsed = isRunning
+    ? Math.floor((Date.now() - startRef.current) / 1000)
+    : 0
 
   const elapsedLabel =
     elapsed >= 60
@@ -168,7 +172,7 @@ function ToolCallCard({ name, phase }: { name: string; phase: string }) {
       {isRunning && (
         <div className="px-2.5 pb-1.5 text-[10px] text-primary-400">
           {verb}
-          {'.'.repeat(dots)}
+          {dots}
         </div>
       )}
     </div>
@@ -199,13 +203,16 @@ function ThinkingBubble({
 }: ThinkingBubbleProps) {
   const statusLabel = isCompacting ? 'Compacting context...' : 'Thinking…'
 
-  // Elapsed time counter — resets when the status label changes (new tool)
-  const [elapsed, setElapsed] = useState(0)
-  useEffect(() => {
-    setElapsed(0)
-    const interval = window.setInterval(() => setElapsed((s) => s + 1), 1000)
-    return () => window.clearInterval(interval)
-  }, [statusLabel])
+  // Issue #214: elapsed time derived from the shared 1s ticker. The start time
+  // resets whenever the status label changes (a new tool), captured in a ref.
+  const elapsedStartRef = useRef<number>(Date.now())
+  const elapsedLabelRef = useRef(statusLabel)
+  if (elapsedLabelRef.current !== statusLabel) {
+    elapsedLabelRef.current = statusLabel
+    elapsedStartRef.current = Date.now()
+  }
+  useSharedTicker(1000)
+  const elapsed = Math.floor((Date.now() - elapsedStartRef.current) / 1000)
 
   const elapsedLabel =
     elapsed >= 60

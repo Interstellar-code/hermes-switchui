@@ -880,14 +880,54 @@ export function ChatScreen({
     clearCompletedStreaming()
   }, [clearCompletedStreaming, waitingForResponse])
 
+  // Issue #214: approvals are primarily delivered via SSE (onApprovalRequest).
+  // This poller remains as a fallback (approvals can originate outside the
+  // active stream), but backs off heavily when idle to avoid a setState every
+  // 2s for the component's whole lifetime. We also skip setState when the
+  // loaded pending list is deep-equal to the current one, so a steady idle
+  // state never triggers a pointless re-render.
+  const pendingApprovalsRef = useRef(pendingApprovals)
   useEffect(() => {
-    function checkApprovals() {
-      const all = loadApprovals()
-      setPendingApprovals(all.filter((entry) => entry.status === 'pending'))
+    pendingApprovalsRef.current = pendingApprovals
+  }, [pendingApprovals])
+
+  useEffect(() => {
+    let timer: number | null = null
+    const samePending = (
+      a: Array<ApprovalRequest>,
+      b: Array<ApprovalRequest>,
+    ): boolean => {
+      if (a.length !== b.length) return false
+      for (let i = 0; i < a.length; i += 1) {
+        const x = a[i]
+        const y = b[i]
+        if (
+          x.id !== y.id ||
+          x.status !== y.status ||
+          x.gatewayApprovalId !== y.gatewayApprovalId
+        ) {
+          return false
+        }
+      }
+      return true
+    }
+    const checkApprovals = () => {
+      const next = loadApprovals().filter((entry) => entry.status === 'pending')
+      if (!samePending(next, pendingApprovalsRef.current)) {
+        setPendingApprovals(next)
+      }
+      // Poll fast (2s) only while a run is active or approvals are pending;
+      // otherwise back off to 20s. SSE handles the prompt-during-run case.
+      const active =
+        waitingForResponseRef.current ||
+        activeRealtimeStreamingRef.current ||
+        next.length > 0
+      timer = window.setTimeout(checkApprovals, active ? 2000 : 20000)
     }
     checkApprovals()
-    const id = window.setInterval(checkApprovals, 2000)
-    return () => window.clearInterval(id)
+    return () => {
+      if (timer !== null) window.clearTimeout(timer)
+    }
   }, [])
 
   const resolvePendingApproval = useCallback(
@@ -1063,6 +1103,14 @@ export function ChatScreen({
       setLiveProgressLabel('')
       return
     }
+    // Issue #214: SSE already delivers tool/progress activity for the same run.
+    // When the live SSE connection is up, skip this display-only poller and let
+    // SSE drive the thinking-bubble label. Polling only runs as a fallback while
+    // SSE is down (matching the 5s active-run poller guard above).
+    if (sseConnectionState === 'connected') {
+      setLiveProgressLabel('')
+      return
+    }
     const ac = new AbortController()
     const verbForTool = (name: string): string => {
       const n = (name || '').toLowerCase()
@@ -1149,7 +1197,7 @@ export function ChatScreen({
       ac.abort()
       window.clearInterval(interval)
     }
-  }, [waitingForResponse, resolvedSessionKey])
+  }, [waitingForResponse, resolvedSessionKey, sseConnectionState])
 
   useAutoSessionTitle({
     friendlyId: activeFriendlyId,
