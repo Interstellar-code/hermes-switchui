@@ -18,7 +18,6 @@ import {
 import {
   advanceStickyStreamingText,
   createOptimisticMessage,
-  isChatRuntimeBusy,
   readMessageText,
 } from './chat-screen-utils'
 import {
@@ -582,7 +581,6 @@ export function ChatScreen({
   }, [activeFriendlyId, isNewChat])
 
   const pendingStartRef = useRef(false)
-  // Feature flag (default OFF): swap in the drop-in shadcn composer.
   const composerHandleRef = useRef<ChatComposerHandle | null>(null)
   // Idempotency guard prevents duplicate sends on paste/attach double-fire.
   const lastSendKeyRef = useRef('')
@@ -1701,25 +1699,22 @@ export function ChatScreen({
     isPortableMode,
     localStreamingMessageId,
   ])
-  // Phase 2.2 cutover: selectIsComposerBusy replaces the 6-signal
-  // isChatRuntimeBusy composition. Kept in parallel with the legacy
-  // isComposerLoading for parity comparison during the cutover window.
-  const isComposerLoadingLegacy = isChatRuntimeBusy({
-    sending,
-    waitingForResponse,
-    hasActiveSend: Boolean(activeSendRef.current),
-    activeIsRealtimeStreaming,
-    derivedIsStreaming: derivedStreamingInfo.isStreaming,
-    hasPendingGeneration: hasPendingGeneration(),
-  })
-  const isComposerLoading = useChatStore.getState().selectIsComposerBusy(
-    resolvedSessionKey,
-    { hasActiveSend: Boolean(activeSendRef.current) },
-    {
-      activeIsRealtimeStreaming,
-      derivedIsStreaming: derivedStreamingInfo.isStreaming,
-    },
-    { hasPendingSend: hasPendingSend(), hasPendingGeneration: hasPendingGeneration() },
+  // Phase 2.2 cutover (complete): selectIsComposerBusy is the sole composer
+  // busy signal, read reactively so runPhase transitions re-render the
+  // composer. Returns a boolean primitive — safe as a Zustand selector.
+  const isComposerLoading = useChatStore((s) =>
+    s.selectIsComposerBusy(
+      resolvedSessionKey,
+      { hasActiveSend: Boolean(activeSendRef.current) },
+      {
+        activeIsRealtimeStreaming,
+        derivedIsStreaming: derivedStreamingInfo.isStreaming,
+      },
+      {
+        hasPendingSend: hasPendingSend(),
+        hasPendingGeneration: hasPendingGeneration(),
+      },
+    ),
   )
   const isComposerLoadingRef = useRef(isComposerLoading)
 

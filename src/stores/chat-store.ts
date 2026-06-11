@@ -244,10 +244,10 @@ type ChatState = {
    * session, driven by SSE events + liveness snapshot + active-send ref
    * ONLY — never by history shape (F2 fence).
    *
-   * Replaces the legacy 6-signal `isComposerLoading` composition in
-   * `chat-screen.tsx:1632`. Cutover happens in Phase 2.2 (one-line swap).
-   * Until then, this runs in parallel — the legacy signals continue to
-   * feed `isChatRuntimeBusy`.
+   * Drives `selectIsComposerBusy`, the sole composer busy signal in
+   * `chat-screen.tsx` (Phase 2.2 cutover complete). The legacy 6-signal
+   * `isChatRuntimeBusy` composition is no longer wired into the screen;
+   * the function remains only for its parity test coverage.
    */
   runPhase: Map<string, RunPhase>
   /** Transition a session's run phase via the reducer (fence-enforced). */
@@ -257,8 +257,8 @@ type ChatState = {
   /** True when the run phase is busy (sending or streaming). */
   isRunPhaseBusy: (sessionKey: string) => boolean
   /**
-   * Phase 2.2 cutover selector. Replaces the legacy 6-signal
-   * `isComposerLoading` composition. Composes:
+   * Phase 2.2 cutover selector (now the sole composer busy signal,
+   * read reactively in `chat-screen.tsx`). Composes:
    *  - runPhase state machine (sending/streaming)
    *  - ref-based active-send (refSignal)
    *  - derived streaming signals (passed in from caller)
