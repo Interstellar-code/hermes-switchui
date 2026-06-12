@@ -3,6 +3,36 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.44] — 2026-06-12
+
+Chat hot-path performance overhaul, the recurring "Too many re-renders" crash contained and fixed, and the new Hermes Plugin settings section with backend config-sync.
+
+### Added
+
+- **Hermes Plugin settings section + backend config-sync.** New `/settings` section surfacing the bundled `hermes-switch-ui` backend plugin: status pill with heartbeat age, connection info (ports, profile, enabled plugins), reported settings, and a version-compatibility banner with an explicit "unknown until registered" state. The workspace server registers with the backend on startup and heartbeats every 30s (register-gated, `globalThis` singleton, 60s backoff), and mirrors an allowlist of saved UI settings — secrets never leave the workspace. Degrades cleanly: "plugin not enabled" (confirmed 404) and "backend unreachable" (timeout/5xx) are distinct states with their own poll cadences. Stale incompatible compat verdicts self-heal via a 10-minute re-register window. (#228, #229, #230)
+- **Self-Improve narrative UX redesign.** Single global profile scope, merged Experiments feed, hero diff, lifecycle stepper, score context, and scenario checklist. (#210, #211)
+- **Composer paste keeps formatting.** Pasted HTML converts to Markdown instead of flattening to plain text; rendered tables get a copy button.
+- **Crash diagnostics that survive reload.** The error boundary now captures the React component stack, shows "Crashed in: …" in the error card, persists the last 3 crashes to `localStorage['hermes:ui-crash-log']`, and adds a Copy-details button.
+
+### Fixed
+
+- **The recurring "Too many re-renders" chat crash is contained and root-caused.** The new crash log pinpointed `AnimatePresence` inside `AgentViewPanel` (duplicate agent-id keys from merged CLI+mission sources break motion's child diff). Active nodes are now deduped by id, and the panel is isolated in an inline error boundary — a panel crash degrades to a small retry card instead of taking down the whole chat route. (#225, #226)
+- **Streaming no longer re-renders the entire message list every animation frame.** Live streaming text was embedded in the same array as historical messages, defeating list memoization ~60×/sec; it now reaches only the streaming bubble via a dedicated prop, and the duplicate rAF typewriter loop was removed. (#212)
+- **Session-list cache desync.** Rename, auto-title, and session-create only invalidated one of the two session caches, leaving the V2 sidebar stale; all mutation sites now invalidate both via one helper. (#218)
+- **Session-switch mid-stream race.** Realtime buffers are cleared deterministically on switch (the disabled cleanup effect and 5s timer are gone), fixing ghost messages and unbounded buffer growth. (#220)
+- **Gateway failures no longer masquerade as an empty chat.** All gateway/dashboard HTTP helpers carry 10s timeouts, and `/api/history` returns 503 instead of HTTP 200 with `messages: []` when the fetch fails — cached history stays visible. (#217)
+- **Composer busy state could go stale.** Now a reactive store subscription instead of a non-subscribing `getState()` read; dead legacy computation removed. (#219)
+- **MessageItem stale renders.** The memo comparator now covers `attachedToolMessages` and `isLastAssistant`. (#222)
+- **Plugin registration sent version `unknown`.** `require()` is unavailable in the Vite SSR runtime; the version now comes from the `__APP_VERSION__` build-time define.
+
+### Performance
+
+- **Long threads render windowed.** Threads over 80 entries render the last 60 plus a "Show N earlier messages" expander (search auto-expands; the pinned group never collapses). (#213)
+- **Poller/timer consolidation.** The 3s live-progress poll skips while SSE is connected; the approvals poll backs off 2s→20s when idle; all tool-card timers derive from at most 3 shared tickers (was ~2 per card); `session-status` caches `getConfig` for 30s. (#214)
+- **chat-store hot path.** Messages append in order with a sort only on detected out-of-order arrival (WeakMap-cached event times); streaming state persists per-session debounced instead of per-token; the internal-message filter is unified. (#221)
+- **In-stream live-tool poll widened 800ms→1500ms**; gateway `since`/`offset` pagination tracked in #215/#216.
+- **Idle network traffic cut ~5×.** `/api/sessions` poll 5s→30s (~400KB per tick) and gateway activity poll 3s→10s. (#225)
+
 ## [2.3.43] — 2026-06-11
 
 Dynamic website version badge and sidebar last-activity ordering.
