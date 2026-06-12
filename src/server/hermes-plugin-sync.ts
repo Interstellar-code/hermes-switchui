@@ -18,6 +18,8 @@
  * Server-only — never import this module in client-side code.
  */
 
+import { readFileSync } from 'node:fs'
+
 import { dashboardFetch } from './gateway-capabilities'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -57,10 +59,22 @@ const SETTINGS_ALLOWLIST = new Set<string>([
 let _cachedVersion: string | null = null
 function getFrontendVersion(): string {
   if (_cachedVersion) return _cachedVersion
+  // __APP_VERSION__ is a Vite define (vite.config.ts) replaced at build time in
+  // both client and server bundles — require() is NOT available in the Vite SSR
+  // ESM runtime and previously made this fall through to 'unknown', which the
+  // backend compat check then rejected as unparseable.
   try {
-    // Dynamic require is fine — this is server-only and runs at startup.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pkg = require('../../package.json') as { version: string }
+    if (typeof __APP_VERSION__ === 'string' && __APP_VERSION__.length > 0) {
+      _cachedVersion = __APP_VERSION__
+      return _cachedVersion
+    }
+  } catch {
+    // not defined (e.g. bare vitest run) — fall through to fs read
+  }
+  try {
+    const pkg = JSON.parse(
+      readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'),
+    ) as { version: string }
     _cachedVersion = pkg.version
   } catch {
     _cachedVersion = 'unknown'
