@@ -345,6 +345,10 @@ export type TemplateTask = {
   status?: string
   body?: string
   priority?: number
+  /** Per-task worker runtime cap. Optional positive integer; omit when unset (backend rejects 0/negative/non-int with 422). */
+  max_runtime_seconds?: number
+  /** Turn budget for goal-mode tasks (pairs with goal_mode). Optional positive integer; omit when unset. */
+  goal_max_turns?: number
 }
 
 /** Recurrence schedule attached to a template. Cron validated by backend only when enabled is truthy. */

@@ -35,6 +35,9 @@ tasks:
   - key: setup
     title: "Set up {{project}}"
     status: triage
+    # optional, positive integers — omit when unset:
+    # max_runtime_seconds: 3600   # per-task worker runtime cap
+    # goal_max_turns: 40          # turn budget for goal-mode tasks
 `
 
 function byteLength(text: string): number {
