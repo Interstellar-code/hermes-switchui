@@ -349,6 +349,8 @@ export type TemplateTask = {
   max_runtime_seconds?: number
   /** Turn budget for goal-mode tasks (pairs with goal_mode). Optional positive integer; omit when unset. */
   goal_max_turns?: number
+  /** When true, the instantiated task runs in goal mode (paired with goal_max_turns). */
+  goal_mode?: boolean
 }
 
 /** Recurrence schedule attached to a template. Cron validated by backend only when enabled is truthy. */
@@ -379,6 +381,8 @@ export type KanbanTemplate = {
   variables?: Array<TemplateVariable>
   recurrence?: TemplateRecurrence
   color?: string | null
+  /** Task dependency edges as [parentKey, childKey] pairs. Keys must exist in tasks; no self-links or cycles. */
+  links?: Array<[string, string]>
 }
 
 /** Result returned by POST /templates/{slug}/instantiate. */
