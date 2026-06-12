@@ -1764,7 +1764,7 @@ function SaveAsTemplateButton() {
                 onClick={() => setResetStatus((v) => !v)}
                 className="w-full flex items-center justify-between gap-3 text-xs"
               >
-                <span className="text-[var(--theme-muted)]">Reset task status to triage</span>
+                <span className="text-[var(--theme-muted)]">Reset all task statuses to todo</span>
                 <span
                   className={cn(
                     'w-8 h-4 rounded-full transition-colors relative shrink-0',
@@ -1779,6 +1779,10 @@ function SaveAsTemplateButton() {
                   />
                 </span>
               </button>
+              <p className="mt-1 text-[10px] leading-snug text-[var(--theme-muted)]">
+                Off preserves only the <code>ready</code> state; all other statuses reset to{' '}
+                <code>todo</code> (templates allow only <code>todo</code>/<code>ready</code>).
+              </p>
             </div>
 
             {error && (
