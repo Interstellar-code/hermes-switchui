@@ -607,7 +607,7 @@ export function TasksScreen() {
   // showDone only controls the `include_done` query param for stats math and
   // the Done stat cell click-to-list drawer; it must NOT add a board column.
   const visibleStatuses: Array<HermesKanbanStatus> = (
-    [...HERMES_KANBAN_VISIBLE_STATUS_ORDER, 'archived' as HermesKanbanStatus] as Array<HermesKanbanStatus>
+    [...HERMES_KANBAN_VISIBLE_STATUS_ORDER, 'archived'] as Array<HermesKanbanStatus>
   ).filter((s) => {
     if (s === 'done' && !showDone) return false
     if (s === 'triage' && !showTriage) return false
@@ -1025,7 +1025,7 @@ export function TasksScreen() {
                                 })
                                 if (matching.length === 0) { toast('No archived tasks in that range', { type: 'error' }); return }
                                 // stash ids for confirm step via a closure ref
-                                ;(purgeArchivedBtnRef.current as HTMLButtonElement & { _purgeIds?: string[] })._purgeIds = matching.map((t) => t.id)
+                                ;(purgeArchivedBtnRef.current as HTMLButtonElement & { _purgeIds?: Array<string> })._purgeIds = matching.map((t) => t.id)
                                 setPurgeConfirmStep(true)
                               }}
                               className="w-full px-3 py-1.5 rounded-lg text-xs font-medium border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors"
@@ -1042,7 +1042,7 @@ export function TasksScreen() {
                           <p className="px-3 py-2 text-xs text-[var(--theme-muted)]">
                             This permanently deletes{' '}
                             <span className="text-red-400 font-semibold">
-                              {((purgeArchivedBtnRef.current as HTMLButtonElement & { _purgeIds?: string[] })?._purgeIds ?? []).length}
+                              {((purgeArchivedBtnRef.current as HTMLButtonElement & { _purgeIds?: Array<string> })?._purgeIds ?? []).length}
                             </span>{' '}
                             archived tasks. This cannot be undone.
                           </p>
@@ -1055,7 +1055,7 @@ export function TasksScreen() {
                             </button>
                             <button
                               onClick={() => {
-                                const ids = ((purgeArchivedBtnRef.current as HTMLButtonElement & { _purgeIds?: string[] })?._purgeIds ?? [])
+                                const ids = ((purgeArchivedBtnRef.current as HTMLButtonElement & { _purgeIds?: Array<string> })?._purgeIds ?? [])
                                 setShowPurgePopover(false)
                                 setPurgeConfirmStep(false)
                                 void bulkMutation.mutate({ delete: true, ids })
@@ -1075,6 +1075,9 @@ export function TasksScreen() {
               </>
             )
           })()}
+
+          {/* Save as template */}
+          <SaveAsTemplateButton />
 
           {/* Settings */}
           <KanbanSettingsButton />
@@ -1599,6 +1602,206 @@ function KanbanSettingsButton() {
               Read-only. Edit <span className="font-mono">~/.hermes/config.yaml</span> and restart the dashboard to change.
             </p>
           </div>
+        </>,
+        document.body,
+      )}
+    </>
+  )
+}
+
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function SaveAsTemplateButton() {
+  const [open, setOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null)
+
+  // Fetch current board slug from boards list
+  const boardsQuery = useQuery({
+    queryKey: ['hermes-kanban', 'boards', 'list-for-template'],
+    queryFn: async (): Promise<{ boards: Array<{ slug: string; name: string; is_current: boolean }>; current: string }> => {
+      const res = await fetch('/api/hermes-kanban/boards')
+      if (!res.ok) throw new Error(`Failed to fetch boards: ${res.status}`)
+      return res.json() as Promise<{ boards: Array<{ slug: string; name: string; is_current: boolean }>; current: string }>
+    },
+    staleTime: 30_000,
+  })
+
+  const currentSlug = boardsQuery.data?.current ?? ''
+  const currentBoard = boardsQuery.data?.boards.find((b) => b.slug === currentSlug)
+  const currentBoardName = currentBoard?.name ?? currentSlug
+
+  const [templateSlug, setTemplateSlug] = useState('')
+  const [templateName, setTemplateName] = useState('')
+  const [resetStatus, setResetStatus] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function open_modal() {
+    if (!open && buttonRef.current) {
+      const r = buttonRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 6, right: window.innerWidth - r.right })
+    }
+    // Pre-populate slug from current board name when opening
+    const slug = slugify(currentBoardName || currentSlug || 'board')
+    setTemplateSlug(slug)
+    setTemplateName('')
+    setResetStatus(true)
+    setError(null)
+    setOpen(true)
+  }
+
+  function close() {
+    setOpen(false)
+    setError(null)
+    setSubmitting(false)
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!templateSlug.trim()) { setError('Template slug is required'); return }
+    if (!currentSlug) { setError('No active board found'); return }
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch(
+        `/api/hermes-kanban/boards/${encodeURIComponent(currentSlug)}/save-as-template`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            template_slug: templateSlug.trim(),
+            ...(templateName.trim() ? { name: templateName.trim() } : {}),
+            reset_status: resetStatus,
+          }),
+        },
+      )
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { detail?: string; error?: string }
+        setError(body.detail ?? body.error ?? `Request failed: ${res.status}`)
+        setSubmitting(false)
+        return
+      }
+      const slug = templateSlug.trim()
+      close()
+      toast(`Saved as template '${slug}' — view at /board-templates`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        onClick={open_modal}
+        disabled={boardsQuery.isLoading}
+        title="Save board as template"
+        className={cn(
+          'flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-colors',
+          'border-[var(--theme-border)] text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:border-[var(--theme-accent)]',
+        )}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" width="12" height="12">
+          <path d="M4 3h6l2 2v6H4V3zM6 6h4M6 8h3M2 5v8h7"/>
+        </svg>
+        Template
+      </button>
+      {open && pos && createPortal(
+        <>
+          <div className="fixed inset-0 z-[9998]" onClick={close} />
+          <form
+            onSubmit={(e) => { void handleSubmit(e) }}
+            className="fixed z-[9999] w-80 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] shadow-2xl p-4"
+            style={{ top: pos.top, right: pos.right, backgroundColor: 'var(--theme-card)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-[10px] uppercase tracking-widest text-[var(--theme-muted)] font-medium mb-3">
+              Save board as template
+            </p>
+
+            <div className="space-y-3">
+              {/* template_slug */}
+              <div>
+                <label className="text-[10px] text-[var(--theme-muted)] uppercase tracking-wider block mb-1">
+                  Template slug <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={templateSlug}
+                  onChange={(e) => setTemplateSlug(e.target.value)}
+                  placeholder="my-template"
+                  required
+                  className="w-full rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] text-xs px-2 py-1.5 font-mono focus:outline-none focus:border-[var(--theme-accent)]"
+                />
+              </div>
+
+              {/* name (optional) */}
+              <div>
+                <label className="text-[10px] text-[var(--theme-muted)] uppercase tracking-wider block mb-1">
+                  Display name <span className="opacity-50">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder={currentBoardName || ''}
+                  className="w-full rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] text-xs px-2 py-1.5 focus:outline-none focus:border-[var(--theme-accent)]"
+                />
+              </div>
+
+              {/* reset_status toggle */}
+              <button
+                type="button"
+                onClick={() => setResetStatus((v) => !v)}
+                className="w-full flex items-center justify-between gap-3 text-xs"
+              >
+                <span className="text-[var(--theme-muted)]">Reset task status to triage</span>
+                <span
+                  className={cn(
+                    'w-8 h-4 rounded-full transition-colors relative shrink-0',
+                    resetStatus ? 'bg-[var(--theme-accent)]' : 'bg-[var(--theme-border)]',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform',
+                      resetStatus ? 'translate-x-4' : 'translate-x-0.5',
+                    )}
+                  />
+                </span>
+              </button>
+            </div>
+
+            {error && (
+              <p className="mt-3 text-xs text-red-400">{error}</p>
+            )}
+
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={close}
+                className="flex-1 px-2 py-1.5 rounded-lg text-xs border border-[var(--theme-border)] text-[var(--theme-muted)] hover:text-[var(--theme-text)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitting || !templateSlug.trim()}
+                className="flex-1 px-2 py-1.5 rounded-lg text-xs font-medium bg-[var(--theme-accent)] text-black hover:opacity-90 disabled:opacity-40 transition-colors"
+              >
+                {submitting ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </form>
         </>,
         document.body,
       )}

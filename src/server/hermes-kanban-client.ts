@@ -8,16 +8,21 @@
  */
 import { dashboardFetch } from './gateway-capabilities'
 import type {
+  BoardMeta,
+  BulkKanbanInput,
+  CreateBoardInput,
+  CreateKanbanTaskInput,
   HermesKanbanBoard,
   HermesKanbanTask,
   HermesKanbanTaskDetail,
-  CreateKanbanTaskInput,
-  UpdateKanbanTaskInput,
-  BulkKanbanInput,
-  BoardMeta,
-  CreateBoardInput,
-  UpdateBoardInput,
+  InstantiateInput,
+  InstantiateResult,
   KanbanBoardsListResponse,
+  KanbanTemplate,
+  KanbanTemplateSummary,
+  SaveAsTemplateInput,
+  UpdateBoardInput,
+  UpdateKanbanTaskInput,
 } from '../lib/hermes-kanban-types'
 
 const BASE = '/api/plugins/kanban'
@@ -185,8 +190,8 @@ export async function getKanbanStats(): Promise<unknown> {
   return kanbanFetch<unknown>(`${BASE}/stats`, {})
 }
 
-export async function getKanbanAssignees(): Promise<{ assignees: unknown[] }> {
-  return kanbanFetch<{ assignees: unknown[] }>(`${BASE}/assignees`, {})
+export async function getKanbanAssignees(): Promise<{ assignees: Array<unknown> }> {
+  return kanbanFetch<{ assignees: Array<unknown> }>(`${BASE}/assignees`, {})
 }
 
 export async function getKanbanTaskLog(
@@ -238,4 +243,74 @@ export async function unsubscribeKanbanHomeChannel(
   return kanbanFetch<unknown>(`${BASE}/tasks/${taskId}/home-subscribe/${platform}`, {
     method: 'DELETE',
   })
+}
+
+// ── Board Templates ───────────────────────────────────────────────────────────
+
+export async function listTemplates(): Promise<{ templates: Array<KanbanTemplateSummary> }> {
+  return kanbanFetch<{ templates: Array<KanbanTemplateSummary> }>(`${BASE}/templates`, {})
+}
+
+export async function getTemplate(slug: string): Promise<KanbanTemplate> {
+  return kanbanFetch<KanbanTemplate>(`${BASE}/templates/${encodeURIComponent(slug)}`, {})
+}
+
+export async function saveTemplate(
+  yaml: string,
+  slug?: string,
+): Promise<{ template: KanbanTemplate }> {
+  return kanbanFetch<{ template: KanbanTemplate }>(`${BASE}/templates`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ slug, yaml }),
+  })
+}
+
+export async function updateTemplate(
+  slug: string,
+  yaml: string,
+): Promise<{ template: KanbanTemplate }> {
+  return kanbanFetch<{ template: KanbanTemplate }>(
+    `${BASE}/templates/${encodeURIComponent(slug)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ yaml }),
+    },
+  )
+}
+
+export async function deleteTemplate(slug: string): Promise<{ ok: boolean }> {
+  return kanbanFetch<{ ok: boolean }>(
+    `${BASE}/templates/${encodeURIComponent(slug)}`,
+    { method: 'DELETE' },
+  )
+}
+
+export async function instantiateTemplate(
+  slug: string,
+  input: InstantiateInput,
+): Promise<InstantiateResult> {
+  return kanbanFetch<InstantiateResult>(
+    `${BASE}/templates/${encodeURIComponent(slug)}/instantiate`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  )
+}
+
+export async function saveBoardAsTemplate(
+  boardSlug: string,
+  input: SaveAsTemplateInput,
+): Promise<{ ok: boolean; template: KanbanTemplate }> {
+  return kanbanFetch<{ ok: boolean; template: KanbanTemplate }>(
+    `${BASE}/boards/${encodeURIComponent(boardSlug)}/save-as-template`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  )
 }
