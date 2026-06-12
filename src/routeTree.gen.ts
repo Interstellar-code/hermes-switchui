@@ -68,6 +68,7 @@ import { Route as ApiLogsRouteImport } from './routes/api/logs'
 import { Route as ApiLocalProvidersRouteImport } from './routes/api/local-providers'
 import { Route as ApiIntegrationsRouteImport } from './routes/api/integrations'
 import { Route as ApiHistoryRouteImport } from './routes/api/history'
+import { Route as ApiHermesPluginRouteImport } from './routes/api/hermes-plugin'
 import { Route as ApiGatewayStatusRouteImport } from './routes/api/gateway-status'
 import { Route as ApiGatewayReprobeRouteImport } from './routes/api/gateway-reprobe'
 import { Route as ApiFilesRouteImport } from './routes/api/files'
@@ -143,6 +144,7 @@ import { Route as ApiKnowledgeReadRouteImport } from './routes/api/knowledge/rea
 import { Route as ApiKnowledgeListRouteImport } from './routes/api/knowledge/list'
 import { Route as ApiKnowledgeGraphRouteImport } from './routes/api/knowledge/graph'
 import { Route as ApiKnowledgeConfigRouteImport } from './routes/api/knowledge/config'
+import { Route as ApiHermesPluginSettingsRouteImport } from './routes/api/hermes-plugin.settings'
 import { Route as ApiHermesKanbanTasksRouteImport } from './routes/api/hermes-kanban/tasks'
 import { Route as ApiHermesKanbanStatsRouteImport } from './routes/api/hermes-kanban/stats'
 import { Route as ApiHermesKanbanMigrateLegacyTasksRouteImport } from './routes/api/hermes-kanban/migrate-legacy-tasks'
@@ -490,6 +492,11 @@ const ApiIntegrationsRoute = ApiIntegrationsRouteImport.update({
 const ApiHistoryRoute = ApiHistoryRouteImport.update({
   id: '/api/history',
   path: '/api/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHermesPluginRoute = ApiHermesPluginRouteImport.update({
+  id: '/api/hermes-plugin',
+  path: '/api/hermes-plugin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGatewayStatusRoute = ApiGatewayStatusRouteImport.update({
@@ -869,6 +876,11 @@ const ApiKnowledgeConfigRoute = ApiKnowledgeConfigRouteImport.update({
   path: '/api/knowledge/config',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHermesPluginSettingsRoute = ApiHermesPluginSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => ApiHermesPluginRoute,
+} as any)
 const ApiHermesKanbanTasksRoute = ApiHermesKanbanTasksRouteImport.update({
   id: '/api/hermes-kanban/tasks',
   path: '/api/hermes-kanban/tasks',
@@ -1209,6 +1221,7 @@ export interface FileRoutesByFullPath {
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
   '/api/gateway-status': typeof ApiGatewayStatusRoute
+  '/api/hermes-plugin': typeof ApiHermesPluginRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
   '/api/integrations': typeof ApiIntegrationsRoute
   '/api/local-providers': typeof ApiLocalProvidersRoute
@@ -1270,6 +1283,7 @@ export interface FileRoutesByFullPath {
   '/api/hermes-kanban/migrate-legacy-tasks': typeof ApiHermesKanbanMigrateLegacyTasksRoute
   '/api/hermes-kanban/stats': typeof ApiHermesKanbanStatsRoute
   '/api/hermes-kanban/tasks': typeof ApiHermesKanbanTasksRouteWithChildren
+  '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
   '/api/knowledge/graph': typeof ApiKnowledgeGraphRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
@@ -1396,6 +1410,7 @@ export interface FileRoutesByTo {
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
   '/api/gateway-status': typeof ApiGatewayStatusRoute
+  '/api/hermes-plugin': typeof ApiHermesPluginRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
   '/api/integrations': typeof ApiIntegrationsRoute
   '/api/local-providers': typeof ApiLocalProvidersRoute
@@ -1457,6 +1472,7 @@ export interface FileRoutesByTo {
   '/api/hermes-kanban/migrate-legacy-tasks': typeof ApiHermesKanbanMigrateLegacyTasksRoute
   '/api/hermes-kanban/stats': typeof ApiHermesKanbanStatsRoute
   '/api/hermes-kanban/tasks': typeof ApiHermesKanbanTasksRouteWithChildren
+  '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
   '/api/knowledge/graph': typeof ApiKnowledgeGraphRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
@@ -1586,6 +1602,7 @@ export interface FileRoutesById {
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
   '/api/gateway-status': typeof ApiGatewayStatusRoute
+  '/api/hermes-plugin': typeof ApiHermesPluginRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
   '/api/integrations': typeof ApiIntegrationsRoute
   '/api/local-providers': typeof ApiLocalProvidersRoute
@@ -1647,6 +1664,7 @@ export interface FileRoutesById {
   '/api/hermes-kanban/migrate-legacy-tasks': typeof ApiHermesKanbanMigrateLegacyTasksRoute
   '/api/hermes-kanban/stats': typeof ApiHermesKanbanStatsRoute
   '/api/hermes-kanban/tasks': typeof ApiHermesKanbanTasksRouteWithChildren
+  '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
   '/api/knowledge/graph': typeof ApiKnowledgeGraphRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
@@ -1777,6 +1795,7 @@ export interface FileRouteTypes {
     | '/api/files'
     | '/api/gateway-reprobe'
     | '/api/gateway-status'
+    | '/api/hermes-plugin'
     | '/api/history'
     | '/api/integrations'
     | '/api/local-providers'
@@ -1838,6 +1857,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/migrate-legacy-tasks'
     | '/api/hermes-kanban/stats'
     | '/api/hermes-kanban/tasks'
+    | '/api/hermes-plugin/settings'
     | '/api/knowledge/config'
     | '/api/knowledge/graph'
     | '/api/knowledge/list'
@@ -1964,6 +1984,7 @@ export interface FileRouteTypes {
     | '/api/files'
     | '/api/gateway-reprobe'
     | '/api/gateway-status'
+    | '/api/hermes-plugin'
     | '/api/history'
     | '/api/integrations'
     | '/api/local-providers'
@@ -2025,6 +2046,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/migrate-legacy-tasks'
     | '/api/hermes-kanban/stats'
     | '/api/hermes-kanban/tasks'
+    | '/api/hermes-plugin/settings'
     | '/api/knowledge/config'
     | '/api/knowledge/graph'
     | '/api/knowledge/list'
@@ -2153,6 +2175,7 @@ export interface FileRouteTypes {
     | '/api/files'
     | '/api/gateway-reprobe'
     | '/api/gateway-status'
+    | '/api/hermes-plugin'
     | '/api/history'
     | '/api/integrations'
     | '/api/local-providers'
@@ -2214,6 +2237,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/migrate-legacy-tasks'
     | '/api/hermes-kanban/stats'
     | '/api/hermes-kanban/tasks'
+    | '/api/hermes-plugin/settings'
     | '/api/knowledge/config'
     | '/api/knowledge/graph'
     | '/api/knowledge/list'
@@ -2343,6 +2367,7 @@ export interface RootRouteChildren {
   ApiFilesRoute: typeof ApiFilesRoute
   ApiGatewayReprobeRoute: typeof ApiGatewayReprobeRoute
   ApiGatewayStatusRoute: typeof ApiGatewayStatusRoute
+  ApiHermesPluginRoute: typeof ApiHermesPluginRouteWithChildren
   ApiHistoryRoute: typeof ApiHistoryRoute
   ApiIntegrationsRoute: typeof ApiIntegrationsRoute
   ApiLocalProvidersRoute: typeof ApiLocalProvidersRoute
@@ -2845,6 +2870,13 @@ declare module '@tanstack/react-router' {
       path: '/api/history'
       fullPath: '/api/history'
       preLoaderRoute: typeof ApiHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hermes-plugin': {
+      id: '/api/hermes-plugin'
+      path: '/api/hermes-plugin'
+      fullPath: '/api/hermes-plugin'
+      preLoaderRoute: typeof ApiHermesPluginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/gateway-status': {
@@ -3372,6 +3404,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiKnowledgeConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/hermes-plugin/settings': {
+      id: '/api/hermes-plugin/settings'
+      path: '/settings'
+      fullPath: '/api/hermes-plugin/settings'
+      preLoaderRoute: typeof ApiHermesPluginSettingsRouteImport
+      parentRoute: typeof ApiHermesPluginRoute
+    }
     '/api/hermes-kanban/tasks': {
       id: '/api/hermes-kanban/tasks'
       path: '/api/hermes-kanban/tasks'
@@ -3822,6 +3861,18 @@ const ApiCommandsRouteWithChildren = ApiCommandsRoute._addFileChildren(
   ApiCommandsRouteChildren,
 )
 
+interface ApiHermesPluginRouteChildren {
+  ApiHermesPluginSettingsRoute: typeof ApiHermesPluginSettingsRoute
+}
+
+const ApiHermesPluginRouteChildren: ApiHermesPluginRouteChildren = {
+  ApiHermesPluginSettingsRoute: ApiHermesPluginSettingsRoute,
+}
+
+const ApiHermesPluginRouteWithChildren = ApiHermesPluginRoute._addFileChildren(
+  ApiHermesPluginRouteChildren,
+)
+
 interface ApiMcpNameRouteChildren {
   ApiMcpNameLogsRoute: typeof ApiMcpNameLogsRoute
 }
@@ -4228,6 +4279,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFilesRoute: ApiFilesRoute,
   ApiGatewayReprobeRoute: ApiGatewayReprobeRoute,
   ApiGatewayStatusRoute: ApiGatewayStatusRoute,
+  ApiHermesPluginRoute: ApiHermesPluginRouteWithChildren,
   ApiHistoryRoute: ApiHistoryRoute,
   ApiIntegrationsRoute: ApiIntegrationsRoute,
   ApiLocalProvidersRoute: ApiLocalProvidersRoute,

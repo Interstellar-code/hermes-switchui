@@ -31,6 +31,7 @@ const SectionMemoryWiki = lazy(() => import('./sections/section-memory-wiki'))
 const SectionSkills = lazy(() => import('./sections/section-skills'))
 const SectionMcpServers = lazy(() => import('./sections/section-mcp-servers'))
 const SectionMcpRegistered = lazy(() => import('./sections/section-mcp-registered'))
+const SectionHermesPlugin = lazy(() => import('./sections/section-hermes-plugin'))
 const SectionStorage = lazy(() => import('./sections/section-storage'))
 const SectionPrivacy = lazy(() => import('./sections/section-privacy'))
 const SectionTelemetry = lazy(() => import('./sections/section-telemetry'))
@@ -56,6 +57,7 @@ const SECTION_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   workflows: SectionWorkflows,
   'mcp-servers': SectionMcpServers,
   'mcp-registered': SectionMcpRegistered,
+  'hermes-plugin': SectionHermesPlugin,
   storage: SectionStorage,
   privacy: SectionPrivacy,
   telemetry: SectionTelemetry,
@@ -97,6 +99,7 @@ const SECTIONS: Array<SectionDef> = [
   // MCP
   { id: 'mcp-servers', label: 'Servers', group: 'MCP', p: 5 },
   { id: 'mcp-registered', label: 'Registered', group: 'MCP', p: 5 },
+  { id: 'hermes-plugin', label: 'Hermes Plugin', group: 'MCP', p: 3 },
   // System
   { id: 'storage', label: 'Storage', group: 'System', p: 5 },
   { id: 'privacy', label: 'Privacy', group: 'System', p: 5 },
