@@ -309,6 +309,55 @@ describe('register-once semantics', () => {
     )
     expect(registerCalls).toHaveLength(1)
   })
+
+  it('re-registers when the cached verdict is incompatible and older than 10 minutes', async () => {
+    // First snapshot: register succeeds with an INCOMPATIBLE verdict.
+    mockFetch
+      .mockResolvedValueOnce(jsonOk({ ok: true, compat: { compatible: false, warn: 'out of range', plugin_range: '<2.0.0', frontend_version: '2.3.43' } }))
+      .mockResolvedValueOnce(jsonOk({ running: true, last_heartbeat: null, ttl_seconds: 90, manifest: null, reported_settings: null }))
+      .mockResolvedValueOnce(jsonOk({ gateway_port: null, dashboard_port: null, frontend_port: null, active_profile: null, enabled_plugins: [], auth_mode: null }))
+
+    const first = await getPluginSnapshot()
+    expect(first.compat?.compatible).toBe(false)
+
+    // Backdate the registration so the stale-incompatible window has elapsed
+    // (simulates the backend bumping its supported range after we registered).
+    const state = (globalThis as Record<symbol, { registeredAt: string }>)[SYNC_STATE_KEY]
+    state.registeredAt = new Date(Date.now() - 11 * 60_000).toISOString()
+
+    // Second snapshot: re-register now returns a COMPATIBLE verdict.
+    mockFetch
+      .mockResolvedValueOnce(jsonOk({ ok: true, compat: { compatible: true, warn: null, plugin_range: '<3.0.0', frontend_version: '2.3.43' } }))
+      .mockResolvedValueOnce(jsonOk({ running: true, last_heartbeat: null, ttl_seconds: 90, manifest: null, reported_settings: null }))
+      .mockResolvedValueOnce(jsonOk({ gateway_port: null, dashboard_port: null, frontend_port: null, active_profile: null, enabled_plugins: [], auth_mode: null }))
+
+    const second = await getPluginSnapshot()
+
+    const registerCalls = mockFetch.mock.calls.filter(([path]) =>
+      (path as string).includes('/register'),
+    )
+    expect(registerCalls).toHaveLength(2)
+    expect(second.compat?.compatible).toBe(true)
+    expect(second.compat?.plugin_range).toBe('<3.0.0')
+  })
+
+  it('does NOT re-register within the window even when incompatible', async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonOk({ ok: true, compat: { compatible: false, warn: 'out of range', plugin_range: '<2.0.0', frontend_version: '2.3.43' } }))
+      .mockResolvedValueOnce(jsonOk({ running: true, last_heartbeat: null, ttl_seconds: 90, manifest: null, reported_settings: null }))
+      .mockResolvedValueOnce(jsonOk({ gateway_port: null, dashboard_port: null, frontend_port: null, active_profile: null, enabled_plugins: [], auth_mode: null }))
+      // second snapshot — status + connection only, register must NOT fire
+      .mockResolvedValueOnce(jsonOk({ running: true, last_heartbeat: null, ttl_seconds: 90, manifest: null, reported_settings: null }))
+      .mockResolvedValueOnce(jsonOk({ gateway_port: null, dashboard_port: null, frontend_port: null, active_profile: null, enabled_plugins: [], auth_mode: null }))
+
+    await getPluginSnapshot()
+    await getPluginSnapshot()
+
+    const registerCalls = mockFetch.mock.calls.filter(([path]) =>
+      (path as string).includes('/register'),
+    )
+    expect(registerCalls).toHaveLength(1)
+  })
 })
 
 // ── Heartbeat gated on register ───────────────────────────────────────────────
