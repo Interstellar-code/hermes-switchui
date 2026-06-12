@@ -618,6 +618,81 @@
 }
 [data-screen='boards'] .ghost { color: var(--m-text-ghost, #385246); }
 
+/* ── Template wizard (multi-step) ─────────────────────────────────────────── */
+[data-screen='boards'] .wz-body-scroll { max-height: min(64vh, 640px); overflow-y: auto; }
+[data-screen='boards'] .wz-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+[data-screen='boards'] .wz-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+[data-screen='boards'] .wz-card {
+  border: 1px solid rgba(0,255,65,.14);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: rgba(4,10,7,.6);
+  display: grid;
+  gap: 10px;
+}
+[data-screen='boards'] .wz-card-head { display: flex; justify-content: space-between; align-items: center; }
+[data-screen='boards'] .wz-card-title { color: var(--m-text, #d6f5e4); font: 600 12px var(--m-font-sans, sans-serif); letter-spacing: .04em; text-transform: uppercase; }
+[data-screen='boards'] .wz-err { color: #ff5fa2; font: 400 12px var(--m-font-sans, sans-serif); margin-top: 4px; }
+[data-screen='boards'] .wz-code,
+[data-screen='boards'] .wz-chip { font-family: var(--font-mono, monospace); }
+[data-screen='boards'] .wz-code { color: #5fcfff; }
+[data-screen='boards'] .wz-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; }
+[data-screen='boards'] .wz-chips-lbl { color: var(--m-text-muted, #89a197); font: 400 12px var(--m-font-sans, sans-serif); }
+[data-screen='boards'] .wz-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid rgba(0,255,65,.22);
+  border-radius: 999px;
+  background: rgba(0,255,65,.06);
+  color: #5fcfff;
+  font-size: 11px;
+  cursor: pointer;
+}
+[data-screen='boards'] .wz-chip:hover { border-color: rgba(0,255,65,.5); }
+[data-screen='boards'] .wz-chip.removable { cursor: default; color: var(--m-text, #d6f5e4); }
+[data-screen='boards'] .wz-chip-x { border: none; background: none; color: #ff5fa2; cursor: pointer; font-size: 14px; line-height: 1; padding: 0; }
+[data-screen='boards'] .wz-adv-toggle {
+  justify-self: start;
+  border: none;
+  background: none;
+  color: var(--m-text-muted, #89a197);
+  cursor: pointer;
+  font: 500 12px var(--m-font-sans, sans-serif);
+  padding: 0;
+}
+[data-screen='boards'] .wz-adv-toggle:hover { color: #00ff41; }
+[data-screen='boards'] .wz-adv { display: grid; gap: 10px; border-top: 1px dashed rgba(0,255,65,.14); padding-top: 10px; }
+[data-screen='boards'] .wz-link-add { display: flex; align-items: center; gap: 8px; }
+[data-screen='boards'] .wz-link-add .form-inp { flex: 1; }
+[data-screen='boards'] .wz-link-arrow { color: var(--m-text-muted, #89a197); }
+[data-screen='boards'] .wz-mode-toggle { display: inline-flex; gap: 4px; margin-left: auto; border: 1px solid rgba(0,255,65,.18); border-radius: 6px; padding: 2px; }
+[data-screen='boards'] .wz-mode-toggle button {
+  border: none;
+  background: none;
+  color: var(--m-text-muted, #89a197);
+  cursor: pointer;
+  font: 500 12px var(--m-font-sans, sans-serif);
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+[data-screen='boards'] .wz-mode-toggle button.on { color: #00ff41; background: rgba(0,255,65,.1); }
+[data-screen='boards'] .wz-checklist { display: grid; gap: 8px; }
+[data-screen='boards'] .wz-check { display: flex; align-items: flex-start; gap: 8px; font: 400 13px var(--m-font-sans, sans-serif); }
+[data-screen='boards'] .wz-check-mark { width: 16px; text-align: center; font-weight: 700; }
+[data-screen='boards'] .wz-check.ok { color: var(--m-text, #d6f5e4); }
+[data-screen='boards'] .wz-check.ok .wz-check-mark { color: #00ff41; }
+[data-screen='boards'] .wz-check.fail { color: #ff8fbf; }
+[data-screen='boards'] .wz-check.fail .wz-check-mark { color: #ff5fa2; }
+[data-screen='boards'] .wz-check.warn { color: #ffd28a; }
+[data-screen='boards'] .wz-check.warn .wz-check-mark { color: #ffb454; }
+[data-screen='boards'] select.form-inp { appearance: none; cursor: pointer; }
+@media (max-width: 640px) {
+  [data-screen='boards'] .wz-grid-2,
+  [data-screen='boards'] .wz-grid-3 { grid-template-columns: 1fr; }
+}
+
 [data-screen='boards'] .confirm-box {
   position: fixed;
   left: 50%;
