@@ -3,6 +3,14 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.45] — 2026-06-12
+
+Kanban Board Templates: manage reusable board definitions and instantiate them into live boards.
+
+### Added
+
+- **Board Templates management page.** New Templates sub-page under Tasks (`/board-templates`) for the Hermes Agent Kanban templates backend (hermes-agent #135 P2). Lists installed templates (name, slug, variables, recurrence); create/edit via a raw-YAML editor with 64 KB guard and inline validation-error surfacing; delete with confirm. **Instantiate** modal collects per-variable values (`{{key}}` substitution), optional target board and auto-dispatch, then shows created/skipped counts with a link to the new board. Recurrence is shown read-only with an enable/disable toggle (no cron authoring). A **Save as template** button in the `/tasks` board header snapshots a live board. Page hides/degrades cleanly when the backend predates templates (404) or the Kanban capability is absent; backend error details (413 oversized, 422 validation, 409 refused) are surfaced, not raw. Built to the live-verified gateway contract. (#231)
+
 ## [2.3.44] — 2026-06-12
 
 Chat hot-path performance overhaul, the recurring "Too many re-renders" crash contained and fixed, and the new Hermes Plugin settings section with backend config-sync.
