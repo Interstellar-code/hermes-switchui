@@ -151,11 +151,22 @@ async function pluginFetch(path: string, init: RequestInit = {}): Promise<Respon
  * Concurrent calls share the in-flight promise to guarantee register-once
  * semantics even when multiple server paths warm up simultaneously.
  */
+// While the cached verdict is "incompatible", re-register at most this often —
+// the verdict may be stale (e.g. the backend plugin's supported range was
+// bumped and the backend restarted after we registered). Self-heals without a
+// workspace-server restart.
+const INCOMPATIBLE_REREGISTER_MS = 10 * 60_000
+
 async function ensureRegistered(): Promise<boolean> {
   const state = _getState()
 
   // Already registered and backend has not gone 404.
-  if (state.registeredAt && !state.confirmed404) return true
+  if (state.registeredAt && !state.confirmed404) {
+    const incompatible = state.compat !== null && state.compat.compatible === false
+    const age = Date.now() - Date.parse(state.registeredAt)
+    if (!incompatible || !(age >= INCOMPATIBLE_REREGISTER_MS)) return true
+    // fall through to re-register: refresh a stale incompatible verdict
+  }
 
   // Confirmed-absent: do not retry in the loop (lazy retry on next snapshot).
   if (state.confirmed404) return false
