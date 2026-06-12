@@ -1035,3 +1035,6 @@ export function isClaudeConnected(): boolean {
 }
 
 void ensureGatewayProbed()
+void import('./hermes-plugin-sync').then(({ ensureHermesPluginSync }) => {
+  ensureHermesPluginSync()
+})
