@@ -55,6 +55,7 @@ const ICONS = {
   workflows: 'M2 4h12M2 8h8M2 12h5M11 9l2 2 4-4',
   commands: 'M3 3h10v10H3V3zM5 6l2 2-2 2M8.5 10h2.5',
   boards: 'M3 3h4v4H3V3zM9 3h4v4H9V3zM3 9h4v4H3V9zM9 9h4v4H9V9z',
+  templates: 'M4 3h6l2 2v6H4V3zM6 6h4M6 8h3M2 5v8h7',
   conductor: 'M8 2L2 14h12L8 2zM8 8v3',
   operations: 'M3 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM9 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM1 14c0-2.5 2-4 5-4s5 1.5 5 4M11 11c1.5 0 3 .8 3 3',
   matrix3d: 'M8 2l5 3v6l-5 3-5-3V5l5-3zM8 2v12M3 5l5 3 5-3M3 11l5-3 5 3',
@@ -331,6 +332,7 @@ export function PrimaryNavV2() {
   const isWorkflows = pathname.startsWith('/workflows')
   const isCommands = pathname.startsWith('/commands')
   const isBoards = pathname.startsWith('/boards')
+  const isTemplates = pathname.startsWith('/board-templates')
   const isConductor = pathname.startsWith('/conductor')
   // const isOperations = pathname.startsWith('/operations')
   const isMatrix3D = pathname.startsWith('/matrix3d')
@@ -348,10 +350,11 @@ export function PrimaryNavV2() {
     () => [
       { label: 'Board', to: '/tasks', active: isTasks, iconKey: 'tasks' as const },
       { label: 'Boards', to: '/boards', active: isBoards, iconKey: 'boards' as const, badge: boardsCount },
+      { label: 'Templates', to: '/board-templates', active: isTemplates, iconKey: 'templates' as const },
     ],
-    [boardsCount, isBoards, isTasks],
+    [boardsCount, isBoards, isTasks, isTemplates],
   )
-  const boardsSectionActive = isTasks || isBoards
+  const boardsSectionActive = isTasks || isBoards || isTemplates
 
   const w = collapsed ? NAV_COLLAPSED_WIDTH : NAV_WIDTH
 

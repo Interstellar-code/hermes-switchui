@@ -188,7 +188,7 @@ export type UpdateBoardInput = {
 
 /** Response shape for GET /api/plugins/kanban/boards. */
 export type KanbanBoardsListResponse = {
-  boards: BoardMeta[]
+  boards: Array<BoardMeta>
   current: string
 }
 
@@ -324,4 +324,80 @@ export function normalizeKanbanAssignee(
     onDisk: raw.on_disk,
     counts: raw.counts ?? {},
   }
+}
+
+// ── Board Templates ───────────────────────────────────────────────────────────
+
+/** A single template variable definition. Backend only validates `key`+`required`; rest passthrough. */
+export type TemplateVariable = {
+  key: string
+  required?: boolean
+  description?: string
+  default?: string
+  prompt?: string
+}
+
+/** A task entry within a template definition (passthrough; render read-only). */
+export type TemplateTask = {
+  key: string
+  title: string
+  assignee?: string
+  status?: string
+  body?: string
+  priority?: number
+}
+
+/** Recurrence schedule attached to a template. Cron validated by backend only when enabled is truthy. */
+export type TemplateRecurrence = {
+  enabled: boolean
+  cron?: string
+  timezone?: string
+}
+
+/** Summary shape returned by GET /templates list endpoint. */
+export type KanbanTemplateSummary = {
+  slug: string
+  name: string
+  description: string | null
+  color: string | null
+  variables: Array<TemplateVariable>
+  has_recurrence: boolean
+  path: string
+}
+
+/** Full template shape returned by GET /templates/{slug}. */
+export type KanbanTemplate = {
+  schema: number
+  slug: string
+  name: string
+  description?: string
+  tasks: Array<TemplateTask>
+  variables?: Array<TemplateVariable>
+  recurrence?: TemplateRecurrence
+  color?: string | null
+}
+
+/** Result returned by POST /templates/{slug}/instantiate. */
+export type InstantiateResult = {
+  ok: boolean
+  board_slug: string
+  instance_id: string
+  task_ids: Array<string>
+  created: number
+  skipped: number
+}
+
+/** Request body for POST /templates/{slug}/instantiate. */
+export type InstantiateInput = {
+  variables?: Record<string, string>
+  board_slug?: string
+  auto_dispatch?: boolean
+  tenant?: string
+}
+
+/** Request body for POST /boards/{slug}/save-as-template. */
+export type SaveAsTemplateInput = {
+  template_slug: string
+  name?: string
+  reset_status?: boolean
 }
