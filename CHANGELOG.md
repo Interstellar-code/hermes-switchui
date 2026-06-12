@@ -3,6 +3,15 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.46] — 2026-06-12
+
+Board Templates: guided wizard for template creation, plus per-task runtime/turn controls.
+
+### Added
+
+- **5-step template creation wizard.** The Board Templates page now creates and edits templates through a guided wizard — Basics (name, auto-slug, description, color) → Variables → Tasks → Dependencies + Recurrence → Review — replacing the raw-YAML drawer (kept as an "Advanced" escape hatch). Tasks expose status (`todo`/`ready`), priority, assignee, body with `{{variable}}` insertion, and an Advanced section for `max_runtime_seconds`, `goal_max_turns`, and `goal_mode`. The Dependencies step adds a parent→child link editor with live self-link/duplicate/cycle guards; the Review step runs a pre-commit checklist and shows a YAML preview before save. Backend validation errors (413/422/409) are surfaced cleanly. (#231 follow-up)
+- **Per-task `max_runtime_seconds` and `goal_max_turns`.** Optional positive-integer fields on template tasks, round-tripped through create/edit/instantiate. The save-as-template keep-status copy now reflects ready-only preservation. (#233)
+
 ## [2.3.45] — 2026-06-12
 
 Kanban Board Templates: manage reusable board definitions and instantiate them into live boards.
