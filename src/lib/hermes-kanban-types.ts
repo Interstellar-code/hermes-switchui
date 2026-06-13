@@ -351,6 +351,12 @@ export type TemplateTask = {
   goal_max_turns?: number
   /** When true, the instantiated task runs in goal mode (paired with goal_max_turns). */
   goal_mode?: boolean
+  /**
+   * Deferred-dispatch start time. Backend accepts: a relative offset `+<n><unit>`
+   * (unit ∈ s|m|h|d|w, e.g. `+2h`), a positive unix-epoch integer, or a `{{variable}}`
+   * placeholder resolved at instantiate. Omitted/empty → dispatch as soon as ready.
+   */
+  scheduled_at?: string | number
 }
 
 /** Recurrence schedule attached to a template. Cron validated by backend only when enabled is truthy. */

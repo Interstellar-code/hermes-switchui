@@ -26,8 +26,31 @@ export class TemplateRequestError extends Error {
   }
 }
 
+/**
+ * Default client-side request timeout. Without it a wedged/slow gateway leaves
+ * the page spinning indefinitely (the BFF route can stall behind the dashboard
+ * token scrape). 20s comfortably exceeds the server-side 12s kanbanFetch cap so
+ * the real backend error surfaces first; a true hang aborts here instead.
+ */
+const TEMPLATES_FETCH_TIMEOUT_MS = 20_000
+
 async function templatesJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init)
+  let res: Response
+  try {
+    res = await fetch(url, {
+      ...init,
+      signal: init?.signal ?? AbortSignal.timeout(TEMPLATES_FETCH_TIMEOUT_MS),
+    })
+  } catch (err) {
+    // AbortSignal.timeout rejects with a TimeoutError; surface it as a clean 504.
+    if (err instanceof DOMException && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+      throw new TemplateRequestError(
+        'Request timed out — the Hermes Agent dashboard is slow or unavailable.',
+        504,
+      )
+    }
+    throw new TemplateRequestError('Network error reaching the Hermes Agent dashboard.', 0)
+  }
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string; detail?: string }
     throw new TemplateRequestError(
@@ -123,6 +146,8 @@ export function useTemplates(enabled = true) {
     queryFn: fetchTemplates,
     enabled,
     retry: false,
+    // Serve cached templates instantly on revisit; no spinner for ~30s.
+    staleTime: 30_000,
   })
 }
 

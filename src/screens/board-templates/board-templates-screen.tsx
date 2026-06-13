@@ -18,7 +18,14 @@ import {
   useTemplates,
   useUpdateTemplate,
 } from '@/lib/board-templates-api'
+import { useSwitchBoard } from '@/lib/boards-api'
 import { toast } from '@/components/ui/toast'
+import {
+  TooltipContent,
+  TooltipProvider,
+  TooltipRoot,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import '@/styles/matrix-boards.css'
 
 const SIZE_WARN_BYTES = 64 * 1024
@@ -61,6 +68,8 @@ type TaskRow = {
   maxRuntime: string
   goalMaxTurns: string
   goalMode: boolean
+  /** Raw scheduled_at value: '' | '+2h' | epoch digits | '{{var}}'. */
+  scheduledAt: string
   showAdvanced: boolean
 }
 
@@ -94,6 +103,171 @@ function parsePositiveInt(raw: string): number | null {
   return Number.isInteger(n) && n > 0 ? n : null
 }
 
+// ── scheduled_at (deferred-dispatch start time) — mirrors backend validate_template ──
+/** Relative offset `+<n><unit>`, unit ∈ s|m|h|d|w. */
+const SCHED_REL_RE = /^\+(\d+)([smhdw])$/
+/** Whole-value `{{variable}}` placeholder (\w = backend's \w). */
+const SCHED_VAR_RE = /^\{\{(\w+)\}\}$/
+const SCHED_UNITS: ReadonlyArray<readonly [string, string]> = [
+  ['m', 'minutes'],
+  ['h', 'hours'],
+  ['d', 'days'],
+  ['w', 'weeks'],
+  ['s', 'seconds'],
+]
+
+type SchedMode = 'none' | 'relative' | 'absolute' | 'variable'
+
+/** True when a raw scheduled_at value is acceptable (empty, relative, positive epoch, or {{var}}). */
+function isValidScheduledAt(raw: string): boolean {
+  const v = raw.trim()
+  if (!v) return true
+  if (SCHED_VAR_RE.test(v)) return true
+  if (SCHED_REL_RE.test(v)) return true
+  return /^\d+$/.test(v) && Number(v) > 0
+}
+
+function deriveSchedMode(raw: string): SchedMode {
+  const v = raw.trim()
+  if (!v) return 'none'
+  if (SCHED_VAR_RE.test(v)) return 'variable'
+  if (/^\d+$/.test(v)) return 'absolute'
+  return 'relative' // relative or malformed-being-edited
+}
+
+/** Unix-epoch seconds → `YYYY-MM-DDTHH:mm` in local time (for <input type=datetime-local>). */
+function epochToLocalInput(epoch: number): string {
+  const d = new Date(epoch * 1000)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+/** datetime-local string → unix-epoch-seconds string (empty when unparseable). */
+function localInputToEpoch(v: string): string {
+  if (!v) return ''
+  const ms = new Date(v).getTime()
+  return Number.isNaN(ms) ? '' : String(Math.floor(ms / 1000))
+}
+
+/**
+ * Per-task deferred-start control. Emits one of the backend-accepted forms as a
+ * raw string (`+2h` / epoch / `{{var}}`) or '' for "dispatch immediately".
+ */
+function ScheduledAtControl({
+  value,
+  varKeys,
+  onChange,
+}: {
+  value: string
+  varKeys: Array<string>
+  onChange: (next: string) => void
+}) {
+  const [mode, setMode] = useState<SchedMode>(() => deriveSchedMode(value))
+  const v = value.trim()
+  const relMatch = SCHED_REL_RE.exec(v)
+  const relN = relMatch ? relMatch[1] : ''
+  const relUnit = relMatch ? relMatch[2] : 'h'
+  const varMatch = SCHED_VAR_RE.exec(v)
+  const varKey = varMatch ? varMatch[1] : ''
+  const absInput = /^\d+$/.test(v) ? epochToLocalInput(Number(v)) : ''
+  const invalid = !isValidScheduledAt(value)
+
+  const switchMode = (m: SchedMode) => {
+    setMode(m)
+    if (m === 'none') onChange('')
+    else if (m === 'relative' && !SCHED_REL_RE.test(v)) onChange('')
+    else if (m === 'absolute' && !/^\d+$/.test(v)) onChange('')
+    else if (m === 'variable' && !SCHED_VAR_RE.test(v)) onChange(varKeys[0] ? `{{${varKeys[0]}}}` : '')
+  }
+
+  return (
+    <div className="form-row">
+      <FieldLabel
+        text="Scheduled start"
+        hint="Defer dispatch until this time. Relative (+2h, +30m, +1d, +1w), an absolute date/time, or a {{variable}} supplied at instantiation. Empty = dispatch as soon as the task is ready."
+      />
+      <div className="wz-sched">
+        <select
+          className="form-inp wz-sched-mode"
+          value={mode}
+          onChange={(e) => switchMode(e.target.value as SchedMode)}
+        >
+          <option value="none">Immediately</option>
+          <option value="relative">After delay</option>
+          <option value="absolute">At date/time</option>
+          <option value="variable">From variable</option>
+        </select>
+
+        {mode === 'relative' ? (
+          <>
+            <input
+              className="form-inp wz-sched-n"
+              inputMode="numeric"
+              placeholder="2"
+              value={relN}
+              onChange={(e) => {
+                const n = e.target.value.replace(/[^0-9]/g, '')
+                onChange(n ? `+${n}${relUnit}` : '')
+              }}
+            />
+            <select
+              className="form-inp wz-sched-unit"
+              value={relUnit}
+              onChange={(e) => onChange(relN ? `+${relN}${e.target.value}` : '')}
+            >
+              {SCHED_UNITS.map(([u, lbl]) => (
+                <option key={u} value={u}>
+                  {lbl}
+                </option>
+              ))}
+            </select>
+          </>
+        ) : null}
+
+        {mode === 'absolute' ? (
+          <input
+            type="datetime-local"
+            className="form-inp"
+            value={absInput}
+            onChange={(e) => onChange(localInputToEpoch(e.target.value))}
+          />
+        ) : null}
+
+        {mode === 'variable' ? (
+          varKeys.length > 0 ? (
+            <select
+              className="form-inp"
+              value={varKey}
+              onChange={(e) => onChange(e.target.value ? `{{${e.target.value}}}` : '')}
+            >
+              <option value="">— pick variable —</option>
+              {varKeys.map((k) => (
+                <option key={k} value={k}>
+                  {`{{${k}}}`}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              className="form-inp"
+              placeholder="{{start_at}}"
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+            />
+          )
+        ) : null}
+      </div>
+      {invalid ? (
+        <span className="wz-err">Use +2h / +30m / +1d / +1w, a date/time, or a {'{{variable}}'}.</span>
+      ) : mode === 'relative' && v ? (
+        <span className="form-hint">Starts ~{v} after the template is instantiated.</span>
+      ) : mode === 'variable' && !varKey ? (
+        <span className="form-hint">Bind to a variable; its value is supplied when you instantiate.</span>
+      ) : null}
+    </div>
+  )
+}
+
 /** Map a numeric priority (edit-mode passthrough) back to a label string. */
 function priorityIntToLabel(priority: number): string {
   if (priority >= 4) return 'critical'
@@ -114,6 +288,7 @@ function emptyTask(): TaskRow {
     maxRuntime: '',
     goalMaxTurns: '',
     goalMode: false,
+    scheduledAt: '',
     showAdvanced: false,
   }
 }
@@ -154,8 +329,12 @@ function templateToWizard(tpl: KanbanTemplate): WizardState {
         : typeof t.priority === 'string'
           ? t.priority
           : 'normal'
+    const scheduledAt = t.scheduled_at != null ? String(t.scheduled_at) : ''
     const adv =
-      t.max_runtime_seconds != null || t.goal_max_turns != null || t.goal_mode === true
+      t.max_runtime_seconds != null ||
+      t.goal_max_turns != null ||
+      t.goal_mode === true ||
+      scheduledAt !== ''
     return {
       key: t.key,
       title: t.title,
@@ -166,6 +345,7 @@ function templateToWizard(tpl: KanbanTemplate): WizardState {
       maxRuntime: t.max_runtime_seconds != null ? String(t.max_runtime_seconds) : '',
       goalMaxTurns: t.goal_max_turns != null ? String(t.goal_max_turns) : '',
       goalMode: t.goal_mode === true,
+      scheduledAt,
       showAdvanced: adv,
     }
   })
@@ -201,6 +381,9 @@ function wizardToTemplate(w: WizardState): Record<string, unknown> {
     const gt = parsePositiveInt(t.goalMaxTurns)
     if (gt !== null) task.goal_max_turns = gt
     if (t.goalMode) task.goal_mode = true
+    const sa = t.scheduledAt.trim()
+    // Emit absolute epoch as a number; relative/variable forms stay strings.
+    if (sa) task.scheduled_at = /^\d+$/.test(sa) ? Number(sa) : sa
     return task
   })
 
@@ -309,6 +492,12 @@ function runChecks(w: WizardState, slugTaken: boolean, isCreate: boolean): Array
       (t.goalMaxTurns.trim() === '' || parsePositiveInt(t.goalMaxTurns) !== null),
   )
   checks.push({ ok: intsOk, label: 'Numeric task fields are positive integers', blocking: true })
+  const schedOk = tasks.every((t) => isValidScheduledAt(t.scheduledAt))
+  checks.push({
+    ok: schedOk,
+    label: 'Scheduled-start values are valid (+2h, epoch, or {{var}})',
+    blocking: true,
+  })
 
   const varKeys = w.variables.map((v) => v.key.trim()).filter((k) => k.length > 0)
   checks.push({
@@ -694,6 +883,11 @@ function TaskCard({
               Goal mode
             </label>
           </div>
+          <ScheduledAtControl
+            value={task.scheduledAt}
+            varKeys={varKeys}
+            onChange={(v) => onChange({ scheduledAt: v })}
+          />
         </div>
       ) : null}
     </div>
@@ -1036,7 +1230,8 @@ function TemplateWizard({
       return state.tasks.every(
         (t) =>
           (t.maxRuntime.trim() === '' || parsePositiveInt(t.maxRuntime) !== null) &&
-          (t.goalMaxTurns.trim() === '' || parsePositiveInt(t.goalMaxTurns) !== null),
+          (t.goalMaxTurns.trim() === '' || parsePositiveInt(t.goalMaxTurns) !== null) &&
+          isValidScheduledAt(t.scheduledAt),
       )
     })(),
     4: true,
@@ -1301,6 +1496,35 @@ function TemplateWizard({
 
 // ── Instantiate modal ───────────────────────────────────────────────────────────
 
+/** Field label with an optional info tooltip (hover/focus) instead of a long inline caption. */
+function FieldLabel({
+  text,
+  required,
+  hint,
+}: {
+  text: string
+  required?: boolean
+  hint?: string
+}) {
+  return (
+    <label>
+      {text} {required ? <span className="req">*</span> : null}
+      {hint ? (
+        <TooltipRoot>
+          <TooltipTrigger
+            render={
+              <button type="button" className="wz-hint-i" aria-label={`Help: ${text}`}>
+                i
+              </button>
+            }
+          />
+          <TooltipContent className="wz-tip-popup">{hint}</TooltipContent>
+        </TooltipRoot>
+      ) : null}
+    </label>
+  )
+}
+
 function InstantiateModal({
   slug,
   onClose,
@@ -1310,6 +1534,7 @@ function InstantiateModal({
 }) {
   const detailQuery = useTemplate(slug)
   const instantiateMutation = useInstantiateTemplate()
+  const switchBoard = useSwitchBoard()
   const [values, setValues] = useState<Record<string, string>>({})
   const [boardSlug, setBoardSlug] = useState('')
   const [autoDispatch, setAutoDispatch] = useState(false)
@@ -1377,7 +1602,15 @@ function InstantiateModal({
               <div className="rb-row">
                 <span className="rb-k">Board</span>
                 <span className="rb-v">
-                  <Link to="/tasks" onClick={onClose}>
+                  <Link
+                    to="/tasks"
+                    onClick={() => {
+                      // Switch the active board to the one we just created so
+                      // /tasks lands on the new tasks, not the previous board.
+                      switchBoard.mutate(result.board_slug)
+                      onClose()
+                    }}
+                  >
                     {result.board_slug}
                   </Link>
                 </span>
@@ -1396,35 +1629,43 @@ function InstantiateModal({
               </div>
             </div>
           ) : (
-            <>
+            <TooltipProvider>
               {variables.length === 0 ? (
                 <p className="wz-p">This template has no variables. Instantiate directly.</p>
               ) : (
-                variables.map((v) => (
-                  <div key={v.key} className="form-row">
-                    <label>
-                      {v.prompt || v.key} {v.required ? <span className="req">*</span> : null}
-                    </label>
-                    <input
-                      className="form-inp"
-                      placeholder={v.default ?? ''}
-                      value={values[v.key] ?? ''}
-                      onChange={(e) => setValues((prev) => ({ ...prev, [v.key]: e.target.value }))}
-                    />
-                    {v.description ? <span className="form-hint">{v.description}</span> : null}
-                  </div>
-                ))
+                <div className="wz-var-grid">
+                  {variables.map((v) => {
+                    const invalid = v.required && !(values[v.key] ?? '').trim()
+                    return (
+                      <div key={v.key} className="form-row">
+                        <FieldLabel text={v.prompt || v.key} required={v.required} hint={v.description} />
+                        <input
+                          className={`form-inp${invalid ? ' is-invalid' : ''}`}
+                          placeholder={v.required ? 'Required' : 'Optional'}
+                          aria-invalid={invalid}
+                          value={values[v.key] ?? ''}
+                          onChange={(e) => setValues((prev) => ({ ...prev, [v.key]: e.target.value }))}
+                        />
+                        {invalid ? (
+                          <span className="form-hint is-error">Required — fill this in.</span>
+                        ) : null}
+                      </div>
+                    )
+                  })}
+                </div>
               )}
 
               <div className="form-row">
-                <label>Board slug (optional)</label>
+                <FieldLabel
+                  text="Board slug (optional)"
+                  hint="Target board for the instantiated tasks. Auto-generated from the template if left blank."
+                />
                 <input
                   className="form-inp"
                   placeholder="auto-generated if blank"
                   value={boardSlug}
                   onChange={(e) => setBoardSlug(e.target.value)}
                 />
-                <span className="form-hint">Target board for the instantiated tasks.</span>
               </div>
 
               <div className="form-row">
@@ -1436,6 +1677,11 @@ function InstantiateModal({
                   />
                   Auto-dispatch tasks to agents
                 </label>
+                <span className="form-hint">
+                  {autoDispatch
+                    ? 'On — root tasks (status “ready”, no dependencies) dispatch to agents immediately; dependents unlock as their parents finish.'
+                    : 'Off — all tasks are seeded as “todo”; nothing runs until you start them manually.'}
+                </span>
               </div>
 
               {error ? (
@@ -1448,7 +1694,7 @@ function InstantiateModal({
                   <div className="pc-body description-copy">{error}</div>
                 </div>
               ) : null}
-            </>
+            </TooltipProvider>
           )}
         </div>
 
@@ -1614,9 +1860,19 @@ export function BoardTemplatesScreen() {
           <TemplatesUnsupported />
         ) : templatesQuery.isError ? (
           <div className="brd-error">
-            {templatesQuery.error instanceof Error
-              ? templatesQuery.error.message
-              : 'Templates unavailable'}
+            <span>
+              {templatesQuery.error instanceof Error
+                ? templatesQuery.error.message
+                : 'Templates unavailable'}
+            </span>
+            <button
+              type="button"
+              className="btn-mini"
+              onClick={() => void templatesQuery.refetch()}
+              disabled={templatesQuery.isFetching}
+            >
+              {templatesQuery.isFetching ? 'Retrying…' : 'Retry'}
+            </button>
           </div>
         ) : filtered.length === 0 ? (
           <div className="brd-canvas">

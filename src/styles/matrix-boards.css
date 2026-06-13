@@ -8,7 +8,10 @@
 [data-screen='boards'] .brd-error {
   display: grid;
   place-items: center;
+  gap: 12px;
   height: 100%;
+  padding: 0 24px;
+  text-align: center;
   color: var(--m-text-muted, #89a197);
   font: 500 13px var(--m-font-mono, monospace);
 }
@@ -524,6 +527,57 @@
 [data-screen='boards'] .settings-grid,
 [data-screen='boards'] .form-row,
 [data-screen='boards'] .review-block { display: grid; gap: 8px; }
+
+/* Instantiate modal: variables in a responsive 2-column grid. */
+[data-screen='boards'] .wz-var-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px 16px;
+  align-items: start;
+}
+/* Required field left empty: red ring + label marker. */
+[data-screen='boards'] .form-inp.is-invalid {
+  border-color: #ff5fa2;
+  box-shadow: 0 0 0 1px rgba(255, 95, 162, .45);
+}
+[data-screen='boards'] .form-hint.is-error { color: #ff5fa2; }
+
+/* Inline info trigger that opens a field-help tooltip. */
+[data-screen='boards'] .wz-hint-i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 6px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 255, 65, .4);
+  background: transparent;
+  color: rgba(0, 255, 65, .75);
+  font-size: 9px;
+  font-style: italic;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  vertical-align: middle;
+  padding: 0;
+  transition: border-color .12s, color .12s;
+}
+[data-screen='boards'] .wz-hint-i:hover,
+[data-screen='boards'] .wz-hint-i:focus-visible {
+  border-color: rgba(0, 255, 65, .9);
+  color: #00ff41;
+  outline: none;
+}
+.wz-tip-popup { max-width: 260px; line-height: 1.4; }
+
+/* scheduled_at control: mode select + value input(s) on one row. */
+[data-screen='boards'] .wz-sched { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+[data-screen='boards'] .wz-sched-mode { flex: 0 0 auto; min-width: 130px; }
+[data-screen='boards'] .wz-sched-n { flex: 0 0 72px; }
+[data-screen='boards'] .wz-sched-unit { flex: 0 0 auto; min-width: 96px; }
+[data-screen='boards'] .wz-sched .form-inp[type='datetime-local'] { flex: 1 1 200px; }
+[data-screen='boards'] .wz-err { color: #ff5fa2; font-size: 12px; }
 
 [data-screen='boards'] .wizard-modal {
   position: fixed;

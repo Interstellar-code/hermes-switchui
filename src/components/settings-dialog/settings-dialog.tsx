@@ -960,19 +960,6 @@ function AppearanceContent() {
         <EnterpriseThemePicker />
       </div>
       <div className={SETTINGS_CARD_CLASS}>
-        <Row
-          label="System metrics footer"
-          description="Show a persistent footer with CPU, RAM, disk, and Hermes Agent status."
-        >
-          <Switch
-            checked={settings.showSystemMetricsFooter}
-            onCheckedChange={(c) =>
-              updateSettings({ showSystemMetricsFooter: c })
-            }
-            aria-label="Show system metrics footer"
-          />
-        </Row>
-
         {/* Mobile chat nav removed — not relevant for Hermes */}
       </div>
     </div>

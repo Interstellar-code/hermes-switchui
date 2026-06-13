@@ -3,6 +3,23 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.47] — 2026-06-13
+
+Board Templates: per-task scheduled-start times, a refreshed instantiate form, and faster loads. Plus removal of the system metrics footer.
+
+### Added
+
+- **Per-task scheduled start (`scheduled_at`).** The template task editor (Advanced section) gains a deferred-dispatch control with a mode toggle — **Immediately / After delay / At date-time / From variable** — producing the three backend-accepted forms: a relative offset (`+2h`, `+30m`, `+1d`, `+1w`), an absolute date/time (unix epoch), or a `{{variable}}` resolved at instantiation. Inline validation mirrors the backend (`+<n><unit>`, positive epoch, or `{{var}}`); the value round-trips through create/edit and gates the wizard. Verified end-to-end against a live board: deferred tasks are held from dispatch until their time passes. (#231)
+
+### Changed
+
+- **Instantiate ("Use Template") modal redesign.** Variables now lay out in a responsive 2-column grid; each field carries an `(i)` tooltip (Base UI) instead of verbose inline captions. Required-but-empty fields show a clear invalid state; the auto-dispatch toggle gained an explanatory hint; the post-instantiate result link switches to the new board before navigating to Tasks.
+- **Removed the system metrics footer** and its settings toggle (`system-metrics-footer` component, settings-dialog entry, and `use-settings` flag).
+
+### Fixed
+
+- **Board Templates load performance.** Added a 20s client-side fetch timeout (surfaced as a clean 504 instead of an indefinite spinner), a 30s `staleTime` so revisits serve cached data with no spinner, a Retry button on the error state, and a multi-child error-layout fix.
+
 ## [2.3.46] — 2026-06-12
 
 Board Templates: guided wizard for template creation, plus per-task runtime/turn controls.

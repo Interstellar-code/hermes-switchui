@@ -40,9 +40,7 @@ import { MobilePageHeader } from '@/components/mobile-page-header'
 import { MobileTerminalInput } from '@/components/terminal/mobile-terminal-input'
 import { ClaudeReconnectBanner } from '@/components/claude-reconnect-banner'
 import { useMobileKeyboard } from '@/hooks/use-mobile-keyboard'
-import { SystemMetricsFooter } from '@/components/system-metrics-footer'
 import { CommandPalette } from '@/components/command-palette'
-import { useSettings } from '@/hooks/use-settings'
 // ActivityTicker moved to dashboard-only (too noisy for global header)
 
 const TerminalWorkspace = lazy(() =>
@@ -69,7 +67,6 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
     [],
   )
 
-  const { settings } = useSettings()
   const sidebarCollapsed = useWorkspaceStore((s) => s.sidebarCollapsed)
   const chatFocusMode = useWorkspaceStore((s) => s.chatFocusMode)
   const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar)
@@ -189,7 +186,6 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   const hideChatSidebar = isOnChatRoute && chatFocusMode
   const showDesktopSidebarBackdrop =
     !isMobile && !isOnChatRoute && !sidebarCollapsed
-
 
   const isNewChat = activeFriendlyId === 'new'
 
@@ -335,7 +331,10 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
         >
           {/* Sidebar — primary nav always; sessions panel only on chat route */}
           {!isMobile && !hideChatSidebar && (
-            <div className="relative z-30 flex h-full" data-testid="sidebar-v2-mount">
+            <div
+              className="relative z-30 flex h-full"
+              data-testid="sidebar-v2-mount"
+            >
               <PrimaryNavV2 />
               {isOnChatRoute && <SidebarShellV2 />}
             </div>
@@ -351,11 +350,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
               isOnChatRoute ? 'overflow-hidden' : 'overflow-y-auto',
               isMobile && !isOnChatRoute
                 ? 'pb-[calc(var(--tabbar-h,0px)+0.5rem)]'
-                : !isMobile &&
-                    !isOnChatRoute &&
-                    settings.showSystemMetricsFooter
-                  ? 'pb-7'
-                  : '',
+                : '',
               !isMobile && isOnChatRoute
                 ? 'rounded-md border border-[color:var(--theme-border)] my-2 mr-2'
                 : '',
@@ -429,16 +424,6 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
       </div>
 
       <MobileHamburgerMenu />
-      {!isMobile && !isOnChatRoute && settings.showSystemMetricsFooter ? (
-        <SystemMetricsFooter
-          leftOffsetPx={
-            typeof window !== 'undefined' &&
-            window.localStorage.getItem('hermes.primary-nav.collapsed') === 'true'
-              ? 48
-              : 232
-          }
-        />
-      ) : null}
       <CommandPalette pathname={pathname} sessions={sessions} />
     </>
   )

@@ -20,7 +20,6 @@ export type StudioSettings = {
   preferredBudgetModel: string
   preferredPremiumModel: string
   onlySuggestCheaper: boolean
-  showSystemMetricsFooter: boolean
   /** Mobile chat nav mode: 'dock' = iMessage (no nav in chat), 'integrated' = chat input in nav pill, 'scroll-hide' = nav shows on scroll up */
   mobileChatNavMode: 'dock' | 'integrated' | 'scroll-hide'
 }
@@ -44,7 +43,6 @@ export const defaultStudioSettings: StudioSettings = {
   preferredBudgetModel: '',
   preferredPremiumModel: '',
   onlySuggestCheaper: false,
-  showSystemMetricsFooter: false,
   mobileChatNavMode: 'dock',
 }
 
