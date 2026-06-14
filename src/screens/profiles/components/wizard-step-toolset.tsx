@@ -1,4 +1,10 @@
-import { CONFIGURABLE_TOOLSETS, DESTRUCTIVE_TOOLSETS, TOOLSET_GROUPS } from '@/lib/toolsets'
+import { useQuery } from '@tanstack/react-query'
+import {
+  PLUGINS_GROUP,
+  TOOLSET_GROUPS,
+  buildStaticToolsetCatalog,
+  type NormalizedToolset,
+} from '@/lib/toolsets'
 import type { NewAgentDraft } from '../types'
 
 type Props = {
@@ -7,10 +13,41 @@ type Props = {
   onChange: (patch: Partial<NewAgentDraft>) => void
 }
 
+type ToolsetCatalog = {
+  toolsets: NormalizedToolset[]
+  source: 'gateway' | 'static'
+}
+
+async function fetchToolsetCatalog(): Promise<ToolsetCatalog> {
+  const r = await fetch('/api/profiles/toolsets')
+  if (!r.ok) throw new Error(`toolsets ${r.status}`)
+  return (await r.json()) as ToolsetCatalog
+}
+
 export function WizardStepToolset({ draft, errors, onChange }: Props) {
-  const total = CONFIGURABLE_TOOLSETS.length
+  const catalogQuery = useQuery({
+    queryKey: ['toolsets', 'catalog'],
+    queryFn: fetchToolsetCatalog,
+    staleTime: 60_000,
+  })
+
+  // While loading or on error, fall back to the static catalog so the step
+  // always renders. source stays 'static' until live data arrives.
+  const data = catalogQuery.data
+  const toolsets: NormalizedToolset[] =
+    data?.toolsets ?? buildStaticToolsetCatalog()
+  const source: 'gateway' | 'static' = data?.source ?? 'static'
+
+  const total = toolsets.length
   const disabledSet = new Set(draft.disabled_toolsets)
   const enabledCount = total - disabledSet.size
+
+  // Distinct groups present, ordered: static TOOLSET_GROUPS first, Plugins last.
+  const presentGroups = new Set(toolsets.map((t) => t.group))
+  const orderedGroups = [
+    ...TOOLSET_GROUPS.filter((g) => presentGroups.has(g)),
+    ...(presentGroups.has(PLUGINS_GROUP) ? [PLUGINS_GROUP] : []),
+  ]
 
   function toggle(key: string) {
     const next = new Set(disabledSet)
@@ -27,7 +64,7 @@ export function WizardStepToolset({ draft, errors, onChange }: Props) {
   }
 
   function disableAll() {
-    onChange({ disabled_toolsets: CONFIGURABLE_TOOLSETS.map((t) => t.key) })
+    onChange({ disabled_toolsets: toolsets.map((t) => t.key) })
   }
 
   return (
@@ -39,6 +76,11 @@ export function WizardStepToolset({ draft, errors, onChange }: Props) {
             Choose which tool groups this agent can use. All toolsets are enabled by default —
             deselect to restrict access.
           </p>
+          {source === 'gateway' && (
+            <p className="wiz-hint" style={{ marginTop: 4 }}>
+              Reflecting the live gateway toolset registry.
+            </p>
+          )}
         </div>
         <div className="wiz-toolset-meta">
           <span className="wiz-hint">{enabledCount} of {total} enabled</span>
@@ -64,16 +106,15 @@ export function WizardStepToolset({ draft, errors, onChange }: Props) {
         </div>
       )}
 
-      {TOOLSET_GROUPS.map((group) => {
-        const groupToolsets = CONFIGURABLE_TOOLSETS.filter((t) => t.group === group)
+      {orderedGroups.map((group) => {
+        const groupToolsets = toolsets.filter((t) => t.group === group)
         if (groupToolsets.length === 0) return null
         return (
           <div key={group} className="wiz-toolset-group">
             <div className="wiz-toolset-group-label">{group}</div>
             <div className="skill-grid">
-              {groupToolsets.map(({ key, label }) => {
+              {groupToolsets.map(({ key, label, destructive, plugin }) => {
                 const enabled = !disabledSet.has(key)
-                const destructive = DESTRUCTIVE_TOOLSETS.has(key)
                 return (
                   <div
                     key={key}
@@ -86,6 +127,11 @@ export function WizardStepToolset({ draft, errors, onChange }: Props) {
                   >
                     <div className="chk" />
                     <span className="skill-label">{label}</span>
+                    {plugin && (
+                      <span className="wiz-toolset-plugin-pill" title="Registered by a Hermes plugin">
+                        🔌
+                      </span>
+                    )}
                     {destructive && (
                       <span className="wiz-toolset-warn-pill" title="Grants powerful system access — disable for read-only or review agents">
                         ⚠

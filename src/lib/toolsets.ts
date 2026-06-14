@@ -49,6 +49,41 @@ export const DESTRUCTIVE_TOOLSETS = new Set([
 ])
 
 /**
+ * Normalized toolset item — the shared shape consumed by the wizard step and
+ * produced by both the live gateway route and the static fallback.
+ */
+export type NormalizedToolset = {
+  key: string
+  label: string
+  group: string
+  destructive: boolean
+  plugin: boolean
+}
+
+/** Group used for plugin-registered toolsets that have no static mapping. */
+export const PLUGINS_GROUP = 'Plugins'
+
+/** Lookup: canonical toolset key → static group. */
+export const TOOLSET_GROUP_BY_KEY: Record<string, string> = Object.fromEntries(
+  CONFIGURABLE_TOOLSETS.map((t) => [t.key, t.group]),
+)
+
+/**
+ * Build the normalized fallback array from the static CONFIGURABLE_TOOLSETS.
+ * Shared by the server route (on gateway error) and the component (on fetch
+ * loading/error) so the fallback shape is identical everywhere.
+ */
+export function buildStaticToolsetCatalog(): NormalizedToolset[] {
+  return CONFIGURABLE_TOOLSETS.map((t) => ({
+    key: t.key,
+    label: t.label,
+    group: t.group,
+    destructive: DESTRUCTIVE_TOOLSETS.has(t.key),
+    plugin: false,
+  }))
+}
+
+/**
  * Best-effort mapper from persona `suggested_toolsets` vocabulary to canonical keys.
  *
  * Persona files use loose names like `core`, `files`, `bash`, `web`, `vision`, `terminal`.
