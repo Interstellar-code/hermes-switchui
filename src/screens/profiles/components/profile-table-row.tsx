@@ -6,6 +6,7 @@ type Props = {
   onActivate?: (profileName: string) => void
   onRename?: (agent: AgentRow) => void
   onDelete?: (profileName: string) => void
+  onClone?: (agent: AgentRow) => void
 }
 
 // POL-03: built-in T1/T2 and default (active without profileName) are protected
@@ -13,7 +14,7 @@ function isProtected(agent: AgentRow): boolean {
   return agent.builtin || (agent.active === true && !agent.profileName)
 }
 
-export function ProfileTableRow({ agent, onClick, onActivate, onRename, onDelete }: Props) {
+export function ProfileTableRow({ agent, onClick, onActivate, onRename, onDelete, onClone }: Props) {
   const builtinClass = agent.builtin ? ' builtin' : ''
   const tierKey = `t${String(agent.tier)}` as 't1' | 't2' | 't3'
   const protected_ = isProtected(agent)
@@ -102,6 +103,19 @@ export function ProfileTableRow({ agent, onClick, onActivate, onRename, onDelete
               >
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
                   <path d="M11.5 2.5a1.414 1.414 0 0 1 2 2L5 13H3v-2L11.5 2.5z"/>
+                </svg>
+              </button>
+            )}
+            {agent.profileName && onClone && (
+              <button
+                type="button"
+                className="pf-tbl-action-btn"
+                title="Clone"
+                onClick={() => onClone(agent)}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
+                  <rect x="5" y="5" width="8" height="9" rx="1.5"/>
+                  <path d="M3 11V3a1 1 0 0 1 1-1h8"/>
                 </svg>
               </button>
             )}

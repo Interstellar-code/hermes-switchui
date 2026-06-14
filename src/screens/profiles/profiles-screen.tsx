@@ -129,6 +129,9 @@ export function ProfilesScreen() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [renameTarget, setRenameTarget] = useState<AgentRow | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [cloneTarget, setCloneTarget] = useState<AgentRow | null>(null)
+  const [cloneValue, setCloneValue] = useState('')
+  const [cloneError, setCloneError] = useState<string | null>(null)
   const [busyName, setBusyName] = useState<string | null>(null)
   const [wizardOpen, setWizardOpen] = useState(false)
   const [drawerAgent, setDrawerAgent] = useState<AgentRow | null>(null)
@@ -283,6 +286,43 @@ export function ProfilesScreen() {
     }
   }
 
+  const NAME_RE = /^[a-z0-9-]{2,40}$/
+  const existingProfileNames = profiles.map((p: any) => (p.name || '').toLowerCase())
+
+  function openClone(agent: AgentRow) {
+    const raw = `${agent.profileName ?? agent.name}-copy`
+    const sanitized = raw.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 40)
+    setCloneTarget(agent)
+    setCloneValue(sanitized)
+    setCloneError(null)
+  }
+
+  async function handleClone() {
+    if (!cloneTarget?.profileName || !cloneValue.trim()) return
+    const name = cloneValue.trim()
+    if (!NAME_RE.test(name)) {
+      setCloneError('Name must be 2–40 lowercase letters, numbers, or hyphens')
+      return
+    }
+    if (existingProfileNames.includes(name)) {
+      setCloneError(`Name "${name}" is already in use`)
+      return
+    }
+    setBusyName(cloneTarget.profileName)
+    try {
+      await postJson('/api/profiles/create', { name, cloneFrom: cloneTarget.profileName })
+      toast(`Cloned ${cloneTarget.profileName} → ${name}`, { type: 'success' })
+      setCloneTarget(null)
+      setCloneValue('')
+      setCloneError(null)
+      await refreshProfiles()
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Failed to clone', { type: 'error' })
+    } finally {
+      setBusyName(null)
+    }
+  }
+
   function handleCardClick(agent: AgentRow) {
     setDrawerAgent(agent)
   }
@@ -366,6 +406,7 @@ export function ProfilesScreen() {
                 key={agent.id}
                 agent={agent}
                 onClick={() => handleCardClick(agent)}
+                onClone={(a) => openClone(a)}
                 data-profile={agent.profileName}
               />
             ))}
@@ -433,6 +474,7 @@ export function ProfilesScreen() {
                   onActivate={(profileName) => void handleActivate(profileName)}
                   onRename={(a) => { setRenameTarget(a); setRenameValue(a.name) }}
                   onDelete={(profileName) => void handleDelete(profileName)}
+                  onClone={(a) => openClone(a)}
                 />
               ))}
               {paginated.length === 0 && (
@@ -521,6 +563,52 @@ export function ProfilesScreen() {
               }
             >
               Rename
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Clone dialog ── */}
+      <Dialog
+        open={Boolean(cloneTarget)}
+        onOpenChange={(open) => {
+          if (!open) { setCloneTarget(null); setCloneValue(''); setCloneError(null) }
+        }}
+      >
+        <DialogContent className="w-[min(440px,94vw)] max-w-none p-0">
+          <div className="border-b border-primary-200 px-6 pb-4 pt-5 dark:border-neutral-800">
+            <DialogTitle className="text-base font-semibold">Clone agent</DialogTitle>
+            <p className="mt-0.5 text-xs text-primary-500 dark:text-neutral-400">
+              Cloning <span className="font-semibold">{cloneTarget?.name}</span>
+            </p>
+          </div>
+          <div className="space-y-4 px-6 py-5">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-primary-600 dark:text-neutral-400">
+                New name
+              </label>
+              <Input
+                value={cloneValue}
+                onChange={(e) => { setCloneValue(e.target.value); setCloneError(null) }}
+                placeholder="new-agent-name"
+                className="h-11 text-sm"
+                autoFocus
+              />
+              {cloneError && (
+                <p className="text-xs text-red-500 dark:text-red-400">{cloneError}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 border-t border-primary-200 px-6 py-3 dark:border-neutral-800">
+            <Button variant="outline" size="sm" onClick={() => { setCloneTarget(null); setCloneValue(''); setCloneError(null) }}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => void handleClone()}
+              disabled={!cloneValue.trim() || Boolean(busyName)}
+            >
+              Clone
             </Button>
           </div>
         </DialogContent>

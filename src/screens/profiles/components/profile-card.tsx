@@ -4,6 +4,7 @@ import { formatRelative } from '@/lib/format'
 type Props = {
   agent: AgentRow
   onClick: () => void
+  onClone?: (agent: AgentRow) => void
   'data-profile'?: string
 }
 
@@ -24,7 +25,7 @@ function StatusDot({ status }: { status: string }) {
   )
 }
 
-export function ProfileCard({ agent, onClick, 'data-profile': dataProfile }: Props) {
+export function ProfileCard({ agent, onClick, onClone, 'data-profile': dataProfile }: Props) {
   const tierClass = `tier-${agent.tier}`
   const builtinClass = agent.builtin ? ' builtin' : ''
   const inUseClass = agent.active ? ' pf-card--in-use' : ''
@@ -92,6 +93,24 @@ export function ProfileCard({ agent, onClick, 'data-profile': dataProfile }: Pro
           {agent.last_run ? formatRelative(agent.last_run) : '—'}
         </span>
       </div>
+
+      {/* Clone action — only for non-builtin profiles */}
+      {!agent.builtin && agent.profileName && onClone && (
+        <div className="pf-card-actions" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="pf-tbl-action-btn"
+            title="Clone"
+            onClick={() => onClone(agent)}
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
+              <rect x="5" y="5" width="8" height="9" rx="1.5"/>
+              <path d="M3 11V3a1 1 0 0 1 1-1h8"/>
+            </svg>
+            Clone
+          </button>
+        </div>
+      )}
     </article>
   )
 }
