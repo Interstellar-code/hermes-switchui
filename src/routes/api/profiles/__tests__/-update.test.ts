@@ -130,15 +130,17 @@ describe('POST /api/profiles/update — validation', () => {
     expect(body.error).toMatch(/tier/)
   })
 
-  it('rejects builtin profile name "hermes-switch" with 500 (reserved)', async () => {
+  it('allows updating an existing built-in-named profile (hermes-switch)', async () => {
+    // Built-in-named profiles (hermes-switch/neo/trinity/morpheus) are real, editable
+    // profiles. update mutates an existing dir (existsSync-guarded) and is no longer
+    // blocked by the reserved-name guard — only createProfile still blocks reserved names.
     const handler = await getHandler()
     const res = await handler({
-      request: makeRequest({ name: 'hermes-switch', description: 'pwned' }),
+      request: makeRequest({ name: 'hermes-switch', description: 'updated role' }),
     })
-    // validateProfileName throws → caught as 500
-    expect(res.status).toBe(500)
-    const body = await res.json() as { error: string }
-    expect(body.error).toMatch(/reserved/)
+    expect(res.status).toBe(200)
+    const body = await res.json() as { ok?: boolean; error?: string }
+    expect(body.error).toBeUndefined()
   })
 
   it('rejects empty patch (no fields) with 400', async () => {
