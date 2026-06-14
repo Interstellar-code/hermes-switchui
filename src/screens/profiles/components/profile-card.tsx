@@ -4,7 +4,9 @@ import { formatRelative } from '@/lib/format'
 type Props = {
   agent: AgentRow
   onClick: () => void
+  onEdit?: (agent: AgentRow) => void
   onClone?: (agent: AgentRow) => void
+  onDelete?: (profileName: string) => void
   'data-profile'?: string
 }
 
@@ -25,7 +27,7 @@ function StatusDot({ status }: { status: string }) {
   )
 }
 
-export function ProfileCard({ agent, onClick, onClone, 'data-profile': dataProfile }: Props) {
+export function ProfileCard({ agent, onClick, onEdit, onClone, onDelete, 'data-profile': dataProfile }: Props) {
   const tierClass = `tier-${agent.tier}`
   const builtinClass = agent.builtin ? ' builtin' : ''
   const inUseClass = agent.active ? ' pf-card--in-use' : ''
@@ -94,21 +96,46 @@ export function ProfileCard({ agent, onClick, onClone, 'data-profile': dataProfi
         </span>
       </div>
 
-      {/* Clone action — any real profile (not the synthetic default) */}
-      {agent.profileName && agent.profileName !== 'default' && onClone && (
+      {/* Action buttons — any real profile (not the synthetic default) */}
+      {agent.profileName && agent.profileName !== 'default' && (
         <div className="pf-card-actions" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="pf-tbl-action-btn"
-            title="Clone"
-            onClick={() => onClone(agent)}
-          >
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
-              <rect x="5" y="5" width="8" height="9" rx="1.5"/>
-              <path d="M3 11V3a1 1 0 0 1 1-1h8"/>
-            </svg>
-            Clone
-          </button>
+          {onEdit && (
+            <button
+              type="button"
+              className="pf-tbl-action-btn"
+              title="Edit"
+              onClick={() => onEdit(agent)}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
+                <path d="M11.5 2.5a1.414 1.414 0 0 1 2 2L5 13H3v-2L11.5 2.5z"/>
+              </svg>
+            </button>
+          )}
+          {onClone && (
+            <button
+              type="button"
+              className="pf-tbl-action-btn"
+              title="Clone"
+              onClick={() => onClone(agent)}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
+                <rect x="5" y="5" width="8" height="9" rx="1.5"/>
+                <path d="M3 11V3a1 1 0 0 1 1-1h8"/>
+              </svg>
+            </button>
+          )}
+          {onDelete && !agent.active && (
+            <button
+              type="button"
+              className="pf-tbl-action-btn pf-tbl-action-btn--danger"
+              title="Delete"
+              onClick={() => onDelete(agent.profileName!)}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
+                <path d="M3 4h10M6 4V2.5h4V4M5 4v9h6V4"/>
+              </svg>
+            </button>
+          )}
         </div>
       )}
     </article>

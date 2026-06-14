@@ -411,7 +411,9 @@ export function ProfilesScreen() {
                 key={agent.id}
                 agent={agent}
                 onClick={() => handleCardClick(agent)}
+                onEdit={(a) => handleCardClick(a)}
                 onClone={(a) => openClone(a)}
+                onDelete={(profileName) => void handleDelete(profileName)}
                 data-profile={agent.profileName}
               />
             ))}
@@ -603,7 +605,7 @@ export function ProfilesScreen() {
       <ConfirmDialog
         open={deleteConfirmName !== null}
         title="Delete agent?"
-        message="Move profile to ~/.hermes/trash? This can be restored manually but won't appear in the UI."
+        message={`This permanently deletes the profile "${deleteConfirmName ?? ''}" and all its data. This cannot be undone.`}
         confirmLabel="Delete"
         destructive
         onConfirm={() => { const n = deleteConfirmName!; setDeleteConfirmName(null); void doDelete(n) }}

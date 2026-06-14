@@ -122,7 +122,7 @@ export function ProfileTableRow({ agent, onClick, onActivate, onRename, onDelete
                 </svg>
               </button>
             )}
-            {agent.profileName && onDelete && (
+            {agent.profileName && !agent.active && onDelete && (
               <button
                 type="button"
                 className="pf-tbl-action-btn pf-tbl-action-btn--danger"
