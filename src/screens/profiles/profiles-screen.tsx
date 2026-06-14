@@ -5,7 +5,6 @@ import { ProfileFilters } from './components/profile-filters'
 import { ProfilePager } from './components/profile-pager'
 import { ProfileTableRow } from './components/profile-table-row'
 import { AgentWizard } from './components/agent-wizard'
-import { AgentDetailDrawer } from './components/agent-detail-drawer'
 import { ConfirmDialog } from './components/confirm-dialog'
 import type { BuiltinAgent } from '@/lib/builtin-agents'
 import type { AgentUIMetadata, ProfileSummary } from '@/server/profiles-browser'
@@ -134,7 +133,7 @@ export function ProfilesScreen() {
   const [cloneError, setCloneError] = useState<string | null>(null)
   const [busyName, setBusyName] = useState<string | null>(null)
   const [wizardOpen, setWizardOpen] = useState(false)
-  const [drawerAgent, setDrawerAgent] = useState<AgentRow | null>(null)
+  const [editAgent, setEditAgent] = useState<AgentRow | null>(null)
   const [deleteConfirmName, setDeleteConfirmName] = useState<string | null>(null)
   const newProfileRef = useRef<string | null>(null)
 
@@ -324,10 +323,13 @@ export function ProfilesScreen() {
   }
 
   function handleCardClick(agent: AgentRow) {
-    setDrawerAgent(agent)
+    if (agent.builtin || !agent.profileName || agent.profileName === 'default') return
+    setEditAgent(agent)
+    setWizardOpen(true)
   }
 
   function handleNewAgent() {
+    setEditAgent(null)
     setWizardOpen(true)
   }
 
@@ -497,28 +499,9 @@ export function ProfilesScreen() {
       {/* ── Agent wizard ── */}
       <AgentWizard
         open={wizardOpen}
-        onClose={() => setWizardOpen(false)}
+        onClose={() => { setWizardOpen(false); setEditAgent(null) }}
         onSuccess={handleWizardSuccess}
-      />
-
-      {/* ── Agent detail drawer ── */}
-      <AgentDetailDrawer
-        agent={drawerAgent}
-        open={!!drawerAgent}
-        onClose={() => setDrawerAgent(null)}
-        onRename={(agent) => {
-          setDrawerAgent(null)
-          setRenameTarget(agent)
-          setRenameValue(agent.name)
-        }}
-        onDelete={(profileName) => {
-          setDrawerAgent(null)
-          void handleDelete(profileName)
-        }}
-        onActivate={(profileName) => {
-          setDrawerAgent(null)
-          void handleActivate(profileName)
-        }}
+        editProfileName={editAgent?.profileName ?? null}
       />
 
       {/* ── Rename dialog ── */}

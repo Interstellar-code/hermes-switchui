@@ -51,7 +51,7 @@ export const INITIAL_DRAFT: NewAgentDraft = {
   memory_provider: 'hindsight',
 }
 
-export type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
+export type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 
 export type WizardState = {
   draft: NewAgentDraft
@@ -109,7 +109,8 @@ export const STEP_LABELS: Record<WizardStep, string> = {
   5: 'MCP',
   6: 'Toolsets',
   7: 'Memory',
-  8: 'Review',
+  8: 'Config',
+  9: 'Review',
 }
 
 // ── Validation ────────────────────────────────────────────────────────────────
@@ -121,12 +122,13 @@ export function validateStep(
   step: WizardStep,
   draft: NewAgentDraft,
   existingNames: string[],
+  editName?: string,
 ): string[] {
   const errs: string[] = []
   if (step === 1) {
     if (!NAME_RE.test(draft.name)) {
       errs.push('Name must be 2–40 lowercase letters, numbers, or hyphens')
-    } else if (existingNames.includes(draft.name)) {
+    } else if (existingNames.includes(draft.name) && draft.name !== editName) {
       errs.push(`Name "${draft.name}" is already in use`)
     }
     if (!GLYPH_RE.test(draft.glyph)) {
@@ -138,7 +140,10 @@ export function validateStep(
       errs.push('Role must be ≤80 characters')
     }
   } else if (step === 2) {
-    if (!draft.persona_id) {
+    // Persona is required when creating; existing profiles may legitimately have no
+    // persona_id (legacy/API-created), so editing only requires a non-empty system
+    // prompt — the actual identity. editName is set only in edit mode.
+    if (!draft.persona_id && !editName) {
       errs.push('Please select a persona')
     }
     if (!draft.system_prompt?.trim()) {
@@ -155,11 +160,12 @@ export function validateStep(
       errs.push('Memory provider is required when memory is enabled')
     }
   }
-  // Step 8: validate all prior steps
-  else if (step === 8) {
+  // Step 8: Config — read-only, no validation required
+  // Step 9: validate all prior required steps
+  else if (step === 9) {
     const prior = [1, 2, 3, 7] as const
     for (const s of prior) {
-      const e = validateStep(s as WizardStep, draft, existingNames)
+      const e = validateStep(s as WizardStep, draft, existingNames, editName)
       errs.push(...e)
     }
   }

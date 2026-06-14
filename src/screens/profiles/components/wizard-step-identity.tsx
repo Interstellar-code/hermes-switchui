@@ -9,9 +9,10 @@ type Props = {
   existingTags: string[]
   existingNames: string[]
   onChange: (patch: Partial<NewAgentDraft>) => void
+  editing?: boolean
 }
 
-export function WizardStepIdentity({ draft, errors, existingTags, existingNames, onChange }: Props) {
+export function WizardStepIdentity({ draft, errors, existingTags, existingNames, onChange, editing }: Props) {
   const [tagInput, setTagInput] = useState('')
 
   function addTag(tag: string) {
@@ -64,17 +65,25 @@ export function WizardStepIdentity({ draft, errors, existingTags, existingNames,
             onChange={(e) => onChange({ name: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
             placeholder="my-agent"
             maxLength={40}
+            disabled={editing}
+            readOnly={editing}
           />
-          <button
-            type="button"
-            className="wiz-btn-ghost"
-            title="Random Matrix name"
-            onClick={() => onChange({ name: randomMatrixName(existingNames) })}
-          >
-            🎲
-          </button>
+          {!editing && (
+            <button
+              type="button"
+              className="wiz-btn-ghost"
+              title="Random Matrix name"
+              onClick={() => onChange({ name: randomMatrixName(existingNames) })}
+            >
+              🎲
+            </button>
+          )}
         </div>
-        <div className="wiz-hint">2–40 chars · lowercase letters, numbers, hyphens only</div>
+        <div className="wiz-hint">
+          {editing
+            ? "Name can't be changed (use Rename)"
+            : '2–40 chars · lowercase letters, numbers, hyphens only'}
+        </div>
       </div>
 
       <div className="field">
