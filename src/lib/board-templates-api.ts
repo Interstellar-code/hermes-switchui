@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   InstantiateInput,
   InstantiateResult,
@@ -157,6 +157,28 @@ export function useTemplate(slug: string | null, enabled = true) {
     queryFn: () => fetchTemplate(slug as string),
     enabled: enabled && !!slug,
   })
+}
+
+/**
+ * Per-template task counts. The list endpoint omits tasks, so fetch each
+ * template's detail (shares the useTemplate cache via templatesKeys.detail).
+ * Pass only the visible/paginated slugs to bound the request fan-out.
+ */
+export function useTemplateTaskCounts(slugs: Array<string>): Record<string, number | undefined> {
+  const results = useQueries({
+    queries: slugs.map((slug) => ({
+      queryKey: templatesKeys.detail(slug),
+      queryFn: () => fetchTemplate(slug),
+      staleTime: 60_000,
+      retry: false,
+      select: (t: KanbanTemplate) => t.tasks.length,
+    })),
+  })
+  const counts: Record<string, number | undefined> = {}
+  slugs.forEach((slug, i) => {
+    counts[slug] = results[i]?.data as number | undefined
+  })
+  return counts
 }
 
 export function useSaveTemplate() {

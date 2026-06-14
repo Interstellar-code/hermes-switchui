@@ -435,6 +435,70 @@
 [data-screen='boards'] .brd-table tbody tr td:first-child { box-shadow: inset 2px 0 0 var(--bc, #00ff41); }
 [data-screen='boards'] .tbl-time { color: var(--m-text-faint, #6b8579); }
 
+/* ── Pagination footer (ported from matrix-profiles .pf-pagination) ── */
+[data-screen='boards'] .brd-pagination {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 22px;
+  height: 40px;
+  border-top: 1px solid var(--m-border, var(--theme-border));
+  background: var(--m-sidebar, var(--theme-sidebar));
+  font: 500 10px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text-faint, var(--theme-muted));
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+[data-screen='boards'] .brd-pagination b { color: var(--m-text-strong, var(--theme-text)); font-weight: 600; }
+[data-screen='boards'] .brd-pagination .sep { width: 1px; height: 14px; background: var(--m-border-subtle, var(--theme-border)); }
+[data-screen='boards'] .brd-pager-nav {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+}
+[data-screen='boards'] .brd-pager-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 26px; height: 24px;
+  border: 1px solid var(--m-border, var(--theme-border));
+  border-radius: 4px;
+  background: var(--m-bg-deep, #000802);
+  color: var(--m-text-faint, var(--theme-muted));
+  font: 500 10px var(--m-font-mono, ui-monospace, monospace);
+  cursor: pointer;
+  transition: all var(--m-dur-fast, 120ms) var(--m-ease-out, ease-out);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+[data-screen='boards'] .brd-pager-btn:hover:not(:disabled) {
+  color: var(--m-text, var(--theme-text));
+  border-color: var(--m-border-subtle, var(--theme-border));
+}
+[data-screen='boards'] .brd-pager-btn.on {
+  background: var(--m-fill, rgba(0,255,65,.1));
+  color: var(--m-green-500, #00ff41);
+  border-color: var(--m-green-500, #00ff41);
+}
+[data-screen='boards'] .brd-pager-btn:disabled {
+  opacity: .3;
+  cursor: not-allowed;
+}
+[data-screen='boards'] .brd-page-size-select {
+  background: var(--m-bg-deep, #000802);
+  border: 1px solid var(--m-border, var(--theme-border));
+  border-radius: 4px;
+  color: var(--m-text-faint, var(--theme-muted));
+  font: 500 10px var(--m-font-mono, ui-monospace, monospace);
+  padding: 2px 6px;
+  cursor: pointer;
+  outline: none;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+}
+[data-screen='boards'] .brd-page-size-select:focus { border-color: var(--m-green-500, #00ff41); }
+
 [data-screen='boards'] .empty-state {
   min-height: 280px;
   display: grid;

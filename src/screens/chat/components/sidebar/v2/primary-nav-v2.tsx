@@ -26,6 +26,7 @@ import { useSearchModal } from '@/hooks/use-search-modal'
 import { getTheme, getThemeVariant, isDarkTheme, setTheme } from '@/lib/theme'
 import { SettingsDialog } from '@/components/settings-dialog'
 import { useBoards } from '@/lib/boards-api'
+import { useNavCounts } from '@/hooks/use-nav-counts'
 
 // ── Icons (inline SVG) ────────────────────────────────────────────────────────
 
@@ -346,13 +347,14 @@ export function PrimaryNavV2() {
   const isDocs = pathname.startsWith('/docs')
   const boardsQuery = useBoards(true, !collapsed)
   const boardsCount = boardsQuery.data?.boards?.length
+  const counts = useNavCounts(!collapsed)
   const boardChildren = useMemo(
     () => [
       { label: 'Board', to: '/tasks', active: isTasks, iconKey: 'tasks' as const },
       { label: 'Boards', to: '/boards', active: isBoards, iconKey: 'boards' as const, badge: boardsCount },
-      { label: 'Templates', to: '/board-templates', active: isTemplates, iconKey: 'templates' as const },
+      { label: 'Templates', to: '/board-templates', active: isTemplates, iconKey: 'templates' as const, badge: counts.templates },
     ],
-    [boardsCount, isBoards, isTasks, isTemplates],
+    [boardsCount, counts.templates, isBoards, isTasks, isTemplates],
   )
   const boardsSectionActive = isTasks || isBoards || isTemplates
 
@@ -547,17 +549,17 @@ export function PrimaryNavV2() {
         {/* MAIN group */}
         {!collapsed && <GroupLabel label="Main" />}
         <NavItem label="Dashboard" iconKey="dashboard" to="/dashboard" active={isDashboard} collapsed={collapsed} />
-        <NavItem label="Chat" iconKey="chat" to="/chat" active={isChat} collapsed={collapsed} />
+        <NavItem label="Chat" iconKey="chat" to="/chat" active={isChat} collapsed={collapsed} badge={counts.chat} />
         <NavItem label="Files" iconKey="files" to="/files" active={isFiles} collapsed={collapsed} />
         <NavItem label="Terminal" iconKey="terminal" to="/terminal" active={isTerminal} collapsed={collapsed} />
-        <NavItem label="Jobs" iconKey="jobs" to="/jobs" active={isJobs} collapsed={collapsed} />
+        <NavItem label="Jobs" iconKey="jobs" to="/jobs" active={isJobs} collapsed={collapsed} badge={counts.jobs} />
         <NavItem
           label="Tasks"
           iconKey="tasks"
           to="/tasks"
           active={boardsSectionActive}
           collapsed={collapsed}
-          badge={boardsCount}
+          badge={counts.tasks}
         />
         {!collapsed && (
           <div style={{ display: 'grid', gap: 4, marginTop: -2, marginBottom: 2 }}>
@@ -575,8 +577,8 @@ export function PrimaryNavV2() {
             ))}
           </div>
         )}
-        <NavItem label="Workflows" iconKey="workflows" to="/workflows" active={isWorkflows} collapsed={collapsed} />
-        <NavItem label="Commands" iconKey="commands" to="/commands" active={isCommands} collapsed={collapsed} />
+        <NavItem label="Workflows" iconKey="workflows" to="/workflows" active={isWorkflows} collapsed={collapsed} badge={counts.workflows} />
+        <NavItem label="Commands" iconKey="commands" to="/commands" active={isCommands} collapsed={collapsed} badge={counts.commands} />
         <NavItem label="Conductor" iconKey="conductor" to="/conductor" active={isConductor} collapsed={collapsed} />
         {/* <NavItem label="Operations" iconKey="operations" to="/operations" active={isOperations} collapsed={collapsed} /> */}
         <NavItem label="Matrix3D" iconKey="matrix3d" to="/matrix3d" active={isMatrix3D} collapsed={collapsed} />
@@ -589,9 +591,9 @@ export function PrimaryNavV2() {
         {/* SETTINGS group */}
         {!collapsed && <GroupLabel label="Settings" />}
         <NavItem label="Settings" iconKey="cog" to="/settings" active={isSettings} collapsed={collapsed} />
-        <NavItem label="Skills" iconKey="skills" to="/skills" active={isSkills} collapsed={collapsed} />
-        <NavItem label="MCP" iconKey="mcp" to="/mcp" active={isMcp} collapsed={collapsed} />
-        <NavItem label="Profiles" iconKey="profiles" to="/profiles" active={isProfiles} collapsed={collapsed} />
+        <NavItem label="Skills" iconKey="skills" to="/skills" active={isSkills} collapsed={collapsed} badge={counts.skills} />
+        <NavItem label="MCP" iconKey="mcp" to="/mcp" active={isMcp} collapsed={collapsed} badge={counts.mcp} />
+        <NavItem label="Profiles" iconKey="profiles" to="/profiles" active={isProfiles} collapsed={collapsed} badge={counts.profiles} />
 
         {/* HELP group */}
         {!collapsed && <GroupLabel label="Help" />}

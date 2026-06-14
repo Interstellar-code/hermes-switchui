@@ -3,6 +3,21 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.48] — 2026-06-14
+
+Board Templates gains a grid/table datatable with pagination and per-template task counts. Sidebar nav items now show live counts, and Boards gets an "Open Tasks" shortcut.
+
+### Added
+
+- **Board Templates grid/table views + pagination.** The Templates page now offers a **Grid/List** view toggle (persisted to `localStorage`) modelled on the Profiles page — a responsive card grid alongside the existing table — with a pagination footer (per-page size selector + first/prev/page/next/last navigation). Search resets to page 1.
+- **Template task-count column.** Each template shows its number of tasks — a **Tasks** column in the table and a stat on each grid card. Counts are fetched per visible page (bounded fan-out) and cached, sharing the template-detail cache.
+- **Sidebar item counts.** The primary nav shows live count badges on Chat, Jobs, Tasks, Templates, Workflows, Commands, Skills, MCP, and Profiles. Counts fetch lazily (only while the nav is expanded) and hide on error.
+- **Boards "Open Tasks" action.** Board cards and list rows gain an **Open Tasks** button that switches to the board and opens its Kanban tasks directly — the same action as the drawer's Open Board, surfaced inline.
+
+### Fixed
+
+- **Tasks nav badge** now reflects the current board's task count instead of the number of boards.
+
 ## [2.3.47] — 2026-06-13
 
 Board Templates: per-task scheduled-start times, a refreshed instantiate form, and faster loads. Plus removal of the system metrics footer.

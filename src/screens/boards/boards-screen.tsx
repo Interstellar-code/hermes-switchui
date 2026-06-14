@@ -110,7 +110,7 @@ function StatusPill({ board }: { board: BoardMeta }) {
   )
 }
 
-function BoardCard({ board, onOpen, onDelete }: { board: BoardMeta; onOpen: (board: BoardMeta) => void; onDelete: (board: BoardMeta) => void }) {
+function BoardCard({ board, onOpen, onOpenTasks, onDelete }: { board: BoardMeta; onOpen: (board: BoardMeta) => void; onOpenTasks: (board: BoardMeta) => void; onDelete: (board: BoardMeta) => void }) {
   const stats = {
     backlog: countFor(board, ['triage', 'backlog']),
     todo: countFor(board, ['todo']),
@@ -152,6 +152,7 @@ function BoardCard({ board, onOpen, onDelete }: { board: BoardMeta; onOpen: (boa
         <span className="bc-time">{relativeTime(board.created_at)}</span>
         <div className="bc-acts">
           <button className="btn-mini" onClick={() => onOpen(board)}>Open</button>
+          <button className="btn-mini prim" onClick={() => onOpenTasks(board)}>Open Tasks</button>
           <button className="btn-mini danger" onClick={() => onDelete(board)} disabled={board.slug === 'default'}>Delete</button>
         </div>
       </div>
@@ -159,7 +160,7 @@ function BoardCard({ board, onOpen, onDelete }: { board: BoardMeta; onOpen: (boa
   )
 }
 
-function BoardRow({ board, onOpen, onDelete }: { board: BoardMeta; onOpen: (board: BoardMeta) => void; onDelete: (board: BoardMeta) => void }) {
+function BoardRow({ board, onOpen, onOpenTasks, onDelete }: { board: BoardMeta; onOpen: (board: BoardMeta) => void; onOpenTasks: (board: BoardMeta) => void; onDelete: (board: BoardMeta) => void }) {
   return (
     <tr style={{ ['--bc' as string]: board.color || COLORS[0] }} onClick={() => onOpen(board)}>
       <td>
@@ -178,6 +179,7 @@ function BoardRow({ board, onOpen, onDelete }: { board: BoardMeta; onOpen: (boar
       <td onClick={(e) => e.stopPropagation()}>
         <div className="tbl-acts">
           <button className="btn-mini" onClick={() => onOpen(board)}>Open</button>
+          <button className="btn-mini prim" onClick={() => onOpenTasks(board)}>Open Tasks</button>
           <button className="btn-mini danger" onClick={() => onDelete(board)} disabled={board.slug === 'default'}>Delete</button>
         </div>
       </td>
@@ -223,7 +225,7 @@ function MainTop({ allBoards, search, setSearch, filter, setFilter, view, setVie
   )
 }
 
-function BoardsCanvas({ boards, view, onOpen, onDelete }: { boards: BoardMeta[]; view: ViewMode; onOpen: (board: BoardMeta) => void; onDelete: (board: BoardMeta) => void }) {
+function BoardsCanvas({ boards, view, onOpen, onOpenTasks, onDelete }: { boards: BoardMeta[]; view: ViewMode; onOpen: (board: BoardMeta) => void; onOpenTasks: (board: BoardMeta) => void; onDelete: (board: BoardMeta) => void }) {
   if (boards.length === 0) {
     return <div className="brd-canvas"><div className="empty-state"><div className="es-title">No boards found</div><div className="es-sub">Create a board with supported backend fields only.</div></div></div>
   }
@@ -232,12 +234,12 @@ function BoardsCanvas({ boards, view, onOpen, onDelete }: { boards: BoardMeta[];
       <div className="brd-canvas">
         <table className="brd-table">
           <thead><tr><th>Name</th><th>Database Path</th><th>Tasks</th><th>Status</th><th>Last Activity</th><th>Actions</th></tr></thead>
-          <tbody>{boards.map((b) => <BoardRow key={b.slug} board={b} onOpen={onOpen} onDelete={onDelete} />)}</tbody>
+          <tbody>{boards.map((b) => <BoardRow key={b.slug} board={b} onOpen={onOpen} onOpenTasks={onOpenTasks} onDelete={onDelete} />)}</tbody>
         </table>
       </div>
     )
   }
-  return <div className="brd-canvas"><div className={`brd-grid${boards.length === 1 ? ' single' : ''}`}>{boards.map((b) => <BoardCard key={b.slug} board={b} onOpen={onOpen} onDelete={onDelete} />)}</div></div>
+  return <div className="brd-canvas"><div className={`brd-grid${boards.length === 1 ? ' single' : ''}`}>{boards.map((b) => <BoardCard key={b.slug} board={b} onOpen={onOpen} onOpenTasks={onOpenTasks} onDelete={onDelete} />)}</div></div>
 }
 
 function BoardDrawer({ board, onClose, onDelete, onUpdate }: { board: BoardMeta; onClose: () => void; onDelete: (board: BoardMeta) => void; onUpdate: (input: { name?: string; description?: string; color?: string }) => Promise<void> }) {
@@ -415,10 +417,21 @@ function DeleteConfirm({ board, onCancel, onConfirm, deleting }: { board: BoardM
 
 export function BoardsScreen() {
   usePageTitle('Boards')
+  const navigate = useNavigate()
+  const switchMutation = useSwitchBoard()
   const boardsQuery = useBoards(true)
   const createMutation = useCreateBoard()
   const updateMutation = useUpdateBoard()
   const deleteMutation = useDeleteBoard()
+
+  const openTasks = async (board: BoardMeta) => {
+    try {
+      await switchMutation.mutateAsync(board.slug)
+      await navigate({ to: '/tasks' })
+    } catch (error) {
+      toast(error instanceof Error ? error.message : 'Failed to open board', { type: 'error' })
+    }
+  }
   const [view, setView] = useState<ViewMode>(readInitialView)
   const [filter, setFilter] = useState<FilterMode>('all')
   const [search, setSearch] = useState('')
@@ -459,7 +472,7 @@ export function BoardsScreen() {
     <div data-screen="boards" className="boards-screen-root">
       <div className="brd-main">
         <MainTop allBoards={boards} search={search} setSearch={setSearch} filter={filter} setFilter={setFilter} view={view} setView={setView} onNew={() => setWizard({ ...WIZARD_INIT })} />
-        <BoardsCanvas boards={filtered} view={view} onOpen={(board) => setActiveSlug(board.slug)} onDelete={setConfirmDelete} />
+        <BoardsCanvas boards={filtered} view={view} onOpen={(board) => setActiveSlug(board.slug)} onOpenTasks={openTasks} onDelete={setConfirmDelete} />
       </div>
 
       {activeBoard ? <BoardDrawer board={activeBoard} onClose={() => setActiveSlug(null)} onDelete={(board) => setConfirmDelete(board)} onUpdate={async (input) => { try { await updateMutation.mutateAsync({ slug: activeBoard.slug, input }); toast(`Updated ${input.name || activeBoard.name}`, { type: 'success' }) } catch (error) { toast(error instanceof Error ? error.message : 'Failed to update board', { type: 'error' }) } }} /> : null}

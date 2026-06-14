@@ -27,6 +27,10 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import '@/styles/matrix-boards.css'
+import { useTemplatesViewStore, usePageSize } from '@/stores/templates-screen-store'
+import { useTemplateTaskCounts } from '@/lib/board-templates-api'
+import { TemplateCard } from './components/template-card'
+import { TemplatesPager } from './components/templates-pager'
 
 const SIZE_WARN_BYTES = 64 * 1024
 const COLORS = ['#00ff41', '#5ad3ff', '#ffb454', '#b07cff', '#ff5fa2', '#d6ff5f']
@@ -559,11 +563,13 @@ function hasCycleInEdges(edges: Array<[string, string]>): boolean {
 
 function TemplateRow({
   template,
+  taskCount,
   onOpen,
   onInstantiate,
   onDelete,
 }: {
   template: KanbanTemplateSummary
+  taskCount?: number
   onOpen: (slug: string) => void
   onInstantiate: (template: KanbanTemplateSummary) => void
   onDelete: (template: KanbanTemplateSummary) => void
@@ -579,6 +585,7 @@ function TemplateRow({
           </div>
         </div>
       </td>
+      <td>{taskCount ?? '—'}</td>
       <td>{template.variables.length}</td>
       <td>
         {template.has_recurrence ? (
@@ -1800,6 +1807,16 @@ export function BoardTemplatesScreen() {
     [templates, search],
   )
 
+  const { viewMode, setViewMode } = useTemplatesViewStore()
+  const pageSize = usePageSize()
+  const [page, setPage] = useState(1)
+
+  // Reset to page 1 whenever the filtered set shrinks below the current window.
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize)
+  const taskCounts = useTemplateTaskCounts(paginated.map((t) => t.slug))
+
   // Degraded: backend endpoint missing (404).
   const is404 =
     templatesQuery.isError &&
@@ -1847,10 +1864,17 @@ export function BoardTemplatesScreen() {
               <input
                 className="brd-search-inp"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value)
+                  setPage(1)
+                }}
                 placeholder="Search templates…"
               />
             </div>
+          </div>
+          <div className="view-toggle">
+            <button className={viewMode === 'grid' ? 'on' : ''} onClick={() => setViewMode('grid')}>Grid</button>
+            <button className={viewMode === 'list' ? 'on' : ''} onClick={() => setViewMode('list')}>List</button>
           </div>
         </div>
 
@@ -1882,32 +1906,55 @@ export function BoardTemplatesScreen() {
             </div>
           </div>
         ) : (
-          <div className="brd-canvas">
-            <table className="brd-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Variables</th>
-                  <th>Recurrence</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((t) => (
-                  <TemplateRow
-                    key={t.slug}
-                    template={t}
-                    onOpen={(slug) => {
-                      setCreating(false)
-                      setEditorSlug(slug)
-                    }}
-                    onInstantiate={(tpl) => setInstantiateSlug(tpl.slug)}
-                    onDelete={setConfirmDelete}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="brd-canvas">
+              {viewMode === 'grid' ? (
+                <div className={`brd-grid${paginated.length === 1 ? ' single' : ''}`}>
+                  {paginated.map((t) => (
+                    <TemplateCard
+                      key={t.slug}
+                      template={t}
+                      taskCount={taskCounts[t.slug]}
+                      onOpen={(slug) => {
+                        setCreating(false)
+                        setEditorSlug(slug)
+                      }}
+                      onInstantiate={(tpl) => setInstantiateSlug(tpl.slug)}
+                      onDelete={setConfirmDelete}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <table className="brd-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Tasks</th>
+                      <th>Variables</th>
+                      <th>Recurrence</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginated.map((t) => (
+                      <TemplateRow
+                        key={t.slug}
+                        template={t}
+                        taskCount={taskCounts[t.slug]}
+                        onOpen={(slug) => {
+                          setCreating(false)
+                          setEditorSlug(slug)
+                        }}
+                        onInstantiate={(tpl) => setInstantiateSlug(tpl.slug)}
+                        onDelete={setConfirmDelete}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <TemplatesPager total={filtered.length} page={safePage} onPage={setPage} />
+          </>
         )}
       </div>
 
