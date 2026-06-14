@@ -1,4 +1,4 @@
-import { useReducer, useCallback, useState } from 'react'
+import { useReducer, useCallback, useState, useEffect, useRef } from 'react'
 import { ConfirmDialog } from './confirm-dialog'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -8,6 +8,7 @@ import {
   validateStep,
   wizardReducer,
   type WizardStep,
+  type NewAgentDraft,
 } from '../types'
 import { WizardStepIdentity } from './wizard-step-identity'
 import { WizardStepPersona } from './wizard-step-persona'
@@ -17,7 +18,8 @@ import { WizardStepMcp } from './wizard-step-mcp'
 import { WizardStepToolset } from './wizard-step-toolset'
 import { WizardStepMemory } from './wizard-step-memory'
 import { WizardStepReview } from './wizard-step-review'
-import type { ProfileSummary } from '@/server/profiles-browser'
+import type { ProfileSummary, ProfileConfig } from '@/server/profiles-browser'
+import { randomMatrixName } from '@/lib/matrix-names'
 
 type Props = {
   open: boolean
@@ -46,13 +48,58 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
     queryKey: ['profiles', 'list'],
     queryFn: async () => {
       const r = await fetch('/api/profiles/list')
-      if (!r.ok) return { profiles: [] as ProfileSummary[] }
-      return (await r.json()) as { profiles: ProfileSummary[] }
+      if (!r.ok) return { profiles: [] as ProfileSummary[], activeProfile: undefined as string | undefined }
+      return (await r.json()) as { profiles: ProfileSummary[]; activeProfile?: string }
     },
     staleTime: 30_000,
   })
 
+  const activeProfile = profilesQuery.data?.activeProfile
   const existingNames = (profilesQuery.data?.profiles ?? []).map((p) => p.name)
+
+  const activeConfigQuery = useQuery({
+    queryKey: ['profile-config', activeProfile],
+    queryFn: async () => {
+      const r = await fetch(`/api/profiles/read?name=${encodeURIComponent(activeProfile!)}`)
+      if (!r.ok) return null
+      const data = (await r.json()) as { profile: { config: ProfileConfig } }
+      return data.profile.config
+    },
+    enabled: !!activeProfile,
+    staleTime: 60_000,
+  })
+
+  // Seeding guard — reset when wizard closes, seed once when open + active config loaded
+  const seededRef = useRef(false)
+
+  // Effect A: reset seed guard when wizard closes
+  useEffect(() => {
+    if (!open) {
+      seededRef.current = false
+    }
+  }, [open])
+
+  // Effect B: seed draft once per open when active config is available
+  useEffect(() => {
+    if (!open || seededRef.current || !activeConfigQuery.data) return
+
+    const config = activeConfigQuery.data
+    const modelObj = typeof config.model === 'object' ? config.model : null
+    const modelStr = typeof config.model === 'string' ? config.model : ''
+
+    const patch: Partial<NewAgentDraft> = {
+      name: randomMatrixName(existingNames),
+      model: modelObj?.default ?? modelStr,
+      provider: modelObj?.provider ?? '',
+      memory_enabled: true,
+      memory_provider: config.memory?.provider ?? 'hindsight',
+      reasoning_effort: config.agent?.reasoning_effort ?? 'medium',
+      max_turns: config.agent?.max_turns ?? 200,
+    }
+
+    dispatch({ type: 'SET_DRAFT', patch })
+    seededRef.current = true
+  }, [open, activeConfigQuery.data, existingNames])
 
   const allTags = Array.from(
     new Set(
@@ -171,6 +218,7 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
             draft={draft}
             errors={errors}
             existingTags={allTags}
+            existingNames={existingNames}
             onChange={(patch) => dispatch({ type: 'SET_DRAFT', patch })}
           />
         )

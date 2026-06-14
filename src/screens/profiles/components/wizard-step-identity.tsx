@@ -1,15 +1,17 @@
 import { useState } from 'react'
 import { GlyphPicker } from './glyph-picker'
 import type { NewAgentDraft } from '../types'
+import { randomMatrixName } from '@/lib/matrix-names'
 
 type Props = {
   draft: NewAgentDraft
   errors: string[]
   existingTags: string[]
+  existingNames: string[]
   onChange: (patch: Partial<NewAgentDraft>) => void
 }
 
-export function WizardStepIdentity({ draft, errors, existingTags, onChange }: Props) {
+export function WizardStepIdentity({ draft, errors, existingTags, existingNames, onChange }: Props) {
   const [tagInput, setTagInput] = useState('')
 
   function addTag(tag: string) {
@@ -54,13 +56,24 @@ export function WizardStepIdentity({ draft, errors, existingTags, onChange }: Pr
         <label>
           Name <span className="opt">(slug — lowercase, hyphens)</span>
         </label>
-        <input
-          className="wiz-input"
-          value={draft.name}
-          onChange={(e) => onChange({ name: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
-          placeholder="my-agent"
-          maxLength={40}
-        />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            className="wiz-input"
+            style={{ flex: 1 }}
+            value={draft.name}
+            onChange={(e) => onChange({ name: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+            placeholder="my-agent"
+            maxLength={40}
+          />
+          <button
+            type="button"
+            className="wiz-btn-ghost"
+            title="Random Matrix name"
+            onClick={() => onChange({ name: randomMatrixName(existingNames) })}
+          >
+            🎲
+          </button>
+        </div>
         <div className="wiz-hint">2–40 chars · lowercase letters, numbers, hyphens only</div>
       </div>
 

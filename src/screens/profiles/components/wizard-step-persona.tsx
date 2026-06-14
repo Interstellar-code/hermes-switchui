@@ -85,17 +85,6 @@ export function WizardStepPersona({ draft, errors, onChange }: Props) {
         system_prompt: prompt,
         glyph: draft.glyph || p.glyph,
         role: draft.role || p.name,
-        // Pre-fill model only when user hasn't already set one
-        model: draft.model || p.default_model || '',
-      }
-
-      // Pre-fill memory when persona specifies a provider and user hasn't enabled memory yet
-      if (p.default_memory_provider && !draft.memory_enabled) {
-        const validProviders = ['hindsight', 'mem0', 'openviking', 'holographic', 'retaindb', 'byterover']
-        if (validProviders.includes(p.default_memory_provider)) {
-          patch.memory_enabled = true
-          patch.memory_provider = p.default_memory_provider as import('@/server/profiles-browser').MemoryProvider
-        }
       }
 
       // Pre-fill MCP servers best-effort: seed empty config entries by name only when mcp_servers is empty
