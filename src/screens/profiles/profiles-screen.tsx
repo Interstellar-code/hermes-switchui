@@ -323,7 +323,10 @@ export function ProfilesScreen() {
   }
 
   function handleCardClick(agent: AgentRow) {
-    if (agent.builtin || !agent.profileName || agent.profileName === 'default') return
+    // `builtin` only means the row carries built-in display metadata (glyph/role);
+    // these (hermes-switch, neo, trinity, morpheus) are still real, editable on-disk
+    // profiles. Only the synthetic `default` and rows without a profileName are blocked.
+    if (!agent.profileName || agent.profileName === 'default') return
     setEditAgent(agent)
     setWizardOpen(true)
   }

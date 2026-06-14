@@ -392,12 +392,17 @@ export function AgentWizard({ open, onClose, onSuccess, editProfileName }: Props
             const sNum = Number(s) as WizardStep
             const isDone = sNum < step
             const isCurrent = sNum === step
+            // Edit mode: every step is reachable (data is already valid) — jump freely,
+            // forward or back. Create mode: only completed steps are clickable so users
+            // don't skip ahead past unfilled required fields (progressive lock).
+            const canJump = mode === 'edit' ? !isCurrent : isDone
+            const isLocked = !canJump && !isCurrent
             return (
               <div key={s} style={{ display: 'contents' }}>
                 <div
-                  className={`wiz-step${isDone ? ' done' : ''}${isCurrent ? ' on' : ''}${!isDone && !isCurrent ? ' locked' : ''}`}
-                  style={{ cursor: isDone ? 'pointer' : 'default' }}
-                  onClick={() => { if (isDone) handleJumpTo(sNum) }}
+                  className={`wiz-step${isDone ? ' done' : ''}${isCurrent ? ' on' : ''}${isLocked ? ' locked' : ''}`}
+                  style={{ cursor: canJump ? 'pointer' : 'default' }}
+                  onClick={() => { if (canJump) handleJumpTo(sNum) }}
                 >
                   <div className="n">{isDone ? '✓' : sNum}</div>
                   {STEP_LABELS[sNum]}

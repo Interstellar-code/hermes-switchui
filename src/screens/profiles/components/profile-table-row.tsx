@@ -9,9 +9,12 @@ type Props = {
   onClone?: (agent: AgentRow) => void
 }
 
-// POL-03: built-in T1/T2 and default (active without profileName) are protected
+// Only the synthetic `default` row (active, no on-disk profileName) is protected.
+// Built-in-flagged profiles (hermes-switch/neo/trinity/morpheus) are real, editable
+// profiles — rename/clone/delete are allowed on them; the backend + confirm dialogs
+// remain the real guard.
 function isProtected(agent: AgentRow): boolean {
-  return agent.builtin || (agent.active === true && !agent.profileName)
+  return agent.active === true && !agent.profileName
 }
 
 export function ProfileTableRow({ agent, onClick, onActivate, onRename, onDelete, onClone }: Props) {

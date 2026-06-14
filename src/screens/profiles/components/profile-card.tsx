@@ -94,8 +94,8 @@ export function ProfileCard({ agent, onClick, onClone, 'data-profile': dataProfi
         </span>
       </div>
 
-      {/* Clone action — only for non-builtin profiles */}
-      {!agent.builtin && agent.profileName && onClone && (
+      {/* Clone action — any real profile (not the synthetic default) */}
+      {agent.profileName && agent.profileName !== 'default' && onClone && (
         <div className="pf-card-actions" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
