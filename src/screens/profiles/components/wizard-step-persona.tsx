@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { NewAgentDraft } from '../types'
+import { CONFIGURABLE_TOOLSETS, mapPersonaToolset } from '@/lib/toolsets'
 
 type PersonaListItem = {
   id: string
@@ -11,6 +12,10 @@ type PersonaListItem = {
   tags: string[]
   system_prompt_preview: string
   has_more_prompt: boolean
+  default_model?: string
+  default_memory_provider?: string
+  suggested_mcps?: string[]
+  suggested_toolsets?: string[]
 }
 
 type Props = {
@@ -74,12 +79,56 @@ export function WizardStepPersona({ draft, errors, onChange }: Props) {
     setPickError(null)
     try {
       const prompt = await fetchPersonaPrompt(p.id)
-      onChange({
+
+      const patch: Parameters<typeof onChange>[0] = {
         persona_id: p.id,
         system_prompt: prompt,
         glyph: draft.glyph || p.glyph,
         role: draft.role || p.name,
-      })
+        // Pre-fill model only when user hasn't already set one
+        model: draft.model || p.default_model || '',
+      }
+
+      // Pre-fill memory when persona specifies a provider and user hasn't enabled memory yet
+      if (p.default_memory_provider && !draft.memory_enabled) {
+        const validProviders = ['hindsight', 'mem0', 'openviking', 'holographic', 'retaindb', 'byterover']
+        if (validProviders.includes(p.default_memory_provider)) {
+          patch.memory_enabled = true
+          patch.memory_provider = p.default_memory_provider as import('@/server/profiles-browser').MemoryProvider
+        }
+      }
+
+      // Pre-fill MCP servers best-effort: seed empty config entries by name only when mcp_servers is empty
+      if (p.suggested_mcps && p.suggested_mcps.length > 0 && Object.keys(draft.mcp_servers).length === 0) {
+        const seeded: Record<string, import('@/server/profiles-browser').McpServerConfig> = {}
+        for (const name of p.suggested_mcps) {
+          // TODO(persona-mcp-match): replace with catalog lookup to get real config
+          seeded[name] = {}
+        }
+        patch.mcp_servers = seeded
+      }
+
+      // Seed disabled_toolsets from p.suggested_toolsets — only when user hasn't customized yet.
+      // Subtractive model: we start with all enabled; persona says which to KEEP, so everything
+      // NOT in suggested_toolsets becomes disabled.
+      if (
+        p.suggested_toolsets &&
+        p.suggested_toolsets.length > 0 &&
+        draft.disabled_toolsets.length === 0
+      ) {
+        const suggestedKeys = new Set(
+          p.suggested_toolsets.map(mapPersonaToolset).filter((k): k is string => k !== null),
+        )
+        // Disable every canonical toolset the persona did NOT suggest
+        const toDisable = CONFIGURABLE_TOOLSETS.map((t) => t.key).filter(
+          (key) => !suggestedKeys.has(key),
+        )
+        if (toDisable.length > 0) {
+          patch.disabled_toolsets = toDisable
+        }
+      }
+
+      onChange(patch)
     } catch {
       setPickError(`Failed to load persona "${p.name}". Please try again.`)
     } finally {
@@ -93,6 +142,9 @@ export function WizardStepPersona({ draft, errors, onChange }: Props) {
       <p className="lead">
         Pick a curated persona — its system prompt will be snapshotted into this agent.
         You can edit the prompt below before creating.
+      </p>
+      <p className="wiz-hint">
+        Selecting a persona pre-fills later steps — you can edit any of them.
       </p>
 
       {errors.length > 0 && (

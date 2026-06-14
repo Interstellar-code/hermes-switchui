@@ -14,6 +14,7 @@ import { WizardStepPersona } from './wizard-step-persona'
 import { WizardStepModel } from './wizard-step-model'
 import { WizardStepSkills } from './wizard-step-skills'
 import { WizardStepMcp } from './wizard-step-mcp'
+import { WizardStepToolset } from './wizard-step-toolset'
 import { WizardStepMemory } from './wizard-step-memory'
 import { WizardStepReview } from './wizard-step-review'
 import type { ProfileSummary } from '@/server/profiles-browser'
@@ -24,7 +25,7 @@ type Props = {
   onSuccess: (profileName: string) => void
 }
 
-const TOTAL_STEPS = 7
+const TOTAL_STEPS = 8
 
 async function postJson(url: string, body: unknown): Promise<unknown> {
   const r = await fetch(url, {
@@ -58,8 +59,6 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
       (profilesQuery.data?.profiles ?? []).flatMap((p) => p.agent_ui?.tags ?? [])
     )
   )
-
-  const currentErrors = state.errors[state.step] ?? []
 
   const canAdvance = useCallback(() => {
     const errs = validateStep(state.step as WizardStep, state.draft, existingNames)
@@ -107,9 +106,9 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
 
   async function handleCreate() {
     // Final validation across all required steps
-    const allErrs = validateStep(7, state.draft, existingNames)
+    const allErrs = validateStep(8, state.draft, existingNames)
     if (allErrs.length > 0) {
-      dispatch({ type: 'SET_ERRORS', step: 7, errors: allErrs })
+      dispatch({ type: 'SET_ERRORS', step: 8, errors: allErrs })
       return
     }
 
@@ -132,6 +131,7 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
         agent: {
           max_turns: draft.max_turns ?? 200,
           reasoning_effort: draft.reasoning_effort ?? 'medium',
+          disabled_toolsets: draft.disabled_toolsets,
         },
         agent_ui: {
           tier: 3,
@@ -208,7 +208,7 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
         )
       case 6:
         return (
-          <WizardStepMemory
+          <WizardStepToolset
             draft={draft}
             errors={errors}
             onChange={(patch) => dispatch({ type: 'SET_DRAFT', patch })}
@@ -216,9 +216,17 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
         )
       case 7:
         return (
+          <WizardStepMemory
+            draft={draft}
+            errors={errors}
+            onChange={(patch) => dispatch({ type: 'SET_DRAFT', patch })}
+          />
+        )
+      case 8:
+        return (
           <WizardStepReview
             draft={draft}
-            errors={state.errors[7] ?? []}
+            errors={state.errors[8] ?? []}
             submitError={state.submitError}
             onJumpTo={handleJumpTo}
           />

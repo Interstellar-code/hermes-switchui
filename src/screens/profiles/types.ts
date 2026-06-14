@@ -25,7 +25,10 @@ export type NewAgentDraft = {
   // Step 5 — MCP
   mcp_servers: Record<string, McpServerConfig>
 
-  // Step 6 — Memory
+  // Step 6 — Toolsets
+  disabled_toolsets: string[]
+
+  // Step 7 — Memory
   memory_enabled: boolean
   memory_provider: MemoryProvider
 }
@@ -43,11 +46,12 @@ export const INITIAL_DRAFT: NewAgentDraft = {
   reasoning_effort: 'medium',
   skill_dirs: [],
   mcp_servers: {},
+  disabled_toolsets: [],
   memory_enabled: false,
   memory_provider: 'hindsight',
 }
 
-export type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7
+export type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
 
 export type WizardState = {
   draft: NewAgentDraft
@@ -103,8 +107,9 @@ export const STEP_LABELS: Record<WizardStep, string> = {
   3: 'Model',
   4: 'Skills',
   5: 'MCP',
-  6: 'Memory',
-  7: 'Review',
+  6: 'Toolsets',
+  7: 'Memory',
+  8: 'Review',
 }
 
 // ── Validation ────────────────────────────────────────────────────────────────
@@ -143,16 +148,16 @@ export function validateStep(
     if (!draft.model) errs.push('Model is required')
     if (!draft.provider) errs.push('Provider is required')
   }
-  // Steps 4, 5 are optional
-  // Step 6: memory_provider required only if memory_enabled
-  else if (step === 6) {
+  // Steps 4, 5, 6 are optional
+  // Step 7: memory_provider required only if memory_enabled
+  else if (step === 7) {
     if (draft.memory_enabled && !draft.memory_provider) {
       errs.push('Memory provider is required when memory is enabled')
     }
   }
-  // Step 7: validate all prior steps
-  else if (step === 7) {
-    const prior = [1, 2, 3, 6] as const
+  // Step 8: validate all prior steps
+  else if (step === 8) {
+    const prior = [1, 2, 3, 7] as const
     for (const s of prior) {
       const e = validateStep(s as WizardStep, draft, existingNames)
       errs.push(...e)
