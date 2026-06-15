@@ -25,7 +25,10 @@ export type NewAgentDraft = {
   // Step 5 — MCP
   mcp_servers: Record<string, McpServerConfig>
 
-  // Step 6 — Memory
+  // Step 6 — Toolsets
+  disabled_toolsets: string[]
+
+  // Step 7 — Memory
   memory_enabled: boolean
   memory_provider: MemoryProvider
 }
@@ -43,11 +46,12 @@ export const INITIAL_DRAFT: NewAgentDraft = {
   reasoning_effort: 'medium',
   skill_dirs: [],
   mcp_servers: {},
+  disabled_toolsets: [],
   memory_enabled: false,
   memory_provider: 'hindsight',
 }
 
-export type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7
+export type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 
 export type WizardState = {
   draft: NewAgentDraft
@@ -103,8 +107,10 @@ export const STEP_LABELS: Record<WizardStep, string> = {
   3: 'Model',
   4: 'Skills',
   5: 'MCP',
-  6: 'Memory',
-  7: 'Review',
+  6: 'Toolsets',
+  7: 'Memory',
+  8: 'Config',
+  9: 'Review',
 }
 
 // ── Validation ────────────────────────────────────────────────────────────────
@@ -116,12 +122,13 @@ export function validateStep(
   step: WizardStep,
   draft: NewAgentDraft,
   existingNames: string[],
+  editName?: string,
 ): string[] {
   const errs: string[] = []
   if (step === 1) {
     if (!NAME_RE.test(draft.name)) {
       errs.push('Name must be 2–40 lowercase letters, numbers, or hyphens')
-    } else if (existingNames.includes(draft.name)) {
+    } else if (existingNames.includes(draft.name) && draft.name !== editName) {
       errs.push(`Name "${draft.name}" is already in use`)
     }
     if (!GLYPH_RE.test(draft.glyph)) {
@@ -133,7 +140,10 @@ export function validateStep(
       errs.push('Role must be ≤80 characters')
     }
   } else if (step === 2) {
-    if (!draft.persona_id) {
+    // Persona is required when creating; existing profiles may legitimately have no
+    // persona_id (legacy/API-created), so editing only requires a non-empty system
+    // prompt — the actual identity. editName is set only in edit mode.
+    if (!draft.persona_id && !editName) {
       errs.push('Please select a persona')
     }
     if (!draft.system_prompt?.trim()) {
@@ -143,18 +153,19 @@ export function validateStep(
     if (!draft.model) errs.push('Model is required')
     if (!draft.provider) errs.push('Provider is required')
   }
-  // Steps 4, 5 are optional
-  // Step 6: memory_provider required only if memory_enabled
-  else if (step === 6) {
+  // Steps 4, 5, 6 are optional
+  // Step 7: memory_provider required only if memory_enabled
+  else if (step === 7) {
     if (draft.memory_enabled && !draft.memory_provider) {
       errs.push('Memory provider is required when memory is enabled')
     }
   }
-  // Step 7: validate all prior steps
-  else if (step === 7) {
-    const prior = [1, 2, 3, 6] as const
+  // Step 8: Config — read-only, no validation required
+  // Step 9: validate all prior required steps
+  else if (step === 9) {
+    const prior = [1, 2, 3, 7] as const
     for (const s of prior) {
-      const e = validateStep(s as WizardStep, draft, existingNames)
+      const e = validateStep(s as WizardStep, draft, existingNames, editName)
       errs.push(...e)
     }
   }

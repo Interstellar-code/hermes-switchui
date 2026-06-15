@@ -66,6 +66,11 @@ export function WizardStepModel({ draft, errors, onChange }: Props) {
               onChange={(e) => onChange({ model: e.target.value })}
             >
               <option value="">Select model…</option>
+              {/* Persona/cloned defaults may not be in the gateway catalog —
+                  inject the current value as an option so it stays visible + selectable. */}
+              {draft.model && !models.some((m) => m.id === draft.model) && (
+                <option value={draft.model}>{draft.model} (persona default)</option>
+              )}
               {models.map((m) => (
                 <option key={m.id} value={m.id}>{m.name ?? m.id}</option>
               ))}

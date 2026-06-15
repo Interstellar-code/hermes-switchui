@@ -8,6 +8,10 @@ let _cache: { personas: PersonaListItem[]; expiresAt: number } | null = null
 type PersonaListItem = Omit<Persona, 'system_prompt' | 'path'> & {
   has_more_prompt: boolean
   system_prompt_preview: string
+  default_model?: string
+  default_memory_provider?: string
+  suggested_mcps?: string[]
+  suggested_toolsets?: string[]
 }
 
 const PREVIEW_LENGTH = 500
@@ -23,6 +27,10 @@ function toListItem(persona: Persona): PersonaListItem {
     tags: persona.tags,
     system_prompt_preview: preview,
     has_more_prompt: persona.system_prompt.length > PREVIEW_LENGTH,
+    default_model: persona.default_model,
+    default_memory_provider: persona.default_memory_provider,
+    suggested_mcps: persona.suggested_mcps,
+    suggested_toolsets: persona.suggested_toolsets,
   }
 }
 

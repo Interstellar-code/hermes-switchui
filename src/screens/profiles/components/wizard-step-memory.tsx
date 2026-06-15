@@ -56,6 +56,10 @@ export function WizardStepMemory({ draft, errors, onChange }: Props) {
         </div>
       </div>
 
+      <div className="wiz-hint" style={{ marginBottom: 18 }}>
+        Inherited from your main profile — override the provider below if needed.
+      </div>
+
       {/* Provider selection (visible when enabled) */}
       {draft.memory_enabled && (
         <div className="field">

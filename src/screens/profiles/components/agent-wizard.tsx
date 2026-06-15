@@ -1,4 +1,4 @@
-import { useReducer, useCallback, useState } from 'react'
+import { useReducer, useCallback, useState, useEffect, useRef } from 'react'
 import { ConfirmDialog } from './confirm-dialog'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -8,23 +8,29 @@ import {
   validateStep,
   wizardReducer,
   type WizardStep,
+  type NewAgentDraft,
 } from '../types'
 import { WizardStepIdentity } from './wizard-step-identity'
 import { WizardStepPersona } from './wizard-step-persona'
 import { WizardStepModel } from './wizard-step-model'
 import { WizardStepSkills } from './wizard-step-skills'
 import { WizardStepMcp } from './wizard-step-mcp'
+import { WizardStepToolset } from './wizard-step-toolset'
 import { WizardStepMemory } from './wizard-step-memory'
+import { WizardStepConfig } from './wizard-step-config'
 import { WizardStepReview } from './wizard-step-review'
-import type { ProfileSummary } from '@/server/profiles-browser'
+import type { ProfileSummary, ProfileConfig, ProfileDetail } from '@/server/profiles-browser'
+import { randomMatrixName } from '@/lib/matrix-names'
+import { draftFromConfig } from '../profile-config-map'
 
 type Props = {
   open: boolean
   onClose: () => void
   onSuccess: (profileName: string) => void
+  editProfileName?: string | null
 }
 
-const TOTAL_STEPS = 7
+const TOTAL_STEPS = 9
 
 async function postJson(url: string, body: unknown): Promise<unknown> {
   const r = await fetch(url, {
@@ -37,21 +43,96 @@ async function postJson(url: string, body: unknown): Promise<unknown> {
   return payload
 }
 
-export function AgentWizard({ open, onClose, onSuccess }: Props) {
+export function AgentWizard({ open, onClose, onSuccess, editProfileName }: Props) {
   const [state, dispatch] = useReducer(wizardReducer, INITIAL_WIZARD_STATE)
   const queryClient = useQueryClient()
+
+  const mode = editProfileName ? 'edit' : 'create'
 
   const profilesQuery = useQuery({
     queryKey: ['profiles', 'list'],
     queryFn: async () => {
       const r = await fetch('/api/profiles/list')
-      if (!r.ok) return { profiles: [] as ProfileSummary[] }
-      return (await r.json()) as { profiles: ProfileSummary[] }
+      if (!r.ok) return { profiles: [] as ProfileSummary[], activeProfile: undefined as string | undefined }
+      return (await r.json()) as { profiles: ProfileSummary[]; activeProfile?: string }
     },
     staleTime: 30_000,
   })
 
+  const activeProfile = profilesQuery.data?.activeProfile
   const existingNames = (profilesQuery.data?.profiles ?? []).map((p) => p.name)
+
+  const activeConfigQuery = useQuery({
+    queryKey: ['profile-config', activeProfile],
+    queryFn: async () => {
+      const r = await fetch(`/api/profiles/read?name=${encodeURIComponent(activeProfile!)}`)
+      if (!r.ok) return null
+      const data = (await r.json()) as { profile: { config: ProfileConfig } }
+      return data.profile.config
+    },
+    enabled: !!activeProfile,
+    staleTime: 60_000,
+  })
+
+  // Edit mode: fetch the full detail for the profile being edited
+  const editDetailQuery = useQuery({
+    queryKey: ['profile-detail', editProfileName],
+    queryFn: async () => {
+      const r = await fetch(`/api/profiles/read?name=${encodeURIComponent(editProfileName!)}`)
+      if (!r.ok) return null
+      const data = (await r.json()) as { profile: ProfileDetail }
+      return data.profile
+    },
+    enabled: open && !!editProfileName,
+    staleTime: 30_000,
+  })
+
+  // Seeding guard — reset when wizard closes or editProfileName changes
+  const seededRef = useRef(false)
+
+  // Effect A: reset seed guard when wizard closes or edit target changes
+  useEffect(() => {
+    if (!open) {
+      seededRef.current = false
+    }
+  }, [open])
+
+  // Also reset when editProfileName changes so switching profiles re-seeds
+  useEffect(() => {
+    seededRef.current = false
+  }, [editProfileName])
+
+  // Effect B: seed draft once per open
+  useEffect(() => {
+    if (!open || seededRef.current) return
+
+    if (mode === 'edit') {
+      // Edit mode: seed from fetched profile config
+      if (!editDetailQuery.data) return
+      const config = editDetailQuery.data.config
+      dispatch({ type: 'SET_DRAFT', patch: draftFromConfig(editProfileName!, config) })
+      seededRef.current = true
+    } else {
+      // Create mode: inherit Tier-1 active config + random Matrix name
+      if (!activeConfigQuery.data) return
+      const config = activeConfigQuery.data
+      const modelObj = typeof config.model === 'object' ? config.model : null
+      const modelStr = typeof config.model === 'string' ? config.model : ''
+
+      const patch: Partial<NewAgentDraft> = {
+        name: randomMatrixName(existingNames),
+        model: modelObj?.default ?? modelStr,
+        provider: modelObj?.provider ?? '',
+        memory_enabled: true,
+        memory_provider: config.memory?.provider ?? 'hindsight',
+        reasoning_effort: config.agent?.reasoning_effort ?? 'medium',
+        max_turns: config.agent?.max_turns ?? 200,
+      }
+
+      dispatch({ type: 'SET_DRAFT', patch })
+      seededRef.current = true
+    }
+  }, [open, mode, editProfileName, editDetailQuery.data, activeConfigQuery.data, existingNames])
 
   const allTags = Array.from(
     new Set(
@@ -59,15 +140,13 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
     )
   )
 
-  const currentErrors = state.errors[state.step] ?? []
-
   const canAdvance = useCallback(() => {
-    const errs = validateStep(state.step as WizardStep, state.draft, existingNames)
+    const errs = validateStep(state.step as WizardStep, state.draft, existingNames, editProfileName ?? undefined)
     return errs.length === 0
   }, [state.step, state.draft, existingNames])
 
   function handleNext() {
-    const errs = validateStep(state.step as WizardStep, state.draft, existingNames)
+    const errs = validateStep(state.step as WizardStep, state.draft, existingNames, editProfileName ?? undefined)
     if (errs.length > 0) {
       dispatch({ type: 'SET_ERRORS', step: state.step, errors: errs })
       return
@@ -107,9 +186,9 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
 
   async function handleCreate() {
     // Final validation across all required steps
-    const allErrs = validateStep(7, state.draft, existingNames)
+    const allErrs = validateStep(9, state.draft, existingNames, editProfileName ?? undefined)
     if (allErrs.length > 0) {
-      dispatch({ type: 'SET_ERRORS', step: 7, errors: allErrs })
+      dispatch({ type: 'SET_ERRORS', step: 9, errors: allErrs })
       return
     }
 
@@ -118,40 +197,77 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
 
     try {
       const { draft } = state
-      const payload = {
-        name: draft.name,
-        description: draft.role || draft.name,
-        system_prompt: draft.system_prompt,
-        model: { default: draft.model, provider: draft.provider },
-        mcp_servers: draft.mcp_servers,
-        skills: { external_dirs: draft.skill_dirs },
-        memory: {
-          memory_enabled: draft.memory_enabled,
-          provider: draft.memory_provider,
-        },
-        agent: {
-          max_turns: draft.max_turns ?? 200,
-          reasoning_effort: draft.reasoning_effort ?? 'medium',
-        },
-        agent_ui: {
-          tier: 3,
-          glyph: draft.glyph,
-          role: draft.role,
-          status: 'draft',
-          tags: draft.tags,
-          persona_id: draft.persona_id,
-        },
-      }
 
-      await postJson('/api/profiles/create', payload)
-      await queryClient.invalidateQueries({ queryKey: ['profiles'] })
-      dispatch({ type: 'RESET' })
-      onSuccess(draft.name)
-      onClose()
+      if (mode === 'edit') {
+        // Edit mode: POST /api/profiles/update
+        // NOTE: agent_ui MUST NOT include tier or status (update rejects them)
+        const payload = {
+          name: draft.name,
+          description: draft.role || draft.name,
+          system_prompt: draft.system_prompt,
+          model: { default: draft.model, provider: draft.provider },
+          mcp_servers: draft.mcp_servers,
+          skills: { external_dirs: draft.skill_dirs },
+          memory: {
+            memory_enabled: draft.memory_enabled,
+            provider: draft.memory_provider,
+          },
+          agent: {
+            max_turns: draft.max_turns ?? 200,
+            reasoning_effort: draft.reasoning_effort ?? 'medium',
+            disabled_toolsets: draft.disabled_toolsets,
+          },
+          agent_ui: {
+            glyph: draft.glyph,
+            role: draft.role,
+            tags: draft.tags,
+            persona_id: draft.persona_id,
+          },
+        }
+
+        await postJson('/api/profiles/update', payload)
+        await queryClient.invalidateQueries({ queryKey: ['profiles'] })
+        dispatch({ type: 'RESET' })
+        onSuccess(draft.name)
+        onClose()
+      } else {
+        // Create mode: POST /api/profiles/create
+        const payload = {
+          name: draft.name,
+          description: draft.role || draft.name,
+          system_prompt: draft.system_prompt,
+          model: { default: draft.model, provider: draft.provider },
+          mcp_servers: draft.mcp_servers,
+          skills: { external_dirs: draft.skill_dirs },
+          memory: {
+            memory_enabled: draft.memory_enabled,
+            provider: draft.memory_provider,
+          },
+          agent: {
+            max_turns: draft.max_turns ?? 200,
+            reasoning_effort: draft.reasoning_effort ?? 'medium',
+            disabled_toolsets: draft.disabled_toolsets,
+          },
+          agent_ui: {
+            tier: 3,
+            glyph: draft.glyph,
+            role: draft.role,
+            status: 'draft',
+            tags: draft.tags,
+            persona_id: draft.persona_id,
+          },
+        }
+
+        await postJson('/api/profiles/create', payload)
+        await queryClient.invalidateQueries({ queryKey: ['profiles'] })
+        dispatch({ type: 'RESET' })
+        onSuccess(draft.name)
+        onClose()
+      }
     } catch (err) {
       dispatch({
         type: 'SET_SUBMIT_ERROR',
-        error: err instanceof Error ? err.message : 'Failed to create agent',
+        error: err instanceof Error ? err.message : mode === 'edit' ? 'Failed to save agent' : 'Failed to create agent',
       })
     } finally {
       dispatch({ type: 'SET_SUBMITTING', value: false })
@@ -171,7 +287,9 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
             draft={draft}
             errors={errors}
             existingTags={allTags}
+            existingNames={existingNames}
             onChange={(patch) => dispatch({ type: 'SET_DRAFT', patch })}
+            editing={mode === 'edit'}
           />
         )
       case 2:
@@ -208,7 +326,7 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
         )
       case 6:
         return (
-          <WizardStepMemory
+          <WizardStepToolset
             draft={draft}
             errors={errors}
             onChange={(patch) => dispatch({ type: 'SET_DRAFT', patch })}
@@ -216,9 +334,26 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
         )
       case 7:
         return (
+          <WizardStepMemory
+            draft={draft}
+            errors={errors}
+            onChange={(patch) => dispatch({ type: 'SET_DRAFT', patch })}
+          />
+        )
+      case 8:
+        return (
+          <WizardStepConfig
+            draft={draft}
+            errors={errors}
+            onChange={(patch) => dispatch({ type: 'SET_DRAFT', patch })}
+            config={mode === 'edit' ? editDetailQuery.data?.config : undefined}
+          />
+        )
+      case 9:
+        return (
           <WizardStepReview
             draft={draft}
-            errors={state.errors[7] ?? []}
+            errors={state.errors[9] ?? []}
             submitError={state.submitError}
             onJumpTo={handleJumpTo}
           />
@@ -228,16 +363,22 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
     }
   }
 
+  const isEditMode = mode === 'edit'
+  const wizardTitle = isEditMode ? 'Edit Agent' : 'New Agent'
+  const submitLabel = isEditMode
+    ? (submitting ? 'Saving…' : 'Save changes')
+    : (submitting ? 'Creating…' : 'Create Agent')
+
   return (
     <>
       {/* Backdrop */}
       <div className="wiz-backdrop" onClick={handleCancel} />
 
       {/* Modal shell */}
-      <div className="wiz-modal" role="dialog" aria-modal="true" aria-label="New Agent Wizard">
+      <div className="wiz-modal" role="dialog" aria-modal="true" aria-label={wizardTitle}>
         {/* Header */}
         <div className="wiz-head">
-          <h2>New Agent</h2>
+          <h2>{wizardTitle}</h2>
           <button type="button" className="x" onClick={handleCancel} aria-label="Close wizard">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -251,12 +392,17 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
             const sNum = Number(s) as WizardStep
             const isDone = sNum < step
             const isCurrent = sNum === step
+            // Edit mode: every step is reachable (data is already valid) — jump freely,
+            // forward or back. Create mode: only completed steps are clickable so users
+            // don't skip ahead past unfilled required fields (progressive lock).
+            const canJump = mode === 'edit' ? !isCurrent : isDone
+            const isLocked = !canJump && !isCurrent
             return (
               <div key={s} style={{ display: 'contents' }}>
                 <div
-                  className={`wiz-step${isDone ? ' done' : ''}${isCurrent ? ' on' : ''}${!isDone && !isCurrent ? ' locked' : ''}`}
-                  style={{ cursor: isDone ? 'pointer' : 'default' }}
-                  onClick={() => { if (isDone) handleJumpTo(sNum) }}
+                  className={`wiz-step${isDone ? ' done' : ''}${isCurrent ? ' on' : ''}${isLocked ? ' locked' : ''}`}
+                  style={{ cursor: canJump ? 'pointer' : 'default' }}
+                  onClick={() => { if (canJump) handleJumpTo(sNum) }}
                 >
                   <div className="n">{isDone ? '✓' : sNum}</div>
                   {STEP_LABELS[sNum]}
@@ -300,7 +446,7 @@ export function AgentWizard({ open, onClose, onSuccess }: Props) {
                 onClick={() => void handleCreate()}
                 disabled={submitting}
               >
-                {submitting ? 'Creating…' : 'Create Agent'}
+                {submitLabel}
               </button>
             )}
           </div>

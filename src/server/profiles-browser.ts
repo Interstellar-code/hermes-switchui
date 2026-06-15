@@ -534,10 +534,15 @@ export function updateProfileConfig(
   patch: Partial<ProfileConfig> | Record<string, unknown>,
 ): ProfileDetail {
   const normalized = name.trim() || 'default'
+  // Use the read-style identifier validator (path-safe, allows any existing name)
+  // rather than validateProfileName: updating only ever MUTATES an existing profile
+  // dir (guarded by the existsSync check below), so built-in-named profiles
+  // (hermes-switch/neo/trinity/morpheus) are editable. Creating a new profile with a
+  // reserved name is still blocked in createProfile via validateProfileName.
   const profilePath =
     normalized === 'default'
       ? getClaudeRoot()
-      : path.join(getProfilesRoot(), validateProfileName(normalized))
+      : path.join(getProfilesRoot(), validateProfileIdentifier(normalized))
   if (!fs.existsSync(profilePath)) throw new Error('Profile not found')
   const configPath = path.join(profilePath, 'config.yaml')
   const current = readYamlConfig(configPath)

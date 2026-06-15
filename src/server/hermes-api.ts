@@ -823,6 +823,29 @@ export async function listModels(): Promise<{
   return claudeGet('/v1/models')
 }
 
+// ── Toolsets ─────────────────────────────────────────────────────
+
+export type GatewayToolset = {
+  name: string
+  label: string
+  description?: string
+  enabled?: boolean
+  configured?: boolean
+  tools?: string[]
+}
+
+/** GET /v1/toolsets — live toolset registry from the gateway (includes
+ *  plugin-registered toolsets, which the gateway labels with a 🔌 prefix).
+ *  Same auth as /v1/models. Throws on non-2xx / unreachable gateway.
+ *  Distinct from listToolsets() above, which targets the dashboard. */
+export async function listGatewayToolsets(): Promise<{
+  object: string
+  platform?: string
+  data: Array<GatewayToolset>
+}> {
+  return claudeGet('/v1/toolsets')
+}
+
 // ── Connection check ─────────────────────────────────────────────
 
 export async function isClaudeAvailable(): Promise<boolean> {

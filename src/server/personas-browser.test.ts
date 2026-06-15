@@ -1,5 +1,3 @@
-import fs from 'node:fs'
-import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { listPersonas, readPersona } from './personas-browser'
 
@@ -180,5 +178,32 @@ describe('personas-browser (bundled assets)', () => {
     const architect = readPersona('engineering-software-architect')
     expect(architect?.description).toBeTruthy()
     expect(architect?.tags.length).toBeGreaterThan(0)
+  })
+
+  it('engineering-software-architect exposes Phase 1 pre-fill fields', () => {
+    const architect = readPersona('engineering-software-architect')
+    expect(architect).not.toBeNull()
+    expect(architect?.default_model).toBe('claude-opus-4-7')
+    expect(architect?.default_memory_provider).toBe('mem0')
+    expect(architect?.suggested_mcps).toEqual(['claude-mem', 'context-mode'])
+    expect(architect?.suggested_toolsets).toEqual(['core', 'files', 'web'])
+  })
+
+  it('all personas with frontmatter pre-fill fields have correct types', () => {
+    const result = listPersonas()
+    for (const persona of result) {
+      if (persona.default_model !== undefined) {
+        expect(typeof persona.default_model).toBe('string')
+      }
+      if (persona.default_memory_provider !== undefined) {
+        expect(typeof persona.default_memory_provider).toBe('string')
+      }
+      if (persona.suggested_mcps !== undefined) {
+        expect(Array.isArray(persona.suggested_mcps)).toBe(true)
+      }
+      if (persona.suggested_toolsets !== undefined) {
+        expect(Array.isArray(persona.suggested_toolsets)).toBe(true)
+      }
+    }
   })
 })

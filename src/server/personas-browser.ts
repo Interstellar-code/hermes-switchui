@@ -14,6 +14,10 @@ export type Persona = {
   tags: string[]
   system_prompt: string
   path: string
+  default_model?: string
+  default_memory_provider?: string
+  suggested_mcps?: string[]
+  suggested_toolsets?: string[]
 }
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
@@ -98,6 +102,10 @@ function parsePersonaFile(filePath: string): Persona | null {
     tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
     system_prompt: body.trim(),
     path: filePath,
+    default_model: typeof data.default_model === 'string' ? data.default_model : undefined,
+    default_memory_provider: typeof data.default_memory_provider === 'string' ? data.default_memory_provider : undefined,
+    suggested_mcps: Array.isArray(data.suggested_mcps) ? (data.suggested_mcps as string[]) : undefined,
+    suggested_toolsets: Array.isArray(data.suggested_toolsets) ? (data.suggested_toolsets as string[]) : undefined,
   }
 }
 
