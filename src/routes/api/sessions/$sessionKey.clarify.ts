@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import isAuthenticated from '../../../server/auth-middleware'
+import { isAuthenticated } from '../../../server/auth-middleware'
 import {
   ensureGatewayProbed,
   getGatewayCapabilities,
