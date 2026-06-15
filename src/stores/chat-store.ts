@@ -133,6 +133,30 @@ export type ChatStreamEvent =
       runId?: string
       transport?: 'chat-events' | 'send-stream'
     }
+  | {
+      // Interactive clarify request (P3). The agent's turn is BLOCKED waiting
+      // for the user's answer. Mirrors the gateway `clarify.request` SSE event.
+      type: 'clarify'
+      clarifyId: string
+      messageId?: string
+      question: string
+      /** Multiple-choice options, or null/empty for a free-text question. */
+      choices?: Array<string> | null
+      sessionKey: string
+      runId?: string
+      transport?: 'chat-events' | 'send-stream'
+    }
+  | {
+      // Clarify resolved/dismissed — clears the pending clarify for the session.
+      // Emitted from the gateway `clarify.responded` SSE event (answer accepted)
+      // and used internally to optimistically clear after submit.
+      type: 'clarify_resolved'
+      clarifyId: string
+      answer?: string
+      sessionKey: string
+      runId?: string
+      transport?: 'chat-events' | 'send-stream'
+    }
 
 export type ConnectionState =
   | 'disconnected'
@@ -157,6 +181,21 @@ export type QueuedChatMessage = {
   id: string
   text: string
   attachments: Array<ChatComposerAttachment>
+}
+
+/**
+ * A pending interactive clarify request (P3). While present for a session, the
+ * agent's turn is blocked waiting for the user's answer; the composer is
+ * blocked and an inline clarify card is rendered. Cleared on `clarify_resolved`,
+ * `done`/run completion, or `clearSession`.
+ */
+export type PendingClarify = {
+  clarifyId: string
+  messageId?: string
+  question: string
+  choices: Array<string> | null
+  runId: string | null
+  requestedAt: number
 }
 
 export type MessageQueueActivity = {
@@ -184,6 +223,13 @@ type ChatState = {
   messageQueue: Record<string, Array<QueuedChatMessage>>
   /** Recent queue activity, keyed by sessionKey, for visible queue feedback */
   messageQueueActivity: Record<string, MessageQueueActivity>
+
+  /**
+   * Pending interactive clarify request per session (P3). When set, the agent's
+   * turn is blocked waiting for the user's answer; the composer is blocked and
+   * the inline clarify card is rendered. Keyed by sessionKey.
+   */
+  pendingClarify: Record<string, PendingClarify | undefined>
 
   // Actions
   setConnectionState: (state: ConnectionState, error?: string) => void
@@ -225,6 +271,10 @@ type ChatState = {
   clearSessionWaiting: (sessionKey: string) => void
   /** Check if a session is waiting for a response */
   isSessionWaiting: (sessionKey: string) => boolean
+  /** Read the pending interactive clarify for a session (or null). */
+  getPendingClarify: (sessionKey: string) => PendingClarify | null
+  /** Clear the pending clarify for a session (after answer/resolve/timeout). */
+  clearPendingClarify: (sessionKey: string) => void
   /**
    * Sessions where the liveness snapshot is absent but the history predicate
    * (`hasUnansweredLatestUserTurn` + F1 guard) indicates a turn was likely
@@ -800,6 +850,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sendStreamRunIds: new Set(),
   messageQueue: _restoredQueues,
   messageQueueActivity: {},
+  pendingClarify: {},
   waitingSessionKeys: _restoredWaiting.keys,
   waitingSessionMeta: _restoredWaiting.meta,
   interruptedSessionKeys: new Set(),
@@ -919,6 +970,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return get().waitingSessionKeys.has(sessionKey)
   },
 
+  getPendingClarify: (sessionKey) => {
+    return get().pendingClarify[sessionKey] ?? null
+  },
+
+  clearPendingClarify: (sessionKey) => {
+    const current = get().pendingClarify
+    if (!current[sessionKey]) return
+    const next = { ...current }
+    delete next[sessionKey]
+    set({ pendingClarify: next })
+  },
+
   setSessionInterrupted: (sessionKey) => {
     const nextKeys = new Set(get().interruptedSessionKeys)
     nextKeys.add(sessionKey)
@@ -990,6 +1053,46 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     switch (event.type) {
+      case 'clarify': {
+        // Interactive clarify request (P3). Store the pending clarify so the
+        // inline card renders and the composer blocks. The agent's turn is
+        // blocked until the user answers (or the run ends).
+        const question = event.question?.trim()
+        if (!question) break
+        const choices =
+          Array.isArray(event.choices) && event.choices.length > 0
+            ? event.choices.filter(
+                (c): c is string => typeof c === 'string' && c.length > 0,
+              )
+            : null
+        set({
+          pendingClarify: {
+            ...state.pendingClarify,
+            [sessionKey]: {
+              clarifyId: event.clarifyId,
+              messageId: event.messageId,
+              question,
+              choices,
+              runId: event.runId ?? null,
+              requestedAt: now,
+            },
+          },
+        })
+        break
+      }
+      case 'clarify_resolved': {
+        // Answer accepted / dismissed — clear the pending clarify so the
+        // composer re-enables and the stream resumes normally.
+        const current = state.pendingClarify[sessionKey]
+        if (!current) break
+        // If a clarifyId is provided, only clear the matching one (guards
+        // against a stale resolve for a superseded clarify).
+        if (event.clarifyId && current.clarifyId !== event.clarifyId) break
+        const next = { ...state.pendingClarify }
+        delete next[sessionKey]
+        set({ pendingClarify: next })
+        break
+      }
       case 'message':
       case 'user_message': {
         // Filter internal system event messages that should never appear in chat.

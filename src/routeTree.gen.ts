@@ -174,6 +174,7 @@ import { Route as ApiWorkflowRunsRunIdApproveRouteImport } from './routes/api/wo
 import { Route as ApiWorkflowDefinitionsIdResetFactoryRouteImport } from './routes/api/workflow-definitions.$id.reset-factory'
 import { Route as ApiWorkflowDefinitionsIdParsedRouteImport } from './routes/api/workflow-definitions.$id.parsed'
 import { Route as ApiSessionsSessionKeyStatusRouteImport } from './routes/api/sessions/$sessionKey.status'
+import { Route as ApiSessionsSessionKeyClarifyRouteImport } from './routes/api/sessions/$sessionKey.clarify'
 import { Route as ApiSessionsSessionKeyActiveRunRouteImport } from './routes/api/sessions/$sessionKey.active-run'
 import { Route as ApiSelfImproveScenariosIdRouteImport } from './routes/api/self-improve/scenarios.$id'
 import { Route as ApiSelfImproveMetricsLatestRouteImport } from './routes/api/self-improve/metrics.latest'
@@ -1040,6 +1041,12 @@ const ApiSessionsSessionKeyStatusRoute =
     path: '/$sessionKey/status',
     getParentRoute: () => ApiSessionsRoute,
   } as any)
+const ApiSessionsSessionKeyClarifyRoute =
+  ApiSessionsSessionKeyClarifyRouteImport.update({
+    id: '/$sessionKey/clarify',
+    path: '/$sessionKey/clarify',
+    getParentRoute: () => ApiSessionsRoute,
+  } as any)
 const ApiSessionsSessionKeyActiveRunRoute =
   ApiSessionsSessionKeyActiveRunRouteImport.update({
     id: '/$sessionKey/active-run',
@@ -1385,6 +1392,7 @@ export interface FileRoutesByFullPath {
   '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
   '/api/self-improve/scenarios/$id': typeof ApiSelfImproveScenariosIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
+  '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
@@ -1579,6 +1587,7 @@ export interface FileRoutesByTo {
   '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
   '/api/self-improve/scenarios/$id': typeof ApiSelfImproveScenariosIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
+  '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
@@ -1776,6 +1785,7 @@ export interface FileRoutesById {
   '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
   '/api/self-improve/scenarios/$id': typeof ApiSelfImproveScenariosIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
+  '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
@@ -1974,6 +1984,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/metrics/latest'
     | '/api/self-improve/scenarios/$id'
     | '/api/sessions/$sessionKey/active-run'
+    | '/api/sessions/$sessionKey/clarify'
     | '/api/sessions/$sessionKey/status'
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
@@ -2168,6 +2179,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/metrics/latest'
     | '/api/self-improve/scenarios/$id'
     | '/api/sessions/$sessionKey/active-run'
+    | '/api/sessions/$sessionKey/clarify'
     | '/api/sessions/$sessionKey/status'
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
@@ -2364,6 +2376,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/metrics/latest'
     | '/api/self-improve/scenarios/$id'
     | '/api/sessions/$sessionKey/active-run'
+    | '/api/sessions/$sessionKey/clarify'
     | '/api/sessions/$sessionKey/status'
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
@@ -3680,6 +3693,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSessionsSessionKeyStatusRouteImport
       parentRoute: typeof ApiSessionsRoute
     }
+    '/api/sessions/$sessionKey/clarify': {
+      id: '/api/sessions/$sessionKey/clarify'
+      path: '/$sessionKey/clarify'
+      fullPath: '/api/sessions/$sessionKey/clarify'
+      preLoaderRoute: typeof ApiSessionsSessionKeyClarifyRouteImport
+      parentRoute: typeof ApiSessionsRoute
+    }
     '/api/sessions/$sessionKey/active-run': {
       id: '/api/sessions/$sessionKey/active-run'
       path: '/$sessionKey/active-run'
@@ -4045,12 +4065,14 @@ const ApiMemoryRouteWithChildren = ApiMemoryRoute._addFileChildren(
 interface ApiSessionsRouteChildren {
   ApiSessionsSendRoute: typeof ApiSessionsSendRoute
   ApiSessionsSessionKeyActiveRunRoute: typeof ApiSessionsSessionKeyActiveRunRoute
+  ApiSessionsSessionKeyClarifyRoute: typeof ApiSessionsSessionKeyClarifyRoute
   ApiSessionsSessionKeyStatusRoute: typeof ApiSessionsSessionKeyStatusRoute
 }
 
 const ApiSessionsRouteChildren: ApiSessionsRouteChildren = {
   ApiSessionsSendRoute: ApiSessionsSendRoute,
   ApiSessionsSessionKeyActiveRunRoute: ApiSessionsSessionKeyActiveRunRoute,
+  ApiSessionsSessionKeyClarifyRoute: ApiSessionsSessionKeyClarifyRoute,
   ApiSessionsSessionKeyStatusRoute: ApiSessionsSessionKeyStatusRoute,
 }
 

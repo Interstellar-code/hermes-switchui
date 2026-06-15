@@ -32,6 +32,7 @@ import {
 import { ChatMessageList } from './components/chat-message-list'
 import { ChatEmptyState } from './components/chat-empty-state'
 import { ChatComposerShadcn } from './components/chat-composer-shadcn'
+import { InlineClarifyCard } from './components/inline-clarify-card'
 import { ConnectionStatusMessage } from './components/connection-status-message'
 import {
   consumePendingSend,
@@ -652,6 +653,10 @@ export function ChatScreen({
     [waitingStoreKey],
   )
   const storeWaitingForSession = useChatStore(selectWaitingForSession)
+  // Interactive clarify (P3): pending clarify map, keyed by sessionKey. When the
+  // active session has a pending clarify, the inline card renders and the
+  // composer is blocked until the user answers (or the run ends/times out).
+  const pendingClarifyMap = useChatStore((s) => s.pendingClarify)
   const waitingForResponse = waitingStoreKey
     ? storeWaitingForSession
     : hasPendingSend() || hasPendingGeneration()
@@ -2045,6 +2050,11 @@ export function ChatScreen({
   const hideUi = shouldRedirectToNew || isRedirecting
   const isFocusMode = !compact && chatFocusMode
   const showComposer = !isRedirecting
+  // Pending interactive clarify for the active session (P3). When set, render the
+  // inline clarify card above the composer and block the composer.
+  const activeClarify = resolvedSessionKey
+    ? pendingClarifyMap[resolvedSessionKey]
+    : undefined
 
   const handleToggleFocusMode = useCallback(() => {
     if (compact) return
@@ -3314,12 +3324,18 @@ export function ChatScreen({
               toolDisplayMode={toolDisplayMode}
             />
           )}
+          {activeClarify && resolvedSessionKey ? (
+            <InlineClarifyCard
+              clarify={activeClarify}
+              sessionKey={resolvedSessionKey}
+            />
+          ) : null}
           {showComposer ? (
             <ChatComposerShadcn
               onSubmit={send}
               onAbort={handleAbortStreaming}
               isLoading={isComposerLoading}
-              disabled={hideUi}
+              disabled={hideUi || !!activeClarify}
               sessionKey={activeQueueSessionKey || undefined}
               wrapperRef={composerRef}
               composerRef={composerHandleRef}
