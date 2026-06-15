@@ -1345,6 +1345,39 @@ export const Route = createFileRoute('/api/send-stream')({
                       return
                     }
 
+                    if (event === 'clarify.request') {
+                      const d = data as Record<string, unknown>
+                      const clarifyPayload = {
+                        type: 'clarify' as const,
+                        clarifyId: readString(d.clarify_id) || '',
+                        messageId: readString(d.message_id) || undefined,
+                        question: readString(d.question) || '',
+                        choices: Array.isArray(d.choices)
+                          ? (d.choices as string[])
+                          : null,
+                        sessionKey: sessionKeyFromEvent,
+                        runId,
+                      }
+                      sendEvent('clarify', clarifyPayload)
+                      skipPublish || publishChatEvent('clarify', clarifyPayload)
+                      return
+                    }
+
+                    if (event === 'clarify.responded') {
+                      const d = data as Record<string, unknown>
+                      const resolvedPayload = {
+                        type: 'clarify_resolved' as const,
+                        clarifyId: readString(d.clarify_id) || '',
+                        answer: readString(d.answer) || undefined,
+                        sessionKey: sessionKeyFromEvent,
+                        runId,
+                      }
+                      sendEvent('clarify_resolved', resolvedPayload)
+                      skipPublish ||
+                        publishChatEvent('clarify_resolved', resolvedPayload)
+                      return
+                    }
+
                     if (event === 'error') {
                       const errorMessage =
                         readString(
