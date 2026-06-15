@@ -141,6 +141,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
   const unregisterSendStreamRun = useChatStore((s) => s.unregisterSendStreamRun)
   const processStoreEvent = useChatStore((s) => s.processEvent)
   const clearStreamingSession = useChatStore((s) => s.clearStreamingSession)
+  const clearPendingClarify = useChatStore((s) => s.clearPendingClarify)
   const recordCompaction = useContextUsageStore((s) => s.recordCompaction)
   const updateContextPercent = useContextUsageStore((s) => s.updateContextPercent)
 
@@ -710,13 +711,16 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
             transport: 'send-stream',
           })
           if (doneState === 'error' && errorMessage) {
+            clearPendingClarify(activeSessionKeyRef.current)
             markFailed(errorMessage)
             break
           }
+          clearPendingClarify(activeSessionKeyRef.current)
           finishStream(payload)
           break
         }
         case 'complete': {
+          clearPendingClarify(activeSessionKeyRef.current)
           finishStream(payload)
           break
         }
@@ -732,6 +736,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
           }
           const errorMessage =
             (payload as { message?: string }).message ?? 'Stream error'
+          clearPendingClarify(activeSessionKeyRef.current)
           markFailed(errorMessage)
           break
         }
@@ -765,9 +770,34 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
           }
           break
         }
+        case 'clarify': {
+          processStoreEvent({
+            type: 'clarify',
+            clarifyId: (payload.clarifyId as string) || '',
+            messageId: (payload.messageId as string | undefined) || undefined,
+            question: (payload.question as string) || '',
+            choices: Array.isArray(payload.choices)
+              ? (payload.choices as string[])
+              : null,
+            sessionKey: activeSessionKeyRef.current,
+            runId: activeRunIdRef.current ?? undefined,
+          })
+          break
+        }
+        case 'clarify_resolved': {
+          processStoreEvent({
+            type: 'clarify_resolved',
+            clarifyId: (payload.clarifyId as string) || '',
+            answer: (payload.answer as string | undefined) || undefined,
+            sessionKey: activeSessionKeyRef.current,
+            runId: activeRunIdRef.current ?? undefined,
+          })
+          break
+        }
       }
     },
     [
+      clearPendingClarify,
       finishStream,
       markFailed,
       onStarted,
