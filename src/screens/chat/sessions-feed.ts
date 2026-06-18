@@ -352,14 +352,19 @@ function matchesDateRange(
 ): boolean {
   if (!from && !to) return true
   const itemDate = item.when
+  // Local-timezone day boundaries (not UTC). The picker emits YYYY-MM-DD in the
+  // user's locale, so "June 15" must mean local June 15 00:00 → 23:59:59.999.
+  // Was previously split across two passes with inconsistent UTC/local
+  // predicates; unified here as the single owner (S5).
   if (from) {
-    const fromMs = new Date(from).getTime()
+    const [fy, fm, fd] = from.split('-').map(Number)
+    const fromMs = new Date(fy, fm - 1, fd, 0, 0, 0, 0).getTime()
     if (Number.isFinite(fromMs) && itemDate < fromMs) return false
   }
   if (to) {
-    // Include the full to-day: add 24h
-    const toMs = new Date(to).getTime() + 86_400_000
-    if (Number.isFinite(toMs) && itemDate >= toMs) return false
+    const [ty, tm, td] = to.split('-').map(Number)
+    const toMs = new Date(ty, tm - 1, td, 23, 59, 59, 999).getTime()
+    if (Number.isFinite(toMs) && itemDate > toMs) return false
   }
   return true
 }
