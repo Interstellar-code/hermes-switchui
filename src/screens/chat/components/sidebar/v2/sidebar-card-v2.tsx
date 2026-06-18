@@ -7,7 +7,7 @@
  * Layout: [rail 3px] | [body: title / src·sub / badges] | [right: time / tokens]
  */
 
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { SidebarCardContextMenuV2 } from './sidebar-card-context-menu-v2'
 import type { ContextMenuPosition } from './sidebar-card-context-menu-v2'
@@ -97,7 +97,7 @@ function formatTokens(n: number): string {
 
 // ── Card ──────────────────────────────────────────────────────────────────────
 
-export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
+function SidebarCardV2Impl({ item, isActive }: SidebarCardV2Props) {
   const railColor = RAIL_COLORS[item.src] ?? 'var(--theme-border)'
   // Glow: always emit when item.live is true regardless of isActive; active also glows
   const railGlow =
@@ -325,6 +325,29 @@ export function SidebarCardV2({ item, isActive }: SidebarCardV2Props) {
 
   return <>{cardContent}{contextMenuEl}</>
 }
+
+function cardPropsEqual(prev: SidebarCardV2Props, next: SidebarCardV2Props): boolean {
+  if (prev.isActive !== next.isActive) return false
+  const a = prev.item
+  const b = next.item
+  return (
+    a.id === b.id &&
+    a.src === b.src &&
+    a.title === b.title &&
+    a.when === b.when &&
+    a.live === b.live &&
+    a.pinned === b.pinned &&
+    a.starred === b.starred &&
+    a.archived === b.archived &&
+    a.state === b.state &&
+    a.tokens === b.tokens &&
+    a.sourceMeta.model === b.sourceMeta.model &&
+    a.sourceMeta.messageCount === b.sourceMeta.messageCount &&
+    a.sourceMeta.toolCallCount === b.sourceMeta.toolCallCount
+  )
+}
+
+export const SidebarCardV2 = memo(SidebarCardV2Impl, cardPropsEqual)
 
 // ── Badge ─────────────────────────────────────────────────────────────────────
 

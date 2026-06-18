@@ -54,13 +54,15 @@ function matchesDateRange(
 
 function decorateItem(
   item: SessionFeedItem,
-  local: Pick<LocalState, 'pinned' | 'starred' | 'archived'>,
+  pinnedSet: Set<string>,
+  starredSet: Set<string>,
+  archivedSet: Set<string>,
 ): SessionFeedItem {
   return {
     ...item,
-    pinned: local.pinned.includes(item.id),
-    starred: local.starred.includes(item.id),
-    archived: local.archived.includes(item.id) || item.state === 'archived',
+    pinned: pinnedSet.has(item.id),
+    starred: starredSet.has(item.id),
+    archived: archivedSet.has(item.id) || item.state === 'archived',
   }
 }
 
@@ -82,20 +84,25 @@ export function applyFiltersAndDecorate(
 ): FilterAndDecorateResult {
   const lowerQuery = filter.query.trim().toLowerCase()
 
+  // Build Sets once — O(1) lookups replace O(m) array.includes per item
+  const pinnedSet = new Set(local.pinned)
+  const starredSet = new Set(local.starred)
+  const archivedSet = new Set(local.archived)
+
   // ── Base filter (state + search + date) — used for sourceCounts ───────────
   function passesBaseFilters(item: SessionFeedItem): boolean {
     // State filter
     if (filter.state === 'archived') {
       // archived state: show only items whose local.archived contains this id OR item.state === 'archived'
-      const locallyArchived = local.archived.includes(item.id)
+      const locallyArchived = archivedSet.has(item.id)
       if (!locallyArchived && item.state !== 'archived') return false
     } else if (filter.state !== 'all') {
       // Specific state: item must match AND not be archived
-      if (local.archived.includes(item.id)) return false
+      if (archivedSet.has(item.id)) return false
       if (item.state !== filter.state) return false
     } else {
       // 'all': hide archived
-      if (local.archived.includes(item.id)) return false
+      if (archivedSet.has(item.id)) return false
       if (item.state === 'archived') return false
     }
 
@@ -126,7 +133,7 @@ export function applyFiltersAndDecorate(
   })
 
   // ── Decorate ──────────────────────────────────────────────────────────────
-  const decorated = filtered.map((item) => decorateItem(item, local))
+  const decorated = filtered.map((item) => decorateItem(item, pinnedSet, starredSet, archivedSet))
 
   // ── Sort within groups ────────────────────────────────────────────────────
   const sorted = sortItems(decorated, filter.sort)
