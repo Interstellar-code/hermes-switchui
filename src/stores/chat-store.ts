@@ -134,11 +134,15 @@ export type ChatStreamEvent =
       transport?: 'chat-events' | 'send-stream'
     }
   | {
-      // Interactive clarify request (P3). The agent's turn is BLOCKED waiting
-      // for the user's answer. Mirrors the gateway `clarify.request` SSE event.
-      type: 'clarify'
+      // Interactive clarify/interaction request (P3). The agent's turn is
+      // BLOCKED waiting for the user's answer. Mirrors gateway
+      // `clarify.request` and future `interaction.request` SSE events.
+      type: 'clarify' | 'interaction'
       clarifyId: string
+      interactionId?: string
       messageId?: string
+      kind?: 'choice' | 'text' | 'approval' | string
+      toolName?: string
       question: string
       /** Multiple-choice options, or null/empty for a free-text question. */
       choices?: Array<string> | null
@@ -147,11 +151,16 @@ export type ChatStreamEvent =
       transport?: 'chat-events' | 'send-stream'
     }
   | {
-      // Clarify resolved/dismissed — clears the pending clarify for the session.
-      // Emitted from the gateway `clarify.responded` SSE event (answer accepted)
-      // and used internally to optimistically clear after submit.
-      type: 'clarify_resolved'
+      // Clarify/interaction resolved — marks the pending interaction answered.
+      // Emitted from gateway `clarify.responded` and `interaction.responded`
+      // SSE events, and used internally to optimistically mark after submit.
+      type: 'clarify_resolved' | 'interaction_resolved'
       clarifyId: string
+      interactionId?: string
+      kind?: 'choice' | 'text' | 'approval' | string
+      toolName?: string
+      question?: string
+      choices?: Array<string> | null
       answer?: string
       sessionKey: string
       runId?: string
@@ -191,11 +200,22 @@ export type QueuedChatMessage = {
  */
 export type PendingClarify = {
   clarifyId: string
+  interactionId?: string
   messageId?: string
+  kind?: 'choice' | 'text' | 'approval' | string
+  toolName?: string
   question: string
   choices: Array<string> | null
   runId: string | null
   requestedAt: number
+  /**
+   * Set once the user answers. The card stays mounted in a read-only
+   * "answered" state showing the selected option (composer unblocks), and is
+   * only removed when the next turn starts or the session is cleared.
+   */
+  resolved?: boolean
+  /** The answer the user submitted (choice label or free text). */
+  answer?: string
 }
 
 export type MessageQueueActivity = {
@@ -275,6 +295,22 @@ type ChatState = {
   getPendingClarify: (sessionKey: string) => PendingClarify | null
   /** Clear the pending clarify for a session (after answer/resolve/timeout). */
   clearPendingClarify: (sessionKey: string) => void
+  /**
+   * Optimistically mark a pending clarify as answered (keeps the card mounted
+   * in its read-only "answered" state with the selected option). Called by the
+   * card on submit; the gateway's `clarify.responded` SSE then confirms.
+   */
+  markClarifyResolved: (
+    sessionKey: string,
+    clarifyId: string,
+    answer: string,
+  ) => void
+  /**
+   * Remove a pending clarify ONLY if it has not been answered. Used on turn
+   * end (`done`/`complete`/`error`) so a stale unanswered card is cleared but
+   * an answered card persists for the visual record until the next turn.
+   */
+  dismissUnresolvedClarify: (sessionKey: string) => void
   /**
    * Sessions where the liveness snapshot is absent but the history predicate
    * (`hasUnansweredLatestUserTurn` + F1 guard) indicates a turn was likely
@@ -982,6 +1018,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ pendingClarify: next })
   },
 
+  markClarifyResolved: (sessionKey, clarifyId, answer) => {
+    const current = get().pendingClarify[sessionKey]
+    if (!current) return
+    if (clarifyId && current.clarifyId !== clarifyId) return
+    set({
+      pendingClarify: {
+        ...get().pendingClarify,
+        [sessionKey]: {
+          ...current,
+          resolved: true,
+          answer: answer.trim() || current.answer,
+        },
+      },
+    })
+  },
+
+  dismissUnresolvedClarify: (sessionKey) => {
+    const current = get().pendingClarify
+    const entry = current[sessionKey]
+    // Keep answered cards (visual record); only drop stale unanswered ones.
+    if (!entry || entry.resolved) return
+    const next = { ...current }
+    delete next[sessionKey]
+    set({ pendingClarify: next })
+  },
+
   setSessionInterrupted: (sessionKey) => {
     const nextKeys = new Set(get().interruptedSessionKeys)
     nextKeys.add(sessionKey)
@@ -1053,7 +1115,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     switch (event.type) {
-      case 'clarify': {
+      case 'clarify':
+      case 'interaction': {
         // Interactive clarify request (P3). Store the pending clarify so the
         // inline card renders and the composer blocks. The agent's turn is
         // blocked until the user answers (or the run ends).
@@ -1069,8 +1132,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
           pendingClarify: {
             ...state.pendingClarify,
             [sessionKey]: {
-              clarifyId: event.clarifyId,
+              clarifyId: event.clarifyId || event.interactionId || '',
+              interactionId: event.interactionId || event.clarifyId || undefined,
               messageId: event.messageId,
+              kind: event.kind,
+              toolName: event.toolName || 'clarify',
               question,
               choices,
               runId: event.runId ?? null,
@@ -1080,17 +1146,41 @@ export const useChatStore = create<ChatState>((set, get) => ({
         })
         break
       }
-      case 'clarify_resolved': {
-        // Answer accepted / dismissed — clear the pending clarify so the
-        // composer re-enables and the stream resumes normally.
+      case 'clarify_resolved':
+      case 'interaction_resolved': {
+        // Answer accepted — mark the pending clarify as resolved (rather than
+        // deleting it) so the card stays mounted in a read-only "answered"
+        // state showing the selected option. The composer un-blocks on
+        // `resolved`, and the entry is removed when the next turn starts
+        // (`started`) or the session is cleared. The agent's turn resumes.
         const current = state.pendingClarify[sessionKey]
         if (!current) break
-        // If a clarifyId is provided, only clear the matching one (guards
+        // If a clarifyId is provided, only act on the matching one (guards
         // against a stale resolve for a superseded clarify).
-        if (event.clarifyId && current.clarifyId !== event.clarifyId) break
-        const next = { ...state.pendingClarify }
-        delete next[sessionKey]
-        set({ pendingClarify: next })
+        const eventId = event.clarifyId || event.interactionId || ''
+        if (
+          eventId &&
+          current.clarifyId !== eventId &&
+          current.interactionId !== eventId
+        ) {
+          break
+        }
+        set({
+          pendingClarify: {
+            ...state.pendingClarify,
+            [sessionKey]: {
+              ...current,
+              clarifyId: current.clarifyId || event.clarifyId,
+              interactionId: current.interactionId || event.interactionId,
+              kind: current.kind || event.kind,
+              toolName: current.toolName || event.toolName,
+              question: event.question?.trim() || current.question,
+              choices: event.choices ?? current.choices,
+              resolved: true,
+              answer: event.answer?.trim() || current.answer,
+            },
+          },
+        })
         break
       }
       case 'message':

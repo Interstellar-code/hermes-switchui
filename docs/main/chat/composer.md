@@ -45,6 +45,18 @@ Click the paperclip icon or drag a file onto the composer to attach it. See [Att
 
 Type `/` at the start of a message to open the slash command menu. See [Slash commands](./slash-commands.md) for the full list.
 
+## Interactive clarification (mid-turn)
+
+When an agent invokes the `clarify` tool mid-turn, the chat area inserts a **Clarification needed** card above the composer. The card shows the agent's question and, when the agent supplies a list of choices, a button for each option.
+
+You can:
+- Click a choice button to submit that answer immediately.
+- Type a free-text reply in the input field and press **Send** (or **Enter**).
+
+Submitting an answer POSTs to `/api/sessions/:key/clarify` with your reply, which unblocks the agent's paused turn on the gateway. The card updates to "Answer submitted — resuming…" while the turn continues. If an error occurs the card shows the error inline and lets you retry.
+
+The clarify card requires gateway support. Sessions using the OpenAI-compatible fallback path do not support mid-turn clarification.
+
 ## Aborting a response
 
 While the model is generating, the Send button becomes a **Stop** button. Click it to abort the current stream. Partial output already in the thread remains visible.

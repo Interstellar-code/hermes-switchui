@@ -110,6 +110,7 @@ import { Route as ApiSelfImproveHealthRouteImport } from './routes/api/self-impr
 import { Route as ApiSelfImproveExperimentsRouteImport } from './routes/api/self-improve/experiments'
 import { Route as ApiSelfImproveBaselinesRouteImport } from './routes/api/self-improve/baselines'
 import { Route as ApiProfilesUpdateRouteImport } from './routes/api/profiles/update'
+import { Route as ApiProfilesToolsetsRouteImport } from './routes/api/profiles/toolsets'
 import { Route as ApiProfilesRenameRouteImport } from './routes/api/profiles/rename'
 import { Route as ApiProfilesReadRouteImport } from './routes/api/profiles/read'
 import { Route as ApiProfilesListRouteImport } from './routes/api/profiles/list'
@@ -204,6 +205,7 @@ import { Route as ApiHermesKanbanBoardsSlugSwitchRouteImport } from './routes/ap
 import { Route as ApiHermesKanbanBoardsSlugSaveAsTemplateRouteImport } from './routes/api/hermes-kanban/boards.$slug.save-as-template'
 import { Route as ApiConductorMissionsIdAbortRouteImport } from './routes/api/conductor/missions.$id.abort'
 import { Route as ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRouteImport } from './routes/api/hermes-kanban/tasks.$taskId.home-subscribe.$platform'
+import { Route as ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRouteImport } from './routes/api/sessions/$sessionKey/chat/interactions/$interactionId/respond'
 
 const WorkflowsRoute = WorkflowsRouteImport.update({
   id: '/workflows',
@@ -712,6 +714,11 @@ const ApiProfilesUpdateRoute = ApiProfilesUpdateRouteImport.update({
   path: '/api/profiles/update',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProfilesToolsetsRoute = ApiProfilesToolsetsRouteImport.update({
+  id: '/api/profiles/toolsets',
+  path: '/api/profiles/toolsets',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProfilesRenameRoute = ApiProfilesRenameRouteImport.update({
   id: '/api/profiles/rename',
   path: '/api/profiles/rename',
@@ -1217,6 +1224,12 @@ const ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute =
     path: '/home-subscribe/$platform',
     getParentRoute: () => ApiHermesKanbanTasksTaskIdRoute,
   } as any)
+const ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute =
+  ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRouteImport.update({
+    id: '/$sessionKey/chat/interactions/$interactionId/respond',
+    path: '/$sessionKey/chat/interactions/$interactionId/respond',
+    getParentRoute: () => ApiSessionsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -1362,6 +1375,7 @@ export interface FileRoutesByFullPath {
   '/api/profiles/list': typeof ApiProfilesListRoute
   '/api/profiles/read': typeof ApiProfilesReadRoute
   '/api/profiles/rename': typeof ApiProfilesRenameRoute
+  '/api/profiles/toolsets': typeof ApiProfilesToolsetsRoute
   '/api/profiles/update': typeof ApiProfilesUpdateRoute
   '/api/self-improve/baselines': typeof ApiSelfImproveBaselinesRoute
   '/api/self-improve/experiments': typeof ApiSelfImproveExperimentsRouteWithChildren
@@ -1414,6 +1428,7 @@ export interface FileRoutesByFullPath {
   '/api/self-improve/profiles/$profile/pause': typeof ApiSelfImproveProfilesProfilePauseRoute
   '/api/self-improve/profiles/$profile/resume': typeof ApiSelfImproveProfilesProfileResumeRoute
   '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform': typeof ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute
+  '/api/sessions/$sessionKey/chat/interactions/$interactionId/respond': typeof ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -1557,6 +1572,7 @@ export interface FileRoutesByTo {
   '/api/profiles/list': typeof ApiProfilesListRoute
   '/api/profiles/read': typeof ApiProfilesReadRoute
   '/api/profiles/rename': typeof ApiProfilesRenameRoute
+  '/api/profiles/toolsets': typeof ApiProfilesToolsetsRoute
   '/api/profiles/update': typeof ApiProfilesUpdateRoute
   '/api/self-improve/baselines': typeof ApiSelfImproveBaselinesRoute
   '/api/self-improve/experiments': typeof ApiSelfImproveExperimentsRouteWithChildren
@@ -1609,6 +1625,7 @@ export interface FileRoutesByTo {
   '/api/self-improve/profiles/$profile/pause': typeof ApiSelfImproveProfilesProfilePauseRoute
   '/api/self-improve/profiles/$profile/resume': typeof ApiSelfImproveProfilesProfileResumeRoute
   '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform': typeof ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute
+  '/api/sessions/$sessionKey/chat/interactions/$interactionId/respond': typeof ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -1755,6 +1772,7 @@ export interface FileRoutesById {
   '/api/profiles/list': typeof ApiProfilesListRoute
   '/api/profiles/read': typeof ApiProfilesReadRoute
   '/api/profiles/rename': typeof ApiProfilesRenameRoute
+  '/api/profiles/toolsets': typeof ApiProfilesToolsetsRoute
   '/api/profiles/update': typeof ApiProfilesUpdateRoute
   '/api/self-improve/baselines': typeof ApiSelfImproveBaselinesRoute
   '/api/self-improve/experiments': typeof ApiSelfImproveExperimentsRouteWithChildren
@@ -1807,6 +1825,7 @@ export interface FileRoutesById {
   '/api/self-improve/profiles/$profile/pause': typeof ApiSelfImproveProfilesProfilePauseRoute
   '/api/self-improve/profiles/$profile/resume': typeof ApiSelfImproveProfilesProfileResumeRoute
   '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform': typeof ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute
+  '/api/sessions/$sessionKey/chat/interactions/$interactionId/respond': typeof ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -1954,6 +1973,7 @@ export interface FileRouteTypes {
     | '/api/profiles/list'
     | '/api/profiles/read'
     | '/api/profiles/rename'
+    | '/api/profiles/toolsets'
     | '/api/profiles/update'
     | '/api/self-improve/baselines'
     | '/api/self-improve/experiments'
@@ -2006,6 +2026,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/profiles/$profile/pause'
     | '/api/self-improve/profiles/$profile/resume'
     | '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform'
+    | '/api/sessions/$sessionKey/chat/interactions/$interactionId/respond'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -2149,6 +2170,7 @@ export interface FileRouteTypes {
     | '/api/profiles/list'
     | '/api/profiles/read'
     | '/api/profiles/rename'
+    | '/api/profiles/toolsets'
     | '/api/profiles/update'
     | '/api/self-improve/baselines'
     | '/api/self-improve/experiments'
@@ -2201,6 +2223,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/profiles/$profile/pause'
     | '/api/self-improve/profiles/$profile/resume'
     | '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform'
+    | '/api/sessions/$sessionKey/chat/interactions/$interactionId/respond'
   id:
     | '__root__'
     | '/'
@@ -2346,6 +2369,7 @@ export interface FileRouteTypes {
     | '/api/profiles/list'
     | '/api/profiles/read'
     | '/api/profiles/rename'
+    | '/api/profiles/toolsets'
     | '/api/profiles/update'
     | '/api/self-improve/baselines'
     | '/api/self-improve/experiments'
@@ -2398,6 +2422,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/profiles/$profile/pause'
     | '/api/self-improve/profiles/$profile/resume'
     | '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform'
+    | '/api/sessions/$sessionKey/chat/interactions/$interactionId/respond'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -2522,6 +2547,7 @@ export interface RootRouteChildren {
   ApiProfilesListRoute: typeof ApiProfilesListRoute
   ApiProfilesReadRoute: typeof ApiProfilesReadRoute
   ApiProfilesRenameRoute: typeof ApiProfilesRenameRoute
+  ApiProfilesToolsetsRoute: typeof ApiProfilesToolsetsRoute
   ApiProfilesUpdateRoute: typeof ApiProfilesUpdateRoute
   ApiSelfImproveBaselinesRoute: typeof ApiSelfImproveBaselinesRoute
   ApiSelfImproveExperimentsRoute: typeof ApiSelfImproveExperimentsRouteWithChildren
@@ -3245,6 +3271,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProfilesUpdateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/profiles/toolsets': {
+      id: '/api/profiles/toolsets'
+      path: '/api/profiles/toolsets'
+      fullPath: '/api/profiles/toolsets'
+      preLoaderRoute: typeof ApiProfilesToolsetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/profiles/rename': {
       id: '/api/profiles/rename'
       path: '/api/profiles/rename'
@@ -3903,6 +3936,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRouteImport
       parentRoute: typeof ApiHermesKanbanTasksTaskIdRoute
     }
+    '/api/sessions/$sessionKey/chat/interactions/$interactionId/respond': {
+      id: '/api/sessions/$sessionKey/chat/interactions/$interactionId/respond'
+      path: '/$sessionKey/chat/interactions/$interactionId/respond'
+      fullPath: '/api/sessions/$sessionKey/chat/interactions/$interactionId/respond'
+      preLoaderRoute: typeof ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRouteImport
+      parentRoute: typeof ApiSessionsRoute
+    }
   }
 }
 
@@ -4067,6 +4107,7 @@ interface ApiSessionsRouteChildren {
   ApiSessionsSessionKeyActiveRunRoute: typeof ApiSessionsSessionKeyActiveRunRoute
   ApiSessionsSessionKeyClarifyRoute: typeof ApiSessionsSessionKeyClarifyRoute
   ApiSessionsSessionKeyStatusRoute: typeof ApiSessionsSessionKeyStatusRoute
+  ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute: typeof ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute
 }
 
 const ApiSessionsRouteChildren: ApiSessionsRouteChildren = {
@@ -4074,6 +4115,8 @@ const ApiSessionsRouteChildren: ApiSessionsRouteChildren = {
   ApiSessionsSessionKeyActiveRunRoute: ApiSessionsSessionKeyActiveRunRoute,
   ApiSessionsSessionKeyClarifyRoute: ApiSessionsSessionKeyClarifyRoute,
   ApiSessionsSessionKeyStatusRoute: ApiSessionsSessionKeyStatusRoute,
+  ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute:
+    ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute,
 }
 
 const ApiSessionsRouteWithChildren = ApiSessionsRoute._addFileChildren(
@@ -4514,6 +4557,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProfilesListRoute: ApiProfilesListRoute,
   ApiProfilesReadRoute: ApiProfilesReadRoute,
   ApiProfilesRenameRoute: ApiProfilesRenameRoute,
+  ApiProfilesToolsetsRoute: ApiProfilesToolsetsRoute,
   ApiProfilesUpdateRoute: ApiProfilesUpdateRoute,
   ApiSelfImproveBaselinesRoute: ApiSelfImproveBaselinesRoute,
   ApiSelfImproveExperimentsRoute: ApiSelfImproveExperimentsRouteWithChildren,

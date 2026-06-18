@@ -3322,20 +3322,22 @@ export function ChatScreen({
               liveProgressLabel={liveProgressLabel}
               sending={sending}
               toolDisplayMode={toolDisplayMode}
+              clarifyCard={
+                activeClarify && resolvedSessionKey ? (
+                  <InlineClarifyCard
+                    clarify={activeClarify}
+                    sessionKey={resolvedSessionKey}
+                  />
+                ) : null
+              }
             />
           )}
-          {activeClarify && resolvedSessionKey ? (
-            <InlineClarifyCard
-              clarify={activeClarify}
-              sessionKey={resolvedSessionKey}
-            />
-          ) : null}
           {showComposer ? (
             <ChatComposerShadcn
               onSubmit={send}
               onAbort={handleAbortStreaming}
               isLoading={isComposerLoading}
-              disabled={hideUi || !!activeClarify}
+              disabled={hideUi || (!!activeClarify && !activeClarify.resolved)}
               sessionKey={activeQueueSessionKey || undefined}
               wrapperRef={composerRef}
               composerRef={composerHandleRef}
