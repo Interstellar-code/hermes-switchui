@@ -278,7 +278,7 @@ type LifecycleEvent = {
   isError: boolean
 }
 
-type MessageItemProps = {
+export type MessageItemProps = {
   message: ChatMessage
   attachedToolMessages?: Array<ChatMessage>
   toolResultsByCallId?: Map<string, ChatMessage>

@@ -30,6 +30,7 @@ import {
   updateSessionLastMessage,
 } from './chat-queries'
 import { ChatMessageList } from './components/chat-message-list'
+import { StreamingTextContext } from './components/streaming-text-context'
 import { ChatEmptyState } from './components/chat-empty-state'
 import { ChatComposerShadcn } from './components/chat-composer-shadcn'
 import { InlineClarifyCard } from './components/inline-clarify-card'
@@ -3253,6 +3254,13 @@ export function ChatScreen({
             />
           ) : null}
           {hideUi || activeTab !== 'chat' ? null : (
+            <StreamingTextContext.Provider
+              value={
+                stableActiveStreamingText ||
+                completedStreamingText.current ||
+                ''
+              }
+            >
             <ChatMessageList
               messages={finalDisplayMessages}
               onRetryMessage={handleRetryMessage}
@@ -3302,11 +3310,9 @@ export function ChatScreen({
               }
               isStreaming={derivedStreamingInfo.isStreaming}
               streamingMessageId={derivedStreamingInfo.streamingMessageId}
-              streamingText={
-                stableActiveStreamingText ||
-                completedStreamingText.current ||
-                undefined
-              }
+              hasStreamingText={Boolean(
+                (stableActiveStreamingText || completedStreamingText.current || '').trim(),
+              )}
               streamingThinking={
                 realtimeStreamingThinking ||
                 completedStreamingThinking.current ||
@@ -3330,6 +3336,7 @@ export function ChatScreen({
                 ) : null
               }
             />
+            </StreamingTextContext.Provider>
           )}
           {showComposer ? (
             <ChatComposerShadcn

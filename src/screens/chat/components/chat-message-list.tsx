@@ -12,6 +12,7 @@ import {
 } from '../utils'
 import { MessageItem } from './message-item'
 import type { ToolDisplayMode } from './message-item'
+import { StreamingMessageItem } from './streaming-text-context'
 import { TuiActivityCard } from './tui-activity-card'
 import {
   InlineClarifyCard,
@@ -691,7 +692,7 @@ type ChatMessageListProps = {
   contentStyle?: React.CSSProperties
   // Streaming support
   streamingMessageId?: string | null
-  streamingText?: string
+  hasStreamingText?: boolean
   streamingThinking?: string
   lifecycleEvents?: Array<{
     text: string
@@ -722,7 +723,7 @@ export function isThinkingIndicatorSurfaceVisible({
   isCompacting,
   liveToolActivityCount,
   isStreaming,
-  streamingText,
+  hasStreamingText,
   activeToolCallCount,
 }: {
   showTypingIndicator: boolean
@@ -730,10 +731,10 @@ export function isThinkingIndicatorSurfaceVisible({
   isCompacting: boolean
   liveToolActivityCount: number
   isStreaming: boolean
-  streamingText?: string
+  hasStreamingText: boolean
   activeToolCallCount: number
 }): boolean {
-  if (isStreaming && streamingText && streamingText.trim().length > 0) {
+  if (isStreaming && hasStreamingText) {
     return false
   }
 
@@ -742,7 +743,7 @@ export function isThinkingIndicatorSurfaceVisible({
     showResearchCard ||
     isCompacting ||
     liveToolActivityCount > 0 ||
-    (isStreaming && !streamingText) ||
+    (isStreaming && !hasStreamingText) ||
     (isStreaming && activeToolCallCount > 0)
   )
 }
@@ -766,7 +767,7 @@ function ChatMessageListComponent({
   headerHeight,
   contentStyle,
   streamingMessageId,
-  streamingText,
+  hasStreamingText = false,
   streamingThinking,
   lifecycleEvents = [],
   isStreaming = false,
@@ -976,14 +977,14 @@ function ChatMessageListComponent({
   // Early-cancel grace when streaming text actually starts flowing — this is the
   // primary exit path (not the 10s ceiling timer). Ensures zero blank gap.
   useEffect(() => {
-    if (thinkingGrace && streamingText && streamingText.trim().length > 0) {
+    if (thinkingGrace && hasStreamingText) {
       if (thinkingGraceTimerRef.current) {
         clearTimeout(thinkingGraceTimerRef.current)
         thinkingGraceTimerRef.current = null
       }
       setThinkingGrace(false)
     }
-  }, [streamingText, thinkingGrace])
+  }, [hasStreamingText, thinkingGrace])
 
   useEffect(() => {
     const currentAssistantCount = displayEntries.filter(
@@ -1307,13 +1308,13 @@ function ChatMessageListComponent({
     // in-thread streaming row has nothing to show yet.
     const streamingButEmpty =
       isStreaming &&
-      (!streamingText || streamingText.trim().length === 0) &&
+      !hasStreamingText &&
       !hasInThreadStreamingActivity
     if (isCompacting) return true
     if (streamingButEmpty) return true
     if (!effectivelyWaiting) return false
     // If streaming has visible text, hide indicator — response is rendering
-    if (isStreaming && streamingText && streamingText.length > 0) return false
+    if (isStreaming && hasStreamingText) return false
     const lastEntry = visibleEntries[visibleEntries.length - 1]
     const lastMessage = lastEntry?.message
     if (lastMessage && lastMessage.role === 'assistant') {
@@ -1342,7 +1343,7 @@ function ChatMessageListComponent({
     isCompacting,
     liveToolActivityCount: liveToolActivity.length,
     isStreaming,
-    streamingText,
+    hasStreamingText,
     activeToolCallCount: activeToolCalls.length,
   })
 
@@ -1364,7 +1365,7 @@ function ChatMessageListComponent({
     showTypingIndicator ||
     !!clarifyCard ||
     liveToolActivity.length > 0 ||
-    (isStreaming && !streamingText) ||
+    (isStreaming && !hasStreamingText) ||
     (isStreaming && activeToolCalls.length > 0)
 
   const normalizedStreamingToolCalls = useMemo<
@@ -1534,7 +1535,7 @@ function ChatMessageListComponent({
         lifecycleEvents.length > 0 ||
         Boolean(streamingThinking && streamingThinking.trim().length > 0)
       const isEmptyPlaceholder =
-        (!streamingText || streamingText.trim().length === 0) &&
+        !hasStreamingText &&
         !hasStreamingActivity
       return (
         <div
@@ -1547,7 +1548,7 @@ function ChatMessageListComponent({
           }}
           aria-hidden={isEmptyPlaceholder ? true : undefined}
         >
-          <MessageItem
+          <StreamingMessageItem
             message={chatMessage}
             attachedToolMessages={entry.attachedToolMessages}
             onRetryMessage={effectiveOnRetry}
@@ -1563,15 +1564,10 @@ function ChatMessageListComponent({
                   ? 'bg-amber-50/30'
                   : undefined
             }
-            toolCalls={
-              messageIsStreaming ? normalizedStreamingToolCalls : undefined
-            }
+            toolCalls={normalizedStreamingToolCalls}
             isStreaming={messageIsStreaming}
-            streamingText={streamingText}
-            streamingThinking={
-              messageIsStreaming ? streamingThinking : undefined
-            }
-            lifecycleEvents={messageIsStreaming ? lifecycleEvents : undefined}
+            streamingThinking={streamingThinking}
+            lifecycleEvents={lifecycleEvents}
             clarifyCard={realIndex === lastAssistantIndex ? clarifyCard : undefined}
             simulateStreaming={simulateStreaming}
             streamingKey={signature}
@@ -1603,7 +1599,6 @@ function ChatMessageListComponent({
           messageIsStreaming ? normalizedStreamingToolCalls : undefined
         }
         isStreaming={messageIsStreaming}
-        streamingText={messageIsStreaming ? streamingText : undefined}
         streamingThinking={messageIsStreaming ? streamingThinking : undefined}
         lifecycleEvents={messageIsStreaming ? lifecycleEvents : undefined}
         clarifyCard={realIndex === lastAssistantIndex ? clarifyCard : undefined}
@@ -1659,7 +1654,7 @@ function ChatMessageListComponent({
     isStreaming,
     sessionKey,
     scrollToBottom,
-    streamingText,
+    hasStreamingText,
   ])
 
   useEffect(() => {
@@ -2034,34 +2029,36 @@ function ChatMessageListComponent({
                       chatMessage.role === 'assistant' &&
                       (getToolCallsFromMessage(chatMessage).length > 0 ||
                         entry.attachedToolMessages.length > 0)
-                    return (
-                      <MessageItem
+                    const sharedItemProps = {
+                      message: chatMessage,
+                      attachedToolMessages: entry.attachedToolMessages,
+                      onRetryMessage: onRetryMessage,
+                      toolResultsByCallId: hasToolCalls
+                        ? toolResultsByCallId
+                        : undefined,
+                      forceActionsVisible: forceActionsVisible,
+                      wrapperRef: wrapperRef,
+                      wrapperClassName: wrapperClassName,
+                      wrapperScrollMarginTop: wrapperScrollMarginTop,
+                      isStreaming: messageIsStreaming,
+                      streamingThinking: messageIsStreaming
+                        ? streamingThinking
+                        : undefined,
+                      lifecycleEvents: messageIsStreaming
+                        ? lifecycleEvents
+                        : undefined,
+                      simulateStreaming: simulateStreaming,
+                      streamingKey: signature,
+                      toolDisplayMode: toolDisplayMode,
+                      isLastAssistant: forceActionsVisible,
+                    }
+                    return messageIsStreaming ? (
+                      <StreamingMessageItem
                         key={stableId}
-                        message={chatMessage}
-                        attachedToolMessages={entry.attachedToolMessages}
-                        onRetryMessage={onRetryMessage}
-                        toolResultsByCallId={
-                          hasToolCalls ? toolResultsByCallId : undefined
-                        }
-                        forceActionsVisible={forceActionsVisible}
-                        wrapperRef={wrapperRef}
-                        wrapperClassName={wrapperClassName}
-                        wrapperScrollMarginTop={wrapperScrollMarginTop}
-                        isStreaming={messageIsStreaming}
-                        streamingText={
-                          messageIsStreaming ? streamingText : undefined
-                        }
-                        streamingThinking={
-                          messageIsStreaming ? streamingThinking : undefined
-                        }
-                        lifecycleEvents={
-                          messageIsStreaming ? lifecycleEvents : undefined
-                        }
-                        simulateStreaming={simulateStreaming}
-                        streamingKey={signature}
-                        toolDisplayMode={toolDisplayMode}
-                        isLastAssistant={forceActionsVisible}
+                        {...sharedItemProps}
                       />
+                    ) : (
+                      <MessageItem key={stableId} {...sharedItemProps} />
                     )
                   })}
                 </div>
@@ -2284,7 +2281,7 @@ function areChatMessageListEqual(
     prev.headerHeight === next.headerHeight &&
     prev.contentStyle === next.contentStyle &&
     prev.streamingMessageId === next.streamingMessageId &&
-    prev.streamingText === next.streamingText &&
+    prev.hasStreamingText === next.hasStreamingText &&
     prev.streamingThinking === next.streamingThinking &&
     prev.lifecycleEvents === next.lifecycleEvents &&
     prev.isStreaming === next.isStreaming &&
