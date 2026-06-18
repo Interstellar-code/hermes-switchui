@@ -1,11 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { shouldPreferBrowserScreenshot } from "@/lib/office/browserPreview";
+import type { BrowserPreviewSnapshot as BrowserPreviewSnapshotShape } from "@/lib/office/browserPreview";
 import type { OfficeDeskMonitor } from "@/lib/office/deskMonitor";
 
-type BrowserPreviewSnapshot = {
+type BrowserPreviewSnapshot = BrowserPreviewSnapshotShape & {
   mediaUrl: string | null;
   browserUrl: string | null;
   error: string | null;
@@ -13,7 +13,89 @@ type BrowserPreviewSnapshot = {
   capturedAt: number | null;
 };
 
+type OfficeMonitorEntry = {
+  kind: string;
+  text: string;
+  live: boolean;
+};
+
+type OfficeMonitorEditor = {
+  fileName: string;
+  lines: string[];
+  terminalLines: string[];
+  language: string;
+  cursorLine: number;
+  cursorColumn: number;
+};
+
+type MonitorViewModel = {
+  mode: string;
+  agentId: string;
+  agentName: string;
+  title: string;
+  subtitle: string;
+  live: boolean;
+  browserUrl: string | null;
+  entries: OfficeMonitorEntry[];
+  editor: OfficeMonitorEditor;
+};
+
 const BROWSER_EMBED_FALLBACK_MS = 2500;
+
+function asString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function asBoolean(value: unknown, fallback = false): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function asNumber(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function getEntries(value: unknown): OfficeMonitorEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => {
+    const record = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
+    return {
+      kind: asString(record.kind, "status"),
+      text: asString(record.text),
+      live: asBoolean(record.live),
+    };
+  });
+}
+
+function getEditor(value: unknown): OfficeMonitorEditor {
+  const record = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const lines = Array.isArray(record.lines) ? record.lines.map((line) => asString(line)) : [];
+  const terminalLines = Array.isArray(record.terminalLines)
+    ? record.terminalLines.map((line) => asString(line))
+    : [];
+  return {
+    fileName: asString(record.fileName, "workbench.tsx"),
+    lines,
+    terminalLines,
+    language: asString(record.language, "tsx"),
+    cursorLine: asNumber(record.cursorLine, 1),
+    cursorColumn: asNumber(record.cursorColumn, 1),
+  };
+}
+
+function toViewModel(monitor: OfficeDeskMonitor): MonitorViewModel {
+  const record = monitor as Record<string, unknown>;
+  return {
+    mode: asString(record.mode),
+    agentId: asString(record.agentId),
+    agentName: asString(record.agentName),
+    title: asString(record.title),
+    subtitle: asString(record.subtitle),
+    live: asBoolean(record.live),
+    browserUrl: asString(record.browserUrl) || null,
+    entries: getEntries(record.entries),
+    editor: getEditor(record.editor),
+  };
+}
 
 function useBrowserPreviewScreenshot(params: {
   browserUrl: string | null;
@@ -45,18 +127,10 @@ function useBrowserPreviewScreenshot(params: {
 
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
-    setSnapshot((current) => ({
-      ...current,
-      browserUrl,
-      error: null,
-      loading: true,
-    }));
+    setSnapshot((current) => ({ ...current, browserUrl, error: null, loading: true }));
 
     try {
-      const params = new URLSearchParams({
-        url: browserUrl,
-        ts: String(Date.now()),
-      });
+      const params = new URLSearchParams({ url: browserUrl, ts: String(Date.now()) });
       const response = await fetch(`/api/office/browser-preview?${params.toString()}`, {
         cache: "no-store",
       });
@@ -77,16 +151,14 @@ function useBrowserPreviewScreenshot(params: {
         browserUrl: payload.browserUrl?.trim() || browserUrl,
         error: null,
         loading: false,
-        capturedAt:
-          typeof payload.capturedAt === "number" ? payload.capturedAt : Date.now(),
+        capturedAt: typeof payload.capturedAt === "number" ? payload.capturedAt : Date.now(),
       });
     } catch (error) {
       if (requestIdRef.current !== requestId) return;
       setSnapshot((current) => ({
         ...current,
         browserUrl,
-        error:
-          error instanceof Error ? error.message : "Unable to capture browser preview.",
+        error: error instanceof Error ? error.message : "Unable to capture browser preview.",
         loading: false,
       }));
     }
@@ -102,23 +174,17 @@ function useBrowserPreviewScreenshot(params: {
     const intervalId = window.setInterval(() => {
       void refresh();
     }, intervalMs);
-
     return () => window.clearInterval(intervalId);
   }, [browserUrl, enabled, live, refresh]);
 
-  return {
-    ...snapshot,
-    refresh,
-  };
+  return { ...snapshot, refresh };
 }
 
 function MonitorBrowserContent({
-  monitor,
-  browserUrl,
+  view,
   prefersScreenshot,
 }: {
-  monitor: OfficeDeskMonitor;
-  browserUrl: string;
+  view: MonitorViewModel;
   prefersScreenshot: boolean;
 }) {
   const [browserView, setBrowserView] = useState<"embed" | "screenshot">(
@@ -128,18 +194,13 @@ function MonitorBrowserContent({
   const [embedLoaded, setEmbedLoaded] = useState(false);
   const embedFrameRef = useRef<HTMLIFrameElement | null>(null);
   const browserPreview = useBrowserPreviewScreenshot({
-    browserUrl,
+    browserUrl: view.browserUrl,
     enabled: true,
-    live: monitor.live,
+    live: view.live,
   });
 
   useEffect(() => {
-    if (
-      prefersScreenshot ||
-      browserView !== "embed" ||
-      embedLoaded ||
-      !allowAutoFallback
-    ) {
+    if (prefersScreenshot || browserView !== "embed" || embedLoaded || !allowAutoFallback) {
       return;
     }
     if (browserPreview.error || (!browserPreview.loading && !browserPreview.mediaUrl)) {
@@ -194,16 +255,14 @@ function MonitorBrowserContent({
             <span className="h-3 w-3 rounded-full bg-[#28c840]" />
           </div>
           <div className="min-w-0 flex-1 truncate rounded-full border border-white/10 bg-black/30 px-4 py-2 font-mono text-[14px] text-white/70">
-            {browserPreview.browserUrl ?? monitor.browserUrl}
+            {browserPreview.browserUrl ?? view.browserUrl}
           </div>
           <button
             type="button"
             onClick={() => {
               setAllowAutoFallback(false);
               setEmbedLoaded(false);
-              setBrowserView((current) =>
-                current === "embed" ? "screenshot" : "embed",
-              );
+              setBrowserView((current) => (current === "embed" ? "screenshot" : "embed"));
             }}
             className="rounded-full border border-white/12 bg-white/6 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.18em] text-white/72 transition-colors hover:bg-white/10"
           >
@@ -220,9 +279,7 @@ function MonitorBrowserContent({
           ) : null}
           <button
             type="button"
-            onClick={() =>
-              window.open(monitor.browserUrl ?? "", "_blank", "noopener,noreferrer")
-            }
+            onClick={() => window.open(view.browserUrl ?? "", "_blank", "noopener,noreferrer")}
             className="rounded-full border border-sky-400/25 bg-sky-400/10 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.18em] text-sky-200 transition-colors hover:bg-sky-400/20"
           >
             Open Browser
@@ -232,13 +289,10 @@ function MonitorBrowserContent({
           {browserView === "screenshot" ? (
             <div className="relative flex h-full items-center justify-center overflow-hidden bg-[#0a0f12]">
               {browserPreview.mediaUrl ? (
-                <Image
-                  alt={`${monitor.agentName} browser screenshot`}
+                <img
+                  alt={`${view.agentName} browser screenshot`}
                   src={browserPreview.mediaUrl}
-                  fill
-                  unoptimized
-                  sizes="100vw"
-                  className="object-contain"
+                  className="h-full w-full object-contain"
                 />
               ) : (
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-6 py-5 text-center font-mono text-[14px] text-white/68">
@@ -258,8 +312,8 @@ function MonitorBrowserContent({
           ) : (
             <iframe
               ref={embedFrameRef}
-              title={`${monitor.agentName} browser preview`}
-              src={monitor.browserUrl ?? undefined}
+              title={`${view.agentName} browser preview`}
+              src={view.browserUrl ?? undefined}
               className="h-full w-full"
               onLoad={handleEmbedLoad}
               onError={() => {
@@ -272,8 +326,8 @@ function MonitorBrowserContent({
             />
           )}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 border-t border-black/10 bg-gradient-to-t from-black/50 to-transparent px-6 py-4 font-mono text-[13px] text-white/80">
-            {monitor.entries.length > 0
-              ? monitor.entries[monitor.entries.length - 1]?.text
+            {view.entries.length > 0
+              ? view.entries[view.entries.length - 1]?.text
               : "Waiting for browser activity."}
           </div>
         </div>
@@ -287,21 +341,18 @@ export function MonitorImmersiveContent({
 }: {
   monitor: OfficeDeskMonitor;
 }) {
-  const browserUrl = monitor.mode === "browser" ? monitor.browserUrl : null;
-  const prefersScreenshot = shouldPreferBrowserScreenshot(browserUrl);
+  const view = toViewModel(monitor);
+  const prefersScreenshot = shouldPreferBrowserScreenshot(view.browserUrl);
 
-  if (monitor.mode === "browser" && browserUrl) {
-    return (
-      <MonitorBrowserContent
-        key={browserUrl}
-        monitor={monitor}
-        browserUrl={browserUrl}
-        prefersScreenshot={prefersScreenshot}
-      />
-    );
+  if (view.mode === "browser" && view.browserUrl) {
+    return <MonitorBrowserContent key={view.browserUrl} view={view} prefersScreenshot={prefersScreenshot} />;
   }
 
-  const editor = monitor.editor;
+  const terminalLines =
+    view.editor.terminalLines.length > 0
+      ? view.editor.terminalLines
+      : view.entries.map((entry) => entry.text);
+
   return (
     <div className="absolute inset-0 overflow-hidden bg-[#1e1f22] text-[#d4d4d4]">
       <div className="flex h-full flex-col">
@@ -311,9 +362,7 @@ export function MonitorImmersiveContent({
             <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
             <span className="h-3 w-3 rounded-full bg-[#28c840]" />
           </div>
-          <div className="text-[12px] font-medium text-white/65">
-            openclaw-control-center
-          </div>
+          <div className="text-[12px] font-medium text-white/65">openclaw-control-center</div>
           <div className="flex items-center gap-2 text-[11px] text-white/40">
             <span>[v]</span>
             <span>[^]</span>
@@ -340,17 +389,15 @@ export function MonitorImmersiveContent({
               <div className="ml-3 mt-1 space-y-1 border-l border-white/6 pl-3">
                 <div className="rounded-md px-2 py-1 text-white/45">retro-office</div>
                 <div className="rounded-md bg-[#2a2d33] px-2 py-1 text-[#d7dae0]">
-                  {editor?.fileName ?? "workbench.tsx"}
+                  {view.editor.fileName}
                 </div>
               </div>
-              <div className="mt-5 px-2 text-[11px] uppercase tracking-[0.2em] text-white/28">
-                Agent
-              </div>
+              <div className="mt-5 px-2 text-[11px] uppercase tracking-[0.2em] text-white/28">Agent</div>
               <div className="rounded-md border border-white/6 bg-black/20 px-3 py-2 text-white/82">
-                {monitor.agentName}
+                {view.agentName}
               </div>
               <div className="rounded-md px-3 py-2 text-[11px] leading-5 text-white/42">
-                {monitor.title} · {monitor.subtitle}
+                {view.title} · {view.subtitle}
               </div>
             </div>
           </div>
@@ -360,39 +407,35 @@ export function MonitorImmersiveContent({
                 <div className="border-x border-t border-white/6 bg-[#1f2024] px-4 py-2 font-mono text-[12px] text-white/85">
                   RetroOffice3D.tsx
                 </div>
-                <div className="px-3 py-2 font-mono text-[12px] text-white/35">
-                  {editor?.fileName ?? "workbench.tsx"}
-                </div>
+                <div className="px-3 py-2 font-mono text-[12px] text-white/35">{view.editor.fileName}</div>
               </div>
               <div className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.18em] text-emerald-200/90">
-                {monitor.live ? "Live" : "Idle"}
+                {view.live ? "Live" : "Idle"}
               </div>
             </div>
             <div className="flex min-h-0 flex-1">
               <div className="flex min-w-0 flex-1 flex-col">
                 <div className="grid min-h-0 flex-1 grid-cols-[56px_minmax(0,1fr)] bg-[#1e1f22] font-mono">
                   <div className="border-r border-white/6 bg-[#18191d] py-4 text-right text-[13px] leading-8 text-white/20">
-                    {(editor?.lines ?? []).map((_, index) => (
+                    {view.editor.lines.map((_, index) => (
                       <div key={`line-no-${index}`} className="pr-3">
                         {index + 994}
                       </div>
                     ))}
                   </div>
                   <div className="relative overflow-auto py-4 pr-6 text-[17px] leading-8 text-[#d4d4d4]">
-                    {(editor?.lines ?? []).map((line, index) => (
+                    {view.editor.lines.map((line, index) => (
                       <div key={`editor-line-${index}`} className="whitespace-pre pl-5">
                         {line}
                       </div>
                     ))}
-                    {editor ? (
-                      <div
-                        className="pointer-events-none absolute h-7 w-[2px] bg-[#c5c8d0]"
-                        style={{
-                          top: `${16 + (editor.cursorLine - 1) * 32}px`,
-                          left: `${20 + Math.max(0, editor.cursorColumn - 1) * 9.8}px`,
-                        }}
-                      />
-                    ) : null}
+                    <div
+                      className="pointer-events-none absolute h-7 w-[2px] bg-[#c5c8d0]"
+                      style={{
+                        top: `${16 + (view.editor.cursorLine - 1) * 32}px`,
+                        left: `${20 + Math.max(0, view.editor.cursorColumn - 1) * 9.8}px`,
+                      }}
+                    />
                   </div>
                 </div>
                 <div className="h-[28%] border-t border-white/6 bg-[#18191d]">
@@ -400,17 +443,12 @@ export function MonitorImmersiveContent({
                     Terminal
                   </div>
                   <div className="space-y-2 overflow-auto px-4 py-3 font-mono text-[13px] text-[#9cdcfe]">
-                    {(
-                      editor?.terminalLines ?? monitor.entries.map((entry) => entry.text)
-                    ).map((line, index) => (
-                      <div
-                        key={`terminal-${index}`}
-                        className="whitespace-pre-wrap break-words"
-                      >
+                    {terminalLines.map((line, index) => (
+                      <div key={`terminal-${index}`} className="whitespace-pre-wrap break-words">
                         {line}
                       </div>
                     ))}
-                    {(editor?.terminalLines ?? []).length === 0 ? (
+                    {terminalLines.length === 0 ? (
                       <div className="text-white/35">No terminal output yet.</div>
                     ) : null}
                   </div>
@@ -421,10 +459,10 @@ export function MonitorImmersiveContent({
                   Agent Movement And Behavior
                 </div>
                 <div className="flex-1 space-y-3 overflow-auto px-4 py-4">
-                  {monitor.entries.length > 0 ? (
-                    monitor.entries.map((entry, index) => (
+                  {view.entries.length > 0 ? (
+                    view.entries.map((entry, index) => (
                       <div
-                        key={`${monitor.agentId}-panel-${entry.kind}-${index}`}
+                        key={`${view.agentId}-panel-${entry.kind}-${index}`}
                         className={`rounded-lg border px-3 py-3 ${
                           entry.kind === "user"
                             ? "border-amber-400/10 bg-amber-400/8"
@@ -454,13 +492,13 @@ export function MonitorImmersiveContent({
             </div>
             <div className="flex items-center justify-between border-t border-white/6 bg-[#0e639c] px-4 py-2 font-mono text-[11px] text-white">
               <div className="flex items-center gap-4">
-                <span>{editor?.language ?? "tsx"}</span>
+                <span>{view.editor.language}</span>
                 <span>UTF-8</span>
                 <span>Spaces: 2</span>
               </div>
               <div className="flex items-center gap-4 text-white/85">
-                <span>Ln {editor?.cursorLine ?? 1}</span>
-                <span>Col {editor?.cursorColumn ?? 1}</span>
+                <span>Ln {view.editor.cursorLine}</span>
+                <span>Col {view.editor.cursorColumn}</span>
               </div>
             </div>
           </div>

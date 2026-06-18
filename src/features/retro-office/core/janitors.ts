@@ -4,7 +4,7 @@ import {
   ROAM_POINTS,
 } from "@/features/retro-office/core/navigation";
 import type { JanitorActor } from "@/features/retro-office/core/types";
-import type { OfficeCleaningCue } from "@/lib/office/janitorReset";
+import type { OfficeCleaningCue } from "@/lib/office/eventTriggers";
 
 export const JANITOR_SWEEP_DURATION_MS = 60_000;
 const JANITOR_COUNT = 3;
@@ -23,6 +23,8 @@ export const buildJanitorActorsForCue = (
   cue: OfficeCleaningCue,
   cleaningStops: { x: number; y: number; facing: number }[],
 ): JanitorActor[] => {
+  const cueId = typeof cue.id === "string" ? cue.id : "unknown"
+  const cueTs = typeof cue.ts === "number" ? cue.ts : Date.now()
   const availableStops =
     cleaningStops.length > 0
       ? cleaningStops
@@ -30,7 +32,7 @@ export const buildJanitorActorsForCue = (
           ...point,
           facing: index % 2 === 0 ? Math.PI / 2 : -Math.PI / 2,
         }));
-  const seed = hashString(cue.id);
+  const seed = hashString(cueId);
   const desiredStopCount = Math.min(Math.max(availableStops.length, 4), 6);
   return Array.from({ length: JANITOR_COUNT }, (_, index) => {
     const entry = JANITOR_ENTRY_POINTS[index % JANITOR_ENTRY_POINTS.length];
@@ -40,7 +42,7 @@ export const buildJanitorActorsForCue = (
       return availableStops[(stopOffset + stopIndex) % availableStops.length]!;
     });
     return {
-      id: `janitor:${cue.id}:${index}`,
+      id: `janitor:${cueId}:${index}`,
       name: "",
       role: "janitor",
       status: "working",
@@ -49,7 +51,7 @@ export const buildJanitorActorsForCue = (
       janitorTool: JANITOR_TOOLS[index % JANITOR_TOOLS.length] ?? "broom",
       janitorRoute: [entry, ...routeStops, exit],
       janitorPauseMs: 3_500 + index * 700,
-      janitorDespawnAt: cue.ts + JANITOR_SWEEP_DURATION_MS,
+      janitorDespawnAt: cueTs + JANITOR_SWEEP_DURATION_MS,
     };
   });
 };
