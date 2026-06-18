@@ -4,26 +4,35 @@ function normalizeSearchText(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
-function fuzzyIncludes(haystack: string, needle: string): boolean {
-  if (!needle) return true
-  let needleIndex = 0
-  for (const char of haystack) {
-    if (char === needle[needleIndex]) needleIndex += 1
-    if (needleIndex === needle.length) return true
-  }
-  return false
-}
-
-function getSearchValues(item: SessionFeedItem): Array<string> {
-  const values = [item.id, item.title, item.sub ?? '']
-  for (const badge of item.badges) values.push(badge.text)
+function getSearchValues(item: SessionFeedItem): {
+  primary: Array<string>
+  secondary: Array<string>
+} {
+  const primary = [item.id, item.title, item.sub ?? '']
+  const secondary: Array<string> = []
+  for (const badge of item.badges) primary.push(badge.text)
   for (const value of Object.values(item.sourceMeta)) {
-    if (typeof value === 'string') values.push(value)
+    if (typeof value === 'string') secondary.push(value)
     else if (typeof value === 'number' || typeof value === 'boolean') {
-      values.push(String(value))
+      secondary.push(String(value))
     }
   }
-  return values
+  return { primary, secondary }
+}
+
+function matchesText(value: string, term: string): boolean {
+  const raw = value.toLowerCase()
+  const normalized = normalizeSearchText(value)
+  const normalizedTerm = normalizeSearchText(term)
+  if (!normalizedTerm) return true
+  return (
+    raw === term ||
+    raw.startsWith(term) ||
+    raw.includes(term) ||
+    normalized === normalizedTerm ||
+    normalized.startsWith(normalizedTerm) ||
+    normalized.includes(normalizedTerm)
+  )
 }
 
 export function matchesSessionSearch(item: SessionFeedItem, query: string): boolean {
@@ -35,19 +44,9 @@ export function matchesSessionSearch(item: SessionFeedItem, query: string): bool
 
   if (terms.length === 0) return true
 
-  const values = getSearchValues(item).map((value) => ({
-    raw: value.toLowerCase(),
-    normalized: normalizeSearchText(value),
-  }))
-
+  const { primary, secondary } = getSearchValues(item)
   return terms.every((term) => {
-    const normalizedTerm = normalizeSearchText(term)
-    if (!normalizedTerm) return true
-
-    return values.some(({ raw, normalized }) => {
-      if (raw.includes(term)) return true
-      if (normalized.includes(normalizedTerm)) return true
-      return normalizedTerm.length >= 3 && fuzzyIncludes(normalized, normalizedTerm)
-    })
+    if (primary.some((value) => matchesText(value, term))) return true
+    return secondary.some((value) => matchesText(value, term) && value.toLowerCase().includes(term))
   })
 }

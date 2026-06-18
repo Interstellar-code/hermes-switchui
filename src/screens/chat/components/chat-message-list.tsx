@@ -12,7 +12,13 @@ import {
 } from '../utils'
 import { MessageItem } from './message-item'
 import type { ToolDisplayMode } from './message-item'
+import { StreamingMessageItem } from './streaming-text-context'
 import { TuiActivityCard } from './tui-activity-card'
+import {
+  InlineClarifyCard,
+  interactionReceiptToPendingClarify,
+  parseInteractionReceipt,
+} from './inline-clarify-card'
 import { ScrollToBottomButton } from './scroll-to-bottom-button'
 import { ResearchCard } from './research-card'
 import type { ChatMessage } from '../types'
@@ -673,6 +679,11 @@ type ChatMessageListProps = {
   emptyState?: React.ReactNode
   notice?: React.ReactNode
   noticePosition?: 'start' | 'end'
+  /**
+   * Interactive clarify card, rendered inside the matching Hermes clarify tool
+   * row so the question, choices, and selected answer stay with tool activity.
+   */
+  clarifyCard?: React.ReactNode
   waitingForResponse: boolean
   sessionKey?: string
   pinToTop: boolean
@@ -681,7 +692,7 @@ type ChatMessageListProps = {
   contentStyle?: React.CSSProperties
   // Streaming support
   streamingMessageId?: string | null
-  streamingText?: string
+  hasStreamingText?: boolean
   streamingThinking?: string
   lifecycleEvents?: Array<{
     text: string
@@ -712,7 +723,7 @@ export function isThinkingIndicatorSurfaceVisible({
   isCompacting,
   liveToolActivityCount,
   isStreaming,
-  streamingText,
+  hasStreamingText,
   activeToolCallCount,
 }: {
   showTypingIndicator: boolean
@@ -720,10 +731,10 @@ export function isThinkingIndicatorSurfaceVisible({
   isCompacting: boolean
   liveToolActivityCount: number
   isStreaming: boolean
-  streamingText?: string
+  hasStreamingText: boolean
   activeToolCallCount: number
 }): boolean {
-  if (isStreaming && streamingText && streamingText.trim().length > 0) {
+  if (isStreaming && hasStreamingText) {
     return false
   }
 
@@ -732,7 +743,7 @@ export function isThinkingIndicatorSurfaceVisible({
     showResearchCard ||
     isCompacting ||
     liveToolActivityCount > 0 ||
-    (isStreaming && !streamingText) ||
+    (isStreaming && !hasStreamingText) ||
     (isStreaming && activeToolCallCount > 0)
   )
 }
@@ -748,6 +759,7 @@ function ChatMessageListComponent({
   emptyState,
   notice,
   noticePosition = 'start',
+  clarifyCard,
   waitingForResponse,
   sessionKey,
   pinToTop,
@@ -755,7 +767,7 @@ function ChatMessageListComponent({
   headerHeight,
   contentStyle,
   streamingMessageId,
-  streamingText,
+  hasStreamingText = false,
   streamingThinking,
   lifecycleEvents = [],
   isStreaming = false,
@@ -965,14 +977,14 @@ function ChatMessageListComponent({
   // Early-cancel grace when streaming text actually starts flowing — this is the
   // primary exit path (not the 10s ceiling timer). Ensures zero blank gap.
   useEffect(() => {
-    if (thinkingGrace && streamingText && streamingText.trim().length > 0) {
+    if (thinkingGrace && hasStreamingText) {
       if (thinkingGraceTimerRef.current) {
         clearTimeout(thinkingGraceTimerRef.current)
         thinkingGraceTimerRef.current = null
       }
       setThinkingGrace(false)
     }
-  }, [streamingText, thinkingGrace])
+  }, [hasStreamingText, thinkingGrace])
 
   useEffect(() => {
     const currentAssistantCount = displayEntries.filter(
@@ -1296,13 +1308,13 @@ function ChatMessageListComponent({
     // in-thread streaming row has nothing to show yet.
     const streamingButEmpty =
       isStreaming &&
-      (!streamingText || streamingText.trim().length === 0) &&
+      !hasStreamingText &&
       !hasInThreadStreamingActivity
     if (isCompacting) return true
     if (streamingButEmpty) return true
     if (!effectivelyWaiting) return false
     // If streaming has visible text, hide indicator — response is rendering
-    if (isStreaming && streamingText && streamingText.length > 0) return false
+    if (isStreaming && hasStreamingText) return false
     const lastEntry = visibleEntries[visibleEntries.length - 1]
     const lastMessage = lastEntry?.message
     if (lastMessage && lastMessage.role === 'assistant') {
@@ -1331,7 +1343,7 @@ function ChatMessageListComponent({
     isCompacting,
     liveToolActivityCount: liveToolActivity.length,
     isStreaming,
-    streamingText,
+    hasStreamingText,
     activeToolCallCount: activeToolCalls.length,
   })
 
@@ -1351,8 +1363,9 @@ function ChatMessageListComponent({
     showToolOnlyNotice ||
     showResearchCard ||
     showTypingIndicator ||
+    !!clarifyCard ||
     liveToolActivity.length > 0 ||
-    (isStreaming && !streamingText) ||
+    (isStreaming && !hasStreamingText) ||
     (isStreaming && activeToolCalls.length > 0)
 
   const normalizedStreamingToolCalls = useMemo<
@@ -1401,6 +1414,46 @@ function ChatMessageListComponent({
       phase: 'running' as const,
     }))
   }, [activeToolCalls, liveToolActivity])
+
+  const clarifyReceiptCard = useMemo(() => {
+    if (clarifyCard) return clarifyCard
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const msg = messages[i]
+      const receipt = parseInteractionReceipt(msg)
+      if (!receipt) continue
+      const pending = interactionReceiptToPendingClarify(receipt)
+      if (pending && sessionKey) {
+        return <InlineClarifyCard clarify={pending} sessionKey={sessionKey} />
+      }
+    }
+    return null
+  }, [clarifyCard, messages, sessionKey])
+
+  const clarifyResolved = Boolean(clarifyCard)
+
+  const clarifyToolCalls = useMemo(() => {
+    if (!clarifyReceiptCard) return normalizedStreamingToolCalls
+
+    // While a Hermes clarify request is active, live activity may also contain
+    // a low-information generic `tool` row. Drop that duplicate shell and attach
+    // the clarify UI to the real clarify row, or synthesize exactly one clarify
+    // row if the tool event has not arrived yet.
+    const meaningfulToolCalls = normalizedStreamingToolCalls.filter(
+      (tc) => tc.name.toLowerCase() !== 'tool',
+    )
+    const hasClarifyTool = meaningfulToolCalls.some((tc) =>
+      tc.name.toLowerCase().includes('clarify'),
+    )
+    if (hasClarifyTool) return meaningfulToolCalls
+    return [
+      ...meaningfulToolCalls,
+      {
+        id: 'inline-clarify-card',
+        name: 'clarify',
+        phase: 'running' as const,
+      },
+    ]
+  }, [clarifyReceiptCard, normalizedStreamingToolCalls])
 
   // Pin the last user+assistant group without adding bottom padding.
   const groupStartIndex = typeof lastUserIndex === 'number' ? lastUserIndex : -1
@@ -1482,7 +1535,7 @@ function ChatMessageListComponent({
         lifecycleEvents.length > 0 ||
         Boolean(streamingThinking && streamingThinking.trim().length > 0)
       const isEmptyPlaceholder =
-        (!streamingText || streamingText.trim().length === 0) &&
+        !hasStreamingText &&
         !hasStreamingActivity
       return (
         <div
@@ -1495,7 +1548,7 @@ function ChatMessageListComponent({
           }}
           aria-hidden={isEmptyPlaceholder ? true : undefined}
         >
-          <MessageItem
+          <StreamingMessageItem
             message={chatMessage}
             attachedToolMessages={entry.attachedToolMessages}
             onRetryMessage={effectiveOnRetry}
@@ -1511,15 +1564,11 @@ function ChatMessageListComponent({
                   ? 'bg-amber-50/30'
                   : undefined
             }
-            toolCalls={
-              messageIsStreaming ? normalizedStreamingToolCalls : undefined
-            }
+            toolCalls={normalizedStreamingToolCalls}
             isStreaming={messageIsStreaming}
-            streamingText={streamingText}
-            streamingThinking={
-              messageIsStreaming ? streamingThinking : undefined
-            }
-            lifecycleEvents={messageIsStreaming ? lifecycleEvents : undefined}
+            streamingThinking={streamingThinking}
+            lifecycleEvents={lifecycleEvents}
+            clarifyCard={realIndex === lastAssistantIndex ? clarifyCard : undefined}
             simulateStreaming={simulateStreaming}
             streamingKey={signature}
             toolDisplayMode={toolDisplayMode}
@@ -1550,9 +1599,9 @@ function ChatMessageListComponent({
           messageIsStreaming ? normalizedStreamingToolCalls : undefined
         }
         isStreaming={messageIsStreaming}
-        streamingText={messageIsStreaming ? streamingText : undefined}
         streamingThinking={messageIsStreaming ? streamingThinking : undefined}
         lifecycleEvents={messageIsStreaming ? lifecycleEvents : undefined}
+        clarifyCard={realIndex === lastAssistantIndex ? clarifyCard : undefined}
         simulateStreaming={simulateStreaming}
         streamingKey={signature}
         toolDisplayMode={toolDisplayMode}
@@ -1605,7 +1654,7 @@ function ChatMessageListComponent({
     isStreaming,
     sessionKey,
     scrollToBottom,
-    streamingText,
+    hasStreamingText,
   ])
 
   useEffect(() => {
@@ -1980,34 +2029,36 @@ function ChatMessageListComponent({
                       chatMessage.role === 'assistant' &&
                       (getToolCallsFromMessage(chatMessage).length > 0 ||
                         entry.attachedToolMessages.length > 0)
-                    return (
-                      <MessageItem
+                    const sharedItemProps = {
+                      message: chatMessage,
+                      attachedToolMessages: entry.attachedToolMessages,
+                      onRetryMessage: onRetryMessage,
+                      toolResultsByCallId: hasToolCalls
+                        ? toolResultsByCallId
+                        : undefined,
+                      forceActionsVisible: forceActionsVisible,
+                      wrapperRef: wrapperRef,
+                      wrapperClassName: wrapperClassName,
+                      wrapperScrollMarginTop: wrapperScrollMarginTop,
+                      isStreaming: messageIsStreaming,
+                      streamingThinking: messageIsStreaming
+                        ? streamingThinking
+                        : undefined,
+                      lifecycleEvents: messageIsStreaming
+                        ? lifecycleEvents
+                        : undefined,
+                      simulateStreaming: simulateStreaming,
+                      streamingKey: signature,
+                      toolDisplayMode: toolDisplayMode,
+                      isLastAssistant: forceActionsVisible,
+                    }
+                    return messageIsStreaming ? (
+                      <StreamingMessageItem
                         key={stableId}
-                        message={chatMessage}
-                        attachedToolMessages={entry.attachedToolMessages}
-                        onRetryMessage={onRetryMessage}
-                        toolResultsByCallId={
-                          hasToolCalls ? toolResultsByCallId : undefined
-                        }
-                        forceActionsVisible={forceActionsVisible}
-                        wrapperRef={wrapperRef}
-                        wrapperClassName={wrapperClassName}
-                        wrapperScrollMarginTop={wrapperScrollMarginTop}
-                        isStreaming={messageIsStreaming}
-                        streamingText={
-                          messageIsStreaming ? streamingText : undefined
-                        }
-                        streamingThinking={
-                          messageIsStreaming ? streamingThinking : undefined
-                        }
-                        lifecycleEvents={
-                          messageIsStreaming ? lifecycleEvents : undefined
-                        }
-                        simulateStreaming={simulateStreaming}
-                        streamingKey={signature}
-                        toolDisplayMode={toolDisplayMode}
-                        isLastAssistant={forceActionsVisible}
+                        {...sharedItemProps}
                       />
+                    ) : (
+                      <MessageItem key={stableId} {...sharedItemProps} />
                     )
                   })}
                 </div>
@@ -2048,7 +2099,7 @@ function ChatMessageListComponent({
                     TUI-style tool activity card. Use normalized streaming calls
                     so the card appears for both structured tool events and the
                     lighter live activity feed. */}
-                {normalizedStreamingToolCalls.length > 0 ? (
+                {clarifyToolCalls.length > 0 ? (
                   <div className="flex max-w-[var(--chat-content-max-width)]">
                     <div
                       className="ml-[14px] mr-2 w-px shrink-0"
@@ -2060,16 +2111,19 @@ function ChatMessageListComponent({
                     />
                     <div className="min-w-0 flex-1 pt-1">
                       <TuiActivityCard
-                        toolSections={normalizedStreamingToolCalls.map((tc) => {
+                        toolSections={clarifyToolCalls.map((tc) => {
                           const phase = tc.phase
+                          const isClarifyTool = tc.name.toLowerCase().includes('clarify')
                           const state =
                             phase === 'error'
                               ? ('output-error' as const)
-                              : phase === 'done'
+                              : isClarifyTool && clarifyResolved
                                 ? ('output-available' as const)
-                                : phase === 'running'
-                                  ? ('input-streaming' as const)
-                                  : ('input-available' as const)
+                                : phase === 'done'
+                                  ? ('output-available' as const)
+                                  : phase === 'running'
+                                    ? ('input-streaming' as const)
+                                    : ('input-available' as const)
                           return {
                             key: tc.id,
                             type: tc.name,
@@ -2088,6 +2142,7 @@ function ChatMessageListComponent({
                               state === 'output-error'
                                 ? tc.result || 'Tool failed'
                                 : undefined,
+                            inlineContent: isClarifyTool ? clarifyReceiptCard : undefined,
                             state,
                           }
                         })}
@@ -2119,7 +2174,7 @@ function ChatMessageListComponent({
 }
 
 function getMessageSpacingClass(
-  messages: Array<ChatMessage>,
+  messages: Array<any>,
   index: number,
 ): string {
   if (index === 0) return 'mt-0'
@@ -2135,7 +2190,7 @@ function getMessageSpacingClass(
 }
 
 function getToolGroupClass(
-  messages: Array<ChatMessage>,
+  messages: Array<any>,
   index: number,
 ): string {
   const message = messages[index]
@@ -2218,6 +2273,7 @@ function areChatMessageListEqual(
     prev.emptyState === next.emptyState &&
     prev.notice === next.notice &&
     prev.noticePosition === next.noticePosition &&
+    prev.clarifyCard === next.clarifyCard &&
     prev.waitingForResponse === next.waitingForResponse &&
     prev.sessionKey === next.sessionKey &&
     prev.pinToTop === next.pinToTop &&
@@ -2225,7 +2281,7 @@ function areChatMessageListEqual(
     prev.headerHeight === next.headerHeight &&
     prev.contentStyle === next.contentStyle &&
     prev.streamingMessageId === next.streamingMessageId &&
-    prev.streamingText === next.streamingText &&
+    prev.hasStreamingText === next.hasStreamingText &&
     prev.streamingThinking === next.streamingThinking &&
     prev.lifecycleEvents === next.lifecycleEvents &&
     prev.isStreaming === next.isStreaming &&

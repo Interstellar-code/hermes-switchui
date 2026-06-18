@@ -4,13 +4,13 @@
 
 # Switch UI
 
-**Matrix-aesthetic interface for Hermes Agent.**
+**Opinionated Matrix-aesthetic UI and control plane for the Hermes Agent — chat, kanban, workflows, agent profiles, and a plugin suite.**
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen.svg)](https://nodejs.org/)
 [![Theme](https://img.shields.io/badge/theme-matrix-00ff41.svg)](#-switch-ui-specifics)
 
-> An opinionated, Matrix-styled UI for [Hermes Agent](https://github.com/NousResearch/hermes-agent). Diverged from `outsourc-e/hermes-workspace` for design direction. Backend integration stays in lockstep with upstream — UI is our own.
+> An opinionated, Matrix-styled UI for [Hermes Agent](https://github.com/Interstellar-code/hermes-agent). Diverged from `outsourc-e/hermes-workspace` for design direction. Backend runs the Interstellar-code fork of Hermes Agent — we cherry-pick upstream fixes, but UI and backend are our own.
 
 ![Switch UI](./docs/screenshots/splash.png)
 
@@ -40,14 +40,19 @@
 | **Provider config** | `manifest` provider entry (not `custom`) for Switch-specific endpoints | Standard custom provider |
 | **Typography** | Matrix design system tokens (`.m-mono`, `.m-label`, `.m-chip`, `.m-timestamp`) — JetBrains Mono throughout | Mixed sans / mono per surface |
 | **Cherry-pick policy** | Backend/infra only from upstream | — |
+| **Agent profiles** | 9-step profile wizard with persona prefill, toolsets, C-suite personas, edit mode | None |
+| **Chat clarify** | Interactive mid-turn clarify cards | None |
+| **Kanban** | Boards + tasks + board templates with 5-step wizard | None / basic |
+| **Self-improve** | Full self-improvement lifecycle dashboard | None |
+| **Workflows** | YAML DAG workflow engine + authoring UI | None |
+| **Plugin suite** | 8 custom Hermes Agent plugins surfaced in-UI | None |
 
 ---
 
-## ⚠️ Issues, screenshots & roadmap
+## ⚠️ Issues & roadmap
 
-- **Issues:** filed on this repo's [issues tab](https://github.com/Interstellar-code/hermes-switchui/issues) — temporary while the project finds its footing.
-- **Screenshots:** the images under `docs/screenshots/` are inherited from upstream and don't yet show the Matrix UI. New Switch UI screenshots are queued.
-- **Roadmap:** Switch UI's own roadmap is in flux; the section below lists what's working today.
+- **Issues:** filed on this repo's [issues tab](https://github.com/Interstellar-code/hermes-switchui/issues).
+- **Roadmap:** track releases and upcoming work on the [GitHub releases page](https://github.com/Interstellar-code/hermes-switchui/releases).
 
 ---
 
@@ -472,6 +477,23 @@ API key stored in `~/.hermes/.env` as `CUSTOM_API_KEY`.
 ### Unified sessions sidebar
 
 Single feed merging chat, cron, api, and task sources, day-grouped (Pinned / Today / Yesterday / Earlier), with source filter chips, state segments, free-text search, and persisted collapse state.
+
+### Powered by the Hermes Agent plugin suite
+
+Switch UI is a frontend over the [Interstellar-code/hermes-agent](https://github.com/Interstellar-code/hermes-agent) fork, extended by 8 custom plugins that power its features:
+
+| Plugin | Version | What it does |
+|---|---|---|
+| `matrix_coder` | 0.6.1 | Specialist-coder layer; IntentGate routes requests to 8 roles |
+| `workflow-engine` | 0.1.0 | YAML DAG workflows; powers `/workflows` |
+| `a2a_fleet` | 0.8.14 | Agent-to-agent fleet; managed repo-scoped executors |
+| `mcp_lazy` | 0.2.0 | Lazy MCP schema loading; ~80% MCP token cut |
+| `kanban` | 1.0.0 | Collaboration boards, tasks, templates; powers `/tasks`, `/boards`, `/board-templates` |
+| `karpathy-self-improve` | 0.1.0 | Self-improvement lifecycle; powers `/self-improve` |
+| `personas` | 0.1.0 | Canonical 20-persona store; backs the profile wizard |
+| `hermes-switch-ui` | 0.1.0 | Backend awareness + config sync for the UI |
+
+Full plugin documentation: [docs/plugins/](https://interstellar-code.github.io/hermes-switchui/plugins/).
 
 ---
 

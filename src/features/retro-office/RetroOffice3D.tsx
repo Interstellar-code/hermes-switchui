@@ -227,7 +227,7 @@ import {
   HeatmapSystem as AgentHeatmapSystem,
   TrailSystem as AgentTrailSystem,
 } from "@/features/retro-office/systems/visualSystems";
-import type { OfficeCleaningCue } from "@/lib/office/janitorReset";
+import type { OfficeCleaningCue } from "@/lib/office/eventTriggers";
 
 type OfficeDeskMonitorMap = Record<string, OfficeDeskMonitor>;
 type RenderAgentUiSnapshot = Pick<RenderAgent, "state" | "status">;
@@ -2706,9 +2706,9 @@ export function RetroOffice3D({
         ? EMPTY_FURNITURE_ITEMS
         : remoteLayoutSnapshot
           ? projectFurnitureIntoRemoteOfficeZone({
-              furniture: remoteLayoutSnapshot.furniture,
-              sourceWidth: remoteLayoutSnapshot.width,
-              sourceHeight: remoteLayoutSnapshot.height,
+              furniture: remoteLayoutSnapshot.furniture ?? EMPTY_FURNITURE_ITEMS,
+              sourceWidth: remoteLayoutSnapshot.width ?? LOCAL_OFFICE_CANVAS_WIDTH,
+              sourceHeight: remoteLayoutSnapshot.height ?? LOCAL_OFFICE_CANVAS_HEIGHT,
             })
           : defaultRemoteLayoutFurniture,
     [defaultRemoteLayoutFurniture, remoteLayoutSnapshot, remoteOfficeEnabled],
@@ -2776,7 +2776,7 @@ export function RetroOffice3D({
     for (const event of feedEvents) {
       const text = event.text.trim();
       if (event.kind !== "reply" || !text || texts[event.id]) continue;
-      const { cleanText, imageUrl } = extractSpeechImage(text, event.id);
+      const { cleanText, imageUrl } = extractSpeechImage(text);
       texts[event.id] = cleanText;
       if (imageUrl) images[event.id] = imageUrl;
     }
@@ -3039,11 +3039,11 @@ export function RetroOffice3D({
   useEffect(() => {
     if (resolvedCleaningCues.length === 0) return;
     const unseenCues = resolvedCleaningCues.filter(
-      (cue) => !seenCleaningCueIdsRef.current.has(cue.id),
+      (cue) => typeof cue.id === "string" && !seenCleaningCueIdsRef.current.has(cue.id),
     );
     if (unseenCues.length === 0) return;
     for (const cue of unseenCues) {
-      seenCleaningCueIdsRef.current.add(cue.id);
+      if (typeof cue.id === "string") seenCleaningCueIdsRef.current.add(cue.id);
     }
     const maxSeenCueIds = Math.max(resolvedCleaningCues.length * 4, 24);
     while (seenCleaningCueIdsRef.current.size > maxSeenCueIds) {
@@ -4001,7 +4001,7 @@ export function RetroOffice3D({
     if (!scenario?.messageText?.trim()) {
       return;
     }
-    const { contacts, targetIndex } = buildSmsContactList(scenario.recipient);
+    const { contacts, targetIndex } = buildSmsContactList(scenario.recipient ?? "");
     const initTimer = window.setTimeout(() => {
       setTextMessageStep("selecting_contact");
       setTypedMessageText("");

@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import type { Components } from 'react-markdown'
 import { ArrowDown01Icon, Idea01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -277,12 +278,13 @@ type LifecycleEvent = {
   isError: boolean
 }
 
-type MessageItemProps = {
+export type MessageItemProps = {
   message: ChatMessage
   attachedToolMessages?: Array<ChatMessage>
   toolResultsByCallId?: Map<string, ChatMessage>
   toolCalls?: Array<StreamToolCall>
   lifecycleEvents?: Array<LifecycleEvent>
+  clarifyCard?: ReactNode
   onRetryMessage?: (message: ChatMessage) => void
   onReplyMessage?: (message: ChatMessage) => void
   forceActionsVisible?: boolean
@@ -308,6 +310,7 @@ type InlineToolSection = {
   outputText: string
   errorText?: string
   timestamp?: number
+  inlineContent?: ReactNode
   state:
     | 'input-streaming'
     | 'input-available'
@@ -2072,6 +2075,7 @@ function MessageItemComponent({
   toolResultsByCallId,
   toolCalls: streamToolCalls = [],
   lifecycleEvents = [],
+  clarifyCard,
   onRetryMessage,
   onReplyMessage,
   forceActionsVisible = false,
@@ -2483,17 +2487,44 @@ function MessageItemComponent({
       message,
     ],
   )
+  const toolSectionsWithClarify = useMemo(() => {
+    if (!clarifyCard) return inlineToolSections
+
+    const meaningfulToolSections = inlineToolSections.filter(
+      (section) => section.type.toLowerCase() !== 'tool',
+    )
+    const hasClarifyTool = meaningfulToolSections.some((section) =>
+      section.type.toLowerCase().includes('clarify'),
+    )
+    const attachClarify = (section: InlineToolSection): InlineToolSection =>
+      section.type.toLowerCase().includes('clarify')
+        ? { ...section, inlineContent: clarifyCard }
+        : section
+
+    if (hasClarifyTool) return meaningfulToolSections.map(attachClarify)
+    return [
+      ...meaningfulToolSections,
+      {
+        key: 'inline-clarify-card',
+        type: 'clarify',
+        outputText: '',
+        inlineContent: clarifyCard,
+        state: 'output-available' as const,
+      },
+    ]
+  }, [clarifyCard, inlineToolSections])
+
   // When streaming is done, force all tool sections to completed state
   // Prevents stuck timers from race conditions where tool.completed SSE
   // arrives after the done event or phase wasn't properly updated
   const finalToolSections = useMemo(() => {
-    if (effectiveIsStreaming) return inlineToolSections
-    return inlineToolSections.map((section) =>
+    if (effectiveIsStreaming) return toolSectionsWithClarify
+    return toolSectionsWithClarify.map((section) =>
       section.state === 'input-available' || section.state === 'input-streaming'
         ? { ...section, state: 'output-available' as const }
         : section,
     )
-  }, [inlineToolSections, effectiveIsStreaming])
+  }, [toolSectionsWithClarify, effectiveIsStreaming])
   const inlineRenderPlan = useMemo(
     () => buildInlineToolRenderPlan(message, finalToolSections),
     [message, finalToolSections],

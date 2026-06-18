@@ -542,6 +542,50 @@ async function probe(path: string): Promise<boolean> {
  * structured error shape that only the fork emits.
  */
 async function probeEnhancedChatStream(): Promise<boolean> {
+  // Preferred signal: the gateway advertises its stable API surface at
+  // GET /v1/capabilities. `features.session_chat_streaming` and the
+  // `endpoints.session_chat_stream` entry authoritatively declare that the
+  // enhanced session chat-stream path is registered — the ONLY path that
+  // injects the interactive `clarify` tool. We trust this over the legacy
+  // POST probe below.
+  //
+  // Why the legacy probe alone is wrong (the clarify-card bug): the probe
+  // POSTs to a non-existent session `__probe__`, but the chat-stream handler
+  // validates session existence FIRST and returns 404 *session-not-found*
+  // before any other logic. The old code mapped that 404 to "route absent",
+  // misclassifying a fully-capable gateway as vanilla → portable chat mode →
+  // clarify never injected. See #261 and the clarify transport-path trace.
+  try {
+    const caps = await fetch(`${CLAUDE_API}/v1/capabilities`, {
+      method: 'GET',
+      headers: authHeaders(),
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    })
+    if (caps.ok) {
+      const body = (await caps.json().catch(() => null)) as {
+        features?: Record<string, unknown>
+        endpoints?: Record<string, unknown>
+      } | null
+      if (body && typeof body === 'object') {
+        const featureOn = body.features?.session_chat_streaming === true
+        const endpointListed =
+          !!body.endpoints && 'session_chat_stream' in body.endpoints
+        // Capabilities present and explicit: trust it either way (a gateway
+        // that advertises caps but omits the session-stream surface is
+        // genuinely vanilla).
+        return featureOn || endpointListed
+      }
+    }
+    // Non-OK (e.g. 401 auth-gated, 404 no caps endpoint on older gateways):
+    // fall through to the legacy POST probe rather than downgrading here.
+  } catch {
+    // Network/timeout — fall through to the legacy probe.
+  }
+
+  // Fallback for gateways without /v1/capabilities: POST to the chat-stream
+  // path and distinguish a structured fork 404 (session-not-found JSON, which
+  // proves the ROUTE is registered) from a plain aiohttp router 404 (route
+  // absent → vanilla).
   try {
     const res = await fetch(
       `${CLAUDE_API}/api/sessions/__probe__/chat/stream`,
@@ -552,16 +596,24 @@ async function probeEnhancedChatStream(): Promise<boolean> {
         signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
       },
     )
-    // Vanilla hermes-agent has no such endpoint — dashboard layer 404s,
-    // gateway 404s, anything in between 404s. Enhanced fork accepts POST
-    // and returns either a 4xx structured error (validation) or starts a
-    // stream; either way the path is registered.
-    if (res.status === 404 || res.status === 403) return false
-    // 405 = the path exists but POST is wrong. That's still vanilla — no
-    // enhanced fork would 405 a POST to its own chat/stream endpoint.
-    if (res.status === 405) return false
-    // 401 means auth gate is wired; treat as available so token-gated
-    // setups don't get downgraded by a missing token at probe time.
+    if (res.status === 404) {
+      // Route-not-found → plain-text "404: Not Found". Session-not-found →
+      // JSON {error:{...}} emitted by the registered handler, which proves the
+      // route exists. Discriminate on the body shape.
+      const contentType = res.headers.get('content-type') || ''
+      if (contentType.includes('application/json')) {
+        const body = (await res.json().catch(() => null)) as {
+          error?: unknown
+        } | null
+        return !!body && typeof body === 'object' && 'error' in body
+      }
+      return false
+    }
+    // 403 = forbidden (no such surface for this caller). 405 = path exists but
+    // POST is wrong — no enhanced gateway 405s its own chat/stream endpoint.
+    if (res.status === 403 || res.status === 405) return false
+    // 401 means the auth gate is wired (surface exists); treat as available so
+    // token-gated setups aren't downgraded by a missing token at probe time.
     return true
   } catch {
     return false

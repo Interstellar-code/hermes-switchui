@@ -1345,11 +1345,20 @@ export const Route = createFileRoute('/api/send-stream')({
                       return
                     }
 
-                    if (event === 'clarify.request') {
+                    if (event === 'clarify.request' || event === 'interaction.request') {
                       const d = data as Record<string, unknown>
                       const clarifyPayload = {
-                        type: 'clarify' as const,
-                        clarifyId: readString(d.clarify_id) || '',
+                        type: event === 'interaction.request' ? ('interaction' as const) : ('clarify' as const),
+                        clarifyId:
+                          readString(d.clarify_id) ||
+                          readString(d.interaction_id) ||
+                          '',
+                        interactionId:
+                          readString(d.interaction_id) ||
+                          readString(d.clarify_id) ||
+                          undefined,
+                        kind: readString(d.kind) || undefined,
+                        toolName: readString(d.tool_name) || undefined,
                         messageId: readString(d.message_id) || undefined,
                         question: readString(d.question) || '',
                         choices: Array.isArray(d.choices)
@@ -1363,11 +1372,20 @@ export const Route = createFileRoute('/api/send-stream')({
                       return
                     }
 
-                    if (event === 'clarify.responded') {
+                    if (event === 'clarify.responded' || event === 'interaction.responded') {
                       const d = data as Record<string, unknown>
                       const resolvedPayload = {
-                        type: 'clarify_resolved' as const,
-                        clarifyId: readString(d.clarify_id) || '',
+                        type: event === 'interaction.responded' ? ('interaction_resolved' as const) : ('clarify_resolved' as const),
+                        clarifyId:
+                          readString(d.clarify_id) ||
+                          readString(d.interaction_id) ||
+                          '',
+                        interactionId:
+                          readString(d.interaction_id) ||
+                          readString(d.clarify_id) ||
+                          undefined,
+                        kind: readString(d.kind) || undefined,
+                        toolName: readString(d.tool_name) || undefined,
                         answer: readString(d.answer) || undefined,
                         sessionKey: sessionKeyFromEvent,
                         runId,

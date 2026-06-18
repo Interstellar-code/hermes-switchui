@@ -28,18 +28,22 @@ The menu dismisses if you press Escape or delete the `/` character. If the selec
 | Command | What it does |
 |---------|-------------|
 | `/new` | Start a new chat session. Navigates to a fresh session without closing the current one. |
+| `/reset` | Same as `/new` — start a fresh conversation in a new session. |
 | `/clear` | Clear the visible message history in the current session and start fresh. |
+| `/stop` | Stop the running agent immediately. Equivalent to clicking the Stop button. Cancels the active stream and marks any in-flight message as sent. |
+| `/title <name>` | Rename the current session. The name is set immediately and persisted to the gateway. Example: `/title Project Alpha`. |
+| `/reasoning <level>` | Change the reasoning effort for the current session. Valid levels: `off`, `low`, `adaptive`. Example: `/reasoning off`. |
 | `/model` | Open the model selector to view or change the active model. |
-| `/skin` | Open the appearance settings to change the display theme. |
 | `/save` | Save the current conversation. |
 | `/skills` | Browse and manage installed skills. |
 | `/plugins` | List installed plugins and their status. |
 | `/mcp` | Open the MCP server management panel. |
-| `/help` | Show available commands. |
 
 ## How slash commands are handled
 
-Commands that navigate or open panels (`/new`, `/model`, `/skin`, `/mcp`) are handled client-side by the chat screen before the message is sent to the agent. The text never reaches the gateway.
+Client-side commands (`/new`, `/reset`, `/clear`, `/stop`, `/title`, `/reasoning`, `/model`, `/save`, `/skills`, `/plugins`, `/mcp`) are intercepted by the chat screen before the message is sent to the agent. The text never reaches the gateway.
+
+Custom user-defined commands (created on the Commands page) are expanded client-side: the stored prompt template is substituted and sent to the model as a normal message.
 
 Commands that are not matched client-side are passed through as plain text to the model, so you can still type `/something-custom` and have the model respond to it as a regular message.
 

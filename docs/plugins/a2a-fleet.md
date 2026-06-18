@@ -62,6 +62,18 @@ For each peer you can see:
 
 The conversation feed is read-only in the UI. You interact with the fleet by talking to Hermes in the normal chat; Hermes decides when to call `fleet_send` and surfaces the results back to you.
 
+## Dashboard endpoints
+
+The plugin exposes three read-only REST endpoints for the Switch UI fleet dashboard:
+
+| Endpoint | What it returns |
+|---|---|
+| `GET /api/plugins/a2a_fleet/conversations` | All recorded Hermes ↔ executor conversation threads |
+| `GET /api/plugins/a2a_fleet/conversations/{id}` | A single conversation thread by `context_id` |
+| `GET /api/plugins/a2a_fleet/peers` | All known peers with their mode, port, repo path, and health status |
+
+These endpoints are read-only. Sending tasks always goes through Hermes and the `fleet_send` tool, not through the dashboard API directly.
+
 ## Enabling the plugin
 
 The inbound A2A server requires `fastapi` and `uvicorn`. Install the optional dependency group:

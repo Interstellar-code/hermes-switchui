@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatAttachment, ChatMessage } from '../types'
 import { readResolvedSessionHeaders } from '@/lib/send-stream-session-headers'
 import { useChatStore } from '@/stores/chat-store'
+import type { ChatStreamEvent } from '@/stores/chat-store'
 import { useContextUsageStore } from '@/stores/context-usage-store'
 import { pushActivity } from '@/components/inspector/activity-store'
 
@@ -142,6 +143,9 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
   const processStoreEvent = useChatStore((s) => s.processEvent)
   const clearStreamingSession = useChatStore((s) => s.clearStreamingSession)
   const clearPendingClarify = useChatStore((s) => s.clearPendingClarify)
+  const dismissUnresolvedClarify = useChatStore(
+    (s) => s.dismissUnresolvedClarify,
+  )
   const recordCompaction = useContextUsageStore((s) => s.recordCompaction)
   const updateContextPercent = useContextUsageStore((s) => s.updateContextPercent)
 
@@ -443,6 +447,10 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
 
       switch (event) {
         case 'started': {
+          // A resumed run may emit `started` after the user answers a clarify.
+          // Keep answered cards visible as a transcript record; only drop stale
+          // unanswered questions before processing the next run lifecycle.
+          dismissUnresolvedClarify(activeSessionKeyRef.current)
           const resolvedSessionKey =
             typeof payload.sessionKey === 'string' && payload.sessionKey.trim()
               ? payload.sessionKey.trim()
@@ -711,16 +719,16 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
             transport: 'send-stream',
           })
           if (doneState === 'error' && errorMessage) {
-            clearPendingClarify(activeSessionKeyRef.current)
+            dismissUnresolvedClarify(activeSessionKeyRef.current)
             markFailed(errorMessage)
             break
           }
-          clearPendingClarify(activeSessionKeyRef.current)
+          dismissUnresolvedClarify(activeSessionKeyRef.current)
           finishStream(payload)
           break
         }
         case 'complete': {
-          clearPendingClarify(activeSessionKeyRef.current)
+          dismissUnresolvedClarify(activeSessionKeyRef.current)
           finishStream(payload)
           break
         }
@@ -773,6 +781,11 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
         case 'clarify': {
           processStoreEvent({
             type: 'clarify',
+            // Mark as the authoritative send-stream transport so the store's
+            // dedup guard (skip non-send-stream events for an active
+            // send-stream run) does NOT drop it. Without this the clarify
+            // event is silently discarded and the inline card never renders.
+            transport: 'send-stream',
             clarifyId: (payload.clarifyId as string) || '',
             messageId: (payload.messageId as string | undefined) || undefined,
             question: (payload.question as string) || '',
@@ -781,23 +794,57 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
               : null,
             sessionKey: activeSessionKeyRef.current,
             runId: activeRunIdRef.current ?? undefined,
-          })
+          } as ChatStreamEvent)
           break
         }
-        case 'clarify_resolved': {
+        case 'clarify_resolved':
+        case 'interaction':
+        case 'interaction_resolved': {
+          const isResolved = event === 'clarify_resolved' || event === 'interaction_resolved'
           processStoreEvent({
-            type: 'clarify_resolved',
-            clarifyId: (payload.clarifyId as string) || '',
-            answer: (payload.answer as string | undefined) || undefined,
+            type: isResolved ? 'interaction_resolved' : 'interaction',
+            // Same dedup-guard reason as the clarify case above.
+            transport: 'send-stream',
+            clarifyId:
+              (payload.clarifyId as string) ||
+              (payload.clarify_id as string) ||
+              (payload.interactionId as string) ||
+              (payload.interaction_id as string) ||
+              '',
+            interactionId:
+              (payload.interactionId as string) ||
+              (payload.interaction_id as string) ||
+              (payload.clarifyId as string) ||
+              (payload.clarify_id as string) ||
+              undefined,
+            messageId:
+              (payload.messageId as string | undefined) ||
+              (payload.message_id as string | undefined) ||
+              undefined,
+            kind: (payload.kind as 'choice' | 'text' | 'approval' | undefined) || undefined,
+            toolName:
+              (payload.toolName as string | undefined) ||
+              (payload.tool_name as string | undefined) ||
+              undefined,
+            question: (payload.question as string | undefined) || undefined,
+            choices: Array.isArray(payload.choices)
+              ? (payload.choices as string[])
+              : null,
+            answer:
+              (payload.answer as string | undefined) ||
+              (payload.selectedAnswer as string | undefined) ||
+              (payload.selected_answer as string | undefined) ||
+              undefined,
             sessionKey: activeSessionKeyRef.current,
             runId: activeRunIdRef.current ?? undefined,
-          })
+          } as ChatStreamEvent)
           break
         }
       }
     },
     [
       clearPendingClarify,
+      dismissUnresolvedClarify,
       finishStream,
       markFailed,
       onStarted,

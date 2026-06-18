@@ -50,6 +50,10 @@ const extendedFeatures = [
     desc: 'Kanban board for agent task queues when the kanban plugin is loaded.',
   },
   {
+    name: 'Board Templates',
+    desc: 'Reusable parameterized kanban board blueprints — define {{variables}}, task DAGs, recurrence, and per-task runtime budgets via a 5-step creation wizard.',
+  },
+  {
     name: 'Workflows',
     desc: 'Multi-step agent logic flows defined as interactive charts and graphs.',
   },
@@ -67,7 +71,11 @@ const extendedFeatures = [
   },
   {
     name: 'Profiles',
-    desc: 'Custom personas and presets loaded into agent sessions.',
+    desc: '9-step agent profile wizard with persona prefill, toolset selection, C-suite personas, and edit mode.',
+  },
+  {
+    name: 'Self-Improve',
+    desc: 'Self-improvement lifecycle — propose → approve → apply → verify → revert — with baseline chart and scenario runs.',
   },
   {
     name: 'Skills',
@@ -91,7 +99,7 @@ const extendedFeatures = [
   },
   {
     name: 'Agora',
-    desc: 'A community hub for sharing skills, agents, and presets.',
+    desc: 'A 2D community lobby where agent avatars move, chat, and interact in a shared world canvas — community presence for your fleet.',
   },
 ];
 ---
@@ -201,9 +209,9 @@ const extendedFeatures = [
         02 // ARCHITECTURE AT A GLANCE
         <span class="hl-label-line"></span>
       </div>
-      <h2 class="hl-section-h2 hl-section-h2--center">Fully local, high-fidelity data pipelines.</h2>
+      <h2 class="hl-section-h2 hl-section-h2--center">Fully local, layered, high-fidelity data pipelines.</h2>
       <p class="hl-carousel-sub" style="max-width: 720px; margin: 12px auto 0;">
-        The two processes talk to each other locally, and the agent is the only thing that talks to the outside world. Your provider choice, sessions, memory, and skills all live behind the agent on disk. A chat round-trip is fully streamed — you see tokens land as the provider emits them, and the agent persists the session as it goes.
+        The stack is four layers deep — all local, all yours. The <strong>Switch UI frontend</strong> (port 3000) talks to the <strong>Hermes Agent gateway</strong> (port 8642) and its companion <strong>dashboard</strong> (port 9119). The gateway drives the <strong>agent runtime</strong> — provider routing, sessions, memory, file access, and scheduling — and is extended by <strong>8 custom plugins</strong>: kanban, workflow-engine, a2a_fleet, mcp_lazy, karpathy-self-improve, personas, matrix_coder, and hermes-switch-ui. A chat round-trip is fully streamed — you see tokens land as the provider emits them, and the agent persists the session as it goes.
       </p>
     </div>
     <ArchDiagram />

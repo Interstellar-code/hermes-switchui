@@ -30,6 +30,7 @@ import {
   updateSessionLastMessage,
 } from './chat-queries'
 import { ChatMessageList } from './components/chat-message-list'
+import { StreamingTextContext } from './components/streaming-text-context'
 import { ChatEmptyState } from './components/chat-empty-state'
 import { ChatComposerShadcn } from './components/chat-composer-shadcn'
 import { InlineClarifyCard } from './components/inline-clarify-card'
@@ -653,10 +654,15 @@ export function ChatScreen({
     [waitingStoreKey],
   )
   const storeWaitingForSession = useChatStore(selectWaitingForSession)
-  // Interactive clarify (P3): pending clarify map, keyed by sessionKey. When the
-  // active session has a pending clarify, the inline card renders and the
-  // composer is blocked until the user answers (or the run ends/times out).
-  const pendingClarifyMap = useChatStore((s) => s.pendingClarify)
+  // Interactive clarify (P3): subscribe only to the ACTIVE session's clarify
+  // entry so background-session clarify events don't re-render this component.
+  // resolvedSessionKey is already available here (from useChatHistory above).
+  const selectActiveClarify = useCallback(
+    (s: ReturnType<typeof useChatStore.getState>) =>
+      resolvedSessionKey ? (s.pendingClarify[resolvedSessionKey] ?? null) : null,
+    [resolvedSessionKey],
+  )
+  const activeClarify = useChatStore(selectActiveClarify)
   const waitingForResponse = waitingStoreKey
     ? storeWaitingForSession
     : hasPendingSend() || hasPendingGeneration()
@@ -2050,12 +2056,6 @@ export function ChatScreen({
   const hideUi = shouldRedirectToNew || isRedirecting
   const isFocusMode = !compact && chatFocusMode
   const showComposer = !isRedirecting
-  // Pending interactive clarify for the active session (P3). When set, render the
-  // inline clarify card above the composer and block the composer.
-  const activeClarify = resolvedSessionKey
-    ? pendingClarifyMap[resolvedSessionKey]
-    : undefined
-
   const handleToggleFocusMode = useCallback(() => {
     if (compact) return
     setChatFocusMode(!chatFocusMode)
@@ -3254,6 +3254,13 @@ export function ChatScreen({
             />
           ) : null}
           {hideUi || activeTab !== 'chat' ? null : (
+            <StreamingTextContext.Provider
+              value={
+                stableActiveStreamingText ||
+                completedStreamingText.current ||
+                ''
+              }
+            >
             <ChatMessageList
               messages={finalDisplayMessages}
               onRetryMessage={handleRetryMessage}
@@ -3303,11 +3310,9 @@ export function ChatScreen({
               }
               isStreaming={derivedStreamingInfo.isStreaming}
               streamingMessageId={derivedStreamingInfo.streamingMessageId}
-              streamingText={
-                stableActiveStreamingText ||
-                completedStreamingText.current ||
-                undefined
-              }
+              hasStreamingText={Boolean(
+                (stableActiveStreamingText || completedStreamingText.current || '').trim(),
+              )}
               streamingThinking={
                 realtimeStreamingThinking ||
                 completedStreamingThinking.current ||
@@ -3322,20 +3327,23 @@ export function ChatScreen({
               liveProgressLabel={liveProgressLabel}
               sending={sending}
               toolDisplayMode={toolDisplayMode}
+              clarifyCard={
+                activeClarify && resolvedSessionKey ? (
+                  <InlineClarifyCard
+                    clarify={activeClarify}
+                    sessionKey={resolvedSessionKey}
+                  />
+                ) : null
+              }
             />
+            </StreamingTextContext.Provider>
           )}
-          {activeClarify && resolvedSessionKey ? (
-            <InlineClarifyCard
-              clarify={activeClarify}
-              sessionKey={resolvedSessionKey}
-            />
-          ) : null}
           {showComposer ? (
             <ChatComposerShadcn
               onSubmit={send}
               onAbort={handleAbortStreaming}
               isLoading={isComposerLoading}
-              disabled={hideUi || !!activeClarify}
+              disabled={hideUi || (!!activeClarify && !activeClarify.resolved)}
               sessionKey={activeQueueSessionKey || undefined}
               wrapperRef={composerRef}
               composerRef={composerHandleRef}

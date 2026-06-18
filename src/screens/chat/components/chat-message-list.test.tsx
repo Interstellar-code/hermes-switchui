@@ -95,6 +95,7 @@ describe('isThinkingIndicatorSurfaceVisible', () => {
         isCompacting: false,
         liveToolActivityCount: 0,
         isStreaming: false,
+        hasStreamingText: false,
         activeToolCallCount: 0,
       }),
     ).toBe(true)
@@ -108,7 +109,7 @@ describe('isThinkingIndicatorSurfaceVisible', () => {
         isCompacting: false,
         liveToolActivityCount: 1,
         isStreaming: true,
-        streamingText: 'Assistant response',
+        hasStreamingText: true,
         activeToolCallCount: 1,
       }),
     ).toBe(false)

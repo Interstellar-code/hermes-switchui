@@ -1,1 +1,6 @@
-export function extractSpeechImage(_value: unknown): string | null { return null }
+export function extractSpeechImage(value: string) {
+  return {
+    cleanText: value,
+    imageUrl: null as string | null,
+  }
+}

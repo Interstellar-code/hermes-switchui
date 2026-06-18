@@ -37,6 +37,8 @@ pages:
     title: Attaching files
   - slug: main/chat/slash-commands
     title: Slash commands
+  - slug: main/chat/commands
+    title: Commands
   - slug: main/chat/shortcuts
     title: Keyboard shortcuts
   - slug: main/files
@@ -65,6 +67,12 @@ pages:
     title: Operations
   - slug: main/matrix3d
     title: Matrix3D
+  - slug: main/board-templates
+    title: Board templates
+  - slug: main/self-improve
+    title: Self-Improve
+  - slug: main/agora
+    title: Agora
 
   # KNOWLEDGE
   - slug: knowledge/memory
@@ -115,6 +123,14 @@ pages:
     title: Lazy Load MCP
   - slug: plugins/matrix-coder
     title: Matrix Coder
+  - slug: plugins/kanban
+    title: Kanban
+  - slug: plugins/self-improve
+    title: Self-Improve
+  - slug: plugins/personas
+    title: Personas
+  - slug: plugins/hermes-switch-ui
+    title: Hermes Switch UI plugin
 
   # HOW-TO GUIDES
   - slug: how-to/use-the-manifest-provider-to-reduce-llm-costs
@@ -127,6 +143,10 @@ pages:
   # HELP
   - slug: help/docs
     title: About /docs
+
+  # DEPLOYMENT
+  - slug: deployment/unraid
+    title: Deploy on Unraid
 
   # TIPS
   - slug: tips/shortcuts

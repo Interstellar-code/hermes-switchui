@@ -1,13 +1,15 @@
 ---
 title: Matrix Coder
-description: A specialist-coder layer that turns the Hermes agent into a focused coding expert by composing a role-specific persona into each conversation turn.
+description: A specialist-coder layer (v0.6.1) that turns the Hermes agent into a focused coding expert by composing a role-specific persona into each conversation turn via an eight-role deterministic IntentGate.
 ---
 
 # Matrix Coder
 
-Matrix Coder is a Hermes Agent plugin that promotes the active Hermes session into a focused **specialist** for coding work. It does this by composing a role persona — plain text — into the agent's context and re-asserting it on every turn via the `pre_llm_call` hook. The result is an agent that adopts a specific coding mindset (explorer, planner, implementer, reviewer, and so on) for the duration of a task, without spawning a separate process.
+Matrix Coder (v0.6.1) is a Hermes Agent plugin that promotes the active Hermes session into a focused **specialist** for coding work. It does this by composing a role persona — plain text — into the agent's context and re-asserting it on every turn via the `pre_llm_call` hook. The result is an agent that adopts a specific coding mindset (explorer, planner, implementer, reviewer, and so on) for the duration of a task, without spawning a separate process.
 
 Matrix Coder ships as part of the Hermes Switch UI package and is thematically aligned with Switch UI's Matrix theme, though it is a gateway-level plugin and operates independently of the UI theme setting.
+
+Matrix Coder registers **no agent tools** and exposes **no REST API**. All behaviour is hook-driven.
 
 <iframe
   src="/api/docs-asset?path=diagrams/matrix-coder-intent-detection.html"
@@ -80,7 +82,17 @@ matrix executor @backend-api: add CSV export   # explicit role + domain pack
 
 ### Status and help
 
-The `/matrix` slash command displays the current status — active persona, version, phase — and lists available roles and lenses. It does not dispatch work; all task dispatch goes through conversational messages.
+The `/matrix` slash command displays the current status — active persona, version, phase — and lists available roles and lenses. It does **not** dispatch work and does not register any agent tools or REST endpoints. All task dispatch goes through conversational messages.
+
+### Disabling implicit routing
+
+If you want to turn off the IntentGate's automatic inference without disabling the plugin entirely, set the environment variable:
+
+```bash
+MATRIX_CODER_IMPLICIT_ROUTING=0
+```
+
+With this set, Matrix Coder will only activate on messages that start with the explicit `matrix` trigger. All other messages pass through to Hermes unchanged.
 
 ## How intent is detected
 

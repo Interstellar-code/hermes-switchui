@@ -14,7 +14,6 @@ import { SearchModal } from '@/components/search/search-modal'
 import { TerminalShortcutListener } from '@/components/terminal-shortcut-listener'
 import { GlobalShortcutListener } from '@/components/global-shortcut-listener'
 import { WorkspaceShell } from '@/components/workspace-shell'
-import { MobilePromptTrigger } from '@/components/mobile-prompt/MobilePromptTrigger'
 import { Toaster } from '@/components/ui/toast'
 import { GatewayRestartBanner } from '@/components/gateway-restart-banner'
 import { DashboardUnavailableBanner } from '@/components/dashboard-unavailable-banner'
@@ -50,7 +49,7 @@ const APP_CSP = [
 ].join('; ')
 
 const THEME_STORAGE_KEY = 'claude-theme'
-const DEFAULT_THEME = 'claude-nous'
+const DEFAULT_THEME = 'matrix'
 const VALID_THEMES = [
   'claude-nous',
   'claude-nous-light',
@@ -101,6 +100,8 @@ const themeColorScript = `
       'claude-classic-light': '#F5F2ED',
       'claude-slate': '#0d1117',
       'claude-slate-light': '#F6F8FA',
+      matrix: '#020804',
+      'matrix-light': '#EAF5EE',
     }
     const nextColor = colors[theme] || colors['${DEFAULT_THEME}']
     const isDark = !['claude-nous-light', 'claude-official-light', 'claude-classic-light', 'claude-slate-light'].includes(String(theme))
@@ -392,10 +393,7 @@ function RootLayout() {
           <KeyboardShortcutsModal />
           <UpdateCenterNotifier />
           {rootSurfaceState.showPostOnboardingOverlays ? (
-            <>
-              <MobilePromptTrigger />
-              <OnboardingTour />
-            </>
+            <OnboardingTour />
           ) : null}
         </>
       ) : null}

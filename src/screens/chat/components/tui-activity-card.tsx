@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 /**
@@ -25,6 +26,7 @@ export type TuiToolSection = {
   outputText: string
   errorText?: string
   timestamp?: number
+  inlineContent?: ReactNode
   state:
     | 'input-streaming'
     | 'input-available'
@@ -247,6 +249,9 @@ function ToolRow({
           <span className="shrink-0 leading-none opacity-50">⎿</span>
           <span className="truncate min-w-0">{outputSummary}</span>
         </div>
+      ) : null}
+      {section.inlineContent ? (
+        <div className="mx-3 mt-2 mb-1">{section.inlineContent}</div>
       ) : null}
       {open && canExpand ? (
         <div
