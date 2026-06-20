@@ -15,10 +15,16 @@ const DEFAULT_CONFIG: KnowledgeBaseConfig = {
   source: { type: 'local', path: '' },
 }
 
+function getHermesHome(): string {
+  return path.resolve(
+    process.env.HERMES_HOME ??
+      process.env.CLAUDE_HOME ??
+      path.join(os.homedir(), '.hermes'),
+  )
+}
+
 function getConfigPath(): string {
-  const claudeHome =
-    process.env.HERMES_HOME ?? process.env.CLAUDE_HOME ?? path.join(os.homedir(), '.hermes')
-  return path.join(claudeHome, 'knowledge-config.json')
+  return path.join(getHermesHome(), 'knowledge-config.json')
 }
 
 function expandHome(input: string): string {
@@ -30,7 +36,7 @@ function resolveLocalPath(input: string): string {
 }
 
 function readHermesConfigValue(paths: Array<Array<string>>): string | null {
-  const hermesHome = process.env.HERMES_HOME ?? path.join(os.homedir(), '.hermes')
+  const hermesHome = getHermesHome()
   const configPath = path.join(hermesHome, 'config.yaml')
   try {
     if (!fs.existsSync(configPath)) return null
@@ -62,20 +68,61 @@ function firstExistingPath(candidates: Array<string>): string | null {
   return null
 }
 
+function getMatrixMemoryWikiRoot(): string | null {
+  return firstExistingPath([
+    path.join(
+      getHermesHome(),
+      'profiles',
+      'hermes-switch',
+      'matrix-memory',
+      'wiki',
+    ),
+  ])
+}
+
+function isLegacyHermesWikiPath(candidate: string): boolean {
+  const resolved = resolveLocalPath(candidate)
+  const legacyRoot = path.resolve(path.join(os.homedir(), 'hermes', 'wikis'))
+  return (
+    resolved === legacyRoot || resolved.startsWith(`${legacyRoot}${path.sep}`)
+  )
+}
+
+function normalizeKnowledgeBaseConfig(
+  config: KnowledgeBaseConfig,
+): KnowledgeBaseConfig {
+  if (config.source.type !== 'local') return config
+
+  const localPath = config.source.path.trim()
+  if (!localPath) return config
+
+  const resolved = resolveLocalPath(localPath)
+  const matrixMemoryWikiRoot = getMatrixMemoryWikiRoot()
+  if (matrixMemoryWikiRoot && isLegacyHermesWikiPath(resolved)) {
+    return {
+      source: { type: 'local', path: matrixMemoryWikiRoot },
+    }
+  }
+
+  return {
+    source: { type: 'local', path: resolved },
+  }
+}
+
 export function readKnowledgeBaseConfig(): KnowledgeBaseConfig {
   const configPath = getConfigPath()
   try {
     if (fs.existsSync(configPath)) {
       const raw = fs.readFileSync(configPath, 'utf-8')
       const parsed = JSON.parse(raw) as Partial<KnowledgeBaseConfig>
-      return {
+      return normalizeKnowledgeBaseConfig({
         source: parsed.source ?? DEFAULT_CONFIG.source,
-      }
+      })
     }
   } catch {
     // ignore parse errors, use default
   }
-  return DEFAULT_CONFIG
+  return normalizeKnowledgeBaseConfig(DEFAULT_CONFIG)
 }
 
 export function writeKnowledgeBaseConfig(config: KnowledgeBaseConfig): void {
@@ -98,7 +145,11 @@ export function getKnowledgeBaseEffectiveRoot(): string {
   // the explicit UI override, but the UI should also honor the same paths the
   // agent-side llm-wiki skill uses.
   if (process.env.WIKI_PATH) return resolveLocalPath(process.env.WIKI_PATH)
-  if (process.env.KNOWLEDGE_DIR) return resolveLocalPath(process.env.KNOWLEDGE_DIR)
+  if (process.env.KNOWLEDGE_DIR)
+    return resolveLocalPath(process.env.KNOWLEDGE_DIR)
+
+  const matrixMemoryWikiRoot = getMatrixMemoryWikiRoot()
+  if (matrixMemoryWikiRoot) return matrixMemoryWikiRoot
 
   const configuredWikiPath = readHermesConfigValue([
     ['knowledge', 'wiki_path'],
