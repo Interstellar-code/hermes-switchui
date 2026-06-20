@@ -38,13 +38,22 @@ export const Route = createFileRoute('/api/workflow-definitions')({
         const url = new URL(request.url);
         const source = url.searchParams.get('source') as
           | 'bundled' | 'user' | 'project' | null;
-        const defs = await engine.listDefinitions(source ? { source } : undefined);
-        const enriched = defs.map((def) => ({
-          ...def,
-          // Only enrich when yaml is present; omit summary fields when plugin omits yaml.
-          ...(def.yaml ? summariseWorkflowYamlCached(def.yaml) : {}),
-        }));
-        return Response.json({ definitions: enriched });
+        try {
+          const defs = await engine.listDefinitions(source ? { source } : undefined);
+          const enriched = defs.map((def) => ({
+            ...def,
+            // Only enrich when yaml is present; omit summary fields when plugin omits yaml.
+            ...(def.yaml ? summariseWorkflowYamlCached(def.yaml) : {}),
+          }));
+          return Response.json({ definitions: enriched });
+        } catch (err) {
+          // The workflow-engine backend plugin may not be installed or running yet.
+          // Degrade gracefully so the Workflows/Conductor screens show "no definitions"
+          // instead of spamming 500 errors on every page load. See #240.
+          const message = err instanceof Error ? err.message : String(err);
+          console.warn(`[workflow-definitions] engine unavailable, returning empty list: ${message}`);
+          return Response.json({ definitions: [] });
+        }
       },
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) return Response.json({ error: 'Unauthorized' }, { status: 401 });
