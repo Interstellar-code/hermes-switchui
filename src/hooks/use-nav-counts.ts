@@ -12,7 +12,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { fetchJobs } from '@/lib/jobs-api'
-import { fetchUserCommands } from '@/lib/commands-api'
+import { commandsKeys, fetchUserCommands } from '@/lib/commands-api'
 import { fetchStats } from '@/lib/tasks-api'
 import { fetchTemplates } from '@/lib/board-templates-api'
 
@@ -72,10 +72,17 @@ export function useNavCounts(enabled: boolean): NavCounts {
     queryFn: () => countFromArray('/api/workflow-definitions', 'definitions'),
     ...common,
   })
+  // Share the same cache the commands screen invalidates via `commandsKeys`.
+  // TanStack Query dedupes by queryKey, so this is a free subscription — the
+  // badge updates the instant a command is created/edited/deleted, with no
+  // staleTime gap. `select` keeps the hook as a pure projection (length).
   const commands = useQuery({
-    queryKey: ['nav-count', 'commands'],
-    queryFn: async () => (await fetchUserCommands()).length,
-    ...common,
+    queryKey: commandsKeys.list(),
+    queryFn: fetchUserCommands,
+    enabled,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    select: (data) => data.length,
   })
   const skills = useQuery({
     queryKey: ['nav-count', 'skills'],
