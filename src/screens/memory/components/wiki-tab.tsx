@@ -27,24 +27,32 @@ async function apiFetch<T>(url: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
-async function apiPost(url: string, body: Record<string, unknown>): Promise<void> {
+async function apiPost(
+  url: string,
+  body: Record<string, unknown>,
+): Promise<void> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
   const payload = (await res.json().catch(() => ({}))) as { error?: string }
-  if (!res.ok || payload.error) throw new Error(payload.error ?? `Request failed (${res.status})`)
+  if (!res.ok || payload.error)
+    throw new Error(payload.error ?? `Request failed (${res.status})`)
 }
 
-async function apiDelete(url: string, body: Record<string, unknown>): Promise<void> {
+async function apiDelete(
+  url: string,
+  body: Record<string, unknown>,
+): Promise<void> {
   const res = await fetch(url, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
   const payload = (await res.json().catch(() => ({}))) as { error?: string }
-  if (!res.ok || payload.error) throw new Error(payload.error ?? `Request failed (${res.status})`)
+  if (!res.ok || payload.error)
+    throw new Error(payload.error ?? `Request failed (${res.status})`)
 }
 
 // ── Markdown mini-renderer ────────────────────────────────────────────────────
@@ -54,24 +62,45 @@ function renderMarkdown(md: string): string {
   const out: Array<string> = []
   let inList = false
   for (const ln of lines) {
-    const esc = ln.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const esc = ln
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
     if (/^# /.test(ln)) {
-      if (inList) { out.push('</ul>'); inList = false }
+      if (inList) {
+        out.push('</ul>')
+        inList = false
+      }
       out.push(`<h1>${esc.slice(2)}</h1>`)
     } else if (/^## /.test(ln)) {
-      if (inList) { out.push('</ul>'); inList = false }
+      if (inList) {
+        out.push('</ul>')
+        inList = false
+      }
       out.push(`<h2>${esc.slice(3)}</h2>`)
     } else if (/^### /.test(ln)) {
-      if (inList) { out.push('</ul>'); inList = false }
+      if (inList) {
+        out.push('</ul>')
+        inList = false
+      }
       out.push(`<h3>${esc.slice(4)}</h3>`)
     } else if (/^[-*] /.test(ln)) {
-      if (!inList) { out.push('<ul>'); inList = true }
+      if (!inList) {
+        out.push('<ul>')
+        inList = true
+      }
       out.push(`<li>${esc.slice(2)}</li>`)
     } else if (ln.trim() === '') {
-      if (inList) { out.push('</ul>'); inList = false }
+      if (inList) {
+        out.push('</ul>')
+        inList = false
+      }
       out.push('<br/>')
     } else {
-      if (inList) { out.push('</ul>'); inList = false }
+      if (inList) {
+        out.push('</ul>')
+        inList = false
+      }
       // inline code
       const withCode = esc.replace(/`([^`]+)`/g, '<code>$1</code>')
       out.push(`<p>${withCode}</p>`)
@@ -90,7 +119,12 @@ type PageModalProps = {
   onSaved: () => void
 }
 
-function PageModal({ initialPath, initialContent, onClose, onSaved }: PageModalProps) {
+function PageModal({
+  initialPath,
+  initialContent,
+  onClose,
+  onSaved,
+}: PageModalProps) {
   const [pagePath, setPagePath] = useState(initialPath ?? '')
   const [content, setContent] = useState(initialContent ?? '')
   const [saving, setSaving] = useState(false)
@@ -110,7 +144,9 @@ function PageModal({ initialPath, initialContent, onClose, onSaved }: PageModalP
   }, [onClose])
 
   async function handleSave() {
-    const p = pagePath.trim().endsWith('.md') ? pagePath.trim() : `${pagePath.trim()}.md`
+    const p = pagePath.trim().endsWith('.md')
+      ? pagePath.trim()
+      : `${pagePath.trim()}.md`
     if (!p || p === '.md') {
       showToast('Page path is required')
       return
@@ -130,10 +166,17 @@ function PageModal({ initialPath, initialContent, onClose, onSaved }: PageModalP
 
   return createPortal(
     <div className="mem-modal-backdrop" onClick={onClose}>
-      <div className="mem-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <h3>{isEdit ? 'Edit Page' : 'New Wiki Page'}</h3>
+      <div
+        className="mem-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <h3>{isEdit ? 'Edit Page' : 'New Matrix Wiki Page'}</h3>
         <div className="mem-modal-field">
-          <label className="mem-modal-label" htmlFor="wiki-page-path">Path</label>
+          <label className="mem-modal-label" htmlFor="wiki-page-path">
+            Path
+          </label>
           <input
             id="wiki-page-path"
             ref={inputRef}
@@ -145,7 +188,9 @@ function PageModal({ initialPath, initialContent, onClose, onSaved }: PageModalP
           />
         </div>
         <div className="mem-modal-field">
-          <label className="mem-modal-label" htmlFor="wiki-page-content">Content (Markdown)</label>
+          <label className="mem-modal-label" htmlFor="wiki-page-content">
+            Content (Markdown)
+          </label>
           <textarea
             id="wiki-page-content"
             className="mem-modal-textarea"
@@ -155,10 +200,20 @@ function PageModal({ initialPath, initialContent, onClose, onSaved }: PageModalP
           />
         </div>
         <div className="mem-modal-actions">
-          <button type="button" className="mem-btn" onClick={onClose} disabled={saving}>
+          <button
+            type="button"
+            className="mem-btn"
+            onClick={onClose}
+            disabled={saving}
+          >
             Cancel
           </button>
-          <button type="button" className="mem-btn is-primary" onClick={() => void handleSave()} disabled={saving}>
+          <button
+            type="button"
+            className="mem-btn is-primary"
+            onClick={() => void handleSave()}
+            disabled={saving}
+          >
             {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Page'}
           </button>
         </div>
@@ -170,15 +225,27 @@ function PageModal({ initialPath, initialContent, onClose, onSaved }: PageModalP
 
 // ── WikiTab ───────────────────────────────────────────────────────────────────
 
-type ListResponse = { pages: Array<WikiPageMeta>; exists: boolean; source: unknown }
-type ReadResponse = { page: WikiPageMeta; content: string; backlinks: Array<string> }
+type ListResponse = {
+  pages: Array<WikiPageMeta>
+  exists: boolean
+  source: unknown
+}
+type ReadResponse = {
+  page: WikiPageMeta
+  content: string
+  backlinks: Array<string>
+}
 
 export function WikiTab() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  const [groupOpen, setGroupOpen] = useState<Record<string, boolean>>({})
   const [showAdd, setShowAdd] = useState(false)
-  const [editTarget, setEditTarget] = useState<{ path: string; content: string } | null>(null)
+  const [editTarget, setEditTarget] = useState<{
+    path: string
+    content: string
+  } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [drawerPath, setDrawerPath] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -191,16 +258,18 @@ export function WikiTab() {
 
   const pageQuery = useQuery<ReadResponse>({
     queryKey: ['knowledge', 'read', selectedPath],
-    queryFn: () => apiFetch(`/api/knowledge/read?path=${encodeURIComponent(selectedPath!)}`),
+    queryFn: () =>
+      apiFetch(`/api/knowledge/read?path=${encodeURIComponent(selectedPath!)}`),
     enabled: !!selectedPath,
     staleTime: 15_000,
   })
 
   const pages = listQuery.data?.pages ?? []
   const filtered = search
-    ? pages.filter((p) =>
-        p.title.toLowerCase().includes(search.toLowerCase()) ||
-        p.path.toLowerCase().includes(search.toLowerCase()),
+    ? pages.filter(
+        (p) =>
+          p.title.toLowerCase().includes(search.toLowerCase()) ||
+          p.path.toLowerCase().includes(search.toLowerCase()),
       )
     : pages
 
@@ -227,7 +296,10 @@ export function WikiTab() {
 
   function handleEdit() {
     if (!pageQuery.data) return
-    setEditTarget({ path: pageQuery.data.page.path, content: pageQuery.data.content })
+    setEditTarget({
+      path: pageQuery.data.page.path,
+      content: pageQuery.data.content,
+    })
   }
 
   const page = pageQuery.data?.page
@@ -235,7 +307,7 @@ export function WikiTab() {
   const backlinks = pageQuery.data?.backlinks ?? []
 
   // group pages by directory
-  type Group = { dir: string; pages: Array<WikiPageMeta>; open: boolean }
+  type Group = { dir: string; pages: Array<WikiPageMeta> }
   const groups: Array<Group> = []
   const dirMap = new Map<string, Group>()
   for (const p of filtered) {
@@ -243,11 +315,19 @@ export function WikiTab() {
     const dir = slash >= 0 ? p.path.slice(0, slash) : '.'
     let grp = dirMap.get(dir)
     if (!grp) {
-      grp = { dir, pages: [], open: true }
+      grp = { dir, pages: [] }
       dirMap.set(dir, grp)
       groups.push(grp)
     }
     grp.pages.push(p)
+  }
+
+  function isGroupOpen(dir: string): boolean {
+    return groupOpen[dir] ?? true
+  }
+
+  function toggleGroup(dir: string) {
+    setGroupOpen((prev) => ({ ...prev, [dir]: !(prev[dir] ?? true) }))
   }
 
   return (
@@ -255,22 +335,37 @@ export function WikiTab() {
       {/* Left rail */}
       <aside className="wiki-tree">
         <div className="wiki-tree-search">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-            <circle cx="7" cy="7" r="4.5"/>
-            <path d="M10.5 10.5l3 3" strokeLinecap="round"/>
+          <svg
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            aria-hidden="true"
+          >
+            <circle cx="7" cy="7" r="4.5" />
+            <path d="M10.5 10.5l3 3" strokeLinecap="round" />
           </svg>
           <input
-            placeholder="search wiki…"
+            placeholder="search matrix wiki…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            aria-label="Search wiki pages"
+            aria-label="Search matrix wiki pages"
           />
         </div>
 
         <div className="wiki-tree-actions">
-          <button type="button" className="mem-btn is-primary wiki-new-btn" onClick={() => setShowAdd(true)}>
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M8 3v10M3 8h10" strokeLinecap="round"/>
+          <button
+            type="button"
+            className="mem-btn is-primary wiki-new-btn"
+            onClick={() => setShowAdd(true)}
+          >
+            <svg
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <path d="M8 3v10M3 8h10" strokeLinecap="round" />
             </svg>
             New Page
           </button>
@@ -278,64 +373,112 @@ export function WikiTab() {
 
         {listQuery.isLoading && <div className="mem-loading">Loading…</div>}
         {listQuery.isError && (
-          <div className="wiki-tree-error">Failed to load wiki</div>
+          <div className="wiki-tree-error">Failed to load matrix wiki</div>
         )}
-        {!listQuery.isLoading && !listQuery.isError && filtered.length === 0 && (
-          <div className="wiki-tree-empty">
-            {search ? 'No results' : 'No wiki pages yet'}
-          </div>
-        )}
+        {!listQuery.isLoading &&
+          !listQuery.isError &&
+          filtered.length === 0 && (
+            <div className="wiki-tree-empty">
+              {search ? 'No results' : 'No matrix wiki pages yet'}
+            </div>
+          )}
 
         {groups.map((grp) => (
           <div key={grp.dir} className="wiki-group">
             {grp.dir !== '.' && (
-              <div className="wiki-group-label">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                  <path d="M2 4h4l2 2h6v7H2V4z"/>
-                </svg>
-                {grp.dir}
-                <span className="wiki-group-ct">{grp.pages.length}</span>
-              </div>
-            )}
-            {grp.pages.map((p) => (
               <button
-                key={p.path}
                 type="button"
-                className={`wiki-page-item ${p.path === selectedPath ? 'is-active' : ''} ${grp.dir !== '.' ? 'indent' : ''}`}
-                onClick={() => setSelectedPath(p.path)}
+                className={`wiki-group-label ${isGroupOpen(grp.dir) ? '' : 'is-collapsed'}`}
+                onClick={() => toggleGroup(grp.dir)}
+                aria-expanded={isGroupOpen(grp.dir)}
               >
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                  <path d="M3 2h6l4 4v9H3V2z" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M9 2v4h4" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                <span className="wiki-page-name">{p.title}</span>
-                {backlinks.length > 0 && p.path === selectedPath && (
-                  <span className="wiki-page-ct">{backlinks.length}↗</span>
-                )}
                 <svg
                   viewBox="0 0 16 16"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="1.5"
-                  className="mem-file-detail-icon"
                   aria-hidden="true"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setDrawerPath(p.path)
-                    setDrawerOpen(true)
-                  }}
+                  className="wiki-group-chevron"
                 >
-                  <path d="M6 3H3v10h10V9M9 2h5v5M14 2l-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path
+                    d="M6 3l4 5-4 5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
+                <svg
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  aria-hidden="true"
+                >
+                  <path d="M2 4h4l2 2h6v7H2V4z" />
+                </svg>
+                <span>{grp.dir}</span>
+                <span className="wiki-group-ct">{grp.pages.length}</span>
               </button>
-            ))}
+            )}
+            {(grp.dir === '.' || isGroupOpen(grp.dir)) &&
+              grp.pages.map((p) => (
+                <button
+                  key={p.path}
+                  type="button"
+                  className={`wiki-page-item ${p.path === selectedPath ? 'is-active' : ''} ${grp.dir !== '.' ? 'indent' : ''}`}
+                  onClick={() => setSelectedPath(p.path)}
+                >
+                  <svg
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M3 2h6l4 4v9H3V2z"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M9 2v4h4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <span className="wiki-page-name">{p.title}</span>
+                  {backlinks.length > 0 && p.path === selectedPath && (
+                    <span className="wiki-page-ct">{backlinks.length}↗</span>
+                  )}
+                  <svg
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    className="mem-file-detail-icon"
+                    aria-hidden="true"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setDrawerPath(p.path)
+                      setDrawerOpen(true)
+                    }}
+                  >
+                    <path
+                      d="M6 3H3v10h10V9M9 2h5v5M14 2l-7 7"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              ))}
           </div>
         ))}
       </aside>
 
       {/* Right pane */}
       <section className="wiki-reader">
-        {pageQuery.isLoading && <div className="mem-loading">Loading page…</div>}
+        {pageQuery.isLoading && (
+          <div className="mem-loading">Loading page…</div>
+        )}
         {pageQuery.isError && (
           <div className="wiki-reader-error">Failed to load page</div>
         )}
@@ -346,14 +489,30 @@ export function WikiTab() {
         {page && !pageQuery.isLoading && !pageQuery.isError && (
           <>
             <div className="crumbs">
-              Wiki <span>/ {page.path}</span>
+              Matrix Wiki <span>/ {page.path}</span>
             </div>
             <h1>{page.title}</h1>
             <div className="meta">
-              {page.type && <span>type <b>{page.type}</b></span>}
-              {page.updated && <span>updated <b>{page.updated.slice(0, 10)}</b></span>}
-              {page.size > 0 && <span>size <b>{page.size}B</b></span>}
-              {page.tags.length > 0 && <span>tags <b>{page.tags.join(', ')}</b></span>}
+              {page.type && (
+                <span>
+                  type <b>{page.type}</b>
+                </span>
+              )}
+              {page.updated && (
+                <span>
+                  updated <b>{page.updated.slice(0, 10)}</b>
+                </span>
+              )}
+              {page.size > 0 && (
+                <span>
+                  size <b>{page.size}B</b>
+                </span>
+              )}
+              {page.tags.length > 0 && (
+                <span>
+                  tags <b>{page.tags.join(', ')}</b>
+                </span>
+              )}
             </div>
 
             <div className="wiki-reader-actions">
@@ -369,8 +528,9 @@ export function WikiTab() {
               </button>
             </div>
 
-            {/* eslint-disable-next-line react/no-danger */}
-            <div dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }} />
+            <div
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+            />
 
             {backlinks.length > 0 && (
               <div className="backlinks">
@@ -395,7 +555,9 @@ export function WikiTab() {
       {showAdd && (
         <PageModal
           onClose={() => setShowAdd(false)}
-          onSaved={() => void qc.invalidateQueries({ queryKey: ['knowledge', 'list'] })}
+          onSaved={() =>
+            void qc.invalidateQueries({ queryKey: ['knowledge', 'list'] })
+          }
         />
       )}
       {editTarget && (
@@ -405,7 +567,9 @@ export function WikiTab() {
           onClose={() => setEditTarget(null)}
           onSaved={() => {
             void qc.invalidateQueries({ queryKey: ['knowledge', 'list'] })
-            void qc.invalidateQueries({ queryKey: ['knowledge', 'read', editTarget.path] })
+            void qc.invalidateQueries({
+              queryKey: ['knowledge', 'read', editTarget.path],
+            })
             setEditTarget(null)
           }}
         />
@@ -413,7 +577,7 @@ export function WikiTab() {
 
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete Wiki Page"
+        title="Delete Matrix Wiki Page"
         message={`Delete "${deleteTarget}"? This cannot be undone.`}
         confirmLabel="Delete"
         destructive

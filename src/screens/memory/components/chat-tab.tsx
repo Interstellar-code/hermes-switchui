@@ -1,10 +1,10 @@
 /**
- * ChatTab — Chat with Wiki tab (MEM-09).
+ * ChatTab — Chat with Matrix Wiki tab (MEM-09).
  *
- * RAG-style chat grounded in the wiki corpus.
+ * RAG-style chat grounded in the matrix-memory wiki corpus.
  *
  * Strategy (plan R6 — context blow-out guard):
- * - On send, fetch top-K matching wiki pages via /api/knowledge/search?q=<query>&limit=5
+ * - On send, fetch top-K matching matrix wiki pages via /api/knowledge/search?q=<query>&limit=5
  * - Inline page bodies capped at 4 kB each, total context capped at 32 kB
  * - Send to /api/send-stream (SSE) with a system prompt that includes the capped wiki context
  * - Render streamed tokens into the latest assistant bubble
@@ -40,8 +40,8 @@ type SearchResponse = {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const MAX_BODY_BYTES = 4 * 1024       // 4 kB per page
-const MAX_CONTEXT_BYTES = 32 * 1024   // 32 kB total wiki context
+const MAX_BODY_BYTES = 4 * 1024 // 4 kB per page
+const MAX_CONTEXT_BYTES = 32 * 1024 // 32 kB total matrix wiki context
 const TOP_K = 5
 
 // ── ID helper ─────────────────────────────────────────────────────────────────
@@ -52,11 +52,15 @@ function uid() {
 
 // ── Wiki context builder ──────────────────────────────────────────────────────
 
-async function buildWikiContext(query: string): Promise<{ context: string; pages: Array<string> }> {
+async function buildWikiContext(
+  query: string,
+): Promise<{ context: string; pages: Array<string> }> {
   // 1. Search for relevant pages
   let results: Array<WikiSearchResult> = []
   try {
-    const res = await fetch(`/api/knowledge/search?q=${encodeURIComponent(query)}&limit=${TOP_K}`)
+    const res = await fetch(
+      `/api/knowledge/search?q=${encodeURIComponent(query)}&limit=${TOP_K}`,
+    )
     if (res.ok) {
       const data = (await res.json()) as SearchResponse
       results = data.results
@@ -76,7 +80,9 @@ async function buildWikiContext(query: string): Promise<{ context: string; pages
   for (const r of results) {
     if (totalBytes >= MAX_CONTEXT_BYTES) break
     try {
-      const res = await fetch(`/api/knowledge/read?path=${encodeURIComponent(r.path)}`)
+      const res = await fetch(
+        `/api/knowledge/read?path=${encodeURIComponent(r.path)}`,
+      )
       if (!res.ok) continue
       const data = (await res.json()) as { content: string }
       let body = data.content
@@ -117,7 +123,7 @@ async function streamChat(
   signal: AbortSignal,
 ): Promise<void> {
   const systemPrompt = wikiContext
-    ? `You are a helpful assistant answering questions grounded in the user's wiki knowledge base.\n\nRelevant wiki content:\n\n${wikiContext}\n\nAnswer based on the wiki content above. If the answer isn't in the wiki, say so clearly.`
+    ? `You are a helpful assistant answering questions grounded in the user's matrix-memory wiki.\n\nRelevant matrix wiki content:\n\n${wikiContext}\n\nAnswer based on the wiki content above. If the answer isn't in the wiki, say so clearly.`
     : 'You are a helpful assistant.'
 
   const payload = {
@@ -178,9 +184,19 @@ function CitedPages({ pages }: { pages: Array<string> }) {
       <div className="chat-cited-title">Sources</div>
       {pages.map((p) => (
         <div key={p} className="chat-cited-item">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-            <path d="M3 2h6l4 4v9H3V2z" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M9 2v4h4" strokeLinecap="round" strokeLinejoin="round"/>
+          <svg
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            aria-hidden="true"
+          >
+            <path
+              d="M3 2h6l4 4v9H3V2z"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path d="M9 2v4h4" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           {p}
         </div>
@@ -194,11 +210,15 @@ function CitedPages({ pages }: { pages: Array<string> }) {
 function ChatBubble({ msg }: { msg: Message }) {
   return (
     <div className={`chat-bubble chat-bubble--${msg.role}`}>
-      <div className="chat-bubble-role">{msg.role === 'user' ? 'You' : 'Hermes'}</div>
-      <div className="chat-bubble-content">{msg.content || <span className="chat-typing">▍</span>}</div>
-      {msg.role === 'assistant' && msg.citedPages && msg.citedPages.length > 0 && (
-        <CitedPages pages={msg.citedPages} />
-      )}
+      <div className="chat-bubble-role">
+        {msg.role === 'user' ? 'You' : 'Hermes'}
+      </div>
+      <div className="chat-bubble-content">
+        {msg.content || <span className="chat-typing">▍</span>}
+      </div>
+      {msg.role === 'assistant' &&
+        msg.citedPages &&
+        msg.citedPages.length > 0 && <CitedPages pages={msg.citedPages} />}
     </div>
   )
 }
@@ -274,9 +294,7 @@ export function ChatTab() {
         // Replace placeholder with error message
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantId
-              ? { ...m, content: `Error: ${errMsg}` }
-              : m,
+            m.id === assistantId ? { ...m, content: `Error: ${errMsg}` } : m,
           ),
         )
       }
@@ -303,11 +321,25 @@ export function ChatTab() {
       <div className="chat-messages">
         {messages.length === 0 && (
           <div className="chat-empty">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="28" height="28" aria-hidden="true">
-              <path d="M2 2h12v9H9l-3 3v-3H2V2z" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              width="28"
+              height="28"
+              aria-hidden="true"
+            >
+              <path
+                d="M2 2h12v9H9l-3 3v-3H2V2z"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
-            <span>Ask anything about your wiki</span>
-            <span className="chat-empty-sub">Answers are grounded in your wiki pages</span>
+            <span>Ask anything about your matrix wiki</span>
+            <span className="chat-empty-sub">
+              Answers are grounded in your matrix-memory wiki pages
+            </span>
           </div>
         )}
         {messages.map((m) => (
@@ -320,7 +352,7 @@ export function ChatTab() {
       <div className="chat-inputbar">
         <textarea
           className="chat-input"
-          placeholder="Ask a question about your wiki… (Enter to send, Shift+Enter for newline)"
+          placeholder="Ask a question about your matrix wiki… (Enter to send, Shift+Enter for newline)"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -329,7 +361,11 @@ export function ChatTab() {
         />
         <div className="chat-inputbar-actions">
           {sending ? (
-            <button type="button" className="mem-btn is-danger" onClick={handleStop}>
+            <button
+              type="button"
+              className="mem-btn is-danger"
+              onClick={handleStop}
+            >
               Stop
             </button>
           ) : (
@@ -339,8 +375,18 @@ export function ChatTab() {
               onClick={() => void handleSend()}
               disabled={!input.trim()}
             >
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                <path d="M2 14L14 8 2 2v4l8 2-8 2v4z" strokeLinecap="round" strokeLinejoin="round"/>
+              <svg
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                aria-hidden="true"
+              >
+                <path
+                  d="M2 14L14 8 2 2v4l8 2-8 2v4z"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
               Send
             </button>

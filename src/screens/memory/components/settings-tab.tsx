@@ -1,8 +1,8 @@
 /**
- * SettingsTab — Memory & Wiki settings (MEM-08).
+ * SettingsTab — Memory & Matrix Wiki settings (MEM-08).
  *
  * Sections:
- * 1. Wiki source — local FS vs GitHub-backed (read + edit via /api/knowledge/config)
+ * 1. Matrix wiki source — local FS vs GitHub-backed (read + edit via /api/knowledge/config)
  * 2. Knowledge graph rebuild — POST /api/knowledge/graph?action=rebuild (stub toast if not exposed)
  * 3. Cache controls — clear knowledge cache via /api/knowledge/sync?action=clear
  * 4. Provider config notice — per-agent memory providers live in Profile wizard step 6
@@ -24,14 +24,18 @@ async function apiFetch<T>(url: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
-async function apiPost(url: string, body: Record<string, unknown>): Promise<unknown> {
+async function apiPost(
+  url: string,
+  body: Record<string, unknown>,
+): Promise<unknown> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
   const payload = (await res.json().catch(() => ({}))) as { error?: string }
-  if (!res.ok || payload.error) throw new Error(payload.error ?? `Request failed (${res.status})`)
+  if (!res.ok || payload.error)
+    throw new Error(payload.error ?? `Request failed (${res.status})`)
   return payload
 }
 
@@ -76,11 +80,16 @@ function WikiSourceSection() {
       const source: KnowledgeBaseConfig['source'] =
         sourceType === 'local'
           ? { type: 'local', path: localPath.trim() }
-          : { type: 'github', repo: ghRepo.trim(), branch: ghBranch.trim(), path: ghPath.trim() }
+          : {
+              type: 'github',
+              repo: ghRepo.trim(),
+              branch: ghBranch.trim(),
+              path: ghPath.trim(),
+            }
       await apiPost('/api/knowledge/config', { source })
       await qc.invalidateQueries({ queryKey: ['knowledge', 'config'] })
       await qc.invalidateQueries({ queryKey: ['knowledge', 'list'] })
-      showToast('Wiki source saved')
+      showToast('Matrix wiki source saved')
       setEditing(false)
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to save config')
@@ -91,46 +100,81 @@ function WikiSourceSection() {
 
   return (
     <section className="mset-section">
-      <h2 className="mset-section-title">Wiki Source</h2>
+      <h2 className="mset-section-title">Matrix Wiki Source</h2>
       <p className="mset-section-desc">
-        Where Hermes reads and writes wiki pages. Changes take effect immediately.
+        Where Hermes reads and writes matrix-memory wiki pages. Changes take
+        effect immediately.
       </p>
 
       {isLoading && <div className="mem-loading">Loading…</div>}
       {isError && (
         <div className="mset-error">
           Failed to load config.{' '}
-          <button type="button" className="mem-btn" onClick={() => void refetch()}>
+          <button
+            type="button"
+            className="mem-btn"
+            onClick={() => void refetch()}
+          >
             Retry
           </button>
         </div>
       )}
 
+      {data?.config.source.type === 'local' &&
+        /[/\\]matrix-memory[/\\]wiki$/.test(data.config.source.path) && (
+          <div className="mset-notice">
+            <svg
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              aria-hidden="true"
+            >
+              <circle cx="8" cy="8" r="6.5" />
+              <path d="M8 7v3.5M8 5.5v.001" strokeLinecap="round" />
+            </svg>
+            <span>
+              Safe migration is active. This UI is currently connected to the
+              matrix-memory wiki root.
+            </span>
+          </div>
+        )}
+
       {data && !editing && (
         <div className="mset-card">
           <div className="mset-row">
             <span className="mset-key">Source type</span>
-            <span className="mset-val mset-badge">{data.config.source.type}</span>
+            <span className="mset-val mset-badge">
+              {data.config.source.type}
+            </span>
           </div>
           {data.config.source.type === 'local' && (
             <div className="mset-row">
               <span className="mset-key">Path</span>
-              <span className="mset-val mset-mono">{data.config.source.path || '(default HERMES_HOME)'}</span>
+              <span className="mset-val mset-mono">
+                {data.config.source.path || '(default HERMES_HOME)'}
+              </span>
             </div>
           )}
           {data.config.source.type === 'github' && (
             <>
               <div className="mset-row">
                 <span className="mset-key">Repo</span>
-                <span className="mset-val mset-mono">{data.config.source.repo}</span>
+                <span className="mset-val mset-mono">
+                  {data.config.source.repo}
+                </span>
               </div>
               <div className="mset-row">
                 <span className="mset-key">Branch</span>
-                <span className="mset-val mset-mono">{data.config.source.branch}</span>
+                <span className="mset-val mset-mono">
+                  {data.config.source.branch}
+                </span>
               </div>
               <div className="mset-row">
                 <span className="mset-key">Path</span>
-                <span className="mset-val mset-mono">{data.config.source.path}</span>
+                <span className="mset-val mset-mono">
+                  {data.config.source.path}
+                </span>
               </div>
             </>
           )}
@@ -227,7 +271,12 @@ function WikiSourceSection() {
           )}
 
           <div className="mset-actions">
-            <button type="button" className="mem-btn" onClick={() => setEditing(false)} disabled={saving}>
+            <button
+              type="button"
+              className="mem-btn"
+              onClick={() => setEditing(false)}
+              disabled={saving}
+            >
               Cancel
             </button>
             <button
@@ -255,7 +304,9 @@ function GraphRebuildSection() {
     try {
       // The graph route only exposes GET (builds on read). POST ?action=rebuild is not yet
       // a separate endpoint — stub with an informative toast per plan spec.
-      showToast('Backend graph rebuild not yet exposed — use GET /api/knowledge/graph to refresh')
+      showToast(
+        'Backend graph rebuild not yet exposed — use GET /api/knowledge/graph to refresh',
+      )
     } finally {
       setRebuilding(false)
     }
@@ -265,8 +316,9 @@ function GraphRebuildSection() {
     <section className="mset-section">
       <h2 className="mset-section-title">Knowledge Graph</h2>
       <p className="mset-section-desc">
-        The knowledge graph is rebuilt automatically when you load the Graph tab. Use this to force
-        an immediate rebuild, e.g. after bulk-importing wiki pages.
+        The knowledge graph is rebuilt automatically when you load the Graph
+        tab. Use this to force an immediate rebuild, e.g. after bulk-importing
+        matrix wiki pages.
       </p>
       <div className="mset-actions">
         <button
@@ -306,8 +358,9 @@ function CacheSection() {
     <section className="mset-section">
       <h2 className="mset-section-title">Cache Controls</h2>
       <p className="mset-section-desc">
-        Clears the in-memory knowledge cache so the next request fetches fresh data from the wiki
-        source. Useful after manual edits to the underlying files.
+        Clears the in-memory knowledge cache so the next request fetches fresh
+        data from the matrix wiki source. Useful after manual edits to the
+        underlying files.
       </p>
       <div className="mset-actions">
         <button
@@ -330,14 +383,20 @@ function ProviderNoticeSection() {
     <section className="mset-section">
       <h2 className="mset-section-title">Memory Providers</h2>
       <p className="mset-section-desc">
-        Per-agent memory providers (Hindsight, Mem0, etc.) are configured per agent profile — not
-        globally. To configure them, open the agent's profile and complete step&nbsp;6 of the
-        Profile wizard.
+        Per-agent memory providers (Hindsight, Mem0, etc.) are configured per
+        agent profile — not globally. To configure them, open the agent's
+        profile and complete step&nbsp;6 of the Profile wizard.
       </p>
       <div className="mset-notice">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-          <circle cx="8" cy="8" r="6.5"/>
-          <path d="M8 7v5M8 5.5v.5" strokeLinecap="round"/>
+        <svg
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          aria-hidden="true"
+        >
+          <circle cx="8" cy="8" r="6.5" />
+          <path d="M8 7v5M8 5.5v.5" strokeLinecap="round" />
         </svg>
         <span>
           Memory provider settings are per-profile.{' '}
