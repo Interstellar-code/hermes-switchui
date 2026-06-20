@@ -17,6 +17,11 @@ const AgentMemoryTab = lazy(async () => {
   return { default: m.AgentMemoryTab }
 })
 
+const BrowseTab = lazy(async () => {
+  const m = await import('./components/browse-tab')
+  return { default: m.BrowseTab }
+})
+
 const WikiTab = lazy(async () => {
   const m = await import('./components/wiki-tab')
   return { default: m.WikiTab }
@@ -53,6 +58,21 @@ function IconMem() {
         d="M5 4V2M8 4V2M11 4V2M5 12v2M8 12v2M11 12v2"
         strokeLinecap="round"
       />
+    </svg>
+  )
+}
+
+function IconBrowse() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      aria-hidden="true"
+    >
+      <rect x="2.25" y="3" width="11.5" height="10" rx="1.5" />
+      <path d="M5 6h6M5 8.5h4M5 11h3" strokeLinecap="round" />
     </svg>
   )
 }
@@ -143,6 +163,7 @@ type TabDef = {
 
 const TABS: Array<TabDef> = [
   { id: 'memory', label: 'Agent Memory', icon: <IconMem /> },
+  { id: 'browse', label: 'Browse', icon: <IconBrowse /> },
   { id: 'wiki', label: 'Wiki', icon: <IconBook /> },
   { id: 'graph', label: 'Graph', icon: <IconGraph /> },
   { id: 'settings', label: 'Settings', icon: <IconCog /> },
@@ -200,6 +221,11 @@ export function MemoryScreen() {
         {activeTab === 'memory' && (
           <Suspense fallback={<div className="mem-loading">Loading…</div>}>
             <AgentMemoryTab />
+          </Suspense>
+        )}
+        {activeTab === 'browse' && (
+          <Suspense fallback={<div className="mem-loading">Loading…</div>}>
+            <BrowseTab />
           </Suspense>
         )}
         {activeTab === 'wiki' && (
