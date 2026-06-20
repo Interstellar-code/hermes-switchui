@@ -3,6 +3,21 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.49] — 2026-06-21
+
+Memory gets a new Browse tab backed by Mnemosyne stats, and the recovered chat context-menu fixes are now merged into main.
+
+### Added
+
+- **Memory › Browse tab.** The Memory screen now includes a Browse tab with SQLite-backed Mnemosyne stats for the active bank, including working-memory, episodic-memory, triple, and FTS row counts via a dedicated `/api/memory/stats` route. The UI is styled to match the existing Matrix/Memory theme instead of introducing a separate dashboard visual language.
+- **Chat message right-click menu.** User and assistant bubbles now expose a context menu with Copy, Reply, and Retry actions where applicable.
+
+### Fixed
+
+- **Mnemosyne database path resolution.** Stats lookup now prefers the real Matrix-memory profile database (`~/.hermes/profiles/hermes-switch/matrix-memory/data/mnemosyne.db`) and falls back through the older root-path candidates. Missing databases return a calm zero-state payload instead of a noisy hard failure.
+- **Sidebar session-card context menu reliability.** The V2 sidebar session menu now portals to `document.body` and clamps to the viewport, fixing the cases where right-click/three-dot menus appeared misplaced or invisible inside transformed virtual rows.
+- **Memory browse typography/theme alignment.** The new Browse presentation now uses the tighter mono sizing, flatter panels, and existing Memory-page rhythm expected across similar Matrix screens.
+
 ## [2.3.48] — 2026-06-14
 
 Board Templates gains a grid/table datatable with pagination and per-template task counts. Sidebar nav items now show live counts, and Boards gets an "Open Tasks" shortcut.

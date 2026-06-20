@@ -127,6 +127,7 @@ import { Route as ApiOauthPollTokenRouteImport } from './routes/api/oauth.poll-t
 import { Route as ApiOauthDeviceCodeRouteImport } from './routes/api/oauth.device-code'
 import { Route as ApiModelInfoRouteImport } from './routes/api/model/info'
 import { Route as ApiMemoryWriteRouteImport } from './routes/api/memory/write'
+import { Route as ApiMemoryStatsRouteImport } from './routes/api/memory/stats'
 import { Route as ApiMemorySearchRouteImport } from './routes/api/memory/search'
 import { Route as ApiMemoryReadRouteImport } from './routes/api/memory/read'
 import { Route as ApiMemoryListRouteImport } from './routes/api/memory/list'
@@ -799,6 +800,11 @@ const ApiMemoryWriteRoute = ApiMemoryWriteRouteImport.update({
   path: '/write',
   getParentRoute: () => ApiMemoryRoute,
 } as any)
+const ApiMemoryStatsRoute = ApiMemoryStatsRouteImport.update({
+  id: '/stats',
+  path: '/stats',
+  getParentRoute: () => ApiMemoryRoute,
+} as any)
 const ApiMemorySearchRoute = ApiMemorySearchRouteImport.update({
   id: '/search',
   path: '/search',
@@ -1359,6 +1365,7 @@ export interface FileRoutesByFullPath {
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
   '/api/memory/search': typeof ApiMemorySearchRoute
+  '/api/memory/stats': typeof ApiMemoryStatsRoute
   '/api/memory/write': typeof ApiMemoryWriteRoute
   '/api/model/info': typeof ApiModelInfoRoute
   '/api/oauth/device-code': typeof ApiOauthDeviceCodeRoute
@@ -1556,6 +1563,7 @@ export interface FileRoutesByTo {
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
   '/api/memory/search': typeof ApiMemorySearchRoute
+  '/api/memory/stats': typeof ApiMemoryStatsRoute
   '/api/memory/write': typeof ApiMemoryWriteRoute
   '/api/model/info': typeof ApiModelInfoRoute
   '/api/oauth/device-code': typeof ApiOauthDeviceCodeRoute
@@ -1756,6 +1764,7 @@ export interface FileRoutesById {
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
   '/api/memory/search': typeof ApiMemorySearchRoute
+  '/api/memory/stats': typeof ApiMemoryStatsRoute
   '/api/memory/write': typeof ApiMemoryWriteRoute
   '/api/model/info': typeof ApiModelInfoRoute
   '/api/oauth/device-code': typeof ApiOauthDeviceCodeRoute
@@ -1957,6 +1966,7 @@ export interface FileRouteTypes {
     | '/api/memory/list'
     | '/api/memory/read'
     | '/api/memory/search'
+    | '/api/memory/stats'
     | '/api/memory/write'
     | '/api/model/info'
     | '/api/oauth/device-code'
@@ -2154,6 +2164,7 @@ export interface FileRouteTypes {
     | '/api/memory/list'
     | '/api/memory/read'
     | '/api/memory/search'
+    | '/api/memory/stats'
     | '/api/memory/write'
     | '/api/model/info'
     | '/api/oauth/device-code'
@@ -2353,6 +2364,7 @@ export interface FileRouteTypes {
     | '/api/memory/list'
     | '/api/memory/read'
     | '/api/memory/search'
+    | '/api/memory/stats'
     | '/api/memory/write'
     | '/api/model/info'
     | '/api/oauth/device-code'
@@ -3390,6 +3402,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMemoryWriteRouteImport
       parentRoute: typeof ApiMemoryRoute
     }
+    '/api/memory/stats': {
+      id: '/api/memory/stats'
+      path: '/stats'
+      fullPath: '/api/memory/stats'
+      preLoaderRoute: typeof ApiMemoryStatsRouteImport
+      parentRoute: typeof ApiMemoryRoute
+    }
     '/api/memory/search': {
       id: '/api/memory/search'
       path: '/search'
@@ -4086,6 +4105,7 @@ interface ApiMemoryRouteChildren {
   ApiMemoryListRoute: typeof ApiMemoryListRoute
   ApiMemoryReadRoute: typeof ApiMemoryReadRoute
   ApiMemorySearchRoute: typeof ApiMemorySearchRoute
+  ApiMemoryStatsRoute: typeof ApiMemoryStatsRoute
   ApiMemoryWriteRoute: typeof ApiMemoryWriteRoute
 }
 
@@ -4095,6 +4115,7 @@ const ApiMemoryRouteChildren: ApiMemoryRouteChildren = {
   ApiMemoryListRoute: ApiMemoryListRoute,
   ApiMemoryReadRoute: ApiMemoryReadRoute,
   ApiMemorySearchRoute: ApiMemorySearchRoute,
+  ApiMemoryStatsRoute: ApiMemoryStatsRoute,
   ApiMemoryWriteRoute: ApiMemoryWriteRoute,
 }
 

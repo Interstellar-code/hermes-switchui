@@ -1,6 +1,4 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
-import type { Components } from 'react-markdown'
 import { ArrowDown01Icon, Idea01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Reply } from 'lucide-react'
@@ -10,9 +8,18 @@ import {
   textFromMessage,
 } from '../utils'
 import { MessageActionsBar } from './message-actions-bar'
-import { useSharedTicker } from '@/screens/chat/hooks/use-shared-ticker'
+import { MessageContextMenu  } from './message-context-menu'
+import {
+  buildHermesActivitySummary,
+  shouldAutoExpandHermesActivityCard,
+} from './streaming-activity-ui'
+import { TuiActivityCard } from './tui-activity-card'
+import type { ReactNode } from 'react'
+import type { Components } from 'react-markdown'
+import type {MessageContextMenuPosition} from './message-context-menu';
 import type { ChatAttachment, ChatMessage, ToolCallContent } from '../types'
 import type { ToolPart } from '@/components/prompt-kit/tool'
+import { useSharedTicker } from '@/screens/chat/hooks/use-shared-ticker'
 import { AssistantAvatar, UserAvatar } from '@/components/avatars'
 import { CodeBlock } from '@/components/prompt-kit/code-block'
 import { Markdown } from '@/components/prompt-kit/markdown'
@@ -24,9 +31,9 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import {
+  Dialog,
   DialogClose,
   DialogContent,
-  Dialog,
   DialogTitle,
 } from '@/components/shadcn/ui/dialog'
 import {
@@ -35,11 +42,6 @@ import {
   useChatSettingsStore,
 } from '@/hooks/use-chat-settings'
 import { cn } from '@/lib/utils'
-import {
-  buildHermesActivitySummary,
-  shouldAutoExpandHermesActivityCard,
-} from './streaming-activity-ui'
-import { TuiActivityCard } from './tui-activity-card'
 
 const WORDS_PER_TICK = 4
 const TICK_INTERVAL_MS = 50
@@ -1240,7 +1242,7 @@ function ToolCallPill({ toolCall }: { toolCall: StreamToolCall }) {
           {/* Show args (input) */}
           {toolCall.args != null &&
             typeof toolCall.args === 'object' &&
-            Object.keys(toolCall.args as Record<string, unknown>).length >
+            Object.keys(toolCall.args).length >
               0 && (
               <div className="px-2.5 py-1.5">
                 <div className="text-[9px] uppercase tracking-widest opacity-40 mb-0.5">
@@ -2089,7 +2091,7 @@ function MessageItemComponent({
   streamingThinking,
   simulateStreaming: _simulateStreaming = false,
   streamingKey: _streamingKey,
-  toolDisplayMode = 'collapsed' as ToolDisplayMode,
+  toolDisplayMode = 'collapsed',
   isLastAssistant = false,
 }: MessageItemProps) {
   const role = message.role || 'assistant'
@@ -2097,6 +2099,8 @@ function MessageItemComponent({
   const profileAvatarDataUrl = useChatSettingsStore(
     selectChatProfileAvatarDataUrl,
   )
+  const [messageContextMenu, setMessageContextMenu] =
+    useState<MessageContextMenuPosition | null>(null)
 
   const messageStreamingText =
     typeof message.__streamingText === 'string'
@@ -2578,6 +2582,13 @@ function MessageItemComponent({
     const timer = window.setTimeout(() => setIsStuckSending(true), remaining)
     return () => window.clearTimeout(timer)
   }, [isUser, message, message.status])
+  const retryMessageAction =
+    canRetryMessage && (isFailed || isStuckSending) && onRetryMessage
+      ? () => onRetryMessage(message)
+      : undefined
+  const replyMessageAction = onReplyMessage
+    ? () => onReplyMessage(message)
+    : undefined
 
   if (execNotification) {
     const isSuccess = execNotification.ok ?? execNotification.exitCode === 0
@@ -2722,6 +2733,10 @@ function MessageItemComponent({
           )}
           <div
             data-chat-message-bubble={isUser ? 'user' : 'assistant'}
+            onContextMenu={(event) => {
+              event.preventDefault()
+              setMessageContextMenu({ x: event.clientX, y: event.clientY })
+            }}
             className={cn(
               'break-words whitespace-normal min-w-0 flex flex-col gap-2 px-3 py-2 max-w-[80%]',
               '',
@@ -2913,6 +2928,15 @@ function MessageItemComponent({
               </span>
             )}
           </div>
+          {messageContextMenu ? (
+            <MessageContextMenu
+              position={messageContextMenu}
+              text={fullText}
+              onClose={() => setMessageContextMenu(null)}
+              onReply={replyMessageAction}
+              onRetry={retryMessageAction}
+            />
+          ) : null}
         </Message>
       )}
       {/* Bottom thinking bubble handles empty streaming states; avoid duplicate in-thread working copy. */}
@@ -2944,13 +2968,8 @@ function MessageItemComponent({
           forceVisible={forceActionsVisible}
           isQueued={isUser && isQueued && !isFailed}
           isFailed={isUser && (isFailed || isStuckSending)}
-          onRetry={
-            // Only show Retry for actual failures — never for queued (delivered, just waiting)
-            canRetryMessage && (isFailed || isStuckSending) && onRetryMessage
-              ? () => onRetryMessage(message)
-              : undefined
-          }
-          onReply={onReplyMessage ? () => onReplyMessage(message) : undefined}
+          onRetry={retryMessageAction}
+          onReply={replyMessageAction}
         />
       )}
     </div>

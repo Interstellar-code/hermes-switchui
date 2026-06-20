@@ -1725,3 +1725,187 @@
 
 /* ── confirm dialog (portaled to document.body — must be global) ── */
 /* Reuses .pf-confirm-backdrop / .pf-confirm from matrix-profiles.css */
+
+[data-screen='memory'] {
+  .mbrowse-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 18px 22px 22px;
+    overflow-y: auto;
+  }
+
+  .mbrowse-hero-grid,
+  .mbrowse-bottom-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.12fr) minmax(320px, 0.88fr);
+    gap: 16px;
+  }
+
+  .mbrowse-panel,
+  .mbrowse-stat-card,
+  .mbrowse-summary-item {
+    background: var(--m-bg-card, rgba(0, 255, 65, 0.04));
+    border: 1px solid var(--m-border, var(--theme-border));
+    border-radius: var(--m-radius-md, 6px);
+    box-shadow: none;
+  }
+
+  .mbrowse-panel {
+    padding: 16px 18px;
+  }
+
+  .mbrowse-kicker {
+    margin-bottom: 10px;
+    font: 600 10px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--m-green-500, #00ff41);
+  }
+
+  .mbrowse-hero h2,
+  .mbrowse-panel h3 {
+    margin: 0 0 10px;
+    font: 600 15px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.02em;
+    color: var(--m-text-strong, var(--theme-text));
+  }
+
+  .mbrowse-hero p,
+  .mbrowse-panel p {
+    margin: 0;
+    font: 500 12px/1.65 var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+
+  .mbrowse-pills,
+  .mbrowse-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .mbrowse-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(0, 255, 65, 0.18);
+    background: rgba(0, 255, 65, 0.05);
+    font: 500 10px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--m-text, var(--theme-text));
+  }
+
+  .mbrowse-pill.is-muted {
+    color: var(--m-text-faint, var(--theme-muted));
+    border-color: var(--m-border-subtle, var(--theme-border));
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .mbrowse-summary-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .mbrowse-summary-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    font: 500 11px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+
+  .mbrowse-summary-item strong {
+    color: var(--m-text-strong, var(--theme-text));
+    font: 600 11px var(--m-font-mono, ui-monospace, monospace);
+    text-align: right;
+  }
+
+  .mbrowse-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .mbrowse-stat-card {
+    padding: 14px 16px;
+    min-height: 108px;
+  }
+
+  .mbrowse-stat-label {
+    color: var(--m-text-faint, var(--theme-muted));
+    font: 600 9px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .mbrowse-stat-value {
+    margin-top: 12px;
+    font: 700 24px var(--m-font-mono, ui-monospace, monospace);
+    line-height: 1;
+    color: var(--m-text-strong, var(--theme-text));
+  }
+
+  .mbrowse-stat-detail {
+    margin-top: 10px;
+    font: 500 10px/1.45 var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-green-500, #00ff41);
+  }
+
+  .mbrowse-callout {
+    margin-top: 14px;
+    padding: 11px 12px;
+    border-radius: var(--m-radius-md, 6px);
+    border: 1px dashed rgba(95, 207, 255, 0.2);
+    background: rgba(95, 207, 255, 0.04);
+    font: 500 11px/1.6 var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+
+  .mbrowse-callout.is-soft {
+    border-style: solid;
+    border-color: rgba(0, 255, 65, 0.12);
+    background: rgba(0, 255, 65, 0.03);
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+
+  @media (max-width: 1200px) {
+    .mbrowse-stats-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 960px) {
+    .mbrowse-hero-grid,
+    .mbrowse-bottom-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .mbrowse-shell {
+      padding: 14px 14px 18px;
+    }
+
+    .mbrowse-stats-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .mbrowse-summary-item {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .mbrowse-summary-item strong {
+      text-align: left;
+    }
+  }
+}
+

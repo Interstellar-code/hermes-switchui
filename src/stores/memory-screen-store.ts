@@ -7,7 +7,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type MemoryTab = 'memory' | 'wiki' | 'graph' | 'settings' | 'chat'
+export type MemoryTab = 'memory' | 'browse' | 'wiki' | 'graph' | 'settings' | 'chat'
 
 type MemoryPersistedState = {
   activeTab: MemoryTab
@@ -28,7 +28,7 @@ export const useMemoryScreenStore = create<
 >()(
   persist(
     (set) => ({
-      activeTab: 'memory' as MemoryTab,
+      activeTab: 'memory',
       setActiveTab: (activeTab) => set({ activeTab }),
     }),
     { name: 'switchui-memory-screen' },
