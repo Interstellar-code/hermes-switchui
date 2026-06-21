@@ -18,6 +18,7 @@ afterEach(() => {
   delete process.env.NODE_ENV
   delete process.env.TRUST_PROXY
   delete process.env.CLAUDE_PASSWORD
+  delete process.env.HERMES_PASSWORD
 })
 
 describe('createSessionCookie (#123)', () => {
@@ -93,5 +94,47 @@ describe('getRequestIp (#125)', () => {
     const { getRequestIp } = await import('./auth-middleware')
     const ip = getRequestIp(makeRequest({ 'x-real-ip': '198.51.100.5' }))
     expect(ip).toBe('198.51.100.5')
+  })
+})
+
+describe('verifyPassword (#150 — timing-safe, no length leak)', () => {
+  it('returns true for correct password', async () => {
+    process.env.HERMES_PASSWORD = 'secret123'
+    const { verifyPassword } = await import('./auth-middleware')
+    expect(verifyPassword('secret123')).toBe(true)
+  })
+
+  it('returns false for wrong password (same length)', async () => {
+    process.env.HERMES_PASSWORD = 'secret123'
+    const { verifyPassword } = await import('./auth-middleware')
+    expect(verifyPassword('wrongo123')).toBe(false)
+  })
+
+  it('returns false for wrong password (different length)', async () => {
+    process.env.HERMES_PASSWORD = 'secret123'
+    const { verifyPassword } = await import('./auth-middleware')
+    expect(verifyPassword('short')).toBe(false)
+    expect(verifyPassword('a-very-long-password-that-exceeds-configured')).toBe(false)
+  })
+
+  it('returns false when no password is configured', async () => {
+    delete process.env.HERMES_PASSWORD
+    delete process.env.CLAUDE_PASSWORD
+    const { verifyPassword } = await import('./auth-middleware')
+    expect(verifyPassword('anything')).toBe(false)
+  })
+
+  it('returns false for empty password input when configured password is set', async () => {
+    process.env.HERMES_PASSWORD = 'secret123'
+    const { verifyPassword } = await import('./auth-middleware')
+    expect(verifyPassword('')).toBe(false)
+  })
+
+  it('falls back to CLAUDE_PASSWORD for back-compat', async () => {
+    delete process.env.HERMES_PASSWORD
+    process.env.CLAUDE_PASSWORD = 'legacy-pass'
+    const { verifyPassword } = await import('./auth-middleware')
+    expect(verifyPassword('legacy-pass')).toBe(true)
+    expect(verifyPassword('wrong')).toBe(false)
   })
 })
