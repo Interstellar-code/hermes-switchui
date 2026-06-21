@@ -311,7 +311,7 @@ function mapClaudeStatus(status: string | null | undefined): LocalKanbanCard['st
   }
 }
 
-function mapBoardStatus(status: LocalKanbanCard['status'] | null | undefined): string {
+export function mapBoardStatus(status: LocalKanbanCard['status'] | null | undefined): string {
   switch (status) {
     case 'backlog':
       return 'triage'
@@ -320,7 +320,7 @@ function mapBoardStatus(status: LocalKanbanCard['status'] | null | undefined): s
     case 'running':
       return 'running'
     case 'review':
-      return 'review'
+      return 'triage'
     case 'blocked':
       return 'blocked'
     case 'done':
