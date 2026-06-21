@@ -221,6 +221,11 @@ export function isPasswordProtectionEnabled(): boolean {
 
 /**
  * Verify password using timing-safe comparison.
+ *
+ * Both the submitted and configured passwords are SHA-256 hashed before
+ * comparison so the inputs are always fixed-length 32-byte digests.  This
+ * eliminates the password-length side-channel that an early return on raw
+ * length mismatch would otherwise leak (#150).
  */
 export function verifyPassword(password: string): boolean {
   const configured = getConfiguredPassword()
@@ -228,17 +233,13 @@ export function verifyPassword(password: string): boolean {
     return false
   }
 
-  // Timing-safe comparison
-  const passwordBuf = Buffer.from(password, 'utf8')
-  const configuredBuf = Buffer.from(configured, 'utf8')
-
-  // If lengths differ, still do a comparison to avoid timing leak
-  if (passwordBuf.length !== configuredBuf.length) {
-    return false
-  }
+  // Hash to fixed-length digests so timingSafeEqual never short-circuits on
+  // differing input lengths.
+  const providedHash = createHash('sha256').update(password).digest()
+  const configuredHash = createHash('sha256').update(configured).digest()
 
   try {
-    return timingSafeEqual(passwordBuf, configuredBuf)
+    return timingSafeEqual(providedHash, configuredHash)
   } catch {
     return false
   }
