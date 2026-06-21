@@ -97,7 +97,10 @@ export function updateLocalSessionTitle(
 
 export function touchLocalSession(sessionId: string): void {
   const session = store.sessions[sessionId]
-  if (session) session.updatedAt = Date.now()
+  if (session) {
+    session.updatedAt = Date.now()
+    scheduleSave()
+  }
 }
 
 export function deleteLocalSession(sessionId: string): void {
