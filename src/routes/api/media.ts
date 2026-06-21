@@ -1,9 +1,31 @@
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '@/server/auth-middleware'
+
+function getHermesHome(): string {
+  return path.resolve(
+    process.env.HERMES_HOME?.trim() ||
+    process.env.CLAUDE_HOME?.trim() ||
+    path.join(homedir(), '.hermes'),
+  )
+}
+
+function getAllowedMediaRoots(): Array<string> {
+  return [
+    path.join(getHermesHome(), 'uploads'),
+    path.join(process.cwd(), 'files'),
+  ]
+}
+
+function isPathAllowed(resolvedPath: string, roots: Array<string>): boolean {
+  return roots.some(
+    (root) => resolvedPath === root || resolvedPath.startsWith(root + path.sep),
+  )
+}
 
 const MEDIA_CONTENT_TYPES: Record<string, string> = {
   '.avif': 'image/avif',
@@ -38,27 +60,36 @@ export const Route = createFileRoute('/api/media')({
 
         const url = new URL(request.url)
         const mediaPath = url.searchParams.get('path')?.trim() ?? ''
-        if (!mediaPath || !path.isAbsolute(mediaPath)) {
+        if (!mediaPath) {
           return Response.json(
-            { ok: false, error: 'Expected an absolute file path' },
+            { ok: false, error: 'Missing required parameter: path' },
             { status: 400 },
           )
         }
 
+        const resolved = path.resolve(mediaPath)
+        const allowedRoots = getAllowedMediaRoots()
+        if (!isPathAllowed(resolved, allowedRoots)) {
+          return Response.json(
+            { ok: false, error: 'Path not permitted' },
+            { status: 403 },
+          )
+        }
+
         try {
-          const fileStat = await stat(mediaPath)
+          const fileStat = await stat(resolved)
           if (!fileStat.isFile()) {
             return Response.json({ ok: false, error: 'Not a file' }, { status: 400 })
           }
 
           return new Response(
-            Readable.toWeb(createReadStream(mediaPath)) as unknown as BodyInit,
+            Readable.toWeb(createReadStream(resolved)) as unknown as BodyInit,
             {
               status: 200,
               headers: {
-                'Content-Type': getMediaContentType(mediaPath),
+                'Content-Type': getMediaContentType(resolved),
                 'Content-Length': String(fileStat.size),
-                'Content-Disposition': `inline; filename="${path.basename(mediaPath)}"`,
+                'Content-Disposition': `inline; filename="${path.basename(resolved)}"`,
               },
             },
           )
