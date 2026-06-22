@@ -357,6 +357,8 @@ export function TasksScreen() {
   )
   const [tenantFilter, setTenantFilter] = useState<string | null>(null)
   const [dispatchResult, setDispatchResult] = useState<string | null>(null)
+  const dispatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (dispatchTimerRef.current) clearTimeout(dispatchTimerRef.current) }, [])
 
   const tasksQuery = useQuery({
     queryKey: [...QUERY_KEY, showDone, showArchived, tenantFilter],
@@ -631,7 +633,8 @@ export function TasksScreen() {
           : 'Dispatch complete'
       setDispatchResult(msg)
       invalidate()
-      setTimeout(() => setDispatchResult(null), 4000)
+      if (dispatchTimerRef.current) clearTimeout(dispatchTimerRef.current)
+      dispatchTimerRef.current = setTimeout(() => { setDispatchResult(null); dispatchTimerRef.current = null }, 4000)
     },
     onError: (e) =>
       toast(e instanceof Error ? e.message : 'Dispatch failed', {
