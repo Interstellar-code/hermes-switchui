@@ -49,7 +49,11 @@ async function kanbanJson<T>(url: string, init?: RequestInit): Promise<T> {
       body.error ?? body.detail ?? `Request failed: ${res.status}`,
     )
   }
-  return res.json() as Promise<T>
+  // DELETE (and some mutations) return 204 No Content / empty body — calling
+  // res.json() on that throws "Unexpected end of JSON input". Tolerate it.
+  if (res.status === 204) return undefined as T
+  const text = await res.text()
+  return (text ? JSON.parse(text) : {}) as T
 }
 
 export async function fetchAssignees(): Promise<AssigneesResponse> {

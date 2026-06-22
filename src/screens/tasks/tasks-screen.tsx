@@ -264,20 +264,6 @@ export function TasksScreen() {
     } catch { return '' }
   })
 
-  const [showViewDropdown, setShowViewDropdown] = useState(false)
-  // Ref to the trigger button so we can measure its position for fixed-panel placement
-  const colsButtonRef = useRef<HTMLButtonElement>(null)
-  const [colsPanelPos, setColsPanelPos] = useState<{ top: number; right: number } | null>(null)
-
-  function openColsDropdown() {
-    if (colsButtonRef.current) {
-      const r = colsButtonRef.current.getBoundingClientRect()
-      setColsPanelPos({ top: r.bottom + 6, right: window.innerWidth - r.right })
-    }
-    setShowArchiveDonePopover(false)
-    setShowPurgePopover(false)
-    setShowViewDropdown(v => !v)
-  }
   // ── Archive Done / Purge Archived popovers ────────────────────────────────
   const archiveDoneBtnRef = useRef<HTMLButtonElement>(null)
   const purgeArchivedBtnRef = useRef<HTMLButtonElement>(null)
@@ -295,7 +281,6 @@ export function TasksScreen() {
       setArchiveDonePanelPos({ top: r.bottom + 6, right: window.innerWidth - r.right })
     }
     setPurgeConfirmStep(false)
-    setShowViewDropdown(false)
     setShowArchiveDonePopover(v => !v)
     setShowPurgePopover(false)
   }
@@ -306,7 +291,6 @@ export function TasksScreen() {
       setPurgePanelPos({ top: r.bottom + 6, right: window.innerWidth - r.right })
     }
     setPurgeConfirmStep(false)
-    setShowViewDropdown(false)
     setShowPurgePopover(v => !v)
     setShowArchiveDonePopover(false)
   }
@@ -324,12 +308,28 @@ export function TasksScreen() {
   const [blockedReason, setBlockedReason] = useState('')
   const [runningMovePending, setRunningMovePending] = useState<RunningMovePending>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // Two-step arm for the destructive bulk-delete action
+  const [bulkDeleteArm, setBulkDeleteArm] = useState(false)
+  // Toggle every task in a column in/out of the selection
+  const toggleColumnSelect = useCallback((ids: Array<string>) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      const allSelected = ids.length > 0 && ids.every((id) => next.has(id))
+      if (allSelected) ids.forEach((id) => next.delete(id))
+      else ids.forEach((id) => next.add(id))
+      return next
+    })
+  }, [])
   // View toggle: board is the only implemented view for P1; swim/time are placeholders
   const [activeView, setActiveView] = useState<'board' | 'swim' | 'time'>('board')
   // Done-stat click: open drawer in list mode
   const [showDoneList, setShowDoneList] = useState(false)
-  // Footer relative-time tick — re-renders every 10s (SSR-safe)
-  const [footerTick, setFooterTick] = useState(0)
+  // Collapsible sidebar accordions — all open by default
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    profile: true, tenant: true, date: true, columns: true,
+  })
+  const toggleSection = (k: string) =>
+    setOpenSections((s) => ({ ...s, [k]: !s[k] }))
 
   // Persist column visibility to localStorage whenever any toggle changes
   useEffect(() => {
@@ -348,12 +348,6 @@ export function TasksScreen() {
       localStorage.setItem(DATE_FILTER_KEY, JSON.stringify({ dateRange, dateStart, dateEnd }))
     } catch { /* ignore */ }
   }, [dateRange, dateStart, dateEnd])
-
-  // Footer relative-time: tick every 10s so "Updated N ago" stays fresh
-  useEffect(() => {
-    const id = setInterval(() => setFooterTick(t => t + 1), 10_000)
-    return () => clearInterval(id)
-  }, [])
 
   const search = useSearch({ from: '/tasks' })
   const initialAssignee =
@@ -559,6 +553,7 @@ export function TasksScreen() {
         toast(`${failed.length} tasks failed to ${vars.delete ? 'delete' : 'update'}`, { type: 'error' })
       else toast(vars.delete ? `${data.results.length} tasks deleted` : `${data.results.length} tasks updated`)
       setSelectedIds(new Set())
+      setBulkDeleteArm(false)
       invalidate()
       void queryClient.invalidateQueries({ queryKey: ['claude', 'tasks', 'stats'] })
       void queryClient.invalidateQueries({ queryKey: ['claude', 'tasks', 'archived-count'] })
@@ -715,8 +710,19 @@ export function TasksScreen() {
         </div>
 
         <div className="tk-filter-body">
-          <div className="tk-filter-section">
-            <div className="sec-label">Agent profile</div>
+          <div className={cn('tk-filter-section', !openSections.profile && 'collapsed')}>
+            <button
+              type="button"
+              className="sec-label tk-sec-head"
+              aria-expanded={openSections.profile}
+              onClick={() => toggleSection('profile')}
+            >
+              <span>Agent profile</span>
+              <svg className="tk-sec-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {openSections.profile && (
             <div className="tk-filter-list">
               <button
                 type="button"
@@ -740,11 +746,23 @@ export function TasksScreen() {
                 </button>
               ))}
             </div>
+            )}
           </div>
 
           {uniqueTenants.length > 0 && (
-            <div className="tk-filter-section">
-              <div className="sec-label">Tenant</div>
+            <div className={cn('tk-filter-section', !openSections.tenant && 'collapsed')}>
+              <button
+                type="button"
+                className="sec-label tk-sec-head"
+                aria-expanded={openSections.tenant}
+                onClick={() => toggleSection('tenant')}
+              >
+                <span>Tenant</span>
+                <svg className="tk-sec-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              {openSections.tenant && (
               <div className="tk-filter-list">
                 <button
                   type="button"
@@ -768,11 +786,23 @@ export function TasksScreen() {
                   </button>
                 ))}
               </div>
+              )}
             </div>
           )}
 
-          <div className="tk-filter-section">
-            <div className="sec-label">Date range</div>
+          <div className={cn('tk-filter-section', !openSections.date && 'collapsed')}>
+            <button
+              type="button"
+              className="sec-label tk-sec-head"
+              aria-expanded={openSections.date}
+              onClick={() => toggleSection('date')}
+            >
+              <span>Date range</span>
+              <svg className="tk-sec-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {openSections.date && (<>
             <div className="tk-filter-list">
               {(['all', 'today', '7d', '30d', 'custom'] as const).map((r) => (
                 <button
@@ -805,10 +835,22 @@ export function TasksScreen() {
                 />
               </div>
             )}
+            </>)}
           </div>
 
-          <div className="tk-filter-section">
-            <div className="sec-label">Visible columns</div>
+          <div className={cn('tk-filter-section', !openSections.columns && 'collapsed')}>
+            <button
+              type="button"
+              className="sec-label tk-sec-head"
+              aria-expanded={openSections.columns}
+              onClick={() => toggleSection('columns')}
+            >
+              <span>Visible columns</span>
+              <svg className="tk-sec-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {openSections.columns && (
             <div className="tk-filter-list">
               {([
                 { key: 'triage', label: 'Triage / Backlog', on: showTriage, toggle: () => setShowTriage((v) => !v) },
@@ -833,6 +875,7 @@ export function TasksScreen() {
                 </button>
               ))}
             </div>
+            )}
           </div>
         </div>
 
@@ -863,17 +906,6 @@ export function TasksScreen() {
         </div>
 
         <div className="tk-rail">
-          <button
-            type="button"
-            className="rail-expand-btn"
-            onClick={() => setFiltersCollapsed(false)}
-            title="Expand filters"
-            aria-label="Expand filters"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-              <path d="M9 18l6-6-6-6" />
-            </svg>
-          </button>
           <span className="rail-label">Tasks</span>
           <span className="rail-badge">{stats.total}</span>
         </div>
@@ -970,189 +1002,6 @@ export function TasksScreen() {
                 </button>
               ))}
             </div>
-
-          {/* Filters pill */}
-          {(() => {
-            const anyHidden =
-              !showTriage ||
-              !showReady ||
-              !showRunning ||
-              !showBlocked ||
-              !showDone ||
-              !showArchived
-            const cols = [
-              { key: 'triage', label: 'Triage / Backlog', checked: showTriage, toggle: () => setShowTriage(v => !v) },
-              { key: 'ready', label: 'Ready', checked: showReady, toggle: () => setShowReady(v => !v) },
-              { key: 'running', label: 'Running', checked: showRunning, toggle: () => setShowRunning(v => !v) },
-              { key: 'blocked', label: 'Blocked', checked: showBlocked, toggle: () => setShowBlocked(v => !v) },
-              { key: 'done', label: 'Done', checked: showDone, toggle: () => setShowDone(v => !v) },
-              { key: 'archived', label: 'Archived', checked: showArchived, toggle: () => setShowArchived(v => !v) },
-            ]
-            const hiddenCount = cols.filter(c => !c.checked).length
-            const dateActive = dateRange !== 'all'
-            const pillActive = showViewDropdown || anyHidden || dateActive
-            const DATE_RANGE_LABELS: Record<string, string> = { all: 'All time', today: 'Today', '7d': 'Last 7 days', '30d': 'Last 30 days', custom: 'Custom range' }
-            const dateChipLabel = dateRange === 'today' ? 'Today' : dateRange === '7d' ? '7d' : dateRange === '30d' ? '30d' : dateRange === 'custom' ? 'Custom' : ''
-            return (
-              <>
-                <button
-                  ref={colsButtonRef}
-                  onClick={openColsDropdown}
-                  className={cn('pill', pillActive ? 'pill-active' : '')}
-                  title="Configure filters"
-                  aria-label="Configure filters and visible columns"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 4h18l-7 8v6l-4 2v-8z"/></svg>
-                  Filters
-                  {dateActive && (
-                    <span className="ct" style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ width: 9, height: 9 }}><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                      {dateChipLabel}
-                    </span>
-                  )}
-                  {anyHidden && (
-                    <span className="ct">{hiddenCount}c</span>
-                  )}
-                </button>
-                {showViewDropdown && colsPanelPos && createPortal(
-                  <>
-                    <div className="fixed inset-0 z-[9998]" onClick={() => setShowViewDropdown(false)} />
-                    <div
-                      className="fixed z-[9999] w-72 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card)] shadow-2xl p-1.5"
-                      style={{ top: colsPanelPos.top, right: colsPanelPos.right, backgroundColor: 'var(--theme-card)' }}
-                    >
-                      {/* Section: Visible columns */}
-                      <p className="px-3 pt-1.5 pb-1 text-[9px] uppercase tracking-widest text-[var(--theme-muted)] font-medium">
-                        Visible columns
-                      </p>
-                      {cols.map(({ key, label, checked, toggle }) => (
-                        <button
-                          key={key}
-                          onClick={toggle}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs hover:bg-[var(--theme-hover)] transition-colors"
-                        >
-                          <span className={cn(
-                            'w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors',
-                            checked
-                              ? 'border-[var(--theme-accent)] bg-[var(--theme-accent)]'
-                              : 'border-[var(--theme-border)] bg-transparent',
-                          )}>
-                            {checked && <span className="text-white text-[9px] leading-none">✓</span>}
-                          </span>
-                          <span className={checked ? 'text-[var(--theme-text)]' : 'text-[var(--theme-muted)]'}>
-                            {label}
-                          </span>
-                        </button>
-                      ))}
-
-                      {/* Divider */}
-                      <div className="border-t border-[var(--theme-border)] my-1.5 mx-1" />
-
-                      {/* Section: Date range */}
-                      <p className="px-3 pt-0.5 pb-1 text-[9px] uppercase tracking-widest text-[var(--theme-muted)] font-medium">
-                        Date range
-                      </p>
-                      {(['all', 'today', '7d', '30d', 'custom'] as const).map((r) => (
-                        <button
-                          key={r}
-                          onClick={() => setDateRange(r)}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs hover:bg-[var(--theme-hover)] transition-colors"
-                        >
-                          <span className={cn(
-                            'w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-colors',
-                            dateRange === r
-                              ? 'border-[var(--theme-accent)] bg-[var(--theme-accent)]'
-                              : 'border-[var(--theme-border)] bg-transparent',
-                          )}>
-                            {dateRange === r && <span className="w-1.5 h-1.5 rounded-full bg-white block" />}
-                          </span>
-                          <span className={dateRange === r ? 'text-[var(--theme-text)]' : 'text-[var(--theme-muted)]'}>
-                            {DATE_RANGE_LABELS[r]}
-                          </span>
-                        </button>
-                      ))}
-                      {dateRange === 'custom' && (
-                        <div className="px-3 pb-2 pt-1 flex flex-col gap-1.5">
-                          <input
-                            type="date"
-                            value={dateStart}
-                            onChange={(e) => setDateStart(e.target.value)}
-                            className="w-full rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] text-xs px-2 py-1"
-                            style={{ colorScheme: 'dark' }}
-                            placeholder="Start date"
-                          />
-                          <input
-                            type="date"
-                            value={dateEnd}
-                            onChange={(e) => setDateEnd(e.target.value)}
-                            className="w-full rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] text-[var(--theme-text)] text-xs px-2 py-1"
-                            style={{ colorScheme: 'dark' }}
-                            placeholder="End date"
-                          />
-                        </div>
-                      )}
-
-                      {/* Clear filters */}
-                      {(anyHidden || dateActive) && (
-                        <div className="border-t border-[var(--theme-border)] mt-1 pt-1 px-1.5 pb-1">
-                          <button
-                            onClick={() => {
-                              setShowTriage(true)
-                              setShowBlocked(true)
-                              setShowDone(false)
-                              setShowArchived(false)
-                              setDateRange('all')
-                              setDateStart('')
-                              setDateEnd('')
-                            }}
-                            className="w-full px-3 py-1.5 rounded-lg text-xs text-[var(--theme-muted)] hover:bg-[var(--theme-hover)] transition-colors text-left"
-                          >
-                            ✕ Clear filters
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </>,
-                  document.body,
-                )}
-              </>
-            )
-          })()}
-
-          {/* Agent profile select (AB-03 selbox) */}
-          {assigneeOptions.length > 0 && (
-            <select
-              className="selbox"
-              style={{ colorScheme: 'dark' }}
-              value={assigneeFilter ?? ''}
-              onChange={(e) => setAssigneeFilter(e.target.value || null)}
-              aria-label="Filter by agent profile"
-              title="Filter by agent profile"
-            >
-              <option value="">All profiles</option>
-              {assigneeOptions.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.onDisk ? a.label : `${a.label} ⚠`}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {/* Tenant filter (kept when tenants present) */}
-          {uniqueTenants.length > 0 && (
-            <select
-              className="selbox"
-              style={{ colorScheme: 'dark' }}
-              value={tenantFilter ?? ''}
-              onChange={(e) => setTenantFilter(e.target.value || null)}
-              aria-label="Filter by tenant"
-            >
-              <option value="">All tenants</option>
-              {uniqueTenants.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-          )}
 
           {/* Archive Done — bulk-archive all done tasks in date range */}
           {(() => {
@@ -1463,6 +1312,23 @@ export function TasksScreen() {
                   <span className="ct">
                     {tasksQuery.isFetching && tasksQuery.data === undefined ? '…' : colTasks.length}
                   </span>
+                  {colTasks.length > 0 && (() => {
+                    const colIds = colTasks.map((t) => t.id)
+                    const allSelected = colIds.every((id) => selectedIds.has(id))
+                    return (
+                      <button
+                        className={cn('sel-all', allSelected && 'on')}
+                        onClick={() => toggleColumnSelect(colIds)}
+                        title={allSelected ? `Deselect all in ${colLabel}` : `Select all in ${colLabel}`}
+                        aria-pressed={allSelected}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                          <rect x="3" y="3" width="18" height="18" rx="3" />
+                          <polyline points="8 12 11 15 16 9" />
+                        </svg>
+                      </button>
+                    )
+                  })()}
                   <button
                     className="add"
                     onClick={() => { setCreateColumn(status); setShowCreate(true) }}
@@ -1672,36 +1538,6 @@ export function TasksScreen() {
         )}
         </div>
 
-      {/* Status footer */}
-      <footer className="tk-status">
-        {/* CPU — no client metric API; placeholder */}
-        <span className="grp"><span className="pulse" aria-hidden="true" /> CPU <b>—</b></span>
-        <span className="sep" aria-hidden="true" />
-        {/* SF-01: RAM — static, backend metric not exposed */}
-        <span className="grp">RAM <b>16 GB</b> / 16 GB</span>
-        <span className="sep" aria-hidden="true" />
-        {/* SF-02: Disk — static, backend metric not exposed */}
-        <span className="grp">Disk <span className="v warn">75%</span></span>
-        <span className="sep" aria-hidden="true" />
-        <span className="grp">Hermes <span className="v ok">enhanced</span></span>
-        <span className="sep" aria-hidden="true" />
-        {/* SF-03: relative time from TanStack Query dataUpdatedAt */}
-        <span className="grp">Updated <b>{(() => {
-          void footerTick // consumed to trigger re-render every 10s
-          const ms = tasksQuery.dataUpdatedAt
-          if (!ms) return '—'
-          const s = Math.floor((Date.now() - ms) / 1000)
-          if (s < 60) return `${s}s`
-          const m = Math.floor(s / 60)
-          if (m < 60) return `${m}m`
-          const h = Math.floor(m / 60)
-          if (h < 24) return `${h}h`
-          return `${Math.floor(h / 24)}d`
-        })()} ago</b></span>
-        <span style={{ marginLeft: 'auto' }} className="grp">View <b>{activeView === 'board' ? 'Board' : activeView === 'swim' ? 'Swim' : 'Time'}</b></span>
-        <span className="sep" aria-hidden="true" />
-        <span className="grp">Sort <b>Recent</b></span>
-      </footer>
       </div>
       </div>
 
@@ -1751,7 +1587,23 @@ export function TasksScreen() {
             Archive
           </button>
           <button
-            onClick={() => setSelectedIds(new Set())}
+            onClick={() => {
+              if (bulkDeleteArm) void bulkMutation.mutate({ delete: true })
+              else setBulkDeleteArm(true)
+            }}
+            className={cn(
+              'text-xs px-2 py-1 rounded',
+              bulkDeleteArm
+                ? 'bg-red-500/20 text-red-300 border border-red-500/40 font-semibold'
+                : 'hover:bg-[var(--theme-hover)] text-red-400',
+            )}
+            disabled={bulkMutation.isPending}
+            title="Permanently delete selected tasks — cannot be undone"
+          >
+            {bulkDeleteArm ? `Confirm delete ${selectedIds.size}?` : 'Delete'}
+          </button>
+          <button
+            onClick={() => { setSelectedIds(new Set()); setBulkDeleteArm(false) }}
             className="text-xs px-2 py-1 rounded hover:bg-[var(--theme-hover)] text-[var(--theme-muted)] ml-1 border-l border-[var(--theme-border)] pl-3"
             disabled={bulkMutation.isPending}
           >
