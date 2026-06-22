@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { dashboardFetch } from '../../../server/gateway-capabilities'
 import { isAuthenticated } from '../../../server/auth-middleware'
+import { requireJsonContentType } from '../../../server/rate-limit'
 
 async function proxyRequest(request: Request, splat: string): Promise<Response> {
   const incomingUrl = new URL(request.url)
@@ -39,6 +40,8 @@ async function proxyRequest(request: Request, splat: string): Promise<Response> 
 
 function makeHandler(method: string) {
   return async ({ request, params }: { request: Request; params: { _splat?: string } }) => {
+    const csrfCheck = requireJsonContentType(request)
+    if (csrfCheck) return csrfCheck
     if (!isAuthenticated(request)) {
       return new Response(
         JSON.stringify({ ok: false, error: 'Unauthorized' }),
