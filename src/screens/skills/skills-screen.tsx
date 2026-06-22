@@ -15,6 +15,19 @@ type SkillsApiResponse = {
   total: number
   page: number
   categories: Array<string>
+  profiles: Array<ProfileFilterOption>
+  activeProfile: string
+  selectedProfile: string
+  allProfilesTotal: number
+}
+
+type ProfileFilterOption = {
+  name: string
+  label: string
+  active: boolean
+  tier: number | null
+  skillCount: number
+  localSkillCount: number
 }
 
 type HubSkill = {
@@ -69,7 +82,7 @@ function PaginationBar({
         aria-label="Page size"
         className="sk-pg-size"
       >
-        {([10, 25, 50, 100] as PageSize[]).map((s) => (
+        {([10, 25, 50, 100] as Array<PageSize>).map((s) => (
           <option key={s} value={s}>{s} / page</option>
         ))}
       </select>
@@ -155,6 +168,7 @@ export function SkillsScreen() {
   const [activeStatus, setActiveStatus] = useState<StatusFilter>('installed')
   const [activeCategory, setActiveCategory] = useState('All')
   const [activeOrigin, setActiveOrigin] = useState('all')
+  const [activeProfileFilter, setActiveProfileFilter] = useState('')
   const [sortMode, setSortMode] = useState<SortMode>('name')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [filtersCollapsed, setFiltersCollapsed] = useState(false)
@@ -176,12 +190,12 @@ export function SkillsScreen() {
   }, [searchQuery])
 
   /* reset pages on filter/search/sort changes */
-  useEffect(() => { setPage(1) }, [debouncedSearch, activeCategory, activeOrigin, activeStatus, sortMode])
+  useEffect(() => { setPage(1) }, [debouncedSearch, activeCategory, activeOrigin, activeProfileFilter, activeStatus, sortMode])
   useEffect(() => { setMktPage(1) }, [debouncedSearch, activeStatus])
 
   /* data query */
   const skillsQuery = useQuery({
-    queryKey: ['skills-browser', activeStatus, debouncedSearch, activeCategory, activeOrigin, sortMode],
+    queryKey: ['skills-browser', activeStatus, debouncedSearch, activeCategory, activeOrigin, activeProfileFilter, sortMode],
     queryFn: async (): Promise<SkillsApiResponse> => {
       const params = new URLSearchParams()
       params.set('tab', activeStatus === 'all' ? 'installed' : activeStatus)
@@ -189,6 +203,9 @@ export function SkillsScreen() {
       if (debouncedSearch) params.set('search', debouncedSearch)
       if (activeCategory !== 'All') params.set('category', activeCategory)
       if (activeOrigin !== 'all') params.set('origin', activeOrigin)
+      if (activeStatus !== 'marketplace' && activeProfileFilter) {
+        params.set('profile', activeProfileFilter)
+      }
       params.set('sort', sortMode)
 
       const res = await fetch(`/api/skills?${params.toString()}`)
@@ -198,6 +215,13 @@ export function SkillsScreen() {
     },
     refetchInterval: 30_000,
   })
+
+  useEffect(() => {
+    if (activeStatus === 'marketplace') return
+    if (activeProfileFilter) return
+    if (!skillsQuery.data?.activeProfile) return
+    setActiveProfileFilter(skillsQuery.data.activeProfile)
+  }, [activeProfileFilter, activeStatus, skillsQuery.data?.activeProfile])
 
   /* hub query — marketplace / Hub tab */
   const hubQuery = useQuery({
@@ -263,8 +287,16 @@ export function SkillsScreen() {
 
   const skills = skillsQuery.data?.skills ?? []
   const total = skillsQuery.data?.total ?? 0
+  const allProfilesTotal = skillsQuery.data?.allProfilesTotal ?? total
   const enabledCount = skills.filter((s) => s.enabled).length
   const categories = skillsQuery.data?.categories ?? []
+  const profileOptions = skillsQuery.data?.profiles ?? []
+  const activeProfileName = skillsQuery.data?.activeProfile ?? ''
+  const selectedProfileName = skillsQuery.data?.selectedProfile ?? activeProfileName
+  const canToggleSkills =
+    activeStatus !== 'marketplace' &&
+    Boolean(selectedProfileName) &&
+    selectedProfileName === activeProfileName
 
   /* category counts */
   const categoryCounts = useMemo(() => {
@@ -425,6 +457,45 @@ export function SkillsScreen() {
             </div>
           </div>
 
+          {/* profile filter */}
+          <div className="sk-filter-section">
+            <div className="sec-label">Agent profile</div>
+            {activeStatus === 'marketplace' ? (
+              <div className="sk-filter-list">
+                <div className="sk-filter-item" aria-disabled="true">
+                  <span>Hub skills are shared across profiles</span>
+                </div>
+              </div>
+            ) : (
+              <div className="sk-filter-list">
+                <button
+                  type="button"
+                  className={cn('sk-filter-item', activeProfileFilter === 'all' && 'active')}
+                  onClick={() => setActiveProfileFilter('all')}
+                >
+                  <span>All profiles</span>
+                  <span className="item-ct">{allProfilesTotal}</span>
+                </button>
+                {profileOptions.map((profile) => (
+                  <button
+                    key={profile.name}
+                    type="button"
+                    className={cn('sk-filter-item', activeProfileFilter === profile.name && 'active')}
+                    onClick={() => setActiveProfileFilter(profile.name)}
+                  >
+                    <span>
+                      {profile.label}
+                      {profile.active ? ' · active' : ''}
+                      {typeof profile.tier === 'number' ? ` · T${profile.tier}` : ''}
+                      {profile.localSkillCount > 0 ? ` · ${profile.localSkillCount} local` : ''}
+                    </span>
+                    <span className="item-ct">{profile.skillCount}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* category filter */}
           <div className="sk-filter-section">
             <div className="sec-label">Category</div>
@@ -477,6 +548,12 @@ export function SkillsScreen() {
             <div className="title-group">
               <h1>Skills</h1>
               <span className="sub">Workspace / Knowledge / Skills</span>
+              {activeStatus !== 'marketplace' && selectedProfileName && (
+                <span className="sub">
+                  Viewing profile: {selectedProfileName}
+                  {selectedProfileName === activeProfileName ? ' (active runtime)' : ''}
+                </span>
+              )}
             </div>
           </div>
           <div className="meta">
@@ -496,6 +573,11 @@ export function SkillsScreen() {
           <span className="result-ct">
             {sortedSkills.length} result{sortedSkills.length !== 1 ? 's' : ''}
           </span>
+          {activeStatus !== 'marketplace' && !canToggleSkills && (
+            <span className="result-ct">
+              Switch back to {activeProfileName || 'the active profile'} to change enable state
+            </span>
+          )}
           <div className="toolbar-right">
             <select
               value={sortMode}
@@ -738,6 +820,17 @@ export function SkillsScreen() {
                       {skill.origin === 'builtin' && !skill.security && (
                         <span className="sk-tag builtin">builtin</span>
                       )}
+                      {skill.shared && (
+                        <span className="sk-tag origin">Shared</span>
+                      )}
+                      {(skill.profileNames ?? []).slice(0, 2).map((profileName) => (
+                        <span key={`${skill.id}-${profileName}`} className="sk-tag origin">
+                          {profileName}
+                        </span>
+                      ))}
+                      {(skill.profileNames?.length ?? 0) > 2 && (
+                        <span className="sk-tag origin">+{(skill.profileNames?.length ?? 0) - 2}</span>
+                      )}
                     </div>
                     <div className="sk-card-meta">
                       <div className="meta-left">
@@ -751,6 +844,14 @@ export function SkillsScreen() {
                           handleToggle(skill.id, !skill.enabled)
                         }}
                         aria-label={skill.enabled ? 'Disable skill' : 'Enable skill'}
+                        disabled={!canToggleSkills}
+                        title={
+                          canToggleSkills
+                            ? skill.enabled
+                              ? 'Disable skill'
+                              : 'Enable skill'
+                            : `Enable/disable is only available for the active runtime profile (${activeProfileName || 'active'})`
+                        }
                       >
                         <span className="knob" />
                       </button>
@@ -776,6 +877,7 @@ export function SkillsScreen() {
                     <th>Name</th>
                     <th>Category</th>
                     <th>Origin</th>
+                    <th>Profiles</th>
                     <th>Security</th>
                     <th>Status</th>
                     <th style={{ width: 50 }}>Enabled</th>
@@ -813,6 +915,13 @@ export function SkillsScreen() {
                         {skill.origin === 'agent-created' ? 'Hermes Agent' : skill.origin || '—'}
                       </td>
                       <td>
+                        {skill.shared
+                          ? 'Shared'
+                          : (skill.profileNames ?? []).length > 0
+                            ? (skill.profileNames ?? []).join(', ')
+                            : '—'}
+                      </td>
+                      <td>
                         {skill.security ? (
                           <span
                             className={cn('sk-tag', scanTagClass(skill.security.level))}
@@ -839,6 +948,14 @@ export function SkillsScreen() {
                             handleToggle(skill.id, !skill.enabled)
                           }}
                           aria-label={skill.enabled ? 'Disable skill' : 'Enable skill'}
+                          disabled={!canToggleSkills}
+                          title={
+                            canToggleSkills
+                              ? skill.enabled
+                                ? 'Disable skill'
+                                : 'Enable skill'
+                              : `Enable/disable is only available for the active runtime profile (${activeProfileName || 'active'})`
+                          }
                         >
                           <span className="knob" />
                         </button>

@@ -31,6 +31,9 @@ export type SkillSummary = {
   featuredGroup?: string
   security?: SecurityRisk
   origin?: 'builtin' | 'agent-created' | 'marketplace'
+  profileNames?: Array<string>
+  profileCount?: number
+  shared?: boolean
 }
 
 type DrawerTab = 'overview' | 'source' | 'files' | 'usage'

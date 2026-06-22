@@ -11,6 +11,7 @@ import {
   ensureGatewayProbed,
   getCapabilities,
 } from '../../server/gateway-capabilities'
+import { getActiveProfileName, listProfiles } from '../../server/profiles-browser'
 import { requireJsonContentType } from '../../server/rate-limit'
 import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
 
@@ -24,31 +25,112 @@ function getSkillsDir(): string {
   )
 }
 
-type LocalSkillMeta = { path: string; author: string }
+type LocalSkillMeta = {
+  path: string
+  author: string
+  name: string
+  description: string
+  content: string
+  categoryHint: string
+  tags: Array<string>
+  triggers: Array<string>
+  homepage: string | null
+}
 
-async function readSkillAuthor(skillDir: string): Promise<string> {
+type ProfileFilterOption = {
+  name: string
+  label: string
+  active: boolean
+  tier: number | null
+  skillCount: number
+  localSkillCount: number
+}
+
+function readFrontmatterValue(block: string, key: string): string {
+  const match = block.match(new RegExp(`^${key}:\\s*(.+?)\\s*$`, 'im'))
+  return match?.[1]?.trim().replace(/^["']|["']$/g, '') || ''
+}
+
+function readFrontmatterList(block: string, key: string): Array<string> {
+  const inline = readFrontmatterValue(block, key)
+  if (inline) {
+    const normalized = inline.replace(/^\[|\]$/g, '')
+    return normalized
+      .split(',')
+      .map((entry) => entry.trim().replace(/^["']|["']$/g, ''))
+      .filter(Boolean)
+  }
+
+  const lines = block.split('\n')
+  const items: Array<string> = []
+  let collecting = false
+  for (const line of lines) {
+    if (!collecting && new RegExp(`^${key}:\\s*$`, 'i').test(line.trim())) {
+      collecting = true
+      continue
+    }
+    if (!collecting) continue
+    const trimmed = line.trim()
+    if (!trimmed.startsWith('- ')) break
+    items.push(trimmed.slice(2).trim().replace(/^["']|["']$/g, ''))
+  }
+  return items.filter(Boolean)
+}
+
+async function readSkillMeta(
+  skillDir: string,
+  categoryHint: string,
+): Promise<LocalSkillMeta> {
   try {
     const raw = await fs.readFile(path.join(skillDir, 'SKILL.md'), 'utf-8')
     const fmEnd = raw.indexOf('\n---', 4)
-    const fm = fmEnd > 0 ? raw.slice(0, fmEnd) : raw.slice(0, 1024)
-    const match = fm.match(/^author:\s*(.+?)\s*$/m)
-    return match?.[1]?.trim().replace(/^["']|["']$/g, '') || ''
+    const fm = fmEnd > 0 ? raw.slice(0, fmEnd) : raw.slice(0, 2048)
+    const body = fmEnd > 0 ? raw.slice(fmEnd + 4) : raw
+    const description =
+      readFrontmatterValue(fm, 'description') ||
+      body
+        .split('\n')
+        .map((line) => line.trim())
+        .find(
+          (line) =>
+            Boolean(line) && !line.startsWith('#') && !line.startsWith('```'),
+        ) ||
+      ''
+    return {
+      path: skillDir,
+      author: readFrontmatterValue(fm, 'author'),
+      name:
+        readFrontmatterValue(fm, 'name') ||
+        path.basename(skillDir).replace(/[-_]+/g, ' '),
+      description,
+      content: raw,
+      categoryHint: readFrontmatterValue(fm, 'category') || categoryHint,
+      tags: readFrontmatterList(fm, 'tags'),
+      triggers: readFrontmatterList(fm, 'triggers'),
+      homepage: readFrontmatterValue(fm, 'homepage') || null,
+    }
   } catch {
-    return ''
+    return {
+      path: skillDir,
+      author: '',
+      name: path.basename(skillDir).replace(/[-_]+/g, ' '),
+      description: '',
+      content: '',
+      categoryHint,
+      tags: [],
+      triggers: [],
+      homepage: null,
+    }
   }
 }
 
-async function buildLocalSkillPathMap(): Promise<Map<string, LocalSkillMeta>> {
-  const root = getSkillsDir()
+async function scanSkillRoot(root: string): Promise<Map<string, LocalSkillMeta>> {
   const map = new Map<string, LocalSkillMeta>()
   let categoryEntries: Array<{ name: string; isDirectory: () => boolean }>
   try {
-    categoryEntries = (await fs.readdir(root, {
+    categoryEntries = await fs.readdir(root, {
       withFileTypes: true,
-    })) as unknown as Array<{
-      name: string
-      isDirectory: () => boolean
-    }>
+    })
   } catch {
     return map
   }
@@ -62,12 +144,9 @@ async function buildLocalSkillPathMap(): Promise<Map<string, LocalSkillMeta>> {
       isDirectory: () => boolean
     }>
     try {
-      skillEntries = (await fs.readdir(catPath, {
+      skillEntries = await fs.readdir(catPath, {
         withFileTypes: true,
-      })) as unknown as Array<{
-        name: string
-        isDirectory: () => boolean
-      }>
+      })
     } catch {
       continue
     }
@@ -76,14 +155,86 @@ async function buildLocalSkillPathMap(): Promise<Map<string, LocalSkillMeta>> {
       const fullPath = path.join(catPath, skill.name)
       if (map.has(skill.name)) continue
       collect.push(
-        readSkillAuthor(fullPath).then((author) => {
-          map.set(skill.name, { path: fullPath, author })
+        readSkillMeta(fullPath, cat.name).then((meta) => {
+          map.set(skill.name, meta)
         }),
       )
     }
   }
   await Promise.all(collect)
   return map
+}
+
+function mergeSkillSummaries(
+  existing: SkillSummary | undefined,
+  incoming: SkillSummary,
+): SkillSummary {
+  if (!existing) return incoming
+
+  return {
+    ...existing,
+    ...incoming,
+    description: existing.description || incoming.description,
+    author: existing.author || incoming.author,
+    triggers: existing.triggers.length > 0 ? existing.triggers : incoming.triggers,
+    tags: existing.tags.length > 0 ? existing.tags : incoming.tags,
+    homepage: existing.homepage || incoming.homepage,
+    content: existing.content || incoming.content,
+    fileCount: Math.max(existing.fileCount, incoming.fileCount),
+    sourcePath: existing.sourcePath || incoming.sourcePath,
+    enabled: existing.enabled,
+    installed: existing.installed,
+    builtin: existing.builtin || incoming.builtin,
+    security: existing.security,
+    origin:
+      existing.origin === 'builtin' || incoming.origin === 'builtin'
+        ? 'builtin'
+        : existing.origin === 'agent-created' || incoming.origin === 'agent-created'
+          ? 'agent-created'
+          : incoming.origin,
+    profileNames: Array.from(
+      new Set([...(existing.profileNames ?? []), ...(incoming.profileNames ?? [])]),
+    ).sort(),
+    profileCount: Math.max(
+      existing.profileCount ?? existing.profileNames?.length ?? 0,
+      incoming.profileCount ?? incoming.profileNames?.length ?? 0,
+    ),
+    shared: existing.shared || incoming.shared,
+  }
+}
+
+function toLocalSkillSummary(id: string, meta: LocalSkillMeta): SkillSummary {
+  return {
+    id,
+    slug: slugify(id),
+    name: meta.name || id,
+    description: meta.description,
+    author: meta.author,
+    triggers: meta.triggers,
+    tags: meta.tags,
+    homepage: meta.homepage,
+    category: normalizeCategoryLabel(meta.categoryHint || 'Productivity'),
+    icon: '✨',
+    content: meta.content,
+    fileCount: 1,
+    sourcePath: meta.path,
+    installed: true,
+    enabled: true,
+    builtin: false,
+    featuredGroup: undefined,
+    security: { level: 'safe', flags: [], score: 0 },
+    origin: 'marketplace',
+    profileNames: [],
+    profileCount: 0,
+    shared: false,
+  }
+}
+
+function matchesProfileFilter(skill: SkillSummary, profileName: string): boolean {
+  if (profileName === 'all') return true
+  const owners = skill.profileNames ?? []
+  if (owners.length > 0) return owners.includes(profileName)
+  return Boolean(skill.shared)
 }
 
 async function loadBundledManifest(): Promise<Set<string>> {
@@ -139,6 +290,9 @@ type SkillSummary = {
   featuredGroup?: string
   security: SecurityRisk
   origin: 'builtin' | 'agent-created' | 'marketplace'
+  profileNames?: Array<string>
+  profileCount?: number
+  shared?: boolean
 }
 
 const KNOWN_CATEGORIES = [
@@ -283,7 +437,7 @@ function normalizeCategoryLabel(raw: string): string {
   const caseMatch = KNOWN_CATEGORY_LOWER.get(lower)
   if (caseMatch) return caseMatch
   const key = lower.replace(/[\s&]+/g, '-').replace(/-+/g, '-')
-  return CATEGORY_ALIASES[key] ?? CATEGORY_ALIASES[lower] ?? raw
+  return CATEGORY_ALIASES[key] || CATEGORY_ALIASES[lower] || raw
 }
 
 function guessCategory(record: Record<string, unknown>): string {
@@ -444,6 +598,7 @@ export const Route = createFileRoute('/api/skills')({
           const rawSearch = (url.searchParams.get('search') || '').trim()
           const category = (url.searchParams.get('category') || 'All').trim()
           const origin = (url.searchParams.get('origin') || 'All').trim()
+          const profileParam = (url.searchParams.get('profile') || '').trim()
           const sortParam = (url.searchParams.get('sort') || 'name').trim()
           const sort: SkillsSort =
             sortParam === 'category' || sortParam === 'name'
@@ -455,29 +610,101 @@ export const Route = createFileRoute('/api/skills')({
             Math.max(1, Number(url.searchParams.get('limit') || '30')),
           )
 
-          const [sourceItems, localPathMap, bundledManifest] = await Promise.all([
-            fetchClaudeSkills(),
-            buildLocalSkillPathMap(),
-            loadBundledManifest(),
-          ])
-          for (const skill of sourceItems) {
-            if (skill.installed) {
-              const meta =
-                localPathMap.get(skill.id) || localPathMap.get(skill.slug)
-              if (meta) {
-                if (!skill.sourcePath) skill.sourcePath = meta.path
-                if (!skill.author) skill.author = meta.author
-              }
-            }
-            skill.origin = deriveOrigin(skill, bundledManifest)
+          const profileSummaries = listProfiles()
+          const activeProfile = getActiveProfileName()
+          const selectedProfile =
+            profileParam === 'all' || profileSummaries.some((p) => p.name === profileParam)
+              ? profileParam || activeProfile
+              : activeProfile
+
+          const [sourceItems, bundledManifest, sharedSkillMap, profileSkillMaps] =
+            await Promise.all([
+              fetchClaudeSkills(),
+              loadBundledManifest(),
+              scanSkillRoot(getSkillsDir()),
+              Promise.all(
+                profileSummaries.map(async (profile) => [
+                  profile.name,
+                  await scanSkillRoot(path.join(profile.path, 'skills')),
+                ] as const),
+              ),
+            ])
+
+          const merged = new Map<string, SkillSummary>()
+          const activeSkillMap = new Map<string, LocalSkillMeta>(
+            profileSkillMaps.find(([name]) => name === activeProfile)?.[1] ?? [],
+          )
+          const upsert = (skill: SkillSummary) => {
+            const key = skill.id
+            merged.set(key, mergeSkillSummaries(merged.get(key), skill))
           }
+
+          for (const skill of sourceItems) {
+            const meta = activeSkillMap.get(skill.id) || activeSkillMap.get(skill.slug)
+            const shared = Boolean(skill.sourcePath) && skill.sourcePath.startsWith(getSkillsDir())
+            const next: SkillSummary = {
+              ...skill,
+              sourcePath: skill.sourcePath || meta?.path || '',
+              author: skill.author || meta?.author || '',
+              description: skill.description || meta?.description || '',
+              content: skill.content || meta?.content || '',
+              tags: skill.tags.length > 0 ? skill.tags : meta?.tags || [],
+              triggers:
+                skill.triggers.length > 0 ? skill.triggers : meta?.triggers || [],
+              homepage: skill.homepage || meta?.homepage || null,
+              category:
+                skill.category !== 'Productivity'
+                  ? skill.category
+                  : normalizeCategoryLabel(meta?.categoryHint || skill.category),
+              origin: deriveOrigin(
+                {
+                  ...skill,
+                  sourcePath: skill.sourcePath || meta?.path || '',
+                  author: skill.author || meta?.author || '',
+                },
+                bundledManifest,
+              ),
+              profileNames: activeProfile ? [activeProfile] : [],
+              profileCount: activeProfile ? 1 : 0,
+              shared,
+            }
+            upsert(next)
+          }
+
+          for (const [id, meta] of sharedSkillMap.entries()) {
+            const skill = toLocalSkillSummary(id, meta)
+            upsert({
+              ...skill,
+              origin: deriveOrigin(skill, bundledManifest),
+              shared: true,
+              profileNames: [],
+              profileCount: 0,
+            })
+          }
+
+          for (const [profileName, skillMap] of profileSkillMaps) {
+            for (const [id, meta] of skillMap.entries()) {
+              const skill = toLocalSkillSummary(id, meta)
+              upsert({
+                ...skill,
+                origin: deriveOrigin(skill, bundledManifest),
+                profileNames: [profileName],
+                profileCount: 1,
+                shared: false,
+              })
+            }
+          }
+
+          const allItems = Array.from(merged.values()).map((skill) => ({
+            ...skill,
+            profileNames: (skill.profileNames ?? []).sort(),
+            profileCount: (skill.profileNames ?? []).length,
+          }))
           const installedLookup = new Set(
-            sourceItems
-              .filter((skill) => skill.installed)
-              .map((skill) => skill.id),
+            allItems.filter((skill) => skill.installed).map((skill) => skill.id),
           )
 
-          const filteredByTab = sourceItems.filter((skill) => {
+          const filteredByTab = allItems.filter((skill) => {
             if (tab === 'featured') return true
             if (tab === 'installed') return skill.installed
             return true
@@ -487,7 +714,7 @@ export const Route = createFileRoute('/api/skills')({
             FEATURED_SKILLS.map((entry) => [entry.id, entry.group]),
           )
 
-          const filtered = sortSkills(
+          const filteredWithoutProfile = sortSkills(
             filteredByTab
               .map((skill) => ({
                 ...skill,
@@ -506,6 +733,28 @@ export const Route = createFileRoute('/api/skills')({
             sort,
           )
 
+          const profileOptions: Array<ProfileFilterOption> = profileSummaries.map(
+            (profile) => ({
+              name: profile.name,
+              label: profile.name,
+              active: profile.active,
+              tier:
+                typeof profile.agent_ui?.tier === 'number'
+                  ? profile.agent_ui.tier
+                  : null,
+              localSkillCount: profile.skillCount,
+              skillCount: filteredWithoutProfile.filter((skill) =>
+                matchesProfileFilter(skill, profile.name),
+              ).length,
+            }),
+          )
+
+          const filtered = filteredWithoutProfile.filter((skill) =>
+            selectedProfile === 'all'
+              ? true
+              : matchesProfileFilter(skill, selectedProfile),
+          )
+
           const total = filtered.length
           const start = (page - 1) * limit
           const skills = filtered.slice(start, start + limit)
@@ -515,6 +764,10 @@ export const Route = createFileRoute('/api/skills')({
             total,
             page,
             categories: KNOWN_CATEGORIES,
+            profiles: profileOptions,
+            activeProfile,
+            selectedProfile,
+            allProfilesTotal: filteredWithoutProfile.length,
           })
         } catch (err) {
           return Response.json(
