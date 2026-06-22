@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 export const INLINE_TOOL_OUTPUT_LIMIT = 4_000
 const DATA_DIR = join(process.cwd(), '.runtime', 'tool-artifacts')
@@ -35,6 +35,20 @@ type ArtifactIndex = {
 
 let index: ArtifactIndex = { artifacts: {} }
 
+function atomicWriteFile(file: string, content: string): void {
+  const tmp = join(
+    dirname(file),
+    `.tmp.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`,
+  )
+  try {
+    writeFileSync(tmp, content, 'utf-8')
+    renameSync(tmp, file)
+  } catch (err) {
+    try { unlinkSync(tmp) } catch { /* ignore */ }
+    throw err
+  }
+}
+
 function ensureDataDir(): void {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true })
 }
@@ -53,7 +67,7 @@ function loadIndex(): void {
 
 function saveIndex(): void {
   ensureDataDir()
-  writeFileSync(INDEX_FILE, JSON.stringify(index, null, 2))
+  atomicWriteFile(INDEX_FILE, JSON.stringify(index, null, 2))
 }
 
 loadIndex()
@@ -160,7 +174,7 @@ export function createOrUpdateToolArtifact(input: CreateArtifactInput): ToolArti
 
   const dir = join(DATA_DIR, sanitizePathSegment(input.sessionId))
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  writeFileSync(
+  atomicWriteFile(
     contentPath,
     JSON.stringify(
       {
