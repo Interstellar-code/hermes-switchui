@@ -42,20 +42,30 @@ export const Route = createFileRoute('/api/workflow-runs/$runId')({
         });
       },
       POST: async ({ request, params }) => {
-        const csrfCheck = requireJsonContentType(request)
-        if (csrfCheck) return csrfCheck
         if (!isAuthenticated(request)) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        const csrfCheck = requireJsonContentType(request);
+        if (csrfCheck) return csrfCheck;
         const engine = getEngine();
         const url = new URL(request.url);
         const action = url.searchParams.get('action');
 
         switch (action) {
           case 'cancel':
-            await engine.cancelRun(params.runId);
-            return Response.json({ ok: true });
+            try {
+              await engine.cancelRun(params.runId);
+              return Response.json({ ok: true });
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              return Response.json({ error: msg }, { status: 500 });
+            }
           case 'resume': {
-            await engine.resumeWorkflowRun(params.runId);
-            return Response.json({ ok: true });
+            try {
+              await engine.resumeWorkflowRun(params.runId);
+              return Response.json({ ok: true });
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              return Response.json({ error: msg }, { status: 500 });
+            }
           }
           case 'advance': {
             const toPhase = url.searchParams.get('to') as Phase | null;

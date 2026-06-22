@@ -26,7 +26,7 @@ export const Route = createFileRoute('/api/workflow-runs')({
         const csrfCheck = requireJsonContentType(request);
         if (csrfCheck) return csrfCheck;
         const engine = getEngine();
-        const body = (await request.json()) as {
+        let body: {
           workflow_id: string;
           conversation_id: string;
           working_path?: string;
@@ -38,6 +38,11 @@ export const Route = createFileRoute('/api/workflow-runs')({
           priority?: number;
           maxRuntimeSeconds?: number;
         };
+        try {
+          body = (await request.json()) as typeof body;
+        } catch {
+          return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
+        }
         if (!body?.workflow_id || !body?.conversation_id || !body?.user_message) {
           return Response.json({ error: 'workflow_id, conversation_id, user_message required' }, { status: 400 });
         }
