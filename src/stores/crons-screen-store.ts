@@ -49,7 +49,7 @@ export const useCronsViewStore = create<
 >()(
   persist(
     (set, get) => ({
-      viewMode: 'grid' as CronsViewMode,
+      viewMode: 'grid',
       pageSizeGrid: DEFAULT_PAGE_SIZE_GRID,
       pageSizeTable: DEFAULT_PAGE_SIZE_TABLE,
       setViewMode: (m) => set({ viewMode: m }),
@@ -59,7 +59,18 @@ export const useCronsViewStore = create<
         else set({ pageSizeTable: n })
       },
     }),
-    { name: 'switchui-crons-view' },
+    {
+      name: 'switchui-crons-view',
+      version: 1,
+      migrate: (persisted, fromVersion) => {
+        if (fromVersion === 1) return persisted as CronsPersistedState
+        return {
+          viewMode: 'grid' as CronsViewMode,
+          pageSizeGrid: DEFAULT_PAGE_SIZE_GRID,
+          pageSizeTable: DEFAULT_PAGE_SIZE_TABLE,
+        }
+      },
+    },
   ),
 )
 

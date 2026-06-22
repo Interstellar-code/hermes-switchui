@@ -63,6 +63,17 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     }),
     {
       name: 'hermes-switchui-v1',
+      version: 1,
+      migrate: (persisted, fromVersion) => {
+        if (fromVersion === 1) return persisted as WorkspaceState
+        // Unknown / pre-versioned: fall back to safe defaults for the persisted slice
+        return {
+          sidebarCollapsed: false,
+          fileExplorerCollapsed: true,
+          chatPanelOpen: false,
+          chatPanelSessionKey: 'main',
+        }
+      },
       partialize: (state) => ({
         sidebarCollapsed: state.sidebarCollapsed,
         fileExplorerCollapsed: state.fileExplorerCollapsed,

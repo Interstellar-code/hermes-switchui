@@ -55,7 +55,7 @@ export const useProfilesViewStore = create<
 >()(
   persist(
     (set) => ({
-      viewMode: 'grid' as ProfilesViewMode,
+      viewMode: 'grid',
       pageSizeGrid: DEFAULT_PAGE_SIZE_GRID,
       pageSizeTable: DEFAULT_PAGE_SIZE_TABLE,
       setViewMode: (viewMode) => set({ viewMode }),
@@ -64,7 +64,18 @@ export const useProfilesViewStore = create<
           s.viewMode === 'grid' ? { pageSizeGrid: n } : { pageSizeTable: n },
         ),
     }),
-    { name: 'switchui-profiles-view' },
+    {
+      name: 'switchui-profiles-view',
+      version: 1,
+      migrate: (persisted, fromVersion) => {
+        if (fromVersion === 1) return persisted as ProfilesPersistedState
+        return {
+          viewMode: 'grid' as ProfilesViewMode,
+          pageSizeGrid: DEFAULT_PAGE_SIZE_GRID,
+          pageSizeTable: DEFAULT_PAGE_SIZE_TABLE,
+        }
+      },
+    },
   ),
 )
 
