@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatTaskAssigneeLabel } from './task-card'
-import { TASKS_BOARD_HELP_TEXT } from './tasks-screen'
 import {
-  HERMES_KANBAN_VISIBLE_STATUS_ORDER,
   HERMES_KANBAN_ALL_STATUSES,
+  HERMES_KANBAN_VISIBLE_STATUS_ORDER,
 } from '../../lib/hermes-kanban-types'
+import { formatTaskAssigneeLabel } from './task-card'
+import {
+  TASKS_BOARD_HELP_TEXT,
+  TASKS_COLUMN_VISIBILITY_DEFAULTS,
+} from './tasks-screen'
 
 describe('tasks UX copy', () => {
   it('exposes helper copy that explains drag and assignment behavior', () => {
@@ -44,6 +47,20 @@ describe('Agent Kanban board column order', () => {
 
   it('new Agent statuses ready and blocked are present', () => {
     expect(HERMES_KANBAN_VISIBLE_STATUS_ORDER).toContain('ready')
+    expect(HERMES_KANBAN_VISIBLE_STATUS_ORDER).toContain('running')
     expect(HERMES_KANBAN_VISIBLE_STATUS_ORDER).toContain('blocked')
+  })
+})
+
+describe('task column visibility defaults', () => {
+  it('keeps ready/running visible alongside triage/blocked by default', () => {
+    expect(TASKS_COLUMN_VISIBILITY_DEFAULTS).toMatchObject({
+      triage: true,
+      ready: true,
+      running: true,
+      blocked: true,
+      done: false,
+      archived: false,
+    })
   })
 })

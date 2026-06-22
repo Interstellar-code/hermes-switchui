@@ -3,7 +3,7 @@
 import '@/styles/matrix-tasks.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate, useSearch } from '@tanstack/react-router'
+import { useSearch } from '@tanstack/react-router'
 import {
   keepPreviousData,
   useMutation,
@@ -14,7 +14,6 @@ import { AnimatePresence, motion } from 'motion/react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Add01Icon,
-  Alert02Icon,
   CheckListIcon,
   Settings01Icon,
 } from '@hugeicons/core-free-icons'
@@ -62,6 +61,36 @@ const ASSIGNEES_KEY = ['claude', 'tasks', 'assignees'] as const
 
 export const TASKS_BOARD_HELP_TEXT =
   'Drag cards to change status. Open a card to set assignee and due date.'
+
+export const TASKS_COLUMN_VISIBILITY_DEFAULTS = {
+  triage: true,
+  ready: true,
+  running: true,
+  blocked: true,
+  done: false,
+  archived: false,
+} as const
+
+function taskMatchesSearch(task: ClaudeTask, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  const haystack = [
+    task.id,
+    task.title,
+    task.body,
+    task.assignee,
+    task.tenant,
+    task.status,
+    task.block_reason,
+    task.summary,
+    task.latest_summary,
+    ...(task.skills ?? []),
+  ]
+    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    .join('\n')
+    .toLowerCase()
+  return haystack.includes(q)
+}
 
 // ── @dnd-kit droppable column ──────────────────────────────────────────────
 function DroppableColumn({
@@ -139,7 +168,6 @@ type RunningMovePending = {
 
 export function TasksScreen() {
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
   const [showCreate, setShowCreate] = useState(false)
   const [createColumn, setCreateColumn] = useState<TaskColumn>('triage')
   const [editingTask, setEditingTask] = useState<ClaudeTask | null>(null)
@@ -147,38 +175,72 @@ export function TasksScreen() {
   const [, setDragOverColumn] = useState<HermesKanbanStatus | null>(null)
   // ── Column visibility — persisted to localStorage ──────────────────────
   const COLS_KEY = 'switchui-column-visibility'
-  // BC-01: v2 migration — ensure triage+blocked default to true for all visitors
-  // (pre-rewrite stale storage may have triage:false; bump migrated_v2 flag).
+  // BC-01: v3 migration — ensure triage/ready/running/blocked default to true
+  // for all visitors (older storage may predate some column keys entirely).
   const [showDone, setShowDone] = useState<boolean>(() => {
     try {
       const raw = JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}') as Record<string, unknown>
-      if (!raw.migrated_v2) {
-        // First visit or pre-v2 visitor: force triage+blocked on, write migration flag
-        const migrated = { ...raw, triage: true, blocked: true, migrated_v2: true }
+      if (!raw.migrated_v3) {
+        const migrated = {
+          ...raw,
+          triage: TASKS_COLUMN_VISIBILITY_DEFAULTS.triage,
+          ready: TASKS_COLUMN_VISIBILITY_DEFAULTS.ready,
+          running: TASKS_COLUMN_VISIBILITY_DEFAULTS.running,
+          blocked: TASKS_COLUMN_VISIBILITY_DEFAULTS.blocked,
+          migrated_v3: true,
+        }
         localStorage.setItem(COLS_KEY, JSON.stringify(migrated))
-        return typeof raw.done === 'boolean' ? raw.done : false
+        return typeof raw.done === 'boolean'
+          ? raw.done
+          : TASKS_COLUMN_VISIBILITY_DEFAULTS.done
       }
-      return typeof raw.done === 'boolean' ? raw.done : false
-    } catch { return false }
+      return typeof raw.done === 'boolean'
+        ? raw.done
+        : TASKS_COLUMN_VISIBILITY_DEFAULTS.done
+    } catch { return TASKS_COLUMN_VISIBILITY_DEFAULTS.done }
   })
   const [showArchived, setShowArchived] = useState<boolean>(() => {
     try {
       const raw = JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}') as Record<string, unknown>
-      return typeof raw.archived === 'boolean' ? raw.archived : false
-    } catch { return false }
+      return typeof raw.archived === 'boolean'
+        ? raw.archived
+        : TASKS_COLUMN_VISIBILITY_DEFAULTS.archived
+    } catch { return TASKS_COLUMN_VISIBILITY_DEFAULTS.archived }
   })
   const [showTriage, setShowTriage] = useState<boolean>(() => {
     try {
       const raw = JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}') as Record<string, unknown>
-      return typeof raw.triage === 'boolean' ? raw.triage : true
-    } catch { return true }
+      return typeof raw.triage === 'boolean'
+        ? raw.triage
+        : TASKS_COLUMN_VISIBILITY_DEFAULTS.triage
+    } catch { return TASKS_COLUMN_VISIBILITY_DEFAULTS.triage }
+  })
+  const [showReady, setShowReady] = useState<boolean>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}') as Record<string, unknown>
+      return typeof raw.ready === 'boolean'
+        ? raw.ready
+        : TASKS_COLUMN_VISIBILITY_DEFAULTS.ready
+    } catch { return TASKS_COLUMN_VISIBILITY_DEFAULTS.ready }
+  })
+  const [showRunning, setShowRunning] = useState<boolean>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}') as Record<string, unknown>
+      return typeof raw.running === 'boolean'
+        ? raw.running
+        : TASKS_COLUMN_VISIBILITY_DEFAULTS.running
+    } catch { return TASKS_COLUMN_VISIBILITY_DEFAULTS.running }
   })
   const [showBlocked, setShowBlocked] = useState<boolean>(() => {
     try {
       const raw = JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}') as Record<string, unknown>
-      return typeof raw.blocked === 'boolean' ? raw.blocked : true
-    } catch { return true }
+      return typeof raw.blocked === 'boolean'
+        ? raw.blocked
+        : TASKS_COLUMN_VISIBILITY_DEFAULTS.blocked
+    } catch { return TASKS_COLUMN_VISIBILITY_DEFAULTS.blocked }
   })
+  const [filtersCollapsed, setFiltersCollapsed] = useState(false)
+  const [taskSearch, setTaskSearch] = useState('')
   // ── Date range filter — persisted to localStorage ─────────────────────
   const DATE_FILTER_KEY = 'switchui-tasks-date-filter'
   const [dateRange, setDateRange] = useState<'all' | 'today' | '7d' | '30d' | 'custom'>(() => {
@@ -274,11 +336,11 @@ export function TasksScreen() {
     try {
       localStorage.setItem(COLS_KEY, JSON.stringify({
         done: showDone, archived: showArchived,
-        triage: showTriage, blocked: showBlocked,
-        migrated_v2: true,
+        triage: showTriage, ready: showReady, running: showRunning, blocked: showBlocked,
+        migrated_v3: true,
       }))
     } catch { /* storage quota / private-mode — silently ignore */ }
-  }, [showDone, showArchived, showTriage, showBlocked])
+  }, [showDone, showArchived, showTriage, showReady, showRunning, showBlocked])
 
   // Persist date filter to localStorage
   useEffect(() => {
@@ -362,10 +424,6 @@ export function TasksScreen() {
     profilesQuery.data?.profiles ?? [],
     profilesQuery.data?.activeProfile,
   )
-  const profileNameSet = new Set((profilesQuery.data?.profiles ?? []).map((p) => p.name))
-  const orphanAssignees = assignees.filter((a) => !profileNameSet.has(a.id))
-  const [orphanBannerDismissed, setOrphanBannerDismissed] = useState(false)
-
   const assigneeLabels = useMemo(() => {
     const map: Record<string, string> = {}
     for (const a of assignees) map[a.id] = a.label
@@ -401,10 +459,11 @@ export function TasksScreen() {
       if (assigneeFilter && t.assignee !== assigneeFilter) continue
       if (dateCutoffMs !== null && t.created_at * 1000 < dateCutoffMs) continue
       if (dateEndMs !== null && t.created_at * 1000 > dateEndMs) continue
+      if (!taskMatchesSearch(t, taskSearch)) continue
       map[status].push(t)
     }
     return map
-  }, [tasks, assigneeFilter, dateRange, dateStart, dateEnd])
+  }, [tasks, assigneeFilter, dateRange, dateStart, dateEnd, taskSearch])
 
   const stats = useMemo(() => {
     const total = tasks.length
@@ -611,13 +670,217 @@ export function TasksScreen() {
   ).filter((s) => {
     if (s === 'done' && !showDone) return false
     if (s === 'triage' && !showTriage) return false
+    if (s === 'ready' && !showReady) return false
+    if (s === 'running' && !showRunning) return false
     if (s === 'blocked' && !showBlocked) return false
     if (s === 'archived' && !showArchived) return false
     return true
   })
 
   return (
-    <div className="min-h-full bg-surface text-ink tk-shell" data-screen="tasks">
+    <div className="h-screen bg-surface text-ink tk-shell" data-screen="tasks">
+
+      {/* ── Filter sidebar ── */}
+      <aside className={cn('tk-filter', filtersCollapsed && 'collapsed')} aria-label="Task filters">
+        <div className="tk-filter-hdr">
+          <h2>Tasks</h2>
+          <div className="hdr-right">
+            <span className="ct">{stats.total}</span>
+            <button
+              type="button"
+              className="collapse-btn"
+              onClick={() => setFiltersCollapsed((v) => !v)}
+              title={filtersCollapsed ? 'Expand filters' : 'Collapse filters'}
+              aria-label={filtersCollapsed ? 'Expand filters' : 'Collapse filters'}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+                {filtersCollapsed ? (
+                  <path d="M9 18l6-6-6-6" />
+                ) : (
+                  <path d="M15 18l-6-6 6-6" />
+                )}
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div className="tk-filter-search">
+          <input
+            type="text"
+            placeholder="Search tasks…"
+            value={taskSearch}
+            onChange={(e) => setTaskSearch(e.target.value)}
+            aria-label="Search tasks"
+          />
+        </div>
+
+        <div className="tk-filter-body">
+          <div className="tk-filter-section">
+            <div className="sec-label">Agent profile</div>
+            <div className="tk-filter-list">
+              <button
+                type="button"
+                className={cn('tk-filter-item', !assigneeFilter && 'active')}
+                onClick={() => setAssigneeFilter(null)}
+              >
+                <span className="item-label">All profiles</span>
+                <span className="item-ct">{tasks.length}</span>
+              </button>
+              {assigneeOptions.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  className={cn('tk-filter-item', assigneeFilter === a.id && 'active')}
+                  onClick={() => setAssigneeFilter(assigneeFilter === a.id ? null : a.id)}
+                >
+                  <span className="item-label">{a.onDisk ? a.label : `${a.label} ⚠`}</span>
+                  <span className="item-ct">
+                    {tasks.filter((t) => t.assignee === a.id).length}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {uniqueTenants.length > 0 && (
+            <div className="tk-filter-section">
+              <div className="sec-label">Tenant</div>
+              <div className="tk-filter-list">
+                <button
+                  type="button"
+                  className={cn('tk-filter-item', !tenantFilter && 'active')}
+                  onClick={() => setTenantFilter(null)}
+                >
+                  <span className="item-label">All tenants</span>
+                  <span className="item-ct">{tasks.length}</span>
+                </button>
+                {uniqueTenants.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    className={cn('tk-filter-item', tenantFilter === t && 'active')}
+                    onClick={() => setTenantFilter(tenantFilter === t ? null : t)}
+                  >
+                    <span className="item-label">{t}</span>
+                    <span className="item-ct">
+                      {tasks.filter((task) => task.tenant === t).length}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="tk-filter-section">
+            <div className="sec-label">Date range</div>
+            <div className="tk-filter-list">
+              {(['all', 'today', '7d', '30d', 'custom'] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  className={cn('tk-filter-item', dateRange === r && 'active')}
+                  onClick={() => setDateRange(r)}
+                >
+                  <span className="item-label">
+                    {r === 'all' ? 'All time' : r === 'today' ? 'Today' : r === '7d' ? 'Last 7 days' : r === '30d' ? 'Last 30 days' : 'Custom range'}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {dateRange === 'custom' && (
+              <div className="tk-date-custom">
+                <input
+                  type="date"
+                  value={dateStart}
+                  onChange={(e) => setDateStart(e.target.value)}
+                  style={{ colorScheme: 'dark' }}
+                  aria-label="Start date"
+                />
+                <input
+                  type="date"
+                  value={dateEnd}
+                  onChange={(e) => setDateEnd(e.target.value)}
+                  style={{ colorScheme: 'dark' }}
+                  aria-label="End date"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="tk-filter-section">
+            <div className="sec-label">Visible columns</div>
+            <div className="tk-filter-list">
+              {([
+                { key: 'triage', label: 'Triage / Backlog', on: showTriage, toggle: () => setShowTriage((v) => !v) },
+                { key: 'ready', label: 'Ready', on: showReady, toggle: () => setShowReady((v) => !v) },
+                { key: 'running', label: 'Running', on: showRunning, toggle: () => setShowRunning((v) => !v) },
+                { key: 'blocked', label: 'Blocked', on: showBlocked, toggle: () => setShowBlocked((v) => !v) },
+                { key: 'done', label: 'Done', on: showDone, toggle: () => setShowDone((v) => !v) },
+                { key: 'archived', label: 'Archived', on: showArchived, toggle: () => setShowArchived((v) => !v) },
+              ] as const).map(({ key, label, on, toggle }) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={cn('tk-check-item', on && 'on')}
+                  onClick={toggle}
+                >
+                  <span className="ck">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </span>
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="tk-filter-footer">
+          <span className="count-line">
+            Showing {Object.values(tasksByStatus).reduce((sum, arr) => sum + arr.length, 0)} of {tasks.length} tasks
+          </span>
+          <button
+            type="button"
+            className="reset-btn"
+            onClick={() => {
+              setTaskSearch('')
+              setAssigneeFilter(null)
+              setTenantFilter(null)
+              setDateRange('all')
+              setDateStart('')
+              setDateEnd('')
+              setShowTriage(TASKS_COLUMN_VISIBILITY_DEFAULTS.triage)
+              setShowReady(TASKS_COLUMN_VISIBILITY_DEFAULTS.ready)
+              setShowRunning(TASKS_COLUMN_VISIBILITY_DEFAULTS.running)
+              setShowBlocked(TASKS_COLUMN_VISIBILITY_DEFAULTS.blocked)
+              setShowDone(TASKS_COLUMN_VISIBILITY_DEFAULTS.done)
+              setShowArchived(TASKS_COLUMN_VISIBILITY_DEFAULTS.archived)
+            }}
+          >
+            Reset filters
+          </button>
+        </div>
+
+        <div className="tk-rail">
+          <button
+            type="button"
+            className="rail-expand-btn"
+            onClick={() => setFiltersCollapsed(false)}
+            title="Expand filters"
+            aria-label="Expand filters"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+          <span className="rail-label">Tasks</span>
+          <span className="rail-badge">{stats.total}</span>
+        </div>
+      </aside>
+
+      {/* ── Main area wrapper ── */}
+      <div className="tk-main-wrap">
 
       {/* ── Breadcrumb strip (TS-01 / TS-02 / TS-03) ── */}
       <header className="tk-top">
@@ -710,9 +973,17 @@ export function TasksScreen() {
 
           {/* Filters pill */}
           {(() => {
-            const anyHidden = !showTriage || !showBlocked || !showDone || !showArchived
+            const anyHidden =
+              !showTriage ||
+              !showReady ||
+              !showRunning ||
+              !showBlocked ||
+              !showDone ||
+              !showArchived
             const cols = [
               { key: 'triage', label: 'Triage / Backlog', checked: showTriage, toggle: () => setShowTriage(v => !v) },
+              { key: 'ready', label: 'Ready', checked: showReady, toggle: () => setShowReady(v => !v) },
+              { key: 'running', label: 'Running', checked: showRunning, toggle: () => setShowRunning(v => !v) },
               { key: 'blocked', label: 'Blocked', checked: showBlocked, toggle: () => setShowBlocked(v => !v) },
               { key: 'done', label: 'Done', checked: showDone, toggle: () => setShowDone(v => !v) },
               { key: 'archived', label: 'Archived', checked: showArchived, toggle: () => setShowArchived(v => !v) },
@@ -1042,7 +1313,7 @@ export function TasksScreen() {
                           <p className="px-3 py-2 text-xs text-[var(--theme-muted)]">
                             This permanently deletes{' '}
                             <span className="text-red-400 font-semibold">
-                              {((purgeArchivedBtnRef.current as HTMLButtonElement & { _purgeIds?: Array<string> })?._purgeIds ?? []).length}
+                              {((purgeArchivedBtnRef.current as HTMLButtonElement & { _purgeIds?: Array<string> })._purgeIds ?? []).length}
                             </span>{' '}
                             archived tasks. This cannot be undone.
                           </p>
@@ -1055,7 +1326,7 @@ export function TasksScreen() {
                             </button>
                             <button
                               onClick={() => {
-                                const ids = ((purgeArchivedBtnRef.current as HTMLButtonElement & { _purgeIds?: Array<string> })?._purgeIds ?? [])
+                                const ids = ((purgeArchivedBtnRef.current as HTMLButtonElement & { _purgeIds?: Array<string> })._purgeIds ?? [])
                                 setShowPurgePopover(false)
                                 setPurgeConfirmStep(false)
                                 void bulkMutation.mutate({ delete: true, ids })
@@ -1144,45 +1415,7 @@ export function TasksScreen() {
 
       {/* ── Page content ── */}
       <div className="tk-content pb-[calc(var(--tabbar-h,80px)+30px+1.5rem)]">
-
-        {/* Orphan-assignee resilience banner */}
-        {orphanAssignees.length > 0 && !orphanBannerDismissed && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-            <div className="flex items-start gap-3">
-              <HugeiconsIcon icon={Alert02Icon} size={16} className="text-amber-400 mt-0.5 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-amber-300">
-                  {orphanAssignees.length} orphan assignee{orphanAssignees.length !== 1 ? 's' : ''} with no profile on disk
-                </p>
-                <p className="text-xs text-amber-400/80 mt-0.5">
-                  {orphanAssignees.slice(0, 5).map((a) => a.label).join(', ')}
-                  {orphanAssignees.length > 5 ? ` +${orphanAssignees.length - 5} more` : ''}
-                </p>
-                <p className="text-xs text-amber-400/70 mt-1">
-                  Tasks assigned to these fall back to the default profile when dispatched. Reassign tasks or add a profile yaml under{' '}
-                  <code className="font-mono text-amber-300/90">~/.hermes/profiles/</code>.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => void navigate({ to: '/profiles' })}
-                  className="text-xs px-2.5 py-1 rounded-lg border border-amber-500/40 text-amber-300 hover:bg-amber-500/20 transition-colors"
-                >
-                  Open Profiles
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOrphanBannerDismissed(true)}
-                  className="text-amber-400/60 hover:text-amber-300 transition-colors text-xs leading-none"
-                  title="Dismiss"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <div className="tk-main">
 
         {/* Swim view */}
         {activeView === 'swim' && (
@@ -1437,6 +1670,7 @@ export function TasksScreen() {
             </div>
           </div>
         )}
+        </div>
 
       {/* Status footer */}
       <footer className="tk-status">
@@ -1468,6 +1702,7 @@ export function TasksScreen() {
         <span className="sep" aria-hidden="true" />
         <span className="grp">Sort <b>Recent</b></span>
       </footer>
+      </div>
       </div>
 
       {/* Floating bulk-action footer — portal'd to body, escapes layout.

@@ -3,6 +3,26 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.50] — 2026-06-22
+
+Security + stability patch release. This cut includes the five human-merged backend fixes from PRs #246–#250 and rolls forward several recent mainline fixes/features that were already landed but not called out clearly in the previous release notes.
+
+### Changed
+
+- **Memory wiki cutover now consistently targets Matrix Memory.** The Memory wiki/chat/settings surfaces now use Matrix Wiki naming consistently, and knowledge-base config resolution upgrades legacy Hermes wiki paths to the profile-scoped Matrix Memory wiki root when that migrated location exists.
+- **Tasks filters can now hide Ready and Running columns too.** The existing visible-column filter controls now cover `ready` and `running` in both the sidebar and mobile filter popover, with the same persisted behavior as the older triage/blocked/done/archived toggles.
+
+### Fixed
+
+- **Local-session touches now persist to disk.** `touchLocalSession()` now schedules a save after updating `updatedAt`, so recency ordering survives server restarts instead of reverting after in-memory-only writes. (#144, #246)
+- **Dashboard-proxy mutating routes now enforce the JSON CSRF guard.** POST/PUT/PATCH/DELETE requests to `/api/dashboard-proxy/*` reject browser-form content types before proxying gateway mutations. (#147, #247)
+- **Task-store writes are now atomic.** `tasks.json` writes through a same-directory temp-file + rename swap, preventing crash-time truncation/corruption and allowing per-test `HERMES_HOME` path overrides. (#145, #248)
+- **`/api/media` no longer allows arbitrary filesystem reads.** Media requests are now constrained to `HERMES_HOME/uploads` and the workspace `files/` directory, with traversal/out-of-root paths rejected. (#146, #249)
+- **Password verification no longer leaks configured-password length.** `verifyPassword()` now hashes both sides to fixed-length SHA-256 digests before `timingSafeEqual()`. (#150, #250)
+- **Commands badge counts no longer stick at zero.** The Commands navigation badge now reflects the real pending-command total. (#241, #242)
+- **Workflow review items now map to a valid Kanban column.** The `review` status is normalized to `triage`, avoiding invalid board-state regressions. (#174, #245)
+- **Three.js deprecation noise is gone.** The app now pins `three` to `0.182.0`, eliminating the `THREE.Clock` warning churn in 3D surfaces. (#204, #244)
+
 ## [2.3.49] — 2026-06-21
 
 Memory gets a new Browse tab backed by Mnemosyne stats, and the recovered chat context-menu fixes are now merged into main.
