@@ -9,6 +9,9 @@
 
 const PLUGIN_NAME = 'workflow-engine';
 
+/** Timeout for plugin probe/enable requests — prevents hanging on a slow dashboard. */
+const ENSURE_PLUGIN_TIMEOUT_MS = 10_000;
+
 export type PluginStatus =
   | 'installed'   // enabled and running
   | 'disabled'    // present but disabled — will auto-enable
@@ -27,7 +30,9 @@ export interface EnsureResult {
  */
 export async function ensurePluginInstalled(): Promise<EnsureResult> {
   try {
-    const res = await fetch('/api/dashboard-proxy/api/dashboard/plugins/hub');
+    const res = await fetch('/api/dashboard-proxy/api/dashboard/plugins/hub', {
+      signal: AbortSignal.timeout(ENSURE_PLUGIN_TIMEOUT_MS),
+    });
     if (!res.ok) {
       return { status: 'error', message: `Probe failed: ${res.status}` };
     }
@@ -57,7 +62,7 @@ export async function ensurePluginInstalled(): Promise<EnsureResult> {
     if (plugin['enabled'] === false || plugin['status'] === 'disabled') {
       const enableRes = await fetch(
         `/api/dashboard-proxy/api/dashboard/agent-plugins/${encodeURIComponent(PLUGIN_NAME)}/enable`,
-        { method: 'POST' },
+        { method: 'POST', signal: AbortSignal.timeout(ENSURE_PLUGIN_TIMEOUT_MS) },
       );
       if (!enableRes.ok) {
         return {
