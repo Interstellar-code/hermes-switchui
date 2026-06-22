@@ -641,17 +641,19 @@ export const useMissionStore = create<MissionStore>()(
     }),
     {
       name: 'clawsuite:mission-store',
-      onRehydrateStorage: () => (state) => {
-        if (!state) return
+      onRehydrateStorage: () => (state, error) => {
+        if (error || !state) return
+        const patch: Partial<MissionStore> = {}
         if (state.activeMission && !state.restoreCheckpoint) {
           const checkpoint = buildCheckpoint(state)
           if (checkpoint && (state.missionState === 'running' || state.missionState === 'paused')) {
-            state.restoreCheckpoint = checkpoint
+            patch.restoreCheckpoint = checkpoint
           }
         }
-        state.missionHistory = {
+        patch.missionHistory = {
           reports: clampHistory(state.missionHistory?.reports ?? initialHistory),
         }
+        useMissionStore.setState(patch)
       },
     },
   ),
