@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { isAuthenticated } from '../../server/auth-middleware'
 import {
   ensureBusStarted,
   subscribeToChatEvents,
@@ -7,7 +8,13 @@ import {
 export const Route = createFileRoute('/api/events')({
   server: {
     handlers: {
-      GET: async () => {
+      GET: async ({ request }) => {
+        if (!isAuthenticated(request)) {
+          return new Response(
+            'data: {"error":"unauthorized"}\n\n',
+            { status: 401, headers: { 'Content-Type': 'text/event-stream' } },
+          )
+        }
         await ensureBusStarted()
 
         const encoder = new TextEncoder()
