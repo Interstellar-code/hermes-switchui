@@ -38,20 +38,44 @@ type TaskFilters = {
 type CreateTaskInput = Partial<TaskRecord> & { title: string }
 type UpdateTaskInput = Partial<Omit<TaskRecord, 'id' | 'created_at' | 'created_by'>>
 
-const CLAUDE_HOME = process.env.HERMES_HOME ?? process.env.CLAUDE_HOME ?? path.join(os.homedir(), '.hermes')
-const TASKS_FILE = path.join(CLAUDE_HOME, 'tasks.json')
+/**
+ * Lazy home-dir resolution so tests can override HERMES_HOME per-case.
+ * Mirrors the pattern in mcp-presets-store.ts and mcp-hub/cache.ts.
+ */
+function hermesHome(): string {
+  return process.env.HERMES_HOME?.trim() || process.env.CLAUDE_HOME?.trim() || path.join(os.homedir(), '.hermes')
+}
+
+function tasksFile(): string {
+  return path.join(hermesHome(), 'tasks.json')
+}
+
+export function tasksFilePath(): string {
+  return tasksFile()
+}
 
 function ensureTasksFile(): void {
-  fs.mkdirSync(CLAUDE_HOME, { recursive: true })
-  if (!fs.existsSync(TASKS_FILE)) {
-    fs.writeFileSync(TASKS_FILE, JSON.stringify({ tasks: [] }, null, 2) + '\n', 'utf-8')
+  const home = hermesHome()
+  const file = tasksFile()
+  fs.mkdirSync(home, { recursive: true })
+  if (!fs.existsSync(file)) {
+    const content = JSON.stringify({ tasks: [] }, null, 2) + '\n'
+    const dir = path.dirname(file)
+    const tmp = path.join(dir, 'tasks.json.' + process.pid + '.' + Math.random().toString(36).slice(2) + '.tmp')
+    try {
+      fs.writeFileSync(tmp, content, 'utf-8')
+      fs.renameSync(tmp, file)
+    } catch (err) {
+      try { fs.unlinkSync(tmp) } catch { /* ignore */ }
+      throw err
+    }
   }
 }
 
 function readTaskFile(): TaskFile {
   ensureTasksFile()
   try {
-    const raw = fs.readFileSync(TASKS_FILE, 'utf-8').trim()
+    const raw = fs.readFileSync(tasksFile(), 'utf-8').trim()
     if (!raw) return { tasks: [] }
     const parsed = JSON.parse(raw) as Partial<TaskFile>
     return { tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [] }
@@ -60,9 +84,29 @@ function readTaskFile(): TaskFile {
   }
 }
 
-function writeTaskFile(data: TaskFile): void {
-  ensureTasksFile()
-  fs.writeFileSync(TASKS_FILE, JSON.stringify(data, null, 2) + '\n', 'utf-8')
+/**
+ * Atomic write: serialize to a per-process temp file in the same directory,
+ * then renameSync over the target. On POSIX rename(2) is atomic within a
+ * filesystem, so a crash mid-write cannot leave a partial or empty file at
+ * the target path. Matches the pattern used by mcp-hub/cache.ts and
+ * mcp-presets-store.ts.
+ *
+ * Caller must ensure the parent directory exists (via ensureTasksFile or
+ * readTaskFile which calls it).
+ */
+function atomicWriteJson(data: TaskFile): void {
+  const file = tasksFile()
+  const content = JSON.stringify(data, null, 2) + '\n'
+  const dir = path.dirname(file)
+  const tmp = path.join(dir, 'tasks.json.' + process.pid + '.' + Math.random().toString(36).slice(2) + '.tmp')
+  try {
+    fs.writeFileSync(tmp, content, 'utf-8')
+    fs.renameSync(tmp, file)
+  } catch (err) {
+    // Clean up temp file on failure
+    try { fs.unlinkSync(tmp) } catch { /* ignore */ }
+    throw err
+  }
 }
 
 function normalizeTask(task: Partial<TaskRecord> & Pick<TaskRecord, 'id' | 'title' | 'created_at' | 'updated_at' | 'created_by'>): TaskRecord {
@@ -121,7 +165,7 @@ export function createTask(input: CreateTaskInput): TaskRecord {
     updated_at: now,
   })
   file.tasks.push(task)
-  writeTaskFile({ tasks: file.tasks.map(normalizeTask) })
+  atomicWriteJson({ tasks: file.tasks.map(normalizeTask) })
   return task
 }
 
@@ -142,7 +186,7 @@ export function updateTask(taskId: string, updates: UpdateTaskInput): TaskRecord
   })
 
   file.tasks[index] = next
-  writeTaskFile({ tasks: file.tasks.map(normalizeTask) })
+  atomicWriteJson({ tasks: file.tasks.map(normalizeTask) })
   return next
 }
 
@@ -154,6 +198,6 @@ export function deleteTask(taskId: string): boolean {
   const file = readTaskFile()
   const nextTasks = file.tasks.filter((task) => task.id !== taskId)
   if (nextTasks.length === file.tasks.length) return false
-  writeTaskFile({ tasks: nextTasks.map((task) => normalizeTask(task as TaskRecord)) })
+  atomicWriteJson({ tasks: nextTasks.map((task) => normalizeTask(task as TaskRecord)) })
   return true
 }
