@@ -14,11 +14,11 @@ export function DocsMermaid({ trigger }: { trigger?: string }) {
       if (!initialized) {
         mermaid.initialize({
           startOnLoad: false,
-          securityLevel: 'loose',
+          securityLevel: 'strict',
           theme: 'dark',
           fontFamily: 'ui-sans-serif, system-ui, sans-serif',
           flowchart: {
-            htmlLabels: true,
+            htmlLabels: false,
             curve: 'basis',
             useMaxWidth: true,
           },
