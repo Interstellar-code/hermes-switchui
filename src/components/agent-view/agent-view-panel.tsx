@@ -226,7 +226,7 @@ function OrchestratorCard({
     return all.find((p) => p.status === 'ok' && p.lines.length > 0) ?? null
   }
 
-  function updateUsageRowsFromProviders(providers: OcProviderEntry[], preferred: string | null) {
+  const updateUsageRowsFromProviders = useCallback((providers: OcProviderEntry[], preferred: string | null) => {
     const primary = getPrimaryProvider(providers, preferred)
     if (!primary) return
     const rows: OcUsageRow[] = primary.lines
@@ -237,7 +237,7 @@ function OrchestratorCard({
     const name = primary.displayName.split(' ')[0]
     const lbl = primary.plan ? `${name} ${primary.plan}` : name
     setProviderLabel(lbl.length > 14 ? name : lbl)
-  }
+  }, [setUsageRows, setProviderLabel])
 
   function cycleOcProvider() {
     const okProviders = allOcProviders.filter((p) => p.status === 'ok' && p.lines.length > 0)
@@ -294,8 +294,7 @@ function OrchestratorCard({
       clearInterval(timer)
       if (flashTimerRefOc.current) clearTimeout(flashTimerRefOc.current)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preferredProvider])
+  }, [preferredProvider, updateUsageRowsFromProviders])
 
   const displayName = agentName || sessionName || 'Agent'
 
