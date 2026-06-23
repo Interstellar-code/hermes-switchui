@@ -1,3 +1,9 @@
+import {
+  parseJsonIfPossible,
+  readRecord,
+  readString,
+} from '../../lib/stream-utils'
+
 type SyntheticLiveToolTracker = {
   emittedPhaseByToolCallId: Map<string, 'calling' | 'complete' | 'error'>
 }
@@ -17,33 +23,6 @@ type SyntheticLiveToolEvent = {
   result?: string
   sessionKey: string
   runId?: string
-}
-
-function readString(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : ''
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === 'object'
-    ? (value as Record<string, unknown>)
-    : undefined
-}
-
-function parseJsonIfPossible(value: unknown): unknown {
-  if (typeof value !== 'string') return value
-  const trimmed = value.trim()
-  if (!trimmed) return value
-  if (
-    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-    (trimmed.startsWith('[') && trimmed.endsWith(']'))
-  ) {
-    try {
-      return JSON.parse(trimmed)
-    } catch {
-      return value
-    }
-  }
-  return value
 }
 
 function extractToolResultText(message: Record<string, unknown>): string {
