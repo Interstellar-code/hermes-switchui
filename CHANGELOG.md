@@ -3,6 +3,43 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.51] — 2026-06-23
+
+Security + stability + cleanup patch. This cut lands a large batch of autonomously-triaged backend, streaming, store, and frontend fixes (PRs #251–#271) on top of two small UI features. All changes were branch-isolated, tsc/lint/test-gated, and adversarially verified before merge. (Two additional security fixes — terminal cwd containment #149/#161 and knowledge-path traversal #156 — remain open as PRs #259/#263 pending human security review and are NOT in this release.)
+
+### Added
+
+- **Skills screen: per-profile filtering.** Skill frontmatter (name/description/tags/triggers/homepage) is parsed and the sidebar filters skills by agent profile with per-profile counts.
+- **Tasks screen: sidebar accordions, per-column select-all, and bulk delete.** Filter sections are collapsible; each board column has a select-all control; a two-step-confirm bulk Delete sits in the selection action bar. Removed the static metrics footer.
+
+### Security
+
+- **`/api/events` SSE now requires authentication.** It returns 401 before opening the chat-bus event stream, matching the other SSE routes. (#155, #251)
+- **Markdown links and Mermaid rendering hardened.** Rendered anchors run through a scheme allowlist (drops `javascript:`/`data:`/`vbscript:`), and Mermaid initializes with `securityLevel: 'strict'` + `htmlLabels: false`. (#152, #153, #260)
+- **CSRF Content-Type guard added to three mutating POST routes.** `hermes-kanban/tasks`, `tasks/:id/comments`, and `workflow-definitions/:id/reset-factory` now reject cross-site form posts. (#158, #261)
+- **OAuth token endpoints now require auth + rate limiting.** `oauth.device-code` and `oauth.poll-token` gate on `isAuthenticated` and a per-IP rate limit before any token work. (#160, #262)
+- **HTML file-preview iframe contract hardened.** Added `referrerPolicy="no-referrer"` and documented the `sandbox=""` (no-`allow-scripts`) contract so it can't be relaxed by mistake. (#154, #264)
+
+### Fixed
+
+- **Board delete now works.** The board DELETE request was missing `Content-Type: application/json`, so the CSRF guard returned 415 and the confirm dialog hung silently — the header is now sent. (#258)
+- **workflow-runs API handlers hardened.** `request.json()` parse failures return 400; auth now runs before the CSRF check (401, not a leaked 415); `cancelRun`/`resumeWorkflowRun` engine errors return 500 instead of throwing. (#157, #159, #162, #257)
+- **Timer leaks cleared.** The settings reveal-secret auto-hide timers and the tasks dispatch-result timer are tracked in refs and cleared on unmount/re-schedule, preventing setState-after-unmount. (#163, #167, #256)
+- **Zustand rehydrate applies via setState.** `mission-store` and `terminal-panel-store` `onRehydrateStorage` no longer mutate state directly (which skipped subscriber notification); rehydrated values now apply through the store API. (#164, #168, #254)
+- **Persist stores are versioned.** Five `persist()` stores gained `version` + `migrate`, preventing stale/incompatible localStorage from hydrating after a shape change. (#172, #255)
+- **Atomic file writes for server stores.** `tool-artifacts-store`, `run-store`, and `kanban-backend` writes use a temp-file + rename swap, preventing crash-time truncation. (#142, #148, #173, #252)
+- **Timeouts on workflow + provider-usage fetches.** Bare `fetch`/`dashboardFetch` calls in the workflow plugin client, plugin-install probe, and provider OAuth/usage refresh now carry `AbortSignal.timeout`, so a dead endpoint can't hang the operation. (#175, #176, #180, #253)
+- **Streaming pipeline resilience.** The active-run tracker now expires entries on a TTL (was an unbounded Set); the live poller stops with a warning after repeated consecutive failures instead of swallowing them silently; the friendly-id header fallback now warns. (#130, #132, #134, #266)
+- **Run-store and tool-artifacts concurrency/bounds.** `updatePersistedRun`'s read-modify-write is serialized with a per-run async lock (concurrent SSE events no longer lose updates); the tool-artifacts index is capped with oldest-first eviction plus a per-session cleanup. (#141, #143, #267)
+- **Frontend store correctness.** A stale-closure in the agent-view usage effect is fixed via `useCallback`; the mission-store `beforeunload` checkpoint is now actually registered; task IDs use `crypto.randomUUID()` with a bounded persisted-task cap. (#165, #166, #169, #269)
+- **Config read is cached.** `/api/connection-status` mtime-gates the `config.yaml` read instead of re-parsing on every poll. (#136, #270)
+- **Agent/workspace update re-checks the working tree before reset.** `applyAgentUpdate`/`applyWorkspaceUpdate` now re-run the dirty-tree check immediately before `git reset --hard`, refusing to reset (and destroy uncommitted changes) if the tree is dirty. (#179, #271)
+
+### Changed
+
+- **Shared stream-parsing utilities extracted.** `readString`/`readRecord`/`parseJsonIfPossible`/`stripDataUrlPrefix` are unified in `src/lib/stream-utils.ts` (deduped across send-stream paths; one typed signature each). (#139, #140, #265)
+- **Dead backend code removed.** Removed the unused server `tasks-store` CRUD exports (Kanban cutover left them orphaned), a redundant `resolveKanbanBackend` branch, and the no-op `ensureBusStarted`. (#151, #171, #182, #268)
+
 ## [2.3.50] — 2026-06-22
 
 Security + stability patch release. This cut includes the five human-merged backend fixes from PRs #246–#250 and rolls forward several recent mainline fixes/features that were already landed but not called out clearly in the previous release notes.
