@@ -472,6 +472,13 @@ function stripQueuedWrapperFromUserMessage(message: ChatMessage): ChatMessage {
   }
 }
 
+/**
+ * Frontend streaming failsafe timeout (ms).
+ * Must be >= SEND_STREAM_RUN_TIMEOUT_MS (600_000) defined in send-stream.ts
+ * to prevent the composer re-enabling while the backend is still processing.
+ */
+export const STREAMING_FAILSAFE_TIMEOUT_MS = 600_000
+
 export function ChatScreen({
   activeFriendlyId,
   isNewChat = false,
@@ -2244,14 +2251,13 @@ export function ChatScreen({
         clientId: optimisticClientId,
       }
 
-      // Failsafe: clear waitingForResponse after 120s no matter what
-      // Prevents infinite spinner if SSE/idle detection both fail
+      // Failsafe: clear waitingForResponse after timeout no matter what
       if (failsafeTimerRef.current) {
         window.clearTimeout(failsafeTimerRef.current)
       }
       failsafeTimerRef.current = window.setTimeout(() => {
         streamFinish()
-      }, 120_000)
+      }, STREAMING_FAILSAFE_TIMEOUT_MS)
 
       // Send a compatibility shape for attachment parsing.
       // Different server/channel versions read different keys.
