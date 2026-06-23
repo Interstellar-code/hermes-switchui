@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { listPersonas, readPersona } from './personas-browser'
 
 // ── integration tests with bundled assets ─────────────────────────────────────
@@ -205,5 +208,97 @@ describe('personas-browser (bundled assets)', () => {
         expect(Array.isArray(persona.suggested_toolsets)).toBe(true)
       }
     }
+  })
+})
+
+// ── duplicate-id handling (issue #181) ────────────────────────────────────────
+// Uses a real temp directory passed via the _rootOverride parameter so no
+// mocking of fs internals is needed.
+
+describe('personas-browser (duplicate id handling)', () => {
+  let tmpDir: string
+
+  const PERSONA_A = `---
+id: dupe-test-id
+category: engineering
+glyph: AA
+name: Alpha
+description: First persona
+tags: []
+---
+Alpha system prompt.
+`
+
+  const PERSONA_B = `---
+id: dupe-test-id
+category: engineering
+glyph: BB
+name: Beta
+description: Second persona with same id
+tags: []
+---
+Beta system prompt.
+`
+
+  const PERSONA_C = `---
+id: unique-test-id
+category: engineering
+glyph: CC
+name: Gamma
+description: Third persona, unique id
+tags: []
+---
+Gamma system prompt.
+`
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'personas-test-'))
+    // a-alpha.md sorts before b-beta.md → Alpha is the first occurrence of dupe-test-id
+    fs.writeFileSync(path.join(tmpDir, 'a-alpha.md'), PERSONA_A)
+    fs.writeFileSync(path.join(tmpDir, 'b-beta.md'), PERSONA_B)
+    fs.writeFileSync(path.join(tmpDir, 'c-gamma.md'), PERSONA_C)
+  })
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it('does not throw when a duplicate persona id is encountered', () => {
+    expect(() => listPersonas(tmpDir)).not.toThrow()
+  })
+
+  it('returns an array (not undefined/null) when duplicates exist', () => {
+    const result = listPersonas(tmpDir)
+    expect(Array.isArray(result)).toBe(true)
+  })
+
+  it('keeps only the first occurrence of a duplicate id', () => {
+    const result = listPersonas(tmpDir)
+    const dupes = result.filter((p) => p.id === 'dupe-test-id')
+    expect(dupes).toHaveLength(1)
+    // a-alpha.md is read first (alphabetical order); glyph AA = first occurrence kept
+    expect(dupes[0].glyph).toBe('AA')
+  })
+
+  it('still includes personas with unique ids after skipping duplicates', () => {
+    const result = listPersonas(tmpDir)
+    const gamma = result.find((p) => p.id === 'unique-test-id')
+    expect(gamma).toBeDefined()
+    expect(gamma?.glyph).toBe('CC')
+  })
+
+  it('returns 2 personas total (1 dupe dropped, 2 unique kept)', () => {
+    const result = listPersonas(tmpDir)
+    expect(result).toHaveLength(2)
+  })
+
+  it('emits a console.warn for the duplicate', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    listPersonas(tmpDir)
+    const warned = warnSpy.mock.calls.some((args) =>
+      String(args[0]).includes('dupe-test-id'),
+    )
+    expect(warned).toBe(true)
+    warnSpy.mockRestore()
   })
 })

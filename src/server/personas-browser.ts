@@ -109,9 +109,9 @@ function parsePersonaFile(filePath: string): Persona | null {
   }
 }
 
-export function listPersonas(): Persona[] {
-  // Read from bundled assets (assets/personas/curated/)
-  const bundledRoot = getBundledPersonasRoot()
+export function listPersonas(_rootOverride?: string): Persona[] {
+  // Read from bundled assets (assets/personas/curated/), or from override (testing only)
+  const bundledRoot = _rootOverride ?? getBundledPersonasRoot()
   if (!fs.existsSync(bundledRoot)) return []
 
   const personas: Persona[] = []
@@ -130,11 +130,12 @@ export function listPersonas(): Persona[] {
     const persona = parsePersonaFile(filePath)
     if (!persona) continue
 
-    // Duplicate id check
+    // Duplicate id check — warn and skip (keep first occurrence; don't crash the whole list)
     if (seenIds.has(persona.id)) {
-      throw new Error(
-        `[personas] Duplicate persona id "${persona.id}" found in:\n  ${seenIds.get(persona.id)}\n  ${filePath}`,
+      console.warn(
+        `[personas] Duplicate persona id "${persona.id}" found in:\n  ${seenIds.get(persona.id)} (kept)\n  ${filePath} (skipped)`,
       )
+      continue
     }
     seenIds.set(persona.id, filePath)
     personas.push(persona)
