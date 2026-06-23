@@ -148,20 +148,22 @@ export const useTerminalPanelStore = create<TerminalPanelState>()(
         }
       },
       onRehydrateStorage: function onRehydrateStorage() {
-        return function onHydrated(state) {
-          if (!state) return
+        return function onHydrated(state, error) {
+          if (error || !state) return
           if (state.tabs.length === 0) {
             const fallback = createDefaultTab(state.terminalCounter + 1)
-            state.tabs = [fallback]
-            state.activeTabId = fallback.id
-            state.terminalCounter += 1
+            useTerminalPanelStore.setState({
+              tabs: [fallback],
+              activeTabId: fallback.id,
+              terminalCounter: state.terminalCounter + 1,
+            })
             return
           }
           const activeExists = state.tabs.some(
             (tab) => tab.id === state.activeTabId,
           )
           if (!activeExists) {
-            state.activeTabId = state.tabs[0].id
+            useTerminalPanelStore.setState({ activeTabId: state.tabs[0].id })
           }
         }
       },
