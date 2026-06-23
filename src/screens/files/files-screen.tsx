@@ -161,7 +161,30 @@ function getMarkdownOutline(content: string): Array<MarkdownHeading> {
     .slice(0, 12)
 }
 
+// SECURITY: The PRIMARY XSS control for HTML previews is the sandboxed iframe
+// rendered below (sandbox="" with NO allow-scripts and NO allow-same-origin).
+// That combination makes the iframe a fully isolated origin with no script
+// execution, no storage access, and no parent-frame communication — regardless
+// of what HTML content ends up inside it.
+//
+// The regex strip below is COSMETIC defense-in-depth only. It removes obvious
+// <script> blocks so they do not clutter the visual preview, but it MUST NOT
+// be treated as a security boundary:
+//   - It does not remove inline event handlers (onerror=, onload=, etc.)
+//   - It does not remove javascript: URIs in href/src attributes
+//   - It can be bypassed with malformed/nested tag patterns
+//
+// DO NOT ADD allow-scripts or allow-same-origin to the sandbox attribute.
+// Those two tokens together would defeat the isolation and enable stored XSS.
+// If interactive preview (e.g. running scripts) is ever needed, that is a
+// design decision requiring a full sanitizer or a separate sandboxed origin —
+// do not relax the sandbox attribute as a quick fix.
+//
+// Residual: <base target="_blank"> is inert here because allow-popups is not
+// granted; opened links are silently blocked by the sandbox.
 function buildHtmlPreviewDocument(source: string): string {
+  // Cosmetic only — strips obvious <script> blocks from the rendered view.
+  // The sandbox="" iframe attribute is the actual security control (see above).
   const withoutScripts = source.replace(
     /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
     '',
@@ -968,9 +991,13 @@ function FilePanel({
     if (isHtml) {
       return (
         <div className="files-html-shell">
+          {/* sandbox="" (no tokens) = fully isolated origin: no scripts, no
+              storage, no parent-frame access. NEVER add allow-scripts or
+              allow-same-origin here — see buildHtmlPreviewDocument for detail. */}
           <iframe
             title={`${selectedEntry.name} preview`}
             sandbox=""
+            referrerPolicy="no-referrer"
             srcDoc={buildHtmlPreviewDocument(content)}
           />
         </div>
