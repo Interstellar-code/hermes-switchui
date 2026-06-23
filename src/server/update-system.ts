@@ -660,6 +660,20 @@ export function applyWorkspaceUpdate(): ApplyUpdateResult {
       error: `${remoteRef} could not be verified.`,
     }
   }
+  // Re-check dirty state immediately before the destructive sync: the fetch
+  // above could have introduced index changes, or the tree may have become
+  // dirty between the initial readWorkspaceUpdateStatus() call and now.
+  if (isDirty(before.repoPath)) {
+    return {
+      ok: false,
+      product: 'workspace',
+      output: output.filter(Boolean).join('\n'),
+      restartRequired: false,
+      status: readWorkspaceUpdateStatus(),
+      releaseNotes: [],
+      error: 'Working tree has uncommitted changes; refusing to reset.',
+    }
+  }
   output.push(syncRepoToRemote(before.repoPath, remoteRef))
   const after = readWorkspaceUpdateStatus()
   const changedFiles =
@@ -757,6 +771,20 @@ export function applyAgentUpdate(): ApplyUpdateResult {
       status,
       releaseNotes: [],
       error: `${remoteRef} could not be verified.`,
+    }
+  }
+  // Re-check dirty state immediately before the destructive sync: the fetch
+  // above could have introduced index changes, or the tree may have become
+  // dirty between the initial readAgentUpdateStatus() call and now.
+  if (isDirty(before.repoPath)) {
+    return {
+      ok: false,
+      product: 'agent',
+      output: output.filter(Boolean).join('\n'),
+      restartRequired: false,
+      status: readAgentUpdateStatus(),
+      releaseNotes: [],
+      error: 'Agent repo has uncommitted changes; refusing to reset.',
     }
   }
   output.push(syncRepoToRemote(before.repoPath, remoteRef))
