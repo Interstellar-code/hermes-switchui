@@ -217,11 +217,19 @@ const _dbCache = new Map<string, Database.Database>()
 
 function openDb(dbPath: string): Database.Database {
   let db = _dbCache.get(dbPath)
-  if (!db) {
-    db = new Database(dbPath, { readonly: false })
-    db.pragma('journal_mode = WAL')
-    _dbCache.set(dbPath, db)
+  if (db) {
+    try {
+      db.prepare('SELECT 1').get()
+      return db
+    } catch {
+      // Handle is dead (file replaced, connection closed/corrupted). Evict and recreate.
+      try { db.close() } catch { /* swallow — handle may already be unusable */ }
+      _dbCache.delete(dbPath)
+    }
   }
+  db = new Database(dbPath, { readonly: false })
+  db.pragma('journal_mode = WAL')
+  _dbCache.set(dbPath, db)
   return db
 }
 

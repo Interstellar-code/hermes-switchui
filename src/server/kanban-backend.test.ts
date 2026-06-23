@@ -41,6 +41,14 @@ function makeBetterSqliteMock(options: {
     pragma: vi.fn(),
     prepare: vi.fn((sql: string) => {
       stmts.push(sql)
+      // openDb() health probe — must not be treated as a real row read.
+      if (/^\s*select\s+1\b/i.test(sql)) {
+        return {
+          all: vi.fn(() => [{ '1': 1 }]),
+          get: vi.fn(() => ({ '1': 1 })),
+          run: vi.fn(),
+        }
+      }
       return {
         all: vi.fn(() => options.rows?.() ?? []),
         get: vi.fn((id?: string) => {
@@ -276,6 +284,147 @@ describe('kanban-backend', () => {
     // status is the 5th positional param (id, title, body, assignee, status, ...)
     expect(insertRun?.args[4]).toBe('triage')
     expect(insertRun?.args[4]).not.toBe('queued')
+  })
+})
+
+describe('kanban-backend — openDb health-check and handle recreation', () => {
+  /**
+   * Verify the fix for issue #177:
+   * When a cached Database handle's probe (`SELECT 1`) throws, openDb must
+   * evict the broken handle, close it (swallowing errors), and open a fresh
+   * connection — not reuse the dead one.
+   */
+  it('recreates a fresh handle when the cached handle probe throws', async () => {
+    vi.stubEnv('CLAUDE_HOME', '/Users/aurora/.claude/profiles/swarm2')
+
+    // Two distinct mock DB objects so we can assert which one is returned.
+    const deadDb = {
+      pragma: vi.fn(),
+      close: vi.fn(),
+      prepare: vi.fn(() => ({
+        all: vi.fn(() => []),
+        // SELECT 1 probe always throws — simulates a dead/corrupted handle.
+        get: vi.fn(() => { throw new Error('SQLITE_ERROR: database disk image is malformed') }),
+        run: vi.fn(),
+      })),
+    }
+
+    const freshRows = [{
+      id: 't_fresh',
+      title: 'Fresh task',
+      body: '',
+      status: 'ready',
+      assignee: null,
+      created_at: 1777527540,
+      updated_at: 1777527644,
+    }]
+    const freshDb = {
+      pragma: vi.fn(),
+      close: vi.fn(),
+      prepare: vi.fn(() => ({
+        all: vi.fn(() => freshRows),
+        get: vi.fn(() => freshRows[0]),
+        run: vi.fn(),
+      })),
+    }
+
+    // The Database constructor is called twice: first produces the dead handle,
+    // second produces the fresh handle.
+    let constructorCallCount = 0
+    vi.doMock('node:fs', () => ({
+      existsSync: vi.fn((p: string) => p === '/Users/aurora/.claude/kanban.db'),
+      readFileSync: vi.fn(() => LOCAL_FAKE_CARDS),
+      writeFileSync: vi.fn(),
+      renameSync: vi.fn(),
+      unlinkSync: vi.fn(),
+      mkdirSync: vi.fn(),
+    }))
+    vi.doMock('node:child_process', () => ({
+      execFileSync: vi.fn((command: string, args: string[] = []) => {
+        if (command === 'which' && args[0] === 'claude') throw new Error('not found')
+        return ''
+      }),
+    }))
+    vi.doMock('better-sqlite3', () => ({
+      default: vi.fn(function DatabaseMock() {
+        constructorCallCount += 1
+        return constructorCallCount === 1 ? deadDb : freshDb
+      }),
+    }))
+
+    const mod = await import('./kanban-backend')
+
+    // First call: populates cache with deadDb.
+    // (listKanbanCards internally calls openDb which runs the probe SELECT 1 — but
+    // at first-open there is no cached handle yet so the probe is skipped; deadDb
+    // is inserted into the cache.)
+    mod.listKanbanCards()
+    expect(constructorCallCount).toBe(1)
+
+    // Second call: deadDb is now in cache; probe throws → evict → construct freshDb.
+    const cards = mod.listKanbanCards()
+    expect(constructorCallCount).toBe(2)
+
+    // The dead handle's close() should have been attempted.
+    expect(deadDb.close).toHaveBeenCalledOnce()
+
+    // The result comes from freshDb, not deadDb.
+    expect(cards).toHaveLength(1)
+    expect(cards[0]).toMatchObject({ id: 't_fresh', status: 'ready' })
+
+    // Third call: freshDb probe succeeds → no additional constructor call.
+    mod.listKanbanCards()
+    expect(constructorCallCount).toBe(2)
+  })
+
+  it('returns the cached handle on the fast path when the probe succeeds', async () => {
+    vi.stubEnv('CLAUDE_HOME', '/Users/aurora/.claude/profiles/swarm2')
+
+    let constructorCallCount = 0
+    const healthyDb = {
+      pragma: vi.fn(),
+      close: vi.fn(),
+      prepare: vi.fn(() => ({
+        all: vi.fn(() => []),
+        get: vi.fn(() => ({ '1': 1 })), // probe succeeds
+        run: vi.fn(),
+      })),
+    }
+
+    vi.doMock('node:fs', () => ({
+      existsSync: vi.fn((p: string) => p === '/Users/aurora/.claude/kanban.db'),
+      readFileSync: vi.fn(() => LOCAL_FAKE_CARDS),
+      writeFileSync: vi.fn(),
+      renameSync: vi.fn(),
+      unlinkSync: vi.fn(),
+      mkdirSync: vi.fn(),
+    }))
+    vi.doMock('node:child_process', () => ({
+      execFileSync: vi.fn((command: string, args: string[] = []) => {
+        if (command === 'which' && args[0] === 'claude') throw new Error('not found')
+        return ''
+      }),
+    }))
+    vi.doMock('better-sqlite3', () => ({
+      default: vi.fn(function DatabaseMock() {
+        constructorCallCount += 1
+        return healthyDb
+      }),
+    }))
+
+    const mod = await import('./kanban-backend')
+
+    // Warm the cache.
+    mod.listKanbanCards()
+    expect(constructorCallCount).toBe(1)
+
+    // Multiple subsequent calls must not create new connections.
+    mod.listKanbanCards()
+    mod.listKanbanCards()
+    expect(constructorCallCount).toBe(1)
+
+    // close() is never called on a healthy handle.
+    expect(healthyDb.close).not.toHaveBeenCalled()
   })
 })
 
