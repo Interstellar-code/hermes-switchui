@@ -1,9 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
-import {
-  ensureBusStarted,
-  subscribeToChatEvents,
-} from '../../server/chat-event-bus'
+import { subscribeToChatEvents } from '../../server/chat-event-bus'
 
 /**
  * SSE endpoint for chat events.
@@ -63,9 +60,6 @@ export const Route = createFileRoute('/api/chat-events')({
             }
 
             try {
-              // Start the singleton bus if not already running
-              await ensureBusStarted()
-
               sendEvent('connected', {
                 timestamp: Date.now(),
                 sessionKey: sessionKeyParam || 'all',

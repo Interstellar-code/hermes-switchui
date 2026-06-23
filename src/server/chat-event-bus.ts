@@ -13,14 +13,12 @@ const BUS_KEY = '__claude_chat_event_bus__' as const
 
 interface BusState {
   subscribers: Set<ChatSSESubscriber>
-  started: boolean
 }
 
 function getBus(): BusState {
   if (!(globalThis as any)[BUS_KEY]) {
     ;(globalThis as any)[BUS_KEY] = {
       subscribers: new Set<ChatSSESubscriber>(),
-      started: false,
     }
   }
   return (globalThis as any)[BUS_KEY]
@@ -47,11 +45,6 @@ export function publishChatEvent(
   broadcast(event, data)
 }
 
-export async function ensureBusStarted(): Promise<void> {
-  const bus = getBus()
-  if (bus.started) return
-  bus.started = true
-}
 
 export function subscribeToChatEvents(
   subscriber: ChatSSESubscriber,

@@ -1,12 +1,9 @@
 /**
- * Legacy SwitchUI tasks.json store. Do not use for active /tasks board writes.
- * Kept only for one-time migration/import support via legacy-tasks-migration.ts.
+ * Legacy SwitchUI tasks.json store — type definitions only.
  * The active task board is backed by Hermes Agent Kanban (kanban.db via :9119 API).
+ * CRUD exports (listTasks, createTask, updateTask, moveTask, deleteTask) were
+ * removed in #151 — no route callers since the Kanban cutover.
  */
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
-import { randomUUID } from 'node:crypto'
 
 export type TaskColumn = 'backlog' | 'todo' | 'in_progress' | 'review' | 'done'
 export type TaskPriority = 'high' | 'medium' | 'low'
@@ -18,186 +15,10 @@ export type TaskRecord = {
   column: TaskColumn
   priority: TaskPriority
   assignee: string | null
-  tags: string[]
+  tags: Array<string>
   due_date: string | null
   position: number
   created_by: string
   created_at: string
   updated_at: string
-}
-
-type TaskFile = { tasks: TaskRecord[] }
-
-type TaskFilters = {
-  column?: string | null
-  assignee?: string | null
-  priority?: string | null
-  includeDone?: boolean
-}
-
-type CreateTaskInput = Partial<TaskRecord> & { title: string }
-type UpdateTaskInput = Partial<Omit<TaskRecord, 'id' | 'created_at' | 'created_by'>>
-
-/**
- * Lazy home-dir resolution so tests can override HERMES_HOME per-case.
- * Mirrors the pattern in mcp-presets-store.ts and mcp-hub/cache.ts.
- */
-function hermesHome(): string {
-  return process.env.HERMES_HOME?.trim() || process.env.CLAUDE_HOME?.trim() || path.join(os.homedir(), '.hermes')
-}
-
-function tasksFile(): string {
-  return path.join(hermesHome(), 'tasks.json')
-}
-
-export function tasksFilePath(): string {
-  return tasksFile()
-}
-
-function ensureTasksFile(): void {
-  const home = hermesHome()
-  const file = tasksFile()
-  fs.mkdirSync(home, { recursive: true })
-  if (!fs.existsSync(file)) {
-    const content = JSON.stringify({ tasks: [] }, null, 2) + '\n'
-    const dir = path.dirname(file)
-    const tmp = path.join(dir, 'tasks.json.' + process.pid + '.' + Math.random().toString(36).slice(2) + '.tmp')
-    try {
-      fs.writeFileSync(tmp, content, 'utf-8')
-      fs.renameSync(tmp, file)
-    } catch (err) {
-      try { fs.unlinkSync(tmp) } catch { /* ignore */ }
-      throw err
-    }
-  }
-}
-
-function readTaskFile(): TaskFile {
-  ensureTasksFile()
-  try {
-    const raw = fs.readFileSync(tasksFile(), 'utf-8').trim()
-    if (!raw) return { tasks: [] }
-    const parsed = JSON.parse(raw) as Partial<TaskFile>
-    return { tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [] }
-  } catch {
-    return { tasks: [] }
-  }
-}
-
-/**
- * Atomic write: serialize to a per-process temp file in the same directory,
- * then renameSync over the target. On POSIX rename(2) is atomic within a
- * filesystem, so a crash mid-write cannot leave a partial or empty file at
- * the target path. Matches the pattern used by mcp-hub/cache.ts and
- * mcp-presets-store.ts.
- *
- * Caller must ensure the parent directory exists (via ensureTasksFile or
- * readTaskFile which calls it).
- */
-function atomicWriteJson(data: TaskFile): void {
-  const file = tasksFile()
-  const content = JSON.stringify(data, null, 2) + '\n'
-  const dir = path.dirname(file)
-  const tmp = path.join(dir, 'tasks.json.' + process.pid + '.' + Math.random().toString(36).slice(2) + '.tmp')
-  try {
-    fs.writeFileSync(tmp, content, 'utf-8')
-    fs.renameSync(tmp, file)
-  } catch (err) {
-    // Clean up temp file on failure
-    try { fs.unlinkSync(tmp) } catch { /* ignore */ }
-    throw err
-  }
-}
-
-function normalizeTask(task: Partial<TaskRecord> & Pick<TaskRecord, 'id' | 'title' | 'created_at' | 'updated_at' | 'created_by'>): TaskRecord {
-  return {
-    id: task.id,
-    title: task.title,
-    description: task.description ?? '',
-    column: (task.column as TaskColumn) ?? 'backlog',
-    priority: (task.priority as TaskPriority) ?? 'medium',
-    assignee: task.assignee ?? null,
-    tags: Array.isArray(task.tags) ? task.tags.filter((tag): tag is string => typeof tag === 'string') : [],
-    due_date: task.due_date ?? null,
-    position: typeof task.position === 'number' ? task.position : 0,
-    created_by: task.created_by,
-    created_at: task.created_at,
-    updated_at: task.updated_at,
-  }
-}
-
-export function listTasks(filters: TaskFilters = {}): TaskRecord[] {
-  let tasks = readTaskFile().tasks.map(normalizeTask)
-  if (!filters.includeDone) {
-    tasks = tasks.filter((task) => task.column !== 'done')
-  }
-  if (filters.column) {
-    tasks = tasks.filter((task) => task.column === filters.column)
-  }
-  if (filters.assignee) {
-    tasks = tasks.filter((task) => task.assignee === filters.assignee)
-  }
-  if (filters.priority) {
-    tasks = tasks.filter((task) => task.priority === filters.priority)
-  }
-  return tasks.sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at))
-}
-
-export function getTask(taskId: string): TaskRecord | null {
-  return readTaskFile().tasks.map(normalizeTask).find((task) => task.id === taskId) ?? null
-}
-
-export function createTask(input: CreateTaskInput): TaskRecord {
-  const file = readTaskFile()
-  const now = new Date().toISOString()
-  const task = normalizeTask({
-    id: typeof input.id === 'string' && input.id ? input.id : randomUUID(),
-    title: input.title,
-    description: input.description,
-    column: input.column,
-    priority: input.priority,
-    assignee: input.assignee,
-    tags: input.tags,
-    due_date: input.due_date,
-    position: typeof input.position === 'number' ? input.position : 0,
-    created_by: typeof input.created_by === 'string' && input.created_by ? input.created_by : 'user',
-    created_at: now,
-    updated_at: now,
-  })
-  file.tasks.push(task)
-  atomicWriteJson({ tasks: file.tasks.map(normalizeTask) })
-  return task
-}
-
-export function updateTask(taskId: string, updates: UpdateTaskInput): TaskRecord | null {
-  const file = readTaskFile()
-  const index = file.tasks.findIndex((task) => task.id === taskId)
-  if (index === -1) return null
-
-  const current = normalizeTask(file.tasks[index] as TaskRecord)
-  const next = normalizeTask({
-    ...current,
-    ...updates,
-    id: current.id,
-    created_by: current.created_by,
-    created_at: current.created_at,
-    updated_at: new Date().toISOString(),
-    title: typeof updates.title === 'string' ? updates.title : current.title,
-  })
-
-  file.tasks[index] = next
-  atomicWriteJson({ tasks: file.tasks.map(normalizeTask) })
-  return next
-}
-
-export function moveTask(taskId: string, column: TaskColumn): TaskRecord | null {
-  return updateTask(taskId, { column })
-}
-
-export function deleteTask(taskId: string): boolean {
-  const file = readTaskFile()
-  const nextTasks = file.tasks.filter((task) => task.id !== taskId)
-  if (nextTasks.length === file.tasks.length) return false
-  atomicWriteJson({ tasks: nextTasks.map((task) => normalizeTask(task as TaskRecord)) })
-  return true
 }
