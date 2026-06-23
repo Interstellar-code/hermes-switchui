@@ -56,7 +56,7 @@ export async function fetchDeleteBoard(
   const q = new URLSearchParams({ delete: hardDelete ? 'true' : 'false' })
   return boardsJson<{ result: Record<string, unknown>; current: string }>(
     `/api/hermes-kanban/boards/${encodeURIComponent(slug)}?${q.toString()}`,
-    { method: 'DELETE' },
+    { method: 'DELETE', headers: { 'Content-Type': 'application/json' } },
   )
 }
 
