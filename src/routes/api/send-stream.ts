@@ -13,6 +13,7 @@ import {
   collectSyntheticLiveToolEvents,
   createSyntheticLiveToolTracker,
 } from './-send-stream-live-tools'
+import { resolveOrphanedToolCards } from './-send-stream-orphan-tools'
 import { resolveSessionKey } from '../../server/session-utils'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { requireJsonContentType } from '../../server/rate-limit'
@@ -551,6 +552,10 @@ export const Route = createFileRoute('/api/send-stream')({
                         args: Record<string, unknown> | string | null
                       }
                     >()
+                    // Track callIds that have received `tool.completed` but
+                    // not yet `tool.output`. On stream end we sweep any
+                    // remaining IDs to 'complete' so no spinner is orphaned.
+                    const awaitingOutput = new Set<string>()
                     try {
                       const responsesStream = streamResponses({
                         input: typeof message === 'string' ? message : '',
@@ -615,6 +620,9 @@ export const Route = createFileRoute('/api/send-stream')({
                           // intentionally do not flip phase to 'complete'
                           // until the output arrives. Otherwise the card
                           // briefly flashes "done" with no result text.
+                          // Track this callId so the stream-end sweep can
+                          // resolve it if tool.output never arrives.
+                          awaitingOutput.add(ev.callId)
                           continue
                         }
                         if (ev.kind === 'tool.output') {
@@ -624,6 +632,8 @@ export const Route = createFileRoute('/api/send-stream')({
                               ? (state.args as Record<string, unknown>)
                               : undefined
                           const name = state?.name || 'tool'
+                          // Happy path: output arrived — no sweep needed.
+                          awaitingOutput.delete(ev.callId)
                           persistActiveRun((runSessionKey, activeId) =>
                             upsertRunToolCall(runSessionKey, activeId, {
                               id: ev.callId,
@@ -653,6 +663,27 @@ export const Route = createFileRoute('/api/send-stream')({
                           throw new Error(ev.error)
                         }
                       }
+                      // Stream-end sweep: resolve any tool cards that
+                      // received tool.completed but never got tool.output.
+                      // Happy path: awaitingOutput is empty (no-op).
+                      for (const orphanEvent of resolveOrphanedToolCards({
+                        awaitingOutput,
+                        toolStateByCallId,
+                        sessionKey: portableSessionKey,
+                        runId,
+                      })) {
+                        persistActiveRun((runSessionKey, activeId) =>
+                          upsertRunToolCall(runSessionKey, activeId, {
+                            id: orphanEvent.toolCallId,
+                            name: orphanEvent.name,
+                            phase: 'complete',
+                            args: orphanEvent.args,
+                            result: undefined,
+                          }),
+                        )
+                        sendEvent('tool', orphanEvent)
+                      }
+                      awaitingOutput.clear()
                       appendLocalMessage(portableSessionKey, {
                         id: crypto.randomUUID(),
                         role: 'assistant',
