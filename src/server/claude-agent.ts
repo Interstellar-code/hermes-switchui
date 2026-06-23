@@ -4,6 +4,8 @@ import { dirname, join, resolve } from 'node:path'
 import { homedir } from 'node:os'
 
 const CLAUDE_HEALTH_TIMEOUT_MS = 2_000
+const CLAUDE_STARTUP_TIMEOUT_MS = 10_000
+const CLAUDE_STARTUP_POLL_INTERVAL_MS = 1_000
 const DEFAULT_GATEWAY_PORT = 8642
 
 let startPromise: Promise<StartClaudeAgentResult> | null = null
@@ -178,6 +180,46 @@ export async function isClaudeAgentHealthy(
   }
 }
 
+/** Maximum time startClaudeAgent waits for the gateway to become healthy. */
+export const STARTUP_TIMEOUT_MS = CLAUDE_STARTUP_TIMEOUT_MS
+/** Poll interval for health checks during startup. */
+export const STARTUP_POLL_INTERVAL_MS = CLAUDE_STARTUP_POLL_INTERVAL_MS
+
+// Test-only knob: lets the unit test collapse the 10s real wait to a few
+// ms without touching the production default. Production callers leave
+// this alone.
+let startupTimeoutOverrideMs: number | null = null
+/** @internal — only vitest should call this. */
+export function __setStartupTimeoutForTests(ms: number | null): void {
+  startupTimeoutOverrideMs = ms
+}
+
+function effectiveStartupTimeoutMs(): number {
+  return startupTimeoutOverrideMs ?? CLAUDE_STARTUP_TIMEOUT_MS
+}
+
+/**
+ * Poll isClaudeAgentHealthy() until it returns true or the timeout elapses.
+ * Exported for testability — production callers should use startClaudeAgent().
+ */
+export async function waitForClaudeAgentHealthy(
+  baseUrl: string = resolveGatewayUrl(),
+  timeoutMs: number = CLAUDE_STARTUP_TIMEOUT_MS,
+  intervalMs: number = CLAUDE_STARTUP_POLL_INTERVAL_MS,
+  sleep: (ms: number) => Promise<void> = (ms) =>
+    new Promise((resolveSleep) => setTimeout(resolveSleep, ms)),
+  probe: (url: string) => Promise<boolean> = isClaudeAgentHealthy,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (await probe(baseUrl)) return true
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) break
+    await sleep(Math.min(intervalMs, remaining))
+  }
+  return probe(baseUrl)
+}
+
 export async function startClaudeAgent(): Promise<StartClaudeAgentResult> {
   if (await isClaudeAgentHealthy()) {
     return { ok: true, message: 'already running' }
@@ -247,21 +289,23 @@ export async function startClaudeAgent(): Promise<StartClaudeAgentResult> {
 
       child.unref()
 
-      for (let attempt = 0; attempt < 10; attempt += 1) {
-        await new Promise((resolveAttempt) => setTimeout(resolveAttempt, 1_000))
-        if (await isClaudeAgentHealthy()) {
-          return {
-            ok: true,
-            pid: child.pid,
-            message: 'started',
-          }
+      const gatewayUrl = resolveGatewayUrl()
+      const healthy = await waitForClaudeAgentHealthy(
+        gatewayUrl,
+        effectiveStartupTimeoutMs(),
+      )
+
+      if (healthy) {
+        return {
+          ok: true,
+          pid: child.pid,
+          message: 'started',
         }
       }
 
       return {
-        ok: true,
-        pid: child.pid,
-        message: 'starting',
+        ok: false,
+        error: `Gateway spawned (pid: ${child.pid ?? 'unknown'}) but did not become healthy at ${gatewayUrl} within ${CLAUDE_STARTUP_TIMEOUT_MS}ms`,
       }
     } catch (error) {
       return {
