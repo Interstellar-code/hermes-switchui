@@ -24,7 +24,8 @@ const STREAMING_TTL_MS = 60_000
 const RECOVERY_MSG_PREFIX = 'claude_recovery_msg_'
 const RECOVERY_MSG_TTL_MS = 5 * 60 * 1000
 const WAITING_PREFIX = 'claude_waiting_'
-const WAITING_TTL_MS = 120_000
+// 10 min — long enough to survive a user navigating away during a long run (#208)
+const WAITING_TTL_MS = 600_000
 
 const MESSAGE_QUEUE_PREFIX = 'switchui:message-queue:'
 const MESSAGE_QUEUE_LEGACY_PREFIX = 'switchui:message-queue:' // same — both localStorage and sessionStorage
