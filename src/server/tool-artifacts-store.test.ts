@@ -57,6 +57,129 @@ describe('tool artifact store — atomic writes', () => {
   })
 })
 
+describe('tool-artifacts-store — MAX_ARTIFACTS eviction', () => {
+  let tempDir: string
+  let origCwd: string
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermes-artifacts-evict-'))
+    origCwd = process.cwd()
+    process.chdir(tempDir)
+    vi.resetModules()
+  })
+
+  afterEach(() => {
+    process.chdir(origCwd)
+    fs.rmSync(tempDir, { recursive: true, force: true })
+    vi.resetModules()
+  })
+
+  it('keeps the count at or below MAX_ARTIFACTS after inserting past the cap', async () => {
+    const { createOrUpdateToolArtifact: create, listToolArtifacts, MAX_ARTIFACTS } =
+      await import('./tool-artifacts-store')
+
+    for (let i = 0; i < MAX_ARTIFACTS + 10; i++) {
+      create({ sessionId: 'sess-evict', toolName: 'tool', content: `unique-${i}-${Math.random()}` })
+    }
+
+    expect(listToolArtifacts().length).toBeLessThanOrEqual(MAX_ARTIFACTS)
+  })
+
+  it('evicts the oldest artifacts (lowest createdAt) first', async () => {
+    const { createOrUpdateToolArtifact: create, listToolArtifacts, MAX_ARTIFACTS } =
+      await import('./tool-artifacts-store')
+
+    const ids: string[] = []
+    for (let i = 0; i < MAX_ARTIFACTS + 5; i++) {
+      const a = create({ sessionId: 'sess-oldest', toolName: 'tool', content: `old-${i}-${Math.random()}` })
+      ids.push(a.id)
+    }
+
+    const remaining = new Set(listToolArtifacts().map((a) => a.id))
+    // First 5 (oldest) must be evicted.
+    for (let i = 0; i < 5; i++) {
+      expect(remaining.has(ids[i])).toBe(false)
+    }
+    // Last MAX_ARTIFACTS must survive.
+    for (let i = 5; i < MAX_ARTIFACTS + 5; i++) {
+      expect(remaining.has(ids[i])).toBe(true)
+    }
+  })
+
+  it('deletes the content file of evicted artifacts from disk', async () => {
+    const { createOrUpdateToolArtifact: create, MAX_ARTIFACTS } =
+      await import('./tool-artifacts-store')
+
+    const first = create({ sessionId: 'sess-fs', toolName: 'tool', content: `first-${Math.random()}` })
+    expect(fs.existsSync(first.contentPath)).toBe(true)
+
+    for (let i = 1; i < MAX_ARTIFACTS + 2; i++) {
+      create({ sessionId: 'sess-fs', toolName: 'tool', content: `extra-${i}-${Math.random()}` })
+    }
+
+    expect(fs.existsSync(first.contentPath)).toBe(false)
+  })
+})
+
+describe('tool-artifacts-store — deleteSessionArtifacts', () => {
+  let tempDir: string
+  let origCwd: string
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermes-artifacts-del-'))
+    origCwd = process.cwd()
+    process.chdir(tempDir)
+    vi.resetModules()
+  })
+
+  afterEach(() => {
+    process.chdir(origCwd)
+    fs.rmSync(tempDir, { recursive: true, force: true })
+    vi.resetModules()
+  })
+
+  it('removes all artifacts for the target session and leaves others intact', async () => {
+    const { createOrUpdateToolArtifact: create, deleteSessionArtifacts, listToolArtifacts } =
+      await import('./tool-artifacts-store')
+
+    for (let i = 0; i < 5; i++) {
+      create({ sessionId: 'sess-target', toolName: 'tool', content: `target-${i}-${Math.random()}` })
+    }
+    for (let i = 0; i < 3; i++) {
+      create({ sessionId: 'sess-other', toolName: 'tool', content: `other-${i}-${Math.random()}` })
+    }
+
+    expect(listToolArtifacts('sess-target').length).toBe(5)
+    expect(listToolArtifacts('sess-other').length).toBe(3)
+
+    deleteSessionArtifacts('sess-target')
+
+    expect(listToolArtifacts('sess-target').length).toBe(0)
+    expect(listToolArtifacts('sess-other').length).toBe(3)
+    expect(listToolArtifacts().length).toBe(3)
+    expect(listToolArtifacts().every((a) => a.sessionId === 'sess-other')).toBe(true)
+  })
+
+  it('deletes content files for the removed session from disk', async () => {
+    const { createOrUpdateToolArtifact: create, deleteSessionArtifacts } =
+      await import('./tool-artifacts-store')
+
+    const artifacts = Array.from({ length: 3 }, (_, i) =>
+      create({ sessionId: 'sess-del-fs', toolName: 'tool', content: `fs-${i}-${Math.random()}` }),
+    )
+
+    for (const a of artifacts) expect(fs.existsSync(a.contentPath)).toBe(true)
+    deleteSessionArtifacts('sess-del-fs')
+    for (const a of artifacts) expect(fs.existsSync(a.contentPath)).toBe(false)
+  })
+
+  it('is a no-op when the session has no artifacts', async () => {
+    const { deleteSessionArtifacts, listToolArtifacts } = await import('./tool-artifacts-store')
+    expect(() => deleteSessionArtifacts('sess-nonexistent')).not.toThrow()
+    expect(listToolArtifacts()).toHaveLength(0)
+  })
+})
+
 describe('tool artifact store', () => {
   it('stores large tool output and replaces the chat payload with a compact pointer', () => {
     const largeOutput = `header\n${'x'.repeat(4_200)}\ntail`

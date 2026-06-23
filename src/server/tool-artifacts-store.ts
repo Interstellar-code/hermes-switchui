@@ -6,6 +6,7 @@ export const INLINE_TOOL_OUTPUT_LIMIT = 4_000
 const DATA_DIR = join(process.cwd(), '.runtime', 'tool-artifacts')
 const INDEX_FILE = join(DATA_DIR, 'index.json')
 const PREVIEW_LIMIT = 1_000
+export const MAX_ARTIFACTS = 500
 
 export type ToolArtifactKind =
   | 'tool_output'
@@ -115,6 +116,17 @@ export function listToolArtifacts(sessionId?: string): Array<ToolArtifact> {
     .sort((a, b) => b.createdAt - a.createdAt)
 }
 
+export function deleteSessionArtifacts(sessionId: string): void {
+  const toDelete = Object.values(index.artifacts).filter(
+    (artifact) => artifact.sessionId === sessionId,
+  )
+  for (const artifact of toDelete) {
+    delete index.artifacts[artifact.id]
+    try { unlinkSync(artifact.contentPath) } catch { /* ignore if already gone */ }
+  }
+  if (toDelete.length > 0) saveIndex()
+}
+
 export function getToolArtifact(artifactId: string): (ToolArtifact & { content: string }) | null {
   const artifact = index.artifacts[artifactId]
   if (!artifact) return null
@@ -186,6 +198,19 @@ export function createOrUpdateToolArtifact(input: CreateArtifactInput): ToolArti
     ),
   )
   index.artifacts[id] = artifact
+
+  // Evict oldest artifacts when the index exceeds MAX_ARTIFACTS.
+  const keys = Object.keys(index.artifacts)
+  if (keys.length > MAX_ARTIFACTS) {
+    const sorted = keys.sort((a, b) => index.artifacts[a].createdAt - index.artifacts[b].createdAt)
+    const toEvict = sorted.slice(0, keys.length - MAX_ARTIFACTS)
+    for (const evictId of toEvict) {
+      const evicted = index.artifacts[evictId]
+      delete index.artifacts[evictId]
+      try { unlinkSync(evicted.contentPath) } catch { /* ignore if already gone */ }
+    }
+  }
+
   saveIndex()
   return artifact
 }
