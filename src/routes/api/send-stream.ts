@@ -4,6 +4,12 @@ import {
   HERMES_SESSION_KEY_HEADER,
 } from '../../lib/send-stream-session-headers'
 import {
+  parseJsonIfPossible,
+  readRecord,
+  readString,
+  stripDataUrlPrefix,
+} from '../../lib/stream-utils'
+import {
   collectSyntheticLiveToolEvents,
   createSyntheticLiveToolTracker,
 } from './-send-stream-live-tools'
@@ -45,23 +51,9 @@ import type {OpenAICompatContentPart, OpenAICompatMessage} from '../../server/op
 const SEND_STREAM_RUN_TIMEOUT_MS = 600_000
 const SESSION_BOOTSTRAP_KEYS = new Set(['main', 'new'])
 
-function readString(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : ''
-}
-
 function readNumber(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   return undefined
-}
-
-function stripDataUrlPrefix(value: string): string {
-  const trimmed = value.trim()
-  if (!trimmed) return ''
-  const commaIndex = trimmed.indexOf(',')
-  if (trimmed.toLowerCase().startsWith('data:') && commaIndex >= 0) {
-    return trimmed.slice(commaIndex + 1).trim()
-  }
-  return trimmed
 }
 
 function normalizeAttachments(
@@ -207,12 +199,6 @@ function normalizeClaudeErrorMessage(error: unknown): string {
   return message.replace(/\bserver\b/gi, 'Claude')
 }
 
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === 'object'
-    ? (value as Record<string, unknown>)
-    : undefined
-}
-
 function getToolName(data: Record<string, unknown>): string {
   const toolCall = readRecord(data.tool_call)
   const tool = readRecord(data.tool)
@@ -243,23 +229,6 @@ function getToolCallId(
     readString(data.id) ||
     `${runId || 'run'}:${toolName}`
   )
-}
-
-function parseJsonIfPossible(value: unknown): unknown {
-  if (typeof value !== 'string') return value
-  const trimmed = value.trim()
-  if (!trimmed) return value
-  if (
-    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-    (trimmed.startsWith('[') && trimmed.endsWith(']'))
-  ) {
-    try {
-      return JSON.parse(trimmed)
-    } catch {
-      return value
-    }
-  }
-  return value
 }
 
 function getToolArgs(data: Record<string, unknown>): unknown {

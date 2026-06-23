@@ -66,6 +66,7 @@ import type { ChatRunCommandDetail } from './chat-events'
 import type {AgentActivity} from '@/stores/chat-activity-store';
 import type { SourceTab } from './components/v2/chat-header-v2'
 import { playChatComplete } from '@/lib/sounds'
+import { stripDataUrlPrefix } from '@/lib/stream-utils'
 import { useChatSettingsStore } from '@/hooks/use-chat-settings'
 import { useDrainWatchdog } from './hooks/use-drain-watchdog'
 import { useChatMobile } from './hooks/use-chat-mobile'
@@ -171,17 +172,6 @@ function readDataUrlMimeType(value: unknown): string {
   if (typeof value !== 'string') return ''
   const match = /^data:([^;,]+)[^,]*,/i.exec(value.trim())
   return match?.[1]?.trim().toLowerCase() || ''
-}
-
-function stripDataUrlPrefix(value: unknown): string {
-  if (typeof value !== 'string') return ''
-  const trimmed = value.trim()
-  if (!trimmed) return ''
-  const commaIndex = trimmed.indexOf(',')
-  if (trimmed.toLowerCase().startsWith('data:') && commaIndex >= 0) {
-    return trimmed.slice(commaIndex + 1).trim()
-  }
-  return trimmed
 }
 
 function normalizeMessageValue(value: unknown): string {
