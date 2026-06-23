@@ -11,7 +11,7 @@
  * Trimmed: standalone "Local tokens" card (no rotate endpoint exists).
  */
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { SettingCard } from '../components/setting-card'
@@ -43,26 +43,28 @@ function humanizeKey(key: string): string {
 function EnvRow({ envKey, info }: { envKey: string; info: EnvVarInfo }) {
   const qc = useQueryClient()
   const [revealedValue, setRevealedValue] = useState<string | null>(null)
-  const [revealTimer, setRevealTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
 
+  useEffect(() => () => { if (revealTimerRef.current) clearTimeout(revealTimerRef.current) }, [])
+
   async function handleReveal() {
     if (revealedValue !== null) {
       setRevealedValue(null)
-      if (revealTimer) clearTimeout(revealTimer)
-      setRevealTimer(null)
+      if (revealTimerRef.current) clearTimeout(revealTimerRef.current)
+      revealTimerRef.current = null
       return
     }
     try {
       const result = await revealEnv(envKey)
       setRevealedValue(result.value)
-      const t = setTimeout(() => {
+      if (revealTimerRef.current) clearTimeout(revealTimerRef.current)
+      revealTimerRef.current = setTimeout(() => {
         setRevealedValue(null)
-        setRevealTimer(null)
+        revealTimerRef.current = null
       }, 30_000)
-      setRevealTimer(t)
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Failed to reveal', { type: 'error' })
     }

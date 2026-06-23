@@ -8,7 +8,7 @@
  * the same source-of-truth used by Memory → Wiki tab (settings-tab.tsx).
  */
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
@@ -72,7 +72,7 @@ function HindsightEnvRow({
 }) {
   const qc = useQueryClient()
   const [revealedValue, setRevealedValue] = useState<string | null>(null)
-  const [revealTimer, setRevealTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
   const [saving, setSaving] = useState(false)
@@ -80,11 +80,13 @@ function HindsightEnvRow({
   const isSet = info?.is_set ?? false
   const redacted = info?.redacted_value ?? ''
 
+  useEffect(() => () => { if (revealTimerRef.current) clearTimeout(revealTimerRef.current) }, [])
+
   async function handleReveal() {
     if (revealedValue !== null) {
       setRevealedValue(null)
-      if (revealTimer) clearTimeout(revealTimer)
-      setRevealTimer(null)
+      if (revealTimerRef.current) clearTimeout(revealTimerRef.current)
+      revealTimerRef.current = null
       return
     }
     if (!isSet) {
@@ -94,11 +96,11 @@ function HindsightEnvRow({
     try {
       const result = await revealEnv(envKey)
       setRevealedValue(result.value)
-      const t = setTimeout(() => {
+      if (revealTimerRef.current) clearTimeout(revealTimerRef.current)
+      revealTimerRef.current = setTimeout(() => {
         setRevealedValue(null)
-        setRevealTimer(null)
+        revealTimerRef.current = null
       }, 30_000)
-      setRevealTimer(t)
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Failed to reveal', { type: 'error' })
     }
