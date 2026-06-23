@@ -1,11 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
+import { requireJsonContentType } from '../../../server/rate-limit'
 import { addKanbanComment } from '../../../server/hermes-kanban-client'
 
 export const Route = createFileRoute('/api/hermes-kanban/tasks/$taskId/comments')({
   server: {
     handlers: {
       POST: async ({ request, params }) => {
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
         if (!isAuthenticated(request)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
