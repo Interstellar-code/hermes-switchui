@@ -29,6 +29,31 @@ export const Route = createFileRoute('/api/chat-events')({
         let unsubscribe: (() => void) | null = null
         let heartbeatTimer: ReturnType<typeof setInterval> | null = null
 
+        /**
+         * Release all stream resources: set the closed flag, stop the
+         * heartbeat timer, and unsubscribe from the event bus.
+         *
+         * Idempotent — safe to call more than once (the `streamClosed` guard
+         * short-circuits on the second call).
+         *
+         * Note: does NOT call `controller.close()`. The `start` wrapper calls
+         * that separately when tearing down from within the stream (e.g. on
+         * error); the `cancel` callback must NOT call it because the runtime
+         * already owns the controller lifecycle at that point.
+         */
+        const finishStream = () => {
+          if (streamClosed) return
+          streamClosed = true
+          if (heartbeatTimer) {
+            clearInterval(heartbeatTimer)
+            heartbeatTimer = null
+          }
+          if (unsubscribe) {
+            unsubscribe()
+            unsubscribe = null
+          }
+        }
+
         const stream = new ReadableStream({
           async start(controller) {
             const sendEvent = (event: string, data: unknown) => {
@@ -38,24 +63,6 @@ export const Route = createFileRoute('/api/chat-events')({
                 controller.enqueue(encoder.encode(payload))
               } catch {
                 /* stream closed */
-              }
-            }
-
-            const closeStream = () => {
-              if (streamClosed) return
-              streamClosed = true
-              if (heartbeatTimer) {
-                clearInterval(heartbeatTimer)
-                heartbeatTimer = null
-              }
-              if (unsubscribe) {
-                unsubscribe()
-                unsubscribe = null
-              }
-              try {
-                controller.close()
-              } catch {
-                /* ignore */
               }
             }
 
@@ -78,19 +85,16 @@ export const Route = createFileRoute('/api/chat-events')({
             } catch (err) {
               const errorMsg = err instanceof Error ? err.message : String(err)
               sendEvent('error', { message: errorMsg })
-              closeStream()
+              finishStream()
+              try {
+                controller.close()
+              } catch {
+                /* ignore */
+              }
             }
           },
           cancel() {
-            streamClosed = true
-            if (heartbeatTimer) {
-              clearInterval(heartbeatTimer)
-              heartbeatTimer = null
-            }
-            if (unsubscribe) {
-              unsubscribe()
-              unsubscribe = null
-            }
+            finishStream()
           },
         })
 
