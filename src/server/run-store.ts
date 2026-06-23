@@ -40,6 +40,21 @@ const RECOVERABLE_HANDOFF_MS = 30_000
 const RECOVERABLE_ACCEPTED_MS = 30_000
 const RECOVERABLE_ACTIVE_MS = 10 * 60_000
 
+// Per-runId async mutex: serialises concurrent read-modify-write calls so that
+// concurrent SSE events for the same run cannot race and lose updates.
+const runLocks = new Map<string, Promise<unknown>>()
+
+function withRunLock<T>(runId: string, fn: () => Promise<T>): Promise<T> {
+  const prev = runLocks.get(runId) ?? Promise.resolve()
+  const next = prev.then(fn, fn) as Promise<T>
+  runLocks.set(runId, next)
+  // Clean up the map entry once this chain link settles to avoid unbounded growth.
+  next.finally(() => {
+    if (runLocks.get(runId) === next) runLocks.delete(runId)
+  })
+  return next
+}
+
 function encodeSessionKey(sessionKey: string): string {
   return encodeURIComponent(sessionKey || 'main')
 }
@@ -114,17 +129,19 @@ export async function getPersistedRun(
   }
 }
 
-export async function updatePersistedRun(
+export function updatePersistedRun(
   sessionKey: string,
   runId: string,
   updater: (run: PersistedRunState) => PersistedRunState,
 ): Promise<PersistedRunState | null> {
-  const current = await getPersistedRun(sessionKey, runId)
-  if (!current) return null
-  const next = updater(current)
-  next.updatedAt = Date.now()
-  await writeRun(next)
-  return next
+  return withRunLock(runId, async () => {
+    const current = await getPersistedRun(sessionKey, runId)
+    if (!current) return null
+    const next = updater(current)
+    next.updatedAt = Date.now()
+    await writeRun(next)
+    return next
+  })
 }
 
 export async function appendRunText(
