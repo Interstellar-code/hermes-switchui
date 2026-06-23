@@ -1,5 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
+import { isAuthenticated } from '../../server/auth-middleware'
+import { getClientIp, rateLimit, rateLimitResponse, requireJsonContentType } from '../../server/rate-limit'
 
 const BodySchema = z.object({
   provider: z.string(),
@@ -9,6 +11,18 @@ export const Route = createFileRoute('/api/oauth/device-code')({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
+
+        if (!isAuthenticated(request)) {
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+
+        const ip = getClientIp(request)
+        if (!rateLimit(`oauth-device-code:${ip}`, 10, 60_000)) {
+          return rateLimitResponse()
+        }
+
         let body: unknown
         try {
           body = await request.json()
