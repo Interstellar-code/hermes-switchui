@@ -6,6 +6,7 @@
  */
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
+import { requireJsonContentType } from '../../server/rate-limit';
 import { getEngine } from '../../server/workflow-engine/factory';
 
 
@@ -14,6 +15,8 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/reset-factor
     handlers: {
       POST: async ({ request, params }) => {
         if (!isAuthenticated(request)) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+        const csrfCheck = requireJsonContentType(request);
+        if (csrfCheck) return csrfCheck;
         const engine = getEngine();
         try {
           const def = await engine.resetFactoryDefinition(params.id);
