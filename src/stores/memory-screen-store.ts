@@ -31,7 +31,14 @@ export const useMemoryScreenStore = create<
       activeTab: 'memory',
       setActiveTab: (activeTab) => set({ activeTab }),
     }),
-    { name: 'switchui-memory-screen' },
+    {
+      name: 'switchui-memory-screen',
+      version: 1,
+      migrate: (persisted, fromVersion) => {
+        if (fromVersion === 1) return persisted as MemoryPersistedState
+        return { activeTab: 'memory' as MemoryTab }
+      },
+    },
   ),
 )
 
