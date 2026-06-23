@@ -115,6 +115,66 @@ function extractWikilinks(content: string): Array<string> {
   return Array.from(links)
 }
 
+// ─── Path-segment validation ───────────────────────────────────────────────────
+
+/**
+ * Validate a user-supplied path segment (repo name component, branch, or
+ * sub-path) before it is concatenated into a filesystem path via path.join.
+ *
+ * Rules (applied in order):
+ *  1. Must be a non-empty string.
+ *  2. Must not contain null bytes.
+ *  3. Must not be, or start with, an absolute separator ('/' or '\').
+ *  4. No path component may be '..' (dot-dot traversal).
+ *  5. The resolved final path must remain inside `expectedRoot` (containment).
+ *
+ * Git branch names allow '/' (e.g. feature/x, release-1.2) so slashes are
+ * permitted; only the dot-dot pattern and absolute-path escapes are blocked.
+ *
+ * @throws {Error} with a descriptive message if validation fails.
+ */
+export function validateKnowledgeCachePath(
+  resolvedPath: string,
+  expectedRoot: string,
+): void {
+  // Normalise both sides so trailing-sep differences don't matter.
+  const root = expectedRoot.endsWith(path.sep)
+    ? expectedRoot
+    : expectedRoot + path.sep
+  if (resolvedPath !== expectedRoot && !resolvedPath.startsWith(root)) {
+    throw new Error(
+      `Cache path escaped the knowledge-cache root: ${resolvedPath}`,
+    )
+  }
+}
+
+/**
+ * Validate a single user-supplied segment (branch or repo org/name) that will
+ * be embedded in a path.join call.  Rejects values that could escape the
+ * intended directory before path.join is even called.
+ */
+export function validateKnowledgePathSegment(
+  value: string,
+  label: string,
+): void {
+  if (!value || typeof value !== 'string') {
+    throw new Error(`${label} must be a non-empty string`)
+  }
+  if (value.includes('\0')) {
+    throw new Error(`${label} must not contain null bytes`)
+  }
+  if (value.startsWith('/') || value.startsWith('\\')) {
+    throw new Error(`${label} must not be an absolute path`)
+  }
+  // Split on both posix and windows separators then check each component.
+  const parts = value.split(/[/\\]/)
+  for (const part of parts) {
+    if (part === '..') {
+      throw new Error(`${label} must not contain '..' path traversal segments`)
+    }
+  }
+}
+
 // ─── Legacy env-var fallback ──────────────────────────────────────────────────
 
 function getLegacyKnowledgeRoot(): string {
@@ -136,10 +196,18 @@ class GitHubKnowledgeProvider {
     branch: string,
     private readonly repoPath: string,
   ) {
+    // Validate user-supplied segments before embedding them in a path.join.
+    validateKnowledgePathSegment(branch, 'branch')
+    validateKnowledgePathSegment(repo, 'repo')
+
     const safeRepo = repo.replace('/', '_')
     const safePath = repoPath.replace(/^\//, '').replace(/\//g, '_')
     this.branch = branch
-    const base = path.join(os.homedir(), '.claude', 'knowledge-cache', 'github', safeRepo, branch, safePath)
+    const expectedRoot = path.join(os.homedir(), '.claude', 'knowledge-cache')
+    const base = path.join(expectedRoot, 'github', safeRepo, branch, safePath)
+    // Containment guard: even after all substitutions the resolved path must
+    // stay inside the knowledge-cache root.
+    validateKnowledgeCachePath(base, expectedRoot)
     this.cacheDir = base
   }
 
