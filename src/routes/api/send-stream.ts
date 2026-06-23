@@ -935,6 +935,7 @@ export const Route = createFileRoute('/api/send-stream')({
               // tool_calls" can resolve to the previous turn, surfacing stale
               // tool cards (off-by-one-turn bug).
               let liveBaselineCount = 0
+              const LIVE_POLL_MAX_CONSECUTIVE_FAILURES = 5
               const livePollerPromise = (async () => {
                 // Snapshot the baseline message count INSIDE the poller rather
                 // than awaiting it before streamChat(). The old pre-await added
@@ -954,12 +955,14 @@ export const Route = createFileRoute('/api/send-stream')({
                 // Initial small delay so the agent has time to ingest the
                 // user message before we start asking for session state.
                 await new Promise((r) => setTimeout(r, 600))
+                let livePollConsecutiveFailures = 0
                 while (liveRunActive) {
                   if (!liveRunActive || streamClosed) break
                   try {
                     const allMsgs = (await getSessionMessagesFromAgent(
                       sessionKey,
                     )) as unknown as Array<Record<string, unknown>>
+                    livePollConsecutiveFailures = 0
                     if (!Array.isArray(allMsgs) || allMsgs.length === 0) {
                       await new Promise((r) =>
                         setTimeout(r, livePollIntervalMs),
@@ -990,7 +993,18 @@ export const Route = createFileRoute('/api/send-stream')({
                       sendEvent('tool', synthetic)
                     }
                   } catch {
-                    // Best-effort polling; ignore transient errors.
+                    // Best-effort polling; tolerate transient errors but stop
+                    // after too many consecutive failures to avoid silent loops.
+                    livePollConsecutiveFailures++
+                    if (
+                      livePollConsecutiveFailures >=
+                      LIVE_POLL_MAX_CONSECUTIVE_FAILURES
+                    ) {
+                      console.warn(
+                        `[send-stream] live tool poller: ${livePollConsecutiveFailures} consecutive failures for session ${sessionKey}; stopping poller`,
+                      )
+                      break
+                    }
                   }
                   await new Promise((r) =>
                     setTimeout(r, livePollIntervalMs),
