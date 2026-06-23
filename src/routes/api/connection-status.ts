@@ -2,38 +2,21 @@
  * Connection status endpoint — returns a summary of portable chat readiness
  * plus whether Hermes Agent gateway enhancements are available.
  */
-import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import { createFileRoute } from '@tanstack/react-router'
-import YAML from 'yaml'
 import {
   CLAUDE_API,
   ensureGatewayProbed,
   getChatMode,
 } from '../../server/gateway-capabilities'
 import { isAuthenticated } from '../../server/auth-middleware'
+import { readActiveModel } from './_connection-status-cache-helper'
 
 const CONFIG_PATH = path.join(
   process.env.HERMES_HOME ?? process.env.CLAUDE_HOME ?? path.join(os.homedir(), '.hermes'),
   'config.yaml',
 )
-
-function readActiveModel(): string {
-  try {
-    const raw = fs.readFileSync(CONFIG_PATH, 'utf-8')
-    const config = (YAML.parse(raw) as Record<string, unknown>) || {}
-    const modelField = config.model
-    if (typeof modelField === 'string') return modelField
-    if (modelField && typeof modelField === 'object') {
-      const obj = modelField as Record<string, unknown>
-      return (obj.default as string) || ''
-    }
-  } catch {
-    // config missing or unreadable
-  }
-  return ''
-}
 
 type ConnectionStatus = {
   status: 'connected' | 'enhanced' | 'partial' | 'disconnected'
@@ -60,7 +43,7 @@ export const Route = createFileRoute('/api/connection-status')({
         }
 
         const caps = await ensureGatewayProbed()
-        const activeModel = readActiveModel()
+        const activeModel = readActiveModel(CONFIG_PATH)
         const modelConfigured = Boolean(activeModel)
 
         const chatReady = caps.chatCompletions
