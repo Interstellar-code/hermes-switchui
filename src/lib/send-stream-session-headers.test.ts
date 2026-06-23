@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   buildResolvedSessionHeaders,
@@ -53,6 +53,77 @@ describe('send-stream session headers', () => {
     ).toEqual({
       sessionKey: 'sess-legacy',
       friendlyId: 'friendly-legacy',
+    })
+  })
+
+  describe('friendlyId fallback warning (#134)', () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      warnSpy.mockRestore()
+    })
+
+    it('emits console.warn when friendly-id headers are missing and falls back to sessionKey', () => {
+      const headers = new Headers({
+        'X-Hermes-Session-Key': 'sess-abc',
+        // No friendly-id headers at all
+      })
+
+      const result = readResolvedSessionHeaders(headers, {
+        sessionKey: 'fallback-session',
+        friendlyId: 'fallback-friendly',
+      })
+
+      // Fallback value is sessionKey (the resolved one), not the fallback.friendlyId
+      expect(result.friendlyId).toBe('sess-abc')
+      expect(warnSpy).toHaveBeenCalledOnce()
+      expect(warnSpy.mock.calls[0][0]).toContain('falling back to')
+    })
+
+    it('does NOT warn when friendly-id header is present', () => {
+      const headers = new Headers({
+        'X-Hermes-Session-Key': 'sess-xyz',
+        'X-Hermes-Friendly-Id': 'friendly-xyz',
+      })
+
+      readResolvedSessionHeaders(headers, {
+        sessionKey: 'fallback-session',
+        friendlyId: 'fallback-friendly',
+      })
+
+      expect(warnSpy).not.toHaveBeenCalled()
+    })
+
+    it('does NOT warn when legacy friendly-id header is present', () => {
+      const headers = new Headers({
+        'x-claude-session-key': 'sess-leg',
+        'x-claude-friendly-id': 'friendly-leg',
+      })
+
+      readResolvedSessionHeaders(headers, {
+        sessionKey: 'fallback-session',
+        friendlyId: 'fallback-friendly',
+      })
+
+      expect(warnSpy).not.toHaveBeenCalled()
+    })
+
+    it('falls back to fallback.friendlyId when no session key or friendly-id headers present', () => {
+      const headers = new Headers()
+
+      const result = readResolvedSessionHeaders(headers, {
+        sessionKey: 'fallback-session',
+        friendlyId: 'fallback-friendly',
+      })
+
+      // sessionKey falls back → friendlyId falls back to sessionKey fallback
+      expect(result.sessionKey).toBe('fallback-session')
+      expect(result.friendlyId).toBe('fallback-session')
+      expect(warnSpy).toHaveBeenCalledOnce()
     })
   })
 })

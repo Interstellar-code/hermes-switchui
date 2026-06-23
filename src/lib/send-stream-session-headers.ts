@@ -43,11 +43,17 @@ export function readResolvedSessionHeaders(
     normalizeHeaderValue(headers.get(LEGACY_CLAUDE_SESSION_KEY_HEADER)) ||
     fallback.sessionKey
 
-  const friendlyId =
+  const resolvedFriendlyId =
     normalizeHeaderValue(headers.get(HERMES_FRIENDLY_ID_HEADER)) ||
-    normalizeHeaderValue(headers.get(LEGACY_CLAUDE_FRIENDLY_ID_HEADER)) ||
-    sessionKey ||
-    fallback.friendlyId
+    normalizeHeaderValue(headers.get(LEGACY_CLAUDE_FRIENDLY_ID_HEADER))
+
+  const friendlyId = resolvedFriendlyId || sessionKey || fallback.friendlyId
+
+  if (!resolvedFriendlyId) {
+    console.warn(
+      `[send-stream-session-headers] ${HERMES_FRIENDLY_ID_HEADER} / ${LEGACY_CLAUDE_FRIENDLY_ID_HEADER} header missing; falling back to "${friendlyId}"`,
+    )
+  }
 
   return {
     sessionKey,
