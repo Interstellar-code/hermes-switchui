@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { getHermesRoot } from './claude-paths'
@@ -56,13 +56,26 @@ async function ensureDir(dir: string): Promise<void> {
   await mkdir(dir, { recursive: true })
 }
 
+async function atomicWriteFile(file: string, content: string): Promise<void> {
+  const tmp = path.join(
+    path.dirname(file),
+    `.tmp.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`,
+  )
+  try {
+    await writeFile(tmp, content, 'utf8')
+    await rename(tmp, file)
+  } catch (err) {
+    try { await unlink(tmp) } catch { /* ignore */ }
+    throw err
+  }
+}
+
 async function writeRun(run: PersistedRunState): Promise<void> {
   const dir = sessionDir(run.sessionKey)
   await ensureDir(dir)
-  await writeFile(
+  await atomicWriteFile(
     runPath(run.sessionKey, run.runId),
     `${JSON.stringify(run, null, 2)}\n`,
-    'utf8',
   )
 }
 

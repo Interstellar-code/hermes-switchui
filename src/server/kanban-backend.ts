@@ -66,7 +66,17 @@ function readLocalCards(): LocalKanbanCard[] {
 function writeLocalCards(cards: LocalKanbanCard[]): void {
   const file = getLocalKanbanFile()
   fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.writeFileSync(file, JSON.stringify(cards, null, 2), 'utf8')
+  const tmp = path.join(
+    path.dirname(file),
+    `.tmp.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`,
+  )
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(cards, null, 2), 'utf8')
+    fs.renameSync(tmp, file)
+  } catch (err) {
+    try { fs.unlinkSync(tmp) } catch { /* ignore */ }
+    throw err
+  }
 }
 
 function listLocalKanbanCards(): LocalKanbanCard[] {

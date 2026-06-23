@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 afterEach(() => {
   vi.resetModules()
@@ -69,6 +72,8 @@ async function loadKanbanBackend(options?: {
     existsSync: vi.fn((p: string) => options?.existsSync?.(p) ?? false),
     readFileSync: vi.fn(() => LOCAL_FAKE_CARDS),
     writeFileSync: vi.fn(),
+    renameSync: vi.fn(),
+    unlinkSync: vi.fn(),
     mkdirSync: vi.fn(),
   }))
 
@@ -271,5 +276,62 @@ describe('kanban-backend', () => {
     // status is the 5th positional param (id, title, body, assignee, status, ...)
     expect(insertRun?.args[4]).toBe('triage')
     expect(insertRun?.args[4]).not.toBe('queued')
+  })
+})
+
+describe('kanban-backend — writeLocalCards atomic write', () => {
+  let tempDir: string
+  let origClaudeHome: string | undefined
+  let origHermesHome: string | undefined
+  let origKanbanBackend: string | undefined
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hermes-kanban-atomic-'))
+    origClaudeHome = process.env.CLAUDE_HOME
+    origHermesHome = process.env.HERMES_HOME
+    origKanbanBackend = process.env.CLAUDE_KANBAN_BACKEND
+    // Force local backend; getWorkspaceClaudeHome() reads HERMES_HOME or CLAUDE_HOME
+    process.env.CLAUDE_KANBAN_BACKEND = 'local'
+    process.env.CLAUDE_HOME = tempDir
+    delete process.env.HERMES_HOME
+    // Remove all doMock registrations from the prior describe block so real fs is used
+    vi.doUnmock('node:fs')
+    vi.doUnmock('node:child_process')
+    vi.doUnmock('better-sqlite3')
+    vi.resetModules()
+  })
+
+  afterEach(() => {
+    if (origClaudeHome === undefined) delete process.env.CLAUDE_HOME
+    else process.env.CLAUDE_HOME = origClaudeHome
+    if (origHermesHome === undefined) delete process.env.HERMES_HOME
+    else process.env.HERMES_HOME = origHermesHome
+    if (origKanbanBackend === undefined) delete process.env.CLAUDE_KANBAN_BACKEND
+    else process.env.CLAUDE_KANBAN_BACKEND = origKanbanBackend
+    fs.rmSync(tempDir, { recursive: true, force: true })
+    vi.resetModules()
+  })
+
+  it('createKanbanCard round-trips via real fs and leaves no .tmp file behind', async () => {
+    const { createKanbanCard, listKanbanCards } = await import('./kanban-backend')
+
+    const card = createKanbanCard({ title: 'Atomic card', spec: 'atomic spec', createdBy: 'test' })
+    expect(card.title).toBe('Atomic card')
+
+    // Read back via a fresh list call to confirm the file was flushed correctly
+    const cards = listKanbanCards()
+    expect(cards.find((c) => c.id === card.id)).toBeDefined()
+    expect(cards.find((c) => c.id === card.id)!.title).toBe('Atomic card')
+
+    // No leftover .tmp files under tempDir
+    const walk = (dir: string): string[] => {
+      if (!fs.existsSync(dir)) return []
+      return fs.readdirSync(dir).flatMap((name) => {
+        const full = path.join(dir, name)
+        return fs.statSync(full).isDirectory() ? walk(full) : [full]
+      })
+    }
+    const tmpFiles = walk(tempDir).filter((f) => f.endsWith('.tmp'))
+    expect(tmpFiles).toHaveLength(0)
   })
 })
