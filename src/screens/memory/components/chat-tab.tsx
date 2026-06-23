@@ -30,8 +30,8 @@ type Message = {
 type WikiSearchResult = {
   path: string
   title: string
-  snippet: string
-  score: number
+  line: number
+  text: string
 }
 
 type SearchResponse = {
@@ -126,8 +126,20 @@ async function streamChat(
     ? `You are a helpful assistant answering questions grounded in the user's matrix-memory wiki.\n\nRelevant matrix wiki content:\n\n${wikiContext}\n\nAnswer based on the wiki content above. If the answer isn't in the wiki, say so clearly.`
     : 'You are a helpful assistant.'
 
+  // send-stream.ts reads body.message (string) + body.history (array) — NOT body.messages.
+  // The system prompt is prepended as the first history entry so the model sees it.
+  // sessionKey:'new' triggers portable mode (no gateway session required).
+  const lastMsg = messages[messages.length - 1]
+  const priorTurns = messages.slice(0, -1)
+  const history: Array<{ role: string; content: string }> = [
+    { role: 'system', content: systemPrompt },
+    ...priorTurns,
+  ]
+
   const payload = {
-    messages: [{ role: 'system', content: systemPrompt }, ...messages],
+    sessionKey: 'new',
+    message: lastMsg?.content ?? '',
+    history,
     stream: true,
   }
 
