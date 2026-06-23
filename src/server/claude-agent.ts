@@ -258,10 +258,10 @@ export async function startClaudeAgent(): Promise<StartClaudeAgentResult> {
         }
       }
 
+      const gatewayUrl = resolveGatewayUrl()
       return {
-        ok: true,
-        pid: child.pid,
-        message: 'starting',
+        ok: false,
+        error: `Gateway spawned but did not become healthy at ${gatewayUrl} within 10s. Check gateway logs or run \`hermes gateway run\` manually.`,
       }
     } catch (error) {
       return {
