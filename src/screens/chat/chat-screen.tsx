@@ -1890,28 +1890,93 @@ export function ChatScreen({
     }
   }, [historyQuery])
 
+  // Overlap guard: ensures at most one poll-until-done loop runs at a time.
+  const returnPollActiveRef = useRef(false)
+
   useEffect(() => {
     function handleVisibility() {
-      if (document.visibilityState === 'visible') {
-        void historyQuery.refetch()
+      if (document.visibilityState !== 'visible') return
+      // Always do one immediate refetch on return (existing behaviour).
+      void historyQuery.refetch()
+
+      // Issue #208 (RC2): if the session is still waiting for a response when
+      // the tab becomes visible again, one refetch may not be enough — the
+      // answer might not be committed to history yet.  Start a bounded poll
+      // loop (up to 20 × 3 s = 60 s) that keeps re-fetching until the
+      // answer lands (waitingForResponse clears) or the cap is hit.
+      if (!waitingForResponseRef.current) return
+      if (returnPollActiveRef.current) return // another loop already running
+      returnPollActiveRef.current = true
+      let attempt = 0
+      const POLL_INTERVAL_MS = 3_000
+      const POLL_MAX_ATTEMPTS = 20
+      function scheduleNext() {
+        if (!returnPollActiveRef.current) return // cleanup cancelled us
+        if (!waitingForResponseRef.current) {
+          returnPollActiveRef.current = false
+          return // answer arrived — stop
+        }
+        if (attempt >= POLL_MAX_ATTEMPTS) {
+          returnPollActiveRef.current = false
+          return // cap reached — stop
+        }
+        attempt++
+        window.setTimeout(() => {
+          void historyQuery.refetch()
+          scheduleNext()
+        }, POLL_INTERVAL_MS)
       }
+      scheduleNext()
     }
     document.addEventListener('visibilitychange', handleVisibility)
-    return () =>
+    return () => {
+      returnPollActiveRef.current = false // cancel any in-flight loop
       document.removeEventListener('visibilitychange', handleVisibility)
-  }, [historyQuery])
+    }
+  }, [historyQuery]) // waitingForResponseRef is a stable ref — no dep needed
 
   // Re-mount catch-up: when navigating back to chat from another tab (Skills,
   // Memory, etc.), the component re-mounts. If a response finished while we
-  // were away, the initial refetch may hit stale data. A delayed re-refetch
-  // ensures we pick up responses that were persisted shortly after the first
-  // fetch. See: https://github.com/outsourc-e/hermes-workspace/issues/43
+  // were away, the initial refetch may hit stale data.  When still waiting,
+  // run the same bounded poll loop so we keep retrying until the answer lands.
+  // See: https://github.com/outsourc-e/hermes-workspace/issues/43, #208
   useEffect(() => {
+    // Always schedule the original 2 s delayed refetch.
     const timer = window.setTimeout(() => {
       void historyQuery.refetch()
     }, 2000)
-    return () => window.clearTimeout(timer)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- mount-only
+
+    // If waiting, also start the bounded poll loop (guard against overlap with
+    // the visibilitychange loop via the shared returnPollActiveRef).
+    if (waitingForResponseRef.current && !returnPollActiveRef.current) {
+      returnPollActiveRef.current = true
+      let attempt = 0
+      const POLL_INTERVAL_MS = 3_000
+      const POLL_MAX_ATTEMPTS = 20
+      function scheduleNext() {
+        if (!returnPollActiveRef.current) return
+        if (!waitingForResponseRef.current) {
+          returnPollActiveRef.current = false
+          return
+        }
+        if (attempt >= POLL_MAX_ATTEMPTS) {
+          returnPollActiveRef.current = false
+          return
+        }
+        attempt++
+        window.setTimeout(() => {
+          void historyQuery.refetch()
+          scheduleNext()
+        }, POLL_INTERVAL_MS)
+      }
+      scheduleNext()
+    }
+
+    return () => {
+      window.clearTimeout(timer)
+      returnPollActiveRef.current = false
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- mount-only; waitingForResponseRef + returnPollActiveRef are stable refs
 
   useEffect(() => {
     function handleSSEDrop() {
