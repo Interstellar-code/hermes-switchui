@@ -30,6 +30,7 @@ import {
 } from '@/components/onboarding/claude-onboarding'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { LoginScreen } from '@/components/auth/login-screen'
+import { saveMissionStoreBeforeUnload } from '@/stores/mission-store'
 
 const APP_CSP = [
   "default-src 'self'",
@@ -299,6 +300,7 @@ function RootLayout() {
       return undefined
     }
 
+    window.addEventListener('beforeunload', saveMissionStoreBeforeUnload)
     syncOnboardingCompletion()
 
     void fetch('/api/connection-status')
@@ -341,6 +343,7 @@ function RootLayout() {
     })
 
     return () => {
+      window.removeEventListener('beforeunload', saveMissionStoreBeforeUnload)
       window.removeEventListener('storage', handleStorage)
       window.removeEventListener(
         ONBOARDING_COMPLETE_EVENT,

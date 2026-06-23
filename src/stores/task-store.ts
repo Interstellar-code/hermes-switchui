@@ -92,8 +92,11 @@ function isTask(value: unknown): value is Task {
   )
 }
 
+/** Max number of tasks kept in persisted storage to prevent unbounded growth. */
+const MAX_PERSISTED_TASKS = 500
+
 function createClientTaskId(): string {
-  return `TASK-${Date.now().toString(36).toUpperCase()}`
+  return `TASK-${crypto.randomUUID()}`
 }
 
 
@@ -132,7 +135,7 @@ export const useTaskStore = create<TaskStore>()(
           createdAt: now,
           updatedAt: now,
         }
-        set((state) => ({ tasks: [task, ...state.tasks] }))
+        set((state) => ({ tasks: [task, ...state.tasks].slice(0, MAX_PERSISTED_TASKS) }))
       },
       updateTask: async (id, updates) => {
         set((state) => ({
@@ -155,12 +158,13 @@ export const useTaskStore = create<TaskStore>()(
         const now = new Date().toISOString()
         const newTasks: Task[] = tasks.map((t) => ({
           ...t,
-          id: `mission-${t.missionId ?? 'unknown'}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          id: `mission-${t.missionId ?? 'unknown'}-${crypto.randomUUID()}`,
           createdAt: now,
           updatedAt: now,
         }))
         set((state) => ({
-          tasks: [...state.tasks.filter((existing) => !newTasks.some((n) => n.title === existing.title && n.missionId === existing.missionId)), ...newTasks],
+          // newest-first (matches addTask) so the cap drops oldest, never the just-upserted tasks
+          tasks: [...newTasks, ...state.tasks.filter((existing) => !newTasks.some((n) => n.title === existing.title && n.missionId === existing.missionId))].slice(0, MAX_PERSISTED_TASKS),
         }))
       },
       updateTaskStatus: (taskId, status) => {
