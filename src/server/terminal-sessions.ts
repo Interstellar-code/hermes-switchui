@@ -8,6 +8,7 @@ import { basename, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { homedir } from 'node:os'
 import EventEmitter from 'node:events'
+import { assertAllowedCwd } from './terminal-cwd-guard'
 import type { ChildProcess } from 'node:child_process'
 
 /**
@@ -126,9 +127,19 @@ export function createTerminalSession(params: {
   if (binaryError) {
     throw Object.assign(new Error(binaryError), { code: 'BINARY_NOT_ALLOWED' })
   }
-  let cwd = params.cwd ?? home
-  if (cwd.startsWith('~')) {
-    cwd = cwd.replace('~', home)
+  // Validate and resolve the requested cwd against the allowed roots.
+  // assertAllowedCwd handles ~ expansion, `..` collapsing, and symlink
+  // resolution, then throws CWD_NOT_ALLOWED if the result escapes the roots.
+  let cwd: string
+  try {
+    cwd = assertAllowedCwd(params.cwd ?? home)
+  } catch (err) {
+    throw Object.assign(
+      new Error(
+        err instanceof Error ? err.message : 'Invalid working directory',
+      ),
+      { code: 'CWD_NOT_ALLOWED' },
+    )
   }
 
   const cols = params.cols ?? 80
@@ -170,7 +181,7 @@ export function createTerminalSession(params: {
         COLORTERM: 'truecolor',
         COLUMNS: String(cols),
         LINES: String(rows),
-      } as Record<string, string>,
+      },
       stdio: ['pipe', 'pipe', 'pipe'],
     },
   )

@@ -5,6 +5,7 @@ import {
   getTerminalSession,
   isAllowedTerminalBinary,
 } from '../../server/terminal-sessions'
+import { assertAllowedCwd } from '../../server/terminal-cwd-guard'
 import {
   getClientIp,
   rateLimit,
@@ -66,6 +67,26 @@ export const Route = createFileRoute('/api/terminal-stream')({
             })
           }
         }
+
+        // Reject cwd values that resolve outside the allowed roots before
+        // opening the SSE stream. assertAllowedCwd handles ~ expansion, ..
+        // collapsing, and symlink resolution. (#149, #161)
+        let validatedCwd: string | undefined
+        if (cwd !== undefined) {
+          try {
+            validatedCwd = assertAllowedCwd(cwd)
+          } catch {
+            return new Response(
+              JSON.stringify({
+                ok: false,
+                error:
+                  'Working directory is outside the permitted path. Set TERMINAL_ALLOWED_CWD_ROOTS to permit additional directories.',
+              }),
+              { status: 400, headers: { 'Content-Type': 'application/json' } },
+            )
+          }
+        }
+
         // Optional attach: if the client passes an existing sessionId that's
         // still alive, reattach to it instead of spawning a fresh PTY. Lets
         // browser tabs survive transient SSE disconnects without losing the
@@ -108,7 +129,7 @@ export const Route = createFileRoute('/api/terminal-stream')({
               try {
                 session = createTerminalSession({
                   command,
-                  cwd,
+                  cwd: validatedCwd,
                   cols,
                   rows,
                 })
