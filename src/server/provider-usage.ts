@@ -74,6 +74,8 @@ const CLAUDE_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
 const CLAUDE_SCOPES =
   'user:profile user:inference user:sessions:claude_code user:mcp_servers'
 const REFRESH_BUFFER_MS = 5 * 60 * 1000
+/** Timeout for all outbound OAuth refresh and usage fetch requests. */
+const PROVIDER_FETCH_TIMEOUT_MS = 15_000
 
 type ClaudeOAuth = {
   accessToken: string
@@ -177,6 +179,7 @@ async function refreshClaudeToken(
       client_id: CLAUDE_CLIENT_ID,
       scope: CLAUDE_SCOPES,
     }),
+    signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS),
   })
 
   if (res.status === 400 || res.status === 401) {
@@ -272,6 +275,7 @@ export async function fetchClaudeUsage(): Promise<ProviderUsageResult> {
         'anthropic-beta': 'oauth-2025-04-20',
         'User-Agent': 'ClawSuite',
       },
+      signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS),
     })
   } catch (e) {
     return {
@@ -297,6 +301,7 @@ export async function fetchClaudeUsage(): Promise<ProviderUsageResult> {
             'anthropic-beta': 'oauth-2025-04-20',
             'User-Agent': 'ClawSuite',
           },
+          signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS),
         })
       }
     } catch (e) {
@@ -474,6 +479,7 @@ async function refreshCodexToken(auth: CodexAuth): Promise<string | null> {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: `grant_type=refresh_token&client_id=${encodeURIComponent(CODEX_CLIENT_ID)}&refresh_token=${encodeURIComponent(auth.tokens.refresh_token)}`,
+    signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS),
   })
 
   if (res.status === 400 || res.status === 401) {
@@ -576,7 +582,7 @@ export async function fetchCodexUsage(): Promise<ProviderUsageResult> {
 
   let res: Response
   try {
-    res = await fetch(CODEX_USAGE_URL, { headers })
+    res = await fetch(CODEX_USAGE_URL, { headers, signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS) })
   } catch (e) {
     return {
       provider: 'codex',
@@ -594,7 +600,7 @@ export async function fetchCodexUsage(): Promise<ProviderUsageResult> {
       const refreshed = await refreshCodexToken(auth)
       if (refreshed) {
         headers.Authorization = `Bearer ${refreshed}`
-        res = await fetch(CODEX_USAGE_URL, { headers })
+        res = await fetch(CODEX_USAGE_URL, { headers, signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS) })
       }
     } catch (e) {
       return {
@@ -789,6 +795,7 @@ export async function fetchOpenAIUsage(): Promise<ProviderUsageResult> {
         Math.floor((now - 86400000 * 30) / 1000),
       {
         headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS),
       },
     )
 
@@ -905,6 +912,7 @@ export async function fetchOpenRouterUsage(): Promise<ProviderUsageResult> {
   try {
     const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
       headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(PROVIDER_FETCH_TIMEOUT_MS),
     })
 
     if (!res.ok) {

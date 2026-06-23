@@ -21,6 +21,9 @@ import type {
 
 const PLUGIN_BASE = '/api/plugins/workflow-engine';
 
+/** Maximum time to wait for any single plugin API request before aborting. */
+const PLUGIN_REQUEST_TIMEOUT_MS = 15_000;
+
 // ---------------------------------------------------------------------------
 // Typed errors
 // ---------------------------------------------------------------------------
@@ -76,11 +79,16 @@ export interface ActiveNodeRunSummary {
 // ---------------------------------------------------------------------------
 
 function _proxyFetch(path: string, init?: RequestInit): Promise<Response> {
+  const timeoutSignal = AbortSignal.timeout(PLUGIN_REQUEST_TIMEOUT_MS);
+  const signal =
+    init?.signal
+      ? AbortSignal.any([init.signal, timeoutSignal])
+      : timeoutSignal;
   if (typeof window !== 'undefined') {
     const proxyPath = `/api/dashboard-proxy${path.startsWith('/') ? path : `/${path}`}`;
-    return fetch(proxyPath, init);
+    return fetch(proxyPath, { ...init, signal });
   }
-  return dashboardFetch(path, init);
+  return dashboardFetch(path, { ...init, signal });
 }
 
 async function _get<T>(path: string): Promise<T> {
@@ -377,7 +385,7 @@ async function* pluginSseStream(url: string): AsyncGenerator<RunEvent> {
     throw new Error('pluginSseStream must not be called in browser context — use EventSource directly');
   }
   const { dashboardFetch: df } = await import('../../gateway-capabilities.js');
-  const res = await df(PLUGIN_BASE + url);
+  const res = await df(PLUGIN_BASE + url, { signal: AbortSignal.timeout(PLUGIN_REQUEST_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`Plugin SSE stream had no body`);
   if (!res.body) throw new Error(`Plugin SSE stream had no body`);
   const reader = (res.body as ReadableStream<Uint8Array>).getReader();

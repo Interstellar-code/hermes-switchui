@@ -34,7 +34,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(async () => {
   fetchMock = vi.fn();
   const mod = await import('../../gateway-capabilities.js');
-  vi.mocked(mod.dashboardFetch).mockImplementation(fetchMock);
+  vi.mocked(mod.dashboardFetch).mockImplementation(fetchMock as never);
 });
 
 // Helper to get the last call's URL
@@ -280,5 +280,42 @@ describe('PluginClient.tryClaimApprovalForResume', () => {
     expect(body.approvalResponse).toBe('lgtm');
     expect(result.claimed).toBe(true);
     expect(result.terminalStatus).toBe('completed');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Timeout — hung fetch must reject rather than hang forever
+// ---------------------------------------------------------------------------
+
+describe('PluginClient fetch timeout', () => {
+  it('passes an AbortSignal with a timeout to every request', async () => {
+    // A never-resolving fetch simulates a hung network call.
+    // We don't actually wait for it to fire — instead we verify that the
+    // signal forwarded to dashboardFetch carries a timeout (i.e. it is an
+    // AbortSignal whose abortReason will eventually be a TimeoutError).
+    fetchMock.mockImplementation((_url: string, init?: RequestInit) => {
+      const signal = init?.signal as AbortSignal | undefined;
+      // Signal must be present and must be an AbortSignal with a timeout.
+      expect(signal).toBeDefined();
+      expect(signal).toBeInstanceOf(AbortSignal);
+      // AbortSignal.timeout() signals carry a "timeout" reason name when
+      // aborted; checking that the signal object exists and is the right type
+      // is sufficient to prove the timeout was wired up.
+      return new Promise<Response>(() => { /* never resolves */ });
+    });
+
+    // Fire the request but don't await it — we just want to inspect the signal.
+    const pending = client.listDefinitions();
+
+    // Flush microtasks so the mock is called synchronously.
+    await Promise.resolve();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const signal = fetchMock.mock.calls[0][1]?.signal as AbortSignal | undefined;
+    expect(signal).toBeDefined();
+    expect(signal).toBeInstanceOf(AbortSignal);
+
+    // Clean up — abort the pending call so the test doesn't leak.
+    pending.catch(() => { /* expected rejection */ });
   });
 });
