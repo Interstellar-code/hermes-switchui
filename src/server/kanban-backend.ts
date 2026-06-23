@@ -459,7 +459,6 @@ export function resolveKanbanBackend(): KanbanBackend {
   const preference = (env('CLAUDE_KANBAN_BACKEND') ?? 'auto').toLowerCase()
   if (preference === 'local') return localBackend
   const claudeMeta = claudeBackend.meta()
-  if (preference === 'claude') return claudeMeta.detected ? claudeBackend : localBackend
   return claudeMeta.detected ? claudeBackend : localBackend
 }
 

@@ -1,9 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
-import {
-  ensureBusStarted,
-  subscribeToChatEvents,
-} from '../../server/chat-event-bus'
+import { subscribeToChatEvents } from '../../server/chat-event-bus'
 
 export const Route = createFileRoute('/api/events')({
   server: {
@@ -15,8 +12,6 @@ export const Route = createFileRoute('/api/events')({
             { status: 401, headers: { 'Content-Type': 'text/event-stream' } },
           )
         }
-        await ensureBusStarted()
-
         const encoder = new TextEncoder()
         let unsubscribe: (() => void) | null = null
         let keepaliveInterval: ReturnType<typeof setInterval> | null = null
