@@ -2,6 +2,8 @@
  * Jobs API client — talks to Hermes Agent FastAPI /api/jobs endpoints.
  */
 
+import { apiFetch } from './api-fetch'
+
 const CLAUDE_API = '/api/claude-jobs'
 
 export type ClaudeJob = {
@@ -229,7 +231,7 @@ export function getJobErrorText(
 }
 
 export async function fetchJobs(): Promise<Array<ClaudeJob>> {
-  const res = await fetch(`${CLAUDE_API}?include_disabled=true`)
+  const res = await apiFetch(`${CLAUDE_API}?include_disabled=true`)
   if (!res.ok) throw new Error(`Failed to fetch jobs: ${res.status}`)
   const data = await res.json()
   return normalizeJobsResponse(data)
@@ -294,7 +296,7 @@ export function buildJobMutationPayload(
 
 export async function createJob(input: JobMutationInput): Promise<ClaudeJob> {
   // Normalize deliver: backend expects a string, but the form sends an array
-  const res = await fetch(CLAUDE_API, {
+  const res = await apiFetch(CLAUDE_API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(buildJobMutationPayload(input)),
@@ -316,7 +318,7 @@ export async function updateJob(
   if (typeof updates.prompt === 'string') {
     payload.input = updates.prompt
   }
-  const res = await fetch(`${CLAUDE_API}/${jobId}`, {
+  const res = await apiFetch(`${CLAUDE_API}/${jobId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -331,7 +333,7 @@ export async function updateJob(
 }
 
 export async function deleteJob(jobId: string): Promise<void> {
-  const res = await fetch(`${CLAUDE_API}/${jobId}`, {
+  const res = await apiFetch(`${CLAUDE_API}/${jobId}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
   })
@@ -344,7 +346,7 @@ export async function deleteJob(jobId: string): Promise<void> {
 }
 
 export async function pauseJob(jobId: string): Promise<ClaudeJob> {
-  const res = await fetch(`${CLAUDE_API}/${jobId}?action=pause`, {
+  const res = await apiFetch(`${CLAUDE_API}/${jobId}?action=pause`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({}),
@@ -359,7 +361,7 @@ export async function pauseJob(jobId: string): Promise<ClaudeJob> {
 }
 
 export async function resumeJob(jobId: string): Promise<ClaudeJob> {
-  const res = await fetch(`${CLAUDE_API}/${jobId}?action=resume`, {
+  const res = await apiFetch(`${CLAUDE_API}/${jobId}?action=resume`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({}),
@@ -374,7 +376,7 @@ export async function resumeJob(jobId: string): Promise<ClaudeJob> {
 }
 
 export async function triggerJob(jobId: string): Promise<ClaudeJob> {
-  const res = await fetch(`${CLAUDE_API}/${jobId}?action=run`, {
+  const res = await apiFetch(`${CLAUDE_API}/${jobId}?action=run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({}),
@@ -392,7 +394,7 @@ export async function fetchJobOutput(
   jobId: string,
   limit = 10,
 ): Promise<Array<JobOutput>> {
-  const res = await fetch(`${CLAUDE_API}/${jobId}?action=runs&limit=${limit}`)
+  const res = await apiFetch(`${CLAUDE_API}/${jobId}?action=runs&limit=${limit}`)
   if (!res.ok) throw new Error(`Failed to fetch output: ${res.status}`)
   return normalizeJobOutputs(await res.json())
 }
