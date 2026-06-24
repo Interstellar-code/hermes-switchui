@@ -18,8 +18,14 @@ export const Route = createFileRoute('/api/workflow-runs')({
         const workflowId = url.searchParams.get('workflow_id');
 
         // Phase 2: always plugin path.
-        const runs = await engine.listRuns({ workflowId: workflowId ?? undefined });
-        return Response.json({ runs });
+        try {
+          const runs = await engine.listRuns({ workflowId: workflowId ?? undefined });
+          return Response.json({ runs });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.warn(`[workflow-runs] engine unavailable, returning empty list: ${message}`);
+          return Response.json({ runs: [] });
+        }
       },
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) return Response.json({ error: 'Unauthorized' }, { status: 401 });
