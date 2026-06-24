@@ -12,6 +12,7 @@ import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 // nitro plugin removed (tanstackStart handles server runtime)
 import { defineConfig, loadEnv } from 'vite'
+import mkcert from 'vite-plugin-mkcert'
 
 // ---------------------------------------------------------------------------
 // Hermes Agent auto-start helpers
@@ -579,6 +580,16 @@ const config = defineConfig(({ mode, command }) => {
       },
     },
     plugins: [
+      // Local HTTPS for the Userback widget (screen capture + annotation APIs
+      // require a secure context). vite-plugin-mkcert auto-installs the local
+      // CA on first run and generates a trusted cert for localhost + LAN IPs.
+      // List this first so its `configureServer` hook switches the dev server
+      // to HTTPS before the proxy/HMR plugins attach.
+      mkcert({
+        // Default hosts cover `localhost` and auto-discovered LAN IPs.
+        // Add a Tailscale hostname here (e.g. 'mac.tail1234.ts.net') if Chrome
+        // complains about cert mismatch when accessing over Tailscale.
+      }),
       // Restart dev server when package.json changes so __APP_VERSION__
       // (computed once at config load via `define`) re-evaluates and the
       // sidebar version chip stays in sync with `pnpm version` bumps.
