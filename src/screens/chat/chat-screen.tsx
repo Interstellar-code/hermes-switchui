@@ -15,6 +15,7 @@ import {
   readError,
   textFromMessage,
 } from './utils'
+import { resolveNewChatBootstrapSession } from './new-chat-bootstrap'
 import {
   advanceStickyStreamingText,
   createOptimisticMessage,
@@ -2750,7 +2751,7 @@ export function ChatScreen({
   )
 
   const send = useCallback(
-    (
+    async (
       body: string,
       attachments: Array<ChatComposerAttachment>,
       fastMode: boolean,
@@ -2820,33 +2821,35 @@ export function ChatScreen({
       )
 
       if (isNewChat) {
-        // In portable mode, use 'main' — no server-side sessions exist.
-        // In enhanced mode, create a UUID thread for the sessions API.
-        const threadId = isPortableMode ? 'main' : crypto.randomUUID()
+        // Create/resolve the concrete session before first send. The old flow
+        // generated a UUID, fired createSession() in the background, and then
+        // immediately streamed against the UUID. If registration lagged or the
+        // backend returned a different persisted id, the first send hit
+        // /api/sessions/<uuid>/chat/stream with a session that never existed.
+        const { sessionKey: threadId, friendlyId: routeFriendlyId } =
+          await resolveNewChatBootstrapSession({
+            createSessionForMessage,
+            generateThreadId: () => crypto.randomUUID(),
+            isPortableMode,
+          })
         const { optimisticMessage } = createOptimisticMessage(
           messageBody,
           attachmentPayload,
         )
-        appendHistoryMessage(queryClient, threadId, threadId, optimisticMessage)
-        upsertSessionInCache(threadId, optimisticMessage)
+        appendHistoryMessage(
+          queryClient,
+          routeFriendlyId,
+          threadId,
+          optimisticMessage,
+        )
+        upsertSessionInCache(routeFriendlyId, optimisticMessage)
         setPendingGeneration(true)
         setSending(true)
         setWaitingForResponse(true)
 
-        if (!isPortableMode) {
-          void createSessionForMessage(threadId).catch((err: unknown) => {
-            if (import.meta.env.DEV) {
-              console.warn('[chat] failed to register new thread', err)
-            }
-            void queryClient.invalidateQueries({
-              queryKey: chatQueryKeys.sessions,
-            })
-          })
-        }
-
         sendMessage(
           threadId,
-          threadId,
+          routeFriendlyId,
           messageBody,
           attachmentPayload,
           fastMode,
@@ -2855,11 +2858,11 @@ export function ChatScreen({
             ? optimisticMessage.clientId
             : '',
         )
-        // In portable mode, navigate to /chat/main instead of UUID
+        // In portable mode, navigate to /chat/main instead of a transient UUID.
         if (!embedded) {
           navigate({
             to: '/chat/$sessionKey',
-            params: { sessionKey: threadId },
+            params: { sessionKey: routeFriendlyId },
             replace: true,
           })
         }

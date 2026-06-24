@@ -188,11 +188,13 @@ export function classifySessionSource(
   source: string | null | undefined,
   key: string,
   isTaskTriggered: boolean,
+  sessionKind?: string | null,
 ): SessionSource {
   if (source === 'telegram') return 'tg'
   if (source === 'cron' || key.startsWith('cron_')) return 'cron'
-  if (source === 'api_server') return 'api'
   if (isTaskTriggered) return 'task'
+  if (source === 'api_server' && sessionKind === 'chat') return 'chat'
+  if (source === 'api_server') return 'api'
   if (source === 'cli') return 'cli'
   if (source === 'a2a_fleet') return 'a2a'
   return 'chat'
@@ -280,7 +282,12 @@ export function useChatSessionsFeed(): SessionSourceResult {
         previewLower.startsWith('work kanban task ')
       // Prefer the authoritative gateway `source` field; fall back to key-prefix
       // heuristics for rows that predate source tagging.
-      const kind = classifySessionSource(s.source, s.key, isTaskTriggered)
+      const kind = classifySessionSource(
+        s.source,
+        s.key,
+        isTaskTriggered,
+        s.kind,
+      )
       return {
         id: makeId('chat', s.key),
         src: kind,

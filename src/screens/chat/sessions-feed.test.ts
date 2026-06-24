@@ -172,6 +172,24 @@ describe('ID namespacing', () => {
   })
 })
 
+describe('classifySessionSource', () => {
+  it('keeps chat-kind sessions in the chat bucket even when backend source is api_server', () => {
+    expect(
+      classifySessionSource('api_server', 'session-1', false, 'chat'),
+    ).toBe('chat')
+  })
+
+  it('keeps cron sessions in cron even if their kind is chat', () => {
+    expect(
+      classifySessionSource('cron', 'cron_job_1', false, 'chat'),
+    ).toBe('cron')
+  })
+
+  it('still classifies non-chat api_server sessions as api', () => {
+    expect(classifySessionSource('api_server', 'session-1', false)).toBe('api')
+  })
+})
+
 // ── Sort tests (using exported production sortItems) ───────────────────────────
 
 describe('sortItems', () => {

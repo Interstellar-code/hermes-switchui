@@ -302,7 +302,10 @@ export async function createSession(opts?: {
   title?: string
   model?: string
 }): Promise<ClaudeSession> {
-  if (getCapabilities().dashboard.available) {
+  if (
+    getCapabilities().dashboard.available &&
+    !getCapabilities().enhancedChat
+  ) {
     const resp = await createDashboardSession(opts || {})
     return resp.session as ClaudeSession
   }
@@ -317,7 +320,10 @@ export async function updateSession(
   sessionId: string,
   updates: { title?: string },
 ): Promise<ClaudeSession> {
-  if (getCapabilities().dashboard.available) {
+  if (
+    getCapabilities().dashboard.available &&
+    !getCapabilities().enhancedChat
+  ) {
     const resp = await updateDashboardSession(sessionId, updates)
     return resp.session as ClaudeSession
   }

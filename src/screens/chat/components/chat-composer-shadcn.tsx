@@ -100,7 +100,7 @@ type ChatComposerShadcnProps = {
     attachments: Array<ChatComposerAttachment>,
     fastMode: boolean,
     helpers: ChatComposerHelpers,
-  ) => void
+  ) => void | Promise<void>
   isLoading: boolean
   disabled: boolean
   sessionKey?: string
@@ -550,7 +550,7 @@ function ChatComposerShadcn({
     queueSessionKey !== null &&
     (queuedMessages.length > 0 || visibleQueueActivity !== null)
 
-  const handleSubmit = React.useCallback(() => {
+  const handleSubmit = React.useCallback(async () => {
     if (disabled || isLoading || submittingRef.current) return
     const rawBody = value.trim()
     if (rawBody.length === 0 && attachments.length === 0) return
@@ -562,17 +562,19 @@ function ChatComposerShadcn({
       // is on (mirrors the live composer's effectiveFastMode rule).
       const effectiveFastMode =
         fastMode && thinkingLevel === 'off' ? true : false
-      onSubmit(body, attachmentPayload, effectiveFastMode, helpers)
+      await Promise.resolve(
+        onSubmit(body, attachmentPayload, effectiveFastMode, helpers),
+      )
+      setValue('')
+      setAttachments([])
+      setIsSlashMenuDismissed(false)
+      onClearReply?.()
+      focusPrompt()
     } finally {
       window.setTimeout(() => {
         submittingRef.current = false
       }, 300)
     }
-    setValue('')
-    setAttachments([])
-    setIsSlashMenuDismissed(false)
-    onClearReply?.()
-    focusPrompt()
   }, [
     disabled,
     isLoading,

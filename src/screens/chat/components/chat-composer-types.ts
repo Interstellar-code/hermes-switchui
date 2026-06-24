@@ -29,7 +29,7 @@ export type ChatComposerProps = {
     attachments: Array<ChatComposerAttachment>,
     fastMode: boolean,
     helpers: ChatComposerHelpers,
-  ) => void
+  ) => void | Promise<void>
   isLoading: boolean
   disabled: boolean
   sessionKey?: string
