@@ -194,7 +194,7 @@ function StepIdentity({
           placeholder="daily-report"
           autoFocus
         />
-        <div className="cr-wiz-hint">Lowercase letters, numbers, _ or - · 2–40 chars</div>
+        <div className="cr-wiz-hint">A display name · 2–60 characters</div>
       </div>
 
       <div className="cr-wiz-field">
