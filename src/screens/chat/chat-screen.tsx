@@ -2245,14 +2245,15 @@ export function ChatScreen({
         clientId: optimisticClientId,
       }
 
-      // Failsafe: clear waitingForResponse after 120s no matter what
-      // Prevents infinite spinner if SSE/idle detection both fail
+      // Failsafe: keep frontend aligned with the backend send-stream timeout.
+      // Prevents the composer from re-enabling while the backend is still
+      // processing a long-running request (#122).
       if (failsafeTimerRef.current) {
         window.clearTimeout(failsafeTimerRef.current)
       }
       failsafeTimerRef.current = window.setTimeout(() => {
         streamFinish()
-      }, 120_000)
+      }, 600_000)
 
       // Send a compatibility shape for attachment parsing.
       // Different server/channel versions read different keys.

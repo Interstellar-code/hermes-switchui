@@ -137,8 +137,83 @@ type ClaudeTaskRow = {
   body?: string | null
   status?: string | null
   assignee?: string | null
+  created_by?: string | null
   created_at?: number | string | null
   updated_at?: number | string | null
+}
+
+type ClaudeTaskBodyMeta = {
+  acceptanceCriteria?: string[]
+  reviewer?: string | null
+  missionId?: string | null
+  reportPath?: string | null
+}
+
+const TASK_META_PREFIX = '<!-- switchui-kanban-meta:'
+const TASK_META_SUFFIX = '-->'
+
+function normalizeMetaString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function normalizeAcceptanceCriteria(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function parseClaudeTaskBody(body: string | null | undefined): {
+  spec: string
+  meta: Required<ClaudeTaskBodyMeta>
+} {
+  const raw = body ?? ''
+  const trimmed = raw.trimStart()
+  const meta = {
+    acceptanceCriteria: [] as string[],
+    reviewer: null as string | null,
+    missionId: null as string | null,
+    reportPath: null as string | null,
+  }
+  if (!trimmed.startsWith(TASK_META_PREFIX)) {
+    return { spec: raw, meta }
+  }
+  const end = trimmed.indexOf(TASK_META_SUFFIX)
+  if (end === -1) return { spec: raw, meta }
+  const jsonText = trimmed.slice(TASK_META_PREFIX.length, end).trim()
+  try {
+    const parsed = JSON.parse(jsonText) as ClaudeTaskBodyMeta
+    meta.acceptanceCriteria = normalizeAcceptanceCriteria(parsed.acceptanceCriteria)
+    meta.reviewer = normalizeMetaString(parsed.reviewer)
+    meta.missionId = normalizeMetaString(parsed.missionId)
+    meta.reportPath = normalizeMetaString(parsed.reportPath)
+    const spec = trimmed.slice(end + TASK_META_SUFFIX.length).replace(/^\s+/, '')
+    return { spec, meta }
+  } catch {
+    return { spec: raw, meta }
+  }
+}
+
+function buildClaudeTaskBody(
+  spec: string,
+  meta: ClaudeTaskBodyMeta,
+): string {
+  const normalizedMeta = {
+    acceptanceCriteria: normalizeAcceptanceCriteria(meta.acceptanceCriteria),
+    reviewer: normalizeMetaString(meta.reviewer),
+    missionId: normalizeMetaString(meta.missionId),
+    reportPath: normalizeMetaString(meta.reportPath),
+  }
+  const hasMeta =
+    normalizedMeta.acceptanceCriteria.length > 0 ||
+    normalizedMeta.reviewer !== null ||
+    normalizedMeta.missionId !== null ||
+    normalizedMeta.reportPath !== null
+  const normalizedSpec = spec.trim()
+  if (!hasMeta) return normalizedSpec
+  const header = `${TASK_META_PREFIX}${JSON.stringify(normalizedMeta)}${TASK_META_SUFFIX}`
+  return normalizedSpec ? `${header}\n${normalizedSpec}` : header
 }
 
 type ClaudeDetection = {
@@ -239,7 +314,7 @@ function readClaudeTasks(): ClaudeTaskRow[] {
   try {
     const db = openDb(detection.dbPath)
     return db.prepare(
-      'SELECT id, title, body, status, assignee, created_at, ' +
+      'SELECT id, title, body, status, assignee, created_by, created_at, ' +
       'COALESCE(last_heartbeat_at, completed_at, started_at, created_at) AS updated_at ' +
       'FROM tasks ORDER BY created_at DESC, id DESC'
     ).all() as ClaudeTaskRow[]
@@ -254,7 +329,7 @@ function readClaudeTask(taskId: string): ClaudeTaskRow | null {
   try {
     const db = openDb(detection.dbPath)
     const row = db.prepare(
-      'SELECT id, title, body, status, assignee, created_at, ' +
+      'SELECT id, title, body, status, assignee, created_by, created_at, ' +
       'COALESCE(last_heartbeat_at, completed_at, started_at, created_at) AS updated_at ' +
       'FROM tasks WHERE id = ? LIMIT 1'
     ).get(taskId) as ClaudeTaskRow | undefined
@@ -351,17 +426,18 @@ export function mapBoardStatus(status: LocalKanbanCard['status'] | null | undefi
 function claudeTaskToCard(task: ClaudeTaskRow): LocalKanbanCard {
   const createdAt = normalizeTimestamp(task.created_at)
   const updatedAt = normalizeTimestamp(task.updated_at ?? task.created_at)
+  const parsedBody = parseClaudeTaskBody(task.body)
   return {
     id: task.id,
     title: task.title,
-    spec: task.body ?? '',
-    acceptanceCriteria: [],
+    spec: parsedBody.spec,
+    acceptanceCriteria: parsedBody.meta.acceptanceCriteria,
     assignedWorker: task.assignee ?? null,
-    reviewer: null,
+    reviewer: parsedBody.meta.reviewer,
     status: mapClaudeStatus(task.status),
-    missionId: null,
-    reportPath: null,
-    createdBy: 'claude-kanban',
+    missionId: parsedBody.meta.missionId,
+    reportPath: parsedBody.meta.reportPath,
+    createdBy: task.created_by?.trim() || 'claude-kanban',
     createdAt,
     updatedAt,
   }
@@ -419,7 +495,12 @@ const claudeBackend: KanbanBackend = {
     ).run(
       taskId,
       input.title.trim(),
-      (input.spec ?? '').trim(),
+      buildClaudeTaskBody(input.spec ?? '', {
+        acceptanceCriteria: input.acceptanceCriteria,
+        reviewer: input.reviewer,
+        missionId: input.missionId,
+        reportPath: input.reportPath,
+      }),
       input.assignedWorker?.trim() || null,
       status,
       input.createdBy?.trim() || 'claude-kanban',
@@ -436,12 +517,33 @@ const claudeBackend: KanbanBackend = {
     if (!detection.available) return null
     const db = openDb(detection.dbPath)
     const nowSeconds = Math.floor(Date.now() / 1000)
+    const current = readClaudeTask(cardId)
+    if (!current) return null
+    const currentParsed = parseClaudeTaskBody(current.body)
 
     if (typeof updates.title === 'string' && updates.title.trim()) {
       db.prepare('UPDATE tasks SET title = ? WHERE id = ?').run(updates.title.trim(), cardId)
     }
-    if (typeof updates.spec === 'string') {
-      db.prepare('UPDATE tasks SET body = ? WHERE id = ?').run(updates.spec, cardId)
+    const shouldUpdateBody =
+      updates.spec !== undefined ||
+      updates.acceptanceCriteria !== undefined ||
+      updates.reviewer !== undefined ||
+      updates.missionId !== undefined ||
+      updates.reportPath !== undefined
+    if (shouldUpdateBody) {
+      db.prepare('UPDATE tasks SET body = ? WHERE id = ?').run(
+        buildClaudeTaskBody(
+          updates.spec ?? currentParsed.spec,
+          {
+            acceptanceCriteria:
+              updates.acceptanceCriteria ?? currentParsed.meta.acceptanceCriteria,
+            reviewer: updates.reviewer ?? currentParsed.meta.reviewer,
+            missionId: updates.missionId ?? currentParsed.meta.missionId,
+            reportPath: updates.reportPath ?? currentParsed.meta.reportPath,
+          },
+        ),
+        cardId,
+      )
     }
     if (updates.assignedWorker !== undefined) {
       db.prepare('UPDATE tasks SET assignee = ? WHERE id = ?').run(updates.assignedWorker?.trim() || null, cardId)
