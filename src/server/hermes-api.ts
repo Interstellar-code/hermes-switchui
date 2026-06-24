@@ -90,6 +90,13 @@ export type SessionMessagesQuery = {
   offset?: number
 }
 
+function hasPaginationQuery(query: SessionMessagesQuery): boolean {
+  return (
+    typeof query.limit === 'number' ||
+    typeof query.offset === 'number'
+  )
+}
+
 // ── Helpers ───────────────────────────────────────────────────────
 
 // Hard cap on how long any non-streaming gateway/dashboard request may hang.
@@ -339,7 +346,7 @@ export async function getMessages(
   sessionId: string,
   query: SessionMessagesQuery = {},
 ): Promise<Array<ClaudeMessage>> {
-  if (getCapabilities().dashboard.available) {
+  if (getCapabilities().dashboard.available && !hasPaginationQuery(query)) {
     const resp = await getDashboardSessionMessages(sessionId, query)
     return resp.messages as Array<ClaudeMessage>
   }
@@ -351,10 +358,14 @@ export async function getMessages(
     params.set('offset', String(query.offset))
   }
   const suffix = params.size > 0 ? `?${params.toString()}` : ''
-  const resp = await claudeGet<{ items: Array<ClaudeMessage>; total: number }>(
+  const resp = await claudeGet<{
+    items?: Array<ClaudeMessage>
+    data?: Array<ClaudeMessage>
+    total?: number
+  }>(
     `/api/sessions/${sessionId}/messages${suffix}`,
   )
-  return resp.items
+  return resp.items ?? resp.data ?? []
 }
 
 export async function searchSessions(
