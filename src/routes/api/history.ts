@@ -7,61 +7,15 @@ import {
   listSessions,
   toChatMessage,
 } from '../../server/hermes-api'
+import {
+  getLocalMessages,
+  getLocalSession,
+} from '../../server/local-session-store'
+import { resolveMainSessionId } from '../../server/main-session-resolver'
 import { resolveSessionKey } from '../../server/session-utils'
 import { isAuthenticated } from '@/server/auth-middleware'
-import { getLocalSession, getLocalMessages } from '../../server/local-session-store'
 
-// Short-TTL cache for the resolved "main" session id. Rapid history refetches
-// (mount + window-focus + interval) otherwise each fire a listSessions(30,0)
-// just to re-derive the same id. 15s is short enough that a newly-created
-// real session still becomes "main" promptly. (#215)
-const MAIN_RESOLUTION_TTL_MS = 15_000
-let _mainResolutionCache: { id: string | null; expiresAt: number } | null = null
-
-/**
- * Resolve the synthetic "main" session key to the user's real main chat
- * session id, or null when there is no suitable session (caller should treat
- * as a fresh "new" chat).
- *
- * Preference order:
- *   1. Most recent non-internal session with a real human-set title.
- *   2. Most recent non-internal session that has messages.
- *
- * Cron + Operations per-agent sessions are skipped so the orchestrator chat
- * doesn't latch onto runtime junk.
- *
- * NOTE: this still calls listSessions(30,0) on a cache miss. True gateway-side
- * pagination/limit for the message fetch is tracked in #215 (gateway change,
- * out of scope here).
- */
-export async function resolveMainSessionId(): Promise<string | null> {
-  const now = Date.now()
-  if (_mainResolutionCache && _mainResolutionCache.expiresAt > now) {
-    return _mainResolutionCache.id
-  }
-  const sessions = await listSessions(30, 0)
-  const isInternalKey = (id: string) =>
-    id.startsWith('cron_') ||
-    id.startsWith('cron:') ||
-    id.startsWith('agent:main:ops-')
-  const hasRealTitle = (s: { id: string; title?: string | null }) => {
-    const t = (s.title ?? '').trim()
-    return t.length > 0 && t !== s.id
-  }
-  const titled = sessions.find((s) => !isInternalKey(s.id) && hasRealTitle(s))
-  const fallback = titled
-    ? null
-    : sessions.find(
-        (s) =>
-          !isInternalKey(s.id) &&
-          typeof s.message_count === 'number' &&
-          s.message_count > 0,
-      )
-  const candidate = titled ?? fallback
-  const resolvedId = candidate ? candidate.id : null
-  _mainResolutionCache = { id: resolvedId, expiresAt: now + MAIN_RESOLUTION_TTL_MS }
-  return resolvedId
-}
+const DEFAULT_HISTORY_LIMIT = 150
 
 export const Route = createFileRoute('/api/history')({
   server: {
@@ -82,7 +36,7 @@ export const Route = createFileRoute('/api/history')({
         }
         try {
           const url = new URL(request.url)
-          const limit = Number(url.searchParams.get('limit') || '200')
+          const limit = Number(url.searchParams.get('limit') || String(DEFAULT_HISTORY_LIMIT))
           const rawSessionKey = url.searchParams.get('sessionKey')?.trim()
           const friendlyId = url.searchParams.get('friendlyId')?.trim()
           let { sessionKey } = await resolveSessionKey({
@@ -108,7 +62,7 @@ export const Route = createFileRoute('/api/history')({
           // orchestrator chat doesn't latch onto runtime junk.
           if (sessionKey === 'main') {
             try {
-              const resolvedId = await resolveMainSessionId()
+              const resolvedId = await resolveMainSessionId({ listSessions })
               if (resolvedId) {
                 sessionKey = resolvedId
               } else {
@@ -127,7 +81,10 @@ export const Route = createFileRoute('/api/history')({
           }
           let messages: Awaited<ReturnType<typeof getMessages>> = []
           try {
-            messages = await getMessages(sessionKey)
+            messages = await getMessages(sessionKey, {
+              limit: limit > 0 ? limit : undefined,
+              offset: 0,
+            })
           } catch (err) {
             // A gateway failure here previously collapsed into an empty
             // transcript, making a real outage indistinguishable from an
@@ -165,10 +122,8 @@ export const Route = createFileRoute('/api/history')({
             }
           }
 
-          // The gateway message endpoints (getMessages / dashboard
-          // getSessionMessages) accept no limit/offset param, so we fetch the
-          // full transcript and slice client-side here. True server-side
-          // pagination requires a hermes-agent change — tracked in #215.
+          // Keep a client-side tail bound as a safety net for older gateways
+          // that ignore limit/offset. Newer gateways can trim at source.
           const boundedMessages = limit > 0 ? messages.slice(-limit) : messages
 
           return Response.json({

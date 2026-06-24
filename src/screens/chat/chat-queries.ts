@@ -55,6 +55,8 @@ export const chatQueryKeys = {
   },
 } as const
 
+export const DEFAULT_CHAT_HISTORY_LIMIT = 150
+
 export async function fetchSessions(): Promise<Array<SessionMeta>> {
   const res = await fetch('/api/sessions')
   if (!res.ok) throw new Error(await readError(res))
@@ -66,7 +68,9 @@ export async function fetchHistory(payload: {
   sessionKey: string
   friendlyId: string
 }): Promise<HistoryResponse> {
-  const query = new URLSearchParams({ limit: '1000' })
+  const query = new URLSearchParams({
+    limit: String(DEFAULT_CHAT_HISTORY_LIMIT),
+  })
   if (payload.sessionKey) query.set('sessionKey', payload.sessionKey)
   if (payload.friendlyId) query.set('friendlyId', payload.friendlyId)
   const res = await fetch(`/api/history?${query.toString()}`)

@@ -105,6 +105,11 @@ export type DashboardStatus = {
   [key: string]: unknown
 }
 
+export type SessionMessagesQuery = {
+  limit?: number
+  offset?: number
+}
+
 async function dashboardJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await dashboardFetch(path, init)
   if (!res.ok) {
@@ -130,12 +135,25 @@ export async function getSession(id: string): Promise<DashboardSession> {
   return dashboardJson(`/api/sessions/${encodeURIComponent(id)}`)
 }
 
-export async function getSessionMessages(id: string): Promise<{
+export async function getSessionMessages(
+  id: string,
+  query: SessionMessagesQuery = {},
+): Promise<{
   messages: DashboardMessage[]
   session_started?: number
   model?: string
 }> {
-  return dashboardJson(`/api/sessions/${encodeURIComponent(id)}/messages`)
+  const params = new URLSearchParams()
+  if (typeof query.limit === 'number' && Number.isFinite(query.limit)) {
+    params.set('limit', String(query.limit))
+  }
+  if (typeof query.offset === 'number' && Number.isFinite(query.offset)) {
+    params.set('offset', String(query.offset))
+  }
+  const suffix = params.size > 0 ? `?${params.toString()}` : ''
+  return dashboardJson(
+    `/api/sessions/${encodeURIComponent(id)}/messages${suffix}`,
+  )
 }
 
 export async function searchSessions(q: string): Promise<SessionSearchResponse> {

@@ -15,6 +15,7 @@ import {
 } from './-send-stream-live-tools'
 import { resolveOrphanedToolCards } from './-send-stream-orphan-tools'
 import { resolveSessionKey } from '../../server/session-utils'
+import { resolveMainSessionId } from '../../server/main-session-resolver'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { requireJsonContentType } from '../../server/rate-limit'
 import { publishChatEvent } from '../../server/chat-event-bus'
@@ -865,31 +866,7 @@ export const Route = createFileRoute('/api/send-stream')({
                 let reused: string | null = null
                 if (sessionKey === 'main') {
                   try {
-                    const recent = await listSessions(30, 0)
-                    const isInternal = (id: string) =>
-                      id.startsWith('cron_') ||
-                      id.startsWith('cron:') ||
-                      id.startsWith('agent:main:ops-')
-                    const hasRealTitle = (s: {
-                      id: string
-                      title?: string | null
-                    }) => {
-                      const t = (s.title ?? '').trim()
-                      return t.length > 0 && t !== s.id
-                    }
-                    const titled = recent.find(
-                      (s) => !isInternal(s.id) && hasRealTitle(s),
-                    )
-                    const fallback = titled
-                      ? null
-                      : recent.find(
-                          (s) =>
-                            !isInternal(s.id) &&
-                            typeof s.message_count === 'number' &&
-                            s.message_count > 0,
-                        )
-                    const candidate = titled ?? fallback
-                    if (candidate) reused = candidate.id
+                    reused = await resolveMainSessionId({ listSessions })
                   } catch {
                     // fall through to createSession()
                   }

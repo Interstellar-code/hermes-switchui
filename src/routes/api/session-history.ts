@@ -10,14 +10,16 @@ import {
   ensureGatewayProbed,
   getGatewayCapabilities,
   getMessages,
+  listSessions,
   toChatMessage,
 } from '../../server/hermes-api'
-import { resolveSessionKey } from '../../server/session-utils'
-import { isAuthenticated } from '@/server/auth-middleware'
 import {
   getLocalMessages,
   getLocalSession,
 } from '../../server/local-session-store'
+import { resolveMainSessionId } from '../../server/main-session-resolver'
+import { resolveSessionKey } from '../../server/session-utils'
+import { isAuthenticated } from '@/server/auth-middleware'
 
 export const Route = createFileRoute('/api/session-history')({
   server: {
@@ -57,12 +59,27 @@ export const Route = createFileRoute('/api/session-history')({
             defaultKey: 'main',
           })
           void includeTools
-          const rows = await getMessages(resolved.sessionKey)
+          const effectiveSessionKey =
+            resolved.sessionKey === 'main'
+              ? await resolveMainSessionId({ listSessions })
+              : resolved.sessionKey
+          if (!effectiveSessionKey) {
+            return Response.json({
+              ok: true,
+              messages: [],
+              sessionKey: 'new',
+              source: 'gateway',
+            })
+          }
+          const rows = await getMessages(effectiveSessionKey, {
+            limit: limit > 0 ? limit : undefined,
+            offset: 0,
+          })
           const trimmed = rows.slice(-limit)
           return Response.json({
             ok: true,
             messages: trimmed.map((row) => toChatMessage(row)),
-            sessionKey: resolved.sessionKey,
+            sessionKey: effectiveSessionKey,
             source: 'gateway',
           })
         } catch (error) {

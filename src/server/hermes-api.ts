@@ -85,6 +85,11 @@ export type ClaudeConfig = {
   [key: string]: unknown
 }
 
+export type SessionMessagesQuery = {
+  limit?: number
+  offset?: number
+}
+
 // ── Helpers ───────────────────────────────────────────────────────
 
 // Hard cap on how long any non-streaming gateway/dashboard request may hang.
@@ -332,13 +337,22 @@ export async function deleteSession(sessionId: string): Promise<void> {
 
 export async function getMessages(
   sessionId: string,
+  query: SessionMessagesQuery = {},
 ): Promise<Array<ClaudeMessage>> {
   if (getCapabilities().dashboard.available) {
-    const resp = await getDashboardSessionMessages(sessionId)
+    const resp = await getDashboardSessionMessages(sessionId, query)
     return resp.messages as Array<ClaudeMessage>
   }
+  const params = new URLSearchParams()
+  if (typeof query.limit === 'number' && Number.isFinite(query.limit)) {
+    params.set('limit', String(query.limit))
+  }
+  if (typeof query.offset === 'number' && Number.isFinite(query.offset)) {
+    params.set('offset', String(query.offset))
+  }
+  const suffix = params.size > 0 ? `?${params.toString()}` : ''
   const resp = await claudeGet<{ items: Array<ClaudeMessage>; total: number }>(
-    `/api/sessions/${sessionId}/messages`,
+    `/api/sessions/${sessionId}/messages${suffix}`,
   )
   return resp.items
 }
