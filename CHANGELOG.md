@@ -3,6 +3,16 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.52] — 2026-06-24
+
+Patch release for three user-facing fixes merged via PR #287.
+
+### Fixed
+
+- **Kanban Claude-backend metadata no longer disappears on round-trip.** Cards now preserve `acceptanceCriteria`, `reviewer`, `missionId`, and `reportPath` by encoding unsupported SQLite-only fields into a tiny hidden metadata header inside `body`, then decoding them on read/update. This closes the field-loss regression on the Hermes-backed board path. (#178, #287)
+- **Chat composer send timeout now matches the backend run timeout.** The frontend failsafe moved from 120s to 600s, matching `SEND_STREAM_RUN_TIMEOUT_MS`, so long-running sends no longer prematurely re-enable the composer while the backend is still working. (#122, #287)
+- **Blocked update state is now labeled clearly.** The misleading dead-looking `Review required` pill is replaced with a plain `Blocked` status label while keeping the real reason text visible. (#227, #287)
+
 ## [2.3.51] — 2026-06-23
 
 Security + stability + cleanup patch. This cut lands a large batch of autonomously-triaged backend, streaming, store, and frontend fixes (PRs #251–#271) on top of two small UI features. All changes were branch-isolated, tsc/lint/test-gated, and adversarially verified before merge. (Two additional security fixes — terminal cwd containment #149/#161 and knowledge-path traversal #156 — remain open as PRs #259/#263 pending human security review and are NOT in this release.)
