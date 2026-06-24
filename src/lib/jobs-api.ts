@@ -331,7 +331,10 @@ export async function updateJob(
 }
 
 export async function deleteJob(jobId: string): Promise<void> {
-  const res = await fetch(`${CLAUDE_API}/${jobId}`, { method: 'DELETE' })
+  const res = await fetch(`${CLAUDE_API}/${jobId}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+  })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error(
@@ -343,6 +346,8 @@ export async function deleteJob(jobId: string): Promise<void> {
 export async function pauseJob(jobId: string): Promise<ClaudeJob> {
   const res = await fetch(`${CLAUDE_API}/${jobId}?action=pause`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
@@ -356,6 +361,8 @@ export async function pauseJob(jobId: string): Promise<ClaudeJob> {
 export async function resumeJob(jobId: string): Promise<ClaudeJob> {
   const res = await fetch(`${CLAUDE_API}/${jobId}?action=resume`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))

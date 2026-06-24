@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   buildCronRunSessionKey,
+  deleteJob,
   findJobById,
   getJobErrorText,
   getLatestJobOutputText,
@@ -8,6 +9,8 @@ import {
   isTerminalJobState,
   normalizeJobState,
   normalizeJobsResponse,
+  pauseJob,
+  resumeJob,
   triggerJob,
 } from './jobs-api'
 import type { HermesJob, JobOutput } from './jobs-api'
@@ -95,6 +98,49 @@ describe('job mutations', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
+    })
+  })
+
+  // #279: pause/resume/delete were missing the JSON Content-Type header, so the
+  // CSRF guard (requireJsonContentType) rejected them with 415.
+  it('sends JSON content type when pausing a cron job', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ job }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    await expect(pauseJob('job-1')).resolves.toEqual(job)
+    expect(fetchMock).toHaveBeenCalledWith('/api/claude-jobs/job-1?action=pause', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+  })
+
+  it('sends JSON content type when resuming a cron job', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ job }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    await expect(resumeJob('job-1')).resolves.toEqual(job)
+    expect(fetchMock).toHaveBeenCalledWith('/api/claude-jobs/job-1?action=resume', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+  })
+
+  it('sends JSON content type when deleting a cron job', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(null, { status: 204 }),
+    )
+    await expect(deleteJob('job-1')).resolves.toBeUndefined()
+    expect(fetchMock).toHaveBeenCalledWith('/api/claude-jobs/job-1', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
     })
   })
 })
