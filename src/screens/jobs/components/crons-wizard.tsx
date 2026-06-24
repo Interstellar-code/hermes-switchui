@@ -334,13 +334,19 @@ function StepAgent({
     staleTime: 30_000,
   })
 
-  const t3Agents = (profilesQuery.data?.profiles ?? []).map((p) => ({
-    id: p.name,
-    name: p.name,
-    glyph: (p.agent_ui as { glyph?: string } | undefined)?.glyph ?? p.name.slice(0, 2).toUpperCase(),
-    role: 'Custom',
-    tier: 3 as const,
-  }))
+  // The default profiles (hermes-switch/neo/trinity/morpheus) share ids with
+  // the builtins, so list each id once: keep the builtin (it has a proper role
+  // label) and only add profiles that aren't already a builtin.
+  const builtinIds = new Set(BUILTIN_AGENTS.map((a) => a.id))
+  const t3Agents = (profilesQuery.data?.profiles ?? [])
+    .filter((p) => !builtinIds.has(p.name))
+    .map((p) => ({
+      id: p.name,
+      name: p.name,
+      glyph: (p.agent_ui as { glyph?: string } | undefined)?.glyph ?? p.name.slice(0, 2).toUpperCase(),
+      role: 'Custom',
+      tier: 3 as const,
+    }))
 
   const allAgents = [
     ...BUILTIN_AGENTS.map((a) => ({ ...a, tier: a.tier as 1 | 2 | 3 })),
