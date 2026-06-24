@@ -104,7 +104,10 @@ function isDraftDirty(draft: CronDraft): boolean {
 
 // ── Validation ─────────────────────────────────────────────────────────────────
 
-const NAME_RE = /^[a-z0-9_-]{2,40}$/
+// Display name (not a slug/id — the job id is separate). The backend accepts
+// human-readable names with spaces, capitals, and punctuation (e.g. "Email
+// Check Combined (Gmail + Interstellar)"), so only bound the length here.
+const NAME_RE = /^.{2,60}$/
 const CRON_5_RE = /^(\S+\s+){4}\S+$/
 
 function validateStep(step: WizardStep, draft: CronDraft): string[] {
@@ -112,7 +115,7 @@ function validateStep(step: WizardStep, draft: CronDraft): string[] {
     case 1: {
       const errs: string[] = []
       if (!NAME_RE.test(draft.name.trim()))
-        errs.push('Name must be 2-40 chars, lowercase letters, numbers, _ or -')
+        errs.push('Name must be 2–60 characters')
       if (!draft.glyph.trim() || draft.glyph.trim().length > 3)
         errs.push('Glyph must be 1–3 characters')
       if (!['active', 'paused', 'draft'].includes(draft.status))
