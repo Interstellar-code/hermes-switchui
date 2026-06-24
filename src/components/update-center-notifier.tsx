@@ -386,13 +386,15 @@ function UpdateCard({
             </button>
           ) : (
             <span
-              className="rounded-lg px-3 py-1.5 text-xs font-semibold"
+              className="rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em]"
               style={{
                 background: 'var(--theme-card2)',
                 color: 'var(--theme-muted)',
               }}
+              title={product.reason ?? undefined}
+              aria-label={`${product.label} update blocked`}
             >
-              Review required
+              Blocked
             </span>
           )}
           <button

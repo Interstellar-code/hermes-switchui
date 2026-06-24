@@ -106,9 +106,10 @@ describe('kanban-backend', () => {
       {
         id: 't_12345678',
         title: 'Hermes task',
-        body: 'Backed by sqlite',
+        body: '<!-- switchui-kanban-meta:{"acceptanceCriteria":["first","second"],"reviewer":"qa","missionId":"m-1","reportPath":"reports/out.md"}-->\nBacked by sqlite',
         status: 'running',
         assignee: 'swarm2',
+        created_by: 'alice',
         created_at: 1777527540,
         updated_at: 1777527644,
       },
@@ -136,9 +137,14 @@ describe('kanban-backend', () => {
     expect(cards[0]).toMatchObject({
       id: 't_12345678',
       title: 'Hermes task',
+      spec: 'Backed by sqlite',
+      acceptanceCriteria: ['first', 'second'],
+      reviewer: 'qa',
+      missionId: 'm-1',
+      reportPath: 'reports/out.md',
       status: 'running',
       assignedWorker: 'swarm2',
-      createdBy: 'claude-kanban',
+      createdBy: 'alice',
     })
   })
 
@@ -255,9 +261,13 @@ describe('kanban-backend', () => {
           {
             id: 't_deadbeef',
             title: readCount === 1 ? 'Created Hermes task' : 'Updated Hermes task',
-            body: 'Task body',
+            body:
+              readCount === 1
+                ? '<!-- switchui-kanban-meta:{"acceptanceCriteria":["ship it"],"reviewer":"qa","missionId":"m-1","reportPath":"reports/task.md"}-->\nTask body'
+                : '<!-- switchui-kanban-meta:{"acceptanceCriteria":["ship it","verify logs"],"reviewer":"reviewer-2","missionId":"m-2","reportPath":"reports/task-2.md"}-->\nTask body updated',
             status: readCount === 1 ? 'queued' : 'done',
             assignee: 'swarm6',
+            created_by: 'builder',
             created_at: 1777527540,
             updated_at: 1777527644,
           },
@@ -267,11 +277,51 @@ describe('kanban-backend', () => {
       dbRunCalls: runCalls,
     })
 
-    const created = mod.createKanbanCard({ title: 'Created Hermes task', spec: 'Task body', assignedWorker: 'swarm6', status: 'backlog' })
-    const updated = mod.updateKanbanCard('t_deadbeef', { title: 'Updated Hermes task', status: 'done', assignedWorker: 'swarm6' })
+    const created = mod.createKanbanCard({
+      title: 'Created Hermes task',
+      spec: 'Task body',
+      acceptanceCriteria: ['ship it'],
+      reviewer: 'qa',
+      missionId: 'm-1',
+      reportPath: 'reports/task.md',
+      assignedWorker: 'swarm6',
+      status: 'backlog',
+    })
+    const updated = mod.updateKanbanCard('t_deadbeef', {
+      title: 'Updated Hermes task',
+      spec: 'Task body updated',
+      acceptanceCriteria: ['ship it', 'verify logs'],
+      reviewer: 'reviewer-2',
+      missionId: 'm-2',
+      reportPath: 'reports/task-2.md',
+      status: 'done',
+      assignedWorker: 'swarm6',
+    })
 
-    expect(created).toMatchObject({ id: 't_deadbeef', title: 'Created Hermes task', status: 'backlog', assignedWorker: 'swarm6', createdBy: 'claude-kanban' })
-    expect(updated).toMatchObject({ id: 't_deadbeef', title: 'Updated Hermes task', status: 'done', assignedWorker: 'swarm6' })
+    expect(created).toMatchObject({
+      id: 't_deadbeef',
+      title: 'Created Hermes task',
+      spec: 'Task body',
+      acceptanceCriteria: ['ship it'],
+      reviewer: 'qa',
+      missionId: 'm-1',
+      reportPath: 'reports/task.md',
+      status: 'backlog',
+      assignedWorker: 'swarm6',
+      createdBy: 'builder',
+    })
+    expect(updated).toMatchObject({
+      id: 't_deadbeef',
+      title: 'Updated Hermes task',
+      spec: 'Task body updated',
+      acceptanceCriteria: ['ship it', 'verify logs'],
+      reviewer: 'reviewer-2',
+      missionId: 'm-2',
+      reportPath: 'reports/task-2.md',
+      status: 'done',
+      assignedWorker: 'swarm6',
+      createdBy: 'builder',
+    })
 
     // Verify INSERT and UPDATE statements were issued via better-sqlite3 parameterized queries
     expect(stmts.some((s) => /insert into tasks/i.test(s))).toBe(true)
@@ -284,6 +334,12 @@ describe('kanban-backend', () => {
     // status is the 5th positional param (id, title, body, assignee, status, ...)
     expect(insertRun?.args[4]).toBe('triage')
     expect(insertRun?.args[4]).not.toBe('queued')
+    expect(String(insertRun?.args[2] ?? '')).toContain('"acceptanceCriteria":["ship it"]')
+    expect(String(insertRun?.args[2] ?? '')).toContain('"reviewer":"qa"')
+
+    const bodyUpdateRun = runCalls.find((c) => /update tasks set body = \\?/i.test(c.sql))
+    expect(bodyUpdateRun).toBeDefined()
+    expect(String(bodyUpdateRun?.args[0] ?? '')).toContain('"reportPath":"reports/task-2.md"')
   })
 })
 
