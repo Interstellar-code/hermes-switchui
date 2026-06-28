@@ -110,15 +110,27 @@ SSE streaming flows through `src/routes/api/chat-events.ts` and `src/routes/api/
 | `CUSTOM_API_KEY`    | API key for custom OpenAI-compatible endpoint (stored in .env)       |
 | `PORT`              | Workspace server port (default 3000)                                 |
 
-## graphify
+## codebase-memory (MCP)
 
-This project has a graphify knowledge graph at graphify-out/.
+This project is indexed by the `codebase-memory` MCP server — a tree-sitter + hybrid-LSP knowledge graph (functions, classes, call chains, routes). Reach for it **before** grep/raw file reads for any structural or cross-module question.
+
+Use the right tool for the job:
+
+| Question | Tool |
+| --- | --- |
+| "How is the codebase laid out?" languages, routes, hotspots, clusters | `get_architecture` |
+| "Where is `X` defined / what symbols match a pattern?" | `search_graph` (filter with `file_pattern: "src/.*"`) |
+| "Who calls `X` / what does `X` call?" blast radius | `trace_path` (`direction: both`, depth 1-5) |
+| "Show me the source of `X`" | `get_code_snippet` (needs `qualified_name` from `search_graph`) |
+| Arbitrary graph query (counts, relationships) | `query_graph` (read-only openCypher subset) |
+| Plain text/grep within indexed files | `search_code` (param is `pattern`) |
+| "What does my current git diff impact?" | `detect_changes` |
+| Persist/recall architecture decisions | `manage_adr` |
 
 Rules:
-- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
-- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
-- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
-- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)
+- Always pass `file_pattern: "src/.*"` (or scope by path) on `search_graph`/`trace_path`. `electron/server-bundle.cjs` is a 34 MB committed build bundle that is indexed and otherwise pollutes results.
+- Re-run `index_repository` after large changes — `auto_index` is off. Graph data lives centrally in `~/.cache/codebase-memory-mcp/` (one `.db` per project), **not** in the repo.
+- Optional UI: `codebase-memory-mcp --ui=true --port=9749` serves a graph viz while the MCP server is running.
 
 <!-- a2a-fleet:start -->
 @.hermes/A2A.md

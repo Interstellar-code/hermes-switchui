@@ -75,14 +75,11 @@ S2492 hermes-switchui docs verification pass — Task A grep checks for round-1 
 Access 1088k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>
 
-## graphify
+## codebase-memory (MCP)
 
-This project has a graphify knowledge graph at graphify-out/.
+This project is indexed by the `codebase-memory` MCP server (knowledge graph in SQLite).
 
 Rules:
-- For architecture, routing, page ownership, or cross-module questions, use Graphify first before raw file search.
-- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
-- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
-- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
-- For page/file mapping questions (for example, "what files power /conductor?"), use Graphify to identify the route, owners, and related modules, then use file search to enumerate concrete frontend files
-- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)
+- For architecture, routing, page ownership, or cross-module questions, use the `codebase-memory` tools (`get_architecture`, `search_graph`, `trace_path`, `query_graph`) first before raw file search.
+- For page/file mapping questions (for example, "what files power /conductor?"), use `search_graph`/`trace_path` to identify the route, owners, and related modules, then use file search to enumerate concrete files.
+- Re-run `index_repository` after large changes to keep the graph current (`auto_index` is off).
