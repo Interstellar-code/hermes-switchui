@@ -20,6 +20,17 @@ import {
   updateLocalSessionTitle,
 } from '../../server/local-session-store'
 
+
+async function listAllSessions(pageSize = 1000) {
+  const sessions = [] as Array<Awaited<ReturnType<typeof listSessions>>[number]>
+  for (let offset = 0; ; offset += pageSize) {
+    const page = await listSessions(pageSize, offset)
+    sessions.push(...page)
+    if (page.length < pageSize) break
+  }
+  return sessions
+}
+
 export const Route = createFileRoute('/api/sessions')({
   server: {
     handlers: {
@@ -39,7 +50,7 @@ export const Route = createFileRoute('/api/sessions')({
         }
 
         try {
-          const sessions = await listSessions(1000, 0)
+          const sessions = await listAllSessions()
           const gatewaySessions = sessions.map(toSessionSummary)
 
           // Merge local portable sessions (Ollama, Atomic Chat, etc.)
