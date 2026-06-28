@@ -3323,19 +3323,19 @@ export function ChatScreen({
             <ChatMessageList
               messages={finalDisplayMessages}
               onRetryMessage={handleRetryMessage}
-              onReplyMessage={(msg) => {
-                // Strip markdown structure (tables, headers, code, bold, links)
-                // so the reply quote is clean prose, not raw `| Check | … |` syntax.
-                const preview = (textFromMessage(msg) ?? '')
-                  .replace(/```[\s\S]*?```/g, ' ')
-                  .replace(/`([^`]+)`/g, '$1')
-                  .replace(/^\s*#{1,6}\s+/gm, '')
-                  .replace(/^\s*>\s?/gm, '')
-                  .replace(/^\s*\|.*$/gm, '')
-                  .replace(/^\s*[-*+]\s+/gm, '')
-                  .replace(/\*\*([^*]+)\*\*/g, '$1')
-                  .replace(/\*([^*]+)\*/g, '$1')
-                  .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+              onReplyMessage={(msg, selectedText) => {
+                const preview = (selectedText && selectedText.trim().length > 0
+                  ? selectedText
+                  : (textFromMessage(msg) ?? '')
+                      .replace(/```[\s\S]*?```/g, ' ')
+                      .replace(/`([^`]+)`/g, '$1')
+                      .replace(/^\s*#{1,6}\s+/gm, '')
+                      .replace(/^\s*>\s?/gm, '')
+                      .replace(/^\s*\|.*$/gm, '')
+                      .replace(/^\s*[-*+]\s+/gm, '')
+                      .replace(/\*\*([^*]+)\*\*/g, '$1')
+                      .replace(/\*([^*]+)\*/g, '$1')
+                      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'))
                   .replace(/\s+/g, ' ')
                   .trim()
                 const seq = finalDisplayMessages.indexOf(msg) + 1

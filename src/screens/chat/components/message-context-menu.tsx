@@ -16,6 +16,7 @@ type MessageContextMenuProps = {
   text: string
   onClose: () => void
   onReply?: () => void
+  onQuote?: () => void
   onRetry?: () => void
 }
 
@@ -50,6 +51,7 @@ export function MessageContextMenu({
   text,
   onClose,
   onReply,
+  onQuote,
   onRetry,
 }: MessageContextMenuProps) {
   const [copied, setCopied] = useState(false)
@@ -78,10 +80,10 @@ export function MessageContextMenu({
     if (typeof window === 'undefined') return position
     return clampContextMenuPosition(
       position,
-      { width: 188, height: onReply && onRetry ? 148 : 112 },
+      { width: 188, height: onQuote ? (onReply && onRetry ? 184 : 148) : (onReply && onRetry ? 148 : 112) },
       { width: window.innerWidth, height: window.innerHeight },
     )
-  }, [onReply, onRetry, position])
+  }, [onQuote, onReply, onRetry, position])
 
   const canCopy = text.trim().length > 0
 
@@ -131,6 +133,16 @@ export function MessageContextMenu({
           label="Reply"
           onClick={() => {
             onReply()
+            onClose()
+          }}
+        />
+      ) : null}
+      {onQuote ? (
+        <MenuAction
+          icon={<Reply size={15} strokeWidth={1.8} />}
+          label="Quote"
+          onClick={() => {
+            onQuote()
             onClose()
           }}
         />

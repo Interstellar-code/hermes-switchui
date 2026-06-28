@@ -32,15 +32,17 @@ afterEach(() => {
 })
 
 describe('MessageContextMenu', () => {
-  it('renders into document.body and exposes copy/reply actions', () => {
+  it('renders into document.body and exposes copy/reply/quote actions', () => {
     const onClose = vi.fn()
     const onReply = vi.fn()
+    const onQuote = vi.fn()
     renderMenu(
       <MessageContextMenu
         position={{ x: 120, y: 80 }}
         text="hello world"
         onClose={onClose}
         onReply={onReply}
+        onQuote={onQuote}
       />,
     )
 
@@ -74,4 +76,23 @@ describe('MessageContextMenu', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).toHaveBeenCalled()
   })
+})
+
+
+it('fires quote when the Quote action is clicked', () => {
+  const onClose = vi.fn()
+  const onQuote = vi.fn()
+  renderMenu(
+    <MessageContextMenu
+      position={{ x: 120, y: 80 }}
+      text="quoted text"
+      onClose={onClose}
+      onQuote={onQuote}
+    />,
+  )
+
+  const quoteButton = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find((node) => node.textContent?.includes('Quote'))
+  expect(quoteButton).toBeTruthy()
+  fireEvent.click(quoteButton!)
+  expect(onQuote).toHaveBeenCalledTimes(1)
 })
