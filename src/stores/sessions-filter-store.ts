@@ -3,7 +3,6 @@
  *
  * Persisted filter state for the unified sessions sidebar.
  * localStorage key: `hermes.sessions.filter`
- * Schema version: 1
  */
 
 import { create } from 'zustand'
@@ -11,10 +10,10 @@ import { persist } from 'zustand/middleware'
 import type { SessionDateRange, SessionFeedSort, SessionSource, SessionState } from '@/screens/chat/sessions-feed-types'
 
 export type FilterState = {
-  version: 4
+  version: 5
   /** Multi-select; empty array = all sources (no implicit "All" chip). */
   sources: Array<SessionSource>
-  /** Single-select; default 'all'. */
+  /** Single-select; kept for compatibility, sidebar uses all. */
   state: SessionState | 'all'
   /** Search text; debounce handled at consumer. */
   query: string
@@ -39,13 +38,24 @@ type FilterActions = {
   reset: () => void
 }
 
+function toISODate(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+export function buildDefaultDateRange(): SessionDateRange {
+  const now = new Date()
+  const from = new Date(now)
+  from.setDate(from.getDate() - 7)
+  return { from: toISODate(from), to: toISODate(now) }
+}
+
 function buildInitialState(): FilterState {
   return {
-    version: 4,
+    version: 5,
     sources: [],
     state: 'all',
     query: '',
-    dateRange: { from: null, to: null },
+    dateRange: buildDefaultDateRange(),
     sort: 'recent',
     collapsed: false,
     leftPanel: 'sessions',
@@ -85,20 +95,24 @@ export const useSessionsFilterStore = create<FilterState & FilterActions>()(
       migrate: (persisted, _version) => {
         const stored = (persisted ?? {}) as Partial<FilterState> & { version?: number }
         const v = Number(stored.version) || 0
-        if (v === 4) return stored as FilterState
-        if (v === 2 || v === 3) {
-          // v2 → v4: drop today-only date default; v3 → v4: drop chat-only source default
+        const defaults = buildInitialState()
+        const storedDateRange = stored.dateRange ?? { from: null, to: null }
+        const hasExplicitDateRange = Boolean(storedDateRange.from || storedDateRange.to)
+
+        if (v === 5) return stored as FilterState
+
+        if (v === 2 || v === 3 || v === 4) {
           return {
-            ...buildInitialState(),
+            ...defaults,
             ...stored,
-            version: 4,
-            sources: [],
-            dateRange: { from: null, to: null },
+            version: 5,
+            sources: v === 3 ? [] : (stored.sources ?? defaults.sources),
+            dateRange: hasExplicitDateRange ? storedDateRange : defaults.dateRange,
           }
         }
-        return buildInitialState()
+        return defaults
       },
-      version: 4,
+      version: 5,
     },
   ),
 )

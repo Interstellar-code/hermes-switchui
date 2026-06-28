@@ -141,20 +141,6 @@ export function ChatHeaderActionsV2({ sessionId, sessionKey, title }: ChatHeader
           <line x1="10" y1="12" x2="14" y2="12" />
         </svg>
       </button>
-
-      {/* More (placeholder — no dropdown in Phase 4) */}
-      <button
-        type="button"
-        aria-label="More options"
-        className={cn(btnClass)}
-        style={{ color: mutedColor }}
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <circle cx="5" cy="12" r="1.5" />
-          <circle cx="12" cy="12" r="1.5" />
-          <circle cx="19" cy="12" r="1.5" />
-        </svg>
-      </button>
     </div>
   )
 }

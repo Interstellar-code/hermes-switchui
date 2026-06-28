@@ -4,7 +4,7 @@
  * sidebar-source-chips-v2.tsx — multi-select source filter chips.
  *
  * Phase 3b: ALL chip, source icons, count badges, availability gating.
- * 7 chips: ALL, CHAT, CRON, TASKS, TOOLS, TELEGRAM, MEMORY
+ * 8 chips: ALL, CHAT, RECOVERED, CRON, TASKS, API, CLI, A2A, TELEGRAM
  * ALL chip clears sources. Other chips toggle in/out.
  * Hidden chips: sources where available === false.
  */
@@ -22,6 +22,16 @@ const SOURCE_DEFS: Array<{ id: SessionSource; label: string; icon: React.ReactNo
     icon: (
       <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden>
         <path d="M2 3h12a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H5l-3 2V4a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'recovered',
+    label: 'RECOVERED',
+    icon: (
+      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" aria-hidden>
+        <path d="M4 8a4 4 0 1 1 1.2 2.85" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M4 11V8h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     ),
   },
@@ -99,6 +109,7 @@ const SOURCE_DEFS: Array<{ id: SessionSource; label: string; icon: React.ReactNo
 
 const SOURCE_COLORS: Record<SessionSource, string> = {
   chat: 'var(--m-green-400, #00ff41)',
+  recovered: '#7dff9a',
   task: '#ff9f5f',
   cron: '#d6ff5f',
   api: '#5fcfff',

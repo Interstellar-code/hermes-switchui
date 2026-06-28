@@ -63,6 +63,7 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
   // and share the same delete/rename path (gateway DELETE /api/sessions/<id>).
   const isChatItem =
     item.src === 'chat' ||
+    item.src === 'recovered' ||
     item.src === 'cron' ||
     item.src === 'api' ||
     item.src === 'task' ||
@@ -213,24 +214,26 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
         document.body,
       )}
 
-      {renameOpen && (
+      {renameOpen && createPortal(
         <InlineRenameDialog
           sessionTitle={item.title}
           saving={renaming}
           error={renameError}
           onSave={handleRenameSave}
           onCancel={() => { if (!renaming) { setRenameOpen(false); onClose() } }}
-        />
+        />,
+        document.body,
       )}
 
-      {deleteOpen && (
+      {deleteOpen && createPortal(
         <InlineDeleteDialog
           sessionTitle={item.title}
           deleting={deleting}
           error={deleteError}
           onConfirm={handleDeleteConfirm}
           onCancel={() => { if (!deleting) { setDeleteOpen(false); onClose() } }}
-        />
+        />,
+        document.body,
       )}
     </>
   )
@@ -322,7 +325,7 @@ function InlineDeleteDialog({
 }
 
 const overlayStyle: React.CSSProperties = {
-  position: 'fixed', inset: 0, zIndex: 300,
+  position: 'fixed', inset: 0, zIndex: 1300,
   background: 'rgba(0,0,0,0.5)',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
 }

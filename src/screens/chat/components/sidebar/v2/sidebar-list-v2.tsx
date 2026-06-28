@@ -93,7 +93,7 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
         for (const item of groupItems) {
           const rawId = item.id.split(':').slice(1).join(':')
           const isActive =
-            (item.src === 'chat' || item.src === 'cron' || item.src === 'api' || item.src === 'task') &&
+            (item.src === 'chat' || item.src === 'recovered' || item.src === 'cron' || item.src === 'api' || item.src === 'task') &&
             rawId === activeSessionKey
           next.push({
             type: 'card',

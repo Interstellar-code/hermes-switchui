@@ -1,40 +1,10 @@
-/**
- * sidebar-date-popover-v2.test.tsx
- *
- * Phase 3c unit tests for the date popover pure logic:
- * - presetToRange computes correct ISO ranges
- * - setDateRange store action writes correctly (integration with store)
- *
- * Full DOM render tests are skipped — jsdom+vite environment conflict exists
- * project-wide (see task-card.test.tsx comment). Logic under test is pure.
- */
-
-import { describe, it, expect, beforeEach } from 'vitest'
-import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
-
-// ── Store reset ───────────────────────────────────────────────────────────────
+import { beforeEach, describe, expect, it } from 'vitest'
+import { buildDefaultDateRange, useSessionsFilterStore } from '@/stores/sessions-filter-store'
+import { inferPresetFromRange, presetToRange } from './sidebar-date-popover-v2'
 
 beforeEach(() => {
-  useSessionsFilterStore.setState({
-    dateRange: { from: null, to: null },
-  })
+  useSessionsFilterStore.setState({ dateRange: buildDefaultDateRange() })
 })
-
-// ── presetToRange logic (inline mirror — tests the pure function contract) ────
-
-function presetToRange(preset: string): { from: string | null; to: string | null } {
-  const now = new Date()
-  const toISO = (d: Date) => d.toISOString().slice(0, 10)
-  const today = toISO(now)
-  if (preset === 'all') return { from: null, to: null }
-  if (preset === 'today') return { from: today, to: today }
-  const daysAgo = preset === '24h' ? 1 : preset === '7d' ? 7 : preset === '30d' ? 30 : 90
-  const from = new Date(now)
-  from.setDate(from.getDate() - daysAgo)
-  return { from: toISO(from), to: today }
-}
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('SidebarDatePopoverV2 — presetToRange logic', () => {
   it('"all" preset returns null/null', () => {
@@ -58,14 +28,16 @@ describe('SidebarDatePopoverV2 — presetToRange logic', () => {
     expect(diff).toBe(7)
   })
 
-  it('"30d" preset returns 30-day range', () => {
-    const range = presetToRange('30d')
-    const diff = (new Date(range.to!).getTime() - new Date(range.from!).getTime()) / 86_400_000
-    expect(diff).toBe(30)
+  it('infers the matching preset from a stored 7d range', () => {
+    expect(inferPresetFromRange(presetToRange('7d'))).toBe('7d')
   })
 })
 
 describe('SidebarDatePopoverV2 — store integration', () => {
+  it('default store dateRange is 7d', () => {
+    expect(useSessionsFilterStore.getState().dateRange).toEqual(buildDefaultDateRange())
+  })
+
   it('setDateRange writes ISO range to store', () => {
     const { setDateRange } = useSessionsFilterStore.getState()
     setDateRange('2025-01-01', '2025-01-31')
@@ -74,29 +46,16 @@ describe('SidebarDatePopoverV2 — store integration', () => {
     expect(dateRange.to).toBe('2025-01-31')
   })
 
+  it('selected date range survives in the store for the session', () => {
+    const { setDateRange } = useSessionsFilterStore.getState()
+    setDateRange('2025-02-01', '2025-02-14')
+    expect(useSessionsFilterStore.getState().dateRange).toEqual({ from: '2025-02-01', to: '2025-02-14' })
+    expect(inferPresetFromRange(useSessionsFilterStore.getState().dateRange)).toBeNull()
+  })
+
   it('setDateRange(null, null) clears the store', () => {
-    useSessionsFilterStore.setState({ dateRange: { from: '2025-01-01', to: '2025-01-31' } })
     const { setDateRange } = useSessionsFilterStore.getState()
     setDateRange(null, null)
-    const { dateRange } = useSessionsFilterStore.getState()
-    expect(dateRange.from).toBeNull()
-    expect(dateRange.to).toBeNull()
-  })
-
-  it('applying "7d" preset range writes valid ISO dates', () => {
-    const range = presetToRange('7d')
-    const { setDateRange } = useSessionsFilterStore.getState()
-    setDateRange(range.from, range.to)
-    const { dateRange } = useSessionsFilterStore.getState()
-    expect(dateRange.from).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-    expect(dateRange.to).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-  })
-
-  it('applying "all" preset writes null/null', () => {
-    useSessionsFilterStore.setState({ dateRange: { from: '2025-01-01', to: '2025-01-31' } })
-    const range = presetToRange('all')
-    const { setDateRange } = useSessionsFilterStore.getState()
-    setDateRange(range.from, range.to)
     const { dateRange } = useSessionsFilterStore.getState()
     expect(dateRange.from).toBeNull()
     expect(dateRange.to).toBeNull()

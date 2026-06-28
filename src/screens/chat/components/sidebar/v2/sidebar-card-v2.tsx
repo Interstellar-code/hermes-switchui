@@ -22,6 +22,7 @@ interface SidebarCardV2Props {
 
 const RAIL_COLORS: Record<string, string> = {
   chat: 'var(--m-green-500)',
+  recovered: '#7dff9a',
   task: '#ff9f5f',
   cron: '#d6ff5f',
   api: '#5fcfff',
@@ -33,6 +34,7 @@ const RAIL_COLORS: Record<string, string> = {
 
 const RAIL_GLOW: Record<string, string> = {
   chat: '0 0 6px var(--m-green-500, #00ff41)',
+  recovered: '0 0 6px #7dff9a66',
   task: '0 0 6px #5fcfff66',
   cron: '0 0 6px #d6ff5f66',
   api: '0 0 6px #5fcfff66',
@@ -114,6 +116,7 @@ function SidebarCardV2Impl({ item, isActive }: SidebarCardV2Props) {
   // and maps directly to the /chat/$sessionKey route.
   const isChatItem =
     item.src === 'chat' ||
+    item.src === 'recovered' ||
     item.src === 'cron' ||
     item.src === 'api' ||
     item.src === 'cli' ||

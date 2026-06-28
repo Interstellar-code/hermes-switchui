@@ -242,6 +242,10 @@ describe('source classifier', () => {
     expect(classifySessionSource('telegram', 'some_key', false)).toBe('tg')
   })
 
+  it('source=recovered → recovered', () => {
+    expect(classifySessionSource('recovered', 'some_key', false)).toBe('recovered')
+  })
+
   it('source=cron → cron', () => {
     expect(classifySessionSource('cron', 'some_key', false)).toBe('cron')
   })
