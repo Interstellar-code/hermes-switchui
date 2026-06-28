@@ -153,8 +153,6 @@ skills-bundle/
 .serena/
 .claude/worktrees
 
-# Graphify generated knowledge graph/cache
-graphify-out/
 .omo/
 docs/Design Assets/Hermes-Switchui/matrix-landing/.astro/
 docs/Design Assets/Hermes-Switchui/matrix-landing/node_modules/
