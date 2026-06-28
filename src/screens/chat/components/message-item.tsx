@@ -288,7 +288,7 @@ export type MessageItemProps = {
   lifecycleEvents?: Array<LifecycleEvent>
   clarifyCard?: ReactNode
   onRetryMessage?: (message: ChatMessage) => void
-  onReplyMessage?: (message: ChatMessage) => void
+  onReplyMessage?: (message: ChatMessage, selectedText?: string) => void
   forceActionsVisible?: boolean
   wrapperRef?: React.RefObject<HTMLDivElement | null>
   wrapperClassName?: string
@@ -2100,7 +2100,9 @@ function MessageItemComponent({
     selectChatProfileAvatarDataUrl,
   )
   const [messageContextMenu, setMessageContextMenu] =
-    useState<MessageContextMenuPosition | null>(null)
+    useState<(MessageContextMenuPosition & { selectedText?: string }) | null>(null)
+
+  const bubbleRef = useRef<HTMLDivElement | null>(null)
 
   const messageStreamingText =
     typeof message.__streamingText === 'string'
@@ -2589,6 +2591,9 @@ function MessageItemComponent({
   const replyMessageAction = onReplyMessage
     ? () => onReplyMessage(message)
     : undefined
+  const quoteMessageAction = onReplyMessage && messageContextMenu?.selectedText
+    ? () => onReplyMessage(message, messageContextMenu.selectedText)
+    : undefined
 
   if (execNotification) {
     const isSuccess = execNotification.ok ?? execNotification.exitCode === 0
@@ -2732,10 +2737,20 @@ function MessageItemComponent({
             <AssistantAvatar size={24} className="mt-0.5" />
           )}
           <div
+            ref={bubbleRef}
             data-chat-message-bubble={isUser ? 'user' : 'assistant'}
             onContextMenu={(event) => {
               event.preventDefault()
-              setMessageContextMenu({ x: event.clientX, y: event.clientY })
+              const selection = typeof window !== 'undefined' ? window.getSelection() : null
+              const selectedText = (() => {
+                const raw = selection?.toString().trim() ?? ''
+                const anchor = selection?.anchorNode
+                const focus = selection?.focusNode
+                if (!raw || !bubbleRef.current || !anchor || !focus) return ''
+                if (!bubbleRef.current.contains(anchor) || !bubbleRef.current.contains(focus)) return ''
+                return raw.replace(/\s+/g, ' ').trim()
+              })()
+              setMessageContextMenu({ x: event.clientX, y: event.clientY, ...(selectedText ? { selectedText } : {}) })
             }}
             className={cn(
               'break-words whitespace-normal min-w-0 flex flex-col gap-2 px-3 py-2 max-w-[80%]',
@@ -2934,6 +2949,7 @@ function MessageItemComponent({
               text={fullText}
               onClose={() => setMessageContextMenu(null)}
               onReply={replyMessageAction}
+              onQuote={quoteMessageAction}
               onRetry={retryMessageAction}
             />
           ) : null}

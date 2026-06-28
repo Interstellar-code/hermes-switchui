@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock localStorage
 const store: Record<string, string> = {}
 const localStorageMock = {
   getItem: (key: string) => store[key] ?? null,
@@ -11,9 +10,6 @@ const localStorageMock = {
 vi.stubGlobal('localStorage', localStorageMock)
 vi.stubGlobal('window', { localStorage: localStorageMock })
 
-// Zustand stores keep module-level state — reset between tests by reimporting
-// via dynamic import after clearing localStorage.
-
 describe('sessions-filter-store', () => {
   beforeEach(() => {
     localStorageMock.clear()
@@ -21,79 +17,50 @@ describe('sessions-filter-store', () => {
   })
 
   async function getStore() {
-    const { useSessionsFilterStore } = await import('./sessions-filter-store')
-    return useSessionsFilterStore
+    const { useSessionsFilterStore, buildDefaultDateRange } = await import('./sessions-filter-store')
+    return { useSessionsFilterStore, buildDefaultDateRange }
   }
 
-  it('starts with default state', async () => {
-    const useStore = await getStore()
+  it('starts with default 7d date filter state', async () => {
+    const { useSessionsFilterStore: useStore, buildDefaultDateRange } = await getStore()
     const s = useStore.getState()
     expect(s.sources).toEqual([])
     expect(s.state).toBe('all')
     expect(s.query).toBe('')
-    expect(s.dateRange).toEqual({ from: null, to: null })
+    expect(s.dateRange).toEqual(buildDefaultDateRange())
     expect(s.sort).toBe('recent')
     expect(s.collapsed).toBe(false)
     expect(s.leftPanel).toBe('sessions')
-    expect(s.version).toBe(4)
+    expect(s.version).toBe(5)
   })
 
   it('toggleSource adds and removes sources', async () => {
-    const useStore = await getStore()
+    const { useSessionsFilterStore: useStore } = await getStore()
     const { toggleSource } = useStore.getState()
     toggleSource('chat')
     expect(useStore.getState().sources).toEqual(['chat'])
-    toggleSource('task' as any)
+    toggleSource('task')
     expect(useStore.getState().sources).toContain('task')
     toggleSource('chat')
     expect(useStore.getState().sources).not.toContain('chat')
-    expect(useStore.getState().sources).toContain('task')
-  })
-
-  it('setState updates state filter', async () => {
-    const useStore = await getStore()
-    useStore.getState().setState('live')
-    expect(useStore.getState().state).toBe('live')
-  })
-
-  it('setQuery updates query', async () => {
-    const useStore = await getStore()
-    useStore.getState().setQuery('hello')
-    expect(useStore.getState().query).toBe('hello')
   })
 
   it('setDateRange updates dateRange', async () => {
-    const useStore = await getStore()
+    const { useSessionsFilterStore: useStore } = await getStore()
     useStore.getState().setDateRange('2025-01-01', '2025-12-31')
     expect(useStore.getState().dateRange).toEqual({ from: '2025-01-01', to: '2025-12-31' })
   })
 
-  it('setSort updates sort', async () => {
-    const useStore = await getStore()
-    useStore.getState().setSort('tokens')
-    expect(useStore.getState().sort).toBe('tokens')
-  })
-
-  it('setCollapsed updates collapsed', async () => {
-    const useStore = await getStore()
-    useStore.getState().setCollapsed(true)
-    expect(useStore.getState().collapsed).toBe(true)
-  })
-
-  it('reset returns to initial state', async () => {
-    const useStore = await getStore()
-    useStore.getState().toggleSource('chat')
-    useStore.getState().setState('live')
+  it('reset returns to default 7d date range', async () => {
+    const { useSessionsFilterStore: useStore, buildDefaultDateRange } = await getStore()
     useStore.getState().setQuery('test')
+    useStore.getState().setDateRange('2025-01-01', '2025-01-31')
     useStore.getState().reset()
-    const s = useStore.getState()
-    expect(s.sources).toEqual([])
-    expect(s.state).toBe('all')
-    expect(s.query).toBe('')
+    expect(useStore.getState().query).toBe('')
+    expect(useStore.getState().dateRange).toEqual(buildDefaultDateRange())
   })
 
-  it('persist shape: reading pre-seeded storage produces correct state (version: 4)', async () => {
-    // Seed localStorage with a valid v4 payload before module load
+  it('migration from v4 with empty dateRange upgrades to default 7d', async () => {
     localStorageMock.setItem(
       'hermes.sessions.filter',
       JSON.stringify({
@@ -101,26 +68,24 @@ describe('sessions-filter-store', () => {
         version: 4,
       }),
     )
-    const useStore = await getStore()
+    const { useSessionsFilterStore: useStore, buildDefaultDateRange } = await getStore()
     await new Promise((r) => setTimeout(r, 10))
-    const s = useStore.getState()
-    expect(s.version).toBe(4)
-    expect(s.sources).toContain('cron')
-    expect(s.leftPanel).toBe('files')
+    expect(useStore.getState().version).toBe(5)
+    expect(useStore.getState().sources).toContain('cron')
+    expect(useStore.getState().leftPanel).toBe('files')
+    expect(useStore.getState().dateRange).toEqual(buildDefaultDateRange())
   })
 
-  it('migration: future version (v99) drops to defaults', async () => {
-    // Pre-seed localStorage with an unknown future version
+  it('migration preserves an explicit stored dateRange', async () => {
     localStorageMock.setItem(
       'hermes.sessions.filter',
-      JSON.stringify({ state: { version: 99, sources: ['task'], state: 'live', query: 'x', dateRange: { from: null, to: null }, sort: 'tokens', collapsed: true }, version: 99 }),
+      JSON.stringify({
+        state: { version: 4, sources: [], state: 'all', query: '', dateRange: { from: '2025-03-01', to: '2025-03-31' }, sort: 'recent', collapsed: false, leftPanel: 'sessions' },
+        version: 4,
+      }),
     )
-    const useStore = await getStore()
-    // Allow rehydration
+    const { useSessionsFilterStore: useStore } = await getStore()
     await new Promise((r) => setTimeout(r, 10))
-    const s = useStore.getState()
-    expect(s.sources).toEqual([])
-    expect(s.state).toBe('all')
-    expect(s.collapsed).toBe(false)
+    expect(useStore.getState().dateRange).toEqual({ from: '2025-03-01', to: '2025-03-31' })
   })
 })

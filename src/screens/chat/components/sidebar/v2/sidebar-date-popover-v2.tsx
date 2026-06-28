@@ -3,8 +3,8 @@
 /**
  * sidebar-date-popover-v2.tsx — date range popover for the sessions sidebar.
  *
- * Phase 3c: calendar icon in header triggers this. Local state for preset +
- * from/to; Apply writes to sessions-filter-store; Clear resets.
+ * Calendar icon in header triggers this. Local state for preset + from/to;
+ * Apply writes to sessions-filter-store; Clear resets.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -12,7 +12,7 @@ import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 
 // ── Presets ───────────────────────────────────────────────────────────────────
 
-type Preset = 'today' | '24h' | '7d' | '30d' | '90d' | 'all'
+export type Preset = 'today' | '24h' | '7d' | '30d' | '90d' | 'all'
 
 const PRESETS: Array<{ id: Preset; label: string }> = [
   { id: 'today', label: 'Today' },
@@ -23,10 +23,13 @@ const PRESETS: Array<{ id: Preset; label: string }> = [
   { id: 'all', label: 'All' },
 ]
 
-function presetToRange(preset: Preset): { from: string | null; to: string | null } {
+function toISODate(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+export function presetToRange(preset: Preset): { from: string | null; to: string | null } {
   const now = new Date()
-  const toISO = (d: Date) => d.toISOString().slice(0, 10)
-  const today = toISO(now)
+  const today = toISODate(now)
 
   if (preset === 'all') return { from: null, to: null }
   if (preset === 'today') return { from: today, to: today }
@@ -34,7 +37,15 @@ function presetToRange(preset: Preset): { from: string | null; to: string | null
   const daysAgo = preset === '24h' ? 1 : preset === '7d' ? 7 : preset === '30d' ? 30 : 90
   const from = new Date(now)
   from.setDate(from.getDate() - daysAgo)
-  return { from: toISO(from), to: today }
+  return { from: toISODate(from), to: today }
+}
+
+export function inferPresetFromRange(range: { from: string | null; to: string | null }): Preset | null {
+  for (const { id } of PRESETS) {
+    const presetRange = presetToRange(id)
+    if (presetRange.from === range.from && presetRange.to === range.to) return id
+  }
+  return null
 }
 
 // ── Calendar helpers ──────────────────────────────────────────────────────────
@@ -48,18 +59,15 @@ function buildCalendarDays(year: number, month: number): Array<{ iso: string; da
   const daysInPrev = new Date(year, month, 0).getDate()
   const cells: Array<{ iso: string; day: number; thisMonth: boolean }> = []
 
-  // Leading days from prev month
   for (let i = firstDay - 1; i >= 0; i--) {
     const d = daysInPrev - i
     const iso = `${year}-${String(month === 0 ? 12 : month).padStart(2,'0')}-${String(d).padStart(2,'0')}`
     cells.push({ iso, day: d, thisMonth: false })
   }
-  // This month
   for (let d = 1; d <= daysInMonth; d++) {
     const iso = `${year}-${String(month + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
     cells.push({ iso, day: d, thisMonth: true })
   }
-  // Trailing days to fill 6 rows
   const trailing = 42 - cells.length
   for (let d = 1; d <= trailing; d++) {
     const nextMonth = month === 11 ? 1 : month + 2
@@ -70,40 +78,36 @@ function buildCalendarDays(year: number, month: number): Array<{ iso: string; da
   return cells
 }
 
-// ── Props ─────────────────────────────────────────────────────────────────────
-
 interface SidebarDatePopoverV2Props {
   onClose: () => void
 }
-
-// ── Component ─────────────────────────────────────────────────────────────────
 
 export function SidebarDatePopoverV2({ onClose }: SidebarDatePopoverV2Props) {
   const setDateRange = useSessionsFilterStore((s) => s.setDateRange)
   const storedDateRange = useSessionsFilterStore((s) => s.dateRange)
 
-  const [preset, setPreset] = useState<Preset | null>(null)
+  const [preset, setPreset] = useState<Preset | null>(() => inferPresetFromRange(storedDateRange))
   const [from, setFrom] = useState<string | null>(storedDateRange.from)
   const [to, setTo] = useState<string | null>(storedDateRange.to)
 
-  const now = new Date()
-  const [viewYear, setViewYear] = useState(now.getFullYear())
-  const [viewMonth, setViewMonth] = useState(now.getMonth())
+  const initialViewDate = useMemo(() => {
+    const target = to ?? from
+    const parsed = target ? new Date(`${target}T00:00:00`) : new Date()
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed
+  }, [from, to])
+  const [viewYear, setViewYear] = useState(initialViewDate.getFullYear())
+  const [viewMonth, setViewMonth] = useState(initialViewDate.getMonth())
 
   const popoverRef = useRef<HTMLDivElement>(null)
 
-  // Close on click-outside
   useEffect(() => {
     function handle(e: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        onClose()
-      }
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) onClose()
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
   }, [onClose])
 
-  // Close on ESC
   useEffect(() => {
     function handle(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
@@ -181,9 +185,11 @@ export function SidebarDatePopoverV2({ onClose }: SidebarDatePopoverV2Props) {
     if (!from || (from && to)) {
       setFrom(iso)
       setTo(null)
+    } else if (iso < from) {
+      setTo(from)
+      setFrom(iso)
     } else {
-      if (iso < from) { setTo(from); setFrom(iso) }
-      else setTo(iso)
+      setTo(iso)
     }
   }
 
@@ -208,12 +214,10 @@ export function SidebarDatePopoverV2({ onClose }: SidebarDatePopoverV2Props) {
         gap: 10,
       }}
     >
-      {/* RANGE label */}
       <span className="m-label" style={{ color: 'var(--theme-muted)' }}>
         RANGE
       </span>
 
-      {/* Preset grid 2×3 */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
         {PRESETS.map(({ id, label }) => {
           const active = preset === id
@@ -241,7 +245,6 @@ export function SidebarDatePopoverV2({ onClose }: SidebarDatePopoverV2Props) {
         })}
       </div>
 
-      {/* Month nav */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button type="button" onClick={prevMonth} style={navBtnStyle} aria-label="Previous month">‹</button>
         <span className="m-mono" style={{ fontSize: 11, color: 'var(--theme-text)' }}>
@@ -250,20 +253,12 @@ export function SidebarDatePopoverV2({ onClose }: SidebarDatePopoverV2Props) {
         <button type="button" onClick={nextMonth} style={navBtnStyle} aria-label="Next month">›</button>
       </div>
 
-      {/* Day grid */}
       <div>
-        {/* DOW header */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 2 }}>
           {DOW.map((d, i) => (
-            <span key={i} className="m-mono" style={{
-              textAlign: 'center',
-              fontSize: 9,
-              color: 'var(--theme-muted)',
-              padding: '2px 0',
-            }}>{d}</span>
+            <span key={i} className="m-mono" style={{ textAlign: 'center', fontSize: 9, color: 'var(--theme-muted)', padding: '2px 0' }}>{d}</span>
           ))}
         </div>
-        {/* Days */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1 }}>
           {days.map(({ iso, day, thisMonth }) => (
             <button
@@ -289,7 +284,6 @@ export function SidebarDatePopoverV2({ onClose }: SidebarDatePopoverV2Props) {
         </div>
       </div>
 
-      {/* Footer */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, paddingTop: 4, borderTop: '1px solid var(--theme-border)' }}>
         <button type="button" onClick={handleClear} className="m-mono" style={footerBtnStyle('muted')}>
           Clear
@@ -301,8 +295,6 @@ export function SidebarDatePopoverV2({ onClose }: SidebarDatePopoverV2Props) {
     </div>
   )
 }
-
-// ── Style helpers ─────────────────────────────────────────────────────────────
 
 const navBtnStyle: React.CSSProperties = {
   background: 'transparent',

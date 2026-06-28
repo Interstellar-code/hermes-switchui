@@ -13,7 +13,6 @@ import { SidebarListV2 } from './sidebar-list-v2'
 import { SidebarRailV2 } from './sidebar-rail-v2'
 import { SidebarSearchV2 } from './sidebar-search-v2'
 import { SidebarSourceChipsV2 } from './sidebar-source-chips-v2'
-import { SidebarStateSegmentV2 } from './sidebar-state-segment-v2'
 import { FileExplorerSidebar } from '@/components/file-explorer/file-explorer-sidebar'
 import { useSessionsLocalStore } from '@/stores/sessions-local-store'
 import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
@@ -26,7 +25,6 @@ export function SidebarShellV2() {
   const leftPanel = useSessionsFilterStore((s) => s.leftPanel)
   const setLeftPanel = useSessionsFilterStore((s) => s.setLeftPanel)
   const fSources = useSessionsFilterStore((s) => s.sources)
-  const fState = useSessionsFilterStore((s) => s.state)
   const fQuery = useSessionsFilterStore((s) => s.query)
   const fDateRange = useSessionsFilterStore((s) => s.dateRange)
   const fSort = useSessionsFilterStore((s) => s.sort)
@@ -38,7 +36,7 @@ export function SidebarShellV2() {
   // Single feed subscription — SidebarListV2 consumes groups via prop (no duplicate hook)
   const { items, sources } = useSessionsFeed({
     sources: fSources,
-    state: fState,
+    state: 'all',
     query: fQuery,
     dateRange: fDateRange,
     sort: fSort,
@@ -49,10 +47,10 @@ export function SidebarShellV2() {
     () =>
       applyFiltersAndDecorate(
         items,
-        { sources: fSources, state: fState, query: fQuery, dateRange: fDateRange, sort: fSort },
+        { sources: fSources, state: 'all', query: fQuery, dateRange: fDateRange, sort: fSort },
         { pinned: lPinned, starred: lStarred, archived: lArchived },
       ),
-    [items, fSources, fState, fQuery, fDateRange, fSort, lPinned, lStarred, lArchived],
+    [items, fSources,  fQuery, fDateRange, fSort, lPinned, lStarred, lArchived],
   )
 
   const hasLive = useMemo(() => items.some((i) => i.live), [items])
@@ -102,7 +100,6 @@ export function SidebarShellV2() {
           <SidebarHeaderV2 onCollapse={() => setCollapsed(true)} count={totalCount} />
           <SidebarSearchV2 />
           <SidebarSourceChipsV2 sourceResults={sources} sourceCounts={sourceCounts} />
-          <SidebarStateSegmentV2 />
           <SidebarListV2 groups={groups} />
         </div>
       )}

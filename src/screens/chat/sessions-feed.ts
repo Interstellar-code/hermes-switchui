@@ -174,15 +174,16 @@ export function getCronSessionSub(job: ClaudeJob | null, fallback: string | null
  *
  * Precedence (highest to lowest):
  *   1. telegram  → 'tg'
- *   2. cron source or cron_ key prefix → 'cron'
- *   3. api_server → 'api'
+ *   2. recovered → 'recovered'
+ *   3. cron source or cron_ key prefix → 'cron'
+ *   4. api_server → 'api'
  *   4. isTaskTriggered heuristic → 'task'
  *      (`task` is a heuristic overlay that can ride on any source — including
  *      cli/a2a where kanban workers run. It MUST be checked before cli/a2a so
  *      task-triggered sessions are not stolen out of the Task chip.)
- *   5. cli  → 'cli'
- *   6. a2a_fleet → 'a2a'
- *   7. else → 'chat'
+ *   6. cli  → 'cli'
+ *   7. a2a_fleet → 'a2a'
+ *   8. else → 'chat'
  */
 export function classifySessionSource(
   source: string | null | undefined,
@@ -191,6 +192,7 @@ export function classifySessionSource(
   sessionKind?: string | null,
 ): SessionSource {
   if (source === 'telegram') return 'tg'
+  if (source === 'recovered') return 'recovered'
   if (source === 'cron' || key.startsWith('cron_')) return 'cron'
   if (isTaskTriggered) return 'task'
   if (source === 'api_server' && sessionKind === 'chat') return 'chat'
@@ -380,13 +382,14 @@ function matchesDateRange(
 
 const SOURCE_ORDER: Record<SessionSource, number> = {
   chat: 0,
-  task: 1,
-  cron: 2,
-  api: 3,
-  cli: 4,
-  a2a: 5,
-  tool: 6,
-  tg: 7,
+  recovered: 1,
+  task: 2,
+  cron: 3,
+  api: 4,
+  cli: 5,
+  a2a: 6,
+  tool: 7,
+  tg: 8,
 }
 
 export function sortItems(
