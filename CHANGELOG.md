@@ -3,6 +3,20 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.53] — 2026-06-28
+
+Feature release for chat sessions and message interactions, merged via PR #288.
+
+### Added
+
+- **Quote selected text from a message.** Right-clicking a text selection inside a message bubble adds a "Quote" action that replies with just the selected text, falling back to the full stripped message when nothing is selected. (#288)
+- **`recovered` session source.** New source type wired through the sessions classifier, source chips, rail, list, and cards. (#288)
+
+### Changed
+
+- **Sessions list pages past the 1000 cap.** `listAllSessions()` now pages through all gateway sessions instead of returning only the first 1000. (#288)
+- **Chat sidebar filters simplified.** Removed the state-segment filter; the date range now defaults to the last 7 days. Filter persistence migrated v4 → v5. (#288)
+
 ## [2.3.52] — 2026-06-24
 
 Patch release for three user-facing fixes merged via PR #287.
