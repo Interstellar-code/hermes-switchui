@@ -102,6 +102,41 @@ const extendedFeatures = [
     desc: 'A 2D community lobby where agent avatars move, chat, and interact in a shared world canvas — community presence for your fleet.',
   },
 ];
+
+const customPlugins = [
+  {
+    name: 'kanban',
+    desc: 'Board + dispatcher that backs the agent task queues surfaced in the Boards page.',
+  },
+  {
+    name: 'workflow-engine',
+    desc: 'DAG workflow engine — runs YAML-defined multi-node flows with conditional branching, parallel execution, approval gates, cron polling, and Kanban task dispatch.',
+  },
+  {
+    name: 'a2a_fleet',
+    desc: 'Agent-to-Agent peering — embedded A2A server, the fleet_send tool, and managed executors (Claude Code, OpenCode, Codex, Antigravity).',
+  },
+  {
+    name: 'mcp_lazy',
+    desc: 'Lazy MCP tool-schema loading — sends stub schemas and promotes full ones on demand, cutting ~80% of per-turn MCP token overhead.',
+  },
+  {
+    name: 'karpathy-self-improve',
+    desc: 'Autonomous self-improvement loop — collects metrics, proposes diffs, evaluates, and promotes or reverts via a git ratchet.',
+  },
+  {
+    name: 'personas',
+    desc: 'First-class personas — canonical template library, runtime tools on every platform, and a REST API the profile wizard consumes.',
+  },
+  {
+    name: 'matrix_coder',
+    desc: 'Turns the active agent into a focused coding specialist via trusted developer-tier persona injection, with roles, review lenses, and Kanban audit mirroring.',
+  },
+  {
+    name: 'hermes-switch-ui',
+    desc: 'Gives the agent awareness of this SwitchUI frontend and keeps the two sides in sync.',
+  },
+];
 ---
 
 <LandingLayout title="Hermes Switch UI — Your Agents. One Workspace.">
@@ -215,6 +250,27 @@ const extendedFeatures = [
       </p>
     </div>
     <ArchDiagram />
+
+    <!-- Custom plugins detail -->
+    <div class="hl-section-head hl-section-head--center" style="margin-top: 64px; margin-bottom: 32px;">
+      <div class="hl-section-label hl-section-label--center">
+        <span class="hl-label-line"></span>
+        8 CUSTOM PLUGINS
+        <span class="hl-label-line"></span>
+      </div>
+      <p class="hl-carousel-sub" style="max-width: 720px; margin: 0 auto;">Fork-specific plugins that extend the Hermes Agent gateway. Each ships its own README in the <a href="https://github.com/Interstellar-code/hermes-agent/tree/main/plugins" target="_blank" rel="noopener">hermes-agent</a> repo.</p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;">
+      {customPlugins.map((f) => (
+        <div style="border: 1px solid rgba(0, 255, 65, 0.1); border-radius: 4px; padding: 16px 20px; background: rgba(7, 19, 10, 0.4);">
+          <h4 style="font-family: var(--m-font-mono); font-size: 13px; color: #fff; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+            <span style="color: var(--m-green-500);">■</span> {f.name}
+          </h4>
+          <p style="font-size: 12px; line-height: 1.5; color: var(--m-text-muted); margin-bottom: 0;">{f.desc}</p>
+        </div>
+      ))}
+    </div>
   </section>
 
 
