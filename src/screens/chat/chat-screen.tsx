@@ -34,6 +34,7 @@ import {
   updateSessionLastMessage,
 } from './chat-queries'
 import { ChatMessageList } from './components/chat-message-list'
+import { ChatNoticeBanners } from './components/chat-notice-banners'
 import { StreamingTextContext } from './components/streaming-text-context'
 import { ChatEmptyState } from './components/chat-empty-state'
 import { ChatComposerShadcn } from './components/chat-composer-shadcn'
@@ -91,7 +92,6 @@ import {
 import { stripQueuedWrapper } from '@/lib/strip-queued-wrapper'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toast'
-import { Button } from '@/components/ui/button'
 import { hapticTap } from '@/lib/haptics'
 import { FileExplorerSidebar } from '@/components/file-explorer'
 import { SEARCH_MODAL_EVENTS } from '@/hooks/use-search-modal'
@@ -3189,74 +3189,13 @@ export function ChatScreen({
             </>
           ) : null}
 
-          {errorNotice && (
-            <div className="sticky top-0 z-20 px-4 py-2">{errorNotice}</div>
-          )}
-          {isCurrentSessionInterrupted && (
-            <div
-              role="status"
-              className="mx-4 mb-2 flex items-center justify-between gap-3 rounded-xl border border-amber-300/60 bg-amber-50/90 px-4 py-2.5 text-sm text-amber-900 dark:border-amber-700/50 dark:bg-amber-900/15 dark:text-amber-200"
-            >
-              <span className="min-w-0 flex-1">
-                Run may have continued server-side — resend?
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleResendInterrupted}
-                aria-label="Resend last user message"
-              >
-                Resend
-              </Button>
-            </div>
-          )}
-          {pendingApprovals.length > 0 && (
-            <div className="mx-4 mb-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800/50 dark:bg-amber-900/15">
-              <div className="space-y-2">
-                {pendingApprovals.map((approval) => (
-                  <div
-                    key={approval.id}
-                    className="flex items-center justify-between gap-3"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-                        {'\uD83D\uDD10'} Approval Required -{' '}
-                        {approval.agentName || 'Agent'}
-                      </p>
-                      <p className="mt-0.5 truncate text-xs text-amber-600 dark:text-amber-500">
-                        {approval.action}
-                      </p>
-                      {approval.context ? (
-                        <p className="mt-0.5 truncate text-[10px] font-mono text-amber-500 dark:text-amber-600">
-                          {approval.context.slice(0, 100)}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="flex shrink-0 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void resolvePendingApproval(approval, 'approved')
-                        }}
-                        className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void resolvePendingApproval(approval, 'denied')
-                        }}
-                        className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 dark:border-red-800/50 dark:bg-red-900/10 dark:text-red-400"
-                      >
-                        Deny
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <ChatNoticeBanners
+            errorNotice={errorNotice}
+            isCurrentSessionInterrupted={isCurrentSessionInterrupted}
+            onResendInterrupted={handleResendInterrupted}
+            pendingApprovals={pendingApprovals}
+            onResolveApproval={resolvePendingApproval}
+          />
 
           {activeTab === 'tool' ? (
             <ToolTabView
