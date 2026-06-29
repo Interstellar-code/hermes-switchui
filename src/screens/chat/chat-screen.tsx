@@ -20,6 +20,9 @@ import {
   advanceStickyStreamingText,
   createOptimisticMessage,
   readMessageText,
+  samePending,
+  scrollChatToBottom as scrollChatToBottomImpl,
+  verbForTool,
 } from './chat-screen-utils'
 import {
   appendHistoryMessage,
@@ -894,24 +897,6 @@ export function ChatScreen({
 
   useEffect(() => {
     let timer: number | null = null
-    const samePending = (
-      a: Array<ApprovalRequest>,
-      b: Array<ApprovalRequest>,
-    ): boolean => {
-      if (a.length !== b.length) return false
-      for (let i = 0; i < a.length; i += 1) {
-        const x = a[i]
-        const y = b[i]
-        if (
-          x.id !== y.id ||
-          x.status !== y.status ||
-          x.gatewayApprovalId !== y.gatewayApprovalId
-        ) {
-          return false
-        }
-      }
-      return true
-    }
     const checkApprovals = () => {
       const next = loadApprovals().filter((entry) => entry.status === 'pending')
       if (!samePending(next, pendingApprovalsRef.current)) {
@@ -1113,27 +1098,6 @@ export function ChatScreen({
       return
     }
     const ac = new AbortController()
-    const verbForTool = (name: string): string => {
-      const n = (name || '').toLowerCase()
-      if (n.includes('terminal') || n.includes('bash') || n.includes('shell'))
-        return 'Running terminal'
-      if (n.includes('write') || n.includes('edit') || n.includes('create'))
-        return 'Writing file'
-      if (n.includes('read') || n.includes('view') || n.includes('cat'))
-        return 'Reading file'
-      if (
-        n.includes('search') ||
-        n.includes('grep') ||
-        n.includes('glob') ||
-        n.includes('find')
-      )
-        return 'Searching'
-      if (n.includes('skill')) return 'Loading skill'
-      if (n.includes('mcp')) return `Calling ${name}`
-      if (n.includes('fetch') || n.includes('http') || n.includes('web'))
-        return 'Fetching'
-      return name ? `Running ${name}` : 'Working'
-    }
     const poll = async () => {
       // Always poll while waiting. The thinking bubble that shows this label is
       // already hidden once real assistant text streams in (showTypingIndicator
@@ -2607,12 +2571,7 @@ export function ChatScreen({
   )
 
   const scrollChatToBottom = useCallback(
-    (behavior: ScrollBehavior = 'smooth') => {
-      const viewport = document.querySelector('[data-chat-scroll-viewport]')
-      if (viewport) {
-        viewport.scrollTo({ top: viewport.scrollHeight, behavior })
-      }
-    },
+    (behavior: ScrollBehavior = 'smooth') => scrollChatToBottomImpl(behavior),
     [],
   )
 
