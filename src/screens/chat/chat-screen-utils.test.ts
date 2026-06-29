@@ -5,8 +5,19 @@ import {
   hasUnansweredLatestUserTurn,
   isChatRuntimeBusy,
   latestTurnIsToolOnly,
+  samePending,
+  verbForTool,
 } from './chat-screen-utils'
+import type { ApprovalRequest } from '@/screens/gateway/lib/approvals-store'
 import type { ChatMessage } from './types'
+
+const approval = (over: Partial<ApprovalRequest> = {}): ApprovalRequest =>
+  ({
+    id: 'a1',
+    status: 'pending',
+    gatewayApprovalId: 'g1',
+    ...over,
+  }) as ApprovalRequest
 
 describe('advanceStickyStreamingText', () => {
   it('preserves the last non-empty streaming text when a tool phase temporarily reports empty text', () => {
@@ -302,5 +313,66 @@ describe('isChatRuntimeBusy — parity truth table (Track 2 / Phase 2.2)', () =>
         activeIsRealtimeStreaming: true,
       }),
     ).toBe(true)
+  })
+})
+
+describe('verbForTool', () => {
+  it.each([
+    ['terminal', 'Running terminal'],
+    ['bash', 'Running terminal'],
+    ['shell', 'Running terminal'],
+    ['Write', 'Writing file'],
+    ['edit_file', 'Writing file'],
+    ['create', 'Writing file'],
+    ['Read', 'Reading file'],
+    ['view', 'Reading file'],
+    ['cat', 'Reading file'],
+    ['search', 'Searching'],
+    ['grep', 'Searching'],
+    ['glob', 'Searching'],
+    ['find', 'Searching'],
+    ['skill', 'Loading skill'],
+  ])('maps %s → %s', (name, expected) => {
+    expect(verbForTool(name)).toBe(expected)
+  })
+
+  it('formats mcp / fetch / generic / empty cases', () => {
+    expect(verbForTool('mcp__server__tool')).toBe('Calling mcp__server__tool')
+    expect(verbForTool('fetch')).toBe('Fetching')
+    expect(verbForTool('http_get')).toBe('Fetching')
+    expect(verbForTool('web')).toBe('Fetching')
+    expect(verbForTool('CustomThing')).toBe('Running CustomThing')
+    expect(verbForTool('')).toBe('Working')
+  })
+
+  it('is case-insensitive', () => {
+    expect(verbForTool('BASH')).toBe('Running terminal')
+  })
+})
+
+describe('samePending', () => {
+  it('returns true for structurally equal lists', () => {
+    expect(samePending([approval()], [approval()])).toBe(true)
+    expect(samePending([], [])).toBe(true)
+  })
+
+  it('returns false when length differs', () => {
+    expect(samePending([approval()], [])).toBe(false)
+  })
+
+  it('returns false when id, status, or gatewayApprovalId differ', () => {
+    expect(samePending([approval()], [approval({ id: 'a2' })])).toBe(false)
+    expect(
+      samePending([approval()], [approval({ status: 'approved' })]),
+    ).toBe(false)
+    expect(
+      samePending([approval()], [approval({ gatewayApprovalId: 'g2' })]),
+    ).toBe(false)
+  })
+
+  it('compares positionally', () => {
+    const a = [approval({ id: 'a1' }), approval({ id: 'a2' })]
+    const b = [approval({ id: 'a2' }), approval({ id: 'a1' })]
+    expect(samePending(a, b)).toBe(false)
   })
 })

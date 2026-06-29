@@ -1,3 +1,4 @@
+import type { ApprovalRequest } from '@/screens/gateway/lib/approvals-store'
 import type { ChatAttachment, ChatMessage } from './types'
 
 export type StickyStreamingTextState = {
@@ -231,4 +232,66 @@ export function isChatRuntimeBusy({
     derivedIsStreaming ||
     hasPendingGeneration
   )
+}
+
+/**
+ * Maps a tool/skill name to a human-friendly progress verb for the thinking
+ * bubble (live-progress fallback poller, used when SSE is down). Pure string
+ * classification — no side effects.
+ */
+export function verbForTool(name: string): string {
+  const n = (name || '').toLowerCase()
+  if (n.includes('terminal') || n.includes('bash') || n.includes('shell'))
+    return 'Running terminal'
+  if (n.includes('write') || n.includes('edit') || n.includes('create'))
+    return 'Writing file'
+  if (n.includes('read') || n.includes('view') || n.includes('cat'))
+    return 'Reading file'
+  if (
+    n.includes('search') ||
+    n.includes('grep') ||
+    n.includes('glob') ||
+    n.includes('find')
+  )
+    return 'Searching'
+  if (n.includes('skill')) return 'Loading skill'
+  if (n.includes('mcp')) return `Calling ${name}`
+  if (n.includes('fetch') || n.includes('http') || n.includes('web'))
+    return 'Fetching'
+  return name ? `Running ${name}` : 'Working'
+}
+
+/**
+ * Shallow structural equality for the pending-approvals list. Used by the
+ * approvals poller to skip redundant setState when nothing changed. Compares
+ * length then id/status/gatewayApprovalId per entry, positionally.
+ */
+export function samePending(
+  a: Array<ApprovalRequest>,
+  b: Array<ApprovalRequest>,
+): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i += 1) {
+    const x = a[i]
+    const y = b[i]
+    if (
+      x.id !== y.id ||
+      x.status !== y.status ||
+      x.gatewayApprovalId !== y.gatewayApprovalId
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
+/**
+ * Scrolls the chat message viewport to the bottom. No-op when the viewport
+ * element is absent (for example during SSR or before first paint).
+ */
+export function scrollChatToBottom(behavior: ScrollBehavior = 'smooth'): void {
+  const viewport = document.querySelector('[data-chat-scroll-viewport]')
+  if (viewport) {
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior })
+  }
 }
