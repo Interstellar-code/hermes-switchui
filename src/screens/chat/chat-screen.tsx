@@ -58,7 +58,7 @@ import {
   useActiveRunCheck,
 } from './hooks/use-active-run-check'
 import { invalidateSessionLists } from './sessions-feed'
-import type { ToolDisplayMode } from './components/message-item'
+import { useToolDisplay } from './hooks/use-tool-display'
 import type {
   ChatComposerAttachment,
   ChatComposerHandle,
@@ -69,7 +69,6 @@ import type { ApprovalRequest } from '@/screens/gateway/lib/approvals-store'
 import type { ChatAttachment, ChatMessage, SessionMeta } from './types'
 import type { ChatRunCommandDetail } from './chat-events'
 import type {AgentActivity} from '@/stores/chat-activity-store';
-import type { SourceTab } from './components/v2/chat-header-v2'
 import { playChatComplete } from '@/lib/sounds'
 import { stripDataUrlPrefix } from '@/lib/stream-utils'
 import { useChatSettingsStore } from '@/hooks/use-chat-settings'
@@ -126,18 +125,8 @@ import {
 } from '@/stores/chat-activity-store'
 import { ChatHeaderV2 } from './components/v2/chat-header-v2'
 import { ChatMetaBarV2 } from './components/v2/chat-meta-bar-v2'
-import {
-  ToolTabView,
-  buildResultTsMap,
-  extractStreamToolCallsFromMessages,
-  extractStreamingEntries,
-  extractToolEntries,
-  mergeToolEntries,
-} from './components/v2/chat-tab-views-v2'
-import {
-  ChatSkillsTabV2,
-  countSkillEntries,
-} from './components/v2/chat-skills-tab-v2'
+import { ToolTabView } from './components/v2/chat-tab-views-v2'
+import { ChatSkillsTabV2 } from './components/v2/chat-skills-tab-v2'
 
 type ChatScreenProps = {
   activeFriendlyId: string
@@ -490,7 +479,6 @@ export function ChatScreen({
   const queryClient = useQueryClient()
   const userCommandsQuery = useEnabledUserCommands()
   const enabledUserCommands = userCommandsQuery.data
-  const [activeTab, setActiveTab] = useState<SourceTab>('chat')
   const [sending, setSending] = useState(false)
   const [_creatingSession, setCreatingSession] = useState(false)
   const [sessionsOpen, setSessionsOpen] = useState(false)
@@ -529,33 +517,6 @@ export function ChatScreen({
   } | null>(null)
   // System-messages visibility toggle (default: hidden)
   const [hideSystemMessages, setHideSystemMessages] = useState(true)
-  // Tool-display mode: expanded | collapsed | hidden (persisted across sessions)
-  const [toolDisplayMode, setToolDisplayMode] = useState<ToolDisplayMode>(
-    () => {
-      if (typeof window === 'undefined') return 'collapsed'
-      const stored = localStorage.getItem('switchui:tool-display-mode')
-      if (
-        stored === 'expanded' ||
-        stored === 'collapsed' ||
-        stored === 'hidden'
-      ) {
-        return stored
-      }
-      return 'collapsed'
-    },
-  )
-  const cycleToolDisplayMode = useCallback(() => {
-    setToolDisplayMode((prev) => {
-      const next: ToolDisplayMode =
-        prev === 'expanded'
-          ? 'collapsed'
-          : prev === 'collapsed'
-            ? 'hidden'
-            : 'expanded'
-      localStorage.setItem('switchui:tool-display-mode', next)
-      return next
-    })
-  }, [])
   // Per-session thinking level — stored in sessionStorage keyed by session
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>(() => {
     if (typeof window === 'undefined') return 'low'
@@ -834,6 +795,15 @@ export function ChatScreen({
       setIsCompacting(false)
     }, []),
   })
+
+  const {
+    activeTab,
+    setActiveTab,
+    toolDisplayMode,
+    cycleToolDisplayMode,
+    totalToolCount,
+    totalSkillCount,
+  } = useToolDisplay({ realtimeMessages, activeToolCalls })
 
   // Keep activity stream open persistently — opens on mount so it's ready
   // before the first tool call fires (avoids connection latency gap).
@@ -3062,23 +3032,6 @@ export function ChatScreen({
     isStreaming: derivedStreamingInfo.isStreaming,
     resetKey: `${resolvedSessionKey || activeCanonicalKey || 'main'}:${researchResetKey}`,
   })
-
-  const totalToolCount = useMemo(() => {
-    const resultTsMap = buildResultTsMap(realtimeMessages)
-    const streamingEntries = extractStreamingEntries(activeToolCalls)
-    const completedEntries = extractStreamToolCallsFromMessages(
-      realtimeMessages,
-      resultTsMap,
-    )
-    const messageEntries = extractToolEntries(realtimeMessages)
-    return mergeToolEntries(streamingEntries, completedEntries, messageEntries)
-      .length
-  }, [realtimeMessages, activeToolCalls])
-
-  const totalSkillCount = useMemo(
-    () => countSkillEntries(realtimeMessages, activeToolCalls),
-    [realtimeMessages, activeToolCalls],
-  )
 
   const sessionModelFallback =
     (typeof (activeSession as { model?: unknown } | null | undefined)?.model ===
