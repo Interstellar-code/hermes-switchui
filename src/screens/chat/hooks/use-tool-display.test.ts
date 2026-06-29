@@ -147,6 +147,59 @@ describe('useToolDisplay', () => {
       expect(result.current.totalToolCount).toBe(2)
     })
 
+    it('counts completed tool calls embedded on realtimeMessages', () => {
+      const realtimeMessages: Array<ChatMessage> = [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'toolCall', id: 'm1', name: 'Bash', arguments: {} },
+            { type: 'toolCall', id: 'm2', name: 'Read', arguments: {} },
+          ],
+        } as ChatMessage,
+      ]
+      const { result } = renderHook(() =>
+        useToolDisplay({
+          realtimeMessages,
+          activeToolCalls: EMPTY_TOOL_CALLS,
+        }),
+      )
+      expect(result.current.totalToolCount).toBe(2)
+    })
+
+    it('recomputes when realtimeMessages prop changes', () => {
+      const oneCall: Array<ChatMessage> = [
+        {
+          role: 'assistant',
+          content: [{ type: 'toolCall', id: 'm1', name: 'Bash', arguments: {} }],
+        } as ChatMessage,
+      ]
+      const twoCalls: Array<ChatMessage> = [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'toolCall', id: 'm1', name: 'Bash', arguments: {} },
+            { type: 'toolCall', id: 'm2', name: 'Read', arguments: {} },
+          ],
+        } as ChatMessage,
+      ]
+      const { result, rerender } = renderHook(
+        (props: {
+          realtimeMessages: Array<ChatMessage>
+          activeToolCalls: Array<StreamingToolCall>
+        }) => useToolDisplay(props),
+        {
+          initialProps: {
+            realtimeMessages: oneCall,
+            activeToolCalls: EMPTY_TOOL_CALLS,
+          },
+        },
+      )
+      expect(result.current.totalToolCount).toBe(1)
+
+      rerender({ realtimeMessages: twoCalls, activeToolCalls: EMPTY_TOOL_CALLS })
+      expect(result.current.totalToolCount).toBe(2)
+    })
+
     it('recomputes when activeToolCalls prop changes', () => {
       const { result, rerender } = renderHook(
         (props: {
