@@ -3,6 +3,20 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.3.54] — 2026-06-29
+
+Maintenance release: a behavior-preserving decomposition of the chat screen plus tooling and website updates.
+
+### Changed
+
+- **`ChatScreen` decomposed into focused hooks (no behavior change).** The ~3,000-line `chat-screen.tsx` component was split across six PRs into pure helpers and dedicated hooks — `useToolDisplay`, `useFocusMode`, `useThinkingLevel`, `usePendingApprovals` — plus a `ChatNoticeBanners` presentational component. Every moved effect keeps its dependency array verbatim; each PR was diff-reviewed for behavior preservation. Cyclomatic complexity dropped 242 → 199 and cognitive 324 → 272. (#290, #291, #292, #293, #294, #296)
+- **Adopted the `codebase-memory` MCP server, removed graphify.** Replaces the prior graphify integration with a tree-sitter + hybrid-LSP knowledge graph; docs and instructions updated. (#289)
+
+### Internal
+
+- New unit test coverage for every extracted chat hook and helper (116 tests across the chat hook/util suites).
+- Landing page now details the eight custom plugins.
+
 ## [2.3.53] — 2026-06-28
 
 Feature release for chat sessions and message interactions, merged via PR #288.
