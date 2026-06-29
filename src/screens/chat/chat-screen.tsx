@@ -57,6 +57,7 @@ import {
   isRecoverableActiveRun,
   useActiveRunCheck,
 } from './hooks/use-active-run-check'
+import { useFocusMode } from './hooks/use-focus-mode'
 import { invalidateSessionLists } from './sessions-feed'
 import { useToolDisplay } from './hooks/use-tool-display'
 import type {
@@ -93,8 +94,6 @@ import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toast'
 import { hapticTap } from '@/lib/haptics'
 import { FileExplorerSidebar } from '@/components/file-explorer'
-import { SEARCH_MODAL_EVENTS } from '@/hooks/use-search-modal'
-import { SIDEBAR_TOGGLE_EVENT } from '@/hooks/use-global-shortcuts'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { TerminalPanel } from '@/components/terminal-panel'
 import { AgentViewPanel } from '@/components/agent-view/agent-view-panel'
@@ -474,8 +473,6 @@ export function ChatScreen({
   embedded = false,
 }: ChatScreenProps) {
   const navigate = useNavigate()
-  const chatFocusMode = useWorkspaceStore((s) => s.chatFocusMode)
-  const setChatFocusMode = useWorkspaceStore((s) => s.setChatFocusMode)
   const queryClient = useQueryClient()
   const userCommandsQuery = useEnabledUserCommands()
   const enabledUserCommands = userCommandsQuery.data
@@ -548,11 +545,15 @@ export function ChatScreen({
     friendlyId: string
     clientId: string
   } | null>(null)
-  const [fileExplorerCollapsed, setFileExplorerCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return true
-    const stored = localStorage.getItem('claude-file-explorer-collapsed')
-    return stored === null ? true : stored === 'true'
-  })
+  const {
+    chatFocusMode,
+    isFocusMode,
+    fileExplorerCollapsed,
+    handleToggleFocusMode,
+    handleToggleSidebarCollapse,
+    handleToggleFileExplorer,
+    handleInsertFileReference,
+  } = useFocusMode({ compact, composerHandleRef })
   const { isMobile } = useChatMobile(queryClient)
   const mobileKeyboardInset = useWorkspaceStore((s) => s.mobileKeyboardInset)
   const mobileComposerFocused = useWorkspaceStore(
@@ -2044,48 +2045,7 @@ export function ChatScreen({
   ])
 
   const hideUi = shouldRedirectToNew || isRedirecting
-  const isFocusMode = !compact && chatFocusMode
   const showComposer = !isRedirecting
-  const handleToggleFocusMode = useCallback(() => {
-    if (compact) return
-    setChatFocusMode(!chatFocusMode)
-  }, [chatFocusMode, compact, setChatFocusMode])
-
-  useEffect(() => {
-    if (compact && chatFocusMode) {
-      setChatFocusMode(false)
-    }
-  }, [chatFocusMode, compact, setChatFocusMode])
-
-  useEffect(() => {
-    if (!chatFocusMode) return
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return
-      setChatFocusMode(false)
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [chatFocusMode, setChatFocusMode])
-
-  // ⌘. (Mac) / Ctrl+. (Win) to toggle focus mode
-  useEffect(() => {
-    if (compact) return
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== '.' || !(event.metaKey || event.ctrlKey)) return
-      event.preventDefault()
-      setChatFocusMode(!chatFocusMode)
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [compact, chatFocusMode, setChatFocusMode])
-
-  useEffect(() => {
-    return () => {
-      useWorkspaceStore.getState().setChatFocusMode(false)
-    }
-  }, [])
 
   // Reset state when session changes
   useEffect(() => {
@@ -2950,48 +2910,6 @@ export function ChatScreen({
     window.sessionStorage.removeItem(CHAT_PENDING_COMMAND_STORAGE_KEY)
     runPaletteSlashCommand(pendingCommand)
   }, [runPaletteSlashCommand, userCommandsQuery.isPending])
-
-  const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar)
-
-  const handleToggleSidebarCollapse = useCallback(() => {
-    toggleSidebar()
-  }, [toggleSidebar])
-
-  const handleToggleFileExplorer = useCallback(() => {
-    setFileExplorerCollapsed((prev) => {
-      const next = !prev
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('claude-file-explorer-collapsed', String(next))
-      }
-      return next
-    })
-  }, [])
-
-  useEffect(() => {
-    function handleToggleFileExplorerFromSearch() {
-      handleToggleFileExplorer()
-    }
-
-    window.addEventListener(
-      SEARCH_MODAL_EVENTS.TOGGLE_FILE_EXPLORER,
-      handleToggleFileExplorerFromSearch,
-    )
-    window.addEventListener(SIDEBAR_TOGGLE_EVENT, handleToggleSidebarCollapse)
-    return () => {
-      window.removeEventListener(
-        SEARCH_MODAL_EVENTS.TOGGLE_FILE_EXPLORER,
-        handleToggleFileExplorerFromSearch,
-      )
-      window.removeEventListener(
-        SIDEBAR_TOGGLE_EVENT,
-        handleToggleSidebarCollapse,
-      )
-    }
-  }, [handleToggleFileExplorer, handleToggleSidebarCollapse])
-
-  const handleInsertFileReference = useCallback((reference: string) => {
-    composerHandleRef.current?.insertText(reference)
-  }, [])
 
   const historyLoading =
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
