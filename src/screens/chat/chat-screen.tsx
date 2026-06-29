@@ -20,7 +20,6 @@ import {
   advanceStickyStreamingText,
   createOptimisticMessage,
   readMessageText,
-  samePending,
   scrollChatToBottom as scrollChatToBottomImpl,
   verbForTool,
 } from './chat-screen-utils'
@@ -65,7 +64,6 @@ import type {
   ChatComposerHandle,
   ChatComposerHelpers,
 } from './components/chat-composer-types'
-import type { ApprovalRequest } from '@/screens/gateway/lib/approvals-store'
 import type { ChatAttachment, ChatMessage, SessionMeta } from './types'
 import type { ChatRunCommandDetail } from './chat-events'
 import type {AgentActivity} from '@/stores/chat-activity-store';
@@ -78,16 +76,12 @@ import { useChatSessions } from './hooks/use-chat-sessions'
 import { useAutoSessionTitle } from './hooks/use-auto-session-title'
 import { useRenameSession } from './hooks/use-rename-session'
 import { useContextAlert } from './hooks/use-context-alert'
+import { usePendingApprovals } from './hooks/use-pending-approvals'
 import {
   CHAT_OPEN_SETTINGS_EVENT,
   CHAT_PENDING_COMMAND_STORAGE_KEY,
   CHAT_RUN_COMMAND_EVENT,
 } from './chat-events'
-import {
-  addApproval,
-  loadApprovals,
-  saveApprovals,
-} from '@/screens/gateway/lib/approvals-store'
 import { stripQueuedWrapper } from '@/lib/strip-queued-wrapper'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toast'
@@ -499,9 +493,6 @@ export function ChatScreen({
   const retriedQueuedMessageKeysRef = useRef(new Set<string>())
   const hasSeenDisconnectRef = useRef(false)
   const hadErrorRef = useRef(false)
-  const [pendingApprovals, setPendingApprovals] = useState<
-    Array<ApprovalRequest>
-  >([])
   const [isCompacting, setIsCompacting] = useState(false)
   const [researchResetKey, setResearchResetKey] = useState(0)
   // Reply-to state — cleared on session change
@@ -674,6 +665,23 @@ export function ChatScreen({
     messages: recoveryMessages,
   })
 
+  // Hoist refs before useRealtimeChatHistory so applyApprovalRequest (returned
+  // by usePendingApprovals) is available when the hook is called. These refs
+  // are read non-reactively inside E28's timer callback.
+  const waitingForResponseRef = useRef(waitingForResponse)
+  useEffect(() => {
+    waitingForResponseRef.current = waitingForResponse
+  }, [waitingForResponse])
+  // activeRealtimeStreamingRef is initialized false here (activeIsRealtimeStreaming
+  // is derived later from useRealtimeChatHistory's return, which itself needs
+  // applyApprovalRequest from usePendingApprovals — a cycle). It is mirrored to
+  // the live value during render at the derivation site below, so E28's first
+  // synchronous mount read already sees the correct value.
+  const activeRealtimeStreamingRef = useRef(false)
+
+  const { pendingApprovals, resolvePendingApproval, applyApprovalRequest } =
+    usePendingApprovals({ waitingForResponseRef, activeRealtimeStreamingRef })
+
   // Wire SSE realtime stream for instant message delivery
   const {
     messages: realtimeMessages,
@@ -714,70 +722,7 @@ export function ChatScreen({
       setWaitingForResponse(true)
       setPendingGeneration(true)
     }, []),
-    onApprovalRequest: useCallback((payload: Record<string, unknown>) => {
-      const approvalId =
-        typeof payload.id === 'string'
-          ? payload.id
-          : typeof payload.approvalId === 'string'
-            ? payload.approvalId
-            : typeof payload.approvalId === 'string'
-              ? payload.approvalId
-              : ''
-
-      const currentApprovals = loadApprovals()
-      if (
-        approvalId &&
-        currentApprovals.some((entry) => {
-          return (
-            entry.status === 'pending' && entry.gatewayApprovalId === approvalId
-          )
-        })
-      ) {
-        setPendingApprovals(
-          currentApprovals.filter((entry) => entry.status === 'pending'),
-        )
-        return
-      }
-
-      const actionValue = payload.action ?? payload.tool ?? payload.command
-      const action =
-        typeof actionValue === 'string'
-          ? actionValue
-          : actionValue
-            ? JSON.stringify(actionValue)
-            : 'Tool call requires approval'
-      const contextValue = payload.context ?? payload.input ?? payload.args
-      const context =
-        typeof contextValue === 'string'
-          ? contextValue
-          : contextValue
-            ? JSON.stringify(contextValue)
-            : ''
-      const agentNameValue =
-        payload.agentName ?? payload.agent ?? payload.source
-      const agentName =
-        typeof agentNameValue === 'string' && agentNameValue.trim().length > 0
-          ? agentNameValue
-          : 'Agent'
-      const agentIdValue =
-        payload.agentId ?? payload.sessionKey ?? payload.source
-      const agentId =
-        typeof agentIdValue === 'string' && agentIdValue.trim().length > 0
-          ? agentIdValue
-          : 'claude'
-
-      addApproval({
-        agentId,
-        agentName,
-        action,
-        context,
-        source: 'agent',
-        gatewayApprovalId: approvalId || undefined,
-      })
-      setPendingApprovals(
-        loadApprovals().filter((entry) => entry.status === 'pending'),
-      )
-    }, []),
+    onApprovalRequest: applyApprovalRequest,
     onCompactionStart: useCallback(() => {
       setIsCompacting(true)
     }, []),
@@ -797,11 +742,6 @@ export function ChatScreen({
 
   // Keep activity stream open persistently — opens on mount so it's ready
   // before the first tool call fires (avoids connection latency gap).
-  const waitingForResponseRef = useRef(waitingForResponse)
-  useEffect(() => {
-    waitingForResponseRef.current = waitingForResponse
-  }, [waitingForResponse])
-
   useEffect(() => {
     const events = new EventSource('/api/events')
     const onActivity = (event: MessageEvent) => {
@@ -843,67 +783,6 @@ export function ChatScreen({
     if (!waitingForResponse) return
     clearCompletedStreaming()
   }, [clearCompletedStreaming, waitingForResponse])
-
-  // Issue #214: approvals are primarily delivered via SSE (onApprovalRequest).
-  // This poller remains as a fallback (approvals can originate outside the
-  // active stream), but backs off heavily when idle to avoid a setState every
-  // 2s for the component's whole lifetime. We also skip setState when the
-  // loaded pending list is deep-equal to the current one, so a steady idle
-  // state never triggers a pointless re-render.
-  const pendingApprovalsRef = useRef(pendingApprovals)
-  useEffect(() => {
-    pendingApprovalsRef.current = pendingApprovals
-  }, [pendingApprovals])
-
-  useEffect(() => {
-    let timer: number | null = null
-    const checkApprovals = () => {
-      const next = loadApprovals().filter((entry) => entry.status === 'pending')
-      if (!samePending(next, pendingApprovalsRef.current)) {
-        setPendingApprovals(next)
-      }
-      // Poll fast (2s) only while a run is active or approvals are pending;
-      // otherwise back off to 20s. SSE handles the prompt-during-run case.
-      const active =
-        waitingForResponseRef.current ||
-        activeRealtimeStreamingRef.current ||
-        next.length > 0
-      timer = window.setTimeout(checkApprovals, active ? 2000 : 20000)
-    }
-    checkApprovals()
-    return () => {
-      if (timer !== null) window.clearTimeout(timer)
-    }
-  }, [])
-
-  const resolvePendingApproval = useCallback(
-    async (approval: ApprovalRequest, status: 'approved' | 'denied') => {
-      const nextApprovals = loadApprovals().map((entry) => {
-        if (entry.id !== approval.id) return entry
-        return {
-          ...entry,
-          status,
-          resolvedAt: Date.now(),
-        }
-      })
-      saveApprovals(nextApprovals)
-      setPendingApprovals(
-        nextApprovals.filter((entry) => entry.status === 'pending'),
-      )
-      if (!approval.gatewayApprovalId) return
-
-      const endpoint =
-        status === 'approved'
-          ? `/api/approvals/${approval.gatewayApprovalId}/approve`
-          : `/api/approvals/${approval.gatewayApprovalId}/deny`
-      try {
-        await fetch(endpoint, { method: 'POST' })
-      } catch {
-        // Local resolution still succeeds when API endpoint is unavailable.
-      }
-    },
-    [],
-  )
 
   // --- Stream management ---
   const streamStop = useCallback(() => {
@@ -1331,6 +1210,12 @@ export function ChatScreen({
   const activeIsRealtimeStreaming = isPortableMode
     ? localIsStreaming
     : isRealtimeStreaming
+  // Mirror the latest value into the ref during render (not in an effect) so
+  // usePendingApprovals' E28 poller — whose effect runs before any effect
+  // declared here — reads the correct value on its first synchronous mount
+  // check, preserving the 2 s active-stream cadence when mounting onto an
+  // already-active stream.
+  activeRealtimeStreamingRef.current = activeIsRealtimeStreaming
   const activeRealtimeStreamingText = isPortableMode
     ? localStreamingText
     : realtimeStreamingText
@@ -1568,15 +1453,10 @@ export function ChatScreen({
   const messageCountAtSendRef = useRef(0)
   const lastAssistantIdAtSendRef = useRef<string | null>(null)
   const prevIsRealtimeStreamingRef = useRef(activeIsRealtimeStreaming)
-  const activeRealtimeStreamingRef = useRef(activeIsRealtimeStreaming)
 
   useEffect(() => {
     isComposerLoadingRef.current = isComposerLoading
   }, [isComposerLoading])
-
-  useEffect(() => {
-    activeRealtimeStreamingRef.current = activeIsRealtimeStreaming
-  }, [activeIsRealtimeStreaming])
 
   useEffect(() => {
     if (waitingForResponse) {
