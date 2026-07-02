@@ -548,7 +548,6 @@ export function ChatScreen({
     (state) => state.panelHeight,
   )
   const { renameSession, renaming: renamingSessionTitle } = useRenameSession()
-  const sseConnectionState = useChatStore((s) => s.connectionState)
 
   const {
     sessionsQuery,
@@ -579,7 +578,7 @@ export function ChatScreen({
     activeExists,
     sessionsReady: sessionsQuery.isSuccess,
     queryClient,
-    historyRefetchInterval: sseConnectionState === 'connected' ? 30_000 : 5_000,
+    historyRefetchInterval: 5_000,
     portableMode: isPortableMode,
   })
 
@@ -892,7 +891,6 @@ export function ChatScreen({
   // poll the active-run endpoint every 5s to detect completion.
   useEffect(() => {
     if (!waitingForResponse || !resolvedSessionKey) return
-    if (sseConnectionState === 'connected') return // SSE will deliver the event
     const interval = window.setInterval(async () => {
       try {
         const res = await fetch(
@@ -916,7 +914,7 @@ export function ChatScreen({
       }
     }, 5000)
     return () => window.clearInterval(interval)
-  }, [waitingForResponse, resolvedSessionKey, sseConnectionState, streamFinish])
+  }, [waitingForResponse, resolvedSessionKey, streamFinish])
 
   // Live progress: while waiting, poll the gateway run and surface a short
   // human summary of what the agent is doing (a tool in flight, tools done, or
@@ -925,14 +923,6 @@ export function ChatScreen({
   const [liveProgressLabel, setLiveProgressLabel] = useState('')
   useEffect(() => {
     if (!waitingForResponse || !resolvedSessionKey) {
-      setLiveProgressLabel('')
-      return
-    }
-    // Issue #214: SSE already delivers tool/progress activity for the same run.
-    // When the live SSE connection is up, skip this display-only poller and let
-    // SSE drive the thinking-bubble label. Polling only runs as a fallback while
-    // SSE is down (matching the 5s active-run poller guard above).
-    if (sseConnectionState === 'connected') {
       setLiveProgressLabel('')
       return
     }
@@ -1001,7 +991,7 @@ export function ChatScreen({
       ac.abort()
       window.clearInterval(interval)
     }
-  }, [waitingForResponse, resolvedSessionKey, sseConnectionState])
+  }, [waitingForResponse, resolvedSessionKey])
 
   useAutoSessionTitle({
     friendlyId: activeFriendlyId,
@@ -1702,16 +1692,6 @@ export function ChatScreen({
       returnPollActiveRef.current = false
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- mount-only; waitingForResponseRef + returnPollActiveRef are stable refs
-
-  useEffect(() => {
-    function handleSSEDrop() {
-      void historyQuery.refetch()
-    }
-    window.addEventListener('claude:sse-dropped', handleSSEDrop)
-    return () => {
-      window.removeEventListener('claude:sse-dropped', handleSSEDrop)
-    }
-  }, [historyQuery])
 
   const terminalPanelInset =
     !isMobile && isTerminalPanelOpen && !chatFocusMode ? terminalPanelHeight : 0
