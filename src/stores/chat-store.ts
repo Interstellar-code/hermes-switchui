@@ -167,12 +167,6 @@ export type ChatStreamEvent =
       transport?: 'chat-events' | 'send-stream'
     }
 
-export type ConnectionState =
-  | 'disconnected'
-  | 'connecting'
-  | 'connected'
-  | 'error'
-
 export type StreamingState = {
   runId: string | null
   text: string
@@ -225,8 +219,6 @@ export type MessageQueueActivity = {
 }
 
 type ChatState = {
-  connectionState: ConnectionState
-  lastError: string | null
   /** Messages received via real-time stream, keyed by sessionKey */
   realtimeMessages: Map<string, Array<ChatMessage>>
   /** Current streaming state per session */
@@ -252,7 +244,6 @@ type ChatState = {
   pendingClarify: Record<string, PendingClarify | undefined>
 
   // Actions
-  setConnectionState: (state: ConnectionState, error?: string) => void
   processEvent: (event: ChatStreamEvent) => void
   getRealtimeMessages: (sessionKey: string) => Array<ChatMessage>
   getStreamingState: (sessionKey: string) => StreamingState | null
@@ -878,8 +869,6 @@ const _restoredWaiting = restoreAllWaitingSessions()
 const _restoredQueues = restoreMessageQueues()
 
 export const useChatStore = create<ChatState>((set, get) => ({
-  connectionState: 'disconnected',
-  lastError: null,
   realtimeMessages: new Map(),
   streamingState: new Map(),
   lastEventAt: 0,
@@ -891,10 +880,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   waitingSessionMeta: _restoredWaiting.meta,
   interruptedSessionKeys: new Set(),
   runPhase: new Map(),
-
-  setConnectionState: (connectionState, error) => {
-    set({ connectionState, lastError: error ?? null })
-  },
 
   registerSendStreamRun: (runId) => {
     const next = new Set(get().sendStreamRunIds)
