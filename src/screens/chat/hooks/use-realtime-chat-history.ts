@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useChatStream } from '../../../hooks/use-chat-stream'
 import { useChatStore } from '../../../stores/chat-store'
 import { appendHistoryMessage, chatQueryKeys } from '../chat-queries'
 import { toast } from '../../../components/ui/toast'
@@ -173,205 +172,7 @@ export function useRealtimeChatHistory({
     void backfillHistory()
   }, [backfillHistory, effectiveSessionKey, enabled])
 
-  const { connectionState, lastError, reconnect } = useChatStream({
-    sessionKey: effectiveSessionKey === 'new' ? undefined : effectiveSessionKey,
-    enabled: enabled && effectiveSessionKey !== 'new',
-    onReconnect: useCallback(() => {
-      void backfillHistory()
-    }, [backfillHistory]),
-    onSilentTimeout: useCallback(
-      (_silentForMs: number) => {
-        void backfillHistory()
-      },
-      [backfillHistory],
-    ),
-    onUserMessage: useCallback(
-      (message: ChatMessage, source?: string) => {
-        // Filter internal system messages (pre-compaction flushes, heartbeat
-        // prompts, subagent announcements) — these should never appear in the
-        // chat UI. The chat-store has its own filter, but this callback
-        // also appends directly to the query cache via appendHistoryMessage,
-        // bypassing the store filter entirely.
-        if (message.role === 'user') {
-          const msgText = extractUserMessageText(message)
-          if (isInternalSystemMessage(msgText)) {
-            onUserMessage?.(message, source)
-            return
-          }
-        }
 
-        clearCompletedStreaming()
-
-        // When we receive a user message from an external channel,
-        // append it to the query cache immediately for instant display
-        if (effectiveSessionKey && effectiveSessionKey !== 'new') {
-          // Early-exit dedup: if the SSE echo has no clientId AND its text
-          // content (or attachment signature) matches an existing optimistic
-          // user message in the cache, skip the append — the optimistic entry
-          // is already displayed.
-          //
-          // Bug: previous implementation used textFromMessage() which only
-          // reads from the content-array format. Some server / channel
-          // adapters echo the message with a top-level `text` or `body` field
-          // instead, causing extractUserMessageText() to return '' and the
-          // dedup guard to be skipped — resulting in a duplicate user message.
-          //
-          // Fix: use extractUserMessageText() which checks both the
-          // content-array AND legacy top-level text/body/message fields.
-          // For image-only messages (no text), fall back to attachment
-          // signature matching so those are also deduplicated.
-          const echoClientId = readClientId(message)
-          if (!echoClientId) {
-            const echoText = extractUserMessageText(message)
-            const echoAttachSig = attachmentSignature(message)
-            const hasContent = echoText.length > 0 || echoAttachSig.length > 0
-            if (hasContent) {
-              const key = chatQueryKeys.history(
-                effectiveFriendlyId,
-                effectiveSessionKey,
-              )
-              const cached =
-                queryClient.getQueryData<Record<string, unknown>>(key)
-              const existing = (cached?.messages ?? []) as Array<any>
-              const hasOptimistic = existing.some((m: any) => {
-                if (m.role !== 'user') return false
-                const isOptimistic =
-                  typeof m.__optimisticId === 'string' &&
-                  m.__optimisticId.length > 0
-                if (!isOptimistic) return false
-                // Text match (plain-text messages)
-                if (
-                  echoText.length > 0 &&
-                  extractUserMessageText(m).trim() === echoText
-                ) {
-                  return true
-                }
-                // Attachment signature match (image-only messages)
-                if (
-                  echoAttachSig.length > 0 &&
-                  attachmentSignature(m) === echoAttachSig
-                ) {
-                  return true
-                }
-                return false
-              })
-              if (hasOptimistic) {
-                // The optimistic message is already displayed — skip SSE echo
-                onUserMessage?.(message, source)
-                return
-              }
-            }
-          }
-
-          appendHistoryMessage(
-            queryClient,
-            effectiveFriendlyId,
-            effectiveSessionKey,
-            {
-              ...message,
-              __realtimeSource: source,
-            },
-          )
-        }
-        onUserMessage?.(message, source)
-      },
-      [
-        clearCompletedStreaming,
-        effectiveFriendlyId,
-        effectiveSessionKey,
-        onUserMessage,
-        queryClient,
-      ],
-    ),
-    onDone: useCallback(
-      (
-        _state: string,
-        eventSessionKey: string,
-        streamingSnapshot: StreamingState | null,
-      ) => {
-        const currentState =
-          eventSessionKey === effectiveSessionKey ? streamingSnapshot : null
-        if (currentState?.text) {
-          completedStreamingTextRef.current = currentState.text
-        }
-        if (currentState?.thinking) {
-          completedStreamingThinkingRef.current = currentState.thinking
-        }
-
-        // Track when generation completes for this session
-        if (
-          eventSessionKey === effectiveSessionKey ||
-          !effectiveSessionKey ||
-          effectiveSessionKey === 'new'
-        ) {
-          setLastCompletedRunAt(Date.now())
-          // Refetch history after generation completes — keeps chat in sync
-          if (effectiveSessionKey && effectiveSessionKey !== 'new') {
-            const key = chatQueryKeys.history(
-              effectiveFriendlyId,
-              effectiveSessionKey,
-            )
-            const prevData =
-              queryClient.getQueryData<Record<string, unknown>>(key)
-            const prevCount =
-              (prevData?.messages as Array<unknown> | undefined)?.length ?? 0
-
-            // Refetch immediately — done event message is already in realtime store
-            queryClient.invalidateQueries({ queryKey: key }).then(() => {
-              clearCompletedStreaming()
-
-              // Check for compaction — significant message count drop
-              const newData =
-                queryClient.getQueryData<Record<string, unknown>>(key)
-              const newCount =
-                (newData?.messages as Array<unknown> | undefined)?.length ?? 0
-              if (
-                prevCount > 10 &&
-                newCount > 0 &&
-                newCount < prevCount * 0.6
-              ) {
-                onCompactionEnd?.()
-                toast(
-                  'Context compacted — older messages were summarized to free up space',
-                  {
-                    type: 'info',
-                    icon: '🗜️',
-                    duration: 8000,
-                  },
-                )
-              }
-            })
-          }
-        }
-      },
-      [
-        clearCompletedStreaming,
-        effectiveFriendlyId,
-        effectiveSessionKey,
-        onCompactionEnd,
-        queryClient,
-      ],
-    ),
-    onCompaction: useCallback(
-      (event: CompactionEvent) => {
-        if (!event.sessionKey || event.sessionKey !== effectiveSessionKey)
-          return
-
-        if (event.phase === 'start') {
-          lastCompactionSignalRef.current = `compaction:${event.sessionKey}:start`
-          onCompactionStart?.()
-          return
-        }
-
-        if (event.phase === 'end') {
-          lastCompactionSignalRef.current = ''
-          onCompactionEnd?.()
-        }
-      },
-      [effectiveSessionKey, onCompactionEnd, onCompactionStart],
-    ),
-    onApprovalRequest,
-  })
 
   const mergeHistoryMessages = useChatStore((s) => s.mergeHistoryMessages)
   const clearSession = useChatStore((s) => s.clearSession)
@@ -402,13 +203,13 @@ export function useRealtimeChatHistory({
     }
     // Streaming just completed — capture final text so the message stays
     // visible during the handoff from streaming placeholder to history message.
-    // The stub useChatStream never fires onDone, so this is the only path.
     if (prev && prev.text && !streamingState) {
       completedStreamingTextRef.current = prev.text
       if (prev.thinking) {
         completedStreamingThinkingRef.current = prev.thinking
       }
       lastStreamClearTimeRef.current = Date.now()
+      setLastCompletedRunAt(Date.now())
     }
   }, [clearCompletedStreaming, streamingState])
 
@@ -528,9 +329,6 @@ export function useRealtimeChatHistory({
 
   return {
     messages: mergedMessages,
-    connectionState,
-    lastError,
-    reconnect,
     isRealtimeStreaming,
     realtimeStreamingText,
     realtimeStreamingThinking,

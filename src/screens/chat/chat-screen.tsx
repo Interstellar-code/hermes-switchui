@@ -685,7 +685,6 @@ export function ChatScreen({
   const {
     messages: realtimeMessages,
     lastCompletedRunAt,
-    connectionState,
     isRealtimeStreaming,
     realtimeStreamingText,
     realtimeStreamingThinking,
@@ -1567,23 +1566,8 @@ export function ChatScreen({
     staleTime: 30_000,
     refetchInterval: 60_000, // Re-check every 60s to clear stale errors
   })
-  // Don't show errors for new chats or when SSE is connected
-  const statusError =
-    !isNewChat && connectionState !== 'connected'
-      ? statusQuery.error instanceof Error
-        ? {
-            message: statusQuery.error.message,
-            status: (statusQuery.error as Error & { status?: number }).status,
-          }
-        : statusQuery.data && !statusQuery.data.ok
-          ? {
-              message: statusQuery.data.error || 'Hermes Agent unavailable',
-              status: statusQuery.data.status,
-            }
-          : null
-      : null
-  const serverError = statusError?.message ?? sessionsError ?? historyError
-  const serverErrorStatus = statusError?.status
+  const serverError = sessionsError ?? historyError
+  const serverErrorStatus: number | undefined = undefined
   const showErrorNotice = Boolean(serverError) && !isNewChat
   const handleRefetch = useCallback(() => {
     void statusQuery.refetch()
@@ -1744,7 +1728,7 @@ export function ChatScreen({
       if (error) setError(null)
       return
     }
-    const messageText = sessionsError ?? historyError ?? statusError?.message
+    const messageText = sessionsError ?? historyError
     if (!messageText) {
       if (error?.startsWith('Failed to load')) {
         setError(null)
@@ -1758,14 +1742,11 @@ export function ChatScreen({
       ? `Failed to load sessions. ${sessionsError}`
       : historyError
         ? `Failed to load history. ${historyError}`
-        : statusError
-          ? `Hermes Agent unavailable. ${statusError.message}`
-          : null
+        : null
     if (message) setError(message)
   }, [
     activeExists,
     error,
-    statusError,
     historyError,
     isRedirecting,
     navigate,
@@ -2150,25 +2131,19 @@ export function ChatScreen({
       return
     }
 
-    if (connectionState === 'connected' && hasSeenDisconnectRef.current) {
+    if (hasSeenDisconnectRef.current) {
       hasSeenDisconnectRef.current = false
       flushRetryableMessages()
     }
-  }, [connectionState, flushRetryableMessages])
+  }, [flushRetryableMessages])
 
   useEffect(() => {
-    if (statusError) {
-      hadErrorRef.current = true
-      retriedQueuedMessageKeysRef.current.clear()
-      return
-    }
-
     const isHealthy = statusQuery.data?.ok === true
     if (isHealthy && hadErrorRef.current) {
       hadErrorRef.current = false
       flushRetryableMessages()
     }
-  }, [flushRetryableMessages, statusError, statusQuery.data])
+  }, [flushRetryableMessages, statusQuery.data])
 
   useEffect(() => {
     function handleHealthRestored() {
@@ -2698,11 +2673,7 @@ export function ChatScreen({
   }, [serverError, serverErrorStatus, handleRefetch, showErrorNotice])
 
   const mobileHeaderStatus: 'connected' | 'connecting' | 'disconnected' =
-    connectionState === 'connected'
-      ? 'connected'
-      : statusQuery.data?.ok === false || statusQuery.isError
-        ? 'disconnected'
-        : 'connecting'
+    'connected'
 
   const activeHeaderToolName =
     liveToolActivity[0]?.name || activeToolCalls[0]?.name || undefined
