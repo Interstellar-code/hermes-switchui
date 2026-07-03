@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 describe('chat-screen send failsafe timeout', () => {
   it('matches the 600s backend timeout instead of the old 120s gap', () => {
     const src = readFileSync(
-      resolve(process.cwd(), 'src/screens/chat/chat-screen.tsx'),
+      resolve(process.cwd(), 'src/screens/chat/hooks/use-send-message-state.ts'),
       'utf8',
     )
 

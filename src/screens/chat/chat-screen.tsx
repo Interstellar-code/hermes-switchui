@@ -30,7 +30,6 @@ import {
   fetchStatus,
   updateHistoryMessageByClientId,
   updateHistoryMessageByClientIdEverywhere,
-  updateSessionLastMessage,
 } from './chat-queries'
 import { ChatMessageList } from './components/chat-message-list'
 import { ChatNoticeBanners } from './components/chat-notice-banners'
@@ -68,7 +67,6 @@ import type { ChatAttachment, ChatMessage, SessionMeta } from './types'
 import type { ChatRunCommandDetail } from './chat-events'
 import type {AgentActivity} from '@/stores/chat-activity-store';
 import { playChatComplete } from '@/lib/sounds'
-import { stripDataUrlPrefix } from '@/lib/stream-utils'
 import { useChatSettingsStore } from '@/hooks/use-chat-settings'
 import { useDrainWatchdog } from './hooks/use-drain-watchdog'
 import { useChatMobile } from './hooks/use-chat-mobile'
@@ -138,69 +136,10 @@ type ChatScreenProps = {
   embedded?: boolean
 }
 
-type PortableHistoryMessage = {
-  role: 'user' | 'assistant' | 'system'
-  content: string
-}
-
-function normalizeMimeType(value: unknown): string {
-  if (typeof value !== 'string') return ''
-  return value.trim().toLowerCase()
-}
-
-function isImageMimeType(value: unknown): boolean {
-  const normalized = normalizeMimeType(value)
-  return normalized.startsWith('image/')
-}
-
-function readDataUrlMimeType(value: unknown): string {
-  if (typeof value !== 'string') return ''
-  const match = /^data:([^;,]+)[^,]*,/i.exec(value.trim())
-  return match?.[1]?.trim().toLowerCase() || ''
-}
-
 function normalizeMessageValue(value: unknown): string {
   if (typeof value !== 'string') return ''
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : ''
-}
-
-function getPortableHistoryContent(message: ChatMessage): string {
-  const text = textFromMessage(message).trim()
-  if (text) return text
-  if (
-    message.role === 'user' &&
-    Array.isArray(message.attachments) &&
-    message.attachments.length > 0
-  ) {
-    return 'Please review the attached content.'
-  }
-  return ''
-}
-
-function buildPortableHistory(
-  messages: Array<ChatMessage>,
-): Array<PortableHistoryMessage> {
-  return messages
-    .filter(
-      (
-        message,
-      ): message is ChatMessage & { role: 'user' | 'assistant' | 'system' } =>
-        message.role === 'user' ||
-        message.role === 'assistant' ||
-        message.role === 'system',
-    )
-    .filter((message) => (message as any).__streamingStatus !== 'streaming')
-    .map((message) => {
-      const content = getPortableHistoryContent(message)
-      if (!content) return null
-      return {
-        role: message.role,
-        content,
-      }
-    })
-    .filter((message): message is PortableHistoryMessage => message !== null)
-    .slice(-20)
 }
 
 function sanitizeExportToken(value: string): string {
@@ -594,6 +533,33 @@ export function ChatScreen({
   // synchronous mount read already sees the correct value.
   const activeRealtimeStreamingRef = useRef(false)
 
+  // --- Bridge refs for sendMessage dependencies (seam #4 PR 2) ---
+  // These values are produced by hooks called AFTER useSendMessageState in
+  // the render order (due to the waitingForResponseRef → usePendingApprovals
+  // → useRealtimeChatHistory chain). They are synced during render right
+  // after their source hooks so sendMessage always reads the latest value.
+  const thinkingLevelBridgeRef = useRef<string>('off')
+  const setLocalActivity = useChatActivityStore((s) => s.setLocalActivity)
+  const clearCompletedStreamingRef = useRef<() => void>(() => {})
+  const startStreamingRef = useRef<
+    (params: {
+      sessionKey: string
+      friendlyId: string
+      message: string
+      history?: Array<{
+        role: 'user' | 'assistant' | 'system'
+        content: string
+      }>
+      thinking?: string
+      fastMode?: boolean
+      attachments?: Array<ChatAttachment>
+      idempotencyKey?: string
+      model?: string
+    }) => Promise<void>
+  >(async () => {})
+  const finalDisplayMessagesRef = useRef<Array<ChatMessage>>([])
+  const currentModelRef = useRef<string | undefined>(undefined)
+
   const {
     sending,
     setSending,
@@ -610,11 +576,21 @@ export function ChatScreen({
     streamFinish,
     setWaitingForResponse,
     syncLastCompletedRunAt,
+    sendMessage,
   } = useSendMessageState({
     activeFriendlyId,
     isNewChat,
     waitingForResponse,
     activeRealtimeStreamingRef,
+    thinkingLevelRef: thinkingLevelBridgeRef,
+    setLocalActivity,
+    setError,
+    clearCompletedStreamingRef,
+    startStreamingRef,
+    queryClient,
+    finalDisplayMessagesRef,
+    currentModelRef,
+    setResearchResetKey,
   })
 
   const activeQueueSessionKey = useMemo(() => {
@@ -723,6 +699,8 @@ export function ChatScreen({
   // Sync lastCompletedRunAt into the send-message-state hook (decoupled from
   // the realtime-hook → pending-approvals → send-state cycle).
   syncLastCompletedRunAt(lastCompletedRunAt)
+  // Sync bridge ref for sendMessage (seam #4 PR 2)
+  clearCompletedStreamingRef.current = clearCompletedStreaming
 
   const {
     activeTab,
@@ -946,6 +924,10 @@ export function ChatScreen({
     currentModelQuery,
   } = useThinkingLevel({ activeFriendlyId, resolvedSessionKey, forcedSessionKey })
 
+  // Sync bridge refs for sendMessage (seam #4 PR 2)
+  thinkingLevelBridgeRef.current = thinkingLevel
+  currentModelRef.current = currentModel
+
   const { suggestion, dismiss, dismissForSession } = useModelSuggestions({
     currentModel, // Real model from session-status (fail closed if empty)
     sessionKey: resolvedSessionKey || 'main',
@@ -1109,6 +1091,9 @@ export function ChatScreen({
     acceptedTimeoutMs: modelsQuery.data?.streamAcceptedTimeoutMs,
     handoffTimeoutMs: modelsQuery.data?.streamHandoffTimeoutMs,
   })
+
+  // Sync bridge ref for sendMessage (seam #4 PR 2)
+  startStreamingRef.current = startStreaming
 
   // Cancel any in-flight stream when the user navigates between sessions or
   // starts a new chat. Without this, an SSE stream from session A keeps
@@ -1320,6 +1305,9 @@ export function ChatScreen({
     realtimeStreamingThinking,
   ])
 
+  // Sync bridge ref for sendMessage (seam #4 PR 2)
+  finalDisplayMessagesRef.current = finalDisplayMessages
+
   const derivedStreamingInfo = useMemo(() => {
     if (activeIsRealtimeStreaming) {
       const last = finalDisplayMessages[finalDisplayMessages.length - 1]
@@ -1470,7 +1458,6 @@ export function ChatScreen({
   }, [suggestion, resolvedSessionKey, dismiss])
 
   // Sync chat activity to global store for sidebar orchestrator avatar
-  const setLocalActivity = useChatActivityStore((s) => s.setLocalActivity)
   useEffect(() => {
     if (liveToolActivity.length > 0) {
       setLocalActivity('tool-use')
@@ -1747,167 +1734,6 @@ export function ChatScreen({
     lastAssistantSignature.current = ''
     setWaitingForResponse(false)
   }, [activeFriendlyId, isNewChat, streamStop])
-
-  /**
-   * Simplified sendMessage - fire and forget.
-   * Response arrives via SSE stream, not via this function.
-   */
-  const sendMessage = useCallback(
-    function sendMessage(
-      sessionKey: string,
-      friendlyId: string,
-      body: string,
-      attachments: Array<ChatAttachment> = [],
-      fastMode = false,
-      skipOptimistic = false,
-      existingClientId = '',
-    ) {
-      // Read from ref so we always get the latest value without capturing it in deps
-      const currentThinkingLevel = thinkingLevelRef.current
-      setLocalActivity('reading')
-      const normalizedAttachments = attachments.map((attachment) => ({
-        ...attachment,
-        id: attachment.id ?? crypto.randomUUID(),
-      }))
-
-      // Inject text/file attachment content directly into the message body.
-      // Servers reliably forward text in the message body; file attachments
-      // may be silently dropped for non-image types.
-      const textBlocks = normalizedAttachments
-        .filter((a) => {
-          const mime =
-            normalizeMimeType(a.contentType ?? '') ||
-            readDataUrlMimeType(a.dataUrl ?? '')
-          return !isImageMimeType(mime) && (a.dataUrl ?? '').length > 0
-        })
-        .map((a) => {
-          const raw = a.dataUrl ?? ''
-          const content = raw.startsWith('data:')
-            ? atob(raw.split(',')[1] ?? '')
-            : raw
-          return `\n\n<attachment name="${a.name ?? 'file'}">\n${content}\n</attachment>`
-        })
-      const enrichedBody = body + textBlocks.join('')
-
-      let optimisticClientId = existingClientId
-      setResearchResetKey((current) => current + 1)
-      if (!skipOptimistic) {
-        const { clientId, optimisticMessage } = createOptimisticMessage(
-          body,
-          normalizedAttachments,
-        )
-        optimisticClientId = clientId
-        appendHistoryMessage(
-          queryClient,
-          friendlyId,
-          sessionKey,
-          optimisticMessage,
-        )
-        updateSessionLastMessage(
-          queryClient,
-          sessionKey,
-          friendlyId,
-          optimisticMessage,
-        )
-      }
-
-      setPendingGeneration(true)
-      setSending(true)
-      setError(null)
-      clearCompletedStreaming()
-      setWaitingForResponse(true)
-      activeSendRef.current = {
-        sessionKey,
-        friendlyId,
-        clientId: optimisticClientId,
-      }
-
-      // Failsafe: keep frontend aligned with the backend send-stream timeout.
-      // Prevents the composer from re-enabling while the backend is still
-      // processing a long-running request (#122).
-      if (failsafeTimerRef.current) {
-        window.clearTimeout(failsafeTimerRef.current)
-      }
-      failsafeTimerRef.current = window.setTimeout(() => {
-        streamFinish()
-      }, 600_000)
-
-      // Send a compatibility shape for attachment parsing.
-      // Different server/channel versions read different keys.
-      const payloadAttachments = normalizedAttachments.map((attachment) => {
-        const mimeType =
-          normalizeMimeType(attachment.contentType) ||
-          readDataUrlMimeType(attachment.dataUrl)
-        const isImage = isImageMimeType(mimeType)
-        // For text/file attachments, dataUrl holds raw text (not a base64 data URL).
-        // We must base64-encode it so the server can build a valid data: URI.
-        const rawDataUrl = attachment.dataUrl ?? ''
-        let encodedContent: string
-        let finalDataUrl: string
-        if (!isImage && !rawDataUrl.startsWith('data:')) {
-          encodedContent = btoa(unescape(encodeURIComponent(rawDataUrl)))
-          finalDataUrl = mimeType
-            ? `data:${mimeType};base64,${encodedContent}`
-            : `data:text/plain;base64,${encodedContent}`
-        } else {
-          encodedContent = stripDataUrlPrefix(rawDataUrl)
-          finalDataUrl = rawDataUrl
-        }
-        return {
-          id: attachment.id,
-          name: attachment.name,
-          fileName: attachment.name,
-          contentType: mimeType || undefined,
-          mimeType: mimeType || undefined,
-          mediaType: mimeType || undefined,
-          type: isImage ? 'image' : 'file',
-          content: encodedContent,
-          data: encodedContent,
-          base64: encodedContent,
-          dataUrl: finalDataUrl,
-          size: attachment.size,
-        }
-      })
-      const history = buildPortableHistory(finalDisplayMessages)
-
-      try {
-        streamStart()
-      } catch (e) {
-        if (import.meta.env.DEV) {
-          console.warn('[chat] streamStart error (non-fatal):', e)
-        }
-      }
-
-      void startStreaming({
-        sessionKey,
-        friendlyId,
-        message: enrichedBody,
-        history,
-        attachments:
-          payloadAttachments.length > 0 ? payloadAttachments : undefined,
-        thinking:
-          currentThinkingLevel === 'off' ? undefined : currentThinkingLevel,
-        fastMode,
-        model: currentModel || undefined,
-        idempotencyKey: optimisticClientId || crypto.randomUUID(),
-      }).catch((err: unknown) => {
-        const messageText = err instanceof Error ? err.message : String(err)
-        if (import.meta.env.DEV) {
-          console.warn('[chat] send-stream failed', messageText)
-        }
-      })
-    },
-    [
-      finalDisplayMessages,
-      clearCompletedStreaming,
-      queryClient,
-      setLocalActivity,
-      startStreaming,
-      streamFinish,
-      streamStart,
-      currentModel,
-    ],
-  )
 
   useLayoutEffect(() => {
     if (isNewChat) return

@@ -1,8 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Dispatch, RefObject, SetStateAction } from 'react'
+import type { QueryClient } from '@tanstack/react-query'
 
 import { useChatStore } from '@/stores/chat-store'
 import { setPendingGeneration } from '../pending-send'
+import { textFromMessage } from '../utils'
+import { createOptimisticMessage } from '../chat-screen-utils'
+import {
+  appendHistoryMessage,
+  updateSessionLastMessage,
+} from '../chat-queries'
+import { stripDataUrlPrefix } from '@/lib/stream-utils'
+import type { ChatAttachment, ChatMessage } from '../types'
+import type { AgentActivity } from '@/stores/chat-activity-store'
 
 export type ActiveSendRecord = {
   sessionKey: string
@@ -10,10 +20,73 @@ export type ActiveSendRecord = {
   clientId: string
 }
 
+// --- Utility functions moved from chat-screen.tsx (seam #4 PR 2) ---
+// These are used exclusively by sendMessage and were relocated alongside
+// it to avoid passing them as parameters.
+
+type PortableHistoryMessage = {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+}
+
+function normalizeMimeType(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  return value.trim().toLowerCase()
+}
+
+function isImageMimeType(value: unknown): boolean {
+  const normalized = normalizeMimeType(value)
+  return normalized.startsWith('image/')
+}
+
+function readDataUrlMimeType(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  const match = /^data:([^;,]+)[^,]*,/i.exec(value.trim())
+  return match?.[1]?.trim().toLowerCase() || ''
+}
+
+function getPortableHistoryContent(message: ChatMessage): string {
+  const text = textFromMessage(message).trim()
+  if (text) return text
+  if (
+    message.role === 'user' &&
+    Array.isArray(message.attachments) &&
+    message.attachments.length > 0
+  ) {
+    return 'Please review the attached content.'
+  }
+  return ''
+}
+
+function buildPortableHistory(
+  messages: Array<ChatMessage>,
+): Array<PortableHistoryMessage> {
+  return messages
+    .filter(
+      (
+        message,
+      ): message is ChatMessage & { role: 'user' | 'assistant' | 'system' } =>
+        message.role === 'user' ||
+        message.role === 'assistant' ||
+        message.role === 'system',
+    )
+    .filter((message) => (message as any).__streamingStatus !== 'streaming')
+    .map((message) => {
+      const content = getPortableHistoryContent(message)
+      if (!content) return null
+      return {
+        role: message.role,
+        content,
+      }
+    })
+    .filter((message): message is PortableHistoryMessage => message !== null)
+    .slice(-20)
+}
+
 /**
- * useSendMessageState — owns the send-path state flags, refs, and
- * timer/stream-lifecycle functions extracted from chat-screen.tsx
- * (seam #4 PR 1).
+ * useSendMessageState — owns the send-path state flags, refs,
+ * timer/stream-lifecycle functions, AND the core sendMessage logic
+ * extracted from chat-screen.tsx (seam #4 PR 1 + PR 2).
  *
  * Group A: state declarations + refs (sending, activeSendRef,
  * waitingForResponseRef, sessionKeyForWaiting, streamTimer,
@@ -21,6 +94,10 @@ export type ActiveSendRecord = {
  *
  * Group B: timer/stream lifecycle (streamStop, streamStart,
  * streamFinish + cleanup + failsafe effects).
+ *
+ * Group C (PR 2): sendMessage — the core send-path function that
+ * normalises attachments, creates optimistic messages, arms the
+ * failsafe timer, and calls startStreaming.
  *
  * `setWaitingForResponse` is also owned here because it closes over
  * `sessionKeyForWaiting.current` — moving it avoids a circular
@@ -31,12 +108,43 @@ export type ActiveSendRecord = {
  * useRealtimeChatHistory → lastCompletedRunAt). Instead the screen
  * calls `syncLastCompletedRunAt` after the realtime hook returns; a
  * state bump re-triggers the 10 s failsafe effect exactly as before.
+ *
+ * Several sendMessage dependencies (startStreaming,
+ * clearCompletedStreaming, finalDisplayMessages, currentModel) are
+ * likewise produced by hooks called AFTER this hook in the render
+ * order (useRealtimeChatHistory → useStreamingMessage → useMemo).
+ * They are passed as RefObject bridges and synced during render in
+ * the screen, so sendMessage always reads the latest value. This
+ * mirrors the existing ref-based pattern for thinkingLevelRef and
+ * activeRealtimeStreamingRef.
  */
 export function useSendMessageState(params: {
   activeFriendlyId: string | undefined
   isNewChat: boolean
   waitingForResponse: boolean
   activeRealtimeStreamingRef: RefObject<boolean>
+  // PR 2 params — needed by sendMessage
+  thinkingLevelRef: RefObject<string>
+  setLocalActivity: (activity: AgentActivity) => void
+  setError: Dispatch<SetStateAction<string | null>>
+  clearCompletedStreamingRef: RefObject<() => void>
+  startStreamingRef: RefObject<
+    (params: {
+      sessionKey: string
+      friendlyId: string
+      message: string
+      history?: Array<PortableHistoryMessage>
+      thinking?: string
+      fastMode?: boolean
+      attachments?: Array<ChatAttachment>
+      idempotencyKey?: string
+      model?: string
+    }) => Promise<void>
+  >
+  queryClient: QueryClient
+  finalDisplayMessagesRef: RefObject<Array<ChatMessage>>
+  currentModelRef: RefObject<string | undefined>
+  setResearchResetKey: Dispatch<SetStateAction<number>>
 }): {
   // State
   sending: boolean
@@ -58,8 +166,32 @@ export function useSendMessageState(params: {
   setWaitingForResponse: (waiting: boolean) => void
   // Late-sync for lastCompletedRunAt (decoupled from realtime hook cycle)
   syncLastCompletedRunAt: (value: number | null) => void
+  // Core send function (PR 2)
+  sendMessage: (
+    sessionKey: string,
+    friendlyId: string,
+    body: string,
+    attachments?: Array<ChatAttachment>,
+    fastMode?: boolean,
+    skipOptimistic?: boolean,
+    existingClientId?: string,
+  ) => void
 } {
-  const { activeFriendlyId, isNewChat, waitingForResponse, activeRealtimeStreamingRef } = params
+  const {
+    activeFriendlyId,
+    isNewChat,
+    waitingForResponse,
+    activeRealtimeStreamingRef,
+    thinkingLevelRef,
+    setLocalActivity,
+    setError,
+    clearCompletedStreamingRef,
+    startStreamingRef,
+    queryClient,
+    finalDisplayMessagesRef,
+    currentModelRef,
+    setResearchResetKey,
+  } = params
 
   // --- Group A: State declarations + refs ---
 
@@ -179,6 +311,173 @@ export function useSendMessageState(params: {
     return () => window.clearTimeout(fallback)
   }, [waitingForResponse]) // eslint-disable-line react-hooks/exhaustive-deps -- activeRealtimeStreamingRef + refreshHistoryRef are stable refs
 
+  // --- Group C (PR 2): sendMessage ---
+  // Moved verbatim from chat-screen.tsx — the core send-path function.
+  //
+  // Late-bound dependencies (startStreaming, clearCompletedStreaming,
+  // finalDisplayMessages, currentModel) are read from RefObject bridges
+  // so sendMessage always sees the latest value without needing them in
+  // the useCallback deps. This is necessary because the producing hooks
+  // (useRealtimeChatHistory, useStreamingMessage, useMemo) run AFTER
+  // this hook in the render order due to the waitingForResponseRef →
+  // usePendingApprovals → useRealtimeChatHistory dependency chain.
+
+  const sendMessage = useCallback(
+    function sendMessage(
+      sessionKey: string,
+      friendlyId: string,
+      body: string,
+      attachments: Array<ChatAttachment> = [],
+      fastMode = false,
+      skipOptimistic = false,
+      existingClientId = '',
+    ) {
+      // Read from ref so we always get the latest value without capturing it in deps
+      const currentThinkingLevel = thinkingLevelRef.current
+      setLocalActivity('reading')
+      const normalizedAttachments = attachments.map((attachment) => ({
+        ...attachment,
+        id: attachment.id ?? crypto.randomUUID(),
+      }))
+
+      // Inject text/file attachment content directly into the message body.
+      // Servers reliably forward text in the message body; file attachments
+      // may be silently dropped for non-image types.
+      const textBlocks = normalizedAttachments
+        .filter((a) => {
+          const mime =
+            normalizeMimeType(a.contentType ?? '') ||
+            readDataUrlMimeType(a.dataUrl ?? '')
+          return !isImageMimeType(mime) && (a.dataUrl ?? '').length > 0
+        })
+        .map((a) => {
+          const raw = a.dataUrl ?? ''
+          const content = raw.startsWith('data:')
+            ? atob(raw.split(',')[1] ?? '')
+            : raw
+          return `\n\n<attachment name="${a.name ?? 'file'}">\n${content}\n</attachment>`
+        })
+      const enrichedBody = body + textBlocks.join('')
+
+      let optimisticClientId = existingClientId
+      setResearchResetKey((current) => current + 1)
+      if (!skipOptimistic) {
+        const { clientId, optimisticMessage } = createOptimisticMessage(
+          body,
+          normalizedAttachments,
+        )
+        optimisticClientId = clientId
+        appendHistoryMessage(
+          queryClient,
+          friendlyId,
+          sessionKey,
+          optimisticMessage,
+        )
+        updateSessionLastMessage(
+          queryClient,
+          sessionKey,
+          friendlyId,
+          optimisticMessage,
+        )
+      }
+
+      setPendingGeneration(true)
+      setSending(true)
+      setError(null)
+      clearCompletedStreamingRef.current()
+      setWaitingForResponse(true)
+      activeSendRef.current = {
+        sessionKey,
+        friendlyId,
+        clientId: optimisticClientId,
+      }
+
+      // Failsafe: keep frontend aligned with the backend send-stream timeout.
+      // Prevents the composer from re-enabling while the backend is still
+      // processing a long-running request (#122).
+      if (failsafeTimerRef.current) {
+        window.clearTimeout(failsafeTimerRef.current)
+      }
+      failsafeTimerRef.current = window.setTimeout(() => {
+        streamFinish()
+      }, 600_000)
+
+      // Send a compatibility shape for attachment parsing.
+      // Different server/channel versions read different keys.
+      const payloadAttachments = normalizedAttachments.map((attachment) => {
+        const mimeType =
+          normalizeMimeType(attachment.contentType) ||
+          readDataUrlMimeType(attachment.dataUrl)
+        const isImage = isImageMimeType(mimeType)
+        // For text/file attachments, dataUrl holds raw text (not a base64 data URL).
+        // We must base64-encode it so the server can build a valid data: URI.
+        const rawDataUrl = attachment.dataUrl ?? ''
+        let encodedContent: string
+        let finalDataUrl: string
+        if (!isImage && !rawDataUrl.startsWith('data:')) {
+          encodedContent = btoa(unescape(encodeURIComponent(rawDataUrl)))
+          finalDataUrl = mimeType
+            ? `data:${mimeType};base64,${encodedContent}`
+            : `data:text/plain;base64,${encodedContent}`
+        } else {
+          encodedContent = stripDataUrlPrefix(rawDataUrl)
+          finalDataUrl = rawDataUrl
+        }
+        return {
+          id: attachment.id,
+          name: attachment.name,
+          fileName: attachment.name,
+          contentType: mimeType || undefined,
+          mimeType: mimeType || undefined,
+          mediaType: mimeType || undefined,
+          type: isImage ? 'image' : 'file',
+          content: encodedContent,
+          data: encodedContent,
+          base64: encodedContent,
+          dataUrl: finalDataUrl,
+          size: attachment.size,
+        }
+      })
+      const history = buildPortableHistory(finalDisplayMessagesRef.current)
+
+      try {
+        streamStart()
+      } catch (e) {
+        if (import.meta.env.DEV) {
+          console.warn('[chat] streamStart error (non-fatal):', e)
+        }
+      }
+
+      const currentModel = currentModelRef.current
+      void startStreamingRef.current({
+        sessionKey,
+        friendlyId,
+        message: enrichedBody,
+        history,
+        attachments:
+          payloadAttachments.length > 0 ? payloadAttachments : undefined,
+        thinking:
+          currentThinkingLevel === 'off' ? undefined : currentThinkingLevel,
+        fastMode,
+        model: currentModel || undefined,
+        idempotencyKey: optimisticClientId || crypto.randomUUID(),
+      }).catch((err: unknown) => {
+        const messageText = err instanceof Error ? err.message : String(err)
+        if (import.meta.env.DEV) {
+          console.warn('[chat] send-stream failed', messageText)
+        }
+      })
+    },
+    // All late-bound values are accessed via refs (stable), so the only
+    // reactive deps are the direct-value params and internal lifecycle fns.
+    [
+      queryClient,
+      setLocalActivity,
+      streamFinish,
+      streamStart,
+    ], // eslint-disable-line react-hooks/exhaustive-deps -- setError + setResearchResetKey are stable useState setters; thinkingLevelRef + clearCompletedStreamingRef + startStreamingRef + finalDisplayMessagesRef + currentModelRef are stable refs
+  )
+
   return {
     sending,
     setSending,
@@ -195,5 +494,6 @@ export function useSendMessageState(params: {
     streamFinish,
     setWaitingForResponse,
     syncLastCompletedRunAt,
+    sendMessage,
   }
 }

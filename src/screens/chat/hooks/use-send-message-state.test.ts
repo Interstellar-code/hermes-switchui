@@ -1,33 +1,134 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import type { RefObject } from 'react'
+import type { Dispatch, RefObject, SetStateAction } from 'react'
 
 import { useChatStore } from '../../../stores/chat-store'
 import { useSendMessageState } from './use-send-message-state'
+import type { AgentActivity } from '@/stores/chat-activity-store'
+import type { ChatAttachment, ChatMessage } from '../types'
+
+// --- Mocks for sendMessage dependencies ---
+
+vi.mock('../chat-screen-utils', () => ({
+  createOptimisticMessage: vi.fn(() => ({
+    clientId: 'client-test-1',
+    optimisticMessage: {
+      role: 'user',
+      content: [{ type: 'text', text: 'hello' }],
+      clientId: 'client-test-1',
+      status: 'sending',
+    },
+  })),
+}))
+
+vi.mock('../chat-queries', () => ({
+  appendHistoryMessage: vi.fn(),
+  updateSessionLastMessage: vi.fn(),
+}))
+
+vi.mock('../pending-send', () => ({
+  setPendingGeneration: vi.fn(),
+  consumePendingSend: vi.fn(),
+  hasPendingGeneration: vi.fn(() => false),
+  hasPendingSend: vi.fn(() => false),
+  isRecentSession: vi.fn(() => false),
+  resetPendingSend: vi.fn(),
+}))
+
+vi.mock('@/lib/stream-utils', () => ({
+  stripDataUrlPrefix: vi.fn((v: string) => v.replace(/^data:[^,]+,/, '')),
+}))
+
+// Import mocked functions for assertion
+import { createOptimisticMessage } from '../chat-screen-utils'
+import { appendHistoryMessage, updateSessionLastMessage } from '../chat-queries'
 
 function makeBooleanRef(initial = false): RefObject<boolean> {
   return { current: initial }
 }
 
+function makeStringRef(initial = ''): RefObject<string> {
+  return { current: initial }
+}
+
+function makeVoidFnRef(): RefObject<() => void> {
+  return { current: vi.fn() }
+}
+
+function makeStartStreamingRef(): RefObject<
+  (params: Record<string, unknown>) => Promise<void>
+> {
+  return { current: vi.fn(async () => {}) }
+}
+
+function makeMessagesRef(
+  messages: ChatMessage[] = [],
+): RefObject<ChatMessage[]> {
+  return { current: messages }
+}
+
+function makeModelRef(
+  model: string | undefined = undefined,
+): RefObject<string | undefined> {
+  return { current: model }
+}
+
+/** Build a full params object with sensible mocks for all PR 2 fields. */
+function makeParams(overrides?: {
+  activeFriendlyId?: string | undefined
+  isNewChat?: boolean
+  waitingForResponse?: boolean
+  thinkingLevelRef?: RefObject<string>
+  setLocalActivity?: (a: AgentActivity) => void
+  setError?: Dispatch<SetStateAction<string | null>>
+  clearCompletedStreamingRef?: RefObject<() => void>
+  startStreamingRef?: RefObject<
+    (params: Record<string, unknown>) => Promise<void>
+  >
+  queryClient?: unknown
+  finalDisplayMessagesRef?: RefObject<ChatMessage[]>
+  currentModelRef?: RefObject<string | undefined>
+  setResearchResetKey?: Dispatch<SetStateAction<number>>
+}): Parameters<typeof useSendMessageState>[0] {
+  const o = overrides ?? {}
+  return {
+    activeFriendlyId:
+      'activeFriendlyId' in o ? o.activeFriendlyId : 'sess-1',
+    isNewChat: o.isNewChat ?? false,
+    waitingForResponse: o.waitingForResponse ?? false,
+    activeRealtimeStreamingRef: makeBooleanRef(),
+    thinkingLevelRef: o.thinkingLevelRef ?? makeStringRef('off'),
+    setLocalActivity: (o.setLocalActivity ?? vi.fn()) as (a: AgentActivity) => void,
+    setError: (o.setError ?? vi.fn()) as Dispatch<SetStateAction<string | null>>,
+    clearCompletedStreamingRef:
+      o.clearCompletedStreamingRef ?? makeVoidFnRef(),
+    startStreamingRef: o.startStreamingRef ?? makeStartStreamingRef(),
+    queryClient: (o.queryClient ?? {}) as Parameters<
+      typeof useSendMessageState
+    >[0]['queryClient'],
+    finalDisplayMessagesRef:
+      o.finalDisplayMessagesRef ?? makeMessagesRef([]),
+    currentModelRef: o.currentModelRef ?? makeModelRef('test-model'),
+    setResearchResetKey: (o.setResearchResetKey ?? vi.fn()) as Dispatch<
+      SetStateAction<number>
+    >,
+  }
+}
+
 describe('useSendMessageState', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    vi.clearAllMocks()
   })
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 
   it('initialises with correct defaults', () => {
-    const { result } = renderHook(() =>
-      useSendMessageState({
-        activeFriendlyId: 'sess-1',
-        isNewChat: false,
-        waitingForResponse: false,
-        activeRealtimeStreamingRef: makeBooleanRef(),
-      }),
-    )
+    const { result } = renderHook(() => useSendMessageState(makeParams()))
 
     expect(result.current.sending).toBe(false)
     expect(result.current.activeSendRef.current).toBeNull()
@@ -40,14 +141,7 @@ describe('useSendMessageState', () => {
   })
 
   it('streamStop clears streamTimer', () => {
-    const { result } = renderHook(() =>
-      useSendMessageState({
-        activeFriendlyId: 'sess-1',
-        isNewChat: false,
-        waitingForResponse: false,
-        activeRealtimeStreamingRef: makeBooleanRef(),
-      }),
-    )
+    const { result } = renderHook(() => useSendMessageState(makeParams()))
 
     result.current.streamTimer.current = 12345 as unknown as number
     act(() => {
@@ -65,15 +159,9 @@ describe('useSendMessageState', () => {
     } as unknown as ReturnType<typeof useChatStore.getState>)
 
     const { result } = renderHook(() =>
-      useSendMessageState({
-        activeFriendlyId: 'sess-1',
-        isNewChat: false,
-        waitingForResponse: true,
-        activeRealtimeStreamingRef: makeBooleanRef(),
-      }),
+      useSendMessageState(makeParams({ waitingForResponse: true })),
     )
 
-    // Simulate an active session key so setWaitingForResponse does something
     result.current.sessionKeyForWaiting.current = 'sess-1'
     result.current.streamTimer.current = 999 as unknown as number
     result.current.failsafeTimerRef.current = 888 as unknown as number
@@ -97,14 +185,7 @@ describe('useSendMessageState', () => {
 
   it('streamStart sets a 2s fallback timer when activeFriendlyId is set and not new chat', () => {
     const refreshFn = vi.fn()
-    const { result } = renderHook(() =>
-      useSendMessageState({
-        activeFriendlyId: 'sess-1',
-        isNewChat: false,
-        waitingForResponse: false,
-        activeRealtimeStreamingRef: makeBooleanRef(),
-      }),
-    )
+    const { result } = renderHook(() => useSendMessageState(makeParams()))
 
     result.current.refreshHistoryRef.current = refreshFn
 
@@ -123,12 +204,7 @@ describe('useSendMessageState', () => {
 
   it('streamStart skips when activeFriendlyId is missing', () => {
     const { result } = renderHook(() =>
-      useSendMessageState({
-        activeFriendlyId: undefined,
-        isNewChat: false,
-        waitingForResponse: false,
-        activeRealtimeStreamingRef: makeBooleanRef(),
-      }),
+      useSendMessageState(makeParams({ activeFriendlyId: undefined })),
     )
 
     act(() => {
@@ -140,12 +216,7 @@ describe('useSendMessageState', () => {
 
   it('streamStart skips when isNewChat is true', () => {
     const { result } = renderHook(() =>
-      useSendMessageState({
-        activeFriendlyId: 'sess-1',
-        isNewChat: true,
-        waitingForResponse: false,
-        activeRealtimeStreamingRef: makeBooleanRef(),
-      }),
+      useSendMessageState(makeParams({ isNewChat: true })),
     )
 
     act(() => {
@@ -163,12 +234,7 @@ describe('useSendMessageState', () => {
     } as unknown as ReturnType<typeof useChatStore.getState>)
 
     const { result } = renderHook(() =>
-      useSendMessageState({
-        activeFriendlyId: 'sess-1',
-        isNewChat: false,
-        waitingForResponse: true,
-        activeRealtimeStreamingRef: makeBooleanRef(),
-      }),
+      useSendMessageState(makeParams({ waitingForResponse: true })),
     )
 
     act(() => {
@@ -182,5 +248,269 @@ describe('useSendMessageState', () => {
 
     expect(clearSessionWaiting).toHaveBeenCalledWith('sess-1')
     vi.restoreAllMocks()
+  })
+
+  // --- sendMessage tests (PR 2) ---
+
+  describe('sendMessage', () => {
+    it('creates optimistic message and appends to query cache', () => {
+      const setSessionWaiting = vi.fn()
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting,
+        clearSessionWaiting: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const queryClient = { __mock: true }
+      const { result } = renderHook(() =>
+        useSendMessageState(
+          makeParams({ queryClient }),
+        ),
+      )
+
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+
+      act(() => {
+        result.current.sendMessage('sess-key-1', 'sess-1', 'hello world')
+      })
+
+      expect(createOptimisticMessage).toHaveBeenCalledWith('hello world', [])
+      expect(appendHistoryMessage).toHaveBeenCalledWith(
+        queryClient,
+        'sess-1',
+        'sess-key-1',
+        expect.objectContaining({ clientId: 'client-test-1' }),
+      )
+      expect(updateSessionLastMessage).toHaveBeenCalledWith(
+        queryClient,
+        'sess-key-1',
+        'sess-1',
+        expect.objectContaining({ clientId: 'client-test-1' }),
+      )
+
+      vi.restoreAllMocks()
+    })
+
+    it('sets state flags (sending=true) and writes activeSendRef', () => {
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const { result } = renderHook(() => useSendMessageState(makeParams()))
+
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+
+      act(() => {
+        result.current.sendMessage('sess-key-1', 'sess-1', 'hello')
+      })
+
+      expect(result.current.sending).toBe(true)
+      expect(result.current.activeSendRef.current).toEqual({
+        sessionKey: 'sess-key-1',
+        friendlyId: 'sess-1',
+        clientId: 'client-test-1',
+      })
+
+      vi.restoreAllMocks()
+    })
+
+    it('arms the 600s failsafe timer', () => {
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const { result } = renderHook(() => useSendMessageState(makeParams()))
+
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+
+      act(() => {
+        result.current.sendMessage('sess-key-1', 'sess-1', 'hello')
+      })
+
+      expect(result.current.failsafeTimerRef.current).not.toBeNull()
+
+      vi.restoreAllMocks()
+    })
+
+    it('calls startStreaming with enriched body and correct params', () => {
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const startStreamingMock = vi.fn(
+        async (_params: Record<string, unknown>) => {},
+      )
+      const messages: ChatMessage[] = [
+        { role: 'user', content: [{ type: 'text', text: 'previous msg' }] },
+      ]
+      const { result } = renderHook(() =>
+        useSendMessageState(
+          makeParams({
+            thinkingLevelRef: makeStringRef('high'),
+            startStreamingRef: { current: startStreamingMock },
+            finalDisplayMessagesRef: makeMessagesRef(messages),
+            currentModelRef: makeModelRef('claude-4.6'),
+          }),
+        ),
+      )
+
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+
+      act(() => {
+        result.current.sendMessage(
+          'sess-key-1',
+          'sess-1',
+          'new message',
+          [],
+          true, // fastMode
+        )
+      })
+
+      expect(startStreamingMock).toHaveBeenCalledTimes(1)
+      const callArgs = startStreamingMock.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >
+      expect(callArgs.sessionKey).toBe('sess-key-1')
+      expect(callArgs.friendlyId).toBe('sess-1')
+      expect(callArgs.message).toBe('new message')
+      expect(callArgs.fastMode).toBe(true)
+      expect(callArgs.thinking).toBe('high')
+      expect(callArgs.model).toBe('claude-4.6')
+      expect(callArgs.history).toEqual([
+        { role: 'user', content: 'previous msg' },
+      ])
+      expect(callArgs.attachments).toBeUndefined()
+
+      vi.restoreAllMocks()
+    })
+
+    it('skipOptimistic=true skips optimistic message creation', () => {
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const { result } = renderHook(() => useSendMessageState(makeParams()))
+
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+
+      act(() => {
+        result.current.sendMessage(
+          'sess-key-1',
+          'sess-1',
+          'hello',
+          [],
+          false,
+          true, // skipOptimistic
+        )
+      })
+
+      expect(createOptimisticMessage).not.toHaveBeenCalled()
+      expect(appendHistoryMessage).not.toHaveBeenCalled()
+      expect(updateSessionLastMessage).not.toHaveBeenCalled()
+
+      vi.restoreAllMocks()
+    })
+
+    it('passes attachment payload when attachments are provided', () => {
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const startStreamingMock = vi.fn(
+        async (_params: Record<string, unknown>) => {},
+      )
+      const attachments: ChatAttachment[] = [
+        {
+          id: 'att-1',
+          name: 'test.txt',
+          contentType: 'text/plain',
+          dataUrl: 'data:text/plain;base64,SGVsbG8=',
+          size: 5,
+        },
+      ]
+      const { result } = renderHook(() =>
+        useSendMessageState(
+          makeParams({
+            startStreamingRef: { current: startStreamingMock },
+          }),
+        ),
+      )
+
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+
+      act(() => {
+        result.current.sendMessage(
+          'sess-key-1',
+          'sess-1',
+          'see attached',
+          attachments,
+        )
+      })
+
+      const callArgs = startStreamingMock.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >
+      expect(callArgs.attachments).toBeDefined()
+      const payload = callArgs.attachments as Array<Record<string, unknown>>
+      expect(payload).toHaveLength(1)
+      expect(payload[0].contentType).toBe('text/plain')
+      expect(payload[0].type).toBe('file')
+
+      vi.restoreAllMocks()
+    })
+
+    it('injects text attachment content into the message body', () => {
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const startStreamingMock = vi.fn(
+        async (_params: Record<string, unknown>) => {},
+      )
+      const attachments: ChatAttachment[] = [
+        {
+          id: 'att-1',
+          name: 'notes.txt',
+          contentType: 'text/plain',
+          dataUrl: 'raw text content here',
+          size: 22,
+        },
+      ]
+      const { result } = renderHook(() =>
+        useSendMessageState(
+          makeParams({
+            startStreamingRef: { current: startStreamingMock },
+          }),
+        ),
+      )
+
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+
+      act(() => {
+        result.current.sendMessage(
+          'sess-key-1',
+          'sess-1',
+          'body text',
+          attachments,
+        )
+      })
+
+      const callArgs = startStreamingMock.mock.calls[0][0] as Record<
+        string,
+        unknown
+      >
+      expect(callArgs.message).toContain('body text')
+      expect(callArgs.message).toContain('<attachment name="notes.txt">')
+      expect(callArgs.message).toContain('raw text content here')
+
+      vi.restoreAllMocks()
+    })
   })
 })
