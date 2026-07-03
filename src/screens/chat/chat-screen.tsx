@@ -77,6 +77,7 @@ import { useAutoSessionTitle } from './hooks/use-auto-session-title'
 import { useRenameSession } from './hooks/use-rename-session'
 import { useContextAlert } from './hooks/use-context-alert'
 import { usePendingApprovals } from './hooks/use-pending-approvals'
+import { useSendMessageState } from './hooks/use-send-message-state'
 import {
   CHAT_OPEN_SETTINGS_EVENT,
   CHAT_PENDING_COMMAND_STORAGE_KEY,
@@ -468,7 +469,6 @@ export function ChatScreen({
   const queryClient = useQueryClient()
   const userCommandsQuery = useEnabledUserCommands()
   const enabledUserCommands = userCommandsQuery.data
-  const [sending, setSending] = useState(false)
   const [_creatingSession, setCreatingSession] = useState(false)
   const [sessionsOpen, setSessionsOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -479,17 +479,10 @@ export function ChatScreen({
   const chatMode = useChatMode()
   const isPortableMode = chatMode === 'portable'
   const portableChatFriendlyId = isPortableMode ? 'main' : activeFriendlyId
-  // --- Issue #43 fix: lift waitingForResponse into persistent Zustand store ---
-  // The store survives component unmount, so navigating away mid-stream
-  // doesn't lose the "waiting" flag. sessionStorage backup handles reloads.
-  const sessionKeyForWaiting = useRef<string | undefined>(undefined)
   const [liveToolActivity, setLiveToolActivity] = useState<
     Array<{ name: string; timestamp: number }>
   >([])
-  const streamTimer = useRef<number | null>(null)
-  const failsafeTimerRef = useRef<number | null>(null)
   const lastAssistantSignature = useRef('')
-  const refreshHistoryRef = useRef<() => void>(() => {})
   const retriedQueuedMessageKeysRef = useRef(new Set<string>())
   const hasSeenDisconnectRef = useRef(false)
   const hadErrorRef = useRef(false)
@@ -517,14 +510,6 @@ export function ChatScreen({
 
   const pendingStartRef = useRef(false)
   const composerHandleRef = useRef<ChatComposerHandle | null>(null)
-  // Idempotency guard prevents duplicate sends on paste/attach double-fire.
-  const lastSendKeyRef = useRef('')
-  const lastSendAtRef = useRef(0)
-  const activeSendRef = useRef<{
-    sessionKey: string
-    friendlyId: string
-    clientId: string
-  } | null>(null)
   const {
     chatFocusMode,
     isFocusMode,
@@ -601,6 +586,37 @@ export function ChatScreen({
   const waitingForResponse = waitingStoreKey
     ? storeWaitingForSession
     : hasPendingSend() || hasPendingGeneration()
+
+  // activeRealtimeStreamingRef is initialized false here (activeIsRealtimeStreaming
+  // is derived later from useRealtimeChatHistory's return, which itself needs
+  // applyApprovalRequest from usePendingApprovals — a cycle). It is mirrored to
+  // the live value during render at the derivation site below, so E28's first
+  // synchronous mount read already sees the correct value.
+  const activeRealtimeStreamingRef = useRef(false)
+
+  const {
+    sending,
+    setSending,
+    activeSendRef,
+    waitingForResponseRef,
+    sessionKeyForWaiting,
+    lastSendKeyRef,
+    lastSendAtRef,
+    streamTimer,
+    failsafeTimerRef,
+    refreshHistoryRef,
+    streamStop,
+    streamStart,
+    streamFinish,
+    setWaitingForResponse,
+    syncLastCompletedRunAt,
+  } = useSendMessageState({
+    activeFriendlyId,
+    isNewChat,
+    waitingForResponse,
+    activeRealtimeStreamingRef,
+  })
+
   const activeQueueSessionKey = useMemo(() => {
     if (isPortableMode) return 'main'
     const activeSendSessionKey = activeSendRef.current?.sessionKey
@@ -637,17 +653,6 @@ export function ChatScreen({
     }
   }, [activeQueueSessionKey])
 
-  const setWaitingForResponse = useCallback((waiting: boolean) => {
-    const store = useChatStore.getState()
-    const key = sessionKeyForWaiting.current
-    if (!key) return
-    if (waiting) {
-      store.setSessionWaiting(key)
-    } else {
-      store.clearSessionWaiting(key)
-    }
-  }, [])
-
   // Snapshot cached history for the recovery predicate. Cheap reference
   // pass; the predicate runs only on mount/relist of the active session.
   const recoveryMessages = (historyQuery.data as { messages?: Array<ChatMessage> })?.messages
@@ -663,20 +668,6 @@ export function ChatScreen({
       !isNewChat && resolvedSessionKey.length > 0 && historyQuery.isSuccess,
     messages: recoveryMessages,
   })
-
-  // Hoist refs before useRealtimeChatHistory so applyApprovalRequest (returned
-  // by usePendingApprovals) is available when the hook is called. These refs
-  // are read non-reactively inside E28's timer callback.
-  const waitingForResponseRef = useRef(waitingForResponse)
-  useEffect(() => {
-    waitingForResponseRef.current = waitingForResponse
-  }, [waitingForResponse])
-  // activeRealtimeStreamingRef is initialized false here (activeIsRealtimeStreaming
-  // is derived later from useRealtimeChatHistory's return, which itself needs
-  // applyApprovalRequest from usePendingApprovals — a cycle). It is mirrored to
-  // the live value during render at the derivation site below, so E28's first
-  // synchronous mount read already sees the correct value.
-  const activeRealtimeStreamingRef = useRef(false)
 
   const { pendingApprovals, resolvePendingApproval, applyApprovalRequest } =
     usePendingApprovals({ waitingForResponseRef, activeRealtimeStreamingRef })
@@ -728,6 +719,10 @@ export function ChatScreen({
       setIsCompacting(false)
     }, []),
   })
+
+  // Sync lastCompletedRunAt into the send-message-state hook (decoupled from
+  // the realtime-hook → pending-approvals → send-state cycle).
+  syncLastCompletedRunAt(lastCompletedRunAt)
 
   const {
     activeTab,
@@ -782,50 +777,6 @@ export function ChatScreen({
     clearCompletedStreaming()
   }, [clearCompletedStreaming, waitingForResponse])
 
-  // --- Stream management ---
-  const streamStop = useCallback(() => {
-    if (streamTimer.current) {
-      window.clearTimeout(streamTimer.current)
-      streamTimer.current = null
-    }
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      streamStop()
-      if (failsafeTimerRef.current) {
-        window.clearTimeout(failsafeTimerRef.current)
-        failsafeTimerRef.current = null
-      }
-    }
-  }, [streamStop])
-
-  const streamFinish = useCallback(() => {
-    streamStop()
-    if (failsafeTimerRef.current) {
-      window.clearTimeout(failsafeTimerRef.current)
-      failsafeTimerRef.current = null
-    }
-    setPendingGeneration(false)
-    setWaitingForResponse(false)
-    // Issue #53 — also drop the local `sending` flag. The composer's
-    // disabled state is keyed off `sending`, so without this the 120s
-    // failsafe (see send flow below) clears the spinner but leaves the
-    // composer + model selector unclickable until the page is reloaded.
-    setSending(false)
-  }, [streamStop])
-
-  const streamStart = useCallback(() => {
-    if (!activeFriendlyId || isNewChat) return
-    // Bug #3 fix: no more 350ms polling loop — SSE handles realtime updates.
-    // Single delayed fetch as fallback to catch the initial response.
-    if (streamTimer.current) window.clearTimeout(streamTimer.current)
-    streamTimer.current = window.setTimeout(() => {
-      if (activeRealtimeStreamingRef.current) return
-      refreshHistoryRef.current()
-    }, 2000)
-  }, [activeFriendlyId, isNewChat])
-
   refreshHistoryRef.current = function refreshHistory() {
     if (historyQuery.isFetching) return
 
@@ -867,24 +818,6 @@ export function ChatScreen({
   }
 
   const clearTimerRef = useRef<number | null>(null)
-
-  // Failsafe: clear after done event + 10s if response never shows in display
-  useEffect(() => {
-    if (lastCompletedRunAt && waitingForResponse) {
-      const timer = window.setTimeout(() => streamFinish(), 10000)
-      return () => window.clearTimeout(timer)
-    }
-  }, [lastCompletedRunAt, waitingForResponse, streamFinish])
-
-  // Hard failsafe: if waiting for 5s+ and SSE missed the done event, refetch history
-  useEffect(() => {
-    if (!waitingForResponse) return
-    const fallback = window.setTimeout(() => {
-      if (activeRealtimeStreamingRef.current) return
-      refreshHistoryRef.current()
-    }, 5000)
-    return () => window.clearTimeout(fallback)
-  }, [waitingForResponse])
 
   // Issue #43 polling fallback: when waiting but SSE hasn't reconnected,
   // poll the active-run endpoint every 5s to detect completion.
