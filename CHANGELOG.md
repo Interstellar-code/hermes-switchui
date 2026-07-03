@@ -3,6 +3,28 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.4.0] — 2026-07-03
+
+Architecture release: the send-path cluster is fully extracted from `chat-screen.tsx` into a new `useSendMessageState` hook, and ~300 lines of dead SSE connection-state code is removed.
+
+### Changed
+
+- **`chat-screen.tsx` send-path extracted into `useSendMessageState` hook (no behavior change).** The ~155-line `sendMessage` function, 6 SSE callback handlers (`onSessionResolved`, `onStarted`, `onComplete`, `onError`, `onMessageAccepted`, `onAbort`), 2 abort helpers (`handleAbortStreaming`, `reconcileStuckBusyState`), all send-path state flags, refs, and timer/stream-lifecycle functions (`streamStart`, `streamStop`, `streamFinish`, failsafe effects) moved into `src/screens/chat/hooks/use-send-message-state.ts` (730 lines, 23 unit tests). The hook uses RefObject bridges for dependencies produced by hooks called later in render order (`startStreaming`, `cancelStreaming`, `clearCompletedStreaming`, `finalDisplayMessages`, `currentModel`). 3 incremental PRs. (#298)
+- **`chat-screen.tsx` reduced from 3,431 to 2,606 lines (−24%).** Combined with the 6 prior decomposition PRs (#290–#296), the god component is now 825 lines smaller than the #222 triage baseline.
+
+### Removed
+
+- **Dead SSE connection-state infrastructure.** The `use-chat-stream.ts` 21-line stub (never called its callbacks), 199-line callback chain in `use-realtime-chat-history.ts`, `ConnectionState` type + `connectionState`/`lastError`/`setConnectionState` store fields (zero production callers), `sseConnectionState` consumer sites in `chat-screen.tsx`, and the `claude:sse-dropped` window listener (no dispatcher existed anywhere in the repo) — all removed after independent Codex verification confirmed 6/7 claims CONFIRMED + 1 PARTIALLY CONFIRMED. The `lastCompletedRunAt` signal was re-wired to the live `streamingState` completion effect (the actual completion-detection path) before the dead `onDone` callback was removed. (#298)
+
+### Added
+
+- **MCP Discover works in fallback mode.** When the dashboard lacks the runtime MCP endpoint, Discover now reuses the `hermes mcp test <name>` CLI path for configured servers instead of hard-failing. Results are cached via `setProbe` so the MCP UI surfaces discovered tools immediately.
+
+### Internal
+
+- 23 new unit tests in `use-send-message-state.test.ts` covering: hook initialization, stream lifecycle (start/stop/finish), sendMessage (optimistic messages, state flags, failsafe timer, startStreaming params, skipOptimistic, attachment payloads), SSE callbacks (onComplete, onError auth-missing + general, onAbort), and abort helpers (handleAbortStreaming, reconcileStuckBusyState).
+- TypeScript: zero new errors across all touched files. Test baseline unchanged (416 passed, 16 pre-existing failures in `apply-filters-and-decorate.test.ts` + `run-persistence.test.ts`).
+
 ## [2.3.54] — 2026-06-29
 
 Maintenance release: a behavior-preserving decomposition of the chat screen plus tooling and website updates.
