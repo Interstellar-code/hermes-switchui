@@ -10,11 +10,11 @@ import { McpDetailDrawer } from './mcp-detail-drawer'
 import { McpServerDialog } from './components/mcp-server-dialog'
 import { InstallConfirmationDialog } from './components/install-confirmation-dialog'
 import { SourcesManagerDialog } from './components/sources-manager-dialog'
+import { Ico, serverInitials } from './icons'
 import type { McpClientInput, McpServer } from '@/types/mcp'
 import type { HubMcpEntry } from './hooks/use-mcp-hub'
 import { toast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
-import { Ico, serverInitials } from './icons'
 
 /* ── types ── */
 export type McpServerView = {
@@ -160,6 +160,29 @@ export function McpScreen() {
     statusFilter === 'market',
   )
 
+  const configuredServers = serverQuery.data?.servers ?? []
+
+  const configuredServerById = useMemo(
+    () => new Map(configuredServers.map((server) => [server.id, server])),
+    [configuredServers],
+  )
+
+  const openCreateDialog = useCallback(() => {
+    setEditing(null)
+    setDialogOpen(true)
+  }, [])
+
+  const openEditDialog = useCallback((server: McpServerView) => {
+    const match = configuredServerById.get(server.id)
+    if (!match) {
+      toast(`No saved config found for ${server.id}`, { type: 'error' })
+      return
+    }
+    setEditing(match)
+    setDialogOpen(true)
+    setActiveServer(null)
+  }, [configuredServerById])
+
   /* build unified server list */
   const allServers = useMemo<Array<McpServerView>>(() => {
     const configured = (serverQuery.data?.servers ?? []).map(toView)
@@ -264,7 +287,7 @@ export function McpScreen() {
               type="button"
               className="mcp-btn mcp-btn-sm mcp-btn-primary"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}
-              onClick={() => setDialogOpen(true)}
+              onClick={openCreateDialog}
             >
               {Ico.plus}
             </button>
@@ -396,7 +419,7 @@ export function McpScreen() {
               type="button"
               className="mcp-btn mcp-btn-sm mcp-btn-primary"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}
-              onClick={() => setDialogOpen(true)}
+              onClick={openCreateDialog}
             >
               {Ico.plus} Add Server
             </button>
@@ -445,7 +468,7 @@ export function McpScreen() {
               type="button"
               className="mcp-btn mcp-btn-primary"
               style={{ marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              onClick={() => setDialogOpen(true)}
+              onClick={openCreateDialog}
             >
               {Ico.plus} Add Server
             </button>
@@ -550,6 +573,7 @@ export function McpScreen() {
         onRefresh={() => {
           queryClient.invalidateQueries({ queryKey: ['mcp', 'servers'] })
         }}
+        onEdit={openEditDialog}
       />
 
       {/* Existing dialogs (preserved) */}

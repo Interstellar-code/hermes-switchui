@@ -1,10 +1,10 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import { cn } from '@/lib/utils'
-import { writeTextToClipboard } from '@/lib/clipboard'
-import { toast } from '@/components/ui/toast'
 import { Ico, serverInitials } from './icons'
 import type { McpServerView } from './mcp-screen'
+import { toast } from '@/components/ui/toast'
+import { writeTextToClipboard } from '@/lib/clipboard'
+import { cn } from '@/lib/utils'
 
 export type { McpServerView }
 
@@ -15,12 +15,13 @@ type McpDetailDrawerProps = {
   onClose: () => void
   onToggle: (server: McpServerView) => void
   onRefresh?: () => void
+  onEdit?: (server: McpServerView) => void
 }
 
 type BusyAction = 'test' | 'discover' | 'disconnect' | null
 
 /* ── component ── */
-export function McpDetailDrawer({ server, onClose, onToggle, onRefresh }: McpDetailDrawerProps) {
+export function McpDetailDrawer({ server, onClose, onToggle, onRefresh, onEdit }: McpDetailDrawerProps) {
   const [activeTab, setActiveTab] = useState<DrawerTab>('overview')
   const [busy, setBusy] = useState<BusyAction>(null)
 
@@ -36,6 +37,8 @@ export function McpDetailDrawer({ server, onClose, onToggle, onRefresh }: McpDet
   useEffect(() => {
     if (server) setActiveTab('overview')
   }, [server?.id])
+
+  const canEdit = Boolean(server?.installed)
 
   const toolEntries = useMemo(() => {
     if (!server) return []
@@ -86,7 +89,7 @@ export function McpDetailDrawer({ server, onClose, onToggle, onRefresh }: McpDet
     try {
       const r = (await postJson('/api/mcp/test', { name: server.id })) as {
         status?: string
-        discoveredTools?: unknown[]
+        discoveredTools?: Array<unknown>
         latencyMs?: number
       }
       toast(`Test: ${r.status ?? 'ok'}${r.latencyMs ? ` (${r.latencyMs}ms)` : ''}`, { type: 'info', icon: '⚡' })
@@ -103,7 +106,7 @@ export function McpDetailDrawer({ server, onClose, onToggle, onRefresh }: McpDet
     setBusy('discover')
     try {
       const r = (await postJson('/api/mcp/discover', { name: server.id })) as {
-        discoveredTools?: unknown[]
+        discoveredTools?: Array<unknown>
       }
       const n = Array.isArray(r.discoveredTools) ? r.discoveredTools.length : 0
       toast(`Discovered ${n} tools`, { type: 'info', icon: '🔍' })
@@ -162,7 +165,13 @@ export function McpDetailDrawer({ server, onClose, onToggle, onRefresh }: McpDet
             <button type="button" className="mcp-ico-btn" title="Copy endpoint" onClick={handleCopyEndpoint}>
               {Ico.copy}
             </button>
-            <button type="button" className="mcp-ico-btn" title="Edit">
+            <button
+              type="button"
+              className="mcp-ico-btn"
+              title={canEdit ? 'Edit config' : 'Only installed/configured servers can be edited'}
+              onClick={() => { if (canEdit) onEdit?.(server) }}
+              disabled={!canEdit}
+            >
               {Ico.edit}
             </button>
             <button type="button" className="mcp-ico-btn" title="Delete" style={{ color: '#ff5fa2' }}>

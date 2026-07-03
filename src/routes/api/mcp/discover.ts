@@ -10,6 +10,8 @@ import {
 } from '../../../server/gateway-capabilities'
 import { requireJsonContentType, safeErrorMessage } from '../../../server/rate-limit'
 import { normalizeTestResult } from '../../../server/mcp-normalize'
+import { runHermesMcpTest } from '../../../server/mcp-cli-bridge'
+import { setProbe } from '../../../server/mcp-tools-cache'
 import { parseMcpServerInput } from '../../../server/mcp-input-validate'
 import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
 
@@ -38,14 +40,34 @@ export const Route = createFileRoute('/api/mcp/discover')({
         if (csrfCheck) return csrfCheck
         const capabilities = await ensureGatewayProbed()
         if (capabilities.mcpFallback && !capabilities.mcp) {
-          // Phase 1.5: live discover requires the runtime endpoint.
-          return Response.json({
-            ok: false,
-            status: 'unknown',
-            discoveredTools: [],
-            error:
-              'Live test/discover requires hermes-agent /api/mcp runtime endpoint, not yet available on this dashboard.',
-          })
+          // Fallback mode already has one real probe path: `hermes mcp test <name>`.
+          // Reuse it for Discover on configured servers instead of hard-failing.
+          try {
+            const raw = (await request.json()) as Record<string, unknown>
+            const name = typeof raw.name === 'string' ? raw.name : null
+            if (!name) {
+              return Response.json({
+                ok: false,
+                tools: [],
+                error: 'Local fallback only supports discovering tools for existing saved servers by name.',
+              }, { status: 400 })
+            }
+            const result = await runHermesMcpTest(name, { timeoutMs: DISCOVER_TIMEOUT_MS })
+            setProbe(name, {
+              status: result.status,
+              toolCount: result.discoveredTools.length,
+              toolNames: result.discoveredTools.map((t) => t.name),
+              latencyMs: result.latencyMs,
+              error: result.error,
+            })
+            return Response.json({
+              ok: result.ok,
+              tools: result.discoveredTools,
+              error: result.error,
+            }, { status: result.ok ? 200 : 502 })
+          } catch (err) {
+            return Response.json({ ok: false, tools: [], error: safeErrorMessage(err) }, { status: 500 })
+          }
         }
         if (!capabilities.mcp) {
           return Response.json(

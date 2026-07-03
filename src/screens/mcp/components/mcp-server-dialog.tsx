@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react'
+import {
+  useDiscoverMcpTools,
+  useUpsertMcpServer,
+} from '../hooks/use-mcp-mutations'
+import { useMcpCapabilityMode } from '../hooks/use-mcp-capability-mode'
+import type { McpClientInput, McpServer } from '@/types/mcp'
 import { Button } from '@/components/ui/button'
 import {
+  Dialog,
   DialogContent,
   DialogDescription,
-  Dialog,
   DialogTitle,
 } from '@/components/shadcn/ui/dialog'
 import {
@@ -12,12 +18,6 @@ import {
   ScrollAreaThumb,
   ScrollAreaViewport,
 } from '@/components/ui/scroll-area'
-import {
-  useDiscoverMcpTools,
-  useUpsertMcpServer,
-} from '../hooks/use-mcp-mutations'
-import { useMcpCapabilityMode } from '../hooks/use-mcp-capability-mode'
-import type { McpClientInput, McpServer } from '@/types/mcp'
 
 interface Props {
   open: boolean
@@ -37,9 +37,9 @@ const EMPTY: McpClientInput = {
 }
 
 const FIELD =
-  'h-9 w-full rounded-lg border border-primary-200 bg-primary-100/60 px-3 text-sm text-ink outline-none transition-colors focus:border-primary'
+  'h-10 w-full rounded-md border border-[#355244] bg-[#08110c] px-3 font-mono text-[14px] text-[#d4f5e4] outline-none transition-colors placeholder:text-[#3a5a4a] focus:border-[#00ff41] focus:shadow-[0_0_0_1px_rgba(0,255,65,0.18),0_0_18px_rgba(0,255,65,0.08)]'
 
-const LABEL = 'flex flex-col gap-1.5 text-sm text-primary-500'
+const LABEL = 'flex flex-col gap-1.5 text-[11px] uppercase tracking-[0.22em] text-[#6a9a7a] font-mono'
 
 function fromServer(server: McpServer): McpClientInput {
   return {
@@ -103,8 +103,10 @@ export function McpServerDialog({ open, initial, onClose }: Props) {
     setDraft((prev) => ({ ...prev, ...patch }))
 
   const fallbackMode = capabilityMode === 'fallback'
-  const discoverDisabledReason = fallbackMode
-    ? 'Discover requires hermes-agent /api/mcp runtime endpoint (not available in local fallback mode).'
+  const editingSavedServer = isMcpServer(initial)
+  const discoverDisabled = discover.isPending || !draft.name || (fallbackMode && !editingSavedServer)
+  const discoverDisabledReason = fallbackMode && !editingSavedServer
+    ? 'Fallback mode can only discover tools for an already-saved server. Save first, then reopen Edit.'
     : ''
 
   return (
@@ -114,26 +116,26 @@ export function McpServerDialog({ open, initial, onClose }: Props) {
         if (!next) onClose()
       }}
     >
-      <DialogContent className="w-[min(720px,95vw)] border-primary-200 bg-primary-50/95 backdrop-blur-sm">
-        <div className="flex max-h-[85vh] flex-col">
-          <div className="border-b border-primary-200 px-5 py-4">
-            <DialogTitle className="text-balance">
+      <DialogContent className="w-[min(760px,95vw)] overflow-hidden border border-[#355244] bg-[#060b10]/96 p-0 text-[#d4f5e4] shadow-[0_0_0_1px_rgba(0,255,65,0.08),0_24px_80px_rgba(0,0,0,0.55),0_0_40px_rgba(0,255,65,0.08)] backdrop-blur-xl">
+        <div className="flex max-h-[85vh] flex-col bg-[radial-gradient(circle_at_top,rgba(0,255,65,0.08),transparent_38%),linear-gradient(180deg,rgba(4,12,8,0.96),rgba(3,8,6,0.98))]">
+          <div className="border-b border-[#1a2a22] px-5 py-4">
+            <DialogTitle className="text-balance font-mono text-[28px] font-semibold tracking-[0.04em] text-[#d4f5e4]">
               🔌 {draft.name || (initial ? 'Edit MCP Server' : 'Add MCP Server')}
             </DialogTitle>
-            <DialogDescription className="mt-1 text-pretty">
+            <DialogDescription className="mt-1 font-mono text-[12px] uppercase tracking-[0.14em] text-[#6a9a7a]">
               {initial ? 'Edit MCP Server' : 'Add MCP Server'} •{' '}
               {draft.transportType.toUpperCase()} transport •{' '}
               {draft.authType || 'none'} auth
             </DialogDescription>
             <div className="mt-3 flex flex-wrap gap-1.5">
-              <span className="rounded-md border border-primary-200 bg-primary-100/50 px-2 py-0.5 text-xs text-primary-500">
+              <span className="rounded-md border border-[#355244] bg-[#0c1510] px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-[#d4f5e4]">
                 {draft.transportType}
               </span>
-              <span className="rounded-md border border-primary-200 bg-primary-100/50 px-2 py-0.5 text-xs text-primary-500">
+              <span className="rounded-md border border-[#355244] bg-[#0c1510] px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-[#d4f5e4]">
                 auth: {draft.authType || 'none'}
               </span>
               {fallbackMode ? (
-                <span className="rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                <span className="rounded-md border border-[#b56a1f] bg-[#22160a] px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-[#ffd17a]">
                   config-only mode
                 </span>
               ) : null}
@@ -142,7 +144,7 @@ export function McpServerDialog({ open, initial, onClose }: Props) {
 
           <ScrollAreaRoot className="h-[56vh]">
             <ScrollAreaViewport className="px-5 py-4">
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <label className={LABEL}>
                   <span>Name</span>
                   <input
@@ -191,7 +193,7 @@ export function McpServerDialog({ open, initial, onClose }: Props) {
                     <label className={LABEL}>
                       <span>Args (one per line)</span>
                       <textarea
-                        className={`${FIELD} h-auto py-2 font-mono text-xs`}
+                        className={`${FIELD} h-auto min-h-24 py-2 text-xs`}
                         rows={3}
                         value={(draft.args || []).join('\n')}
                         onChange={(e) =>
@@ -238,11 +240,11 @@ export function McpServerDialog({ open, initial, onClose }: Props) {
                       }
                     />
                     {authEnvRef ? (
-                      <span className="text-[11px] text-amber-700 dark:text-amber-300">
+                      <span className="text-[11px] text-[#ffd17a]">
                         Token resolved from env var <code className="font-mono">{authEnvRef}</code> — leave blank to keep current, or type to override.
                       </span>
                     ) : initialHasBearer ? (
-                      <span className="text-[11px] text-emerald-700 dark:text-emerald-300">
+                      <span className="text-[11px] text-[#8cffad]">
                         Token currently set on server. Leave blank to keep
                         existing; type a new value to replace.
                       </span>
@@ -251,24 +253,22 @@ export function McpServerDialog({ open, initial, onClose }: Props) {
                 ) : null}
 
                 {fallbackMode ? (
-                  <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-                    ⚠ Local fallback mode — config-only CRUD. Live tool
-                    Discover and connectivity Test require the hermes-agent
-                    /api/mcp runtime endpoint.
+                  <p className="rounded-md border border-[#b56a1f] bg-[#22160a] px-3 py-2 font-mono text-[12px] text-[#ffd17a]">
+                    ⚠ Local fallback mode — config-only CRUD. Discover works for saved servers; unsaved drafts must be saved first.
                   </p>
                 ) : null}
                 {discover.data ? (
-                  <p className="text-xs text-primary-500">
+                  <p className="rounded-md border border-[#1a2a22] bg-[#08110c] px-3 py-2 font-mono text-[12px] text-[#8cffad]">
                     Discovered {discover.data.tools.length} tools.
                   </p>
                 ) : null}
                 {discover.error ? (
-                  <p className="text-xs text-red-700 dark:text-red-300">
+                  <p className="rounded-md border border-[#5a2228] bg-[#18090b] px-3 py-2 font-mono text-[12px] text-[#ff8a96]">
                     {discover.error.message}
                   </p>
                 ) : null}
                 {upsert.error ? (
-                  <p className="text-xs text-red-700 dark:text-red-300">
+                  <p className="rounded-md border border-[#5a2228] bg-[#18090b] px-3 py-2 font-mono text-[12px] text-[#ff8a96]">
                     {upsert.error.message}
                   </p>
                 ) : null}
@@ -279,10 +279,10 @@ export function McpServerDialog({ open, initial, onClose }: Props) {
             </ScrollAreaScrollbar>
           </ScrollAreaRoot>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-primary-200 px-5 py-3">
-            <p className="min-w-0 flex-1 truncate text-sm text-primary-500 text-pretty">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#1a2a22] bg-[#050a0e]/80 px-5 py-3">
+            <p className="min-w-0 flex-1 truncate font-mono text-[12px] uppercase tracking-[0.12em] text-[#6a9a7a]">
               Target:{' '}
-              <code className="inline-code">
+              <code className="inline-code text-[#d4f5e4]">
                 {draft.transportType === 'http'
                   ? draft.url || '—'
                   : draft.command || '—'}
@@ -290,7 +290,7 @@ export function McpServerDialog({ open, initial, onClose }: Props) {
             </p>
             <div className="flex items-center gap-2">
             <Button
-              variant="ghost"
+              className="border border-transparent bg-transparent font-mono text-[#a0d4b8] hover:border-[#1a2a22] hover:bg-[#0f1a14] hover:text-[#00ff41]"
               size="sm"
               onClick={onClose}
               disabled={upsert.isPending}
@@ -298,15 +298,16 @@ export function McpServerDialog({ open, initial, onClose }: Props) {
               Cancel
             </Button>
             <Button
-              variant="outline"
+              className="border border-[#1a2a22] bg-[#0b120d] font-mono text-[#a0d4b8] hover:border-[#355244] hover:bg-[#0f1a14] hover:text-[#00ff41] disabled:border-[#1a2a22] disabled:bg-[#070c09] disabled:text-[#3a5a4a]"
               size="sm"
-              disabled={discover.isPending || !draft.name || fallbackMode}
+              disabled={discoverDisabled}
               title={discoverDisabledReason}
-              onClick={() => discover.mutate(draft)}
+              onClick={() => discover.mutate(editingSavedServer ? { name: draft.name, transportType: draft.transportType } : draft)}
             >
               {discover.isPending ? 'Discovering…' : 'Discover'}
             </Button>
             <Button
+              className="border border-[#0f5f28] bg-[#0b180f] font-mono text-[#d4f5e4] hover:border-[#00ff41] hover:bg-[#102114] hover:text-[#00ff41] disabled:border-[#1a2a22] disabled:bg-[#070c09] disabled:text-[#3a5a4a]"
               size="sm"
               disabled={upsert.isPending || !draft.name}
               onClick={async () => {
