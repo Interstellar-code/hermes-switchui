@@ -3,14 +3,21 @@ import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 
 import { useChatStore } from '@/stores/chat-store'
+import { useChatSettingsStore } from '@/hooks/use-chat-settings'
 import { setPendingGeneration } from '../pending-send'
-import { textFromMessage } from '../utils'
+import { isMissingAuth, textFromMessage } from '../utils'
 import { createOptimisticMessage } from '../chat-screen-utils'
 import {
   appendHistoryMessage,
+  updateHistoryMessageByClientId,
+  updateHistoryMessageByClientIdEverywhere,
   updateSessionLastMessage,
 } from '../chat-queries'
+import { invalidateSessionLists } from '../sessions-feed'
 import { stripDataUrlPrefix } from '@/lib/stream-utils'
+import { playChatComplete } from '@/lib/sounds'
+import { toast } from '@/components/ui/toast'
+import { showErrorToast } from '@/components/error-toast'
 import type { ChatAttachment, ChatMessage } from '../types'
 import type { AgentActivity } from '@/stores/chat-activity-store'
 
@@ -145,6 +152,14 @@ export function useSendMessageState(params: {
   finalDisplayMessagesRef: RefObject<Array<ChatMessage>>
   currentModelRef: RefObject<string | undefined>
   setResearchResetKey: Dispatch<SetStateAction<number>>
+  // PR 3 params — needed by SSE callbacks + abort helpers
+  onSessionResolved?: (params: {
+    sessionKey: string
+    friendlyId: string
+  }) => void
+  navigate: (opts: { to: string; replace: boolean }) => void
+  embedded: boolean
+  cancelStreamingRef: RefObject<(() => void) | null>
 }): {
   // State
   sending: boolean
@@ -176,6 +191,23 @@ export function useSendMessageState(params: {
     skipOptimistic?: boolean,
     existingClientId?: string,
   ) => void
+  // SSE callbacks (PR 3 — Group D)
+  onSessionResolved: (params: {
+    sessionKey: string
+    friendlyId: string
+  }) => void
+  onStarted: (params: { runId: string | null }) => void
+  onComplete: () => void
+  onError: (messageText: string) => void
+  onMessageAccepted: (
+    sessionKey: string,
+    friendlyId: string,
+    clientId: string,
+  ) => void
+  onAbort: () => void
+  // Abort helpers (PR 3 — Group E)
+  reconcileStuckBusyState: (sessionKey: string) => void
+  handleAbortStreaming: () => void
 } {
   const {
     activeFriendlyId,
@@ -191,6 +223,10 @@ export function useSendMessageState(params: {
     finalDisplayMessagesRef,
     currentModelRef,
     setResearchResetKey,
+    onSessionResolved: onSessionResolvedProp,
+    navigate,
+    embedded,
+    cancelStreamingRef,
   } = params
 
   // --- Group A: State declarations + refs ---
@@ -478,6 +514,193 @@ export function useSendMessageState(params: {
     ], // eslint-disable-line react-hooks/exhaustive-deps -- setError + setResearchResetKey are stable useState setters; thinkingLevelRef + clearCompletedStreamingRef + startStreamingRef + finalDisplayMessagesRef + currentModelRef are stable refs
   )
 
+  // --- Group D (PR 3): SSE Callbacks ---
+  // Moved verbatim from chat-screen.tsx — these are the callbacks passed
+  // to useStreamingMessage. They own the send-path lifecycle side effects
+  // (optimistic message updates, state clears, session-list invalidation,
+  // sound, toast, navigation).
+
+  const onSessionResolved = useCallback(
+    ({
+      sessionKey,
+      friendlyId,
+    }: {
+      sessionKey: string
+      friendlyId: string
+    }) => {
+      const activeSend = activeSendRef.current
+      if (activeSend) {
+        activeSendRef.current = {
+          ...activeSend,
+          sessionKey,
+          friendlyId,
+        }
+      }
+      if (
+        sessionKey === activeFriendlyId &&
+        friendlyId === activeFriendlyId
+      ) {
+        return
+      }
+      onSessionResolvedProp?.({ sessionKey, friendlyId })
+    },
+    [activeFriendlyId, onSessionResolvedProp],
+  )
+
+  const onStarted = useCallback(
+    ({ runId }: { runId: string | null }) => {
+      const activeSend = activeSendRef.current
+      if (!activeSend?.clientId) return
+      updateHistoryMessageByClientIdEverywhere(
+        queryClient,
+        activeSend.clientId,
+        (message) => ({
+          ...message,
+          status: 'sent',
+          runId: runId ?? message.runId,
+        }),
+      )
+      setSending(false)
+    },
+    [queryClient],
+  )
+
+  const onComplete = useCallback(() => {
+    const activeSend = activeSendRef.current
+    if (activeSend?.clientId) {
+      updateHistoryMessageByClientIdEverywhere(
+        queryClient,
+        activeSend.clientId,
+        (message) => ({
+          ...message,
+          status: 'done',
+        }),
+      )
+    }
+    activeSendRef.current = null
+    refreshHistoryRef.current()
+    setSending(false)
+    // Invalidate both session-list caches so the session moves into today's
+    // bucket immediately after the assistant response completes (last_active is
+    // freshest at this point — gateway updatedAt reflects the just-finished turn) (#218).
+    invalidateSessionLists(queryClient)
+    // Clear waitingForResponse so ThinkingBubble hides and message renders
+    streamFinish()
+    // Play notification sound if the user opted in (Settings → Chat).
+    // Read directly from the store to avoid re-creating this callback on every settings change.
+    if (useChatSettingsStore.getState().settings.soundOnChatComplete) {
+      playChatComplete()
+    }
+  }, [queryClient, streamFinish])
+
+  const onError = useCallback(
+    (messageText: string) => {
+      const activeSend = activeSendRef.current
+      if (activeSend?.clientId && !isMissingAuth(messageText)) {
+        updateHistoryMessageByClientIdEverywhere(
+          queryClient,
+          activeSend.clientId,
+          (message) => ({
+            ...message,
+            status: 'error',
+          }),
+        )
+      }
+      activeSendRef.current = null
+      setSending(false)
+      if (isMissingAuth(messageText)) {
+        // Clear waiting before the early return — otherwise an auth-failure
+        // error strands waitingSessionKeys for the full 120s TTL and the
+        // composer shows a stuck spinner if the user returns to the session
+        // within that window. See #120.
+        setPendingGeneration(false)
+        setWaitingForResponse(false)
+        if (!embedded) {
+          try {
+            navigate({ to: '/', replace: true })
+          } catch {
+            /* router not ready */
+          }
+        }
+        return
+      }
+      const errorMessage = `Failed to send message. ${messageText}`
+      setError(errorMessage)
+      toast('Failed to send message', { type: 'error' })
+      showErrorToast(messageText)
+      setPendingGeneration(false)
+      setWaitingForResponse(false)
+    },
+    [navigate, queryClient], // eslint-disable-line react-hooks/exhaustive-deps -- embedded + setError + setSending + setWaitingForResponse are stable/screen-level values
+  )
+
+  const onMessageAccepted = useCallback(
+    (_sessionKey: string, friendlyId: string, clientId: string) => {
+      // HTTP 200 received — server accepted the message. Clear "sending"
+      // status immediately so the Retry timer never fires. This is the
+      // primary confirmation path since the server does NOT echo user
+      // messages back via SSE.
+      updateHistoryMessageByClientId(
+        queryClient,
+        friendlyId,
+        _sessionKey,
+        clientId,
+        (message) => ({
+          ...message,
+          status: 'queued',
+        }),
+      )
+      updateHistoryMessageByClientIdEverywhere(
+        queryClient,
+        clientId,
+        (message) => ({
+          ...message,
+          status: 'queued',
+        }),
+      )
+    },
+    [queryClient],
+  )
+
+  const onAbort = useCallback(() => {
+    activeSendRef.current = null
+    setSending(false)
+    setPendingGeneration(false)
+    setWaitingForResponse(false)
+  }, [setWaitingForResponse])
+
+  // --- Group E (PR 3): Abort Helpers ---
+
+  const reconcileStuckBusyState = useCallback(
+    (sessionKey: string) => {
+      activeSendRef.current = null
+      if (sessionKey) {
+        useChatStore.getState().clearStreamingSession(sessionKey)
+      }
+      streamFinish()
+    },
+    [streamFinish],
+  )
+
+  const handleAbortStreaming = useCallback(() => {
+    const activeSend = activeSendRef.current
+    if (activeSend?.clientId) {
+      updateHistoryMessageByClientIdEverywhere(
+        queryClient,
+        activeSend.clientId,
+        (message) => ({
+          ...message,
+          status: 'sent',
+        }),
+      )
+    }
+    activeSendRef.current = null
+    cancelStreamingRef.current?.()
+    setSending(false)
+    setPendingGeneration(false)
+    setWaitingForResponse(false)
+  }, [queryClient]) // eslint-disable-line react-hooks/exhaustive-deps -- cancelStreamingRef is a stable ref; setSending + setWaitingForResponse + setPendingGeneration are stable
+
   return {
     sending,
     setSending,
@@ -495,5 +718,13 @@ export function useSendMessageState(params: {
     setWaitingForResponse,
     syncLastCompletedRunAt,
     sendMessage,
+    onSessionResolved,
+    onStarted,
+    onComplete,
+    onError,
+    onMessageAccepted,
+    onAbort,
+    reconcileStuckBusyState,
+    handleAbortStreaming,
   }
 }

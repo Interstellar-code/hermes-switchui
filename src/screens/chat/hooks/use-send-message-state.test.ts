@@ -24,6 +24,8 @@ vi.mock('../chat-screen-utils', () => ({
 
 vi.mock('../chat-queries', () => ({
   appendHistoryMessage: vi.fn(),
+  updateHistoryMessageByClientId: vi.fn(),
+  updateHistoryMessageByClientIdEverywhere: vi.fn(),
   updateSessionLastMessage: vi.fn(),
 }))
 
@@ -40,9 +42,43 @@ vi.mock('@/lib/stream-utils', () => ({
   stripDataUrlPrefix: vi.fn((v: string) => v.replace(/^data:[^,]+,/, '')),
 }))
 
+vi.mock('../sessions-feed', () => ({
+  invalidateSessionLists: vi.fn(),
+}))
+
+vi.mock('@/lib/sounds', () => ({
+  playChatComplete: vi.fn(),
+}))
+
+vi.mock('@/hooks/use-chat-settings', () => ({
+  useChatSettingsStore: {
+    getState: vi.fn(() => ({ settings: { soundOnChatComplete: false } })),
+  },
+}))
+
+vi.mock('@/components/ui/toast', () => ({
+  toast: vi.fn(),
+}))
+
+vi.mock('@/components/error-toast', () => ({
+  showErrorToast: vi.fn(),
+}))
+
 // Import mocked functions for assertion
 import { createOptimisticMessage } from '../chat-screen-utils'
-import { appendHistoryMessage, updateSessionLastMessage } from '../chat-queries'
+import {
+  appendHistoryMessage,
+  updateHistoryMessageByClientId,
+  updateHistoryMessageByClientIdEverywhere,
+  updateSessionLastMessage,
+} from '../chat-queries'
+import { invalidateSessionLists } from '../sessions-feed'
+import { playChatComplete } from '@/lib/sounds'
+import { useChatSettingsStore } from '@/hooks/use-chat-settings'
+import { toast } from '@/components/ui/toast'
+import { showErrorToast } from '@/components/error-toast'
+import { isMissingAuth } from '../utils'
+import { missingAuthMessage } from '../utils'
 
 function makeBooleanRef(initial = false): RefObject<boolean> {
   return { current: initial }
@@ -90,6 +126,13 @@ function makeParams(overrides?: {
   finalDisplayMessagesRef?: RefObject<ChatMessage[]>
   currentModelRef?: RefObject<string | undefined>
   setResearchResetKey?: Dispatch<SetStateAction<number>>
+  onSessionResolved?: (params: {
+    sessionKey: string
+    friendlyId: string
+  }) => void
+  navigate?: (opts: { to: string; replace: boolean }) => void
+  embedded?: boolean
+  cancelStreamingRef?: RefObject<(() => void) | null>
 }): Parameters<typeof useSendMessageState>[0] {
   const o = overrides ?? {}
   return {
@@ -113,6 +156,15 @@ function makeParams(overrides?: {
     setResearchResetKey: (o.setResearchResetKey ?? vi.fn()) as Dispatch<
       SetStateAction<number>
     >,
+    onSessionResolved: o.onSessionResolved,
+    navigate: (o.navigate ?? vi.fn()) as (opts: {
+      to: string
+      replace: boolean
+    }) => void,
+    embedded: o.embedded ?? false,
+    cancelStreamingRef: o.cancelStreamingRef ?? {
+      current: null,
+    } as RefObject<(() => void) | null>,
   }
 }
 
@@ -509,6 +561,300 @@ describe('useSendMessageState', () => {
       expect(callArgs.message).toContain('body text')
       expect(callArgs.message).toContain('<attachment name="notes.txt">')
       expect(callArgs.message).toContain('raw text content here')
+
+      vi.restoreAllMocks()
+    })
+  })
+
+  // --- SSE callback tests (PR 3 — Group D) ---
+
+  describe('onComplete', () => {
+    it('clears activeSendRef, calls streamFinish, and invalidates session lists', () => {
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting: vi.fn(),
+        clearStreamingSession: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const queryClient = { __mock: true }
+      const { result } = renderHook(() =>
+        useSendMessageState(makeParams({ queryClient })),
+      )
+
+      result.current.activeSendRef.current = {
+        sessionKey: 'sk-1',
+        friendlyId: 'sess-1',
+        clientId: 'client-abc',
+      }
+
+      act(() => {
+        result.current.onComplete()
+      })
+
+      expect(result.current.activeSendRef.current).toBeNull()
+      expect(updateHistoryMessageByClientIdEverywhere).toHaveBeenCalledWith(
+        queryClient,
+        'client-abc',
+        expect.any(Function),
+      )
+      expect(invalidateSessionLists).toHaveBeenCalledWith(queryClient)
+      expect(result.current.sending).toBe(false)
+
+      vi.restoreAllMocks()
+    })
+
+    it('plays sound when soundOnChatComplete is enabled', () => {
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting: vi.fn(),
+        clearStreamingSession: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+      vi.mocked(useChatSettingsStore.getState).mockReturnValue({
+        settings: { soundOnChatComplete: true },
+      } as ReturnType<typeof useChatSettingsStore.getState>)
+
+      const { result } = renderHook(() => useSendMessageState(makeParams()))
+
+      act(() => {
+        result.current.onComplete()
+      })
+
+      expect(playChatComplete).toHaveBeenCalledTimes(1)
+
+      vi.restoreAllMocks()
+    })
+  })
+
+  describe('onError', () => {
+    it('general error: sets error, calls toast and showErrorToast, clears state', () => {
+      const setError = vi.fn()
+      const clearSessionWaiting = vi.fn()
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting,
+        clearStreamingSession: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const { result } = renderHook(() =>
+        useSendMessageState(makeParams({ setError })),
+      )
+
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+      result.current.activeSendRef.current = {
+        sessionKey: 'sk-1',
+        friendlyId: 'sess-1',
+        clientId: 'client-err',
+      }
+
+      act(() => {
+        result.current.onError('something went wrong')
+      })
+
+      expect(setError).toHaveBeenCalledWith(
+        'Failed to send message. something went wrong',
+      )
+      expect(toast).toHaveBeenCalledWith('Failed to send message', {
+        type: 'error',
+      })
+      expect(showErrorToast).toHaveBeenCalledWith('something went wrong')
+      expect(result.current.activeSendRef.current).toBeNull()
+      expect(result.current.sending).toBe(false)
+      expect(clearSessionWaiting).toHaveBeenCalledWith('sess-1')
+
+      vi.restoreAllMocks()
+    })
+
+    it('auth-missing error: navigates to / and clears state without toast', () => {
+      const navigate = vi.fn()
+      const clearSessionWaiting = vi.fn()
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting,
+        clearStreamingSession: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const { result } = renderHook(() =>
+        useSendMessageState(
+          makeParams({ navigate, embedded: false }),
+        ),
+      )
+
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+
+      act(() => {
+        result.current.onError(missingAuthMessage)
+      })
+
+      expect(isMissingAuth(missingAuthMessage)).toBe(true)
+      expect(navigate).toHaveBeenCalledWith({ to: '/', replace: true })
+      expect(toast).not.toHaveBeenCalled()
+      expect(showErrorToast).not.toHaveBeenCalled()
+      expect(clearSessionWaiting).toHaveBeenCalledWith('sess-1')
+
+      vi.restoreAllMocks()
+    })
+
+    it('auth-missing error: does not navigate when embedded', () => {
+      const navigate = vi.fn()
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting: vi.fn(),
+        clearStreamingSession: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const { result } = renderHook(() =>
+        useSendMessageState(
+          makeParams({ navigate, embedded: true }),
+        ),
+      )
+
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+
+      act(() => {
+        result.current.onError(missingAuthMessage)
+      })
+
+      expect(navigate).not.toHaveBeenCalled()
+
+      vi.restoreAllMocks()
+    })
+  })
+
+  describe('onAbort', () => {
+    it('clears activeSendRef and all state flags', () => {
+      const clearSessionWaiting = vi.fn()
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting,
+        clearStreamingSession: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const { result } = renderHook(() => useSendMessageState(makeParams()))
+
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+      result.current.activeSendRef.current = {
+        sessionKey: 'sk-1',
+        friendlyId: 'sess-1',
+        clientId: 'client-abort',
+      }
+
+      act(() => {
+        result.current.setSending(true)
+      })
+
+      act(() => {
+        result.current.onAbort()
+      })
+
+      expect(result.current.activeSendRef.current).toBeNull()
+      expect(result.current.sending).toBe(false)
+      expect(clearSessionWaiting).toHaveBeenCalledWith('sess-1')
+
+      vi.restoreAllMocks()
+    })
+  })
+
+  // --- Abort helper tests (PR 3 — Group E) ---
+
+  describe('handleAbortStreaming', () => {
+    it('calls cancelStreaming via ref and clears state', () => {
+      const cancelStreamingFn = vi.fn()
+      const clearSessionWaiting = vi.fn()
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting,
+        clearStreamingSession: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const queryClient = { __mock: true }
+      const { result } = renderHook(() =>
+        useSendMessageState(
+          makeParams({
+            queryClient,
+            cancelStreamingRef: { current: cancelStreamingFn },
+          }),
+        ),
+      )
+
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+      result.current.activeSendRef.current = {
+        sessionKey: 'sk-1',
+        friendlyId: 'sess-1',
+        clientId: 'client-abort-stream',
+      }
+
+      act(() => {
+        result.current.setSending(true)
+      })
+
+      act(() => {
+        result.current.handleAbortStreaming()
+      })
+
+      expect(cancelStreamingFn).toHaveBeenCalledTimes(1)
+      expect(updateHistoryMessageByClientIdEverywhere).toHaveBeenCalledWith(
+        queryClient,
+        'client-abort-stream',
+        expect.any(Function),
+      )
+      expect(result.current.activeSendRef.current).toBeNull()
+      expect(result.current.sending).toBe(false)
+      expect(clearSessionWaiting).toHaveBeenCalledWith('sess-1')
+
+      vi.restoreAllMocks()
+    })
+  })
+
+  describe('reconcileStuckBusyState', () => {
+    it('clears streaming session in store and calls streamFinish', () => {
+      const clearStreamingSession = vi.fn()
+      const clearSessionWaiting = vi.fn()
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting,
+        clearStreamingSession,
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const { result } = renderHook(() => useSendMessageState(makeParams()))
+
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+      result.current.activeSendRef.current = {
+        sessionKey: 'sk-stuck',
+        friendlyId: 'sess-1',
+        clientId: 'client-stuck',
+      }
+
+      act(() => {
+        result.current.setSending(true)
+      })
+
+      act(() => {
+        result.current.reconcileStuckBusyState('sk-stuck')
+      })
+
+      expect(clearStreamingSession).toHaveBeenCalledWith('sk-stuck')
+      expect(result.current.activeSendRef.current).toBeNull()
+      expect(result.current.sending).toBe(false)
+      expect(clearSessionWaiting).toHaveBeenCalledWith('sess-1')
+
+      vi.restoreAllMocks()
+    })
+
+    it('skips clearStreamingSession when sessionKey is empty', () => {
+      const clearStreamingSession = vi.fn()
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting: vi.fn(),
+        clearStreamingSession,
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const { result } = renderHook(() => useSendMessageState(makeParams()))
+
+      act(() => {
+        result.current.reconcileStuckBusyState('')
+      })
+
+      expect(clearStreamingSession).not.toHaveBeenCalled()
 
       vi.restoreAllMocks()
     })

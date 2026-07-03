@@ -66,8 +66,6 @@ import type {
 import type { ChatAttachment, ChatMessage, SessionMeta } from './types'
 import type { ChatRunCommandDetail } from './chat-events'
 import type {AgentActivity} from '@/stores/chat-activity-store';
-import { playChatComplete } from '@/lib/sounds'
-import { useChatSettingsStore } from '@/hooks/use-chat-settings'
 import { useDrainWatchdog } from './hooks/use-drain-watchdog'
 import { useChatMobile } from './hooks/use-chat-mobile'
 import { useChatSessions } from './hooks/use-chat-sessions'
@@ -101,7 +99,7 @@ import { ModelSuggestionToast } from '@/components/model-suggestion-toast'
 import { MobileSessionsPanel } from '@/components/mobile-sessions-panel'
 import { useThinkingLevel } from './hooks/use-thinking-level'
 import { ContextAlertModal } from '@/components/usage-meter/context-alert-modal'
-import { ErrorToastContainer, showErrorToast } from '@/components/error-toast'
+import { ErrorToastContainer } from '@/components/error-toast'
 // ContextMeter removed — ContextBar (PR #32) replaces it
 import { useChatStore } from '@/stores/chat-store'
 import { useContextUsageStore } from '@/stores/context-usage-store'
@@ -399,7 +397,7 @@ function stripQueuedWrapperFromUserMessage(message: ChatMessage): ChatMessage {
 export function ChatScreen({
   activeFriendlyId,
   isNewChat = false,
-  onSessionResolved,
+  onSessionResolved: onSessionResolvedProp,
   forcedSessionKey,
   compact = false,
   embedded = false,
@@ -559,6 +557,9 @@ export function ChatScreen({
   >(async () => {})
   const finalDisplayMessagesRef = useRef<Array<ChatMessage>>([])
   const currentModelRef = useRef<string | undefined>(undefined)
+  // Bridge ref for cancelStreaming (seam #4 PR 3) — synced after
+  // useStreamingMessage returns, same pattern as startStreamingRef.
+  const cancelStreamingRef = useRef<(() => void) | null>(null)
 
   const {
     sending,
@@ -577,6 +578,14 @@ export function ChatScreen({
     setWaitingForResponse,
     syncLastCompletedRunAt,
     sendMessage,
+    onSessionResolved,
+    onStarted,
+    onComplete,
+    onError,
+    onMessageAccepted,
+    onAbort,
+    reconcileStuckBusyState,
+    handleAbortStreaming,
   } = useSendMessageState({
     activeFriendlyId,
     isNewChat,
@@ -591,6 +600,10 @@ export function ChatScreen({
     finalDisplayMessagesRef,
     currentModelRef,
     setResearchResetKey,
+    onSessionResolved: onSessionResolvedProp,
+    navigate,
+    embedded,
+    cancelStreamingRef,
   })
 
   const activeQueueSessionKey = useMemo(() => {
@@ -945,155 +958,19 @@ export function ChatScreen({
     startStreaming,
     cancelStreaming,
   } = useStreamingMessage({
-    onSessionResolved: useCallback(
-      ({
-        sessionKey,
-        friendlyId,
-      }: {
-        sessionKey: string
-        friendlyId: string
-      }) => {
-        const activeSend = activeSendRef.current
-        if (activeSend) {
-          activeSendRef.current = {
-            ...activeSend,
-            sessionKey,
-            friendlyId,
-          }
-        }
-        if (
-          sessionKey === activeFriendlyId &&
-          friendlyId === activeFriendlyId
-        ) {
-          return
-        }
-        onSessionResolved?.({ sessionKey, friendlyId })
-      },
-      [activeFriendlyId, onSessionResolved],
-    ),
-    onStarted: useCallback(
-      ({ runId }: { runId: string | null }) => {
-        const activeSend = activeSendRef.current
-        if (!activeSend?.clientId) return
-        updateHistoryMessageByClientIdEverywhere(
-          queryClient,
-          activeSend.clientId,
-          (message) => ({
-            ...message,
-            status: 'sent',
-            runId: runId ?? message.runId,
-          }),
-        )
-        setSending(false)
-      },
-      [queryClient],
-    ),
-    onComplete: useCallback(() => {
-      const activeSend = activeSendRef.current
-      if (activeSend?.clientId) {
-        updateHistoryMessageByClientIdEverywhere(
-          queryClient,
-          activeSend.clientId,
-          (message) => ({
-            ...message,
-            status: 'done',
-          }),
-        )
-      }
-      activeSendRef.current = null
-      refreshHistoryRef.current()
-      setSending(false)
-      // Invalidate both session-list caches so the session moves into today's
-      // bucket immediately after the assistant response completes (last_active is
-      // freshest at this point — gateway updatedAt reflects the just-finished turn) (#218).
-      invalidateSessionLists(queryClient)
-      // Clear waitingForResponse so ThinkingBubble hides and message renders
-      streamFinish()
-      // Play notification sound if the user opted in (Settings → Chat).
-      // Read directly from the store to avoid re-creating this callback on every settings change.
-      if (useChatSettingsStore.getState().settings.soundOnChatComplete) {
-        playChatComplete()
-      }
-    }, [queryClient, streamFinish]),
-    onError: useCallback(
-      (messageText: string) => {
-        const activeSend = activeSendRef.current
-        if (activeSend?.clientId && !isMissingAuth(messageText)) {
-          updateHistoryMessageByClientIdEverywhere(
-            queryClient,
-            activeSend.clientId,
-            (message) => ({
-              ...message,
-              status: 'error',
-            }),
-          )
-        }
-        activeSendRef.current = null
-        setSending(false)
-        if (isMissingAuth(messageText)) {
-          // Clear waiting before the early return — otherwise an auth-failure
-          // error strands waitingSessionKeys for the full 120s TTL and the
-          // composer shows a stuck spinner if the user returns to the session
-          // within that window. See #120.
-          setPendingGeneration(false)
-          setWaitingForResponse(false)
-          if (!embedded) {
-            try {
-              navigate({ to: '/', replace: true })
-            } catch {
-              /* router not ready */
-            }
-          }
-          return
-        }
-        const errorMessage = `Failed to send message. ${messageText}`
-        setError(errorMessage)
-        toast('Failed to send message', { type: 'error' })
-        showErrorToast(messageText)
-        setPendingGeneration(false)
-        setWaitingForResponse(false)
-      },
-      [navigate, queryClient],
-    ),
-    onMessageAccepted: useCallback(
-      (_sessionKey: string, friendlyId: string, clientId: string) => {
-        // HTTP 200 received — server accepted the message. Clear "sending"
-        // status immediately so the Retry timer never fires. This is the
-        // primary confirmation path since the server does NOT echo user
-        // messages back via SSE.
-        updateHistoryMessageByClientId(
-          queryClient,
-          friendlyId,
-          _sessionKey,
-          clientId,
-          (message) => ({
-            ...message,
-            status: 'queued',
-          }),
-        )
-        updateHistoryMessageByClientIdEverywhere(
-          queryClient,
-          clientId,
-          (message) => ({
-            ...message,
-            status: 'queued',
-          }),
-        )
-      },
-      [queryClient],
-    ),
-    onAbort: useCallback(() => {
-      activeSendRef.current = null
-      setSending(false)
-      setPendingGeneration(false)
-      setWaitingForResponse(false)
-    }, [setWaitingForResponse]),
+    onSessionResolved,
+    onStarted,
+    onComplete,
+    onError,
+    onMessageAccepted,
+    onAbort,
     acceptedTimeoutMs: modelsQuery.data?.streamAcceptedTimeoutMs,
     handoffTimeoutMs: modelsQuery.data?.streamHandoffTimeoutMs,
   })
 
-  // Sync bridge ref for sendMessage (seam #4 PR 2)
+  // Sync bridge refs (seam #4 PR 2 + PR 3)
   startStreamingRef.current = startStreaming
+  cancelStreamingRef.current = cancelStreaming
 
   // Cancel any in-flight stream when the user navigates between sessions or
   // starts a new chat. Without this, an SSE stream from session A keeps
@@ -2284,7 +2161,7 @@ export function ChatScreen({
       isNewChat,
       isPortableMode,
       navigate,
-      onSessionResolved,
+      onSessionResolvedProp,
       scrollChatToBottom,
       sendMessage,
       upsertSessionInCache,
@@ -2345,40 +2222,11 @@ export function ChatScreen({
   //                                     pendingGeneration — same as onComplete)
   // It deliberately does NOT dequeue/send; the drain effect owns that, so there
   // is no double-send.
-  const reconcileStuckBusyState = useCallback(
-    (sessionKey: string) => {
-      activeSendRef.current = null
-      if (sessionKey) {
-        useChatStore.getState().clearStreamingSession(sessionKey)
-      }
-      streamFinish()
-    },
-    [streamFinish],
-  )
   useDrainWatchdog({
     sessionKey: activeQueueSessionKey || lastQueueSessionKeyRef.current,
     isComposerLoading,
     reconcile: reconcileStuckBusyState,
   })
-
-  const handleAbortStreaming = useCallback(() => {
-    const activeSend = activeSendRef.current
-    if (activeSend?.clientId) {
-      updateHistoryMessageByClientIdEverywhere(
-        queryClient,
-        activeSend.clientId,
-        (message) => ({
-          ...message,
-          status: 'sent',
-        }),
-      )
-    }
-    activeSendRef.current = null
-    cancelStreaming()
-    setSending(false)
-    setPendingGeneration(false)
-    setWaitingForResponse(false)
-  }, [cancelStreaming, queryClient])
 
   const runPaletteSlashCommand = useCallback(
     (command: string) => {
