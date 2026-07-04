@@ -6,11 +6,10 @@ import {
   useState,
 } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 
 import {
   deriveFriendlyIdFromKey,
-  isMissingAuth,
   readError,
   textFromMessage,
 } from './utils'
@@ -21,8 +20,6 @@ import {
 import {
   appendHistoryMessage,
   chatQueryKeys,
-  clearHistoryMessages,
-  fetchStatus,
   updateHistoryMessageByClientId,
   updateHistoryMessageByClientIdEverywhere,
 } from './chat-queries'
@@ -36,8 +33,6 @@ import { ConnectionStatusMessage } from './components/connection-status-message'
 import {
   hasPendingGeneration,
   hasPendingSend,
-  isRecentSession,
-  resetPendingSend,
   setPendingGeneration,
 } from './pending-send'
 import { useChatMeasurements } from './hooks/use-chat-measurements'
@@ -63,6 +58,7 @@ import type {AgentActivity} from '@/stores/chat-activity-store';
 import { useDrainWatchdog } from './hooks/use-drain-watchdog'
 import { useChatMobile } from './hooks/use-chat-mobile'
 import { useChatSessions } from './hooks/use-chat-sessions'
+import { useErrorRedirect } from './hooks/use-error-redirect'
 import { useAutoSessionTitle } from './hooks/use-auto-session-title'
 import { useRenameSession } from './hooks/use-rename-session'
 import { useContextAlert } from './hooks/use-context-alert'
@@ -862,29 +858,38 @@ export function ChatScreen({
     setLocalActivity,
   ])
 
-  const statusQuery = useQuery({
-    queryKey: ['claude', 'status'],
-    queryFn: fetchStatus,
-    retry: 2,
-    retryDelay: 1000,
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-    refetchOnMount: true,
-    staleTime: 30_000,
-    refetchInterval: 60_000, // Re-check every 60s to clear stale errors
+  const {
+    statusQuery,
+    serverError,
+    serverErrorStatus,
+    showErrorNotice,
+    handleRefetch,
+    handleRefreshHistory,
+    shouldRedirectToNew,
+    hideUi,
+    showComposer,
+    historyLoading,
+    historyEmpty,
+  } = useErrorRedirect({
+    sessionsQuery,
+    historyQuery,
+    sessionsError,
+    historyError,
+    navigate,
+    embedded,
+    isNewChat,
+    activeExists,
+    activeFriendlyId,
+    forcedSessionKey,
+    sessions,
+    sessionKeyForHistory,
+    queryClient,
+    error,
+    setError,
+    isRedirecting,
+    setIsRedirecting,
+    messageCount: finalDisplayMessages.length,
   })
-  const serverError = sessionsError ?? historyError
-  const serverErrorStatus: number | undefined = undefined
-  const showErrorNotice = Boolean(serverError) && !isNewChat
-  const handleRefetch = useCallback(() => {
-    void statusQuery.refetch()
-    void sessionsQuery.refetch()
-    void historyQuery.refetch()
-  }, [statusQuery, sessionsQuery, historyQuery])
-
-  const handleRefreshHistory = useCallback(() => {
-    void historyQuery.refetch()
-  }, [historyQuery])
 
   useHistoryPolling({
     refetchHistory: () => {
@@ -915,103 +920,6 @@ export function ChatScreen({
         terminalPanelInset > 0 ? `${terminalPanelInset + 16}px` : '16px',
     }
   }, [isMobile, terminalPanelInset])
-
-  const shouldRedirectToNew =
-    !isNewChat &&
-    !forcedSessionKey &&
-    !isRecentSession(activeFriendlyId) &&
-    sessionsQuery.isSuccess &&
-    sessions.length > 0 &&
-    !sessions.some((session) => session.friendlyId === activeFriendlyId) &&
-    !historyQuery.isFetching &&
-    !historyQuery.isSuccess
-
-  useEffect(() => {
-    if (isRedirecting) {
-      if (error) setError(null)
-      return
-    }
-    if (shouldRedirectToNew) {
-      if (error) setError(null)
-      return
-    }
-    if (
-      sessionsQuery.isSuccess &&
-      !activeExists &&
-      !sessionsError &&
-      !historyError
-    ) {
-      if (error) setError(null)
-      return
-    }
-    const messageText = sessionsError ?? historyError
-    if (!messageText) {
-      if (error?.startsWith('Failed to load')) {
-        setError(null)
-      }
-      return
-    }
-    if (isMissingAuth(messageText) && !embedded) {
-      navigate({ to: '/', replace: true })
-    }
-    const message = sessionsError
-      ? `Failed to load sessions. ${sessionsError}`
-      : historyError
-        ? `Failed to load history. ${historyError}`
-        : null
-    if (message) setError(message)
-  }, [
-    activeExists,
-    error,
-    historyError,
-    isRedirecting,
-    navigate,
-    sessionsError,
-    sessionsQuery.isSuccess,
-    shouldRedirectToNew,
-  ])
-
-  useEffect(() => {
-    if (!isRedirecting) return
-    if (isNewChat) {
-      setIsRedirecting(false)
-      return
-    }
-    if (!shouldRedirectToNew && sessionsQuery.isSuccess) {
-      setIsRedirecting(false)
-    }
-  }, [isNewChat, isRedirecting, sessionsQuery.isSuccess, shouldRedirectToNew])
-
-  useEffect(() => {
-    if (embedded) return
-    if (isNewChat) return
-    if (!sessionsQuery.isSuccess) return
-    if (sessions.length === 0) return
-    if (!shouldRedirectToNew) return
-    resetPendingSend()
-    clearHistoryMessages(queryClient, activeFriendlyId, sessionKeyForHistory)
-    const latestSession = sessions[0]?.friendlyId ?? 'new'
-    navigate({
-      to: '/chat/$sessionKey',
-      params: { sessionKey: latestSession },
-      replace: true,
-    })
-  }, [
-    activeFriendlyId,
-    historyQuery.isFetching,
-    historyQuery.isSuccess,
-    isNewChat,
-    navigate,
-    queryClient,
-    sessionKeyForHistory,
-    sessions,
-    sessionsQuery.isSuccess,
-    shouldRedirectToNew,
-    embedded,
-  ])
-
-  const hideUi = shouldRedirectToNew || isRedirecting
-  const showComposer = !isRedirecting
 
   useSessionLifecycle({
     isNewChat,
@@ -1333,10 +1241,6 @@ export function ChatScreen({
     reconcile: reconcileStuckBusyState,
   })
 
-  const historyLoading =
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
-    (historyQuery.isLoading && !historyQuery.data) || isRedirecting
-  const historyEmpty = !historyLoading && finalDisplayMessages.length === 0
   const errorNotice = useMemo(() => {
     if (!showErrorNotice) return null
     if (!serverError) return null

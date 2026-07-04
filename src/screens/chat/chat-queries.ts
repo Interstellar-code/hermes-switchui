@@ -7,7 +7,7 @@ import type {
   SessionMeta,
 } from './types'
 
-type StatusResponse = {
+export type StatusResponse = {
   ok: boolean
   error?: string
   status?: number
