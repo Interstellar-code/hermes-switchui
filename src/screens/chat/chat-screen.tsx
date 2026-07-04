@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -36,7 +35,6 @@ import { ChatComposerShadcn } from './components/chat-composer-shadcn'
 import { InlineClarifyCard } from './components/inline-clarify-card'
 import { ConnectionStatusMessage } from './components/connection-status-message'
 import {
-  consumePendingSend,
   hasPendingGeneration,
   hasPendingSend,
   isRecentSession,
@@ -71,6 +69,7 @@ import { useRenameSession } from './hooks/use-rename-session'
 import { useContextAlert } from './hooks/use-context-alert'
 import { usePendingApprovals } from './hooks/use-pending-approvals'
 import { useSendMessageState } from './hooks/use-send-message-state'
+import { useSessionLifecycle } from './hooks/use-session-lifecycle'
 import { useComposerSend } from './hooks/use-composer-send'
 import {
   CHAT_OPEN_SETTINGS_EVENT,
@@ -413,7 +412,6 @@ export function ChatScreen({
   const chatMode = useChatMode()
   const isPortableMode = chatMode === 'portable'
   const portableChatFriendlyId = isPortableMode ? 'main' : activeFriendlyId
-  const lastAssistantSignature = useRef('')
   const retriedQueuedMessageKeysRef = useRef(new Set<string>())
   const hasSeenDisconnectRef = useRef(false)
   const hadErrorRef = useRef(false)
@@ -439,7 +437,6 @@ export function ChatScreen({
     setReplyTo(null)
   }, [activeFriendlyId, isNewChat])
 
-  const pendingStartRef = useRef(false)
   const composerHandleRef = useRef<ChatComposerHandle | null>(null)
   const {
     chatFocusMode,
@@ -1369,84 +1366,20 @@ export function ChatScreen({
   const hideUi = shouldRedirectToNew || isRedirecting
   const showComposer = !isRedirecting
 
-  // Reset state when session changes
-  useEffect(() => {
-    const resetKey = isNewChat ? 'new' : activeFriendlyId
-    if (!resetKey) return
-    retriedQueuedMessageKeysRef.current.clear()
-    if (pendingStartRef.current) {
-      pendingStartRef.current = false
-      return
-    }
-    if (hasPendingSend() || hasPendingGeneration()) {
-      setWaitingForResponse(true)
-      return
-    }
-    streamStop()
-    lastAssistantSignature.current = ''
-    setWaitingForResponse(false)
-  }, [activeFriendlyId, isNewChat, streamStop])
-
-  useLayoutEffect(() => {
-    if (isNewChat) return
-    const pending = consumePendingSend(
-      isPortableMode
-        ? 'main'
-        : forcedSessionKey || resolvedSessionKey || activeSessionKey,
-      portableChatFriendlyId,
-    )
-    if (!pending) return
-    pendingStartRef.current = true
-    const historyKey = chatQueryKeys.history(
-      pending.friendlyId,
-      pending.sessionKey,
-    )
-    const cached = queryClient.getQueryData(historyKey)
-    const cachedMessages = Array.isArray((cached as any)?.messages)
-      ? (cached as any).messages
-      : []
-    const alreadyHasOptimistic = cachedMessages.some((message: any) => {
-      if (pending.optimisticMessage.clientId) {
-        if (message.clientId === pending.optimisticMessage.clientId) return true
-        if (message.__optimisticId === pending.optimisticMessage.clientId)
-          return true
-      }
-      if (pending.optimisticMessage.__optimisticId) {
-        if (message.__optimisticId === pending.optimisticMessage.__optimisticId)
-          return true
-      }
-      return false
-    })
-    if (!alreadyHasOptimistic) {
-      appendHistoryMessage(
-        queryClient,
-        pending.friendlyId,
-        pending.sessionKey,
-        pending.optimisticMessage,
-      )
-    }
-    setWaitingForResponse(true)
-    sendMessage(
-      pending.sessionKey,
-      pending.friendlyId,
-      pending.message,
-      pending.attachments,
-      false,
-      true,
-      typeof pending.optimisticMessage.clientId === 'string'
-        ? pending.optimisticMessage.clientId
-        : '',
-    )
-  }, [
+  useSessionLifecycle({
+    isNewChat,
+    activeFriendlyId,
     activeSessionKey,
     forcedSessionKey,
-    isNewChat,
+    resolvedSessionKey,
     isPortableMode,
     portableChatFriendlyId,
     queryClient,
-    resolvedSessionKey,
     sendMessage,
-  ])
+    setWaitingForResponse,
+    streamStop,
+    retriedQueuedMessageKeysRef,
+  })
 
   const retryQueuedMessage = useCallback(
     function retryQueuedMessage(message: ChatMessage, mode: 'manual' | 'auto') {
