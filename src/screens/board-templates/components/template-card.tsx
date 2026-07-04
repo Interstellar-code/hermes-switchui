@@ -5,6 +5,8 @@
  */
 
 import type { KanbanTemplateSummary } from '@/lib/hermes-kanban-types'
+import { useTemplate } from '@/lib/board-templates-api'
+import { summarizeTemplateSchedule } from '@/lib/kanban-template-schedule'
 
 function glyph(name: string): string {
   return (name || '?').slice(0, 2).toUpperCase()
@@ -23,6 +25,14 @@ export function TemplateCard({
   onInstantiate: (template: KanbanTemplateSummary) => void
   onDelete: (template: KanbanTemplateSummary) => void
 }) {
+  const templateQuery = useTemplate(template.slug, true)
+  const scheduleSummary = templateQuery.data
+    ? summarizeTemplateSchedule(templateQuery.data)
+    : null
+  const scheduledTaskCount = scheduleSummary?.scheduledTaskCount ?? 0
+  const recurrenceLabel =
+    scheduleSummary?.recurrenceLabel ?? (template.has_recurrence ? 'Recurring' : null)
+
   return (
     <div className="brd-card" style={{ ['--bc' as string]: template.color || '#5ad3ff' }}>
       <div className="bc-head">
@@ -53,10 +63,20 @@ export function TemplateCard({
           <span className="bsl">Variables</span>
         </div>
         <div className="bc-stat">
+          <span className="bsv">{scheduledTaskCount > 0 ? scheduledTaskCount : '—'}</span>
+          <span className="bsl">Scheduled</span>
+        </div>
+        <div className="bc-stat">
           <span className="bsv">{template.has_recurrence ? 'On' : '—'}</span>
           <span className="bsl">Recurrence</span>
         </div>
       </div>
+
+      {recurrenceLabel ? (
+        <div className="bc-desc" style={{ marginTop: 0 }}>
+          {recurrenceLabel}
+        </div>
+      ) : null}
 
       <div className="bc-foot">
         <div className="bc-acts">
