@@ -1,20 +1,11 @@
 import type { NewAgentDraft } from '../types'
-import type { MemoryProvider } from '@/server/profiles-browser'
+import { MEMORY_PROVIDER_CATALOG } from '@/lib/memory-provider-catalog'
 
 type Props = {
   draft: NewAgentDraft
   errors: string[]
   onChange: (patch: Partial<NewAgentDraft>) => void
 }
-
-const PROVIDERS: Array<{ id: MemoryProvider; label: string; desc: string }> = [
-  { id: 'hindsight', label: 'Hindsight', desc: 'Lightweight local memory. Stores key facts and decisions from conversations.' },
-  { id: 'mem0', label: 'Mem0', desc: 'Cloud-hosted memory graph. Requires Mem0 API key in .env.' },
-  { id: 'openviking', label: 'OpenViking', desc: 'Open-source memory layer with vector search support.' },
-  { id: 'holographic', label: 'Holographic', desc: 'Experimental multi-dimensional memory with retrieval scoring.' },
-  { id: 'retaindb', label: 'RetainDB', desc: 'Database-backed persistent memory. Survives agent restarts.' },
-  { id: 'byterover', label: 'ByteRover', desc: 'Edge-cached memory provider. Low-latency retrieval.' },
-]
 
 export function WizardStepMemory({ draft, errors, onChange }: Props) {
   return (
@@ -65,7 +56,7 @@ export function WizardStepMemory({ draft, errors, onChange }: Props) {
         <div className="field">
           <label>Provider</label>
           <div className="memory-providers">
-            {PROVIDERS.map((p) => (
+            {MEMORY_PROVIDER_CATALOG.map((p) => (
               <div
                 key={p.id}
                 className={`skill${draft.memory_provider === p.id ? ' on' : ''}`}

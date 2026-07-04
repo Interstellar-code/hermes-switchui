@@ -16,6 +16,10 @@ import { PasswordField, Toggle } from '../components/controls'
 import type { KnowledgeBaseConfig } from '@/server/knowledge-config'
 import type { EnvVarInfo } from '@/lib/hermes-client'
 import { getEnv, putEnv, revealEnv } from '@/lib/hermes-client'
+import {
+  getMemoryProviderInfo,
+  MEMORY_PROVIDER_SELECT_OPTIONS_WITH_DISABLED,
+} from '@/lib/memory-provider-catalog'
 import { useSettingsStore } from '@/stores/settings-store'
 import { toast } from '@/components/ui/toast'
 
@@ -532,14 +536,6 @@ function WikiCard() {
 
 // ── Main section ──────────────────────────────────────────────────────────────
 
-const PROVIDER_OPTIONS = [
-  { value: '', label: 'Disabled' },
-  { value: 'hindsight', label: 'Hindsight' },
-  { value: 'honcho', label: 'Honcho' },
-  { value: 'mem0', label: 'mem0' },
-  { value: 'builtin', label: 'Builtin' },
-]
-
 export default function SectionMemoryWiki() {
   const { draft, set } = useSettingsStore()
 
@@ -560,8 +556,8 @@ export default function SectionMemoryWiki() {
     staleTime: 30_000,
   })
 
-  const providerLabel =
-    PROVIDER_OPTIONS.find((o) => o.value === provider)?.label ?? 'Disabled'
+  const providerInfo = getMemoryProviderInfo(provider)
+  const providerLabel = providerInfo?.label ?? 'Disabled'
   const isConfigured = provider !== ''
 
   return (
@@ -594,13 +590,19 @@ export default function SectionMemoryWiki() {
             value={provider}
             onChange={(e) => set('config.memory.provider', e.target.value)}
           >
-            {PROVIDER_OPTIONS.map((o) => (
+            {MEMORY_PROVIDER_SELECT_OPTIONS_WITH_DISABLED.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
           </select>
         </SettingRow>
+
+        {providerInfo && (
+          <SettingRow label="Provider details" desc={providerInfo.desc}>
+            <span style={{ fontSize: 12, color: 'var(--m-text-faint)' }}>{providerInfo.label}</span>
+          </SettingRow>
+        )}
 
         <SettingRow
           label="Memory char limit"
