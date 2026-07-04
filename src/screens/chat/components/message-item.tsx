@@ -13,6 +13,7 @@ import {
   buildHermesActivitySummary,
   shouldAutoExpandHermesActivityCard,
 } from './streaming-activity-ui'
+import { selectVisibleLifecycleEvents } from './streaming-lifecycle-ui'
 import { TuiActivityCard } from './tui-activity-card'
 import type { ReactNode } from 'react'
 import type { Components } from 'react-markdown'
@@ -2341,7 +2342,10 @@ function MessageItemComponent({
   const effectiveStreamToolCalls =
     streamToolCalls.length > 0 ? streamToolCalls : embeddedStreamToolCalls
   const hasStreamToolCalls = effectiveStreamToolCalls.length > 0
-  const effectiveLifecycleEvents = lifecycleEvents
+  const effectiveLifecycleEvents = useMemo(
+    () => selectVisibleLifecycleEvents(lifecycleEvents),
+    [lifecycleEvents],
+  )
   const hasLifecycleEvents = effectiveLifecycleEvents.length > 0
   const activeStreamToolLabels = useMemo(() => {
     const labels: Array<string> = []
@@ -2682,7 +2686,7 @@ function MessageItemComponent({
           </div>
         </div>
       ) : null}
-      {effectiveIsStreaming && hasLifecycleEvents && !hasToolCalls && (
+      {effectiveIsStreaming && hasLifecycleEvents && (
         <div className="w-full max-w-[var(--chat-content-max-width)] flex flex-col gap-1">
           {effectiveLifecycleEvents.map((event, index) => (
             <LifecycleEventCard
