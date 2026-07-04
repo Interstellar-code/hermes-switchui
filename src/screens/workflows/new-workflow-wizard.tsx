@@ -67,8 +67,6 @@ interface WizardNodeDraft {
   type: NodeType
   phase: string
   depends_on: Array<string>
-  model: string
-  provider: string
   skills: string
   hermes_task_enabled: boolean
   hermes_task: WizardHermesTaskDraft
@@ -167,8 +165,6 @@ function createDefaultNodeDraft(
     type,
     phase: '',
     depends_on: [],
-    model: '',
-    provider: '',
     skills: '',
     hermes_task_enabled: false,
     hermes_task: { skills: '', agent_hint: '', model_hint: '' },
@@ -219,9 +215,6 @@ function toNodeDraft(
           (dep): dep is string => typeof dep === 'string',
         )
       : [],
-    model: typeof rawNode['model'] === 'string' ? rawNode['model'] : '',
-    provider:
-      typeof rawNode['provider'] === 'string' ? rawNode['provider'] : '',
     skills: Array.isArray(rawNode['skills'])
       ? rawNode['skills']
           .filter((skill): skill is string => typeof skill === 'string')
@@ -300,8 +293,6 @@ function serializeNodeDraft(node: WizardNodeDraft): Record<string, unknown> {
   next.id = node.id.trim()
   if (node.phase.trim()) next.phase = node.phase.trim()
   if (node.depends_on.length > 0) next.depends_on = node.depends_on
-  if (node.model.trim()) next.model = node.model.trim()
-  if (node.provider.trim()) next.provider = node.provider.trim()
 
   const skills = splitCsv(node.skills)
   if (skills.length > 0) next.skills = skills
@@ -1409,28 +1400,6 @@ function ConfigureStep({
                   placeholder="analyze, plan"
                 />
               </label>
-              <label className="wz-field">
-                <span>Provider</span>
-                <input
-                  className="wfrd-input"
-                  value={selectedNode.provider}
-                  onChange={(e) =>
-                    onUpdateNode(selectedNode.id, { provider: e.target.value })
-                  }
-                  placeholder="claude / codex"
-                />
-              </label>
-              <label className="wz-field">
-                <span>Model</span>
-                <input
-                  className="wfrd-input"
-                  value={selectedNode.model}
-                  onChange={(e) =>
-                    onUpdateNode(selectedNode.id, { model: e.target.value })
-                  }
-                  placeholder="sonnet / gpt-5.4"
-                />
-              </label>
               <label className="wz-field wz-field-full">
                 <span>Node skills</span>
                 <input
@@ -1659,6 +1628,19 @@ function ConfigureStep({
                       placeholder="claude-sonnet-4"
                     />
                   </label>
+                  {(typeof selectedNode.raw['provider'] === 'string' ||
+                    typeof selectedNode.raw['model'] === 'string') && (
+                    <div className="wz-field wz-field-full">
+                      <span>Legacy contract</span>
+                      <div className="text-xs text-[var(--theme-muted)]">
+                        Deprecated YAML keys remain readable here but are no longer authored by SwitchUI.
+                        {typeof selectedNode.raw['provider'] === 'string' &&
+                          ` provider=${selectedNode.raw['provider']}`}
+                        {typeof selectedNode.raw['model'] === 'string' &&
+                          ` model=${selectedNode.raw['model']}`}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

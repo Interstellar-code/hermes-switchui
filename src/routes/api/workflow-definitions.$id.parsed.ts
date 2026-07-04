@@ -38,7 +38,7 @@ function nodeType(
 
 function configPreview(node: RawNode): string {
   const pick: Record<string, unknown> = {}
-  for (const key of ['command', 'prompt', 'bash', 'script', 'cancel']) {
+  for (const key of ['command', 'prompt', 'bash', 'script', 'cancel', 'provider', 'model']) {
     const v = node[key]
     if (v !== undefined) {
       const s = String(v)
@@ -243,7 +243,6 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
               hermesTask?.model_hint ??
               (node['model'] as string | undefined) ??
               null,
-            provider: (node['provider'] as string | undefined) ?? null,
             config_preview: configPreview(node),
           }]
         })
