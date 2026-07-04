@@ -22,6 +22,7 @@ import {
   parseKanbanBlockReason,
   type HermesKanbanBlockCode,
 } from '@/lib/kanban-block-state'
+import { formatHomeChannelLabel } from '@/lib/messaging-channel-label'
 import { cn } from '@/lib/utils'
 
 
@@ -1172,12 +1173,13 @@ function NotificationsSection({ taskId, compact = false }: { taskId: string; com
         {channels.map((ch) => {
           const subscribed = !!ch.subscribed
           const platformLabel = ch.platform.charAt(0).toUpperCase() + ch.platform.slice(1)
+          const channelLabel = formatHomeChannelLabel(ch)
           return (
             <button
               key={ch.platform}
               onClick={() => toggle(ch.platform, subscribed)}
               disabled={pending === ch.platform}
-              title={ch.name ? `${platformLabel} · ${ch.name}` : platformLabel}
+              title={channelLabel}
               className={cn(
                 'flex items-center gap-1.5 rounded-lg border transition-colors disabled:opacity-50',
                 compact
@@ -1197,11 +1199,11 @@ function NotificationsSection({ taskId, compact = false }: { taskId: string; com
                 {subscribed && <span className="text-white text-[9px] leading-none">✓</span>}
               </span>
               {compact ? (
-                <span className="capitalize">{platformLabel}</span>
+                <span>{channelLabel}</span>
               ) : (
                 <span className="text-xs flex-1">
                   Notify on completion via <span className="capitalize">{platformLabel}</span>
-                  {ch.name ? <span className="text-[var(--theme-muted)]"> · {ch.name}</span> : null}
+                  <span className="text-[var(--theme-muted)]"> · {channelLabel}</span>
                 </span>
               )}
             </button>
