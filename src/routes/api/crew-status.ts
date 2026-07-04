@@ -4,11 +4,7 @@ import { join } from 'node:path'
 import { createFileRoute } from '@tanstack/react-router'
 import * as yaml from 'yaml'
 import { isAuthenticated } from '../../server/auth-middleware'
-import {
-  BEARER_TOKEN,
-  CLAUDE_API,
-  ensureGatewayProbed,
-} from '../../server/gateway-capabilities'
+import { ensureGatewayProbed } from '../../server/gateway-capabilities'
 import {
   getClaudeRoot,
   getProfileClaudeHome,
@@ -18,6 +14,7 @@ import {
   assignDelegatedSessions,
   emptyDelegatedAssignment,
 } from '../../lib/crew-delegation'
+import { getKanbanBoard } from '../../server/hermes-kanban-client'
 import type {
   CrewOwnActivity,
   DelegatedChildSession,
@@ -419,21 +416,17 @@ print(json.dumps(out))
 
 async function fetchAssignedTaskCounts(): Promise<Record<string, number>> {
   try {
-    const res = await fetch(`${CLAUDE_API}/api/tasks?include_done=false`, {
-      signal: AbortSignal.timeout(3_000),
-      headers: BEARER_TOKEN ? { Authorization: `Bearer ${BEARER_TOKEN}` } : {},
-    })
-    if (!res.ok) return {}
-
-    const data = (await res.json()) as {
-      tasks?: Array<{ assignee?: string | null; column?: string | null }>
-    }
-
+    const board = await getKanbanBoard()
     const counts: Record<string, number> = {}
-    for (const task of data.tasks ?? []) {
-      if (!task.assignee || task.column === 'done') continue
-      counts[task.assignee] = (counts[task.assignee] ?? 0) + 1
+
+    for (const column of board.columns ?? []) {
+      if (column.name === 'done' || column.name === 'archived') continue
+      for (const task of column.tasks ?? []) {
+        if (!task.assignee) continue
+        counts[task.assignee] = (counts[task.assignee] ?? 0) + 1
+      }
     }
+
     return counts
   } catch {
     return {}
