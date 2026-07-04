@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { isAuthenticated } from '../../server/auth-middleware'
-import { ensureGatewayProbed } from '../../server/gateway-capabilities'
+import { dashboardFetch, ensureGatewayProbed } from '../../server/gateway-capabilities'
 import { Route } from './logs'
 
 vi.mock('../../server/auth-middleware', () => ({
@@ -12,18 +12,14 @@ vi.mock('../../server/auth-middleware', () => ({
 }))
 
 vi.mock('../../server/gateway-capabilities', () => ({
-  BEARER_TOKEN: 'test-token',
-  CLAUDE_API: 'http://127.0.0.1:8642',
+  dashboardFetch: vi.fn(),
   ensureGatewayProbed: vi.fn(),
 }))
 
-const mockWorkspaceHome = fs.mkdtempSync(
-  path.join(os.tmpdir(), 'matrix3d-logs-'),
-)
+const mockWorkspaceHome = fs.mkdtempSync(path.join(os.tmpdir(), 'matrix3d-logs-'))
 
 vi.mock('../../server/claude-paths', () => ({
-  getProfileClaudeHome: (profile: string) =>
-    path.join(mockWorkspaceHome, 'profiles', profile),
+  getProfileClaudeHome: (profile: string) => path.join(mockWorkspaceHome, 'profiles', profile),
   getWorkspaceClaudeHome: () => mockWorkspaceHome,
 }))
 
@@ -77,7 +73,7 @@ describe('GET /api/logs', () => {
     })
   })
 
-  it('falls back to local log files when upstream logs endpoint is missing', async () => {
+  it('falls back to local log files when dashboard logs endpoint is missing', async () => {
     vi.mocked(isAuthenticated).mockReturnValue(true)
     vi.mocked(ensureGatewayProbed).mockResolvedValue({
       health: true,
@@ -91,7 +87,7 @@ describe('GET /api/logs', () => {
       'utf8',
     )
 
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    vi.mocked(dashboardFetch).mockResolvedValue(
       new Response('404: Not Found', {
         status: 404,
         headers: { 'content-type': 'application/json' },
@@ -104,10 +100,10 @@ describe('GET /api/logs', () => {
       ),
     })
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://127.0.0.1:8642/api/logs?lines=25&file=agent&level=warn&component=matrix3d',
+    expect(dashboardFetch).toHaveBeenCalledWith(
+      '/api/logs?lines=25&file=agent&level=warn&component=matrix3d',
       expect.objectContaining({
-        headers: { Authorization: 'Bearer test-token' },
+        signal: expect.any(AbortSignal),
       }),
     )
     expect(res.status).toBe(200)
@@ -144,9 +140,7 @@ describe('GET /api/logs', () => {
     fs.utimesSync(workspaceLog, stale, stale)
     fs.utimesSync(profileLog, fresh, fresh)
 
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('404: Not Found', { status: 404 }),
-    )
+    vi.mocked(dashboardFetch).mockResolvedValue(new Response('404: Not Found', { status: 404 }))
 
     const res = await handler({
       request: new Request('http://localhost/api/logs?file=gateway&lines=25'),

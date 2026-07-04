@@ -7,8 +7,7 @@ import {
   getWorkspaceClaudeHome,
 } from '../../server/claude-paths'
 import {
-  BEARER_TOKEN,
-  CLAUDE_API,
+  dashboardFetch,
   ensureGatewayProbed,
 } from '../../server/gateway-capabilities'
 
@@ -104,18 +103,11 @@ export const Route = createFileRoute('/api/logs')({
         const component = (url.searchParams.get('component') || '').trim()
         if (component) search.set('component', component)
 
-        const headers: Record<string, string> = {}
-        if (BEARER_TOKEN) headers.Authorization = `Bearer ${BEARER_TOKEN}`
-
         let upstream: Response
         try {
-          upstream = await fetch(
-            `${CLAUDE_API}/api/logs?${search.toString()}`,
-            {
-              headers,
-              signal: AbortSignal.timeout(5_000),
-            },
-          )
+          upstream = await dashboardFetch(`/api/logs?${search.toString()}`, {
+            signal: AbortSignal.timeout(5_000),
+          })
         } catch (error) {
           return Response.json(
             {
