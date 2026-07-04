@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Cancel01Icon } from '@hugeicons/core-free-icons'
+import { getMessagingDeliveryHint } from '@/lib/messaging-channel-label'
 
 const SCHEDULE_PRESETS = [
   { label: 'Every 15m', value: 'every 15m' },
@@ -49,6 +50,7 @@ export function CreateJobDialog({
   onSubmit,
 }: CreateJobDialogProps) {
   const [form, setForm] = useState(getInitialState)
+  const messagingHint = getMessagingDeliveryHint(form.deliver)
 
   useEffect(() => {
     if (!open) {
@@ -350,6 +352,14 @@ export function CreateJobDialog({
                       )
                     })}
                   </div>
+                  {messagingHint ? (
+                    <p
+                      className="text-xs"
+                      style={{ color: 'var(--theme-muted)' }}
+                    >
+                      {messagingHint}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="space-y-2">
