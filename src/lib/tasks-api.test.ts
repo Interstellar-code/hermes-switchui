@@ -11,7 +11,13 @@ afterEach(() => {
 })
 
 function ok(body: unknown, status = 200): Response {
-  return { ok: true, status, json: async () => body } as unknown as Response
+  const text = body == null ? '' : JSON.stringify(body)
+  return {
+    ok: true,
+    status,
+    json: async () => body,
+    text: async () => text,
+  } as unknown as Response
 }
 
 describe('tasks-api (Agent Kanban backend)', () => {

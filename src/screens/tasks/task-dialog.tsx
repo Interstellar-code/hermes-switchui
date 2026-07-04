@@ -6,6 +6,11 @@ import {
   DialogDescription,
 } from '@/components/shadcn/ui/dialog'
 import { Button } from '@/components/ui/button'
+import {
+  formatKanbanBlockReason,
+  HERMES_KANBAN_BLOCK_REASON_OPTIONS,
+  type HermesKanbanBlockCode,
+} from '@/lib/kanban-block-state'
 import { cn } from '@/lib/utils'
 import type { HermesKanbanStatus } from '@/lib/hermes-kanban-types'
 import { HERMES_KANBAN_STATUS_LABELS, HERMES_KANBAN_VISIBLE_STATUS_ORDER, mapLegacyPriorityToNumeric } from '@/lib/hermes-kanban-types'
@@ -79,6 +84,7 @@ export function TaskDialog({
   const [maxRuntimeSeconds, setMaxRuntimeSeconds] = useState('')
   const [parents, setParents] = useState('')
   const [blockReason, setBlockReason] = useState('')
+  const [blockReasonCode, setBlockReasonCode] = useState<HermesKanbanBlockCode>('other')
 
   useEffect(() => {
     if (task) {
@@ -97,6 +103,7 @@ export function TaskDialog({
       setMaxRuntimeSeconds(task.max_runtime_seconds != null ? String(task.max_runtime_seconds) : '')
       setParents('')
       setBlockReason('')
+      setBlockReasonCode('other')
     } else {
       setTitle('')
       setBody('')
@@ -110,6 +117,7 @@ export function TaskDialog({
       setMaxRuntimeSeconds('')
       setParents('')
       setBlockReason('')
+      setBlockReasonCode('other')
     }
   }, [task, open, defaultColumn])
 
@@ -151,7 +159,14 @@ export function TaskDialog({
       triage,
     }
 
-    await onSubmit({ createInput, desiredStatus, blockReason: blockReason.trim() || undefined })
+    await onSubmit({
+      createInput,
+      desiredStatus,
+      blockReason:
+        status === 'blocked'
+          ? formatKanbanBlockReason(blockReasonCode, blockReason) ?? undefined
+          : undefined,
+    })
   }
 
   const inputClass = cn(
@@ -230,10 +245,25 @@ export function TaskDialog({
 
             {/* Block reason — only when status=blocked */}
             {status === 'blocked' && (
-              <div>
-                <label className={labelClass}>Block reason (optional)</label>
-                <input className={inputClass} value={blockReason} onChange={e => setBlockReason(e.target.value)}
-                  placeholder="Why is this task blocked?" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Block type</label>
+                  <select
+                    className={inputClass}
+                    style={{ colorScheme: 'dark' }}
+                    value={blockReasonCode}
+                    onChange={e => setBlockReasonCode(e.target.value as HermesKanbanBlockCode)}
+                  >
+                    {HERMES_KANBAN_BLOCK_REASON_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Block reason (optional)</label>
+                  <input className={inputClass} value={blockReason} onChange={e => setBlockReason(e.target.value)}
+                    placeholder="Why is this task blocked?" />
+                </div>
               </div>
             )}
 

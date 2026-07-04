@@ -39,6 +39,11 @@ import type { BulkResponse, HermesKanbanStatus } from '@/lib/hermes-kanban-types
 import type { ClaudeTask, TaskAssignee, TaskColumn } from '@/lib/tasks-api'
 import { HERMES_KANBAN_VISIBLE_STATUS_ORDER } from '@/lib/hermes-kanban-types'
 import {
+  formatKanbanBlockReason,
+  HERMES_KANBAN_BLOCK_REASON_OPTIONS,
+  type HermesKanbanBlockCode,
+} from '@/lib/kanban-block-state'
+import {
   COLUMN_COLORS,
   COLUMN_LABELS,
   createTask,
@@ -306,6 +311,7 @@ export function TasksScreen() {
 
   const [blockedPending, setBlockedPending] = useState<BlockedDropPending>(null)
   const [blockedReason, setBlockedReason] = useState('')
+  const [blockedReasonCode, setBlockedReasonCode] = useState<HermesKanbanBlockCode>('other')
   const [runningMovePending, setRunningMovePending] = useState<RunningMovePending>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   // Two-step arm for the destructive bulk-delete action
@@ -589,6 +595,7 @@ export function TasksScreen() {
     if (targetStatus === 'blocked') {
       setBlockedPending({ taskId, targetStatus })
       setBlockedReason('')
+      setBlockedReasonCode('other')
       return
     }
     if (task.status === 'running' && targetStatus !== 'running') {
@@ -609,13 +616,15 @@ export function TasksScreen() {
 
   function confirmBlocked() {
     if (!blockedPending) return
+    const formattedBlockReason = formatKanbanBlockReason(blockedReasonCode, blockedReason)
     moveMutation.mutate({
       id: blockedPending.taskId,
       status: 'blocked',
-      ...(blockedReason.trim() ? { blockReason: blockedReason.trim() } : {}),
+      ...(formattedBlockReason ? { blockReason: formattedBlockReason } : {}),
     })
     setBlockedPending(null)
     setBlockedReason('')
+    setBlockedReasonCode('other')
   }
 
   const dispatchMutation = useMutation({
@@ -1511,6 +1520,15 @@ export function TasksScreen() {
                 Optionally describe why this task is blocked. Workers and
                 reviewers will see this reason.
               </p>
+              <select
+                className="w-full rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2 text-xs text-[var(--theme-text)] focus:outline-none focus:border-[var(--theme-accent)] mb-3"
+                value={blockedReasonCode}
+                onChange={(e) => setBlockedReasonCode(e.target.value as HermesKanbanBlockCode)}
+              >
+                {HERMES_KANBAN_BLOCK_REASON_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
               <textarea
                 className="w-full rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2 text-xs text-[var(--theme-text)] placeholder:text-[var(--theme-muted)] resize-none focus:outline-none focus:border-[var(--theme-accent)] mb-4"
                 rows={3}
@@ -1522,7 +1540,10 @@ export function TasksScreen() {
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setBlockedPending(null)}
+                  onClick={() => {
+                    setBlockedPending(null)
+                    setBlockedReasonCode('other')
+                  }}
                   className="rounded-lg px-3 py-1.5 text-xs text-[var(--theme-muted)] hover:text-[var(--theme-text)] transition-colors"
                 >
                   Cancel

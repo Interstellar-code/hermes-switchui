@@ -159,7 +159,7 @@ export async function moveTask(
   blockReason?: string,
 ): Promise<HermesKanbanTask> {
   const patch: UpdateKanbanTaskInput = { status }
-  if (blockReason) patch.block_reason = blockReason
+  patch.block_reason = status === 'blocked' ? blockReason ?? null : null
   return updateTask(taskId, patch)
 }
 
