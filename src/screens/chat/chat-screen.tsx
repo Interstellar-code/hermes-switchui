@@ -59,7 +59,6 @@ import type {
   ChatComposerHelpers,
 } from './components/chat-composer-types'
 import type { ChatAttachment, ChatMessage, SessionMeta } from './types'
-import type { ChatRunCommandDetail } from './chat-events'
 import type {AgentActivity} from '@/stores/chat-activity-store';
 import { useDrainWatchdog } from './hooks/use-drain-watchdog'
 import { useChatMobile } from './hooks/use-chat-mobile'
@@ -72,14 +71,9 @@ import { useSendMessageState } from './hooks/use-send-message-state'
 import { useSessionLifecycle } from './hooks/use-session-lifecycle'
 import { useComposerSend } from './hooks/use-composer-send'
 import { useMessageRetry } from './hooks/use-message-retry'
-import {
-  CHAT_OPEN_SETTINGS_EVENT,
-  CHAT_PENDING_COMMAND_STORAGE_KEY,
-  CHAT_RUN_COMMAND_EVENT,
-} from './chat-events'
+import { useSlashCommands } from './hooks/use-slash-commands'
 
 import { cn } from '@/lib/utils'
-import { toast } from '@/components/ui/toast'
 import { FileExplorerSidebar } from '@/components/file-explorer'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { TerminalPanel } from '@/components/terminal-panel'
@@ -88,8 +82,6 @@ import { ErrorBoundary } from '@/components/error-boundary'
 import { useTerminalPanelStore } from '@/stores/terminal-panel-store'
 import { useModelSuggestions } from '@/hooks/use-model-suggestions'
 import {
-  expandUserCommandPrompt,
-  findEnabledCommandBySlash,
   useEnabledUserCommands,
 } from '@/lib/commands-api'
 import { ModelSuggestionToast } from '@/components/model-suggestion-toast'
@@ -135,61 +127,6 @@ function normalizeMessageValue(value: unknown): string {
   if (typeof value !== 'string') return ''
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : ''
-}
-
-function sanitizeExportToken(value: string): string {
-  return value
-    .trim()
-    .replace(/[^a-z0-9-_]+/gi, '-')
-    .replace(/^-+|-+$/g, '')
-}
-
-function exportConversationTranscript(payload: {
-  sessionLabel: string
-  messages: Array<ChatMessage>
-}) {
-  if (typeof document === 'undefined') return false
-
-  const sessionToken =
-    sanitizeExportToken(payload.sessionLabel) || 'conversation'
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-  const body = payload.messages
-    .map((message) => {
-      const role =
-        typeof message.role === 'string' && message.role.trim()
-          ? message.role.trim().toUpperCase()
-          : 'MESSAGE'
-      const text = textFromMessage(message).trim()
-      const attachments = Array.isArray(message.attachments)
-        ? message.attachments
-            .map((attachment) => attachment?.name?.trim())
-            .filter((value): value is string => Boolean(value))
-        : []
-
-      const lines = [`## ${role}`]
-      if (text) lines.push(text)
-      if (attachments.length > 0) {
-        lines.push('', 'Attachments:')
-        for (const attachment of attachments) {
-          lines.push(`- ${attachment}`)
-        }
-      }
-      return lines.join('\n')
-    })
-    .join('\n\n')
-    .trim()
-
-  const content = `# Hermes Conversation Export\n\nSession: ${payload.sessionLabel}\nExported: ${new Date().toISOString()}\n\n${body || '_No messages in this conversation._'}\n`
-  const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `${sessionToken}-${timestamp}.md`
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 0)
-  return true
 }
 
 function getMessageClientId(message: ChatMessage): string {
@@ -1303,140 +1240,38 @@ export function ChatScreen({
     [],
   )
 
-  const handleUiSlashCommand = useCallback(
-    (command: string) => {
-      const trimmedCommand = command.trim()
-      if (!trimmedCommand.startsWith('/')) return false
+  // sendRef bridge: useSlashCommands is called before useComposerSend (which
+  // itself consumes handleUiSlashCommand/expandCustomSlashCommand from this
+  // hook). The ref is populated immediately after useComposerSend returns.
+  const sendRef = useRef<
+    | ((
+        body: string,
+        attachments: Array<ChatComposerAttachment>,
+        fastMode: boolean,
+        helpers: ChatComposerHelpers,
+      ) => Promise<void>)
+    | null
+  >(null)
 
-      // Token + argument split (commands like `/title <name>` carry an arg).
-      const [slashToken = '', ...slashArgParts] = trimmedCommand.split(/\s+/)
-      const slashArg = slashArgParts.join(' ').trim()
-
-      if (trimmedCommand === '/new' || trimmedCommand === '/reset') {
-        // Use the explicit 'new' session sentinel rather than '/chat' alone.
-        // The /chat index route redirects to the last-active session via
-        // localStorage, so '/new' must route directly to the new sentinel.
-        navigate({
-          to: '/chat/$sessionKey',
-          params: { sessionKey: 'new' },
-        })
-        return true
-      }
-
-      if (trimmedCommand === '/clear') {
-        const sessionKey =
-          forcedSessionKey ||
-          resolvedSessionKey ||
-          activeSessionKey ||
-          activeFriendlyId
-        clearHistoryMessages(queryClient, activeFriendlyId, sessionKey)
-        toast('Chat cleared', { type: 'success' })
-        return true
-      }
-
-      if (trimmedCommand === '/model' || trimmedCommand === '/skin') {
-        window.dispatchEvent(
-          new CustomEvent(CHAT_OPEN_SETTINGS_EVENT, {
-            detail: {
-              section: trimmedCommand === '/skin' ? 'appearance' : 'claude',
-            },
-          }),
-        )
-        return true
-      }
-
-      if (trimmedCommand === '/skills') {
-        navigate({ to: '/skills' })
-        return true
-      }
-
-      if (trimmedCommand === '/save') {
-        const exported = exportConversationTranscript({
-          sessionLabel: activeFriendlyId || 'conversation',
-          messages: finalDisplayMessages,
-        })
-        if (exported) {
-          toast('Conversation exported', { type: 'success' })
-        }
-        return true
-      }
-
-      if (slashToken === '/stop') {
-        // Inline abort — mirrors handleAbortStreaming, which is declared later
-        // in the component; referencing it here would hit the same render-time
-        // TDZ as the interrupted-affordance handlers.
-        const activeSend = activeSendRef.current
-        if (activeSend?.clientId) {
-          updateHistoryMessageByClientIdEverywhere(
-            queryClient,
-            activeSend.clientId,
-            (message) => ({ ...message, status: 'sent' }),
-          )
-        }
-        activeSendRef.current = null
-        cancelStreaming()
-        setSending(false)
-        setPendingGeneration(false)
-        setWaitingForResponse(false)
-        toast('Agent stopped', { type: 'info' })
-        return true
-      }
-
-      if (slashToken === '/title') {
-        if (!slashArg) {
-          toast('Usage: /title <name>', { type: 'info' })
-          return true
-        }
-        const sessionKey =
-          forcedSessionKey ||
-          resolvedSessionKey ||
-          activeSessionKey ||
-          activeFriendlyId
-        if (sessionKey) {
-          void renameSession(sessionKey, activeFriendlyId ?? null, slashArg)
-          toast(`Title set: ${slashArg}`, { type: 'success' })
-        }
-        return true
-      }
-
-      if (slashToken === '/reasoning') {
-        const level = slashArg.toLowerCase()
-        if (level === 'off' || level === 'low' || level === 'adaptive') {
-          handleThinkingLevelChange(level)
-          toast(`Reasoning: ${level}`, { type: 'success' })
-        } else {
-          toast('Usage: /reasoning <off | low | adaptive>', { type: 'info' })
-        }
-        return true
-      }
-
-      return false
-    },
-    [
-      activeFriendlyId,
-      activeSessionKey,
-      cancelStreaming,
-      finalDisplayMessages,
-      forcedSessionKey,
-      handleThinkingLevelChange,
-      navigate,
-      queryClient,
-      renameSession,
-      resolvedSessionKey,
-    ],
-  )
-
-  const expandCustomSlashCommand = useCallback(
-    (body: string): string | null => {
-      const trimmed = body.trim()
-      if (!trimmed.startsWith('/')) return null
-      const [slashToken = '', ...inputParts] = trimmed.split(/\s+/)
-      const command = findEnabledCommandBySlash(enabledUserCommands, slashToken)
-      if (!command) return null
-      return expandUserCommandPrompt(command, inputParts.join(' '))
-    },
-    [enabledUserCommands],
-  )
+  const { handleUiSlashCommand, expandCustomSlashCommand } = useSlashCommands({
+    navigate,
+    forcedSessionKey,
+    resolvedSessionKey,
+    activeSessionKey,
+    activeFriendlyId,
+    queryClient,
+    finalDisplayMessages,
+    enabledUserCommands,
+    cancelStreaming,
+    setSending,
+    setWaitingForResponse,
+    activeSendRef,
+    handleThinkingLevelChange,
+    renameSession,
+    sendRef,
+    commandHelpers,
+    userCommandsPending: userCommandsQuery.isPending,
+  })
 
   const { send } = useComposerSend({
     activeFriendlyId,
@@ -1465,6 +1300,7 @@ export function ChatScreen({
     setWaitingForResponse,
     isMobile,
   })
+  sendRef.current = send
 
   const { isCurrentSessionInterrupted, handleResendInterrupted } =
     useMessageRetry({
@@ -1496,40 +1332,6 @@ export function ChatScreen({
     isComposerLoading,
     reconcile: reconcileStuckBusyState,
   })
-
-  const runPaletteSlashCommand = useCallback(
-    (command: string) => {
-      const trimmedCommand = command.trim()
-      if (!trimmedCommand.startsWith('/')) return
-      if (handleUiSlashCommand(trimmedCommand)) return
-      send(trimmedCommand, [], false, commandHelpers)
-    },
-    [commandHelpers, handleUiSlashCommand, send],
-  )
-
-  useEffect(() => {
-    function handleRunCommand(event: Event) {
-      const detail = (event as CustomEvent<ChatRunCommandDetail>).detail
-      if (!detail?.command) return
-      runPaletteSlashCommand(detail.command)
-    }
-
-    window.addEventListener(CHAT_RUN_COMMAND_EVENT, handleRunCommand)
-    return () => {
-      window.removeEventListener(CHAT_RUN_COMMAND_EVENT, handleRunCommand)
-    }
-  }, [runPaletteSlashCommand])
-
-  useEffect(() => {
-    if (userCommandsQuery.isPending) return
-    const pendingCommand = window.sessionStorage.getItem(
-      CHAT_PENDING_COMMAND_STORAGE_KEY,
-    )
-    if (!pendingCommand) return
-
-    window.sessionStorage.removeItem(CHAT_PENDING_COMMAND_STORAGE_KEY)
-    runPaletteSlashCommand(pendingCommand)
-  }, [runPaletteSlashCommand, userCommandsQuery.isPending])
 
   const historyLoading =
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
