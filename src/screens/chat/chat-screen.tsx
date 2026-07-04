@@ -16,7 +16,6 @@ import {
 } from './utils'
 import {
   advanceStickyStreamingText,
-  readMessageText,
   scrollChatToBottom as scrollChatToBottomImpl,
 } from './chat-screen-utils'
 import {
@@ -71,6 +70,7 @@ import { usePendingApprovals } from './hooks/use-pending-approvals'
 import { useSendMessageState } from './hooks/use-send-message-state'
 import { useSessionLifecycle } from './hooks/use-session-lifecycle'
 import { useComposerSend } from './hooks/use-composer-send'
+import { useMessageRetry } from './hooks/use-message-retry'
 import {
   CHAT_OPEN_SETTINGS_EVENT,
   CHAT_PENDING_COMMAND_STORAGE_KEY,
@@ -1756,42 +1756,17 @@ export function ChatScreen({
     isMobile,
   })
 
-  // Phase 1.2: interrupted affordance handlers. Placed AFTER `send` so
-  // the closure can capture it without a temporal-dead-zone error.
-  const isCurrentSessionInterrupted = useChatStore((state) =>
-    resolvedSessionKey ? state.isSessionInterrupted(resolvedSessionKey) : false,
-  )
-
-  const handleResendInterrupted = useCallback(() => {
-    if (!resolvedSessionKey) return
-    const store = useChatStore.getState()
-    store.clearSessionInterrupted(resolvedSessionKey)
-    const lastUser = [...finalDisplayMessages]
-      .reverse()
-      .find((m) => m?.role === 'user' && !m.__optimisticId)
-    if (lastUser && typeof lastUser.content !== 'undefined') {
-      const text = readMessageText(lastUser)
-      if (text.trim()) {
-        send(text, [], false, commandHelpers)
-      }
-    } else {
-      // No user message found — still clear the flag and let the user
-      // re-type. This handles the "interrupted but history is empty" edge.
-      void historyQuery.refetch()
-    }
-  }, [resolvedSessionKey, finalDisplayMessages, send, commandHelpers, historyQuery])
-
-  useEffect(() => {
-    if (isComposerLoading) return
-
-    const sessionKey = activeQueueSessionKey || lastQueueSessionKeyRef.current
-    if (!sessionKey) return
-
-    const nextQueued = useChatStore.getState().dequeue(sessionKey)
-    if (!nextQueued) return
-
-    send(nextQueued.text, nextQueued.attachments, false, commandHelpers)
-  }, [activeQueueSessionKey, isComposerLoading, send])
+  const { isCurrentSessionInterrupted, handleResendInterrupted } =
+    useMessageRetry({
+      resolvedSessionKey,
+      finalDisplayMessages,
+      isComposerLoading,
+      activeQueueSessionKey,
+      lastQueueSessionKeyRef,
+      commandHelpers,
+      send,
+      refetchHistory: historyQuery.refetch,
+    })
 
   // Drain-watchdog escape hatch (Phase 1.1). If an SSE completion event is
   // dropped, the busy signals never clear and the queue stalls. This watchdog
