@@ -6,6 +6,7 @@ import type {
   SessionTitleStatus,
   ToolCallContent,
 } from './types'
+import { getSessionOrchestrationMeta } from '@/lib/session-orchestration'
 
 export function deriveFriendlyIdFromKey(key: string | undefined): string {
   if (!key) return 'main'
@@ -235,7 +236,7 @@ export function normalizeSessions(
         : typeof session.preview === 'string' &&
           session.preview.trim().length > 0
           ? session.preview.trim()
-          : undefined
+          : getSessionOrchestrationMeta(key, session.kind).title ?? undefined
     const titleStatus = deriveTitleStatus(
       label,
       explicitTitle,
