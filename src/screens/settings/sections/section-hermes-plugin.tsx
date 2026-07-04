@@ -333,7 +333,7 @@ export default function SectionHermesPlugin() {
               color: '#e05',
             }}
           >
-            Unable to reach /api/hermes-plugin — workspace route error. Try refreshing.
+            Unable to reach /api/hermes-plugin — workspace route error. Check dashboard auth/session state first, then refresh. If the dashboard was just upgraded, restart it so protected routes remount.
           </div>
         </div>
       </div>
@@ -364,7 +364,7 @@ export default function SectionHermesPlugin() {
           {/* Backend unreachable banner */}
           {!snap.backendReachable && (
             <div style={BANNER_STYLES.amber}>
-              Backend temporarily unreachable — retrying.
+              Backend temporarily unreachable — retrying. If this persists, re-authenticate to the dashboard proxy or restart the Hermes dashboard/plugin pair.
               {snap.status && (
                 <span style={{ marginLeft: 8, opacity: 0.75 }}>(Showing last-known data)</span>
               )}
@@ -384,7 +384,7 @@ export default function SectionHermesPlugin() {
               >
                 hermes-switch-ui
               </code>{' '}
-              in your active backend profile.
+              in your active backend profile. If it is already enabled, this session may still be missing dashboard auth for protected plugin routes.
             </div>
           ) : (
             /* Healthy / degraded reachable states */

@@ -67,6 +67,8 @@ export default function SectionMcpRegistered() {
               </span>
               {isLoading ? (
                 <span style={{ fontSize: '11px', color: 'var(--m-text-faint)', fontFamily: 'var(--m-font-mono)' }}>loading…</span>
+              ) : isError ? (
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: '#f0a000' }}>Unavailable — auth or dashboard restart may be required</span>
               ) : notDetected ? (
                 <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-text-faint)' }}>None installed</span>
               ) : (

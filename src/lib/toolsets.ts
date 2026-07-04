@@ -83,6 +83,19 @@ export function buildStaticToolsetCatalog(): NormalizedToolset[] {
   }))
 }
 
+export function getToolsetSecurityHint(key: string): string | null {
+  if (key === 'browser') {
+    return 'Approval-gated in hardened mode. Private/internal URLs stay blocked unless you explicitly allow them in Privacy settings.'
+  }
+  if (key === 'computer_use') {
+    return 'Approval-gated in hardened mode. Grants direct desktop control.'
+  }
+  if (key === 'terminal' || key === 'file' || key === 'code_execution') {
+    return 'Grants powerful system access — disable for read-only or review agents.'
+  }
+  return null
+}
+
 /**
  * Best-effort mapper from persona `suggested_toolsets` vocabulary to canonical keys.
  *
