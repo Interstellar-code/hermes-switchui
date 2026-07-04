@@ -51,6 +51,7 @@ import { useStreamingMessage } from './hooks/use-streaming-message'
 import { useActiveRunCheck } from './hooks/use-active-run-check'
 import { useActiveRunPoller } from './hooks/use-active-run-poller'
 import { useFocusMode } from './hooks/use-focus-mode'
+import { useActivityStream } from './hooks/use-activity-stream'
 import { invalidateSessionLists } from './sessions-feed'
 import { useToolDisplay } from './hooks/use-tool-display'
 import type {
@@ -411,9 +412,6 @@ export function ChatScreen({
   const chatMode = useChatMode()
   const isPortableMode = chatMode === 'portable'
   const portableChatFriendlyId = isPortableMode ? 'main' : activeFriendlyId
-  const [liveToolActivity, setLiveToolActivity] = useState<
-    Array<{ name: string; timestamp: number }>
-  >([])
   const lastAssistantSignature = useRef('')
   const retriedQueuedMessageKeysRef = useRef(new Set<string>())
   const hasSeenDisconnectRef = useRef(false)
@@ -601,6 +599,11 @@ export function ChatScreen({
     cancelStreamingRef,
   })
 
+  const { liveToolActivity } = useActivityStream({
+    waitingForResponseRef,
+    waitingForResponse,
+  })
+
   const activeQueueSessionKey = useMemo(() => {
     if (isPortableMode) return 'main'
     const activeSendSessionKey = activeSendRef.current?.sessionKey
@@ -718,45 +721,6 @@ export function ChatScreen({
     totalToolCount,
     totalSkillCount,
   } = useToolDisplay({ realtimeMessages, activeToolCalls })
-
-  // Keep activity stream open persistently — opens on mount so it's ready
-  // before the first tool call fires (avoids connection latency gap).
-  useEffect(() => {
-    const events = new EventSource('/api/events')
-    const onActivity = (event: MessageEvent) => {
-      // Only populate pills while waiting — but connection stays warm always
-      if (!waitingForResponseRef.current) return
-      try {
-        const payload = JSON.parse(event.data) as {
-          type?: unknown
-          title?: unknown
-        }
-        if (payload.type !== 'tool' || typeof payload.title !== 'string') {
-          return
-        }
-        const name = payload.title.replace(/^Tool activity:\s*/i, '').trim()
-        if (!name) return
-        setLiveToolActivity((prev) => {
-          const filtered = prev.filter((entry) => entry.name !== name)
-          return [{ name, timestamp: Date.now() }, ...filtered].slice(0, 5)
-        })
-      } catch {
-        // Ignore malformed activity events.
-      }
-    }
-    events.addEventListener('activity', onActivity)
-    return () => {
-      events.removeEventListener('activity', onActivity)
-      events.close()
-    }
-  }, []) // mount only — stays open for session lifetime
-
-  // Clear tool pills after response arrives (with brief delay so last pill is visible)
-  useEffect(() => {
-    if (waitingForResponse) return
-    const timer = window.setTimeout(() => setLiveToolActivity([]), 800)
-    return () => window.clearTimeout(timer)
-  }, [waitingForResponse])
 
   useEffect(() => {
     if (!waitingForResponse) return
