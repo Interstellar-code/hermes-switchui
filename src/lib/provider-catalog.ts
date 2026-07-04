@@ -97,6 +97,69 @@ export const PROVIDER_CATALOG: Array<ProviderInfo> = [
     ),
   },
   {
+    id: 'github-copilot',
+    name: 'GitHub Copilot',
+    description: 'Copilot chat/model access through your GitHub account token.',
+    authTypes: ['cli-token'],
+    docsUrl: 'https://github.com/features/copilot',
+    configExample: JSON.stringify(
+      {
+        auth: {
+          profiles: {
+            'github-copilot:default': {
+              provider: 'github-copilot',
+              token: 'ghu_your_token_here',
+            },
+          },
+        },
+      },
+      null,
+      2,
+    ),
+  },
+  {
+    id: 'mistral',
+    name: 'Mistral',
+    description: 'Mistral chat and coding models.',
+    authTypes: ['api-key'],
+    docsUrl: 'https://console.mistral.ai/api-keys/',
+    configExample: JSON.stringify(
+      {
+        auth: {
+          profiles: {
+            'mistral:default': {
+              provider: 'mistral',
+              apiKey: 'sk-your-key-here',
+            },
+          },
+        },
+      },
+      null,
+      2,
+    ),
+  },
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    description: 'DeepSeek reasoning and chat models.',
+    authTypes: ['api-key'],
+    docsUrl: 'https://platform.deepseek.com/api_keys',
+    configExample: JSON.stringify(
+      {
+        auth: {
+          profiles: {
+            'deepseek:default': {
+              provider: 'deepseek',
+              apiKey: 'sk-your-key-here',
+            },
+          },
+        },
+      },
+      null,
+      2,
+    ),
+  },
+  {
     id: 'minimax',
     name: 'MiniMax',
     description: 'MiniMax foundation models and multimodal APIs.',
@@ -109,6 +172,176 @@ export const PROVIDER_CATALOG: Array<ProviderInfo> = [
             'minimax:default': {
               provider: 'minimax',
               apiKey: 'sk-your-key-here',
+            },
+          },
+        },
+      },
+      null,
+      2,
+    ),
+  },
+  {
+    id: 'groq',
+    name: 'Groq',
+    description: 'Fast hosted inference for Llama, Mixtral, and more.',
+    authTypes: ['api-key'],
+    docsUrl: 'https://console.groq.com/keys',
+    configExample: JSON.stringify(
+      {
+        auth: {
+          profiles: {
+            'groq:default': {
+              provider: 'groq',
+              apiKey: 'gsk_your_key_here',
+            },
+          },
+        },
+      },
+      null,
+      2,
+    ),
+  },
+  {
+    id: 'xai',
+    name: 'xAI',
+    description: 'Grok models from xAI.',
+    authTypes: ['api-key'],
+    docsUrl: 'https://console.x.ai/',
+    configExample: JSON.stringify(
+      {
+        auth: {
+          profiles: {
+            'xai:default': {
+              provider: 'xai',
+              apiKey: 'xai-your-key-here',
+            },
+          },
+        },
+      },
+      null,
+      2,
+    ),
+  },
+  {
+    id: 'perplexity',
+    name: 'Perplexity',
+    description: 'Perplexity Sonar search-augmented models.',
+    authTypes: ['api-key'],
+    docsUrl: 'https://www.perplexity.ai/settings/api',
+    configExample: JSON.stringify(
+      {
+        auth: {
+          profiles: {
+            'perplexity:default': {
+              provider: 'perplexity',
+              apiKey: 'pplx-your-key-here',
+            },
+          },
+        },
+      },
+      null,
+      2,
+    ),
+  },
+  {
+    id: 'cohere',
+    name: 'Cohere',
+    description: 'Cohere Command models and embeddings.',
+    authTypes: ['api-key'],
+    docsUrl: 'https://dashboard.cohere.com/api-keys',
+    configExample: JSON.stringify(
+      {
+        auth: {
+          profiles: {
+            'cohere:default': {
+              provider: 'cohere',
+              apiKey: 'co-your-key-here',
+            },
+          },
+        },
+      },
+      null,
+      2,
+    ),
+  },
+  {
+    id: 'together',
+    name: 'Together AI',
+    description: 'Hosted open-weight models through Together.',
+    authTypes: ['api-key'],
+    docsUrl: 'https://api.together.ai/settings/api-keys',
+    configExample: JSON.stringify(
+      {
+        auth: {
+          profiles: {
+            'together:default': {
+              provider: 'together',
+              apiKey: 'your-key-here',
+            },
+          },
+        },
+      },
+      null,
+      2,
+    ),
+  },
+  {
+    id: 'fireworks',
+    name: 'Fireworks',
+    description: 'Hosted fast open models through Fireworks AI.',
+    authTypes: ['api-key'],
+    docsUrl: 'https://fireworks.ai/account/api-keys',
+    configExample: JSON.stringify(
+      {
+        auth: {
+          profiles: {
+            'fireworks:default': {
+              provider: 'fireworks',
+              apiKey: 'fw-your-key-here',
+            },
+          },
+        },
+      },
+      null,
+      2,
+    ),
+  },
+  {
+    id: 'openai-codex',
+    name: 'OpenAI Codex',
+    description: 'Codex-specific OpenAI routing surface used by Hermes.',
+    authTypes: ['cli-token'],
+    docsUrl: 'https://platform.openai.com/',
+    configExample: JSON.stringify(
+      {
+        auth: {
+          profiles: {
+            'openai-codex:default': {
+              provider: 'openai-codex',
+              token: 'sk-your-token-here',
+            },
+          },
+        },
+      },
+      null,
+      2,
+    ),
+  },
+  {
+    id: 'vertex',
+    name: 'Vertex AI',
+    description: 'Google Vertex AI hosted Gemini access.',
+    authTypes: ['oauth'],
+    docsUrl: 'https://cloud.google.com/vertex-ai',
+    configExample: JSON.stringify(
+      {
+        auth: {
+          profiles: {
+            'vertex:default': {
+              provider: 'vertex',
+              oauth: {
+                enabled: true,
+              },
             },
           },
         },
@@ -158,6 +391,8 @@ export const PROVIDER_CATALOG: Array<ProviderInfo> = [
     ),
   },
 ]
+
+export const CANONICAL_PROVIDER_IDS = PROVIDER_CATALOG.map((provider) => provider.id)
 
 export function normalizeProviderId(value: string): string {
   return value.trim().toLowerCase()

@@ -1,3 +1,4 @@
+import { CANONICAL_PROVIDER_IDS } from '@/lib/provider-catalog'
 import type { MissionArtifact } from '@/stores/mission-store'
 import type { HubTask } from './task-board'
 import {
@@ -255,22 +256,8 @@ Format rules:
 
 export const CUSTOM_PROVIDER_OPTION = '__custom__'
 export const KNOWN_GATEWAY_PROVIDERS = [
-  'openai',
-  'anthropic',
-  'google-antigravity',
-  'google',
-  'deepseek',
-  'minimax',
-  'openrouter',
-  'mistral',
-  'xai',
-  'groq',
-  'github-copilot',
-  'ollama',
-  'together',
-  'fireworks',
-  'perplexity',
-  'cohere',
+  ...CANONICAL_PROVIDER_IDS,
+  'google-antigravity', // legacy until #301 removes stale AG references
 ] as const
 
 export const TEMPLATE_DISPLAY_NAMES: Record<TeamTemplateId, string> = {
