@@ -3,6 +3,34 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.0] — 2026-07-04
+
+Major architecture release: 10 new hooks extracted from `chat-screen.tsx`, reducing it from 2,606 to **1,423 lines** (−45% this release, −59% from the #222 triage baseline of 3,431). The chat module now has **20 dedicated hooks** with **200+ unit tests** covering the entire send/receive/retry/redirect lifecycle. All extractions are pure moves — zero behavior changes.
+
+### Changed
+
+- **10 new hooks extracted from `chat-screen.tsx`** (all pure moves, no behavior change):
+  - `useActiveRunPoller` — 5s active-run completion poller + 3s live-progress display poller (6 tests)
+  - `useComposerSend` — composer onSubmit handler: dedup guard, queue routing, new-chat bootstrap, existing-session send (13 tests)
+  - `useActivityStream` — `/api/events` activity-pill EventSource + clear-on-response (6 tests)
+  - `useHistoryPolling` — visibility-change bounded poll loop + remount catch-up + chat-refresh listener (9 tests)
+  - `useSessionLifecycle` — session-change state reset + consume-pending-send recovery (8 tests)
+  - `useMessageRetry` — interrupted-session resend + queue drain effect (6 tests)
+  - `useDisplayMessages` — 152-line message display pipeline: filter → sort → dedup → strip wrappers → inject streaming placeholder (19 tests)
+  - `useSlashCommands` — all slash commands (`/new`, `/reset`, `/clear`, `/model`, `/skin`, `/skills`, `/save`, `/stop`, `/title`, `/reasoning`) + palette command event listeners (32 tests)
+  - `useErrorRedirect` — status query, error signal derivation, session redirect effects, auth-missing redirect (25 tests)
+  - `useRetryRecovery` — retry queued messages, flush retryable on disconnect/health-restored (5 tests)
+
+### Removed
+
+- **~300 lines of dead code** absorbed during extraction: `normalizeMessageValue` duplicates, `sanitizeExportToken`, `exportConversationTranscript`, `getMessageClientId`, `getRetryMessageKey`, `isRetryableQueuedMessage`, `getMessageRetryAttachments`, `stripQueuedWrapper` — moved to their consuming hooks or eliminated.
+
+### Internal
+
+- `chat-screen.tsx`: 3,431 → **1,423 lines** (−59% from #222 triage baseline).
+- 129 new unit tests this release; 200+ total across the chat hook suite.
+- TypeScript: zero new errors across all touched files. Test baseline unchanged (16 pre-existing failures in `apply-filters-and-decorate.test.ts` + `run-persistence.test.ts`).
+
 ## [2.4.0] — 2026-07-03
 
 Architecture release: the send-path cluster is fully extracted from `chat-screen.tsx` into a new `useSendMessageState` hook, and ~300 lines of dead SSE connection-state code is removed.
