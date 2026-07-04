@@ -16,6 +16,12 @@ import {
 } from '@/lib/hermes-kanban-types'
 import { COLUMN_COLORS, addLink, createTask, deleteTask, fetchAssignees, fetchHomeChannels, fetchTasks, hardDeleteTask, removeLink, subscribeHomeChannel, unsubscribeHomeChannel, updateTask } from '@/lib/tasks-api'
 import { unionAssigneesWithProfiles } from '@/lib/assignee-profile-union'
+import {
+  formatKanbanBlockReason,
+  HERMES_KANBAN_BLOCK_REASON_OPTIONS,
+  parseKanbanBlockReason,
+  type HermesKanbanBlockCode,
+} from '@/lib/kanban-block-state'
 import { cn } from '@/lib/utils'
 
 
@@ -467,7 +473,9 @@ function TaskOverviewTab({ task, detail }: { task: HermesKanbanTask; detail: Her
   const [body, setBody] = useState(td.body ?? '')
   const [status, setStatus] = useState<HermesKanbanStatus>(td.status)
   const [priority, setPriority] = useState<FormPriority>(numericToFormPriority(td.priority))
-  const [blockReason, setBlockReason] = useState(td.block_reason ?? '')
+  const parsedBlockReason = parseKanbanBlockReason(td.block_reason)
+  const [blockReasonCode, setBlockReasonCode] = useState<HermesKanbanBlockCode>(parsedBlockReason.code)
+  const [blockReason, setBlockReason] = useState(parsedBlockReason.detail)
   const [summary, setSummary] = useState(td.summary ?? '')
   const [workspaceKind, setWorkspaceKind] = useState(td.workspace_kind ?? '')
   const [workspacePath, setWorkspacePath] = useState(td.workspace_path ?? '')
@@ -502,7 +510,9 @@ function TaskOverviewTab({ task, detail }: { task: HermesKanbanTask; detail: Her
   useEffect(() => {
     setStatus(td.status)
     setAssignee(td.assignee ?? '')
-    setBlockReason(td.block_reason ?? '')
+    const parsed = parseKanbanBlockReason(td.block_reason)
+    setBlockReasonCode(parsed.code)
+    setBlockReason(parsed.detail)
     setSummary(td.summary ?? '')
     setWorkspaceKind(td.workspace_kind ?? '')
     setPriority(numericToFormPriority(td.priority))
@@ -529,12 +539,16 @@ function TaskOverviewTab({ task, detail }: { task: HermesKanbanTask; detail: Her
     .sort()
 
   const initialSkills = normaliseSkills(td.skills)
+  const formattedBlockReason =
+    status === 'blocked'
+      ? formatKanbanBlockReason(blockReasonCode, blockReason)
+      : null
   const isDirty =
     title !== td.title ||
     body !== (td.body ?? '') ||
     status !== td.status ||
     formPriorityToNumeric(priority) !== td.priority ||
-    blockReason !== (td.block_reason ?? '') ||
+    formattedBlockReason !== (td.block_reason ?? null) ||
     summary !== (td.summary ?? '') ||
     assignee !== (td.assignee ?? '') ||
     workspaceKind !== (td.workspace_kind ?? '') ||
@@ -557,7 +571,7 @@ function TaskOverviewTab({ task, detail }: { task: HermesKanbanTask; detail: Her
         status,
         priority: formPriorityToNumeric(priority),
         assignee: assignee || null,
-        block_reason: blockReason.trim() || null,
+        block_reason: formattedBlockReason,
         summary: summary.trim() || null,
         workspace_kind: workspaceKind || null,
         workspace_path: workspacePath.trim() || null,
@@ -582,8 +596,13 @@ function TaskOverviewTab({ task, detail }: { task: HermesKanbanTask; detail: Her
         spawn_failures: 0,
         last_spawn_error: null,
         ...(targetStatus === 'ready'
-          ? { claim_lock: null, worker_pid: null }
-          : { block_reason: td.last_spawn_error ?? 'Spawn failure: profile not found' }),
+          ? { claim_lock: null, worker_pid: null, block_reason: null }
+          : {
+              block_reason: formatKanbanBlockReason(
+                'agent',
+                td.last_spawn_error ?? 'Spawn failure: profile not found',
+              ),
+            }),
       })
       await queryClient.invalidateQueries({ queryKey: ['hermes-kanban', 'task', task.id] })
       await queryClient.invalidateQueries({ queryKey: ['claude', 'tasks'] })
@@ -689,11 +708,31 @@ function TaskOverviewTab({ task, detail }: { task: HermesKanbanTask; detail: Her
 
       {/* Block reason — conditional */}
       {status === 'blocked' && (
-        <div>
-          <label className={labelClass}>Block reason</label>
-          <input className={inputClass} value={blockReason}
-            onChange={e => setBlockReason(e.target.value)}
-            placeholder="Why is this task blocked?" />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelClass}>Block type</label>
+            <select
+              className={inputClass}
+              style={{ colorScheme: 'dark' }}
+              value={blockReasonCode}
+              onChange={e => setBlockReasonCode(e.target.value as HermesKanbanBlockCode)}
+            >
+              {HERMES_KANBAN_BLOCK_REASON_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            {parsedBlockReason.legacy && (
+              <p className="mt-1 text-[10px] text-[var(--theme-muted)]">
+                Legacy free-text reason preserved under Other / legacy.
+              </p>
+            )}
+          </div>
+          <div>
+            <label className={labelClass}>Block reason</label>
+            <input className={inputClass} value={blockReason}
+              onChange={e => setBlockReason(e.target.value)}
+              placeholder="Why is this task blocked?" />
+          </div>
         </div>
       )}
 
@@ -1358,4 +1397,3 @@ function LogTab({ query }: { query: ReturnType<typeof useQuery> }) {
     </div>
   )
 }
-
