@@ -30,7 +30,7 @@ function detectProvider(model: string): string {
     m.includes('o3')
   )
     return 'openai'
-  if (m.includes('google') || m.includes('gemini') || m.includes('antigravity'))
+  if (m.includes('google') || m.includes('gemini'))
     return 'google'
   if (m.includes('minimax')) return 'minimax'
   if (m.includes('mistral') || m.includes('devstral')) return 'mistral'

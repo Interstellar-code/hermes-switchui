@@ -769,7 +769,6 @@ function shortenModelName(raw: string): string {
     'openrouter/',
     'anthropic/',
     'openai/',
-    'google-antigravity/',
     'minimax/',
     'moonshot/',
   ]
