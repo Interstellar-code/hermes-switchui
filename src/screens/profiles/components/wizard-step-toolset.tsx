@@ -3,6 +3,7 @@ import {
   PLUGINS_GROUP,
   TOOLSET_GROUPS,
   buildStaticToolsetCatalog,
+  getToolsetSecurityHint,
   type NormalizedToolset,
 } from '@/lib/toolsets'
 import type { NewAgentDraft } from '../types'
@@ -115,10 +116,12 @@ export function WizardStepToolset({ draft, errors, onChange }: Props) {
             <div className="skill-grid">
               {groupToolsets.map(({ key, label, destructive, plugin }) => {
                 const enabled = !disabledSet.has(key)
+                const securityHint = getToolsetSecurityHint(key)
                 return (
                   <div
                     key={key}
                     className={`skill${enabled ? ' on' : ''}${destructive ? ' skill-destructive' : ''}`}
+                    title={securityHint ?? undefined}
                     onClick={() => toggle(key)}
                     role="checkbox"
                     aria-checked={enabled}
@@ -133,7 +136,7 @@ export function WizardStepToolset({ draft, errors, onChange }: Props) {
                       </span>
                     )}
                     {destructive && (
-                      <span className="wiz-toolset-warn-pill" title="Grants powerful system access — disable for read-only or review agents">
+                      <span className="wiz-toolset-warn-pill" title={securityHint ?? 'Grants powerful system access — disable for read-only or review agents'}>
                         ⚠
                       </span>
                     )}

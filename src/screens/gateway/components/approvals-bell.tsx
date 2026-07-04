@@ -150,7 +150,7 @@ export function ApprovalsBell({ approvals, onApprove, onDeny }: ApprovalsBellPro
               <div className="flex flex-col items-center justify-center py-10 text-center">
                 <span className="mb-2 text-2xl">🛡️</span>
                 <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">All clear</p>
-                <p className="mt-0.5 text-xs text-neutral-400 dark:text-neutral-500">No pending approvals</p>
+                <p className="mt-0.5 text-xs text-neutral-400 dark:text-neutral-500">No pending approvals — approval-gated actions will pause here when review is required.</p>
               </div>
             ) : (
               latestThree.map((approval) => {
@@ -170,6 +170,9 @@ export function ApprovalsBell({ approvals, onApprove, onDeny }: ApprovalsBellPro
                       <span className="shrink-0 text-[10px] text-neutral-400">{timeAgo(approval.requestedAt)}</span>
                     </div>
                     <p className="mt-1 line-clamp-2 text-[11px] text-neutral-700 dark:text-neutral-300">{approval.action}</p>
+                    <p className="mt-1 text-[10px] text-neutral-400 dark:text-neutral-500">
+                      This action is blocked until you explicitly approve or deny it.
+                    </p>
                     <div className="mt-2 flex items-center gap-1.5">
                       <button
                         type="button"

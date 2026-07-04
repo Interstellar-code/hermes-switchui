@@ -56,7 +56,7 @@ export default function SectionPrivacy() {
         <SettingRow
           label="Allow private / internal URLs"
           pill={{ t: 'danger' }}
-          desc="Permit requests to RFC-1918 addresses (OpenWrt, proxies, VPNs)"
+          desc="Disabled by default. Browser/web tools will reject RFC-1918 and internal targets until you explicitly allow them here."
         >
           <Toggle on={allowPrivateUrls} set={(v) => set('config.security.allow_private_urls', v)} />
         </SettingRow>
