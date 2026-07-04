@@ -29,6 +29,7 @@ import {
 import '@/styles/matrix-boards.css'
 import { useTemplatesViewStore, usePageSize } from '@/stores/templates-screen-store'
 import { useTemplateTaskCounts } from '@/lib/board-templates-api'
+import { summarizeTemplateSchedule } from '@/lib/kanban-template-schedule'
 import { TemplateCard } from './components/template-card'
 import { TemplatesPager } from './components/templates-pager'
 
@@ -574,6 +575,17 @@ function TemplateRow({
   onInstantiate: (template: KanbanTemplateSummary) => void
   onDelete: (template: KanbanTemplateSummary) => void
 }) {
+  const templateQuery = useTemplate(template.slug, true)
+  const scheduleSummary = templateQuery.data
+    ? summarizeTemplateSchedule(templateQuery.data)
+    : null
+  const recurrenceText =
+    scheduleSummary?.recurrenceLabel ?? (template.has_recurrence ? 'Recurring' : null)
+  const scheduleText =
+    scheduleSummary?.scheduledTaskCount && scheduleSummary.scheduledTaskCount > 0
+      ? `${scheduleSummary.scheduledTaskCount} scheduled${recurrenceText ? ` · ${recurrenceText}` : ''}`
+      : recurrenceText ?? '—'
+
   return (
     <tr onClick={() => onOpen(template.slug)} style={{ ['--bc' as string]: template.color || '#5ad3ff' }}>
       <td>
@@ -587,16 +599,7 @@ function TemplateRow({
       </td>
       <td>{taskCount ?? '—'}</td>
       <td>{template.variables.length}</td>
-      <td>
-        {template.has_recurrence ? (
-          <span className="status-pill active">
-            <span className="d" />
-            recurring
-          </span>
-        ) : (
-          <span className="tbl-time">—</span>
-        )}
-      </td>
+      <td>{scheduleText}</td>
       <td onClick={(e) => e.stopPropagation()}>
         <div className="tbl-acts">
           <button className="btn-mini" onClick={() => onInstantiate(template)}>
@@ -1931,7 +1934,7 @@ export function BoardTemplatesScreen() {
                       <th>Name</th>
                       <th>Tasks</th>
                       <th>Variables</th>
-                      <th>Recurrence</th>
+                      <th>Schedule</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
