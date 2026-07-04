@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getSessionKindBadgeLabel, getSessionOrchestrationMeta } from '@/lib/session-orchestration'
 import { cn } from '@/lib/utils'
 import type { AgentWorkingRow, AgentWorkingStatus } from './agents-working-panel'
 import type { ModelPresetId } from './team-panel'
@@ -348,14 +349,8 @@ function formatRuntime(startedAt: number, tokenCount?: number): string {
   return `${time} · ${tokens}t`
 }
 
-function kindLabel(kind: string): string {
-  if (kind === 'subagent' || kind === 'sub-agent') return 'Sub-Agent'
-  if (kind === 'main') return 'Main'
-  if (kind === 'chat') return 'Chat'
-  return kind.charAt(0).toUpperCase() + kind.slice(1)
-}
-
 function RemoteSessionCard({ session, onClick }: { session: RemoteSession; onClick: () => void }) {
+  const orchestrationMeta = getSessionOrchestrationMeta(session.sessionKey, session.kind)
   const statusColor = session.status === 'active'
     ? 'bg-emerald-400 animate-pulse'
     : session.status === 'done'
@@ -403,9 +398,14 @@ function RemoteSessionCard({ session, onClick }: { session: RemoteSession; onCli
           {lastMessageSnippet}
         </span>
       ) : null}
+      {orchestrationMeta.detail ? (
+        <span className="w-full text-[10px] leading-relaxed text-neutral-400 dark:text-neutral-500">
+          {orchestrationMeta.detail}
+        </span>
+      ) : null}
       <div className="flex items-center gap-1.5 flex-wrap justify-center">
         <span className={cn('rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest', badgeColorClass)}>
-          {kindLabel(session.kind)}
+          {getSessionKindBadgeLabel(session.kind)}
         </span>
         {session.startedAt ? (
           <span className="text-xs text-neutral-400 tabular-nums">
