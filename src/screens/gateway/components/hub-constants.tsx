@@ -255,10 +255,7 @@ Format rules:
 ]
 
 export const CUSTOM_PROVIDER_OPTION = '__custom__'
-export const KNOWN_GATEWAY_PROVIDERS = [
-  ...CANONICAL_PROVIDER_IDS,
-  'google-antigravity', // legacy until #301 removes stale AG references
-] as const
+export const KNOWN_GATEWAY_PROVIDERS = [...CANONICAL_PROVIDER_IDS] as const
 
 export const TEMPLATE_DISPLAY_NAMES: Record<TeamTemplateId, string> = {
   research: 'Research Team',
