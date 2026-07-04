@@ -15,10 +15,8 @@ import {
   readError,
   textFromMessage,
 } from './utils'
-import { resolveNewChatBootstrapSession } from './new-chat-bootstrap'
 import {
   advanceStickyStreamingText,
-  createOptimisticMessage,
   readMessageText,
   scrollChatToBottom as scrollChatToBottomImpl,
 } from './chat-screen-utils'
@@ -71,6 +69,7 @@ import { useRenameSession } from './hooks/use-rename-session'
 import { useContextAlert } from './hooks/use-context-alert'
 import { usePendingApprovals } from './hooks/use-pending-approvals'
 import { useSendMessageState } from './hooks/use-send-message-state'
+import { useComposerSend } from './hooks/use-composer-send'
 import {
   CHAT_OPEN_SETTINGS_EVENT,
   CHAT_PENDING_COMMAND_STORAGE_KEY,
@@ -79,7 +78,6 @@ import {
 import { stripQueuedWrapper } from '@/lib/strip-queued-wrapper'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toast'
-import { hapticTap } from '@/lib/haptics'
 import { FileExplorerSidebar } from '@/components/file-explorer'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { TerminalPanel } from '@/components/terminal-panel'
@@ -1923,157 +1921,33 @@ export function ChatScreen({
     [enabledUserCommands],
   )
 
-  const send = useCallback(
-    async (
-      body: string,
-      attachments: Array<ChatComposerAttachment>,
-      fastMode: boolean,
-      helpers: ChatComposerHelpers,
-    ) => {
-      const trimmedBody = body.trim()
-      if (trimmedBody.length === 0 && attachments.length === 0) return
-      if (attachments.length === 0 && handleUiSlashCommand(trimmedBody)) return
-      const messageBody = expandCustomSlashCommand(trimmedBody) ?? trimmedBody
-
-      // Deduplicate sends with identical content within a 500ms window.
-      // This prevents double-fire from paste events that trigger multiple send paths.
-      const sendKey = `${messageBody}|${attachments.map((a) => `${a.name}:${a.size}`).join(',')}`
-      const now = Date.now()
-      if (
-        sendKey === lastSendKeyRef.current &&
-        now - lastSendAtRef.current < 500
-      )
-        return
-      lastSendKeyRef.current = sendKey
-      lastSendAtRef.current = now
-
-      const queueSessionKeyForSend =
-        activeQueueSessionKey ||
-        activeSendRef.current?.sessionKey ||
-        lastQueueSessionKeyRef.current ||
-        (isPortableMode
-          ? 'main'
-          : forcedSessionKey ||
-            resolvedSessionKey ||
-            activeSessionKey ||
-            activeCanonicalKey ||
-            activeFriendlyId)
-      const shouldQueueInsteadOfSend =
-        Boolean(queueSessionKeyForSend) &&
-        (isComposerLoadingRef.current ||
-          Boolean(activeSendRef.current) ||
-          hasPendingGeneration() ||
-          (queueSessionKeyForSend
-            ? useChatStore.getState().isSessionWaiting(queueSessionKeyForSend)
-            : false))
-
-      if (shouldQueueInsteadOfSend && queueSessionKeyForSend) {
-        useChatStore.getState().enqueue(queueSessionKeyForSend, {
-          id: crypto.randomUUID(),
-          text: messageBody,
-          attachments: attachments.map((attachment) => ({ ...attachment })),
-        })
-        helpers.reset()
-        return
-      }
-
-      // Haptic feedback on mobile when message is sent
-      if (isMobile) hapticTap()
-
-      helpers.reset()
-
-      // Scroll to bottom immediately so user sees their message + incoming response
-      requestAnimationFrame(() => scrollChatToBottom('smooth'))
-
-      const attachmentPayload: Array<ChatAttachment> = attachments.map(
-        (attachment) => ({
-          ...attachment,
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
-          id: attachment.id ?? crypto.randomUUID(),
-        }),
-      )
-
-      if (isNewChat) {
-        // Create/resolve the concrete session before first send. The old flow
-        // generated a UUID, fired createSession() in the background, and then
-        // immediately streamed against the UUID. If registration lagged or the
-        // backend returned a different persisted id, the first send hit
-        // /api/sessions/<uuid>/chat/stream with a session that never existed.
-        const { sessionKey: threadId, friendlyId: routeFriendlyId } =
-          await resolveNewChatBootstrapSession({
-            createSessionForMessage,
-            generateThreadId: () => crypto.randomUUID(),
-            isPortableMode,
-          })
-        const { optimisticMessage } = createOptimisticMessage(
-          messageBody,
-          attachmentPayload,
-        )
-        appendHistoryMessage(
-          queryClient,
-          routeFriendlyId,
-          threadId,
-          optimisticMessage,
-        )
-        upsertSessionInCache(routeFriendlyId, optimisticMessage)
-        setPendingGeneration(true)
-        setSending(true)
-        setWaitingForResponse(true)
-
-        sendMessage(
-          threadId,
-          routeFriendlyId,
-          messageBody,
-          attachmentPayload,
-          fastMode,
-          true,
-          typeof optimisticMessage.clientId === 'string'
-            ? optimisticMessage.clientId
-            : '',
-        )
-        // In portable mode, navigate to /chat/main instead of a transient UUID.
-        if (!embedded) {
-          navigate({
-            to: '/chat/$sessionKey',
-            params: { sessionKey: routeFriendlyId },
-            replace: true,
-          })
-        }
-        return
-      }
-
-      const sessionKeyForSend = isPortableMode
-        ? 'main'
-        : forcedSessionKey || resolvedSessionKey || activeSessionKey || 'main'
-      sendMessage(
-        sessionKeyForSend,
-        isPortableMode ? 'main' : activeFriendlyId,
-        messageBody,
-        attachmentPayload,
-        fastMode,
-      )
-    },
-    [
-      activeFriendlyId,
-      activeSessionKey,
-      activeCanonicalKey,
-      activeQueueSessionKey,
-      createSessionForMessage,
-      forcedSessionKey,
-      isComposerLoadingRef,
-      isNewChat,
-      isPortableMode,
-      navigate,
-      onSessionResolvedProp,
-      scrollChatToBottom,
-      sendMessage,
-      upsertSessionInCache,
-      queryClient,
-      resolvedSessionKey,
-      handleUiSlashCommand,
-      expandCustomSlashCommand,
-    ],
-  )
+  const { send } = useComposerSend({
+    activeFriendlyId,
+    activeSessionKey,
+    activeCanonicalKey,
+    activeQueueSessionKey,
+    forcedSessionKey,
+    resolvedSessionKey,
+    isNewChat,
+    isPortableMode,
+    embedded,
+    queryClient,
+    lastSendKeyRef,
+    lastSendAtRef,
+    lastQueueSessionKeyRef,
+    activeSendRef,
+    isComposerLoadingRef,
+    sendMessage,
+    handleUiSlashCommand,
+    expandCustomSlashCommand,
+    scrollChatToBottom,
+    createSessionForMessage,
+    upsertSessionInCache,
+    navigate,
+    setSending,
+    setWaitingForResponse,
+    isMobile,
+  })
 
   // Phase 1.2: interrupted affordance handlers. Placed AFTER `send` so
   // the closure can capture it without a temporal-dead-zone error.
