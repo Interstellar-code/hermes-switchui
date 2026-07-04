@@ -11,6 +11,7 @@ import {
 import { useSessionStatus } from '@/hooks/use-session-status'
 import { useContextUsageStore } from '@/stores/context-usage-store'
 import { fetchSessions } from '@/screens/chat/chat-queries'
+import { buildCompactionNotice } from './streaming-lifecycle-ui'
 
 type ModelCatalogEntry = {
   id?: string
@@ -95,6 +96,15 @@ function ContextBarComponent({
   // Updates instantly during a turn; the 15s status poll only refreshes between.
   const liveContextPercent = useContextUsageStore((s) =>
     s.sessionKey === sessionId ? s.contextPercent : 0,
+  )
+  const compactionCount = useContextUsageStore((s) =>
+    s.sessionKey === sessionId ? s.compactionCount : 0,
+  )
+  const messagesBefore = useContextUsageStore((s) =>
+    s.sessionKey === sessionId ? s.messagesBefore : null,
+  )
+  const messagesAfter = useContextUsageStore((s) =>
+    s.sessionKey === sessionId ? s.messagesAfter : null,
   )
   const sessionsQuery = useQuery({
     queryKey: ['chat', 'sessions', 'raw'],
@@ -235,6 +245,11 @@ function ContextBarComponent({
   const circumference = 61.261056745
   const dashOffset = circumference * (1 - clampedPct / 100)
   const compactLabel = Math.round(clampedPct)
+  const compactionNotice = buildCompactionNotice({
+    compactionCount,
+    messagesBefore,
+    messagesAfter,
+  })
 
   if (compact) {
     return (
@@ -320,6 +335,9 @@ function ContextBarComponent({
               <p className="text-[11px] font-medium text-red-600">
                 Context almost full — consider starting a new chat
               </p>
+            ) : null}
+            {compactionNotice ? (
+              <p className="text-[11px] text-primary-500">{compactionNotice}</p>
             ) : null}
           </div>
         </PreviewCardPopup>
@@ -425,6 +443,9 @@ function ContextBarComponent({
             <p className="text-[10px] text-red-600 font-medium">
               Context almost full — consider starting a new chat
             </p>
+          )}
+          {compactionNotice && (
+            <p className="text-[10px] text-primary-500">{compactionNotice}</p>
           )}
         </div>
       </PreviewCardPopup>
