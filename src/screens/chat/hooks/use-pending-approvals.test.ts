@@ -3,12 +3,12 @@ import { act } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from '@testing-library/react'
 
+import { usePendingApprovals } from './use-pending-approvals'
+import type { ApprovalRequest } from '@/screens/gateway/lib/approvals-store'
 import {
   addApproval,
   loadApprovals,
 } from '@/screens/gateway/lib/approvals-store'
-import type { ApprovalRequest } from '@/screens/gateway/lib/approvals-store'
-import { usePendingApprovals } from './use-pending-approvals'
 
 // Helpers for building stub ref objects
 function makeRef<T>(initial: T): { current: T } {
