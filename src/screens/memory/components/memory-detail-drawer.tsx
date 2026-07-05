@@ -306,7 +306,6 @@ function DrawerBody({ item, tab, onClose, onDeleted }: {
                 Edit
               </button>
             </div>
-            {/* eslint-disable-next-line react/no-danger */}
             <div className="mdd-body-preview" dangerouslySetInnerHTML={{ __html: renderMarkdown(rawContent) }} />
           </>
         ) : (
