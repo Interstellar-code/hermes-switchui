@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
+import { verbForTool } from '../chat-screen-utils'
+import { isRecoverableActiveRun } from './use-active-run-check'
 import type { RefObject } from 'react'
 
-import { isRecoverableActiveRun } from './use-active-run-check'
-import { verbForTool } from '../chat-screen-utils'
 import type { ActiveSendRecord } from './use-send-message-state'
 
 /**
