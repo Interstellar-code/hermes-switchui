@@ -37,11 +37,12 @@ import type { TaskDialogSubmit } from './task-dialog'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { BulkResponse, HermesKanbanStatus } from '@/lib/hermes-kanban-types'
 import type { ClaudeTask, TaskAssignee, TaskColumn } from '@/lib/tasks-api'
+import type {HermesKanbanBlockCode} from '@/lib/kanban-block-state';
 import { HERMES_KANBAN_VISIBLE_STATUS_ORDER } from '@/lib/hermes-kanban-types'
 import {
-  formatKanbanBlockReason,
   HERMES_KANBAN_BLOCK_REASON_OPTIONS,
-  type HermesKanbanBlockCode,
+  
+  formatKanbanBlockReason
 } from '@/lib/kanban-block-state'
 import {
   COLUMN_COLORS,

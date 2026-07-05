@@ -8,6 +8,7 @@ import { TaskDialog } from './task-dialog'
 import type { TaskDialogSubmit } from './task-dialog'
 import type { HermesKanbanStatus, HermesKanbanTask, HermesKanbanTaskDetail } from '@/lib/hermes-kanban-types'
 import type { HomeChannel } from '@/lib/tasks-api'
+import type {HermesKanbanBlockCode} from '@/lib/kanban-block-state';
 import {
   HERMES_KANBAN_STATUS_LABELS,
   HERMES_KANBAN_VISIBLE_STATUS_ORDER,
@@ -17,10 +18,10 @@ import {
 import { COLUMN_COLORS, addLink, createTask, deleteTask, fetchAssignees, fetchHomeChannels, fetchTasks, hardDeleteTask, removeLink, subscribeHomeChannel, unsubscribeHomeChannel, updateTask } from '@/lib/tasks-api'
 import { unionAssigneesWithProfiles } from '@/lib/assignee-profile-union'
 import {
-  formatKanbanBlockReason,
   HERMES_KANBAN_BLOCK_REASON_OPTIONS,
-  parseKanbanBlockReason,
-  type HermesKanbanBlockCode,
+  
+  formatKanbanBlockReason,
+  parseKanbanBlockReason
 } from '@/lib/kanban-block-state'
 import { formatHomeChannelLabel } from '@/lib/messaging-channel-label'
 import { cn } from '@/lib/utils'
