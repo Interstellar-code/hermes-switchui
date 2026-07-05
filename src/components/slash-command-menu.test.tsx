@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest'
 
 import {
   DEFAULT_SLASH_COMMANDS,
-  slashCommandMatches,
-  type SlashCommandDefinition,
+  
+  slashCommandMatches
 } from './slash-command-menu'
+import type {SlashCommandDefinition} from './slash-command-menu';
 
 describe('DEFAULT_SLASH_COMMANDS', () => {
   it('includes /plugins in the slash autocomplete list', () => {
