@@ -14,7 +14,7 @@ import { getEngine } from '../../server/workflow-engine/factory'
 export const Route = createFileRoute('/api/workflow-events')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return new Response(
             JSON.stringify({ ok: false, error: 'Unauthorized' }),
@@ -61,7 +61,7 @@ export const Route = createFileRoute('/api/workflow-events')({
               }
               sendEvent('connected', { runId })
               for await (const evt of engine.subscribeEvents(runId)) {
-                if (streamClosed) break
+                if (request.signal.aborted) break
                 sendEvent(evt.event_type, evt)
               }
             } catch (err) {
