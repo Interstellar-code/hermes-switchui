@@ -40,7 +40,7 @@ export default function SectionProvider() {
   const currentModel = committedModel ?? info?.model ?? ''
 
   const providerList = options?.providers ?? []
-  const modelsForProvider: string[] =
+  const modelsForProvider: Array<string> =
     providerList.find((p) => p.slug === currentProvider)?.models ?? []
 
   const caps = info?.capabilities as Record<string, unknown> | undefined
