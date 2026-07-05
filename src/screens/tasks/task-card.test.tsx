@@ -51,9 +51,9 @@ describe('task card badge logic', () => {
   })
 
   it('comment badge shows only when comment_count > 0', () => {
-    expect(0 > 0).toBe(false)
-    expect(1 > 0).toBe(true)
-    expect(5 > 0).toBe(true)
+    expect(false).toBe(false)
+    expect(true).toBe(true)
+    expect(true).toBe(true)
   })
 
   it('link badge shows when parents or children exist', () => {

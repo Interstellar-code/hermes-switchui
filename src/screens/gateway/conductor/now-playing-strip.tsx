@@ -27,17 +27,18 @@ export function NowPlayingStrip() {
   const focusedMissionId = useConductorUIStore((s) => s.focusedMissionId)
 
   // Prefer focused mission; fall back to first 'live'; else first overall.
-  const mission =
+  const liveMission =
     missions.find((m) => m.id === focusedMissionId) ??
-    missions.find((m) => m.status === 'live') ??
-    missions[0]
+    missions.find((m) => m.status === 'live')
+
+  if (!liveMission) {
 
   // current_phase isn't on the Mission projection; parse from subtitle
   // (format: '<workflow_id> · <current_phase>')
   const currentPhase =
-    mission?.subtitle?.split('·').map((s) => s.trim()).pop() ?? undefined
+    liveMission.subtitle.split('·').map((s) => s.trim()).pop()
 
-  if (!mission) {
+  const mission = liveMission
     return (
       <div className="now">
         <div className="stamp">
