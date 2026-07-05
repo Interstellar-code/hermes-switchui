@@ -424,9 +424,9 @@ export async function dashboardAuthHeaders(options?: {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-function withDashboardBase(path: string): string {
-  if (/^https?:\/\//i.test(path)) return path
-  return `${CLAUDE_DASHBOARD_URL}${path.startsWith('/') ? path : `/${path}`}`
+function withDashboardBase(requestPath: string): string {
+  if (/^https?:\/\//i.test(requestPath)) return requestPath
+  return `${CLAUDE_DASHBOARD_URL}${requestPath.startsWith('/') ? requestPath : `/${requestPath}`}`
 }
 
 function dashboardUnavailableResponse(): Response {
@@ -445,23 +445,23 @@ function dashboardUnavailableResponse(): Response {
 }
 
 export async function dashboardFetch(
-  path: string,
+  requestPath: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const requestPath = withDashboardBase(path)
+  const dashboardPath = withDashboardBase(requestPath)
   const method = (init.method || 'GET').toUpperCase()
   const doFetch = async (forceToken = false) => {
     try {
       const headers = new Headers(init.headers)
       const isProtected =
-        requestPath.includes('/api/') &&
-        !requestPath.endsWith('/api/status') &&
-        !requestPath.endsWith('/api/config/defaults') &&
-        !requestPath.endsWith('/api/config/schema') &&
-        !requestPath.endsWith('/api/model/info') &&
-        !requestPath.endsWith('/api/dashboard/themes') &&
-        !requestPath.endsWith('/api/dashboard/plugins') &&
-        !requestPath.endsWith('/api/dashboard/plugins/rescan')
+        dashboardPath.includes('/api/') &&
+        !dashboardPath.endsWith('/api/status') &&
+        !dashboardPath.endsWith('/api/config/defaults') &&
+        !dashboardPath.endsWith('/api/config/schema') &&
+        !dashboardPath.endsWith('/api/model/info') &&
+        !dashboardPath.endsWith('/api/dashboard/themes') &&
+        !dashboardPath.endsWith('/api/dashboard/plugins') &&
+        !dashboardPath.endsWith('/api/dashboard/plugins/rescan')
 
       if (isProtected && !headers.has('Authorization')) {
         const auth = await dashboardAuthHeaders({ force: forceToken })
@@ -470,7 +470,7 @@ export async function dashboardFetch(
         }
       }
 
-      return await fetch(requestPath, {
+      return await fetch(dashboardPath, {
         ...init,
         method,
         headers,
@@ -495,12 +495,12 @@ export async function dashboardFetch(
  * `/health/detailed`.
  */
 export async function gatewayFetch(
-  path: string,
+  requestPath: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const url = /^https?:\/\//i.test(path)
-    ? path
-    : `${CLAUDE_API}${path.startsWith('/') ? path : `/${path}`}`
+  const url = /^https?:\/\//i.test(requestPath)
+    ? requestPath
+    : `${CLAUDE_API}${requestPath.startsWith('/') ? requestPath : `/${requestPath}`}`
   const headers = new Headers(init.headers)
   for (const [k, v] of Object.entries(authHeaders())) {
     if (!headers.has(k)) headers.set(k, v)
@@ -510,9 +510,9 @@ export async function gatewayFetch(
 
 // ── Probing ───────────────────────────────────────────────────────
 
-async function probe(path: string): Promise<boolean> {
+async function probe(requestPath: string): Promise<boolean> {
   try {
-    const res = await fetch(`${CLAUDE_API}${path}`, {
+    const res = await fetch(`${CLAUDE_API}${requestPath}`, {
       headers: authHeaders(),
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     })
