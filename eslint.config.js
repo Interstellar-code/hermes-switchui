@@ -5,7 +5,15 @@ import { tanstackConfig } from '@tanstack/eslint-config'
 export default [
   ...tanstackConfig,
   {
-    ignores: ['eslint.config.js', 'prettier.config.js', 'vite.config.ts'],
+    ignores: [
+      'eslint.config.js',
+      'prettier.config.js',
+      'vite.config.ts',
+      'electron/server-bundle.cjs',
+      'website/.astro/**',
+      'website/dist/**',
+      'website/public/vendor/**',
+    ],
   },
   {
     // Block client-side imports of server-only MCP input types.
