@@ -22,10 +22,10 @@ import {
   ScrollAreaViewport,
 } from '@/components/ui/scroll-area'
 import {
+  Dialog,
   DialogClose,
   DialogContent,
   DialogDescription,
-  Dialog,
   DialogTitle,
 } from '@/components/shadcn/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -202,8 +202,8 @@ export function FileExplorerSidebar({
       // Best-effort preview if it looks like a file (has extension)
       if (/\.[A-Za-z0-9]+$/.test(target)) setPreviewPath(target)
     }
-    window.addEventListener('hermes:open-file', onOpen as EventListener)
-    return () => window.removeEventListener('hermes:open-file', onOpen as EventListener)
+    window.addEventListener('hermes:open-file', onOpen)
+    return () => window.removeEventListener('hermes:open-file', onOpen)
   }, [])
 
   const openPrompt = useCallback((state: PromptState) => {
