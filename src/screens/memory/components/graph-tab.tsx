@@ -15,7 +15,7 @@
  *  5. 1-hop / 2-hop / all toggle
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { create } from 'zustand'
 import type { KnowledgeGraph } from '@/server/knowledge-browser'
@@ -824,7 +824,7 @@ export function GraphTab() {
       {graph.nodes.length > 0 && !useFallback && selectedId && (
         <div className="graph-hop-toggle">
           <span className="graph-hop-label">Show:</span>
-          {(['1', '2', 'all'] as HopMode[]).map((m) => (
+          {(['1', '2', 'all'] as Array<HopMode>).map((m) => (
             <button
               key={m}
               type="button"
