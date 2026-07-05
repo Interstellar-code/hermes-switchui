@@ -198,7 +198,7 @@ export function SettingsScreen() {
     const result = await refetchConfig()
     await queryClient.invalidateQueries({ queryKey: ['config', 'raw'] })
     if (result.data) {
-      const flat = flattenConfig(result.data as Record<string, unknown>)
+      const flat = flattenConfig(result.data)
       useSettingsStore.getState().load(flat)
       toast('Page settings refreshed', { type: 'success' })
     } else {
@@ -209,7 +209,7 @@ export function SettingsScreen() {
   useEffect(() => {
     if (!serverConfig || seedOnceRef.current || loaded) return
     seedOnceRef.current = true
-    const flat = flattenConfig(serverConfig as Record<string, unknown>)
+    const flat = flattenConfig(serverConfig)
     useSettingsStore.getState().load(flat)
   }, [serverConfig, loaded])
 
@@ -252,7 +252,7 @@ export function SettingsScreen() {
       reader.onload = () => {
         try {
           const text = String(reader.result ?? '')
-          const parsed = JSON.parse(text) as Record<string, unknown>
+          const parsed: unknown = JSON.parse(text)
           if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
             throw new Error('Expected a JSON object')
           }
