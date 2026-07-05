@@ -1,9 +1,9 @@
 import type { FurnitureItem } from '@/features/retro-office/core/types'
 
 export type OfficeLayoutSnapshot = {
-  furniture?: FurnitureItem[]
+  furniture?: Array<FurnitureItem>
   width?: number
   height?: number
-  agents?: unknown[]
+  agents?: Array<unknown>
   [key: string]: unknown
 }
