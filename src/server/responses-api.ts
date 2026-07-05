@@ -148,7 +148,7 @@ export async function* streamResponses(
   // events that only carry the item, not the call_id.
   const itemIdToCallId = new Map<string, string>()
 
-  while (true) {
+  for (;;) {
     const { done, value } = await reader.read()
     if (done) break
     buffer += decoder.decode(value, { stream: true })
@@ -176,7 +176,7 @@ export async function* streamResponses(
           continue
         }
         const eventType =
-          typeof parsed.type === 'string' ? (parsed.type as string) : ''
+          typeof parsed.type === 'string' ? parsed.type : ''
 
         if (eventType === 'response.output_text.delta') {
           const delta = typeof parsed.delta === 'string' ? parsed.delta : ''
@@ -243,7 +243,7 @@ export async function* streamResponses(
         if (eventType === 'response.failed') {
           const err =
             typeof parsed.error === 'string'
-              ? (parsed.error as string)
+              ? parsed.error
               : 'Response failed'
           yield { kind: 'failed', error: err }
           continue
