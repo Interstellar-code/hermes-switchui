@@ -12,7 +12,7 @@ import { subscribeToChatEvents } from '../../server/chat-event-bus'
 export const Route = createFileRoute('/api/chat-events')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return new Response(
             JSON.stringify({ ok: false, error: 'Unauthorized' }),
@@ -55,7 +55,7 @@ export const Route = createFileRoute('/api/chat-events')({
         }
 
         const stream = new ReadableStream({
-          async start(controller) {
+          start(controller) {
             const sendEvent = (event: string, data: unknown) => {
               if (streamClosed) return
               try {
