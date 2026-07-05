@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock localStorage — must be set on both globalThis and globalThis.window
 // because readLegacyPinned uses `window.localStorage` (which is undefined in

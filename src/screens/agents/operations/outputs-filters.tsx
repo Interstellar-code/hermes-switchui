@@ -1,6 +1,6 @@
 import { useOperationsUIStore } from '../../../stores/operations-ui-store'
-import type { OutputsFilter } from '../../../stores/operations-ui-store'
 import { useOperationsOutputs } from './use-operations-queries'
+import type { OutputsFilter } from '../../../stores/operations-ui-store'
 
 const FILTER_TABS: Array<{ key: OutputsFilter; label: string }> = [
   { key: 'all', label: 'all' },

@@ -1,7 +1,7 @@
 /**
  * sidebar-detail-store.test.ts — Unit tests for the detail drawer store.
  */
-import { describe, expect, it, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { useSidebarDetailStore } from './sidebar-detail-store'
 
 // Reset store state between tests
