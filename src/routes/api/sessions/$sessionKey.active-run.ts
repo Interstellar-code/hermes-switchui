@@ -10,7 +10,7 @@ export const Route = createFileRoute('/api/sessions/$sessionKey/active-run')({
           return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
 
-        const sessionKey = params.sessionKey?.trim()
+        const sessionKey = params.sessionKey.trim()
         if (!sessionKey) {
           return Response.json(
             { ok: false, error: 'sessionKey required' },
