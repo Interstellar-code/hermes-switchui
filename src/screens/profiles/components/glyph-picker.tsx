@@ -7,9 +7,9 @@ type GlyphPickerProps = {
   role?: string
 }
 
-function genSuggestions(name: string, role: string): string[] {
+function genSuggestions(name: string, role: string): Array<string> {
   const seen = new Set<string>()
-  const out: string[] = []
+  const out: Array<string> = []
 
   function add(s: string) {
     const v = s.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3)
