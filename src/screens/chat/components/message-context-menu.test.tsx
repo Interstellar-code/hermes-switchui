@@ -91,7 +91,7 @@ it('fires quote when the Quote action is clicked', () => {
     />,
   )
 
-  const quoteButton = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find((node) => node.textContent?.includes('Quote'))
+  const quoteButton = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find((node) => node.textContent.includes('Quote'))
   expect(quoteButton).toBeTruthy()
   fireEvent.click(quoteButton!)
   expect(onQuote).toHaveBeenCalledTimes(1)
