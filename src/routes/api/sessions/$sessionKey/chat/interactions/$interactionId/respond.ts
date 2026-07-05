@@ -1,10 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '@/server/auth-middleware'
 import {
+  SESSIONS_API_UNAVAILABLE_MESSAGE,
   ensureGatewayProbed,
   getGatewayCapabilities,
   getSession,
-  SESSIONS_API_UNAVAILABLE_MESSAGE,
 } from '@/server/hermes-api'
 
 export const Route = createFileRoute(
@@ -28,8 +28,8 @@ export const Route = createFileRoute(
           )
         }
 
-        const sessionKey = params.sessionKey?.trim()
-        const interactionId = params.interactionId?.trim()
+        const sessionKey = params.sessionKey.trim()
+        const interactionId = params.interactionId.trim()
         if (!sessionKey || !interactionId) {
           return Response.json(
             { ok: false, error: 'sessionKey and interactionId required' },
