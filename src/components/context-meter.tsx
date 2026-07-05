@@ -55,7 +55,7 @@ export function ContextMeter({
           ok?: boolean
           contextPercent?: unknown
         }
-        if (!data?.ok || cancelled) return
+        if (!data.ok) return
         const next = readPercent(data.contextPercent)
         prevPctRef.current = next
         setPct(next)
