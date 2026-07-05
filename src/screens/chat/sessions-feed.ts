@@ -13,11 +13,11 @@
  */
 
 import { useQuery } from '@tanstack/react-query'
-import type { QueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { chatQueryKeys, fetchSessions } from './chat-queries'
 import { filterSessionsWithTombstones } from './session-tombstones'
 import { matchesSessionSearch } from './session-search'
+import type { QueryClient } from '@tanstack/react-query'
 import type { ClaudeJob } from '@/lib/jobs-api'
 import type {
   SessionBadge,

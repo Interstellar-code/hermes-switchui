@@ -1,7 +1,7 @@
 import type React from 'react'
 
-import { Button } from '@/components/ui/button'
 import type { ApprovalRequest } from '@/screens/gateway/lib/approvals-store'
+import { Button } from '@/components/ui/button'
 
 interface ChatNoticeBannersProps {
   errorNotice: React.ReactNode

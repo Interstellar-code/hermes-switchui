@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { RefObject } from 'react'
 
+import type { ChatComposerHandle } from '../components/chat-composer-types'
 import { SEARCH_MODAL_EVENTS } from '@/hooks/use-search-modal'
 import { SIDEBAR_TOGGLE_EVENT } from '@/hooks/use-global-shortcuts'
 import { useWorkspaceStore } from '@/stores/workspace-store'
-import type { ChatComposerHandle } from '../components/chat-composer-types'
 
 export function useFocusMode(params: {
   compact: boolean

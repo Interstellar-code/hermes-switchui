@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { buildDefaultDateRange, useSessionsFilterStore } from '@/stores/sessions-filter-store'
 import { inferPresetFromRange, presetToRange } from './sidebar-date-popover-v2'
+import { buildDefaultDateRange, useSessionsFilterStore } from '@/stores/sessions-filter-store'
 
 beforeEach(() => {
   useSessionsFilterStore.setState({ dateRange: buildDefaultDateRange() })
