@@ -82,7 +82,7 @@ export function AgoraScreen() {
               height={20}
               className="rounded-full"
               onError={(e) => {
-                ;(e.currentTarget as HTMLImageElement).src = '/avatars/hermes.png'
+                ;(e.currentTarget).src = '/avatars/hermes.png'
               }}
             />
             <span className="max-w-[110px] truncate">{self.profile.displayName}</span>
