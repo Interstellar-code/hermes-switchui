@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as ProfilesBootstrapModule from './profiles-bootstrap'
 
 const PROFILE_DIR_ENTRIES = [
   'config.yaml',
@@ -33,9 +34,7 @@ function withTempHome<T>(fn: (home: string) => Promise<T> | T): Promise<T> {
     })
 }
 
-async function freshBootstrap(): Promise<
-  typeof import('./profiles-bootstrap')
-> {
+async function freshBootstrap(): Promise<typeof ProfilesBootstrapModule> {
   // Bust module cache so the internal `bootstrapped` flag resets each test.
   vi.resetModules()
   return await import('./profiles-bootstrap')
