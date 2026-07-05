@@ -111,7 +111,7 @@ export function createTerminalSession(params: {
   const emitter = new EventEmitter()
   const sessionId = randomUUID()
 
-  const home = process.env.HOME ?? homedir() ?? '/tmp'
+  const home = process.env.HOME ?? homedir()
   const defaultShell =
     process.platform === 'win32'
       ? 'powershell.exe'

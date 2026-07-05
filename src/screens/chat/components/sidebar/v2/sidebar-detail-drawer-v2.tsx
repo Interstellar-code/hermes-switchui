@@ -171,7 +171,7 @@ function TaskDetail({ taskId }: { taskId: string }) {
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <Chip label="status" value={task.status} color={statusColor} />
         {task.assignee && <Chip label="assignee" value={task.assignee} color="#8b5cf6" />}
-        {task.priority != null && <Chip label="priority" value={String(task.priority)} color="#d6ff5f" />}
+        <Chip label="priority" value={String(task.priority)} color="#d6ff5f" />
       </div>
       {task.summary && (
         <PreBlock label="summary">{task.summary}</PreBlock>
