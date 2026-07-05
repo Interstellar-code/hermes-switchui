@@ -5,7 +5,7 @@ import { AgentChatInput } from './AgentChatInput'
 import { AgentChatMessages } from './AgentChatMessages'
 import type { AgentChatMessage } from './AgentChatMessages'
 import type { ChatMessage } from '@/screens/chat/types'
-import { DialogContent, Dialog } from '@/components/shadcn/ui/dialog'
+import { Dialog, DialogContent } from '@/components/shadcn/ui/dialog'
 import {
   getMessageTimestamp,
   readError,
@@ -102,7 +102,7 @@ export function AgentChatModal({
   )
 
   const loadHistory = useCallback(
-    async function loadHistory() {
+    async function refreshHistory() {
       if (!open || isDemoModeRef.current) return
 
       try {
