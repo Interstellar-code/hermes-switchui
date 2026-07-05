@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, renderHook } from '@testing-library/react'
+import { useActivityStream } from './use-activity-stream'
 import type { RefObject } from 'react'
 
-import { useActivityStream } from './use-activity-stream'
 
 /**
  * Minimal EventSource stub — jsdom does not ship an EventSource impl.
@@ -13,7 +13,7 @@ import { useActivityStream } from './use-activity-stream'
  * NOT under test (per task spec).
  */
 class FakeEventSource {
-  static instances: FakeEventSource[] = []
+  static instances: Array<FakeEventSource> = []
   addEventListener = vi.fn()
   removeEventListener = vi.fn()
   close = vi.fn()
@@ -59,7 +59,7 @@ describe('useActivityStream', () => {
       }),
     )
     expect(FakeEventSource.instances).toHaveLength(1)
-    expect(FakeEventSource.instances[0]?.url).toBe('/api/events')
+    expect(FakeEventSource.instances[0].url).toBe('/api/events')
   })
 
   it('closes the EventSource on unmount', () => {
@@ -70,9 +70,9 @@ describe('useActivityStream', () => {
       }),
     )
     const es = FakeEventSource.instances[0]
-    expect(es?.close).not.toHaveBeenCalled()
+    expect(es.close).not.toHaveBeenCalled()
     unmount()
-    expect(es?.close).toHaveBeenCalledTimes(1)
+    expect(es.close).toHaveBeenCalledTimes(1)
   })
 
   it('does NOT clear while waitingForResponse stays true', () => {
