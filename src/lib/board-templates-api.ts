@@ -176,7 +176,7 @@ export function useTemplateTaskCounts(slugs: Array<string>): Record<string, numb
   })
   const counts: Record<string, number | undefined> = {}
   slugs.forEach((slug, i) => {
-    counts[slug] = results[i]?.data as number | undefined
+    counts[slug] = results[i]?.data
   })
   return counts
 }
