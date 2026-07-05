@@ -12,7 +12,7 @@ const SESSION = 'session-recovery'
 function mockActiveRun(run: ActiveRunSnapshot | null) {
   const fetchMock = vi.fn().mockResolvedValue({
     ok: true,
-    json: async () => ({ ok: true, run }),
+    json: () => ({ ok: true, run }),
   })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
