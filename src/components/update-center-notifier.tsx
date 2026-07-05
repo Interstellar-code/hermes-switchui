@@ -75,7 +75,7 @@ function shortSha(value: string | null | undefined): string {
 }
 
 function productDismissKey(product: ProductUpdateStatus): string {
-  return `${product.id}:${product.latestHead ?? product.version ?? 'unknown'}`
+  return `${product.id}:${product.latestHead ?? product.version}`
 }
 
 function notesId(sections: Array<ReleaseNoteSection>): string {
@@ -99,7 +99,7 @@ function storeNotes(sections: Array<ReleaseNoteSection>): Notes | null {
     const raw = localStorage.getItem(NOTES_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as Notes
-      existingId = parsed?.id ?? null
+      existingId = parsed.id
     }
   } catch {
     existingId = null
@@ -116,7 +116,7 @@ function readNotes(): Notes | null {
     const raw = localStorage.getItem(NOTES_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as Notes
-    if (!parsed?.id || !Array.isArray(parsed.sections)) return null
+    if (!parsed.id || !Array.isArray(parsed.sections)) return null
     if (localStorage.getItem(NOTES_SEEN_KEY) === parsed.id) return null
     return parsed
   } catch {
