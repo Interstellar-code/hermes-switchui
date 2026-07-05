@@ -98,7 +98,7 @@ test.describe('sidebar-v2 feature flag ON', () => {
       localStorage.getItem('hermes.sessions.filter'),
     )
     if (stored) {
-      const parsed = JSON.parse(stored) as { sources?: string[] }
+      const parsed = JSON.parse(stored) as { sources?: Array<string> }
       expect(parsed.sources ?? []).toHaveLength(0)
     }
   })

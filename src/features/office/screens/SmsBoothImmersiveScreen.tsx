@@ -13,7 +13,7 @@ type SmsBoothImmersiveScreenProps = {
   step: TextMessageStep
   typedMessage: string
   activeKey: string | null
-  contacts: string[]
+  contacts: Array<string>
   activeContactIndex: number | null
 }
 

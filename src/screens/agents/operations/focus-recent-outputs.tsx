@@ -1,7 +1,7 @@
 import type { OutputItem } from '../../../server/operations-store'
 
 interface FocusRecentOutputsProps {
-  outputs: OutputItem[]
+  outputs: Array<OutputItem>
 }
 
 const FileIcon = () => (
