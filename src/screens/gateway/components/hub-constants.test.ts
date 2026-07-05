@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { CANONICAL_PROVIDER_IDS } from '@/lib/provider-catalog'
 import { KNOWN_GATEWAY_PROVIDERS } from './hub-constants'
+import { CANONICAL_PROVIDER_IDS } from '@/lib/provider-catalog'
 
 describe('KNOWN_GATEWAY_PROVIDERS', () => {
   it('derives from the canonical provider catalog with no extra legacy aliases', () => {

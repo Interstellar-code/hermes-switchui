@@ -1,4 +1,4 @@
-import { useProfilesFilterStore, useProfilesViewStore, usePageSize, PAGE_SIZES_GRID, PAGE_SIZES_TABLE } from '@/stores/profiles-screen-store'
+import { PAGE_SIZES_GRID, PAGE_SIZES_TABLE, usePageSize, useProfilesFilterStore, useProfilesViewStore } from '@/stores/profiles-screen-store'
 
 type Props = {
   total: number
