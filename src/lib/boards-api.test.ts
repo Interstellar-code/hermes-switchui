@@ -13,7 +13,7 @@ afterEach(() => {
 })
 
 function ok(body: unknown, status = 200): Response {
-  return { ok: true, status, json: async () => body } as unknown as Response
+  return { ok: true, status, json: () => body } as unknown as Response
 }
 
 describe('boards-api', () => {

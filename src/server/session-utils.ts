@@ -18,11 +18,11 @@ export function isSyntheticSessionKey(
   return SYNTHETIC_SESSION_KEYS.has(value.trim())
 }
 
-export async function resolveSessionKey({
+export function resolveSessionKey({
   rawSessionKey,
   friendlyId,
   defaultKey = 'new',
-}: ResolveSessionKeyInput): Promise<ResolveSessionResult> {
+}: ResolveSessionKeyInput): ResolveSessionResult {
   const trimmedRaw = rawSessionKey?.trim() ?? ''
   if (trimmedRaw.length > 0) {
     return { sessionKey: trimmedRaw, resolvedVia: 'raw' }
