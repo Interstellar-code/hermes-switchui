@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { SessionHistoryMessage } from '@/lib/gateway-api'
 import { cn } from '@/lib/utils'
 import { Markdown } from '@/components/prompt-kit/markdown'
 import {
   fetchSessionHistory,
   sendToSession,
   steerAgent,
-  type SessionHistoryMessage,
 } from '@/lib/gateway-api'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -68,7 +68,7 @@ export function AgentChatPanel({
   isRunning,
   onClose,
 }: AgentChatPanelProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<Array<ChatMessage>>([])
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -129,7 +129,7 @@ export function AgentChatPanel({
 
       setMessages((prev) => {
         const last = prev[prev.length - 1]
-        if (last?.id === 'streaming-assistant') {
+        if (last.id === 'streaming-assistant') {
           return [...prev.slice(0, -1), { ...last, content: streamingText }]
         }
         return [...prev, { id: 'streaming-assistant', role: 'assistant' as const, content: streamingText }]
