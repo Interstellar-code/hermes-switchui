@@ -125,5 +125,5 @@ export function useHistoryPolling(params: {
       window.clearTimeout(timer)
       returnPollActiveRef.current = false
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- mount-only; waitingForResponseRef + returnPollActiveRef are stable refs
+  }, []) // mount-only; waitingForResponseRef + returnPollActiveRef are stable refs
 }
