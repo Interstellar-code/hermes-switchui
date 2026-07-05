@@ -1,3 +1,7 @@
+import type {
+  CanvasPoint,
+  FurnitureItem,
+} from "@/features/retro-office/core/types";
 import {
   CANVAS_H,
   CANVAS_W,
@@ -8,10 +12,6 @@ import {
   SNAP_GRID,
   WALL_THICKNESS,
 } from "@/features/retro-office/core/constants";
-import type {
-  CanvasPoint,
-  FurnitureItem,
-} from "@/features/retro-office/core/types";
 
 export const toWorld = (cx: number, cy: number): [number, number, number] => [
   cx * SCALE - CANVAS_W * SCALE * 0.5,

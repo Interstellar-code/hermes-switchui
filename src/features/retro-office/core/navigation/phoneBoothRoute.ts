@@ -1,8 +1,8 @@
-import { getItemBaseSize } from "@/features/retro-office/core/geometry";
 import type {
   FurnitureItem,
   PhoneBoothRoute,
 } from "@/features/retro-office/core/types";
+import { getItemBaseSize } from "@/features/retro-office/core/geometry";
 
 export const PHONE_BOOTH_DEFAULT_TARGET = {
   x: 1060,
