@@ -7,7 +7,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { requireJsonContentType } from '../../../server/rate-limit'
-import { writeKnowledgePage, deleteKnowledgePage } from '../../../server/knowledge-browser'
+import { deleteKnowledgePage, writeKnowledgePage } from '../../../server/knowledge-browser'
 
 const originalEnv = { ...process.env }
 let tempRoot = ''
