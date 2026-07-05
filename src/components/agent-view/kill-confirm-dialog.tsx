@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
+  Dialog,
   DialogContent,
   DialogDescription,
-  Dialog,
   DialogTitle,
 } from '@/components/shadcn/ui/dialog'
 import { toast } from '@/components/ui/toast'

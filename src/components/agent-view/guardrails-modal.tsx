@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { DialogContent, DialogDescription, Dialog, DialogTitle } from '@/components/shadcn/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/shadcn/ui/dialog'
 import { toast } from '@/components/ui/toast'
 
 type GuardrailsModalProps = {
