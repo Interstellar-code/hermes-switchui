@@ -49,7 +49,7 @@ export const Route = createFileRoute('/api/workflow-runs')({
         } catch {
           return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
         }
-        if (!body?.workflow_id || !body?.conversation_id || !body?.user_message) {
+        if (!body.workflow_id || !body.conversation_id || !body.user_message) {
           return Response.json({ error: 'workflow_id, conversation_id, user_message required' }, { status: 400 });
         }
         // Codex Bundle 5 Q4 — Input validation.
