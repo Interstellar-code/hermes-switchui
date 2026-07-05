@@ -44,7 +44,7 @@ export const Route = createFileRoute('/api/hermes-kanban/tasks/$taskId')({
         }
       },
 
-      DELETE: async ({ request, params }) => {
+      DELETE: ({ request, params }) => {
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
         if (!isAuthenticated(request)) {

@@ -158,7 +158,7 @@ export const Route = createFileRoute('/api/memory/agent-files')({
   server: {
     handlers: {
       // GET /api/memory/agent-files?agent=<id>[&filename=<name>]
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
