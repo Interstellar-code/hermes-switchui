@@ -19,7 +19,7 @@ vi.mock('@tanstack/react-query', () => ({
 }))
 
 const { mockStatus, baseStatus } = vi.hoisted(() => {
-  const baseStatus = {
+  const initialStatus = {
     contextPercent: 0,
     maxTokens: 0,
     model: '',
@@ -36,7 +36,7 @@ const { mockStatus, baseStatus } = vi.hoisted(() => {
     source: '',
     endReason: '',
   }
-  return { baseStatus, mockStatus: { ...baseStatus } }
+  return { baseStatus: initialStatus, mockStatus: { ...initialStatus } }
 })
 
 vi.mock('@/hooks/use-session-status', () => ({
