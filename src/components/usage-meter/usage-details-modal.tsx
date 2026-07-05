@@ -52,7 +52,7 @@ type ProviderUsage = {
   status: 'ok' | 'missing_credentials' | 'auth_expired' | 'error'
   message?: string
   plan?: string
-  lines: UsageLine[]
+  lines: Array<UsageLine>
   updatedAt: number
 }
 
@@ -294,9 +294,9 @@ export function UsageDetailsModal({
         await onRefreshProviders()
       }
       setIsRefreshing(false)
-    } catch (error) {
+    } catch (refreshError) {
       if (import.meta.env.DEV)
-        console.error('Failed to refresh provider data:', error)
+        console.error('Failed to refresh provider data:', refreshError)
     } finally {
       setIsRefreshing(false)
     }
