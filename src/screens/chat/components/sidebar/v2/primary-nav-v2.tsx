@@ -346,7 +346,7 @@ export function PrimaryNavV2() {
   const isSettings = pathname.startsWith('/settings')
   const isDocs = pathname.startsWith('/docs')
   const boardsQuery = useBoards(true, !collapsed)
-  const boardsCount = boardsQuery.data?.boards?.length
+  const boardsCount = boardsQuery.data?.boards.length
   const counts = useNavCounts(!collapsed)
   const boardChildren = useMemo(
     () => [
@@ -439,7 +439,7 @@ export function PrimaryNavV2() {
         >
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
             <path
-              d={collapsed ? 'M6 3l5 5-5 5' : 'M10 3L5 8l5 5'}
+              d={'M10 3L5 8l5 5'}
               stroke="currentColor"
               strokeWidth="1.6"
               strokeLinecap="round"

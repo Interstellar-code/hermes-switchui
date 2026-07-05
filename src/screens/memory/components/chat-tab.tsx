@@ -138,7 +138,7 @@ async function streamChat(
 
   const payload = {
     sessionKey: 'new',
-    message: lastMsg?.content ?? '',
+    message: lastMsg.content,
     history,
     stream: true,
   }
