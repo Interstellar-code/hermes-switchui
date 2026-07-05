@@ -17,7 +17,7 @@ function makeProps(
   return {
     message: baseMessage,
     attachedToolMessages,
-  } as MessageItemProps
+  }
 }
 
 function toolMessage(
@@ -32,7 +32,7 @@ function toolMessage(
     isError,
     content: [{ type: 'text', text }],
     timestamp: 1_000,
-  } as ChatMessage
+  }
 }
 
 describe('areMessagesEqual — attachedToolMessages', () => {
