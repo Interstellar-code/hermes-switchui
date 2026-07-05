@@ -1,6 +1,6 @@
+import type { FurnitureItem } from "@/features/retro-office/core/types";
 import { SNAP_GRID } from "@/features/retro-office/core/constants";
 import { snap } from "@/features/retro-office/core/geometry";
-import type { FurnitureItem } from "@/features/retro-office/core/types";
 
 export type DistrictZone = {
   minX: number;
@@ -72,10 +72,10 @@ export const pickRandomPointInZone = (
   );
 
 export const projectFurnitureIntoRemoteOfficeZone = (params: {
-  furniture: FurnitureItem[];
+  furniture: Array<FurnitureItem>;
   sourceWidth: number;
   sourceHeight: number;
-}): FurnitureItem[] => {
+}): Array<FurnitureItem> => {
   const sourceWidth = Math.max(1, params.sourceWidth);
   const sourceHeight = Math.max(1, params.sourceHeight);
   const targetWidth = REMOTE_OFFICE_ZONE.maxX - REMOTE_OFFICE_ZONE.minX;
