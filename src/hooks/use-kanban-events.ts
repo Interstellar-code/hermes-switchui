@@ -54,8 +54,6 @@ export function useKanbanEvents({ since = 0, enabled = true, onEvent, onLatestEv
         return // Fail silently; polling refetchInterval handles sync
       }
 
-      if (!active) return
-
       const url = `/api/hermes-kanban/events?token=${encodeURIComponent(token)}&since=${sinceRef.current}`
       es = new EventSource(url)
       esRef.current = es
@@ -95,5 +93,5 @@ export function useKanbanEvents({ since = 0, enabled = true, onEvent, onLatestEv
       es?.close()
       esRef.current = null
     }
-  }, [enabled]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled])
 }
