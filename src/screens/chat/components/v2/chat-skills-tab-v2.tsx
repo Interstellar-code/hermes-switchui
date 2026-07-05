@@ -111,7 +111,7 @@ function argsSummary(args?: Record<string, unknown>): string {
   if (typeof v === 'string') {
     try {
       const parsed = JSON.parse(v) as Record<string, unknown>
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) a = parsed
+      if (typeof parsed === 'object' && !Array.isArray(parsed)) a = parsed
     } catch {
       /* keep wrapper */
     }
@@ -260,7 +260,7 @@ export function ChatSkillsTabV2({ messages, streamingToolCalls = [], events: _ev
       if (typeof v === 'string') {
         try {
           const parsed = JSON.parse(v) as Record<string, unknown>
-          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) args = parsed
+          if (typeof parsed === 'object' && !Array.isArray(parsed)) args = parsed
         } catch { /* keep wrapper */ }
       }
       const n = args.name
@@ -322,8 +322,7 @@ export function ChatSkillsTabV2({ messages, streamingToolCalls = [], events: _ev
     if (filter === 'loaded') return g.kind === 'loaded'
     if (filter === 'edited') return g.kind === 'edited'
     if (filter === 'enumerate') return g.kind === 'enumerate'
-    if (filter === 'errored') return g.status === 'error'
-    return true
+    return g.status === 'error'
   })
 
   return (
