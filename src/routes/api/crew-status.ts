@@ -419,9 +419,9 @@ async function fetchAssignedTaskCounts(): Promise<Record<string, number>> {
     const board = await getKanbanBoard()
     const counts: Record<string, number> = {}
 
-    for (const column of board.columns ?? []) {
+    for (const column of board.columns) {
       if (column.name === 'done' || column.name === 'archived') continue
-      for (const task of column.tasks ?? []) {
+      for (const task of column.tasks) {
         if (!task.assignee) continue
         counts[task.assignee] = (counts[task.assignee] ?? 0) + 1
       }
