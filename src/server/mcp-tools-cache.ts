@@ -80,16 +80,14 @@ function readDisk(): Record<string, CachedProbe> {
   try {
     const text = readFileSync(path, 'utf8')
     const parsed = JSON.parse(text) as unknown
-    if (
-      !parsed ||
-      typeof parsed !== 'object' ||
-      Array.isArray(parsed) ||
-      (parsed as DiskSchema).version !== 1 ||
-      typeof (parsed as DiskSchema).probes !== 'object'
-    ) {
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       return {}
     }
-    return (parsed as DiskSchema).probes as Record<string, CachedProbe>
+    const disk = parsed as { version?: unknown; probes?: unknown }
+    if (disk.version !== 1 || !disk.probes || typeof disk.probes !== 'object') {
+      return {}
+    }
+    return disk.probes as Record<string, CachedProbe>
   } catch {
     // Corrupt or unreadable — start fresh
     return {}

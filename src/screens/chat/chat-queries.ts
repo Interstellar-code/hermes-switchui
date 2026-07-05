@@ -408,15 +408,16 @@ export function updateHistoryMessageByClientIdEverywhere(
   for (const [queryKey, data] of historyQueries) {
     const current = data
     const messages = Array.isArray(current?.messages) ? current.messages : []
-    let changed = false
+    const hasMatch = messages.some((message) =>
+      isMatchingClientMessage(message, normalizedClientId, optimisticId),
+    )
+    if (!hasMatch) continue
     const nextMessages = messages.map((message) => {
       if (!isMatchingClientMessage(message, normalizedClientId, optimisticId)) {
         return message
       }
-      changed = true
       return updater(message)
     })
-    if (!changed) continue
     queryClient.setQueryData(queryKey, {
       sessionKey: current?.sessionKey ?? '',
       sessionId: current?.sessionId,
@@ -474,12 +475,12 @@ export function moveHistoryMessages(
 ) {
   const fromKey = chatQueryKeys.history(fromFriendlyId, fromSessionKey)
   const toKey = chatQueryKeys.history(toFriendlyId, toSessionKey)
-  const fromData = queryClient.getQueryData(fromKey) as Record<string, unknown> | undefined
+  const fromData = queryClient.getQueryData<Record<string, unknown>>(fromKey)
   if (!fromData) return
   const messages = Array.isArray(fromData.messages) ? fromData.messages : []
   queryClient.setQueryData(toKey, {
     sessionKey: toSessionKey,
-    sessionId: (fromData as any).sessionId,
+    sessionId: fromData.sessionId,
     messages,
   })
   queryClient.removeQueries({ queryKey: fromKey, exact: true })
