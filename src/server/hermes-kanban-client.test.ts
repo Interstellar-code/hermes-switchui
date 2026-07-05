@@ -16,8 +16,8 @@ function makeOkResponse(body: unknown): Response {
   return {
     ok: true,
     status: 200,
-    json: async () => body,
-    text: async () => JSON.stringify(body),
+    json: () => body,
+    text: () => JSON.stringify(body),
   } as unknown as Response
 }
 
@@ -25,8 +25,8 @@ function makeErrorResponse(status: number, body: unknown): Response {
   return {
     ok: false,
     status,
-    json: async () => body,
-    text: async () => JSON.stringify(body),
+    json: () => body,
+    text: () => JSON.stringify(body),
   } as unknown as Response
 }
 
