@@ -10,10 +10,10 @@ const MAX_BUFFER = 500
 const FLUSH_INTERVAL_MS = 80
 
 export function useWorkflowEvents(runId: string | null): {
-  events: WorkflowSseEvent[]
+  events: Array<WorkflowSseEvent>
   status: 'idle' | 'connecting' | 'open' | 'error' | 'closed'
 } {
-  const [events, setEvents] = useState<WorkflowSseEvent[]>([])
+  const [events, setEvents] = useState<Array<WorkflowSseEvent>>([])
   const [status, setStatus] = useState<'idle' | 'connecting' | 'open' | 'error' | 'closed'>('idle')
   const esRef = useRef<EventSource | null>(null)
   // Buffer + timer: SSE bursts (workflow completion, node fan-out) used to
