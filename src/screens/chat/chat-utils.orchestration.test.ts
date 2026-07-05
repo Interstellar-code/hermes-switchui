@@ -11,6 +11,6 @@ describe('normalizeSessions orchestration titles', () => {
       },
     ])
 
-    expect(session?.derivedTitle).toBe('Subagent Worker')
+    expect(session.derivedTitle).toBe('Subagent Worker')
   })
 })
