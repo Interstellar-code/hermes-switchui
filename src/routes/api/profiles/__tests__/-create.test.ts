@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // ── fs mock ──────────────────────────────────────────────────────────────────
 const { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, renameSync, unlinkSync } =
@@ -33,7 +33,7 @@ vi.mock('@tanstack/react-start', () => ({
   json: (body: unknown, init?: ResponseInit) =>
     new Response(JSON.stringify(body), {
       ...(init ?? {}),
-      headers: { 'Content-Type': 'application/json', ...((init as ResponseInit & { headers?: Record<string, string> })?.headers ?? {}) },
+      headers: { 'Content-Type': 'application/json', ...((init as ResponseInit & { headers?: Record<string, string> }).headers ?? {}) },
     }),
 }))
 
