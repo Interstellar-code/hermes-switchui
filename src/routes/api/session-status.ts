@@ -40,7 +40,7 @@ export const Route = createFileRoute('/api/session-status')({
           }
           const url = new URL(request.url)
           requestedKey = url.searchParams.get('sessionKey')?.trim() || ''
-          let sessionKey = requestedKey || 'new'
+          const sessionKey = requestedKey || 'new'
 
           if (sessionKey === 'new') {
             return Response.json({
