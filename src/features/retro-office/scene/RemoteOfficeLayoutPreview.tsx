@@ -1,13 +1,13 @@
 "use client";
 
 import { Fragment } from "react";
+import type { FurnitureItem } from "@/features/retro-office/core/types";
 import { SCALE } from "@/features/retro-office/core/constants";
 import {
   getItemBaseSize,
   getItemRotationRadians,
   toWorld,
 } from "@/features/retro-office/core/geometry";
-import type { FurnitureItem } from "@/features/retro-office/core/types";
 
 const ITEM_COLOR_BY_TYPE: Record<string, string> = {
   wall: "#90a4ae",
@@ -70,7 +70,7 @@ const ITEM_HEIGHT_BY_TYPE: Record<string, number> = {
 export function RemoteOfficeLayoutPreview({
   items,
 }: {
-  items: FurnitureItem[];
+  items: Array<FurnitureItem>;
 }) {
   return (
     <group>
