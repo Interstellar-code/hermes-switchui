@@ -10,7 +10,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
-import { Toggle, NumberSlider } from '../components/controls'
+import { NumberSlider, Toggle } from '../components/controls'
 import { useSettingsStore } from '@/stores/settings-store'
 import { analyticsUsage } from '@/lib/hermes-client'
 
@@ -57,7 +57,7 @@ export default function SectionStorage() {
                 <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>Sessions</span>
                 {' · '}
                 <b style={{ color: 'var(--m-text)' }}>
-                  {totalSessions !== undefined ? totalSessions.toLocaleString() : (usage?.sessions !== undefined ? (usage.sessions as number).toLocaleString() : '—')}
+                  {totalSessions !== undefined ? totalSessions.toLocaleString() : (usage?.sessions !== undefined ? (usage.sessions).toLocaleString() : '—')}
                 </b>
               </div>
               <div>

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Minimal localStorage mock (Zustand persist reads/writes here)
 const store: Record<string, string> = {}
@@ -88,7 +88,7 @@ describe('mission-store onRehydrateStorage — setState not direct assign', () =
     // Force an error path by calling onRehydrateStorage handler directly with error
     // (Zustand calls the returned fn with (state, error); we simulate error=new Error)
     const handler = useStore.persist.getOptions().onRehydrateStorage?.(useStore.getState())
-    if (handler) handler(undefined as never, new Error('simulated'))
+    if (handler) handler(undefined, new Error('simulated'))
 
     // No setState should have been called on error path
     expect(notified).toBe(false)
