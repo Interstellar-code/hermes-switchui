@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { getSessionMessages } from './claude-dashboard-api'
+import { getMessages } from './hermes-api'
+
 vi.mock('./gateway-capabilities', () => ({
   BEARER_TOKEN: 'test-token',
   CLAUDE_API: 'http://127.0.0.1:8642',
@@ -22,9 +25,6 @@ vi.mock('./claude-dashboard-api', () => ({
   searchSessions: vi.fn(),
   updateSession: vi.fn(),
 }))
-
-import { getSessionMessages } from './claude-dashboard-api'
-import { getMessages } from './hermes-api'
 
 describe('getMessages', () => {
   afterEach(() => {
