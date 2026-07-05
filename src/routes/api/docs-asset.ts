@@ -1,6 +1,6 @@
-import { createFileRoute } from '@tanstack/react-router'
 import fs from 'node:fs'
 import path from 'node:path'
+import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
 
 const DOCS_ROOT = path.join(process.cwd(), 'docs')
@@ -31,7 +31,7 @@ const HTML_EXTENSIONS = new Set(['.html', '.htm'])
 export const Route = createFileRoute('/api/docs-asset')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }

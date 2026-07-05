@@ -1,12 +1,12 @@
+import fs from 'node:fs'
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { readMemoryFile, resolveMemoryFilePath } from '../../../server/memory-browser'
-import fs from 'node:fs'
 
 export const Route = createFileRoute('/api/memory/get')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
