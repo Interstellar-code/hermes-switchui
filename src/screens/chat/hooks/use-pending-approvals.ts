@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { samePending } from '../chat-screen-utils'
 import type { RefObject } from 'react'
 
 import type { ApprovalRequest } from '@/screens/gateway/lib/approvals-store'
@@ -7,7 +8,6 @@ import {
   loadApprovals,
   saveApprovals,
 } from '@/screens/gateway/lib/approvals-store'
-import { samePending } from '../chat-screen-utils'
 
 /**
  * C4 — Pending-approvals cluster extracted from ChatScreen.
@@ -75,7 +75,7 @@ export function usePendingApprovals(params: {
     return () => {
       if (timer !== null) window.clearTimeout(timer)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- mount-only; refs read non-reactively
+  }, []) // mount-only; refs read non-reactively
 
   const resolvePendingApproval = useCallback(
     async (approval: ApprovalRequest, status: 'approved' | 'denied') => {
