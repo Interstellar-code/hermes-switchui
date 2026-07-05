@@ -5,7 +5,7 @@ import { searchMemoryFiles } from '../../../server/memory-browser'
 export const Route = createFileRoute('/api/memory/search')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }

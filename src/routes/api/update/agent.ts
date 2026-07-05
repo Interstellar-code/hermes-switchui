@@ -11,7 +11,7 @@ import { applyAgentUpdate } from '../../../server/update-system'
 export const Route = createFileRoute('/api/update/agent')({
   server: {
     handlers: {
-      POST: async ({ request }) => {
+      POST: ({ request }) => {
         if (!isAuthenticated(request)) {
           return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }

@@ -9,7 +9,7 @@ import { readKnowledgeBaseConfig } from '../../../server/knowledge-config'
 export const Route = createFileRoute('/api/knowledge/list')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }

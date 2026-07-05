@@ -13,7 +13,7 @@ import { isAuthenticated } from '../../server/auth-middleware'
 export const Route = createFileRoute('/api/claude-tasks-assignees')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
         }
