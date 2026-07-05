@@ -1,8 +1,8 @@
 import { useCallback, useEffect } from 'react'
-import type { RefObject } from 'react'
 
 import { useChatStore } from '../../../stores/chat-store'
 import { readMessageText } from '../chat-screen-utils'
+import type { RefObject } from 'react'
 import type {
   ChatComposerAttachment,
   ChatComposerHelpers,
@@ -67,7 +67,7 @@ export function useMessageRetry({
     store.clearSessionInterrupted(resolvedSessionKey)
     const lastUser = [...finalDisplayMessages]
       .reverse()
-      .find((m) => m?.role === 'user' && !m.__optimisticId)
+      .find((m) => m.role === 'user' && !m.__optimisticId)
     if (lastUser && typeof lastUser.content !== 'undefined') {
       const text = readMessageText(lastUser)
       if (text.trim()) {

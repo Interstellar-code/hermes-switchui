@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { isInternalSystemMessage } from '../screens/chat/internal-message-filter'
 import {
   
   
@@ -29,7 +30,6 @@ import type {
   ToolCallContent,
 } from '../screens/chat/types'
 import type { ChatComposerAttachment } from '../screens/chat/components/chat-composer-types'
-import { isInternalSystemMessage } from '../screens/chat/internal-message-filter'
 
 const MESSAGE_QUEUE_PREFIX = 'switchui:message-queue:'
 
@@ -1105,7 +1105,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // Interactive clarify request (P3). Store the pending clarify so the
         // inline card renders and the composer blocks. The agent's turn is
         // blocked until the user answers (or the run ends).
-        const question = event.question?.trim()
+        const question = event.question.trim()
         if (!question) break
         const choices =
           Array.isArray(event.choices) && event.choices.length > 0

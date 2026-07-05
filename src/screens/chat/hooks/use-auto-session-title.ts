@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
-import { toast } from '@/components/ui/toast'
 import { chatQueryKeys } from '../chat-queries'
 import { invalidateSessionLists } from '../sessions-feed'
 import {
@@ -10,6 +9,7 @@ import {
 } from '../session-title-store'
 import { textFromMessage } from '../utils'
 import type { ChatMessage, SessionMeta } from '../types'
+import { toast } from '@/components/ui/toast'
 
 const MAX_TITLE_LENGTH = 50
 
@@ -180,7 +180,7 @@ export function useAutoSessionTitle({
       invalidateSessionLists(queryClient)
     },
     onError: (error, payload) => {
-      const msg = error instanceof Error ? error.message : String(error ?? '')
+      const msg = error instanceof Error ? error.message : String(error)
       updateSessionTitleState(payload.friendlyId, {
         status: 'error',
         error: msg,
