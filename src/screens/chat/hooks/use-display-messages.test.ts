@@ -2,8 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { cleanup, renderHook } from '@testing-library/react'
 
-import type { ChatMessage } from '../types'
 import { useDisplayMessages } from './use-display-messages'
+import type { ChatMessage } from '../types'
 
 function userMsg(text: string, overrides: Partial<ChatMessage> = {}): ChatMessage {
   return { role: 'user', content: [{ type: 'text', text }], ...overrides }
@@ -31,7 +31,7 @@ function queuedWrapper(inner: string): string {
 }
 
 function renderDisplay(
-  realtimeMessages: ChatMessage[],
+  realtimeMessages: Array<ChatMessage>,
   opts: {
     activeIsRealtimeStreaming?: boolean
     realtimeStreamingThinking?: string
@@ -232,7 +232,7 @@ describe('useDisplayMessages', () => {
       content: [],
       __streamingStatus: 'streaming',
       __optimisticId: 'old-stream',
-    } as ChatMessage
+    }
     const msgs = [userMsg('Hi'), existing]
     const { result } = renderHook(() =>
       useDisplayMessages({
