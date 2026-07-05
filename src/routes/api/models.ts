@@ -7,8 +7,8 @@ import { isAuthenticated } from '../../server/auth-middleware'
 import { ensureGatewayProbed } from '../../server/hermes-api'
 import {
   ensureDiscovery,
-  getDiscoveredModels,
   ensureProviderInConfig,
+  getDiscoveredModels,
 } from '../../server/local-provider-discovery'
 
 const CLAUDE_HOME =
@@ -250,7 +250,7 @@ export const Route = createFileRoute('/api/models')({
           // Parse the YAML once and thread it through every reader.
           const parsedConfig = readConfigOnce()
           let gatewayModels = readProvidersFromConfig(parsedConfig)
-          let source = 'config.yaml'
+          const source = 'config.yaml'
 
           // Ensure the default model from `model.default` lands first in the list.
           const defaultModel = readClaudeDefaultModel(parsedConfig)
