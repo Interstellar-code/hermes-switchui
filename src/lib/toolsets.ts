@@ -1,7 +1,7 @@
 // Canonical toolset list mirroring hermes-agent hermes_cli/tools_config.py:54-87
 // This is the source of truth for the UI — do not add/remove keys without syncing the backend.
 
-export const TOOLSET_GROUPS: string[] = [
+export const TOOLSET_GROUPS: Array<string> = [
   'Core',
   'Memory & Context',
   'Web & Search',
@@ -9,7 +9,7 @@ export const TOOLSET_GROUPS: string[] = [
   'Automation & Integrations',
 ]
 
-export const CONFIGURABLE_TOOLSETS: { key: string; label: string; group: string }[] = [
+export const CONFIGURABLE_TOOLSETS: Array<{ key: string; label: string; group: string }> = [
   { key: 'file',           label: 'File Operations',           group: 'Core' },
   { key: 'terminal',       label: 'Terminal & Processes',      group: 'Core' },
   { key: 'code_execution', label: 'Code Execution',            group: 'Core' },
@@ -73,7 +73,7 @@ export const TOOLSET_GROUP_BY_KEY: Record<string, string> = Object.fromEntries(
  * Shared by the server route (on gateway error) and the component (on fetch
  * loading/error) so the fallback shape is identical everywhere.
  */
-export function buildStaticToolsetCatalog(): NormalizedToolset[] {
+export function buildStaticToolsetCatalog(): Array<NormalizedToolset> {
   return CONFIGURABLE_TOOLSETS.map((t) => ({
     key: t.key,
     label: t.label,

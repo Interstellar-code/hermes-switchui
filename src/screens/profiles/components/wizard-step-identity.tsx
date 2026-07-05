@@ -5,9 +5,9 @@ import { randomMatrixName } from '@/lib/matrix-names'
 
 type Props = {
   draft: NewAgentDraft
-  errors: string[]
-  existingTags: string[]
-  existingNames: string[]
+  errors: Array<string>
+  existingTags: Array<string>
+  existingNames: Array<string>
   onChange: (patch: Partial<NewAgentDraft>) => void
   editing?: boolean
 }

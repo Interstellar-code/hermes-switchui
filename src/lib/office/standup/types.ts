@@ -9,8 +9,8 @@ export type StandupCard = {
 export type StandupMeeting = {
   id?: string
   phase?: StandupMeetingPhase
-  participantOrder: string[]
-  arrivedAgentIds: string[]
+  participantOrder: Array<string>
+  arrivedAgentIds: Array<string>
   currentSpeakerAgentId?: string | null
-  cards: StandupCard[]
+  cards: Array<StandupCard>
 }
