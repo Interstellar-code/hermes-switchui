@@ -6,10 +6,10 @@
  */
 
 import {
-  useTemplatesViewStore,
-  usePageSize,
   PAGE_SIZES_GRID,
   PAGE_SIZES_LIST,
+  usePageSize,
+  useTemplatesViewStore,
 } from '@/stores/templates-screen-store'
 
 type Props = {
