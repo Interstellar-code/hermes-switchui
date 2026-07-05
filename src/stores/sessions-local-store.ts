@@ -59,7 +59,7 @@ export function readLegacyPinned(): Array<string> {
       parsed.state &&
       typeof parsed.state === 'object' &&
       'pinnedSessionKeys' in parsed.state &&
-      Array.isArray((parsed.state as { pinnedSessionKeys: unknown }).pinnedSessionKeys)
+      Array.isArray((parsed.state).pinnedSessionKeys)
     ) {
       keys = (parsed.state as { pinnedSessionKeys: Array<string> }).pinnedSessionKeys
     } else if (Array.isArray(parsed)) {
