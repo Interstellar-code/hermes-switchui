@@ -1,14 +1,15 @@
 "use client";
 
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
+import { useEffect, useMemo, useRef } from "react";
+import type { RefObject } from "react";
+import type { RenderAgent } from "@/features/retro-office/core/types";
 import {
   PING_PONG_BALL_RADIUS,
   PING_PONG_TABLE_SURFACE_Y,
 } from "@/features/retro-office/core/constants";
 import { toWorld } from "@/features/retro-office/core/geometry";
-import type { RenderAgent } from "@/features/retro-office/core/types";
 
 export function FloorRaycaster({
   enabled,
@@ -66,7 +67,7 @@ export function FloorRaycaster({
 export function PingPongBall({
   agentsRef,
 }: {
-  agentsRef: RefObject<RenderAgent[]>;
+  agentsRef: RefObject<Array<RenderAgent>>;
 }) {
   const ballRef = useRef<THREE.Mesh>(null);
   const shadowRef = useRef<THREE.Mesh>(null);
@@ -74,7 +75,7 @@ export function PingPongBall({
 
   useFrame(() => {
     if (!ballRef.current || !shadowRef.current || !shadowMatRef.current) return;
-    const allPlayers = (agentsRef.current ?? [])
+    const allPlayers = agentsRef.current
       .filter(
         (agent) =>
           agent.pingPongUntil !== undefined &&
@@ -94,11 +95,6 @@ export function PingPongBall({
     }
 
     const [leftPlayer, rightPlayer] = players;
-    if (!leftPlayer || !rightPlayer) {
-      ballRef.current.visible = false;
-      shadowRef.current.visible = false;
-      return;
-    }
     if (leftPlayer.state === "walking" || rightPlayer.state === "walking") {
       ballRef.current.visible = false;
       shadowRef.current.visible = false;
@@ -197,7 +193,7 @@ export function SpotlightEffect({
   agentLookupRef,
 }: {
   agentId: string | null;
-  agentsRef: RefObject<RenderAgent[]>;
+  agentsRef: RefObject<Array<RenderAgent>>;
   agentLookupRef?: RefObject<Map<string, RenderAgent>>;
 }) {
   const lightRef = useRef<THREE.SpotLight>(null);
@@ -214,8 +210,8 @@ export function SpotlightEffect({
     lightRef.current.intensity = bell * 6;
 
     const agent =
-      (agentId ? agentLookupRef?.current?.get(agentId) : undefined) ??
-      agentsRef.current?.find((candidate) => candidate.id === agentId);
+      (agentId ? agentLookupRef?.current.get(agentId) : undefined) ??
+      agentsRef.current.find((candidate) => candidate.id === agentId);
     if (agent) {
       const [wx, , wz] = toWorld(agent.x, agent.y);
       lightRef.current.position.set(wx, 5, wz);
