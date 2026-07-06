@@ -428,7 +428,7 @@ export function toChatMessage(
       const fn = record.function as Record<string, unknown> | undefined
       const toolCallId =
         record.id || `tc-${Math.random().toString(36).slice(2, 8)}`
-      const toolName = fn?.name || (record.name as string | undefined) || 'tool'
+      const toolName = fn?.name || record.name || 'tool'
       const toolArgs = fn?.arguments
       streamToolCallsArr.push({
         id: toolCallId,
@@ -619,7 +619,7 @@ export async function streamChat(
   }
 
   try {
-    while (true) {
+    for (;;) {
       const { done, value } = await reader.read()
       if (done) break
 
@@ -799,7 +799,7 @@ export type ModelOptions = {
     slug: string
     name?: string
     is_current?: boolean
-    models: string[]
+    models: Array<string>
     total_models?: number
     [key: string]: unknown
   }>
@@ -862,7 +862,7 @@ export type GatewayToolset = {
   description?: string
   enabled?: boolean
   configured?: boolean
-  tools?: string[]
+  tools?: Array<string>
 }
 
 /** GET /v1/toolsets — live toolset registry from the gateway (includes
