@@ -226,11 +226,11 @@ function MemoryTab() {
       })
       .then((json) => {
         if (!cancelled) {
-          const list = Array.isArray(json?.files) ? json.files : []
+          const list = Array.isArray(json.files) ? json.files : []
           setFiles(
             list.map((entry: Record<string, unknown>) => ({
-              path: String(entry?.path || ''),
-              name: String(entry?.name || entry?.path || ''),
+              path: String(entry.path || ''),
+              name: String(entry.name || entry.path || ''),
             })),
           )
           setLoading(false)
@@ -249,8 +249,7 @@ function MemoryTab() {
 
   if (loading) return <LoadingState text="Loading memory…" />
   if (error) return <ErrorState text={`Memory: ${error}`} />
-  if (!files || files.length === 0)
-    return <EmptyState text="No memory files available" />
+  if (files.length === 0) return <EmptyState text="No memory files available" />
 
   return (
     <div className="space-y-2 p-3 overflow-auto max-h-[calc(100vh-140px)]">
@@ -322,12 +321,13 @@ function SkillsTab() {
   if (skills.length === 0) return <EmptyState text="No skills found" />
 
   // Group by category
-  const grouped: Record<string, Array<SkillItem>> = {}
-  for (const skill of skills) {
-    const cat = skill.category || 'Uncategorized'
-    if (!grouped[cat]) grouped[cat] = []
-    grouped[cat].push(skill)
-  }
+  const grouped = skills.reduce<Record<string, Array<SkillItem>>>((acc, skill) => {
+    const cat = skill.category
+    const items = acc[cat] || []
+    items.push(skill)
+    acc[cat] = items
+    return acc
+  }, {})
 
   return (
     <div className="space-y-3 p-3 overflow-auto max-h-[calc(100vh-140px)]">
@@ -402,16 +402,16 @@ function McpTab() {
       })
       .then((json) => {
         if (cancelled) return
-        const list = Array.isArray(json?.servers) ? json.servers : []
+        const list = Array.isArray(json.servers) ? json.servers : []
         setServers(
           list.map((entry: Record<string, unknown>) => ({
-            id: String(entry?.id || entry?.name || ''),
-            name: String(entry?.name || ''),
-            enabled: Boolean(entry?.enabled),
+            id: String(entry.id || entry.name || ''),
+            name: String(entry.name || ''),
+            enabled: Boolean(entry.enabled),
             status:
-              typeof entry?.status === 'string' ? entry.status : undefined,
+              typeof entry.status === 'string' ? entry.status : undefined,
             discoveredToolsCount:
-              typeof entry?.discoveredToolsCount === 'number'
+              typeof entry.discoveredToolsCount === 'number'
                 ? entry.discoveredToolsCount
                 : undefined,
           })),
