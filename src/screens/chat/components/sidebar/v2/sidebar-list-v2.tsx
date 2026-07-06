@@ -11,12 +11,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import {
-  defaultRangeExtractor,
-  useVirtualizer,
-  type Range,
-} from '@tanstack/react-virtual'
+import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import { SidebarCardV2 } from './sidebar-card-v2'
+import type { Range } from '@tanstack/react-virtual'
 import type { DayGroupLabel, SessionDayGroup } from '@/screens/chat/apply-filters-and-decorate'
 
 const COLLAPSED_KEY = 'hermes.sessions.groups.collapsed'
@@ -78,8 +75,8 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
   // work on the `absolute`+`translateY` rows the virtualizer emits).
   const activeStickyIndexRef = useRef(0)
 
-  const rows = useMemo<RowModel[]>(() => {
-    const next: RowModel[] = []
+  const rows = useMemo<Array<RowModel>>(() => {
+    const next: Array<RowModel> = []
     for (const { label, items: groupItems } of groups) {
       const isCollapsed = collapsedMap[label] === true
       next.push({
@@ -149,7 +146,6 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
     const idx = rows.findIndex((row) => row.type === 'card' && row.isActive)
     if (idx >= 0) rowVirtualizer.scrollToIndex(idx, { align: 'auto' })
     // Only when the active session changes, not on every rows rebuild.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSessionKey])
 
   if (groups.length === 0) {
@@ -174,7 +170,6 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
         <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
           {rowVirtualizer.getVirtualItems().map((virtualRow) => {
             const row = rows[virtualRow.index]
-            if (!row) return null
             const isStickyHeader =
               row.type === 'header' &&
               activeStickyIndexRef.current === virtualRow.index
