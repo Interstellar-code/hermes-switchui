@@ -58,9 +58,7 @@ function loadIndex(): void {
   try {
     if (!existsSync(INDEX_FILE)) return
     const parsed = JSON.parse(readFileSync(INDEX_FILE, 'utf-8')) as ArtifactIndex
-    if (parsed && typeof parsed === 'object' && parsed.artifacts) {
-      index = parsed
-    }
+    index = parsed
   } catch {
     index = { artifacts: {} }
   }
@@ -128,8 +126,8 @@ export function deleteSessionArtifacts(sessionId: string): void {
 }
 
 export function getToolArtifact(artifactId: string): (ToolArtifact & { content: string }) | null {
+  if (!Object.prototype.hasOwnProperty.call(index.artifacts, artifactId)) return null
   const artifact = index.artifacts[artifactId]
-  if (!artifact) return null
   try {
     const raw = readFileSync(artifact.contentPath, 'utf-8')
     const parsed = JSON.parse(raw) as { content?: unknown }
@@ -163,7 +161,10 @@ export function createOrUpdateToolArtifact(input: CreateArtifactInput): ToolArti
   ].join('\n')
   const id = `toolout_${hashString(stableKey).slice(0, 16)}`
   const contentPath = artifactContentPath(input.sessionId, id)
-  const createdAt = index.artifacts[id]?.createdAt ?? Date.now()
+  const existingArtifact = Object.prototype.hasOwnProperty.call(index.artifacts, id)
+    ? index.artifacts[id]
+    : null
+  const createdAt = existingArtifact ? existingArtifact.createdAt : Date.now()
   const kind = input.kind ?? inferArtifactKind(input.toolName, input.content)
   const title = input.title ?? `${input.toolName || 'tool'} output`
   const summary =
