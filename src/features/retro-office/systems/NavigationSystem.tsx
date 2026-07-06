@@ -1,30 +1,30 @@
+import type { RenderAgent } from "@/features/retro-office/core/types";
 import {
   AGENT_RADIUS,
   BUMP_FREEZE_MS,
   SEPARATION_STRENGTH,
 } from "@/features/retro-office/core/constants";
 import {
-  isRemoteOfficeAgentId,
   REMOTE_ROAM_POINTS,
+  isRemoteOfficeAgentId,
 } from "@/features/retro-office/core/district";
 import { ROAM_POINTS } from "@/features/retro-office/core/navigation";
-import type { RenderAgent } from "@/features/retro-office/core/types";
 
 type ApplyAgentCollisionBumpsArgs = {
-  agents: RenderAgent[];
+  agents: Array<RenderAgent>;
   now: number;
 };
 
 export function applyAgentCollisionBumps({
   agents,
   now,
-}: ApplyAgentCollisionBumpsArgs): RenderAgent[] {
+}: ApplyAgentCollisionBumpsArgs): Array<RenderAgent> {
   const moved = [...agents];
   const collisionCellSize = AGENT_RADIUS * 4;
-  const collisionBuckets = new Map<string, number[]>();
+  const collisionBuckets = new Map<string, Array<number>>();
   for (let index = 0; index < moved.length; index += 1) {
     const agent = moved[index];
-    if ("role" in agent && agent.role === "janitor") continue;
+    if (agent.role === "janitor") continue;
     const bucketKey = `${Math.floor(agent.x / collisionCellSize)}:${Math.floor(
       agent.y / collisionCellSize,
     )}`;
@@ -35,7 +35,7 @@ export function applyAgentCollisionBumps({
 
   for (let i = 0; i < moved.length; i += 1) {
     const mi = moved[i];
-    if ("role" in mi && mi.role === "janitor") continue;
+    if (mi.role === "janitor") continue;
     if (moved[i].status === "working") continue;
     if (
       moved[i].state === "sitting" ||
@@ -62,7 +62,7 @@ export function applyAgentCollisionBumps({
         for (const j of bucket) {
           if (i === j) continue;
           const mj = moved[j];
-          if ("role" in mj && mj.role === "janitor") continue;
+          if (mj.role === "janitor") continue;
           let ddx = moved[i].x - moved[j].x;
           let ddy = moved[i].y - moved[j].y;
           const d = Math.hypot(ddx, ddy);
