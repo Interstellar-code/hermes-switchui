@@ -1,7 +1,12 @@
 /**
  * Tests for GET /api/mcp/hub-search route handler.
  */
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { isAuthenticated } from '../../../server/auth-middleware'
+import { getClientIp, rateLimit, rateLimitResponse } from '../../../server/rate-limit'
+import { unifiedSearch } from '../../../server/mcp-hub/index'
+import { Route } from './hub-search'
 
 vi.mock('../../../server/auth-middleware', () => ({
   isAuthenticated: vi.fn(),
@@ -15,11 +20,6 @@ vi.mock('../../../server/rate-limit', () => ({
 vi.mock('../../../server/mcp-hub/index', () => ({
   unifiedSearch: vi.fn(),
 }))
-
-import { isAuthenticated } from '../../../server/auth-middleware'
-import { rateLimit, getClientIp, rateLimitResponse } from '../../../server/rate-limit'
-import { unifiedSearch } from '../../../server/mcp-hub/index'
-import { Route } from './hub-search'
 
 const mockIsAuthenticated = vi.mocked(isAuthenticated)
 const mockRateLimit = vi.mocked(rateLimit)
