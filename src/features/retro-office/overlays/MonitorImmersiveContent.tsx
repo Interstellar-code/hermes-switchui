@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { shouldPreferBrowserScreenshot } from "@/lib/office/browserPreview";
 import type { BrowserPreviewSnapshot as BrowserPreviewSnapshotShape } from "@/lib/office/browserPreview";
 import type { OfficeDeskMonitor } from "@/lib/office/deskMonitor";
+import { shouldPreferBrowserScreenshot } from "@/lib/office/browserPreview";
 
 type BrowserPreviewSnapshot = BrowserPreviewSnapshotShape & {
   mediaUrl: string | null;
@@ -21,8 +21,8 @@ type OfficeMonitorEntry = {
 
 type OfficeMonitorEditor = {
   fileName: string;
-  lines: string[];
-  terminalLines: string[];
+  lines: Array<string>;
+  terminalLines: Array<string>;
   language: string;
   cursorLine: number;
   cursorColumn: number;
@@ -36,7 +36,7 @@ type MonitorViewModel = {
   subtitle: string;
   live: boolean;
   browserUrl: string | null;
-  entries: OfficeMonitorEntry[];
+  entries: Array<OfficeMonitorEntry>;
   editor: OfficeMonitorEditor;
 };
 
@@ -54,7 +54,7 @@ function asNumber(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-function getEntries(value: unknown): OfficeMonitorEntry[] {
+function getEntries(value: unknown): Array<OfficeMonitorEntry> {
   if (!Array.isArray(value)) return [];
   return value.map((entry) => {
     const record = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
@@ -130,8 +130,8 @@ function useBrowserPreviewScreenshot(params: {
     setSnapshot((current) => ({ ...current, browserUrl, error: null, loading: true }));
 
     try {
-      const params = new URLSearchParams({ url: browserUrl, ts: String(Date.now()) });
-      const response = await fetch(`/api/office/browser-preview?${params.toString()}`, {
+      const searchParams = new URLSearchParams({ url: browserUrl, ts: String(Date.now()) });
+      const response = await fetch(`/api/office/browser-preview?${searchParams.toString()}`, {
         cache: "no-store",
       });
       const payload = (await response.json()) as {
@@ -231,8 +231,8 @@ function MonitorBrowserContent({
     }
 
     try {
-      const loadedUrl = frame.contentWindow?.location?.href?.trim() ?? "";
-      const loadedText = frame.contentDocument?.body?.innerText?.trim() ?? "";
+      const loadedUrl = frame.contentWindow.location.href.trim();
+      const loadedText = frame.contentDocument.body.innerText.trim();
       if (loadedUrl === "about:blank" && !loadedText) {
         setAllowAutoFallback(false);
         setBrowserView("screenshot");
