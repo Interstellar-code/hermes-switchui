@@ -7,14 +7,16 @@ import {
   createProfile,
   getProfilesRoot,
   writeProfile,
-  type AgentRuntime,
-  type AgentUIMetadata,
-  type MemoryConfig,
-  type McpServerConfig,
-  type ModelConfig,
-  type SkillsConfig,
 } from '../../../server/profiles-browser'
 import { requireJsonContentType } from '../../../server/rate-limit'
+import type {
+  AgentRuntime,
+  AgentUIMetadata,
+  McpServerConfig,
+  MemoryConfig,
+  ModelConfig,
+  SkillsConfig,
+} from '../../../server/profiles-browser'
 
 const GLYPH_RE = /^[A-Z0-9]{1,3}$/
 
@@ -85,7 +87,7 @@ export const Route = createFileRoute('/api/profiles/create')({
             typeof body.model === 'object' &&
             !Array.isArray(body.model)
           ) {
-            resolvedModel = body.model as ModelConfig
+            resolvedModel = body.model
           } else if (typeof body.model === 'string') {
             resolvedModel = body.model
           }
@@ -110,7 +112,7 @@ export const Route = createFileRoute('/api/profiles/create')({
           if (
             resolvedModel &&
             typeof resolvedModel === 'object' &&
-            (resolvedModel as ModelConfig).provider
+            (resolvedModel).provider
           ) {
             const configPath = path.join(
               getProfilesRoot(),
@@ -119,7 +121,7 @@ export const Route = createFileRoute('/api/profiles/create')({
             )
             if (fs.existsSync(configPath)) {
               const parsed = YAML.parse(fs.readFileSync(configPath, 'utf-8')) as Record<string, unknown>
-              if (parsed && 'provider' in parsed) {
+              if ('provider' in parsed) {
                 delete parsed.provider
                 fs.writeFileSync(configPath, YAML.stringify(parsed), 'utf-8')
               }
