@@ -21,7 +21,8 @@ import {
   useState,
 } from 'react'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { fetchClaudeAuthStatus, type AuthStatus } from '@/lib/claude-auth'
+import type { AuthStatus } from '@/lib/claude-auth'
+import { fetchClaudeAuthStatus } from '@/lib/claude-auth'
 import { cn } from '@/lib/utils'
 import { ConnectionStartupScreen } from '@/components/connection-startup-screen'
 import { SidebarShellV2 } from '@/screens/chat/components/sidebar/v2/sidebar-shell-v2'
@@ -142,7 +143,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
           chatReady?: boolean
           modelConfigured?: boolean
         }
-        if (data?.ok || (data?.chatReady && data?.modelConfigured)) {
+        if (data.ok || (data.chatReady && data.modelConfigured)) {
           setAuthStatus({ authenticated: true, authRequired: false })
           setConnectionVerified(true)
         }
