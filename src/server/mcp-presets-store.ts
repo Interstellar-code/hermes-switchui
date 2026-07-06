@@ -26,8 +26,8 @@ import { homedir } from 'node:os'
 import { dirname, join, resolve as pathResolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomBytes } from 'node:crypto'
-import type { McpClientInput } from '../types/mcp'
 import { parseMcpServerInput } from './mcp-input-validate'
+import type { McpClientInput } from '../types/mcp'
 
 export interface McpPreset {
   id: string
@@ -367,7 +367,7 @@ function validatePayload(parsed: unknown): PresetValidation {
       category,
       ...(homepage !== undefined ? { homepage } : {}),
       ...(tags !== undefined ? { tags } : {}),
-      template: tmplResult.value as McpClientInput,
+      template: tmplResult.value,
     })
   }
 
@@ -412,7 +412,7 @@ function makeCacheKey(path: string, st: { mtimeMs: number; size: number; ino: nu
  * HIGH-3: statKey now distinguishes ENOENT (bootstrap) from EACCES/ELOOP/
  * other (permission/symlink error → return source:'invalid').
  */
-export async function readPresets(): Promise<ReadPresetsResult> {
+export function readPresets(): Promise<ReadPresetsResult> {
   const path = presetsFilePath()
 
   // Fast path — file exists and we have a fresh cache entry
