@@ -78,18 +78,18 @@ export function assignDelegatedSessions(
   // no delegated assignment — we simply skip assigning to them and probe forward
   // to the next non-active member deterministically.
   let probe = 0 // position in tierTwo (full list, stable anchor)
-  for (let i = 0; i < sortedSessions.length; i++) {
-    const session = sortedSessions[i]
+  for (const session of sortedSessions) {
     // Find the next eligible slot starting from position (probe % tierTwo.length)
     let found = false
     for (let attempt = 0; attempt < tierTwo.length; attempt++) {
       const candidateId = tierTwo[(probe + attempt) % tierTwo.length]
-      if (!ownActivity[candidateId]?.isActive) {
-        const existing = result[candidateId]
+      if (!ownActivity[candidateId].isActive) {
+        const hadExisting = Object.hasOwn(result, candidateId)
+        const existing = hadExisting ? result[candidateId] : undefined
         // When several sessions land on the same member, keep the most recent.
         if (
-          !existing ||
-          (existing.activeDelegatedLastActiveAt ?? 0) < session.lastActiveAt
+          !hadExisting ||
+          (existing && existing.activeDelegatedLastActiveAt < session.lastActiveAt)
         ) {
           result[candidateId] = {
             activeDelegatedSessionKey: session.sessionKey,
