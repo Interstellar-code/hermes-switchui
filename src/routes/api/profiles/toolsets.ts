@@ -6,8 +6,8 @@ import {
   PLUGINS_GROUP,
   TOOLSET_GROUP_BY_KEY,
   buildStaticToolsetCatalog,
-  type NormalizedToolset,
 } from '../../../lib/toolsets'
+import type { NormalizedToolset } from '../../../lib/toolsets'
 
 /**
  * Strip a leading 🔌 (and any other leading non-alphanumeric tokens) from a
@@ -15,7 +15,7 @@ import {
  * was present (→ plugin-registered toolset).
  */
 function cleanLabel(raw: string): { label: string; hadPlugin: boolean } {
-  const trimmed = (raw ?? '').trim()
+  const trimmed = raw.trim()
   const hadPlugin = /^[^\p{L}\p{N}]*\u{1F50C}/u.test(trimmed) || trimmed.startsWith('🔌')
   // Drop leading run of non-alphanumeric chars (emoji, separators, spaces).
   const label = trimmed.replace(/^[^\p{L}\p{N}]+/u, '').trim()
@@ -32,13 +32,13 @@ export const Route = createFileRoute('/api/profiles/toolsets')({
 
         try {
           const res = await listGatewayToolsets()
-          const rows = Array.isArray(res?.data) ? res.data : []
+          const rows = Array.isArray(res.data) ? res.data : []
           if (rows.length === 0) {
             // Treat an empty live list as a failure → static fallback.
             throw new Error('empty toolset list')
           }
 
-          const toolsets: NormalizedToolset[] = rows.map((t) => {
+          const toolsets: Array<NormalizedToolset> = rows.map((t) => {
             const key = t.name
             const { label, hadPlugin } = cleanLabel(t.label || key)
             const known = Object.prototype.hasOwnProperty.call(
