@@ -11,13 +11,13 @@ export type Persona = {
   glyph: string
   name: string
   description: string
-  tags: string[]
+  tags: Array<string>
   system_prompt: string
   path: string
   default_model?: string
   default_memory_provider?: string
-  suggested_mcps?: string[]
-  suggested_toolsets?: string[]
+  suggested_mcps?: Array<string>
+  suggested_toolsets?: Array<string>
 }
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
@@ -31,7 +31,7 @@ export function getBundledPersonasRoot(): string {
   // import.meta.dirname is available in Node.js 20.11+ and Bun
   // It resolves to the directory containing the current module
   const moduleDir = typeof import.meta !== 'undefined' && 'dirname' in import.meta
-    ? (import.meta.dirname as string)
+    ? import.meta.dirname
     : __dirname || path.dirname(new URL(import.meta.url).pathname)
 
   // Navigate from src/server/ → assets/personas/curated/
@@ -58,7 +58,7 @@ function parseFrontmatter(text: string): FrontmatterResult {
   if (!match) return null
   try {
     const data = YAML.parse(match[1]) as Record<string, unknown>
-    return { data, body: match[2] ?? '' }
+    return { data, body: match[2] }
   } catch {
     return null
   }
@@ -99,25 +99,25 @@ function parsePersonaFile(filePath: string): Persona | null {
     glyph: data.glyph,
     name: data.name,
     description: typeof data.description === 'string' ? data.description : '',
-    tags: Array.isArray(data.tags) ? (data.tags as string[]) : [],
+    tags: Array.isArray(data.tags) ? (data.tags as Array<string>) : [],
     system_prompt: body.trim(),
     path: filePath,
     default_model: typeof data.default_model === 'string' ? data.default_model : undefined,
     default_memory_provider: typeof data.default_memory_provider === 'string' ? data.default_memory_provider : undefined,
-    suggested_mcps: Array.isArray(data.suggested_mcps) ? (data.suggested_mcps as string[]) : undefined,
-    suggested_toolsets: Array.isArray(data.suggested_toolsets) ? (data.suggested_toolsets as string[]) : undefined,
+    suggested_mcps: Array.isArray(data.suggested_mcps) ? (data.suggested_mcps as Array<string>) : undefined,
+    suggested_toolsets: Array.isArray(data.suggested_toolsets) ? (data.suggested_toolsets as Array<string>) : undefined,
   }
 }
 
-export function listPersonas(_rootOverride?: string): Persona[] {
+export function listPersonas(_rootOverride?: string): Array<Persona> {
   // Read from bundled assets (assets/personas/curated/), or from override (testing only)
   const bundledRoot = _rootOverride ?? getBundledPersonasRoot()
   if (!fs.existsSync(bundledRoot)) return []
 
-  const personas: Persona[] = []
+  const personas: Array<Persona> = []
   const seenIds = new Map<string, string>() // id → filePath
 
-  let fileEntries: fs.Dirent[]
+  let fileEntries: Array<fs.Dirent>
   try {
     fileEntries = fs.readdirSync(bundledRoot, { withFileTypes: true })
   } catch {
@@ -153,7 +153,7 @@ export function readPersona(id: string): Persona | null {
   const bundledRoot = getBundledPersonasRoot()
   if (!fs.existsSync(bundledRoot)) return null
 
-  let fileEntries: fs.Dirent[]
+  let fileEntries: Array<fs.Dirent>
   try {
     fileEntries = fs.readdirSync(bundledRoot, { withFileTypes: true })
   } catch {
