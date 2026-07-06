@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { NewAgentDraft } from '../types'
+import type { McpServerConfig } from '@/server/profiles-browser'
 import { CONFIGURABLE_TOOLSETS, mapPersonaToolset } from '@/lib/toolsets'
 
 type PersonaListItem = {
@@ -9,25 +10,25 @@ type PersonaListItem = {
   glyph: string
   name: string
   description: string
-  tags: string[]
+  tags: Array<string>
   system_prompt_preview: string
   has_more_prompt: boolean
   default_model?: string
   default_memory_provider?: string
-  suggested_mcps?: string[]
-  suggested_toolsets?: string[]
+  suggested_mcps?: Array<string>
+  suggested_toolsets?: Array<string>
 }
 
 type Props = {
   draft: NewAgentDraft
-  errors: string[]
+  errors: Array<string>
   onChange: (patch: Partial<NewAgentDraft>) => void
 }
 
-async function fetchPersonas(): Promise<PersonaListItem[]> {
+async function fetchPersonas(): Promise<Array<PersonaListItem>> {
   const r = await fetch('/api/personas/list')
   if (!r.ok) throw new Error('Failed to load personas')
-  const data = (await r.json()) as { personas: PersonaListItem[] }
+  const data = (await r.json()) as { personas: Array<PersonaListItem> }
   return data.personas
 }
 
@@ -89,7 +90,7 @@ export function WizardStepPersona({ draft, errors, onChange }: Props) {
 
       // Pre-fill MCP servers best-effort: seed empty config entries by name only when mcp_servers is empty
       if (p.suggested_mcps && p.suggested_mcps.length > 0 && Object.keys(draft.mcp_servers).length === 0) {
-        const seeded: Record<string, import('@/server/profiles-browser').McpServerConfig> = {}
+        const seeded: Record<string, McpServerConfig> = {}
         for (const name of p.suggested_mcps) {
           // TODO(persona-mcp-match): replace with catalog lookup to get real config
           seeded[name] = {}
