@@ -239,11 +239,11 @@ function SidebarCardV2Impl({ item, isActive }: SidebarCardV2Props) {
             {typeof item.sourceMeta.model === 'string' && item.sourceMeta.model && (
               <span title="Model">{String(item.sourceMeta.model)}</span>
             )}
-            {typeof item.sourceMeta.messageCount === 'number' && (item.sourceMeta.messageCount as number) > 0 && (
-              <span title={`${item.sourceMeta.messageCount} messages`}>💬 {item.sourceMeta.messageCount as number}</span>
+            {typeof item.sourceMeta.messageCount === 'number' && item.sourceMeta.messageCount > 0 && (
+              <span title={`${item.sourceMeta.messageCount} messages`}>💬 {item.sourceMeta.messageCount}</span>
             )}
-            {typeof item.sourceMeta.toolCallCount === 'number' && (item.sourceMeta.toolCallCount as number) > 0 && (
-              <span title={`${item.sourceMeta.toolCallCount} tool calls`}>🔧 {item.sourceMeta.toolCallCount as number}</span>
+            {typeof item.sourceMeta.toolCallCount === 'number' && item.sourceMeta.toolCallCount > 0 && (
+              <span title={`${item.sourceMeta.toolCallCount} tool calls`}>🔧 {item.sourceMeta.toolCallCount}</span>
             )}
             {item.tokens != null && item.tokens > 0 && (
               <span title={`${item.tokens} tokens`} style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -266,7 +266,7 @@ function SidebarCardV2Impl({ item, isActive }: SidebarCardV2Props) {
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
-              const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+              const rect = e.currentTarget.getBoundingClientRect()
               setCtxMenu({ x: rect.left, y: rect.bottom + 4 })
             }}
             style={{
