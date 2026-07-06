@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { NewAgentDraft } from '../types'
+import { HARDCODED_CATALOG, McpServerList, fetchMcpServers, serverToConfig } from './mcp-server-list'
 import type { McpServerConfig } from '@/server/profiles-browser'
-import { McpServerList, fetchMcpServers, serverToConfig, HARDCODED_CATALOG } from './mcp-server-list'
+import type { NewAgentDraft } from '../types'
 import type { McpServer } from './mcp-server-list'
 
 type Props = {
   draft: NewAgentDraft
-  errors: string[]
+  errors: Array<string>
   onChange: (patch: Partial<NewAgentDraft>) => void
 }
 
@@ -22,7 +22,7 @@ export function WizardStepMcp({ draft, errors, onChange }: Props) {
 
   function toggle(s: McpServer) {
     const next = { ...draft.mcp_servers }
-    if (next[s.name]) {
+    if (Object.prototype.hasOwnProperty.call(next, s.name)) {
       delete next[s.name]
     } else {
       next[s.name] = serverToConfig(s)
@@ -32,10 +32,11 @@ export function WizardStepMcp({ draft, errors, onChange }: Props) {
 
   function setEnv(serverName: string, key: string, value: string) {
     const next = { ...draft.mcp_servers }
-    if (!next[serverName]) return
+    if (!Object.prototype.hasOwnProperty.call(next, serverName)) return
+    const server = next[serverName]
     next[serverName] = {
-      ...next[serverName],
-      env: { ...(next[serverName].env ?? {}), [key]: value },
+      ...server,
+      env: { ...(server.env ?? {}), [key]: value },
     }
     onChange({ mcp_servers: next })
   }
