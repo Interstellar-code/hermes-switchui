@@ -2,10 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { createElement } from 'react'
-import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { useThinkingLevel } from './use-thinking-level'
+import type { ReactNode } from 'react'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -26,7 +26,7 @@ function makeWrapper() {
 /** Stub fetch so /api/models and /api/session-status return controlled data */
 function stubFetch({
   model = '',
-  models = [] as { id: string }[],
+  models = [] as Array<{ id: string }>,
 } = {}) {
   vi.stubGlobal(
     'fetch',
