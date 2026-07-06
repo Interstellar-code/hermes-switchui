@@ -1,15 +1,21 @@
 name: Deploy website to VPS
 
 # Build the Astro landing site (website/) in CI and rsync the result to the
-# Virtualmin/Apache web root over SSH. Runs only when website/ changes, or
-# manually. Requires repo secrets: SSH_PRIVATE_KEY, SSH_HOST, SSH_PORT (opt),
-# SSH_USER, DEPLOY_PATH.
+# Virtualmin/Apache web root over SSH. Runs when the site, its lockfile, the
+# root package version (drives the displayed site version), or this workflow
+# changes on main — plus manual dispatch. Requires repo secrets:
+# SSH_PRIVATE_KEY, SSH_HOST, SSH_PORT (opt), SSH_USER, DEPLOY_PATH.
+#
+# Runs on GitHub-hosted ubuntu-latest (the previous self-hosted runner is
+# gone). The deploy target is a static web root — no Node service runs on the
+# VPS, so the runner location doesn't matter.
 
 on:
   push:
     branches: [main]
     paths:
       - 'website/**'
+      - 'package.json'
       - '.github/workflows/website-deploy.yml'
   workflow_dispatch:
 
@@ -24,7 +30,7 @@ defaults:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
