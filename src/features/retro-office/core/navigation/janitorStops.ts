@@ -1,10 +1,10 @@
+import type { FacingPoint, FurnitureItem } from "@/features/retro-office/core/types";
 import {
   CANVAS_H,
   CANVAS_W,
   SNAP_GRID,
 } from "@/features/retro-office/core/constants";
 import { snap } from "@/features/retro-office/core/geometry";
-import type { FacingPoint, FurnitureItem } from "@/features/retro-office/core/types";
 
 const JANITOR_STOP_TYPES = new Set([
   "trash",
@@ -32,10 +32,10 @@ const resolveJanitorStop = (item: FurnitureItem): FacingPoint => {
 };
 
 export const getJanitorCleaningStops = (
-  items: FurnitureItem[],
-): FacingPoint[] => {
+  items: Array<FurnitureItem>,
+): Array<FacingPoint> => {
   const seen = new Set<string>();
-  const stops: FacingPoint[] = [];
+  const stops: Array<FacingPoint> = [];
   for (const item of items) {
     if (!JANITOR_STOP_TYPES.has(item.type)) continue;
     const stop = resolveJanitorStop(item);
