@@ -5,7 +5,7 @@ export type McpServer = {
   name: string
   url?: string
   command?: string
-  args?: string[]
+  args?: Array<string>
   status?: string
   enabled?: boolean
   transportType?: string
@@ -16,17 +16,17 @@ export const ENV_REQUIREMENTS: Record<string, Array<{ key: string; label: string
   'brave-search': [{ key: 'BRAVE_API_KEY', label: 'Brave API Key' }],
 }
 
-export const HARDCODED_CATALOG: McpServer[] = [
+export const HARDCODED_CATALOG: Array<McpServer> = [
   { name: 'context-mode', url: 'https://mcp.context7.com/mcp' },
   { name: 'filesystem', command: 'npx', args: ['@modelcontextprotocol/server-filesystem', '.'] },
   { name: 'claude-mem', command: 'npx', args: ['@anthropic-ai/claude-mem-mcp'] },
 ]
 
-export async function fetchMcpServers(): Promise<McpServer[]> {
+export async function fetchMcpServers(): Promise<Array<McpServer>> {
   try {
     const r = await fetch('/api/mcp')
     if (!r.ok) return HARDCODED_CATALOG
-    const data = (await r.json()) as { servers?: McpServer[] }
+    const data = (await r.json()) as { servers?: Array<McpServer> }
     const servers = data.servers ?? []
     const names = new Set(servers.map((s) => s.name))
     const extras = HARDCODED_CATALOG.filter((c) => !names.has(c.name))
@@ -45,7 +45,7 @@ export function serverToConfig(s: McpServer): McpServerConfig {
 }
 
 type McpServerListProps = {
-  servers: McpServer[]
+  servers: Array<McpServer>
   selected: Record<string, McpServerConfig>
   readonly?: boolean
   onToggle: (s: McpServer) => void
@@ -138,7 +138,7 @@ export function McpServerList({ servers, selected, readonly = false, onToggle, o
                           className="mcp-row-details-env-input"
                           type="password"
                           placeholder={key}
-                          value={selected[s.name]?.env?.[key] ?? ''}
+                          value={selected[s.name].env?.[key] ?? ''}
                           onChange={(e) => onEnvChange(s.name, key, e.target.value)}
                         />
                       </div>
