@@ -1,28 +1,30 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { isAuthenticated } from '@/server/auth-middleware'
+import { readContextUsage } from '@/server/context-usage'
 
 const CHARS_PER_TOKEN = 3.5
 
 type ContentPart = { type: string; text?: string }
-type MessageLike = { content?: string | ContentPart[]; text?: string }
+type MessageLike = { content?: string | Array<ContentPart>; text?: string }
 
 /**
  * Estimate token count from an array of messages.
  * Counts structured content arrays and tool results; avoids double-counting
  * when a top-level `text` field mirrors the structured content.
  */
-export function estimateContextTokensFromMessages(messages: MessageLike[]): number {
+export function estimateContextTokensFromMessages(messages: Array<MessageLike>): number {
   let totalChars = 0
   for (const msg of messages) {
     if (Array.isArray(msg.content)) {
       // Sum chars from structured content parts
       let contentChars = 0
-      for (const part of msg.content as ContentPart[]) {
+      for (const part of msg.content) {
         if (part.text) contentChars += part.text.length
       }
       totalChars += contentChars
       // Only add top-level text if it's not a mirror of the content
       if (typeof msg.text === 'string' && msg.text !== '') {
-        const contentText = (msg.content as ContentPart[]).map((p) => p.text ?? '').join('')
+        const contentText = (msg.content).map((p) => p.text ?? '').join('')
         if (msg.text !== contentText) {
           totalChars += msg.text.length
         }
@@ -45,8 +47,6 @@ export function estimateContextTokensFromCacheRead(
   const assistantTurns = Math.max(1, Math.ceil(turnCount / 2))
   return Math.ceil((cumulativeCacheReadBytes / assistantTurns) * 1.2 / CHARS_PER_TOKEN)
 }
-import { isAuthenticated } from '@/server/auth-middleware'
-import { readContextUsage } from '@/server/context-usage'
 
 export const Route = createFileRoute('/api/context-usage')({
   server: {
