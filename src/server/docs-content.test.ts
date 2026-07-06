@@ -1,13 +1,13 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
-  getAllPages,
-  scanDocsTree,
-  loadDocPage,
   getAdjacentPages,
+  getAllPages,
+  loadDocPage,
   loadDocsManifest,
+  scanDocsTree,
 } from './docs-content'
 
 let tmpDir: string
@@ -93,9 +93,9 @@ describe('getAllPages', () => {
     writeDoc('gamma.md', '# body only')
 
     const pages = getAllPages(tmpDir, manifestPath)
-    expect(pages[0]!.title).toBe('Manifest Title')
-    expect(pages[1]!.title).toBe('FM Beta')
-    expect(pages[2]!.title).toBe('gamma')
+    expect(pages[0].title).toBe('Manifest Title')
+    expect(pages[1].title).toBe('FM Beta')
+    expect(pages[2].title).toBe('gamma')
   })
 
   it('tolerates published/order frontmatter without using them for filtering or sorting', () => {
@@ -109,8 +109,8 @@ describe('getAllPages', () => {
     const pages = getAllPages(tmpDir, manifestPath)
     // manifest order wins (b first), published gate ignored, manifest title wins
     expect(pages.map((p) => p.slug)).toEqual(['b', 'a'])
-    expect(pages[0]!.title).toBe('B')
-    expect(pages[1]!.title).toBe('A')
+    expect(pages[0].title).toBe('B')
+    expect(pages[1].title).toBe('A')
   })
 })
 
@@ -160,8 +160,8 @@ describe('scanDocsTree', () => {
     const tree = scanDocsTree(tmpDir, manifestPath)
     expect(tree.rootPages.map((p) => p.slug)).toEqual(['root-a'])
     expect(tree.folders).toHaveLength(1)
-    expect(tree.folders[0]!.name).toBe('plans')
-    expect(tree.folders[0]!.pages.map((p) => p.slug)).toEqual([
+    expect(tree.folders[0].name).toBe('plans')
+    expect(tree.folders[0].pages.map((p) => p.slug)).toEqual([
       'plans/p1',
       'plans/p2',
     ])
