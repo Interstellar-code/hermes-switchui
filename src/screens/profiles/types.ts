@@ -7,7 +7,7 @@ export type NewAgentDraft = {
   name: string
   glyph: string
   role: string
-  tags: string[]
+  tags: Array<string>
 
   // Step 2 — Persona
   persona_id: string | null
@@ -20,13 +20,13 @@ export type NewAgentDraft = {
   reasoning_effort: 'low' | 'medium' | 'high'
 
   // Step 4 — Skills
-  skill_dirs: string[]
+  skill_dirs: Array<string>
 
   // Step 5 — MCP
   mcp_servers: Record<string, McpServerConfig>
 
   // Step 6 — Toolsets
-  disabled_toolsets: string[]
+  disabled_toolsets: Array<string>
 
   // Step 7 — Memory
   memory_enabled: boolean
@@ -56,7 +56,7 @@ export type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 export type WizardState = {
   draft: NewAgentDraft
   step: WizardStep
-  errors: Record<number, string[]>
+  errors: Record<number, Array<string>>
   submitting: boolean
   submitError: string | null
 }
@@ -64,7 +64,7 @@ export type WizardState = {
 export type WizardAction =
   | { type: 'SET_DRAFT'; patch: Partial<NewAgentDraft> }
   | { type: 'SET_STEP'; step: WizardStep }
-  | { type: 'SET_ERRORS'; step: number; errors: string[] }
+  | { type: 'SET_ERRORS'; step: number; errors: Array<string> }
   | { type: 'CLEAR_ERRORS'; step: number }
   | { type: 'SET_SUBMITTING'; value: boolean }
   | { type: 'SET_SUBMIT_ERROR'; error: string | null }
@@ -121,10 +121,10 @@ const GLYPH_RE = /^[A-Z0-9]{1,3}$/
 export function validateStep(
   step: WizardStep,
   draft: NewAgentDraft,
-  existingNames: string[],
+  existingNames: Array<string>,
   editName?: string,
-): string[] {
-  const errs: string[] = []
+): Array<string> {
+  const errs: Array<string> = []
   if (step === 1) {
     if (!NAME_RE.test(draft.name)) {
       errs.push('Name must be 2–40 lowercase letters, numbers, or hyphens')
@@ -146,7 +146,7 @@ export function validateStep(
     if (!draft.persona_id && !editName) {
       errs.push('Please select a persona')
     }
-    if (!draft.system_prompt?.trim()) {
+    if (!draft.system_prompt.trim()) {
       errs.push('System prompt is required')
     }
   } else if (step === 3) {
@@ -156,7 +156,7 @@ export function validateStep(
   // Steps 4, 5, 6 are optional
   // Step 7: memory_provider required only if memory_enabled
   else if (step === 7) {
-    if (draft.memory_enabled && !draft.memory_provider) {
+    if (draft.memory_enabled) {
       errs.push('Memory provider is required when memory is enabled')
     }
   }
@@ -165,7 +165,7 @@ export function validateStep(
   else if (step === 9) {
     const prior = [1, 2, 3, 7] as const
     for (const s of prior) {
-      const e = validateStep(s as WizardStep, draft, existingNames, editName)
+      const e = validateStep(s, draft, existingNames, editName)
       errs.push(...e)
     }
   }
