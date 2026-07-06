@@ -1,6 +1,6 @@
 import {
-  dashboardFetch,
   CLAUDE_DASHBOARD_URL,
+  dashboardFetch,
 } from './gateway-capabilities'
 
 export type DashboardSession = {
@@ -67,7 +67,7 @@ export type EnvVarInfo = {
   url?: string | null
   category?: string
   is_password?: boolean
-  tools?: string[]
+  tools?: Array<string>
   advanced?: boolean
 }
 
@@ -91,7 +91,7 @@ export type ToolsetInfo = {
   description: string
   enabled: boolean
   configured: boolean
-  tools: string[]
+  tools: Array<string>
 }
 
 export type DashboardStatus = {
@@ -121,7 +121,7 @@ async function dashboardJson<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function listSessions(limit = 50, offset = 0): Promise<{
-  sessions: DashboardSession[]
+  sessions: Array<DashboardSession>
   total: number
   limit: number
   offset: number
@@ -139,7 +139,7 @@ export async function getSessionMessages(
   id: string,
   query: SessionMessagesQuery = {},
 ): Promise<{
-  messages: DashboardMessage[]
+  messages: Array<DashboardMessage>
   session_started?: number
   model?: string
 }> {
@@ -195,7 +195,7 @@ export async function forkSession(
   })
 }
 
-export async function getSkills(): Promise<SkillInfo[]> {
+export async function getSkills(): Promise<Array<SkillInfo>> {
   return dashboardJson('/api/skills')
 }
 
@@ -216,7 +216,7 @@ export async function getConfig(): Promise<Record<string, unknown>> {
 
 export async function getConfigSchema(): Promise<{
   fields: Record<string, unknown>
-  category_order: string[]
+  category_order: Array<string>
 }> {
   return dashboardJson('/api/config/schema')
 }
@@ -277,15 +277,10 @@ export async function saveConfig(
     // Dashboards have historically wrapped the config in `{ config: {...} }`.
     // Support both shapes defensively.
     const base =
-      current && typeof current === 'object' && 'config' in current
-        ? ((current as Record<string, unknown>).config as Record<
-            string,
-            unknown
-          >)
-        : (current as Record<string, unknown>)
-    if (base && typeof base === 'object') {
-      merged = deepMerge(base, config)
-    }
+      'config' in current
+        ? (current.config as Record<string, unknown>)
+        : current
+    merged = deepMerge(base, config)
   } catch {
     // If we can't read the current config, fall back to sending the raw patch.
     // The dashboard will reject or overwrite — this is no worse than the old
@@ -331,7 +326,7 @@ export async function deleteEnvVar(key: string): Promise<{ ok: boolean }> {
   })
 }
 
-export async function getCronJobs(): Promise<CronJob[]> {
+export async function getCronJobs(): Promise<Array<CronJob>> {
   return dashboardJson('/api/cron/jobs')
 }
 
@@ -380,7 +375,7 @@ export async function getModelInfo(): Promise<Record<string, unknown>> {
   return dashboardJson('/api/model/info')
 }
 
-export async function getToolsets(): Promise<ToolsetInfo[]> {
+export async function getToolsets(): Promise<Array<ToolsetInfo>> {
   return dashboardJson('/api/tools/toolsets')
 }
 
