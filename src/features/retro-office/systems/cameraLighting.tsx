@@ -1,8 +1,9 @@
 "use client";
-
 import { useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useRef, type MutableRefObject, type RefObject } from "react";
+import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import type { RenderAgent } from "@/features/retro-office/core/types";
+import type { MutableRefObject, RefObject } from "react";
 import { WORLD_H, WORLD_W } from "@/features/retro-office/core/constants";
 import {
   DISTRICT_CAMERA_POSITION,
@@ -10,7 +11,6 @@ import {
   DISTRICT_CAMERA_ZOOM,
 } from "@/features/retro-office/core/district";
 import { toWorld } from "@/features/retro-office/core/geometry";
-import type { RenderAgent } from "@/features/retro-office/core/types";
 
 export type CameraPreset = {
   pos: [number, number, number];
@@ -97,7 +97,7 @@ export function FollowCamController({
   agentLookupRef,
 }: {
   followRef: MutableRefObject<string | null>;
-  agentsRef: RefObject<RenderAgent[]>;
+  agentsRef: RefObject<Array<RenderAgent>>;
   agentLookupRef?: RefObject<Map<string, RenderAgent>>;
 }) {
   const { camera, set, size, gl } = useThree();
@@ -173,8 +173,8 @@ export function FollowCamController({
 
     if (isFollowing && !wasFollowingRef.current) {
       const agent =
-        (agentId ? agentLookupRef?.current?.get(agentId) : undefined) ??
-        agentsRef.current?.find((candidate) => candidate.id === agentId);
+        (agentId ? agentLookupRef?.current.get(agentId) : undefined) ??
+        agentsRef.current.find((candidate) => candidate.id === agentId);
       if (!agent) return;
 
       if (!perspectiveCameraRef.current) {
@@ -203,8 +203,8 @@ export function FollowCamController({
     if (!isFollowing || !perspectiveCameraRef.current) return;
 
     const agent =
-      (agentId ? agentLookupRef?.current?.get(agentId) : undefined) ??
-      agentsRef.current?.find((candidate) => candidate.id === agentId);
+      (agentId ? agentLookupRef?.current.get(agentId) : undefined) ??
+      agentsRef.current.find((candidate) => candidate.id === agentId);
     if (!agent) return;
 
     if (agentId !== lastAgentIdRef.current) {
