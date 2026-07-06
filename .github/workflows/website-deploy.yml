@@ -57,7 +57,12 @@ jobs:
 
       - name: Deploy dist/ to web root
         run: |
-          rsync -az --delete --exclude='.DS_Store' \
+          # --no-times: skip mtime preservation. The deploy user is a member
+          # of the web-root group (zionadmin) but not its owner, so rsync
+          # can't update directory mtimes — without this flag, rsync exits
+          # 23 (partial transfer) on every deploy. For a static site the
+          # mtime is irrelevant; what matters is the file content.
+          rsync -az --no-times --delete --exclude='.DS_Store' \
             -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || '22' }}" \
             dist/ \
             "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/"
