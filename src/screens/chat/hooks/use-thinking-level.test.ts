@@ -30,14 +30,14 @@ function stubFetch({
 } = {}) {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string) => {
+    vi.fn((url: string) => {
       if (url === '/api/models') {
-        return { ok: true, json: async () => ({ models }) }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ models }) })
       }
       if (url === '/api/session-status') {
-        return { ok: true, json: async () => ({ model }) }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ model }) })
       }
-      return { ok: false, json: async () => ({}) }
+      return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
     }),
   )
 }
@@ -239,7 +239,7 @@ describe('availableModelIds', () => {
   it('returns empty array when /api/models responds with not-ok', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({ ok: false, json: async () => ({}) })),
+      vi.fn(() => Promise.resolve({ ok: false, json: () => Promise.resolve({}) })),
     )
     const { result } = renderHook(() => useThinkingLevel(defaultParams()), {
       wrapper: makeWrapper(),
