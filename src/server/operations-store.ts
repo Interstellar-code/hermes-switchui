@@ -322,10 +322,10 @@ function outputTypeFor(name: string, hintedType?: string): OutputType {
 // ---------------------------------------------------------------------------
 
 function nodeRunToAgent(row: NodeRunRow): Agent {
-  const name = row.assigned_agent ?? row.dag_node_id ?? row.id
+  const name = row.assigned_agent ?? row.dag_node_id
   const status = nodeStatusToAgent(row.status)
   const lastTs = row.completed_at ?? row.started_at ?? null
-  const task = row.summary ?? row.dag_node_id ?? ''
+  const task = row.summary ?? row.dag_node_id
   return {
     id: row.id,
     initials: makeInitials(name),
@@ -427,7 +427,7 @@ function nodeRunToFocusData(row: NodeRunRow, all: Array<NodeRunRow>): FocusData 
     .map(({ n, ref }) => ({
       type:
         ref.type === 'file' || ref.type === 'artifact' || ref.type === 'data'
-          ? (ref.type as OutputItem['type'])
+          ? ref.type
           : 'artifact',
       name: ref.label ?? ref.path ?? ref.url ?? 'artifact',
       meta: `${n.assigned_agent ?? n.dag_node_id} · ${ref.url ?? ref.path ?? ''}`.trim(),
@@ -581,15 +581,15 @@ export class CapabilityUnavailableError extends Error {
   }
 }
 
-export async function pauseAgent(_id: string): Promise<never> {
-  throw new CapabilityUnavailableError('session-pause')
+export function pauseAgent(_id: string): Promise<never> {
+  return Promise.reject(new CapabilityUnavailableError('session-pause'))
 }
 
-export async function resumeAgent(_id: string): Promise<never> {
-  throw new CapabilityUnavailableError('session-resume')
+export function resumeAgent(_id: string): Promise<never> {
+  return Promise.reject(new CapabilityUnavailableError('session-resume'))
 }
 
-export async function createAgent(input: {
+export function createAgent(input: {
   name: string
   role: AgentRole
   task: string
@@ -598,7 +598,7 @@ export async function createAgent(input: {
   // a placeholder Agent so the UI can optimistically render until a proper
   // gateway endpoint lands. No persistent state is created.
   const initials = makeInitials(input.name)
-  return {
+  return Promise.resolve({
     id: `pending-${Date.now().toString(36)}`,
     initials,
     name: input.name,
@@ -608,7 +608,7 @@ export async function createAgent(input: {
     capacityPct: 0,
     tokens: null,
     lastSeen: 'now',
-  }
+  })
 }
 
 export async function createDispatch(input: {
