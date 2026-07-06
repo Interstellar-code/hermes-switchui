@@ -169,7 +169,7 @@ export function TerminalWorkspace({
     return secondary.id === activeTab.id ? [activeTab] : [activeTab, secondary]
   }, [activeTab, splitMode, tabs])
 
-  const sendInput = useCallback(function sendInput(
+  const sendInput = useCallback(function handleSendInput(
     tabId: string,
     data: string,
   ) {
@@ -188,7 +188,7 @@ export function TerminalWorkspace({
     })
   }, [])
 
-  const resizeSession = useCallback(async function resizeSession(
+  const resizeSession = useCallback(async function handleResizeSession(
     tabId: string,
     terminal: Terminal,
   ) {
@@ -210,7 +210,7 @@ export function TerminalWorkspace({
   }, [])
 
   const captureRecentTerminalOutput = useCallback(
-    function captureRecentTerminalOutput(tabId: string): string {
+    function readRecentTerminalOutput(tabId: string): string {
       const terminal = terminalMapRef.current.get(tabId)
       if (!terminal) return ''
 
@@ -230,7 +230,7 @@ export function TerminalWorkspace({
   )
 
   const handleAnalyzeDebug = useCallback(
-    async function handleAnalyzeDebug() {
+    async function analyzeDebug() {
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
       if (!activeTab) return
 
@@ -271,7 +271,7 @@ export function TerminalWorkspace({
   )
 
   const handleRunDebugCommand = useCallback(
-    function handleRunDebugCommand(command: string) {
+    function runDebugCommand(command: string) {
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
       if (!activeTab) return
       void sendInput(activeTab.id, `${command}\r`)
@@ -280,7 +280,7 @@ export function TerminalWorkspace({
   )
 
   const handleCopyOutput = useCallback(
-    async function handleCopyOutput() {
+    async function copyOutput() {
       const output = captureRecentTerminalOutput(activeTab.id)
       if (!output) return
       await navigator.clipboard.writeText(output).catch(function fallback() {
@@ -295,18 +295,18 @@ export function TerminalWorkspace({
   )
 
   const handleClearActiveTerminal = useCallback(
-    function handleClearActiveTerminal() {
+    function clearActiveTerminal() {
       terminalMapRef.current.get(activeTab.id)?.clear()
     },
     [activeTab.id],
   )
 
-  const handleCloseDebugPanel = useCallback(function handleCloseDebugPanel() {
+  const handleCloseDebugPanel = useCallback(function closeDebugPanel() {
     setShowDebugPanel(false)
   }, [])
 
   const focusActiveTerminal = useCallback(
-    function focusActiveTerminal() {
+    function focusTerminal() {
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
       if (!activeTab) return
       const terminal = terminalMapRef.current.get(activeTab.id)
@@ -315,7 +315,7 @@ export function TerminalWorkspace({
     [activeTab],
   )
 
-  const closeTabResources = useCallback(async function closeTabResources(
+  const closeTabResources = useCallback(async function releaseTabResources(
     tabId: string,
     sessionId: string | null,
   ) {
@@ -345,7 +345,7 @@ export function TerminalWorkspace({
   }, [])
 
   const handleCloseTab = useCallback(
-    function handleCloseTab(tab: TerminalTab) {
+    function closeWorkspaceTab(tab: TerminalTab) {
       void closeTabResources(tab.id, tab.sessionId)
       closeTab(tab.id)
     },
@@ -353,7 +353,7 @@ export function TerminalWorkspace({
   )
 
   const handleClosePanel = useCallback(
-    function handleClosePanel() {
+    function closeWorkspacePanel() {
       const currentTabs = useTerminalPanelStore.getState().tabs
       for (const tab of currentTabs) {
         void closeTabResources(tab.id, tab.sessionId)
@@ -366,7 +366,7 @@ export function TerminalWorkspace({
   )
 
   const connectTab = useCallback(
-    async function connectTab(tab: TerminalTab) {
+    async function connectWorkspaceTab(tab: TerminalTab) {
       if (connectedRef.current.has(tab.id)) return
       const terminal = terminalMapRef.current.get(tab.id)
       if (!terminal) return
@@ -556,7 +556,7 @@ export function TerminalWorkspace({
   )
 
   const ensureTerminalForTab = useCallback(
-    function ensureTerminalForTab(tab: TerminalTab) {
+    function ensureTerminalTab(tab: TerminalTab) {
       if (terminalMapRef.current.has(tab.id)) return
       const container = containerMapRef.current.get(tab.id)
       if (!container) return
@@ -624,7 +624,7 @@ export function TerminalWorkspace({
   )
 
   const handleCreateTab = useCallback(
-    function handleCreateTab() {
+    function createTerminalTab() {
       const newTabId = createTab(DEFAULT_TERMINAL_CWD)
       window.setTimeout(function focusNewTab() {
         const tab = useTerminalPanelStore
