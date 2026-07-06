@@ -13,7 +13,7 @@ export type LocalKanbanCard = {
   id: string
   title: string
   spec: string
-  acceptanceCriteria: string[]
+  acceptanceCriteria: Array<string>
   assignedWorker: string | null
   reviewer: string | null
   status: KanbanCardStatus
@@ -27,7 +27,7 @@ export type LocalKanbanCard = {
 export type CreateLocalKanbanCardInput = {
   title: string
   spec?: string
-  acceptanceCriteria?: string[]
+  acceptanceCriteria?: Array<string>
   assignedWorker?: string | null
   reviewer?: string | null
   status?: KanbanCardStatus
@@ -51,19 +51,19 @@ function getLocalKanbanFile(): string {
 
 export const LOCAL_KANBAN_FILE = getLocalKanbanFile()
 
-function readLocalCards(): LocalKanbanCard[] {
+function readLocalCards(): Array<LocalKanbanCard> {
   const file = getLocalKanbanFile()
   if (!fs.existsSync(file)) return []
   try {
     const raw = fs.readFileSync(file, 'utf8')
     const parsed = JSON.parse(raw) as unknown
-    return Array.isArray(parsed) ? (parsed as LocalKanbanCard[]) : []
+    return Array.isArray(parsed) ? (parsed as Array<LocalKanbanCard>) : []
   } catch {
     return []
   }
 }
 
-function writeLocalCards(cards: LocalKanbanCard[]): void {
+function writeLocalCards(cards: Array<LocalKanbanCard>): void {
   const file = getLocalKanbanFile()
   fs.mkdirSync(path.dirname(file), { recursive: true })
   const tmp = path.join(
@@ -79,7 +79,7 @@ function writeLocalCards(cards: LocalKanbanCard[]): void {
   }
 }
 
-function listLocalKanbanCards(): LocalKanbanCard[] {
+function listLocalKanbanCards(): Array<LocalKanbanCard> {
   return readLocalCards()
 }
 
@@ -125,10 +125,10 @@ export type KanbanBackendMeta = {
 }
 
 type KanbanBackend = {
-  meta(): KanbanBackendMeta
-  list(): LocalKanbanCard[]
-  create(input: CreateLocalKanbanCardInput): LocalKanbanCard
-  update(cardId: string, updates: UpdateLocalKanbanCardInput): LocalKanbanCard | null
+  meta: () => KanbanBackendMeta
+  list: () => Array<LocalKanbanCard>
+  create: (input: CreateLocalKanbanCardInput) => LocalKanbanCard
+  update: (cardId: string, updates: UpdateLocalKanbanCardInput) => LocalKanbanCard | null
 }
 
 type ClaudeTaskRow = {
@@ -143,7 +143,7 @@ type ClaudeTaskRow = {
 }
 
 type ClaudeTaskBodyMeta = {
-  acceptanceCriteria?: string[]
+  acceptanceCriteria?: Array<string>
   reviewer?: string | null
   missionId?: string | null
   reportPath?: string | null
@@ -156,7 +156,7 @@ function normalizeMetaString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
-function normalizeAcceptanceCriteria(value: unknown): string[] {
+function normalizeAcceptanceCriteria(value: unknown): Array<string> {
   if (!Array.isArray(value)) return []
   return value
     .filter((item): item is string => typeof item === 'string')
@@ -171,7 +171,7 @@ function parseClaudeTaskBody(body: string | null | undefined): {
   const raw = body ?? ''
   const trimmed = raw.trimStart()
   const meta = {
-    acceptanceCriteria: [] as string[],
+    acceptanceCriteria: [] as Array<string>,
     reviewer: null as string | null,
     missionId: null as string | null,
     reportPath: null as string | null,
@@ -308,7 +308,7 @@ function openDb(dbPath: string): Database.Database {
   return db
 }
 
-function readClaudeTasks(): ClaudeTaskRow[] {
+function readClaudeTasks(): Array<ClaudeTaskRow> {
   const detection = detectClaudeKanban()
   if (!detection.available) return []
   try {
@@ -317,7 +317,7 @@ function readClaudeTasks(): ClaudeTaskRow[] {
       'SELECT id, title, body, status, assignee, created_by, created_at, ' +
       'COALESCE(last_heartbeat_at, completed_at, started_at, created_at) AS updated_at ' +
       'FROM tasks ORDER BY created_at DESC, id DESC'
-    ).all() as ClaudeTaskRow[]
+    ).all() as Array<ClaudeTaskRow>
   } catch {
     return []
   }
@@ -576,7 +576,7 @@ export function getKanbanBackendMeta(): KanbanBackendMeta {
   return resolveKanbanBackend().meta()
 }
 
-export function listKanbanCards(): LocalKanbanCard[] {
+export function listKanbanCards(): Array<LocalKanbanCard> {
   return resolveKanbanBackend().list()
 }
 
