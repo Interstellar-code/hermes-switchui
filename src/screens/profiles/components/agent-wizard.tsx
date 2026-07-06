@@ -1,27 +1,31 @@
-import { useReducer, useCallback, useState, useEffect, useRef } from 'react'
-import { ConfirmDialog } from './confirm-dialog'
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+
+import { draftFromConfig } from '../profile-config-map'
 import {
   INITIAL_WIZARD_STATE,
   STEP_LABELS,
   isDraftDirty,
   validateStep,
   wizardReducer,
-  type WizardStep,
-  type NewAgentDraft,
 } from '../types'
-import { WizardStepIdentity } from './wizard-step-identity'
-import { WizardStepPersona } from './wizard-step-persona'
-import { WizardStepModel } from './wizard-step-model'
-import { WizardStepSkills } from './wizard-step-skills'
-import { WizardStepMcp } from './wizard-step-mcp'
-import { WizardStepToolset } from './wizard-step-toolset'
-import { WizardStepMemory } from './wizard-step-memory'
+import { ConfirmDialog } from './confirm-dialog'
 import { WizardStepConfig } from './wizard-step-config'
+import { WizardStepIdentity } from './wizard-step-identity'
+import { WizardStepMcp } from './wizard-step-mcp'
+import { WizardStepMemory } from './wizard-step-memory'
+import { WizardStepModel } from './wizard-step-model'
+import { WizardStepPersona } from './wizard-step-persona'
 import { WizardStepReview } from './wizard-step-review'
-import type { ProfileSummary, ProfileConfig, ProfileDetail } from '@/server/profiles-browser'
+import { WizardStepSkills } from './wizard-step-skills'
+import { WizardStepToolset } from './wizard-step-toolset'
+import type { NewAgentDraft, WizardStep } from '../types'
+import type {
+  ProfileConfig,
+  ProfileDetail,
+  ProfileSummary,
+} from '@/server/profiles-browser'
 import { randomMatrixName } from '@/lib/matrix-names'
-import { draftFromConfig } from '../profile-config-map'
 
 type Props = {
   open: boolean
@@ -39,11 +43,17 @@ async function postJson(url: string, body: unknown): Promise<unknown> {
     body: JSON.stringify(body),
   })
   const payload = (await r.json().catch(() => ({}))) as { error?: string }
-  if (!r.ok || payload.error) throw new Error(payload.error ?? `Request failed (${r.status})`)
+  if (!r.ok || payload.error)
+    throw new Error(payload.error ?? `Request failed (${r.status})`)
   return payload
 }
 
-export function AgentWizard({ open, onClose, onSuccess, editProfileName }: Props) {
+export function AgentWizard({
+  open,
+  onClose,
+  onSuccess,
+  editProfileName,
+}: Props) {
   const [state, dispatch] = useReducer(wizardReducer, INITIAL_WIZARD_STATE)
   const queryClient = useQueryClient()
 
@@ -53,8 +63,15 @@ export function AgentWizard({ open, onClose, onSuccess, editProfileName }: Props
     queryKey: ['profiles', 'list'],
     queryFn: async () => {
       const r = await fetch('/api/profiles/list')
-      if (!r.ok) return { profiles: [] as ProfileSummary[], activeProfile: undefined as string | undefined }
-      return (await r.json()) as { profiles: ProfileSummary[]; activeProfile?: string }
+      if (!r.ok)
+        return {
+          profiles: [] as Array<ProfileSummary>,
+          activeProfile: undefined as string | undefined,
+        }
+      return (await r.json()) as {
+        profiles: Array<ProfileSummary>
+        activeProfile?: string
+      }
     },
     staleTime: 30_000,
   })
@@ -65,7 +82,9 @@ export function AgentWizard({ open, onClose, onSuccess, editProfileName }: Props
   const activeConfigQuery = useQuery({
     queryKey: ['profile-config', activeProfile],
     queryFn: async () => {
-      const r = await fetch(`/api/profiles/read?name=${encodeURIComponent(activeProfile!)}`)
+      const r = await fetch(
+        `/api/profiles/read?name=${encodeURIComponent(activeProfile!)}`,
+      )
       if (!r.ok) return null
       const data = (await r.json()) as { profile: { config: ProfileConfig } }
       return data.profile.config
@@ -78,7 +97,9 @@ export function AgentWizard({ open, onClose, onSuccess, editProfileName }: Props
   const editDetailQuery = useQuery({
     queryKey: ['profile-detail', editProfileName],
     queryFn: async () => {
-      const r = await fetch(`/api/profiles/read?name=${encodeURIComponent(editProfileName!)}`)
+      const r = await fetch(
+        `/api/profiles/read?name=${encodeURIComponent(editProfileName!)}`,
+      )
       if (!r.ok) return null
       const data = (await r.json()) as { profile: ProfileDetail }
       return data.profile
@@ -110,7 +131,10 @@ export function AgentWizard({ open, onClose, onSuccess, editProfileName }: Props
       // Edit mode: seed from fetched profile config
       if (!editDetailQuery.data) return
       const config = editDetailQuery.data.config
-      dispatch({ type: 'SET_DRAFT', patch: draftFromConfig(editProfileName!, config) })
+      dispatch({
+        type: 'SET_DRAFT',
+        patch: draftFromConfig(editProfileName!, config),
+      })
       seededRef.current = true
     } else {
       // Create mode: inherit Tier-1 active config + random Matrix name
@@ -132,21 +156,40 @@ export function AgentWizard({ open, onClose, onSuccess, editProfileName }: Props
       dispatch({ type: 'SET_DRAFT', patch })
       seededRef.current = true
     }
-  }, [open, mode, editProfileName, editDetailQuery.data, activeConfigQuery.data, existingNames])
+  }, [
+    open,
+    mode,
+    editProfileName,
+    editDetailQuery.data,
+    activeConfigQuery.data,
+    existingNames,
+  ])
 
   const allTags = Array.from(
     new Set(
-      (profilesQuery.data?.profiles ?? []).flatMap((p) => p.agent_ui?.tags ?? [])
-    )
+      (profilesQuery.data?.profiles ?? []).flatMap(
+        (p) => p.agent_ui?.tags ?? [],
+      ),
+    ),
   )
 
   const canAdvance = useCallback(() => {
-    const errs = validateStep(state.step as WizardStep, state.draft, existingNames, editProfileName ?? undefined)
+    const errs = validateStep(
+      state.step,
+      state.draft,
+      existingNames,
+      editProfileName || undefined,
+    )
     return errs.length === 0
   }, [state.step, state.draft, existingNames])
 
   function handleNext() {
-    const errs = validateStep(state.step as WizardStep, state.draft, existingNames, editProfileName ?? undefined)
+    const errs = validateStep(
+      state.step,
+      state.draft,
+      existingNames,
+      editProfileName || undefined,
+    )
     if (errs.length > 0) {
       dispatch({ type: 'SET_ERRORS', step: state.step, errors: errs })
       return
@@ -186,7 +229,12 @@ export function AgentWizard({ open, onClose, onSuccess, editProfileName }: Props
 
   async function handleCreate() {
     // Final validation across all required steps
-    const allErrs = validateStep(9, state.draft, existingNames, editProfileName ?? undefined)
+    const allErrs = validateStep(
+      9,
+      state.draft,
+      existingNames,
+      editProfileName ?? undefined,
+    )
     if (allErrs.length > 0) {
       dispatch({ type: 'SET_ERRORS', step: 9, errors: allErrs })
       return
@@ -213,8 +261,8 @@ export function AgentWizard({ open, onClose, onSuccess, editProfileName }: Props
             provider: draft.memory_provider,
           },
           agent: {
-            max_turns: draft.max_turns ?? 200,
-            reasoning_effort: draft.reasoning_effort ?? 'medium',
+            max_turns: draft.max_turns,
+            reasoning_effort: draft.reasoning_effort,
             disabled_toolsets: draft.disabled_toolsets,
           },
           agent_ui: {
@@ -244,8 +292,8 @@ export function AgentWizard({ open, onClose, onSuccess, editProfileName }: Props
             provider: draft.memory_provider,
           },
           agent: {
-            max_turns: draft.max_turns ?? 200,
-            reasoning_effort: draft.reasoning_effort ?? 'medium',
+            max_turns: draft.max_turns,
+            reasoning_effort: draft.reasoning_effort,
             disabled_toolsets: draft.disabled_toolsets,
           },
           agent_ui: {
@@ -267,7 +315,12 @@ export function AgentWizard({ open, onClose, onSuccess, editProfileName }: Props
     } catch (err) {
       dispatch({
         type: 'SET_SUBMIT_ERROR',
-        error: err instanceof Error ? err.message : mode === 'edit' ? 'Failed to save agent' : 'Failed to create agent',
+        error:
+          err instanceof Error
+            ? err.message
+            : mode === 'edit'
+              ? 'Failed to save agent'
+              : 'Failed to create agent',
       })
     } finally {
       dispatch({ type: 'SET_SUBMITTING', value: false })
@@ -279,7 +332,7 @@ export function AgentWizard({ open, onClose, onSuccess, editProfileName }: Props
   const { draft, step, submitting } = state
 
   function renderStep() {
-    const errors = state.errors[step] ?? []
+    const errors = state.errors[step]
     switch (step) {
       case 1:
         return (
@@ -353,7 +406,7 @@ export function AgentWizard({ open, onClose, onSuccess, editProfileName }: Props
         return (
           <WizardStepReview
             draft={draft}
-            errors={state.errors[9] ?? []}
+            errors={state.errors[9]}
             submitError={state.submitError}
             onJumpTo={handleJumpTo}
           />
@@ -366,8 +419,12 @@ export function AgentWizard({ open, onClose, onSuccess, editProfileName }: Props
   const isEditMode = mode === 'edit'
   const wizardTitle = isEditMode ? 'Edit Agent' : 'New Agent'
   const submitLabel = isEditMode
-    ? (submitting ? 'Saving…' : 'Save changes')
-    : (submitting ? 'Creating…' : 'Create Agent')
+    ? submitting
+      ? 'Saving…'
+      : 'Save changes'
+    : submitting
+      ? 'Creating…'
+      : 'Create Agent'
 
   return (
     <>
@@ -375,58 +432,83 @@ export function AgentWizard({ open, onClose, onSuccess, editProfileName }: Props
       <div className="wiz-backdrop" onClick={handleCancel} />
 
       {/* Modal shell */}
-      <div className="wiz-modal" role="dialog" aria-modal="true" aria-label={wizardTitle}>
+      <div
+        className="wiz-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={wizardTitle}
+      >
         {/* Header */}
         <div className="wiz-head">
           <h2>{wizardTitle}</h2>
-          <button type="button" className="x" onClick={handleCancel} aria-label="Close wizard">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          <button
+            type="button"
+            className="x"
+            onClick={handleCancel}
+            aria-label="Close wizard"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
 
         {/* Step rail */}
         <div className="wiz-steps">
-          {(Object.keys(STEP_LABELS) as unknown as WizardStep[]).map((s, i) => {
-            const sNum = Number(s) as WizardStep
-            const isDone = sNum < step
-            const isCurrent = sNum === step
-            // Edit mode: every step is reachable (data is already valid) — jump freely,
-            // forward or back. Create mode: only completed steps are clickable so users
-            // don't skip ahead past unfilled required fields (progressive lock).
-            const canJump = mode === 'edit' ? !isCurrent : isDone
-            const isLocked = !canJump && !isCurrent
-            return (
-              <div key={s} style={{ display: 'contents' }}>
-                <div
-                  className={`wiz-step${isDone ? ' done' : ''}${isCurrent ? ' on' : ''}${isLocked ? ' locked' : ''}`}
-                  style={{ cursor: canJump ? 'pointer' : 'default' }}
-                  onClick={() => { if (canJump) handleJumpTo(sNum) }}
-                >
-                  <div className="n">{isDone ? '✓' : sNum}</div>
-                  {STEP_LABELS[sNum]}
+          {(Object.keys(STEP_LABELS) as unknown as Array<WizardStep>).map(
+            (s, i) => {
+              const sNum = Number(s) as WizardStep
+              const isDone = sNum < step
+              const isCurrent = sNum === step
+              // Edit mode: every step is reachable (data is already valid) — jump freely,
+              // forward or back. Create mode: only completed steps are clickable so users
+              // don't skip ahead past unfilled required fields (progressive lock).
+              const canJump = mode === 'edit' ? !isCurrent : isDone
+              const isLocked = !canJump && !isCurrent
+              return (
+                <div key={s} style={{ display: 'contents' }}>
+                  <div
+                    className={`wiz-step${isDone ? ' done' : ''}${isCurrent ? ' on' : ''}${isLocked ? ' locked' : ''}`}
+                    style={{ cursor: canJump ? 'pointer' : 'default' }}
+                    onClick={() => {
+                      if (canJump) handleJumpTo(sNum)
+                    }}
+                  >
+                    <div className="n">{isDone ? '✓' : sNum}</div>
+                    {STEP_LABELS[sNum]}
+                  </div>
+                  {i < TOTAL_STEPS - 1 && <div className="wiz-step-sep" />}
                 </div>
-                {i < TOTAL_STEPS - 1 && <div className="wiz-step-sep" />}
-              </div>
-            )
-          })}
+              )
+            },
+          )}
         </div>
 
         {/* Body */}
-        <div className="wiz-body">
-          {renderStep()}
-        </div>
+        <div className="wiz-body">{renderStep()}</div>
 
         {/* Footer */}
         <div className="wiz-foot">
-          <div className="lhs">Step <b>{step}</b> / {TOTAL_STEPS}</div>
+          <div className="lhs">
+            Step <b>{step}</b> / {TOTAL_STEPS}
+          </div>
           <div className="actions">
             <button type="button" className="btn" onClick={handleCancel}>
               Cancel
             </button>
             {step > 1 && (
-              <button type="button" className="btn" onClick={handleBack} disabled={submitting}>
+              <button
+                type="button"
+                className="btn"
+                onClick={handleBack}
+                disabled={submitting}
+              >
                 Back
               </button>
             )}
