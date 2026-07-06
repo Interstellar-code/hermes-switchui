@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
+import { AgentHubLayout } from './agent-hub-layout'
+import type {
+  AgentRegistryCardData,
+  AgentRegistryStatus,
+} from '@/components/agent-view/agent-registry-card'
 import {
   AgentRegistryCard,
-  type AgentRegistryCardData,
-  type AgentRegistryStatus,
 } from '@/components/agent-view/agent-registry-card'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -12,9 +15,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatModelName } from '@/lib/format-model-name'
 import { fetchCronJobs } from '@/lib/cron-api'
 import { toggleAgentPause } from '@/lib/gateway-api'
-import { toast } from '@/components/ui/toast'
-import { AgentHubLayout } from './agent-hub-layout'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
+import { toast } from '@/components/ui/toast'
 
 type AgentGatewayEntry = {
   id?: string
@@ -29,7 +31,7 @@ type AgentsData = {
   defaultId?: string
   mainKey?: string
   scope?: string
-  agents?: AgentGatewayEntry[]
+  agents?: Array<AgentGatewayEntry>
   [key: string]: unknown
 }
 
@@ -696,7 +698,7 @@ export function AgentsScreen({ variant = 'mission-control' }: AgentsScreenProps)
   // Pull-to-refresh: attach to the scrollable <main> in workspace-shell
   const scrollContainerRef = useRef<HTMLElement | null>(null)
   useEffect(() => {
-    const el = document.querySelector('main[data-tour="chat-area"]') as HTMLElement | null
+    const el = document.querySelector<HTMLElement>('main[data-tour="chat-area"]')
     scrollContainerRef.current = el
   }, [])
 
@@ -815,7 +817,7 @@ export function AgentsScreen({ variant = 'mission-control' }: AgentsScreenProps)
         optimisticPausedByAgentId,
         definition.id,
       )
-      const sessionKey = readString(primarySession?.key)
+      const sessionKey = readString(primarySession.key)
       const controlKey = sessionKey || definition.id
       const hasControlOverride = Object.prototype.hasOwnProperty.call(
         optimisticPausedByControlKey,
@@ -891,8 +893,8 @@ export function AgentsScreen({ variant = 'mission-control' }: AgentsScreenProps)
 
     return orderedCategories.map((category) => {
       const agentsInCategory = (grouped.get(category) ?? []).sort((left, right) => {
-        const leftPriority = STATUS_SORT_ORDER[left.status] ?? 9
-        const rightPriority = STATUS_SORT_ORDER[right.status] ?? 9
+        const leftPriority = STATUS_SORT_ORDER[left.status]
+        const rightPriority = STATUS_SORT_ORDER[right.status]
         if (leftPriority !== rightPriority) return leftPriority - rightPriority
         return left.name.localeCompare(right.name)
       })
@@ -1209,7 +1211,6 @@ export function AgentsScreen({ variant = 'mission-control' }: AgentsScreenProps)
     setAgentConfigDraft((previous) => {
       if (!previous) return previous
       const current = previous.channels[channelId]
-      if (!current) return previous
       return {
         ...previous,
         channels: {
@@ -1318,7 +1319,7 @@ export function AgentsScreen({ variant = 'mission-control' }: AgentsScreenProps)
         ) : null}
 
         <div className="flex-1 overflow-auto">
-          {agentsQuery.isLoading && !agentsQuery.data ? (
+          {agentsQuery.isLoading ? (
             <div className="flex h-32 items-center justify-center">
               <div className="flex items-center gap-2 text-primary-500">
                 <div className="size-4 animate-spin rounded-full border-2 border-primary-300 border-t-primary-600" />
