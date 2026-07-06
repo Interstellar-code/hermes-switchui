@@ -1,9 +1,11 @@
 "use client";
 
 import { useGLTF } from "@react-three/drei";
-import type { ThreeEvent } from "@react-three/fiber";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import type { ThreeEvent } from "@react-three/fiber";
+import type { FurnitureItem } from "@/features/retro-office/core/types";
+import type { InteractiveFurnitureModelProps } from "@/features/retro-office/objects/types";
 import { SCALE } from "@/features/retro-office/core/constants";
 import {
   FURNITURE_ROTATION,
@@ -12,8 +14,6 @@ import {
   resolveItemTypeKey,
   toWorld,
 } from "@/features/retro-office/core/geometry";
-import type { FurnitureItem } from "@/features/retro-office/core/types";
-import type { InteractiveFurnitureModelProps } from "@/features/retro-office/objects/types";
 
 export const FURNITURE_GLB: Record<string, string> = {
   desk_cubicle: "/office-assets/models/furniture/desk.glb",
@@ -195,7 +195,7 @@ export function InstancedFurnitureItems({
   onItemClick,
 }: {
   itemType: string;
-  items: FurnitureItem[];
+  items: Array<FurnitureItem>;
   onItemClick?: (itemUid: string) => void;
 }) {
   const glbPath = FURNITURE_GLB[itemType] ?? FURNITURE_GLB.table_rect;
@@ -211,9 +211,9 @@ export function InstancedFurnitureItems({
     [glbPath, itemType, scene],
   );
   const meshRefs = useRef<Array<THREE.InstancedMesh | null>>([]);
-  const meshDefs = useMemo<InstancedFurnitureMeshDef[]>(() => {
+  const meshDefs = useMemo<Array<InstancedFurnitureMeshDef>>(() => {
     template.updateMatrixWorld(true);
-    const nextDefs: InstancedFurnitureMeshDef[] = [];
+    const nextDefs: Array<InstancedFurnitureMeshDef> = [];
     template.traverse((child) => {
       if (!(child as THREE.Mesh).isMesh) return;
       const mesh = child as THREE.Mesh;
@@ -376,7 +376,7 @@ export function FurnitureModel({
           w: 0.17 + (index % 3) * 0.02,
           h: 0.12 + ((index + 1) % 2) * 0.02,
           r: -0.2 + row * 0.08 + stack * 0.03,
-          color: ["#fff7df", "#f6edd2", "#efe4c7", "#fffaf0"][index % 4]!,
+          color: ["#fff7df", "#f6edd2", "#efe4c7", "#fffaf0"][index % 4],
         };
       },
     );
@@ -416,7 +416,7 @@ export function FurnitureModel({
         z: cz + -0.14 - (index % 2) * 0.04,
         color: ["#f7db5e", "#ffb35c", "#97d7f6", "#c0e56e", "#ff8fa3"][
           index % 5
-        ]!,
+        ],
         r: -0.15 + index * 0.08,
       }),
     );
