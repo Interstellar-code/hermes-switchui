@@ -25,17 +25,12 @@ import {
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useShallow } from 'zustand/react/shallow'
-import { cn } from '@/lib/utils'
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-} from '@/components/shadcn/ui/popover'
-import { usePinnedModels } from '@/hooks/use-pinned-models'
-import { useSessionModelStore } from '@/stores/session-model-store'
-import { useGatewayRestartStore } from '@/stores/gateway-restart-store'
-import { formatModelName } from '@/lib/format-model-name'
 
+import {
+  MODEL_SWITCH_BLOCKED_TOAST,
+  getZeroForkModelInfoFlags,
+  shouldBlockZeroForkModelSwitch,
+} from '../chat-composer-model-switch'
 import {
   activateProfile,
   fetchGatewayMode,
@@ -49,16 +44,17 @@ import {
   switchModel,
   thinkingLabel,
 } from '../chat-composer-services'
-import {
-  MODEL_SWITCH_BLOCKED_TOAST,
-  getZeroForkModelInfoFlags,
-  shouldBlockZeroForkModelSwitch,
-} from '../chat-composer-model-switch'
 import type {
   ModelSwitchNotice,
   ThinkingLevel,
   WorkspaceDetectionResponse,
 } from '../chat-composer-types'
+import { Popover, PopoverAnchor, PopoverContent } from '@/components/shadcn/ui/popover'
+import { formatModelName } from '@/lib/format-model-name'
+import { usePinnedModels } from '@/hooks/use-pinned-models'
+import { cn } from '@/lib/utils'
+import { useGatewayRestartStore } from '@/stores/gateway-restart-store'
+import { useSessionModelStore } from '@/stores/session-model-store'
 
 // ─── Model catalog (curated /api/models) ───────────────────────────────────
 type NormalizedModel = {
@@ -224,7 +220,7 @@ function SessionSelectorsV2Component({
         }),
       ])
       setProfileMenuOpen(false)
-      if (data?.needsGatewayRestart) {
+      if (data.needsGatewayRestart) {
         useGatewayRestartStore.getState().markNeedsRestart(profileName)
       }
       setModelNotice({
@@ -405,7 +401,7 @@ function SessionSelectorsV2Component({
             >
               <Bot className="size-3" />
               <span className="max-w-32 truncate font-medium">
-                {activeModel?.name ?? 'Model'}
+                {activeModel.name}
               </span>
               <ChevronDown className="size-2.5 opacity-60" />
             </button>
@@ -428,13 +424,13 @@ function SessionSelectorsV2Component({
                       onClick={() => selectModel(id)}
                       className={cn(
                         'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground',
-                        activeModel?.id === id && 'bg-accent/50',
+                        activeModel.id === id && 'bg-accent/50',
                       )}
                     >
                       <span className="flex-1 truncate">
                         {formatModelName(id)}
                       </span>
-                      {activeModel?.id === id ? (
+                      {activeModel.id === id ? (
                         <Check className="size-3.5" />
                       ) : null}
                     </button>
@@ -454,7 +450,7 @@ function SessionSelectorsV2Component({
                       {provider}
                     </div>
                     {providerModels.map((m) => {
-                      const selected = m.id === activeModel?.id
+                      const selected = m.id === activeModel.id
                       return (
                         <button
                           key={m.id}
