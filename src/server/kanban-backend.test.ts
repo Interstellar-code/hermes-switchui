@@ -24,19 +24,19 @@ const LOCAL_FAKE_CARDS = JSON.stringify([{
   updatedAt: 1,
 }])
 
-type RunCall = { sql: string; args: unknown[] }
+type RunCall = { sql: string; args: Array<unknown> }
 
 /**
  * Create a minimal better-sqlite3 Database mock.
  * `rows` is the per-call return for `.prepare().all()` / `.prepare().get()`.
  */
 function makeBetterSqliteMock(options: {
-  rows?: () => unknown[]
-  statements?: string[]
-  runCalls?: RunCall[]
+  rows?: () => Array<unknown>
+  statements?: Array<string>
+  runCalls?: Array<RunCall>
 }) {
-  const stmts: string[] = options.statements ?? []
-  const runCalls: RunCall[] = options.runCalls ?? []
+  const stmts: Array<string> = options.statements ?? []
+  const runCalls: Array<RunCall> = options.runCalls ?? []
   const mockDb = {
     pragma: vi.fn(),
     prepare: vi.fn((sql: string) => {
@@ -56,7 +56,7 @@ function makeBetterSqliteMock(options: {
           if (id !== undefined) return rows.find((r: unknown) => (r as Record<string,unknown>)['id'] === id) ?? rows[0]
           return rows[0]
         }),
-        run: vi.fn((...args: unknown[]) => {
+        run: vi.fn((...args: Array<unknown>) => {
           runCalls.push({ sql, args })
         }),
       }
@@ -68,12 +68,12 @@ function makeBetterSqliteMock(options: {
 async function loadKanbanBackend(options?: {
   existsSync?: (path: string) => boolean
   execFileSync?: (command: string, args?: Array<string>) => string
-  dbRows?: () => unknown[]
-  dbStatements?: string[]
-  dbRunCalls?: RunCall[]
+  dbRows?: () => Array<unknown>
+  dbStatements?: Array<string>
+  dbRunCalls?: Array<RunCall>
 }) {
-  const stmts: string[] = options?.dbStatements ?? []
-  const runCalls: RunCall[] = options?.dbRunCalls ?? []
+  const stmts: Array<string> = options?.dbStatements ?? []
+  const runCalls: Array<RunCall> = options?.dbRunCalls ?? []
   const { mockDb } = makeBetterSqliteMock({ rows: options?.dbRows, statements: stmts, runCalls })
 
   vi.doMock('node:fs', () => ({
@@ -101,7 +101,7 @@ async function loadKanbanBackend(options?: {
 describe('kanban-backend', () => {
   it('auto-detect prefers Hermes backend when Hermes CLI and canonical storage are present', async () => {
     vi.stubEnv('CLAUDE_HOME', '/Users/aurora/.claude/profiles/swarm2')
-    const stmts: string[] = []
+    const stmts: Array<string> = []
     const rows = [
       {
         id: 't_12345678',
@@ -245,8 +245,8 @@ describe('kanban-backend', () => {
 
   it('creates and updates Hermes tasks through canonical kanban.db path', async () => {
     vi.stubEnv('CLAUDE_HOME', '/Users/aurora/.claude/profiles/swarm2')
-    const stmts: string[] = []
-    const runCalls: RunCall[] = []
+    const stmts: Array<string> = []
+    const runCalls: Array<RunCall> = []
     let readCount = 0
     const mod = await loadKanbanBackend({
       existsSync: (target) => target === '/Users/aurora/.claude/kanban.db' || target === '/Users/aurora/.claude/kanban',
@@ -396,7 +396,7 @@ describe('kanban-backend — openDb health-check and handle recreation', () => {
       mkdirSync: vi.fn(),
     }))
     vi.doMock('node:child_process', () => ({
-      execFileSync: vi.fn((command: string, args: string[] = []) => {
+      execFileSync: vi.fn((command: string, args: Array<string> = []) => {
         if (command === 'which' && args[0] === 'claude') throw new Error('not found')
         return ''
       }),
@@ -456,7 +456,7 @@ describe('kanban-backend — openDb health-check and handle recreation', () => {
       mkdirSync: vi.fn(),
     }))
     vi.doMock('node:child_process', () => ({
-      execFileSync: vi.fn((command: string, args: string[] = []) => {
+      execFileSync: vi.fn((command: string, args: Array<string> = []) => {
         if (command === 'which' && args[0] === 'claude') throw new Error('not found')
         return ''
       }),
@@ -529,7 +529,7 @@ describe('kanban-backend — writeLocalCards atomic write', () => {
     expect(cards.find((c) => c.id === card.id)!.title).toBe('Atomic card')
 
     // No leftover .tmp files under tempDir
-    const walk = (dir: string): string[] => {
+    const walk = (dir: string): Array<string> => {
       if (!fs.existsSync(dir)) return []
       return fs.readdirSync(dir).flatMap((name) => {
         const full = path.join(dir, name)
