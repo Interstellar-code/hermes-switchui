@@ -69,7 +69,7 @@ function mapStatus(runStatus: string): Mission['status'] {
 
 function toMs(d: Date | number | undefined | null): number {
   if (d == null) return Date.now()
-  return d instanceof Date ? d.getTime() : (d as number)
+  return d instanceof Date ? d.getTime() : d
 }
 
 function runToMission(run: WorkflowRun): Mission {
@@ -130,7 +130,7 @@ export async function getMission(request: Request, id: string): Promise<Mission 
   }
 }
 
-export async function createMission(_input: {
+export function createMission(_input: {
   title: string
   subtitle?: string
 }): Promise<Mission> {
@@ -139,13 +139,13 @@ export async function createMission(_input: {
   })
 }
 
-export async function abortMission(_id: string): Promise<void> {
+export function abortMission(_id: string): Promise<void> {
   throw Object.assign(new Error('abortMission: engine abort not yet wired'), {
     status: 501,
   })
 }
 
-export async function getConductorState(_request: Request): Promise<{
+export function getConductorState(_request: Request): Promise<{
   missions: Array<Mission>
 }> {
   return { missions: [] }
