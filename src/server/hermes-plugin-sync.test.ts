@@ -11,13 +11,22 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { dashboardFetch } from './gateway-capabilities'
+
+// ── Import module under test (after mocks are set up) ────────────────────────
+
+// We import after vi.mock so the mock is in place.
+import {
+  ensureHermesPluginSync,
+  forwardSettings,
+  getPluginSnapshot,
+} from './hermes-plugin-sync'
+
 // ── Mock dashboardFetch ───────────────────────────────────────────────────────
 
 vi.mock('./gateway-capabilities', () => ({
   dashboardFetch: vi.fn(),
 }))
-
-import { dashboardFetch } from './gateway-capabilities'
 const mockFetch = vi.mocked(dashboardFetch)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -61,15 +70,6 @@ afterEach(() => {
   // Clean up any timers started during the test.
   delete (globalThis as Record<symbol, unknown>)[SYNC_STATE_KEY]
 })
-
-// ── Import module under test (after mocks are set up) ────────────────────────
-
-// We import after vi.mock so the mock is in place.
-import {
-  ensureHermesPluginSync,
-  forwardSettings,
-  getPluginSnapshot,
-} from './hermes-plugin-sync'
 
 // ── Allowlist stripping ───────────────────────────────────────────────────────
 
@@ -305,7 +305,7 @@ describe('register-once semantics', () => {
 
     // /register should only have been called once.
     const registerCalls = mockFetch.mock.calls.filter(([path]) =>
-      (path as string).includes('/register'),
+      (path).includes('/register'),
     )
     expect(registerCalls).toHaveLength(1)
   })
@@ -334,7 +334,7 @@ describe('register-once semantics', () => {
     const second = await getPluginSnapshot()
 
     const registerCalls = mockFetch.mock.calls.filter(([path]) =>
-      (path as string).includes('/register'),
+      (path).includes('/register'),
     )
     expect(registerCalls).toHaveLength(2)
     expect(second.compat?.compatible).toBe(true)
@@ -354,7 +354,7 @@ describe('register-once semantics', () => {
     await getPluginSnapshot()
 
     const registerCalls = mockFetch.mock.calls.filter(([path]) =>
-      (path as string).includes('/register'),
+      (path).includes('/register'),
     )
     expect(registerCalls).toHaveLength(1)
   })
@@ -373,7 +373,7 @@ describe('ensureHermesPluginSync — heartbeat gated on register', () => {
 
     const state = (globalThis as Record<symbol, { heartbeatTimer: unknown }>)[SYNC_STATE_KEY]
     // No heartbeat timer should have been started.
-    expect(state?.heartbeatTimer).toBeUndefined()
+    expect(state.heartbeatTimer).toBeUndefined()
   })
 
   it('is idempotent — calling twice does not double-start', async () => {
@@ -387,7 +387,7 @@ describe('ensureHermesPluginSync — heartbeat gated on register', () => {
 
     // /register called once.
     const registerCalls = mockFetch.mock.calls.filter(([path]) =>
-      (path as string).includes('/register'),
+      (path).includes('/register'),
     )
     expect(registerCalls).toHaveLength(1)
   })
