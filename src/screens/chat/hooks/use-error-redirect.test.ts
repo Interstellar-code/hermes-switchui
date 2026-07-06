@@ -2,11 +2,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { createElement } from 'react'
-import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-import { useErrorRedirect } from './use-error-redirect'
 import { missingAuthMessage } from '../utils'
+import { useErrorRedirect } from './use-error-redirect'
+import type { ReactNode } from 'react'
 import type { SessionMeta } from '../types'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -52,7 +52,7 @@ function makeSession(friendlyId: string): SessionMeta {
     key: friendlyId,
     friendlyId,
     title: `Session ${friendlyId}`,
-  } as SessionMeta
+  }
 }
 
 interface RenderOpts {
@@ -402,7 +402,7 @@ describe('useErrorRedirect', () => {
   })
 
   describe('handleRefetch', () => {
-    it('calls refetch on all three queries', async () => {
+    it('calls refetch on all three queries', () => {
       const sessionsRefetch = vi.fn().mockResolvedValue({})
       const historyRefetch = vi.fn().mockResolvedValue({})
       const { result } = renderErrorRedirect({
@@ -418,7 +418,7 @@ describe('useErrorRedirect', () => {
   })
 
   describe('handleRefreshHistory', () => {
-    it('calls refetch only on historyQuery', async () => {
+    it('calls refetch only on historyQuery', () => {
       const sessionsRefetch = vi.fn().mockResolvedValue({})
       const historyRefetch = vi.fn().mockResolvedValue({})
       const { result } = renderErrorRedirect({
