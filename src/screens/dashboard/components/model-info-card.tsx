@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { CancelIcon } from '@hugeicons/core-free-icons'
-import { formatModelName } from '@/screens/dashboard/lib/formatters'
 import type { DashboardOverview } from '@/server/dashboard-aggregator'
+import { formatModelName } from '@/screens/dashboard/lib/formatters'
 
 function formatContext(n: number): string {
   if (!n || n <= 0) return '—'
@@ -57,9 +57,7 @@ export function ModelInfoCard({
   const supportsVision = readBoolCap(caps, 'supports_vision')
   const supportsReasoning = readBoolCap(caps, 'supports_reasoning')
   const family =
-    caps && typeof caps['model_family'] === 'string'
-      ? (caps['model_family'] as string)
-      : null
+    typeof caps?.['model_family'] === 'string' ? caps['model_family'] : null
 
   // Operational line: share of API calls served by this model in the
   // active analytics window. If no analytics, fall back to capability
@@ -250,6 +248,7 @@ function ModelInventoryModal({
 
   useEffect(() => {
     let cancelled = false
+    const isCancelled = () => cancelled
     ;(async () => {
       try {
         const res = await fetch('/api/models')
@@ -258,7 +257,7 @@ function ModelInventoryModal({
         const list = (data?.data ?? data?.models ?? []) as Array<
           Record<string, unknown>
         >
-        if (cancelled) return
+        if (isCancelled()) return
         setModels(
           list
             .map((m) => ({
@@ -269,11 +268,11 @@ function ModelInventoryModal({
             .filter((m) => m.id),
         )
       } catch (err) {
-        if (!cancelled) {
+        if (!isCancelled()) {
           setError(err instanceof Error ? err.message : 'failed to load')
         }
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!isCancelled()) setLoading(false)
       }
     })()
     return () => {
