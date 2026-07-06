@@ -335,8 +335,8 @@ function _startTimer(): void {
     void _tickHeartbeat()
   }, state.currentIntervalMs)
   // timer.unref() so Node.js can exit cleanly without waiting for the interval.
-  if (typeof timer === 'object' && timer !== null && 'unref' in timer) {
-    ;(timer as { unref(): void }).unref()
+  if (typeof timer === 'object' && 'unref' in timer) {
+    ;(timer as { unref: () => void }).unref()
   }
   state.heartbeatTimer = timer
 }
@@ -374,7 +374,7 @@ export type HermesPluginSnapshot = {
     dashboard_port: number | null
     frontend_port: number | null
     active_profile: string | null
-    enabled_plugins: string[]
+    enabled_plugins: Array<string>
     auth_mode: string | null
   } | null
   compat: {
@@ -406,7 +406,7 @@ export async function getPluginSnapshot(): Promise<HermesPluginSnapshot> {
     if (recovered) {
       state.confirmed404 = false
       _startTimer()
-    } else if (state.confirmed404) {
+    } else {
       // Still 404 — plugin definitively absent.
       return {
         pluginAvailable: false,
@@ -424,7 +424,7 @@ export async function getPluginSnapshot(): Promise<HermesPluginSnapshot> {
 
   // If registration just confirmed 404 (plugin routes not mounted), return early
   // before firing the parallel status+connection fetches.
-  if (state.confirmed404) {
+  if (_getState().confirmed404) {
     return {
       pluginAvailable: false,
       backendReachable: true,
@@ -505,7 +505,7 @@ export async function getPluginSnapshot(): Promise<HermesPluginSnapshot> {
         dashboard_port?: number | null
         frontend_port?: number | null
         active_profile?: string | null
-        enabled_plugins?: string[]
+        enabled_plugins?: Array<string>
         auth_mode?: string | null
       }
       connectionData = {
