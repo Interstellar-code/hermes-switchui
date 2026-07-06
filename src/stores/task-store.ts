@@ -25,7 +25,7 @@ export type Task = {
   project?: string
   missionId?: string
   assignedAgent?: string
-  tags: string[]
+  tags: Array<string>
   dueDate?: string
   reminder?: string
   createdAt: string
@@ -39,19 +39,19 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
   done: 'Done',
 }
 
-export const STATUS_ORDER: TaskStatus[] = [
+export const STATUS_ORDER: Array<TaskStatus> = [
   'backlog',
   'in_progress',
   'review',
   'done',
 ]
 
-export const PRIORITY_ORDER: TaskPriority[] = ['P0', 'P1', 'P2', 'P3']
+export const PRIORITY_ORDER: Array<TaskPriority> = ['P0', 'P1', 'P2', 'P3']
 
 /** Seed data from real Swarm tasks */
-const SEED_TASKS: Task[] = []
+const SEED_TASKS: Array<Task> = []
 
-function normalizeTaskList(payload: unknown): Task[] {
+function normalizeTaskList(payload: unknown): Array<Task> {
   if (
     !payload ||
     typeof payload !== 'object' ||
@@ -60,7 +60,7 @@ function normalizeTaskList(payload: unknown): Task[] {
     return []
   }
 
-  const tasks = (payload as { tasks: unknown[] }).tasks
+  const tasks = (payload as { tasks: Array<unknown> }).tasks
   return tasks.filter((task): task is Task => {
     if (!task || typeof task !== 'object') return false
     const maybeTask = task as Partial<Task>
@@ -101,7 +101,7 @@ function createClientTaskId(): string {
 
 
 type TaskStore = {
-  tasks: Task[]
+  tasks: Array<Task>
   afterSync: boolean
   syncFromApi: () => Promise<void>
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>
@@ -112,7 +112,7 @@ type TaskStore = {
   moveTask: (id: string, status: TaskStatus) => Promise<void>
   deleteTask: (id: string) => Promise<void>
   // Mission-scoped selectors + actions (CS-020)
-  getTasksByMission: (missionId: string) => Task[]
+  getTasksByMission: (missionId: string) => Array<Task>
   upsertMissionTasks: (tasks: Array<Omit<Task, 'id' | 'createdAt' | 'updatedAt'>>) => void
   updateTaskStatus: (taskId: string, status: TaskStatus) => void
 }
@@ -124,10 +124,10 @@ export const useTaskStore = create<TaskStore>()(
       afterSync: false,
       // syncFromApi is now a no-op: this store is local-only.
       // The /api/tasks route never existed. Sync is not supported.
-      syncFromApi: async function syncFromApi() {
+      syncFromApi: function syncFromApi() {
         set({ afterSync: true })
       },
-      addTask: async (taskData) => {
+      addTask: (taskData) => {
         const now = new Date().toISOString()
         const task: Task = {
           ...taskData,
@@ -137,7 +137,7 @@ export const useTaskStore = create<TaskStore>()(
         }
         set((state) => ({ tasks: [task, ...state.tasks].slice(0, MAX_PERSISTED_TASKS) }))
       },
-      updateTask: async (id, updates) => {
+      updateTask: (id, updates) => {
         set((state) => ({
           tasks: state.tasks.map((t) =>
             t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t,
@@ -147,7 +147,7 @@ export const useTaskStore = create<TaskStore>()(
       moveTask: async (id, status) => {
         await get().updateTask(id, { status })
       },
-      deleteTask: async (id) => {
+      deleteTask: (id) => {
         set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) }))
       },
       // CS-020: Mission-scoped selectors
@@ -156,7 +156,7 @@ export const useTaskStore = create<TaskStore>()(
       },
       upsertMissionTasks: (tasks) => {
         const now = new Date().toISOString()
-        const newTasks: Task[] = tasks.map((t) => ({
+        const newTasks: Array<Task> = tasks.map((t) => ({
           ...t,
           id: `mission-${t.missionId ?? 'unknown'}-${crypto.randomUUID()}`,
           createdAt: now,
