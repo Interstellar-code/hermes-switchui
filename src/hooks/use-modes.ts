@@ -45,13 +45,13 @@ export function useModes() {
     (mode: Mode): boolean => {
       return (
         mode.smartSuggestionsEnabled !==
-          (settings.smartSuggestionsEnabled ?? false) ||
-        mode.onlySuggestCheaper !== (settings.onlySuggestCheaper ?? false) ||
+          settings.smartSuggestionsEnabled ||
+        mode.onlySuggestCheaper !== settings.onlySuggestCheaper ||
         (mode.preferredBudgetModel !== undefined &&
           mode.preferredBudgetModel !==
-            (settings.preferredBudgetModel ?? '')) ||
+            settings.preferredBudgetModel) ||
         (mode.preferredPremiumModel !== undefined &&
-          mode.preferredPremiumModel !== (settings.preferredPremiumModel ?? ''))
+          mode.preferredPremiumModel !== settings.preferredPremiumModel)
       )
     },
     [settings],
@@ -82,10 +82,10 @@ export function useModes() {
         id: crypto.randomUUID(),
         name,
         preferredModel: includeCurrentModel ? currentModel : undefined,
-        smartSuggestionsEnabled: settings.smartSuggestionsEnabled ?? false,
-        onlySuggestCheaper: settings.onlySuggestCheaper ?? false,
-        preferredBudgetModel: settings.preferredBudgetModel ?? '',
-        preferredPremiumModel: settings.preferredPremiumModel ?? '',
+        smartSuggestionsEnabled: settings.smartSuggestionsEnabled,
+        onlySuggestCheaper: settings.onlySuggestCheaper,
+        preferredBudgetModel: settings.preferredBudgetModel,
+        preferredPremiumModel: settings.preferredPremiumModel,
       }
 
       setModes((prev) => [...prev, newMode])
