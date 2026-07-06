@@ -62,6 +62,17 @@ jobs:
             dist/ \
             "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/"
 
+      # The deploy SSH user is not the web-root owner (zionadmin) — it has
+      # group write access and a sudoers entry to chown back to zionadmin.
+      # Without this, files accumulate as deploy:deploy and Apache can still
+      # serve them, but Virtualmin/panel-managed perms drift.
+      - name: Restore web-root ownership
+        if: success()
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.SSH_PORT || '22' }}" \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "sudo /bin/chown -R zionadmin:zionadmin ${{ secrets.DEPLOY_PATH }}"
+
       - name: Cleanup SSH key
         if: always()
         run: rm -f ~/.ssh/deploy_key
