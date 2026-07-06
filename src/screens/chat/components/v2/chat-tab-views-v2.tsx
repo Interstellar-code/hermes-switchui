@@ -37,11 +37,11 @@ function categorizeEntry(entry: FlatToolEntry): string {
   let keys: Array<string> = []
   if (entry.input) {
     keys = Object.keys(entry.input).map((k) => k.toLowerCase())
-    const v = (entry.input as Record<string, unknown>).value
+    const v = entry.input.value
     if (typeof v === 'string') {
       try {
-        const parsed = JSON.parse(v) as Record<string, unknown>
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const parsed = JSON.parse(v)
+        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
           keys = keys.concat(Object.keys(parsed).map((k) => k.toLowerCase()))
         }
       } catch {
@@ -219,7 +219,7 @@ export function extractToolEntries(messages: Array<ChatMessage>): Array<FlatTool
           ? cAny.text
           : Array.isArray(cAny.content)
             ? (cAny.content as Array<{ type?: string; text?: string }>)
-              .filter((p) => p?.type === 'text')
+              .filter((p) => p.type === 'text')
               .map((p) => p.text ?? '')
               .join('')
             : ''
