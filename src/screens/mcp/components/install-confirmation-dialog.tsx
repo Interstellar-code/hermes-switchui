@@ -17,21 +17,21 @@
  * US-501: placeholder detection + inline fill.
  */
 import { useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import {
-  DialogContent,
-  DialogDescription,
-  Dialog,
-  DialogTitle,
-} from '@/components/shadcn/ui/dialog'
-import { toast } from '@/components/ui/toast'
-import type { HubMcpEntry } from '../hooks/use-mcp-hub'
-import type { McpClientInput } from '@/types/mcp'
 import {
   detectPlaceholders,
   isStillPlaceholder,
 } from '../lib/placeholder-detect'
+import type { McpClientInput } from '@/types/mcp'
+import type { HubMcpEntry } from '../hooks/use-mcp-hub'
 import type { PlaceholderField } from '../lib/placeholder-detect'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@/components/shadcn/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { toast } from '@/components/ui/toast'
 
 interface Props {
   entry: HubMcpEntry | null
@@ -73,7 +73,6 @@ function applyOverrides(
   }
   for (const ph of placeholders) {
     const val = overrides[ph.path]
-    if (val === undefined) continue
     if (ph.kind === 'url') {
       out.url = val
     } else if (ph.kind === 'arg') {
@@ -83,7 +82,7 @@ function applyOverrides(
         const idx = parseInt(m[1], 10)
         if (out.args) out.args[idx] = val
       }
-    } else if (ph.kind === 'env') {
+    } else {
       // Path is "env.KEY"
       const key = ph.path.slice(4) // strip "env."
       if (out.env) out.env[key] = val
@@ -135,7 +134,7 @@ export function InstallConfirmationDialog({ entry, onClose, onInstalled }: Props
     }
 
     const resolvedTemplate =
-      placeholders && placeholders.length > 0
+      placeholders?.length
         ? applyOverrides(template, placeholders, overrides)
         : template
 
