@@ -1,11 +1,11 @@
-import type { ProfileConfig, MemoryProvider } from '@/server/profiles-browser'
+import type { MemoryProvider, ProfileConfig } from '@/server/profiles-browser'
 import type { NewAgentDraft } from './types'
 
 // ── draftFromConfig ───────────────────────────────────────────────────────────
 // Reverse of the create payload — hydrates a NewAgentDraft from a ProfileConfig.
 
 export function draftFromConfig(name: string, config: ProfileConfig): NewAgentDraft {
-  const modelObj = typeof config.model === 'object' && config.model !== null ? config.model : null
+  const modelObj = typeof config.model === 'object' ? config.model : null
   const modelStr = typeof config.model === 'string' ? config.model : ''
 
   return {
@@ -15,14 +15,14 @@ export function draftFromConfig(name: string, config: ProfileConfig): NewAgentDr
     tags: config.agent_ui?.tags ?? [],
     persona_id: config.agent_ui?.persona_id ?? null,
     system_prompt: config.system_prompt ?? '',
-    model: modelObj?.default ?? modelStr ?? '',
+    model: modelObj?.default ?? modelStr,
     provider: modelObj?.provider ?? '',
     max_turns: config.agent?.max_turns ?? 200,
     reasoning_effort: config.agent?.reasoning_effort ?? 'medium',
     skill_dirs: config.skills?.external_dirs ?? [],
     mcp_servers: config.mcp_servers ?? {},
     memory_enabled: config.memory?.memory_enabled ?? false,
-    memory_provider: (config.memory?.provider as MemoryProvider) ?? 'hindsight',
+    memory_provider: config.memory?.provider ?? 'hindsight',
     disabled_toolsets: config.agent?.disabled_toolsets ?? [],
   }
 }
