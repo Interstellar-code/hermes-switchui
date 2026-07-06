@@ -2,11 +2,11 @@
  * AgoraProfileDrawer — view/edit user profile.
  * Self profile is editable. Others are read-only with a "wave" CTA.
  */
-import { motion, AnimatePresence } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState } from 'react'
 import type { AgoraAvatarId, AgoraProfile, AgoraStatus, AgoraUser } from '../lib/agora-types'
 
-const ALL_AVATARS: { id: AgoraAvatarId; label: string; tier: 'greek' | 'emoji' }[] = [
+const ALL_AVATARS: Array<{ id: AgoraAvatarId; label: string; tier: 'greek' | 'emoji' }> = [
   { id: 'hermes', label: 'Hermes', tier: 'greek' },
   { id: 'athena', label: 'Athena', tier: 'greek' },
   { id: 'apollo', label: 'Apollo', tier: 'greek' },
@@ -27,7 +27,7 @@ const ALL_AVATARS: { id: AgoraAvatarId; label: string; tier: 'greek' | 'emoji' }
   { id: 'panda', label: 'Panda', tier: 'emoji' },
 ]
 
-const STATUS_OPTIONS: AgoraStatus[] = ['online', 'away', 'busy']
+const STATUS_OPTIONS: Array<AgoraStatus> = ['online', 'away', 'busy']
 
 interface AgoraProfileDrawerProps {
   open: boolean
@@ -53,7 +53,7 @@ export function AgoraProfileDrawer({
   useEffect(() => {
     if (user) {
       setEditName(user.profile.displayName)
-      setEditBio(user.profile.bio ?? '')
+      setEditBio(user.profile.bio)
       setEditStatus(user.profile.status)
     }
   }, [user?.profile.id])
@@ -104,7 +104,7 @@ export function AgoraProfileDrawer({
                 className="rounded-full"
                 style={{ border: '2px solid var(--theme-border)' }}
                 onError={(e) => {
-                  ;(e.currentTarget as HTMLImageElement).src = '/avatars/hermes.png'
+                  ;(e.currentTarget).src = '/avatars/hermes.png'
                 }}
               />
               <div className="flex-1 min-w-0">
@@ -214,7 +214,7 @@ export function AgoraProfileDrawer({
                         height={40}
                         className="rounded-full block"
                         onError={(e) => {
-                          ;(e.currentTarget as HTMLImageElement).src = '/avatars/hermes.png'
+                          ;(e.currentTarget).src = '/avatars/hermes.png'
                         }}
                       />
                     </button>
