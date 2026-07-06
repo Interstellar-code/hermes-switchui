@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useIsFeatureAvailable } from '@/hooks/use-gateway-caps'
 
 const DEFAULT_NAME = 'Main Agent'
@@ -15,7 +15,7 @@ async function fetchDashboardConfig(): Promise<Record<string, unknown>> {
   if (!res.ok) throw new Error(`dashboard-config GET failed: ${res.status}`)
   const data = (await res.json()) as { ok: boolean; config?: Record<string, unknown>; unavailable?: boolean }
   if (data.unavailable) throw new Error('config_unavailable')
-  return (data.config as Record<string, unknown>) ?? {}
+  return data.config && typeof data.config === 'object' ? data.config : {}
 }
 
 async function patchDashboardConfig(patch: Record<string, unknown>): Promise<void> {
@@ -116,7 +116,7 @@ export function useOrchestratorIdentity(): {
         : {}
       await patchDashboardConfig({ display: { ...display, agent_name: nextName } })
     },
-    onMutate: async (nextName: string) => {
+    onMutate: (nextName: string) => {
       const previous = queryClient.getQueryData<Record<string, unknown>>(['orchestrator-identity'])
       queryClient.setQueryData<Record<string, unknown>>(['orchestrator-identity'], (old) => {
         const base = old ?? {}
