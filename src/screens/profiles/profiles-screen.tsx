@@ -9,9 +9,9 @@ import { ConfirmDialog } from './components/confirm-dialog'
 import type { BuiltinAgent } from '@/lib/builtin-agents'
 import type { AgentUIMetadata, ProfileSummary } from '@/server/profiles-browser'
 import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
-import { useProfilesFilterStore, useProfilesViewStore, usePageSize } from '@/stores/profiles-screen-store'
+import { usePageSize, useProfilesFilterStore, useProfilesViewStore } from '@/stores/profiles-screen-store'
 import { Button } from '@/components/ui/button'
-import { DialogContent, Dialog, DialogTitle } from '@/components/shadcn/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/shadcn/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/toast'
 import '@/styles/matrix-profiles.css'
@@ -55,7 +55,7 @@ function profileToRow(p: any): AgentRow {
   return {
     id: `profile:${name}`,
     name: builtin?.name ?? name,
-    tier: (ui.tier as AgentRow['tier']) ?? builtin?.tier ?? 3,
+    tier: ui.tier ?? builtin?.tier ?? 3,
     glyph,
     role,
     description,
@@ -144,7 +144,7 @@ export function ProfilesScreen() {
         '/api/profiles/list',
       )
       const seen = new Set<string>()
-      const deduped = (data.profiles || []).filter(p => {
+      const deduped = data.profiles.filter(p => {
         const key = (p.name || '').toLowerCase()
         if (key === 'default') return false
         if (seen.has(key)) return false
