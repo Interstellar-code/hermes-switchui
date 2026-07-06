@@ -1,24 +1,24 @@
 import { useEffect, useState } from 'react'
-import {
-  DialogContent,
-  Dialog,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/shadcn/ui/dialog'
-import { Button } from '@/components/ui/button'
-import {
-  formatKanbanBlockReason,
-  HERMES_KANBAN_BLOCK_REASON_OPTIONS,
-  type HermesKanbanBlockCode,
-} from '@/lib/kanban-block-state'
-import { cn } from '@/lib/utils'
+import type { HermesKanbanBlockCode } from '@/lib/kanban-block-state'
 import type { HermesKanbanStatus } from '@/lib/hermes-kanban-types'
-import { HERMES_KANBAN_STATUS_LABELS, HERMES_KANBAN_VISIBLE_STATUS_ORDER, mapLegacyPriorityToNumeric } from '@/lib/hermes-kanban-types'
 import type {
   ClaudeTask,
   CreateTaskInput,
   TaskAssignee,
 } from '@/lib/tasks-api'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@/components/shadcn/ui/dialog'
+import { Button } from '@/components/ui/button'
+import {
+  HERMES_KANBAN_BLOCK_REASON_OPTIONS,
+  formatKanbanBlockReason,
+} from '@/lib/kanban-block-state'
+import { cn } from '@/lib/utils'
+import { HERMES_KANBAN_STATUS_LABELS, HERMES_KANBAN_VISIBLE_STATUS_ORDER, mapLegacyPriorityToNumeric } from '@/lib/hermes-kanban-types'
 
 // Priority labels in the form (friendly) → map to Agent numeric on submit
 const PRIORITY_OPTIONS = [
@@ -90,7 +90,7 @@ export function TaskDialog({
     if (task) {
       setTitle(task.title)
       setBody(task.body ?? '')
-      setStatus((task.status as HermesKanbanStatus) ?? 'triage')
+      setStatus(task.status)
       const numPri = typeof task.priority === 'number'
         ? task.priority
         : mapLegacyPriorityToNumeric(String(task.priority))
