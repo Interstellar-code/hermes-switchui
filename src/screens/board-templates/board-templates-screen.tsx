@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
+import { TemplateCard } from './components/template-card'
+import { TemplatesPager } from './components/templates-pager'
 import type {
   InstantiateResult,
   KanbanTemplate,
@@ -15,6 +17,7 @@ import {
   useInstantiateTemplate,
   useSaveTemplate,
   useTemplate,
+  useTemplateTaskCounts,
   useTemplates,
   useUpdateTemplate,
 } from '@/lib/board-templates-api'
@@ -27,11 +30,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import '@/styles/matrix-boards.css'
-import { useTemplatesViewStore, usePageSize } from '@/stores/templates-screen-store'
-import { useTemplateTaskCounts } from '@/lib/board-templates-api'
 import { summarizeTemplateSchedule } from '@/lib/kanban-template-schedule'
-import { TemplateCard } from './components/template-card'
-import { TemplatesPager } from './components/templates-pager'
+import { usePageSize, useTemplatesViewStore } from '@/stores/templates-screen-store'
 
 const SIZE_WARN_BYTES = 64 * 1024
 const COLORS = ['#00ff41', '#5ad3ff', '#ffb454', '#b07cff', '#ff5fa2', '#d6ff5f']
