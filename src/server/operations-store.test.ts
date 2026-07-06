@@ -1,17 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { ClaudeSession } from './hermes-api'
+
 import {
+  CapabilityUnavailableError,
   __resetOperationsReaders,
   __setOperationsReaders,
-  CapabilityUnavailableError,
   getAgent,
   getState,
   listAgents,
   listOutputs,
   pauseAgent,
   resumeAgent,
-  type NodeRunRow,
 } from './operations-store'
+import type { ClaudeSession } from './hermes-api'
+import type { NodeRunRow } from './operations-store'
 
 const NOW = Date.now()
 
@@ -53,10 +54,10 @@ describe('operations-store live projections', () => {
 
   it('returns empty arrays when gateway and engine are both offline', async () => {
     __setOperationsReaders({
-      listSessions: async () => {
+      listSessions: () => {
         throw new Error('gateway offline')
       },
-      listNodeRuns: async () => {
+      listNodeRuns: () => {
         throw new Error('engine unavailable')
       },
     })
@@ -70,11 +71,23 @@ describe('operations-store live projections', () => {
 
   it('projects active node_runs as live agents and tags orchestrator role', async () => {
     __setOperationsReaders({
-      listSessions: async () => [],
-      listNodeRuns: async () => [
-        makeNodeRun({ id: 'nr-orch', node_type: 'router', assigned_agent: 'sage' }),
-        makeNodeRun({ id: 'nr-worker', node_type: 'execute', assigned_agent: 'neo' }),
-        makeNodeRun({ id: 'nr-done', status: 'completed', assigned_agent: 'echo' }),
+      listSessions: () => [],
+      listNodeRuns: () => [
+        makeNodeRun({
+          id: 'nr-orch',
+          node_type: 'router',
+          assigned_agent: 'sage',
+        }),
+        makeNodeRun({
+          id: 'nr-worker',
+          node_type: 'execute',
+          assigned_agent: 'neo',
+        }),
+        makeNodeRun({
+          id: 'nr-done',
+          status: 'completed',
+          assigned_agent: 'echo',
+        }),
       ],
     })
 
@@ -90,8 +103,8 @@ describe('operations-store live projections', () => {
 
   it('maps node_run statuses to agent status', async () => {
     __setOperationsReaders({
-      listSessions: async () => [],
-      listNodeRuns: async () => [
+      listSessions: () => [],
+      listNodeRuns: () => [
         makeNodeRun({ id: 'a', status: 'running' }),
         makeNodeRun({ id: 'b', status: 'paused' }),
         makeNodeRun({ id: 'c', status: 'failed' }),
@@ -108,8 +121,8 @@ describe('operations-store live projections', () => {
 
   it('falls back to gateway sessions when no active node_runs', async () => {
     __setOperationsReaders({
-      listSessions: async () => [makeSession()],
-      listNodeRuns: async () => [],
+      listSessions: () => [makeSession()],
+      listNodeRuns: () => [],
     })
     const agents = await listAgents()
     expect(agents).toHaveLength(1)
@@ -120,8 +133,8 @@ describe('operations-store live projections', () => {
 
   it('listOutputs projects completed node_runs with artifact_refs', async () => {
     __setOperationsReaders({
-      listSessions: async () => [],
-      listNodeRuns: async () => [
+      listSessions: () => [],
+      listNodeRuns: () => [
         makeNodeRun({
           id: 'nr-done',
           status: 'completed',
@@ -152,8 +165,8 @@ describe('operations-store live projections', () => {
 
   it('getAgent returns focus data for a known node_run', async () => {
     __setOperationsReaders({
-      listSessions: async () => [],
-      listNodeRuns: async () => [
+      listSessions: () => [],
+      listNodeRuns: () => [
         makeNodeRun({ id: 'nr-1' }),
         makeNodeRun({
           id: 'nr-2',
@@ -172,23 +185,27 @@ describe('operations-store live projections', () => {
 
   it('getAgent returns null when id is unknown', async () => {
     __setOperationsReaders({
-      listSessions: async () => [],
-      listNodeRuns: async () => [],
+      listSessions: () => [],
+      listNodeRuns: () => [],
     })
     expect(await getAgent('missing')).toBeNull()
   })
 
   it('pauseAgent and resumeAgent throw CapabilityUnavailableError', async () => {
-    await expect(pauseAgent('x')).rejects.toBeInstanceOf(CapabilityUnavailableError)
-    await expect(resumeAgent('x')).rejects.toBeInstanceOf(CapabilityUnavailableError)
+    await expect(pauseAgent('x')).rejects.toBeInstanceOf(
+      CapabilityUnavailableError,
+    )
+    await expect(resumeAgent('x')).rejects.toBeInstanceOf(
+      CapabilityUnavailableError,
+    )
   })
 
   it('getState aggregates counts across projections', async () => {
     __setOperationsReaders({
-      listSessions: async () => [
+      listSessions: () => [
         makeSession({ id: 's1', input_tokens: 500, output_tokens: 500 }),
       ],
-      listNodeRuns: async () => [
+      listNodeRuns: () => [
         makeNodeRun({ id: 'a', status: 'running' }),
         makeNodeRun({ id: 'b', status: 'failed' }),
         makeNodeRun({ id: 'c', status: 'pending' }),
