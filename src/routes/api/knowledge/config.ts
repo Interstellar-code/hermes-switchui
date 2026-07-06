@@ -4,13 +4,13 @@ import { requireJsonContentType } from '../../../server/rate-limit'
 import {
   readKnowledgeBaseConfig,
   writeKnowledgeBaseConfig,
-  type KnowledgeBaseConfig,
 } from '../../../server/knowledge-config'
+import type { KnowledgeBaseConfig } from '../../../server/knowledge-config'
 
 export const Route = createFileRoute('/api/knowledge/config')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
