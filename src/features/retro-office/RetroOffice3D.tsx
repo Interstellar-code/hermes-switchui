@@ -928,7 +928,7 @@ function useAgentTick(
   const gridSourceRef = useRef<Array<FurnitureItem>>([]);
 
   const getNavGrid = useCallback((): NavGrid => {
-    const furniture = furnitureRef.current ?? [];
+    const furniture = furnitureRef.current;
     if (navGridRef.current === null || gridSourceRef.current !== furniture) {
       navGridRef.current = buildNavGrid(furniture);
       gridSourceRef.current = furniture;
@@ -967,7 +967,7 @@ function useAgentTick(
     ): LeisureSpawnPoint | null => {
       if (isRemoteOfficeAgentId(agentId)) return null;
 
-      const furnitureItems = furnitureRef.current ?? [];
+      const furnitureItems = furnitureRef.current;
       const pickFurniturePoint = (
         types: Array<string>,
         offsetX: number,
@@ -1028,12 +1028,12 @@ function useAgentTick(
     standupMeeting?.phase === "in_progress";
   const meetingParticipants = useMemo(
     () =>
-      new Set(standupActive ? (standupMeeting?.participantOrder ?? []) : []),
+      new Set(standupActive ? standupMeeting.participantOrder : []),
     [standupActive, standupMeeting?.participantOrder],
   );
   const resolveMeetingTarget = useCallback(
     (agentId: string) => {
-      const participantOrder = standupMeeting?.participantOrder ?? [];
+      const participantOrder = standupMeeting.participantOrder;
       const targetIndex = participantOrder.indexOf(agentId);
       const seats = [...meetingSeatLocations, ...MEETING_OVERFLOW_LOCATIONS];
       const fallbackSeat = seats[0] ?? { x: 145, y: 118, facing: Math.PI };
@@ -1060,7 +1060,7 @@ function useAgentTick(
     agents.forEach((agent, idx) => {
       const now = Date.now();
       const existing = currentMap.get(agent.id);
-      const isJanitor = "role" in agent && agent.role === "janitor";
+      const isJanitor = agent.role === "janitor";
       if (isJanitor) {
         const route = agent.janitorRoute;
         const spawn = route[0] ?? { x: 400, y: 400, facing: Math.PI / 2 };
@@ -1173,11 +1173,11 @@ function useAgentTick(
         ? resolveMeetingTarget(agent.id)
         : null;
       const smsBoothItem =
-        (furnitureRef.current ?? []).find(
+        furnitureRef.current.find(
           (item) => item.type === "sms_booth",
         ) ?? null;
       const phoneBoothItem =
-        (furnitureRef.current ?? []).find(
+        furnitureRef.current.find(
           (item) => item.type === "phone_booth",
         ) ?? null;
 
@@ -1886,7 +1886,7 @@ function useAgentTick(
       ["couch", "couch_v", "beanbag"].includes(item.type),
     );
     const moved = renderAgentsRef.current.map((agent) => {
-      const isJanitor = "role" in agent && agent.role === "janitor";
+      const isJanitor = agent.role === "janitor";
       if (isJanitor && agent.janitorPauseUntil !== undefined) {
         if (now < agent.janitorPauseUntil) {
           return {
@@ -2001,7 +2001,7 @@ function useAgentTick(
               ...agent,
               x: nx,
               y: ny,
-              facing: currentStop?.facing ?? nf,
+              facing: currentStop.facing ?? nf,
               state: "standing" as const,
               path: [],
               janitorPauseUntil:
@@ -2377,7 +2377,7 @@ const idleMatrixQuipForAgent = (
     Object.keys(IDLE_MATRIX_QUIPS).find(
       (candidate) => candidate !== "default" && identity.includes(candidate),
     ) ?? "default";
-  const quips = IDLE_MATRIX_QUIPS[key] ?? IDLE_MATRIX_QUIPS.default;
+  const quips = IDLE_MATRIX_QUIPS[key];
   return quips[(hashText(agent.id) + cycle) % quips.length] ?? quips[0] ?? "";
 };
 
@@ -3563,10 +3563,7 @@ export function RetroOffice3D({
 
   const getBoothAudioContext = useCallback(async () => {
     if (typeof window === "undefined") return null;
-    const AudioContextCtor =
-      window.AudioContext ||
-       
-      ((window as any).webkitAudioContext as typeof AudioContext | undefined);
+    const AudioContextCtor = window.AudioContext;
     if (!AudioContextCtor) return null;
     if (!boothAudioCtxRef.current) {
       boothAudioCtxRef.current = new AudioContextCtor();
@@ -3662,8 +3659,8 @@ export function RetroOffice3D({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             text,
-            voiceId: voiceRepliesVoiceId ?? undefined,
-            speed: voiceRepliesSpeed ?? 1,
+            voiceId: voiceRepliesVoiceId,
+            speed: voiceRepliesSpeed,
           }),
         });
         if (!response.ok) return;
@@ -6157,8 +6154,8 @@ export function RetroOffice3D({
             <div className="flex items-center -space-x-1.5">
               {compactRosterAgents.map((agent) => {
                 const status = agentStatusLookup[agent.id];
-                const isError = status?.isError ?? agent.status === "error";
-                const working = status?.working ?? agent.status === "working";
+                const isError = status.isError ?? agent.status === "error";
+                const working = status.working ?? agent.status === "working";
                 const isRemoteAgent = isRemoteOfficeAgentId(agent.id);
                 const mood = moodByAgentId[agent.id];
                 const dotClass = isError
@@ -6251,8 +6248,8 @@ export function RetroOffice3D({
               <div className="grid max-h-[min(60vh,420px)] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
                 {agents.map((agent) => {
                   const status = agentStatusLookup[agent.id];
-                  const isError = status?.isError ?? agent.status === "error";
-                  const working = status?.working ?? agent.status === "working";
+                  const isError = status.isError ?? agent.status === "error";
+                  const working = status.working ?? agent.status === "working";
                   const isRemoteAgent = isRemoteOfficeAgentId(agent.id);
                   const dotClass = isError
                     ? "bg-red-400"
