@@ -1868,7 +1868,7 @@ function useAgentTick(
   const tick = () => {
     const grid = getNavGrid();
     const now = Date.now();
-    const furnitureItems = furnitureRef.current ?? [];
+    const furnitureItems = furnitureRef.current;
     const smsBoothItem =
       furnitureItems.find((item) => item.type === "sms_booth") ?? null;
     const phoneBoothItem =
@@ -1957,14 +1957,14 @@ function useAgentTick(
           frame: agent.frame + 1,
         };
       }
-      const baseSpeed = agent.walkSpeed ?? WALK_SPEED;
+      const baseSpeed = agent.walkSpeed;
       const speed =
         agent.status === "working" && agent.state !== "sitting"
           ? baseSpeed * WORKING_WALK_SPEED_MULTIPLIER
           : baseSpeed;
       // Move toward the first waypoint. An empty path means astar found no route —
       // the agent stays put instead of walking through walls toward the raw target.
-      const path = agent.path ?? [];
+      const path = agent.path;
       const wpX = path.length > 0 ? path[0].x : agent.x;
       const wpY = path.length > 0 ? path[0].y : agent.y;
       const dx = wpX - agent.x,
@@ -2378,7 +2378,7 @@ const idleMatrixQuipForAgent = (
       (candidate) => candidate !== "default" && identity.includes(candidate),
     ) ?? "default";
   const quips = IDLE_MATRIX_QUIPS[key];
-  return quips[(hashText(agent.id) + cycle) % quips.length] ?? quips[0] ?? "";
+  return quips[(hashText(agent.id) + cycle) % quips.length] ?? "";
 };
 
 const getAgentInitials = (name: string | null | undefined): string => {
@@ -2386,7 +2386,7 @@ const getAgentInitials = (name: string | null | undefined): string => {
   if (parts.length === 0) return "?";
   return parts
     .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
+    .map((part) => part[0].toUpperCase())
     .join("");
 };
 
@@ -3120,11 +3120,11 @@ export function RetroOffice3D({
           const renderAgent = renderAgentUiById[agent.id];
           acc[agent.id] = {
             isError:
-              renderAgent?.status === "error" || agent.status === "error",
+              renderAgent.status === "error" || agent.status === "error",
             working:
-              renderAgent?.state === "sitting" ||
-              renderAgent?.state === "dancing" ||
-              renderAgent?.status === "working" ||
+              renderAgent.state === "sitting" ||
+              renderAgent.state === "dancing" ||
+              renderAgent.status === "working" ||
               agent.status === "working",
           };
           return acc;
@@ -3564,7 +3564,6 @@ export function RetroOffice3D({
   const getBoothAudioContext = useCallback(async () => {
     if (typeof window === "undefined") return null;
     const AudioContextCtor = window.AudioContext;
-    if (!AudioContextCtor) return null;
     if (!boothAudioCtxRef.current) {
       boothAudioCtxRef.current = new AudioContextCtor();
     }
@@ -3918,7 +3917,7 @@ export function RetroOffice3D({
         );
       }
 
-      if (!standupActive || !standupMeeting) {
+      if (!standupActive) {
         const nextArrivalsKey = "";
         if (lastStandupArrivalKeyRef.current === nextArrivalsKey) return;
         lastStandupArrivalKeyRef.current = nextArrivalsKey;
@@ -4741,7 +4740,6 @@ export function RetroOffice3D({
         if (availableAgents.length < 2) return;
         availableAgents.forEach((agent, index) => {
           const target = targets[index];
-          if (!target) return;
           Object.assign(agent, {
             targetX: target.x,
             targetY: target.y,
@@ -4771,7 +4769,7 @@ export function RetroOffice3D({
           setMoodByAgentId((prev) => {
             const next = { ...prev };
             for (const agent of availableAgents) {
-              if (next[agent.id]?.emoji === "🏓") delete next[agent.id];
+              if (next[agent.id].emoji === "🏓") delete next[agent.id];
             }
             return next;
           });
@@ -5315,7 +5313,6 @@ export function RetroOffice3D({
   useEffect(() => {
     if (feedEvents.length === 0) return;
     const latest = feedEvents[0];
-    if (!latest) return;
     if (latest.kind !== "reply") return;
     const speechBubbleDurationMs = Math.min(
       12_000,
@@ -5341,7 +5338,6 @@ export function RetroOffice3D({
   useEffect(() => {
     if (feedEvents.length === 0) return;
     const latest = feedEvents[0];
-    if (!latest) return;
     const emoji =
       latest.kind === "reply"
         ? "💬"
@@ -5937,7 +5933,7 @@ export function RetroOffice3D({
 
             {/* Agents — purely imperative, driven by renderAgentsRef inside useFrame. */}
             {sceneAgents.map((agent) => {
-              const isJanitor = "role" in agent && agent.role === "janitor";
+              const isJanitor = agent.role === "janitor";
               return (
                 <AgentObjectModel
                   key={agent.id}
@@ -5971,15 +5967,15 @@ export function RetroOffice3D({
                       ? null
                       : standupMeeting?.phase === "in_progress"
                         ? (standupSpeechTextByAgentId[agent.id] ?? null)
-                        : (speechTextByAgentId[agent.id] ??
-                            streamingTextByAgentId[agent.id] ??
-                            idleMatrixQuipByAgentId[agent.id] ??
-                            null)
+                        : (speechTextByAgentId[agent.id] ||
+                            streamingTextByAgentId[agent.id] ||
+                            idleMatrixQuipByAgentId[agent.id] ||
+                            "")
                   }
                   speechBubbleColor={agentColorMap.get(agent.id) ?? "#00ff41"}
                   suppressSpeechBubble={
                     suppressSceneSpeechBubbles &&
-                    standupMeeting?.currentSpeakerAgentId !== agent.id
+                    standupMeeting.currentSpeakerAgentId !== agent.id
                   }
                   progress={progressByAgentId[agent.id]}
                 />
@@ -6154,10 +6150,15 @@ export function RetroOffice3D({
             <div className="flex items-center -space-x-1.5">
               {compactRosterAgents.map((agent) => {
                 const status = agentStatusLookup[agent.id];
-                const isError = status.isError ?? agent.status === "error";
-                const working = status.working ?? agent.status === "working";
+                const isError = status.isError || agent.status === "error";
+                const working = status.working || agent.status === "working";
                 const isRemoteAgent = isRemoteOfficeAgentId(agent.id);
-                const mood = moodByAgentId[agent.id];
+                const mood = Object.prototype.hasOwnProperty.call(
+                  moodByAgentId,
+                  agent.id,
+                )
+                  ? moodByAgentId[agent.id]
+                  : null;
                 const dotClass = isError
                   ? "bg-red-400"
                   : working
@@ -6248,8 +6249,8 @@ export function RetroOffice3D({
               <div className="grid max-h-[min(60vh,420px)] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
                 {agents.map((agent) => {
                   const status = agentStatusLookup[agent.id];
-                  const isError = status.isError ?? agent.status === "error";
-                  const working = status.working ?? agent.status === "working";
+                  const isError = status.isError || agent.status === "error";
+                  const working = status.working || agent.status === "working";
                   const isRemoteAgent = isRemoteOfficeAgentId(agent.id);
                   const dotClass = isError
                     ? "bg-red-400"
