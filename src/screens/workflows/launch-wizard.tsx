@@ -583,14 +583,14 @@ function Step4Confirm({
             {wf.required_inputs.map((inp) => (
               <div key={inp} className="wfw-cc-row">
                 <span>{inp}</span>
-                <span className="wfw-rv-val">{variables[inp]?.trim() || '—'}</span>
+                <span className="wfw-rv-val">{variables[inp].trim() || '—'}</span>
               </div>
             ))}
             {wf.optional_inputs.map((inp) => (
               <div key={inp} className="wfw-cc-row">
                 <span>{inp}</span>
                 <span className="wfw-rv-val wfw-rv-val--opt">
-                  {variables[inp]?.trim() || <em>not provided</em>}
+                  {variables[inp].trim() || <em>not provided</em>}
                 </span>
               </div>
             ))}
@@ -623,7 +623,7 @@ function VariablesForm({
   function handleChange(name: string, value: string) {
     setVariables((prev) => {
       const next = { ...prev, [name]: value }
-      const allRequiredFilled = wf.required_inputs.every((inp) => next[inp]?.trim())
+      const allRequiredFilled = wf.required_inputs.every((inp) => next[inp].trim())
       onValidChange(allRequiredFilled)
       return next
     })
@@ -631,7 +631,7 @@ function VariablesForm({
 
   // Validate on mount / when wf changes
   useEffect(() => {
-    const allRequiredFilled = wf.required_inputs.every((inp) => variables[inp]?.trim())
+    const allRequiredFilled = wf.required_inputs.every((inp) => variables[inp].trim())
     onValidChange(allRequiredFilled)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wf.required_inputs])
@@ -734,17 +734,17 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
     const { definition: def, parsed } = data
     wf = {
       id: def.id,
-      name: parsed.name ?? '',
-      description: parsed.description ?? '',
-      required_inputs: parsed.required_inputs ?? [],
-      optional_inputs: parsed.optional_inputs ?? [],
-      nodes: (parsed.nodes ?? []).map((n) => ({
+      name: parsed.name,
+      description: parsed.description,
+      required_inputs: parsed.required_inputs,
+      optional_inputs: parsed.optional_inputs,
+      nodes: parsed.nodes.map((n) => ({
         id: n.id,
         label: n.label ?? n.id,
         type: (n.type ?? 'prompt') as NodeType,
         config: n.config,
       })),
-      edges: parsed.edges ?? [],
+      edges: parsed.edges,
     }
   }
 
@@ -767,7 +767,7 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
       setStep((s) => s + 1)
       // Re-check canAdvance for the upcoming step (step 2 → variables gate)
       if (step + 1 === 2 && wf) {
-        setCanAdvance(wf.required_inputs.every((inp) => variables[inp]?.trim()))
+        setCanAdvance(wf.required_inputs.every((inp) => variables[inp].trim()))
       } else {
         setCanAdvance(true)
       }
@@ -786,10 +786,10 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
     // Collect variables: required fields (always included) + non-empty optionals.
     const resolvedVariables: Record<string, string> = {}
     for (const inp of wf.required_inputs) {
-      resolvedVariables[inp] = variables[inp]?.trim() ?? ''
+      resolvedVariables[inp] = variables[inp].trim()
     }
     for (const inp of wf.optional_inputs) {
-      const val = variables[inp]?.trim()
+      const val = variables[inp].trim()
       if (val) resolvedVariables[inp] = val
     }
     // Build schedule payload per hermes-agent#15 shape.
