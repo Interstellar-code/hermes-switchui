@@ -416,11 +416,20 @@ function SkillsWidget({
   const installed = skills.length
   const enabled = skills.filter((s) => s.enabled !== false).length
   const usedThisWindow = usage?.distinctSkills ?? null
-  const topUsed = usage?.topSkills[0]
+  const topSkills = Array.isArray(
+    (usage as { topSkills?: Array<{ skill?: string }> } | null | undefined)
+      ?.topSkills,
+  )
+    ? (
+        usage as { topSkills?: Array<{ skill?: string }> } | null | undefined
+      )?.topSkills
+    : []
+  const topUsed = topSkills[0]
   const topInstalled =
     skills.find((s) => s.enabled !== false) ?? skills[0]
-  const topName = topUsed.skill
-    ? topUsed.skill
+  const topUsedSkill = topSkills.length > 0 ? topUsed.skill ?? '' : ''
+  const topName = topUsedSkill
+    ? topUsedSkill
     : String(topInstalled.name ?? '—')
 
   return (
@@ -1019,7 +1028,23 @@ export function DashboardScreen() {
            concern by giving the ticker its own visual chamber
            (warning gradient, separated border) so it doesn't blend
            into the gateway/version/cron line below it. */}
-      {overview.incidents.length > 0 ? (
+      {(
+        Array.isArray(
+          (
+            overview as
+              | { incidents?: Array<unknown> }
+              | null
+              | undefined
+          )?.incidents,
+        )
+          ? (
+              overview as
+                | { incidents?: Array<unknown> }
+                | null
+                | undefined
+            )?.incidents?.length
+          : 0
+      ) > 0 ? (
         <AttentionMarquee overview={overview ?? null} />
       ) : null}
 
