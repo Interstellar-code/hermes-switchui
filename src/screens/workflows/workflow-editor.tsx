@@ -348,28 +348,28 @@ function OverviewTab({
   def: WorkflowDefinitionRow
   parsed: ParsedWorkflow
 }) {
-  const safeNodes = parsed.nodes ?? []
-  const safeRequired = parsed.required_inputs ?? []
-  const safeOptional = parsed.optional_inputs ?? []
-  const safeEdges = parsed.edges ?? []
+  const safeNodes = parsed.nodes
+  const safeRequired = parsed.required_inputs
+  const safeOptional = parsed.optional_inputs
+  const safeEdges = parsed.edges
   const nodeBreakdown: Record<string, number> = {}
   for (const n of safeNodes) {
     const t = n.type ?? 'prompt'
     nodeBreakdown[t] = (nodeBreakdown[t] ?? 0) + 1
   }
   if (safeNodes.length === 0) {
-    nodeBreakdown['prompt'] = parsed.node_count ?? 0
+    nodeBreakdown['prompt'] = parsed.node_count
   }
   void safeEdges
 
-  const initials = (parsed.name ?? '')
+  const initials = parsed.name
     .split(' ')
     .map((w) => w[0])
     .join('')
     .slice(0, 2)
     .toUpperCase()
-  const checksum = def.checksum ?? ''
-  const version = def.version ?? 'unversioned'
+  const checksum = def.checksum
+  const version = def.version
   const filePath = filePathFor(def)
 
   return (
@@ -391,7 +391,7 @@ function OverviewTab({
       <div className="ov-stat-row">
         {(
           [
-            ['Nodes', parsed.node_count ?? safeNodes.length],
+            ['Nodes', parsed.node_count],
             ['Inputs', safeRequired.length],
           ] as const
         ).map(([label, value]) => (
@@ -502,10 +502,10 @@ function DagSvgTab({ parsed }: { parsed: ParsedWorkflow }) {
     cy: number
   } | null>(null)
 
-  const safeEdges = parsed.edges ?? []
+  const safeEdges = parsed.edges
 
   // Map backend nodes to WorkflowDagNode
-  const dagNodes: Array<WorkflowDagNode> = (parsed.nodes ?? []).map((n) => ({
+  const dagNodes: Array<WorkflowDagNode> = parsed.nodes.map((n) => ({
     id: n.id,
     label: n.label ?? n.id,
     type: (n.type ?? 'prompt') as NodeType,
@@ -1035,7 +1035,7 @@ function YamlTab({
   const [serverChanged, setServerChanged] = useState(false)
   const saveMutation = useUpsertWorkflowDefinition()
   const resetMutation = useResetWorkflowDefinitionToFactory()
-  const prov = provenanceOf(def.source as WorkflowSource, def.user_modified)
+  const prov = provenanceOf(def.source, def.user_modified)
 
   // Sync local state to the incoming definition.
   // - Different workflow (id changed): full reset, discard any buffer.
@@ -1043,17 +1043,17 @@ function YamlTab({
   //   buffer when the user has NO unsaved edits; otherwise keep their edits and
   //   flag that the server moved (re-save uses the new checksum, last-write-wins).
   const [lastDefId, setLastDefId] = useState(def.id)
-  const [lastChecksum, setLastChecksum] = useState(def.checksum ?? '')
+  const [lastChecksum, setLastChecksum] = useState(def.checksum)
   if (def.id !== lastDefId) {
     setLastDefId(def.id)
-    setLastChecksum(def.checksum ?? '')
+    setLastChecksum(def.checksum)
     setBuffer(def.yaml)
     setIsEditing(false)
     setUserEdited(false)
     setServerChanged(false)
     setValidationError(null)
-  } else if ((def.checksum ?? '') !== lastChecksum) {
-    setLastChecksum(def.checksum ?? '')
+  } else if (def.checksum !== lastChecksum) {
+    setLastChecksum(def.checksum)
     if (userEdited) {
       setServerChanged(true)
     } else {
@@ -1071,7 +1071,7 @@ function YamlTab({
         id: def.id,
         name: def.name,
         description: def.description ?? undefined,
-        source: def.source as WorkflowSource,
+        source: def.source,
         scope_path: def.scope_path ?? undefined,
         yaml: buffer,
         version: def.version ?? undefined,
@@ -1247,13 +1247,13 @@ function WhenToUseTab({
             These are surfaced to the user during the plan phase when this
             workflow is proposed.
           </div>
-          {(parsed.required_inputs ?? []).map((r) => (
+          {parsed.required_inputs.map((r) => (
             <div key={r} className="input-row req">
               <span className="ir-name">{r}</span>
               <span className="ir-badge req">required</span>
             </div>
           ))}
-          {(parsed.required_inputs ?? []).length === 0 && (
+          {parsed.required_inputs.length === 0 && (
             <span className="pc-empty">No required inputs</span>
           )}
         </div>
