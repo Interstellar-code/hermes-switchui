@@ -2,8 +2,13 @@
 
 import { Billboard, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState, type MutableRefObject, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import type { MutableRefObject, RefObject } from "react";
+import type {
+  OfficeAgent,
+  RenderAgent,
+} from "@/features/retro-office/core/types";
 import {
   CANVAS_H,
   CANVAS_W,
@@ -11,10 +16,6 @@ import {
   SNAP_GRID,
 } from "@/features/retro-office/core/constants";
 import { toWorld } from "@/features/retro-office/core/geometry";
-import type {
-  OfficeAgent,
-  RenderAgent,
-} from "@/features/retro-office/core/types";
 
 const HEAT_COLS = Math.floor(CANVAS_W / SNAP_GRID);
 const HEAT_ROWS = Math.floor(CANVAS_H / SNAP_GRID);
@@ -24,16 +25,16 @@ export function HeatmapSystem({
   heatmapMode,
   heatGridRef,
 }: {
-  agentsRef: RefObject<RenderAgent[]>;
+  agentsRef: RefObject<Array<RenderAgent>>;
   heatmapMode: boolean;
   heatGridRef: MutableRefObject<Uint16Array | null>;
 }) {
   const frameRef = useRef(0);
-  const cellsRef = useRef<{ x: number; z: number; v: number }[]>([]);
+  const cellsRef = useRef<Array<{ x: number; z: number; v: number }>>([]);
   const fallbackHeatGridRef = useRef<Uint16Array>(
     new Uint16Array(HEAT_COLS * HEAT_ROWS),
   );
-  const [cells, setCells] = useState<{ x: number; z: number; v: number }[]>([]);
+  const [cells, setCells] = useState<Array<{ x: number; z: number; v: number }>>([]);
 
   useEffect(() => {
     cellsRef.current = cells;
@@ -53,7 +54,7 @@ export function HeatmapSystem({
     }
 
     if (frameRef.current % (heatmapMode ? 30 : 45) === 0) {
-      for (const agent of agentsRef.current ?? []) {
+      for (const agent of agentsRef.current) {
         const col = Math.floor(agent.x / SNAP_GRID);
         const row = Math.floor(agent.y / SNAP_GRID);
         if (col >= 0 && col < HEAT_COLS && row >= 0 && row < HEAT_ROWS) {
@@ -71,7 +72,7 @@ export function HeatmapSystem({
         if (grid[index] > maxValue) maxValue = grid[index];
       }
 
-      const nextCells: { x: number; z: number; v: number }[] = [];
+      const nextCells: Array<{ x: number; z: number; v: number }> = [];
       for (let row = 0; row < HEAT_ROWS; row += 1) {
         for (let col = 0; col < HEAT_COLS; col += 1) {
           const value = grid[row * HEAT_COLS + col];
@@ -123,16 +124,16 @@ export function TrailSystem({
   agentsRef,
   colorMap,
 }: {
-  agentsRef: RefObject<RenderAgent[]>;
+  agentsRef: RefObject<Array<RenderAgent>>;
   colorMap: Map<string, string>;
 }) {
-  const trailsRef = useRef<Map<string, TrailPoint[]>>(new Map());
+  const trailsRef = useRef<Map<string, Array<TrailPoint>>>(new Map());
   const frameRef = useRef(0);
-  const [points, setPoints] = useState<TrailPoint[]>([]);
+  const [points, setPoints] = useState<Array<TrailPoint>>([]);
 
   useFrame(() => {
     frameRef.current += 1;
-    const agents = agentsRef.current ?? [];
+    const agents = agentsRef.current;
     const trails = trailsRef.current;
 
     if (frameRef.current % 12 === 0) {
@@ -167,7 +168,7 @@ export function TrailSystem({
     }
 
     if (frameRef.current % 8 === 0 || changed) {
-      const nextPoints: TrailPoint[] = [];
+      const nextPoints: Array<TrailPoint> = [];
       for (const trailPoints of trails.values()) nextPoints.push(...trailPoints);
       setPoints([...nextPoints]);
     }
@@ -199,8 +200,8 @@ export function DeskNameplates({
   agents,
   deskByAgentRef,
 }: {
-  deskLocations: { x: number; y: number }[];
-  agents: OfficeAgent[];
+  deskLocations: Array<{ x: number; y: number }>;
+  agents: Array<OfficeAgent>;
   deskByAgentRef: RefObject<Map<string, number>>;
 }) {
   const [deskEntries, setDeskEntries] = useState<Array<[string, number]>>([]);
@@ -216,7 +217,7 @@ export function DeskNameplates({
 
   useEffect(() => {
     const syncDeskEntries = () => {
-      const nextEntries = [...(deskByAgentRef.current?.entries() ?? [])].sort(
+      const nextEntries = [...deskByAgentRef.current.entries()].sort(
         (left, right) => left[0].localeCompare(right[0]),
       );
       const nextSignature = nextEntries
