@@ -8,7 +8,7 @@
  * - Anthropic API: API key from env → header-based usage tracking
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { execSync } from 'node:child_process'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -38,14 +38,14 @@ export type ProviderUsageResult = {
   status: ProviderStatus
   message?: string
   plan?: string
-  lines: UsageLine[]
+  lines: Array<UsageLine>
   updatedAt: number
 }
 
 export type ProviderUsageResponse = {
   ok: boolean
   updatedAt: number
-  providers: ProviderUsageResult[]
+  providers: Array<ProviderUsageResult>
   error?: string
 }
 
@@ -153,7 +153,7 @@ function saveClaudeCredentials(creds: ClaudeCredentials): void {
     } catch {
       /* best effort */
     }
-  } else if (creds.source === 'keychain' && process.platform === 'darwin') {
+  } else if (process.platform === 'darwin') {
     try {
       execSync(
         `security add-generic-password -U -s "${CLAUDE_KEYCHAIN_SERVICE}" -w "${text.replace(/"/g, '\\"')}" 2>/dev/null`,
@@ -206,7 +206,7 @@ async function refreshClaudeToken(
   if (body.refresh_token)
     creds.oauth.refreshToken = body.refresh_token as string
   if (typeof body.expires_in === 'number') {
-    creds.oauth.expiresAt = Date.now() + (body.expires_in as number) * 1000
+    creds.oauth.expiresAt = Date.now() + (body.expires_in) * 1000
   }
   creds.fullData.claudeAiOauth = creds.oauth
   saveClaudeCredentials(creds)
@@ -342,14 +342,14 @@ export async function fetchClaudeUsage(): Promise<ProviderUsageResult> {
     }
   }
 
-  const lines: UsageLine[] = []
+  const lines: Array<UsageLine> = []
 
   const fiveHour = data.five_hour as Record<string, unknown> | undefined
   if (fiveHour && typeof fiveHour.utilization === 'number') {
     lines.push({
       type: 'progress',
       label: 'Session (5h)',
-      used: fiveHour.utilization as number,
+      used: fiveHour.utilization,
       limit: 100,
       format: 'percent',
       resetsAt: fiveHour.resets_at
@@ -363,7 +363,7 @@ export async function fetchClaudeUsage(): Promise<ProviderUsageResult> {
     lines.push({
       type: 'progress',
       label: 'Weekly',
-      used: sevenDay.utilization as number,
+      used: sevenDay.utilization,
       limit: 100,
       format: 'percent',
       resetsAt: sevenDay.resets_at
@@ -379,7 +379,7 @@ export async function fetchClaudeUsage(): Promise<ProviderUsageResult> {
     lines.push({
       type: 'progress',
       label: 'Sonnet',
-      used: sevenDaySonnet.utilization as number,
+      used: sevenDaySonnet.utilization,
       limit: 100,
       format: 'percent',
       resetsAt: sevenDaySonnet.resets_at
@@ -488,7 +488,7 @@ async function refreshCodexToken(auth: CodexAuth): Promise<string | null> {
       unknown
     > | null
     const code =
-      (body?.error as Record<string, unknown>)?.code ??
+      (body.error as Record<string, unknown>).code ??
       body?.error ??
       body?.code
     if (
@@ -509,14 +509,14 @@ async function refreshCodexToken(auth: CodexAuth): Promise<string | null> {
   > | null
   if (!body?.access_token) return null
 
-  auth.tokens!.access_token = body.access_token as string
+  auth.tokens.access_token = body.access_token as string
   if (body.refresh_token)
-    auth.tokens!.refresh_token = body.refresh_token as string
-  if (body.id_token) auth.tokens!.id_token = body.id_token as string
+    auth.tokens.refresh_token = body.refresh_token as string
+  if (body.id_token) auth.tokens.id_token = body.id_token as string
   auth.last_refresh = new Date().toISOString()
   saveCodexAuth(auth)
 
-  return auth.tokens!.access_token
+  return auth.tokens.access_token
 }
 
 function getResetsAtIso(
@@ -528,7 +528,7 @@ function getResetsAtIso(
     return new Date(window.reset_at * 1000).toISOString()
   if (typeof window.reset_after_seconds === 'number')
     return new Date(
-      (nowSec + (window.reset_after_seconds as number)) * 1000,
+      (nowSec + (window.reset_after_seconds)) * 1000,
     ).toISOString()
   return undefined
 }
@@ -640,7 +640,7 @@ export async function fetchCodexUsage(): Promise<ProviderUsageResult> {
     }
   }
 
-  const lines: UsageLine[] = []
+  const lines: Array<UsageLine> = []
   const nowSec = Math.floor(now / 1000)
 
   // Parse rate limits from headers and body
@@ -693,7 +693,7 @@ export async function fetchCodexUsage(): Promise<ProviderUsageResult> {
       lines.push({
         type: 'progress',
         label: 'Session',
-        used: primaryWindow.used_percent as number,
+        used: primaryWindow.used_percent,
         limit: 100,
         format: 'percent',
         resetsAt: getResetsAtIso(nowSec, primaryWindow),
@@ -703,7 +703,7 @@ export async function fetchCodexUsage(): Promise<ProviderUsageResult> {
       lines.push({
         type: 'progress',
         label: 'Weekly',
-        used: secondaryWindow.used_percent as number,
+        used: secondaryWindow.used_percent,
         limit: 100,
         format: 'percent',
         resetsAt: getResetsAtIso(nowSec, secondaryWindow),
@@ -716,7 +716,7 @@ export async function fetchCodexUsage(): Promise<ProviderUsageResult> {
     lines.push({
       type: 'progress',
       label: 'Reviews',
-      used: reviewWindow.used_percent as number,
+      used: reviewWindow.used_percent,
       limit: 100,
       format: 'percent',
       resetsAt: getResetsAtIso(nowSec, reviewWindow),
@@ -725,7 +725,7 @@ export async function fetchCodexUsage(): Promise<ProviderUsageResult> {
 
   // Credits
   const creditsHeader = readNumber(res.headers.get('x-codex-credits-balance'))
-  const creditsData = (data.credits as Record<string, unknown>)?.balance
+  const creditsData = (data.credits as Record<string, unknown>).balance
   const creditsRemaining = creditsHeader ?? readNumber(creditsData)
   if (creditsRemaining !== undefined) {
     const limit = 1000
@@ -832,7 +832,7 @@ export async function fetchOpenAIUsage(): Promise<ProviderUsageResult> {
       string,
       unknown
     > | null
-    const lines: UsageLine[] = []
+    const lines: Array<UsageLine> = []
 
     // Parse usage buckets if available
     const data = payload?.data as Array<Record<string, unknown>> | undefined
@@ -930,14 +930,14 @@ export async function fetchOpenRouterUsage(): Promise<ProviderUsageResult> {
       string,
       unknown
     >
-    const data = (payload?.data ?? payload) as Record<string, unknown>
-    const usage = (data?.usage ?? {}) as Record<string, unknown>
+    const data = (payload.data ?? payload) as Record<string, unknown>
+    const usage = (data.usage ?? {}) as Record<string, unknown>
 
     const costUsd =
-      readNumber(usage?.cost ?? data?.cost ?? data?.usage_cost) ?? 0
-    const limitUsd = readNumber(data?.limit ?? data?.spend_limit)
+      readNumber(usage.cost ?? data.cost ?? data.usage_cost) ?? 0
+    const limitUsd = readNumber(data.limit ?? data.spend_limit)
 
-    const lines: UsageLine[] = []
+    const lines: Array<UsageLine> = []
 
     if (limitUsd && limitUsd > 0) {
       lines.push({
@@ -956,9 +956,9 @@ export async function fetchOpenRouterUsage(): Promise<ProviderUsageResult> {
     }
 
     const inputTokens =
-      readNumber(usage?.prompt_tokens ?? usage?.input_tokens) ?? 0
+      readNumber(usage.prompt_tokens ?? usage.input_tokens) ?? 0
     const outputTokens =
-      readNumber(usage?.completion_tokens ?? usage?.output_tokens) ?? 0
+      readNumber(usage.completion_tokens ?? usage.output_tokens) ?? 0
     if (inputTokens > 0 || outputTokens > 0) {
       lines.push({
         type: 'text',
@@ -1004,8 +1004,8 @@ let cache: { timestamp: number; payload: ProviderUsageResponse } | undefined
 async function getActiveUsageProviderIds(): Promise<Set<string> | null> {
   try {
     const { getConfig } = await import('./claude-dashboard-api')
-    const cfg = (await getConfig()) as Record<string, unknown>
-    const providersBlock = (cfg?.providers ?? {}) as Record<string, unknown>
+    const cfg = await getConfig()
+    const providersBlock = (cfg.providers ?? {}) as Record<string, unknown>
     const ids = new Set<string>()
 
     const consider = (name: string, raw: unknown) => {
@@ -1042,7 +1042,7 @@ async function getActiveUsageProviderIds(): Promise<Set<string> | null> {
       consider(name, entry)
     }
 
-    const model = (cfg?.model ?? {}) as Record<string, unknown>
+    const model = (cfg.model ?? {}) as Record<string, unknown>
     const activeName = String(model.provider ?? '')
     if (activeName && providersBlock[activeName]) {
       consider(activeName, providersBlock[activeName])
@@ -1082,7 +1082,7 @@ export async function getProviderUsage(
 
   const results = await Promise.allSettled(fetchers.map((f) => f.run()))
 
-  const providers: ProviderUsageResult[] = results.map((r, i) => {
+  const providers: Array<ProviderUsageResult> = results.map((r, i) => {
     if (r.status === 'fulfilled') return r.value
     const f = fetchers[i]
     return {
