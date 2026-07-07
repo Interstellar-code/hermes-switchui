@@ -377,7 +377,7 @@ export function ChatScreen({
 
   // Snapshot cached history for the recovery predicate. Cheap reference
   // pass; the predicate runs only on mount/relist of the active session.
-  const recoveryMessages = (historyQuery.data as { messages?: Array<ChatMessage> }).messages
+  const recoveryMessages = (historyQuery.data as { messages?: Array<ChatMessage> } | undefined)?.messages
 
   // On remount, check if the server still has an active run for this session.
   // If so, re-set waitingForResponse in the store so the UI shows the spinner.
