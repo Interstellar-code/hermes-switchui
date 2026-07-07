@@ -11,7 +11,6 @@ import {
   textFromMessage,
 } from '../utils'
 import { MessageItem } from './message-item'
-import type { ToolDisplayMode } from './message-item'
 import { StreamingMessageItem } from './streaming-text-context'
 import { TuiActivityCard } from './tui-activity-card'
 import {
@@ -21,6 +20,7 @@ import {
 } from './inline-clarify-card'
 import { ScrollToBottomButton } from './scroll-to-bottom-button'
 import { ResearchCard } from './research-card'
+import type { ToolDisplayMode } from './message-item'
 import type { ChatMessage } from '../types'
 import type { UseResearchCardResult } from '@/hooks/use-research-card'
 import {
@@ -580,7 +580,7 @@ export function buildDisplayEntries(
 
     if (message.role === 'tool' || message.role === 'toolResult') {
       const previousEntry = entries[entries.length - 1]
-      if (previousEntry?.message.role === 'assistant') {
+      if (previousEntry.message.role === 'assistant') {
         previousEntry.attachedToolMessages.push(message)
       } else if (pendingAssistantToolMessages.length > 0) {
         pendingAssistantToolMessages.push(message)
@@ -607,7 +607,7 @@ export function buildDisplayEntries(
 
 export type TrailingToolOnlyTurnSummary = {
   count: number
-  toolNames: string[]
+  toolNames: Array<string>
   hasFinalAssistantText: boolean
 }
 
@@ -779,7 +779,7 @@ function ChatMessageListComponent({
   isCompacting = false,
   liveProgressLabel = '',
   sending = false,
-  toolDisplayMode = 'collapsed' as ToolDisplayMode,
+  toolDisplayMode = 'collapsed',
 }: ChatMessageListProps) {
   const anchorRef = useRef<HTMLDivElement | null>(null)
   const lastUserRef = useRef<HTMLDivElement | null>(null)
@@ -1167,7 +1167,7 @@ function ChatMessageListComponent({
               ? b.text
               : Array.isArray(b.content)
                 ? (b.content as Array<{ type?: string; text?: string }>)
-                    .filter((p) => p?.type === 'text')
+                    .filter((p) => p.type === 'text')
                     .map((p) => p.text ?? '')
                     .join('')
                 : ''
@@ -1316,8 +1316,8 @@ function ChatMessageListComponent({
     // If streaming has visible text, hide indicator — response is rendering
     if (isStreaming && hasStreamingText) return false
     const lastEntry = visibleEntries[visibleEntries.length - 1]
-    const lastMessage = lastEntry?.message
-    if (lastMessage && lastMessage.role === 'assistant') {
+    const lastMessage = lastEntry.message
+    if (lastMessage.role === 'assistant') {
       const lastId = getStableMessageId(lastMessage, lastEntry.sourceIndex)
       const isBeingTypewritten = streamingState.streamingTargets.has(lastId)
       if (isBeingTypewritten) return false
@@ -1398,11 +1398,11 @@ function ChatMessageListComponent({
           args: tcAny.args,
           preview:
             typeof tcAny.preview === 'string'
-              ? (tcAny.preview as string)
+              ? (tcAny.preview)
               : undefined,
           result:
             typeof tcAny.result === 'string'
-              ? (tcAny.result as string)
+              ? (tcAny.result)
               : undefined,
         }
       })
@@ -1595,12 +1595,10 @@ function ChatMessageListComponent({
               ? 'bg-amber-50/30'
               : undefined
         }
-        toolCalls={
-          messageIsStreaming ? normalizedStreamingToolCalls : undefined
-        }
-        isStreaming={messageIsStreaming}
-        streamingThinking={messageIsStreaming ? streamingThinking : undefined}
-        lifecycleEvents={messageIsStreaming ? lifecycleEvents : undefined}
+        toolCalls={undefined}
+        isStreaming={false}
+        streamingThinking={undefined}
+        lifecycleEvents={undefined}
         clarifyCard={realIndex === lastAssistantIndex ? clarifyCard : undefined}
         simulateStreaming={simulateStreaming}
         streamingKey={signature}
@@ -1640,8 +1638,7 @@ function ChatMessageListComponent({
     if (isNearBottomRef.current) {
       // Use smooth scroll only when user is near bottom (<200px) and new messages arrive;
       // use instant scroll during streaming to avoid choppiness.
-      const behavior: ScrollBehavior =
-        isNearBottomRef.current && !isStreaming ? 'smooth' : 'auto'
+      const behavior: ScrollBehavior = !isStreaming ? 'smooth' : 'auto'
       frameId = window.requestAnimationFrame(() => scrollToBottom(behavior))
     }
 
@@ -1767,18 +1764,19 @@ function ChatMessageListComponent({
   }, [isMessageSearchActive, messageSearchMatches.length])
 
   useEffect(() => {
-    if (!activeSearchMatch) return
+    if (messageSearchMatches.length === 0) return
+    const activeMatch = messageSearchMatches[activeSearchMatchIndex]
 
     const frameId = window.requestAnimationFrame(
       function scrollToActiveMatch() {
-        scrollToMessageById(activeSearchMatch.stableId, 'smooth')
+        scrollToMessageById(activeMatch.stableId, 'smooth')
       },
     )
 
     return () => {
       window.cancelAnimationFrame(frameId)
     }
-  }, [activeSearchMatch, scrollToMessageById])
+  }, [activeSearchMatchIndex, messageSearchMatches, scrollToMessageById])
 
   const handleScrollToBottom = useCallback(
     function handleScrollToBottom() {
