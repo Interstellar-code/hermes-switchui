@@ -5,15 +5,15 @@
  * 6-step modal: Identity → Schedule → Agent → Prompt → Tags → Review
  */
 
-import { useReducer, useState, useCallback } from 'react'
+import { useCallback, useReducer, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { ClaudeJob } from '@/lib/jobs-api'
+import type { ProfileSummary } from '@/server/profiles-browser'
 import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
 import { createJob, updateJob } from '@/lib/jobs-api'
-import type { ClaudeJob } from '@/lib/jobs-api'
 import { toast } from '@/components/ui/toast'
-import type { ProfileSummary } from '@/server/profiles-browser'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -30,7 +30,7 @@ export type CronDraft = {
   // Step 4: Prompt
   prompt: string
   // Step 5: Tags
-  tagList: string[]
+  tagList: Array<string>
 }
 
 type WizardStep = 1 | 2 | 3 | 4 | 5 | 6
@@ -38,7 +38,7 @@ type WizardStep = 1 | 2 | 3 | 4 | 5 | 6
 type WizardState = {
   step: WizardStep
   draft: CronDraft
-  errors: Record<number, string[]>
+  errors: Partial<Record<number, Array<string>>>
   submitting: boolean
   submitError: string | null
 }
@@ -46,7 +46,7 @@ type WizardState = {
 type WizardAction =
   | { type: 'SET_STEP'; step: WizardStep }
   | { type: 'SET_DRAFT'; patch: Partial<CronDraft> }
-  | { type: 'SET_ERRORS'; step: number; errors: string[] }
+  | { type: 'SET_ERRORS'; step: number; errors: Array<string> }
   | { type: 'CLEAR_ERRORS'; step: number }
   | { type: 'SET_SUBMITTING'; value: boolean }
   | { type: 'SET_SUBMIT_ERROR'; error: string | null }
@@ -110,10 +110,10 @@ function isDraftDirty(draft: CronDraft): boolean {
 const NAME_RE = /^.{2,60}$/
 const CRON_5_RE = /^(\S+\s+){4}\S+$/
 
-function validateStep(step: WizardStep, draft: CronDraft): string[] {
+function validateStep(step: WizardStep, draft: CronDraft): Array<string> {
   switch (step) {
     case 1: {
-      const errs: string[] = []
+      const errs: Array<string> = []
       if (!NAME_RE.test(draft.name.trim()))
         errs.push('Name must be 2–60 characters')
       if (!draft.glyph.trim() || draft.glyph.trim().length > 3)
@@ -123,7 +123,7 @@ function validateStep(step: WizardStep, draft: CronDraft): string[] {
       return errs
     }
     case 2: {
-      const errs: string[] = []
+      const errs: Array<string> = []
       if (!draft.cron.trim())
         errs.push('Schedule is required')
       else if (!CRON_5_RE.test(draft.cron.trim()))
@@ -179,7 +179,7 @@ function StepIdentity({
   onChange,
 }: {
   draft: CronDraft
-  errors: string[]
+  errors: Array<string>
   onChange: (patch: Partial<CronDraft>) => void
 }) {
   return (
@@ -255,7 +255,7 @@ function StepSchedule({
   onChange,
 }: {
   draft: CronDraft
-  errors: string[]
+  errors: Array<string>
   onChange: (patch: Partial<CronDraft>) => void
 }) {
   const humanized = parseCronHuman(draft.cron)
@@ -321,15 +321,15 @@ function StepAgent({
   onChange,
 }: {
   draft: CronDraft
-  errors: string[]
+  errors: Array<string>
   onChange: (patch: Partial<CronDraft>) => void
 }) {
   const profilesQuery = useQuery({
     queryKey: ['profiles', 'list'],
     queryFn: async () => {
       const r = await fetch('/api/profiles/list')
-      if (!r.ok) return { profiles: [] as ProfileSummary[] }
-      return (await r.json()) as { profiles: ProfileSummary[] }
+      if (!r.ok) return { profiles: [] as Array<ProfileSummary> }
+      return (await r.json()) as { profiles: Array<ProfileSummary> }
     },
     staleTime: 30_000,
   })
@@ -343,13 +343,13 @@ function StepAgent({
     .map((p) => ({
       id: p.name,
       name: p.name,
-      glyph: (p.agent_ui as { glyph?: string } | undefined)?.glyph ?? p.name.slice(0, 2).toUpperCase(),
+      glyph: (p.agent_ui)?.glyph ?? p.name.slice(0, 2).toUpperCase(),
       role: 'Custom',
       tier: 3 as const,
     }))
 
   const allAgents = [
-    ...BUILTIN_AGENTS.map((a) => ({ ...a, tier: a.tier as 1 | 2 | 3 })),
+    ...BUILTIN_AGENTS.map((a) => ({ ...a, tier: a.tier })),
     ...t3Agents,
   ]
 
@@ -391,7 +391,7 @@ function StepPrompt({
   onChange,
 }: {
   draft: CronDraft
-  errors: string[]
+  errors: Array<string>
   onChange: (patch: Partial<CronDraft>) => void
 }) {
   return (
@@ -423,7 +423,7 @@ function StepTags({
   onChange,
 }: {
   draft: CronDraft
-  errors: string[]
+  errors: Array<string>
   onChange: (patch: Partial<CronDraft>) => void
 }) {
   const [tagInput, setTagInput] = useState('')
@@ -565,8 +565,8 @@ type Props = {
 }
 
 function draftFromJob(job: ClaudeJob): CronDraft {
-  const tags: string[] = Array.isArray((job as unknown as Record<string, unknown>).tags)
-    ? ((job as unknown as Record<string, unknown>).tags as string[])
+  const tags: Array<string> = Array.isArray((job as unknown as Record<string, unknown>).tags)
+    ? ((job as unknown as Record<string, unknown>).tags as Array<string>)
     : []
   const agentTag = tags.find((t) => t.startsWith('agent:'))
   const glyphTag = tags.find((t) => t.startsWith('glyph:'))
@@ -575,8 +575,7 @@ function draftFromJob(job: ClaudeJob): CronDraft {
 
   const cronExpr = (() => {
     const s = job.schedule
-    if (!s || typeof s !== 'object') return '0 9 * * *'
-    return ((s as Record<string, unknown>).cron_expression as string) ?? '0 9 * * *'
+    return typeof s.cron_expression === 'string' ? s.cron_expression : '0 9 * * *'
   })()
 
   const userTags = tags.filter(
@@ -588,13 +587,13 @@ function draftFromJob(job: ClaudeJob): CronDraft {
   )
 
   return {
-    name: job.name ?? '',
+    name: job.name,
     glyph: glyphTag ? glyphTag.slice('glyph:'.length) : '⚙',
     status: isDraft ? 'draft' : job.enabled ? 'active' : 'paused',
     cron: cronExpr,
     tz: tzTag ? tzTag.slice('tz:'.length) : systemTz,
     agentId: agentTag ? agentTag.slice('agent:'.length) : 'hermes-switch',
-    prompt: job.prompt ?? '',
+    prompt: job.prompt,
     tagList: userTags,
   }
 }
@@ -606,14 +605,14 @@ function buildPayload(draft: CronDraft) {
     draft.glyph ? `glyph:${draft.glyph}` : null,
     draft.tz && draft.tz !== 'UTC' ? `tz:${draft.tz}` : null,
     draft.status === 'draft' ? 'state:draft' : null,
-  ].filter(Boolean) as string[]
+  ].filter(Boolean) as Array<string>
 
   return {
     name: draft.name,
     schedule: draft.cron,
     prompt: draft.prompt,
-    skills: [] as string[],
-    deliver: [] as string[],
+    skills: [] as Array<string>,
+    deliver: [] as Array<string>,
     tags,
     enabled: draft.status !== 'paused' && draft.status !== 'draft',
   }
@@ -667,7 +666,7 @@ export function CronsWizard({ open, editJob, onClose, onSuccess }: Props) {
 
   async function handleSubmit() {
     // Validate all steps
-    const allErrors: string[] = []
+    const allErrors: Array<string> = []
     for (let s = 1; s <= TOTAL_STEPS - 1; s++) {
       allErrors.push(...validateStep(s as WizardStep, draft))
     }
@@ -681,8 +680,8 @@ export function CronsWizard({ open, editJob, onClose, onSuccess }: Props) {
 
     try {
       const payload = buildPayload(draft)
-      if (isEdit && editJob) {
-        await updateJob(editJob.id, payload as Record<string, unknown>)
+      if (isEdit) {
+        await updateJob(editJob.id, payload)
         toast('Cron updated', { type: 'success' })
       } else {
         await createJob({
@@ -812,4 +811,3 @@ export function CronsWizard({ open, editJob, onClose, onSuccess }: Props) {
     document.body,
   )
 }
-
