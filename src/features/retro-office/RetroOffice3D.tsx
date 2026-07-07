@@ -1,32 +1,46 @@
 "use client";
 
 import {
-  Pencil,
+  Armchair,
+  Camera,
   Check,
   Map as MapIcon,
   Maximize,
   Monitor,
-  Armchair,
+  Pencil,
   Settings2,
-  Camera,
-  UserPlus,
   Trash2,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
 import {
-  type ComponentProps,
-  memo,
+  
   Suspense,
+  memo,
   useCallback,
   useEffect,
   useMemo,
   useRef,
-  useState,
+  useState
 } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
+import type {ComponentProps} from "react";
+import type { OfficeUsageAnalyticsParams } from "@/features/office/hooks/useOfficeUsageAnalyticsViewModel";
+import type { AgentState } from "@/features/agents/state/store";
+import type { CronJobSummary } from "@/lib/cron/types";
+import type { MockPhoneCallScenario } from "@/lib/office/call/types";
+import type { MockTextMessageScenario } from "@/lib/office/text/types";
+import type { OfficeDeskMonitor } from "@/lib/office/deskMonitor";
+import type {
+  OfficeAnimationState,
+  OfficeCleaningCue, OfficeIdleLeisureArea 
+} from "@/lib/office/eventTriggers";
+import type { StandupMeeting } from "@/lib/office/standup/types";
+import type { SkillStatusEntry } from "@/lib/skills/types";
+import type { StudioGatewayAdapterType } from "@/lib/studio/settings";
 import { SettingsPanel } from "@/features/office/components/panels/SettingsPanel";
 import { AtmImmersiveScreen } from "@/features/office/screens/AtmImmersiveScreen";
 import { GithubImmersiveScreen } from "@/features/office/screens/GithubImmersiveScreen";
@@ -40,21 +54,8 @@ import {
   type TextMessageStep,
 } from "@/features/office/screens/SmsBoothImmersiveScreen";
 import { StandupImmersiveScreen } from "@/features/office/screens/StandupImmersiveScreen";
-import type { OfficeUsageAnalyticsParams } from "@/features/office/hooks/useOfficeUsageAnalyticsViewModel";
-import type { AgentState } from "@/features/agents/state/store";
-import type { CronJobSummary } from "@/lib/cron/types";
 import { buildMockPhoneCallScenario } from "@/lib/office/call/mock";
-import type { MockPhoneCallScenario } from "@/lib/office/call/types";
 import { buildMockTextMessageScenario } from "@/lib/office/text/mock";
-import type { MockTextMessageScenario } from "@/lib/office/text/types";
-import type { OfficeDeskMonitor } from "@/lib/office/deskMonitor";
-import type {
-  OfficeAnimationState,
-  OfficeIdleLeisureArea,
-} from "@/lib/office/eventTriggers";
-import type { StandupMeeting } from "@/lib/office/standup/types";
-import type { SkillStatusEntry } from "@/lib/skills/types";
-import type { StudioGatewayAdapterType } from "@/lib/studio/settings";
 import type {
   TaskBoardCard,
   TaskBoardStatus,
@@ -82,30 +83,31 @@ import {
   WORKING_WALK_SPEED_MULTIPLIER,
 } from "@/features/retro-office/core/constants";
 import {
+  
   ensureOfficeAtm,
   ensureOfficeGymRoom,
+  ensureOfficeJukebox,
   ensureOfficeKanbanBoard,
   ensureOfficePhoneBooth,
   ensureOfficePingPongTable,
   ensureOfficeQaLab,
-  ensureOfficeSmsBooth,
-  ensureOfficeJukebox,
   ensureOfficeServerRoom,
+  ensureOfficeSmsBooth,
   isRetiredPingPongLamp,
-  materializeDefaults,
-  type OfficeLayoutPreset,
+  materializeDefaults
 } from "@/features/retro-office/core/furnitureDefaults";
+import type {OfficeLayoutPreset} from "@/features/retro-office/core/furnitureDefaults";
 import {
-  clampPointToZone,
   DISTRICT_CAMERA_POSITION,
   DISTRICT_CAMERA_TARGET,
   DISTRICT_CAMERA_ZOOM,
   LOCAL_OFFICE_CANVAS_HEIGHT,
-  isRemoteOfficeAgentId,
   LOCAL_OFFICE_CANVAS_WIDTH,
-  projectFurnitureIntoRemoteOfficeZone,
   REMOTE_OFFICE_ZONE,
   REMOTE_ROAM_POINTS,
+  clampPointToZone,
+  isRemoteOfficeAgentId,
+  projectFurnitureIntoRemoteOfficeZone,
 } from "@/features/retro-office/core/district";
 import {
   buildJanitorActorsForCue,
@@ -122,6 +124,11 @@ import {
   toWorld,
 } from "@/features/retro-office/core/geometry";
 import {
+  GYM_DEFAULT_TARGET,
+  MEETING_OVERFLOW_LOCATIONS,
+  QA_LAB_DEFAULT_TARGET,
+  ROAM_POINTS,
+  SERVER_ROOM_TARGET,
   astar,
   buildNavGrid,
   getDeskLocations,
@@ -129,18 +136,13 @@ import {
   getJanitorCleaningStops,
   getMeetingSeatLocations,
   getQaLabStations,
-  GYM_DEFAULT_TARGET,
-  MEETING_OVERFLOW_LOCATIONS,
-  QA_LAB_DEFAULT_TARGET,
   resolveDeskIndexForItem,
   resolveGymRoute,
   resolvePhoneBoothRoute,
   resolvePingPongTargets,
   resolveQaLabRoute,
-  resolveSmsBoothRoute,
   resolveServerRoomRoute,
-  ROAM_POINTS,
-  SERVER_ROOM_TARGET,
+  resolveSmsBoothRoute,
 } from "@/features/retro-office/core/navigation";
 import {
   loadFurniture,
@@ -148,8 +150,8 @@ import {
   markGymRoomMigrationApplied,
   markPhoneBoothMigrationApplied,
   markQaLabMigrationApplied,
-  markSmsBoothMigrationApplied,
   markServerRoomMigrationApplied,
+  markSmsBoothMigrationApplied,
   saveFurniture,
 } from "@/features/retro-office/core/persistence";
 import type {
@@ -165,9 +167,9 @@ import type { OfficeLayoutSnapshot } from "@/lib/office/layoutSnapshot";
 import { AgentModel as AgentObjectModel } from "@/features/retro-office/objects/agents";
 import { JukeboxModel as InteractiveJukeboxModel } from "@/features/retro-office/objects/Jukebox";
 import {
+  PlacementGhost as FurniturePlacementGhost,
   FurnitureModel as GenericFurnitureModel,
   InstancedFurnitureItems as InstancedFurnitureItemsModel,
-  PlacementGhost as FurniturePlacementGhost,
 } from "@/features/retro-office/objects/furniture";
 import {
   DishwasherModel as KitchenDishwasherModel,
@@ -183,7 +185,6 @@ import {
   DumbbellRackModel as InteractiveDumbbellRackModel,
   ExerciseBikeModel as InteractiveExerciseBikeModel,
   KettlebellRackModel as InteractiveKettlebellRackModel,
-  PingPongTableModel as MachinePingPongTableModel,
   PhoneBoothModel as InteractivePhoneBoothModel,
   PunchingBagModel as InteractivePunchingBagModel,
   QaTerminalModel as InteractiveQaTerminalModel,
@@ -195,6 +196,7 @@ import {
   TreadmillModel as InteractiveTreadmillModel,
   WeightBenchModel as InteractiveWeightBenchModel,
   YogaMatModel as InteractiveYogaMatModel,
+  PingPongTableModel as MachinePingPongTableModel,
 } from "@/features/retro-office/objects/machines";
 import {
   ClockModel as PrimitiveClockModel,
@@ -227,7 +229,6 @@ import {
   HeatmapSystem as AgentHeatmapSystem,
   TrailSystem as AgentTrailSystem,
 } from "@/features/retro-office/systems/visualSystems";
-import type { OfficeCleaningCue } from "@/lib/office/eventTriggers";
 
 type OfficeDeskMonitorMap = Record<string, OfficeDeskMonitor>;
 type RenderAgentUiSnapshot = Pick<RenderAgent, "state" | "status">;
@@ -243,11 +244,11 @@ const EMPTY_STRING_RECORD: Record<string, string> = {};
 const EMPTY_BOOLEAN_RECORD: Record<string, boolean> = {};
 const EMPTY_NUMBER_RECORD: Record<string, number> = {};
 const EMPTY_MONITOR_MAP: OfficeDeskMonitorMap = {};
-const EMPTY_CLEANING_CUES: OfficeCleaningCue[] = [];
+const EMPTY_CLEANING_CUES: Array<OfficeCleaningCue> = [];
 const EMPTY_IDLE_LEISURE_RECORD: Partial<
   Record<string, OfficeIdleLeisureArea>
 > = {};
-const EMPTY_FEED_EVENTS: FeedEvent[] = [];
+const EMPTY_FEED_EVENTS: Array<FeedEvent> = [];
 
 type DragState =
   | { kind: "idle" }
@@ -278,7 +279,7 @@ const normalizeSmsContactName = (value: unknown): string =>
 
 const buildSmsContactList = (
   recipient: string,
-): { contacts: string[]; targetIndex: number } => {
+): { contacts: Array<string>; targetIndex: number } => {
   const normalizedRecipient = normalizeSmsContactName(recipient);
   const availableNames = SMS_CONTACT_SEED_NAMES.filter(
     (name) => name.toLowerCase() !== normalizedRecipient.toLowerCase(),
@@ -312,7 +313,7 @@ type PaletteEntry = {
 // LAYOUT DATA
 // ============================================================
 
-const PALETTE: PaletteEntry[] = [
+const PALETTE: Array<PaletteEntry> = [
   {
     type: "wall",
     label: "Wall",
@@ -442,12 +443,12 @@ function CameraRig({ target }: { target: [number, number, number] }) {
 
 const NOOP_FURNITURE_UID_HANDLER = () => {};
 const NOOP_FURNITURE_HANDLER = () => {};
-const EMPTY_FURNITURE_ITEMS: FurnitureItem[] = [];
+const EMPTY_FURNITURE_ITEMS: Array<FurnitureItem> = [];
 
 const ReadOnlyFurnitureClone = memo(function ReadOnlyFurnitureClone({
   furniture,
 }: {
-  furniture: FurnitureItem[];
+  furniture: Array<FurnitureItem>;
 }) {
   const deskItems = useMemo(
     () => furniture.filter((item) => item.type === "desk_cubicle"),
@@ -890,19 +891,19 @@ const pointNearFurniture = (
 };
 
 function useAgentTick(
-  agents: SceneActor[],
-  deskLocations: { x: number; y: number }[],
+  agents: Array<SceneActor>,
+  deskLocations: Array<{ x: number; y: number }>,
   assignedDeskIndexByAgentId: Record<string, number> = {},
-  gymWorkoutLocations: {
+  gymWorkoutLocations: Array<{
     x: number;
     y: number;
     facing: number;
     workoutStyle: "run" | "lift" | "bike" | "box" | "row" | "stretch";
-  }[],
+  }>,
   idleLeisureByAgentId: Partial<Record<string, OfficeIdleLeisureArea>> = {},
-  qaLabStations: QaLabStationLocation[],
-  meetingSeatLocations: { x: number; y: number; facing: number }[],
-  furnitureRef: React.RefObject<FurnitureItem[]>,
+  qaLabStations: Array<QaLabStationLocation>,
+  meetingSeatLocations: Array<{ x: number; y: number; facing: number }>,
+  furnitureRef: React.RefObject<Array<FurnitureItem>>,
   lastSeenByAgentId: Record<string, number> = {},
   deskHoldByAgentId: Record<string, boolean> = {},
   danceUntilByAgentId: Record<string, number> = {},
@@ -913,7 +914,7 @@ function useAgentTick(
   githubReviewByAgentId: Record<string, boolean> = {},
   standupMeeting: StandupMeeting | null = null,
 ) {
-  const renderAgentsRef = useRef<RenderAgent[]>([]);
+  const renderAgentsRef = useRef<Array<RenderAgent>>([]);
   const renderAgentLookupRef = useRef<Map<string, RenderAgent>>(new Map());
   const deskByAgentRef = useRef<Map<string, number>>(new Map());
   const gymByAgentRef = useRef<Map<string, number>>(new Map());
@@ -924,7 +925,7 @@ function useAgentTick(
 
   // Nav grid is rebuilt lazily whenever the furniture array reference changes.
   const navGridRef = useRef<NavGrid | null>(null);
-  const gridSourceRef = useRef<FurnitureItem[]>([]);
+  const gridSourceRef = useRef<Array<FurnitureItem>>([]);
 
   const getNavGrid = useCallback((): NavGrid => {
     const furniture = furnitureRef.current ?? [];
@@ -1054,7 +1055,7 @@ function useAgentTick(
       if (!activeIds.has(id)) stickyUntilRef.current.delete(id);
 
     const currentMap = new Map(renderAgentsRef.current.map((a) => [a.id, a]));
-    const next: RenderAgent[] = [];
+    const next: Array<RenderAgent> = [];
 
     agents.forEach((agent, idx) => {
       const now = Date.now();
@@ -1073,7 +1074,7 @@ function useAgentTick(
             targetY: existing.targetY,
             janitorRouteIndex: existing.janitorRouteIndex ?? initialRouteIndex,
             janitorPauseUntil: existing.janitorPauseUntil,
-          } as RenderAgent);
+          });
           return;
         }
         next.push({
@@ -1092,7 +1093,7 @@ function useAgentTick(
           state: initialRouteIndex === 0 ? "standing" : "walking",
           facing: spawn.facing,
           janitorRouteIndex: initialRouteIndex,
-        } as RenderAgent);
+        });
         return;
       }
       const assignedDeskIndex = assignedDeskIndexByAgentId[agent.id];
@@ -2392,7 +2393,7 @@ const getAgentInitials = (name: string | null | undefined): string => {
 const buildInitialFurnitureLayout = (
   storageNamespace: string,
   layoutPreset: OfficeLayoutPreset,
-): FurnitureItem[] =>
+): Array<FurnitureItem> =>
   ensureOfficeKanbanBoard(
     ensureOfficeJukebox(
       ensureOfficeQaLab(
@@ -2520,7 +2521,7 @@ export function RetroOffice3D({
   onTaskBoardDeleteCard,
   onTaskBoardRefreshCronJobs,
 }: {
-  agents: OfficeAgent[];
+  agents: Array<OfficeAgent>;
   officeCenterSignal?: number;
   animationState?: Pick<
     OfficeAnimationState,
@@ -2539,7 +2540,7 @@ export function RetroOffice3D({
   storageNamespace?: string;
   layoutPreset?: OfficeLayoutPreset;
   deskAssignmentByDeskUid?: Record<string, string>;
-  cleaningCues?: OfficeCleaningCue[];
+  cleaningCues?: Array<OfficeCleaningCue>;
   deskHoldByAgentId?: Record<string, boolean>;
   gymHoldByAgentId?: Record<string, boolean>;
   githubReviewAgentId?: string | null;
@@ -2591,7 +2592,7 @@ export function RetroOffice3D({
   onGatewayAdapterTypeChange?: (value: StudioGatewayAdapterType) => void;
   onOpenOnboarding?: () => void;
   atmAnalytics?: OfficeUsageAnalyticsParams | null;
-  feedEvents?: FeedEvent[];
+  feedEvents?: Array<FeedEvent>;
   gatewayStatus?: string;
   gatewayUrl?: string;
   gatewayToken?: string;
@@ -2604,7 +2605,7 @@ export function RetroOffice3D({
   progressByAgentId?: Record<string, number>;
   /** #89 — agent id from external selection (store); sets initial follow-cam target */
   selectedAgentId?: string | null;
-  onStandupArrivalsChange?: (arrivedAgentIds: string[]) => void;
+  onStandupArrivalsChange?: (arrivedAgentIds: Array<string>) => void;
   onStandupStartRequested?: () => void;
   onMonitorSelect?: (agentId: string | null) => void;
   onAgentChatSelect?: (agentId: string) => void;
@@ -2612,7 +2613,7 @@ export function RetroOffice3D({
   onAgentEdit?: (agentId: string) => void;
   onAgentDelete?: (agentId: string) => void;
   onDeskAssignmentChange?: (deskUid: string, agentId: string | null) => void;
-  onDeskAssignmentsReset?: (deskUids: string[]) => void;
+  onDeskAssignmentsReset?: (deskUids: Array<string>) => void;
   onGithubReviewDismiss?: () => void;
   onPhoneCallComplete?: (agentId: string) => void;
   onPhoneCallSpeak?: (payload: {
@@ -2625,15 +2626,15 @@ export function RetroOffice3D({
   onOpenGithubSkillSetup?: () => void;
   onJukeboxInteract?: () => void;
   onKanbanInteract?: () => void;
-  taskBoardAgents?: AgentState[];
-  taskBoardCardsByStatus?: Record<TaskBoardStatus, TaskBoardCard[]>;
+  taskBoardAgents?: Array<AgentState>;
+  taskBoardCardsByStatus?: Record<TaskBoardStatus, Array<TaskBoardCard>>;
   taskBoardSelectedCard?: TaskBoardCard | null;
   taskBoardActiveRuns?: Array<{
     runId: string;
     agentId: string;
     label: string;
   }>;
-  taskBoardCronJobs?: CronJobSummary[];
+  taskBoardCronJobs?: Array<CronJobSummary>;
   taskBoardCronLoading?: boolean;
   taskBoardCronError?: string | null;
   taskBoardCaptureDebug?: ComponentProps<
@@ -2684,7 +2685,7 @@ export function RetroOffice3D({
     Boolean,
   );
 
-  const [furniture, setFurniture] = useState<FurnitureItem[]>(() =>
+  const [furniture, setFurniture] = useState<Array<FurnitureItem>>(() =>
     buildInitialFurnitureLayout(storageNamespace, layoutPreset).filter(
       (item) => !isRetiredPingPongLamp(item),
     ),
@@ -2855,12 +2856,12 @@ export function RetroOffice3D({
   const [moodByAgentId, setMoodByAgentId] = useState<
     Record<string, { emoji: string; ts: number }>
   >({});
-  const [janitorActors, setJanitorActors] = useState<JanitorActor[]>([]);
+  const [janitorActors, setJanitorActors] = useState<Array<JanitorActor>>([]);
   const seenCleaningCueIdsRef = useRef<Set<string>>(new Set());
   // E3 Idea 3: spotlight.
   const [spotlightAgentId, setSpotlightAgentId] = useState<string | null>(null);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const orbitRef = useRef<any>(null);
   // Follow cam: which agent to trail with a third-person perspective camera.
   const [followAgentId, setFollowAgentId] = useState<string | null>(null);
@@ -2901,7 +2902,7 @@ export function RetroOffice3D({
     useState<TextMessageStep>("selecting_contact");
   const [typedMessageText, setTypedMessageText] = useState("");
   const [activeTextKey, setActiveTextKey] = useState<string | null>(null);
-  const [textContacts, setTextContacts] = useState<string[]>([]);
+  const [textContacts, setTextContacts] = useState<Array<string>>([]);
   const [activeTextContactIndex, setActiveTextContactIndex] = useState<
     number | null
   >(null);
@@ -3018,7 +3019,7 @@ export function RetroOffice3D({
 
   // Keep a stable ref to furniture so the tick callback can read it without
   // being recreated every time furniture changes.
-  const furnitureRef = useRef<FurnitureItem[]>(furniture);
+  const furnitureRef = useRef<Array<FurnitureItem>>(furniture);
   useEffect(() => {
     furnitureRef.current = furniture;
   }, [furniture]);
@@ -3061,7 +3062,7 @@ export function RetroOffice3D({
     });
   }, [janitorCleaningStops, resolvedCleaningCues]);
 
-  const sceneAgents = useMemo<SceneActor[]>(
+  const sceneAgents = useMemo<Array<SceneActor>>(
     () => [...agents, ...janitorActors],
     [agents, janitorActors],
   );
@@ -3564,7 +3565,7 @@ export function RetroOffice3D({
     if (typeof window === "undefined") return null;
     const AudioContextCtor =
       window.AudioContext ||
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       ((window as any).webkitAudioContext as typeof AudioContext | undefined);
     if (!AudioContextCtor) return null;
     if (!boothAudioCtxRef.current) {
@@ -7182,7 +7183,7 @@ export function RetroOffice3D({
                 onClick={() => startPlacing(entry.type)}
                 className={`flex flex-col items-center gap-1 p-2 rounded-md border transition-all text-center ${
                   drag.kind === "placing" &&
-                  (drag as { kind: "placing"; itemType: string }).itemType ===
+                  (drag).itemType ===
                     entry.type
                     ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
                     : "bg-[#120e08] border-amber-900/15 text-amber-200/70 hover:bg-[#261e16] hover:border-amber-800/30"
