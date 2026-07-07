@@ -15,51 +15,58 @@ import {
   X,
 } from "lucide-react";
 import {
-  
   Suspense,
   memo,
   useCallback,
   useEffect,
   useMemo,
   useRef,
-  useState
+  useState,
 } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import type {ComponentProps} from "react";
+import type { ComponentProps } from "react";
 import type { OfficeUsageAnalyticsParams } from "@/features/office/hooks/useOfficeUsageAnalyticsViewModel";
 import type { AgentState } from "@/features/agents/state/store";
+import type {
+  TaskBoardCard,
+  TaskBoardStatus,
+} from "@/features/office/tasks/types";
 import type { CronJobSummary } from "@/lib/cron/types";
 import type { MockPhoneCallScenario } from "@/lib/office/call/types";
 import type { MockTextMessageScenario } from "@/lib/office/text/types";
 import type { OfficeDeskMonitor } from "@/lib/office/deskMonitor";
 import type {
   OfficeAnimationState,
-  OfficeCleaningCue, OfficeIdleLeisureArea 
+  OfficeCleaningCue,
+  OfficeIdleLeisureArea,
 } from "@/lib/office/eventTriggers";
+import type { OfficeLayoutSnapshot } from "@/lib/office/layoutSnapshot";
 import type { StandupMeeting } from "@/lib/office/standup/types";
 import type { SkillStatusEntry } from "@/lib/skills/types";
 import type { StudioGatewayAdapterType } from "@/lib/studio/settings";
+import type { OfficeLayoutPreset } from "@/features/retro-office/core/furnitureDefaults";
+import type { NavGrid } from "@/features/retro-office/core/navigation";
+import type {
+  FurnitureItem,
+  JanitorActor,
+  OfficeAgent,
+  QaLabStationLocation,
+  RenderAgent,
+  SceneActor,
+} from "@/features/retro-office/core/types";
+import type { PhoneCallStep } from "@/features/office/screens/PhoneBoothImmersiveScreen";
+import type { TextMessageStep } from "@/features/office/screens/SmsBoothImmersiveScreen";
 import { SettingsPanel } from "@/features/office/components/panels/SettingsPanel";
 import { AtmImmersiveScreen } from "@/features/office/screens/AtmImmersiveScreen";
 import { GithubImmersiveScreen } from "@/features/office/screens/GithubImmersiveScreen";
 import { KanbanImmersiveScreen } from "@/features/office/screens/KanbanImmersiveScreen";
-import {
-  PhoneBoothImmersiveScreen,
-  type PhoneCallStep,
-} from "@/features/office/screens/PhoneBoothImmersiveScreen";
-import {
-  SmsBoothImmersiveScreen,
-  type TextMessageStep,
-} from "@/features/office/screens/SmsBoothImmersiveScreen";
+import { PhoneBoothImmersiveScreen } from "@/features/office/screens/PhoneBoothImmersiveScreen";
+import { SmsBoothImmersiveScreen } from "@/features/office/screens/SmsBoothImmersiveScreen";
 import { StandupImmersiveScreen } from "@/features/office/screens/StandupImmersiveScreen";
 import { buildMockPhoneCallScenario } from "@/lib/office/call/mock";
 import { buildMockTextMessageScenario } from "@/lib/office/text/mock";
-import type {
-  TaskBoardCard,
-  TaskBoardStatus,
-} from "@/features/office/tasks/types";
 import { extractSpeechImage } from "@/lib/text/speech-image";
 import { MonitorImmersiveContent as MonitorImmersiveOverlay } from "@/features/retro-office/overlays/MonitorImmersiveContent";
 import {
@@ -83,7 +90,6 @@ import {
   WORKING_WALK_SPEED_MULTIPLIER,
 } from "@/features/retro-office/core/constants";
 import {
-  
   ensureOfficeAtm,
   ensureOfficeGymRoom,
   ensureOfficeJukebox,
@@ -94,9 +100,8 @@ import {
   ensureOfficeServerRoom,
   ensureOfficeSmsBooth,
   isRetiredPingPongLamp,
-  materializeDefaults
+  materializeDefaults,
 } from "@/features/retro-office/core/furnitureDefaults";
-import type {OfficeLayoutPreset} from "@/features/retro-office/core/furnitureDefaults";
 import {
   DISTRICT_CAMERA_POSITION,
   DISTRICT_CAMERA_TARGET,
@@ -154,16 +159,6 @@ import {
   markSmsBoothMigrationApplied,
   saveFurniture,
 } from "@/features/retro-office/core/persistence";
-import type {
-  FurnitureItem,
-  JanitorActor,
-  OfficeAgent,
-  QaLabStationLocation,
-  RenderAgent,
-  SceneActor,
-} from "@/features/retro-office/core/types";
-import type { NavGrid } from "@/features/retro-office/core/navigation";
-import type { OfficeLayoutSnapshot } from "@/lib/office/layoutSnapshot";
 import { AgentModel as AgentObjectModel } from "@/features/retro-office/objects/agents";
 import { JukeboxModel as InteractiveJukeboxModel } from "@/features/retro-office/objects/Jukebox";
 import {
