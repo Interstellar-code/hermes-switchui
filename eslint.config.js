@@ -1,9 +1,17 @@
 //  @ts-check
 
 import { tanstackConfig } from '@tanstack/eslint-config'
+import nextPlugin from '@next/eslint-plugin-next'
+import reactHooksPlugin from 'eslint-plugin-react-hooks'
 
 export default [
   ...tanstackConfig,
+  {
+    plugins: {
+      '@next/next': nextPlugin,
+      'react-hooks': reactHooksPlugin,
+    },
+  },
   {
     ignores: [
       'eslint.config.js',
