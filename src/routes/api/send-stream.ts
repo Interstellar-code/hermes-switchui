@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
-  buildResolvedSessionHeaders,
   HERMES_SESSION_KEY_HEADER,
+  buildResolvedSessionHeaders,
 } from '../../lib/send-stream-session-headers'
 import {
   parseJsonIfPossible,
@@ -9,11 +9,6 @@ import {
   readString,
   stripDataUrlPrefix,
 } from '../../lib/stream-utils'
-import {
-  collectSyntheticLiveToolEvents,
-  createSyntheticLiveToolTracker,
-} from './-send-stream-live-tools'
-import { resolveOrphanedToolCards } from './-send-stream-orphan-tools'
 import { resolveSessionKey } from '../../server/session-utils'
 import { resolveMainSessionId } from '../../server/main-session-resolver'
 import { isAuthenticated } from '../../server/auth-middleware'
@@ -31,8 +26,8 @@ import {
   upsertRunToolCall,
 } from '../../server/run-store'
 import { getChatMode } from '../../server/gateway-capabilities'
-import { ensureLocalSession, appendLocalMessage, getLocalMessages, touchLocalSession } from '../../server/local-session-store'
-import { getLocalProviderDef, getDiscoveredModels } from '../../server/local-provider-discovery'
+import { appendLocalMessage, ensureLocalSession, getLocalMessages, touchLocalSession } from '../../server/local-session-store'
+import { getDiscoveredModels, getLocalProviderDef } from '../../server/local-provider-discovery'
 import {
   
   
@@ -48,6 +43,11 @@ import {
   listSessions,
   streamChat,
 } from '../../server/hermes-api'
+import { resolveOrphanedToolCards } from './-send-stream-orphan-tools'
+import {
+  collectSyntheticLiveToolEvents,
+  createSyntheticLiveToolTracker,
+} from './-send-stream-live-tools'
 import type {OpenAICompatContentPart, OpenAICompatMessage} from '../../server/openai-compat-api';
 // Claude agent runs can take 5+ minutes with complex tool chains
 const SEND_STREAM_RUN_TIMEOUT_MS = 600_000
@@ -372,7 +372,6 @@ export const Route = createFileRoute('/api/send-stream')({
 
         const stream = new ReadableStream({
           async start(controller) {
-            let heartbeatTimer: ReturnType<typeof setInterval> | null = null
             let lastClientEventAt = Date.now()
             const enqueueRaw = (payload: string) => {
               if (streamClosed) return
@@ -416,10 +415,6 @@ export const Route = createFileRoute('/api/send-stream')({
               if (streamTimeoutTimer) {
                 clearTimeout(streamTimeoutTimer)
                 streamTimeoutTimer = null
-              }
-              if (heartbeatTimer) {
-                clearInterval(heartbeatTimer)
-                heartbeatTimer = null
               }
               if (activeRunId) {
                 unregisterActiveSendRun(activeRunId)
@@ -542,7 +537,7 @@ export const Route = createFileRoute('/api/send-stream')({
                   const useResponsesApi =
                     process.env.HERMES_USE_RESPONSES === '1' && !localBaseUrl
                   if (useResponsesApi) {
-                    let thinking = ''
+                    const thinking = ''
                     // Track tool calls by callId so a `tool.completed`
                     // followed by `tool.output` can carry the full
                     // arguments forward without losing them.
@@ -593,7 +588,7 @@ export const Route = createFileRoute('/api/send-stream')({
                           })
                           const argsForCard =
                             ev.args && typeof ev.args === 'object'
-                              ? (ev.args as Record<string, unknown>)
+                              ? (ev.args)
                               : undefined
                           persistActiveRun((runSessionKey, activeId) =>
                             upsertRunToolCall(runSessionKey, activeId, {
@@ -630,7 +625,7 @@ export const Route = createFileRoute('/api/send-stream')({
                           const state = toolStateByCallId.get(ev.callId)
                           const argsForCard =
                             state?.args && typeof state.args === 'object'
-                              ? (state.args as Record<string, unknown>)
+                              ? (state.args)
                               : undefined
                           const name = state?.name || 'tool'
                           // Happy path: output arrived — no sweep needed.
@@ -660,9 +655,7 @@ export const Route = createFileRoute('/api/send-stream')({
                           // shared 'done' emit below.
                           break
                         }
-                        if (ev.kind === 'failed') {
-                          throw new Error(ev.error)
-                        }
+                        throw new Error(ev.error)
                       }
                       // Stream-end sweep: resolve any tool cards that
                       // received tool.completed but never got tool.output.
@@ -702,7 +695,7 @@ export const Route = createFileRoute('/api/send-stream')({
                         message: {
                           role: 'assistant',
                           content: [
-                            ...(thinking ? [{ type: 'thinking', thinking }] : []),
+                            ...(thinking.length > 0 ? [{ type: 'thinking', thinking }] : []),
                             { type: 'text', text: accumulated },
                           ],
                         },
@@ -933,8 +926,9 @@ export const Route = createFileRoute('/api/send-stream')({
                 // user message before we start asking for session state.
                 await new Promise((r) => setTimeout(r, 600))
                 let livePollConsecutiveFailures = 0
-                while (liveRunActive) {
-                  if (!liveRunActive || streamClosed) break
+                const shouldStopLivePoll = () => !liveRunActive || streamClosed
+                for (;;) {
+                  if (shouldStopLivePoll()) break
                   try {
                     const allMsgs = (await getSessionMessagesFromAgent(
                       sessionKey,
@@ -1045,25 +1039,7 @@ export const Route = createFileRoute('/api/send-stream')({
                           ? (data.user_message as Record<string, unknown>)
                           : null
                       if (userMessage) {
-                        skipPublish ||
-                          publishChatEvent('user_message', {
-                            message: {
-                              id: userMessage.id,
-                              role: userMessage.role ?? 'user',
-                              content: [
-                                {
-                                  type: 'text',
-                                  text:
-                                    typeof userMessage.content === 'string'
-                                      ? userMessage.content
-                                      : '',
-                                },
-                              ],
-                            },
-                            sessionKey: sessionKeyFromEvent,
-                            source: 'claude',
-                            runId,
-                          })
+                        void userMessage
                       }
                       return
                     }
@@ -1083,7 +1059,6 @@ export const Route = createFileRoute('/api/send-stream')({
                         runId,
                       }
                       sendEvent('message', translated)
-                      skipPublish || publishChatEvent('message', translated)
                       return
                     }
 
@@ -1105,7 +1080,6 @@ export const Route = createFileRoute('/api/send-stream')({
                           runId,
                         }
                         sendEvent('chunk', translated)
-                        skipPublish || publishChatEvent('chunk', translated)
                       }
                       return
                     }
@@ -1123,7 +1097,6 @@ export const Route = createFileRoute('/api/send-stream')({
                         runId,
                       }
                       sendEvent('chunk', translated)
-                      skipPublish || publishChatEvent('chunk', translated)
                       return
                     }
 
@@ -1160,7 +1133,6 @@ export const Route = createFileRoute('/api/send-stream')({
                         }),
                       )
                       sendEvent('tool', translated)
-                      skipPublish || publishChatEvent('tool', translated)
                       return
                     }
 
@@ -1178,7 +1150,6 @@ export const Route = createFileRoute('/api/send-stream')({
                           runId,
                         }
                         sendEvent('thinking', translated)
-                        skipPublish || publishChatEvent('thinking', translated)
                         return
                       }
                       const translated = {
@@ -1200,7 +1171,6 @@ export const Route = createFileRoute('/api/send-stream')({
                         }),
                       )
                       sendEvent('tool', translated)
-                      skipPublish || publishChatEvent('tool', translated)
                       return
                     }
 
@@ -1226,7 +1196,6 @@ export const Route = createFileRoute('/api/send-stream')({
                         }),
                       )
                       sendEvent('tool', translated)
-                      skipPublish || publishChatEvent('tool', translated)
                       return
                     }
 
@@ -1251,7 +1220,6 @@ export const Route = createFileRoute('/api/send-stream')({
                         runId,
                       }
                       sendEvent('artifact', translated)
-                      skipPublish || publishChatEvent('artifact', translated)
                       return
                     }
 
@@ -1275,7 +1243,6 @@ export const Route = createFileRoute('/api/send-stream')({
                         }),
                       )
                       sendEvent('tool', translated)
-                      skipPublish || publishChatEvent('tool', translated)
                       return
                     }
 
@@ -1304,7 +1271,6 @@ export const Route = createFileRoute('/api/send-stream')({
                         }),
                       )
                       sendEvent('tool', translated)
-                      skipPublish || publishChatEvent('tool', translated)
                       return
                     }
 
@@ -1332,12 +1298,11 @@ export const Route = createFileRoute('/api/send-stream')({
                         }),
                       )
                       sendEvent('tool', translated)
-                      skipPublish || publishChatEvent('tool', translated)
                       return
                     }
 
                     if (event === 'clarify.request' || event === 'interaction.request') {
-                      const d = data as Record<string, unknown>
+                      const d = data
                       const clarifyPayload = {
                         type: event === 'interaction.request' ? ('interaction' as const) : ('clarify' as const),
                         clarifyId:
@@ -1353,18 +1318,17 @@ export const Route = createFileRoute('/api/send-stream')({
                         messageId: readString(d.message_id) || undefined,
                         question: readString(d.question) || '',
                         choices: Array.isArray(d.choices)
-                          ? (d.choices as string[])
+                          ? (d.choices as Array<string>)
                           : null,
                         sessionKey: sessionKeyFromEvent,
                         runId,
                       }
                       sendEvent('clarify', clarifyPayload)
-                      skipPublish || publishChatEvent('clarify', clarifyPayload)
                       return
                     }
 
                     if (event === 'clarify.responded' || event === 'interaction.responded') {
-                      const d = data as Record<string, unknown>
+                      const d = data
                       const resolvedPayload = {
                         type: event === 'interaction.responded' ? ('interaction_resolved' as const) : ('clarify_resolved' as const),
                         clarifyId:
@@ -1382,8 +1346,6 @@ export const Route = createFileRoute('/api/send-stream')({
                         runId,
                       }
                       sendEvent('clarify_resolved', resolvedPayload)
-                      skipPublish ||
-                        publishChatEvent('clarify_resolved', resolvedPayload)
                       return
                     }
 
@@ -1433,7 +1395,6 @@ export const Route = createFileRoute('/api/send-stream')({
                           runId,
                         }
                         sendEvent('usage_update', usagePayload)
-                        skipPublish || publishChatEvent('usage_update', usagePayload)
                       }
                       return
                     }
@@ -1456,9 +1417,9 @@ export const Route = createFileRoute('/api/send-stream')({
                           > = []
                           try {
                             persistedMessages =
-                              (await getSessionMessagesFromAgent(
+                              await getSessionMessagesFromAgent(
                                 sid,
-                              )) as unknown as Array<Record<string, unknown>>
+                              )
                           } catch {
                             persistedMessages = []
                           }
@@ -1477,11 +1438,11 @@ export const Route = createFileRoute('/api/send-stream')({
                           )
                           const recent = persistedMessages.slice(
                             sliceFrom,
-                          ) as Array<Record<string, unknown>>
+                          )
                           let lastAssistantIndex = -1
                           for (let i = recent.length - 1; i >= 0; i--) {
-                            const m = recent[i] as Record<string, unknown>
-                            if (m && m.role === 'assistant') {
+                            const m = recent[i]
+                            if (m.role === 'assistant') {
                               lastAssistantIndex = i
                               break
                             }
@@ -1489,7 +1450,7 @@ export const Route = createFileRoute('/api/send-stream')({
                           if (lastAssistantIndex >= 0) {
                             const lastAssistant = recent[
                               lastAssistantIndex
-                            ] as Record<string, unknown>
+                            ]
                             const rawToolCalls = (lastAssistant.tool_calls ??
                               (lastAssistant as any).toolCalls) as
                               | Array<Record<string, unknown>>
@@ -1521,8 +1482,6 @@ export const Route = createFileRoute('/api/send-stream')({
                                   ),
                               )
                               sendEvent('tool', synthetic)
-                              skipPublish ||
-                                publishChatEvent('tool', synthetic)
                             }
                           }
                         }
@@ -1543,7 +1502,6 @@ export const Route = createFileRoute('/api/send-stream')({
                         markRunStatus(runSessionKey, activeId, 'complete'),
                       )
                       sendEvent('done', translated)
-                      skipPublish || publishChatEvent('done', translated)
                       closeStream()
                     }
                   },
