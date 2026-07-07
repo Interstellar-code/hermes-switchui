@@ -1,20 +1,33 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
-import type { DashboardOverview } from '@/server/dashboard-aggregator'
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import { HugeiconsIcon } from '@hugeicons/react'
+import {
+  BubbleChatAddIcon,
+  CheckmarkCircle02Icon,
+  ConsoleIcon,
+  Edit02Icon,
+  Moon02Icon,
+  PuzzleIcon,
+  Settings02Icon,
+  Sun02Icon,
+} from '@hugeicons/core-free-icons'
 import { OpsStrip } from './components/ops-strip'
 import { AchievementsCard } from './components/achievements-card'
 import { HeroMetrics } from './components/hero-metrics'
-import {
-  AnalyticsChartCard,
-  type AnalyticsPeriod,
-} from './components/analytics-chart-card'
+import { AnalyticsChartCard } from './components/analytics-chart-card'
 import { TopModelsCard } from './components/top-models-card'
 import { LogsTailCard } from './components/logs-tail-card'
-import {
-  SessionsIntelligenceCard,
-  type SessionRowData,
-} from './components/sessions-intelligence-card'
+import { SessionsIntelligenceCard } from './components/sessions-intelligence-card'
 import { SkillsUsageCard } from './components/skills-usage-card'
 import { TokenMixHourCard } from './components/token-mix-hour-card'
 import { ActiveModelKpi } from './components/active-model-kpi'
@@ -27,33 +40,16 @@ import { OperatorTipCard } from './components/operator-tip-card'
 import { WidgetShell } from './components/widget-shell'
 import { EditModePanel } from './components/edit-mode-panel'
 import { useDashboardLayout } from './lib/use-dashboard-layout'
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
 import type { ReactNode } from 'react'
+import type { AnalyticsPeriod } from './components/analytics-chart-card'
+import type { SessionRowData } from './components/sessions-intelligence-card'
+import type { DashboardOverview } from '@/server/dashboard-aggregator'
 import type { ClaudeSession } from '@/lib/hermes-client'
 import { getUnavailableReason } from '@/lib/feature-gates'
 import { useFeatureAvailable } from '@/hooks/use-feature-available'
 import { cn } from '@/lib/utils'
 import { openHamburgerMenu } from '@/components/mobile-hamburger-menu'
 import { applyTheme, useSettingsStore } from '@/hooks/use-settings'
-import { HugeiconsIcon } from '@hugeicons/react'
-import {
-  Moon02Icon,
-  Sun02Icon,
-  BubbleChatAddIcon,
-  ConsoleIcon,
-  PuzzleIcon,
-  Edit02Icon,
-  CheckmarkCircle02Icon,
-  Settings02Icon,
-} from '@hugeicons/core-free-icons'
 
 // `IconSvgObject` isn't exported from @hugeicons/react; reuse the
 // inferred type from a real icon import for prop typing.
@@ -420,14 +416,12 @@ function SkillsWidget({
   const installed = skills.length
   const enabled = skills.filter((s) => s.enabled !== false).length
   const usedThisWindow = usage?.distinctSkills ?? null
-  const topUsed = usage?.topSkills?.[0]
+  const topUsed = usage?.topSkills[0]
   const topInstalled =
     skills.find((s) => s.enabled !== false) ?? skills[0]
-  const topName = topUsed?.skill
+  const topName = topUsed.skill
     ? topUsed.skill
-    : topInstalled
-      ? String(topInstalled.name ?? '—')
-      : '—'
+    : String(topInstalled.name ?? '—')
 
   return (
     <button
@@ -1025,7 +1019,7 @@ export function DashboardScreen() {
            concern by giving the ticker its own visual chamber
            (warning gradient, separated border) so it doesn't blend
            into the gateway/version/cron line below it. */}
-      {(overview?.incidents?.length ?? 0) > 0 ? (
+      {overview.incidents.length > 0 ? (
         <AttentionMarquee overview={overview ?? null} />
       ) : null}
 
