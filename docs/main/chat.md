@@ -11,7 +11,7 @@ Chat is where you talk to your AI through Hermes Switch UI. It is the main page 
 
 The Chat page uses a three-column layout. On the left is the session sidebar, which lists your conversation history. In the center is the message thread, where the conversation unfolds. At the bottom of the center column sits the composer, where you type your messages. A meta bar runs across the top of the center column and shows the active model and context usage.
 
-> [SCREENSHOT: chat screen with active session, matrix-dark theme]
+![Chat screen with active session in Matrix dark theme](/screenshots/chat.png)
 
 ## Major regions
 

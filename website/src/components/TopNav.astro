@@ -1,34 +1,38 @@
 ---
-// TopNav with Ticker bar — Hermes Landing design
 import { SITE_VERSION } from '../site-version';
 const docsHref = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/docs/welcome/`;
----
 
-<!-- ── TICKER ── -->
-<div class="hl-ticker-wrap" aria-hidden="true">
-  <div class="hl-ticker" id="ticker">
-    {Array.from({length: 4}).map(() => (
-      <span class="hl-ticker-text">■&nbsp;&nbsp;SYS_STATUS: ONLINE&nbsp;&nbsp;·&nbsp;&nbsp;AGENTS: 4 ACTIVE&nbsp;&nbsp;·&nbsp;&nbsp;TOKENS: 128,420&nbsp;&nbsp;·&nbsp;&nbsp;UPTIME: 99.98%&nbsp;&nbsp;·&nbsp;&nbsp;MODEL: claude-sonnet-4&nbsp;&nbsp;·&nbsp;&nbsp;CLEARANCE: LEVEL-5&nbsp;&nbsp;·&nbsp;&nbsp;</span>
-    ))}
-  </div>
-</div>
+// Active link detection
+const path = Astro.url.pathname.replace(/\/$/, '') || '/';
+const navItems = [
+  { label: 'Home', href: '/' },
+  { label: 'SwitchUI', href: '/switchui' },
+  { label: 'Hermes', href: '/hermes' },
+  { label: 'Plugins', href: '/plugins' },
+  { label: 'Docs', href: docsHref },
+];
+const isActive = (href) => {
+  const cleanHref = href.replace(/\/$/, '') || '/';
+  if (cleanHref === '/#cta') return false;
+  if (cleanHref === '/') return path === '/';
+  return path === cleanHref || path.startsWith(cleanHref + '/');
+};
+---
 
 <!-- ── NAV ── -->
 <nav class="topnav" id="topnav">
-  <a href="#" class="topnav-brand">
-    <div class="glyph">ᕼ</div>
-    <div class="brand-text">
-      <div class="brand-name">HERMES</div>
-      <div class="brand-sub">SWITCH UI</div>
-    </div>
+  <a href="/" class="topnav-brand">
+    <img src="/logo-icon.png" alt="Hermes SwitchUI" style="height: 32px; width: auto;" />
+    <span style="font-family: var(--m-font-mono); font-size: 13px; font-weight: 600; color: #fff; letter-spacing: 0.05em; margin-left: 10px; white-space: nowrap;">Hermes SwitchUI</span>
   </a>
 
   <div class="topnav-links" id="topnav-links">
-    <a href="#features" class="hl-navlink">Features</a>
-    <a href="#architecture" class="hl-navlink">Architecture</a>
-    <a href="#interface" class="hl-navlink">Interface</a>
-    <a href="#cta" class="hl-navlink">Install</a>
-    <a href={docsHref} class="hl-navlink" style="color: var(--m-green-300);">Docs</a>
+    {navItems.map((item) => (
+      <a
+        href={item.href}
+        class={`hl-navlink ${isActive(item.href) ? 'hl-navlink--active' : ''}`}
+      >{item.label}</a>
+    ))}
   </div>
 
   <div class="topnav-right">
@@ -39,9 +43,8 @@ const docsHref = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/docs/welcome/`;
       </svg>
       <span id="gh-stars-count">★ —</span>
     </a>
-    <span class="nav-version">v<span id="site-version-nav">{SITE_VERSION}</span></span>
-    <span class="nav-access">ACCESS GRANTED</span>
-    <a href="#cta" class="m-btn m-btn-primary m-btn-sm">Install →</a>
+    <a href="https://github.com/Interstellar-code/hermes-switchui/releases" target="_blank" rel="noopener" class="nav-version" style="text-decoration: none;">v<span id="site-version-nav">{SITE_VERSION}</span></a>
+    <a href="/#cta" class="m-btn m-btn-primary m-btn-sm">Install →</a>
   </div>
 
   <button class="topnav-hamburger" aria-label="Toggle menu" id="nav-hamburger">
@@ -88,7 +91,7 @@ const docsHref = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/docs/welcome/`;
     const CACHE_KEY = 'hsui_latest_release';
     const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
-    function applyVersion(tag: string) {
+    function applyVersion(tag) {
       const nav = document.getElementById('site-version-nav');
       const hero = document.getElementById('site-version-hero');
       const footer = document.getElementById('site-version-footer');
@@ -115,7 +118,7 @@ const docsHref = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/docs/welcome/`;
     try {
       const raw = sessionStorage.getItem(CACHE_KEY);
       if (raw) {
-        const cached = JSON.parse(raw) as { tag: string; ts: number };
+        const cached = JSON.parse(raw);
         if (cached.tag && Date.now() - cached.ts < CACHE_TTL) {
           applyVersion(cached.tag);
           return;

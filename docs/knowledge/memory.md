@@ -15,7 +15,7 @@ The Memory page gives you a browser for everything your Hermes agents remember b
   style="border: 0; border-radius: 8px;"
 ></iframe>
 
-> [SCREENSHOT: Memory page with Agent Memory tab active]
+![Memory page with Agent Memory tab active](/screenshots/memory.png)
 
 ## What you see
 

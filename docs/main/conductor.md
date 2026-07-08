@@ -23,7 +23,7 @@ description: Orchestrate multiple agents and pipelines from the Conductor contro
 
 The page is composed of a top bar, a main content column, and a right-hand mission rail. A `LaunchWizard` modal handles workflow selection and launch.
 
-> [SCREENSHOT: Conductor page, matrix-dark theme]
+![Conductor page in Matrix dark theme](/screenshots/conductor.png)
 
 ## Major regions
 

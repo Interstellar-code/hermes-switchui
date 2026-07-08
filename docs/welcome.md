@@ -44,7 +44,7 @@ A chat round-trip is fully streamed. You see tokens land as the provider emits t
   style="border: 0; border-radius: 8px;"
 ></iframe>
 
-> [SCREENSHOT: hermes switch ui home page, matrix-dark theme]
+![Hermes Switch UI home page in Matrix dark theme](/screenshots/splash.png)
 
 ## What you can do
 

@@ -1,0 +1,154 @@
+---
+import LandingLayout from '../layouts/LandingLayout.astro';
+import TopNav from '../components/TopNav.astro';
+import Footer from '../components/Footer.astro';
+import UICarousel from '../components/UICarousel.astro';
+import MatrixRain from '../components/MatrixRain.astro';
+
+const coreFeatures = [
+  {
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><path d="M4 5h16v11H8l-4 4z"/></svg>',
+    name: 'Chat',
+    tag: 'streaming',
+    desc: 'Talk to any AI model with live streaming responses. Pick your provider, and the interface handles the rest.',
+    num: '01',
+  },
+  {
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h6M3 15h6M15 9h6M15 15h6"/></svg>',
+    name: 'Tasks',
+    tag: 'kanban',
+    desc: 'A visual Kanban board for managing everything the agent is working on. Drag cards between columns to update status.',
+    num: '02',
+  },
+  {
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/><path d="M9 12h6M12 9v6"/></svg>',
+    name: 'Commands',
+    tag: 'saved prompts',
+    desc: 'Save and reuse prompts as slash commands. Build a library of workflows you trigger with a quick /command.',
+    num: '03',
+  },
+  {
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
+    name: 'Files',
+    tag: 'local access',
+    desc: 'Browse, read, and edit files on your machine directly from the browser. The agent has access to the same files.',
+    num: '04',
+  },
+  {
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+    name: 'Jobs',
+    tag: 'scheduled',
+    desc: 'Schedule background tasks to run on a timer. See what succeeded, what failed, and what is running right now.',
+    num: '05',
+  },
+  {
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.6 3.6 3 8 3s8-1.4 8-3V6M4 12v6c0 1.6 3.6 3 8 3s8-1.4 8-3v-6"/></svg>',
+    name: 'Memory',
+    tag: 'persistent',
+    desc: 'See exactly what the agent remembers between conversations. Read, edit, and manage its long-term memory files.',
+    num: '06',
+  },
+];
+
+const extendedFeatures = [
+  { name: 'Boards', desc: 'Visual Kanban boards for managing agent tasks. Drag cards between columns to update status.' },
+  { name: 'Board Templates', desc: 'Pre-built board blueprints with variables, task dependencies, and recurrence rules. Create a board in 5 steps.' },
+  { name: 'Workflows', desc: 'Design multi-step agent processes as visual flowcharts. Branch, loop, and chain tasks together.' },
+  { name: 'Conductor', desc: 'A mission-control view for coordinating multiple agents working on different parts of a task.' },
+  { name: 'Operations', desc: 'Real-time dashboards showing what the agent and gateway are doing right now.' },
+  { name: 'Matrix3D', desc: 'A 3D visualization of your agents at work — watch them pick up tasks and execute tools in a virtual office.' },
+  { name: 'Profiles', desc: 'Create agent personas with custom personalities, toolsets, and capabilities. A guided 9-step wizard makes it easy.' },
+  { name: 'Self-Improve', desc: 'The agent proposes improvements to itself. You approve, it applies, tests, and keeps or reverts automatically.' },
+  { name: 'Skills', desc: 'Browse, customize, and create reusable skills the agent can call on during conversations.' },
+  { name: 'MCP', desc: 'Connect external tool servers via Model Context Protocol. The agent uses their tools automatically.' },
+  { name: 'Memory', desc: 'See exactly what the agent remembers between conversations. Read and edit its persistent memory files.' },
+  { name: 'Jobs', desc: 'View scheduled background tasks and their run history. See what succeeded, what failed, and what is running now.' },
+  { name: 'Tasks', desc: 'Detailed checklists and tracking for multi-step agent runs. See progress at a glance.' },
+  { name: 'Agora', desc: 'A 2D community space where agent avatars move around, chat, and interact. Community presence for your fleet.' },
+];
+---
+
+<LandingLayout title="SwitchUI — The Interface · Hermes SwitchUI">
+  <TopNav />
+
+  <!-- ─── HERO: INTERFACE STRUCTURE ──────────────────────────── -->
+  <section class="hl-section hl-section--carousel m-scanlines" id="interface" style="padding-top: 100px; padding-bottom: 48px; position: relative; overflow: hidden;">
+    <MatrixRain />
+    <div class="hl-carousel-grid-bg" aria-hidden="true"></div>
+    <div style="position: relative; z-index: 1;">
+      <div class="hl-section-head hl-section-head--center">
+        <div class="hl-section-label hl-section-label--center">
+          <span class="hl-label-line"></span>
+          THE INTERFACE
+          <span class="hl-label-line"></span>
+        </div>
+        <h2 class="hl-section-h2 hl-section-h2--center">Built for focus. Designed for control.</h2>
+        <p class="hl-carousel-sub" style="max-width: 720px; margin: 12px auto 0;">
+          A sidebar on the left for navigation. A main area in the center for the active page. Status indicators where you need them. The app checks what the agent can do on startup and only shows pages that are available — so the interface is always clean and honest about what is possible.
+        </p>
+      </div>
+      <UICarousel />
+    </div>
+  </section>
+
+  <!-- ─── CORE FEATURES ──────────────────────────────────────── -->
+  <div class="glow-divider" aria-hidden="true"></div>
+  <section class="hl-section" id="features">
+    <div class="hl-section-head hl-section-head--center">
+      <div class="hl-section-label hl-section-label--center">
+        <span class="hl-label-line"></span>
+        01 // CORE FEATURES
+        <span class="hl-label-line"></span>
+      </div>
+      <h2 class="hl-section-h2 hl-section-h2--center">Six features you will use every day.</h2>
+    </div>
+    <div class="hl-feat-grid">
+      {coreFeatures.map((f) => (
+        <div class="hl-feat-card reveal">
+          <div class="hl-feat-card-top">
+            <div class="hl-feat-icon" set:html={f.icon} />
+            <span class="hl-feat-num">{f.num}</span>
+          </div>
+          <h3 class="hl-feat-name">{f.name}</h3>
+          <p class="hl-feat-desc">{f.desc}</p>
+          <span class="hl-feat-tag">{f.tag}</span>
+        </div>
+      ))}
+    </div>
+
+    <!-- Extended features list -->
+    <div class="hl-section-head hl-section-head--center" style="margin-top: 64px; margin-bottom: 32px;">
+      <div class="hl-section-label hl-section-label--center">
+        <span class="hl-label-line"></span>
+        EXTENDED CAPABILITIES
+        <span class="hl-label-line"></span>
+      </div>
+      <p class="hl-carousel-sub">These features appear automatically when the agent supports them. If something is not available, the interface simply hides it — no errors, no clutter.</p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;">
+      {extendedFeatures.map((f) => (
+        <div style="border: 1px solid rgba(0, 255, 65, 0.1); border-radius: 4px; padding: 16px 20px; background: rgba(7, 19, 10, 0.4);">
+          <h4 style="font-family: var(--m-font-mono); font-size: 13px; color: #fff; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+            <span style="color: var(--m-green-500);">■</span> {f.name}
+          </h4>
+          <p style="font-size: 12px; line-height: 1.5; color: var(--m-text-muted); margin-bottom: 0;">{f.desc}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <Footer />
+
+  <script>
+    (() => {
+      const els = document.querySelectorAll('.reveal');
+      if (!els.length) return;
+      const observer = new IntersectionObserver(
+        (entries) => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } }),
+        { threshold: 0.08, rootMargin: '0px 0px -32px 0px' }
+      );
+      els.forEach(el => observer.observe(el));
+    })();
+  </script>
+</LandingLayout>

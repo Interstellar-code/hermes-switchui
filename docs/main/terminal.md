@@ -19,7 +19,7 @@ description: Run shell commands directly inside Hermes Switch UI via the built-i
 
 The terminal is rendered by the `TerminalWorkspace` component using **xterm.js** (loaded lazily on the client; never server-side). It can run as a floating panel from the workspace shell or full-screen at the `/terminal` route. A tab bar at the top lets you manage multiple sessions. A Matrix rain canvas animates in the background.
 
-> [SCREENSHOT: Terminal page, full-screen mode, matrix-dark theme]
+![Terminal page in full-screen mode, Matrix dark theme](/screenshots/terminal-redesign-rain-upgraded.png)
 
 ## Major regions
 

@@ -7,7 +7,7 @@ description: Find and install community skills from the skills hub in a few clic
 
 The Skills Hub is a searchable catalogue of community-contributed skills. You can browse it directly from the Skills page and install a skill in a few steps.
 
-> [SCREENSHOT: Skills page in Marketplace view with search box and hub skill cards]
+![Skills page in Marketplace view with search box and hub skill cards](/screenshots/skills.png)
 
 ## Prerequisites
 

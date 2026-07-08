@@ -1,0 +1,135 @@
+---
+import LandingLayout from '../layouts/LandingLayout.astro';
+import TopNav from '../components/TopNav.astro';
+import Footer from '../components/Footer.astro';
+import ArchDiagram from '../components/ArchDiagram.astro';
+import MatrixRain from '../components/MatrixRain.astro';
+---
+
+<LandingLayout title="Hermes Agent — The Runtime · Hermes SwitchUI">
+  <TopNav />
+
+  <!-- ─── HERO: THE RUNTIME ───────────────────────────────────── -->
+  <section class="hl-section m-scanlines" id="top" style="padding-top: 100px; padding-bottom: 48px; position: relative; overflow: hidden;">
+    <MatrixRain />
+    <div style="position: relative; z-index: 1;">
+      <div class="hl-section-head hl-section-head--center">
+        <div class="hl-section-label hl-section-label--center">
+          <span class="hl-label-line"></span>
+          THE RUNTIME
+          <span class="hl-label-line"></span>
+        </div>
+        <h2 class="hl-section-h2 hl-section-h2--center">The powerful engine behind everything.</h2>
+        <p class="hl-carousel-sub" style="max-width: 720px; margin: 12px auto 0;">
+          Hermes Agent runs quietly in the background on your machine. It routes your chats to any AI provider, remembers conversations, manages files, schedules tasks, and ships with 8 custom plugins out of the box. SwitchUI talks to it automatically — you never configure the connection manually.
+        </p>
+      </div>
+      <ArchDiagram />
+    </div>
+  </section>
+
+  <!-- ─── 01 // WHAT THE AGENT DOES ───────────────────────────── -->
+  <div class="glow-divider" aria-hidden="true"></div>
+  <section class="hl-section" id="what-is-agent">
+    <div class="hl-section-head hl-section-head--center">
+      <div class="hl-section-label hl-section-label--center">
+        <span class="hl-label-line"></span>
+        01 // WHAT THE AGENT DOES
+        <span class="hl-label-line"></span>
+      </div>
+      <h2 class="hl-section-h2 hl-section-h2--center">Three things working together behind the scenes.</h2>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-top: 32px;">
+      <div class="hl-feat-card reveal visible">
+        <div class="hl-feat-card-top">
+          <div class="hl-feat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          </div>
+          <span class="hl-feat-num" style="color: var(--m-green-500); font-family: var(--m-font-mono);">Chat</span>
+        </div>
+        <h3 class="hl-feat-name">Gateway</h3>
+        <p class="hl-feat-desc" style="margin-bottom: 0;">
+          The main chat engine. Talks to any AI provider — Anthropic, OpenAI, OpenRouter, Ollama, or any OpenAI-compatible server. Streams responses back in real time.
+        </p>
+      </div>
+
+      <div class="hl-feat-card reveal visible">
+        <div class="hl-feat-card-top">
+          <div class="hl-feat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+          </div>
+          <span class="hl-feat-num" style="color: var(--m-green-500); font-family: var(--m-font-mono);">Manage</span>
+        </div>
+        <h3 class="hl-feat-name">Dashboard</h3>
+        <p class="hl-feat-desc" style="margin-bottom: 0;">
+          The management layer. Handles sessions, skills, memory, kanban boards, background jobs, and configuration. Without it, chat still works — but the extended features stay hidden.
+        </p>
+      </div>
+
+      <div class="hl-feat-card reveal visible">
+        <div class="hl-feat-card-top">
+          <div class="hl-feat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </div>
+          <span class="hl-feat-num" style="color: var(--m-green-500); font-family: var(--m-font-mono);">Auto</span>
+        </div>
+        <h3 class="hl-feat-name">Capability Probing</h3>
+        <p class="hl-feat-desc" style="margin-bottom: 0;">
+          SwitchUI checks what the agent can do on startup and only shows pages that are actually available. If something is missing, the interface simply hides it — no errors, no broken pages.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 02 // EXTENSIBILITY ─────────────────────────────────── -->
+  <div class="glow-divider" aria-hidden="true"></div>
+  <section class="hl-section" id="extensibility">
+    <div class="hl-section-head hl-section-head--center">
+      <div class="hl-section-label hl-section-label--center">
+        <span class="hl-label-line"></span>
+        02 // EXTENSIBILITY
+        <span class="hl-label-line"></span>
+      </div>
+      <h2 class="hl-section-h2 hl-section-h2--center">Three ways to extend what the agent can do.</h2>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-top: 32px;">
+      <div class="hl-feat-card reveal">
+        <div class="hl-feat-card-top">
+          <span class="hl-feat-num" style="color: var(--m-green-500);">A</span>
+        </div>
+        <h3 class="hl-feat-name">Plugins</h3>
+        <p class="hl-feat-desc">Built-in packages that add new capabilities to the agent — workflows, kanban boards, fleet management, and more. SwitchUI bundles <a href="/plugins">8 custom plugins</a>.</p>
+      </div>
+      <div class="hl-feat-card reveal">
+        <div class="hl-feat-card-top">
+          <span class="hl-feat-num" style="color: var(--m-green-500);">B</span>
+        </div>
+        <h3 class="hl-feat-name">MCP Servers</h3>
+        <p class="hl-feat-desc">Connect external tool servers so the agent can use their tools. Install and manage them from the MCP page in SwitchUI.</p>
+      </div>
+      <div class="hl-feat-card reveal">
+        <div class="hl-feat-card-top">
+          <span class="hl-feat-num" style="color: var(--m-green-500);">C</span>
+        </div>
+        <h3 class="hl-feat-name">Skills</h3>
+        <p class="hl-feat-desc">Reusable instructions the agent follows during conversations. Browse, edit, and create them from the Skills page.</p>
+      </div>
+    </div>
+  </section>
+
+  <Footer />
+
+  <script>
+    (() => {
+      const els = document.querySelectorAll('.reveal');
+      if (!els.length) return;
+      const observer = new IntersectionObserver(
+        (entries) => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } }),
+        { threshold: 0.08, rootMargin: '0px 0px -32px 0px' }
+      );
+      els.forEach(el => observer.observe(el));
+    })();
+  </script>
+</LandingLayout>

@@ -1,0 +1,106 @@
+---
+// Standalone Matrix rain canvas — drop into any section for the rain background
+---
+
+<canvas class="matrix-rain-bg" aria-hidden="true" role="presentation"></canvas>
+
+<style>
+  .matrix-rain-bg {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+</style>
+
+<script>
+(() => {
+  const cv = document.querySelector('canvas.matrix-rain-bg') as HTMLCanvasElement | null;
+  if (!cv) return;
+
+  const ctx = cv.getContext('2d')!;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const chars = 'アイウエオカキクケコサシスセソタチツテト0123456789ABCDEF<>/$#%&'.split('');
+  let w: number, h: number, raf: number, running = true;
+
+  interface Stream {
+    x: number; y: number; speed: number; fontSize: number;
+    opacity: number; trailLength: number; glow: boolean; chars: string[];
+  }
+  let streams: Stream[] = [];
+
+  function initStreams() {
+    streams = [];
+    const density = Math.floor(w / 10);
+    for (let i = 0; i < density; i++) {
+      const depth = Math.random();
+      const fontSize = Math.floor(8 + depth * 10);
+      const speed = 0.4 + depth * 1.2;
+      const opacity = 0.04 + depth * 0.16;
+      const glow = depth > 0.6;
+      const trailLength = Math.floor(10 + depth * 12);
+      const streamChars: string[] = [];
+      for (let j = 0; j < trailLength; j++) streamChars.push(chars[Math.floor(Math.random() * chars.length)]);
+      streams.push({ x: Math.random() * w, y: Math.random() * h - h, speed, fontSize, opacity, trailLength, glow, chars: streamChars });
+    }
+  }
+
+  function size() {
+    const r = cv.parentElement!.getBoundingClientRect();
+    w = r.width; h = r.height;
+    cv.width = w * dpr; cv.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    initStreams();
+  }
+
+  function frame() {
+    if (!running) return;
+    ctx.fillStyle = 'rgba(2,8,4,0.12)';
+    ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < streams.length; i++) {
+      const s = streams[i];
+      for (let j = 0; j < s.trailLength; j++) {
+        if (Math.random() < 0.03) s.chars[j] = chars[Math.floor(Math.random() * chars.length)];
+      }
+      ctx.font = `${s.fontSize}px 'JetBrains Mono', monospace`;
+      for (let j = 0; j < s.trailLength; j++) {
+        const charY = s.y - (j * s.fontSize);
+        if (charY < 0 || charY > h) continue;
+        const isHead = j === 0;
+        const isSubHead = j === 1;
+        const fraction = (s.trailLength - j) / s.trailLength;
+        if (isHead) {
+          ctx.fillStyle = `rgba(235, 255, 240, ${s.opacity * 2.5})`;
+        } else if (isSubHead) {
+          ctx.fillStyle = `rgba(0, 255, 65, ${s.opacity * 1.8})`;
+        } else {
+          ctx.fillStyle = `rgba(0, 180, 50, ${s.opacity * fraction})`;
+        }
+        ctx.fillText(s.chars[j], s.x, charY);
+      }
+      s.y += s.speed;
+      if (s.y - (s.trailLength * s.fontSize) > h) {
+        s.y = -s.fontSize;
+        s.x = Math.random() * w;
+        s.speed = 0.4 + Math.random() * 1.2;
+      }
+    }
+    raf = requestAnimationFrame(frame);
+  }
+
+  size();
+  const ro = new ResizeObserver(size);
+  ro.observe(cv.parentElement!);
+
+  const obs = new IntersectionObserver(([e]) => {
+    running = e.isIntersecting;
+    if (running) requestAnimationFrame(frame);
+  }, { threshold: 0 });
+  obs.observe(cv);
+
+  frame();
+})();
+</script>

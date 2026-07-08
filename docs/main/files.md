@@ -19,7 +19,7 @@ description: Browse, edit, upload, and manage files in your Hermes workspace.
 
 The page has a two-column layout. The left side holds a collapsible **Files** tree sidebar. The right side shows a **FilePanel** preview area. At the top of the sidebar is a search input labelled "Search workspace…", plus action buttons to upload, create a new folder, and refresh the tree. A breadcrumb above the tree body shows the currently selected path.
 
-> [SCREENSHOT: Files page, split-pane layout, matrix-dark theme]
+![Files page with split-pane layout in Matrix dark theme](/screenshots/files.png)
 
 ## Major regions
 

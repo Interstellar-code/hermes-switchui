@@ -10,7 +10,7 @@ export interface Props {
 
 const {
   title,
-  description = 'Hermes Switch UI Documentation Portal',
+  description = 'Hermes SwitchUI Documentation Portal',
   activeKey = 'welcome',
 } = Astro.props;
 
@@ -36,7 +36,7 @@ const canonical = Astro.url.href;
   <meta name="twitter:description" content={description} />
 
   <link rel="canonical" href={canonical} />
-  <title>{title} | Hermes Switch UI Docs</title>
+  <title>{title} | Hermes SwitchUI Docs</title>
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -45,15 +45,6 @@ const canonical = Astro.url.href;
 </head>
 <body class="docs-body">
   <a href="#main-docs-content" class="skip-link">Skip to content</a>
-
-  <!-- ── TICKER ── -->
-  <div class="hl-ticker-wrap" aria-hidden="true">
-    <div class="hl-ticker">
-      {Array.from({length: 4}).map(() => (
-        <span class="hl-ticker-text">■&nbsp;&nbsp;SYS_STATUS: ONLINE&nbsp;&nbsp;·&nbsp;&nbsp;GATEWAY: PORT 8642&nbsp;&nbsp;·&nbsp;&nbsp;SECURITY: ENCRYPTED&nbsp;&nbsp;·&nbsp;&nbsp;DOCUMENTATION SYSTEM v1.0&nbsp;&nbsp;·&nbsp;&nbsp;</span>
-      ))}
-    </div>
-  </div>
 
   <!-- ── NAVIGATION HEADER ── -->
   <header class="docs-header">
@@ -163,7 +154,7 @@ const canonical = Astro.url.href;
       <div class="docs-toc-title">On this page</div>
       <ul class="docs-toc-list">
         <li><a href="#welcome" class="docs-toc-link">Welcome</a></li>
-        <li><a href="#what-is-hermes-switch-ui" class="docs-toc-link">What is Hermes Switch UI</a></li>
+        <li><a href="#what-is-hermes-switch-ui" class="docs-toc-link">What is Hermes SwitchUI</a></li>
         <li><a href="#architecture-at-a-glance" class="docs-toc-link">Architecture at a glance</a></li>
         <li><a href="#what-happens-when-you-send-a-message" class="docs-toc-link">What happens when you send a message</a></li>
         <li><a href="#what-you-can-do" class="docs-toc-link">What you can do</a></li>

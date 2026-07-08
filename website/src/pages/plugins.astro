@@ -1,0 +1,128 @@
+---
+import LandingLayout from '../layouts/LandingLayout.astro';
+import TopNav from '../components/TopNav.astro';
+import Footer from '../components/Footer.astro';
+import MatrixRain from '../components/MatrixRain.astro';
+
+const customPlugins = [
+  {
+    name: 'matrix_coder',
+    version: '0.6.1',
+    category: 'Intelligence',
+    desc: 'Turns the agent into a focused coding specialist. Automatically routes your request to the right expert role — planning, building, reviewing, debugging, or testing.',
+  },
+  {
+    name: 'workflow-engine',
+    version: '0.1.0',
+    category: 'Automation',
+    desc: 'Lets you design multi-step processes as visual flowcharts. The agent follows each step, branches on conditions, runs tasks in parallel, and waits for your approval at key points.',
+  },
+  {
+    name: 'a2a_fleet',
+    version: '0.8.14',
+    category: 'Collaboration',
+    desc: 'Lets multiple agents work together. Deploy specialist agents (Claude Code, OpenCode, Codex) and have them trade tasks back and forth on the same project.',
+  },
+  {
+    name: 'mcp_lazy',
+    version: '0.2.0',
+    category: 'Infrastructure',
+    desc: 'Saves tokens by only loading tool details when the agent actually needs them. Cuts MCP overhead by ~80% per conversation turn.',
+  },
+  {
+    name: 'kanban',
+    version: '1.0.0',
+    category: 'Collaboration',
+    desc: 'Visual task boards the agent can read and update. Drag cards between columns, assign tasks to agents, attach files, and track progress. Powers the Boards and Tasks pages.',
+  },
+  {
+    name: 'karpathy-self-improve',
+    version: '0.1.0',
+    category: 'Intelligence',
+    desc: 'The agent proposes improvements to itself. You approve, it applies the change, tests it, and keeps or reverts automatically. Powers the Self-Improve page.',
+  },
+  {
+    name: 'personas',
+    version: '0.1.0',
+    category: 'Intelligence',
+    desc: 'A library of 20 ready-made agent personalities. Pick one during profile setup and the agent adopts that persona\'s style, tone, and expertise.',
+  },
+  {
+    name: 'hermes-switch-ui',
+    version: '0.1.0',
+    category: 'Infrastructure',
+    desc: 'Keeps SwitchUI and the agent in sync. Registers the frontend on startup, sends regular heartbeats, and shares settings so both sides always know what the other is doing.',
+  },
+];
+---
+
+<LandingLayout title="Plugins — 8 Custom Plugins · Hermes SwitchUI">
+  <TopNav />
+
+  <!-- ─── HERO: CUSTOM PLUGINS ────────────────────────────────── -->
+  <section class="hl-section m-scanlines" id="top" style="padding-top: 100px; padding-bottom: 48px; position: relative; overflow: hidden;">
+    <MatrixRain />
+    <div style="position: relative; z-index: 1;">
+      <div class="hl-section-head hl-section-head--center">
+        <div class="hl-section-label hl-section-label--center">
+          <span class="hl-label-line"></span>
+          CUSTOM PLUGINS
+          <span class="hl-label-line"></span>
+        </div>
+        <h2 class="hl-section-h2 hl-section-h2--center">8 plugins that make the agent smarter.</h2>
+        <p class="hl-carousel-sub" style="max-width: 720px; margin: 12px auto 0;">
+          Every Hermes Agent install ships with 8 custom plugins built in. They add coding expertise, task boards, multi-agent collaboration, workflow automation, and more — no installation needed. Full docs at <a href="/docs/plugins/overview/">/docs/plugins</a>.
+        </p>
+      </div>
+
+      <!-- ─── PLUGIN GRID ─────────────────────────────────────── -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-top: 48px;">
+        {customPlugins.map((p, i) => (
+          <div class="hl-feat-card reveal" style="padding: 24px 28px;">
+            <div class="hl-feat-card-top" style="margin-bottom: 4px;">
+              <span style="font-family: var(--m-font-mono); font-size: 11px; color: var(--m-text-faint); letter-spacing: 0.2em;">{(i + 1).toString().padStart(2, '0')} // {p.category.toUpperCase()}</span>
+              <span style="font-family: var(--m-font-mono); font-size: 11px; color: var(--m-green-500);">v{p.version}</span>
+            </div>
+            <h3 style="font-family: var(--m-font-mono); font-size: 18px; color: #fff; margin-bottom: 10px;">
+              <span style="color: var(--m-green-500);">{`>`}</span> {p.name}
+            </h3>
+            <p style="font-size: 13px; line-height: 1.6; color: var(--m-text-muted); margin-bottom: 16px;">{p.desc}</p>
+            <a href={`/docs/plugins/${p.name.replace(/_/g, '-')}/`} style="font-family: var(--m-font-mono); font-size: 11px; color: var(--m-green-300); text-decoration: none; border-bottom: 1px solid rgba(0,255,65,0.2); padding-bottom: 2px;">
+              docs → {p.name.replace(/_/g, '-')}
+            </a>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── BACKEND SYNC ───────────────────────────────────────── -->
+  <div class="glow-divider" aria-hidden="true"></div>
+  <section class="hl-section" id="sync">
+    <div class="hl-section-head hl-section-head--center">
+      <div class="hl-section-label hl-section-label--center">
+        <span class="hl-label-line"></span>
+        SWITCHUI ↔ AGENT SYNC
+        <span class="hl-label-line"></span>
+      </div>
+      <h2 class="hl-section-h2 hl-section-h2--center">Always in sync. Automatically.</h2>
+      <p class="hl-carousel-sub" style="max-width: 720px; margin: 12px auto 0;">
+        The <code>hermes-switch-ui</code> plugin keeps SwitchUI and the agent connected. It registers on startup, sends regular heartbeats, and shares your settings — so both sides always know what the other is doing. You can see the live status in Settings under "Hermes Plugin".
+      </p>
+    </div>
+  </section>
+
+  <Footer />
+
+  <script>
+    (() => {
+      const els = document.querySelectorAll('.reveal');
+      if (!els.length) return;
+      const observer = new IntersectionObserver(
+        (entries) => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } }),
+        { threshold: 0.08, rootMargin: '0px 0px -32px 0px' }
+      );
+      els.forEach(el => observer.observe(el));
+    })();
+  </script>
+</LandingLayout>

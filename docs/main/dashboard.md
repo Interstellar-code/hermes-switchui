@@ -25,7 +25,7 @@ Navigate to `/dashboard` from the left nav. The page loads from top to bottom:
 4. **Main content grid** — an analytics chart on the left with a right-side rail of smaller cards
 5. **Sessions intelligence** — a list of recent sessions below the chart area
 
-> [SCREENSHOT: dashboard full view, matrix-dark theme]
+![Dashboard full view in Matrix dark theme](/screenshots/dashboard.png)
 
 ## Cards and regions
 

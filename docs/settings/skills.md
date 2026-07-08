@@ -15,7 +15,7 @@ The Skills page is the central place to browse, search, and manage the skills av
   style="border: 0; border-radius: 8px;"
 ></iframe>
 
-> [SCREENSHOT: Skills page in grid view with filter bar at top, several skill cards visible]
+![Skills page in grid view with filter bar and skill cards](/screenshots/skills.png)
 
 ## What you see
 

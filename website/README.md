@@ -62,5 +62,5 @@ This project is configured to run fully static, requiring **no server-side Node.
 
 ## 📄 Version & Changelog
 
-- Current Version: `v2.3.18` stable.
+- Current Version: `v2.5.1` stable.
 - Complete feature adjustments and historical fixes can be reviewed in the [CHANGELOG.md](./CHANGELOG.md).

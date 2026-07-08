@@ -440,7 +440,7 @@ Access Switch UI from anywhere on your devices:
 
 ### Themes
 
-Five themes: **Matrix** (default, dark), Claude Nous, Claude Official, Claude Classic, Claude Slate. Applied via `data-theme` on `<html>`. Stored in `localStorage` under `claude-theme`.
+Ten themes across five base palettes — **Matrix** (default), Claude Nous, Claude Official, Claude Classic, Claude Slate — each available in dark and light variants. Applied via `data-theme` on `<html>`. Stored in `localStorage` under `claude-theme`.
 
 ### Matrix design system
 
@@ -493,7 +493,7 @@ Switch UI is a frontend over the [Interstellar-code/hermes-agent](https://github
 | `personas` | 0.1.0 | Canonical 20-persona store; backs the profile wizard |
 | `hermes-switch-ui` | 0.1.0 | Backend awareness + config sync for the UI |
 
-Full plugin documentation: [docs/plugins/](https://interstellar-code.github.io/hermes-switchui/plugins/).
+Full plugin documentation: [docs/plugins/](https://interstellar-code.github.io/hermes-switchui/plugins/overview/).
 
 ---
 

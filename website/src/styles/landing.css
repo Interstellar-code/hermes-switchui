@@ -94,32 +94,6 @@ body {
 }
 .skip-link:focus { top: 0 !important; }
 
-/* ─── Ticker bar ─────────────────────────────────────────────────────────── */
-.hl-ticker-wrap {
-  height: 28px;
-  background: #030d06;
-  border-bottom: 1px solid rgba(0,255,65,.18);
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-}
-.hl-ticker {
-  display: flex;
-  animation: hlTick 36s linear infinite;
-  white-space: nowrap;
-}
-.hl-ticker-text {
-  font-size: 10px;
-  font-family: var(--m-font-mono);
-  color: rgba(216,255,227,.36);
-  letter-spacing: .12em;
-  flex-shrink: 0;
-}
-@keyframes hlTick {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
-}
-
 /* ─── Navigation ─────────────────────────────────────────────────────────── */
 .topnav {
   position: sticky;
@@ -182,6 +156,8 @@ body {
   transition: color var(--m-dur-fast);
 }
 .hl-navlink:hover { color: var(--m-green-500); }
+.hl-navlink--active { color: var(--m-green-300); }
+.hl-navlink--active:hover { color: var(--m-green-300); }
 
 .topnav-right {
   display: flex;
@@ -293,7 +269,8 @@ body {
   font: 400 13px/1.95 var(--m-font-mono);
   backdrop-filter: blur(10px);
   text-align: left;
-  transition: margin-bottom 0.3s ease;
+  transition: max-height 0.5s cubic-bezier(.22,1,.36,1), opacity 0.4s ease, padding 0.5s cubic-bezier(.22,1,.36,1), margin-bottom 0.5s cubic-bezier(.22,1,.36,1);
+  overflow: hidden;
   min-height: 80px;
 }
 .boot-line { animation: hlSlide .16s ease-out; }

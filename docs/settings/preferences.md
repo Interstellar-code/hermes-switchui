@@ -7,7 +7,7 @@ description: Configure global preferences using the Settings sidebar.
 
 Settings in Hermes Switch UI are organised into a sidebar-navigated screen. Open **Settings** from the sidebar (gear icon). The left sidebar groups sections by category; the right pane shows the active section's controls.
 
-> [SCREENSHOT: Settings screen open on the Workspace section]
+![Settings screen open on the Workspace section](/screenshots/settings.png)
 
 ## What you see
 

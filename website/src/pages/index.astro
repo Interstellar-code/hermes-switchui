@@ -1,302 +1,111 @@
 ---
 import LandingLayout from '../layouts/LandingLayout.astro';
 import TopNav from '../components/TopNav.astro';
+import Footer from '../components/Footer.astro';
 import HeroRain from '../components/HeroRain.astro';
-import UICarousel from '../components/UICarousel.astro';
-import ArchDiagram from '../components/ArchDiagram.astro';
-import { SITE_VERSION } from '../site-version';
-
-const coreFeatures = [
-  {
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><path d="M4 5h16v11H8l-4 4z"/></svg>',
-    name: 'Chat',
-    tag: 'streaming',
-    desc: 'Conversations with your chosen AI provider, with streaming responses, sessions, and a context-window indicator.',
-    num: '01',
-  },
-  {
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.6 3.6 3 8 3s8-1.4 8-3V6M4 12v6c0 1.6 3.6 3 8 3s8-1.4 8-3v-6"/></svg>',
-    name: 'Sessions',
-    tag: 'persistent',
-    desc: 'Browse past chats and resume them effortlessly from local disk storage.',
-    num: '02',
-  },
-  {
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
-    name: 'Files',
-    tag: 'local access',
-    desc: 'Read, write, and browse files the agent has secure host permissions to access.',
-    num: '03',
-  },
-  {
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
-    name: 'Terminal',
-    tag: 'PTY native',
-    desc: 'Open a real, high-performance PTY terminal inside the browser shell app.',
-    num: '04',
-  },
-  {
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17v-5M12 17V9M15 17v-3"/></svg>',
-    name: 'Dashboard',
-    tag: 'observability',
-    desc: 'Monitor health, background queue jobs, and active connection status.',
-    num: '05',
-  },
-];
-
-const extendedFeatures = [
-  {
-    name: 'Boards',
-    desc: 'Kanban board for agent task queues when the kanban plugin is loaded.',
-  },
-  {
-    name: 'Board Templates',
-    desc: 'Reusable parameterized kanban board blueprints — define {{variables}}, task DAGs, recurrence, and per-task runtime budgets via a 5-step creation wizard.',
-  },
-  {
-    name: 'Workflows',
-    desc: 'Multi-step agent logic flows defined as interactive charts and graphs.',
-  },
-  {
-    name: 'Conductor',
-    desc: 'A higher-level mission-control surface for multi-agent coordination.',
-  },
-  {
-    name: 'Operations',
-    desc: 'Live operational dashboards showing system and gateway activity.',
-  },
-  {
-    name: 'Matrix3D',
-    desc: 'A 3D office visualization of running agents executing tools.',
-  },
-  {
-    name: 'Profiles',
-    desc: '9-step agent profile wizard with persona prefill, toolset selection, C-suite personas, and edit mode.',
-  },
-  {
-    name: 'Self-Improve',
-    desc: 'Self-improvement lifecycle — propose → approve → apply → verify → revert — with baseline chart and scenario runs.',
-  },
-  {
-    name: 'Skills',
-    desc: 'Browse, customize, and edit programmatic skills agents can invoke.',
-  },
-  {
-    name: 'MCP',
-    desc: 'Manage Model Context Protocol servers the agent connects to.',
-  },
-  {
-    name: 'Memory',
-    desc: "View and edit the agent's persistent long-term memory files.",
-  },
-  {
-    name: 'Jobs',
-    desc: 'Check historical progress and active background job queues.',
-  },
-  {
-    name: 'Tasks',
-    desc: 'Detailed tracking and checklists for multi-phase agent runs.',
-  },
-  {
-    name: 'Agora',
-    desc: 'A 2D community lobby where agent avatars move, chat, and interact in a shared world canvas — community presence for your fleet.',
-  },
-];
-
-const customPlugins = [
-  {
-    name: 'kanban',
-    desc: 'Board + dispatcher that backs the agent task queues surfaced in the Boards page.',
-  },
-  {
-    name: 'workflow-engine',
-    desc: 'DAG workflow engine — runs YAML-defined multi-node flows with conditional branching, parallel execution, approval gates, cron polling, and Kanban task dispatch.',
-  },
-  {
-    name: 'a2a_fleet',
-    desc: 'Agent-to-Agent peering — embedded A2A server, the fleet_send tool, and managed executors (Claude Code, OpenCode, Codex, Antigravity).',
-  },
-  {
-    name: 'mcp_lazy',
-    desc: 'Lazy MCP tool-schema loading — sends stub schemas and promotes full ones on demand, cutting ~80% of per-turn MCP token overhead.',
-  },
-  {
-    name: 'karpathy-self-improve',
-    desc: 'Autonomous self-improvement loop — collects metrics, proposes diffs, evaluates, and promotes or reverts via a git ratchet.',
-  },
-  {
-    name: 'personas',
-    desc: 'First-class personas — canonical template library, runtime tools on every platform, and a REST API the profile wizard consumes.',
-  },
-  {
-    name: 'matrix_coder',
-    desc: 'Turns the active agent into a focused coding specialist via trusted developer-tier persona injection, with roles, review lenses, and Kanban audit mirroring.',
-  },
-  {
-    name: 'hermes-switch-ui',
-    desc: 'Gives the agent awareness of this SwitchUI frontend and keeps the two sides in sync.',
-  },
-];
 ---
 
-<LandingLayout title="Hermes Switch UI — Your Agents. One Workspace.">
+<LandingLayout title="Hermes SwitchUI — Your Agents. One Interface.">
   <TopNav />
   <HeroRain />
 
-  <!-- ─── PAIRED PROCESSES ────────────────────────────────────── -->
+  <!-- ─── WHAT IS IT ──────────────────────────────────────────── -->
   <div class="glow-divider" aria-hidden="true"></div>
-  <section class="hl-section" id="paired-processes">
+  <section class="hl-section" id="what-is-it">
     <div class="hl-section-head hl-section-head--center">
       <div class="hl-section-label hl-section-label--center">
         <span class="hl-label-line"></span>
-        WHAT IS HERMES SWITCH UI
+        WHAT IS HERMES SWITCHUI
         <span class="hl-label-line"></span>
       </div>
-      <h2 class="hl-section-h2 hl-section-h2--center">A local AI front-end paired with a powerful background runtime.</h2>
+      <h2 class="hl-section-h2 hl-section-h2--center">Two pieces. One seamless experience.</h2>
       <p class="hl-carousel-sub" style="max-width: 720px; margin: 12px auto 0;">
-        Hermes Switch UI is the front-end for the Hermes Agent — a local AI assistant runtime. The app runs in your browser at <code>http://localhost:3000</code> (by default) and talks to the Hermes Agent gateway on port <code>8642</code>.
+        Hermes SwitchUI is a beautiful, Matrix-themed web interface for the Hermes Agent — a powerful local AI runtime that ships with 8 custom plugins. You open it in your browser. It talks to the agent running on your machine. No cloud, no subscriptions, full control.
       </p>
     </div>
 
-    <!-- Paired processes box layout -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-top: 32px;">
-      <div class="hl-feat-card reveal visible">
+      <a href="/switchui" class="hl-feat-card reveal visible" style="text-decoration: none; color: inherit;">
         <div class="hl-feat-card-top">
           <div class="hl-feat-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
           </div>
-          <span class="hl-feat-num" style="color: var(--m-green-500); font-family: var(--m-font-mono);">Port 3000</span>
+          <span class="hl-feat-num" style="color: var(--m-green-500); font-family: var(--m-font-mono);">Interface</span>
         </div>
-        <h3 class="hl-feat-name">Hermes Switch UI</h3>
+        <h3 class="hl-feat-name">SwitchUI</h3>
         <p class="hl-feat-desc" style="margin-bottom: 0;">
-          The immersive, terminal-native web app you interact with. Seamlessly routes prompts, displays streaming responses, and manages live terminal sessions.
+          The web app you open in your browser. Chat with AI, browse files, run terminals, manage agents — all wrapped in a stunning Matrix-inspired theme.
         </p>
-      </div>
+      </a>
 
-      <div class="hl-feat-card reveal visible">
+      <a href="/hermes" class="hl-feat-card reveal visible" style="text-decoration: none; color: inherit;">
         <div class="hl-feat-card-top">
           <div class="hl-feat-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
           </div>
-          <span class="hl-feat-num" style="color: var(--m-green-500); font-family: var(--m-font-mono);">Port 8642</span>
+          <span class="hl-feat-num" style="color: var(--m-green-500); font-family: var(--m-font-mono);">Engine</span>
         </div>
         <h3 class="hl-feat-name">Hermes Agent</h3>
         <p class="hl-feat-desc" style="margin-bottom: 0;">
-          The local gateway backend that handles AI providers, sessions, file structures, secure storage, and schedules. All custom provider APIs switch seamlessly in one place.
+          The powerful AI engine running in the background. Handles providers, remembers conversations, manages tools, and ships with 8 custom plugins out of the box.
         </p>
-      </div>
+      </a>
     </div>
   </section>
 
-  <!-- ─── 01 · FEATURES ───────────────────────────────────────── -->
+  <!-- ─── EXPLORE ─────────────────────────────────────────────── -->
   <div class="glow-divider" aria-hidden="true"></div>
-  <section class="hl-section" id="features">
+  <section class="hl-section" id="explore">
     <div class="hl-section-head hl-section-head--center">
       <div class="hl-section-label hl-section-label--center">
         <span class="hl-label-line"></span>
-        01 // CORE FEATURES
+        EXPLORE
         <span class="hl-label-line"></span>
       </div>
-      <h2 class="hl-section-h2 hl-section-h2--center">What you can do directly inside the workspace.</h2>
+      <h2 class="hl-section-h2 hl-section-h2--center">Dive deeper into each layer.</h2>
     </div>
-    <div class="hl-feat-grid">
-      {coreFeatures.map((f) => (
-        <div class="hl-feat-card reveal">
-          <div class="hl-feat-card-top">
-            <div class="hl-feat-icon" set:html={f.icon} />
-            <span class="hl-feat-num">{f.num}</span>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;">
+      <a href="/switchui" class="hl-feat-card reveal" style="text-decoration: none; color: inherit;">
+        <div class="hl-feat-card-top">
+          <div class="hl-feat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V9M15 17v-5M3 9h18"/></svg>
           </div>
-          <h3 class="hl-feat-name">{f.name}</h3>
-          <p class="hl-feat-desc">{f.desc}</p>
-          <span class="hl-feat-tag">{f.tag}</span>
+          <span class="hl-feat-num">→</span>
         </div>
-      ))}
-    </div>
+        <h3 class="hl-feat-name">SwitchUI</h3>
+        <p class="hl-feat-desc">See every feature the interface offers — chat, files, terminal, dashboard, boards, workflows, Matrix3D, and 10+ more capabilities that light up automatically.</p>
+      </a>
 
-    <!-- Extended features list -->
-    <div class="hl-section-head hl-section-head--center" style="margin-top: 64px; margin-bottom: 32px;">
-      <div class="hl-section-label hl-section-label--center">
-        <span class="hl-label-line"></span>
-        EXTENDED CAPABILITIES
-        <span class="hl-label-line"></span>
-      </div>
-      <p class="hl-carousel-sub">Gracefully handles missing capabilities and degrades seamlessly depending on gateway configuration.</p>
-    </div>
-
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;">
-      {extendedFeatures.map((f) => (
-        <div style="border: 1px solid rgba(0, 255, 65, 0.1); border-radius: 4px; padding: 16px 20px; background: rgba(7, 19, 10, 0.4);">
-          <h4 style="font-family: var(--m-font-mono); font-size: 13px; color: #fff; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
-            <span style="color: var(--m-green-500);">■</span> {f.name}
-          </h4>
-          <p style="font-size: 12px; line-height: 1.5; color: var(--m-text-muted); margin-bottom: 0;">{f.desc}</p>
+      <a href="/hermes" class="hl-feat-card reveal" style="text-decoration: none; color: inherit;">
+        <div class="hl-feat-card-top">
+          <div class="hl-feat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          </div>
+          <span class="hl-feat-num">→</span>
         </div>
-      ))}
+        <h3 class="hl-feat-name">Hermes Agent</h3>
+        <p class="hl-feat-desc">Understand the engine — how it routes AI providers, manages memory, probes capabilities, and stays extensible through plugins, MCP servers, and skills.</p>
+      </a>
+
+      <a href="/plugins" class="hl-feat-card reveal" style="text-decoration: none; color: inherit;">
+        <div class="hl-feat-card-top">
+          <div class="hl-feat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="18" height="18"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <span class="hl-feat-num">→</span>
+        </div>
+        <h3 class="hl-feat-name">Plugins</h3>
+        <p class="hl-feat-desc">Meet the 8 custom plugins that supercharge the agent — workflow engine, kanban boards, agent-to-agent fleet, lazy MCP, self-improvement, and more.</p>
+      </a>
     </div>
   </section>
 
-  <!-- ─── 02 · ARCHITECTURE ────────────────────────────────────── -->
-  <div class="glow-divider" aria-hidden="true"></div>
-  <section class="hl-section" id="architecture">
-    <div class="hl-section-head hl-section-head--center">
-      <div class="hl-section-label hl-section-label--center">
-        <span class="hl-label-line"></span>
-        02 // ARCHITECTURE AT A GLANCE
-        <span class="hl-label-line"></span>
-      </div>
-      <h2 class="hl-section-h2 hl-section-h2--center">Fully local, layered, high-fidelity data pipelines.</h2>
-      <p class="hl-carousel-sub" style="max-width: 720px; margin: 12px auto 0;">
-        The stack is four layers deep — all local, all yours. The <strong>Switch UI frontend</strong> (port 3000) talks to the <strong>Hermes Agent gateway</strong> (port 8642) and its companion <strong>dashboard</strong> (port 9119). The gateway drives the <strong>agent runtime</strong> — provider routing, sessions, memory, file access, and scheduling — and is extended by <strong>8 custom plugins</strong>: kanban, workflow-engine, a2a_fleet, mcp_lazy, karpathy-self-improve, personas, matrix_coder, and hermes-switch-ui. A chat round-trip is fully streamed — you see tokens land as the provider emits them, and the agent persists the session as it goes.
-      </p>
-    </div>
-    <ArchDiagram />
-
-    <!-- Custom plugins detail -->
-    <div class="hl-section-head hl-section-head--center" style="margin-top: 64px; margin-bottom: 32px;">
-      <div class="hl-section-label hl-section-label--center">
-        <span class="hl-label-line"></span>
-        8 CUSTOM PLUGINS
-        <span class="hl-label-line"></span>
-      </div>
-      <p class="hl-carousel-sub" style="max-width: 720px; margin: 0 auto;">Fork-specific plugins that extend the Hermes Agent gateway. Each ships its own README in the <a href="https://github.com/Interstellar-code/hermes-agent/tree/main/plugins" target="_blank" rel="noopener">hermes-agent</a> repo.</p>
-    </div>
-
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;">
-      {customPlugins.map((f) => (
-        <div style="border: 1px solid rgba(0, 255, 65, 0.1); border-radius: 4px; padding: 16px 20px; background: rgba(7, 19, 10, 0.4);">
-          <h4 style="font-family: var(--m-font-mono); font-size: 13px; color: #fff; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
-            <span style="color: var(--m-green-500);">■</span> {f.name}
-          </h4>
-          <p style="font-size: 12px; line-height: 1.5; color: var(--m-text-muted); margin-bottom: 0;">{f.desc}</p>
-        </div>
-      ))}
-    </div>
-  </section>
-
-
-  <!-- ─── 03 · INTERFACE CAROUSEL ────────────────────────────── -->
-  <div class="glow-divider" aria-hidden="true"></div>
-  <section class="hl-section hl-section--carousel" id="interface">
-    <div class="hl-carousel-grid-bg" aria-hidden="true"></div>
-    <div class="hl-section-head hl-section-head--center">
-      <div class="hl-section-label hl-section-label--center">
-        <span class="hl-label-line"></span>
-        03 // INTERFACE STRUCTURE
-        <span class="hl-label-line"></span>
-      </div>
-      <h2 class="hl-section-h2 hl-section-h2--center">A dynamic shell designed for absolute control.</h2>
-      <p class="hl-carousel-sub" style="max-width: 720px; margin: 12px auto 0;">
-        The sidebar on the left holds the page navigation. The main area in the center is the active page. Connection status and other ambient info show in the header or status panel where relevant. The app probes the Hermes Agent on startup to figure out which features are available, then enables or hides pages accordingly.
-      </p>
-    </div>
-    <UICarousel />
-  </section>
-
-  <!-- ─── 04 · GET STARTED ────────────────────────────────────── -->
+  <!-- ─── GET STARTED ─────────────────────────────────────────── -->
   <div class="glow-divider" aria-hidden="true"></div>
   <section class="hl-install-section" id="cta">
     <div class="hl-install-inner">
-      <div class="hl-section-label hl-section-label--center">04 // GET STARTED</div>
+      <div class="hl-section-label hl-section-label--center">GET STARTED</div>
       <h2 class="hl-install-heading">
         Deploy in <span class="hl-glow-text">minutes.</span>
       </h2>
@@ -316,22 +125,9 @@ const customPlugins = [
     </div>
   </section>
 
-  <!-- ─── FOOTER ──────────────────────────────────────────────── -->
-  <div class="glow-divider" style="opacity:0.5" aria-hidden="true"></div>
-  <footer class="hl-footer">
-    <div class="hl-footer-left">
-      <div class="hl-footer-glyph">ᕼ</div>
-      <span class="hl-footer-text">Hermes Switch UI · v<span id="site-version-footer">{SITE_VERSION}</span> · MIT License · <span class="hl-footer-online">SYS::ONLINE</span></span>
-    </div>
-    <div class="hl-footer-links">
-      <a href="/docs/welcome" class="hl-footlink">Docs Portal</a>
-      <a href="https://github.com/Interstellar-code/hermes-switchui" class="hl-footlink">GitHub</a>
-      <a href="https://github.com/Interstellar-code/hermes-switchui/releases" class="hl-footlink">Changelog</a>
-    </div>
-  </footer>
+  <Footer />
 
   <script>
-    // Scroll reveal — feature cards and arch diagram
     (() => {
       const els = document.querySelectorAll('.reveal');
       if (!els.length) return;

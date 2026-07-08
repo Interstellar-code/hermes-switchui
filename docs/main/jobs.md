@@ -21,7 +21,7 @@ description: Monitor long-running background jobs kicked off by your AI agent.
 
 The page heading reads **Cron Jobs** with a live count of Total, Active, Paused, and Error jobs in the header row. A **New Cron** button opens the creation wizard. Below the header a filter bar provides a search input, **Status** pills (All / active / paused / error), **Cadence** pills (All / hourly / daily / weekly / custom), and a grid/table view toggle. The main area is a paginated canvas showing the filtered job set.
 
-> [SCREENSHOT: Jobs page, grid view, matrix-dark theme]
+![Jobs page in grid view, Matrix dark theme](/screenshots/jobs.png)
 
 ## Major regions
 

@@ -63,8 +63,8 @@ export default defineConfig({
   },
   integrations: [
     starlight({
-      title: 'Hermes Switch UI',
-      description: 'Documentation for Hermes Switch UI — the browser-based shell for the Hermes Agent runtime.',
+      title: 'Hermes SwitchUI',
+      description: 'Documentation for Hermes SwitchUI — the browser-based shell for the Hermes Agent runtime.',
       customCss: ['/src/styles/starlight-docs.css'],
       components: {
         SiteTitle: './src/components/StarlightSiteTitle.astro',
@@ -101,20 +101,25 @@ export default defineConfig({
             { label: 'Files in Chat', slug: 'main/chat/files' },
             { label: 'Slash Commands', slug: 'main/chat/slash-commands' },
             { label: 'Keyboard Shortcuts', slug: 'main/chat/shortcuts' },
+            { label: 'Commands', slug: 'main/chat/commands' },
             { label: 'Dashboard', slug: 'main/dashboard' },
             { label: 'Files', slug: 'main/files' },
             { label: 'Terminal', slug: 'main/terminal' },
             { label: 'Boards', slug: 'main/boards' },
+            { label: 'Board Templates', slug: 'main/board-templates' },
             { label: 'Jobs', slug: 'main/jobs' },
             { label: 'Tasks', slug: 'main/tasks' },
             { label: 'Conductor', slug: 'main/conductor' },
             { label: 'Operations', slug: 'main/operations' },
             { label: 'Matrix3D', slug: 'main/matrix3d' },
+            { label: 'Self-Improve', slug: 'main/self-improve' },
+            { label: 'Agora', slug: 'main/agora' },
           ],
         },
         {
           label: 'Workflows',
           items: [
+            { label: 'Hub', slug: 'main/workflows' },
             { label: 'Overview', slug: 'main/workflows/overview' },
             { label: 'Editing', slug: 'main/workflows/editing' },
             { label: 'Running', slug: 'main/workflows/running' },
@@ -165,6 +170,10 @@ export default defineConfig({
             { label: 'Workflow Engine', slug: 'plugins/workflow-engine' },
             { label: 'Lazy Load MCP', slug: 'plugins/lazy-load-mcp' },
             { label: 'Matrix Coder', slug: 'plugins/matrix-coder' },
+            { label: 'Kanban', slug: 'plugins/kanban' },
+            { label: 'Personas', slug: 'plugins/personas' },
+            { label: 'Self-Improve', slug: 'plugins/self-improve' },
+            { label: 'Hermes SwitchUI', slug: 'plugins/hermes-switch-ui' },
           ],
         },
         {

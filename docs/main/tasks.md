@@ -21,7 +21,7 @@ description: Track discrete tasks assigned to or created by your AI agent.
 
 The page renders a full-width Kanban board with columns for each task status. A top bar holds view-toggle buttons for **Board**, **Swim**, and **Timeline** layouts, plus a **New Task** button (+ icon), a filter/sort controls button (settings icon), and an alert badge for tasks needing attention. A URL search parameter (`?assignee=`) lets you deep-link to a filtered view.
 
-> [SCREENSHOT: Tasks board view, matrix-dark theme]
+![Tasks board view in Matrix dark theme](/screenshots/tasks.png)
 
 ## Major regions
 
