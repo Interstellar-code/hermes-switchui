@@ -57,13 +57,13 @@ jobs:
 
       - name: Prepare web root directories
         run: |
-          # The deploy user is in the zionadmin group which has group-write
-          # on the web root. Create new route directories without sudo —
-          # the deploy user owns them and rsync can write into them.
-          # The chown step after rsync will fix ownership to zionadmin.
+          # Directories from prior deploys are owned by zionadmin without
+          # group-write. The deploy user can't chmod them. But the deploy
+          # user has group-write on the PARENT (web root), so we can delete
+          # and recreate the route dirs owned by the deploy user.
           ssh -i ~/.ssh/deploy_key -p "${{ secrets.SSH_PORT || '22' }}" \
             "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-            "mkdir -p ${{ secrets.DEPLOY_PATH }}/switchui ${{ secrets.DEPLOY_PATH }}/hermes ${{ secrets.DEPLOY_PATH }}/plugins && echo 'dirs ready'"
+            "rm -rf ${{ secrets.DEPLOY_PATH }}/switchui ${{ secrets.DEPLOY_PATH }}/hermes ${{ secrets.DEPLOY_PATH }}/plugins && mkdir -p ${{ secrets.DEPLOY_PATH }}/switchui ${{ secrets.DEPLOY_PATH }}/hermes ${{ secrets.DEPLOY_PATH }}/plugins && echo 'dirs recreated'"
 
       - name: Deploy dist/ to web root
         run: |
