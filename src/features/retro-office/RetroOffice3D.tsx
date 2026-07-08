@@ -227,6 +227,9 @@ import {
 
 type OfficeDeskMonitorMap = Record<string, OfficeDeskMonitor>;
 type RenderAgentUiSnapshot = Pick<RenderAgent, "state" | "status">;
+type RenderAgentUiSnapshotById = Partial<Record<string, RenderAgentUiSnapshot>>;
+type AgentActivityStatus = { isError: boolean; working: boolean };
+type AgentActivityStatusById = Partial<Record<string, AgentActivityStatus>>;
 type FeedEvent = {
   id: string;
   name: string;
@@ -440,7 +443,7 @@ const NOOP_FURNITURE_UID_HANDLER = () => {};
 const NOOP_FURNITURE_HANDLER = () => {};
 const EMPTY_FURNITURE_ITEMS: Array<FurnitureItem> = [];
 
-const ReadOnlyFurnitureClone = memo(function ReadOnlyFurnitureClone({
+const ReadOnlyFurnitureClone = memo(function ReadOnlyFurnitureCloneInner({
   furniture,
 }: {
   furniture: Array<FurnitureItem>;
@@ -2742,9 +2745,8 @@ export function RetroOffice3D({
   const autoOpenedStandupIdRef = useRef<string | null>(null);
   // Idea 1 (original): hovered agent for tooltip overlay.
   const [hoveredAgentId, setHoveredAgentId] = useState<string | null>(null);
-  const [renderAgentUiById, setRenderAgentUiById] = useState<
-    Record<string, RenderAgentUiSnapshot>
-  >({});
+  const [renderAgentUiById, setRenderAgentUiById] =
+    useState<RenderAgentUiSnapshotById>({});
   // New Idea 1: right-click context menu.
   const [contextMenu, setContextMenu] = useState<{
     id: string;
@@ -3089,7 +3091,7 @@ export function RetroOffice3D({
   );
   useEffect(() => {
     const syncRenderAgentUi = () => {
-      const next: Record<string, RenderAgentUiSnapshot> = {};
+      const next: RenderAgentUiSnapshotById = {};
       for (const agent of renderAgentsRef.current) {
         next[agent.id] = {
           state: agent.state,
@@ -3110,16 +3112,16 @@ export function RetroOffice3D({
     : null;
   const agentStatusLookup = useMemo(
     () =>
-      agents.reduce<Record<string, { isError: boolean; working: boolean }>>(
+      agents.reduce<AgentActivityStatusById>(
         (acc, agent) => {
           const renderAgent = renderAgentUiById[agent.id];
           acc[agent.id] = {
             isError:
-              renderAgent.status === "error" || agent.status === "error",
+              renderAgent?.status === "error" || agent.status === "error",
             working:
-              renderAgent.state === "sitting" ||
-              renderAgent.state === "dancing" ||
-              renderAgent.status === "working" ||
+              renderAgent?.state === "sitting" ||
+              renderAgent?.state === "dancing" ||
+              renderAgent?.status === "working" ||
               agent.status === "working",
           };
           return acc;
@@ -3381,8 +3383,8 @@ export function RetroOffice3D({
 
   useEffect(() => {
     if (readOnly || storageNamespace !== "default") return;
-    const gatewayUrl = atmAnalytics?.gatewayUrl?.trim() ?? "";
-    if (!gatewayUrl) return;
+    const analyticsGatewayUrl = atmAnalytics?.gatewayUrl?.trim() ?? "";
+    if (!analyticsGatewayUrl) return;
     const timeoutId = window.setTimeout(() => {
       void fetch("/api/office/layout", {
         method: "PUT",
@@ -3391,7 +3393,7 @@ export function RetroOffice3D({
         },
         body: JSON.stringify({
           snapshot: {
-            gatewayUrl,
+            gatewayUrl: analyticsGatewayUrl,
             timestamp: new Date().toISOString(),
             width: LOCAL_OFFICE_CANVAS_WIDTH,
             height: LOCAL_OFFICE_CANVAS_HEIGHT,
@@ -6145,8 +6147,8 @@ export function RetroOffice3D({
             <div className="flex items-center -space-x-1.5">
               {compactRosterAgents.map((agent) => {
                 const status = agentStatusLookup[agent.id];
-                const isError = status.isError || agent.status === "error";
-                const working = status.working || agent.status === "working";
+                const isError = status?.isError || agent.status === "error";
+                const working = status?.working || agent.status === "working";
                 const isRemoteAgent = isRemoteOfficeAgentId(agent.id);
                 const mood = Object.prototype.hasOwnProperty.call(
                   moodByAgentId,
@@ -6244,8 +6246,8 @@ export function RetroOffice3D({
               <div className="grid max-h-[min(60vh,420px)] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
                 {agents.map((agent) => {
                   const status = agentStatusLookup[agent.id];
-                  const isError = status.isError || agent.status === "error";
-                  const working = status.working || agent.status === "working";
+                  const isError = status?.isError || agent.status === "error";
+                  const working = status?.working || agent.status === "working";
                   const isRemoteAgent = isRemoteOfficeAgentId(agent.id);
                   const dotClass = isError
                     ? "bg-red-400"
@@ -6453,7 +6455,6 @@ export function RetroOffice3D({
                     </span>
                   </div>
                 ) : null}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={imageUrl}
                   alt=""

@@ -68,8 +68,8 @@ export function HeatmapSystem({
 
     if (heatmapMode && frameRef.current % 120 === 0) {
       let maxValue = 1;
-      for (let index = 0; index < grid.length; index += 1) {
-        if (grid[index] > maxValue) maxValue = grid[index];
+      for (const cell of grid) {
+        if (cell > maxValue) maxValue = cell;
       }
 
       const nextCells: Array<{ x: number; z: number; v: number }> = [];

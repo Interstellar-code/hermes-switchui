@@ -70,7 +70,7 @@ const createRoundedRectShape = (
   return shape;
 };
 
-export const AgentModel = memo(function AgentModel({
+export const AgentModel = memo(function AgentModelInner({
   agentId,
   name,
   subtitle,

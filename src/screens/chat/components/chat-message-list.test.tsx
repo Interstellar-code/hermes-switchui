@@ -1,5 +1,9 @@
+// @vitest-environment jsdom
+
+import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import {
+  ChatMessageList,
   buildDisplayEntries,
   computeCollapsedHeadCount,
   getTrailingToolOnlyTurnSummary,
@@ -48,6 +52,28 @@ describe('buildDisplayEntries', () => {
     expect(entries).toHaveLength(2)
     expect(entries.map((entry) => entry.message.id)).toEqual(['u1', 'a1'])
     expect(entries[1].attachedToolMessages).toHaveLength(0)
+  })
+
+  it('does not crash when a tool result arrives before any display entry exists', () => {
+    const entries = buildDisplayEntries([
+      {
+        id: 't1',
+        role: 'toolResult',
+        toolCallId: 'a2-tool',
+        toolName: 'terminal',
+        content: [{ type: 'text', text: 'ok' }],
+        timestamp: 1,
+      },
+      toolOnlyAssistant('a2'),
+      textMessage('a3', 'assistant', 'Done.'),
+    ])
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0]?.message.id).toBe('a3')
+    expect(entries[0]?.attachedToolMessages.map((message) => message.id)).toEqual([
+      't1',
+      'a2',
+    ])
   })
 })
 
@@ -174,5 +200,37 @@ describe('computeCollapsedHeadCount', () => {
         searchActive: false,
       }),
     ).toBe(21)
+  })
+})
+
+describe('ChatMessageList', () => {
+  it('does not crash while waiting with no visible entries yet', () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: () => ({
+        matches: false,
+        media: '',
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
+
+    expect(() =>
+      render(
+        <ChatMessageList
+          messages={[]}
+          loading={false}
+          empty={false}
+          waitingForResponse
+          pinToTop={false}
+          pinGroupMinHeight={0}
+          headerHeight={0}
+        />,
+      ),
+    ).not.toThrow()
   })
 })

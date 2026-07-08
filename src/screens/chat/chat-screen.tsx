@@ -640,17 +640,17 @@ export function ChatScreen({
 
   const derivedStreamingInfo = useMemo(() => {
     if (activeIsRealtimeStreaming) {
-      const last = finalDisplayMessages[finalDisplayMessages.length - 1]
+      const last = finalDisplayMessages.at(-1)
       const id = isPortableMode
         ? localStreamingMessageId
-        : last.role === 'assistant'
+        : last?.role === 'assistant'
           ? (last as any).__optimisticId || (last as any).id || null
           : null
       return { isStreaming: true, streamingMessageId: id }
     }
     if (waitingForResponse && finalDisplayMessages.length > 0) {
-      const last = finalDisplayMessages[finalDisplayMessages.length - 1]
-      if (last.role === 'assistant') {
+      const last = finalDisplayMessages.at(-1)
+      if (last?.role === 'assistant') {
         const isStreamingPlaceholder =
           (last as any).__streamingStatus === 'streaming'
         if (!isStreamingPlaceholder) {
@@ -701,8 +701,8 @@ export function ChatScreen({
   useEffect(() => {
     if (waitingForResponse) {
       messageCountAtSendRef.current = finalDisplayMessages.length
-      const lastMsg = finalDisplayMessages[finalDisplayMessages.length - 1]
-      if (lastMsg.role === 'assistant') {
+      const lastMsg = finalDisplayMessages.at(-1)
+      if (lastMsg?.role === 'assistant') {
         const raw = lastMsg as Record<string, unknown>
         lastAssistantIdAtSendRef.current = String(
           raw.__optimisticId ??
@@ -725,8 +725,8 @@ export function ChatScreen({
       }
       return
     }
-    const last = finalDisplayMessages[finalDisplayMessages.length - 1]
-    if (last.role !== 'assistant') return
+    const last = finalDisplayMessages.at(-1)
+    if (last?.role !== 'assistant') return
     if ((last as any).__streamingStatus === 'streaming') return
     const countGrew =
       finalDisplayMessages.length > messageCountAtSendRef.current

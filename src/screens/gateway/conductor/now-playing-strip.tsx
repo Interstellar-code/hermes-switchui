@@ -22,45 +22,47 @@ function phaseState(
   return 'pending'
 }
 
-export function NowPlayingStrip() {
-  const { data: missions = [] } = useConductorMissions()
-  const focusedMissionId = useConductorUIStore((s) => s.focusedMissionId)
-
-  // Prefer focused mission; fall back to first 'live'; else first overall.
-  const liveMission =
-    missions.find((m) => m.id === focusedMissionId) ??
-    missions.find((m) => m.status === 'live')
-
-  if (!liveMission) {
-
-  // current_phase isn't on the Mission projection; parse from subtitle
-  // (format: '<workflow_id> · <current_phase>')
-  const currentPhase =
-    liveMission.subtitle.split('·').map((s) => s.trim()).pop()
-
-  const mission = liveMission
-    return (
-      <div className="now">
-        <div className="stamp">
-          elapsed
-          <b>—</b>
-        </div>
-        <div className="body">
-          <div className="lbl">no live mission</div>
-          <div className="prompt" style={{ opacity: 0.5 }}>
-            Run a workflow from the Workflows page to see it here.
-          </div>
-        </div>
-        <div className="stages">
-          {PHASES.map((p) => (
-            <span key={p} className="st">
-              {p}
-            </span>
-          ))}
+function renderEmptyStrip() {
+  return (
+    <div className="now">
+      <div className="stamp">
+        elapsed
+        <b>—</b>
+      </div>
+      <div className="body">
+        <div className="lbl">no live mission</div>
+        <div className="prompt" style={{ opacity: 0.5 }}>
+          Run a workflow from the Workflows page to see it here.
         </div>
       </div>
-    )
-  }
+      <div className="stages">
+        {PHASES.map((phase) => (
+          <span key={phase} className="st">
+            {phase}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export function NowPlayingStrip() {
+  const { data: missions = [] } = useConductorMissions()
+  const focusedMissionId = useConductorUIStore((state) => state.focusedMissionId)
+
+  const mission =
+    missions.find((entry) => entry.id === focusedMissionId) ??
+    missions.find((entry) => entry.status === 'live') ??
+    null
+
+  if (!mission) return renderEmptyStrip()
+
+  const subtitle = typeof mission.subtitle === 'string' ? mission.subtitle : ''
+  const currentPhase = subtitle
+    .split('·')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .pop()
 
   return (
     <div className="now">
@@ -74,15 +76,15 @@ export function NowPlayingStrip() {
         </div>
         <div className="prompt">{mission.title}</div>
         <div className="meta">
-          {mission.subtitle} · used <b>{mission.tokens}</b>
+          {subtitle || '—'} · used <b>{mission.tokens}</b>
         </div>
       </div>
       <div className="stages">
-        {PHASES.map((p) => {
-          const state = phaseState(p, currentPhase)
+        {PHASES.map((phase) => {
+          const state = phaseState(phase, currentPhase)
           return (
-            <span key={p} className={`st ${state === 'pending' ? '' : state}`}>
-              {p}
+            <span key={phase} className={`st ${state === 'pending' ? '' : state}`}>
+              {phase}
             </span>
           )
         })}
@@ -118,5 +120,4 @@ export function NowPlayingStrip() {
   )
 }
 
-// Kept for backward compat with any external imports
 export type { MissionPhase }

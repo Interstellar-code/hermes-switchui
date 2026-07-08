@@ -579,10 +579,10 @@ export function buildDisplayEntries(
     }
 
     if (message.role === 'tool' || message.role === 'toolResult') {
-      const previousEntry = entries[entries.length - 1]
-      if (previousEntry.message.role === 'assistant') {
+      const previousEntry = entries.at(-1)
+      if (previousEntry?.message.role === 'assistant') {
         previousEntry.attachedToolMessages.push(message)
-      } else if (pendingAssistantToolMessages.length > 0) {
+      } else if (pendingAssistantToolMessages.length > 0 || !previousEntry) {
         pendingAssistantToolMessages.push(message)
       }
       return
@@ -1315,7 +1315,8 @@ function ChatMessageListComponent({
     if (!effectivelyWaiting) return false
     // If streaming has visible text, hide indicator — response is rendering
     if (isStreaming && hasStreamingText) return false
-    const lastEntry = visibleEntries[visibleEntries.length - 1]
+    const lastEntry = visibleEntries.at(-1)
+    if (!lastEntry) return true
     const lastMessage = lastEntry.message
     if (lastMessage.role === 'assistant') {
       const lastId = getStableMessageId(lastMessage, lastEntry.sourceIndex)
