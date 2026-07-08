@@ -57,11 +57,13 @@ jobs:
 
       - name: Prepare web root directories
         run: |
-          # The deploy user has group write on existing dirs but can't create
-          # new top-level directories. Create any missing dirs from the build
-          # and ensure group write so rsync can write temp files.
-          SSH_CMD="ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || '22' }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}"
-          $SSH_CMD "sudo mkdir -p ${{ secrets.DEPLOY_PATH }}/switchui ${{ secrets.DEPLOY_PATH }}/hermes ${{ secrets.DEPLOY_PATH }}/plugins && sudo chown -R zionadmin:zionadmin ${{ secrets.DEPLOY_PATH }} && sudo chmod -R g+rwX ${{ secrets.DEPLOY_PATH }}"
+          # The deploy user is in the zionadmin group which has group-write
+          # on the web root. Create new route directories without sudo —
+          # the deploy user owns them and rsync can write into them.
+          # The chown step after rsync will fix ownership to zionadmin.
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.SSH_PORT || '22' }}" \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "mkdir -p ${{ secrets.DEPLOY_PATH }}/switchui ${{ secrets.DEPLOY_PATH }}/hermes ${{ secrets.DEPLOY_PATH }}/plugins && echo 'dirs ready'"
 
       - name: Deploy dist/ to web root
         run: |
