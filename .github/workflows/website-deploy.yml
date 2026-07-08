@@ -55,6 +55,16 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.SSH_PORT || '22' }}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
+      - name: Pre-create directories on web root
+        run: |
+          # The deploy user has group write on existing dirs but can't create
+          # new top-level directories. Gather all dirs from dist/ and create
+          # them on the server before rsync, then fix ownership.
+          DIRS=$(find dist -type d -printf '%P\0' | xargs -0 -I{} echo "${{ secrets.DEPLOY_PATH }}/{}")
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.SSH_PORT || '22' }}" \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "mkdir -p ${DIRS} && sudo /bin/chown -R zionadmin:zionadmin ${{ secrets.DEPLOY_PATH }} 2>/dev/null; true"
+
       - name: Deploy dist/ to web root
         run: |
           # --no-times --no-perms: the deploy user is a member of the
