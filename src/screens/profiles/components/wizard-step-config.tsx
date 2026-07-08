@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import YAML from 'yaml'
+import { configPreviewFromDraft, maskSecrets } from '../profile-config-map'
 import type { NewAgentDraft } from '../types'
 import type { ProfileConfig } from '@/server/profiles-browser'
-import { configPreviewFromDraft, maskSecrets } from '../profile-config-map'
 
 type Props = {
   draft: NewAgentDraft
-  errors: string[]
+  errors: Array<string>
   onChange: (patch: Partial<NewAgentDraft>) => void
   config?: ProfileConfig
 }

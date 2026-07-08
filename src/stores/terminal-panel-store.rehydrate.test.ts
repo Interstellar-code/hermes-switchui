@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Minimal localStorage mock
 const store: Record<string, string> = {}
@@ -115,7 +115,7 @@ describe('terminal-panel-store onRehydrateStorage — setState not direct assign
     const unsub = useStore.subscribe(() => { notified = true })
 
     const handler = useStore.persist.getOptions().onRehydrateStorage?.(useStore.getState())
-    if (handler) handler(undefined as never, new Error('simulated'))
+    if (handler) handler(undefined, new Error('simulated'))
 
     expect(notified).toBe(false)
 

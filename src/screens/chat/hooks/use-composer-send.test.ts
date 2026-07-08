@@ -1,20 +1,24 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import type { RefObject } from 'react'
-
+import { appendHistoryMessage } from '../chat-queries'
+import { createOptimisticMessage } from '../chat-screen-utils'
+import { resolveNewChatBootstrapSession } from '../new-chat-bootstrap'
+import { hasPendingGeneration, setPendingGeneration } from '../pending-send'
 import { useComposerSend } from './use-composer-send'
 import type {
   ChatComposerAttachment,
   ChatComposerHelpers,
 } from '../components/chat-composer-types'
+import type { RefObject } from 'react'
 import type { ChatMessage } from '../types'
 import type { ActiveSendRecord } from './use-send-message-state'
+import { hapticTap } from '@/lib/haptics'
 
 // --- Mocks ---
 
 vi.mock('../new-chat-bootstrap', () => ({
-  resolveNewChatBootstrapSession: vi.fn(async () => ({
+  resolveNewChatBootstrapSession: vi.fn(() => ({
     sessionKey: 'thread-1',
     friendlyId: 'friendly-1',
   })),
@@ -29,7 +33,7 @@ vi.mock('../chat-screen-utils', () => ({
       content: [{ type: 'text', text: 'hello' }],
       clientId: 'client-test-1',
       status: 'sending',
-    } as ChatMessage,
+    },
   })),
 }))
 
@@ -57,16 +61,6 @@ vi.mock('@/lib/haptics', () => ({
   hapticTap: vi.fn(),
 }))
 
-// Import mocked functions for assertion
-import { resolveNewChatBootstrapSession } from '../new-chat-bootstrap'
-import { createOptimisticMessage } from '../chat-screen-utils'
-import { appendHistoryMessage } from '../chat-queries'
-import {
-  hasPendingGeneration,
-  setPendingGeneration,
-} from '../pending-send'
-import { hapticTap } from '@/lib/haptics'
-
 // --- Helpers ---
 
 function makeRef<T>(initial: T): RefObject<T> {
@@ -91,9 +85,7 @@ function makeAttachment(
 
 type PartialParams = Parameters<typeof useComposerSend>[0]
 
-function makeParams(
-  overrides: Partial<PartialParams> = {},
-): PartialParams {
+function makeParams(overrides: Partial<PartialParams> = {}): PartialParams {
   return {
     activeFriendlyId: 'friendly-active',
     activeSessionKey: 'session-active',
@@ -114,7 +106,7 @@ function makeParams(
     handleUiSlashCommand: vi.fn(() => false),
     expandCustomSlashCommand: vi.fn(() => null),
     scrollChatToBottom: vi.fn(),
-    createSessionForMessage: vi.fn(async () => ({
+    createSessionForMessage: vi.fn(() => ({
       sessionKey: 'session-new',
       friendlyId: 'friendly-new',
     })),
@@ -252,10 +244,7 @@ describe('useComposerSend', () => {
         isPortableMode: false,
       }),
     )
-    expect(createOptimisticMessage).toHaveBeenCalledWith(
-      'first message',
-      [],
-    )
+    expect(createOptimisticMessage).toHaveBeenCalledWith('first message', [])
     expect(appendHistoryMessage).toHaveBeenCalledWith(
       params.queryClient,
       'friendly-1',

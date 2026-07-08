@@ -133,7 +133,7 @@ export function useContextAlert(sessionKey = ''): {
         ok?: boolean
         contextPercent?: unknown
       }
-      if (!data?.ok) return
+      if (!data.ok) return
 
       const currentPercent = readPercent(data.contextPercent)
       setAlertPercent(currentPercent)

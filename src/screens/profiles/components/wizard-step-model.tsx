@@ -10,14 +10,14 @@ type ModelEntry = {
 
 type Props = {
   draft: NewAgentDraft
-  errors: string[]
+  errors: Array<string>
   onChange: (patch: Partial<NewAgentDraft>) => void
 }
 
-async function fetchModels(): Promise<ModelEntry[]> {
+async function fetchModels(): Promise<Array<ModelEntry>> {
   const r = await fetch('/api/models')
   if (!r.ok) return []
-  const data = (await r.json()) as { models?: ModelEntry[]; items?: ModelEntry[] }
+  const data = (await r.json()) as { models?: Array<ModelEntry>; items?: Array<ModelEntry> }
   return data.models ?? data.items ?? []
 }
 
@@ -40,7 +40,7 @@ export function WizardStepModel({ draft, errors, onChange }: Props) {
   const models = modelsQuery.data ?? []
 
   // Derive unique providers from model list + static fallback
-  const dynamicProviders = Array.from(new Set(models.map((m) => m.provider).filter(Boolean) as string[]))
+  const dynamicProviders = Array.from(new Set(models.map((m) => m.provider).filter(Boolean) as Array<string>))
   const allProviders = Array.from(new Set([...dynamicProviders, ...PROVIDERS]))
 
   return (

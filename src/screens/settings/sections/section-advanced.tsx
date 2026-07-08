@@ -25,7 +25,7 @@ export default function SectionAdvanced() {
     seeded.current = true
     load({
       ...committed,
-      [K.log_level]: (committed[K.log_level] as string | undefined) ?? 'INFO',
+      [K.log_level]: (committed[K.log_level]) ?? 'INFO',
     })
   }, [committed, load])
 

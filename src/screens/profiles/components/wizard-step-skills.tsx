@@ -3,7 +3,7 @@ import type { NewAgentDraft } from '../types'
 
 type Props = {
   draft: NewAgentDraft
-  errors: string[]
+  errors: Array<string>
   onChange: (patch: Partial<NewAgentDraft>) => void
 }
 

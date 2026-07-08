@@ -1,21 +1,21 @@
 import { useQuery } from '@tanstack/react-query'
+import type { NewAgentDraft } from '../types'
+import type { NormalizedToolset } from '@/lib/toolsets'
 import {
   PLUGINS_GROUP,
   TOOLSET_GROUPS,
   buildStaticToolsetCatalog,
   getToolsetSecurityHint,
-  type NormalizedToolset,
 } from '@/lib/toolsets'
-import type { NewAgentDraft } from '../types'
 
 type Props = {
   draft: NewAgentDraft
-  errors: string[]
+  errors: Array<string>
   onChange: (patch: Partial<NewAgentDraft>) => void
 }
 
 type ToolsetCatalog = {
-  toolsets: NormalizedToolset[]
+  toolsets: Array<NormalizedToolset>
   source: 'gateway' | 'static'
 }
 
@@ -35,7 +35,7 @@ export function WizardStepToolset({ draft, errors, onChange }: Props) {
   // While loading or on error, fall back to the static catalog so the step
   // always renders. source stays 'static' until live data arrives.
   const data = catalogQuery.data
-  const toolsets: NormalizedToolset[] =
+  const toolsets: Array<NormalizedToolset> =
     data?.toolsets ?? buildStaticToolsetCatalog()
   const source: 'gateway' | 'static' = data?.source ?? 'static'
 

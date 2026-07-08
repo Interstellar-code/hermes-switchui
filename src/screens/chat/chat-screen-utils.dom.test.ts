@@ -14,7 +14,7 @@ describe('scrollChatToBottom', () => {
     viewport.setAttribute('data-chat-scroll-viewport', '')
     Object.defineProperty(viewport, 'scrollHeight', { value: 1234 })
     const scrollTo = vi.fn()
-    viewport.scrollTo = scrollTo as unknown as Element['scrollTo']
+    viewport.scrollTo = scrollTo
     document.body.appendChild(viewport)
 
     scrollChatToBottom('auto')
@@ -27,7 +27,7 @@ describe('scrollChatToBottom', () => {
     viewport.setAttribute('data-chat-scroll-viewport', '')
     Object.defineProperty(viewport, 'scrollHeight', { value: 10 })
     const scrollTo = vi.fn()
-    viewport.scrollTo = scrollTo as unknown as Element['scrollTo']
+    viewport.scrollTo = scrollTo
     document.body.appendChild(viewport)
 
     scrollChatToBottom()

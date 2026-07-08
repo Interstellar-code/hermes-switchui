@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { createSession as createDashboardSession } from './claude-dashboard-api'
+import { createSession } from './hermes-api'
+
 vi.mock('./gateway-capabilities', () => ({
   BEARER_TOKEN: 'test-token',
   CLAUDE_API: 'http://127.0.0.1:8642',
@@ -23,9 +26,6 @@ vi.mock('./claude-dashboard-api', () => ({
   searchSessions: vi.fn(),
   updateSession: vi.fn(),
 }))
-
-import { createSession as createDashboardSession } from './claude-dashboard-api'
-import { createSession } from './hermes-api'
 
 describe('createSession', () => {
   afterEach(() => {

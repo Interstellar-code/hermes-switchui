@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, renderHook } from '@testing-library/react'
-import type { RefObject } from 'react'
 
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { SEARCH_MODAL_EVENTS } from '../../../hooks/use-search-modal'
 import { SIDEBAR_TOGGLE_EVENT } from '../../../hooks/use-global-shortcuts'
-import type { ChatComposerHandle } from '../components/chat-composer-types'
 import { useFocusMode } from './use-focus-mode'
+import type { ChatComposerHandle } from '../components/chat-composer-types'
+import type { RefObject } from 'react'
 
 function makeComposerRef(
   partial: Partial<ChatComposerHandle> = {},

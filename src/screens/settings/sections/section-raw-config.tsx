@@ -7,8 +7,8 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getConfigRaw, putConfigRaw } from '@/lib/hermes-client'
 import { SettingCard } from '../components/setting-card'
+import { getConfigRaw, putConfigRaw } from '@/lib/hermes-client'
 import { toast } from '@/components/ui/toast'
 
 export default function SectionRawConfig() {

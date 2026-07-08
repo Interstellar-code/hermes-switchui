@@ -155,7 +155,7 @@ describe('useToolDisplay', () => {
             { type: 'toolCall', id: 'm1', name: 'Bash', arguments: {} },
             { type: 'toolCall', id: 'm2', name: 'Read', arguments: {} },
           ],
-        } as ChatMessage,
+        },
       ]
       const { result } = renderHook(() =>
         useToolDisplay({
@@ -171,7 +171,7 @@ describe('useToolDisplay', () => {
         {
           role: 'assistant',
           content: [{ type: 'toolCall', id: 'm1', name: 'Bash', arguments: {} }],
-        } as ChatMessage,
+        },
       ]
       const twoCalls: Array<ChatMessage> = [
         {
@@ -180,7 +180,7 @@ describe('useToolDisplay', () => {
             { type: 'toolCall', id: 'm1', name: 'Bash', arguments: {} },
             { type: 'toolCall', id: 'm2', name: 'Read', arguments: {} },
           ],
-        } as ChatMessage,
+        },
       ]
       const { result, rerender } = renderHook(
         (props: {

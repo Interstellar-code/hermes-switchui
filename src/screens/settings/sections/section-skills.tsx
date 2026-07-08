@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
-import { Toggle, NumberSlider } from '../components/controls'
+import { NumberSlider, Toggle } from '../components/controls'
 import { useSettingsStore } from '@/stores/settings-store'
 import { listSkills } from '@/lib/hermes-client'
 
@@ -27,7 +27,7 @@ export default function SectionSkills() {
   const navigate = useNavigate()
 
   // Skill sources
-  const externalDirs = (draft['config.skills.external_dirs'] as string[] | string | undefined) ?? []
+  const externalDirs = (draft['config.skills.external_dirs'] as Array<string> | string | undefined) ?? []
   const templateVars = (draft['config.skills.template_vars'] as boolean | undefined) ?? true
 
   // Inline shell

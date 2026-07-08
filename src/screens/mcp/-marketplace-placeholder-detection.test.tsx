@@ -8,17 +8,28 @@
  *  (c) partial fill keeps Install button disabled
  *  (d) full fill commits with merged overrides
  */
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 
-;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+import { InstallConfirmationDialog } from './components/install-confirmation-dialog'
+import {
+  detectPlaceholders,
+  isArgPlaceholder,
+  isEnvPlaceholder,
+  isUrlPlaceholder,
+} from './lib/placeholder-detect'
+import type { HubMcpEntry } from './hooks/use-mcp-hub'
+
+void ((
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true)
 
 vi.mock('@/components/shadcn/ui/dialog', () => ({
-  Dialog: ({ open, children }: {
-    open: boolean
-    children: React.ReactNode
-  }) => open ? React.createElement('div', { 'data-testid': 'dialog-root' }, children) : null,
+  Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+    open
+      ? React.createElement('div', { 'data-testid': 'dialog-root' }, children)
+      : null,
   DialogContent: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', { role: 'dialog' }, children),
   DialogTitle: ({ children }: { children: React.ReactNode }) =>
@@ -38,16 +49,13 @@ vi.mock('@/components/ui/button', () => ({
     onClick?: () => void
     disabled?: boolean
     [k: string]: unknown
-  }) => React.createElement('button', { onClick, disabled, ...props }, children),
+  }) =>
+    React.createElement('button', { onClick, disabled, ...props }, children),
 }))
 
 vi.mock('@/components/ui/toast', () => ({
   toast: vi.fn(),
 }))
-
-import { InstallConfirmationDialog } from './components/install-confirmation-dialog'
-import type { HubMcpEntry } from './hooks/use-mcp-hub'
-import { detectPlaceholders, isArgPlaceholder, isEnvPlaceholder, isUrlPlaceholder } from './lib/placeholder-detect'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -57,21 +65,29 @@ async function renderInto(element: React.ReactElement) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
-  await React.act(async () => { root.render(element) })
+  await React.act(() => {
+    root.render(element)
+  })
   return {
     container,
     unmount: async () => {
-      await React.act(async () => { root.unmount() })
+      await React.act(() => {
+        root.unmount()
+      })
       document.body.removeChild(container)
     },
     rerender: async (el: React.ReactElement) => {
-      await React.act(async () => { root.render(el) })
+      await React.act(() => {
+        root.render(el)
+      })
     },
   }
 }
 
 function getInstallBtn(container: HTMLElement): HTMLButtonElement {
-  return container.querySelector('[data-testid="install-confirm-btn"]') as HTMLButtonElement
+  return container.querySelector(
+    '[data-testid="install-confirm-btn"]',
+  ) as HTMLButtonElement
 }
 
 // ---------------------------------------------------------------------------
@@ -210,25 +226,33 @@ describe('(a) clean template — commits on first click', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ ok: true }),
-    }) as unknown as typeof fetch
+    })
 
     const onClose = vi.fn()
     const onInstalled = vi.fn()
     const { container, unmount } = await renderInto(
-      React.createElement(InstallConfirmationDialog, { entry: CLEAN_ENTRY, onClose, onInstalled }),
+      React.createElement(InstallConfirmationDialog, {
+        entry: CLEAN_ENTRY,
+        onClose,
+        onInstalled,
+      }),
     )
 
     const btn = getInstallBtn(container)
     expect(btn.disabled).toBe(false)
 
-    await React.act(async () => { btn.click() })
-    await React.act(async () => { await Promise.resolve() })
+    await React.act(() => {
+      btn.click()
+    })
+    await React.act(() => Promise.resolve())
 
     expect(global.fetch).toHaveBeenCalledOnce()
     expect(onInstalled).toHaveBeenCalledOnce()
     expect(onClose).toHaveBeenCalledOnce()
     // No placeholder form shown
-    expect(container.querySelector('[data-testid="placeholder-fill-form"]')).toBeNull()
+    expect(
+      container.querySelector('[data-testid="placeholder-fill-form"]'),
+    ).toBeNull()
     await unmount()
   })
 })
@@ -240,29 +264,41 @@ describe('(a) clean template — commits on first click', () => {
 describe('(b) placeholder template — shows fill form on first click', () => {
   it('does NOT POST on first click; shows fill form instead', async () => {
     const fetchSpy = vi.fn()
-    global.fetch = fetchSpy as unknown as typeof fetch
+    global.fetch = fetchSpy
 
     const { container, unmount } = await renderInto(
-      React.createElement(InstallConfirmationDialog, { entry: PLACEHOLDER_ENTRY, onClose: vi.fn() }),
+      React.createElement(InstallConfirmationDialog, {
+        entry: PLACEHOLDER_ENTRY,
+        onClose: vi.fn(),
+      }),
     )
 
     const btn = getInstallBtn(container)
-    await React.act(async () => { btn.click() })
+    await React.act(() => {
+      btn.click()
+    })
 
     expect(fetchSpy).not.toHaveBeenCalled()
-    expect(container.querySelector('[data-testid="placeholder-fill-form"]')).not.toBeNull()
+    expect(
+      container.querySelector('[data-testid="placeholder-fill-form"]'),
+    ).not.toBeNull()
     await unmount()
   })
 
   it('Install button is disabled after showing placeholder form (unfilled)', async () => {
-    global.fetch = vi.fn() as unknown as typeof fetch
+    global.fetch = vi.fn()
 
     const { container, unmount } = await renderInto(
-      React.createElement(InstallConfirmationDialog, { entry: PLACEHOLDER_ENTRY, onClose: vi.fn() }),
+      React.createElement(InstallConfirmationDialog, {
+        entry: PLACEHOLDER_ENTRY,
+        onClose: vi.fn(),
+      }),
     )
 
     const btn = getInstallBtn(container)
-    await React.act(async () => { btn.click() })
+    await React.act(() => {
+      btn.click()
+    })
 
     // After showing placeholder form with empty overrides, button must be disabled
     const btnAfter = getInstallBtn(container)
@@ -277,22 +313,27 @@ describe('(b) placeholder template — shows fill form on first click', () => {
 
 describe('(c) partial fill keeps Install disabled', () => {
   it('remains disabled when only some placeholders are filled', async () => {
-    global.fetch = vi.fn() as unknown as typeof fetch
+    global.fetch = vi.fn()
 
     const { container, unmount } = await renderInto(
-      React.createElement(InstallConfirmationDialog, { entry: PLACEHOLDER_ENTRY, onClose: vi.fn() }),
+      React.createElement(InstallConfirmationDialog, {
+        entry: PLACEHOLDER_ENTRY,
+        onClose: vi.fn(),
+      }),
     )
 
     // First click — show fill form
-    await React.act(async () => { getInstallBtn(container).click() })
+    await React.act(() => {
+      getInstallBtn(container).click()
+    })
 
     // Fill only the arg, leave env empty
     const argInput = container.querySelector(
       '[data-testid="placeholder-input-args[1]"]',
-    ) as HTMLInputElement | null
+    )
     expect(argInput).not.toBeNull()
 
-    await React.act(async () => {
+    await React.act(() => {
       if (argInput) {
         argInput.value = '/real/path/to/server'
         argInput.dispatchEvent(new Event('input', { bubbles: true }))
@@ -314,10 +355,15 @@ describe('(c) partial fill keeps Install disabled', () => {
 describe('(d) full fill — commits with merged overrides', () => {
   it('POSTs with overridden values when all placeholders are filled', async () => {
     let capturedBody: unknown = null
-    global.fetch = vi.fn().mockImplementation((_url: string, opts: RequestInit) => {
-      capturedBody = JSON.parse(opts.body as string)
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) })
-    }) as unknown as typeof fetch
+    global.fetch = vi
+      .fn()
+      .mockImplementation((_url: string, opts: RequestInit) => {
+        capturedBody = JSON.parse(opts.body as string)
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ ok: true }),
+        })
+      })
 
     const onInstalled = vi.fn()
     const onClose = vi.fn()
@@ -330,13 +376,15 @@ describe('(d) full fill — commits with merged overrides', () => {
     )
 
     // First click — show fill form
-    await React.act(async () => { getInstallBtn(container).click() })
+    await React.act(() => {
+      getInstallBtn(container).click()
+    })
 
     // Fill arg placeholder
     const argInput = container.querySelector(
       '[data-testid="placeholder-input-args[1]"]',
-    ) as HTMLInputElement
-    await React.act(async () => {
+    )
+    await React.act(() => {
       const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
         window.HTMLInputElement.prototype,
         'value',
@@ -349,8 +397,8 @@ describe('(d) full fill — commits with merged overrides', () => {
     // Fill env placeholder
     const envInput = container.querySelector(
       '[data-testid="placeholder-input-env.MY_API_KEY"]',
-    ) as HTMLInputElement
-    await React.act(async () => {
+    )
+    await React.act(() => {
       const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
         window.HTMLInputElement.prototype,
         'value',
@@ -361,8 +409,10 @@ describe('(d) full fill — commits with merged overrides', () => {
     })
 
     // Now click Install again
-    await React.act(async () => { getInstallBtn(container).click() })
-    await React.act(async () => { await Promise.resolve() })
+    await React.act(() => {
+      getInstallBtn(container).click()
+    })
+    await React.act(() => Promise.resolve())
 
     expect(global.fetch).toHaveBeenCalledOnce()
     expect(capturedBody).toMatchObject({
@@ -371,7 +421,10 @@ describe('(d) full fill — commits with merged overrides', () => {
       command: 'npx',
     })
     // Overridden arg at index 1
-    const body = capturedBody as { args: string[]; env: Record<string, string> }
+    const body = capturedBody as {
+      args: Array<string>
+      env: Record<string, string>
+    }
     expect(body.args[1]).toBe('/real/path/mcp')
     expect(body.env['MY_API_KEY']).toBe('my-real-api-key')
     expect(onInstalled).toHaveBeenCalledOnce()

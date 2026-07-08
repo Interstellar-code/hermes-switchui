@@ -322,7 +322,7 @@ export function normalizeKanbanAssignee(
     label: raw.name,
     isHuman: false, // conservative default; unknown agents are not assumed human
     onDisk: raw.on_disk,
-    counts: raw.counts ?? {},
+    counts: raw.counts,
   }
 }
 

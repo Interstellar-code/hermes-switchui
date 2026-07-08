@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -19,7 +19,7 @@ export type AgentNode = {
 // ── Constants ────────────────────────────────────────────────────
 
 /** Fixed desk positions — agents are sorted alphabetically by name and slotted. */
-const DESK_POSITIONS: [number, number, number][] = [
+const DESK_POSITIONS: Array<[number, number, number]> = [
   [-4.4, 0, -1.8],
   [-1.3, 0, 1.55],
   [1.9, 0, -1.25],
@@ -66,12 +66,12 @@ function inferStatus(session: SessionSummary): AgentStatus {
 // ── Hook ─────────────────────────────────────────────────────────
 
 export function useAgentPositions(): {
-  agents: AgentNode[]
+  agents: Array<AgentNode>
   loading: boolean
   error: string | null
   refetch: () => void
 } {
-  const [agents, setAgents] = useState<AgentNode[]>([])
+  const [agents, setAgents] = useState<Array<AgentNode>>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -86,14 +86,14 @@ export function useAgentPositions(): {
       if (!res.ok) throw new Error(`Sessions API ${res.status}`)
 
       const data = await res.json()
-      const sessions: SessionSummary[] = data.sessions ?? []
+      const sessions: Array<SessionSummary> = data.sessions ?? []
 
       // Filter to non-default, has activity
       const active = sessions
         .filter((s) => s.key && s.source !== 'unavailable')
         .sort((a, b) => (a.label ?? a.key).localeCompare(b.label ?? b.key))
 
-      const mapped: AgentNode[] = active.map((s, idx) => {
+      const mapped: Array<AgentNode> = active.map((s, idx) => {
         const isSpillover = idx >= DESK_POSITIONS.length
         return {
           id: s.key,

@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
+import { CronsWizard } from './components/crons-wizard'
+import { CronDetailDrawer } from './components/cron-detail-drawer'
 import type { ClaudeJob } from '@/lib/jobs-api'
+import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 import {
   deleteJob,
   fetchJobs,
@@ -13,14 +15,12 @@ import {
 } from '@/lib/jobs-api'
 import { toast } from '@/components/ui/toast'
 import {
-  useCronsFilterStore,
-  useCronsViewStore,
-  useCronsPageSize,
   PAGE_SIZES_GRID,
   PAGE_SIZES_TABLE,
+  useCronsFilterStore,
+  useCronsPageSize,
+  useCronsViewStore,
 } from '@/stores/crons-screen-store'
-import { CronsWizard } from './components/crons-wizard'
-import { CronDetailDrawer } from './components/cron-detail-drawer'
 import '@/styles/matrix-crons.css'
 
 const QUERY_KEY = ['crons', 'list'] as const
@@ -53,8 +53,7 @@ function relativeTime(value?: string | null): string {
 function friendlySchedule(job: ClaudeJob): string {
   if (job.schedule_display) return job.schedule_display
   const s = job.schedule
-  if (!s || typeof s !== 'object') return 'custom'
-  const expr = (s as Record<string, unknown>).cron_expression as string | undefined
+  const expr = (s).cron_expression as string | undefined
   if (!expr) return 'custom'
   const parts = expr.trim().split(/\s+/)
   if (parts.length < 5) return expr
@@ -68,8 +67,7 @@ function friendlySchedule(job: ClaudeJob): string {
 
 function cronExpr(job: ClaudeJob): string {
   const s = job.schedule
-  if (!s || typeof s !== 'object') return ''
-  return ((s as Record<string, unknown>).cron_expression as string) ?? ''
+  return (s).cron_expression as string
 }
 
 function jobStatus(job: ClaudeJob): 'active' | 'paused' | 'error' | 'idle' {
@@ -381,7 +379,7 @@ export function JobsScreen() {
   const filtered = useMemo(() => {
     const q = debouncedSearch.toLowerCase()
     return allJobs.filter((job) => {
-      if (q && !job.name?.toLowerCase().includes(q) && !job.prompt?.toLowerCase().includes(q)) return false
+      if (q && !job.name.toLowerCase().includes(q) && !job.prompt.toLowerCase().includes(q)) return false
       if (statusFilter !== 'all' && jobStatus(job) !== statusFilter) return false
       if (cadenceFilter !== 'all') {
         const friendly = friendlySchedule(job).toLowerCase()

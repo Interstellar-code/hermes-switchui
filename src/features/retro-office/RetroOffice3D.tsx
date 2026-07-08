@@ -1,23 +1,22 @@
 "use client";
 
 import {
-  Pencil,
+  Armchair,
+  Camera,
   Check,
   Map as MapIcon,
   Maximize,
   Monitor,
-  Armchair,
+  Pencil,
   Settings2,
-  Camera,
-  UserPlus,
   Trash2,
+  UserPlus,
   Users,
   X,
 } from "lucide-react";
 import {
-  type ComponentProps,
-  memo,
   Suspense,
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -27,38 +26,47 @@ import {
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import { SettingsPanel } from "@/features/office/components/panels/SettingsPanel";
-import { AtmImmersiveScreen } from "@/features/office/screens/AtmImmersiveScreen";
-import { GithubImmersiveScreen } from "@/features/office/screens/GithubImmersiveScreen";
-import { KanbanImmersiveScreen } from "@/features/office/screens/KanbanImmersiveScreen";
-import {
-  PhoneBoothImmersiveScreen,
-  type PhoneCallStep,
-} from "@/features/office/screens/PhoneBoothImmersiveScreen";
-import {
-  SmsBoothImmersiveScreen,
-  type TextMessageStep,
-} from "@/features/office/screens/SmsBoothImmersiveScreen";
-import { StandupImmersiveScreen } from "@/features/office/screens/StandupImmersiveScreen";
+import type { ComponentProps } from "react";
 import type { OfficeUsageAnalyticsParams } from "@/features/office/hooks/useOfficeUsageAnalyticsViewModel";
 import type { AgentState } from "@/features/agents/state/store";
-import type { CronJobSummary } from "@/lib/cron/types";
-import { buildMockPhoneCallScenario } from "@/lib/office/call/mock";
-import type { MockPhoneCallScenario } from "@/lib/office/call/types";
-import { buildMockTextMessageScenario } from "@/lib/office/text/mock";
-import type { MockTextMessageScenario } from "@/lib/office/text/types";
-import type { OfficeDeskMonitor } from "@/lib/office/deskMonitor";
-import type {
-  OfficeAnimationState,
-  OfficeIdleLeisureArea,
-} from "@/lib/office/eventTriggers";
-import type { StandupMeeting } from "@/lib/office/standup/types";
-import type { SkillStatusEntry } from "@/lib/skills/types";
-import type { StudioGatewayAdapterType } from "@/lib/studio/settings";
 import type {
   TaskBoardCard,
   TaskBoardStatus,
 } from "@/features/office/tasks/types";
+import type { CronJobSummary } from "@/lib/cron/types";
+import type { MockPhoneCallScenario } from "@/lib/office/call/types";
+import type { MockTextMessageScenario } from "@/lib/office/text/types";
+import type { OfficeDeskMonitor } from "@/lib/office/deskMonitor";
+import type {
+  OfficeAnimationState,
+  OfficeCleaningCue,
+  OfficeIdleLeisureArea,
+} from "@/lib/office/eventTriggers";
+import type { OfficeLayoutSnapshot } from "@/lib/office/layoutSnapshot";
+import type { StandupMeeting } from "@/lib/office/standup/types";
+import type { SkillStatusEntry } from "@/lib/skills/types";
+import type { StudioGatewayAdapterType } from "@/lib/studio/settings";
+import type { OfficeLayoutPreset } from "@/features/retro-office/core/furnitureDefaults";
+import type { NavGrid } from "@/features/retro-office/core/navigation";
+import type {
+  FurnitureItem,
+  JanitorActor,
+  OfficeAgent,
+  QaLabStationLocation,
+  RenderAgent,
+  SceneActor,
+} from "@/features/retro-office/core/types";
+import type { PhoneCallStep } from "@/features/office/screens/PhoneBoothImmersiveScreen";
+import type { TextMessageStep } from "@/features/office/screens/SmsBoothImmersiveScreen";
+import { SettingsPanel } from "@/features/office/components/panels/SettingsPanel";
+import { AtmImmersiveScreen } from "@/features/office/screens/AtmImmersiveScreen";
+import { GithubImmersiveScreen } from "@/features/office/screens/GithubImmersiveScreen";
+import { KanbanImmersiveScreen } from "@/features/office/screens/KanbanImmersiveScreen";
+import { PhoneBoothImmersiveScreen } from "@/features/office/screens/PhoneBoothImmersiveScreen";
+import { SmsBoothImmersiveScreen } from "@/features/office/screens/SmsBoothImmersiveScreen";
+import { StandupImmersiveScreen } from "@/features/office/screens/StandupImmersiveScreen";
+import { buildMockPhoneCallScenario } from "@/lib/office/call/mock";
+import { buildMockTextMessageScenario } from "@/lib/office/text/mock";
 import { extractSpeechImage } from "@/lib/text/speech-image";
 import { MonitorImmersiveContent as MonitorImmersiveOverlay } from "@/features/retro-office/overlays/MonitorImmersiveContent";
 import {
@@ -84,28 +92,27 @@ import {
 import {
   ensureOfficeAtm,
   ensureOfficeGymRoom,
+  ensureOfficeJukebox,
   ensureOfficeKanbanBoard,
   ensureOfficePhoneBooth,
   ensureOfficePingPongTable,
   ensureOfficeQaLab,
-  ensureOfficeSmsBooth,
-  ensureOfficeJukebox,
   ensureOfficeServerRoom,
+  ensureOfficeSmsBooth,
   isRetiredPingPongLamp,
   materializeDefaults,
-  type OfficeLayoutPreset,
 } from "@/features/retro-office/core/furnitureDefaults";
 import {
-  clampPointToZone,
   DISTRICT_CAMERA_POSITION,
   DISTRICT_CAMERA_TARGET,
   DISTRICT_CAMERA_ZOOM,
   LOCAL_OFFICE_CANVAS_HEIGHT,
-  isRemoteOfficeAgentId,
   LOCAL_OFFICE_CANVAS_WIDTH,
-  projectFurnitureIntoRemoteOfficeZone,
   REMOTE_OFFICE_ZONE,
   REMOTE_ROAM_POINTS,
+  clampPointToZone,
+  isRemoteOfficeAgentId,
+  projectFurnitureIntoRemoteOfficeZone,
 } from "@/features/retro-office/core/district";
 import {
   buildJanitorActorsForCue,
@@ -122,6 +129,11 @@ import {
   toWorld,
 } from "@/features/retro-office/core/geometry";
 import {
+  GYM_DEFAULT_TARGET,
+  MEETING_OVERFLOW_LOCATIONS,
+  QA_LAB_DEFAULT_TARGET,
+  ROAM_POINTS,
+  SERVER_ROOM_TARGET,
   astar,
   buildNavGrid,
   getDeskLocations,
@@ -129,18 +141,13 @@ import {
   getJanitorCleaningStops,
   getMeetingSeatLocations,
   getQaLabStations,
-  GYM_DEFAULT_TARGET,
-  MEETING_OVERFLOW_LOCATIONS,
-  QA_LAB_DEFAULT_TARGET,
   resolveDeskIndexForItem,
   resolveGymRoute,
   resolvePhoneBoothRoute,
   resolvePingPongTargets,
   resolveQaLabRoute,
-  resolveSmsBoothRoute,
   resolveServerRoomRoute,
-  ROAM_POINTS,
-  SERVER_ROOM_TARGET,
+  resolveSmsBoothRoute,
 } from "@/features/retro-office/core/navigation";
 import {
   loadFurniture,
@@ -148,26 +155,16 @@ import {
   markGymRoomMigrationApplied,
   markPhoneBoothMigrationApplied,
   markQaLabMigrationApplied,
-  markSmsBoothMigrationApplied,
   markServerRoomMigrationApplied,
+  markSmsBoothMigrationApplied,
   saveFurniture,
 } from "@/features/retro-office/core/persistence";
-import type {
-  FurnitureItem,
-  JanitorActor,
-  OfficeAgent,
-  QaLabStationLocation,
-  RenderAgent,
-  SceneActor,
-} from "@/features/retro-office/core/types";
-import type { NavGrid } from "@/features/retro-office/core/navigation";
-import type { OfficeLayoutSnapshot } from "@/lib/office/layoutSnapshot";
 import { AgentModel as AgentObjectModel } from "@/features/retro-office/objects/agents";
 import { JukeboxModel as InteractiveJukeboxModel } from "@/features/retro-office/objects/Jukebox";
 import {
+  PlacementGhost as FurniturePlacementGhost,
   FurnitureModel as GenericFurnitureModel,
   InstancedFurnitureItems as InstancedFurnitureItemsModel,
-  PlacementGhost as FurniturePlacementGhost,
 } from "@/features/retro-office/objects/furniture";
 import {
   DishwasherModel as KitchenDishwasherModel,
@@ -183,7 +180,6 @@ import {
   DumbbellRackModel as InteractiveDumbbellRackModel,
   ExerciseBikeModel as InteractiveExerciseBikeModel,
   KettlebellRackModel as InteractiveKettlebellRackModel,
-  PingPongTableModel as MachinePingPongTableModel,
   PhoneBoothModel as InteractivePhoneBoothModel,
   PunchingBagModel as InteractivePunchingBagModel,
   QaTerminalModel as InteractiveQaTerminalModel,
@@ -195,6 +191,7 @@ import {
   TreadmillModel as InteractiveTreadmillModel,
   WeightBenchModel as InteractiveWeightBenchModel,
   YogaMatModel as InteractiveYogaMatModel,
+  PingPongTableModel as MachinePingPongTableModel,
 } from "@/features/retro-office/objects/machines";
 import {
   ClockModel as PrimitiveClockModel,
@@ -227,10 +224,12 @@ import {
   HeatmapSystem as AgentHeatmapSystem,
   TrailSystem as AgentTrailSystem,
 } from "@/features/retro-office/systems/visualSystems";
-import type { OfficeCleaningCue } from "@/lib/office/eventTriggers";
 
 type OfficeDeskMonitorMap = Record<string, OfficeDeskMonitor>;
 type RenderAgentUiSnapshot = Pick<RenderAgent, "state" | "status">;
+type RenderAgentUiSnapshotById = Partial<Record<string, RenderAgentUiSnapshot>>;
+type AgentActivityStatus = { isError: boolean; working: boolean };
+type AgentActivityStatusById = Partial<Record<string, AgentActivityStatus>>;
 type FeedEvent = {
   id: string;
   name: string;
@@ -243,11 +242,11 @@ const EMPTY_STRING_RECORD: Record<string, string> = {};
 const EMPTY_BOOLEAN_RECORD: Record<string, boolean> = {};
 const EMPTY_NUMBER_RECORD: Record<string, number> = {};
 const EMPTY_MONITOR_MAP: OfficeDeskMonitorMap = {};
-const EMPTY_CLEANING_CUES: OfficeCleaningCue[] = [];
+const EMPTY_CLEANING_CUES: Array<OfficeCleaningCue> = [];
 const EMPTY_IDLE_LEISURE_RECORD: Partial<
   Record<string, OfficeIdleLeisureArea>
 > = {};
-const EMPTY_FEED_EVENTS: FeedEvent[] = [];
+const EMPTY_FEED_EVENTS: Array<FeedEvent> = [];
 
 type DragState =
   | { kind: "idle" }
@@ -278,7 +277,7 @@ const normalizeSmsContactName = (value: unknown): string =>
 
 const buildSmsContactList = (
   recipient: string,
-): { contacts: string[]; targetIndex: number } => {
+): { contacts: Array<string>; targetIndex: number } => {
   const normalizedRecipient = normalizeSmsContactName(recipient);
   const availableNames = SMS_CONTACT_SEED_NAMES.filter(
     (name) => name.toLowerCase() !== normalizedRecipient.toLowerCase(),
@@ -312,7 +311,7 @@ type PaletteEntry = {
 // LAYOUT DATA
 // ============================================================
 
-const PALETTE: PaletteEntry[] = [
+const PALETTE: Array<PaletteEntry> = [
   {
     type: "wall",
     label: "Wall",
@@ -442,12 +441,12 @@ function CameraRig({ target }: { target: [number, number, number] }) {
 
 const NOOP_FURNITURE_UID_HANDLER = () => {};
 const NOOP_FURNITURE_HANDLER = () => {};
-const EMPTY_FURNITURE_ITEMS: FurnitureItem[] = [];
+const EMPTY_FURNITURE_ITEMS: Array<FurnitureItem> = [];
 
-const ReadOnlyFurnitureClone = memo(function ReadOnlyFurnitureClone({
+const ReadOnlyFurnitureClone = memo(function ReadOnlyFurnitureCloneInner({
   furniture,
 }: {
-  furniture: FurnitureItem[];
+  furniture: Array<FurnitureItem>;
 }) {
   const deskItems = useMemo(
     () => furniture.filter((item) => item.type === "desk_cubicle"),
@@ -890,19 +889,19 @@ const pointNearFurniture = (
 };
 
 function useAgentTick(
-  agents: SceneActor[],
-  deskLocations: { x: number; y: number }[],
+  agents: Array<SceneActor>,
+  deskLocations: Array<{ x: number; y: number }>,
   assignedDeskIndexByAgentId: Record<string, number> = {},
-  gymWorkoutLocations: {
+  gymWorkoutLocations: Array<{
     x: number;
     y: number;
     facing: number;
     workoutStyle: "run" | "lift" | "bike" | "box" | "row" | "stretch";
-  }[],
+  }>,
   idleLeisureByAgentId: Partial<Record<string, OfficeIdleLeisureArea>> = {},
-  qaLabStations: QaLabStationLocation[],
-  meetingSeatLocations: { x: number; y: number; facing: number }[],
-  furnitureRef: React.RefObject<FurnitureItem[]>,
+  qaLabStations: Array<QaLabStationLocation>,
+  meetingSeatLocations: Array<{ x: number; y: number; facing: number }>,
+  furnitureRef: React.RefObject<Array<FurnitureItem>>,
   lastSeenByAgentId: Record<string, number> = {},
   deskHoldByAgentId: Record<string, boolean> = {},
   danceUntilByAgentId: Record<string, number> = {},
@@ -913,7 +912,7 @@ function useAgentTick(
   githubReviewByAgentId: Record<string, boolean> = {},
   standupMeeting: StandupMeeting | null = null,
 ) {
-  const renderAgentsRef = useRef<RenderAgent[]>([]);
+  const renderAgentsRef = useRef<Array<RenderAgent>>([]);
   const renderAgentLookupRef = useRef<Map<string, RenderAgent>>(new Map());
   const deskByAgentRef = useRef<Map<string, number>>(new Map());
   const gymByAgentRef = useRef<Map<string, number>>(new Map());
@@ -924,10 +923,10 @@ function useAgentTick(
 
   // Nav grid is rebuilt lazily whenever the furniture array reference changes.
   const navGridRef = useRef<NavGrid | null>(null);
-  const gridSourceRef = useRef<FurnitureItem[]>([]);
+  const gridSourceRef = useRef<Array<FurnitureItem>>([]);
 
   const getNavGrid = useCallback((): NavGrid => {
-    const furniture = furnitureRef.current ?? [];
+    const furniture = furnitureRef.current;
     if (navGridRef.current === null || gridSourceRef.current !== furniture) {
       navGridRef.current = buildNavGrid(furniture);
       gridSourceRef.current = furniture;
@@ -966,7 +965,7 @@ function useAgentTick(
     ): LeisureSpawnPoint | null => {
       if (isRemoteOfficeAgentId(agentId)) return null;
 
-      const furnitureItems = furnitureRef.current ?? [];
+      const furnitureItems = furnitureRef.current;
       const pickFurniturePoint = (
         types: Array<string>,
         offsetX: number,
@@ -1027,12 +1026,12 @@ function useAgentTick(
     standupMeeting?.phase === "in_progress";
   const meetingParticipants = useMemo(
     () =>
-      new Set(standupActive ? (standupMeeting?.participantOrder ?? []) : []),
+      new Set(standupActive ? standupMeeting.participantOrder : []),
     [standupActive, standupMeeting?.participantOrder],
   );
   const resolveMeetingTarget = useCallback(
     (agentId: string) => {
-      const participantOrder = standupMeeting?.participantOrder ?? [];
+      const participantOrder = standupMeeting.participantOrder;
       const targetIndex = participantOrder.indexOf(agentId);
       const seats = [...meetingSeatLocations, ...MEETING_OVERFLOW_LOCATIONS];
       const fallbackSeat = seats[0] ?? { x: 145, y: 118, facing: Math.PI };
@@ -1054,12 +1053,12 @@ function useAgentTick(
       if (!activeIds.has(id)) stickyUntilRef.current.delete(id);
 
     const currentMap = new Map(renderAgentsRef.current.map((a) => [a.id, a]));
-    const next: RenderAgent[] = [];
+    const next: Array<RenderAgent> = [];
 
     agents.forEach((agent, idx) => {
       const now = Date.now();
       const existing = currentMap.get(agent.id);
-      const isJanitor = "role" in agent && agent.role === "janitor";
+      const isJanitor = agent.role === "janitor";
       if (isJanitor) {
         const route = agent.janitorRoute;
         const spawn = route[0] ?? { x: 400, y: 400, facing: Math.PI / 2 };
@@ -1073,7 +1072,7 @@ function useAgentTick(
             targetY: existing.targetY,
             janitorRouteIndex: existing.janitorRouteIndex ?? initialRouteIndex,
             janitorPauseUntil: existing.janitorPauseUntil,
-          } as RenderAgent);
+          });
           return;
         }
         next.push({
@@ -1092,7 +1091,7 @@ function useAgentTick(
           state: initialRouteIndex === 0 ? "standing" : "walking",
           facing: spawn.facing,
           janitorRouteIndex: initialRouteIndex,
-        } as RenderAgent);
+        });
         return;
       }
       const assignedDeskIndex = assignedDeskIndexByAgentId[agent.id];
@@ -1172,11 +1171,11 @@ function useAgentTick(
         ? resolveMeetingTarget(agent.id)
         : null;
       const smsBoothItem =
-        (furnitureRef.current ?? []).find(
+        furnitureRef.current.find(
           (item) => item.type === "sms_booth",
         ) ?? null;
       const phoneBoothItem =
-        (furnitureRef.current ?? []).find(
+        furnitureRef.current.find(
           (item) => item.type === "phone_booth",
         ) ?? null;
 
@@ -1867,7 +1866,7 @@ function useAgentTick(
   const tick = () => {
     const grid = getNavGrid();
     const now = Date.now();
-    const furnitureItems = furnitureRef.current ?? [];
+    const furnitureItems = furnitureRef.current;
     const smsBoothItem =
       furnitureItems.find((item) => item.type === "sms_booth") ?? null;
     const phoneBoothItem =
@@ -1885,7 +1884,7 @@ function useAgentTick(
       ["couch", "couch_v", "beanbag"].includes(item.type),
     );
     const moved = renderAgentsRef.current.map((agent) => {
-      const isJanitor = "role" in agent && agent.role === "janitor";
+      const isJanitor = agent.role === "janitor";
       if (isJanitor && agent.janitorPauseUntil !== undefined) {
         if (now < agent.janitorPauseUntil) {
           return {
@@ -1956,14 +1955,14 @@ function useAgentTick(
           frame: agent.frame + 1,
         };
       }
-      const baseSpeed = agent.walkSpeed ?? WALK_SPEED;
+      const baseSpeed = agent.walkSpeed;
       const speed =
         agent.status === "working" && agent.state !== "sitting"
           ? baseSpeed * WORKING_WALK_SPEED_MULTIPLIER
           : baseSpeed;
       // Move toward the first waypoint. An empty path means astar found no route —
       // the agent stays put instead of walking through walls toward the raw target.
-      const path = agent.path ?? [];
+      const path = agent.path;
       const wpX = path.length > 0 ? path[0].x : agent.x;
       const wpY = path.length > 0 ? path[0].y : agent.y;
       const dx = wpX - agent.x,
@@ -2000,7 +1999,7 @@ function useAgentTick(
               ...agent,
               x: nx,
               y: ny,
-              facing: currentStop?.facing ?? nf,
+              facing: currentStop.facing ?? nf,
               state: "standing" as const,
               path: [],
               janitorPauseUntil:
@@ -2376,8 +2375,8 @@ const idleMatrixQuipForAgent = (
     Object.keys(IDLE_MATRIX_QUIPS).find(
       (candidate) => candidate !== "default" && identity.includes(candidate),
     ) ?? "default";
-  const quips = IDLE_MATRIX_QUIPS[key] ?? IDLE_MATRIX_QUIPS.default;
-  return quips[(hashText(agent.id) + cycle) % quips.length] ?? quips[0] ?? "";
+  const quips = IDLE_MATRIX_QUIPS[key];
+  return quips[(hashText(agent.id) + cycle) % quips.length] ?? "";
 };
 
 const getAgentInitials = (name: string | null | undefined): string => {
@@ -2385,14 +2384,14 @@ const getAgentInitials = (name: string | null | undefined): string => {
   if (parts.length === 0) return "?";
   return parts
     .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
+    .map((part) => part[0].toUpperCase())
     .join("");
 };
 
 const buildInitialFurnitureLayout = (
   storageNamespace: string,
   layoutPreset: OfficeLayoutPreset,
-): FurnitureItem[] =>
+): Array<FurnitureItem> =>
   ensureOfficeKanbanBoard(
     ensureOfficeJukebox(
       ensureOfficeQaLab(
@@ -2520,7 +2519,7 @@ export function RetroOffice3D({
   onTaskBoardDeleteCard,
   onTaskBoardRefreshCronJobs,
 }: {
-  agents: OfficeAgent[];
+  agents: Array<OfficeAgent>;
   officeCenterSignal?: number;
   animationState?: Pick<
     OfficeAnimationState,
@@ -2539,7 +2538,7 @@ export function RetroOffice3D({
   storageNamespace?: string;
   layoutPreset?: OfficeLayoutPreset;
   deskAssignmentByDeskUid?: Record<string, string>;
-  cleaningCues?: OfficeCleaningCue[];
+  cleaningCues?: Array<OfficeCleaningCue>;
   deskHoldByAgentId?: Record<string, boolean>;
   gymHoldByAgentId?: Record<string, boolean>;
   githubReviewAgentId?: string | null;
@@ -2591,7 +2590,7 @@ export function RetroOffice3D({
   onGatewayAdapterTypeChange?: (value: StudioGatewayAdapterType) => void;
   onOpenOnboarding?: () => void;
   atmAnalytics?: OfficeUsageAnalyticsParams | null;
-  feedEvents?: FeedEvent[];
+  feedEvents?: Array<FeedEvent>;
   gatewayStatus?: string;
   gatewayUrl?: string;
   gatewayToken?: string;
@@ -2604,7 +2603,7 @@ export function RetroOffice3D({
   progressByAgentId?: Record<string, number>;
   /** #89 — agent id from external selection (store); sets initial follow-cam target */
   selectedAgentId?: string | null;
-  onStandupArrivalsChange?: (arrivedAgentIds: string[]) => void;
+  onStandupArrivalsChange?: (arrivedAgentIds: Array<string>) => void;
   onStandupStartRequested?: () => void;
   onMonitorSelect?: (agentId: string | null) => void;
   onAgentChatSelect?: (agentId: string) => void;
@@ -2612,7 +2611,7 @@ export function RetroOffice3D({
   onAgentEdit?: (agentId: string) => void;
   onAgentDelete?: (agentId: string) => void;
   onDeskAssignmentChange?: (deskUid: string, agentId: string | null) => void;
-  onDeskAssignmentsReset?: (deskUids: string[]) => void;
+  onDeskAssignmentsReset?: (deskUids: Array<string>) => void;
   onGithubReviewDismiss?: () => void;
   onPhoneCallComplete?: (agentId: string) => void;
   onPhoneCallSpeak?: (payload: {
@@ -2625,15 +2624,15 @@ export function RetroOffice3D({
   onOpenGithubSkillSetup?: () => void;
   onJukeboxInteract?: () => void;
   onKanbanInteract?: () => void;
-  taskBoardAgents?: AgentState[];
-  taskBoardCardsByStatus?: Record<TaskBoardStatus, TaskBoardCard[]>;
+  taskBoardAgents?: Array<AgentState>;
+  taskBoardCardsByStatus?: Record<TaskBoardStatus, Array<TaskBoardCard>>;
   taskBoardSelectedCard?: TaskBoardCard | null;
   taskBoardActiveRuns?: Array<{
     runId: string;
     agentId: string;
     label: string;
   }>;
-  taskBoardCronJobs?: CronJobSummary[];
+  taskBoardCronJobs?: Array<CronJobSummary>;
   taskBoardCronLoading?: boolean;
   taskBoardCronError?: string | null;
   taskBoardCaptureDebug?: ComponentProps<
@@ -2684,7 +2683,7 @@ export function RetroOffice3D({
     Boolean,
   );
 
-  const [furniture, setFurniture] = useState<FurnitureItem[]>(() =>
+  const [furniture, setFurniture] = useState<Array<FurnitureItem>>(() =>
     buildInitialFurnitureLayout(storageNamespace, layoutPreset).filter(
       (item) => !isRetiredPingPongLamp(item),
     ),
@@ -2746,9 +2745,8 @@ export function RetroOffice3D({
   const autoOpenedStandupIdRef = useRef<string | null>(null);
   // Idea 1 (original): hovered agent for tooltip overlay.
   const [hoveredAgentId, setHoveredAgentId] = useState<string | null>(null);
-  const [renderAgentUiById, setRenderAgentUiById] = useState<
-    Record<string, RenderAgentUiSnapshot>
-  >({});
+  const [renderAgentUiById, setRenderAgentUiById] =
+    useState<RenderAgentUiSnapshotById>({});
   // New Idea 1: right-click context menu.
   const [contextMenu, setContextMenu] = useState<{
     id: string;
@@ -2855,12 +2853,12 @@ export function RetroOffice3D({
   const [moodByAgentId, setMoodByAgentId] = useState<
     Record<string, { emoji: string; ts: number }>
   >({});
-  const [janitorActors, setJanitorActors] = useState<JanitorActor[]>([]);
+  const [janitorActors, setJanitorActors] = useState<Array<JanitorActor>>([]);
   const seenCleaningCueIdsRef = useRef<Set<string>>(new Set());
   // E3 Idea 3: spotlight.
   const [spotlightAgentId, setSpotlightAgentId] = useState<string | null>(null);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const orbitRef = useRef<any>(null);
   // Follow cam: which agent to trail with a third-person perspective camera.
   const [followAgentId, setFollowAgentId] = useState<string | null>(null);
@@ -2901,7 +2899,7 @@ export function RetroOffice3D({
     useState<TextMessageStep>("selecting_contact");
   const [typedMessageText, setTypedMessageText] = useState("");
   const [activeTextKey, setActiveTextKey] = useState<string | null>(null);
-  const [textContacts, setTextContacts] = useState<string[]>([]);
+  const [textContacts, setTextContacts] = useState<Array<string>>([]);
   const [activeTextContactIndex, setActiveTextContactIndex] = useState<
     number | null
   >(null);
@@ -3018,7 +3016,7 @@ export function RetroOffice3D({
 
   // Keep a stable ref to furniture so the tick callback can read it without
   // being recreated every time furniture changes.
-  const furnitureRef = useRef<FurnitureItem[]>(furniture);
+  const furnitureRef = useRef<Array<FurnitureItem>>(furniture);
   useEffect(() => {
     furnitureRef.current = furniture;
   }, [furniture]);
@@ -3061,7 +3059,7 @@ export function RetroOffice3D({
     });
   }, [janitorCleaningStops, resolvedCleaningCues]);
 
-  const sceneAgents = useMemo<SceneActor[]>(
+  const sceneAgents = useMemo<Array<SceneActor>>(
     () => [...agents, ...janitorActors],
     [agents, janitorActors],
   );
@@ -3093,7 +3091,7 @@ export function RetroOffice3D({
   );
   useEffect(() => {
     const syncRenderAgentUi = () => {
-      const next: Record<string, RenderAgentUiSnapshot> = {};
+      const next: RenderAgentUiSnapshotById = {};
       for (const agent of renderAgentsRef.current) {
         next[agent.id] = {
           state: agent.state,
@@ -3114,7 +3112,7 @@ export function RetroOffice3D({
     : null;
   const agentStatusLookup = useMemo(
     () =>
-      agents.reduce<Record<string, { isError: boolean; working: boolean }>>(
+      agents.reduce<AgentActivityStatusById>(
         (acc, agent) => {
           const renderAgent = renderAgentUiById[agent.id];
           acc[agent.id] = {
@@ -3385,8 +3383,8 @@ export function RetroOffice3D({
 
   useEffect(() => {
     if (readOnly || storageNamespace !== "default") return;
-    const gatewayUrl = atmAnalytics?.gatewayUrl?.trim() ?? "";
-    if (!gatewayUrl) return;
+    const analyticsGatewayUrl = atmAnalytics?.gatewayUrl?.trim() ?? "";
+    if (!analyticsGatewayUrl) return;
     const timeoutId = window.setTimeout(() => {
       void fetch("/api/office/layout", {
         method: "PUT",
@@ -3395,7 +3393,7 @@ export function RetroOffice3D({
         },
         body: JSON.stringify({
           snapshot: {
-            gatewayUrl,
+            gatewayUrl: analyticsGatewayUrl,
             timestamp: new Date().toISOString(),
             width: LOCAL_OFFICE_CANVAS_WIDTH,
             height: LOCAL_OFFICE_CANVAS_HEIGHT,
@@ -3562,11 +3560,7 @@ export function RetroOffice3D({
 
   const getBoothAudioContext = useCallback(async () => {
     if (typeof window === "undefined") return null;
-    const AudioContextCtor =
-      window.AudioContext ||
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ((window as any).webkitAudioContext as typeof AudioContext | undefined);
-    if (!AudioContextCtor) return null;
+    const AudioContextCtor = window.AudioContext;
     if (!boothAudioCtxRef.current) {
       boothAudioCtxRef.current = new AudioContextCtor();
     }
@@ -3661,8 +3655,8 @@ export function RetroOffice3D({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             text,
-            voiceId: voiceRepliesVoiceId ?? undefined,
-            speed: voiceRepliesSpeed ?? 1,
+            voiceId: voiceRepliesVoiceId,
+            speed: voiceRepliesSpeed,
           }),
         });
         if (!response.ok) return;
@@ -3920,7 +3914,7 @@ export function RetroOffice3D({
         );
       }
 
-      if (!standupActive || !standupMeeting) {
+      if (!standupActive) {
         const nextArrivalsKey = "";
         if (lastStandupArrivalKeyRef.current === nextArrivalsKey) return;
         lastStandupArrivalKeyRef.current = nextArrivalsKey;
@@ -4743,7 +4737,6 @@ export function RetroOffice3D({
         if (availableAgents.length < 2) return;
         availableAgents.forEach((agent, index) => {
           const target = targets[index];
-          if (!target) return;
           Object.assign(agent, {
             targetX: target.x,
             targetY: target.y,
@@ -4773,7 +4766,7 @@ export function RetroOffice3D({
           setMoodByAgentId((prev) => {
             const next = { ...prev };
             for (const agent of availableAgents) {
-              if (next[agent.id]?.emoji === "🏓") delete next[agent.id];
+              if (next[agent.id].emoji === "🏓") delete next[agent.id];
             }
             return next;
           });
@@ -5317,7 +5310,6 @@ export function RetroOffice3D({
   useEffect(() => {
     if (feedEvents.length === 0) return;
     const latest = feedEvents[0];
-    if (!latest) return;
     if (latest.kind !== "reply") return;
     const speechBubbleDurationMs = Math.min(
       12_000,
@@ -5343,7 +5335,6 @@ export function RetroOffice3D({
   useEffect(() => {
     if (feedEvents.length === 0) return;
     const latest = feedEvents[0];
-    if (!latest) return;
     const emoji =
       latest.kind === "reply"
         ? "💬"
@@ -5939,7 +5930,7 @@ export function RetroOffice3D({
 
             {/* Agents — purely imperative, driven by renderAgentsRef inside useFrame. */}
             {sceneAgents.map((agent) => {
-              const isJanitor = "role" in agent && agent.role === "janitor";
+              const isJanitor = agent.role === "janitor";
               return (
                 <AgentObjectModel
                   key={agent.id}
@@ -5973,15 +5964,15 @@ export function RetroOffice3D({
                       ? null
                       : standupMeeting?.phase === "in_progress"
                         ? (standupSpeechTextByAgentId[agent.id] ?? null)
-                        : (speechTextByAgentId[agent.id] ??
-                            streamingTextByAgentId[agent.id] ??
-                            idleMatrixQuipByAgentId[agent.id] ??
-                            null)
+                        : (speechTextByAgentId[agent.id] ||
+                            streamingTextByAgentId[agent.id] ||
+                            idleMatrixQuipByAgentId[agent.id] ||
+                            "")
                   }
                   speechBubbleColor={agentColorMap.get(agent.id) ?? "#00ff41"}
                   suppressSpeechBubble={
                     suppressSceneSpeechBubbles &&
-                    standupMeeting?.currentSpeakerAgentId !== agent.id
+                    standupMeeting.currentSpeakerAgentId !== agent.id
                   }
                   progress={progressByAgentId[agent.id]}
                 />
@@ -6156,10 +6147,15 @@ export function RetroOffice3D({
             <div className="flex items-center -space-x-1.5">
               {compactRosterAgents.map((agent) => {
                 const status = agentStatusLookup[agent.id];
-                const isError = status?.isError ?? agent.status === "error";
-                const working = status?.working ?? agent.status === "working";
+                const isError = status?.isError || agent.status === "error";
+                const working = status?.working || agent.status === "working";
                 const isRemoteAgent = isRemoteOfficeAgentId(agent.id);
-                const mood = moodByAgentId[agent.id];
+                const mood = Object.prototype.hasOwnProperty.call(
+                  moodByAgentId,
+                  agent.id,
+                )
+                  ? moodByAgentId[agent.id]
+                  : null;
                 const dotClass = isError
                   ? "bg-red-400"
                   : working
@@ -6250,8 +6246,8 @@ export function RetroOffice3D({
               <div className="grid max-h-[min(60vh,420px)] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
                 {agents.map((agent) => {
                   const status = agentStatusLookup[agent.id];
-                  const isError = status?.isError ?? agent.status === "error";
-                  const working = status?.working ?? agent.status === "working";
+                  const isError = status?.isError || agent.status === "error";
+                  const working = status?.working || agent.status === "working";
                   const isRemoteAgent = isRemoteOfficeAgentId(agent.id);
                   const dotClass = isError
                     ? "bg-red-400"
@@ -6459,7 +6455,6 @@ export function RetroOffice3D({
                     </span>
                   </div>
                 ) : null}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={imageUrl}
                   alt=""
@@ -7182,7 +7177,7 @@ export function RetroOffice3D({
                 onClick={() => startPlacing(entry.type)}
                 className={`flex flex-col items-center gap-1 p-2 rounded-md border transition-all text-center ${
                   drag.kind === "placing" &&
-                  (drag as { kind: "placing"; itemType: string }).itemType ===
+                  (drag).itemType ===
                     entry.type
                     ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
                     : "bg-[#120e08] border-amber-900/15 text-amber-200/70 hover:bg-[#261e16] hover:border-amber-800/30"

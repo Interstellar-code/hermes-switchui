@@ -34,7 +34,7 @@ export type AgentModelProps = {
   status: OfficeAgent["status"];
   color: string;
   appearance?: AgentAvatarProfile | null;
-  agentsRef: RefObject<RenderAgent[]>;
+  agentsRef: RefObject<Array<RenderAgent>>;
   agentLookupRef?: RefObject<Map<string, RenderAgent>>;
   onHover?: (id: string) => void;
   onUnhover?: () => void;

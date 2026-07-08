@@ -1,6 +1,7 @@
 "use client";
 
-import { memo, type ReactNode } from "react";
+import { memo } from "react";
+import type { ReactNode } from "react";
 import {
   CANVAS_H,
   CANVAS_W,
@@ -167,7 +168,7 @@ function OfficeFlagPole({
   );
 }
 
-export const FloorAndWalls = memo(function FloorAndWalls({
+export const FloorAndWalls = memo(function FloorAndWallsScene({
   showRemoteOffice = true,
 }: {
   showRemoteOffice?: boolean;
@@ -678,7 +679,7 @@ export const FloorAndWalls = memo(function FloorAndWalls({
   );
 });
 
-export const WallPictures = memo(function WallPictures({
+export const WallPictures = memo(function WallPicturesScene({
   showRemoteOffice = true,
 }: {
   showRemoteOffice?: boolean;

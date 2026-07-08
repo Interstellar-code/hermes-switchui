@@ -1,3 +1,7 @@
+import type {
+  FurnitureItem,
+  FurnitureSeed,
+} from "@/features/retro-office/core/types";
 import {
   DOOR_LENGTH,
   DOOR_THICKNESS,
@@ -16,13 +20,9 @@ import {
   hasGymRoomMigrationApplied,
   hasPhoneBoothMigrationApplied,
   hasQaLabMigrationApplied,
-  hasSmsBoothMigrationApplied,
   hasServerRoomMigrationApplied,
+  hasSmsBoothMigrationApplied,
 } from "@/features/retro-office/core/persistence";
-import type {
-  FurnitureItem,
-  FurnitureSeed,
-} from "@/features/retro-office/core/types";
 
 export type OfficeLayoutPreset = "office" | "lobby";
 
@@ -69,7 +69,7 @@ const DEFAULT_KANBAN_BOARD: FurnitureSeed = {
   facing: 180,
 };
 
-const PREVIOUS_SERVER_ROOM_ITEMS_BOTTOM_RIGHT: FurnitureSeed[] = [
+const PREVIOUS_SERVER_ROOM_ITEMS_BOTTOM_RIGHT: Array<FurnitureSeed> = [
   { type: "wall", x: 820, y: 540, w: 280, h: WALL_THICKNESS },
   { type: "wall", x: 820, y: 540, w: WALL_THICKNESS, h: 70 },
   { type: "wall", x: 820, y: 650, w: WALL_THICKNESS, h: 70 },
@@ -86,7 +86,7 @@ const PREVIOUS_SERVER_ROOM_ITEMS_BOTTOM_RIGHT: FurnitureSeed[] = [
   { type: "server_terminal", x: 930, y: 640, facing: 0 },
 ];
 
-const PREVIOUS_SERVER_ROOM_ITEMS_TOP_RIGHT: FurnitureSeed[] = [
+const PREVIOUS_SERVER_ROOM_ITEMS_TOP_RIGHT: Array<FurnitureSeed> = [
   { type: "wall", x: 820, y: 0, w: WALL_THICKNESS, h: 130 },
   { type: "wall", x: 820, y: 170, w: WALL_THICKNESS, h: 60 },
   {
@@ -103,7 +103,7 @@ const PREVIOUS_SERVER_ROOM_ITEMS_TOP_RIGHT: FurnitureSeed[] = [
   { type: "server_terminal", x: 930, y: 185, facing: 0 },
 ];
 
-const DEFAULT_DINING_ITEMS: FurnitureSeed[] = [
+const DEFAULT_DINING_ITEMS: Array<FurnitureSeed> = [
   { type: "round_table", x: 890, y: 100, r: 50 },
   { type: "chair", x: 930, y: 100, facing: 0 },
   { type: "chair", x: 930, y: 180, facing: 180 },
@@ -111,7 +111,7 @@ const DEFAULT_DINING_ITEMS: FurnitureSeed[] = [
   { type: "chair", x: 970, y: 130, facing: 270 },
 ];
 
-const DEFAULT_SERVER_ROOM_ITEMS: FurnitureSeed[] = [
+const DEFAULT_SERVER_ROOM_ITEMS: Array<FurnitureSeed> = [
   { type: "wall", x: 0, y: 560, w: 230, h: WALL_THICKNESS },
   { type: "wall", x: 220, y: 560, w: WALL_THICKNESS, h: 60 },
   {
@@ -128,7 +128,7 @@ const DEFAULT_SERVER_ROOM_ITEMS: FurnitureSeed[] = [
   { type: "server_terminal", x: 110, y: 645, facing: 180 },
 ];
 
-const LEGACY_GYM_ROOM_ITEMS: FurnitureSeed[] = [
+const LEGACY_GYM_ROOM_ITEMS: Array<FurnitureSeed> = [
   { type: "wall", x: 1092, y: 0, w: WALL_THICKNESS, h: 260 },
   {
     type: "door",
@@ -169,7 +169,7 @@ const LEGACY_GYM_ROOM_ITEMS: FurnitureSeed[] = [
   { type: "plant", x: 1400, y: 660 },
 ];
 
-const LEGACY_QA_LAB_ITEMS: FurnitureSeed[] = [
+const LEGACY_QA_LAB_ITEMS: Array<FurnitureSeed> = [
   { type: "wall", x: 1442, y: 0, w: 358, h: WALL_THICKNESS },
   { type: "wall", x: 1442, y: 712, w: 358, h: WALL_THICKNESS },
   { type: "wall", x: 1792, y: 0, w: WALL_THICKNESS, h: 720 },
@@ -189,7 +189,7 @@ const EAST_WING_TOP_WALL_HEIGHT = EAST_WING_DOOR_Y - EAST_WING_ROOM_TOP_Y;
 const EAST_WING_BOTTOM_WALL_HEIGHT =
   EAST_WING_ROOM_BOTTOM_Y - EAST_WING_DOOR_BOTTOM_Y;
 
-const PREVIOUS_GYM_ROOM_ITEMS: FurnitureSeed[] = [
+const PREVIOUS_GYM_ROOM_ITEMS: Array<FurnitureSeed> = [
   {
     type: "wall",
     x: GYM_ROOM_X,
@@ -245,7 +245,7 @@ const PREVIOUS_GYM_ROOM_ITEMS: FurnitureSeed[] = [
   { type: "plant", x: 1312, y: 622 },
 ];
 
-const PREVIOUS_QA_LAB_ITEMS: FurnitureSeed[] = [
+const PREVIOUS_QA_LAB_ITEMS: Array<FurnitureSeed> = [
   {
     type: "wall",
     x: QA_LAB_X,
@@ -298,7 +298,7 @@ const PREVIOUS_QA_LAB_ITEMS: FurnitureSeed[] = [
   { type: "plant", x: 1604, y: 622 },
 ];
 
-const DEFAULT_GYM_ITEMS: FurnitureSeed[] = [
+const DEFAULT_GYM_ITEMS: Array<FurnitureSeed> = [
   {
     type: "wall",
     x: GYM_ROOM_X,
@@ -354,7 +354,7 @@ const DEFAULT_GYM_ITEMS: FurnitureSeed[] = [
   { type: "plant", x: 1268, y: 622 },
 ];
 
-const DEFAULT_QA_LAB_ITEMS: FurnitureSeed[] = [
+const DEFAULT_QA_LAB_ITEMS: Array<FurnitureSeed> = [
   {
     type: "wall",
     x: QA_LAB_X,
@@ -407,7 +407,7 @@ const DEFAULT_QA_LAB_ITEMS: FurnitureSeed[] = [
   { type: "plant", x: 1496, y: 622 },
 ];
 
-const DEFAULT_ART_ROOM_ITEMS: FurnitureSeed[] = [
+const DEFAULT_ART_ROOM_ITEMS: Array<FurnitureSeed> = [
   { type: "wall", x: 260, y: 40, w: 8, h: 230 },
   { type: "wall", x: 260, y: 40, w: 178, h: 8 },
   { type: "wall", x: 260, y: 262, w: 178, h: 8 },
@@ -420,7 +420,7 @@ const DEFAULT_ART_ROOM_ITEMS: FurnitureSeed[] = [
   { type: "plant", x: 280, y: 240 },
 ];
 
-const DEFAULT_LOBBY_FURNITURE: FurnitureSeed[] = [
+const DEFAULT_LOBBY_FURNITURE: Array<FurnitureSeed> = [
   { type: "round_table", x: 120, y: 110, r: 72 },
   { type: "chair", x: 182, y: 110, facing: 0 },
   { type: "chair", x: 160, y: 168, facing: 220 },
@@ -453,7 +453,7 @@ const DEFAULT_LOBBY_FURNITURE: FurnitureSeed[] = [
   ...DEFAULT_ART_ROOM_ITEMS,
 ];
 
-const DEFAULT_FURNITURE: FurnitureSeed[] = [
+const DEFAULT_FURNITURE: Array<FurnitureSeed> = [
   { type: "round_table", x: 50, y: 50, r: 90 },
   { type: "chair", x: 130, y: 50, facing: 0 },
   { type: "chair", x: 200, y: 90, facing: 325 },
@@ -559,7 +559,7 @@ const DEFAULT_FURNITURE: FurnitureSeed[] = [
 
 export const materializeDefaults = (
   preset: OfficeLayoutPreset = "office",
-): FurnitureItem[] =>
+): Array<FurnitureItem> =>
   (preset === "lobby" ? DEFAULT_LOBBY_FURNITURE : DEFAULT_FURNITURE).map((item, index) => ({
     ...item,
     _uid: `${preset}_${index}`,
@@ -612,72 +612,68 @@ const QA_LAB_SIGNATURES = new Set(
   DEFAULT_QA_LAB_ITEMS.map(createFurnitureSignature),
 );
 
-const hasSignature = (items: FurnitureItem[], signatures: Set<string>) =>
+const hasSignature = (items: Array<FurnitureItem>, signatures: Set<string>) =>
   items.some((item) => signatures.has(createFurnitureSignature(item)));
 
-const hasAllSignatures = (items: FurnitureItem[], signatures: Set<string>) => {
+const hasAllSignatures = (items: Array<FurnitureItem>, signatures: Set<string>) => {
   const itemSignatures = new Set(items.map(createFurnitureSignature));
   return [...signatures].every((signature) => itemSignatures.has(signature));
 };
 
 const replaceBySignatureSet = (
-  items: FurnitureItem[],
+  items: Array<FurnitureItem>,
   signatures: Set<string>,
 ) => items.filter((item) => !signatures.has(createFurnitureSignature(item)));
 
 export const ensureOfficePingPongTable = (
-  items: FurnitureItem[],
-): FurnitureItem[] => {
+  items: Array<FurnitureItem>,
+): Array<FurnitureItem> => {
   if (items.some((item) => item.type === "pingpong")) return items;
   return [...items, { ...DEFAULT_PINGPONG_TABLE, _uid: nextUid() }];
 };
 
-export const ensureOfficeAtm = (items: FurnitureItem[]): FurnitureItem[] => {
+export const ensureOfficeAtm = (items: Array<FurnitureItem>): Array<FurnitureItem> => {
   if (items.some((item) => item.type === "atm")) return items;
   if (hasAtmMigrationApplied()) return items;
   return [...items, { ...DEFAULT_ATM_MACHINE, _uid: nextUid() }];
 };
 
-export const ensureOfficeJukebox = (items: FurnitureItem[]): FurnitureItem[] => {
+export const ensureOfficeJukebox = (items: Array<FurnitureItem>): Array<FurnitureItem> => {
   if (items.some((item) => item.type === "jukebox")) return items;
   return [...items, { ...DEFAULT_JUKEBOX, _uid: nextUid() }];
 };
 
-export const ensureOfficeKanbanBoard = (items: FurnitureItem[]): FurnitureItem[] => {
+export const ensureOfficeKanbanBoard = (items: Array<FurnitureItem>): Array<FurnitureItem> => {
   if (items.some((item) => item.type === "kanban_board")) return items;
   return [...items, { ...DEFAULT_KANBAN_BOARD, _uid: nextUid() }];
 };
 
 export const ensureOfficePhoneBooth = (
-  items: FurnitureItem[],
-): FurnitureItem[] => {
-  let found = false;
+  items: Array<FurnitureItem>,
+): Array<FurnitureItem> => {
   const nextItems = items.map((item) => {
-    if (item.type === "phone_booth") {
-      found = true;
-      if (item.x === 980 && item.y === 560) {
-        return { ...item, x: 1050, y: 190 };
-      }
+    if (item.type === "phone_booth" && item.x === 980 && item.y === 560) {
+      return { ...item, x: 1050, y: 190 };
     }
     return item;
   });
 
-  if (found) return nextItems;
+  if (items.some((item) => item.type === "phone_booth")) return nextItems;
   if (hasPhoneBoothMigrationApplied()) return nextItems;
   return [...nextItems, { ...DEFAULT_PHONE_BOOTH, _uid: nextUid() }];
 };
 
 export const ensureOfficeSmsBooth = (
-  items: FurnitureItem[],
-): FurnitureItem[] => {
+  items: Array<FurnitureItem>,
+): Array<FurnitureItem> => {
   if (items.some((item) => item.type === "sms_booth")) return items;
   if (hasSmsBoothMigrationApplied()) return items;
   return [...items, { ...DEFAULT_SMS_BOOTH, _uid: nextUid() }];
 };
 
 export const ensureOfficeServerRoom = (
-  items: FurnitureItem[],
-): FurnitureItem[] => {
+  items: Array<FurnitureItem>,
+): Array<FurnitureItem> => {
   const hasCurrentServerRoom = items.some((item) =>
     SERVER_ROOM_SIGNATURES.has(createFurnitureSignature(item)),
   );
@@ -723,8 +719,8 @@ export const ensureOfficeServerRoom = (
 };
 
 export const ensureOfficeGymRoom = (
-  items: FurnitureItem[],
-): FurnitureItem[] => {
+  items: Array<FurnitureItem>,
+): Array<FurnitureItem> => {
   const hasCurrentGymRoom = hasSignature(items, GYM_ROOM_SIGNATURES);
   if (hasCurrentGymRoom) return items;
 
@@ -767,7 +763,7 @@ export const ensureOfficeGymRoom = (
   ];
 };
 
-export const ensureOfficeQaLab = (items: FurnitureItem[]): FurnitureItem[] => {
+export const ensureOfficeQaLab = (items: Array<FurnitureItem>): Array<FurnitureItem> => {
   const hasCurrentQaLab = hasSignature(items, QA_LAB_SIGNATURES);
   if (hasCurrentQaLab) return items;
 

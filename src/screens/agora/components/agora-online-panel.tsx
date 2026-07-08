@@ -5,7 +5,7 @@ import type { AgoraUser } from '../lib/agora-types'
 
 interface AgoraOnlinePanelProps {
   self: AgoraUser
-  others: AgoraUser[]
+  others: Array<AgoraUser>
   nearbyIds: Set<string>
   onSelectUser?: (user: AgoraUser) => void
 }
@@ -48,7 +48,7 @@ export function AgoraOnlinePanel({ self, others, nearbyIds, onSelectUser }: Agor
                 className="rounded-full"
                 style={{ border: '1px solid var(--theme-border)' }}
                 onError={(e) => {
-                  ;(e.currentTarget as HTMLImageElement).src = '/avatars/hermes.png'
+                  ;(e.currentTarget).src = '/avatars/hermes.png'
                 }}
               />
               <div className="flex-1 min-w-0">

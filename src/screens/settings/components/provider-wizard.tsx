@@ -19,9 +19,9 @@ import {
 import { writeTextToClipboard } from '@/lib/clipboard'
 import { Button } from '@/components/ui/button'
 import {
+  Dialog,
   DialogContent,
   DialogDescription,
-  Dialog,
   DialogTitle,
 } from '@/components/shadcn/ui/dialog'
 import { useConnectionRestart } from '@/components/connection-overlay'

@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 
 import { textFromMessage } from '../utils'
-import { stripQueuedWrapper } from '@/lib/strip-queued-wrapper'
 import type { ChatMessage, StreamingToolCall } from '../types'
+import { stripQueuedWrapper } from '@/lib/strip-queued-wrapper'
 
 /**
  * Normalize an unknown message field value into a trimmed string (empty when
@@ -43,11 +43,11 @@ function messageFallbackSignature(message: ChatMessage): string {
     ? message.attachments
         .map((attachment) => {
           const name =
-            typeof attachment?.name === 'string' ? attachment.name : ''
+            typeof attachment.name === 'string' ? attachment.name : ''
           const size =
-            typeof attachment?.size === 'number' ? String(attachment.size) : ''
+            typeof attachment.size === 'number' ? String(attachment.size) : ''
           const type =
-            typeof attachment?.contentType === 'string'
+            typeof attachment.contentType === 'string'
               ? attachment.contentType
               : ''
           return `${name}:${size}:${type}`
@@ -91,11 +91,11 @@ function getMessageAttachmentSignature(message: ChatMessage): string {
 
   return message.attachments
     .map((attachment) => {
-      const name = typeof attachment?.name === 'string' ? attachment.name : ''
+      const name = typeof attachment.name === 'string' ? attachment.name : ''
       const size =
-        typeof attachment?.size === 'number' ? String(attachment.size) : ''
+        typeof attachment.size === 'number' ? String(attachment.size) : ''
       const type =
-        typeof attachment?.contentType === 'string'
+        typeof attachment.contentType === 'string'
           ? attachment.contentType
           : ''
       return `${name}:${size}:${type}`
@@ -167,12 +167,12 @@ function stripQueuedWrapperFromUserMessage(message: ChatMessage): ChatMessage {
  * Pure extraction from chat-screen.tsx (#298) — no behavior change.
  */
 export function useDisplayMessages(params: {
-  realtimeMessages: ChatMessage[]
+  realtimeMessages: Array<ChatMessage>
   activeIsRealtimeStreaming: boolean
   activeToolCalls: Array<StreamingToolCall>
   realtimeStreamingThinking: string
 }): {
-  finalDisplayMessages: ChatMessage[]
+  finalDisplayMessages: Array<ChatMessage>
 } {
   const {
     realtimeMessages,
@@ -192,7 +192,7 @@ export function useDisplayMessages(params: {
       }
       if (msg.role === 'assistant') {
         if (msg.__streamingStatus === 'streaming') return true
-        if ((msg as any).__optimisticId && !msg.content?.length) return true
+        if ((msg as any).__optimisticId && msg.content.length === 0) return true
         if (textFromMessage(msg).trim().length > 0) return true
         const content = Array.isArray(msg.content) ? msg.content : []
         const hasToolCalls = content.some((part) => part.type === 'toolCall')

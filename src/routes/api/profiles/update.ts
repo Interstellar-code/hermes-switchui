@@ -1,16 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
-  writeProfile,
   readProfile,
-  type AgentRuntime,
-  type AgentUIMetadata,
-  type MemoryConfig,
-  type McpServerConfig,
-  type ModelConfig,
-  type SkillsConfig,
+  writeProfile,
 } from '../../../server/profiles-browser'
 import { requireJsonContentType } from '../../../server/rate-limit'
+import type {
+  AgentRuntime,
+  AgentUIMetadata,
+  McpServerConfig,
+  MemoryConfig,
+  ModelConfig,
+  SkillsConfig,
+} from '../../../server/profiles-browser'
 
 type UpdateBody = {
   name?: string
@@ -61,7 +63,7 @@ export const Route = createFileRoute('/api/profiles/update')({
             if (!body.patch || typeof body.patch !== 'object') {
               return Response.json({ error: 'patch is required' }, { status: 400 })
             }
-            const profile = writeProfile(name, body.patch as Record<string, unknown>)
+            const profile = writeProfile(name, body.patch)
             return Response.json({ ok: true, profile })
           }
 
@@ -69,7 +71,7 @@ export const Route = createFileRoute('/api/profiles/update')({
           // set for legacy upgrade path where existing config has no agent_ui).
           if (body.agent_ui?.tier !== undefined) {
             const existing = readProfile(name)
-            const existingTier = existing?.config?.agent_ui?.tier
+            const existingTier = existing.config.agent_ui.tier
             if (existingTier !== undefined && existingTier !== body.agent_ui.tier) {
               return Response.json(
                 { error: 'agent_ui.tier cannot be updated after creation' },

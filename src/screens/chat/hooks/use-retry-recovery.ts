@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef } from 'react'
-import type { RefObject } from 'react'
-import type { QueryClient, UseQueryResult } from '@tanstack/react-query'
-
 import { textFromMessage } from '../utils'
 import {
   updateHistoryMessageByClientId,
   updateHistoryMessageByClientIdEverywhere,
 } from '../chat-queries'
+import type { RefObject } from 'react'
+import type { QueryClient, UseQueryResult } from '@tanstack/react-query'
+
 import type { ChatAttachment, ChatMessage } from '../types'
 
 // ---------------------------------------------------------------------------
@@ -142,7 +142,7 @@ export function useRetryRecovery(params: {
   const hadErrorRef = useRef(false)
 
   const retryQueuedMessage = useCallback(
-    function retryQueuedMessage(message: ChatMessage, mode: 'manual' | 'auto') {
+    (message: ChatMessage, mode: 'manual' | 'auto') => {
       if (!isRetryableQueuedMessage(message)) return false
 
       const body = textFromMessage(message).trim()
@@ -210,7 +210,7 @@ export function useRetryRecovery(params: {
   )
 
   const flushRetryableMessages = useCallback(
-    function flushRetryableMessages() {
+    () => {
       for (const message of finalDisplayMessages) {
         retryQueuedMessage(message, 'auto')
       }
@@ -219,7 +219,7 @@ export function useRetryRecovery(params: {
   )
 
   const handleRetryMessage = useCallback(
-    function handleRetryMessage(message: ChatMessage) {
+    (message: ChatMessage) => {
       const retryKey = getRetryMessageKey(message)
       retriedQueuedMessageKeysRef.current.delete(retryKey)
       retryQueuedMessage(message, 'manual')
@@ -228,13 +228,6 @@ export function useRetryRecovery(params: {
   )
 
   useEffect(() => {
-    if (false) {
-      // Server connection checks removed — Hermes Agent uses direct API
-      hasSeenDisconnectRef.current = true
-      retriedQueuedMessageKeysRef.current.clear()
-      return
-    }
-
     if (hasSeenDisconnectRef.current) {
       hasSeenDisconnectRef.current = false
       flushRetryableMessages()

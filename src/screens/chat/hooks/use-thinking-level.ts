@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
+import type { ThinkingLevel } from '../components/chat-composer-types'
 import { _localModelOverride } from '@/screens/chat/local-model-override'
 import { useSessionModelStore } from '@/stores/session-model-store'
-import type { ThinkingLevel } from '../components/chat-composer-types'
 
 export function useThinkingLevel(params: {
   activeFriendlyId: string

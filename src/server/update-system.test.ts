@@ -1,12 +1,12 @@
-import { describe, expect, it } from 'vitest'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { describe, expect, it } from 'vitest'
 import {
-  remoteUrlMatches,
   isOnlyTrivialDirty,
   isUpdateAvailable,
+  remoteUrlMatches,
   resolveUpdatePresentation,
 } from './update-system'
 

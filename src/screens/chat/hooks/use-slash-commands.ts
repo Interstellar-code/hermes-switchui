@@ -1,5 +1,4 @@
 import { useCallback, useEffect } from 'react'
-import type { Dispatch, RefObject, SetStateAction } from 'react'
 
 import {
   clearHistoryMessages,
@@ -10,23 +9,24 @@ import {
   CHAT_PENDING_COMMAND_STORAGE_KEY,
   CHAT_RUN_COMMAND_EVENT,
 } from '../chat-events'
-import type { ChatRunCommandDetail } from '../chat-events'
+import { textFromMessage } from '../utils'
+import { setPendingGeneration } from '../pending-send'
 import type {
   ChatComposerAttachment,
   ChatComposerHelpers,
   ThinkingLevel,
 } from '../components/chat-composer-types'
 import type { ChatMessage } from '../types'
-import { textFromMessage } from '../utils'
-import { setPendingGeneration } from '../pending-send'
+import type { ChatRunCommandDetail } from '../chat-events'
+import type { Dispatch, RefObject, SetStateAction } from 'react'
+import type { UserCommandRecord } from '@/lib/commands-api'
+import type { ActiveSendRecord } from './use-send-message-state'
+import type { QueryClient } from '@tanstack/react-query'
 import {
   expandUserCommandPrompt,
   findEnabledCommandBySlash,
 } from '@/lib/commands-api'
-import type { UserCommandRecord } from '@/lib/commands-api'
-import type { ActiveSendRecord } from './use-send-message-state'
 import { toast } from '@/components/ui/toast'
-import type { QueryClient } from '@tanstack/react-query'
 
 // --- Helpers moved from chat-screen.tsx (used only by /save) ---
 
@@ -55,7 +55,7 @@ function exportConversationTranscript(payload: {
       const text = textFromMessage(message).trim()
       const attachments = Array.isArray(message.attachments)
         ? message.attachments
-            .map((attachment) => attachment?.name?.trim())
+            .map((attachment) => attachment.name.trim())
             .filter((value): value is string => Boolean(value))
         : []
 
@@ -255,7 +255,7 @@ export function useSlashCommands(
           activeSessionKey ||
           activeFriendlyId
         if (sessionKey) {
-          void renameSession(sessionKey, activeFriendlyId ?? null, slashArg)
+          void renameSession(sessionKey, activeFriendlyId, slashArg)
           toast(`Title set: ${slashArg}`, { type: 'success' })
         }
         return true
@@ -313,7 +313,7 @@ export function useSlashCommands(
   useEffect(() => {
     function handleRunCommand(event: Event) {
       const detail = (event as CustomEvent<ChatRunCommandDetail>).detail
-      if (!detail?.command) return
+      if (!detail.command) return
       runPaletteSlashCommand(detail.command)
     }
 

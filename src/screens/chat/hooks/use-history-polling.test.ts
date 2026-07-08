@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
+import { useHistoryPolling } from './use-history-polling'
 import type { RefObject } from 'react'
 
-import { useHistoryPolling } from './use-history-polling'
 
 function ref<T>(initial: T): RefObject<T> {
-  return { current: initial } as RefObject<T>
+  return { current: initial }
 }
 
 /** Force jsdom's `document.visibilityState` to a given value. */

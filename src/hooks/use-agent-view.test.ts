@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { GatewaySession } from '@/lib/gateway-api'
 import { isChildWorkerSession, isWorkspaceChatSession } from './use-agent-view'
+import type { GatewaySession } from '@/lib/gateway-api'
 
 describe('useAgentView session payload regression', () => {
   it('does not classify inactive api chat history as a live workspace session', () => {

@@ -1,12 +1,27 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
+import { useChatStore } from '../../../stores/chat-store'
+import { createOptimisticMessage } from '../chat-screen-utils'
+import {
+  appendHistoryMessage,
+  updateHistoryMessageByClientId,
+  updateHistoryMessageByClientIdEverywhere,
+  updateSessionLastMessage,
+} from '../chat-queries'
+import { invalidateSessionLists } from '../sessions-feed'
+import { isMissingAuth, missingAuthMessage  } from '../utils'
+import { useSendMessageState } from './use-send-message-state'
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 
-import { useChatStore } from '../../../stores/chat-store'
-import { useSendMessageState } from './use-send-message-state'
 import type { AgentActivity } from '@/stores/chat-activity-store'
 import type { ChatAttachment, ChatMessage } from '../types'
+
+// Import mocked functions for assertion
+import { playChatComplete } from '@/lib/sounds'
+import { useChatSettingsStore } from '@/hooks/use-chat-settings'
+import { toast } from '@/components/ui/toast'
+import { showErrorToast } from '@/components/error-toast'
 
 // --- Mocks for sendMessage dependencies ---
 
@@ -64,22 +79,6 @@ vi.mock('@/components/error-toast', () => ({
   showErrorToast: vi.fn(),
 }))
 
-// Import mocked functions for assertion
-import { createOptimisticMessage } from '../chat-screen-utils'
-import {
-  appendHistoryMessage,
-  updateHistoryMessageByClientId,
-  updateHistoryMessageByClientIdEverywhere,
-  updateSessionLastMessage,
-} from '../chat-queries'
-import { invalidateSessionLists } from '../sessions-feed'
-import { playChatComplete } from '@/lib/sounds'
-import { useChatSettingsStore } from '@/hooks/use-chat-settings'
-import { toast } from '@/components/ui/toast'
-import { showErrorToast } from '@/components/error-toast'
-import { isMissingAuth } from '../utils'
-import { missingAuthMessage } from '../utils'
-
 function makeBooleanRef(initial = false): RefObject<boolean> {
   return { current: initial }
 }
@@ -99,8 +98,8 @@ function makeStartStreamingRef(): RefObject<
 }
 
 function makeMessagesRef(
-  messages: ChatMessage[] = [],
-): RefObject<ChatMessage[]> {
+  messages: Array<ChatMessage> = [],
+): RefObject<Array<ChatMessage>> {
   return { current: messages }
 }
 
@@ -123,7 +122,7 @@ function makeParams(overrides?: {
     (params: Record<string, unknown>) => Promise<void>
   >
   queryClient?: unknown
-  finalDisplayMessagesRef?: RefObject<ChatMessage[]>
+  finalDisplayMessagesRef?: RefObject<Array<ChatMessage>>
   currentModelRef?: RefObject<string | undefined>
   setResearchResetKey?: Dispatch<SetStateAction<number>>
   onSessionResolved?: (params: {
@@ -164,7 +163,7 @@ function makeParams(overrides?: {
     embedded: o.embedded ?? false,
     cancelStreamingRef: o.cancelStreamingRef ?? {
       current: null,
-    } as RefObject<(() => void) | null>,
+    },
   }
 }
 
@@ -195,7 +194,7 @@ describe('useSendMessageState', () => {
   it('streamStop clears streamTimer', () => {
     const { result } = renderHook(() => useSendMessageState(makeParams()))
 
-    result.current.streamTimer.current = 12345 as unknown as number
+    result.current.streamTimer.current = 12345
     act(() => {
       result.current.streamStop()
     })
@@ -215,8 +214,8 @@ describe('useSendMessageState', () => {
     )
 
     result.current.sessionKeyForWaiting.current = 'sess-1'
-    result.current.streamTimer.current = 999 as unknown as number
-    result.current.failsafeTimerRef.current = 888 as unknown as number
+    result.current.streamTimer.current = 999
+    result.current.failsafeTimerRef.current = 888
 
     act(() => {
       result.current.setSending(true)
@@ -394,7 +393,7 @@ describe('useSendMessageState', () => {
       const startStreamingMock = vi.fn(
         async (_params: Record<string, unknown>) => {},
       )
-      const messages: ChatMessage[] = [
+      const messages: Array<ChatMessage> = [
         { role: 'user', content: [{ type: 'text', text: 'previous msg' }] },
       ]
       const { result } = renderHook(() =>
@@ -421,10 +420,7 @@ describe('useSendMessageState', () => {
       })
 
       expect(startStreamingMock).toHaveBeenCalledTimes(1)
-      const callArgs = startStreamingMock.mock.calls[0][0] as Record<
-        string,
-        unknown
-      >
+      const callArgs = startStreamingMock.mock.calls[0][0]
       expect(callArgs.sessionKey).toBe('sess-key-1')
       expect(callArgs.friendlyId).toBe('sess-1')
       expect(callArgs.message).toBe('new message')
@@ -476,7 +472,7 @@ describe('useSendMessageState', () => {
       const startStreamingMock = vi.fn(
         async (_params: Record<string, unknown>) => {},
       )
-      const attachments: ChatAttachment[] = [
+      const attachments: Array<ChatAttachment> = [
         {
           id: 'att-1',
           name: 'test.txt',
@@ -504,10 +500,7 @@ describe('useSendMessageState', () => {
         )
       })
 
-      const callArgs = startStreamingMock.mock.calls[0][0] as Record<
-        string,
-        unknown
-      >
+      const callArgs = startStreamingMock.mock.calls[0][0]
       expect(callArgs.attachments).toBeDefined()
       const payload = callArgs.attachments as Array<Record<string, unknown>>
       expect(payload).toHaveLength(1)
@@ -526,7 +519,7 @@ describe('useSendMessageState', () => {
       const startStreamingMock = vi.fn(
         async (_params: Record<string, unknown>) => {},
       )
-      const attachments: ChatAttachment[] = [
+      const attachments: Array<ChatAttachment> = [
         {
           id: 'att-1',
           name: 'notes.txt',
@@ -554,10 +547,7 @@ describe('useSendMessageState', () => {
         )
       })
 
-      const callArgs = startStreamingMock.mock.calls[0][0] as Record<
-        string,
-        unknown
-      >
+      const callArgs = startStreamingMock.mock.calls[0][0]
       expect(callArgs.message).toContain('body text')
       expect(callArgs.message).toContain('<attachment name="notes.txt">')
       expect(callArgs.message).toContain('raw text content here')

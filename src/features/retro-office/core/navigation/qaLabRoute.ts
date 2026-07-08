@@ -4,8 +4,8 @@ import {
   EAST_WING_ROOM_HEIGHT,
   EAST_WING_ROOM_TOP_Y,
   QA_LAB_END_X,
-  QA_LAB_X,
   QA_LAB_WIDTH,
+  QA_LAB_X,
 } from "@/features/retro-office/core/constants";
 
 export const QA_LAB_DEFAULT_TARGET = {

@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
+import type { FileEntry } from './file-tree'
 import { cn } from '@/lib/utils'
 import { formatBytes, formatDate } from '@/lib/format'
 import { getExt } from '@/lib/path-utils'
-import type { FileEntry } from './file-tree'
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'])
 

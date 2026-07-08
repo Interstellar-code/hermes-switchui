@@ -93,10 +93,10 @@ describe('readProfile / writeProfile — new fields (PR-04)', () => {
     expect(detail.config.agent_ui?.glyph).toBe('TA')
     expect(detail.config.agent_ui?.tags).toEqual(['test', 'review'])
     expect(detail.config.agent_ui?.persona_id).toBe('engineering-test')
-    expect(detail.config.mcp_servers?.filesystem?.command).toBe('npx')
+    expect(detail.config.mcp_servers.filesystem.command).toBe('npx')
     expect(detail.config.skills?.external_dirs).toEqual(['/shared/skills'])
     // original model preserved
-    expect((detail.config.model as Record<string, unknown>)?.default).toBe('auto')
+    expect((detail.config.model as Record<string, unknown>).default).toBe('auto')
   })
 
   it('partial update of agent_ui.tags — only the patched key changes', () => {

@@ -61,7 +61,7 @@ export type MigrationResult = {
 
 function derivedIdempotencyKey(task: LegacyTask, index: number): string {
   const stable = JSON.stringify([
-    task.title ?? '',
+    task.title,
     task.description ?? task.body ?? '',
     task.created_at ?? '',
     String(index),

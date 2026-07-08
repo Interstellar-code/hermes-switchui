@@ -49,7 +49,7 @@ async function fallbackAvailableModels(
       })
     }
     const data = (await res.json()) as { data?: Array<Record<string, unknown>> }
-    const list = Array.isArray(data?.data) ? data.data : []
+    const list = Array.isArray(data.data) ? data.data : []
     const wanted = provider.toLowerCase()
     const models = list
       .map((m) => {

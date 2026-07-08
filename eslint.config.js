@@ -1,11 +1,27 @@
 //  @ts-check
 
 import { tanstackConfig } from '@tanstack/eslint-config'
+import nextPlugin from '@next/eslint-plugin-next'
+import reactHooksPlugin from 'eslint-plugin-react-hooks'
 
 export default [
   ...tanstackConfig,
   {
-    ignores: ['eslint.config.js', 'prettier.config.js', 'vite.config.ts'],
+    plugins: {
+      '@next/next': nextPlugin,
+      'react-hooks': reactHooksPlugin,
+    },
+  },
+  {
+    ignores: [
+      'eslint.config.js',
+      'prettier.config.js',
+      'vite.config.ts',
+      'electron/server-bundle.cjs',
+      'website/.astro/**',
+      'website/dist/**',
+      'website/public/vendor/**',
+    ],
   },
   {
     // Block client-side imports of server-only MCP input types.

@@ -46,7 +46,7 @@ const runLocks = new Map<string, Promise<unknown>>()
 
 function withRunLock<T>(runId: string, fn: () => Promise<T>): Promise<T> {
   const prev = runLocks.get(runId) ?? Promise.resolve()
-  const next = prev.then(fn, fn) as Promise<T>
+  const next = prev.then(fn, fn)
   runLocks.set(runId, next)
   // Clean up the map entry once this chain link settles to avoid unbounded growth.
   next.finally(() => {

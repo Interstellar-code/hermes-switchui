@@ -9,7 +9,6 @@ import {
 // Reset global tracker state between tests so they are isolated.
 const ACTIVE_RUNS_KEY = '__claude_active_send_runs__'
 function clearTracker() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   delete (globalThis as any)[ACTIVE_RUNS_KEY]
 }
 

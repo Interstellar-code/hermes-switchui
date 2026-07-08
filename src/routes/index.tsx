@@ -4,7 +4,7 @@ export const Route = createFileRoute('/')({
   ssr: false,
   beforeLoad: function redirectToChat() {
     throw redirect({
-      to: '/chat' as string,
+      to: '/chat',
       replace: true,
     })
   },

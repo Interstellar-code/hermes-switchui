@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import type { BoardMeta } from '@/lib/hermes-kanban-types'
 import { usePageTitle } from '@/hooks/use-page-title'
 import {
   useBoards,
@@ -8,7 +9,6 @@ import {
   useSwitchBoard,
   useUpdateBoard,
 } from '@/lib/boards-api'
-import type { BoardMeta } from '@/lib/hermes-kanban-types'
 import { toast } from '@/components/ui/toast'
 import '@/styles/matrix-boards.css'
 
@@ -41,7 +41,7 @@ function readInitialView(): ViewMode {
 }
 
 function totalTasks(board: BoardMeta): number {
-  return board.total ?? Object.values(board.counts ?? {}).reduce((a, v) => a + v, 0)
+  return board.total
 }
 
 function glyph(name = '?'): string {
@@ -77,8 +77,8 @@ function resolvePath(board: BoardMeta): string {
   return board.db_path ?? '—'
 }
 
-function countFor(board: BoardMeta, names: string[]): number {
-  const counts = board.counts ?? {}
+function countFor(board: BoardMeta, names: Array<string>): number {
+  const counts = board.counts
   return names.reduce((sum, name) => sum + (counts[name] ?? 0), 0)
 }
 
@@ -187,7 +187,7 @@ function BoardRow({ board, onOpen, onOpenTasks, onDelete }: { board: BoardMeta; 
   )
 }
 
-function MainTop({ allBoards, search, setSearch, filter, setFilter, view, setView, onNew }: { allBoards: BoardMeta[]; search: string; setSearch: (value: string) => void; filter: FilterMode; setFilter: (value: FilterMode) => void; view: ViewMode; setView: (value: ViewMode) => void; onNew: () => void }) {
+function MainTop({ allBoards, search, setSearch, filter, setFilter, view, setView, onNew }: { allBoards: Array<BoardMeta>; search: string; setSearch: (value: string) => void; filter: FilterMode; setFilter: (value: FilterMode) => void; view: ViewMode; setView: (value: ViewMode) => void; onNew: () => void }) {
   const activeCount = allBoards.filter((b) => !b.archived).length
   const archivedCount = allBoards.filter((b) => b.archived).length
   const allTasks = allBoards.reduce((a, b) => a + totalTasks(b), 0)
@@ -225,7 +225,7 @@ function MainTop({ allBoards, search, setSearch, filter, setFilter, view, setVie
   )
 }
 
-function BoardsCanvas({ boards, view, onOpen, onOpenTasks, onDelete }: { boards: BoardMeta[]; view: ViewMode; onOpen: (board: BoardMeta) => void; onOpenTasks: (board: BoardMeta) => void; onDelete: (board: BoardMeta) => void }) {
+function BoardsCanvas({ boards, view, onOpen, onOpenTasks, onDelete }: { boards: Array<BoardMeta>; view: ViewMode; onOpen: (board: BoardMeta) => void; onOpenTasks: (board: BoardMeta) => void; onDelete: (board: BoardMeta) => void }) {
   if (boards.length === 0) {
     return <div className="brd-canvas"><div className="empty-state"><div className="es-title">No boards found</div><div className="es-sub">Create a board with supported backend fields only.</div></div></div>
   }
@@ -347,7 +347,7 @@ function CreateWizard({ state, onChange, onClose, onCreate, creating }: { state:
   const steps = ['Identity', 'Review']
   const cur = state.step
 
-  function set<K extends keyof WizardState>(key: K, value: WizardState[K]) {
+  function set<TKey extends keyof WizardState>(key: TKey, value: WizardState[TKey]) {
     onChange({ ...state, [key]: value })
   }
 
@@ -448,7 +448,7 @@ export function BoardsScreen() {
       document.querySelectorAll('div').forEach((node) => {
         const el = node as HTMLElement
         const cls = typeof el.className === 'string' ? el.className : ''
-        const text = el.textContent?.toLowerCase() ?? ''
+        const text = el.textContent.toLowerCase()
         if (cls.includes('z-[9998]') && text.includes('update available')) el.style.display = 'none'
       })
     }
@@ -477,7 +477,7 @@ export function BoardsScreen() {
 
       {activeBoard ? <BoardDrawer board={activeBoard} onClose={() => setActiveSlug(null)} onDelete={(board) => setConfirmDelete(board)} onUpdate={async (input) => { try { await updateMutation.mutateAsync({ slug: activeBoard.slug, input }); toast(`Updated ${input.name || activeBoard.name}`, { type: 'success' }) } catch (error) { toast(error instanceof Error ? error.message : 'Failed to update board', { type: 'error' }) } }} /> : null}
 
-      {wizard ? <CreateWizard state={wizard} onChange={setWizard} onClose={() => setWizard(null)} creating={createMutation.isPending} onCreate={async () => { try { await createMutation.mutateAsync({ slug: wizard.slug || slugify(wizard.name), name: wizard.name.trim(), description: wizard.desc.trim() || undefined, color: wizard.color }); toast(`Board \"${wizard.name.trim()}\" created`, { type: 'success' }); setWizard(null) } catch (error) { toast(error instanceof Error ? error.message : 'Failed to create board', { type: 'error' }) } }} /> : null}
+      {wizard ? <CreateWizard state={wizard} onChange={setWizard} onClose={() => setWizard(null)} creating={createMutation.isPending} onCreate={async () => { try { await createMutation.mutateAsync({ slug: wizard.slug || slugify(wizard.name), name: wizard.name.trim(), description: wizard.desc.trim() || undefined, color: wizard.color }); toast(`Board "${wizard.name.trim()}" created`, { type: 'success' }); setWizard(null) } catch (error) { toast(error instanceof Error ? error.message : 'Failed to create board', { type: 'error' }) } }} /> : null}
 
       {confirmDelete ? <DeleteConfirm board={confirmDelete} deleting={deleteMutation.isPending} onCancel={() => setConfirmDelete(null)} onConfirm={async () => { try { await deleteMutation.mutateAsync({ slug: confirmDelete.slug, hardDelete: true }); toast(`Deleted ${confirmDelete.name}`, { type: 'success' }); setConfirmDelete(null); if (activeSlug === confirmDelete.slug) setActiveSlug(null) } catch (error) { toast(error instanceof Error ? error.message : 'Failed to delete board', { type: 'error' }) } }} /> : null}
     </div>

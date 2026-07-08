@@ -7,11 +7,13 @@
  * Uses React.act + createRoot directly (not @testing-library/react) to avoid
  * the vitest ESM/CJS dual-instance issue with React 19 hooks in jsdom.
  */
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { createRoot } from 'react-dom/client'
+import { InstallConfirmationDialog } from './components/install-confirmation-dialog'
+import type { HubMcpEntry } from './hooks/use-mcp-hub'
 
-;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 // Mock UI primitives before importing the component so vi.mock hoisting works.
 // The factories use the same React import as the test (ESM) to avoid dual-instance.
@@ -44,9 +46,6 @@ vi.mock('@/components/ui/button', () => ({
     [k: string]: unknown
   }) => React.createElement('button', { onClick, disabled, ...props }, children),
 }))
-
-import { InstallConfirmationDialog } from './components/install-confirmation-dialog'
-import type { HubMcpEntry } from './hooks/use-mcp-hub'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -197,7 +196,7 @@ describe('InstallConfirmationDialog — preview render', () => {
 describe('InstallConfirmationDialog — 2-click commit', () => {
   it('does not POST on first render — requires explicit Install click', async () => {
     const fetchSpy = vi.fn()
-    global.fetch = fetchSpy as unknown as typeof fetch
+    global.fetch = fetchSpy
 
     const { unmount } = await renderInto(
       React.createElement(InstallConfirmationDialog, { entry: SAMPLE_ENTRY, onClose: vi.fn() }),
@@ -210,7 +209,7 @@ describe('InstallConfirmationDialog — 2-click commit', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ ok: true }),
-    }) as unknown as typeof fetch
+    })
 
     const onClose = vi.fn()
     const onInstalled = vi.fn()
@@ -236,7 +235,7 @@ describe('InstallConfirmationDialog — 2-click commit', () => {
     global.fetch = vi.fn().mockImplementation((_url: string, opts: RequestInit) => {
       capturedBody = JSON.parse(opts.body as string)
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) })
-    }) as unknown as typeof fetch
+    })
 
     const { container, unmount } = await renderInto(
       React.createElement(InstallConfirmationDialog, { entry: SAMPLE_ENTRY, onClose: vi.fn(), onInstalled: vi.fn() }),
@@ -259,7 +258,7 @@ describe('InstallConfirmationDialog — 2-click commit', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ ok: true }),
-    }) as unknown as typeof fetch
+    })
 
     const onClose = vi.fn()
     const onInstalled = vi.fn()
@@ -282,7 +281,7 @@ describe('InstallConfirmationDialog — 2-click commit', () => {
       ok: false,
       status: 500,
       json: () => Promise.resolve({ ok: false, error: 'Server unavailable' }),
-    }) as unknown as typeof fetch
+    })
 
     const onClose = vi.fn()
 
@@ -301,7 +300,7 @@ describe('InstallConfirmationDialog — 2-click commit', () => {
 
   it('Cancel button calls onClose without fetching', async () => {
     const fetchSpy = vi.fn()
-    global.fetch = fetchSpy as unknown as typeof fetch
+    global.fetch = fetchSpy
     const onClose = vi.fn()
 
     const { container, unmount } = await renderInto(
@@ -324,7 +323,7 @@ describe('InstallConfirmationDialog — 2-click commit', () => {
     global.fetch = vi.fn().mockImplementation((_url: string, opts: RequestInit) => {
       capturedSignal = opts.signal ?? null
       return new Promise(() => { /* never resolves */ })
-    }) as unknown as typeof fetch
+    })
 
     const onClose = vi.fn()
 

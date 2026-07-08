@@ -192,8 +192,7 @@ export function WorkspaceSkillsScreen() {
 
   const selectedSkill =
     visibleSkills.find((skill) => skill.id === selectedSkillId) ??
-    visibleSkills[0] ??
-    null
+    visibleSkills[0]
 
   useEffect(() => {
     if (
@@ -208,7 +207,7 @@ export function WorkspaceSkillsScreen() {
 
   useEffect(() => {
     if (selectedMemoryPath) return
-    const firstFile = memoryQuery.data?.files?.[0]
+    const firstFile = memoryQuery.data?.files[0]
     if (firstFile) {
       setSelectedMemoryPath(firstFile.path)
     }
@@ -393,7 +392,6 @@ export function WorkspaceSkillsScreen() {
                 )}
               </div>
 
-              {selectedSkill ? (
                 <div className="mt-4 space-y-3">
                   <div className="rounded-xl border border-primary-200 bg-primary-50/70 px-4 py-3 text-sm text-primary-600">
                     Selected skill:{' '}
@@ -421,7 +419,7 @@ export function WorkspaceSkillsScreen() {
                       <div className="max-h-96 overflow-y-auto rounded-lg border border-primary-200 bg-white p-4 text-sm text-primary-800 prose prose-sm prose-primary max-w-none">
                         <SkillMarkdown
                           content={
-                            skillContentQuery.data?.trim() ||
+                            skillContentQuery.data.trim() ||
                             'No content available.'
                           }
                         />
@@ -429,7 +427,6 @@ export function WorkspaceSkillsScreen() {
                     )}
                   </div>
                 </div>
-              ) : null}
             </div>
           </section>
 

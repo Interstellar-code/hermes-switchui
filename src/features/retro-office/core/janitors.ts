@@ -1,10 +1,10 @@
+import type { JanitorActor } from "@/features/retro-office/core/types";
+import type { OfficeCleaningCue } from "@/lib/office/eventTriggers";
 import {
   JANITOR_ENTRY_POINTS,
   JANITOR_EXIT_POINTS,
   ROAM_POINTS,
 } from "@/features/retro-office/core/navigation";
-import type { JanitorActor } from "@/features/retro-office/core/types";
-import type { OfficeCleaningCue } from "@/lib/office/eventTriggers";
 
 export const JANITOR_SWEEP_DURATION_MS = 60_000;
 const JANITOR_COUNT = 3;
@@ -21,8 +21,8 @@ const hashString = (value: string): number => {
 
 export const buildJanitorActorsForCue = (
   cue: OfficeCleaningCue,
-  cleaningStops: { x: number; y: number; facing: number }[],
-): JanitorActor[] => {
+  cleaningStops: Array<{ x: number; y: number; facing: number }>,
+): Array<JanitorActor> => {
   const cueId = typeof cue.id === "string" ? cue.id : "unknown"
   const cueTs = typeof cue.ts === "number" ? cue.ts : Date.now()
   const availableStops =
@@ -38,8 +38,8 @@ export const buildJanitorActorsForCue = (
     const entry = JANITOR_ENTRY_POINTS[index % JANITOR_ENTRY_POINTS.length];
     const exit = JANITOR_EXIT_POINTS[index % JANITOR_EXIT_POINTS.length];
     const stopOffset = (seed + index * 2) % availableStops.length;
-    const routeStops = Array.from({ length: desiredStopCount }, (_, stopIndex) => {
-      return availableStops[(stopOffset + stopIndex) % availableStops.length]!;
+    const routeStops = Array.from({ length: desiredStopCount }, (__unused, stopIndex) => {
+      return availableStops[(stopOffset + stopIndex) % availableStops.length];
     });
     return {
       id: `janitor:${cueId}:${index}`,
@@ -57,6 +57,6 @@ export const buildJanitorActorsForCue = (
 };
 
 export const pruneExpiredJanitorActors = (
-  actors: JanitorActor[],
+  actors: Array<JanitorActor>,
   now: number,
-): JanitorActor[] => actors.filter((actor) => actor.janitorDespawnAt > now);
+): Array<JanitorActor> => actors.filter((actor) => actor.janitorDespawnAt > now);

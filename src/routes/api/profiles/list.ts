@@ -9,7 +9,7 @@ import { ensureBuiltinProfiles } from '../../../server/profiles-bootstrap'
 export const Route = createFileRoute('/api/profiles/list')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }

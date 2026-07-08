@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { cn } from '@/lib/utils'
-import type { TeamMember, TeamTemplateId } from './team-panel'
 import { TEAM_TEMPLATES } from './team-panel'
+import type { TeamMember, TeamTemplateId } from './team-panel'
+import { cn } from '@/lib/utils'
 
 // ─── Provider metadata ────────────────────────────────────────────────────────
 
@@ -113,7 +113,7 @@ export function ProviderLogo({ provider, size = 28 }: { provider: string; size?:
   }
 
   if (!failed && slug) {
-    const brandHex = hex ?? '555555'
+    const brandHex = hex || '555555'
     // For very dark brand colors, show a white version in dark mode
     const isDarkBrand = parseInt(brandHex.slice(0, 2), 16) + parseInt(brandHex.slice(2, 4), 16) + parseInt(brandHex.slice(4, 6), 16) < 120
     const srcLight = `https://cdn.simpleicons.org/${slug}/${brandHex}`
@@ -164,7 +164,7 @@ export function ProviderLogo({ provider, size = 28 }: { provider: string; size?:
   }
 
   // Fallback: branded letter abbreviation — prefer display label over raw provider string
-  const labelSource = meta.label?.length > 1 ? meta.label : provider.replace(/[-_.]/g, ' ').trim()
+  const labelSource = meta.label.length > 1 ? meta.label : provider.replace(/[-_.]/g, ' ').trim()
   const letters = labelSource.replace(/\s+/g, '').slice(0, 2).toUpperCase()
   return (
     <span className={cn('font-black leading-none', meta.color)} style={{ fontSize: Math.max(10, size * 0.4) }}>
@@ -341,7 +341,7 @@ export function AgentWizardModal({
   onClose,
 }: AgentWizardProps) {
   const isCustomPrompt = member.backstory.trim() !== '' && !systemPromptTemplates.some((t) => t.prompt === member.backstory)
-  const headerSubtitle = member.roleDescription?.trim() || 'Configure your agent'
+  const headerSubtitle = member.roleDescription.trim() || 'Configure your agent'
   const systemPromptRef = useRef<HTMLTextAreaElement>(null)
 
   // Auto-resize textarea whenever backstory changes (e.g. template selected)
@@ -408,7 +408,7 @@ export function AgentWizardModal({
             <FieldLabel>Memory Path <span className="text-[9px] text-neutral-400 font-normal">(optional)</span></FieldLabel>
             <input
               value={member.memoryPath ?? ''}
-              onChange={(e) => onUpdate({ memoryPath: e.target.value || undefined } as Partial<typeof member>)}
+              onChange={(e) => onUpdate({ memoryPath: e.target.value || undefined })}
               className={INPUT_CLS}
               placeholder="e.g. ~/workspace/agent-memory"
             />
@@ -419,8 +419,11 @@ export function AgentWizardModal({
             <input
               value={(member.skillAllowlist ?? []).join(', ')}
               onChange={(e) => {
-                const skills = e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean)
-                onUpdate({ skillAllowlist: skills.length > 0 ? skills : undefined } as Partial<typeof member>)
+                const skills = e.target.value
+                  .split(',')
+                  .map((s: string) => s.trim())
+                  .filter(Boolean)
+                onUpdate({ skillAllowlist: skills.length > 0 ? skills : undefined })
               }}
               className={INPUT_CLS}
               placeholder="web_search, exec, read, write"
@@ -693,7 +696,7 @@ export function TeamWizardModal({
             ) : localMembers.map((member) => (
               <div key={member.id} className="flex items-center gap-2.5 rounded-lg border border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50 px-3 py-2.5">
                 <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-100 dark:bg-accent-900/30 text-[11px] font-bold text-accent-600 dark:text-accent-400">
-                  {member.name[0]?.toUpperCase() ?? '?'}
+                  {member.name[0].toUpperCase()}
                 </div>
                 <p className="min-w-0 flex-1 text-xs font-semibold text-neutral-900 dark:text-white truncate">{member.name}</p>
                 <button type="button" onClick={() => removeAgent(member.id)}
@@ -720,7 +723,7 @@ export function TeamWizardModal({
               {notInTeam.map((agent) => (
                 <div key={agent.id} className="flex items-center gap-2.5 rounded-lg border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/30 dark:bg-emerald-900/10 px-3 py-2.5 hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
                   <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                    {agent.name[0]?.toUpperCase() ?? '?'}
+                    {agent.name[0].toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-neutral-700 dark:text-neutral-200 font-medium">{agent.name}</p>
@@ -767,17 +770,17 @@ type AddTeamModalProps = {
   currentTeam: Array<{ id: string; name: string; modelId: string }>
   quickStartTemplates: Array<{
     id: string; icon: string; label: string; description: string;
-    tier: string; agents: string[]; templateId?: string
+    tier: string; agents: Array<string>; templateId?: string
   }>
   /** Icons already in use by existing teams — new team will get a different one */
-  existingIcons?: string[]
+  existingIcons?: Array<string>
   /** Called with team name, icon, and the IDs of agents to include */
-  onSaveCurrentAs: (name: string, icon: string, selectedAgentIds: string[]) => void
+  onSaveCurrentAs: (name: string, icon: string, selectedAgentIds: Array<string>) => void
   onApplyTemplate: (templateId: TeamTemplateId) => void
   onClose: () => void
 }
 
-function pickUniqueTeamIcon(existing: string[]): string {
+function pickUniqueTeamIcon(existing: Array<string>): string {
   const usedSet = new Set(existing)
   const available = INLINE_TEAM_ICONS.filter((ic) => !usedSet.has(ic))
   const pool = available.length > 0 ? available : INLINE_TEAM_ICONS

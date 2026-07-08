@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  buildDashboardOverview,
-  type DashboardFetcher,
-} from './dashboard-aggregator'
+import { buildDashboardOverview } from './dashboard-aggregator'
+import type { DashboardFetcher } from './dashboard-aggregator'
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
@@ -12,7 +10,7 @@ function jsonResponse(payload: unknown, status = 200): Response {
 }
 
 function makeFetcher(routes: Record<string, unknown>): DashboardFetcher {
-  return async (path: string) => {
+  return (path: string) => {
     const key = Object.keys(routes).find((p) => path.startsWith(p))
     if (key === undefined) {
       return new Response('not found', { status: 404 })
@@ -25,7 +23,7 @@ function makeFetcher(routes: Record<string, unknown>): DashboardFetcher {
 
 describe('buildDashboardOverview', () => {
   it('returns null sections when every upstream call fails', async () => {
-    const fetcher: DashboardFetcher = async () =>
+    const fetcher: DashboardFetcher = () =>
       new Response('boom', { status: 500 })
     const overview = await buildDashboardOverview({ fetcher })
     expect(overview.status).toBeNull()
@@ -146,7 +144,7 @@ describe('buildDashboardOverview', () => {
         platforms: {},
       },
     })
-    const gatewayFetcher: DashboardFetcher = async (p) => {
+    const gatewayFetcher: DashboardFetcher = (p) => {
       if (p === '/health/detailed') {
         return jsonResponse({ active_agents: 2 })
       }
@@ -417,7 +415,7 @@ describe('buildDashboardOverview', () => {
   })
 
   it('survives mixed-status inputs (some succeed, some fail)', async () => {
-    const fetcher: DashboardFetcher = async (path) => {
+    const fetcher: DashboardFetcher = (path) => {
       if (path.startsWith('/api/status')) {
         return jsonResponse({
           gateway_state: 'running',

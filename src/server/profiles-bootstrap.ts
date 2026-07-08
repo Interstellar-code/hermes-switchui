@@ -1,8 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import YAML from 'yaml'
-import { BUILTIN_AGENTS, type BuiltinAgent } from '../lib/builtin-agents'
+import { BUILTIN_AGENTS } from '../lib/builtin-agents'
 import { getProfilesRoot } from './profiles-browser'
+import type { BuiltinAgent } from '../lib/builtin-agents'
 
 let bootstrapped = false
 

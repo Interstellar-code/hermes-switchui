@@ -23,6 +23,7 @@ import type * as React from 'react'
 import type { AccentColor, SettingsThemeMode } from '@/hooks/use-settings'
 import type { LoaderStyle } from '@/hooks/use-chat-settings'
 import type { BrailleSpinnerPreset } from '@/components/ui/braille-spinner'
+import type { LocaleId } from '@/lib/i18n'
 import type { ThemeId } from '@/lib/theme'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -47,13 +48,14 @@ import { ThreeDotsSpinner } from '@/components/ui/three-dots-spinner'
 import BackendUnavailableState from '@/components/backend-unavailable-state'
 import { applyAccentColor } from '@/lib/accent-colors'
 import { getUnavailableReason } from '@/lib/feature-gates'
+import { LOCALE_LABELS, getLocale, setLocale } from '@/lib/i18n'
 import { useFeatureAvailable } from '@/hooks/use-feature-available'
 import { ProviderLogo } from '@/components/provider-logo'
 import {
+  Dialog,
   DialogClose,
   DialogContent,
   DialogDescription,
-  Dialog,
   DialogTitle,
 } from '@/components/shadcn/ui/dialog'
 
@@ -298,7 +300,7 @@ function HermesContent() {
         setActiveProvider(d.activeProvider || '')
         setActiveModel(d.activeModel || '')
         if (d.activeProvider) fetchModelsForProvider(d.activeProvider)
-        const mem = (d.config?.memory as Record<string, unknown>) || {}
+        const mem = (d.config?.memory || {}) as Record<string, unknown>
         setMemEnabled(mem.memory_enabled !== false)
         setUserProfileEnabled(mem.user_profile_enabled !== false)
         // Build configured keys map
@@ -309,7 +311,7 @@ function HermesContent() {
         }
         setConfiguredKeys(keys)
         // Load custom provider config (may be stored as 'custom' or legacy 'manifest')
-        const cfgProviders = (d.config?.providers as Record<string, any>) || {}
+        const cfgProviders = (d.config?.providers || {}) as Record<string, any>
         const customCfg = cfgProviders['custom'] || cfgProviders['manifest'] || {}
         if (customCfg.base_url) setCustomBaseUrl(customCfg.base_url)
       })
@@ -1555,7 +1557,7 @@ function AgentBehaviorContent() {
     fetch('/api/claude-config')
       .then((r) => r.json())
       .then((d: any) => {
-        setConfig((d.config?.agent as Record<string, unknown>) || {})
+        setConfig((d.config?.agent || {}) as Record<string, unknown>)
       })
       .catch(() => {})
   }, [])
@@ -1646,7 +1648,7 @@ function SmartRoutingContent() {
       .then((r) => r.json())
       .then((d: any) => {
         setConfig(
-          (d.config?.smart_model_routing as Record<string, unknown>) || {},
+          (d.config?.smart_model_routing || {}) as Record<string, unknown>,
         )
       })
       .catch(() => {})
@@ -1757,8 +1759,8 @@ function VoiceContent() {
     fetch('/api/claude-config')
       .then((r) => r.json())
       .then((d: any) => {
-        setTts((d.config?.tts as Record<string, unknown>) || {})
-        setStt((d.config?.stt as Record<string, unknown>) || {})
+        setTts((d.config?.tts || {}) as Record<string, unknown>)
+        setStt((d.config?.stt || {}) as Record<string, unknown>)
       })
       .catch(() => {})
   }, [])
@@ -1835,11 +1837,11 @@ function VoiceContent() {
           <Row label="Voice">
             <select
               value={String(
-                (tts.openai as Record<string, unknown>)?.voice || 'nova',
+                (tts.openai as Record<string, unknown>).voice || 'nova',
               )}
               onChange={(e) =>
                 saveTts('openai', {
-                  ...((tts.openai as Record<string, unknown>) || {}),
+                  ...(tts.openai as Record<string, unknown>),
                   voice: e.target.value,
                 })
               }
@@ -1891,7 +1893,7 @@ function DisplayContent() {
     fetch('/api/claude-config')
       .then((r) => r.json())
       .then((d: any) => {
-        setConfig((d.config?.display as Record<string, unknown>) || {})
+        setConfig((d.config?.display || {}) as Record<string, unknown>)
       })
       .catch(() => {})
   }, [])
@@ -1974,10 +1976,6 @@ function DisplayContent() {
     </div>
   )
 }
-
-// ── Language ────────────────────────────────────────────────────────────
-
-import { getLocale, setLocale, LOCALE_LABELS, type LocaleId } from '@/lib/i18n'
 
 function LanguageContent() {
   return (

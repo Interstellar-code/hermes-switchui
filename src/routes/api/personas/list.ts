@@ -1,17 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
-import { listPersonas, type Persona } from '../../../server/personas-browser'
+import { listPersonas } from '../../../server/personas-browser'
+import type { Persona } from '../../../server/personas-browser'
 
 // 30-second server-side cache
-let _cache: { personas: PersonaListItem[]; expiresAt: number } | null = null
+let _cache: { personas: Array<PersonaListItem>; expiresAt: number } | null = null
 
 type PersonaListItem = Omit<Persona, 'system_prompt' | 'path'> & {
   has_more_prompt: boolean
   system_prompt_preview: string
   default_model?: string
   default_memory_provider?: string
-  suggested_mcps?: string[]
-  suggested_toolsets?: string[]
+  suggested_mcps?: Array<string>
+  suggested_toolsets?: Array<string>
 }
 
 const PREVIEW_LENGTH = 500
@@ -37,7 +38,7 @@ function toListItem(persona: Persona): PersonaListItem {
 export const Route = createFileRoute('/api/personas/list')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }

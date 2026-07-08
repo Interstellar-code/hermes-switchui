@@ -1,7 +1,7 @@
 import type { ToolItem } from '../../../server/operations-store'
 
 interface FocusToolsProps {
-  tools: ToolItem[]
+  tools: Array<ToolItem>
 }
 
 export function FocusTools({ tools }: FocusToolsProps) {

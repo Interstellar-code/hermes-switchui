@@ -3,7 +3,11 @@
  * Uses vi.mock for cache and undici-style fetch interceptor (vi.stubGlobal)
  * so no live network calls are made.
  */
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { getCache, setCache, touchCache } from '../cache'
+import { fetchMcpGet } from './mcp-get'
+import type { CachePayload } from '../cache'
 
 // Mock cache module
 vi.mock('../cache', () => ({
@@ -11,10 +15,6 @@ vi.mock('../cache', () => ({
   setCache: vi.fn(),
   touchCache: vi.fn(),
 }))
-
-import { getCache, setCache, touchCache } from '../cache'
-import { fetchMcpGet } from './mcp-get'
-import type { CachePayload } from '../cache'
 
 const mockGetCache = vi.mocked(getCache)
 const mockSetCache = vi.mocked(setCache)
@@ -59,10 +59,10 @@ function makeFetchMock(status: number, body: unknown, headers: Record<string, st
     status,
     ok: status >= 200 && status < 300,
     headers: {
-      get: (name: string) => headers[name] ?? headers[name.toLowerCase()] ?? null,
+      get: (name: string) => headers[name] ?? headers[name.toLowerCase()],
     },
     json: () => Promise.resolve(body),
-  }) as unknown as typeof fetch
+  })
 }
 
 describe('fetchMcpGet — 200 OK', () => {
@@ -199,7 +199,7 @@ describe('fetchMcpGet — network error', () => {
       payload: [{ name: 'cached' }],
     }
     mockGetCache.mockReturnValue(cachedEntry)
-    global.fetch = vi.fn().mockRejectedValue(new Error('ECONNREFUSED')) as unknown as typeof fetch
+    global.fetch = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'))
 
     const result = await fetchMcpGet()
     expect(result.entries).toEqual([{ name: 'cached' }])
@@ -208,7 +208,7 @@ describe('fetchMcpGet — network error', () => {
 
   it('returns empty entries + warning when no cache and network fails', async () => {
     mockGetCache.mockReturnValue(null)
-    global.fetch = vi.fn().mockRejectedValue(new Error('timeout')) as unknown as typeof fetch
+    global.fetch = vi.fn().mockRejectedValue(new Error('timeout'))
 
     const result = await fetchMcpGet()
     expect(result.entries).toHaveLength(0)
@@ -247,7 +247,7 @@ describe('fetchMcpGet — degraded flag', () => {
 
   it('sets degraded=true on network error', async () => {
     mockGetCache.mockReturnValue(null)
-    global.fetch = vi.fn().mockRejectedValue(new Error('ECONNREFUSED')) as unknown as typeof fetch
+    global.fetch = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'))
 
     const result = await fetchMcpGet()
     expect(result.degraded).toBe(true)

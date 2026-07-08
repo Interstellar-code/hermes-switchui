@@ -5,7 +5,7 @@ import { readPersona } from '../../../server/personas-browser'
 export const Route = createFileRoute('/api/personas/read')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }

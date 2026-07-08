@@ -12,13 +12,13 @@ import {
   toSessionSummary,
   updateSession,
 } from '../../server/hermes-api'
-import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
 import {
   deleteLocalSession,
   getLocalSession,
   listLocalSessions,
   updateLocalSessionTitle,
 } from '../../server/local-session-store'
+import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
 
 
 async function listAllSessions(pageSize = 1000) {
@@ -70,7 +70,7 @@ export const Route = createFileRoute('/api/sessions')({
                 message_count: ls.messageCount,
                 model: ls.model,
                 source: 'local',
-              } as any)
+              })
             }
           }
 

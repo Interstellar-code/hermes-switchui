@@ -168,7 +168,7 @@ export function TerminalPanel({ isMobile }: TerminalPanelProps) {
       window.addEventListener('mousemove', handleMove)
       window.addEventListener('mouseup', handleUp)
     },
-    [activeTab?.id, height],
+    [activeTab.id, height],
   )
 
   const handleSendInput = useCallback(
@@ -458,7 +458,7 @@ export function TerminalPanel({ isMobile }: TerminalPanelProps) {
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
                       handleSearch(
-                        activeTab?.id ?? '',
+                        activeTab.id,
                         event.currentTarget.value,
                       )
                     }

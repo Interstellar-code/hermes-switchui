@@ -1,11 +1,11 @@
-import rehypeAutolinkHeadings from 'rehype-autolink-headings'
+import path from 'node:path'
 import rehypePrettyCode from 'rehype-pretty-code'
 import rehypeSlug from 'rehype-slug'
 import rehypeStringify from 'rehype-stringify'
 import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
 import remarkRehype from 'remark-rehype'
-import path from 'node:path'
+import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 import type { Element, Root } from 'hast'
@@ -144,7 +144,7 @@ function rehypeRewriteDocLinks(opts: { slug: string }) {
       if (!match) return
 
       const relPath = match[1] // e.g. "../troubleshooting/agent-connect.md"
-      const fragment = match[2] ?? '' // e.g. "#section" or ""
+      const fragment = match.at(2) ?? '' // e.g. "#section" or ""
 
       // Resolve relative to the current page's slug directory
       const slugDir = opts.slug.includes('/') ? path.posix.dirname(opts.slug) : '.'

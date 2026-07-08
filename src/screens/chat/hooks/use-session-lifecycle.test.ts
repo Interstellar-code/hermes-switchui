@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import type { RefObject } from 'react'
-
 import { QueryClient } from '@tanstack/react-query'
 
-import type { ChatAttachment, ChatMessage } from '../types'
+import { useSessionLifecycle } from './use-session-lifecycle'
+import type { RefObject } from 'react'
 import type { PendingSendPayload } from '../pending-send'
+import type { ChatAttachment, ChatMessage } from '../types'
 
 // --- Mocks ---
 
@@ -25,16 +25,13 @@ vi.mock('../pending-send', () => ({
 
 const appendHistoryMessageMock = vi.fn()
 vi.mock('../chat-queries', () => ({
-  appendHistoryMessage: (...args: unknown[]) => appendHistoryMessageMock(...args),
+  appendHistoryMessage: (...args: Array<unknown>) => appendHistoryMessageMock(...args),
   chatQueryKeys: {
     sessions: ['chat', 'sessions'] as const,
     history: (friendlyId: string, sessionKey: string) =>
       ['chat', 'history', friendlyId, sessionKey] as const,
   },
 }))
-
-// Import after mocks are set up
-import { useSessionLifecycle } from './use-session-lifecycle'
 
 // --- Helpers ---
 
@@ -48,7 +45,7 @@ function makeMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
     content: [{ type: 'text', text: 'hello' }],
     clientId: 'client-1',
     ...overrides,
-  } as ChatMessage
+  }
 }
 
 function makePending(

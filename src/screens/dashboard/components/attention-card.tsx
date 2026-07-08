@@ -3,9 +3,9 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import {
   AlertCircleIcon,
   CheckmarkCircle02Icon,
-  Time04Icon,
-  Settings02Icon,
   ConsoleIcon,
+  Settings02Icon,
+  Time04Icon,
 } from '@hugeicons/core-free-icons'
 import type {
   DashboardIncident,
@@ -99,7 +99,7 @@ export function AttentionCard({
                 : item.severity === 'warn'
                   ? 'var(--theme-warning)'
                   : 'var(--theme-muted)'
-            const Icon = SOURCE_ICON[item.source] ?? AlertCircleIcon
+            const Icon = SOURCE_ICON[item.source]
             const content = (
               <div className="flex items-start gap-2">
                 <HugeiconsIcon

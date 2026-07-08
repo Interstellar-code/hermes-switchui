@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { cn } from '@/lib/utils'
+import { useChatStore } from '../../../stores/chat-store'
 import type { PendingClarify } from '../../../stores/chat-store'
 import type { ChatMessage } from '../types'
-import { useChatStore } from '../../../stores/chat-store'
+import { cn } from '@/lib/utils'
 
 type InlineClarifyCardProps = {
   clarify: PendingClarify
@@ -45,7 +45,7 @@ export function parseInteractionReceipt(message: ChatMessage): InteractionReceip
   const text = candidates
     .filter(
       (part): part is { type: 'text'; text?: string } =>
-        part?.type === 'text' && typeof part.text === 'string',
+        part.type === 'text' && typeof part.text === 'string',
     )
     .map((part) => String(part.text ?? ''))
     .join('\n')
@@ -53,7 +53,7 @@ export function parseInteractionReceipt(message: ChatMessage): InteractionReceip
   if (!text) return null
   try {
     const parsed = JSON.parse(text) as InteractionReceipt
-    if (parsed?.type !== 'interaction_receipt') return null
+    if (parsed.type !== 'interaction_receipt') return null
     return parsed
   } catch {
     return null

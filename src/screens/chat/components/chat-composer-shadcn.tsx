@@ -447,8 +447,7 @@ function ChatComposerShadcn({
 
     // 1) File paste → attachment (existing behavior).
     const files: Array<File> = []
-    for (let i = 0; i < data.items.length; i++) {
-      const item = data.items[i]
+    for (const item of Array.from(data.items)) {
       if (item.kind === 'file') {
         const f = item.getAsFile()
         if (f) files.push(f)
@@ -474,7 +473,7 @@ function ChatComposerShadcn({
 
   const handleDrop = (e: React.DragEvent) => {
     if (disabled) return
-    const files = Array.from(e.dataTransfer?.files ?? [])
+    const files = Array.from(e.dataTransfer.files)
     if (files.length > 0) {
       e.preventDefault()
       void addFiles(files)

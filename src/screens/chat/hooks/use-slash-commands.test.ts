@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderHook, act } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
+import {
+  CHAT_PENDING_COMMAND_STORAGE_KEY,
+  CHAT_RUN_COMMAND_EVENT,
+} from '../chat-events'
+import { useSlashCommands } from './use-slash-commands'
 import type { RefObject } from 'react'
 
-import { useSlashCommands } from './use-slash-commands'
 import type { UseSlashCommandsParams } from './use-slash-commands'
 import type {
   ChatComposerAttachment,
@@ -12,10 +16,6 @@ import type {
 import type { ChatMessage } from '../types'
 import type { UserCommandRecord } from '@/lib/commands-api'
 import type { ActiveSendRecord } from './use-send-message-state'
-import {
-  CHAT_PENDING_COMMAND_STORAGE_KEY,
-  CHAT_RUN_COMMAND_EVENT,
-} from '../chat-events'
 
 const SESSION = 'session-abc'
 const FRIENDLY_ID = 'friendly-1'

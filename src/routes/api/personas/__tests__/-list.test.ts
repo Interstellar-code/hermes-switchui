@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Dirent } from 'node:fs'
 
 // ── fs mock ───────────────────────────────────────────────────────────────────
 const { existsSync, readdirSync, readFileSync } = vi.hoisted(() => ({
@@ -24,7 +25,7 @@ vi.mock('@tanstack/react-start', () => ({
       ...(init ?? {}),
       headers: {
         'Content-Type': 'application/json',
-        ...((init as ResponseInit & { headers?: Record<string, string> })?.headers ?? {}),
+        ...((init as ResponseInit & { headers?: Record<string, string> }).headers ?? {}),
       },
     }),
 }))
@@ -60,7 +61,7 @@ tags: [architecture]
 ${LONG_BODY}`
 
 function makeFile(name: string) {
-  return { name, isDirectory: () => false, isFile: () => true } as unknown as import('node:fs').Dirent
+  return { name, isDirectory: () => false, isFile: () => true } as unknown as Dirent
 }
 
 function makeRequest(url = 'http://localhost/api/personas/list'): Request {
@@ -90,7 +91,7 @@ describe('GET /api/personas/list', () => {
     const handler = await getHandler()
     const res = await handler({ request: makeRequest() })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { personas: unknown[] }
+    const body = (await res.json()) as { personas: Array<unknown> }
     expect(Array.isArray(body.personas)).toBe(true)
     expect(body.personas).toHaveLength(1)
   })
@@ -101,7 +102,7 @@ describe('GET /api/personas/list', () => {
 
     const handler = await getHandler()
     const res = await handler({ request: makeRequest() })
-    const body = (await res.json()) as { personas: Record<string, unknown>[] }
+    const body = (await res.json()) as { personas: Array<Record<string, unknown>> }
     const persona = body.personas[0]
     expect(persona).toHaveProperty('id', 'engineering-code-reviewer')
     expect(persona).toHaveProperty('category', 'engineering')
@@ -119,7 +120,7 @@ describe('GET /api/personas/list', () => {
 
     const handler = await getHandler()
     const res = await handler({ request: makeRequest() })
-    const body = (await res.json()) as { personas: { has_more_prompt: boolean }[] }
+    const body = (await res.json()) as { personas: Array<{ has_more_prompt: boolean }> }
     expect(body.personas[0].has_more_prompt).toBe(true)
   })
 
@@ -129,7 +130,7 @@ describe('GET /api/personas/list', () => {
 
     const handler = await getHandler()
     const res = await handler({ request: makeRequest() })
-    const body = (await res.json()) as { personas: { has_more_prompt: boolean }[] }
+    const body = (await res.json()) as { personas: Array<{ has_more_prompt: boolean }> }
     expect(body.personas[0].has_more_prompt).toBe(false)
   })
 
@@ -139,7 +140,7 @@ describe('GET /api/personas/list', () => {
 
     const handler = await getHandler()
     const res = await handler({ request: makeRequest() })
-    const body = (await res.json()) as { personas: unknown[] }
+    const body = (await res.json()) as { personas: Array<unknown> }
     expect(body.personas).toHaveLength(0)
   })
 
@@ -148,7 +149,7 @@ describe('GET /api/personas/list', () => {
 
     const handler = await getHandler()
     const res = await handler({ request: makeRequest() })
-    const body = (await res.json()) as { personas: unknown[] }
+    const body = (await res.json()) as { personas: Array<unknown> }
     expect(Array.isArray(body.personas)).toBe(true)
     expect(body.personas).toHaveLength(0)
   })

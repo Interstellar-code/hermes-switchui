@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
+import { TemplateCard } from './components/template-card'
+import { TemplatesPager } from './components/templates-pager'
 import type {
   InstantiateResult,
   KanbanTemplate,
@@ -15,11 +17,13 @@ import {
   useInstantiateTemplate,
   useSaveTemplate,
   useTemplate,
+  useTemplateTaskCounts,
   useTemplates,
   useUpdateTemplate,
 } from '@/lib/board-templates-api'
 import { useSwitchBoard } from '@/lib/boards-api'
 import { toast } from '@/components/ui/toast'
+import { writeTextToClipboard } from '@/lib/clipboard'
 import {
   TooltipContent,
   TooltipProvider,
@@ -27,11 +31,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import '@/styles/matrix-boards.css'
-import { useTemplatesViewStore, usePageSize } from '@/stores/templates-screen-store'
-import { useTemplateTaskCounts } from '@/lib/board-templates-api'
 import { summarizeTemplateSchedule } from '@/lib/kanban-template-schedule'
-import { TemplateCard } from './components/template-card'
-import { TemplatesPager } from './components/templates-pager'
+import { usePageSize, useTemplatesViewStore } from '@/stores/templates-screen-store'
 
 const SIZE_WARN_BYTES = 64 * 1024
 const COLORS = ['#00ff41', '#5ad3ff', '#ffb454', '#b07cff', '#ff5fa2', '#d6ff5f']
@@ -48,6 +49,15 @@ function backendDetail(error: unknown, fallback: string): string {
   if (error instanceof TemplateRequestError) return error.message
   if (error instanceof Error) return error.message
   return fallback
+}
+
+function isMissingTemplatesEndpoint(error: unknown): boolean {
+  if (error instanceof TemplateRequestError && error.status === 404) return true
+  if (!(error instanceof Error)) return false
+  return (
+    error.message.includes('/api/plugins/kanban/templates') &&
+    error.message.includes('404')
+  )
 }
 
 // ── Wizard state model ──────────────────────────────────────────────────────────
@@ -1772,14 +1782,67 @@ function DeleteConfirm({
 
 // ── Degraded state (backend too old / endpoint 404) ─────────────────────────────
 
-function TemplatesUnsupported() {
+function buildTemplatesIssueReport(detail?: string): string {
+  return [
+    'Title: [kanban] Restore board templates API (/api/plugins/kanban/templates*) or document replacement route',
+    '',
+    'Summary',
+    'hermes-switchui still ships the Board Templates feature, but the connected Hermes Agent returns 404 for /api/plugins/kanban/templates.',
+    '',
+    'Evidence',
+    '- UI calls /api/hermes-kanban/templates via src/lib/board-templates-api.ts',
+    '- Workspace BFF route exists at src/routes/api/hermes-kanban/templates.ts',
+    '- Upstream proxy base in src/server/hermes-kanban-client.ts is /api/plugins/kanban',
+    '- Board templates originally landed in commit 01e0ed22 as a live-verified backend contract',
+    '',
+    'Actual',
+    detail || 'Kanban API error 404: No such API endpoint: /api/plugins/kanban/templates',
+    '',
+    'Expected',
+    'Restore /api/plugins/kanban/templates* endpoints or document the replacement route.',
+    '',
+    'Impact',
+    '- /board-templates unavailable',
+    '- template instantiation unavailable',
+    '- save-as-template flows blocked',
+  ].join('\n')
+}
+
+function TemplatesUnsupported({ detail }: { detail?: string }) {
+  async function handleCopyIssue() {
+    try {
+      await writeTextToClipboard(buildTemplatesIssueReport(detail))
+      toast('Upstream issue report copied', { type: 'success' })
+    } catch {
+      toast('Could not copy issue report', { type: 'error' })
+    }
+  }
+
   return (
     <div className="brd-canvas">
       <div className="empty-state">
-        <div className="es-title">Templates require a newer Hermes Agent</div>
+        <div className="es-title">Board templates are unavailable on the connected Hermes Agent</div>
         <div className="es-sub">
-          The connected Hermes Agent does not expose the board templates API. Update the Agent and
-          its Kanban plugin to use this feature.
+          This workspace still has the Templates UI, but the upstream Kanban API does not expose the
+          templates endpoints. Tasks and boards can still work normally; template listing/creation
+          cannot.
+        </div>
+        <div className="es-sub" style={{ marginTop: 10 }}>
+          Expected upstream endpoint: <code>/api/plugins/kanban/templates</code>
+        </div>
+        {detail ? (
+          <div className="es-sub" style={{ marginTop: 10, opacity: 0.8 }}>
+            Agent response: {detail}
+          </div>
+        ) : null}
+        <div className="es-sub" style={{ marginTop: 10 }}>
+          Likely fix: update the Hermes Agent / Kanban plugin, or restore the templates API if it was
+          removed during an upstream refactor.
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <button type="button" className="btn-mini" onClick={() => void handleCopyIssue()}>
+            Copy upstream issue
+          </button>
         </div>
       </div>
     </div>
@@ -1821,10 +1884,8 @@ export function BoardTemplatesScreen() {
   const taskCounts = useTemplateTaskCounts(paginated.map((t) => t.slug))
 
   // Degraded: backend endpoint missing (404).
-  const is404 =
-    templatesQuery.isError &&
-    templatesQuery.error instanceof TemplateRequestError &&
-    templatesQuery.error.status === 404
+  const is404 = templatesQuery.isError && isMissingTemplatesEndpoint(templatesQuery.error)
+  const unsupportedDetail = is404 ? backendDetail(templatesQuery.error, 'Templates unavailable') : ''
 
   return (
     <div data-screen="boards" className="boards-screen-root">
@@ -1884,7 +1945,7 @@ export function BoardTemplatesScreen() {
         {templatesQuery.isLoading ? (
           <div className="brd-loading">Loading templates…</div>
         ) : is404 ? (
-          <TemplatesUnsupported />
+          <TemplatesUnsupported detail={unsupportedDetail} />
         ) : templatesQuery.isError ? (
           <div className="brd-error">
             <span>

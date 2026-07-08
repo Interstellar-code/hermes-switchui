@@ -6,24 +6,24 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { ReactNode } from 'react'
+import { FileTree, IGNORED_DIRS } from './file-tree'
+import { FolderListing } from './folder-listing'
 import type { FileEntry } from './file-tree'
+import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { Button } from '@/components/ui/button'
 import {
+  Dialog,
   DialogClose,
   DialogContent,
   DialogDescription,
-  Dialog,
   DialogTitle,
 } from '@/components/shadcn/ui/dialog'
 import { Markdown } from '@/components/prompt-kit/markdown'
 import '@/styles/matrix-files.css'
 import { formatBytes, formatDate } from '@/lib/format'
 import { getExt, getParentPath } from '@/lib/path-utils'
-import { FileTree, IGNORED_DIRS } from './file-tree'
-import { FolderListing } from './folder-listing'
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Types

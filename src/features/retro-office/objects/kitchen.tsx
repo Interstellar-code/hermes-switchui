@@ -1,6 +1,6 @@
+import type { BasicFurnitureModelProps } from "@/features/retro-office/objects/types";
 import { SCALE } from "@/features/retro-office/core/constants";
 import { toWorld } from "@/features/retro-office/core/geometry";
-import { BasicFurnitureModelProps } from "@/features/retro-office/objects/types";
 
 export function VendingMachineModel({
   item,

@@ -5,7 +5,7 @@
  * Future: 8-direction sprite frames per avatar (v0.2+).
  */
 import { motion } from 'motion/react'
-import type { AgoraStatus, AgoraAvatarId, AgoraFacing } from '../lib/agora-types'
+import type { AgoraAvatarId, AgoraFacing, AgoraStatus } from '../lib/agora-types'
 
 const STATUS_DOT_COLOR: Record<AgoraStatus, string> = {
   online: '#10b981',
@@ -83,7 +83,7 @@ export function AgoraAvatar({
           }}
           onError={(e) => {
             // Fallback to a generic placeholder if PNG missing
-            ;(e.currentTarget as HTMLImageElement).src = '/avatars/hermes.png'
+            ;(e.currentTarget).src = '/avatars/hermes.png'
           }}
         />
         {/* Status dot */}

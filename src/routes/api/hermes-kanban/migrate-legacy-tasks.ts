@@ -5,16 +5,16 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
-  previewMigration,
-  performMigration,
-  readLegacyTasks,
   isMigrated,
+  performMigration,
+  previewMigration,
+  readLegacyTasks,
 } from '../../../server/legacy-tasks-migration'
 
 export const Route = createFileRoute('/api/hermes-kanban/migrate-legacy-tasks')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }

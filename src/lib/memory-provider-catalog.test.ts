@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-  getMemoryProviderInfo,
   MEMORY_PROVIDER_IDS,
   MEMORY_PROVIDER_SELECT_OPTIONS_WITH_DISABLED,
+  getMemoryProviderInfo,
 } from './memory-provider-catalog'
 
 describe('memory-provider-catalog', () => {

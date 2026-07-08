@@ -1,8 +1,14 @@
 "use client";
 
 import { useFrame } from "@react-three/fiber";
-import { useLayoutEffect, useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
+import { useLayoutEffect, useMemo, useRef } from "react";
+import type { RefObject } from "react";
+import type { FurnitureItem, RenderAgent } from "@/features/retro-office/core/types";
+import type {
+  BasicFurnitureModelProps,
+  InteractiveFurnitureModelProps,
+} from "@/features/retro-office/objects/types";
 import {
   DOOR_LENGTH,
   DOOR_THICKNESS,
@@ -10,20 +16,15 @@ import {
   WALL_THICKNESS,
 } from "@/features/retro-office/core/constants";
 import { getItemRotationRadians, toWorld } from "@/features/retro-office/core/geometry";
-import type { FurnitureItem, RenderAgent } from "@/features/retro-office/core/types";
-import type {
-  BasicFurnitureModelProps,
-  InteractiveFurnitureModelProps,
-} from "@/features/retro-office/objects/types";
 
 type DoorModelProps = InteractiveFurnitureModelProps & {
-  agentsRef?: RefObject<RenderAgent[]>;
+  agentsRef?: RefObject<Array<RenderAgent>>;
 };
 
 export function InstancedWallSegmentsModel({
   items,
 }: {
-  items: FurnitureItem[];
+  items: Array<FurnitureItem>;
 }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const matrices = useMemo(() => {

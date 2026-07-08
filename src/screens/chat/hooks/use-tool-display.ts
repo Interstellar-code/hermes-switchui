@@ -1,7 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
 
-import type { SourceTab } from '../components/v2/chat-header-v2'
-import type { ToolDisplayMode } from '../components/message-item'
 import {
   buildResultTsMap,
   extractStreamToolCallsFromMessages,
@@ -10,6 +8,8 @@ import {
   mergeToolEntries,
 } from '../components/v2/chat-tab-views-v2'
 import { countSkillEntries } from '../components/v2/chat-skills-tab-v2'
+import type { SourceTab } from '../components/v2/chat-header-v2'
+import type { ToolDisplayMode } from '../components/message-item'
 import type { ChatMessage, StreamingToolCall } from '../types'
 
 export function useToolDisplay(params: {

@@ -27,7 +27,7 @@ type TemplatesViewState = {
 export const useTemplatesViewStore = create<TemplatesViewState>()(
   persist(
     (set) => ({
-      viewMode: 'list' as TemplatesViewMode,
+      viewMode: 'list',
       pageSizeGrid: DEFAULT_PAGE_SIZE_GRID,
       pageSizeList: DEFAULT_PAGE_SIZE_LIST,
       setViewMode: (viewMode) => set({ viewMode }),

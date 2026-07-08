@@ -1,6 +1,4 @@
 import { useCallback } from 'react'
-import type { Dispatch, RefObject, SetStateAction } from 'react'
-import type { QueryClient } from '@tanstack/react-query'
 
 import { resolveNewChatBootstrapSession } from '../new-chat-bootstrap'
 import { createOptimisticMessage } from '../chat-screen-utils'
@@ -9,14 +7,16 @@ import {
   hasPendingGeneration,
   setPendingGeneration,
 } from '../pending-send'
-import { useChatStore } from '@/stores/chat-store'
-import { hapticTap } from '@/lib/haptics'
+import type { Dispatch, RefObject, SetStateAction } from 'react'
+import type { QueryClient } from '@tanstack/react-query'
 import type {
   ChatComposerAttachment,
   ChatComposerHelpers,
 } from '../components/chat-composer-types'
 import type { ChatAttachment, ChatMessage } from '../types'
 import type { ActiveSendRecord } from './use-send-message-state'
+import { useChatStore } from '@/stores/chat-store'
+import { hapticTap } from '@/lib/haptics'
 
 /**
  * useComposerSend — owns the composer onSubmit handler ("send").

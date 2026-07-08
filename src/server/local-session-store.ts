@@ -36,9 +36,7 @@ function loadFromDisk(): void {
     if (existsSync(SESSIONS_FILE)) {
       const raw = readFileSync(SESSIONS_FILE, 'utf-8')
       const parsed = JSON.parse(raw) as StoreData
-      if (parsed.sessions && parsed.messages) {
-        store = parsed
-      }
+      store = parsed
     }
   } catch {
     // ignore corrupt local cache
@@ -68,7 +66,7 @@ export function ensureLocalSession(
   sessionId: string,
   model?: string,
 ): LocalSession {
-  if (!store.sessions[sessionId]) {
+  if (!Object.hasOwn(store.sessions, sessionId)) {
     store.sessions[sessionId] = {
       id: sessionId,
       title: null,
@@ -87,8 +85,8 @@ export function updateLocalSessionTitle(
   sessionId: string,
   title: string,
 ): void {
-  const session = store.sessions[sessionId]
-  if (session) {
+  if (Object.hasOwn(store.sessions, sessionId)) {
+    const session = store.sessions[sessionId]
     session.title = title
     session.updatedAt = Date.now()
     saveToDisk()
@@ -96,8 +94,8 @@ export function updateLocalSessionTitle(
 }
 
 export function touchLocalSession(sessionId: string): void {
-  const session = store.sessions[sessionId]
-  if (session) {
+  if (Object.hasOwn(store.sessions, sessionId)) {
+    const session = store.sessions[sessionId]
     session.updatedAt = Date.now()
     scheduleSave()
   }
@@ -118,18 +116,16 @@ export function appendLocalMessage(
   message: LocalMessage,
 ): void {
   ensureLocalSession(sessionId)
-  if (!store.messages[sessionId]) store.messages[sessionId] = []
-  store.messages[sessionId].push(message)
-  if (store.messages[sessionId].length > MAX_MESSAGES_PER_SESSION) {
-    store.messages[sessionId] = store.messages[sessionId].slice(
+  const messages = store.messages[sessionId]
+  messages.push(message)
+  if (messages.length > MAX_MESSAGES_PER_SESSION) {
+    store.messages[sessionId] = messages.slice(
       -MAX_MESSAGES_PER_SESSION,
     )
   }
   const session = store.sessions[sessionId]
-  if (session) {
-    session.messageCount = store.messages[sessionId].length
-    session.updatedAt = Date.now()
-  }
+  session.messageCount = store.messages[sessionId].length
+  session.updatedAt = Date.now()
   scheduleSave()
 }
 

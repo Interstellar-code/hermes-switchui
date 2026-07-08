@@ -369,7 +369,7 @@ export function WorkflowLibrary({
                   key={opt.value}
                   type="button"
                   className={`wfr-opt-row${originFilter === opt.value ? ' on' : ''}`}
-                  onClick={() => handleOriginClick(opt.value as OriginFilter)}
+                  onClick={() => handleOriginClick(opt.value)}
                 >
                   <span className="wfr-dot" />
                   <span>{opt.label}</span>

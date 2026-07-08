@@ -46,13 +46,6 @@ import { useHistoryPolling } from './hooks/use-history-polling'
 import { invalidateSessionLists } from './sessions-feed'
 import { useToolDisplay } from './hooks/use-tool-display'
 import { useDisplayMessages } from './hooks/use-display-messages'
-import type {
-  ChatComposerAttachment,
-  ChatComposerHandle,
-  ChatComposerHelpers,
-} from './components/chat-composer-types'
-import type { ChatAttachment, ChatMessage, SessionMeta } from './types'
-import type {AgentActivity} from '@/stores/chat-activity-store';
 import { useDrainWatchdog } from './hooks/use-drain-watchdog'
 import { useChatMobile } from './hooks/use-chat-mobile'
 import { useChatSessions } from './hooks/use-chat-sessions'
@@ -67,6 +60,18 @@ import { useComposerSend } from './hooks/use-composer-send'
 import { useMessageRetry } from './hooks/use-message-retry'
 import { useRetryRecovery } from './hooks/use-retry-recovery'
 import { useSlashCommands } from './hooks/use-slash-commands'
+import { useThinkingLevel } from './hooks/use-thinking-level'
+import { ChatHeaderV2 } from './components/v2/chat-header-v2'
+import { ChatMetaBarV2 } from './components/v2/chat-meta-bar-v2'
+import { ChatSkillsTabV2 } from './components/v2/chat-skills-tab-v2'
+import { ToolTabView } from './components/v2/chat-tab-views-v2'
+import type {
+  ChatComposerAttachment,
+  ChatComposerHandle,
+  ChatComposerHelpers,
+} from './components/chat-composer-types'
+import type { ChatAttachment, ChatMessage, SessionMeta } from './types'
+import type { AgentActivity } from '@/stores/chat-activity-store'
 
 import { cn } from '@/lib/utils'
 import { FileExplorerSidebar } from '@/components/file-explorer'
@@ -81,7 +86,6 @@ import {
 } from '@/lib/commands-api'
 import { ModelSuggestionToast } from '@/components/model-suggestion-toast'
 import { MobileSessionsPanel } from '@/components/mobile-sessions-panel'
-import { useThinkingLevel } from './hooks/use-thinking-level'
 import { ContextAlertModal } from '@/components/usage-meter/context-alert-modal'
 import { ErrorToastContainer } from '@/components/error-toast'
 // ContextMeter removed — ContextBar (PR #32) replaces it
@@ -92,13 +96,8 @@ import { useResearchCard } from '@/hooks/use-research-card'
 import { useTapDebug } from '@/hooks/use-tap-debug'
 import { useChatMode } from '@/hooks/use-chat-mode'
 import {
-  
-  useChatActivityStore
+  useChatActivityStore,
 } from '@/stores/chat-activity-store'
-import { ChatHeaderV2 } from './components/v2/chat-header-v2'
-import { ChatMetaBarV2 } from './components/v2/chat-meta-bar-v2'
-import { ToolTabView } from './components/v2/chat-tab-views-v2'
-import { ChatSkillsTabV2 } from './components/v2/chat-skills-tab-v2'
 
 type ChatScreenProps = {
   activeFriendlyId: string
@@ -378,7 +377,7 @@ export function ChatScreen({
 
   // Snapshot cached history for the recovery predicate. Cheap reference
   // pass; the predicate runs only on mount/relist of the active session.
-  const recoveryMessages = (historyQuery.data as { messages?: Array<ChatMessage> })?.messages
+  const recoveryMessages = (historyQuery.data as { messages?: Array<ChatMessage> } | undefined)?.messages
 
   // On remount, check if the server still has an active run for this session.
   // If so, re-set waitingForResponse in the store so the UI shows the spinner.
@@ -641,7 +640,7 @@ export function ChatScreen({
 
   const derivedStreamingInfo = useMemo(() => {
     if (activeIsRealtimeStreaming) {
-      const last = finalDisplayMessages[finalDisplayMessages.length - 1]
+      const last = finalDisplayMessages.at(-1)
       const id = isPortableMode
         ? localStreamingMessageId
         : last?.role === 'assistant'
@@ -650,8 +649,8 @@ export function ChatScreen({
       return { isStreaming: true, streamingMessageId: id }
     }
     if (waitingForResponse && finalDisplayMessages.length > 0) {
-      const last = finalDisplayMessages[finalDisplayMessages.length - 1]
-      if (last && last.role === 'assistant') {
+      const last = finalDisplayMessages.at(-1)
+      if (last?.role === 'assistant') {
         const isStreamingPlaceholder =
           (last as any).__streamingStatus === 'streaming'
         if (!isStreamingPlaceholder) {
@@ -702,7 +701,7 @@ export function ChatScreen({
   useEffect(() => {
     if (waitingForResponse) {
       messageCountAtSendRef.current = finalDisplayMessages.length
-      const lastMsg = finalDisplayMessages[finalDisplayMessages.length - 1]
+      const lastMsg = finalDisplayMessages.at(-1)
       if (lastMsg?.role === 'assistant') {
         const raw = lastMsg as Record<string, unknown>
         lastAssistantIdAtSendRef.current = String(
@@ -726,8 +725,8 @@ export function ChatScreen({
       }
       return
     }
-    const last = finalDisplayMessages[finalDisplayMessages.length - 1]
-    if (!last || last.role !== 'assistant') return
+    const last = finalDisplayMessages.at(-1)
+    if (last?.role !== 'assistant') return
     if ((last as any).__streamingStatus === 'streaming') return
     const countGrew =
       finalDisplayMessages.length > messageCountAtSendRef.current
@@ -1259,7 +1258,7 @@ export function ChatScreen({
               onReplyMessage={(msg, selectedText) => {
                 const preview = (selectedText && selectedText.trim().length > 0
                   ? selectedText
-                  : (textFromMessage(msg) ?? '')
+                  : textFromMessage(msg)
                       .replace(/```[\s\S]*?```/g, ' ')
                       .replace(/`([^`]+)`/g, '$1')
                       .replace(/^\s*#{1,6}\s+/gm, '')

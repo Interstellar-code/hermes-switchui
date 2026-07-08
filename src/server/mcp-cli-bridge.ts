@@ -8,12 +8,25 @@ export interface CliTestResult {
   error: string | null
 }
 
-const ANSI_RE = /\x1b\[[0-9;]*m/g
 const HERMES_BIN = process.env.HERMES_CLI_BIN || 'hermes'
 const DEFAULT_TIMEOUT_MS = 60_000
 
 function stripAnsi(text: string): string {
-  return text.replace(ANSI_RE, '')
+  let result = ''
+  for (let i = 0; i < text.length; i++) {
+    if (
+      text.charCodeAt(i) === 0x1b &&
+      text[i + 1] === '['
+    ) {
+      i += 2
+      while (i < text.length && /[0-9;]/.test(text[i])) i++
+      if (text[i] === 'm') continue
+      i -= 1
+      continue
+    }
+    result += text[i]
+  }
+  return result
 }
 
 function execHermes(

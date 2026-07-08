@@ -1,9 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Dispatch, RefObject, SetStateAction } from 'react'
-import type { QueryClient } from '@tanstack/react-query'
-
-import { useChatStore } from '@/stores/chat-store'
-import { useChatSettingsStore } from '@/hooks/use-chat-settings'
 import { setPendingGeneration } from '../pending-send'
 import { isMissingAuth, textFromMessage } from '../utils'
 import { createOptimisticMessage } from '../chat-screen-utils'
@@ -14,12 +9,17 @@ import {
   updateSessionLastMessage,
 } from '../chat-queries'
 import { invalidateSessionLists } from '../sessions-feed'
+import type { Dispatch, RefObject, SetStateAction } from 'react'
+import type { QueryClient } from '@tanstack/react-query'
+
+import type { ChatAttachment, ChatMessage } from '../types'
+import type { AgentActivity } from '@/stores/chat-activity-store'
+import { useChatStore } from '@/stores/chat-store'
+import { useChatSettingsStore } from '@/hooks/use-chat-settings'
 import { stripDataUrlPrefix } from '@/lib/stream-utils'
 import { playChatComplete } from '@/lib/sounds'
 import { toast } from '@/components/ui/toast'
 import { showErrorToast } from '@/components/error-toast'
-import type { ChatAttachment, ChatMessage } from '../types'
-import type { AgentActivity } from '@/stores/chat-activity-store'
 
 export type ActiveSendRecord = {
   sessionKey: string

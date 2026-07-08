@@ -8,7 +8,7 @@ type SaveModeDialogProps = {
   onClose: () => void
 }
 
-export const SaveModeDialog = memo(function SaveModeDialog({
+export const SaveModeDialog = memo(function SaveModeDialogInner({
   currentModel,
   onSave,
   onClose,

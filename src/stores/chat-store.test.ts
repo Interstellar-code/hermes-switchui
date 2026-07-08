@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { isInternalSystemMessage } from '../screens/chat/internal-message-filter'
 import {
   STREAMING_PERSIST_DEBOUNCE_MS,
   normalizeMessageQueueSessionKey,
   useChatStore,
 } from './chat-store'
-import { isInternalSystemMessage } from '../screens/chat/internal-message-filter'
 import type {QueuedChatMessage} from './chat-store';
 import type { ChatMessage } from '../screens/chat/types'
 
@@ -450,7 +450,7 @@ describe('debounced streaming persist (issue #221 part 2/3)', () => {
       setItem: (k: string, v: string) => {
         map.set(k, String(v))
       },
-    } as Storage
+    }
   }
 
   beforeEach(() => {
@@ -506,7 +506,7 @@ describe('debounced streaming persist (issue #221 part 2/3)', () => {
         role: 'assistant',
         timestamp: 1000,
         content: [{ type: 'text', text: 'partial complete' }],
-      } as ChatMessage,
+      },
     })
 
     // Advancing past the debounce window must NOT write streaming state back —

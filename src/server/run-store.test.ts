@@ -97,7 +97,7 @@ describe('run-store — atomic writes', () => {
     expect(retrieved!.status).toBe('accepted')
 
     // No .tmp files left behind anywhere under the tempDir
-    const walk = (dir: string): string[] => {
+    const walk = (dir: string): Array<string> => {
       if (!fs.existsSync(dir)) return []
       return fs.readdirSync(dir).flatMap((name) => {
         const full = path.join(dir, name)

@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { DialogContent, Dialog } from '@/components/shadcn/ui/dialog'
+import { Dialog, DialogContent } from '@/components/shadcn/ui/dialog'
 import { cn } from '@/lib/utils'
 
 type ContextAlertModalProps = {

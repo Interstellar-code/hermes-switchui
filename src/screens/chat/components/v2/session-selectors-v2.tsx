@@ -25,17 +25,12 @@ import {
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useShallow } from 'zustand/react/shallow'
-import { cn } from '@/lib/utils'
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-} from '@/components/shadcn/ui/popover'
-import { usePinnedModels } from '@/hooks/use-pinned-models'
-import { useSessionModelStore } from '@/stores/session-model-store'
-import { useGatewayRestartStore } from '@/stores/gateway-restart-store'
-import { formatModelName } from '@/lib/format-model-name'
 
+import {
+  MODEL_SWITCH_BLOCKED_TOAST,
+  getZeroForkModelInfoFlags,
+  shouldBlockZeroForkModelSwitch,
+} from '../chat-composer-model-switch'
 import {
   activateProfile,
   fetchGatewayMode,
@@ -49,16 +44,21 @@ import {
   switchModel,
   thinkingLabel,
 } from '../chat-composer-services'
-import {
-  MODEL_SWITCH_BLOCKED_TOAST,
-  getZeroForkModelInfoFlags,
-  shouldBlockZeroForkModelSwitch,
-} from '../chat-composer-model-switch'
 import type {
   ModelSwitchNotice,
   ThinkingLevel,
   WorkspaceDetectionResponse,
 } from '../chat-composer-types'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from '@/components/shadcn/ui/popover'
+import { formatModelName } from '@/lib/format-model-name'
+import { usePinnedModels } from '@/hooks/use-pinned-models'
+import { cn } from '@/lib/utils'
+import { useGatewayRestartStore } from '@/stores/gateway-restart-store'
+import { useSessionModelStore } from '@/stores/session-model-store'
 
 // ─── Model catalog (curated /api/models) ───────────────────────────────────
 type NormalizedModel = {
@@ -67,8 +67,57 @@ type NormalizedModel = {
   provider: string
 }
 
+type SelectableProfile = {
+  name: string
+  active?: boolean
+  model?: string
+  provider?: string
+  skillCount?: number
+}
+
+type SelectableWorkspace = {
+  name: string
+  path: string
+}
+
 function readModelText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+function normalizeProfiles(value: unknown): Array<SelectableProfile> {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const record = entry as Record<string, unknown>
+    const name = readModelText(record.name)
+    if (!name) return []
+    return [
+      {
+        name,
+        active: record.active === true,
+        model: readModelText(record.model) || undefined,
+        provider: readModelText(record.provider) || undefined,
+        skillCount:
+          typeof record.skillCount === 'number' ? record.skillCount : undefined,
+      },
+    ]
+  })
+}
+
+function normalizeWorkspaces(value: unknown): Array<SelectableWorkspace> {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const record = entry as Record<string, unknown>
+    const path = readModelText(record.path)
+    if (!path) return []
+    return [
+      {
+        path,
+        name: readModelText(record.name),
+      },
+    ]
+  })
 }
 
 async function fetchModelCatalog(): Promise<Array<NormalizedModel>> {
@@ -224,7 +273,7 @@ function SessionSelectorsV2Component({
         }),
       ])
       setProfileMenuOpen(false)
-      if (data?.needsGatewayRestart) {
+      if (data.needsGatewayRestart) {
         useGatewayRestartStore.getState().markNeedsRestart(profileName)
       }
       setModelNotice({
@@ -273,7 +322,7 @@ function SessionSelectorsV2Component({
     () => groupModelsByProvider(models),
     [models],
   )
-  const activeModel = React.useMemo(() => {
+  const activeModel = React.useMemo<NormalizedModel | null>(() => {
     if (persistedSessionModel) {
       const match = models.find((m) => m.id === persistedSessionModel)
       if (match) return match
@@ -289,14 +338,21 @@ function SessionSelectorsV2Component({
   }, [models, persistedSessionModel])
 
   // ─── derived labels (live parity) ────────────────────────────────────────
+  const profiles = React.useMemo(
+    () => normalizeProfiles(profilesQuery.data?.profiles),
+    [profilesQuery.data?.profiles],
+  )
   const activeProfileName =
-    profilesQuery.data?.activeProfile ||
-    profilesQuery.data?.profiles?.find((profile) => profile.active)?.name ||
+    readModelText(profilesQuery.data?.activeProfile) ||
+    profiles.find((profile) => profile.active)?.name ||
     'default'
-  const activeProfile = profilesQuery.data?.profiles?.find(
+  const activeProfile = profiles.find(
     (profile) => profile.name === activeProfileName,
   )
-  const workspaceEntries = workspaceContextQuery.data?.workspaces ?? []
+  const workspaceEntries = React.useMemo(
+    () => normalizeWorkspaces(workspaceContextQuery.data?.workspaces),
+    [workspaceContextQuery.data?.workspaces],
+  )
   const detectedWorkspacePath = workspaceContextQuery.data?.path ?? ''
   const activeWorkspace = workspaceEntries.find(
     (workspace) => workspace.path === detectedWorkspacePath,
@@ -521,7 +577,7 @@ function SessionSelectorsV2Component({
             <div className="px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
               Agent profile
             </div>
-            {(profilesQuery.data?.profiles ?? []).map((profile) => {
+            {profiles.map((profile) => {
               const selected = profile.name === activeProfileName
               return (
                 <button

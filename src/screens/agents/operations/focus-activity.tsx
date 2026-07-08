@@ -1,7 +1,7 @@
 import type { ActivityItem } from '../../../server/operations-store'
 
 interface FocusActivityProps {
-  items: ActivityItem[]
+  items: Array<ActivityItem>
 }
 
 export function FocusActivity({ items }: FocusActivityProps) {
@@ -19,7 +19,7 @@ export function FocusActivity({ items }: FocusActivityProps) {
               <span className="t">{item.time}</span>
               {item.tag && (
                 <span
-                  className={`tag${item.tag === 'tool' ? ' tool' : item.tag === 'handoff' ? ' handoff' : ''}`}
+                  className={`tag${item.tag === 'tool' ? ' tool' : ' handoff'}`}
                 >
                   {item.tag}
                 </span>

@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderHook, act } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { QueryClient } from '@tanstack/react-query'
+import { useRetryRecovery } from './use-retry-recovery'
 import type { RefObject } from 'react'
 
-import { useRetryRecovery } from './use-retry-recovery'
 import type { ChatMessage } from '../types'
 
 function makeSetRef(): RefObject<Set<string>> {
@@ -21,7 +21,7 @@ function makeUserErrorMessage(
     content: [{ type: 'text', text }],
   }
   if (clientId) base.clientId = clientId
-  return base as unknown as ChatMessage
+  return base
 }
 
 function makeAssistantMessage(text: string): ChatMessage {

@@ -229,7 +229,7 @@ async function fetchModels(): Promise<{
 
   return {
     ok: true,
-    models: models as Array<ModelCatalogEntry>,
+    models,
     configuredProviders,
   }
 }
@@ -457,7 +457,7 @@ function getDraftValue(
   config: ClaudeConfig | undefined,
   draftValues: Record<string, string>,
 ): string {
-  if (draftValues[setting.id] !== undefined) return draftValues[setting.id]
+  if (setting.id in draftValues) return draftValues[setting.id]
   if (!setting.path) return ''
   const rawValue = readPath(config, setting.path)
   if (setting.formatter) return setting.formatter(rawValue)

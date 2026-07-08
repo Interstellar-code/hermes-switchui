@@ -7,14 +7,14 @@ export function unionAssigneesWithProfiles(
 ): Array<AssigneeOption> {
   const profileNames = new Set(profiles.map(p => p.name))
 
-  const onDiskItems: AssigneeOption[] = profiles.map(p => ({
+  const onDiskItems: Array<AssigneeOption> = profiles.map(p => ({
     id: p.name,
     label: p.name === activeProfile ? `${p.name} (active)` : p.name,
     onDisk: true,
     isActive: p.name === activeProfile,
   }))
 
-  const orphanItems: AssigneeOption[] = assignees
+  const orphanItems: Array<AssigneeOption> = assignees
     .filter(a => !profileNames.has(a.id))
     .map(a => ({ id: a.id, label: a.label, onDisk: false }))
 

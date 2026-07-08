@@ -1,7 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router'
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
 
 type RemoteName = 'origin' | 'upstream'
@@ -41,7 +41,7 @@ export const UPDATE_REMOTE_DEFINITIONS: Array<RemoteDefinition> = [
   },
 ]
 
-function git(args: string[], timeout = 5000): string | null {
+function git(args: Array<string>, timeout = 5000): string | null {
   try {
     return execFileSync('git', args, { cwd: process.cwd(), encoding: 'utf8', timeout }).trim() || null
   } catch {
@@ -129,7 +129,7 @@ function remoteStatus(definition: RemoteDefinition, currentHead: string | null):
 export const Route = createFileRoute('/api/claude-update')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }

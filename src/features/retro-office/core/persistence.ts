@@ -1,13 +1,13 @@
+import type { FurnitureItem } from "@/features/retro-office/core/types";
 import {
   ATM_MIGRATION_KEY,
   GYM_ROOM_MIGRATION_KEY,
   PHONE_BOOTH_MIGRATION_KEY,
   QA_LAB_MIGRATION_KEY,
-  SMS_BOOTH_MIGRATION_KEY,
   SERVER_ROOM_MIGRATION_KEY,
+  SMS_BOOTH_MIGRATION_KEY,
   STORAGE_KEY,
 } from "@/features/retro-office/core/constants";
-import type { FurnitureItem } from "@/features/retro-office/core/types";
 
 const resolveStorageKey = (key: string, namespace = "default") =>
   namespace === "default" ? key : `${key}:${namespace}`;
@@ -28,7 +28,7 @@ const markStorageFlag = (key: string, namespace = "default") => {
   }
 };
 
-export const saveFurniture = (items: FurnitureItem[], namespace = "default") => {
+export const saveFurniture = (items: Array<FurnitureItem>, namespace = "default") => {
   try {
     localStorage.setItem(resolveStorageKey(STORAGE_KEY, namespace), JSON.stringify(items));
   } catch {
@@ -36,13 +36,13 @@ export const saveFurniture = (items: FurnitureItem[], namespace = "default") => 
   }
 };
 
-export const loadFurniture = (namespace = "default"): FurnitureItem[] | null => {
+export const loadFurniture = (namespace = "default"): Array<FurnitureItem> | null => {
   try {
     const raw = localStorage.getItem(resolveStorageKey(STORAGE_KEY, namespace));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) && parsed.length > 0
-      ? (parsed as FurnitureItem[])
+      ? (parsed as Array<FurnitureItem>)
       : null;
   } catch {
     return null;

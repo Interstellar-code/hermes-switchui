@@ -39,11 +39,11 @@ function adaptDefinition(row: WorkflowDefinitionRow): WorkflowSummary {
     id: row.id,
     name: row.name,
     description: row.description ?? '',
-    source: row.source as WorkflowSource,
+    source: row.source,
     tags: parseTags(row.tags),
     node_count: row.node_count,
     last_used_at: row.last_used_at != null ? String(row.last_used_at) : null,
-    version_tier: 'v1' as VersionTier,
+    version_tier: 'v1',
     // Pass through enrichment fields added by summariseWorkflowYaml on the list route.
     // These were previously zeroed, hiding badge/input data from the UI.
     has_loop: row.has_loop ?? false,

@@ -4,8 +4,8 @@
  * All workflow operations are routed to the hermes-agent workflow-engine
  * plugin via PluginClient.
  */
-import type { WorkflowEngineInterface } from './interface.js';
 import { PluginClient } from './clients/plugin-client.js';
+import type { WorkflowEngineInterface } from './interface.js';
 
 let _pluginClient: PluginClient | null = null;
 

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
+import { useActiveRunPoller } from './use-active-run-poller'
 import type { RefObject } from 'react'
 
-import { useActiveRunPoller } from './use-active-run-poller'
 import type { ActiveRunSnapshot } from './use-active-run-check'
 import type { ActiveSendRecord } from './use-send-message-state'
 
@@ -33,7 +33,7 @@ function mockFetch(run: ActiveRunSnapshot | null, ok = true) {
 }
 
 function ref<T>(initial: T): RefObject<T> {
-  return { current: initial } as RefObject<T>
+  return { current: initial }
 }
 
 type PollerParams = Parameters<typeof useActiveRunPoller>[0]

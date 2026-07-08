@@ -131,8 +131,8 @@ export function ConnectionStartupScreen({ onConnected }: Props) {
         if (isDone.current) return
         isDone.current = true
         clearTimeout(failureTimer)
-        if (autoStartTimer) clearTimeout(autoStartTimer)
-        if (pollTimer) clearTimeout(pollTimer)
+        clearTimeout(autoStartTimer)
+        clearTimeout(pollTimer)
         onConnectedRef.current(status)
       } catch {
         if (isDone.current) return
@@ -145,10 +145,9 @@ export function ConnectionStartupScreen({ onConnected }: Props) {
     return () => {
       isDone.current = true
       if (pollTimer) clearTimeout(pollTimer)
-      if (autoStartTimer) clearTimeout(autoStartTimer)
+      clearTimeout(autoStartTimer)
       clearTimeout(failureTimer)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {

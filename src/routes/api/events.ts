@@ -5,7 +5,7 @@ import { subscribeToChatEvents } from '../../server/chat-event-bus'
 export const Route = createFileRoute('/api/events')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return new Response(
             'data: {"error":"unauthorized"}\n\n',

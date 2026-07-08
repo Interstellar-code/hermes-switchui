@@ -12,15 +12,15 @@ import { isAuthenticated } from '../../server/auth-middleware'
 export const Route = createFileRoute('/api/claude-tasks/$taskId')({
   server: {
     handlers: {
-      GET: async ({ request, params }) => {
+      GET: ({ request, params }) => {
         if (!isAuthenticated(request)) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
         return new Response(null, { status: 308, headers: { Location: `/api/hermes-kanban/tasks/${params.taskId}` } })
       },
-      PATCH: async ({ request, params }) => {
+      PATCH: ({ request, params }) => {
         if (!isAuthenticated(request)) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
         return new Response(null, { status: 308, headers: { Location: `/api/hermes-kanban/tasks/${params.taskId}` } })
       },
-      DELETE: async ({ request, params }) => {
+      DELETE: ({ request, params }) => {
         if (!isAuthenticated(request)) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
         // DELETE is mapped to archive. Return 410 with migration instructions.
         return new Response(
@@ -31,7 +31,7 @@ export const Route = createFileRoute('/api/claude-tasks/$taskId')({
           { status: 410, headers: { 'Content-Type': 'application/json' } },
         )
       },
-      POST: async ({ request, params }) => {
+      POST: ({ request, params }) => {
         if (!isAuthenticated(request)) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })
         return new Response(null, { status: 308, headers: { Location: `/api/hermes-kanban/tasks/${params.taskId}` } })
       },

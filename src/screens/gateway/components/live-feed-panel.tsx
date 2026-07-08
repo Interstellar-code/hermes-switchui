@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { cn } from '@/lib/utils'
 import {
   emitFeedEvent,
   onFeedEvent,
-  type FeedEvent,
-  type FeedEventType,
 } from './feed-event-bus'
+import type { FeedEvent, FeedEventType } from './feed-event-bus'
+import { cn } from '@/lib/utils'
 
 // 'Activity' = tasks + agents (no health checks), default
 // 'Tasks'    = task events only
@@ -130,7 +129,7 @@ function severityBadge(event: FeedRow, severity: EventSeverity): EventBadge {
   if (severity === 'error') {
     return { label: 'ERROR', className: 'bg-red-950/70 text-red-300 border border-red-800/60' }
   }
-  return EVENT_BADGE[event.type] ?? EVENT_BADGE.system
+  return EVENT_BADGE[event.type]
 }
 
 function severityTextClass(severity: EventSeverity): string {
@@ -164,7 +163,7 @@ export function LiveFeedPanel() {
         setEvents((previous) => {
           const latest = previous[0]
           if (
-            latest &&
+            previous.length > 0 &&
             latest.type === event.type &&
             latest.baseMessage === event.message
           ) {

@@ -41,7 +41,7 @@ describe('tool artifact store — atomic writes', () => {
     // No leftover .tmp files anywhere under tempDir
     const allFiles = fs.readdirSync(path.join(tempDir, '.runtime', 'tool-artifacts'), {
       recursive: true,
-    }) as string[]
+    }) as Array<string>
     expect(allFiles.filter((f) => String(f).endsWith('.tmp'))).toHaveLength(0)
   })
 
@@ -89,7 +89,7 @@ describe('tool-artifacts-store — MAX_ARTIFACTS eviction', () => {
     const { createOrUpdateToolArtifact: create, listToolArtifacts, MAX_ARTIFACTS } =
       await import('./tool-artifacts-store')
 
-    const ids: string[] = []
+    const ids: Array<string> = []
     for (let i = 0; i < MAX_ARTIFACTS + 5; i++) {
       const a = create({ sessionId: 'sess-oldest', toolName: 'tool', content: `old-${i}-${Math.random()}` })
       ids.push(a.id)

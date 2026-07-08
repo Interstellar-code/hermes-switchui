@@ -20,8 +20,9 @@ import type {
   AgentStatusBubble,
 } from './agent-card'
 import type { ActiveAgent } from '@/hooks/use-agent-view'
+import type {AgentCardStatus} from '@/components/agent-card';
 import { AgentChatModal } from '@/components/agent-chat/AgentChatModal'
-import { AgentCard as MiniAgentCard, type AgentCardStatus } from '@/components/agent-card'
+import {  AgentCard as MiniAgentCard } from '@/components/agent-card'
 import { Button } from '@/components/ui/button'
 import {
   Collapsible,
@@ -176,11 +177,11 @@ function ocParseContextPct(payload: unknown): number {
     (root.totals as Record<string, unknown> | undefined) ??
     root
   return ocReadPercent(
-    (usage as Record<string, unknown>)?.contextPercent ??
-      (usage as Record<string, unknown>)?.context_percent ??
-      (usage as Record<string, unknown>)?.context ??
-      root?.contextPercent ??
-      root?.context_percent,
+    usage.contextPercent ??
+      usage.context_percent ??
+      usage.context ??
+      root.contextPercent ??
+      root.context_percent,
   )
 }
 
@@ -207,18 +208,18 @@ function OrchestratorCard({
 
   // Usage state
   const [contextPct, setContextPct] = useState<number | null>(null)
-  const [usageRows, setUsageRows] = useState<OcUsageRow[]>([])
+  const [usageRows, setUsageRows] = useState<Array<OcUsageRow>>([])
   const [providerLabel, setProviderLabel] = useState<string | null>(null)
   const [usageExpanded, setUsageExpanded] = useState(true)
   const [preferredProvider, setPreferredProvider] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null
     try { return window.localStorage.getItem(PREFERRED_PROVIDER_KEY_OC) } catch { return null }
   })
-  const [allOcProviders, setAllOcProviders] = useState<OcProviderEntry[]>([])
+  const [allOcProviders, setAllOcProviders] = useState<Array<OcProviderEntry>>([])
   const [providerFlash, setProviderFlash] = useState(false)
   const flashTimerRefOc = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  function getPrimaryProvider(all: OcProviderEntry[], preferred: string | null) {
+  function getPrimaryProvider(all: Array<OcProviderEntry>, preferred: string | null) {
     if (preferred) {
       const m = all.find((p) => p.provider === preferred && p.status === 'ok' && p.lines.length > 0)
       if (m) return m
@@ -226,10 +227,10 @@ function OrchestratorCard({
     return all.find((p) => p.status === 'ok' && p.lines.length > 0) ?? null
   }
 
-  const updateUsageRowsFromProviders = useCallback((providers: OcProviderEntry[], preferred: string | null) => {
+  const updateUsageRowsFromProviders = useCallback((providers: Array<OcProviderEntry>, preferred: string | null) => {
     const primary = getPrimaryProvider(providers, preferred)
     if (!primary) return
-    const rows: OcUsageRow[] = primary.lines
+    const rows: Array<OcUsageRow> = primary.lines
       .filter((l) => l.type === 'progress' && l.used !== undefined)
       .slice(0, 2)
       .map((l) => ({ label: l.label.replace(/\s*\([^)]*\)\s*$/, '').trim(), pct: Math.min(100, Math.round(l.used as number)), resetHint: ocFormatResetHint(l.resetsAt) }))
@@ -244,7 +245,6 @@ function OrchestratorCard({
     if (okProviders.length < 2) return
     const currentIdx = okProviders.findIndex((p) => p.provider === preferredProvider)
     const next = okProviders[(currentIdx + 1) % okProviders.length]
-    if (!next) return
     setPreferredProvider(next.provider)
     try { localStorage.setItem(PREFERRED_PROVIDER_KEY_OC, next.provider) } catch { /* noop */ }
     updateUsageRowsFromProviders(allOcProviders, next.provider)
@@ -278,12 +278,10 @@ function OrchestratorCard({
           ok?: boolean
           providers?: Array<OcProviderEntry>
         } | null
-        if (!data2?.providers || cancelled) return
+        if (!data2?.providers) return
 
-        if (!cancelled) {
-          setAllOcProviders(data2.providers)
-          updateUsageRowsFromProviders(data2.providers, preferredProvider)
-        }
+        setAllOcProviders(data2.providers)
+        updateUsageRowsFromProviders(data2.providers, preferredProvider)
       } catch { /* noop */ }
     }
 
@@ -312,7 +310,7 @@ function OrchestratorCard({
 
   // Build usage rows: provider rows if available, else synthetic context row
   const ctxRow: OcUsageRow = { label: 'Ctx', pct: contextPct ?? 0, resetHint: null }
-  const displayRows: OcUsageRow[] = usageRows.length > 0 ? usageRows : (contextPct !== null ? [ctxRow] : [])
+  const displayRows: Array<OcUsageRow> = usageRows.length > 0 ? usageRows : (contextPct !== null ? [ctxRow] : [])
   const usageHeader = providerLabel ?? 'Usage'
 
   // Provider logo URLs (Simple Icons CDN)
@@ -1129,7 +1127,7 @@ export function AgentViewPanel() {
                     ) : cliAgents.length > 0 ? null : (
                       <p
                         ref={
-                          networkLayerRef as React.RefObject<HTMLParagraphElement>
+                          networkLayerRef
                         }
                         className="text-[11px] text-pretty text-primary-600 py-1"
                       >
@@ -1379,7 +1377,7 @@ export function AgentViewPanel() {
                             <MiniAgentCard
                               key={agent.id}
                               sessionLabel={agent.name}
-                              model={agent.status || 'unknown'}
+                              model={agent.status}
                               status={getMiniAgentCardStatus(agent.status)}
                               footer={
                                 <div className="flex justify-end">

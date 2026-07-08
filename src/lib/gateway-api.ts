@@ -142,7 +142,7 @@ export type SessionHistoryMessage = {
 
 export type SessionHistoryResponse = {
   ok?: boolean
-  messages?: SessionHistoryMessage[]
+  messages?: Array<SessionHistoryMessage>
   error?: string
 }
 
@@ -222,7 +222,6 @@ export async function fetchSessionStatus(
 
   const payload = (await response.json()) as Record<string, unknown>
   const normalized =
-    payload &&
     typeof payload === 'object' &&
     payload.payload &&
     typeof payload.payload === 'object'
@@ -364,11 +363,11 @@ export async function steerAgent(
       .catch(() => ({}))) as GatewayAgentActionResponse
 
     if (!response.ok || payload.ok === false) {
-      const message =
+      const errorMessage =
         typeof payload.error === 'string' && payload.error.trim().length > 0
           ? payload.error
           : response.statusText || 'Failed to send directive'
-      throw new Error(message)
+      throw new Error(errorMessage)
     }
 
     return payload
@@ -435,8 +434,8 @@ export type GatewayApprovalEntry = {
 
 export type GatewayApprovalsResponse = {
   ok?: boolean
-  approvals?: GatewayApprovalEntry[]
-  pending?: GatewayApprovalEntry[]
+  approvals?: Array<GatewayApprovalEntry>
+  pending?: Array<GatewayApprovalEntry>
 }
 
 export async function fetchGatewayApprovals(): Promise<GatewayApprovalsResponse> {

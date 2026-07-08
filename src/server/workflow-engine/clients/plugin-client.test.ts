@@ -4,14 +4,14 @@
  * Runs in Node (forks pool per vite.config.ts poolMatchGlobs).
  * No real HTTP calls; no real plugin process required.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { PluginClient } from './plugin-client.js';
 
 // ── Mock gateway-capabilities before importing PluginClient ──────────────────
 vi.mock('../../gateway-capabilities.js', () => ({
   dashboardFetch: vi.fn(),
 }));
-
-import { PluginClient } from './plugin-client.js';
 
 const PLUGIN_BASE = '/api/plugins/workflow-engine';
 

@@ -116,11 +116,11 @@ export const Route = createFileRoute('/api/workflow-definitions')({
         // Plugin parses and validates YAML server-side; surfaces 409/422 errors.
         try {
           const def = await engine.upsertDefinition(
-            body.yaml as string,
+            body.yaml,
             typeof body.scope_path === 'string' ? body.scope_path : undefined,
             {
-              id: body.id as string,
-              name: body.name as string,
+              id: body.id,
+              name: body.name,
               ...(typeof body.expected_checksum === 'string' ? { expected_checksum: body.expected_checksum } : {}),
             },
           );

@@ -57,17 +57,17 @@ export function ChatHeaderActionsV2({ sessionId, sessionKey, title }: ChatHeader
       `URL: ${typeof window !== 'undefined' ? window.location.href : ''}`,
       meta?.kind ? `Kind: ${meta.kind}` : null,
       meta?.status ? `Status: ${meta.status}` : null,
-      meta?.model ? `Model: ${meta.model}` : status?.model ? `Model: ${status.model}` : null,
-      status?.modelProvider ? `Provider: ${status.modelProvider}` : null,
+      meta?.model ? `Model: ${meta.model}` : status.model ? `Model: ${status.model}` : null,
+      status.modelProvider ? `Provider: ${status.modelProvider}` : null,
       typeof meta?.messageCount === 'number' ? `Messages: ${meta.messageCount}` : null,
       typeof meta?.toolCallCount === 'number' ? `Tool calls: ${meta.toolCallCount}` : null,
       typeof meta?.tokenCount === 'number' && meta.tokenCount > 0
         ? `Tokens (session): ${meta.tokenCount.toLocaleString()}`
         : null,
-      typeof status?.contextPercent === 'number' && status.contextPercent > 0
-        ? `Context: ${status.contextPercent}% (${(status.usedTokens ?? 0).toLocaleString()} / ${(status.maxTokens ?? 0).toLocaleString()})`
+      typeof status.contextPercent === 'number' && status.contextPercent > 0
+        ? `Context: ${status.contextPercent}% (${status.usedTokens.toLocaleString()} / ${status.maxTokens.toLocaleString()})`
         : null,
-      typeof status?.totalTokens === 'number' && status.totalTokens > 0
+      typeof status.totalTokens === 'number' && status.totalTokens > 0
         ? `Live tokens: ${status.totalTokens.toLocaleString()}`
         : null,
       created ? `Created: ${created}` : null,

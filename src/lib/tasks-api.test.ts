@@ -15,8 +15,8 @@ function ok(body: unknown, status = 200): Response {
   return {
     ok: true,
     status,
-    json: async () => body,
-    text: async () => text,
+    json: () => Promise.resolve(body),
+    text: () => Promise.resolve(text),
   } as unknown as Response
 }
 

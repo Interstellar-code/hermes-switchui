@@ -1,11 +1,10 @@
 import { useCallback, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { QueryClient, UseQueryResult } from '@tanstack/react-query'
 
 import {
+  
   clearHistoryMessages,
-  fetchStatus,
-  type StatusResponse,
+  fetchStatus
 } from '../chat-queries'
 import {
   isMissingAuth,
@@ -14,6 +13,8 @@ import {
   isRecentSession,
   resetPendingSend,
 } from '../pending-send'
+import type {StatusResponse} from '../chat-queries';
+import type { QueryClient, UseQueryResult } from '@tanstack/react-query'
 import type { SessionMeta } from '../types'
 
 /**

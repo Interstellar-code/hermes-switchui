@@ -1,4 +1,4 @@
-export const MATRIX_NAMES: string[] = [
+export const MATRIX_NAMES: Array<string> = [
   'neo',
   'trinity',
   'morpheus',
@@ -38,7 +38,7 @@ export const MATRIX_NAMES: string[] = [
   'kali',
 ]
 
-export function randomMatrixName(exclude: string[] = []): string {
+export function randomMatrixName(exclude: Array<string> = []): string {
   const lower = exclude.map((n) => n.toLowerCase())
   const available = MATRIX_NAMES.filter((n) => !lower.includes(n))
 

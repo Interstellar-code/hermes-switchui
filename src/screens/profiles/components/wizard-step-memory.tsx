@@ -3,7 +3,7 @@ import { MEMORY_PROVIDER_CATALOG } from '@/lib/memory-provider-catalog'
 
 type Props = {
   draft: NewAgentDraft
-  errors: string[]
+  errors: Array<string>
   onChange: (patch: Partial<NewAgentDraft>) => void
 }
 

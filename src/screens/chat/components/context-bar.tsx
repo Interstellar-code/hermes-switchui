@@ -2,6 +2,7 @@
 
 import { memo, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { buildCompactionNotice } from './streaming-lifecycle-ui'
 import { cn } from '@/lib/utils'
 import {
   PreviewCard,
@@ -11,7 +12,6 @@ import {
 import { useSessionStatus } from '@/hooks/use-session-status'
 import { useContextUsageStore } from '@/stores/context-usage-store'
 import { fetchSessions } from '@/screens/chat/chat-queries'
-import { buildCompactionNotice } from './streaming-lifecycle-ui'
 
 type ModelCatalogEntry = {
   id?: string

@@ -166,12 +166,12 @@ function parseReplyReference(content: string): ReplyReference | null {
     content.match(BLOCKQUOTE_REPLY_MARKER_PATTERN)
   if (!match) return null
 
-  const seq = Number.parseInt(match[1] ?? '', 10)
+  const seq = Number.parseInt(match[1], 10)
   if (!Number.isFinite(seq)) return null
 
   return {
     seq,
-    snippet: normalizeReplyReferenceSnippet(match[2] ?? ''),
+    snippet: normalizeReplyReferenceSnippet(match[2]),
     body: content.slice(match[0].length),
   }
 }
@@ -1543,17 +1543,17 @@ function parseInlineArtifacts(text: string): {
       let attributeMatch = attributePattern.exec(rawAttributes)
 
       while (attributeMatch) {
-        const key = attributeMatch[1]?.trim().toLowerCase()
-        const value = attributeMatch[3] ?? ''
+        const key = attributeMatch[1].trim().toLowerCase()
+        const value = attributeMatch[3]
         if (key) {
           attributes[key] = value
         }
         attributeMatch = attributePattern.exec(rawAttributes)
       }
 
-      const type = (attributes.type ?? 'artifact').trim() || 'artifact'
-      const title = (attributes.title ?? attributes.name ?? type).trim() || type
-      const content = (attributes.content ?? rawContent).trim()
+      const type = attributes.type.trim() || 'artifact'
+      const title = (attributes.title || attributes.name || type).trim() || type
+      const content = (attributes.content || rawContent).trim()
       if (content) {
         artifacts.push({ type, title, content })
       }

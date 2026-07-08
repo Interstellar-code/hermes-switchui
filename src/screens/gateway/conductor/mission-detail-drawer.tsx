@@ -61,11 +61,11 @@ export function MissionDetailDrawer() {
             </div>
             <div className="mdd-row">
               <span className="mdd-lbl">Elapsed</span>
-              <span className="mdd-val">{mission.elapsed ?? '—'}</span>
+              <span className="mdd-val">{mission.elapsed}</span>
             </div>
             <div className="mdd-row">
               <span className="mdd-lbl">Tokens</span>
-              <span className="mdd-val">{mission.tokens ?? '—'}</span>
+              <span className="mdd-val">{mission.tokens}</span>
             </div>
             <div className="mdd-row">
               <span className="mdd-lbl">Created</span>

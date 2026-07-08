@@ -132,7 +132,7 @@ describe('ChatSkillsTabV2', () => {
       ...makeSkillMessage('id-2', 'ralph'),
     ]
     const { container } = renderInto(<ChatSkillsTabV2 messages={messages} />)
-    const text = container.textContent ?? ''
+    const text = container.textContent
     expect(text).toContain('caveman')
     expect(text).toContain('ralph')
   })
@@ -144,7 +144,7 @@ describe('ChatSkillsTabV2', () => {
       ...makeSkillMessage('id-a3', 'caveman'),
     ]
     const { container } = renderInto(<ChatSkillsTabV2 messages={messages} />)
-    const text = container.textContent ?? ''
+    const text = container.textContent
     // One card for 'caveman'
     const cards = container.querySelectorAll('[aria-expanded]')
     expect(cards.length).toBe(1)

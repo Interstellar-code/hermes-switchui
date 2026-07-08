@@ -66,7 +66,7 @@ describe('/api/claude-jobs/:jobId', () => {
       sessions: true,
       dashboard: { available: true },
     } as Awaited<ReturnType<typeof ensureGatewayProbed>>)
-    mockDashboardFetch.mockImplementation(async () =>
+    mockDashboardFetch.mockImplementation(() =>
       new Response(JSON.stringify({ ok: true }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -105,7 +105,7 @@ describe('/api/claude-jobs/:jobId', () => {
   })
 
   it('falls back to job detail when the dashboard has no dedicated runs endpoint', async () => {
-    mockDashboardFetch.mockImplementation(async (path) => {
+    mockDashboardFetch.mockImplementation((path) => {
       if (path === '/api/cron/jobs/nightly/runs?limit=10') {
         return new Response(
           JSON.stringify({
@@ -166,7 +166,7 @@ describe('/api/claude-jobs/:jobId', () => {
   })
 
   it('deletes chat sessions linked from cron run history when deleting the cron', async () => {
-    mockDashboardFetch.mockImplementation(async (path, init) => {
+    mockDashboardFetch.mockImplementation((path, init) => {
       if (path === '/api/cron/jobs/nightly/runs?limit=100') {
         return new Response(
           JSON.stringify({
@@ -213,7 +213,7 @@ describe('/api/claude-jobs/:jobId', () => {
       { friendlyId: 'cron_nightly_20260609_060000' },
       { id: 'cron_other_20260610_060000' },
     ] as Awaited<ReturnType<typeof listSessions>>)
-    mockDashboardFetch.mockImplementation(async (path, init) => {
+    mockDashboardFetch.mockImplementation((path, init) => {
       if (path === '/api/cron/jobs/nightly/runs?limit=100') {
         return new Response(JSON.stringify({ detail: 'No such API endpoint' }), {
           status: 404,

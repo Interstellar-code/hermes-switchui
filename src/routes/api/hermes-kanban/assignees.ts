@@ -1,10 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { getKanbanAssignees } from '../../../server/hermes-kanban-client'
-import {
-  normalizeKanbanAssignee,
-  type HermesKanbanAssigneeRaw,
-} from '../../../lib/hermes-kanban-types'
+import { normalizeKanbanAssignee } from '../../../lib/hermes-kanban-types'
+import type { HermesKanbanAssigneeRaw } from '../../../lib/hermes-kanban-types'
 
 export const Route = createFileRoute('/api/hermes-kanban/assignees')({
   server: {
@@ -15,7 +13,7 @@ export const Route = createFileRoute('/api/hermes-kanban/assignees')({
         }
         try {
           const raw = await getKanbanAssignees()
-          const assignees = (raw.assignees as HermesKanbanAssigneeRaw[]).map(
+          const assignees = (raw.assignees as Array<HermesKanbanAssigneeRaw>).map(
             normalizeKanbanAssignee,
           )
           return Response.json({ assignees })

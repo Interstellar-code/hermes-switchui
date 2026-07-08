@@ -2,7 +2,7 @@ import type { NewAgentDraft, WizardStep } from '../types'
 
 type Props = {
   draft: NewAgentDraft
-  errors: string[]
+  errors: Array<string>
   submitError: string | null
   onJumpTo: (step: WizardStep) => void
 }

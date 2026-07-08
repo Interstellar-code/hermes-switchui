@@ -2,17 +2,17 @@ import { Billboard, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { memo, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { createDefaultAgentAvatarProfile } from "@/lib/avatars/profile";
+import type {
+  JanitorActor,
+  RenderAgent,
+} from "@/features/retro-office/core/types";
+import type { AgentModelProps } from "@/features/retro-office/objects/types";
 import {
   AGENT_SCALE,
   WALK_ANIM_SPEED,
 } from "@/features/retro-office/core/constants";
 import { toWorld } from "@/features/retro-office/core/geometry";
-import type {
-  JanitorActor,
-  RenderAgent,
-} from "@/features/retro-office/core/types";
-import { AgentModelProps } from "@/features/retro-office/objects/types";
+import { createDefaultAgentAvatarProfile } from "@/lib/avatars/profile";
 
 const MAX_NAMEPLATE_TEXT_LENGTH = 10;
 const MAX_SPEECH_BUBBLE_TEXT_LENGTH = 180;
@@ -70,7 +70,7 @@ const createRoundedRectShape = (
   return shape;
 };
 
-export const AgentModel = memo(function AgentModel({
+export const AgentModel = memo(function AgentModelInner({
   agentId,
   name,
   subtitle,
@@ -124,8 +124,8 @@ export const AgentModel = memo(function AgentModel({
 
   useFrame(() => {
     const agent =
-      agentLookupRef?.current?.get(agentId) ??
-      agentsRef.current?.find((candidate) => candidate.id === agentId);
+      agentLookupRef.current.get(agentId) ??
+      agentsRef.current.find((candidate) => candidate.id === agentId);
     if (!agent || !groupRef.current) return;
 
     const [wx, , wz] = toWorld(agent.x, agent.y);
@@ -139,25 +139,25 @@ export const AgentModel = memo(function AgentModel({
     groupRef.current.rotation.y += rotDelta * 0.12;
     const isWorkout = agent.state === "working_out";
     const isDancing = agent.state === "dancing";
-    const isJanitor = "role" in agent && agent.role === "janitor";
+    const isJanitor = agent.role === "janitor";
     const janitorTool = isJanitor
-      ? (agent as RenderAgent & JanitorActor).janitorTool
+      ? agent.janitorTool
       : undefined;
     const workoutStyle = agent.workoutStyle ?? "lift";
-    const frameValue = agent.frame + (agent.phaseOffset ?? 0) / WALK_ANIM_SPEED;
+    const frameValue = agent.frame + agent.phaseOffset / WALK_ANIM_SPEED;
     const walkPhase = Math.sin(frameValue * WALK_ANIM_SPEED);
     const workoutPhase = Math.sin(
-      agent.frame * 0.18 + (agent.phaseOffset ?? 0),
+      agent.frame * 0.18 + agent.phaseOffset,
     );
     const workoutPushPhase = Math.sin(
-      agent.frame * 0.18 + (agent.phaseOffset ?? 0) + Math.PI / 2,
+      agent.frame * 0.18 + agent.phaseOffset + Math.PI / 2,
     );
     groupRef.current.rotation.z = 0;
     groupRef.current.rotation.x =
       agent.state === "sitting"
         ? -0.15
         : isDancing
-          ? Math.sin(agent.frame * 0.18 + (agent.phaseOffset ?? 0)) * 0.06
+          ? Math.sin(agent.frame * 0.18 + agent.phaseOffset) * 0.06
           : isWorkout
             ? workoutStyle === "bike"
               ? 0.18
@@ -178,7 +178,7 @@ export const AgentModel = memo(function AgentModel({
         ? Math.sin(frameValue * WALK_ANIM_SPEED) * 0.04
         : isDancing
           ? 0.03 +
-            Math.abs(Math.sin(agent.frame * 0.22 + (agent.phaseOffset ?? 0))) *
+            Math.abs(Math.sin(agent.frame * 0.22 + agent.phaseOffset)) *
               0.05
           : isWorkout
             ? workoutStyle === "stretch"
@@ -315,7 +315,7 @@ export const AgentModel = memo(function AgentModel({
         agent.state === "walking"
           ? walkPhase * 0.35
           : isDancing
-            ? Math.sin(agent.frame * 0.22 + (agent.phaseOffset ?? 0)) * 0.35
+            ? Math.sin(agent.frame * 0.22 + agent.phaseOffset) * 0.35
             : isWorkout
               ? workoutStyle === "run"
                 ? workoutPhase * 0.7
@@ -335,7 +335,7 @@ export const AgentModel = memo(function AgentModel({
         agent.state === "walking"
           ? -walkPhase * 0.35
           : isDancing
-            ? -Math.sin(agent.frame * 0.22 + (agent.phaseOffset ?? 0)) * 0.35
+            ? -Math.sin(agent.frame * 0.22 + agent.phaseOffset) * 0.35
             : isWorkout
               ? workoutStyle === "run"
                 ? -workoutPhase * 0.7
@@ -736,7 +736,7 @@ export const AgentModel = memo(function AgentModel({
       }}
       onContextMenu={(event) => {
         event.stopPropagation();
-        const nativeEvent = event.nativeEvent as MouseEvent;
+        const nativeEvent = event.nativeEvent;
         onContextMenu?.(agentId, nativeEvent.clientX, nativeEvent.clientY);
       }}
     >

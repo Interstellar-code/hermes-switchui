@@ -34,8 +34,8 @@ const formats: Array<{ format: ExportFormat; label: string; ext: string }> = [
 
 export function ExportMenu({ onExport, disabled }: ExportMenuProps) {
   const [open, setOpen] = useState(false)
-  const handleOpenChange = useCallback(
-    function handleOpenChange(nextOpen: boolean) {
+  const updateOpenState = useCallback(
+    function (nextOpen: boolean) {
       if (disabled) return
       setOpen(nextOpen)
     },
@@ -43,7 +43,7 @@ export function ExportMenu({ onExport, disabled }: ExportMenuProps) {
   )
 
   return (
-    <MenuRoot open={disabled ? false : open} onOpenChange={handleOpenChange}>
+    <MenuRoot open={disabled ? false : open} onOpenChange={updateOpenState}>
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>

@@ -29,7 +29,7 @@ export const CURRENT_PHASE = ['plan', 'route', 'execute', 'review', 'report'] as
 export type CurrentPhase = (typeof CURRENT_PHASE)[number];
 export type Phase = CurrentPhase;
 
-export const VALID_TRANSITIONS: Record<Phase, Phase[]> = {
+export const VALID_TRANSITIONS: Record<Phase, Array<Phase>> = {
   plan: ['route', 'execute'],
   route: ['execute'],
   execute: ['review', 'report'],
@@ -81,15 +81,15 @@ export interface NodeRun {
   workflow_run_id: string;
   dag_node_id: string;
   node_type: string;
-  depends_on?: string[] | null;
+  depends_on?: Array<string> | null;
   status: NodeRunStatus;
   skip_reason?: string | null;
   assigned_agent?: string | null;
   agent_profile_hint?: string | null;
-  skills?: string[] | null;
+  skills?: Array<string> | null;
   model_hint?: string | null;
-  allowed_tools?: string[] | null;
-  denied_tools?: string[] | null;
+  allowed_tools?: Array<string> | null;
+  denied_tools?: Array<string> | null;
   kanban_task_id?: string | null;
   retries: number;
   max_retries: number;
@@ -151,59 +151,59 @@ export interface ApprovalClaimResult {
 
 export interface WorkflowEngineInterface {
   // ── Definitions ────────────────────────────────────────────────────────
-  listDefinitions(filter?: { source?: string }): Promise<WorkflowDefinitionRow[]>;
-  getDefinition(id: string): Promise<WorkflowDefinitionRow | null>;
-  upsertDefinition(
+  listDefinitions: (filter?: { source?: string }) => Promise<Array<WorkflowDefinitionRow>>;
+  getDefinition: (id: string) => Promise<WorkflowDefinitionRow | null>;
+  upsertDefinition: (
     yaml: string,
     sourcePath?: string,
     opts?: { id?: string; name?: string; expected_checksum?: string },
-  ): Promise<WorkflowDefinitionRow>;
-  resetFactoryDefinition(id: string): Promise<WorkflowDefinitionRow>;
-  parseDefinition(id: string): Promise<Record<string, unknown> | null>;
-  deleteWorkflowDefinition(id: string): Promise<number>;
+  ) => Promise<WorkflowDefinitionRow>;
+  resetFactoryDefinition: (id: string) => Promise<WorkflowDefinitionRow>;
+  parseDefinition: (id: string) => Promise<Record<string, unknown> | null>;
+  deleteWorkflowDefinition: (id: string) => Promise<number>;
 
   // ── Runs ───────────────────────────────────────────────────────────────
-  listRuns(opts?: { workflowId?: string; limit?: number }): Promise<WorkflowRun[]>;
-  getRun(runId: string): Promise<WorkflowRun | null>;
-  startRun(
+  listRuns: (opts?: { workflowId?: string; limit?: number }) => Promise<Array<WorkflowRun>>;
+  getRun: (runId: string) => Promise<WorkflowRun | null>;
+  startRun: (
     workflowId: string,
     inputs: Record<string, unknown>,
     trigger: TriggerInfo,
-  ): Promise<WorkflowRun>;
-  cancelRun(runId: string): Promise<void>;
-  resumeWorkflowRun(id: string): Promise<WorkflowRun>;
-  findRunByConversationId(conversationId: string): Promise<WorkflowRun | null>;
-  getActiveWorkflowRunByPath(path: string): Promise<WorkflowRun | null>;
+  ) => Promise<WorkflowRun>;
+  cancelRun: (runId: string) => Promise<void>;
+  resumeWorkflowRun: (id: string) => Promise<WorkflowRun>;
+  findRunByConversationId: (conversationId: string) => Promise<WorkflowRun | null>;
+  getActiveWorkflowRunByPath: (path: string) => Promise<WorkflowRun | null>;
 
   // ── Node Runs ──────────────────────────────────────────────────────────
-  listNodeRuns(runId: string): Promise<NodeRun[]>;
-  findNodeRunById(nodeRunId: string): Promise<NodeRun | null>;
+  listNodeRuns: (runId: string) => Promise<Array<NodeRun>>;
+  findNodeRunById: (nodeRunId: string) => Promise<NodeRun | null>;
 
   // ── Events ─────────────────────────────────────────────────────────────
-  appendWorkflowEvent(event: RunEvent): Promise<void>;
-  listRecentWorkflowEvents(runId: string, limit?: number): Promise<RunEvent[]>;
-  subscribeEvents(runId?: string): AsyncIterable<RunEvent>;
+  appendWorkflowEvent: (event: RunEvent) => Promise<void>;
+  listRecentWorkflowEvents: (runId: string, limit?: number) => Promise<Array<RunEvent>>;
+  subscribeEvents: (runId?: string) => AsyncIterable<RunEvent>;
 
   // ── Phase transitions ──────────────────────────────────────────────────
-  recordPhaseTransition(input: {
+  recordPhaseTransition: (input: {
     runId: string;
     toPhase: string;
     decidedBy: string;
     decisionData?: Record<string, unknown>;
-  }): Promise<{ from: string; to: string }>;
-  listPhaseTransitions(runId: string): Promise<PhaseTransition[]>;
+  }) => Promise<{ from: string; to: string }>;
+  listPhaseTransitions: (runId: string) => Promise<Array<PhaseTransition>>;
 
   // ── Approvals ──────────────────────────────────────────────────────────
-  approve(
+  approve: (
     runId: string,
     nodeRunId: string,
     decision: 'approve' | 'reject',
     comment?: string,
-  ): Promise<void>;
-  tryClaimApprovalForResume(
+  ) => Promise<void>;
+  tryClaimApprovalForResume: (
     runId: string,
     nodeRunId: string,
     decision: 'approved' | 'rejected',
     approvalResponse: string,
-  ): Promise<ApprovalClaimResult>;
+  ) => Promise<ApprovalClaimResult>;
 }

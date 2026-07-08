@@ -1,16 +1,17 @@
-import { CANVAS_H, CANVAS_W } from "@/features/retro-office/core/constants";
-import {
-  getItemBounds,
-  ITEM_FOOTPRINT,
-  ITEM_METADATA,
-  snap,
-} from "@/features/retro-office/core/geometry";
 import type {
   FacingPoint,
   FurnitureItem,
   GymWorkoutLocation,
   QaLabStationLocation,
 } from "@/features/retro-office/core/types";
+import { CANVAS_H, CANVAS_W } from "@/features/retro-office/core/constants";
+import {
+  ITEM_FOOTPRINT,
+  ITEM_METADATA,
+  getItemBounds,
+  snap,
+} from "@/features/retro-office/core/geometry";
+
 export {
   GYM_DEFAULT_TARGET,
   resolveGymRoute,
@@ -55,13 +56,13 @@ export const ROAM_POINTS = [
   { x: 150, y: 620 },
 ];
 
-export const JANITOR_ENTRY_POINTS: FacingPoint[] = [
+export const JANITOR_ENTRY_POINTS: Array<FacingPoint> = [
   { x: 80, y: 360, facing: Math.PI / 2 },
   { x: 820, y: 70, facing: Math.PI },
   { x: 1540, y: 360, facing: -Math.PI / 2 },
 ];
 
-export const JANITOR_EXIT_POINTS: FacingPoint[] = [
+export const JANITOR_EXIT_POINTS: Array<FacingPoint> = [
   { x: 110, y: 680, facing: Math.PI / 2 },
   { x: 820, y: 680, facing: Math.PI },
   { x: 1510, y: 680, facing: -Math.PI / 2 },
@@ -80,14 +81,14 @@ export type NavGrid = Uint8Array;
  * newly added decorative items never accidentally block navigation.
  */
 const itemBlocksNavigation = (type: string): boolean =>
-  ITEM_METADATA[type]?.blocksNavigation ?? false;
+  ITEM_METADATA[type].blocksNavigation;
 
-export function buildNavGrid(furniture: FurnitureItem[]): NavGrid {
+export function buildNavGrid(furniture: Array<FurnitureItem>): NavGrid {
   const grid = new Uint8Array(GRID_COLS * GRID_ROWS);
   const defaultPad = GRID_CELL * 0.6;
   for (const item of furniture) {
     if (!itemBlocksNavigation(item.type)) continue;
-    const itemPad = ITEM_METADATA[item.type]?.navPadding ?? defaultPad;
+    const itemPad = ITEM_METADATA[item.type].navPadding || defaultPad;
     const bounds = getItemBounds(item);
     const x1 = bounds.x - itemPad;
     const y1 = bounds.y - itemPad;
@@ -121,7 +122,7 @@ export function astar(
   ex: number,
   ey: number,
   grid: NavGrid,
-): { x: number; y: number }[] {
+): Array<{ x: number; y: number }> {
   const clamp = (value: number, low: number, high: number) =>
     Math.min(high, Math.max(low, value));
   const toCell = (x: number, y: number) => ({
@@ -188,7 +189,7 @@ export function astar(
   const endIndex = er * GRID_COLS + ec;
   gCost[startIndex] = 0;
 
-  const open: [number, number][] = [];
+  const open: Array<[number, number]> = [];
   const pushOpen = (entry: [number, number]) => {
     open.push(entry);
     let index = open.length - 1;
@@ -206,7 +207,7 @@ export function astar(
     const last = open.pop();
     if (!last || open.length === 0) return first;
     let index = 0;
-    while (true) {
+    while (index < open.length) {
       const leftIndex = index * 2 + 1;
       const rightIndex = leftIndex + 1;
       if (leftIndex >= open.length) break;
@@ -225,7 +226,7 @@ export function astar(
     return first;
   };
   pushOpen([startIndex, Math.hypot(ec - sc, er - sr)]);
-  const directions: [number, number, number][] = [
+  const directions: Array<[number, number, number]> = [
     [1, 0, 1],
     [-1, 0, 1],
     [0, 1, 1],
@@ -244,7 +245,7 @@ export function astar(
     visited[current] = 1;
 
     if (current === endIndex) {
-      const path: { x: number; y: number }[] = [];
+      const path: Array<{ x: number; y: number }> = [];
       let node = current;
       while (node !== startIndex) {
         path.push({
@@ -300,12 +301,12 @@ export function astar(
   return [];
 }
 
-export const getDeskLocations = (items: FurnitureItem[]) =>
+export const getDeskLocations = (items: Array<FurnitureItem>) =>
   items
     .filter((item) => item.type === "desk_cubicle")
     .map((item) => ({ x: item.x + 40, y: item.y - 5 }));
 
-export const getMeetingSeatLocations = (items: FurnitureItem[]) => {
+export const getMeetingSeatLocations = (items: Array<FurnitureItem>) => {
   // Meeting seats are inferred from chair placement in the conference area so standup
   // gathering follows the authored layout instead of a hardcoded attendee list.
   const chairs = items
@@ -344,8 +345,8 @@ export const getMeetingSeatLocations = (items: FurnitureItem[]) => {
 };
 
 export const getGymWorkoutLocations = (
-  items: FurnitureItem[],
-): GymWorkoutLocation[] =>
+  items: Array<FurnitureItem>,
+): Array<GymWorkoutLocation> =>
   items
     .filter((item) =>
       [
@@ -438,8 +439,8 @@ export const getGymWorkoutLocations = (
     });
 
 export const getQaLabStations = (
-  items: FurnitureItem[],
-): QaLabStationLocation[] =>
+  items: Array<FurnitureItem>,
+): Array<QaLabStationLocation> =>
   items
     .filter((item) =>
       ["qa_terminal", "device_rack", "test_bench"].includes(item.type),
@@ -493,7 +494,7 @@ export const MEETING_OVERFLOW_LOCATIONS = [
 
 export const resolveDeskIndexForItem = (
   item: FurnitureItem,
-  deskLocations: { x: number; y: number }[],
+  deskLocations: Array<{ x: number; y: number }>,
 ): number => {
   if (deskLocations.length === 0) return -1;
   if (item.type === "desk_cubicle") {
@@ -506,7 +507,6 @@ export const resolveDeskIndexForItem = (
   let bestDistance = Number.POSITIVE_INFINITY;
   for (let index = 0; index < deskLocations.length; index += 1) {
     const desk = deskLocations[index];
-    if (!desk) continue;
     const distance = Math.hypot(item.x - desk.x, item.y - desk.y);
     if (distance < bestDistance) {
       bestDistance = distance;

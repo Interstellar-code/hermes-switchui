@@ -85,7 +85,7 @@ function isValidHttpUrl(u: string): { ok: true } | { ok: false; reason: string }
 export const Route = createFileRoute('/api/connection-settings')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }

@@ -17,8 +17,8 @@ import type { KnowledgeBaseConfig } from '@/server/knowledge-config'
 import type { EnvVarInfo } from '@/lib/hermes-client'
 import { getEnv, putEnv, revealEnv } from '@/lib/hermes-client'
 import {
-  getMemoryProviderInfo,
   MEMORY_PROVIDER_SELECT_OPTIONS_WITH_DISABLED,
+  getMemoryProviderInfo,
 } from '@/lib/memory-provider-catalog'
 import { useSettingsStore } from '@/stores/settings-store'
 import { toast } from '@/components/ui/toast'

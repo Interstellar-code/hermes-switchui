@@ -1,7 +1,4 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
-import type { RefObject } from 'react'
-import type { QueryClient } from '@tanstack/react-query'
-
 import {
   appendHistoryMessage,
   chatQueryKeys,
@@ -11,6 +8,9 @@ import {
   hasPendingGeneration,
   hasPendingSend,
 } from '../pending-send'
+import type { RefObject } from 'react'
+import type { QueryClient } from '@tanstack/react-query'
+
 import type { ChatAttachment } from '../types'
 
 export function useSessionLifecycle(params: {

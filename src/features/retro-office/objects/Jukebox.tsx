@@ -3,14 +3,14 @@
 import { Billboard, Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useRef, useState } from "react";
-import * as THREE from "three";
+import type * as THREE from "three";
+import type { InteractiveFurnitureModelProps } from "@/features/retro-office/objects/types";
 import { SCALE } from "@/features/retro-office/core/constants";
 import {
   getItemBaseSize,
   getItemRotationRadians,
   toWorld,
 } from "@/features/retro-office/core/geometry";
-import type { InteractiveFurnitureModelProps } from "@/features/retro-office/objects/types";
 
 export type JukeboxModelProps = InteractiveFurnitureModelProps & {
   active?: boolean;

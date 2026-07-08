@@ -47,7 +47,7 @@ function persistCrash(error: Error, errorInfo: ErrorInfo) {
       componentStack: errorInfo.componentStack ?? '',
       stack: (error.stack ?? '').split('\n').slice(0, 12).join('\n'),
     }
-    const prior: CrashRecord[] = JSON.parse(
+    const prior: Array<CrashRecord> = JSON.parse(
       window.localStorage.getItem(CRASH_LOG_KEY) ?? '[]',
     )
     window.localStorage.setItem(
@@ -98,7 +98,7 @@ export class ErrorBoundary extends Component<
       'JS stack:',
       this.state.error.stack ?? '',
     ].join('\n')
-    void navigator.clipboard?.writeText(text)
+    void navigator.clipboard.writeText(text)
   }
 
   render() {

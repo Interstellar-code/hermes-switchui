@@ -347,7 +347,7 @@ export function listProfiles(): Array<ProfileSummary> {
   results.unshift({
     name: 'default',
     path: root,
-    active: activeProfile === 'default',
+    active: true,
     exists: true,
     model: defaultModel,
     provider: defaultProvider,
@@ -405,7 +405,7 @@ export function readProfile(name: string): ProfileDetail {
     name: normalized,
     path: profilePath,
     active: normalized === active,
-    config: returnConfig as ProfileConfig,
+    config: returnConfig,
     envPath: fs.existsSync(envPath) ? envPath : undefined,
     hasEnv: fs.existsSync(envPath),
     sessionsDir: fs.existsSync(sessionsDir) ? sessionsDir : undefined,
@@ -521,7 +521,7 @@ export function writeProfile(
   name: string,
   patch: Partial<ProfileConfig>,
 ): ProfileDetail {
-  return updateProfileConfig(name, patch as Record<string, unknown>)
+  return updateProfileConfig(name, patch)
 }
 
 // NOTE(yaml-comments): updateProfileConfig round-trips config through YAML.parse → YAML.stringify,

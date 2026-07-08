@@ -14,7 +14,7 @@
 
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
-import { Segmented, NumberSlider } from '../components/controls'
+import { NumberSlider, Segmented } from '../components/controls'
 import { useSettingsStore } from '@/stores/settings-store'
 
 const LOG_LEVELS = [

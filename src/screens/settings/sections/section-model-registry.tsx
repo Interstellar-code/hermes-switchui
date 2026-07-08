@@ -8,7 +8,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { SettingCard } from '../components/setting-card'
-import { modelOptions, modelAuxiliary, analyticsModels } from '@/lib/hermes-client'
+import { analyticsModels, modelAuxiliary, modelOptions } from '@/lib/hermes-client'
 
 export default function SectionModelRegistry() {
   const navigate = useNavigate()
@@ -35,8 +35,8 @@ export default function SectionModelRegistry() {
     (acc, p) => acc + p.models.length,
     0,
   )
-  const providerCount = options?.providers?.length ?? 0
-  const mainModel = auxiliary?.main?.model ?? ''
+  const providerCount = options?.providers.length ?? 0
+  const mainModel = auxiliary?.main.model ?? ''
 
   // Top-3 by total tokens
   const top3 = [...(analytics?.models ?? [])]

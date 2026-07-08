@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { relativeTime } from './types'
+import { PROVENANCE_LABEL, provenanceOf } from './provenance'
 import type { WorkflowSummary } from './types'
-import { provenanceOf, PROVENANCE_LABEL } from './provenance'
 
 type SortKey = 'alpha' | 'last-used' | 'nodes'
 type ViewMode = 'grid' | 'table'

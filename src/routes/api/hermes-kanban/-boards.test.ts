@@ -1,5 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { isAuthenticated } from '../../../server/auth-middleware'
+import {
+  createBoard,
+  deleteBoard,
+  listBoards,
+  switchBoard,
+  updateBoard,
+} from '../../../server/hermes-kanban-client'
+import { Route as BoardsRoute } from './boards'
+import { Route as BoardSlugRoute } from './boards.$slug'
+import { Route as BoardSwitchRoute } from './boards.$slug.switch'
+
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: (_path: string) => (opts: unknown) => ({ options: opts }),
 }))
@@ -24,21 +36,9 @@ vi.mock('../../../server/hermes-kanban-client', () => ({
   switchBoard: vi.fn(),
 }))
 
-import { isAuthenticated } from '../../../server/auth-middleware'
-import {
-  createBoard,
-  deleteBoard,
-  listBoards,
-  switchBoard,
-  updateBoard,
-} from '../../../server/hermes-kanban-client'
-import { Route as BoardsRoute } from './boards'
-import { Route as BoardSlugRoute } from './boards.$slug'
-import { Route as BoardSwitchRoute } from './boards.$slug.switch'
-
-const boardsHandlers = (BoardsRoute as any).options.server.handlers as any
-const boardSlugHandlers = (BoardSlugRoute as any).options.server.handlers as any
-const boardSwitchHandlers = (BoardSwitchRoute as any).options.server.handlers as any
+const boardsHandlers = (BoardsRoute as any).options.server.handlers
+const boardSlugHandlers = (BoardSlugRoute as any).options.server.handlers
+const boardSwitchHandlers = (BoardSwitchRoute as any).options.server.handlers
 
 const mockIsAuthenticated = vi.mocked(isAuthenticated)
 const mockListBoards = vi.mocked(listBoards)

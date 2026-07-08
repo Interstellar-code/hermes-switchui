@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatAttachment, ChatMessage } from '../types'
+import type { ChatStreamEvent } from '@/stores/chat-store'
 import { readResolvedSessionHeaders } from '@/lib/send-stream-session-headers'
 import { useChatStore } from '@/stores/chat-store'
-import type { ChatStreamEvent } from '@/stores/chat-store'
 import { useContextUsageStore } from '@/stores/context-usage-store'
 import { pushActivity } from '@/components/inspector/activity-store'
 
@@ -426,14 +426,13 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
       // localStorage.removeItem('hermes:debug:sse')
       if (
         typeof window !== 'undefined' &&
-        window.localStorage?.getItem('hermes:debug:sse') === '1'
+        window.localStorage.getItem('hermes:debug:sse') === '1'
       ) {
-        // eslint-disable-next-line no-console
         console.log(
           '[hermes-sse]',
           event,
-          (payload?.name as string) || '',
-          (payload?.phase as string) || '',
+          (payload.name as string) || '',
+          (payload.phase as string) || '',
           payload,
         )
       }
@@ -546,7 +545,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
           // model thinking and would otherwise pollute the TUI activity card.
           const isKeepalivePlaceholder =
             typeof thinking === 'string' &&
-            /^still\s+working[\.\u2026]*\s*$/i.test(thinking.trim())
+            /^still\s+working[.\u2026]*\s*$/i.test(thinking.trim())
           if (isKeepalivePlaceholder) break
           if (thinking) {
             markActivity()
@@ -790,11 +789,11 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
             messageId: (payload.messageId as string | undefined) || undefined,
             question: (payload.question as string) || '',
             choices: Array.isArray(payload.choices)
-              ? (payload.choices as string[])
+              ? (payload.choices as Array<string>)
               : null,
             sessionKey: activeSessionKeyRef.current,
             runId: activeRunIdRef.current ?? undefined,
-          } as ChatStreamEvent)
+          })
           break
         }
         case 'clarify_resolved':
@@ -828,7 +827,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
               undefined,
             question: (payload.question as string | undefined) || undefined,
             choices: Array.isArray(payload.choices)
-              ? (payload.choices as string[])
+              ? (payload.choices as Array<string>)
               : null,
             answer:
               (payload.answer as string | undefined) ||
@@ -1053,7 +1052,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
         }
 
         const lifecyclePhase = lifecyclePhaseRef.current as StreamLifecyclePhase
-        if (!finishedRef.current) {
+        {
           // Natural HTTP stream close. If any assistant text already streamed,
           // finalize regardless of phase: a gateway that closes the connection
           // without an explicit `done`/`close` SSE event (e.g. upstream drop
@@ -1084,7 +1083,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
               content: [{ type: 'text', text: '' }],
               timestamp: Date.now(),
               __streamingStatus: 'complete',
-            } as ChatMessage)
+            })
           }
         }
       } catch (err) {

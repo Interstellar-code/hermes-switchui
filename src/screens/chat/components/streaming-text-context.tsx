@@ -16,7 +16,8 @@
  * channel scoped to the active message list, not shared app state.
  */
 import { createContext, memo, useContext } from 'react'
-import { MessageItem, type MessageItemProps } from './message-item'
+import { MessageItem } from './message-item'
+import type { MessageItemProps } from './message-item'
 
 /** Live (smoothed) streaming text for the active session's in-flight bubble. */
 export const StreamingTextContext = createContext<string>('')
@@ -31,7 +32,7 @@ export function useStreamingTextValue(): string {
  * Because only this component consumes the context, only it re-renders as the
  * text streams — ChatMessageList and every settled MessageItem stay put.
  */
-export const StreamingMessageItem = memo(function StreamingMessageItem(
+export const StreamingMessageItem = memo(function StreamingMessageItemInner(
   props: MessageItemProps,
 ) {
   const streamingText = useStreamingTextValue()

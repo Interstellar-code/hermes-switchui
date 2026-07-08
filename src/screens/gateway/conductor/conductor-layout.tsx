@@ -1,12 +1,12 @@
 import { useState } from 'react'
+import { LaunchWizard } from '../../workflows/launch-wizard'
+import { useWorkflowDefinitions } from '../../workflows/use-workflows'
 import { MissionCanvas } from './mission-canvas'
 import { MissionRail } from './mission-rail'
 import { NowPlayingStrip } from './now-playing-strip'
 import { ConductorTopBar } from './conductor-top-bar'
 import { WorkerLanes } from './worker-lanes'
 import { MissionDetailDrawer } from './mission-detail-drawer'
-import { LaunchWizard } from '../../workflows/launch-wizard'
-import { useWorkflowDefinitions } from '../../workflows/use-workflows'
 
 export function ConductorLayout() {
   const [pickerOpen, setPickerOpen] = useState(false)

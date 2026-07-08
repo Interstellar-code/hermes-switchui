@@ -5,7 +5,7 @@ import { listMemoryFiles } from '../../../server/memory-browser'
 export const Route = createFileRoute('/api/memory/list')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }

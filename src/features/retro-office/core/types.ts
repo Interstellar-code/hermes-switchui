@@ -21,7 +21,7 @@ export type JanitorActor = {
   color: string;
   item: "cleaning";
   janitorTool: JanitorTool;
-  janitorRoute: FacingPoint[];
+  janitorRoute: Array<FacingPoint>;
   janitorPauseMs: number;
   janitorDespawnAt: number;
 };
@@ -33,7 +33,7 @@ export type RenderAgent = SceneActor & {
   y: number;
   targetX: number;
   targetY: number;
-  path: { x: number; y: number }[];
+  path: Array<{ x: number; y: number }>;
   facing: number;
   frame: number;
   walkSpeed: number;

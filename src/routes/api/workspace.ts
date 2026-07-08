@@ -269,7 +269,7 @@ async function readWorkspaceState(): Promise<WorkspaceState> {
     const parsed = JSON.parse(raw) as unknown
     if (Array.isArray(parsed))
       return { workspaces: parsed as Array<WorkspaceEntry> }
-    if (parsed && typeof parsed === 'object') return parsed as WorkspaceState
+    if (parsed && typeof parsed === 'object') return parsed
   } catch {
     // No persisted state yet.
   }

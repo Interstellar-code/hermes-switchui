@@ -51,7 +51,7 @@ describe('assignDelegatedSessions', () => {
     )
     expect(result['hermes-switch']).toBeUndefined()
     // tier-2 sorted by id: morpheus, neo, trinity → first session → morpheus
-    expect(result.morpheus?.activeDelegatedSessionKey).toBe('s1')
+    expect(result.morpheus.activeDelegatedSessionKey).toBe('s1')
   })
 
   it('round-robins sessions across tier-2 members deterministically', () => {
@@ -62,9 +62,9 @@ describe('assignDelegatedSessions', () => {
       ownActivity(),
     )
     // sorted sessionKeys: s1, s2, s3 → morpheus, neo, trinity
-    expect(result.morpheus?.activeDelegatedSessionKey).toBe('s1')
-    expect(result.neo?.activeDelegatedSessionKey).toBe('s2')
-    expect(result.trinity?.activeDelegatedSessionKey).toBe('s3')
+    expect(result.morpheus.activeDelegatedSessionKey).toBe('s1')
+    expect(result.neo.activeDelegatedSessionKey).toBe('s2')
+    expect(result.trinity.activeDelegatedSessionKey).toBe('s3')
   })
 
   it('produces stable assignment regardless of input order', () => {
@@ -90,8 +90,8 @@ describe('assignDelegatedSessions', () => {
     // morpheus is busy with its own session → eligible: neo, trinity
     // stable-index probe: slot 0 (morpheus) skipped → neo gets s1, trinity gets s2
     expect(result.morpheus).toBeUndefined()
-    expect(result.neo?.activeDelegatedSessionKey).toBe('s1')
-    expect(result.trinity?.activeDelegatedSessionKey).toBe('s2')
+    expect(result.neo.activeDelegatedSessionKey).toBe('s1')
+    expect(result.trinity.activeDelegatedSessionKey).toBe('s2')
   })
 
   it('keeps stable assignment when a member flips isActive', () => {
@@ -102,9 +102,9 @@ describe('assignDelegatedSessions', () => {
       ownActivity(),
     )
     // sorted sessions: s1→morpheus, s2→neo, s3→trinity
-    expect(allActive.morpheus?.activeDelegatedSessionKey).toBe('s1')
-    expect(allActive.neo?.activeDelegatedSessionKey).toBe('s2')
-    expect(allActive.trinity?.activeDelegatedSessionKey).toBe('s3')
+    expect(allActive.morpheus.activeDelegatedSessionKey).toBe('s1')
+    expect(allActive.neo.activeDelegatedSessionKey).toBe('s2')
+    expect(allActive.trinity.activeDelegatedSessionKey).toBe('s3')
 
     // morpheus flips isActive — its slot is skipped but remaining slots stay anchored
     const morpheusActive = assignDelegatedSessions(
@@ -115,8 +115,8 @@ describe('assignDelegatedSessions', () => {
     expect(morpheusActive.morpheus).toBeUndefined()
     // neo and trinity each get one session; neo gets s1 (next eligible after morpheus's slot),
     // trinity gets s2; s3 lands on neo again — most recent (300 > 100) wins
-    expect(morpheusActive.neo?.activeDelegatedSessionKey).toBe('s3')
-    expect(morpheusActive.trinity?.activeDelegatedSessionKey).toBe('s2')
+    expect(morpheusActive.neo.activeDelegatedSessionKey).toBe('s3')
+    expect(morpheusActive.trinity.activeDelegatedSessionKey).toBe('s2')
   })
 
   it('returns empty when every tier-2 member is own-active', () => {
@@ -143,8 +143,8 @@ describe('assignDelegatedSessions', () => {
         neo: { isActive: true },
       }),
     )
-    expect(result.trinity?.activeDelegatedSessionKey).toBe('s2')
-    expect(result.trinity?.activeDelegatedLastActiveAt).toBe(500)
+    expect(result.trinity.activeDelegatedSessionKey).toBe('s2')
+    expect(result.trinity.activeDelegatedLastActiveAt).toBe(500)
   })
 
   it('wrap-around: most-recent lastActiveAt wins when a member receives 2 sessions', () => {
@@ -156,10 +156,10 @@ describe('assignDelegatedSessions', () => {
       [session('s1', 100), session('s2', 200), session('s3', 300), session('s4', 999)],
       ownActivity(),
     )
-    expect(result.morpheus?.activeDelegatedSessionKey).toBe('s4')
-    expect(result.morpheus?.activeDelegatedLastActiveAt).toBe(999)
-    expect(result.neo?.activeDelegatedSessionKey).toBe('s2')
-    expect(result.trinity?.activeDelegatedSessionKey).toBe('s3')
+    expect(result.morpheus.activeDelegatedSessionKey).toBe('s4')
+    expect(result.morpheus.activeDelegatedLastActiveAt).toBe(999)
+    expect(result.neo.activeDelegatedSessionKey).toBe('s2')
+    expect(result.trinity.activeDelegatedSessionKey).toBe('s3')
   })
 
   it('carries through session metadata into the assignment', () => {

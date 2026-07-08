@@ -3,6 +3,37 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.1] — 2026-07-08
+
+Patch release focused on crash hardening and compatibility fallbacks. Fixes several UI crashes caused by partial async state during chat, Matrix3D/Retro Office, and Conductor renders, and improves the Board Templates fallback when the connected Hermes Agent no longer exposes the upstream Kanban templates API.
+
+### Fixed
+
+- **Chat crash hardening.**
+  - Guarded chat display-entry construction when tool/toolResult messages arrive before an assistant display entry exists.
+  - Guarded ChatScreen streaming/waiting logic when `finalDisplayMessages` has no trailing message during transient renders.
+  - Added regression coverage for empty/waiting and orphan tool-result chat paths.
+- **Retro Office / Matrix3D crash hardening.**
+  - Guarded render-agent UI/status lookups when the snapshot map is temporarily incomplete on first render or sync boundaries.
+  - Tightened partial-map typing so runtime guards match the real data model.
+- **Conductor crash hardening.**
+  - Rewrote `NowPlayingStrip` to tolerate missing mission subtitle data and render a stable empty/fallback state instead of crashing.
+- **Board Templates degraded compatibility state.**
+  - Improved `/board-templates` handling when the upstream Hermes Agent returns `404` for `/api/plugins/kanban/templates`.
+  - Added a friendlier unsupported state, surfaced the expected upstream endpoint, showed the backend detail, and added a one-click “Copy upstream issue” action.
+  - Filed upstream tracking issue: `Interstellar-code/hermes-agent#161`.
+
+### Changed
+
+- Small retro-office cleanup pass to remove leftover warning sites while preserving behavior.
+
+### Internal
+
+- Targeted validation passed:
+  - `pnpm vitest run src/screens/chat/components/chat-message-list.test.tsx src/screens/chat/chat-screen.failsafe-timeout.test.ts`
+  - targeted ESLint checks for touched release files
+- No production build run for this patch release; per repo policy, targeted checks were used instead of full builds for small UI fixes.
+
 ## [2.5.0] — 2026-07-04
 
 Major architecture release: 10 new hooks extracted from `chat-screen.tsx`, reducing it from 2,606 to **1,423 lines** (−45% this release, −59% from the #222 triage baseline of 3,431). The chat module now has **20 dedicated hooks** with **200+ unit tests** covering the entire send/receive/retry/redirect lifecycle. All extractions are pure moves — zero behavior changes.

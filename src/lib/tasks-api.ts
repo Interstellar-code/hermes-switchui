@@ -222,7 +222,7 @@ export async function fetchStats(): Promise<KanbanStats> {
   const res = await kanbanJson<{ stats?: KanbanStats } | KanbanStats>(`${KANBAN_BASE}/stats`)
   // Gateway returns { stats: {...} }; some proxies may flatten — handle both
   if (typeof res === 'object' && 'stats' in res && res.stats) return res.stats as KanbanStats
-  return res as KanbanStats
+  return res
 }
 
 export const COLUMN_COLORS: Record<HermesKanbanStatus, string> = {

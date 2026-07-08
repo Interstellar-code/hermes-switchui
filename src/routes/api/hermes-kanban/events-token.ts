@@ -7,9 +7,9 @@
  * The browser MUST NOT connect directly to the Agent dashboard WebSocket —
  * this endpoint hands off only a transient workspace session reference.
  */
+import { randomUUID } from 'node:crypto'
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
-import { randomUUID } from 'node:crypto'
 
 // Simple in-memory one-time token store (per-process; not clustered).
 // Token expires after 30 seconds.
@@ -36,7 +36,7 @@ export function consumeEventToken(token: string): boolean {
 export const Route = createFileRoute('/api/hermes-kanban/events-token')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
+      GET: ({ request }) => {
         if (!isAuthenticated(request)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }

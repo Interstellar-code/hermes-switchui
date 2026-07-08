@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { UsageDetailsModal } from './usage-details-modal'
-import { DialogContent, Dialog } from '@/components/shadcn/ui/dialog'
+import { Dialog, DialogContent } from '@/components/shadcn/ui/dialog'
 import {
   MenuContent,
   MenuItem,

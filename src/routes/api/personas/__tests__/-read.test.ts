@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Dirent } from 'node:fs'
 
 // ── fs mock ───────────────────────────────────────────────────────────────────
 const { existsSync, readdirSync, readFileSync } = vi.hoisted(() => ({
@@ -24,7 +25,7 @@ vi.mock('@tanstack/react-start', () => ({
       ...(init ?? {}),
       headers: {
         'Content-Type': 'application/json',
-        ...((init as ResponseInit & { headers?: Record<string, string> })?.headers ?? {}),
+        ...(init as ResponseInit & { headers?: Record<string, string> }).headers,
       },
     }),
 }))
@@ -73,11 +74,11 @@ And more text after the code block.`
 // ── dirent helpers ────────────────────────────────────────────────────────────
 
 function makeDir(name: string) {
-  return { name, isDirectory: () => true, isFile: () => false } as unknown as import('node:fs').Dirent
+  return { name, isDirectory: () => true, isFile: () => false } as unknown as Dirent
 }
 
 function makeFile(name: string) {
-  return { name, isDirectory: () => false, isFile: () => true } as unknown as import('node:fs').Dirent
+  return { name, isDirectory: () => false, isFile: () => true } as unknown as Dirent
 }
 
 // ── handler factory ───────────────────────────────────────────────────────────

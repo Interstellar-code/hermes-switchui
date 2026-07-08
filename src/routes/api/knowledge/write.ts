@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
-import { writeKnowledgePage, deleteKnowledgePage } from '../../../server/knowledge-browser'
+import { deleteKnowledgePage, writeKnowledgePage } from '../../../server/knowledge-browser'
 
 export const Route = createFileRoute('/api/knowledge/write')({
   server: {

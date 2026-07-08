@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // ---------------------------------------------------------------------------
 // Timeout — hung OAuth refresh / usage fetches must reject, not hang forever
@@ -67,7 +67,7 @@ describe('provider-usage fetch timeouts', () => {
 
   it('passes an AbortSignal to every fetch call (Codex usage)', async () => {
     // Track signals across all fetch calls.
-    const signals: (AbortSignal | undefined)[] = []
+    const signals: Array<AbortSignal | undefined> = []
     fetchMock.mockImplementation((_url: string, init?: RequestInit) => {
       signals.push(init?.signal as AbortSignal | undefined)
       return Promise.reject(new DOMException('Timed out', 'TimeoutError'))

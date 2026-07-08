@@ -2,10 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { createElement } from 'react'
-import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { useThinkingLevel } from './use-thinking-level'
+import type { ReactNode } from 'react'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -26,18 +26,18 @@ function makeWrapper() {
 /** Stub fetch so /api/models and /api/session-status return controlled data */
 function stubFetch({
   model = '',
-  models = [] as { id: string }[],
+  models = [] as Array<{ id: string }>,
 } = {}) {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string) => {
+    vi.fn((url: string) => {
       if (url === '/api/models') {
-        return { ok: true, json: async () => ({ models }) }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ models }) })
       }
       if (url === '/api/session-status') {
-        return { ok: true, json: async () => ({ model }) }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ model }) })
       }
-      return { ok: false, json: async () => ({}) }
+      return Promise.resolve({ ok: false, json: () => Promise.resolve({}) })
     }),
   )
 }
@@ -239,7 +239,7 @@ describe('availableModelIds', () => {
   it('returns empty array when /api/models responds with not-ok', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({ ok: false, json: async () => ({}) })),
+      vi.fn(() => Promise.resolve({ ok: false, json: () => Promise.resolve({}) })),
     )
     const { result } = renderHook(() => useThinkingLevel(defaultParams()), {
       wrapper: makeWrapper(),

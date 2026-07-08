@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { LaneLegend } from './lane-legend'
-import { LaneRow, type LaneBlock } from './lane-row'
+import { LaneRow } from './lane-row'
+import type { LaneBlock } from './lane-row'
 import type { LaneScale } from '@/stores/conductor-ui-store'
 import { useConductorUIStore } from '@/stores/conductor-ui-store'
 

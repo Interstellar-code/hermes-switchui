@@ -141,7 +141,6 @@ export function useTapDebug(
 
     function handleTouchStart(event: TouchEvent) {
       const touch = event.touches[0]
-      if (!touch) return
       logTap({ x: touch.clientX, y: touch.clientY }, 'touchstart', event.target)
     }
 
@@ -155,14 +154,14 @@ export function useTapDebug(
 
     area.addEventListener('touchstart', handleTouchStart, { passive: true })
     area.addEventListener('pointerdown', handlePointerDown, { passive: true })
-    window.addEventListener(TAP_DEBUG_EVENT, handleToggleEvent as EventListener)
+    window.addEventListener(TAP_DEBUG_EVENT, handleToggleEvent)
 
     return () => {
       area.removeEventListener('touchstart', handleTouchStart)
       area.removeEventListener('pointerdown', handlePointerDown)
       window.removeEventListener(
         TAP_DEBUG_EVENT,
-        handleToggleEvent as EventListener,
+        handleToggleEvent,
       )
       delete debugWindow.setChatTapDebug
       delete debugWindow.toggleChatTapDebug
