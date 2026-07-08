@@ -1,18 +1,37 @@
 <div align="center">
 
-<img src="./public/claude-avatar.webp" alt="Switch UI" width="80" style="border-radius: 16px" />
+<img src="./public/claude-avatar.webp" alt="Hermes SwitchUI" width="80" style="border-radius: 16px" />
 
-# Switch UI
+# Hermes SwitchUI
 
-**Opinionated Matrix-aesthetic UI and control plane for the Hermes Agent — chat, kanban, workflows, agent profiles, and a plugin suite.**
+**A stunning Matrix-themed web interface for your local AI agent. Chat, manage files, run terminals, orchestrate agents, and ship faster — all from your browser, all on your own machine.**
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen.svg)](https://nodejs.org/)
 [![Theme](https://img.shields.io/badge/theme-matrix-00ff41.svg)](#-switch-ui-specifics)
 
-> An opinionated, Matrix-styled UI for [Hermes Agent](https://github.com/Interstellar-code/hermes-agent). Diverged from `outsourc-e/hermes-workspace` for design direction. Backend runs the Interstellar-code fork of Hermes Agent — we cherry-pick upstream fixes, but UI and backend are our own.
+> A Matrix-styled frontend for the [Hermes Agent](https://github.com/Interstellar-code/hermes-agent) — a powerful local AI runtime with 8 custom plugins. Everything runs locally. No cloud, no subscriptions, full control.
 
-![Switch UI](./docs/screenshots/splash.png)
+<img src="./docs/screenshots/terminal-redesign-rain-upgraded.png" alt="Hermes SwitchUI — Terminal with Matrix rain" width="100%" />
+
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="./docs/screenshots/dashboard.png" alt="Dashboard" width="100%" /></td>
+    <td width="50%" align="center"><img src="./docs/screenshots/skills.png" alt="Skills" width="100%" /></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Dashboard</b> — token usage, sessions, agent health at a glance</sub></td>
+    <td align="center"><sub><b>Skills</b> — browse and manage the agent's installed skills</sub></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center"><img src="./docs/screenshots/memory.png" alt="Memory" width="100%" /></td>
+    <td width="50%" align="center"><img src="./docs/screenshots/conductor.png" alt="Conductor" width="100%" /></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Memory</b> — inspect and edit what the agent remembers</sub></td>
+    <td align="center"><sub><b>Conductor</b> — mission control for multi-agent coordination</sub></td>
+  </tr>
+</table>
 
 </div>
 
