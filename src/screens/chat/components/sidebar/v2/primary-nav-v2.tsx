@@ -70,6 +70,7 @@ const ICONS = {
   newchat: 'M3 8h10M8 3v10',
   cog: 'M8 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4',
   docs: 'M3 2h7l3 3v9H3V2zM10 2v3h3M5 8h6M5 11h4',
+  backups: 'M3 3h18v4H3V3zm0 6h18v12H3V9zm4 3h10v2H7v-2z',
 } as const
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -344,6 +345,7 @@ export function PrimaryNavV2() {
   const isMcp = pathname.startsWith('/mcp')
   const isProfiles = pathname.startsWith('/profiles')
   const isSettings = pathname.startsWith('/settings')
+  const isBackups = pathname === '/backups' || pathname.startsWith('/backups')
   const isDocs = pathname.startsWith('/docs')
   const boardsQuery = useBoards(true, !collapsed)
   const boardsCount = boardsQuery.data?.boards.length
@@ -594,6 +596,7 @@ export function PrimaryNavV2() {
         <NavItem label="Skills" iconKey="skills" to="/skills" active={isSkills} collapsed={collapsed} badge={counts.skills} />
         <NavItem label="MCP" iconKey="mcp" to="/mcp" active={isMcp} collapsed={collapsed} badge={counts.mcp} />
         <NavItem label="Profiles" iconKey="profiles" to="/profiles" active={isProfiles} collapsed={collapsed} badge={counts.profiles} />
+        <NavItem label="Backups" iconKey="backups" to="/backups" active={isBackups} collapsed={collapsed} />
 
         {/* HELP group */}
         {!collapsed && <GroupLabel label="Help" />}
