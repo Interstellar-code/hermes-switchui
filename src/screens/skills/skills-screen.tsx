@@ -199,7 +199,7 @@ export function SkillsScreen() {
     queryFn: async (): Promise<SkillsApiResponse> => {
       const params = new URLSearchParams()
       params.set('tab', activeStatus === 'all' ? 'installed' : activeStatus)
-      params.set('limit', '200')
+      params.set('limit', '1000')
       if (debouncedSearch) params.set('search', debouncedSearch)
       if (activeCategory !== 'All') params.set('category', activeCategory)
       if (activeOrigin !== 'all') params.set('origin', activeOrigin)

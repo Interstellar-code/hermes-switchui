@@ -124,44 +124,66 @@ async function readSkillMeta(
   }
 }
 
-async function scanSkillRoot(root: string): Promise<Map<string, LocalSkillMeta>> {
+const EXCLUDED_SKILL_DIRS = new Set([
+  '.git', '.github', '.hub', '.archive', '.venv', 'venv',
+  'node_modules', 'site-packages', '__pycache__',
+  '.tox', '.nox', '.pytest_cache', '.mypy_cache', '.ruff_cache',
+])
+
+const SUPPORT_DIRS = new Set(['references', 'templates', 'assets', 'scripts'])
+
+export async function scanSkillRoot(root: string): Promise<Map<string, LocalSkillMeta>> {
   const map = new Map<string, LocalSkillMeta>()
-  let categoryEntries: Array<{ name: string; isDirectory: () => boolean }>
   try {
-    categoryEntries = await fs.readdir(root, {
-      withFileTypes: true,
-    })
+    await fs.access(root)
   } catch {
     return map
   }
 
-  const collect: Array<Promise<void>> = []
-  for (const cat of categoryEntries) {
-    if (!cat.isDirectory() || cat.name.startsWith('.')) continue
-    const catPath = path.join(root, cat.name)
-    let skillEntries: Array<{
-      name: string
-      isDirectory: () => boolean
-    }>
+  const collected: Array<{ dir: string; rel: string }> = []
+  const stack: Array<{ dir: string; rel: string }> = [{ dir: root, rel: '' }]
+
+  while (stack.length > 0) {
+    const { dir: current, rel: currentRel } = stack.pop()!
+    let entries
     try {
-      skillEntries = await fs.readdir(catPath, {
-        withFileTypes: true,
-      })
+      entries = await fs.readdir(current, { withFileTypes: true })
     } catch {
       continue
     }
-    for (const skill of skillEntries) {
-      if (!skill.isDirectory() || skill.name.startsWith('.')) continue
-      const fullPath = path.join(catPath, skill.name)
-      if (map.has(skill.name)) continue
-      collect.push(
-        readSkillMeta(fullPath, cat.name).then((meta) => {
-          map.set(skill.name, meta)
-        }),
-      )
+
+    if (currentRel && entries.some((e: { isFile: () => boolean; name: string }) => e.isFile() && e.name === 'SKILL.md')) {
+      collected.push({ dir: current, rel: currentRel })
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+      if (EXCLUDED_SKILL_DIRS.has(entry.name)) continue
+      const childRel = currentRel ? path.join(currentRel, entry.name) : entry.name
+      stack.push({ dir: path.join(current, entry.name), rel: childRel })
     }
   }
-  await Promise.all(collect)
+
+  const skillRelSet = new Set(collected.map((c) => c.rel))
+  const real = collected.filter(({ rel }) => {
+    const leaf = path.basename(rel)
+    if (!SUPPORT_DIRS.has(leaf)) return true
+    const parentRel = path.dirname(rel)
+    return parentRel === '.' || !skillRelSet.has(parentRel)
+  })
+
+  const metas = await Promise.all(
+    real.map(({ dir, rel }) => {
+      const segments = rel.split(path.sep)
+      const categoryHint = segments.length > 1 ? segments[0] : 'general'
+      return readSkillMeta(dir, categoryHint)
+    }),
+  )
+  real.forEach(({ rel }, i) => {
+    const leafName = path.basename(rel)
+    if (!map.has(leafName)) map.set(leafName, metas[i])
+  })
+
   return map
 }
 
@@ -606,7 +628,7 @@ export const Route = createFileRoute('/api/skills')({
               : 'name'
           const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
           const limit = Math.min(
-            60,
+            1000,
             Math.max(1, Number(url.searchParams.get('limit') || '30')),
           )
 
