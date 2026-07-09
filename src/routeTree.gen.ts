@@ -27,6 +27,7 @@ import { Route as ConductorRouteImport } from './routes/conductor'
 import { Route as CommandsRouteImport } from './routes/commands'
 import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as BoardTemplatesRouteImport } from './routes/board-templates'
+import { Route as BackupsRouteImport } from './routes/backups'
 import { Route as AgoraRouteImport } from './routes/agora'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as DocsRouteRouteImport } from './routes/docs/route'
@@ -171,6 +172,11 @@ import { Route as ApiCommandsIdRouteImport } from './routes/api/commands.$id'
 import { Route as ApiClaudeTasksTaskIdRouteImport } from './routes/api/claude-tasks.$taskId'
 import { Route as ApiClaudeProxySplatRouteImport } from './routes/api/claude-proxy/$'
 import { Route as ApiClaudeJobsJobIdRouteImport } from './routes/api/claude-jobs.$jobId'
+import { Route as ApiBackupsRestoreUploadRouteImport } from './routes/api/backups/restore-upload'
+import { Route as ApiBackupsRestoreRouteImport } from './routes/api/backups/restore'
+import { Route as ApiBackupsListRouteImport } from './routes/api/backups/list'
+import { Route as ApiBackupsDownloadRouteImport } from './routes/api/backups/download'
+import { Route as ApiBackupsCreateRouteImport } from './routes/api/backups/create'
 import { Route as ApiArtifactsArtifactIdRouteImport } from './routes/api/artifacts.$artifactId'
 import { Route as ApiWorkflowRunsRunIdApproveRouteImport } from './routes/api/workflow-runs.$runId.approve'
 import { Route as ApiWorkflowDefinitionsIdResetFactoryRouteImport } from './routes/api/workflow-definitions.$id.reset-factory'
@@ -296,6 +302,11 @@ const BoardsRoute = BoardsRouteImport.update({
 const BoardTemplatesRoute = BoardTemplatesRouteImport.update({
   id: '/board-templates',
   path: '/board-templates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BackupsRoute = BackupsRouteImport.update({
+  id: '/backups',
+  path: '/backups',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AgoraRoute = AgoraRouteImport.update({
@@ -1025,6 +1036,31 @@ const ApiClaudeJobsJobIdRoute = ApiClaudeJobsJobIdRouteImport.update({
   path: '/$jobId',
   getParentRoute: () => ApiClaudeJobsRoute,
 } as any)
+const ApiBackupsRestoreUploadRoute = ApiBackupsRestoreUploadRouteImport.update({
+  id: '/api/backups/restore-upload',
+  path: '/api/backups/restore-upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBackupsRestoreRoute = ApiBackupsRestoreRouteImport.update({
+  id: '/api/backups/restore',
+  path: '/api/backups/restore',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBackupsListRoute = ApiBackupsListRouteImport.update({
+  id: '/api/backups/list',
+  path: '/api/backups/list',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBackupsDownloadRoute = ApiBackupsDownloadRouteImport.update({
+  id: '/api/backups/download',
+  path: '/api/backups/download',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBackupsCreateRoute = ApiBackupsCreateRouteImport.update({
+  id: '/api/backups/create',
+  path: '/api/backups/create',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiArtifactsArtifactIdRoute = ApiArtifactsArtifactIdRouteImport.update({
   id: '/$artifactId',
   path: '/$artifactId',
@@ -1242,6 +1278,7 @@ export interface FileRoutesByFullPath {
   '/docs': typeof DocsRouteRouteWithChildren
   '/$': typeof SplatRoute
   '/agora': typeof AgoraRoute
+  '/backups': typeof BackupsRoute
   '/board-templates': typeof BoardTemplatesRoute
   '/boards': typeof BoardsRoute
   '/commands': typeof CommandsRoute
@@ -1322,6 +1359,11 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof SettingsIndexRoute
   '/website/': typeof WebsiteIndexRoute
   '/api/artifacts/$artifactId': typeof ApiArtifactsArtifactIdRoute
+  '/api/backups/create': typeof ApiBackupsCreateRoute
+  '/api/backups/download': typeof ApiBackupsDownloadRoute
+  '/api/backups/list': typeof ApiBackupsListRoute
+  '/api/backups/restore': typeof ApiBackupsRestoreRoute
+  '/api/backups/restore-upload': typeof ApiBackupsRestoreUploadRoute
   '/api/claude-jobs/$jobId': typeof ApiClaudeJobsJobIdRoute
   '/api/claude-proxy/$': typeof ApiClaudeProxySplatRoute
   '/api/claude-tasks/$taskId': typeof ApiClaudeTasksTaskIdRoute
@@ -1441,6 +1483,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
   '/agora': typeof AgoraRoute
+  '/backups': typeof BackupsRoute
   '/board-templates': typeof BoardTemplatesRoute
   '/boards': typeof BoardsRoute
   '/commands': typeof CommandsRoute
@@ -1520,6 +1563,11 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsIndexRoute
   '/website': typeof WebsiteIndexRoute
   '/api/artifacts/$artifactId': typeof ApiArtifactsArtifactIdRoute
+  '/api/backups/create': typeof ApiBackupsCreateRoute
+  '/api/backups/download': typeof ApiBackupsDownloadRoute
+  '/api/backups/list': typeof ApiBackupsListRoute
+  '/api/backups/restore': typeof ApiBackupsRestoreRoute
+  '/api/backups/restore-upload': typeof ApiBackupsRestoreUploadRoute
   '/api/claude-jobs/$jobId': typeof ApiClaudeJobsJobIdRoute
   '/api/claude-proxy/$': typeof ApiClaudeProxySplatRoute
   '/api/claude-tasks/$taskId': typeof ApiClaudeTasksTaskIdRoute
@@ -1641,6 +1689,7 @@ export interface FileRoutesById {
   '/docs': typeof DocsRouteRouteWithChildren
   '/$': typeof SplatRoute
   '/agora': typeof AgoraRoute
+  '/backups': typeof BackupsRoute
   '/board-templates': typeof BoardTemplatesRoute
   '/boards': typeof BoardsRoute
   '/commands': typeof CommandsRoute
@@ -1721,6 +1770,11 @@ export interface FileRoutesById {
   '/settings/': typeof SettingsIndexRoute
   '/website/': typeof WebsiteIndexRoute
   '/api/artifacts/$artifactId': typeof ApiArtifactsArtifactIdRoute
+  '/api/backups/create': typeof ApiBackupsCreateRoute
+  '/api/backups/download': typeof ApiBackupsDownloadRoute
+  '/api/backups/list': typeof ApiBackupsListRoute
+  '/api/backups/restore': typeof ApiBackupsRestoreRoute
+  '/api/backups/restore-upload': typeof ApiBackupsRestoreUploadRoute
   '/api/claude-jobs/$jobId': typeof ApiClaudeJobsJobIdRoute
   '/api/claude-proxy/$': typeof ApiClaudeProxySplatRoute
   '/api/claude-tasks/$taskId': typeof ApiClaudeTasksTaskIdRoute
@@ -1843,6 +1897,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/$'
     | '/agora'
+    | '/backups'
     | '/board-templates'
     | '/boards'
     | '/commands'
@@ -1923,6 +1978,11 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/website/'
     | '/api/artifacts/$artifactId'
+    | '/api/backups/create'
+    | '/api/backups/download'
+    | '/api/backups/list'
+    | '/api/backups/restore'
+    | '/api/backups/restore-upload'
     | '/api/claude-jobs/$jobId'
     | '/api/claude-proxy/$'
     | '/api/claude-tasks/$taskId'
@@ -2042,6 +2102,7 @@ export interface FileRouteTypes {
     | '/'
     | '/$'
     | '/agora'
+    | '/backups'
     | '/board-templates'
     | '/boards'
     | '/commands'
@@ -2121,6 +2182,11 @@ export interface FileRouteTypes {
     | '/settings'
     | '/website'
     | '/api/artifacts/$artifactId'
+    | '/api/backups/create'
+    | '/api/backups/download'
+    | '/api/backups/list'
+    | '/api/backups/restore'
+    | '/api/backups/restore-upload'
     | '/api/claude-jobs/$jobId'
     | '/api/claude-proxy/$'
     | '/api/claude-tasks/$taskId'
@@ -2241,6 +2307,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/$'
     | '/agora'
+    | '/backups'
     | '/board-templates'
     | '/boards'
     | '/commands'
@@ -2321,6 +2388,11 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/website/'
     | '/api/artifacts/$artifactId'
+    | '/api/backups/create'
+    | '/api/backups/download'
+    | '/api/backups/list'
+    | '/api/backups/restore'
+    | '/api/backups/restore-upload'
     | '/api/claude-jobs/$jobId'
     | '/api/claude-proxy/$'
     | '/api/claude-tasks/$taskId'
@@ -2442,6 +2514,7 @@ export interface RootRouteChildren {
   DocsRouteRoute: typeof DocsRouteRouteWithChildren
   SplatRoute: typeof SplatRoute
   AgoraRoute: typeof AgoraRoute
+  BackupsRoute: typeof BackupsRoute
   BoardTemplatesRoute: typeof BoardTemplatesRoute
   BoardsRoute: typeof BoardsRoute
   CommandsRoute: typeof CommandsRoute
@@ -2517,6 +2590,11 @@ export interface RootRouteChildren {
   WebsiteSplatRoute: typeof WebsiteSplatRoute
   ChatIndexRoute: typeof ChatIndexRoute
   WebsiteIndexRoute: typeof WebsiteIndexRoute
+  ApiBackupsCreateRoute: typeof ApiBackupsCreateRoute
+  ApiBackupsDownloadRoute: typeof ApiBackupsDownloadRoute
+  ApiBackupsListRoute: typeof ApiBackupsListRoute
+  ApiBackupsRestoreRoute: typeof ApiBackupsRestoreRoute
+  ApiBackupsRestoreUploadRoute: typeof ApiBackupsRestoreUploadRoute
   ApiClaudeProxySplatRoute: typeof ApiClaudeProxySplatRoute
   ApiConductorMissionsRoute: typeof ApiConductorMissionsRouteWithChildren
   ApiConductorStateRoute: typeof ApiConductorStateRoute
@@ -2700,6 +2778,13 @@ declare module '@tanstack/react-router' {
       path: '/board-templates'
       fullPath: '/board-templates'
       preLoaderRoute: typeof BoardTemplatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/backups': {
+      id: '/backups'
+      path: '/backups'
+      fullPath: '/backups'
+      preLoaderRoute: typeof BackupsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/agora': {
@@ -3710,6 +3795,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiClaudeJobsJobIdRouteImport
       parentRoute: typeof ApiClaudeJobsRoute
     }
+    '/api/backups/restore-upload': {
+      id: '/api/backups/restore-upload'
+      path: '/api/backups/restore-upload'
+      fullPath: '/api/backups/restore-upload'
+      preLoaderRoute: typeof ApiBackupsRestoreUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/backups/restore': {
+      id: '/api/backups/restore'
+      path: '/api/backups/restore'
+      fullPath: '/api/backups/restore'
+      preLoaderRoute: typeof ApiBackupsRestoreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/backups/list': {
+      id: '/api/backups/list'
+      path: '/api/backups/list'
+      fullPath: '/api/backups/list'
+      preLoaderRoute: typeof ApiBackupsListRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/backups/download': {
+      id: '/api/backups/download'
+      path: '/api/backups/download'
+      fullPath: '/api/backups/download'
+      preLoaderRoute: typeof ApiBackupsDownloadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/backups/create': {
+      id: '/api/backups/create'
+      path: '/api/backups/create'
+      fullPath: '/api/backups/create'
+      preLoaderRoute: typeof ApiBackupsCreateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/artifacts/$artifactId': {
       id: '/api/artifacts/$artifactId'
       path: '/$artifactId'
@@ -4460,6 +4580,7 @@ const rootRouteChildren: RootRouteChildren = {
   DocsRouteRoute: DocsRouteRouteWithChildren,
   SplatRoute: SplatRoute,
   AgoraRoute: AgoraRoute,
+  BackupsRoute: BackupsRoute,
   BoardTemplatesRoute: BoardTemplatesRoute,
   BoardsRoute: BoardsRoute,
   CommandsRoute: CommandsRoute,
@@ -4535,6 +4656,11 @@ const rootRouteChildren: RootRouteChildren = {
   WebsiteSplatRoute: WebsiteSplatRoute,
   ChatIndexRoute: ChatIndexRoute,
   WebsiteIndexRoute: WebsiteIndexRoute,
+  ApiBackupsCreateRoute: ApiBackupsCreateRoute,
+  ApiBackupsDownloadRoute: ApiBackupsDownloadRoute,
+  ApiBackupsListRoute: ApiBackupsListRoute,
+  ApiBackupsRestoreRoute: ApiBackupsRestoreRoute,
+  ApiBackupsRestoreUploadRoute: ApiBackupsRestoreUploadRoute,
   ApiClaudeProxySplatRoute: ApiClaudeProxySplatRoute,
   ApiConductorMissionsRoute: ApiConductorMissionsRouteWithChildren,
   ApiConductorStateRoute: ApiConductorStateRoute,
