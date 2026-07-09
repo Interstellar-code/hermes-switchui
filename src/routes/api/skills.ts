@@ -628,7 +628,7 @@ export const Route = createFileRoute('/api/skills')({
               : 'name'
           const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
           const limit = Math.min(
-            60,
+            1000,
             Math.max(1, Number(url.searchParams.get('limit') || '30')),
           )
 
