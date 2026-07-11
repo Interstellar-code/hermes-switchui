@@ -42,6 +42,10 @@ beforeEach(() => {
   delete process.env.HERMES_DASHBOARD_TOKEN
 })
 
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
 async function loadMod() {
   vi.resetModules()
   return import('../gateway-capabilities')
@@ -129,6 +133,113 @@ describe('gateway-capabilities', () => {
       } finally {
         mod.setGatewayUrl(null)
       }
+    })
+  })
+
+  describe('dashboardFetch', () => {
+    it('classifies timeout failures without retrying', async () => {
+      process.env.HERMES_DASHBOARD_TOKEN = 'dashboard-token'
+      const fetchMock = vi
+        .spyOn(globalThis, 'fetch')
+        .mockRejectedValue(new DOMException('timed out', 'TimeoutError'))
+      const mod = await loadMod()
+
+      const response = await mod.dashboardFetch('/api/plugins/test/timeout')
+
+      expect(response.status).toBe(503)
+      expect(response.headers.get('x-hermes-dashboard-error')).toBe('timeout')
+      await expect(response.json()).resolves.toMatchObject({
+        mode: 'dashboard-unavailable',
+        reason: 'timeout',
+      })
+      expect(
+        fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/api/plugins/test/timeout')),
+      ).toHaveLength(1)
+    })
+
+    it('never retries mutations after a transport failure', async () => {
+      process.env.HERMES_DASHBOARD_TOKEN = 'dashboard-token'
+      const fetchMock = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'))
+      const mod = await loadMod()
+
+      const response = await mod.dashboardFetch('/api/config', { method: 'POST' })
+
+      expect(response.status).toBe(503)
+      expect(response.headers.get('x-hermes-dashboard-error')).toBe('network-or-auth')
+      expect(
+        fetchMock.mock.calls.filter(
+          ([url, init]) =>
+            String(url).endsWith('/api/config') && init?.method === 'POST',
+        ),
+      ).toHaveLength(1)
+    })
+
+    it('refreshes its token once after a 401', async () => {
+      let tokenRequest = 0
+      const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((url, init) => {
+        if (String(url) === 'http://127.0.0.1:9119/') {
+          tokenRequest += 1
+          return Promise.resolve(
+            new Response(
+              `<script>window.__HERMES_SESSION_TOKEN__="token-${tokenRequest}"</script>`,
+            ),
+          )
+        }
+        if (String(url).endsWith('/api/plugins/workflow-engine/definitions')) {
+          const token = new Headers(init?.headers).get('Authorization')
+          return Promise.resolve(new Response(null, { status: token === 'Bearer token-2' ? 200 : 401 }))
+        }
+        return Promise.resolve(new Response(null, { status: 404 }))
+      })
+      const mod = await loadMod()
+
+      const response = await mod.dashboardFetch('/api/plugins/workflow-engine/definitions')
+
+      expect(response.status).toBe(200)
+      expect(tokenRequest).toBe(2)
+      expect(
+        fetchMock.mock.calls.filter(([url]) =>
+          String(url).endsWith('/api/plugins/workflow-engine/definitions'),
+        ),
+      ).toHaveLength(2)
+    })
+
+    it('does not replace or retry caller-provided authorization', async () => {
+      const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(null, { status: 401 }),
+      )
+      const mod = await loadMod()
+
+      const response = await mod.dashboardFetch('/api/plugins/test/caller-auth', {
+        headers: { Authorization: 'Bearer caller-token' },
+      })
+
+      expect(response.status).toBe(401)
+      const callerRequests = fetchMock.mock.calls.filter(([url]) =>
+        String(url).endsWith('/api/plugins/test/caller-auth'),
+      )
+      expect(callerRequests).toHaveLength(1)
+      expect(new Headers(callerRequests[0]?.[1]?.headers).get('Authorization')).toBe(
+        'Bearer caller-token',
+      )
+    })
+
+    it('keeps public dashboard availability when token discovery fails', async () => {
+      vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+        const value = String(url)
+        if (value.endsWith('/api/status')) {
+          return Promise.resolve(Response.json({ version: '0.18.0' }))
+        }
+        if (value === 'http://127.0.0.1:9119/') {
+          return Promise.reject(new Error('token unavailable'))
+        }
+        return Promise.resolve(new Response(null, { status: 404 }))
+      })
+      const mod = await loadMod()
+
+      const capabilities = await mod.probeGateway({ force: true })
+
+      expect(capabilities.dashboard.available).toBe(true)
     })
   })
 })

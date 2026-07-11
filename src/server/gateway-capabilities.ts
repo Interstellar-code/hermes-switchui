@@ -429,17 +429,28 @@ function withDashboardBase(requestPath: string): string {
   return `${CLAUDE_DASHBOARD_URL}${requestPath.startsWith('/') ? requestPath : `/${requestPath}`}`
 }
 
-function dashboardUnavailableResponse(): Response {
+function dashboardFailureReason(error: unknown): string {
+  if (error instanceof DOMException && error.name === 'AbortError') return 'aborted'
+  if (error instanceof Error && error.name === 'TimeoutError') return 'timeout'
+  return 'network-or-auth'
+}
+
+function dashboardUnavailableResponse(error: unknown): Response {
+  const reason = dashboardFailureReason(error)
   return new Response(
     JSON.stringify({
       ok: false,
       error: 'Dashboard unavailable',
       mode: 'dashboard-unavailable',
+      reason,
       dashboardUrl: CLAUDE_DASHBOARD_URL,
     }),
     {
       status: 503,
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        'x-hermes-dashboard-error': reason,
+      },
     },
   )
 }
@@ -450,6 +461,7 @@ export async function dashboardFetch(
 ): Promise<Response> {
   const dashboardPath = withDashboardBase(requestPath)
   const method = (init.method || 'GET').toUpperCase()
+  const hasCallerAuthorization = new Headers(init.headers).has('Authorization')
   const doFetch = async (forceToken = false) => {
     try {
       const headers = new Headers(init.headers)
@@ -475,13 +487,13 @@ export async function dashboardFetch(
         method,
         headers,
       })
-    } catch {
-      return dashboardUnavailableResponse()
+    } catch (error) {
+      return dashboardUnavailableResponse(error)
     }
   }
 
   let res = await doFetch(false)
-  if (res.status === 401) {
+  if (res.status === 401 && !hasCallerAuthorization) {
     dashboardTokenCache = ''
     res = await doFetch(true)
   }
@@ -745,6 +757,8 @@ async function probeDashboard(): Promise<{ available: boolean; url: string }> {
     if (!res.ok) return { available: false, url: CLAUDE_DASHBOARD_URL }
     const body = (await res.json()) as { version?: string }
     if (!body.version) return { available: false, url: CLAUDE_DASHBOARD_URL }
+    // Keep public availability version-compatible. Protected callers still get
+    // classified failures from dashboardFetch when token acquisition fails.
     await fetchDashboardToken().catch(() => '')
     return { available: true, url: CLAUDE_DASHBOARD_URL }
   } catch {
