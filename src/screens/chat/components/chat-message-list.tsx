@@ -849,7 +849,7 @@ function ChatMessageListComponent({
   }, [contentStyle, isMobileViewport])
 
   // Simple scroll handler — only tracks if user is near bottom via refs (no state updates)
-  const handleUserScroll = useCallback(function handleUserScroll(metrics: {
+  const handleUserScroll = useCallback(function trackUserScroll(metrics: {
     scrollTop: number
     scrollHeight: number
     clientHeight: number
@@ -870,7 +870,7 @@ function ChatMessageListComponent({
   }, [])
 
   // Simple scroll to bottom — find viewport and scroll
-  const scrollToBottom = useCallback(function scrollToBottom(
+  const scrollToBottom = useCallback(function scrollViewportToBottom(
     behavior: ScrollBehavior = 'auto',
   ) {
     const anchor = anchorRef.current
@@ -1029,7 +1029,7 @@ function ChatMessageListComponent({
         clearTimeout(thinkingGraceTimerRef.current)
       }
     }
-  }, [displayEntries, waitingForResponse]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [displayEntries, waitingForResponse])
 
   const normalizedMessageSearch = useMemo(
     function getNormalizedMessageSearch() {
@@ -1073,21 +1073,21 @@ function ChatMessageListComponent({
 
   const activeSearchMatch = messageSearchMatches[activeSearchMatchIndex] ?? null
 
-  const focusSearchInput = useCallback(function focusSearchInput() {
+  const focusSearchInput = useCallback(function focusSearchField() {
     window.requestAnimationFrame(function focusSearchInputField() {
       searchInputRef.current?.focus()
       searchInputRef.current?.select()
     })
   }, [])
 
-  const closeMessageSearch = useCallback(function closeMessageSearch() {
+  const closeMessageSearch = useCallback(function closeSearch() {
     setIsMessageSearchOpen(false)
     setMessageSearchValue('')
     setActiveSearchMatchIndex(0)
   }, [])
 
   const openMessageSearch = useCallback(
-    function openMessageSearch() {
+    function openSearch() {
       setIsMessageSearchOpen(true)
       setActiveSearchMatchIndex(0)
       focusSearchInput()
@@ -1096,7 +1096,7 @@ function ChatMessageListComponent({
   )
 
   const jumpToPreviousMatch = useCallback(
-    function jumpToPreviousMatch() {
+    function selectPreviousMatch() {
       if (messageSearchMatches.length === 0) return
       setActiveSearchMatchIndex(function setPreviousMatchIndex(currentIndex) {
         return (
@@ -1109,7 +1109,7 @@ function ChatMessageListComponent({
   )
 
   const jumpToNextMatch = useCallback(
-    function jumpToNextMatch() {
+    function selectNextMatch() {
       if (messageSearchMatches.length === 0) return
       setActiveSearchMatchIndex(function setNextMatchIndex(currentIndex) {
         return (currentIndex + 1) % messageSearchMatches.length
@@ -1118,7 +1118,7 @@ function ChatMessageListComponent({
     [messageSearchMatches.length],
   )
 
-  const scrollToMessageById = useCallback(function scrollToMessageById(
+  const scrollToMessageById = useCallback(function scrollToMessage(
     messageId: string,
     behavior: ScrollBehavior = 'smooth',
   ) {
@@ -1273,7 +1273,6 @@ function ChatMessageListComponent({
       streamingTargets: new Set<string>(),
       signatureById: nextSignatures,
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayEntries, streamingCleared])
 
   const lastAssistantIndex = visibleEntries
@@ -1780,7 +1779,7 @@ function ChatMessageListComponent({
   }, [activeSearchMatchIndex, messageSearchMatches, scrollToMessageById])
 
   const handleScrollToBottom = useCallback(
-    function handleScrollToBottom() {
+    function handleBottomButton() {
       stickToBottomRef.current = true
       isNearBottomRef.current = true
       setIsNearBottom(true)

@@ -947,11 +947,11 @@ export function ChatScreen({
       queryClient.setQueryData(
         chatQueryKeys.sessions,
         function upsert(existing: unknown) {
-          const sessions = Array.isArray(existing)
+          const cachedSessions = Array.isArray(existing)
             ? (existing as Array<SessionMeta>)
             : []
           const now = Date.now()
-          const existingIndex = sessions.findIndex((session) => {
+          const existingIndex = cachedSessions.findIndex((session) => {
             return (
               session.friendlyId === friendlyId || session.key === friendlyId
             )

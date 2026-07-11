@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/* eslint-disable @typescript-eslint/require-await -- Response.json mocks intentionally match the async browser API. */
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'

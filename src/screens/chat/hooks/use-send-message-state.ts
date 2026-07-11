@@ -316,7 +316,7 @@ export function useSendMessageState(params: {
     // failsafe (see send flow below) clears the spinner but leaves the
     // composer + model selector unclickable until the page is reloaded.
     setSending(false)
-  }, [streamStop]) // eslint-disable-line react-hooks/exhaustive-deps -- setWaitingForResponse + setSending + setPendingGeneration are stable
+  }, [streamStop])
 
   const streamStart = useCallback(() => {
     if (!activeFriendlyId || isNewChat) return
@@ -327,7 +327,7 @@ export function useSendMessageState(params: {
       if (activeRealtimeStreamingRef.current) return
       refreshHistoryRef.current()
     }, 2000)
-  }, [activeFriendlyId, isNewChat]) // eslint-disable-line react-hooks/exhaustive-deps -- activeRealtimeStreamingRef + refreshHistoryRef are stable refs
+  }, [activeFriendlyId, isNewChat])
 
   // Failsafe: clear after done event + 10s if response never shows in display
   useEffect(() => {
@@ -345,7 +345,7 @@ export function useSendMessageState(params: {
       refreshHistoryRef.current()
     }, 5000)
     return () => window.clearTimeout(fallback)
-  }, [waitingForResponse]) // eslint-disable-line react-hooks/exhaustive-deps -- activeRealtimeStreamingRef + refreshHistoryRef are stable refs
+  }, [waitingForResponse])
 
   // --- Group C (PR 2): sendMessage ---
   // Moved verbatim from chat-screen.tsx — the core send-path function.
@@ -359,7 +359,7 @@ export function useSendMessageState(params: {
   // usePendingApprovals → useRealtimeChatHistory dependency chain.
 
   const sendMessage = useCallback(
-    function sendMessage(
+    function sendChatMessage(
       sessionKey: string,
       friendlyId: string,
       body: string,
@@ -511,7 +511,7 @@ export function useSendMessageState(params: {
       setLocalActivity,
       streamFinish,
       streamStart,
-    ], // eslint-disable-line react-hooks/exhaustive-deps -- setError + setResearchResetKey are stable useState setters; thinkingLevelRef + clearCompletedStreamingRef + startStreamingRef + finalDisplayMessagesRef + currentModelRef are stable refs
+    ],
   )
 
   // --- Group D (PR 3): SSE Callbacks ---
@@ -631,7 +631,7 @@ export function useSendMessageState(params: {
       setPendingGeneration(false)
       setWaitingForResponse(false)
     },
-    [navigate, queryClient], // eslint-disable-line react-hooks/exhaustive-deps -- embedded + setError + setSending + setWaitingForResponse are stable/screen-level values
+    [navigate, queryClient],
   )
 
   const onMessageAccepted = useCallback(
@@ -699,7 +699,7 @@ export function useSendMessageState(params: {
     setSending(false)
     setPendingGeneration(false)
     setWaitingForResponse(false)
-  }, [queryClient]) // eslint-disable-line react-hooks/exhaustive-deps -- cancelStreamingRef is a stable ref; setSending + setWaitingForResponse + setPendingGeneration are stable
+  }, [queryClient])
 
   return {
     sending,

@@ -244,7 +244,6 @@ export function UsageMeterCompact() {
     void fetchProvider(preferredProvider)
     const id = window.setInterval(() => fetchProvider(preferredProvider), POLL_INTERVAL_MS)
     return () => window.clearInterval(id)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchProvider])
 
   // Cleanup flash timer on unmount

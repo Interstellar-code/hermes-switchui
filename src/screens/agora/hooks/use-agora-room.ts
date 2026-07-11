@@ -220,7 +220,6 @@ export function useAgoraRoom({
       window.clearTimeout(initial)
     }
     // intentionally only on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ── Derived: active speech bubbles per user ────────────────

@@ -329,9 +329,9 @@ function OrchestratorCard({
     'meta':      'https://cdn.simpleicons.org/meta',
     'nvidia':    'https://cdn.simpleicons.org/nvidia',
   }
-  function getProviderLogoUrl(label: string | null): string | null {
-    if (!label) return null
-    const key = label.toLowerCase()
+  function getProviderLogoUrl(providerName: string | null): string | null {
+    if (!providerName) return null
+    const key = providerName.toLowerCase()
     for (const [k, v] of Object.entries(PROVIDER_LOGO_URLS)) {
       if (key.includes(k)) return v
     }
@@ -723,7 +723,6 @@ export function AgentViewPanel() {
   const activeNodeIds = useMemo(
     () => activeNodes.map((node) => node.id),
     // Stabilize: only recompute when the sorted id string changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [activeNodes.map((n) => n.id).join(',')],
   )
   const agentSpawn = useAgentSpawn(activeNodeIds)
@@ -749,7 +748,7 @@ export function AgentViewPanel() {
     [activeNodes, agentSpawn],
   )
 
-  const updateSourceBubbleRect = useCallback(function updateSourceBubbleRect() {
+  const updateSourceBubbleRect = useCallback(function updateBubbleRect() {
     if (typeof document === 'undefined') return
     const element = getLastUserMessageBubbleElement()
     if (!element) {

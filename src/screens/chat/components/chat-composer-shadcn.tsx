@@ -322,7 +322,6 @@ function ChatComposerShadcn({
   // Refocus when the session changes (mirrors live focusKey behavior).
   React.useEffect(() => {
     focusPrompt()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusKey])
 
   // ─── auto-grow textarea ──────────────────────────────────────────────────
@@ -681,7 +680,6 @@ function ChatComposerShadcn({
                 className="group/att relative flex items-center gap-2 rounded-lg border border-border bg-card px-2 py-1 text-xs text-card-foreground"
               >
                 {att.previewUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={att.previewUrl}
                     alt={att.name}

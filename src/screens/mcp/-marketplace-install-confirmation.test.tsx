@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/* eslint-disable @typescript-eslint/require-await -- React.act callbacks intentionally use its async form. */
 /**
  * Tests for InstallConfirmationDialog — US-404.
  * Covers: preview render, 2-click commit, POST payload validation,

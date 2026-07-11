@@ -633,7 +633,6 @@ function VariablesForm({
   useEffect(() => {
     const allRequiredFilled = wf.required_inputs.every((inp) => variables[inp].trim())
     onValidChange(allRequiredFilled)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wf.required_inputs])
 
   if (!hasInputs) {

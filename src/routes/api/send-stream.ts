@@ -537,7 +537,7 @@ export const Route = createFileRoute('/api/send-stream')({
                   const useResponsesApi =
                     process.env.HERMES_USE_RESPONSES === '1' && !localBaseUrl
                   if (useResponsesApi) {
-                    const thinking = ''
+                    const responseThinking = ''
                     // Track tool calls by callId so a `tool.completed`
                     // followed by `tool.output` can carry the full
                     // arguments forward without losing them.
@@ -695,7 +695,9 @@ export const Route = createFileRoute('/api/send-stream')({
                         message: {
                           role: 'assistant',
                           content: [
-                            ...(thinking.length > 0 ? [{ type: 'thinking', thinking }] : []),
+                            ...(responseThinking.length > 0
+                              ? [{ type: 'thinking', thinking: responseThinking }]
+                              : []),
                             { type: 'text', text: accumulated },
                           ],
                         },
@@ -715,7 +717,7 @@ export const Route = createFileRoute('/api/send-stream')({
                     }
                   }
 
-                  const stream = await openaiChat(portableMessages, {
+                  const chatStream = await openaiChat(portableMessages, {
                     model: localBaseUrl ? bareModel : (typeof body.model === 'string' ? body.model : undefined),
                     temperature:
                       typeof body.temperature === 'number'
@@ -728,13 +730,13 @@ export const Route = createFileRoute('/api/send-stream')({
                     baseUrl: localBaseUrl,
                   })
 
-                  let thinking = ''
+                  let chatThinking = ''
                   let toolEventCount = 0
-                  for await (const chunk of stream) {
+                  for await (const chunk of chatStream) {
                     if (chunk.type === 'reasoning') {
-                      thinking += chunk.text
+                      chatThinking += chunk.text
                       persistActiveRun((runSessionKey, activeId) =>
-                        setRunThinking(runSessionKey, activeId, thinking),
+                        setRunThinking(runSessionKey, activeId, chatThinking),
                       )
                       sendEvent('thinking', {
                         text: thinking,
@@ -1045,13 +1047,13 @@ export const Route = createFileRoute('/api/send-stream')({
                     }
 
                     if (event === 'message.started') {
-                      const message =
+                      const eventMessage =
                         data.message && typeof data.message === 'object'
                           ? (data.message as Record<string, unknown>)
                           : {}
                       const translated = {
                         message: {
-                          id: message.id,
+                          id: eventMessage.id,
                           role: 'assistant',
                           content: [],
                         },
