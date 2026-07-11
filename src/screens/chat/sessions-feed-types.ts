@@ -89,6 +89,7 @@ export type SessionDateRange = {
 
 /** Options for the merge hook `useSessionsFeed`. */
 export type SessionsFeedOptions = {
+  raw?: boolean
   sources?: Array<SessionSource>
   state?: SessionState | 'all'
   query?: string

@@ -39,7 +39,7 @@ export const Route = createFileRoute('/api/backups/restore-upload')({
           }
 
           // Proxy to dashboard with streaming multipart body
-          const upstream = await dashboardFetch('/api/ops/import-upload', init as RequestInit)
+          const upstream = await dashboardFetch('/api/ops/import-upload', init)
 
           // Forward response
           const responseBody = await upstream.text()

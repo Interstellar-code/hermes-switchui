@@ -88,7 +88,7 @@ export function buildNavGrid(furniture: Array<FurnitureItem>): NavGrid {
   const defaultPad = GRID_CELL * 0.6;
   for (const item of furniture) {
     if (!itemBlocksNavigation(item.type)) continue;
-    const itemPad = ITEM_METADATA[item.type].navPadding || defaultPad;
+    const itemPad = ITEM_METADATA[item.type].navPadding ?? defaultPad;
     const bounds = getItemBounds(item);
     const x1 = bounds.x - itemPad;
     const y1 = bounds.y - itemPad;
@@ -369,8 +369,8 @@ export const getGymWorkoutLocations = (
       const facingTowardEquipment = (targetX: number, targetY: number) =>
         Math.atan2(equipmentCenterX - targetX, equipmentCenterY - targetY);
       if (item.type === "treadmill") {
-        const x = item.x + 35;
-        const y = item.y + 65;
+        const x = bounds.x + bounds.w + 18;
+        const y = equipmentCenterY;
         return {
           x,
           y,
@@ -379,8 +379,8 @@ export const getGymWorkoutLocations = (
         };
       }
       if (item.type === "weight_bench") {
-        const x = item.x + 38;
-        const y = item.y + 20;
+        const x = bounds.x + bounds.w + 18;
+        const y = equipmentCenterY;
         return {
           x,
           y,
@@ -389,7 +389,7 @@ export const getGymWorkoutLocations = (
         };
       }
       if (item.type === "dumbbell_rack" || item.type === "kettlebell_rack") {
-        const x = item.x - 18;
+        const x = bounds.x + bounds.w + 18;
         const y = item.y + 14;
         return {
           x,
@@ -399,8 +399,8 @@ export const getGymWorkoutLocations = (
         };
       }
       if (item.type === "exercise_bike") {
-        const x = item.x + 18;
-        const y = item.y + 28;
+        const x = bounds.x + bounds.w + 18;
+        const y = equipmentCenterY;
         return {
           x,
           y,
@@ -409,8 +409,8 @@ export const getGymWorkoutLocations = (
         };
       }
       if (item.type === "rowing_machine") {
-        const x = item.x + 28;
-        const y = item.y + 16;
+        const x = bounds.x + bounds.w + 18;
+        const y = equipmentCenterY;
         return {
           x,
           y,
@@ -419,8 +419,8 @@ export const getGymWorkoutLocations = (
         };
       }
       if (item.type === "yoga_mat") {
-        const x = item.x + 35;
-        const y = item.y + 15;
+        const x = bounds.x + bounds.w + 18;
+        const y = equipmentCenterY;
         return {
           x,
           y,
@@ -428,7 +428,7 @@ export const getGymWorkoutLocations = (
           workoutStyle: "stretch",
         };
       }
-      const x = item.x - 18;
+      const x = bounds.x + bounds.w + 18;
       const y = item.y + 14;
       return {
         x,

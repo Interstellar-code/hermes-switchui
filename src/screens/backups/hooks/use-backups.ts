@@ -10,7 +10,7 @@ export type BackupEntry = {
 }
 
 export type BackupListResult = {
-  backups: BackupEntry[]
+  backups: Array<BackupEntry>
   pending: boolean  // true when the list endpoint doesn't exist yet (404) or dashboard unavailable
 }
 
@@ -76,7 +76,7 @@ export function useCreateBackup() {
     // NO onSuccess invalidation — fire-and-forget per design.
     // The backup runs async (spawned pid); the list won't update immediately anyway.
     onSuccess: (data) => {
-      toast(`Backup started\n${data.archive ?? data.name}`, { type: 'success' })
+      toast(`Backup started\n${data.archive}`, { type: 'success' })
     },
     onError: (err: Error) => {
       toast(`Backup failed\n${err.message}`, { type: 'error' })

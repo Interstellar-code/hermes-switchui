@@ -1,23 +1,12 @@
 /**
  * apply-filters-and-decorate.ts — Phase 3 (S5) of the Sessions Sidebar plan.
  *
- * Pure function: takes pre-filtered+sorted feed items from useSessionsFeed +
- * filter state + local-action state, decorates with pin/star/archive flags,
- * groups by day, and returns sourceCounts for chip badges.
- *
- * S5 perf note: items arriving here have already been filtered and sorted by
- * useSessionsFeed (source filter, state filter, text search, date range, sort).
- * This function therefore:
- *   - Skips the duplicate source/state/search/date filter pass on `items`
- *     (was O(n) wasted work — useSessionsFeed already did it)
- *   - Skips the duplicate sort (was O(n log n) wasted work)
- *   - Only applies local-archived exclusion (not covered by useSessionsFeed,
- *     which only sees gateway state, not the local sessions-local-store set)
- *   - Keeps the sourceCounts loop over the incoming items (same semantics as
- *     before: counts within the already-filtered set, source filter ignored for
- *     counting purposes — this is intentional for chip badge accuracy)
+ * Pure function: filters feed items, applies local pin/star/archive state,
+ * groups by day, and returns per-source counts for chip badges.
  */
 
+import { sortItems } from './sessions-feed'
+import { matchesSessionSearch } from './session-search'
 import type { SessionFeedItem, SessionSource } from './sessions-feed-types'
 import type { FilterState } from '@/stores/sessions-filter-store'
 import type { LocalState } from '@/stores/sessions-local-store'
@@ -36,6 +25,22 @@ export type FilterAndDecorateResult = {
   totalCount: number
   /** Count of items visible if only that source were selected (state+search+date applied; source filter ignored). */
   sourceCounts: Partial<Record<SessionSource, number>>
+}
+
+function matchesDateRange(
+  item: SessionFeedItem,
+  from: string | null,
+  to: string | null,
+): boolean {
+  if (from) {
+    const [year, month, day] = from.split('-').map(Number)
+    if (item.when < new Date(year, month - 1, day).getTime()) return false
+  }
+  if (to) {
+    const [year, month, day] = to.split('-').map(Number)
+    if (item.when > new Date(year, month - 1, day, 23, 59, 59, 999).getTime()) return false
+  }
+  return true
 }
 
 // ── Decorator ──────────────────────────────────────────────────────────────────
@@ -57,17 +62,7 @@ function decorateItem(
 // ── Main export ────────────────────────────────────────────────────────────────
 
 /**
- * Decorate pre-filtered+sorted items with local-action flags, group into
- * Pinned / Today / Yesterday / Earlier buckets, and compute per-source counts
- * for chip badges.
- *
- * Precondition: `items` have already been filtered (source, state, text search,
- * date range) and sorted by `useSessionsFeed`. This function does NOT re-filter
- * or re-sort — doing so would duplicate O(n) + O(n log n) work on every render.
- *
- * The only additional filtering applied here is local-archived exclusion: items
- * in `local.archived` that were not already hidden by the gateway state filter
- * (useSessionsFeed only checks `item.state === 'archived'`, not the local set).
+ * Apply filters and local-action flags, then group the visible items.
  *
  * sourceCounts semantics: count of items visible for each source when ONLY
  * that source is selected (current `filter.sources` ignored for counting). The
@@ -79,33 +74,37 @@ export function applyFiltersAndDecorate(
   filter: Pick<FilterState, 'sources' | 'state' | 'query' | 'dateRange' | 'sort'>,
   local: Pick<LocalState, 'pinned' | 'starred' | 'archived'>,
 ): FilterAndDecorateResult {
-  // Build Sets once — O(1) lookups replace O(m) array.includes per item
   const pinnedSet = new Set(local.pinned)
   const starredSet = new Set(local.starred)
   const archivedSet = new Set(local.archived)
+  const query = filter.query.trim()
 
-  // ── sourceCounts: count items per source (local-archived exclusion applied) ─
-  // useSessionsFeed already applied source/state/search/date filters, so items
-  // here are the already-filtered set. We still need to exclude locally-archived
-  // items unless the filter explicitly requests the archived view.
-  const showArchived = filter.state === 'archived'
+  const passesBaseFilters = (item: SessionFeedItem): boolean => {
+    const locallyArchived = archivedSet.has(item.id)
+    if (filter.state === 'archived') {
+      if (!locallyArchived && item.state !== 'archived') return false
+    } else {
+      if (locallyArchived || item.state === 'archived') return false
+      if (filter.state !== 'all' && item.state !== filter.state) return false
+    }
+    if (query && !matchesSessionSearch(item, query)) return false
+    return matchesDateRange(item, filter.dateRange.from, filter.dateRange.to)
+  }
 
   const sourceCounts: Partial<Record<SessionSource, number>> = {}
   for (const item of items) {
-    if (!showArchived && archivedSet.has(item.id)) continue
-    sourceCounts[item.src] = (sourceCounts[item.src] ?? 0) + 1
+    if (passesBaseFilters(item)) sourceCounts[item.src] = (sourceCounts[item.src] ?? 0) + 1
   }
 
-  // ── Full filter: only exclude locally-archived items (not already handled) ──
-  // useSessionsFeed hides items with item.state === 'archived' when state='all',
-  // but does NOT know about the local archived set stored in sessions-local-store.
-  const filtered = showArchived
-    ? items
-    : items.filter((item) => !archivedSet.has(item.id))
+  const sourceSet = new Set(filter.sources)
+  const filtered = items.filter(
+    (item) => (sourceSet.size === 0 || sourceSet.has(item.src)) && passesBaseFilters(item),
+  )
 
-  // ── Decorate ──────────────────────────────────────────────────────────────
-  // Items are already sorted by useSessionsFeed — no re-sort needed.
-  const decorated = filtered.map((item) => decorateItem(item, pinnedSet, starredSet, archivedSet))
+  const decorated = sortItems(
+    filtered.map((item) => decorateItem(item, pinnedSet, starredSet, archivedSet)),
+    filter.sort,
+  )
 
   // ── Group ─────────────────────────────────────────────────────────────────
   const pinnedItems: Array<SessionFeedItem> = []

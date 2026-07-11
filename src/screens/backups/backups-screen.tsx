@@ -6,9 +6,9 @@ import {
   useCreateBackup,
   useRestoreBackup,
   useRestoreUpload,
-  type BackupEntry,
 } from './hooks/use-backups'
 import { RestoreConfirmDialog } from './components/restore-confirm-dialog'
+import type { BackupEntry } from './hooks/use-backups'
 
 // ── helpers ──
 
@@ -92,7 +92,7 @@ export function BackupsScreen() {
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
     setIsDragging(false)
-    const file = e.dataTransfer.files?.[0]
+    const file = e.dataTransfer.files.item(0)
     if (file) handleUploadFile(file)
   }
 

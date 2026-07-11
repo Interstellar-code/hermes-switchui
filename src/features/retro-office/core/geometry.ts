@@ -110,7 +110,7 @@ export const getItemBaseSize = (item: FurnitureItem) => {
  */
 export const ITEM_METADATA: Record<string, { blocksNavigation: boolean; navPadding?: number }> = {
   // ── structural ────────────────────────────────────────────────────────────
-  wall:            { blocksNavigation: true  },
+  wall:            { blocksNavigation: true, navPadding: 0 },
   door:            { blocksNavigation: false }, // passable
   // ── seating / lounge ──────────────────────────────────────────────────────
   chair:           { blocksNavigation: false }, // passable / agents sit on them
@@ -154,15 +154,15 @@ export const ITEM_METADATA: Record<string, { blocksNavigation: boolean; navPaddi
   device_rack:     { blocksNavigation: true  },
   test_bench:      { blocksNavigation: true  },
   // ── gym ───────────────────────────────────────────────────────────────────
-  treadmill:       { blocksNavigation: true  },
-  weight_bench:    { blocksNavigation: true  },
-  dumbbell_rack:   { blocksNavigation: true  },
-  exercise_bike:   { blocksNavigation: true  },
-  punching_bag:    { blocksNavigation: true  },
+  treadmill:       { blocksNavigation: true, navPadding: 0 },
+  weight_bench:    { blocksNavigation: true, navPadding: 0 },
+  dumbbell_rack:   { blocksNavigation: true, navPadding: 0 },
+  exercise_bike:   { blocksNavigation: true, navPadding: 0 },
+  punching_bag:    { blocksNavigation: true, navPadding: 0 },
   jukebox:         { blocksNavigation: true  },
-  rowing_machine:  { blocksNavigation: true  },
-  kettlebell_rack: { blocksNavigation: true  },
-  yoga_mat:        { blocksNavigation: true  },
+  rowing_machine:  { blocksNavigation: true, navPadding: 0 },
+  kettlebell_rack: { blocksNavigation: true, navPadding: 0 },
+  yoga_mat:        { blocksNavigation: true, navPadding: 0 },
   // ── art room ──────────────────────────────────────────────────────────────
   easel:           { blocksNavigation: true  }, // floor-standing prop (issue #4)
   // ── water cooler ──────────────────────────────────────────────────────────

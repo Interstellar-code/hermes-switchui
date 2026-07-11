@@ -7,7 +7,7 @@ import type {
 const BASE = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
 const DOCS_PREFIX = `${BASE}/docs`
 
-function joinUrl(...parts: string[]): string {
+function joinUrl(...parts: Array<string>): string {
   return parts
     .filter(Boolean)
     .join('/')
@@ -41,7 +41,7 @@ function prefixSidebarEntry(entry: SidebarEntry): SidebarEntry {
   }
 }
 
-function markCurrent(entries: SidebarEntry[], pathname: string): boolean {
+function markCurrent(entries: Array<SidebarEntry>, pathname: string): boolean {
   for (const entry of entries) {
     if (entry.type === 'group') {
       if (markCurrent(entry.entries, pathname)) return true
@@ -53,8 +53,8 @@ function markCurrent(entries: SidebarEntry[], pathname: string): boolean {
   return false
 }
 
-function flatten(entries: SidebarEntry[]): SidebarLink[] {
-  const flat: SidebarLink[] = []
+function flatten(entries: Array<SidebarEntry>): Array<SidebarLink> {
+  const flat: Array<SidebarLink> = []
   for (const entry of entries) {
     if (entry.type === 'group') flat.push(...flatten(entry.entries))
     else flat.push(entry)

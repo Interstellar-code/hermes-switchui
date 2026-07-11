@@ -7,8 +7,7 @@
  */
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '@/server/auth-middleware'
-import { ensureGatewayProbed } from '@/server/gateway-capabilities'
-import { dashboardFetch } from '@/server/gateway-capabilities'
+import { dashboardFetch, ensureGatewayProbed } from '@/server/gateway-capabilities'
 
 export const Route = createFileRoute('/api/backups/list')({
   server: {

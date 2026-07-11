@@ -17,7 +17,9 @@ describe('retro office navigation', () => {
     const [desk] = getDeskLocations(furniture)
     const gymWorkoutLocations = getGymWorkoutLocations(furniture)
 
-    expect(gymWorkoutLocations.length).toBeGreaterThan(0)
+    expect(gymWorkoutLocations.map((spot) => spot.workoutStyle)).toEqual([
+      'run', 'lift', 'lift', 'row', 'lift', 'bike', 'box', 'stretch',
+    ])
 
     for (const gymSpot of gymWorkoutLocations) {
       const path = astar(gymSpot.x, gymSpot.y, desk.x, desk.y, grid)

@@ -876,7 +876,7 @@ function ChatMessageListComponent({
     const anchor = anchorRef.current
     if (!anchor) return
     const viewport = anchor.closest('[data-chat-scroll-viewport]')
-    if (viewport) {
+    if (viewport instanceof HTMLElement && typeof viewport.scrollTo === 'function') {
       viewport.scrollTo({ top: viewport.scrollHeight, behavior })
     }
   }, [])

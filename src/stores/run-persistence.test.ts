@@ -128,8 +128,8 @@ describe('runPersistence — waiting state', () => {
     expect(restored.meta.s2.runId).toBe('r2')
   })
 
-  it('rejects waiting older than 120s', () => {
-    persistWaitingState(SESSION, { since: Date.now() - 121_000, runId: 'r1' })
+  it('rejects waiting older than 10 minutes', () => {
+    persistWaitingState(SESSION, { since: Date.now() - 601_000, runId: 'r1' })
     expect(restoreAllWaitingSessions().meta[SESSION]).toBeUndefined()
   })
 })

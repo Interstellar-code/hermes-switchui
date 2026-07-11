@@ -1,9 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
-import {
-  readProfile,
-  writeProfile,
-} from '../../../server/profiles-browser'
+import { readProfile, writeProfile } from '../../../server/profiles-browser'
 import { requireJsonContentType } from '../../../server/rate-limit'
 import type {
   AgentRuntime,
@@ -67,11 +64,21 @@ export const Route = createFileRoute('/api/profiles/update')({
             return Response.json({ ok: true, profile })
           }
 
-          // Guard: cannot update agent_ui.tier once already set (allow initial
-          // set for legacy upgrade path where existing config has no agent_ui).
+          const AGENT_UI_DENIED_KEYS = new Set(['status', 'builtin', 'id'])
+          if (body.agent_ui) {
+            const disallowed = Object.keys(body.agent_ui).filter((key) =>
+              AGENT_UI_DENIED_KEYS.has(key),
+            )
+            if (disallowed.length > 0) {
+              return Response.json(
+                { error: `agent_ui fields not allowed: ${disallowed.join(', ')}` },
+                { status: 400 },
+              )
+            }
+          }
+
           if (body.agent_ui?.tier !== undefined) {
-            const existing = readProfile(name)
-            const existingTier = existing.config.agent_ui.tier
+            const existingTier = readProfile(name).config.agent_ui?.tier
             if (existingTier !== undefined && existingTier !== body.agent_ui.tier) {
               return Response.json(
                 { error: 'agent_ui.tier cannot be updated after creation' },
@@ -95,8 +102,6 @@ export const Route = createFileRoute('/api/profiles/update')({
             )
           }
 
-          const AGENT_UI_DENIED_KEYS = new Set(['tier', 'status', 'builtin', 'id'])
-
           const patch: Record<string, unknown> = {}
           if (body.description !== undefined) patch.description = body.description
           if (body.system_prompt !== undefined) patch.system_prompt = body.system_prompt
@@ -106,14 +111,6 @@ export const Route = createFileRoute('/api/profiles/update')({
           if (body.memory !== undefined) patch.memory = body.memory
           if (body.agent !== undefined) patch.agent = body.agent
           if (body.agent_ui !== undefined) {
-            const agentUiInput = body.agent_ui as Record<string, unknown>
-            const disallowed = Object.keys(agentUiInput).filter((k) => AGENT_UI_DENIED_KEYS.has(k))
-            if (disallowed.length > 0) {
-              return Response.json(
-                { error: `agent_ui fields not allowed: ${disallowed.join(', ')}` },
-                { status: 400 },
-              )
-            }
             patch.agent_ui = body.agent_ui
           }
 

@@ -437,6 +437,7 @@ export function useSessionsFeed(
   options: SessionsFeedOptions = {},
 ): SessionsFeedResult {
   const {
+    raw = false,
     sources: requestedSources,
     state: stateFilter = 'all',
     query = '',
@@ -474,6 +475,10 @@ export function useSessionsFeed(
       if (!sourceResult.available) continue
       const rebased = sourceResult.items.map(rebase)
       merged.push(...rebased)
+    }
+
+    if (raw) {
+      return { items: merged, sources: allSources, loading: allSources.some((s) => s.available && s.loading) }
     }
 
     // Source filter applied at the item level — chat hook may emit items with
@@ -520,6 +525,7 @@ export function useSessionsFeed(
     chat.loading,
     tool.available,
     tg.available,
+    raw,
     requestedSources,
     stateFilter,
     query,

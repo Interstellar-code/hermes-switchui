@@ -81,13 +81,7 @@ describe('corrupt file → empty cache', () => {
     writeFileSync(join(cacheDir, 'mcp-tools.json'), '{ not valid json !!!', 'utf8')
 
     vi.resetModules()
-    // Should not throw
-    const mod: Awaited<ReturnType<typeof loadCache>>
-    expect(() => {
-      // loadCache() is async, but the module-level readDisk() runs synchronously
-      // during import. We just need to confirm no unhandled error.
-    }).not.toThrow()
-    mod = await loadCache()
+    const mod = await loadCache()
 
     // Cache should be empty (corrupt file ignored)
     expect(mod.getProbe('anything')).toBeNull()

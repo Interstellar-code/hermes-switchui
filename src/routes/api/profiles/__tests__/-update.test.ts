@@ -71,14 +71,22 @@ describe('POST /api/profiles/update — validation', () => {
     readFileSync.mockReturnValue('model: auto\n')
   })
 
-  it('rejects agent_ui.tier update with 400', async () => {
+  it('allows initial agent_ui.tier assignment', async () => {
+    const handler = await getHandler()
+    const res = await handler({
+      request: makeRequest({ name: 'myprofile', agent_ui: { tier: 3 } }),
+    })
+    expect(res.status).toBe(200)
+  })
+
+  it('rejects changing an existing agent_ui.tier', async () => {
+    readFileSync.mockReturnValue('model: auto\nagent_ui:\n  tier: 2\n')
     const handler = await getHandler()
     const res = await handler({
       request: makeRequest({ name: 'myprofile', agent_ui: { tier: 3 } }),
     })
     expect(res.status).toBe(400)
-    const body = await res.json() as { error: string }
-    expect(body.error).toMatch(/tier/)
+    expect((await res.json() as { error: string }).error).toMatch(/tier/)
   })
 
   it('rejects persona_id set without system_prompt with 400', async () => {
@@ -118,16 +126,14 @@ describe('POST /api/profiles/update — validation', () => {
     expect(res.status).not.toBe(400)
   })
 
-  it('rejects agent_ui.tier patch with 400 (disallowed field)', async () => {
-    // tier is in the denied-key allowlist — should be rejected before writeProfile
-    readFileSync.mockReturnValue('model: auto\nagent_ui:\n  tier: 3\n')
+  it('rejects denied agent_ui fields with 400', async () => {
     const handler = await getHandler()
     const res = await handler({
-      request: makeRequest({ name: 'myprofile', agent_ui: { tier: 1, role: 'Builder' } }),
+      request: makeRequest({ name: 'myprofile', agent_ui: { status: 'busy', role: 'Builder' } }),
     })
     expect(res.status).toBe(400)
     const body = await res.json() as { error: string }
-    expect(body.error).toMatch(/tier/)
+    expect(body.error).toMatch(/status/)
   })
 
   it('allows updating an existing built-in-named profile (hermes-switch)', async () => {

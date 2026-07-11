@@ -34,13 +34,7 @@ export function SidebarShellV2() {
   const lArchived = useSessionsLocalStore((s) => s.archived)
 
   // Single feed subscription — SidebarListV2 consumes groups via prop (no duplicate hook)
-  const { items, sources } = useSessionsFeed({
-    sources: fSources,
-    state: 'all',
-    query: fQuery,
-    dateRange: fDateRange,
-    sort: fSort,
-  })
+  const { items, sources } = useSessionsFeed({ raw: true })
 
   // Memoize to avoid new object refs on every render
   const { groups, totalCount, sourceCounts } = useMemo(
