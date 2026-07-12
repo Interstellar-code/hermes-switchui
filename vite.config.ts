@@ -585,11 +585,15 @@ const config = defineConfig(({ mode, command }) => {
       // CA on first run and generates a trusted cert for localhost + LAN IPs.
       // List this first so its `configureServer` hook switches the dev server
       // to HTTPS before the proxy/HMR plugins attach.
-      mkcert({
-        // Default hosts cover `localhost` and auto-discovered LAN IPs.
-        // Add a Tailscale hostname here (e.g. 'mac.tail1234.ts.net') if Chrome
-        // complains about cert mismatch when accessing over Tailscale.
-      }),
+      ...(command === 'serve' && mode !== 'production'
+        ? [
+            mkcert({
+              // Default hosts cover `localhost` and auto-discovered LAN IPs.
+              // Add a Tailscale hostname here (e.g. 'mac.tail1234.ts.net') if Chrome
+              // complains about cert mismatch when accessing over Tailscale.
+            }),
+          ]
+        : []),
       // Restart dev server when package.json changes so __APP_VERSION__
       // (computed once at config load via `define`) re-evaluates and the
       // sidebar version chip stays in sync with `pnpm version` bumps.
@@ -607,7 +611,7 @@ const config = defineConfig(({ mode, command }) => {
       },
       // devtools(),
       tailwindcss(),
-      tanstackStart(),
+      tanstackStart({ spa: { enabled: true, maskPath: '/settings' } }),
       viteReact(),
       {
         name: 'workspace-daemon',
