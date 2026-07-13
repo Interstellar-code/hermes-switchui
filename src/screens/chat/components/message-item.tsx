@@ -14,7 +14,7 @@ import {
   shouldAutoExpandHermesActivityCard,
 } from './streaming-activity-ui'
 import { selectVisibleLifecycleEvents } from './streaming-lifecycle-ui'
-import { TuiActivityCard } from './tui-activity-card'
+import { TuiActivityCard, attachClarifyCard } from './tui-activity-card'
 import type { ReactNode } from 'react'
 import type { Components } from 'react-markdown'
 import type {MessageContextMenuPosition} from './message-context-menu';
@@ -2502,25 +2502,11 @@ function MessageItemComponent({
     const meaningfulToolSections = inlineToolSections.filter(
       (section) => section.type.toLowerCase() !== 'tool',
     )
-    const hasClarifyTool = meaningfulToolSections.some((section) =>
-      section.type.toLowerCase().includes('clarify'),
+    return attachClarifyCard(
+      meaningfulToolSections,
+      clarifyCard,
+      'output-available',
     )
-    const attachClarify = (section: InlineToolSection): InlineToolSection =>
-      section.type.toLowerCase().includes('clarify')
-        ? { ...section, inlineContent: clarifyCard }
-        : section
-
-    if (hasClarifyTool) return meaningfulToolSections.map(attachClarify)
-    return [
-      ...meaningfulToolSections,
-      {
-        key: 'inline-clarify-card',
-        type: 'clarify',
-        outputText: '',
-        inlineContent: clarifyCard,
-        state: 'output-available' as const,
-      },
-    ]
   }, [clarifyCard, inlineToolSections])
 
   // When streaming is done, force all tool sections to completed state

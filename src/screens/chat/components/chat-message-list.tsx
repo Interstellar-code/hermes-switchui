@@ -12,7 +12,7 @@ import {
 } from '../utils'
 import { MessageItem } from './message-item'
 import { StreamingMessageItem } from './streaming-text-context'
-import { TuiActivityCard } from './tui-activity-card'
+import { TuiActivityCard, attachClarifyCard } from './tui-activity-card'
 import {
   InlineClarifyCard,
   interactionReceiptToPendingClarify,
@@ -1441,18 +1441,7 @@ function ChatMessageListComponent({
     const meaningfulToolCalls = normalizedStreamingToolCalls.filter(
       (tc) => tc.name.toLowerCase() !== 'tool',
     )
-    const hasClarifyTool = meaningfulToolCalls.some((tc) =>
-      tc.name.toLowerCase().includes('clarify'),
-    )
-    if (hasClarifyTool) return meaningfulToolCalls
-    return [
-      ...meaningfulToolCalls,
-      {
-        id: 'inline-clarify-card',
-        name: 'clarify',
-        phase: 'running' as const,
-      },
-    ]
+    return meaningfulToolCalls
   }, [clarifyReceiptCard, normalizedStreamingToolCalls])
 
   // Pin the last user+assistant group without adding bottom padding.
@@ -2109,41 +2098,44 @@ function ChatMessageListComponent({
                     />
                     <div className="min-w-0 flex-1 pt-1">
                       <TuiActivityCard
-                        toolSections={clarifyToolCalls.map((tc) => {
-                          const phase = tc.phase
-                          const isClarifyTool = tc.name.toLowerCase().includes('clarify')
-                          const state =
-                            phase === 'error'
-                              ? ('output-error' as const)
-                              : isClarifyTool && clarifyResolved
-                                ? ('output-available' as const)
-                                : phase === 'done'
+                        toolSections={attachClarifyCard(
+                          clarifyToolCalls.map((tc) => {
+                            const phase = tc.phase
+                            const isClarifyTool = tc.name.toLowerCase().includes('clarify')
+                            const state =
+                              phase === 'error'
+                                ? ('output-error' as const)
+                                : isClarifyTool && clarifyResolved
                                   ? ('output-available' as const)
-                                  : phase === 'running'
-                                    ? ('input-streaming' as const)
-                                    : ('input-available' as const)
-                          return {
-                            key: tc.id,
-                            type: tc.name,
-                            input:
-                              tc.args &&
-                              typeof tc.args === 'object' &&
-                              !Array.isArray(tc.args)
-                                ? (tc.args as Record<string, unknown>)
-                                : undefined,
-                            preview: tc.preview,
-                            outputText:
-                              state === 'output-available'
-                                ? tc.result || ''
-                                : '',
-                            errorText:
-                              state === 'output-error'
-                                ? tc.result || 'Tool failed'
-                                : undefined,
-                            inlineContent: isClarifyTool ? clarifyReceiptCard : undefined,
-                            state,
-                          }
-                        })}
+                                  : phase === 'done'
+                                    ? ('output-available' as const)
+                                    : phase === 'running'
+                                      ? ('input-streaming' as const)
+                                      : ('input-available' as const)
+                            return {
+                              key: tc.id,
+                              type: tc.name,
+                              input:
+                                tc.args &&
+                                typeof tc.args === 'object' &&
+                                !Array.isArray(tc.args)
+                                  ? (tc.args as Record<string, unknown>)
+                                  : undefined,
+                              preview: tc.preview,
+                              outputText:
+                                state === 'output-available'
+                                  ? tc.result || ''
+                                  : '',
+                              errorText:
+                                state === 'output-error'
+                                  ? tc.result || 'Tool failed'
+                                  : undefined,
+                              state,
+                            }
+                          }),
+                          clarifyReceiptCard,
+                          'input-streaming',
+                        )}
                         thinking={null}
                         isStreaming={true}
                         formatLabel={(name) => name.replace(/_/g, ' ')}

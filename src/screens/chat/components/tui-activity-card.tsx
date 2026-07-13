@@ -34,6 +34,38 @@ export type TuiToolSection = {
     | 'output-error'
 }
 
+export function attachClarifyCard(
+  toolSections: Array<TuiToolSection>,
+  clarifyCard: ReactNode,
+  fallbackState: TuiToolSection['state'],
+): Array<TuiToolSection> {
+  const sections = toolSections.map((section) =>
+    section.type.toLowerCase().includes('clarify')
+      ? { ...section, inlineContent: undefined }
+      : section,
+  )
+  const lastIndex = sections.length - 1
+
+  if (
+    lastIndex >= 0 &&
+    sections[lastIndex].type.toLowerCase().includes('clarify')
+  ) {
+    sections[lastIndex] = { ...sections[lastIndex], inlineContent: clarifyCard }
+    return sections
+  }
+
+  return [
+    ...sections,
+    {
+      key: 'inline-clarify-card',
+      type: 'clarify',
+      outputText: '',
+      inlineContent: clarifyCard,
+      state: fallbackState,
+    },
+  ]
+}
+
 function formatTime(ms?: number): string {
   if (!ms || !Number.isFinite(ms)) return ''
   const d = new Date(ms)
