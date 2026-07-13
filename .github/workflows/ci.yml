@@ -33,8 +33,7 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Run linter
-        run: pnpm run lint || echo "⚠️ Lint not configured, skipping"
-        continue-on-error: true
+        run: pnpm run lint
 
       - name: Type check
         run: pnpm run typecheck || pnpm exec tsc --noEmit || echo "⚠️ Typecheck not configured"
