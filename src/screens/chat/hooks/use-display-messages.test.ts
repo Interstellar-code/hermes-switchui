@@ -203,7 +203,7 @@ describe('useDisplayMessages', () => {
     ).toBe(false)
   })
 
-  it('places the streaming placeholder after the last user message', () => {
+  it('reuses the current-turn assistant instead of injecting a duplicate streaming row', () => {
     const msgs = [userMsg('Hello'), assistantMsg('Response', { id: 'a-1' })]
     const { result } = renderHook(() =>
       useDisplayMessages({
@@ -214,16 +214,32 @@ describe('useDisplayMessages', () => {
       }),
     )
     const display = result.current.finalDisplayMessages
-    const streamingIdx = display.findIndex(
+    const streaming = display.filter(
       (m) => m.__streamingStatus === 'streaming',
     )
-    expect(streamingIdx).toBeGreaterThan(-1)
-    // Find last user message index
-    let lastUserIdx = -1
-    for (let i = 0; i < display.length; i++) {
-      if (display[i].role === 'user') lastUserIdx = i
-    }
-    expect(streamingIdx).toBe(lastUserIdx + 1)
+    expect(display).toHaveLength(2)
+    expect(streaming).toHaveLength(1)
+    expect(streaming[0]).toMatchObject({ id: 'a-1' })
+    expect(streaming[0].content?.[0]).toMatchObject({ text: 'Response' })
+  })
+
+  it('places a streaming placeholder after the last user when no assistant exists yet', () => {
+    const msgs = [userMsg('Hello')]
+    const { result } = renderHook(() =>
+      useDisplayMessages({
+        realtimeMessages: msgs,
+        activeIsRealtimeStreaming: true,
+        activeToolCalls: [],
+        realtimeStreamingThinking: '',
+      }),
+    )
+    const display = result.current.finalDisplayMessages
+    expect(display).toHaveLength(2)
+    expect(display[1]).toMatchObject({
+      role: 'assistant',
+      __optimisticId: 'streaming-current',
+      __streamingStatus: 'streaming',
+    })
   })
 
   it('replaces an existing streaming message rather than adding a duplicate', () => {

@@ -318,6 +318,33 @@ export function useDisplayMessages(params: {
       (lastIdx, msg, idx) => (msg.role === 'user' ? idx : lastIdx),
       -1,
     )
+    const currentTurnAssistantIdx = nextMessages.reduce(
+      (lastIdx, message, index) =>
+        lastUserIdx >= 0 &&
+        index > lastUserIdx &&
+        message.role === 'assistant'
+          ? index
+          : lastIdx,
+      -1,
+    )
+
+    // A realtime `message` event can publish the current assistant before the
+    // stream's `done` event clears streaming state. Reuse that row rather than
+    // injecting a second placeholder that renders the same live text/activity.
+    if (currentTurnAssistantIdx >= 0) {
+      nextMessages[currentTurnAssistantIdx] = {
+        ...nextMessages[currentTurnAssistantIdx],
+        __streamingStatus: 'streaming',
+        __streamingText: '',
+        __streamingThinking: realtimeStreamingThinking,
+        __streamToolCalls:
+          streamToolCalls.length > 0
+            ? streamToolCalls
+            : nextMessages[currentTurnAssistantIdx].__streamToolCalls,
+      }
+      return nextMessages
+    }
+
     if (lastUserIdx >= 0 && lastUserIdx === nextMessages.length - 1) {
       nextMessages.push(streamingMsg)
     } else if (lastUserIdx >= 0) {
