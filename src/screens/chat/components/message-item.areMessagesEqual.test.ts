@@ -92,3 +92,20 @@ describe('areMessagesEqual — isLastAssistant', () => {
     expect(areMessagesEqual(prev, next)).toBe(false)
   })
 })
+
+describe('areMessagesEqual — clarifyCard', () => {
+  it('returns false when clarifyCard changes', () => {
+    const prev = { message: baseMessage, clarifyCard: 'first' } as MessageItemProps
+    const next = { message: baseMessage, clarifyCard: 'second' } as MessageItemProps
+
+    expect(areMessagesEqual(prev, next)).toBe(false)
+  })
+
+  it('returns true when clarifyCard is unchanged', () => {
+    const clarifyCard = { type: 'clarify-card' }
+    const prev = { message: baseMessage, clarifyCard } as MessageItemProps
+    const next = { message: baseMessage, clarifyCard } as MessageItemProps
+
+    expect(areMessagesEqual(prev, next)).toBe(true)
+  })
+})

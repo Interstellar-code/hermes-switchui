@@ -3007,6 +3007,7 @@ export function areMessagesEqual(
   if (prevProps.onReplyMessage !== nextProps.onReplyMessage) return false
   if (prevProps.toolCalls !== nextProps.toolCalls) return false
   if (prevProps.lifecycleEvents !== nextProps.lifecycleEvents) return false
+  if (prevProps.clarifyCard !== nextProps.clarifyCard) return false
   if (prevProps.wrapperDataMessageId !== nextProps.wrapperDataMessageId) {
     return false
   }
