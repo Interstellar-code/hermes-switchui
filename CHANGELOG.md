@@ -3,6 +3,34 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.3] — 2026-07-13
+
+Stability and release-quality patch: restores a fully green test/lint baseline, fixes dashboard fallback and SSE response handling, removes an unused SSR stream lifecycle, and closes the remaining chat memoization gap.
+
+### Fixed
+
+- **Dashboard fallback diagnostics and recovery.** Dashboard transport failures now retain a stable cause, and internally managed stale authentication receives one safe GET-only token refresh retry. Mutations, caller-provided authorization, timeouts, aborts, and network failures are never retried.
+- **SSE response headers.** Removed invalid hop-by-hop `Connection: keep-alive` headers from all seven SSE routes; streaming remains governed by the response body and heartbeat lifecycle.
+- **SSR watchdog cleanup.** Enabled TanStack Start SPA mode for the client-only workspace UI, removing abandoned streaming SSR transforms that survived HMR until the 120-second watchdog. Production shell generation uses the stable `/settings` mask path.
+- **Chat memoization correctness.** `MessageItem` now compares `clarifyCard`, preventing stale clarification UI when every other memoized prop is unchanged.
+- **Duplicate streaming replies.** The realtime `message` → `done` handoff now reuses the current assistant row instead of injecting a second live placeholder with identical text and activity.
+- **Session feed filtering.** Restored one clear owner for source/state/search/date filtering and sorting, so sidebar source counts use the complete merged feed.
+- **Retro Office navigation.** Preserved the full gym inventory and collision behavior while spacing workout targets around a reachable aisle.
+- **Profile update validation.** Preserved initial profile-tier assignment while rejecting later tier mutation and protected-field updates with the correct client error.
+- **Test baseline.** Repaired stale expectations, malformed test syntax, JSDOM scrolling behavior, and navigation/filtering regressions.
+
+### Changed
+
+- Cleared the remaining ESLint errors and warnings without adding dependencies or broad abstractions.
+- CI lint is now a required gate; failures are no longer hidden by `continue-on-error` or a shell fallback.
+
+### Internal
+
+- `pnpm lint`: 0 errors, 0 warnings.
+- `pnpm test`: 209 files passed; 1,817 tests passed, 2 skipped.
+- `pnpm exec vite build`: passed and emitted `dist/client/_shell.html` plus the server bundle.
+- Closed completed tracking issues #186, #222, #297, and #298.
+
 ## [2.5.1] — 2026-07-08
 
 Patch release focused on crash hardening and compatibility fallbacks. Fixes several UI crashes caused by partial async state during chat, Matrix3D/Retro Office, and Conductor renders, and improves the Board Templates fallback when the connected Hermes Agent no longer exposes the upstream Kanban templates API.
