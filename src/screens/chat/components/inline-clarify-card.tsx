@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useChatStore } from '../../../stores/chat-store'
 import type { PendingClarify } from '../../../stores/chat-store'
 import type { ChatMessage } from '../types'
 import { cn } from '@/lib/utils'
+import { normalizeClarifyChoices } from '@/lib/clarify-choices'
 
 type InlineClarifyCardProps = {
   clarify: PendingClarify
@@ -73,7 +74,7 @@ export function interactionReceiptToPendingClarify(
     kind: receipt.kind || (receipt.approved !== undefined ? 'approval' : 'choice'),
     toolName: receipt.tool_name || receipt.toolName || 'clarify',
     question,
-    choices: Array.isArray(receipt.choices) ? receipt.choices : null,
+    choices: normalizeClarifyChoices(receipt.choices),
     runId: receipt.run_id || receipt.runId || null,
     requestedAt: Date.now(),
     resolved: true,
@@ -107,8 +108,11 @@ export function InlineClarifyCard({
   sessionKey,
 }: InlineClarifyCardProps) {
   const markClarifyResolved = useChatStore((s) => s.markClarifyResolved)
+  const [selectedChoice, setSelectedChoice] = useState('')
   const [freeText, setFreeText] = useState('')
+  const [showOther, setShowOther] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const submittingRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
 
   const resolved = !!clarify.resolved
@@ -116,11 +120,12 @@ export function InlineClarifyCard({
 
   const submit = async (answer: string) => {
     const trimmed = answer.trim()
-    if (submitting || resolved || !trimmed) return
+    if (submittingRef.current || resolved || !trimmed) return
 
     // Optimistically record the chosen answer so the UI does not fall back to a
     // raw object/error state if the gateway resume request times out server-side.
     markClarifyResolved(sessionKey, clarify.clarifyId, trimmed)
+    submittingRef.current = true
     setSubmitting(true)
     setError(null)
 
@@ -147,6 +152,7 @@ export function InlineClarifyCard({
       // Keep the selected receipt visible; show a readable diagnostic only.
       setError(formatClarifyError(err))
     } finally {
+      submittingRef.current = false
       setSubmitting(false)
     }
   }
@@ -200,8 +206,18 @@ export function InlineClarifyCard({
               key={choice}
               type="button"
               disabled={submitting}
-              onClick={() => void submit(choice)}
-              className="flex min-h-10 w-full items-start gap-2 rounded-md border border-[color-mix(in_srgb,var(--theme-accent)_55%,transparent)] bg-[color-mix(in_srgb,var(--theme-accent)_8%,transparent)] px-3 py-2 text-left text-[12px] font-semibold leading-snug text-[var(--theme-text)] transition-colors hover:border-[var(--theme-accent)] hover:bg-[color-mix(in_srgb,var(--theme-accent)_16%,transparent)] disabled:opacity-50"
+              aria-pressed={selectedChoice === choice}
+              onClick={() => {
+                setSelectedChoice(choice)
+                setShowOther(false)
+                setFreeText('')
+              }}
+              className={cn(
+                'flex min-h-10 w-full items-start gap-2 rounded-md border px-3 py-2 text-left text-[12px] font-semibold leading-snug text-[var(--theme-text)] transition-colors hover:border-[var(--theme-accent)] disabled:opacity-50',
+                selectedChoice === choice
+                  ? 'border-[var(--theme-accent)] bg-[color-mix(in_srgb,var(--theme-accent)_20%,transparent)] shadow-[inset_3px_0_0_var(--theme-accent)]'
+                  : 'border-[color-mix(in_srgb,var(--theme-accent)_55%,transparent)] bg-[color-mix(in_srgb,var(--theme-accent)_8%,transparent)] hover:bg-[color-mix(in_srgb,var(--theme-accent)_16%,transparent)]',
+              )}
             >
               <span className="flex size-5 shrink-0 items-center justify-center rounded border border-[color-mix(in_srgb,var(--theme-accent)_60%,transparent)] font-mono text-[10px] text-[var(--theme-accent)]">
                 {index + 1}
@@ -211,6 +227,22 @@ export function InlineClarifyCard({
               </span>
             </button>
           ))}
+          <button
+            type="button"
+            disabled={submitting}
+            aria-expanded={showOther}
+            aria-pressed={showOther}
+            onClick={() => {
+              setSelectedChoice('')
+              setShowOther(true)
+            }}
+            className="flex min-h-10 w-full items-start gap-2 rounded-md border border-[color-mix(in_srgb,var(--theme-accent)_55%,transparent)] bg-[color-mix(in_srgb,var(--theme-accent)_8%,transparent)] px-3 py-2 text-left text-[12px] font-semibold leading-snug text-[var(--theme-text)] transition-colors hover:border-[var(--theme-accent)] hover:bg-[color-mix(in_srgb,var(--theme-accent)_16%,transparent)] disabled:opacity-50"
+          >
+            <span className="flex size-5 shrink-0 items-center justify-center rounded border border-[color-mix(in_srgb,var(--theme-accent)_60%,transparent)] font-mono text-[10px] text-[var(--theme-accent)]">
+              {clarify.choices.length + 1}
+            </span>
+            <span>Other</span>
+          </button>
         </div>
       ) : null}
 
@@ -218,23 +250,25 @@ export function InlineClarifyCard({
         className="mt-3 flex items-center gap-2"
         onSubmit={(e) => {
           e.preventDefault()
-          void submit(freeText)
+          void submit(showOther || !clarify.choices?.length ? freeText : selectedChoice)
         }}
       >
-        <input
+        {(!clarify.choices?.length || showOther) ? <input
           type="text"
-          placeholder="Type your answer…"
+          placeholder={clarify.choices?.length ? 'Type another answer…' : 'Type your answer…'}
+          aria-label="Clarification answer"
+          autoFocus={showOther}
           value={freeText}
           disabled={submitting}
           onChange={(e) => setFreeText(e.target.value)}
           className="min-w-0 flex-1 rounded-md border border-[color-mix(in_srgb,var(--theme-accent)_30%,transparent)] bg-[color-mix(in_srgb,var(--theme-bg)_72%,transparent)] px-2.5 py-1.5 text-[12px] text-[var(--theme-text)] placeholder:text-[color-mix(in_srgb,var(--theme-muted)_70%,transparent)] focus:border-[var(--theme-accent)] focus:outline-none focus:ring-1 focus:ring-[color-mix(in_srgb,var(--theme-accent)_55%,transparent)] disabled:opacity-50"
-        />
+        /> : <span className="min-w-0 flex-1 text-[11px] text-[var(--theme-muted)]">Select an option to continue</span>}
         <button
           type="submit"
-          disabled={submitting || !freeText.trim()}
+          disabled={submitting || !(showOther || !clarify.choices?.length ? freeText.trim() : selectedChoice)}
           className="rounded-md bg-[var(--theme-accent)] px-3 py-1.5 text-[11px] font-semibold text-[var(--theme-bg)] transition-opacity hover:opacity-85 disabled:opacity-50"
         >
-          {submitting ? 'Sending…' : 'Send'}
+          {submitting ? 'Sending…' : 'Continue'}
         </button>
       </form>
 

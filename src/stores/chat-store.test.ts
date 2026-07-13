@@ -525,6 +525,35 @@ describe('debounced streaming persist (issue #221 part 2/3)', () => {
   })
 })
 
+describe('pending clarify deduplication', () => {
+  it('preserves richer fields when a duplicate event omits them', () => {
+    const processEvent = useChatStore.getState().processEvent
+    processEvent({
+      type: 'clarify',
+      clarifyId: 'clarify-1',
+      interactionId: 'clarify-1',
+      sessionKey: 'session-1',
+      question: 'Choose a deployment',
+      choices: ['Staging', 'Production'],
+      kind: 'choice',
+    })
+    processEvent({
+      type: 'interaction',
+      clarifyId: 'clarify-1',
+      interactionId: 'clarify-1',
+      sessionKey: 'session-1',
+      question: 'Choose a deployment',
+      choices: null,
+    })
+
+    expect(useChatStore.getState().pendingClarify['session-1']).toMatchObject({
+      question: 'Choose a deployment',
+      choices: ['Staging', 'Production'],
+      kind: 'choice',
+    })
+  })
+})
+
 describe('isInternalSystemMessage (issue #221 part 4)', () => {
   it('matches every entry from the chat-store filter list', () => {
     expect(

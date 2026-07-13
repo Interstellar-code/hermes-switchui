@@ -1113,17 +1113,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 (c): c is string => typeof c === 'string' && c.length > 0,
               )
             : null
+        const current = state.pendingClarify[sessionKey]
+        const eventId = event.clarifyId || event.interactionId || ''
+        const sameInteraction = Boolean(
+          current &&
+          eventId &&
+          (current.clarifyId === eventId || current.interactionId === eventId),
+        )
         set({
           pendingClarify: {
             ...state.pendingClarify,
             [sessionKey]: {
-              clarifyId: event.clarifyId || event.interactionId || '',
-              interactionId: event.interactionId || event.clarifyId || undefined,
-              messageId: event.messageId,
-              kind: event.kind,
-              toolName: event.toolName || 'clarify',
-              question,
-              choices,
+              clarifyId: event.clarifyId || event.interactionId || current?.clarifyId || '',
+              interactionId: event.interactionId || event.clarifyId || current?.interactionId,
+              messageId: event.messageId || (sameInteraction ? current?.messageId : undefined),
+              kind: event.kind || (sameInteraction ? current?.kind : undefined),
+              toolName: event.toolName || (sameInteraction ? current?.toolName : undefined) || 'clarify',
+              question: question || (sameInteraction ? current?.question : ''),
+              choices: choices ?? (sameInteraction ? current?.choices ?? null : null),
               runId: event.runId ?? null,
               requestedAt: now,
             },

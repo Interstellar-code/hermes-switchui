@@ -49,6 +49,7 @@ import {
   createSyntheticLiveToolTracker,
 } from './-send-stream-live-tools'
 import type {OpenAICompatContentPart, OpenAICompatMessage} from '../../server/openai-compat-api';
+import { normalizeClarifyChoices } from '@/lib/clarify-choices'
 // Claude agent runs can take 5+ minutes with complex tool chains
 const SEND_STREAM_RUN_TIMEOUT_MS = 600_000
 const SESSION_BOOTSTRAP_KEYS = new Set(['main', 'new'])
@@ -1319,9 +1320,7 @@ export const Route = createFileRoute('/api/send-stream')({
                         toolName: readString(d.tool_name) || undefined,
                         messageId: readString(d.message_id) || undefined,
                         question: readString(d.question) || '',
-                        choices: Array.isArray(d.choices)
-                          ? (d.choices as Array<string>)
-                          : null,
+                        choices: normalizeClarifyChoices(d.choices),
                         sessionKey: sessionKeyFromEvent,
                         runId,
                       }
