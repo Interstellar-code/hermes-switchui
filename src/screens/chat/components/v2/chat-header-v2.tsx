@@ -34,9 +34,17 @@ function ChatHeaderV2Component({
       {/* Left: source prefix + title */}
       <div className="flex items-center gap-1.5 min-w-0 flex-1">
         <span
-          className="m-label m-label-accent shrink-0"
+          className="m-chip flex items-center rounded-full px-2 py-0.5 shrink-0"
+          style={{
+            background:
+              'color-mix(in srgb, var(--m-green-400, var(--theme-accent)) 18%, transparent)',
+            color: 'var(--m-green-400, var(--theme-accent))',
+            border: '1px solid var(--m-green-400, var(--theme-accent))',
+            boxShadow:
+              '0 0 6px color-mix(in srgb, var(--m-green-400, var(--theme-accent)) 40%, transparent)',
+          }}
         >
-          [CHAT]
+          CHAT
         </span>
         <span
           className="truncate text-sm font-medium"
