@@ -18,9 +18,6 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-// ponytail: DelegationDetailModal is always mounted (it self-guards on
-// childSessionId), so the messages hook is always called — give every test a
-// safe default even when the modal isn't opened.
 beforeEach(() => {
   useDelegationMessagesMock.mockReturnValue({ messages: [], isLoading: false, error: null })
 })
@@ -77,7 +74,7 @@ describe('DelegationTabView', () => {
     expect(container.textContent).toMatch(/running/)
   })
 
-  it('opens the shared drill-in modal when a card is clicked', () => {
+  it('expands delegation activity inline when a card is clicked', () => {
     useDelegationsMock.mockReturnValue({
       delegations: [
         {
@@ -97,13 +94,13 @@ describe('DelegationTabView', () => {
     useDelegationMessagesMock.mockReturnValue({ messages: [], isLoading: false, error: null })
 
     const container = renderInto(<DelegationTabView sessionKey="s1" />)
-    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(container.textContent).not.toContain('No activity recorded.')
 
     act(() => {
       fireEvent.click(container.querySelector('button')!)
     })
 
-    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull()
+    expect(container.textContent).toContain('No activity recorded.')
     expect(useDelegationMessagesMock).toHaveBeenLastCalledWith('child-1')
   })
 })

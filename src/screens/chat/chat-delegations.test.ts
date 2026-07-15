@@ -39,7 +39,7 @@ describe('delegationToEntry', () => {
 })
 
 describe('getVisibleChatDelegations', () => {
-  it('hides completed and failed delegations regardless of recency', () => {
+  it('hides completed and failed delegations from the active strip', () => {
     const now = 1_700_000_200_000
     const entries = [
       delegationToEntry(

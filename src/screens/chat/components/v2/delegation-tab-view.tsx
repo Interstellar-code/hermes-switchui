@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useDelegations } from '../../hooks/use-delegations'
-import { DelegationDetailModal } from './delegation-detail-modal'
+import { useDelegationMessages, useDelegations } from '../../hooks/use-delegations'
+import { ToolTabView } from './chat-tab-views-v2'
 import type { Delegation, DelegationStatus } from '../../../../server/delegations'
 
 type DelegationTabViewProps = {
@@ -37,18 +37,21 @@ function statusColor(status: DelegationStatus): string {
  * shared with the docked delegations strip) instead of an inline transcript. */
 function DelegationCard({
   delegation,
-  onOpen,
+  open,
+  onToggle,
 }: {
   delegation: Delegation
-  onOpen: () => void
+  open: boolean
+  onToggle: () => void
 }) {
   const color = statusColor(delegation.status)
+  const detail = useDelegationMessages(open ? delegation.childSessionId : null)
 
   return (
     <div className="rounded border overflow-hidden" style={cardStyle}>
       <button
         type="button"
-        onClick={onOpen}
+        onClick={onToggle}
         className="flex w-full items-center gap-2 px-3 py-2 text-left font-mono text-xs"
         style={{ cursor: 'pointer', background: 'transparent', border: 'none' }}
       >
@@ -81,6 +84,14 @@ function DelegationCard({
           {delegation.status}
         </span>
       </button>
+      {open ? (
+        <div className="border-t p-2" style={{ borderColor: 'var(--m-border, var(--theme-border))' }}>
+          {detail.isLoading ? <p className="p-2 opacity-40">Loading activity…</p> : null}
+          {detail.error ? <p className="p-2" style={{ color: 'var(--theme-danger, #ef4444)' }}>{detail.error}</p> : null}
+          {!detail.isLoading && !detail.error && detail.messages.length === 0 ? <p className="p-2 opacity-40">No activity recorded.</p> : null}
+          {!detail.isLoading && !detail.error && detail.messages.length > 0 ? <ToolTabView messages={detail.messages} /> : null}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -111,15 +122,12 @@ export function DelegationTabView({ sessionKey }: DelegationTabViewProps) {
             <DelegationCard
               key={delegation.childSessionId}
               delegation={delegation}
-              onOpen={() => setOpenChildSessionId(delegation.childSessionId)}
+              open={openChildSessionId === delegation.childSessionId}
+              onToggle={() => setOpenChildSessionId((current) => current === delegation.childSessionId ? null : delegation.childSessionId)}
             />
           ))}
         </div>
       )}
-      <DelegationDetailModal
-        childSessionId={openChildSessionId}
-        onClose={() => setOpenChildSessionId(null)}
-      />
     </div>
   )
 }

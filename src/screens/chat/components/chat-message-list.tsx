@@ -1529,7 +1529,7 @@ function ChatMessageListComponent({
         !hasStreamingActivity
       return (
         <div
-          key={stableId}
+          key={LIVE_STREAM_KEY}
           style={{
             display: isEmptyPlaceholder ? 'none' : undefined,
             opacity: isEmptyPlaceholder ? 0 : 1,
@@ -2042,7 +2042,7 @@ function ChatMessageListComponent({
                     }
                     return messageIsStreaming ? (
                       <StreamingMessageItem
-                        key={stableId}
+                        key={LIVE_STREAM_KEY}
                         {...sharedItemProps}
                       />
                     ) : (
@@ -2208,6 +2208,16 @@ function getToolGroupClass(
   if (previousUserIndex === -1 || nextUserIndex === -1) return ''
   return 'border-l border-primary-200/70 pl-3'
 }
+
+// Constant key for the single live streaming bubble. The underlying message
+// identity swaps mid-run — synthetic `streaming-current` placeholder ⇄ the real
+// assistant row the gateway republishes after each tool/code-execution round —
+// so keying the wrapper by its per-message stableId remounts the bubble every
+// round, resetting MessageItem's reveal state and re-typing the whole answer
+// from scratch (the "streams in a loop while execute code runs" bug). A stable
+// key keeps the one live bubble mounted for the stream's lifetime; it flips to
+// the real stableId only once, when the message settles.
+const LIVE_STREAM_KEY = '__live_stream__'
 
 function getStableMessageId(message: ChatMessage, index: number): string {
   if (message.__optimisticId) return message.__optimisticId

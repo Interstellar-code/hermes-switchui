@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { fireEvent } from '@testing-library/dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ChatDelegations } from './chat-delegations-strip'
 import type { ChatDelegationEntry } from '../../chat-delegations'
 
@@ -15,7 +16,9 @@ function renderInto(ui: React.ReactElement): HTMLElement {
   const container = document.createElement('div')
   document.body.appendChild(container)
   act(() => {
-    createRoot(container).render(ui)
+    createRoot(container).render(
+      <QueryClientProvider client={new QueryClient()}>{ui}</QueryClientProvider>,
+    )
   })
   return container
 }
@@ -43,21 +46,24 @@ describe('ChatDelegations strip', () => {
     expect(container.innerHTML).toBe('')
   })
 
-  it('renders only running cards with the goal and model', () => {
+  it('renders only running cards with agent, status, goal, model, tokens, and session', () => {
     const container = renderInto(
       <ChatDelegations
         delegations={[
-          entry({ label: 'gpt-5.4' }),
+          entry({ agentName: 'leaf', label: 'gpt-5.4', tokenCount: 3200 }),
           entry({ id: 'e2', task: 'Already done', status: 'completed', endedAt: Date.now() }),
         ]}
       />,
     )
     expect(container.textContent).toContain('Sub-agent delegations')
-    expect(container.textContent).toContain('1 active')
+    expect(container.textContent).toContain('1 visible')
     expect(container.textContent).toContain('Do the thing')
+    expect(container.textContent).toContain('leaf')
+    expect(container.textContent).toContain('running')
     expect(container.textContent).toContain('gpt-5.4')
+    expect(container.textContent).toContain('3,200 tokens')
+    expect(container.textContent).toContain('session child-1')
     expect(container.textContent).not.toContain('Already done')
-    expect(container.textContent).not.toContain('sub-agent')
   })
 
   it('calls onOpenDelegation when a card with a child session key is clicked', () => {

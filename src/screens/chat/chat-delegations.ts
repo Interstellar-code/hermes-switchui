@@ -1,5 +1,6 @@
 import { extractToolEntries } from './components/v2/chat-tab-views-v2'
 import type { Delegation } from '../../server/delegations'
+import type { StreamingDelegation } from '../../stores/chat-store'
 import type { ChatMessage } from './types'
 
 export type ChatDelegationStatus = 'spawned' | 'running' | 'completed' | 'failed'
@@ -20,6 +21,32 @@ export type ChatDelegationEntry = {
   elapsedMs: number
   tokenCount: number
   error: string | null
+  parentId?: string
+  depth?: number
+  latestActivity?: string
+  toolCount?: number
+}
+
+export function streamingDelegationToEntry(event: StreamingDelegation): ChatDelegationEntry {
+  const completed = event.kind === 'complete' || event.status === 'completed'
+  const failed = event.status === 'failed' || event.status === 'error'
+  return {
+    id: event.subagentId,
+    childSessionKey: event.childSessionId ?? '',
+    agentName: event.subagentId,
+    label: event.model ?? null,
+    task: event.goal ? truncate(event.goal, 140) : null,
+    status: failed ? 'failed' : completed ? 'completed' : event.kind === 'start' ? 'spawned' : 'running',
+    startedAt: event.firstSeenAt,
+    endedAt: completed || failed ? event.lastSeenAt : null,
+    elapsedMs: event.durationMs ?? Math.max(0, event.lastSeenAt - event.firstSeenAt),
+    tokenCount: event.tokenCount ?? 0,
+    error: failed ? event.summary ?? 'Delegation failed' : null,
+    parentId: event.parentId,
+    depth: event.depth,
+    latestActivity: event.text ?? event.summary,
+    toolCount: event.toolCount,
+  }
 }
 
 function stripInternalContext(text: string): string {
@@ -243,16 +270,20 @@ function hasBackendEntryForTool(
 export function mergeChatDelegations(input: {
   delegations: Array<Delegation>
   toolCalls: Array<ChatDelegationToolCall>
+  streamingDelegations?: Array<StreamingDelegation>
   now?: number
 }): Array<ChatDelegationEntry> {
   const now = input.now ?? Date.now()
   const sessionEntries = input.delegations.map((d) => delegationToEntry(d, now))
+  const eventEntries = (input.streamingDelegations ?? []).map(streamingDelegationToEntry)
   const toolEntries = buildToolCallChatDelegations({
     toolCalls: input.toolCalls,
-    existingDelegations: sessionEntries,
+    existingDelegations: [...eventEntries, ...sessionEntries],
     now,
   })
-  return [...toolEntries, ...sessionEntries].sort((a, b) => b.startedAt - a.startedAt)
+  const eventSessionIds = new Set(eventEntries.map((e) => e.childSessionKey).filter(Boolean))
+  const unmatchedSessions = sessionEntries.filter((e) => !eventSessionIds.has(e.childSessionKey))
+  return [...eventEntries, ...toolEntries, ...unmatchedSessions].sort((a, b) => b.startedAt - a.startedAt)
 }
 
 export function getVisibleChatDelegations(

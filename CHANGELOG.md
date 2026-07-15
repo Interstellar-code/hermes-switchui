@@ -3,6 +3,18 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.4] — 2026-07-15
+
+Chat streaming fix plus the sub-agent delegations tab and live delegation strip (#331).
+
+### Fixed
+
+- **Streaming bubble re-typed the whole answer on every tool round.** The live streaming message was keyed by its per-message stable id, but that id swaps mid-run between the synthetic `streaming-current` placeholder and the real assistant row the gateway republishes after each tool/code-execution round. Each swap remounted the bubble and reset its reveal state, replaying the full response from scratch ("streams in a loop while execute code runs"). The single live bubble now uses a constant key for the stream's lifetime and only settles to its real id once complete.
+
+### Added
+
+- **Delegations tab and live delegation strip (#331).** Historical sub-agent delegations per session, plus a docked live strip above the composer showing in-flight sub-agent runs with dedup.
+
 ## [2.5.3] — 2026-07-13
 
 Stability and release-quality patch: restores a fully green test/lint baseline, fixes dashboard fallback and SSE response handling, removes an unused SSR stream lifecycle, and closes the remaining chat memoization gap.

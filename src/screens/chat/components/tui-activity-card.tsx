@@ -213,8 +213,9 @@ function ToolRow({
         type="button"
         onClick={() => canExpand && setOpen((v) => !v)}
         className={cn(
-          'group flex w-full items-baseline gap-2 px-3 py-1.5 text-left rounded-sm',
-          canExpand && 'hover:bg-[color-mix(in_srgb,var(--theme-accent)_8%,transparent)]',
+          'group flex w-full items-baseline gap-2 rounded-md border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-accent)]',
+          'border-[color-mix(in_srgb,var(--theme-border)_82%,transparent)] bg-[color-mix(in_srgb,var(--theme-card)_72%,transparent)]',
+          canExpand && 'hover:border-[color-mix(in_srgb,var(--theme-accent)_55%,var(--theme-border))] hover:bg-[color-mix(in_srgb,var(--theme-accent)_10%,var(--theme-card))]',
           !canExpand && 'cursor-default',
         )}
       >
@@ -500,7 +501,7 @@ function TuiActivityCardComponent({
           />
         ) : null}
       </div>
-      <div className="flex flex-col gap-1.5 px-2 py-3">
+      <div className="flex flex-col gap-2 px-2 py-3">
         {hasThinking ? (
           <ThinkingRow
             thinking={thinking}

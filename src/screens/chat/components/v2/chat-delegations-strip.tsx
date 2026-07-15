@@ -3,6 +3,8 @@ import {
   formatDelegationElapsed,
   getVisibleChatDelegations,
 } from '../../chat-delegations'
+import { useDelegationMessages } from '../../hooks/use-delegations'
+import { ToolTabView } from './chat-tab-views-v2'
 import type {
   ChatDelegationEntry,
   ChatDelegationStatus,
@@ -56,6 +58,11 @@ function DelegationCard({
       ? Math.max(0, now - entry.startedAt)
       : entry.elapsedMs
   const clickable = Boolean(onOpen && entry.childSessionKey)
+  const agentLabel = entry.agentName || 'sub-agent'
+  const tokenLabel = entry.tokenCount > 0 ? `${entry.tokenCount.toLocaleString()} tokens` : null
+  const sessionLabel = entry.childSessionKey
+    ? `${entry.childSessionKey.slice(0, 8)}${entry.childSessionKey.length > 8 ? '…' : ''}`
+    : null
 
   return (
     <div
@@ -78,9 +85,16 @@ function DelegationCard({
     >
       <div className="flex min-w-0 items-center gap-2">
         <StatusDot status={entry.status} />
-        <span className="min-w-0 flex-1 truncate font-medium">
-          {entry.task || 'Delegate task'}
+        <span className="shrink-0 font-semibold capitalize">
+          {agentLabel.replace(/[_-]+/g, ' ')}
         </span>
+        <span
+          className="shrink-0 font-mono text-[10px] uppercase tracking-wide"
+          style={{ color: statusColor[entry.status] }}
+        >
+          {entry.status}
+        </span>
+        <span className="flex-1" />
         {entry.label ? (
           <span
             className="max-w-40 shrink-0 truncate rounded border px-1.5 py-0.5 font-mono text-[10px]"
@@ -99,6 +113,42 @@ function DelegationCard({
           {formatDelegationElapsed(elapsed)}
         </span>
       </div>
+      <div className="truncate pl-4 font-medium" title={entry.task || undefined}>
+        {entry.task || 'Delegate task'}
+      </div>
+      {entry.latestActivity ? (
+        <div className="truncate pl-4 font-mono text-[10px] opacity-70" title={entry.latestActivity}>
+          {entry.toolCount ? `${entry.toolCount} tools · ` : ''}{entry.latestActivity}
+        </div>
+      ) : null}
+      {tokenLabel || sessionLabel || entry.error ? (
+        <div
+          className="flex min-w-0 items-center gap-2 pl-4 font-mono text-[10px]"
+          style={{ color: entry.error ? 'var(--theme-danger, #ef4444)' : 'var(--m-muted, var(--theme-muted))' }}
+        >
+          {tokenLabel ? <span>{tokenLabel}</span> : null}
+          {tokenLabel && sessionLabel ? <span aria-hidden>·</span> : null}
+          {sessionLabel ? <span title={entry.childSessionKey}>session {sessionLabel}</span> : null}
+          {entry.error ? <span className="truncate">{entry.error}</span> : null}
+          {clickable ? <span className="ml-auto shrink-0">Open ›</span> : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function DelegationActivity({ childSessionKey, onClose }: { childSessionKey: string; onClose: () => void }) {
+  const detail = useDelegationMessages(childSessionKey)
+  return (
+    <div className="rounded-md border p-2" style={{ borderColor: 'var(--m-border, var(--theme-border))', background: 'var(--m-surface-2, var(--theme-card2, var(--theme-card)))' }}>
+      <div className="mb-2 flex items-center justify-between px-1 font-mono text-[10px] uppercase tracking-wider" style={{ color: 'var(--m-muted, var(--theme-muted))' }}>
+        <span>Delegation activity</span>
+        <button type="button" onClick={onClose} className="opacity-60 hover:opacity-100" aria-label="Collapse delegation activity">✕</button>
+      </div>
+      {detail.isLoading ? <p className="px-1 py-2 font-mono text-[10px] opacity-50">Loading activity…</p> : null}
+      {detail.error ? <p className="px-1 py-2 font-mono text-[10px]" style={{ color: 'var(--theme-danger, #ef4444)' }}>{detail.error}</p> : null}
+      {!detail.isLoading && !detail.error && detail.messages.length === 0 ? <p className="px-1 py-2 font-mono text-[10px] opacity-50">No activity yet.</p> : null}
+      {!detail.isLoading && !detail.error && detail.messages.length > 0 ? <ToolTabView messages={detail.messages} /> : null}
     </div>
   )
 }
@@ -107,7 +157,11 @@ function DelegationCard({
  * sub-agent delegations (display-only: no cancel/resume/retry). */
 export function ChatDelegations({ delegations, onOpenDelegation }: ChatDelegationsProps) {
   const [collapsed, setCollapsed] = useState(false)
+  const [openChildSessionKey, setOpenChildSessionKey] = useState<string | null>(null)
   const visible = useMemo(() => getVisibleChatDelegations(delegations), [delegations])
+  const selected = visible.some((entry) => entry.childSessionKey === openChildSessionKey)
+    ? openChildSessionKey
+    : null
   if (visible.length === 0) return null
 
   return (
@@ -128,7 +182,7 @@ export function ChatDelegations({ delegations, onOpenDelegation }: ChatDelegatio
           <span>{collapsed ? '▶' : '▼'}</span>
           <span className="font-medium">Sub-agent delegations</span>
           <span className="ml-1" style={{ color: 'var(--theme-accent, #6366f1)' }}>
-            {visible.length} active
+            {visible.length} visible
           </span>
         </button>
 
@@ -139,12 +193,17 @@ export function ChatDelegations({ delegations, onOpenDelegation }: ChatDelegatio
                 key={entry.id}
                 entry={entry}
                 onOpen={
-                  onOpenDelegation && entry.childSessionKey
-                    ? () => onOpenDelegation(entry.childSessionKey)
+                  entry.childSessionKey
+                    ? () => {
+                        const next = selected === entry.childSessionKey ? null : entry.childSessionKey
+                        setOpenChildSessionKey(next)
+                        onOpenDelegation?.(next ?? entry.childSessionKey)
+                      }
                     : undefined
                 }
               />
             ))}
+            {selected ? <DelegationActivity childSessionKey={selected} onClose={() => setOpenChildSessionKey(null)} /> : null}
           </div>
         ) : null}
       </div>

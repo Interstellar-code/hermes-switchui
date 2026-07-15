@@ -146,6 +146,13 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
   const dismissUnresolvedClarify = useChatStore(
     (s) => s.dismissUnresolvedClarify,
   )
+  const finishClarifyRun = useCallback((sessionKey: string) => {
+    // Hermes can emit `done` while it is blocked waiting for a clarify answer.
+    // Keep that unanswered card mounted; `started` clears it when the answer
+    // resumes the run.
+    if (useChatStore.getState().getPendingClarify(sessionKey)) return
+    dismissUnresolvedClarify(sessionKey)
+  }, [dismissUnresolvedClarify])
   const recordCompaction = useContextUsageStore((s) => s.recordCompaction)
   const updateContextPercent = useContextUsageStore((s) => s.updateContextPercent)
 
@@ -611,6 +618,32 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
           onTool?.(payload)
           break
         }
+        case 'delegation': {
+          markActivity()
+          processStoreEvent({
+            type: 'delegation',
+            kind: typeof payload.kind === 'string' ? payload.kind : 'progress',
+            subagentId:
+              typeof payload.subagentId === 'string' ? payload.subagentId : '',
+            parentId: typeof payload.parentId === 'string' ? payload.parentId : undefined,
+            childSessionId:
+              typeof payload.childSessionId === 'string' ? payload.childSessionId : undefined,
+            depth: typeof payload.depth === 'number' ? payload.depth : undefined,
+            goal: typeof payload.goal === 'string' ? payload.goal : undefined,
+            model: typeof payload.model === 'string' ? payload.model : undefined,
+            status: typeof payload.status === 'string' ? payload.status : undefined,
+            toolName: typeof payload.toolName === 'string' ? payload.toolName : undefined,
+            text: typeof payload.text === 'string' ? payload.text : undefined,
+            summary: typeof payload.summary === 'string' ? payload.summary : undefined,
+            toolCount: typeof payload.toolCount === 'number' ? payload.toolCount : undefined,
+            tokenCount: typeof payload.tokenCount === 'number' ? payload.tokenCount : undefined,
+            durationMs: typeof payload.durationMs === 'number' ? payload.durationMs : undefined,
+            runId: activeRunIdRef.current ?? undefined,
+            sessionKey: activeSessionKeyRef.current,
+            transport: 'send-stream',
+          })
+          break
+        }
         case 'artifact': {
           markActivity()
           const title =
@@ -722,12 +755,12 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
             markFailed(errorMessage)
             break
           }
-          dismissUnresolvedClarify(activeSessionKeyRef.current)
+          finishClarifyRun(activeSessionKeyRef.current)
           finishStream(payload)
           break
         }
         case 'complete': {
-          dismissUnresolvedClarify(activeSessionKeyRef.current)
+          finishClarifyRun(activeSessionKeyRef.current)
           finishStream(payload)
           break
         }
@@ -844,6 +877,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
     [
       clearPendingClarify,
       dismissUnresolvedClarify,
+      finishClarifyRun,
       finishStream,
       markFailed,
       onStarted,

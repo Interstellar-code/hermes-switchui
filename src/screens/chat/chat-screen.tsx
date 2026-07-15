@@ -67,7 +67,6 @@ import { ChatSkillsTabV2 } from './components/v2/chat-skills-tab-v2'
 import { ToolTabView } from './components/v2/chat-tab-views-v2'
 import { DelegationTabView } from './components/v2/delegation-tab-view'
 import { ChatDelegations } from './components/v2/chat-delegations-strip'
-import { DelegationDetailModal } from './components/v2/delegation-detail-modal'
 import { extractDelegateTaskToolCalls, mergeChatDelegations } from './chat-delegations'
 import { useDelegations } from './hooks/use-delegations'
 import type {
@@ -77,6 +76,7 @@ import type {
 } from './components/chat-composer-types'
 import type { ChatAttachment, ChatMessage, SessionMeta } from './types'
 import type { AgentActivity } from '@/stores/chat-activity-store'
+import type { StreamingDelegation } from '@/stores/chat-store'
 
 import { cn } from '@/lib/utils'
 import { FileExplorerSidebar } from '@/components/file-explorer'
@@ -103,6 +103,8 @@ import { useChatMode } from '@/hooks/use-chat-mode'
 import {
   useChatActivityStore,
 } from '@/stores/chat-activity-store'
+
+const EMPTY_STREAMING_DELEGATIONS: Array<StreamingDelegation> = []
 
 type ChatScreenProps = {
   activeFriendlyId: string
@@ -463,15 +465,26 @@ export function ChatScreen({
   } = useToolDisplay({ realtimeMessages, activeToolCalls })
 
   const { delegations } = useDelegations(activeSessionKey || activeFriendlyId)
+  const sessionStreamingDelegations = useChatStore(
+    useCallback(
+      (s) =>
+        resolvedSessionKey
+          ? s.streamingState.get(resolvedSessionKey)?.delegations
+          : undefined,
+      [resolvedSessionKey],
+    ),
+  )
+  const streamingDelegations =
+    sessionStreamingDelegations ?? EMPTY_STREAMING_DELEGATIONS
   const mergedDelegations = useMemo(
     () =>
       mergeChatDelegations({
         delegations,
         toolCalls: extractDelegateTaskToolCalls(realtimeMessages, activeToolCalls),
+        streamingDelegations,
       }),
-    [delegations, activeToolCalls, realtimeMessages],
+    [delegations, activeToolCalls, realtimeMessages, streamingDelegations],
   )
-  const [openDelegationChildKey, setOpenDelegationChildKey] = useState<string | null>(null)
 
   useEffect(() => {
     if (!waitingForResponse) return
@@ -1348,14 +1361,9 @@ export function ChatScreen({
             />
             </StreamingTextContext.Provider>
           )}
-          <DelegationDetailModal
-            childSessionId={openDelegationChildKey}
-            onClose={() => setOpenDelegationChildKey(null)}
-          />
           {showComposer ? (
             <ChatDelegations
               delegations={mergedDelegations}
-              onOpenDelegation={setOpenDelegationChildKey}
             />
           ) : null}
           {showComposer ? (
