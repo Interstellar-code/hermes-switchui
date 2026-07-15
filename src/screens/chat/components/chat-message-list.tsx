@@ -10,7 +10,7 @@ import {
   getToolCallsFromMessage,
   textFromMessage,
 } from '../utils'
-import { MessageItem } from './message-item'
+import { MessageItem, withoutDelegateTaskToolSections } from './message-item'
 import { StreamingMessageItem } from './streaming-text-context'
 import { TuiActivityCard, attachClarifyCard } from './tui-activity-card'
 import {
@@ -1432,13 +1432,14 @@ function ChatMessageListComponent({
   const clarifyResolved = Boolean(clarifyCard)
 
   const clarifyToolCalls = useMemo(() => {
-    if (!clarifyReceiptCard) return normalizedStreamingToolCalls
+    const visibleToolCalls = withoutDelegateTaskToolSections(normalizedStreamingToolCalls)
+    if (!clarifyReceiptCard) return visibleToolCalls
 
     // While a Hermes clarify request is active, live activity may also contain
     // a low-information generic `tool` row. Drop that duplicate shell and attach
     // the clarify UI to the real clarify row, or synthesize exactly one clarify
     // row if the tool event has not arrived yet.
-    const meaningfulToolCalls = normalizedStreamingToolCalls.filter(
+    const meaningfulToolCalls = visibleToolCalls.filter(
       (tc) => tc.name.toLowerCase() !== 'tool',
     )
     return meaningfulToolCalls
@@ -1528,7 +1529,7 @@ function ChatMessageListComponent({
         !hasStreamingActivity
       return (
         <div
-          key={stableId}
+          key={LIVE_STREAM_KEY}
           style={{
             display: isEmptyPlaceholder ? 'none' : undefined,
             opacity: isEmptyPlaceholder ? 0 : 1,
@@ -2041,7 +2042,7 @@ function ChatMessageListComponent({
                     }
                     return messageIsStreaming ? (
                       <StreamingMessageItem
-                        key={stableId}
+                        key={LIVE_STREAM_KEY}
                         {...sharedItemProps}
                       />
                     ) : (
@@ -2207,6 +2208,16 @@ function getToolGroupClass(
   if (previousUserIndex === -1 || nextUserIndex === -1) return ''
   return 'border-l border-primary-200/70 pl-3'
 }
+
+// Constant key for the single live streaming bubble. The underlying message
+// identity swaps mid-run — synthetic `streaming-current` placeholder ⇄ the real
+// assistant row the gateway republishes after each tool/code-execution round —
+// so keying the wrapper by its per-message stableId remounts the bubble every
+// round, resetting MessageItem's reveal state and re-typing the whole answer
+// from scratch (the "streams in a loop while execute code runs" bug). A stable
+// key keeps the one live bubble mounted for the stream's lifetime; it flips to
+// the real stableId only once, when the message settles.
+const LIVE_STREAM_KEY = '__live_stream__'
 
 function getStableMessageId(message: ChatMessage, index: number): string {
   if (message.__optimisticId) return message.__optimisticId

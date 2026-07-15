@@ -4,8 +4,22 @@ import {
   buildInlineToolRenderPlan,
   compactInlineToolRenderPlan,
   detectAssistantCorruptionWarning,
+  withoutDelegateTaskToolSections,
 } from './message-item'
 import type { ChatMessage } from '../types'
+
+describe('withoutDelegateTaskToolSections', () => {
+  it('removes delegate_task before activity grouping and counting', () => {
+    expect(
+      withoutDelegateTaskToolSections([
+        { type: 'delegate_task', key: 'delegate' },
+        { type: 'read_file', key: 'read' },
+      ]),
+    ).toEqual([{ type: 'read_file', key: 'read' }])
+
+    expect(withoutDelegateTaskToolSections([{ type: 'delegate_task' }])).toEqual([])
+  })
+})
 
 describe('buildInlineToolRenderPlan', () => {
   it('preserves tool-call position from assistant content order', () => {

@@ -554,6 +554,26 @@ describe('pending clarify deduplication', () => {
   })
 })
 
+describe('delegation stream events', () => {
+  it('merges subagent progress by stable subagent id', () => {
+    const processEvent = useChatStore.getState().processEvent
+    processEvent({
+      type: 'delegation', kind: 'start', subagentId: 'sa-0-abc', goal: 'Inspect repo',
+      childSessionId: 'child-1', depth: 0, sessionKey: 'session-1',
+    })
+    processEvent({
+      type: 'delegation', kind: 'tool', subagentId: 'sa-0-abc', toolName: 'read_file',
+      text: 'Reading package.json', toolCount: 1, sessionKey: 'session-1',
+    })
+
+    expect(useChatStore.getState().streamingState.get('session-1')?.delegations).toHaveLength(1)
+    expect(useChatStore.getState().streamingState.get('session-1')?.delegations[0]).toMatchObject({
+      subagentId: 'sa-0-abc', goal: 'Inspect repo', childSessionId: 'child-1',
+      kind: 'tool', toolName: 'read_file', text: 'Reading package.json', toolCount: 1,
+    })
+  })
+})
+
 describe('isInternalSystemMessage (issue #221 part 4)', () => {
   it('matches every entry from the chat-store filter list', () => {
     expect(

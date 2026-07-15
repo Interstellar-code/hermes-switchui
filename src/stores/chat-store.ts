@@ -76,6 +76,26 @@ function cancelPersistStreamingState(sessionKey: string): void {
 
 export type ChatStreamEvent =
   | {
+      type: 'delegation'
+      kind: string
+      subagentId: string
+      parentId?: string
+      childSessionId?: string
+      depth?: number
+      goal?: string
+      model?: string
+      status?: string
+      toolName?: string
+      text?: string
+      summary?: string
+      toolCount?: number
+      tokenCount?: number
+      durationMs?: number
+      runId?: string
+      sessionKey: string
+      transport?: 'chat-events' | 'send-stream'
+    }
+  | {
       type: 'message'
       message: ChatMessage
       sessionKey: string
@@ -178,6 +198,12 @@ export type StreamingState = {
     isError: boolean
   }>
   toolCalls: Array<StreamingToolCall>
+  delegations: Array<StreamingDelegation>
+}
+
+export type StreamingDelegation = Extract<ChatStreamEvent, { type: 'delegation' }> & {
+  firstSeenAt: number
+  lastSeenAt: number
 }
 
 export type QueuedChatMessage = {
@@ -383,6 +409,7 @@ const createEmptyStreamingState = (): StreamingState => ({
   thinking: '',
   lifecycleEvents: [],
   toolCalls: [],
+  delegations: [],
 })
 
 export function restoreStreamingState(
@@ -1457,6 +1484,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
           toolCalls: nextToolCalls,
         }
 
+        streamingMap.set(sessionKey, next)
+        set({ streamingState: streamingMap, lastEventAt: now })
+        schedulePersistStreamingState(sessionKey, next)
+        break
+      }
+
+      case 'delegation': {
+        const streamingMap = new Map(state.streamingState)
+        const prev = streamingMap.get(sessionKey) ?? createEmptyStreamingState()
+        const index = prev.delegations.findIndex((d) => d.subagentId === event.subagentId)
+        const current = index >= 0 ? prev.delegations[index] : undefined
+        const delegation: StreamingDelegation = {
+          ...current,
+          ...event,
+          firstSeenAt: current?.firstSeenAt ?? now,
+          lastSeenAt: now,
+        }
+        const delegations = [...prev.delegations]
+        if (index >= 0) delegations[index] = delegation
+        else delegations.push(delegation)
+        const next = { ...prev, runId: event.runId ?? prev.runId, delegations }
         streamingMap.set(sessionKey, next)
         set({ streamingState: streamingMap, lastEventAt: now })
         schedulePersistStreamingState(sessionKey, next)

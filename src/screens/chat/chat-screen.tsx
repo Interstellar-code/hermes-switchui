@@ -65,6 +65,10 @@ import { ChatHeaderV2 } from './components/v2/chat-header-v2'
 import { ChatMetaBarV2 } from './components/v2/chat-meta-bar-v2'
 import { ChatSkillsTabV2 } from './components/v2/chat-skills-tab-v2'
 import { ToolTabView } from './components/v2/chat-tab-views-v2'
+import { DelegationTabView } from './components/v2/delegation-tab-view'
+import { ChatDelegations } from './components/v2/chat-delegations-strip'
+import { extractDelegateTaskToolCalls, mergeChatDelegations } from './chat-delegations'
+import { useDelegations } from './hooks/use-delegations'
 import type {
   ChatComposerAttachment,
   ChatComposerHandle,
@@ -72,6 +76,7 @@ import type {
 } from './components/chat-composer-types'
 import type { ChatAttachment, ChatMessage, SessionMeta } from './types'
 import type { AgentActivity } from '@/stores/chat-activity-store'
+import type { StreamingDelegation } from '@/stores/chat-store'
 
 import { cn } from '@/lib/utils'
 import { FileExplorerSidebar } from '@/components/file-explorer'
@@ -98,6 +103,8 @@ import { useChatMode } from '@/hooks/use-chat-mode'
 import {
   useChatActivityStore,
 } from '@/stores/chat-activity-store'
+
+const EMPTY_STREAMING_DELEGATIONS: Array<StreamingDelegation> = []
 
 type ChatScreenProps = {
   activeFriendlyId: string
@@ -456,6 +463,28 @@ export function ChatScreen({
     totalToolCount,
     totalSkillCount,
   } = useToolDisplay({ realtimeMessages, activeToolCalls })
+
+  const { delegations } = useDelegations(activeSessionKey || activeFriendlyId)
+  const sessionStreamingDelegations = useChatStore(
+    useCallback(
+      (s) =>
+        resolvedSessionKey
+          ? s.streamingState.get(resolvedSessionKey)?.delegations
+          : undefined,
+      [resolvedSessionKey],
+    ),
+  )
+  const streamingDelegations =
+    sessionStreamingDelegations ?? EMPTY_STREAMING_DELEGATIONS
+  const mergedDelegations = useMemo(
+    () =>
+      mergeChatDelegations({
+        delegations,
+        toolCalls: extractDelegateTaskToolCalls(realtimeMessages, activeToolCalls),
+        streamingDelegations,
+      }),
+    [delegations, activeToolCalls, realtimeMessages, streamingDelegations],
+  )
 
   useEffect(() => {
     if (!waitingForResponse) return
@@ -1205,6 +1234,7 @@ export function ChatScreen({
                   chat: finalDisplayMessages.length,
                   tool: totalToolCount,
                   skills: totalSkillCount,
+                  delegations: delegations.length,
                 }}
               />
               <ChatMetaBarV2
@@ -1243,6 +1273,8 @@ export function ChatScreen({
               streamingToolCalls={activeToolCalls}
               events={realtimeLifecycleEvents}
             />
+          ) : activeTab === 'delegations' ? (
+            <DelegationTabView sessionKey={activeSessionKey || activeFriendlyId} />
           ) : null}
           {hideUi || activeTab !== 'chat' ? null : (
             <StreamingTextContext.Provider
@@ -1329,6 +1361,11 @@ export function ChatScreen({
             />
             </StreamingTextContext.Provider>
           )}
+          {showComposer ? (
+            <ChatDelegations
+              delegations={mergedDelegations}
+            />
+          ) : null}
           {showComposer ? (
             <ChatComposerShadcn
               onSubmit={send}

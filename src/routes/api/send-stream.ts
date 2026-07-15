@@ -1103,6 +1103,34 @@ export const Route = createFileRoute('/api/send-stream')({
                       return
                     }
 
+                    if (event.startsWith('subagent.')) {
+                      const subagentId = readString(data.subagent_id)
+                      if (!subagentId) return
+                      const kind = event.slice('subagent.'.length)
+                      const inputTokens = Number(data.input_tokens) || 0
+                      const outputTokens = Number(data.output_tokens) || 0
+                      const reasoningTokens = Number(data.reasoning_tokens) || 0
+                      sendEvent('delegation', {
+                        kind,
+                        subagentId,
+                        parentId: readString(data.parent_id) || undefined,
+                        childSessionId: readString(data.child_session_id) || undefined,
+                        depth: Number.isFinite(Number(data.depth)) ? Number(data.depth) : undefined,
+                        goal: readString(data.goal) || undefined,
+                        model: readString(data.model) || undefined,
+                        status: readString(data.status) || (kind === 'complete' ? 'completed' : 'running'),
+                        toolName: readString(data.tool_name) || undefined,
+                        text: readString(data.text) || readString(data.tool_preview) || undefined,
+                        summary: readString(data.summary) || readString(data.output_tail) || undefined,
+                        toolCount: Number.isFinite(Number(data.tool_count)) ? Number(data.tool_count) : undefined,
+                        tokenCount: inputTokens + outputTokens + reasoningTokens || undefined,
+                        durationMs: Number.isFinite(Number(data.duration_seconds)) ? Number(data.duration_seconds) * 1000 : undefined,
+                        sessionKey: sessionKeyFromEvent,
+                        runId,
+                      })
+                      return
+                    }
+
                     if (
                       event === 'tool.pending' ||
                       event === 'tool.started' ||
