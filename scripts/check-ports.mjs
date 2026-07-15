@@ -2,7 +2,7 @@
 /**
  * Pre-start port preflight for `pnpm start:all`.
  *
- * `concurrently` launches the gateway and the dev server together; if either
+ * `concurrently` launches the gateway, dashboard, and dev server together; if any
  * port is already bound, the failing process gets swallowed in the combined
  * output and the user is left with a half-working stack. Fail fast instead.
  *
@@ -22,9 +22,6 @@ const OWNED_PORTS = [
     port: Number(process.env.PORT) || 3000,
     envVar: 'PORT',
   },
-]
-
-const COMPANION_PORTS = [
   {
     label: 'Hermes dashboard',
     port:
@@ -33,6 +30,9 @@ const COMPANION_PORTS = [
       ) || 9119,
     envVar: 'HERMES_DASHBOARD_PORT',
   },
+]
+
+const COMPANION_PORTS = [
   {
     label: 'Hermes A2A fleet',
     port: Number(process.env.HERMES_A2A_PORT ?? process.env.A2A_PORT) || 9219,

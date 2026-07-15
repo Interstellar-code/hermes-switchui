@@ -104,7 +104,7 @@ The installer checks Node 22 / git / pnpm, installs `hermes-agent` via the Inter
 
 ```bash
 cd ~/hermes-switchui
-pnpm start:all                     # starts the gateway + UI together
+pnpm start:all                     # starts the gateway + dashboard + UI together
 ```
 
 Open http://localhost:3000. The first-run **onboarding wizard** (in the browser) walks you through picking a provider and entering your API key — no config files to hand-edit.
@@ -124,7 +124,7 @@ git clone https://github.com/Interstellar-code/hermes-switchui.git
 cd hermes-switchui
 cp .env.example .env
 pnpm install
-pnpm start:all                     # gateway + UI; or `pnpm dev` if the gateway runs elsewhere
+pnpm start:all                     # gateway + dashboard + UI; or `pnpm dev` if they run elsewhere
 ```
 
 Open http://localhost:3000 and complete onboarding. If you point Switch UI at a backend that exposes Hermes Agent gateway APIs, enhanced features (sessions, memory, skills, jobs) unlock automatically. Already running `hermes-agent`? See [Attach to existing `hermes-agent`](#already-running-hermes-agent-attach-switch-ui-to-it).

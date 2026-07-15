@@ -19,6 +19,8 @@ REPO_URL="${REPO_URL:-https://github.com/Interstellar-code/hermes-switchui.git}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/hermes-switchui}"
 GATEWAY_PORT="${GATEWAY_PORT:-8642}"
 HERMES_AGENT_INSTALLER_URL="${HERMES_AGENT_INSTALLER_URL:-https://raw.githubusercontent.com/Interstellar-code/hermes-agent/main/scripts/install.sh}"
+HERMES_AGENT_REPO="${HERMES_AGENT_REPO:-Interstellar-code/hermes-agent}"
+HERMES_AGENT_MIN_VERSION="${HERMES_AGENT_MIN_VERSION:-0.18.0}"
 
 # ─── helpers ──────────────────────────────────────────────────────────────
 
@@ -49,6 +51,28 @@ ensure_path() {
     *":$candidate:"*) ;;
     *) export PATH="$candidate:$PATH" ;;
   esac
+}
+
+is_interstellar_hermes() {
+  local project origin version
+  command -v hermes &>/dev/null || return 1
+  version="$(hermes --version 2>/dev/null | sed -n 's/^Hermes Agent v\([^ ]*\).*/\1/p' | head -1)"
+  project="$(hermes --version 2>/dev/null | sed -n 's/^Project: //p' | head -1)"
+  [[ -d "$project/.git" ]] || return 1
+  origin="$(git -C "$project" remote get-url origin 2>/dev/null || true)"
+  [[ "$origin" == *"$HERMES_AGENT_REPO"* ]] \
+    && node -e 'const [a,b]=process.argv.slice(1).map(v=>v.split(".").map(Number)); for(let i=0;i<3;i++){if(a[i]!==b[i])process.exit(a[i]>b[i]?0:1)}' "$version" "$HERMES_AGENT_MIN_VERSION" \
+    && hermes config env-path &>/dev/null \
+    && hermes dashboard --help &>/dev/null
+}
+
+repo_url_matches() {
+  local actual expected
+  actual="$(git -C "$1" remote get-url origin 2>/dev/null || true)"
+  expected="$REPO_URL"
+  actual="${actual%.git}"
+  expected="${expected%.git}"
+  [[ "${actual%/}" == "${expected%/}" ]]
 }
 
 ensure_env_key() {
@@ -149,42 +173,60 @@ cyan "→ Installing hermes-agent (Interstellar fork installer)…"
 ensure_path "$HOME/.hermes/bin"
 ensure_path "$HOME/.local/bin"
 
-if command -v hermes &>/dev/null; then
-  green "  hermes-agent already installed ✓ ($(command -v hermes))"
+if is_interstellar_hermes; then
+  green "  Interstellar hermes-agent already installed ✓ ($(hermes --version 2>/dev/null | head -1))"
 else
+  if command -v hermes &>/dev/null; then
+    yellow "  Existing 'hermes' is not a compatible Interstellar-code build — installing the required fork."
+  fi
   yellow "  Delegating to: $HERMES_AGENT_INSTALLER_URL"
-  if ! curl -fsSL "$HERMES_AGENT_INSTALLER_URL" | bash; then
+  HERMES_AGENT_INSTALLER="$(mktemp)"
+  trap 'rm -f "$HERMES_AGENT_INSTALLER"' EXIT
+  if ! curl -fsSL "$HERMES_AGENT_INSTALLER_URL" -o "$HERMES_AGENT_INSTALLER" \
+    || ! bash -n "$HERMES_AGENT_INSTALLER" \
+    || ! bash "$HERMES_AGENT_INSTALLER"; then
     red "  hermes-agent installer failed. See its output above for details."
-    red "  You can retry manually:"
-    red "    curl -fsSL $HERMES_AGENT_INSTALLER_URL | bash"
+    red "  Fix the reported problem, then re-run this installer."
     exit 1
   fi
+  rm -f "$HERMES_AGENT_INSTALLER"
+  trap - EXIT
   # The installer typically puts `hermes` in ~/.hermes/bin or ~/.local/bin
   ensure_path "$HOME/.hermes/bin"
   ensure_path "$HOME/.local/bin"
-  if ! command -v hermes &>/dev/null; then
-    red "  hermes-agent installed, but 'hermes' is not on PATH in this shell."
-    yellow "  Open a new shell (or: source ~/.bashrc / ~/.zshrc) and re-run:"
-    yellow "    curl -fsSL https://raw.githubusercontent.com/Interstellar-code/hermes-switchui/main/install.sh | bash"
+  if ! is_interstellar_hermes; then
+    red "  A compatible Interstellar-code hermes-agent was not found after installation."
+    yellow "  Required: $HERMES_AGENT_REPO v$HERMES_AGENT_MIN_VERSION or newer."
     exit 1
   fi
-  green "  hermes-agent installed ✓ ($(command -v hermes))"
+  green "  Interstellar hermes-agent installed ✓ ($(hermes --version 2>/dev/null | head -1))"
 fi
 
 # ─── clone workspace ──────────────────────────────────────────────────────
 
 cyan "→ Cloning hermes-switchui…"
+CHECKOUT_UPDATE_STATUS="fresh clone"
 if [[ -d "$INSTALL_DIR/.git" ]]; then
+  if ! repo_url_matches "$INSTALL_DIR"; then
+    red "  Existing checkout has a different origin: $INSTALL_DIR"
+    red "  Expected: $REPO_URL"
+    red "  Move it or set INSTALL_DIR to a separate path."
+    exit 1
+  fi
   # Re-run path: never let a pull abort the installer. Users edit .env (and
   # other files) in place, so the working tree is almost always dirty.
   if [[ -n "$(git -C "$INSTALL_DIR" status --porcelain 2>/dev/null)" ]]; then
+    CHECKOUT_UPDATE_STATUS="local changes; update skipped"
     yellow "  Local changes detected in $INSTALL_DIR — skipping update."
     yellow "  Commit/stash manually to update."
   else
     yellow "  $INSTALL_DIR exists; pulling latest"
     if ! git -C "$INSTALL_DIR" pull --ff-only; then
+      CHECKOUT_UPDATE_STATUS="diverged checkout; update failed"
       yellow "  Could not fast-forward $INSTALL_DIR (diverged?) — skipping update."
       yellow "  Reconcile manually (e.g. git pull) to update."
+    else
+      CHECKOUT_UPDATE_STATUS="updated"
     fi
   fi
 elif [[ -e "$INSTALL_DIR" ]]; then
@@ -195,7 +237,11 @@ else
   git clone "$REPO_URL" "$INSTALL_DIR"
 fi
 cd "$INSTALL_DIR"
-green "  Workspace ready at $INSTALL_DIR ✓"
+if [[ "$CHECKOUT_UPDATE_STATUS" == "fresh clone" || "$CHECKOUT_UPDATE_STATUS" == "updated" ]]; then
+  green "  Workspace ready at $INSTALL_DIR ✓ ($CHECKOUT_UPDATE_STATUS)"
+else
+  yellow "  Workspace ready at $INSTALL_DIR (using existing checkout: $CHECKOUT_UPDATE_STATUS)"
+fi
 
 # ─── env + install ────────────────────────────────────────────────────────
 
@@ -247,8 +293,8 @@ if [[ -f "$HERMES_ENV_PATH" ]]; then
   fi
 fi
 
-cyan "→ Installing npm deps (pnpm install)…"
-pnpm install --silent
+cyan "→ Installing npm deps (pnpm install --frozen-lockfile)…"
+pnpm install --frozen-lockfile --silent
 green "  deps installed ✓"
 
 # ─── seed Hermes skills (Conductor needs workspace-dispatch) ─────────────
@@ -274,11 +320,15 @@ bold ""
 bold "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 green "  ✓ Install complete!"
 bold "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if [[ "$CHECKOUT_UPDATE_STATUS" != "fresh clone" && "$CHECKOUT_UPDATE_STATUS" != "updated" ]]; then
+  yellow "  ⚠ Repository was not updated: $CHECKOUT_UPDATE_STATUS."
+  yellow "    Reconcile the checkout manually before relying on the latest release."
+fi
 cat <<EOF
 
   Installed to:   $INSTALL_DIR
 
-  Start everything (gateway + UI) with one command:
+  Start everything (gateway + dashboard + UI) with one command:
 
        cd $INSTALL_DIR
        pnpm start:all
@@ -316,9 +366,8 @@ echo ""
 
 # ─── backend reachability check ───────────────────────────────────────────
 # Probe both backends so the user knows BEFORE opening the UI whether the
-# dashboard (the rich-features backend) is up. The dashboard is not started
-# by this installer or by 'pnpm start:all' — its absence is the #1 reason
-# the app looks installed but half the features are dead.
+# dashboard (the rich-features backend) is up. 'pnpm start:all' now starts
+# the dashboard together with the gateway and UI.
 cyan "→ Checking backends…"
 gw_up=0; dash_up=0
 if command -v curl &>/dev/null; then

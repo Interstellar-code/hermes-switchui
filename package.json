@@ -5,6 +5,7 @@
   "author": "Interstellar Code (https://github.com/Interstellar-code)",
   "license": "MIT",
   "private": true,
+  "packageManager": "pnpm@10.28.2",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -12,7 +13,7 @@
     "build:website": "if [ -d website ]; then PUBLIC_SITE_VERSION=$(node -p \"require('./package.json').version\") && cd website && npm install && SITE_BASE=/website PUBLIC_SITE_VERSION=$PUBLIC_SITE_VERSION npm run build; else echo 'website/ not present (excluded from Docker context) — skipping marketing site build'; fi",
     "build": "pnpm build:website && vite build",
     "prestart:all": "node scripts/check-ports.mjs",
-    "start:all": "concurrently \"hermes gateway run\" \"pnpm dev\"",
+    "start:all": "concurrently --kill-others \"hermes gateway run\" \"hermes dashboard --no-open --skip-build\" \"pnpm dev\"",
     "start": "NODE_OPTIONS=\"--max-old-space-size=2048\" node .output/server/index.mjs",
     "start:dev": "rm -f src/routeTree.gen.ts && NODE_OPTIONS=\"--max-old-space-size=2048\" vite dev",
     "preview": "vite preview",

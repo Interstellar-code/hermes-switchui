@@ -59,10 +59,10 @@ When it finishes:
 
 ```bash
 cd ~/hermes-switchui
-pnpm start:all          # starts the gateway + UI together
+pnpm start:all          # starts the gateway + dashboard + UI together
 ```
 
-Then start the **dashboard** (needed for sessions/skills/memory/kanban/MCP) in its own terminal:
+`pnpm start:all` also starts the **dashboard** (needed for sessions/skills/memory/kanban/MCP).
 
 ```bash
 hermes dashboard --no-open --skip-build
@@ -159,13 +159,13 @@ Steps:
    cp .env.example .env
    ```
    You only need to fill values if you want non-default behavior (binding to LAN, setting a password, etc.). For local development, the defaults work.
-4. Start the gateway + UI together:
+4. Start the gateway + dashboard + UI together:
    ```bash
    pnpm start:all
    ```
    This runs `hermes gateway run` (port `8642`) and `pnpm dev` (Vite on port `3000`) together via `concurrently`. A port preflight check runs first and fails fast if `8642` or `3000` is already in use.
 
-   > **Note:** `pnpm dev` alone runs *only* the Vite UI — it does **not** start the agent. Use `pnpm start:all` to launch both, or run `hermes gateway run` separately.
+   > **Note:** `pnpm dev` alone runs *only* the Vite UI — it does **not** start the agent or dashboard. Use `pnpm start:all` to launch all three, or run the services separately.
 5. Start the **dashboard** (sessions/skills/memory/kanban/MCP) in another terminal:
    ```bash
    hermes dashboard --no-open --skip-build
@@ -201,7 +201,7 @@ hermes gateway install     # Linux: systemd · macOS: launchd
 hermes gateway start
 ```
 
-The **dashboard** has no native service installer — run it persistently with `nohup hermes dashboard --no-open --skip-build &` (macOS) or a `systemd --user` unit (Linux). On WSL (no systemd by default), stick with `pnpm start:all` + a foreground `hermes dashboard`.
+The **dashboard** has no native service installer — run it persistently with `nohup hermes dashboard --no-open --skip-build &` (macOS) or a `systemd --user` unit (Linux). On WSL (no systemd by default), `pnpm start:all` starts it in the foreground with the gateway and UI.
 
 ---
 
