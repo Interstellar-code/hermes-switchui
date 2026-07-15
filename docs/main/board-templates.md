@@ -7,7 +7,7 @@ description: Reusable parameterized board blueprints — create, instantiate, an
 
 Board templates are reusable blueprints for creating Kanban boards. A template defines a set of tasks, their dependencies, optional recurrence, and named variables that are filled in at instantiation time. This lets you create repeatable workflows — weekly reports, sprint setups, release checklists — without rebuilding the board from scratch each time.
 
-> [SCREENSHOT: Board Templates page showing a grid of template cards with name, task count, and action buttons]
+![Board Templates page in Matrix dark theme, listing templates with name, task count, variables, schedule, and actions](/screenshots/board-templates.png)
 
 ## What you see
 
