@@ -182,6 +182,7 @@ import { Route as ApiWorkflowRunsRunIdApproveRouteImport } from './routes/api/wo
 import { Route as ApiWorkflowDefinitionsIdResetFactoryRouteImport } from './routes/api/workflow-definitions.$id.reset-factory'
 import { Route as ApiWorkflowDefinitionsIdParsedRouteImport } from './routes/api/workflow-definitions.$id.parsed'
 import { Route as ApiSessionsSessionKeyStatusRouteImport } from './routes/api/sessions/$sessionKey.status'
+import { Route as ApiSessionsSessionKeyDelegationsRouteImport } from './routes/api/sessions/$sessionKey.delegations'
 import { Route as ApiSessionsSessionKeyClarifyRouteImport } from './routes/api/sessions/$sessionKey.clarify'
 import { Route as ApiSessionsSessionKeyActiveRunRouteImport } from './routes/api/sessions/$sessionKey.active-run'
 import { Route as ApiSelfImproveScenariosIdRouteImport } from './routes/api/self-improve/scenarios.$id'
@@ -1090,6 +1091,12 @@ const ApiSessionsSessionKeyStatusRoute =
     path: '/$sessionKey/status',
     getParentRoute: () => ApiSessionsRoute,
   } as any)
+const ApiSessionsSessionKeyDelegationsRoute =
+  ApiSessionsSessionKeyDelegationsRouteImport.update({
+    id: '/$sessionKey/delegations',
+    path: '/$sessionKey/delegations',
+    getParentRoute: () => ApiSessionsRoute,
+  } as any)
 const ApiSessionsSessionKeyClarifyRoute =
   ApiSessionsSessionKeyClarifyRouteImport.update({
     id: '/$sessionKey/clarify',
@@ -1456,6 +1463,7 @@ export interface FileRoutesByFullPath {
   '/api/self-improve/scenarios/$id': typeof ApiSelfImproveScenariosIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
+  '/api/sessions/$sessionKey/delegations': typeof ApiSessionsSessionKeyDelegationsRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
@@ -1660,6 +1668,7 @@ export interface FileRoutesByTo {
   '/api/self-improve/scenarios/$id': typeof ApiSelfImproveScenariosIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
+  '/api/sessions/$sessionKey/delegations': typeof ApiSessionsSessionKeyDelegationsRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
@@ -1867,6 +1876,7 @@ export interface FileRoutesById {
   '/api/self-improve/scenarios/$id': typeof ApiSelfImproveScenariosIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
+  '/api/sessions/$sessionKey/delegations': typeof ApiSessionsSessionKeyDelegationsRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
@@ -2075,6 +2085,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/scenarios/$id'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/clarify'
+    | '/api/sessions/$sessionKey/delegations'
     | '/api/sessions/$sessionKey/status'
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
@@ -2279,6 +2290,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/scenarios/$id'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/clarify'
+    | '/api/sessions/$sessionKey/delegations'
     | '/api/sessions/$sessionKey/status'
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
@@ -2485,6 +2497,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/scenarios/$id'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/clarify'
+    | '/api/sessions/$sessionKey/delegations'
     | '/api/sessions/$sessionKey/status'
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
@@ -3865,6 +3878,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSessionsSessionKeyStatusRouteImport
       parentRoute: typeof ApiSessionsRoute
     }
+    '/api/sessions/$sessionKey/delegations': {
+      id: '/api/sessions/$sessionKey/delegations'
+      path: '/$sessionKey/delegations'
+      fullPath: '/api/sessions/$sessionKey/delegations'
+      preLoaderRoute: typeof ApiSessionsSessionKeyDelegationsRouteImport
+      parentRoute: typeof ApiSessionsRoute
+    }
     '/api/sessions/$sessionKey/clarify': {
       id: '/api/sessions/$sessionKey/clarify'
       path: '/$sessionKey/clarify'
@@ -4247,6 +4267,7 @@ interface ApiSessionsRouteChildren {
   ApiSessionsSendRoute: typeof ApiSessionsSendRoute
   ApiSessionsSessionKeyActiveRunRoute: typeof ApiSessionsSessionKeyActiveRunRoute
   ApiSessionsSessionKeyClarifyRoute: typeof ApiSessionsSessionKeyClarifyRoute
+  ApiSessionsSessionKeyDelegationsRoute: typeof ApiSessionsSessionKeyDelegationsRoute
   ApiSessionsSessionKeyStatusRoute: typeof ApiSessionsSessionKeyStatusRoute
   ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute: typeof ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute
 }
@@ -4255,6 +4276,7 @@ const ApiSessionsRouteChildren: ApiSessionsRouteChildren = {
   ApiSessionsSendRoute: ApiSessionsSendRoute,
   ApiSessionsSessionKeyActiveRunRoute: ApiSessionsSessionKeyActiveRunRoute,
   ApiSessionsSessionKeyClarifyRoute: ApiSessionsSessionKeyClarifyRoute,
+  ApiSessionsSessionKeyDelegationsRoute: ApiSessionsSessionKeyDelegationsRoute,
   ApiSessionsSessionKeyStatusRoute: ApiSessionsSessionKeyStatusRoute,
   ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute:
     ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute,

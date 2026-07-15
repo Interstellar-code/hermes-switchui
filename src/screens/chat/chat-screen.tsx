@@ -65,6 +65,8 @@ import { ChatHeaderV2 } from './components/v2/chat-header-v2'
 import { ChatMetaBarV2 } from './components/v2/chat-meta-bar-v2'
 import { ChatSkillsTabV2 } from './components/v2/chat-skills-tab-v2'
 import { ToolTabView } from './components/v2/chat-tab-views-v2'
+import { DelegationTabView } from './components/v2/delegation-tab-view'
+import { useDelegations } from './hooks/use-delegations'
 import type {
   ChatComposerAttachment,
   ChatComposerHandle,
@@ -456,6 +458,8 @@ export function ChatScreen({
     totalToolCount,
     totalSkillCount,
   } = useToolDisplay({ realtimeMessages, activeToolCalls })
+
+  const { delegations } = useDelegations(activeSessionKey || activeFriendlyId)
 
   useEffect(() => {
     if (!waitingForResponse) return
@@ -1205,6 +1209,7 @@ export function ChatScreen({
                   chat: finalDisplayMessages.length,
                   tool: totalToolCount,
                   skills: totalSkillCount,
+                  delegations: delegations.length,
                 }}
               />
               <ChatMetaBarV2
@@ -1243,6 +1248,8 @@ export function ChatScreen({
               streamingToolCalls={activeToolCalls}
               events={realtimeLifecycleEvents}
             />
+          ) : activeTab === 'delegations' ? (
+            <DelegationTabView sessionKey={activeSessionKey || activeFriendlyId} />
           ) : null}
           {hideUi || activeTab !== 'chat' ? null : (
             <StreamingTextContext.Provider

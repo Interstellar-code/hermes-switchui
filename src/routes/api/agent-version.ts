@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { isAuthenticated } from '../../server/auth-middleware'
 import { CLAUDE_DASHBOARD_URL } from '../../server/gateway-capabilities'
 
 let cached: { version: string | null; ts: number } = { version: null, ts: 0 }
@@ -9,9 +8,6 @@ export const Route = createFileRoute('/api/agent-version')({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        if (!isAuthenticated(request)) {
-          return Response.json({ error: 'Unauthorized' }, { status: 401 })
-        }
         const now = Date.now()
         // Guard against backward clock skew (NTP correction, sleep/wake, DST):
         // if now < cached.ts, "now - cached.ts" is negative and would keep

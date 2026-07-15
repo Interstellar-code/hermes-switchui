@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
-export type SourceTab = 'chat' | 'tool' | 'skills'
+export type SourceTab = 'chat' | 'tool' | 'skills' | 'delegations'
 
 type TabDef = {
   id: SourceTab
@@ -36,6 +36,18 @@ const TABS: Array<TabDef> = [
         <path d="M12 2L2 7l10 5 10-5-10-5z" />
         <path d="M2 17l10 5 10-5" />
         <path d="M2 12l10 5 10-5" />
+      </svg>
+    ),
+  },
+  {
+    id: 'delegations',
+    label: 'delegations',
+    icon: (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <circle cx="18" cy="5" r="3" />
+        <circle cx="6" cy="12" r="3" />
+        <circle cx="18" cy="19" r="3" />
+        <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
       </svg>
     ),
   },
