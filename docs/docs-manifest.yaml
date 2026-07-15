@@ -139,6 +139,8 @@ pages:
     title: Give your agent long-term memory with Hindsight
   - slug: how-to/connect-hermes-to-telegram-and-configure-topics
     title: Connect Hermes to Telegram and configure topics
+  - slug: how-to/use-the-coding-loop-to-autonomously-fix-github-issues
+    title: Use the coding loop to autonomously fix GitHub issues
 
   # HELP
   - slug: help/docs
