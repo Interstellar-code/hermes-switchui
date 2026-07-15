@@ -66,6 +66,9 @@ import { ChatMetaBarV2 } from './components/v2/chat-meta-bar-v2'
 import { ChatSkillsTabV2 } from './components/v2/chat-skills-tab-v2'
 import { ToolTabView } from './components/v2/chat-tab-views-v2'
 import { DelegationTabView } from './components/v2/delegation-tab-view'
+import { ChatDelegations } from './components/v2/chat-delegations-strip'
+import { DelegationDetailModal } from './components/v2/delegation-detail-modal'
+import { extractDelegateTaskToolCalls, mergeChatDelegations } from './chat-delegations'
 import { useDelegations } from './hooks/use-delegations'
 import type {
   ChatComposerAttachment,
@@ -460,6 +463,15 @@ export function ChatScreen({
   } = useToolDisplay({ realtimeMessages, activeToolCalls })
 
   const { delegations } = useDelegations(activeSessionKey || activeFriendlyId)
+  const mergedDelegations = useMemo(
+    () =>
+      mergeChatDelegations({
+        delegations,
+        toolCalls: extractDelegateTaskToolCalls(realtimeMessages, activeToolCalls),
+      }),
+    [delegations, activeToolCalls, realtimeMessages],
+  )
+  const [openDelegationChildKey, setOpenDelegationChildKey] = useState<string | null>(null)
 
   useEffect(() => {
     if (!waitingForResponse) return
@@ -1336,6 +1348,16 @@ export function ChatScreen({
             />
             </StreamingTextContext.Provider>
           )}
+          <DelegationDetailModal
+            childSessionId={openDelegationChildKey}
+            onClose={() => setOpenDelegationChildKey(null)}
+          />
+          {showComposer ? (
+            <ChatDelegations
+              delegations={mergedDelegations}
+              onOpenDelegation={setOpenDelegationChildKey}
+            />
+          ) : null}
           {showComposer ? (
             <ChatComposerShadcn
               onSubmit={send}

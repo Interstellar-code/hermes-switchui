@@ -331,6 +331,18 @@ export type CompactInlineRenderPlanItem =
   | { kind: 'text'; text: string }
   | { kind: 'tools'; sections: Array<InlineToolSection> }
 
+export function withoutDelegateTaskToolSections<
+  T extends { type?: string; name?: string },
+>(toolSections: Array<T>): Array<T> {
+  // Two call sites pass different shapes: message-item tool sections carry
+  // `type`, streaming tool calls carry `name`. Guard both — a missing field
+  // must not throw (it previously crashed the whole message list on undefined).
+  return toolSections.filter((section) => {
+    const id = (section.type ?? section.name ?? '').toLowerCase()
+    return id !== 'delegate_task'
+  })
+}
+
 type InlineArtifact = {
   type: string
   title: string
@@ -2513,8 +2525,9 @@ function MessageItemComponent({
   // Prevents stuck timers from race conditions where tool.completed SSE
   // arrives after the done event or phase wasn't properly updated
   const finalToolSections = useMemo(() => {
-    if (effectiveIsStreaming) return toolSectionsWithClarify
-    return toolSectionsWithClarify.map((section) =>
+    const visibleToolSections = withoutDelegateTaskToolSections(toolSectionsWithClarify)
+    if (effectiveIsStreaming) return visibleToolSections
+    return visibleToolSections.map((section) =>
       section.state === 'input-available' || section.state === 'input-streaming'
         ? { ...section, state: 'output-available' as const }
         : section,

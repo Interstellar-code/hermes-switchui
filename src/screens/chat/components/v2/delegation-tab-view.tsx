@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useDelegationMessages, useDelegations } from '../../hooks/use-delegations'
-import { ToolTabView } from './chat-tab-views-v2'
+import { useDelegations } from '../../hooks/use-delegations'
+import { DelegationDetailModal } from './delegation-detail-modal'
 import type { Delegation, DelegationStatus } from '../../../../server/delegations'
 
 type DelegationTabViewProps = {
@@ -33,23 +33,25 @@ function statusColor(status: DelegationStatus): string {
   return 'var(--theme-accent, #6366f1)'
 }
 
-function DelegationCard({ delegation }: { delegation: Delegation }) {
-  const [open, setOpen] = useState(false)
+/** Expanding a card now opens the shared `DelegationDetailModal` (one modal,
+ * shared with the docked delegations strip) instead of an inline transcript. */
+function DelegationCard({
+  delegation,
+  onOpen,
+}: {
+  delegation: Delegation
+  onOpen: () => void
+}) {
   const color = statusColor(delegation.status)
-  const { messages, isLoading, error } = useDelegationMessages(
-    open ? delegation.childSessionId : null,
-  )
 
   return (
     <div className="rounded border overflow-hidden" style={cardStyle}>
       <button
         type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={onOpen}
         className="flex w-full items-center gap-2 px-3 py-2 text-left font-mono text-xs"
         style={{ cursor: 'pointer', background: 'transparent', border: 'none' }}
       >
-        <span style={greenStyle}>{open ? '▼' : '▶'}</span>
         <span className="font-semibold" style={greenStyle}>
           {delegation.goal || 'Untitled delegation'}
         </span>
@@ -78,41 +80,14 @@ function DelegationCard({ delegation }: { delegation: Delegation }) {
         >
           {delegation.status}
         </span>
-        <span className="shrink-0 opacity-40 text-[10px]">{open ? '▾' : '▸'}</span>
       </button>
-
-      {open ? (
-        <div
-          className="mx-3 mb-2 rounded border"
-          style={{
-            borderColor: 'var(--theme-border)',
-            background: 'var(--code-bg, color-mix(in srgb, var(--theme-card) 70%, transparent))',
-          }}
-        >
-          {isLoading ? (
-            <p className="px-3 py-2 font-mono text-[10px] opacity-50">Loading transcript…</p>
-          ) : error ? (
-            <p
-              className="px-3 py-2 font-mono text-[10px]"
-              style={{ color: 'var(--theme-danger, #ef4444)' }}
-            >
-              {error}
-            </p>
-          ) : messages.length === 0 ? (
-            <p className="px-3 py-2 font-mono text-[10px] opacity-50">
-              No tool calls in this delegation
-            </p>
-          ) : (
-            <ToolTabView messages={messages} />
-          )}
-        </div>
-      ) : null}
     </div>
   )
 }
 
 export function DelegationTabView({ sessionKey }: DelegationTabViewProps) {
   const { delegations, isLoading, error } = useDelegations(sessionKey)
+  const [openChildSessionId, setOpenChildSessionId] = useState<string | null>(null)
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto flex flex-col font-mono text-xs" style={tabStyle}>
@@ -133,10 +108,18 @@ export function DelegationTabView({ sessionKey }: DelegationTabViewProps) {
       ) : (
         <div className="flex-1 min-h-0 p-4 pt-3 space-y-2">
           {delegations.map((delegation) => (
-            <DelegationCard key={delegation.childSessionId} delegation={delegation} />
+            <DelegationCard
+              key={delegation.childSessionId}
+              delegation={delegation}
+              onOpen={() => setOpenChildSessionId(delegation.childSessionId)}
+            />
           ))}
         </div>
       )}
+      <DelegationDetailModal
+        childSessionId={openChildSessionId}
+        onClose={() => setOpenChildSessionId(null)}
+      />
     </div>
   )
 }

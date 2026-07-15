@@ -10,7 +10,7 @@ import {
   getToolCallsFromMessage,
   textFromMessage,
 } from '../utils'
-import { MessageItem } from './message-item'
+import { MessageItem, withoutDelegateTaskToolSections } from './message-item'
 import { StreamingMessageItem } from './streaming-text-context'
 import { TuiActivityCard, attachClarifyCard } from './tui-activity-card'
 import {
@@ -1432,13 +1432,14 @@ function ChatMessageListComponent({
   const clarifyResolved = Boolean(clarifyCard)
 
   const clarifyToolCalls = useMemo(() => {
-    if (!clarifyReceiptCard) return normalizedStreamingToolCalls
+    const visibleToolCalls = withoutDelegateTaskToolSections(normalizedStreamingToolCalls)
+    if (!clarifyReceiptCard) return visibleToolCalls
 
     // While a Hermes clarify request is active, live activity may also contain
     // a low-information generic `tool` row. Drop that duplicate shell and attach
     // the clarify UI to the real clarify row, or synthesize exactly one clarify
     // row if the tool event has not arrived yet.
-    const meaningfulToolCalls = normalizedStreamingToolCalls.filter(
+    const meaningfulToolCalls = visibleToolCalls.filter(
       (tc) => tc.name.toLowerCase() !== 'tool',
     )
     return meaningfulToolCalls

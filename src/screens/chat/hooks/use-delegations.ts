@@ -24,10 +24,14 @@ export function useDelegations(sessionKey: string) {
     queryKey: ['chat', 'delegations', sessionKey],
     queryFn: () => fetchDelegations(sessionKey),
     enabled: sessionKey.length > 0,
+    // ponytail: base 12s poll so a delegation spawned mid-session is picked up
+    // (the initial fetch is empty, so a running-only interval would never restart);
+    // 5s while any child is running for a live-ticking elapsed. Ceiling: one small
+    // query per session every 12s — gate on streaming state if it ever shows up on a profile.
     refetchInterval: (q) => {
       const data = q.state.data
       const hasRunning = Array.isArray(data) && data.some((d) => d.status === 'running')
-      return hasRunning ? 5_000 : false
+      return hasRunning ? 5_000 : 12_000
     },
   })
 
