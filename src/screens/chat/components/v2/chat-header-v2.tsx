@@ -27,8 +27,12 @@ function ChatHeaderV2Component({
     <div
       className="shrink-0 flex items-center gap-2 px-4 h-11"
       style={{
-        background: 'var(--m-surface-1, var(--composer-bg, var(--theme-card)))',
-        borderBottom: '1px solid var(--m-border, var(--composer-border, var(--theme-border)))',
+        background:
+          'color-mix(in srgb, var(--m-green-400, var(--theme-accent)) 10%, var(--m-surface-1, var(--composer-bg, var(--theme-card))))',
+        borderBottom:
+          '1px solid color-mix(in srgb, var(--m-green-400, var(--theme-accent)) 40%, var(--m-border, var(--composer-border, var(--theme-border))))',
+        boxShadow:
+          '0 1px 8px color-mix(in srgb, var(--m-green-400, var(--theme-accent)) 12%, transparent)',
       }}
     >
       {/* Left: source prefix + title */}
