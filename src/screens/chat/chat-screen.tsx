@@ -43,7 +43,12 @@ import { useActiveRunPoller } from './hooks/use-active-run-poller'
 import { useFocusMode } from './hooks/use-focus-mode'
 import { useActivityStream } from './hooks/use-activity-stream'
 import { useHistoryPolling } from './hooks/use-history-polling'
-import { invalidateSessionLists } from './sessions-feed'
+import {
+  classifySessionSource,
+  findSessionSource,
+  invalidateSessionLists,
+  useSessionsFeed,
+} from './sessions-feed'
 import { useToolDisplay } from './hooks/use-tool-display'
 import { useDisplayMessages } from './hooks/use-display-messages'
 import { useDrainWatchdog } from './hooks/use-drain-watchdog'
@@ -218,6 +223,23 @@ export function ChatScreen({
     sessionsFetching: _sessionsFetching,
     refetchSessions: _refetchSessions,
   } = useChatSessions({ activeFriendlyId, isNewChat, forcedSessionKey })
+  const { items: sessionFeedItems } = useSessionsFeed({ raw: true })
+  const activeSourceKind = useMemo(() => {
+    return (
+      findSessionSource(sessionFeedItems, [
+        activeFriendlyId,
+        activeSessionKey,
+        activeSession?.key,
+        activeSession?.friendlyId,
+      ]) ??
+      classifySessionSource(
+        activeSession?.source,
+        activeSessionKey || activeFriendlyId,
+        false,
+        activeSession?.kind,
+      )
+    )
+  }, [activeFriendlyId, activeSession, activeSessionKey, sessionFeedItems])
   const {
     historyQuery,
     historyMessages,
@@ -1228,6 +1250,7 @@ export function ChatScreen({
               <ChatHeaderV2
                 activeTitle={activeTitle}
                 sessionKey={activeSessionKey || activeFriendlyId}
+                sourceKind={activeSourceKind}
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
                 tabCounts={{

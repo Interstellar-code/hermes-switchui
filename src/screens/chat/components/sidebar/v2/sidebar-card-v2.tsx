@@ -12,24 +12,11 @@ import { Link } from '@tanstack/react-router'
 import { SidebarCardContextMenuV2 } from './sidebar-card-context-menu-v2'
 import type { ContextMenuPosition } from './sidebar-card-context-menu-v2'
 import type { SessionFeedItem } from '@/screens/chat/sessions-feed-types'
+import { SOURCE_COLORS } from '@/screens/chat/source-visuals'
 
 interface SidebarCardV2Props {
   item: SessionFeedItem
   isActive?: boolean
-}
-
-// ── Rail colors per source ─────────────────────────────────────────────────────
-
-const RAIL_COLORS: Record<string, string> = {
-  chat: 'var(--m-green-500)',
-  recovered: '#7dff9a',
-  task: '#ff9f5f',
-  cron: '#d6ff5f',
-  api: '#5fcfff',
-  cli: '#5fffd6',
-  a2a: '#c85fff',
-  tg: '#ff5fa2',
-  tool: '#b98aff',
 }
 
 const RAIL_GLOW: Record<string, string> = {
@@ -100,7 +87,7 @@ function formatTokens(n: number): string {
 // ── Card ──────────────────────────────────────────────────────────────────────
 
 function SidebarCardV2Impl({ item, isActive }: SidebarCardV2Props) {
-  const railColor = RAIL_COLORS[item.src] ?? 'var(--theme-border)'
+  const railColor = SOURCE_COLORS[item.src]
   // Glow: always emit when item.live is true regardless of isActive; active also glows
   const railGlow =
     item.live || isActive ? (RAIL_GLOW[item.src] ?? 'none') : 'none'

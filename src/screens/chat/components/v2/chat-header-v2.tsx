@@ -2,9 +2,11 @@ import { memo } from 'react'
 import { ChatSourceTabsV2 } from './chat-source-tabs-v2'
 import { ChatHeaderActionsV2 } from './chat-header-actions-v2'
 import type { SourceTab } from './chat-source-tabs-v2'
+import type { SessionSource } from '@/screens/chat/sessions-feed-types'
 import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 import { useSessionStatus } from '@/hooks/use-session-status'
 import { formatCostUsd } from '@/lib/format'
+import { SOURCE_COLORS, SOURCE_LABELS } from '@/screens/chat/source-visuals'
 
 type ChatHeaderV2Props = {
   activeTitle: string
@@ -12,6 +14,7 @@ type ChatHeaderV2Props = {
   activeTab: SourceTab
   onTabChange: (tab: SourceTab) => void
   tabCounts?: Partial<Record<SourceTab, number>>
+  sourceKind?: SessionSource
 }
 
 function ChatHeaderV2Component({
@@ -20,19 +23,19 @@ function ChatHeaderV2Component({
   activeTab,
   onTabChange,
   tabCounts,
+  sourceKind = 'chat',
 }: ChatHeaderV2Props) {
   const displayTitle = activeTitle || 'New Chat'
+  const accent = SOURCE_COLORS[sourceKind]
+  const sourceLabel = SOURCE_LABELS[sourceKind]
 
   return (
     <div
       className="shrink-0 flex items-center gap-2 px-4 h-11"
       style={{
-        background:
-          'color-mix(in srgb, var(--m-green-400, var(--theme-accent)) 10%, var(--m-surface-1, var(--composer-bg, var(--theme-card))))',
-        borderBottom:
-          '1px solid color-mix(in srgb, var(--m-green-400, var(--theme-accent)) 40%, var(--m-border, var(--composer-border, var(--theme-border))))',
-        boxShadow:
-          '0 1px 8px color-mix(in srgb, var(--m-green-400, var(--theme-accent)) 12%, transparent)',
+        background: `color-mix(in srgb, ${accent} 10%, var(--m-surface-1, var(--composer-bg, var(--theme-card))))`,
+        borderBottom: `1px solid color-mix(in srgb, ${accent} 40%, var(--m-border, var(--composer-border, var(--theme-border))))`,
+        boxShadow: `0 1px 8px color-mix(in srgb, ${accent} 12%, transparent)`,
       }}
     >
       {/* Left: source prefix + title */}
@@ -40,15 +43,13 @@ function ChatHeaderV2Component({
         <span
           className="m-chip flex items-center rounded-full px-2 py-0.5 shrink-0"
           style={{
-            background:
-              'color-mix(in srgb, var(--m-green-400, var(--theme-accent)) 18%, transparent)',
-            color: 'var(--m-green-400, var(--theme-accent))',
-            border: '1px solid var(--m-green-400, var(--theme-accent))',
-            boxShadow:
-              '0 0 6px color-mix(in srgb, var(--m-green-400, var(--theme-accent)) 40%, transparent)',
+            background: `color-mix(in srgb, ${accent} 18%, transparent)`,
+            color: accent,
+            border: `1px solid ${accent}`,
+            boxShadow: `0 0 6px color-mix(in srgb, ${accent} 40%, transparent)`,
           }}
         >
-          CHAT
+          {sourceLabel}
         </span>
         <span
           className="truncate text-sm font-medium"

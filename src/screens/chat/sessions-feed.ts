@@ -202,6 +202,17 @@ export function classifySessionSource(
   return 'chat'
 }
 
+export function findSessionSource(
+  items: Array<SessionFeedItem>,
+  candidates: Array<string | null | undefined>,
+): SessionSource | undefined {
+  const ids = new Set(candidates.filter(Boolean))
+  return items.find((item) => {
+    const rawId = item.id.split(':').slice(1).join(':')
+    return ids.has(rawId) || ids.has(String(item.sourceMeta.friendlyId ?? ''))
+  })?.src
+}
+
 // ── State normalization ────────────────────────────────────────────────────────
 
 // ── Chat source hook ───────────────────────────────────────────────────────────

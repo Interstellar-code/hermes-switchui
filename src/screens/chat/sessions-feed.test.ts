@@ -14,6 +14,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   classifySessionSource,
+  findSessionSource,
   formatCronRunTitle,
   getCronSessionSub,
   getDayBucket,
@@ -286,6 +287,19 @@ describe('source classifier', () => {
 
   it('no source field, no prefix, not task → chat', () => {
     expect(classifySessionSource(undefined, 'abc123', false)).toBe('chat')
+  })
+})
+
+describe('active session source lookup', () => {
+  it('uses the sidebar feed source when the route matches the raw session id', () => {
+    const item = makeItem({
+      id: 'chat:20260711_204819_e83d5592',
+      src: 'tg',
+    })
+
+    expect(
+      findSessionSource([item], ['20260711_204819_e83d5592']),
+    ).toBe('tg')
   })
 })
 

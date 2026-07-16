@@ -11,6 +11,7 @@
 
 import type { FilterAndDecorateResult } from '@/screens/chat/apply-filters-and-decorate'
 import type { SessionSource, SessionSourceResult } from '@/screens/chat/sessions-feed-types'
+import { SOURCE_COLORS } from '@/screens/chat/source-visuals'
 import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 
 // ── Source definitions ────────────────────────────────────────────────────────
@@ -104,20 +105,6 @@ const SOURCE_DEFS: Array<{ id: SessionSource; label: string; icon: React.ReactNo
     ),
   },
 ]
-
-// ── Rail / accent colors per source ───────────────────────────────────────────
-
-const SOURCE_COLORS: Record<SessionSource, string> = {
-  chat: 'var(--m-green-400, #00ff41)',
-  recovered: '#7dff9a',
-  task: '#ff9f5f',
-  cron: '#d6ff5f',
-  api: '#5fcfff',
-  cli: '#5fffd6',
-  a2a: '#c85fff',
-  tool: '#b98aff',
-  tg: '#ff5fa2',
-}
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
