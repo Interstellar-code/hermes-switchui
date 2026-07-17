@@ -151,7 +151,6 @@ export function useSendMessageState(params: {
   queryClient: QueryClient
   finalDisplayMessagesRef: RefObject<Array<ChatMessage>>
   currentModelRef: RefObject<string | undefined>
-  setResearchResetKey: Dispatch<SetStateAction<number>>
   // PR 3 params — needed by SSE callbacks + abort helpers
   onSessionResolved?: (params: {
     sessionKey: string
@@ -222,7 +221,6 @@ export function useSendMessageState(params: {
     queryClient,
     finalDisplayMessagesRef,
     currentModelRef,
-    setResearchResetKey,
     onSessionResolved: onSessionResolvedProp,
     navigate,
     embedded,
@@ -396,7 +394,6 @@ export function useSendMessageState(params: {
       const enrichedBody = body + textBlocks.join('')
 
       let optimisticClientId = existingClientId
-      setResearchResetKey((current) => current + 1)
       if (!skipOptimistic) {
         const { clientId, optimisticMessage } = createOptimisticMessage(
           body,

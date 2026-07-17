@@ -99,7 +99,6 @@ import { ErrorToastContainer } from '@/components/error-toast'
 // ContextMeter removed — ContextBar (PR #32) replaces it
 import { useChatStore } from '@/stores/chat-store'
 import { useContextUsageStore } from '@/stores/context-usage-store'
-import { useResearchCard } from '@/hooks/use-research-card'
 // MOBILE_TAB_BAR_OFFSET removed — tab bar always hidden in chat
 import { useTapDebug } from '@/hooks/use-tap-debug'
 import { useChatMode } from '@/hooks/use-chat-mode'
@@ -163,7 +162,6 @@ export function ChatScreen({
   const portableChatFriendlyId = isPortableMode ? 'main' : activeFriendlyId
   const retriedQueuedMessageKeysRef = useRef(new Set<string>())
   const [isCompacting, setIsCompacting] = useState(false)
-  const [researchResetKey, setResearchResetKey] = useState(0)
   // Reply-to state — cleared on session change
   const [replyTo, setReplyTo] = useState<{
     seq: number
@@ -354,7 +352,6 @@ export function ChatScreen({
     queryClient,
     finalDisplayMessagesRef,
     currentModelRef,
-    setResearchResetKey,
     onSessionResolved: onSessionResolvedProp,
     navigate,
     embedded,
@@ -1122,12 +1119,6 @@ export function ChatScreen({
         : sending || waitingForResponse
           ? 'sending'
           : 'idle'
-  const researchCard = useResearchCard({
-    sessionKey: resolvedSessionKey || activeCanonicalKey,
-    isStreaming: derivedStreamingInfo.isStreaming,
-    resetKey: `${resolvedSessionKey || activeCanonicalKey || 'main'}:${researchResetKey}`,
-  })
-
   const handleReplyMessage = useCallback(
     (msg: ChatMessage, selectedText?: string) => {
       const preview = (selectedText && selectedText.trim().length > 0
@@ -1360,7 +1351,6 @@ export function ChatScreen({
               hideSystemMessages={hideSystemMessages}
               activeToolCalls={activeToolCalls}
               liveToolActivity={liveToolActivity}
-              researchCard={researchCard}
               isCompacting={isCompacting}
               liveProgressLabel={liveProgressLabel}
               sending={sending}

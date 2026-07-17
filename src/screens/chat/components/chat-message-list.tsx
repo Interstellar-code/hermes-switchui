@@ -1,9 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  ArrowExpand01Icon,
-  ArrowUp01Icon,
-  Robot01Icon,
-} from '@hugeicons/core-free-icons'
+import { ArrowUp01Icon, Robot01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   getMessageTimestamp,
@@ -19,10 +15,8 @@ import {
   parseInteractionReceipt,
 } from './inline-clarify-card'
 import { ScrollToBottomButton } from './scroll-to-bottom-button'
-import { ResearchCard } from './research-card'
 import type { ToolDisplayMode } from './message-item'
 import type { ChatMessage } from '../types'
-import type { UseResearchCardResult } from '@/hooks/use-research-card'
 import {
   ChatContainerContent,
   ChatContainerRoot,
@@ -188,7 +182,6 @@ function ToolCallCard({ name, phase }: { name: string; phase: string }) {
 type ThinkingBubbleProps = {
   activeToolCalls?: Array<{ id: string; name: string; phase: string }>
   liveToolActivity?: Array<{ name: string; timestamp: number }>
-  researchCard?: UseResearchCardResult
   isCompacting?: boolean
   /** Live, human-readable summary of what the agent is doing right now,
    *  polled from the gateway run during long quiet waits. Display only. */
@@ -203,7 +196,6 @@ type ThinkingBubbleProps = {
 function ThinkingBubble({
   activeToolCalls: _activeToolCalls = [],
   liveToolActivity: _liveToolActivity = [],
-  researchCard,
   isCompacting = false,
   liveProgressLabel = '',
 }: ThinkingBubbleProps) {
@@ -227,13 +219,6 @@ function ThinkingBubble({
 
   const isStale = elapsed >= 30
   const isVeryStale = elapsed >= 60
-  const canExpandResearch = Boolean(
-    researchCard && researchCard.steps.length > 0,
-  )
-  const expandedResearchCard = canExpandResearch ? researchCard : null
-  const completedResearchSteps = researchCard
-    ? researchCard.steps.filter((step) => step.status === 'done').length
-    : 0
 
   // Track displayed label with a small delay so we fade between changes
   const [displayedLabel, setDisplayedLabel] = useState(statusLabel)
@@ -317,54 +302,7 @@ function ThinkingBubble({
                   {liveProgressLabel}
                 </div>
               ) : null}
-              {canExpandResearch ? (
-                <div className="mt-1 flex items-center gap-2 text-[11px] text-primary-500 dark:text-primary-400">
-                  <span>
-                    {completedResearchSteps}/
-                    {expandedResearchCard?.steps.length ?? 0} tools
-                  </span>
-                  <span aria-hidden="true" className="opacity-40">
-                    •
-                  </span>
-                  <span>
-                    {expandedResearchCard?.isActive
-                      ? 'Live timeline'
-                      : 'Timeline ready'}
-                  </span>
-                </div>
-              ) : null}
             </div>
-            {canExpandResearch ? (
-              <button
-                type="button"
-                onClick={() =>
-                  expandedResearchCard?.setCollapsed(
-                    !expandedResearchCard.collapsed,
-                  )
-                }
-                className="relative z-10 inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-primary-200/80 bg-primary-50/90 text-primary-500 transition-colors hover:bg-primary-100 dark:border-primary-800 dark:bg-primary-900/80 dark:text-primary-300 dark:hover:bg-primary-800"
-                aria-label={
-                  expandedResearchCard?.collapsed
-                    ? 'Expand research timeline'
-                    : 'Collapse research timeline'
-                }
-                title={
-                  expandedResearchCard?.collapsed
-                    ? 'Expand research timeline'
-                    : 'Collapse research timeline'
-                }
-              >
-                <HugeiconsIcon
-                  icon={
-                    expandedResearchCard?.collapsed
-                      ? ArrowExpand01Icon
-                      : ArrowUp01Icon
-                  }
-                  size={14}
-                  strokeWidth={1.8}
-                />
-              </button>
-            ) : null}
           </div>
 
           {isStale ? (
@@ -376,9 +314,6 @@ function ThinkingBubble({
           ) : null}
         </div>
 
-        {expandedResearchCard && !expandedResearchCard.collapsed ? (
-          <ResearchCard researchCard={expandedResearchCard} />
-        ) : null}
       </div>
     </div>
   )
@@ -704,7 +639,6 @@ type ChatMessageListProps = {
   bottomOffset?: number | string
   activeToolCalls?: Array<{ id: string; name: string; phase: string }>
   liveToolActivity?: Array<{ name: string; timestamp: number }>
-  researchCard?: UseResearchCardResult
   hideSystemMessages?: boolean
   isCompacting?: boolean
   /** Live progress summary polled from the gateway run during long waits. */
@@ -719,7 +653,6 @@ type ChatMessageListProps = {
 
 export function isThinkingIndicatorSurfaceVisible({
   showTypingIndicator,
-  showResearchCard,
   isCompacting,
   liveToolActivityCount,
   isStreaming,
@@ -727,7 +660,6 @@ export function isThinkingIndicatorSurfaceVisible({
   activeToolCallCount,
 }: {
   showTypingIndicator: boolean
-  showResearchCard: boolean
   isCompacting: boolean
   liveToolActivityCount: number
   isStreaming: boolean
@@ -740,7 +672,6 @@ export function isThinkingIndicatorSurfaceVisible({
 
   return (
     showTypingIndicator ||
-    showResearchCard ||
     isCompacting ||
     liveToolActivityCount > 0 ||
     (isStreaming && !hasStreamingText) ||
@@ -774,7 +705,6 @@ function ChatMessageListComponent({
   bottomOffset = 0,
   activeToolCalls = [],
   liveToolActivity = [],
-  researchCard,
   hideSystemMessages = false,
   isCompacting = false,
   liveProgressLabel = '',
@@ -1294,13 +1224,8 @@ function ChatMessageListComponent({
     return true
   })()
 
-  const showResearchCard = Boolean(
-    researchCard && researchCard.steps.length > 0,
-  )
-
   const thinkingIndicatorVisible = isThinkingIndicatorSurfaceVisible({
     showTypingIndicator,
-    showResearchCard,
     isCompacting,
     liveToolActivityCount: liveToolActivity.length,
     isStreaming,
@@ -1322,7 +1247,6 @@ function ChatMessageListComponent({
   const shouldBottomPin =
     visibleEntries.length > 0 ||
     showToolOnlyNotice ||
-    showResearchCard ||
     showTypingIndicator ||
     !!clarifyCard ||
     liveToolActivity.length > 0 ||
@@ -2027,7 +1951,6 @@ function ChatMessageListComponent({
                 <ThinkingBubble
                   activeToolCalls={activeToolCalls}
                   liveToolActivity={liveToolActivity}
-                  researchCard={researchCard}
                   isCompacting={isCompacting}
                   liveProgressLabel={liveProgressLabel}
                 />
@@ -2237,7 +2160,6 @@ function areChatMessageListEqual(
     prev.bottomOffset === next.bottomOffset &&
     prev.activeToolCalls === next.activeToolCalls &&
     prev.liveToolActivity === next.liveToolActivity &&
-    prev.researchCard === next.researchCard &&
     prev.hideSystemMessages === next.hideSystemMessages &&
     prev.isCompacting === next.isCompacting &&
     prev.liveProgressLabel === next.liveProgressLabel &&

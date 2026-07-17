@@ -124,7 +124,6 @@ function makeParams(overrides?: {
   queryClient?: unknown
   finalDisplayMessagesRef?: RefObject<Array<ChatMessage>>
   currentModelRef?: RefObject<string | undefined>
-  setResearchResetKey?: Dispatch<SetStateAction<number>>
   onSessionResolved?: (params: {
     sessionKey: string
     friendlyId: string
@@ -152,9 +151,6 @@ function makeParams(overrides?: {
     finalDisplayMessagesRef:
       o.finalDisplayMessagesRef ?? makeMessagesRef([]),
     currentModelRef: o.currentModelRef ?? makeModelRef('test-model'),
-    setResearchResetKey: (o.setResearchResetKey ?? vi.fn()) as Dispatch<
-      SetStateAction<number>
-    >,
     onSessionResolved: o.onSessionResolved,
     navigate: (o.navigate ?? vi.fn()) as (opts: {
       to: string

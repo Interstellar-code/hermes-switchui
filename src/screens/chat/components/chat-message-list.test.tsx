@@ -117,7 +117,6 @@ describe('isThinkingIndicatorSurfaceVisible', () => {
     expect(
       isThinkingIndicatorSurfaceVisible({
         showTypingIndicator: true,
-        showResearchCard: false,
         isCompacting: false,
         liveToolActivityCount: 0,
         isStreaming: false,
@@ -131,7 +130,6 @@ describe('isThinkingIndicatorSurfaceVisible', () => {
     expect(
       isThinkingIndicatorSurfaceVisible({
         showTypingIndicator: true,
-        showResearchCard: true,
         isCompacting: false,
         liveToolActivityCount: 1,
         isStreaming: true,
