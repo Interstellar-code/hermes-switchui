@@ -90,11 +90,9 @@ import { TerminalPanel } from '@/components/terminal-panel'
 import { AgentViewPanel } from '@/components/agent-view/agent-view-panel'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { useTerminalPanelStore } from '@/stores/terminal-panel-store'
-import { useModelSuggestions } from '@/hooks/use-model-suggestions'
 import {
   useEnabledUserCommands,
 } from '@/lib/commands-api'
-import { ModelSuggestionToast } from '@/components/model-suggestion-toast'
 import { MobileSessionsPanel } from '@/components/mobile-sessions-panel'
 import { ContextAlertModal } from '@/components/usage-meter/context-alert-modal'
 import { ErrorToastContainer } from '@/components/error-toast'
@@ -583,7 +581,6 @@ export function ChatScreen({
     thinkingLevelRef,
     handleThinkingLevelChange,
     currentModel,
-    availableModelIds,
     modelsQuery,
     currentModelQuery,
   } = useThinkingLevel({ activeFriendlyId, resolvedSessionKey, forcedSessionKey })
@@ -591,16 +588,6 @@ export function ChatScreen({
   // Sync bridge refs for sendMessage (seam #4 PR 2)
   thinkingLevelBridgeRef.current = thinkingLevel
   currentModelRef.current = currentModel
-
-  const { suggestion, dismiss, dismissForSession } = useModelSuggestions({
-    currentModel, // Real model from session-status (fail closed if empty)
-    sessionKey: resolvedSessionKey || 'main',
-    messages: historyMessages.map((m) => ({
-      role: m.role as 'user' | 'assistant',
-      content: textFromMessage(m),
-    })),
-    availableModels: availableModelIds,
-  })
 
   const {
     isStreaming: localIsStreaming,
@@ -813,30 +800,6 @@ export function ChatScreen({
       }, 100)
     }
   }, [activeIsRealtimeStreaming, waitingForResponse, streamFinish])
-
-  const handleSwitchModel = useCallback(async () => {
-    if (!suggestion) return
-
-    try {
-      const res = await fetch('/api/model-switch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionKey: resolvedSessionKey || 'main',
-          model: suggestion.suggestedModel,
-        }),
-      })
-
-      if (res.ok) {
-        dismiss()
-        // Optionally show success toast or update UI
-      }
-    } catch (err) {
-      setError(
-        `Failed to switch model. ${err instanceof Error ? err.message : String(err)}`,
-      )
-    }
-  }, [suggestion, resolvedSessionKey, dismiss])
 
   // Sync chat activity to global store for sidebar orchestrator avatar
   useEffect(() => {
@@ -1448,17 +1411,6 @@ export function ChatScreen({
         )}
       </div>
       {!compact && !hideUi && !isMobile && !isFocusMode && <TerminalPanel />}
-
-      {suggestion && (
-        <ModelSuggestionToast
-          suggestedModel={suggestion.suggestedModel}
-          reason={suggestion.reason}
-          costImpact={suggestion.costImpact}
-          onSwitch={handleSwitchModel}
-          onDismiss={dismiss}
-          onDismissForSession={dismissForSession}
-        />
-      )}
 
       {isMobile && (
         <MobileSessionsPanel

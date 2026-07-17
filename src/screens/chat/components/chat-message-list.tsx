@@ -786,11 +786,6 @@ function ChatMessageListComponent({
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const prevSessionKeyRef = useRef<string | undefined>(sessionKey)
   const stickToBottomRef = useRef(true)
-  const messageSignatureRef = useRef<Map<string, string>>(new Map())
-  const initialRenderRef = useRef(true)
-  const streamingTargetsClearRef = useRef<(() => void) | null>(null)
-  const [streamingCleared, setStreamingCleared] = useState(0)
-  streamingTargetsClearRef.current = () => setStreamingCleared((c) => c + 1)
   const lastScrollTopRef = useRef(0)
   const isNearBottomRef = useRef(true)
   const [isNearBottom, setIsNearBottom] = useState(true)
@@ -1244,37 +1239,6 @@ function ChatMessageListComponent({
     !hasUserVisibleTextMessages &&
     toolInteractionCount > 0
 
-  const streamingState = useMemo(() => {
-    const nextSignatures = new Map<string, string>()
-    const isInitialRender = initialRenderRef.current
-
-    displayEntries.forEach(({ message, sourceIndex }) => {
-      const stableId = getStableMessageId(message, sourceIndex)
-      const text = textFromMessage(message)
-      const timestamp = getMessageTimestamp(message)
-      const streamingStatus = message.__streamingStatus ?? 'idle'
-      const signature = `${streamingStatus}:${timestamp}:${text.length}:${text.slice(-48)}`
-      nextSignatures.set(stableId, signature)
-    })
-
-    messageSignatureRef.current = nextSignatures
-    if (isInitialRender) {
-      initialRenderRef.current = false
-      return {
-        streamingTargets: new Set<string>(),
-        signatureById: nextSignatures,
-      }
-    }
-
-    // Typewriter disabled — messages just fade in via CSS animation
-    // toStream stays empty, no streaming targets
-
-    return {
-      streamingTargets: new Set<string>(),
-      signatureById: nextSignatures,
-    }
-  }, [displayEntries, streamingCleared])
-
   const lastAssistantIndex = visibleEntries
     .filter(({ message }) => message.role === 'assistant')
     .map(({ sourceIndex }) => sourceIndex)
@@ -1318,9 +1282,6 @@ function ChatMessageListComponent({
     if (!lastEntry) return true
     const lastMessage = lastEntry.message
     if (lastMessage.role === 'assistant') {
-      const lastId = getStableMessageId(lastMessage, lastEntry.sourceIndex)
-      const isBeingTypewritten = streamingState.streamingTargets.has(lastId)
-      if (isBeingTypewritten) return false
       // If we're in grace period waiting for a NEW response, the last assistant
       // message is from the PREVIOUS turn — don't let its text hide the bubble.
       // Only suppress once we know this IS the new response (i.e. not waiting).
@@ -1485,9 +1446,6 @@ function ChatMessageListComponent({
     const realIndex = entry.sourceIndex
     const messageIsStreaming = isMessageStreaming(chatMessage, realIndex)
     const stableId = getStableMessageId(chatMessage, realIndex)
-    const signature = streamingState.signatureById.get(stableId)
-    const simulateStreaming =
-      !messageIsStreaming && streamingState.streamingTargets.has(stableId)
     const spacingClass = cn(
       getMessageSpacingClass(visibleEntries, entryIndex),
       getToolGroupClass(visibleEntries, entryIndex),
@@ -1559,8 +1517,6 @@ function ChatMessageListComponent({
             streamingThinking={streamingThinking}
             lifecycleEvents={lifecycleEvents}
             clarifyCard={realIndex === lastAssistantIndex ? clarifyCard : undefined}
-            simulateStreaming={simulateStreaming}
-            streamingKey={signature}
             toolDisplayMode={toolDisplayMode}
           />
         </div>
@@ -1590,8 +1546,6 @@ function ChatMessageListComponent({
         streamingThinking={undefined}
         lifecycleEvents={undefined}
         clarifyCard={realIndex === lastAssistantIndex ? clarifyCard : undefined}
-        simulateStreaming={simulateStreaming}
-        streamingKey={signature}
         toolDisplayMode={toolDisplayMode}
       />
     )
@@ -1997,10 +1951,6 @@ function ChatMessageListComponent({
                       realIndex,
                     )
                     const stableId = getStableMessageId(chatMessage, realIndex)
-                    const signature = streamingState.signatureById.get(stableId)
-                    const simulateStreaming =
-                      !messageIsStreaming &&
-                      streamingState.streamingTargets.has(stableId)
                     const forceActionsVisible =
                       typeof lastAssistantIndex === 'number' &&
                       realIndex === lastAssistantIndex
@@ -2035,8 +1985,6 @@ function ChatMessageListComponent({
                       lifecycleEvents: messageIsStreaming
                         ? lifecycleEvents
                         : undefined,
-                      simulateStreaming: simulateStreaming,
-                      streamingKey: signature,
                       toolDisplayMode: toolDisplayMode,
                       isLastAssistant: forceActionsVisible,
                     }
