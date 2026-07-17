@@ -19,7 +19,9 @@ Remove verified dormant workspace-era code without changing active behavior. Kee
 - [x] Phase 3a completed: research-card plumbing (`0508104f`), `WorkspaceShell` leftovers (`42aabe11`), and terminal-route imports (`10accce9`).
 - [x] Phase 3b settings cleanup completed in `1a690239` (342 lines removed).
 - [x] Legacy dashboard helper cleanup completed in `605636c5` (425 lines removed); active `WidgetShell`/edit-mode visibility remains unchanged.
-- [ ] Next optional cleanup: unused demo-agent generators and standalone prompt-kit exports.
+- [x] Demo-agent generator cleanup completed in `d77a0cf4` (84 lines removed).
+- [x] Standalone prompt-kit cleanup completed in `dd374b24` (722 lines removed); active chat container and composer implementations were preserved.
+- [ ] Next: discuss whether the documented, direct `/agora` preview should remain.
 - [ ] Later active-file cleanup: settings, dashboard, demo data, and prompt-kit exports.
 - [ ] Product decisions remain deferred.
 
