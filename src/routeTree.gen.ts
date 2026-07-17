@@ -28,7 +28,6 @@ import { Route as CommandsRouteImport } from './routes/commands'
 import { Route as BoardsRouteImport } from './routes/boards'
 import { Route as BoardTemplatesRouteImport } from './routes/board-templates'
 import { Route as BackupsRouteImport } from './routes/backups'
-import { Route as AgoraRouteImport } from './routes/agora'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as DocsRouteRouteImport } from './routes/docs/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -308,11 +307,6 @@ const BoardTemplatesRoute = BoardTemplatesRouteImport.update({
 const BackupsRoute = BackupsRouteImport.update({
   id: '/backups',
   path: '/backups',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AgoraRoute = AgoraRouteImport.update({
-  id: '/agora',
-  path: '/agora',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SplatRoute = SplatRouteImport.update({
@@ -1284,7 +1278,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/docs': typeof DocsRouteRouteWithChildren
   '/$': typeof SplatRoute
-  '/agora': typeof AgoraRoute
   '/backups': typeof BackupsRoute
   '/board-templates': typeof BoardTemplatesRoute
   '/boards': typeof BoardsRoute
@@ -1490,7 +1483,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
-  '/agora': typeof AgoraRoute
   '/backups': typeof BackupsRoute
   '/board-templates': typeof BoardTemplatesRoute
   '/boards': typeof BoardsRoute
@@ -1697,7 +1689,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/docs': typeof DocsRouteRouteWithChildren
   '/$': typeof SplatRoute
-  '/agora': typeof AgoraRoute
   '/backups': typeof BackupsRoute
   '/board-templates': typeof BoardTemplatesRoute
   '/boards': typeof BoardsRoute
@@ -1906,7 +1897,6 @@ export interface FileRouteTypes {
     | '/'
     | '/docs'
     | '/$'
-    | '/agora'
     | '/backups'
     | '/board-templates'
     | '/boards'
@@ -2112,7 +2102,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/$'
-    | '/agora'
     | '/backups'
     | '/board-templates'
     | '/boards'
@@ -2318,7 +2307,6 @@ export interface FileRouteTypes {
     | '/'
     | '/docs'
     | '/$'
-    | '/agora'
     | '/backups'
     | '/board-templates'
     | '/boards'
@@ -2526,7 +2514,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DocsRouteRoute: typeof DocsRouteRouteWithChildren
   SplatRoute: typeof SplatRoute
-  AgoraRoute: typeof AgoraRoute
   BackupsRoute: typeof BackupsRoute
   BoardTemplatesRoute: typeof BoardTemplatesRoute
   BoardsRoute: typeof BoardsRoute
@@ -2798,13 +2785,6 @@ declare module '@tanstack/react-router' {
       path: '/backups'
       fullPath: '/backups'
       preLoaderRoute: typeof BackupsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/agora': {
-      id: '/agora'
-      path: '/agora'
-      fullPath: '/agora'
-      preLoaderRoute: typeof AgoraRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$': {
@@ -4601,7 +4581,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DocsRouteRoute: DocsRouteRouteWithChildren,
   SplatRoute: SplatRoute,
-  AgoraRoute: AgoraRoute,
   BackupsRoute: BackupsRoute,
   BoardTemplatesRoute: BoardTemplatesRoute,
   BoardsRoute: BoardsRoute,
