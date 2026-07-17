@@ -12,7 +12,15 @@ Remove verified dormant workspace-era code without changing active behavior. Kee
 - Do not remove compatibility adapters, migrations, direct-URL previews, or dependencies without separate evidence.
 - Keep `/agora` and the old gateway agents screen until their product status is explicitly decided.
 
-## Phase 1 — high-confidence artifacts and orphaned modules
+## Status
+
+- [x] Phase 1 completed in `cdd8153f`, `07cfda67`, and `180f1645` (4,339 lines removed).
+- [x] Phase 2 completed in `3daba368` (1,570 lines removed).
+- [ ] Phase 3 active: research-card plumbing, `WorkspaceShell` leftovers, and terminal-route imports.
+- [ ] Later active-file cleanup: settings, dashboard, demo data, and prompt-kit exports.
+- [ ] Product decisions remain deferred.
+
+## Phase 1 — high-confidence artifacts and orphaned modules ✅
 
 1. **Backup and superseded screens**
    - `src/routes/settings/_legacy-index.tsx.bak`
@@ -32,7 +40,7 @@ Remove verified dormant workspace-era code without changing active behavior. Kee
    - `src/components/agent-view/agent-stream-panel.tsx`
    - `src/components/agent-view/guardrails-modal.tsx`
 
-## Phase 2 — orphaned gateway UI subtree
+## Phase 2 — orphaned gateway UI subtree ✅
 
 Delete together after confirming no route or lazy importer owns them:
 
@@ -42,7 +50,7 @@ Delete together after confirming no route or lazy importer owns them:
 - `src/screens/gateway/components/inline-approval-card.tsx`
 - Review `kanban-board.tsx` separately because it imports the live approval store and may carry independent behavior.
 
-## Phase 3 — dormant plumbing inside active files
+## Phase 3 — dormant plumbing inside active files 🚧
 
 1. Remove the research-card stub, null component, and unreachable chat-list plumbing.
 2. Remove compiler-confirmed unused `WorkspaceShell` state and handlers.
