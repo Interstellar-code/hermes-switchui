@@ -22,6 +22,9 @@ Remove verified dormant workspace-era code without changing active behavior. Kee
 - [x] Demo-agent generator cleanup completed in `d77a0cf4` (84 lines removed).
 - [x] Standalone prompt-kit cleanup completed in `dd374b24` (722 lines removed); active chat container and composer implementations were preserved.
 - [x] Agora preview fully retired in `78bdd7bf`; active docs and website references removed in the follow-up docs commit.
+- [x] Superseded gateway agents UI removed in `8ed0b311` and `822f7dad`; `/operations` remains the active replacement.
+- [x] Shelved terminal/session UI removed in `05a94a1e`; active terminal workspace and panel remain.
+- [x] Standalone chat and shell orphans removed in `a6c623b1` and `e05c160e`.
 - [ ] Later active-file cleanup: settings, dashboard, demo data, and prompt-kit exports.
 - [ ] Product decisions remain deferred.
 
@@ -65,8 +68,7 @@ Delete together after confirming no route or lazy importer owns them:
 
 ## Explicit product decisions
 
-- `src/screens/gateway/agents-screen.tsx`: zero importers and likely superseded by `/operations`, but large enough to require explicit retirement.
-- `src/components/terminal/terminal-panel.tsx` and `src/screens/chat/components/command-session.tsx`: orphaned former features; confirm they are not intentionally shelved.
+No remaining product-decision items from the audited cleanup set.
 
 ## Verification
 
