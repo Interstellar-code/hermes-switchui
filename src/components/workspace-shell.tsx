@@ -20,7 +20,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useNavigate, useRouterState } from '@tanstack/react-router'
+import { useRouterState } from '@tanstack/react-router'
 import type { AuthStatus } from '@/lib/claude-auth'
 import { fetchClaudeAuthStatus } from '@/lib/claude-auth'
 import { cn } from '@/lib/utils'
@@ -55,7 +55,6 @@ type WorkspaceShellProps = {
 }
 
 export function WorkspaceShell({ children }: WorkspaceShellProps) {
-  const navigate = useNavigate()
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
@@ -73,7 +72,6 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   // ChatGPT-style: track visual viewport height for keyboard-aware layout
   useMobileKeyboard()
 
-  const [creatingSession, setCreatingSession] = useState(false)
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.matchMedia('(max-width: 767px)').matches
@@ -185,36 +183,10 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   const isNewChat = activeFriendlyId === 'new'
 
   // Sessions state — shared semantic source for sidebar and chat header
-  const {
-    sessions,
-    sessionsLoading,
-    sessionsFetching,
-    sessionsError,
-    refetchSessions,
-  } = useChatSessions({
+  const { sessions } = useChatSessions({
     activeFriendlyId,
     isNewChat,
   })
-
-  const startNewChat = useCallback(() => {
-    setCreatingSession(true)
-    navigate({ to: '/chat/$sessionKey', params: { sessionKey: 'new' } }).then(
-      () => {
-        setCreatingSession(false)
-      },
-    )
-  }, [navigate])
-
-  const handleSelectSession = useCallback(() => {
-    // On mobile, collapse sidebar after selecting
-    if (window.innerWidth < 768) {
-      setSidebarCollapsed(true)
-    }
-  }, [setSidebarCollapsed])
-
-  const handleActiveSessionDelete = useCallback(() => {
-    navigate({ to: '/chat/$sessionKey', params: { sessionKey: 'main' } })
-  }, [navigate])
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 767px)')
