@@ -332,7 +332,7 @@ export function AgentWizard({
   const { draft, step, submitting } = state
 
   function renderStep() {
-    const errors = state.errors[step]
+    const errors = state.errors[step] ?? []
     switch (step) {
       case 1:
         return (
@@ -406,7 +406,7 @@ export function AgentWizard({
         return (
           <WizardStepReview
             draft={draft}
-            errors={state.errors[9]}
+            errors={state.errors[9] ?? []}
             submitError={state.submitError}
             onJumpTo={handleJumpTo}
           />

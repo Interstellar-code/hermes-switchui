@@ -56,7 +56,7 @@ export type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 export type WizardState = {
   draft: NewAgentDraft
   step: WizardStep
-  errors: Record<number, Array<string>>
+  errors: Partial<Record<number, Array<string>>>
   submitting: boolean
   submitError: string | null
 }
