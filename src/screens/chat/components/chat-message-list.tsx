@@ -136,8 +136,8 @@ function ToolCallCard({ name, phase }: { name: string; phase: string }) {
   } else if (!isRunning && runStartedRef.current) {
     runStartedRef.current = false
   }
-  useSharedTicker(1000)
-  const dotTick = useSharedTicker(400)
+  useSharedTicker(1000, isRunning)
+  const dotTick = useSharedTicker(400, isRunning)
   const dots = '.'.repeat(dotTick % 4)
   const elapsed = isRunning
     ? Math.floor((Date.now() - startRef.current) / 1000)

@@ -1091,7 +1091,7 @@ function useElapsedTime(active: boolean): string {
   } else if (!active && activeRef.current) {
     activeRef.current = false
   }
-  useSharedTicker(1000)
+  useSharedTicker(1000, active)
   const elapsed = active
     ? Math.floor((Date.now() - startRef.current) / 1000)
     : 0
@@ -1103,8 +1103,8 @@ function useElapsedTime(active: boolean): string {
   return `${m}m ${s}s`
 }
 
-function useAnimatedDots(): string {
-  const tick = useSharedTicker(500)
+function useAnimatedDots(active: boolean): string {
+  const tick = useSharedTicker(500, active)
   return '.'.repeat(tick % 4)
 }
 
@@ -1178,7 +1178,7 @@ function ToolCallPill({ toolCall }: { toolCall: StreamToolCall }) {
     label && label.length > 50 ? `${label.slice(0, 47)}…` : label
 
   const elapsed = useElapsedTime(isRunning)
-  const dots = useAnimatedDots()
+  const dots = useAnimatedDots(isRunning)
 
   const result = toolCall.result ?? ''
   const preview = result.slice(0, 100)
@@ -1799,7 +1799,7 @@ function InlineToolSectionItem({
     elapsedKeyRef.current = elapsedKey
     if (isRunning) elapsedStartRef.current = Date.now()
   }
-  useSharedTicker(1000)
+  useSharedTicker(1000, isRunning)
   const elapsed = isRunning
     ? Math.floor((Date.now() - elapsedStartRef.current) / 1000)
     : 0

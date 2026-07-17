@@ -55,6 +55,7 @@ function subscribe(intervalMs: number, listener: () => void): () => void {
 }
 
 const serverSnapshot = 0
+const noopSubscribe = () => () => {}
 
 /**
  * Subscribe to a shared ticker firing every `intervalMs` milliseconds.
@@ -64,10 +65,10 @@ const serverSnapshot = 0
  * they actually display from `Date.now()` (e.g. elapsed seconds) so the tick
  * count itself carries no meaning beyond "time passed".
  */
-export function useSharedTicker(intervalMs: number): number {
+export function useSharedTicker(intervalMs: number, enabled = true): number {
   return useSyncExternalStore(
-    (listener) => subscribe(intervalMs, listener),
-    () => getRegistry(intervalMs).tick,
+    enabled ? (listener) => subscribe(intervalMs, listener) : noopSubscribe,
+    enabled ? () => getRegistry(intervalMs).tick : () => serverSnapshot,
     () => serverSnapshot,
   )
 }
