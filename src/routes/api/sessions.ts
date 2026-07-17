@@ -50,7 +50,17 @@ export const Route = createFileRoute('/api/sessions')({
         }
 
         try {
-          const sessions = await listAllSessions()
+          const url = new URL(request.url)
+          const requestedLimit = Number(url.searchParams.get('limit'))
+          const requestedOffset = Number(url.searchParams.get('offset'))
+          const hasPagination = Number.isFinite(requestedLimit) && requestedLimit > 0
+          const limit = hasPagination ? Math.min(requestedLimit, 1000) : 1000
+          const offset = Number.isFinite(requestedOffset) && requestedOffset > 0
+            ? requestedOffset
+            : 0
+          const sessions = hasPagination
+            ? await listSessions(limit, offset)
+            : await listAllSessions(limit)
           const gatewaySessions = sessions.map(toSessionSummary)
 
           // Merge local portable sessions (Ollama, Atomic Chat, etc.)

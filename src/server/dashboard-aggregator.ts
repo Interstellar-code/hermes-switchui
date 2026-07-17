@@ -197,6 +197,11 @@ export type DashboardAnalyticsSection = {
 
 export type DashboardFetcher = (path: string) => Promise<Response>
 
+// Optional overview cards must not hold the whole dashboard hostage when an
+// upstream plugin is slow or unavailable. The card simply renders its normal
+// unavailable state when this deadline is exceeded.
+const OVERVIEW_FETCH_TIMEOUT_MS = 4_000
+
 export type BuildOverviewOptions = {
   /**
    * Pluggable HTTP client. Tests pass a stub; the live route hands in a
@@ -225,7 +230,13 @@ async function safeJson<T>(
   path: string,
 ): Promise<T | null> {
   try {
-    const res = await fetcher(path)
+    const timeout = new Promise<never>((_, reject) => {
+      setTimeout(
+        () => reject(new Error(`dashboard fetch timed out: ${path}`)),
+        OVERVIEW_FETCH_TIMEOUT_MS,
+      )
+    })
+    const res = await Promise.race([fetcher(path), timeout])
     if (!res.ok) return null
     return (await res.json()) as T
   } catch {

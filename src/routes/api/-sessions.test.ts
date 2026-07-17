@@ -76,4 +76,26 @@ describe('GET /api/sessions', () => {
     expect(body.sessions).toHaveLength(1002)
     expect(body.sessions.at(-1)?.id).toBe('s-1001')
   })
+
+  it('honors an explicit page instead of exhausting the backend', async () => {
+    hermes.ensureGatewayProbed.mockResolvedValue({ sessions: true })
+    hermes.listSessions.mockResolvedValue([{ id: 's-200' }])
+    hermes.toSessionSummary.mockImplementation((session: { id: string }) => ({
+      id: session.id,
+      key: session.id,
+      friendlyId: session.id,
+    }))
+    localStore.listLocalSessions.mockReturnValue([])
+
+    const handler = await getHandler()
+    const res = await handler({
+      request: new Request('http://localhost/api/sessions?limit=200&offset=200'),
+    })
+    const body = (await res.json()) as { sessions: Array<{ id: string }> }
+
+    expect(res.status).toBe(200)
+    expect(hermes.listSessions).toHaveBeenCalledTimes(1)
+    expect(hermes.listSessions).toHaveBeenCalledWith(200, 200)
+    expect(body.sessions).toEqual([{ id: 's-200', key: 's-200', friendlyId: 's-200' }])
+  })
 })
