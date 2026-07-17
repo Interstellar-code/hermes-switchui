@@ -18,7 +18,8 @@ Remove verified dormant workspace-era code without changing active behavior. Kee
 - [x] Phase 2 completed in `3daba368` (1,570 lines removed).
 - [x] Phase 3a completed: research-card plumbing (`0508104f`), `WorkspaceShell` leftovers (`42aabe11`), and terminal-route imports (`10accce9`).
 - [x] Phase 3b settings cleanup completed in `1a690239` (342 lines removed).
-- [ ] Next cleanup is dashboard widgets; deferred for a separate follow-up.
+- [x] Legacy dashboard helper cleanup completed in `605636c5` (425 lines removed); active `WidgetShell`/edit-mode visibility remains unchanged.
+- [ ] Next optional cleanup: unused demo-agent generators and standalone prompt-kit exports.
 - [ ] Later active-file cleanup: settings, dashboard, demo data, and prompt-kit exports.
 - [ ] Product decisions remain deferred.
 
