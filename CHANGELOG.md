@@ -3,6 +3,20 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.5] — 2026-07-17
+
+Focused compatibility and crash-fix patch for profiles and MCP servers.
+
+### Fixed
+
+- **Profile editor crash (#329).** Guarded the wizard's initially empty validation errors so editing a profile no longer crashes while the form is mounting.
+- **MCP server availability (#330, #335).** Updated capability detection and native list/create/delete/test proxy paths to use Hermes Agent's `/api/mcp/servers` endpoints instead of the obsolete bare `/api/mcp` paths.
+
+### Internal
+
+- Added regression coverage for the native MCP server endpoint contract.
+- Targeted MCP tests pass: 14 tests.
+
 ## [2.5.4] — 2026-07-15
 
 Chat streaming fix plus the sub-agent delegations tab and live delegation strip (#331).
