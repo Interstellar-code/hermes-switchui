@@ -3,6 +3,22 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.6] — 2026-07-17
+
+Chat responsiveness patch focused on eliminating unnecessary work during streaming and long tool-driven conversations.
+
+### Improved
+
+- Stabilized message-list and composer callbacks and rendered nodes so existing React memoization can skip unchanged chat subtrees.
+- Removed disabled model-suggestion and typewriter bookkeeping from the chat render path.
+- Stopped completed tool cards from subscribing to shared animation and elapsed-time tickers.
+- Added a stable-message fast path that avoids repeatedly parsing unchanged message text, thinking, metadata, tool calls, attachments, and timestamps.
+
+### Internal
+
+- Added regression coverage for disabled ticker subscriptions and unchanged-message comparator parsing.
+- Targeted chat verification passes: 82 tests plus changed-file ESLint.
+
 ## [2.5.5] — 2026-07-17
 
 Focused compatibility and crash-fix patch for profiles and MCP servers.
