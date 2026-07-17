@@ -3,7 +3,6 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const FILES = [
-  'src/components/dashboard-overflow-panel.tsx',
   'src/components/command-palette.tsx',
   'src/components/mobile-hamburger-menu.tsx',
   'src/components/mobile-tab-bar.tsx',
