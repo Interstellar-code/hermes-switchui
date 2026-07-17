@@ -4,7 +4,8 @@
  * Each section count is an isolated useQuery so they cache independently and
  * fail independently (a down endpoint hides only its own badge). Gated on
  * `enabled` (passed as !collapsed) so nothing fetches while the nav is collapsed
- * — badges are hidden in that state anyway.
+ * — badges are hidden in that state anyway. Counts revalidate when the window
+ * regains focus once stale, so returning to the app does not leave old badges.
  *
  * On error the query throws → data is undefined → the badge is hidden, matching
  * how the boards badge already behaves. A successful empty list shows "0".
@@ -16,11 +17,16 @@ import { commandsKeys, fetchUserCommands } from '@/lib/commands-api'
 import { fetchStats } from '@/lib/tasks-api'
 import { fetchTemplates } from '@/lib/board-templates-api'
 
-/** Fetch `url` and return the length of the array under `key`. Throws on HTTP error. */
-async function countFromArray(url: string, key: string): Promise<number> {
+/** Fetch `url` and return its authoritative total, falling back to array length. */
+export async function countFromArray(
+  url: string,
+  key: string,
+  totalKey?: string,
+): Promise<number> {
   const res = await fetch(url, { credentials: 'same-origin' })
   if (!res.ok) throw new Error(`Request failed: ${res.status}`)
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
+  if (totalKey && typeof data[totalKey] === 'number') return data[totalKey]
   const arr = data[key]
   return Array.isArray(arr) ? arr.length : 0
 }
@@ -38,7 +44,11 @@ export interface NavCounts {
 }
 
 export function useNavCounts(enabled: boolean): NavCounts {
-  const common = { enabled, staleTime: 60_000, refetchOnWindowFocus: false } as const
+  const common = {
+    enabled,
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+  } as const
 
   // Tasks = number of tasks in the current board (sum of by_status counts).
   const tasks = useQuery({
@@ -86,7 +96,8 @@ export function useNavCounts(enabled: boolean): NavCounts {
   })
   const skills = useQuery({
     queryKey: ['nav-count', 'skills'],
-    queryFn: () => countFromArray('/api/skills?tab=installed&limit=200', 'skills'),
+    queryFn: () =>
+      countFromArray('/api/skills?tab=installed&limit=200', 'skills', 'total'),
     ...common,
   })
   const mcp = useQuery({
