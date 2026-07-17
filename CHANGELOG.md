@@ -3,6 +3,28 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.7] — 2026-07-17
+
+Internal cleanup patch removing disconnected workspace-era features and dormant UI without changing active product behavior.
+
+### Removed
+
+- Retired the unlinked mock Agora preview, its route, active documentation, website references, and Electron bundle payload.
+- Removed superseded workspace, gateway agents, approval, research-card, model-suggestion, and shelved terminal/session UI.
+- Removed unused settings/dashboard implementations, demo-agent generators, prompt-kit components, and standalone chat/shell affordances.
+
+### Preserved
+
+- Dashboard widget visibility/edit mode and all active dashboard cards.
+- Current `/operations`, terminal workspace/panel, chat composer/message list, approval flow, Matrix3D, and shared avatar assets.
+
+### Internal
+
+- Removed 13,612 source/documentation lines across independently reversible commits.
+- `pnpm test`: 218 files passed; 1,864 tests passed, 2 skipped.
+- `pnpm lint`: passed.
+- Vite production application build passed; Electron server bundle regenerated from the cleaned route tree.
+
 ## [2.5.6] — 2026-07-17
 
 Chat responsiveness patch focused on eliminating unnecessary work during streaming and long tool-driven conversations.
