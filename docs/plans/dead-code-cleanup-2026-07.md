@@ -16,7 +16,8 @@ Remove verified dormant workspace-era code without changing active behavior. Kee
 
 - [x] Phase 1 completed in `cdd8153f`, `07cfda67`, and `180f1645` (4,339 lines removed).
 - [x] Phase 2 completed in `3daba368` (1,570 lines removed).
-- [ ] Phase 3 active: research-card plumbing, `WorkspaceShell` leftovers, and terminal-route imports.
+- [x] Phase 3a completed: research-card plumbing (`0508104f`), `WorkspaceShell` leftovers (`42aabe11`), and terminal-route imports (`10accce9`).
+- [ ] Phase 3b next: unused settings implementations and dashboard widgets.
 - [ ] Later active-file cleanup: settings, dashboard, demo data, and prompt-kit exports.
 - [ ] Product decisions remain deferred.
 
@@ -55,7 +56,7 @@ Delete together after confirming no route or lazy importer owns them:
 1. Remove the research-card stub, null component, and unreachable chat-list plumbing.
 2. Remove compiler-confirmed unused `WorkspaceShell` state and handlers.
 3. Remove unused lazy imports from the null terminal route while retaining route behavior.
-4. Remove compiler-confirmed unused settings implementations and dashboard widgets in separate commits.
+4. [next] Remove compiler-confirmed unused settings implementations and dashboard widgets in separate commits.
 5. Remove unused demo-agent generators and standalone prompt-kit exports only after caller checks.
 
 ## Explicit product decisions
