@@ -3,6 +3,19 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.8] — 2026-07-17
+
+Dashboard performance patch: paginated session loads and resilient overview rendering, plus matrix-theme polish for the Agent View panel.
+
+### Fixed
+
+- `/api/sessions` now honors explicit `limit`/`offset` instead of exhaustively loading every backend session; unpaginated callers still receive the complete list. Measured request time dropped from ~4s to sub-second.
+- The dashboard overview aggregator now applies a 4s per-section timeout, so slow optional upstream cards degrade independently instead of blocking the whole dashboard (~10–15s → ~4s).
+
+### Changed
+
+- Themed the Agent View panel, scrollbar, launcher, and surfaces for the matrix theme.
+
 ## [2.5.7] — 2026-07-17
 
 Internal cleanup patch removing disconnected workspace-era features and dormant UI without changing active product behavior.
