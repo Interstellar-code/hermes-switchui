@@ -69,7 +69,6 @@ A chat round-trip is fully streamed. You see tokens land as the provider emits t
 - **Memory** — View and edit the agent's persistent memory files.
 - **Jobs** — Background job queue status.
 - **Tasks** — Agent task tracking.
-- **Agora** — Community hub for sharing skills and presets.
 
 Pages that depend on optional gateway or dashboard endpoints (Conductor, Tasks, MCP, etc.) detect missing capabilities at startup and degrade gracefully instead of erroring.
 

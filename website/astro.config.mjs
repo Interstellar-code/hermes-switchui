@@ -113,7 +113,6 @@ export default defineConfig({
             { label: 'Operations', slug: 'main/operations' },
             { label: 'Matrix3D', slug: 'main/matrix3d' },
             { label: 'Self-Improve', slug: 'main/self-improve' },
-            { label: 'Agora', slug: 'main/agora' },
           ],
         },
         {

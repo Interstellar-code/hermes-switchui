@@ -10,7 +10,7 @@ Remove verified dormant workspace-era code without changing active behavior. Kee
 - Delete one coherent feature group per commit.
 - Run targeted lint/tests after each batch; stop and revert if active behavior changes.
 - Do not remove compatibility adapters, migrations, direct-URL previews, or dependencies without separate evidence.
-- Keep `/agora` and the old gateway agents screen until their product status is explicitly decided.
+- Keep the old gateway agents screen until its product status is explicitly decided.
 
 ## Status
 
@@ -21,7 +21,7 @@ Remove verified dormant workspace-era code without changing active behavior. Kee
 - [x] Legacy dashboard helper cleanup completed in `605636c5` (425 lines removed); active `WidgetShell`/edit-mode visibility remains unchanged.
 - [x] Demo-agent generator cleanup completed in `d77a0cf4` (84 lines removed).
 - [x] Standalone prompt-kit cleanup completed in `dd374b24` (722 lines removed); active chat container and composer implementations were preserved.
-- [ ] Awaiting product decision: whether the documented, direct `/agora` preview should remain.
+- [x] Agora preview fully retired in `78bdd7bf`; active docs and website references removed in the follow-up docs commit.
 - [ ] Later active-file cleanup: settings, dashboard, demo data, and prompt-kit exports.
 - [ ] Product decisions remain deferred.
 
@@ -65,7 +65,6 @@ Delete together after confirming no route or lazy importer owns them:
 
 ## Explicit product decisions
 
-- `/agora`: unlinked and mock-backed but documented and directly reachable.
 - `src/screens/gateway/agents-screen.tsx`: zero importers and likely superseded by `/operations`, but large enough to require explicit retirement.
 - `src/components/terminal/terminal-panel.tsx` and `src/screens/chat/components/command-session.tsx`: orphaned former features; confirm they are not intentionally shelved.
 

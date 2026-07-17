@@ -71,9 +71,6 @@ pages:
     title: Board templates
   - slug: main/self-improve
     title: Self-Improve
-  - slug: main/agora
-    title: Agora
-
   # KNOWLEDGE
   - slug: knowledge/memory
     title: Memory
