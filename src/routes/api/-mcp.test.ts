@@ -205,6 +205,37 @@ describe('Phase 1.5 fallback — capability gating shape', () => {
     expect(body.servers).toEqual([expect.objectContaining({ name: 'fs' })])
     expect(body.total).toBe(1)
   })
+
+  it('native mode uses the hermes-agent servers endpoint', async () => {
+    const dashboardFetch = vi.fn(() =>
+      Promise.resolve(Response.json({ servers: [] })),
+    )
+    const capabilities = {
+      mcp: true,
+      mcpFallback: false,
+      dashboard: { available: true },
+    }
+    vi.doMock('../../server/gateway-capabilities', () => ({
+      ensureGatewayProbed: () => Promise.resolve(capabilities),
+      getCapabilities: () => capabilities,
+      BEARER_TOKEN: '',
+      CLAUDE_API: 'http://127.0.0.1:8642',
+      CLAUDE_UPGRADE_INSTRUCTIONS: 'noop',
+      dashboardFetch,
+    }))
+    vi.doMock('../../server/auth-middleware', () => ({ isAuthenticated: () => true }))
+    vi.doMock('@tanstack/react-router', () => ({
+      createFileRoute: () => (config: unknown) => config,
+    }))
+
+    const { Route } = await import('./mcp')
+    const route = Route as unknown as {
+      server: { handlers: { GET: (ctx: { request: Request }) => Promise<Response> } }
+    }
+    await route.server.handlers.GET({ request: new Request('http://localhost/api/mcp') })
+
+    expect(dashboardFetch).toHaveBeenCalledWith('/api/mcp/servers', expect.any(Object))
+  })
 })
 
 describe('secret echo guard (PR4 acceptance contract)', () => {

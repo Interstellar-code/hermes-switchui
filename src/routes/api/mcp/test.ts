@@ -101,10 +101,15 @@ export const Route = createFileRoute('/api/mcp/test')({
             }
             body = parsed.value as unknown as Record<string, unknown>
           }
-          const response = await mcpFetch('/api/mcp/test', {
+          if (typeof body.name !== 'string' || Object.keys(body).length !== 1) {
+            return Response.json(
+              { ok: false, status: 'unknown', discoveredTools: [], error: 'Save the server before testing it.' },
+              { status: 400 },
+            )
+          }
+          const response = await mcpFetch(`/api/mcp/servers/${encodeURIComponent(body.name)}/test`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
             signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
           })
           const payload = (await response.json().catch(() => ({}))) as unknown

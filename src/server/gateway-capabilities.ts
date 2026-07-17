@@ -656,7 +656,7 @@ async function probeChatCompletions(): Promise<boolean> {
  * insufficient. The probe must hit `GET /api/mcp` directly and verify both:
  *   1. 200 OK
  *   2. Body parses through normalizeMcpList (i.e. shape is recognizable)
- * If the dashboard is up but `/api/mcp` is absent (404) or returns a
+ * If the dashboard is up but `/api/mcp/servers` is absent (404) or returns a
  * malformed body, capability is `false`.
  */
 async function probeMcp(): Promise<boolean> {
@@ -673,9 +673,9 @@ async function probeMcp(): Promise<boolean> {
   }
   // Use dashboardFetch so the probe goes through the same authenticated path
   // workspace routes use at runtime — otherwise an auth-protected dashboard
-  // /api/mcp would falsely report capability=false (Codex MAJOR finding).
+  // /api/mcp/servers would falsely report capability=false (Codex MAJOR finding).
   try {
-    const res = await dashboardFetch('/api/mcp', {
+    const res = await dashboardFetch('/api/mcp/servers', {
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     })
     if (await validate(res)) return true
@@ -683,7 +683,7 @@ async function probeMcp(): Promise<boolean> {
     // fall through to gateway path
   }
   try {
-    const res = await fetch(`${CLAUDE_API}/api/mcp`, {
+    const res = await fetch(`${CLAUDE_API}/api/mcp/servers`, {
       headers: authHeaders(),
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     })
