@@ -109,3 +109,23 @@ describe('areMessagesEqual — clarifyCard', () => {
     expect(areMessagesEqual(prev, next)).toBe(true)
   })
 })
+
+describe('areMessagesEqual — stable message reference', () => {
+  it('skips message content parsing when the message object is unchanged', () => {
+    let contentReads = 0
+    const message = Object.defineProperty(
+      { ...baseMessage },
+      'content',
+      {
+        get() {
+          contentReads += 1
+          return baseMessage.content
+        },
+      },
+    )
+    const props = { message, attachedToolMessages: [] } as MessageItemProps
+
+    expect(areMessagesEqual(props, props)).toBe(true)
+    expect(contentReads).toBe(0)
+  })
+})

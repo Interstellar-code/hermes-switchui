@@ -3034,48 +3034,61 @@ export function areMessagesEqual(
   if (prevProps.toolDisplayMode !== nextProps.toolDisplayMode) {
     return false
   }
-  if (
-    prevProps.message.__streamingStatus !== nextProps.message.__streamingStatus
-  ) {
-    return false
-  }
-  if (prevProps.message.__streamingText !== nextProps.message.__streamingText) {
-    return false
-  }
-  if (
-    prevProps.message.__streamingThinking !==
-    nextProps.message.__streamingThinking
-  ) {
-    return false
-  }
-  if (
-    (prevProps.message.role || 'assistant') !==
-    (nextProps.message.role || 'assistant')
-  ) {
-    return false
-  }
-  if (
-    textFromMessage(prevProps.message) !== textFromMessage(nextProps.message)
-  ) {
-    return false
-  }
-  if (
-    thinkingFromMessage(prevProps.message) !==
-    thinkingFromMessage(nextProps.message)
-  ) {
-    return false
-  }
-  if (
-    messageMetadataSignature(prevProps.message) !==
-    messageMetadataSignature(nextProps.message)
-  ) {
-    return false
-  }
-  if (
-    toolCallsSignature(prevProps.message) !==
-    toolCallsSignature(nextProps.message)
-  ) {
-    return false
+  if (prevProps.message !== nextProps.message) {
+    if (
+      prevProps.message.__streamingStatus !== nextProps.message.__streamingStatus
+    ) {
+      return false
+    }
+    if (prevProps.message.__streamingText !== nextProps.message.__streamingText) {
+      return false
+    }
+    if (
+      prevProps.message.__streamingThinking !==
+      nextProps.message.__streamingThinking
+    ) {
+      return false
+    }
+    if (
+      (prevProps.message.role || 'assistant') !==
+      (nextProps.message.role || 'assistant')
+    ) {
+      return false
+    }
+    if (
+      textFromMessage(prevProps.message) !== textFromMessage(nextProps.message)
+    ) {
+      return false
+    }
+    if (
+      thinkingFromMessage(prevProps.message) !==
+      thinkingFromMessage(nextProps.message)
+    ) {
+      return false
+    }
+    if (
+      messageMetadataSignature(prevProps.message) !==
+      messageMetadataSignature(nextProps.message)
+    ) {
+      return false
+    }
+    if (
+      toolCallsSignature(prevProps.message) !==
+      toolCallsSignature(nextProps.message)
+    ) {
+      return false
+    }
+    if (rawTimestamp(prevProps.message) !== rawTimestamp(nextProps.message)) {
+      return false
+    }
+    const prevAttachments = Array.isArray(prevProps.message.attachments)
+      ? prevProps.message.attachments
+      : []
+    const nextAttachments = Array.isArray(nextProps.message.attachments)
+      ? nextProps.message.attachments
+      : []
+    if (prevAttachments.length !== nextAttachments.length) return false
+    if (prevProps.message.status !== nextProps.message.status) return false
   }
   if (
     toolResultsSignature(prevProps.message, prevProps.toolResultsByCallId) !==
@@ -3093,26 +3106,6 @@ export function areMessagesEqual(
   // model label). When a newer message arrives this can flip while every other
   // compared field stays equal, so it must be compared to avoid a stale footer.
   if (prevProps.isLastAssistant !== nextProps.isLastAssistant) {
-    return false
-  }
-  if (rawTimestamp(prevProps.message) !== rawTimestamp(nextProps.message)) {
-    return false
-  }
-  // Check attachments
-  const prevAttachments = Array.isArray(prevProps.message.attachments)
-    ? prevProps.message.attachments
-    : []
-  const nextAttachments = Array.isArray(nextProps.message.attachments)
-    ? nextProps.message.attachments
-    : []
-  if (prevAttachments.length !== nextAttachments.length) {
-    return false
-  }
-  // Check message status — required so that optimistic "sending" → "queued"
-  // transitions re-render the component and clear the isStuckSending timer.
-  const prevStatus = (prevProps.message as Record<string, unknown>).status
-  const nextStatus = (nextProps.message as Record<string, unknown>).status
-  if (prevStatus !== nextStatus) {
     return false
   }
   // No need to check settings here as the hook will cause a re-render
