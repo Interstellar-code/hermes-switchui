@@ -834,11 +834,11 @@ export function AgentViewPanel() {
             opacity: { duration: 0.22, ease: 'easeOut' },
           }}
           className={cn(
-            'relative h-full shrink-0 overflow-hidden bg-[color:var(--theme-sidebar,#060914)]/92 backdrop-blur-xl',
+            'agent-view-panel relative flex h-full min-h-0 shrink-0 flex-col overflow-hidden bg-[color:var(--theme-sidebar,#060914)]/92 backdrop-blur-xl',
             panelVisible ? 'pointer-events-auto' : 'pointer-events-none',
           )}
         >
-          <div className="px-3 py-2">
+          <div className="shrink-0 px-3 py-2">
             {/* Row 1: Count left | Title center | Actions right */}
             <div className="flex items-center justify-between">
               {/* Left — active agent count + live indicator */}
@@ -903,8 +903,8 @@ export function AgentViewPanel() {
 
           </div>
 
-          <ScrollAreaRoot className="h-[calc(100%-3.25rem)]">
-            <ScrollAreaViewport>
+          <ScrollAreaRoot className="agent-view-scroll-area min-h-0 flex-1">
+            <ScrollAreaViewport className="agent-view-scroll-viewport">
               <div className="space-y-3 p-3">
                 <InspectorPanel embedded />
 
@@ -912,7 +912,7 @@ export function AgentViewPanel() {
                 <OrchestratorCard compact={false} />
 
                 {/* Agents — agent cards — only show when there's something */}
-                {(activeCount > 0 || queuedAgents.length > 0 || historyAgents.length > 0) && <section className="rounded-2xl bg-primary-200/15 p-1">
+                {(activeCount > 0 || queuedAgents.length > 0 || historyAgents.length > 0) && <section className="agent-view-surface rounded-2xl bg-primary-200/15 p-1">
                   {/* Centered Agents pill */}
                   <div className="mb-1 flex justify-center">
                     <span className="rounded-full bg-primary-200/30 px-3 py-0.5 text-[10px] font-medium uppercase tracking-wider text-primary-500">
@@ -1138,7 +1138,7 @@ export function AgentViewPanel() {
                 </section>}
 
                 {(cliAgentsQuery.isLoading || visibleCliAgents.length > 0) ? (
-                  <section className="rounded-2xl bg-primary-200/15 p-2">
+                  <section className="agent-view-surface rounded-2xl bg-primary-200/15 p-2">
                     <Collapsible
                       open={cliAgentsExpanded}
                       onOpenChange={setCliAgentsExpanded}
@@ -1242,10 +1242,10 @@ export function AgentViewPanel() {
 
               </div>
             </ScrollAreaViewport>
-            <ScrollAreaScrollbar>
+            <ScrollAreaScrollbar className="agent-view-scrollbar">
               <ScrollAreaThumb />
             </ScrollAreaScrollbar>
-            <ScrollAreaCorner />
+            <ScrollAreaCorner className="agent-view-scroll-corner" />
           </ScrollAreaRoot>
         </motion.aside>
       ) : (
@@ -1268,7 +1268,7 @@ export function AgentViewPanel() {
                 animate={{ y: 0 }}
                 exit={{ y: '100%' }}
                 transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-                className="fixed inset-x-0 bottom-0 z-[81] max-h-[85vh] overflow-y-auto rounded-t-2xl border-t border-primary-300/70 bg-primary-100/95 backdrop-blur-xl"
+                className="agent-view-mobile fixed inset-x-0 bottom-0 z-[81] max-h-[85vh] overflow-y-auto rounded-t-2xl border-t border-primary-300/70 bg-primary-100/95 backdrop-blur-xl"
               >
                 {/* Drag handle */}
                 <div className="sticky top-0 z-10 flex justify-center bg-primary-100/95 pt-2 pb-1 backdrop-blur-xl">
@@ -1310,7 +1310,7 @@ export function AgentViewPanel() {
                 <div className="space-y-3 p-3">
                   <OrchestratorCard compact={false} />
 
-                  <section className="rounded-2xl bg-primary-200/15 p-1">
+                  <section className="agent-view-surface rounded-2xl bg-primary-200/15 p-1">
                     <div className="mb-1 flex justify-center">
                       <span className="rounded-full bg-primary-200/30 px-3 py-0.5 text-[10px] font-medium uppercase tracking-wider text-primary-500">
                         Agents
@@ -1361,7 +1361,7 @@ export function AgentViewPanel() {
                     ) : null}
                   </section>
                   {historyAgents.length > 0 ? (
-                    <section className="rounded-2xl bg-primary-200/15 p-2">
+                    <section className="agent-view-surface rounded-2xl bg-primary-200/15 p-2">
                       <button
                         type="button"
                         onClick={() => setHistoryOpen(!historyOpen)}
@@ -1413,7 +1413,7 @@ export function AgentViewPanel() {
             onClick={function handleOpenPanel() {
               setOpen(true)
             }}
-            className="fixed right-4 bottom-4 z-30 inline-flex size-12 items-center justify-center rounded-full bg-linear-to-br from-accent-500 to-accent-600 text-primary-50 shadow-lg ring-1 ring-primary-50/20 transition-shadow hover:shadow-xl hover:shadow-accent-900/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-300 dark:from-accent-400 dark:to-accent-500 dark:shadow-accent-950/60 dark:ring-primary-50/30 dark:hover:shadow-accent-500/30"
+            className="agent-view-launcher fixed z-30 inline-flex size-10 items-center justify-center rounded-lg border text-primary-50 shadow-lg transition-shadow hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-300"
             aria-label="Open Agent View"
           >
             <motion.span
