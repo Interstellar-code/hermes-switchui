@@ -1165,6 +1165,63 @@ export function ChatScreen({
     resetKey: `${resolvedSessionKey || activeCanonicalKey || 'main'}:${researchResetKey}`,
   })
 
+  const handleReplyMessage = useCallback(
+    (msg: ChatMessage, selectedText?: string) => {
+      const preview = (selectedText && selectedText.trim().length > 0
+        ? selectedText
+        : textFromMessage(msg)
+            .replace(/```[\s\S]*?```/g, ' ')
+            .replace(/`([^`]+)`/g, '$1')
+            .replace(/^\s*#{1,6}\s+/gm, '')
+            .replace(/^\s*>\s?/gm, '')
+            .replace(/^\s*\|.*$/gm, '')
+            .replace(/^\s*[-*+]\s+/gm, '')
+            .replace(/\*\*([^*]+)\*\*/g, '$1')
+            .replace(/\*([^*]+)\*/g, '$1')
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'))
+        .replace(/\s+/g, ' ')
+        .trim()
+      const seq = finalDisplayMessages.indexOf(msg) + 1
+      setReplyTo({ seq, role: msg.role ?? 'assistant', preview })
+    },
+    [finalDisplayMessages],
+  )
+  const handleEmptyStateSuggestion = useCallback((prompt: string) => {
+    composerHandleRef.current?.setValue(prompt + ' ')
+  }, [])
+  const emptyState = useMemo(
+    () => (
+      <ChatEmptyState
+        compact={compact}
+        onSuggestionClick={handleEmptyStateSuggestion}
+      />
+    ),
+    [compact, handleEmptyStateSuggestion],
+  )
+  const clarifyCard = useMemo(
+    () =>
+      activeClarify && resolvedSessionKey ? (
+        <InlineClarifyCard
+          clarify={activeClarify}
+          sessionKey={resolvedSessionKey}
+        />
+      ) : null,
+    [activeClarify, resolvedSessionKey],
+  )
+  const handleClearReply = useCallback(() => setReplyTo(null), [])
+  const handleToggleSystemMessages = useCallback(
+    () => setHideSystemMessages((value) => !value),
+    [],
+  )
+  const handleNewSession = useCallback(() => {
+    if (embedded) return
+    try {
+      void navigate({ to: '/', replace: true })
+    } catch {
+      /* router not ready */
+    }
+  }, [embedded, navigate])
+
   const sessionModelFallback =
     (typeof (activeSession as { model?: unknown } | null | undefined)?.model ===
     'string'
@@ -1310,39 +1367,11 @@ export function ChatScreen({
             <ChatMessageList
               messages={finalDisplayMessages}
               onRetryMessage={handleRetryMessage}
-              onReplyMessage={(msg, selectedText) => {
-                const preview = (selectedText && selectedText.trim().length > 0
-                  ? selectedText
-                  : textFromMessage(msg)
-                      .replace(/```[\s\S]*?```/g, ' ')
-                      .replace(/`([^`]+)`/g, '$1')
-                      .replace(/^\s*#{1,6}\s+/gm, '')
-                      .replace(/^\s*>\s?/gm, '')
-                      .replace(/^\s*\|.*$/gm, '')
-                      .replace(/^\s*[-*+]\s+/gm, '')
-                      .replace(/\*\*([^*]+)\*\*/g, '$1')
-                      .replace(/\*([^*]+)\*/g, '$1')
-                      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'))
-                  .replace(/\s+/g, ' ')
-                  .trim()
-                const seq = finalDisplayMessages.indexOf(msg) + 1
-                setReplyTo({
-                  seq,
-                  role: msg.role ?? 'assistant',
-                  preview,
-                })
-              }}
+              onReplyMessage={handleReplyMessage}
               onRefresh={handleRefreshHistory}
               loading={historyLoading}
               empty={historyEmpty}
-              emptyState={
-                <ChatEmptyState
-                  compact={compact}
-                  onSuggestionClick={(prompt) => {
-                    composerHandleRef.current?.setValue(prompt + ' ')
-                  }}
-                />
-              }
+              emptyState={emptyState}
               notice={null}
               noticePosition="end"
               waitingForResponse={waitingForResponse}
@@ -1373,14 +1402,7 @@ export function ChatScreen({
               liveProgressLabel={liveProgressLabel}
               sending={sending}
               toolDisplayMode={toolDisplayMode}
-              clarifyCard={
-                activeClarify && resolvedSessionKey ? (
-                  <InlineClarifyCard
-                    clarify={activeClarify}
-                    sessionKey={resolvedSessionKey}
-                  />
-                ) : null
-              }
+              clarifyCard={clarifyCard}
             />
             </StreamingTextContext.Provider>
           )}
@@ -1403,20 +1425,12 @@ export function ChatScreen({
               focusKey={`${isNewChat ? 'new' : activeFriendlyId}:${activeCanonicalKey ?? ''}`}
               thinkingLevel={thinkingLevel}
               replyTo={replyTo}
-              onClearReply={() => setReplyTo(null)}
+              onClearReply={handleClearReply}
               systemMessagesHidden={hideSystemMessages}
-              onToggleSystemMessages={() => setHideSystemMessages((v) => !v)}
+              onToggleSystemMessages={handleToggleSystemMessages}
               toolDisplayMode={toolDisplayMode}
               onCycleToolDisplayMode={cycleToolDisplayMode}
-              onNewSession={() => {
-                if (!embedded) {
-                  try {
-                    navigate({ to: '/', replace: true })
-                  } catch {
-                    /* router not ready */
-                  }
-                }
-              }}
+              onNewSession={handleNewSession}
             />
           ) : null}
         </main>
