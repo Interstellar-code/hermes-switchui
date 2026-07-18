@@ -195,6 +195,7 @@ import { Route as ApiOperationsAgentsIdRouteImport } from './routes/api/operatio
 import { Route as ApiMcpHubSourcesIdRouteImport } from './routes/api/mcp/hub-sources.$id'
 import { Route as ApiMcpNameLogsRouteImport } from './routes/api/mcp/$name.logs'
 import { Route as ApiHermesProjectsIdFoldersRouteImport } from './routes/api/hermes-projects/$id.folders'
+import { Route as ApiHermesProjectsIdActivityRouteImport } from './routes/api/hermes-projects/$id.activity'
 import { Route as ApiHermesKanbanTemplatesSlugRouteImport } from './routes/api/hermes-kanban/templates.$slug'
 import { Route as ApiHermesKanbanTasksTaskIdRouteImport } from './routes/api/hermes-kanban/tasks.$taskId'
 import { Route as ApiHermesKanbanBoardsSlugRouteImport } from './routes/api/hermes-kanban/boards.$slug'
@@ -1167,6 +1168,12 @@ const ApiHermesProjectsIdFoldersRoute =
     path: '/folders',
     getParentRoute: () => ApiHermesProjectsIdRoute,
   } as any)
+const ApiHermesProjectsIdActivityRoute =
+  ApiHermesProjectsIdActivityRouteImport.update({
+    id: '/activity',
+    path: '/activity',
+    getParentRoute: () => ApiHermesProjectsIdRoute,
+  } as any)
 const ApiHermesKanbanTemplatesSlugRoute =
   ApiHermesKanbanTemplatesSlugRouteImport.update({
     id: '/$slug',
@@ -1475,6 +1482,7 @@ export interface FileRoutesByFullPath {
   '/api/hermes-kanban/boards/$slug': typeof ApiHermesKanbanBoardsSlugRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/hermes-kanban/templates/$slug': typeof ApiHermesKanbanTemplatesSlugRouteWithChildren
+  '/api/hermes-projects/$id/activity': typeof ApiHermesProjectsIdActivityRoute
   '/api/hermes-projects/$id/folders': typeof ApiHermesProjectsIdFoldersRoute
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
@@ -1683,6 +1691,7 @@ export interface FileRoutesByTo {
   '/api/hermes-kanban/boards/$slug': typeof ApiHermesKanbanBoardsSlugRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/hermes-kanban/templates/$slug': typeof ApiHermesKanbanTemplatesSlugRouteWithChildren
+  '/api/hermes-projects/$id/activity': typeof ApiHermesProjectsIdActivityRoute
   '/api/hermes-projects/$id/folders': typeof ApiHermesProjectsIdFoldersRoute
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
@@ -1894,6 +1903,7 @@ export interface FileRoutesById {
   '/api/hermes-kanban/boards/$slug': typeof ApiHermesKanbanBoardsSlugRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/hermes-kanban/templates/$slug': typeof ApiHermesKanbanTemplatesSlugRouteWithChildren
+  '/api/hermes-projects/$id/activity': typeof ApiHermesProjectsIdActivityRoute
   '/api/hermes-projects/$id/folders': typeof ApiHermesProjectsIdFoldersRoute
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
@@ -2106,6 +2116,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/boards/$slug'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/hermes-kanban/templates/$slug'
+    | '/api/hermes-projects/$id/activity'
     | '/api/hermes-projects/$id/folders'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
@@ -2314,6 +2325,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/boards/$slug'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/hermes-kanban/templates/$slug'
+    | '/api/hermes-projects/$id/activity'
     | '/api/hermes-projects/$id/folders'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
@@ -2524,6 +2536,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/boards/$slug'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/hermes-kanban/templates/$slug'
+    | '/api/hermes-projects/$id/activity'
     | '/api/hermes-projects/$id/folders'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
@@ -4008,6 +4021,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHermesProjectsIdFoldersRouteImport
       parentRoute: typeof ApiHermesProjectsIdRoute
     }
+    '/api/hermes-projects/$id/activity': {
+      id: '/api/hermes-projects/$id/activity'
+      path: '/activity'
+      fullPath: '/api/hermes-projects/$id/activity'
+      preLoaderRoute: typeof ApiHermesProjectsIdActivityRouteImport
+      parentRoute: typeof ApiHermesProjectsIdRoute
+    }
     '/api/hermes-kanban/templates/$slug': {
       id: '/api/hermes-kanban/templates/$slug'
       path: '/$slug'
@@ -4547,10 +4567,12 @@ const ApiHermesKanbanTemplatesRouteWithChildren =
   )
 
 interface ApiHermesProjectsIdRouteChildren {
+  ApiHermesProjectsIdActivityRoute: typeof ApiHermesProjectsIdActivityRoute
   ApiHermesProjectsIdFoldersRoute: typeof ApiHermesProjectsIdFoldersRoute
 }
 
 const ApiHermesProjectsIdRouteChildren: ApiHermesProjectsIdRouteChildren = {
+  ApiHermesProjectsIdActivityRoute: ApiHermesProjectsIdActivityRoute,
   ApiHermesProjectsIdFoldersRoute: ApiHermesProjectsIdFoldersRoute,
 }
 

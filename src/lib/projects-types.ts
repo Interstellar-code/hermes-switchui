@@ -17,6 +17,25 @@ export type Project = {
   archived: boolean
   created_at: number | null
   folders: Array<ProjectFolder>
+  bound_board: BoundBoard | null
+  folder_count: number
+  task_count: number
+  open_task_count: number
+  task_status_counts: Record<string, number>
+  session_count: number
+  last_task_activity_at: number | null
+  last_session_activity_at: number | null
+  last_activity_at: number | null
+  is_active: boolean
+}
+
+export type BoundBoard = {
+  slug: string
+  name: string
+  description: string
+  icon: string
+  color: string
+  archived: boolean
 }
 
 // Confirmed against backend `projects_db.ProjectFolder.to_dict()`.
@@ -39,4 +58,38 @@ export type ProjectDetailResponse = {
 export type ProjectFoldersResponse = {
   project_id: string
   folders: Array<ProjectFolder>
+}
+
+export type ProjectActivityTaskItem = {
+  kind: 'task'
+  id: string
+  occurred_at: number
+  event_kind: string
+  board_slug: string
+  title: string
+  status: string
+  assignee: string | null
+  created_at: number
+}
+
+export type ProjectActivitySessionItem = {
+  kind: 'session'
+  id: string
+  occurred_at: number
+  title: string | null
+  preview: string
+  source: string
+  model: string
+  message_count: number
+  cwd: string
+}
+
+export type ProjectActivityItem =
+  | ProjectActivityTaskItem
+  | ProjectActivitySessionItem
+
+export type ProjectActivityResponse = {
+  project_id: string
+  items: Array<ProjectActivityItem>
+  next_cursor: string | null
 }

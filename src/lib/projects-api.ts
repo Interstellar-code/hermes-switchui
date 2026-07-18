@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import type {
+  ProjectActivityResponse,
   ProjectDetailResponse,
   ProjectFoldersResponse,
   ProjectsListResponse,
@@ -26,6 +27,8 @@ export const projectsKeys = {
   detail: (idOrSlug: string) => ['hermes-projects', 'detail', idOrSlug] as const,
   folders: (idOrSlug: string) =>
     ['hermes-projects', 'folders', idOrSlug] as const,
+  activity: (idOrSlug: string) =>
+    ['hermes-projects', 'activity', idOrSlug] as const,
 }
 
 export async function fetchProjects(
@@ -55,6 +58,19 @@ export async function fetchProjectFolders(
   )
 }
 
+export async function fetchProjectActivity(
+  idOrSlug: string,
+  opts?: { limit?: number; cursor?: string | null },
+): Promise<ProjectActivityResponse> {
+  const q = new URLSearchParams()
+  if (opts?.limit != null) q.set('limit', String(opts.limit))
+  if (opts?.cursor != null) q.set('cursor', opts.cursor)
+  const qs = q.toString()
+  return projectsJson<ProjectActivityResponse>(
+    `/api/hermes-projects/${encodeURIComponent(idOrSlug)}/activity${qs ? `?${qs}` : ''}`,
+  )
+}
+
 export function useProjects(includeArchived = false, enabled = true) {
   return useQuery({
     queryKey: projectsKeys.list(includeArchived),
@@ -75,6 +91,18 @@ export function useProjectFolders(idOrSlug: string, enabled = true) {
   return useQuery({
     queryKey: projectsKeys.folders(idOrSlug),
     queryFn: () => fetchProjectFolders(idOrSlug),
+    enabled: enabled && !!idOrSlug,
+  })
+}
+
+export function useProjectActivity(
+  idOrSlug: string,
+  opts?: { limit?: number; cursor?: string | null },
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: projectsKeys.activity(idOrSlug),
+    queryFn: () => fetchProjectActivity(idOrSlug, opts),
     enabled: enabled && !!idOrSlug,
   })
 }

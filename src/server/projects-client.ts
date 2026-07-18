@@ -6,6 +6,7 @@
  */
 import { dashboardFetch } from './gateway-capabilities'
 import type {
+  ProjectActivityResponse,
   ProjectDetailResponse,
   ProjectFoldersResponse,
   ProjectsListResponse,
@@ -64,6 +65,19 @@ export async function getProjectFolders(
 ): Promise<ProjectFoldersResponse> {
   return projectsFetch<ProjectFoldersResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/folders`,
+    {},
+  )
+}
+
+export async function getProjectActivity(
+  idOrSlug: string,
+  opts?: { limit?: number; cursor?: string | null },
+): Promise<ProjectActivityResponse> {
+  const q = new URLSearchParams()
+  q.set('limit', String(opts?.limit ?? 10))
+  if (opts?.cursor != null) q.set('cursor', opts.cursor)
+  return projectsFetch<ProjectActivityResponse>(
+    `${BASE}/${encodeURIComponent(idOrSlug)}/activity?${q.toString()}`,
     {},
   )
 }
