@@ -1,20 +1,43 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // ── fs mock ──────────────────────────────────────────────────────────────────
-const { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, renameSync, unlinkSync } =
-  vi.hoisted(() => ({
-    existsSync: vi.fn().mockReturnValue(true),
-    readFileSync: vi.fn().mockReturnValue('model: auto\n'),
-    writeFileSync: vi.fn().mockImplementation(() => {}),
-    mkdirSync: vi.fn().mockImplementation(() => {}),
-    readdirSync: vi.fn().mockReturnValue([]),
-    statSync: vi.fn().mockReturnValue({ isDirectory: () => true, isSymbolicLink: () => false, mtimeMs: 0 }),
-    renameSync: vi.fn().mockImplementation(() => {}),
-    unlinkSync: vi.fn().mockImplementation(() => {}),
-  }))
+const {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  renameSync,
+  unlinkSync,
+} = vi.hoisted(() => ({
+  existsSync: vi.fn().mockReturnValue(true),
+  readFileSync: vi.fn().mockReturnValue('model: auto\n'),
+  writeFileSync: vi.fn().mockImplementation(() => {}),
+  mkdirSync: vi.fn().mockImplementation(() => {}),
+  readdirSync: vi.fn().mockReturnValue([]),
+  statSync: vi
+    .fn()
+    .mockReturnValue({
+      isDirectory: () => true,
+      isSymbolicLink: () => false,
+      mtimeMs: 0,
+    }),
+  renameSync: vi.fn().mockImplementation(() => {}),
+  unlinkSync: vi.fn().mockImplementation(() => {}),
+}))
 
 vi.mock('node:fs', () => ({
-  default: { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, renameSync, unlinkSync },
+  default: {
+    existsSync,
+    readFileSync,
+    writeFileSync,
+    mkdirSync,
+    readdirSync,
+    statSync,
+    renameSync,
+    unlinkSync,
+  },
   existsSync,
   readFileSync,
   writeFileSync,
@@ -33,7 +56,11 @@ vi.mock('@tanstack/react-start', () => ({
   json: (body: unknown, init?: ResponseInit) =>
     new Response(JSON.stringify(body), {
       ...(init ?? {}),
-      headers: { 'Content-Type': 'application/json', ...((init as ResponseInit & { headers?: Record<string, string> }).headers ?? {}) },
+      headers: {
+        'Content-Type': 'application/json',
+        ...((init as ResponseInit & { headers?: Record<string, string> })
+          .headers ?? {}),
+      },
     }),
 }))
 
@@ -58,8 +85,15 @@ function makeRequest(body: unknown): Request {
 async function getHandler() {
   vi.resetModules()
   const mod = await import('../update')
-  return (mod as unknown as { Route: { server: { handlers: { POST: (ctx: { request: Request }) => Promise<Response> } } } }).Route
-    .server.handlers.POST
+  return (
+    mod as unknown as {
+      Route: {
+        server: {
+          handlers: { POST: (ctx: { request: Request }) => Promise<Response> }
+        }
+      }
+    }
+  ).Route.server.handlers.POST
 }
 
 // ── tests ─────────────────────────────────────────────────────────────────────
@@ -86,7 +120,7 @@ describe('POST /api/profiles/update — validation', () => {
       request: makeRequest({ name: 'myprofile', agent_ui: { tier: 3 } }),
     })
     expect(res.status).toBe(400)
-    expect((await res.json() as { error: string }).error).toMatch(/tier/)
+    expect(((await res.json()) as { error: string }).error).toMatch(/tier/)
   })
 
   it('rejects persona_id set without system_prompt with 400', async () => {
@@ -98,7 +132,7 @@ describe('POST /api/profiles/update — validation', () => {
       }),
     })
     expect(res.status).toBe(400)
-    const body = await res.json() as { error: string }
+    const body = (await res.json()) as { error: string }
     expect(body.error).toMatch(/system_prompt/)
   })
 
@@ -129,10 +163,13 @@ describe('POST /api/profiles/update — validation', () => {
   it('rejects denied agent_ui fields with 400', async () => {
     const handler = await getHandler()
     const res = await handler({
-      request: makeRequest({ name: 'myprofile', agent_ui: { status: 'busy', role: 'Builder' } }),
+      request: makeRequest({
+        name: 'myprofile',
+        agent_ui: { status: 'busy', role: 'Builder' },
+      }),
     })
     expect(res.status).toBe(400)
-    const body = await res.json() as { error: string }
+    const body = (await res.json()) as { error: string }
     expect(body.error).toMatch(/status/)
   })
 
@@ -142,10 +179,13 @@ describe('POST /api/profiles/update — validation', () => {
     // blocked by the reserved-name guard — only createProfile still blocks reserved names.
     const handler = await getHandler()
     const res = await handler({
-      request: makeRequest({ name: 'hermes-switch', description: 'updated role' }),
+      request: makeRequest({
+        name: 'hermes-switch',
+        description: 'updated role',
+      }),
     })
     expect(res.status).toBe(200)
-    const body = await res.json() as { ok?: boolean; error?: string }
+    const body = (await res.json()) as { ok?: boolean; error?: string }
     expect(body.error).toBeUndefined()
   })
 
@@ -155,7 +195,7 @@ describe('POST /api/profiles/update — validation', () => {
       request: makeRequest({ name: 'myprofile' }),
     })
     expect(res.status).toBe(400)
-    const body = await res.json() as { error: string }
+    const body = (await res.json()) as { error: string }
     expect(body.error).toMatch(/No fields/)
   })
 })

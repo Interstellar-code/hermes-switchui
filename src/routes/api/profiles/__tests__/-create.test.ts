@@ -1,20 +1,43 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // ── fs mock ──────────────────────────────────────────────────────────────────
-const { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, renameSync, unlinkSync } =
-  vi.hoisted(() => ({
-    existsSync: vi.fn().mockReturnValue(false),
-    readFileSync: vi.fn().mockReturnValue(''),
-    writeFileSync: vi.fn().mockImplementation(() => {}),
-    mkdirSync: vi.fn().mockImplementation(() => {}),
-    readdirSync: vi.fn().mockReturnValue([]),
-    statSync: vi.fn().mockReturnValue({ isDirectory: () => true, isSymbolicLink: () => false, mtimeMs: 0 }),
-    renameSync: vi.fn().mockImplementation(() => {}),
-    unlinkSync: vi.fn().mockImplementation(() => {}),
-  }))
+const {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+  renameSync,
+  unlinkSync,
+} = vi.hoisted(() => ({
+  existsSync: vi.fn().mockReturnValue(false),
+  readFileSync: vi.fn().mockReturnValue(''),
+  writeFileSync: vi.fn().mockImplementation(() => {}),
+  mkdirSync: vi.fn().mockImplementation(() => {}),
+  readdirSync: vi.fn().mockReturnValue([]),
+  statSync: vi
+    .fn()
+    .mockReturnValue({
+      isDirectory: () => true,
+      isSymbolicLink: () => false,
+      mtimeMs: 0,
+    }),
+  renameSync: vi.fn().mockImplementation(() => {}),
+  unlinkSync: vi.fn().mockImplementation(() => {}),
+}))
 
 vi.mock('node:fs', () => ({
-  default: { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, renameSync, unlinkSync },
+  default: {
+    existsSync,
+    readFileSync,
+    writeFileSync,
+    mkdirSync,
+    readdirSync,
+    statSync,
+    renameSync,
+    unlinkSync,
+  },
   existsSync,
   readFileSync,
   writeFileSync,
@@ -33,7 +56,11 @@ vi.mock('@tanstack/react-start', () => ({
   json: (body: unknown, init?: ResponseInit) =>
     new Response(JSON.stringify(body), {
       ...(init ?? {}),
-      headers: { 'Content-Type': 'application/json', ...((init as ResponseInit & { headers?: Record<string, string> }).headers ?? {}) },
+      headers: {
+        'Content-Type': 'application/json',
+        ...((init as ResponseInit & { headers?: Record<string, string> })
+          .headers ?? {}),
+      },
     }),
 }))
 
@@ -59,8 +86,15 @@ async function getHandler() {
   vi.resetModules()
   // After resetModules we need the fs mock re-applied; vitest re-applies vi.mock at import time
   const mod = await import('../create')
-  return (mod as unknown as { Route: { server: { handlers: { POST: (ctx: { request: Request }) => Promise<Response> } } } }).Route
-    .server.handlers.POST
+  return (
+    mod as unknown as {
+      Route: {
+        server: {
+          handlers: { POST: (ctx: { request: Request }) => Promise<Response> }
+        }
+      }
+    }
+  ).Route.server.handlers.POST
 }
 
 // ── tests ─────────────────────────────────────────────────────────────────────
@@ -84,7 +118,7 @@ describe('POST /api/profiles/create — validation', () => {
       request: makeRequest({ name: 'newprofile', agent_ui: { tier: 1 } }),
     })
     expect(res.status).toBe(400)
-    const body = await res.json() as { error: string }
+    const body = (await res.json()) as { error: string }
     expect(body.error).toMatch(/tier must be 3/)
   })
 
@@ -113,7 +147,7 @@ describe('POST /api/profiles/create — validation', () => {
       request: makeRequest({ name: 'newprofile', agent_ui: { glyph: 'ab' } }),
     })
     expect(res.status).toBe(400)
-    const body = await res.json() as { error: string }
+    const body = (await res.json()) as { error: string }
     expect(body.error).toMatch(/glyph/)
   })
 
@@ -143,7 +177,7 @@ describe('POST /api/profiles/create — validation', () => {
       }),
     })
     expect(res.status).toBe(400)
-    const body = await res.json() as { error: string }
+    const body = (await res.json()) as { error: string }
     expect(body.error).toMatch(/system_prompt/)
   })
 
