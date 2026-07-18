@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
+  createProject,
   getProject,
   getProjectFolders,
   listProjects,
@@ -20,8 +21,14 @@ vi.mock('../../../server/auth-middleware', () => ({
 
 vi.mock('../../../server/projects-client', () => ({
   listProjects: vi.fn(),
+  createProject: vi.fn(),
   getProject: vi.fn(),
   getProjectFolders: vi.fn(),
+  projectsErrorStatus: (error: unknown, fallback = 503) => {
+    if (!(error instanceof Error)) return fallback
+    const match = /^Projects API error (\d{3}):/.exec(error.message)
+    return match ? Number(match[1]) : fallback
+  },
 }))
 
 const indexHandlers = (ProjectsIndexRoute as any).options.server.handlers
@@ -30,6 +37,7 @@ const foldersHandlers = (ProjectFoldersRoute as any).options.server.handlers
 
 const mockIsAuthenticated = vi.mocked(isAuthenticated)
 const mockListProjects = vi.mocked(listProjects)
+const mockCreateProject = vi.mocked(createProject)
 const mockGetProject = vi.mocked(getProject)
 const mockGetProjectFolders = vi.mocked(getProjectFolders)
 
@@ -75,6 +83,22 @@ describe('GET /api/hermes-projects', () => {
     expect(res.status).toBe(503)
     const body = await res.json()
     expect(body.mode).toBe('dashboard-unavailable')
+  })
+})
+
+describe('POST /api/hermes-projects', () => {
+  it('preserves backend 422 validation responses', async () => {
+    mockCreateProject.mockRejectedValue(
+      new Error('Projects API error 422: Extra inputs are not permitted'),
+    )
+    const res = await indexHandlers.POST({
+      request: new Request('http://localhost/api/hermes-projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Demo', unknown: true }),
+      }),
+    })
+    expect(res.status).toBe(422)
   })
 })
 

@@ -1,6 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
-import { getProjectFolders } from '../../../server/projects-client'
+import { requireJsonContentType } from '../../../server/rate-limit'
+import {
+  addProjectFolder,
+  getProjectFolders,
+  projectsErrorStatus,
+  removeProjectFolder,
+} from '../../../server/projects-client'
+import type { AddProjectFolderInput } from '@/lib/projects-types'
 
 export const Route = createFileRoute('/api/hermes-projects/$id/folders')({
   server: {
@@ -14,9 +21,55 @@ export const Route = createFileRoute('/api/hermes-projects/$id/folders')({
           return Response.json(result)
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Not found'
-          const status =
-            msg.includes('404') || msg.includes('not found') ? 404 : 503
-          return Response.json({ error: msg }, { status })
+          return Response.json(
+            { error: msg },
+            { status: projectsErrorStatus(err) },
+          )
+        }
+      },
+      POST: async ({ request, params }) => {
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
+        if (!isAuthenticated(request))
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
+        let body: AddProjectFolderInput
+        try {
+          body = (await request.json()) as AddProjectFolderInput
+        } catch {
+          return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
+        }
+        try {
+          return Response.json(await addProjectFolder(params.id, body))
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Add folder failed'
+          return Response.json(
+            { error: msg },
+            { status: projectsErrorStatus(err) },
+          )
+        }
+      },
+      DELETE: async ({ request, params }) => {
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
+        if (!isAuthenticated(request))
+          return Response.json({ error: 'Unauthorized' }, { status: 401 })
+        let body: { path?: string }
+        try {
+          body = (await request.json()) as { path?: string }
+        } catch {
+          return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
+        }
+        try {
+          return Response.json(
+            await removeProjectFolder(params.id, body.path ?? ''),
+          )
+        } catch (err) {
+          const msg =
+            err instanceof Error ? err.message : 'Remove folder failed'
+          return Response.json(
+            { error: msg },
+            { status: projectsErrorStatus(err) },
+          )
         }
       },
     },

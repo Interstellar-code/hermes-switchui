@@ -7,6 +7,10 @@ vi.mock('./gateway-capabilities', () => ({
   CLAUDE_DASHBOARD_URL: 'http://127.0.0.1:9119',
 }))
 
+vi.mock('./profiles-browser', () => ({
+  getActiveProfileName: () => 'hermes-switch',
+}))
+
 afterEach(() => {
   vi.clearAllMocks()
 })
@@ -38,7 +42,7 @@ describe('projects-client', () => {
       const { listProjects } = await import('./projects-client')
       await listProjects()
       expect(mockDashboardFetch).toHaveBeenCalledWith(
-        '/api/plugins/projects',
+        '/api/plugins/projects?profile=hermes-switch',
         expect.any(Object),
       )
     })
@@ -58,9 +62,7 @@ describe('projects-client', () => {
         makeErrorResponse(503, { detail: 'Service unavailable' }),
       )
       const { listProjects } = await import('./projects-client')
-      await expect(listProjects()).rejects.toThrow(
-        /503|Service unavailable/i,
-      )
+      await expect(listProjects()).rejects.toThrow(/503|Service unavailable/i)
     })
   })
 
@@ -97,7 +99,7 @@ describe('projects-client', () => {
       expect(result.project.bound_board?.slug).toBe('demo-board')
       expect(result.project.is_active).toBe(true)
       expect(mockDashboardFetch).toHaveBeenCalledWith(
-        '/api/plugins/projects/demo',
+        '/api/plugins/projects/demo?profile=hermes-switch',
         expect.any(Object),
       )
     })
@@ -121,8 +123,83 @@ describe('projects-client', () => {
       const { getProjectFolders } = await import('./projects-client')
       await getProjectFolders('demo')
       expect(mockDashboardFetch).toHaveBeenCalledWith(
-        '/api/plugins/projects/demo/folders',
+        '/api/plugins/projects/demo/folders?profile=hermes-switch',
         expect.any(Object),
+      )
+    })
+  })
+
+  describe('project mutations', () => {
+    it('preserves backend validation status for the BFF', async () => {
+      const { projectsErrorStatus } = await import('./projects-client')
+      expect(
+        projectsErrorStatus(
+          new Error('Projects API error 422: null is not allowed for: name'),
+        ),
+      ).toBe(422)
+      expect(projectsErrorStatus(new Error('network error'))).toBe(503)
+    })
+
+    it('formats FastAPI validation details without stringifying objects', async () => {
+      mockDashboardFetch.mockResolvedValueOnce(
+        makeErrorResponse(422, {
+          detail: [{ msg: 'Extra inputs are not permitted' }],
+        }),
+      )
+      const { createProject } = await import('./projects-client')
+      await expect(createProject({ name: 'Demo' })).rejects.toThrow(
+        'Extra inputs are not permitted',
+      )
+    })
+
+    it('sends create payload to the collection endpoint', async () => {
+      mockDashboardFetch.mockResolvedValueOnce(
+        makeOkResponse({ project: { id: 'p_1' } }),
+      )
+      const { createProject } = await import('./projects-client')
+      await createProject({ name: 'Demo', folders: ['/repo/demo'] })
+      expect(mockDashboardFetch).toHaveBeenCalledWith(
+        '/api/plugins/projects?profile=hermes-switch',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ name: 'Demo', folders: ['/repo/demo'] }),
+        }),
+      )
+    })
+
+    it('keeps absolute folder paths in the JSON body', async () => {
+      mockDashboardFetch.mockResolvedValueOnce(
+        makeOkResponse({ project: { id: 'p_1' } }),
+      )
+      const { removeProjectFolder } = await import('./projects-client')
+      await removeProjectFolder('demo', '/Users/rohits/Development/demo')
+      expect(mockDashboardFetch).toHaveBeenCalledWith(
+        '/api/plugins/projects/demo/folders?profile=hermes-switch',
+        expect.objectContaining({
+          method: 'DELETE',
+          body: JSON.stringify({ path: '/Users/rohits/Development/demo' }),
+        }),
+      )
+    })
+
+    it('uses PATCH for top-level edits and POST for active pointer', async () => {
+      mockDashboardFetch
+        .mockResolvedValueOnce(makeOkResponse({ project: { id: 'p_1' } }))
+        .mockResolvedValueOnce(
+          makeOkResponse({ projects: [], active_id: 'p_1' }),
+        )
+      const { updateProject, setActiveProject } =
+        await import('./projects-client')
+      await updateProject('demo', { name: 'Renamed', board_slug: '' })
+      await setActiveProject('demo')
+      expect(mockDashboardFetch.mock.calls[0][1]).toEqual(
+        expect.objectContaining({ method: 'PATCH' }),
+      )
+      expect(mockDashboardFetch.mock.calls[1][0]).toBe(
+        '/api/plugins/projects/demo/active?profile=hermes-switch',
+      )
+      expect(mockDashboardFetch.mock.calls[1][1]).toEqual(
+        expect.objectContaining({ method: 'POST' }),
       )
     })
   })
@@ -135,7 +212,7 @@ describe('projects-client', () => {
       const { getProjectActivity } = await import('./projects-client')
       const result = await getProjectActivity('demo')
       expect(mockDashboardFetch).toHaveBeenCalledWith(
-        '/api/plugins/projects/demo/activity?limit=10',
+        '/api/plugins/projects/demo/activity?limit=10&profile=hermes-switch',
         expect.any(Object),
       )
       expect(result.next_cursor).toBeNull()

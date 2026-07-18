@@ -3,9 +3,18 @@ import { useNavigate } from '@tanstack/react-router'
 import type { Project, ProjectFolder } from '@/lib/projects-types'
 import { usePageTitle } from '@/hooks/use-page-title'
 import {
+  useAddProjectFolder,
+  useArchiveProject,
+  useCreateProject,
+  useDeleteProject,
   useProjectActivity,
   useProjectFolders,
   useProjects,
+  useRemoveProjectFolder,
+  useRestoreProject,
+  useSetActiveProject,
+  useSetPrimaryProjectFolder,
+  useUpdateProject,
 } from '@/lib/projects-api'
 import '@/styles/matrix-boards.css'
 
@@ -77,6 +86,30 @@ function relativeTime(timestamp: number | null): string {
 // `??` semantics are required here, not `||`.)
 function orElse<T>(value: T | null | undefined, fallback: T): T {
   return value ?? fallback
+}
+
+export function promptProjectEdit(
+  project: Project,
+  prompt: typeof window.prompt,
+) {
+  const name = prompt('Project name', project.name)?.trim()
+  if (!name) return null
+  const board_slug = prompt(
+    'Board slug (leave blank to clear)',
+    project.board_slug ?? '',
+  )
+  return board_slug === null ? null : { name, board_slug }
+}
+
+export function confirmProjectDelete(
+  project: Project,
+  confirm: typeof window.confirm,
+): boolean {
+  return (
+    project.archived &&
+    confirm(`Delete ${project.name}? This cannot be undone.`) &&
+    confirm('Confirm permanent deletion.')
+  )
 }
 
 const DRAWER_TABS = ['overview', 'folders', 'activity'] as const
@@ -263,7 +296,7 @@ function ProjectRow({
   )
 }
 
-function MainTop({
+export function MainTop({
   allProjects,
   search,
   setSearch,
@@ -273,6 +306,8 @@ function MainTop({
   setView,
   showArchived,
   setShowArchived,
+  onCreate,
+  busy,
 }: {
   allProjects: Array<Project>
   search: string
@@ -283,6 +318,8 @@ function MainTop({
   setView: (value: ViewMode) => void
   showArchived: boolean
   setShowArchived: (value: boolean) => void
+  onCreate: () => void
+  busy: boolean
 }) {
   const activeCount = allProjects.filter((p) => !p.archived).length
   const archivedCount = allProjects.filter((p) => p.archived).length
@@ -311,6 +348,9 @@ function MainTop({
             onClick={() => setShowArchived(!showArchived)}
           >
             {showArchived ? 'Hide Archived' : 'Show Archived'}
+          </button>
+          <button className="btn-mini prim" onClick={onCreate} disabled={busy}>
+            New Project
           </button>
         </div>
       </div>
@@ -430,14 +470,34 @@ function ProjectsCanvas({
   )
 }
 
-function ProjectDrawer({
+export function ProjectDrawer({
   project,
   isActive,
   onClose,
+  onEdit,
+  onAddFolder,
+  onSetPrimary,
+  onRemoveFolder,
+  onArchive,
+  onRestore,
+  onSetActive,
+  onDelete,
+  busy,
+  error,
 }: {
   project: Project
   isActive: boolean
   onClose: () => void
+  onEdit: () => void
+  onAddFolder: () => void
+  onSetPrimary: (path: string) => void
+  onRemoveFolder: (path: string) => void
+  onArchive: () => void
+  onRestore: () => void
+  onSetActive: () => void
+  onDelete: () => void
+  busy: boolean
+  error: string | null
 }) {
   const foldersQuery = useProjectFolders(project.id)
   const folders = foldersQuery.data?.folders ?? project.folders
@@ -471,6 +531,9 @@ function ProjectDrawer({
             </div>
           </div>
           <div className="dr-acts">
+            <button className="btn-mini" onClick={onEdit} disabled={busy}>
+              Edit
+            </button>
             <button className="ico-btn" onClick={onClose} aria-label="Close">
               ×
             </button>
@@ -525,6 +588,11 @@ function ProjectDrawer({
                     {project.archived ? 'Yes' : 'No'}
                   </div>
                 </div>
+                {error ? (
+                  <div className="field-val" role="alert">
+                    {error}
+                  </div>
+                ) : null}
               </div>
               {project.description ? (
                 <div className="panel-card">
@@ -543,6 +611,13 @@ function ProjectDrawer({
                 <div className="pc-head-right">{folders.length}</div>
               </div>
               <div className="pc-body">
+                <button
+                  className="btn-mini prim"
+                  onClick={onAddFolder}
+                  disabled={busy}
+                >
+                  Add Folder
+                </button>
                 {folders.length === 0 ? (
                   <div className="field-val muted">No folders.</div>
                 ) : (
@@ -554,6 +629,24 @@ function ProjectDrawer({
                           {folder.is_primary ? ' (primary)' : ''}
                         </div>
                         <div className="ws-val path">{folder.path}</div>
+                        <div className="ws-val">
+                          {!folder.is_primary ? (
+                            <button
+                              className="btn-mini"
+                              onClick={() => onSetPrimary(folder.path)}
+                              disabled={busy}
+                            >
+                              Set Primary
+                            </button>
+                          ) : null}
+                          <button
+                            className="btn-mini"
+                            onClick={() => onRemoveFolder(folder.path)}
+                            disabled={busy}
+                          >
+                            Remove
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -570,6 +663,37 @@ function ProjectDrawer({
             Last active: {relativeTime(project.last_activity_at)}
           </span>
           <div className="dr-foot-acts">
+            {project.archived ? (
+              <>
+                <button
+                  className="btn-mini"
+                  onClick={onRestore}
+                  disabled={busy}
+                >
+                  Restore
+                </button>
+                <button className="btn-mini" onClick={onDelete} disabled={busy}>
+                  Delete
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  className="btn-mini"
+                  onClick={onSetActive}
+                  disabled={busy || isActive}
+                >
+                  Set Active
+                </button>
+                <button
+                  className="btn-mini"
+                  onClick={onArchive}
+                  disabled={busy}
+                >
+                  Archive
+                </button>
+              </>
+            )}
             <button className="btn-mini" onClick={onClose}>
               Close
             </button>
@@ -624,6 +748,97 @@ export function ProjectsScreen() {
   const [filter, setFilter] = useState<FilterMode>('all')
   const [search, setSearch] = useState('')
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
+  const createMutation = useCreateProject()
+  const updateMutation = useUpdateProject()
+  const addFolderMutation = useAddProjectFolder()
+  const removeFolderMutation = useRemoveProjectFolder()
+  const primaryMutation = useSetPrimaryProjectFolder()
+  const archiveMutation = useArchiveProject()
+  const restoreMutation = useRestoreProject()
+  const activeMutation = useSetActiveProject()
+  const deleteMutation = useDeleteProject()
+  const [mutationError, setMutationError] = useState<string | null>(null)
+  const busy = [
+    createMutation,
+    updateMutation,
+    addFolderMutation,
+    removeFolderMutation,
+    primaryMutation,
+    archiveMutation,
+    restoreMutation,
+    activeMutation,
+    deleteMutation,
+  ].some((mutation) => mutation.isPending)
+
+  const runMutation = async (action: () => Promise<unknown>) => {
+    setMutationError(null)
+    try {
+      await action()
+    } catch (error) {
+      setMutationError(
+        error instanceof Error ? error.message : 'Project update failed',
+      )
+    }
+  }
+
+  const create = () => {
+    const name = window.prompt('Project name')?.trim()
+    if (!name) return
+    void runMutation(() => createMutation.mutateAsync({ name }))
+  }
+
+  const edit = (project: Project) => {
+    const input = promptProjectEdit(project, window.prompt)
+    if (!input) return
+    void runMutation(() =>
+      updateMutation.mutateAsync({
+        idOrSlug: project.id,
+        input,
+      }),
+    )
+  }
+
+  const addFolder = (project: Project) => {
+    const path = window.prompt('Folder path')?.trim()
+    if (!path) return
+    void runMutation(() =>
+      addFolderMutation.mutateAsync({ idOrSlug: project.id, input: { path } }),
+    )
+  }
+
+  const removeFolder = (project: Project, path: string) => {
+    if (!window.confirm(`Remove folder ${path}?`)) return
+    void runMutation(() =>
+      removeFolderMutation.mutateAsync({ idOrSlug: project.id, path }),
+    )
+  }
+
+  const setPrimary = (project: Project, path: string) => {
+    void runMutation(() =>
+      primaryMutation.mutateAsync({ idOrSlug: project.id, path }),
+    )
+  }
+
+  const archive = (project: Project) => {
+    if (!window.confirm(`Archive ${project.name}?`)) return
+    void runMutation(() => archiveMutation.mutateAsync(project.id))
+  }
+
+  const restore = (project: Project) => {
+    void runMutation(() => restoreMutation.mutateAsync(project.id))
+  }
+
+  const setActive = (project: Project) => {
+    void runMutation(() => activeMutation.mutateAsync(project.id))
+  }
+
+  const hardDelete = (project: Project) => {
+    if (!confirmProjectDelete(project, window.confirm)) return
+    void runMutation(async () => {
+      await deleteMutation.mutateAsync(project.id)
+      setActiveProjectId(null)
+    })
+  }
 
   const projects = projectsQuery.data?.projects ?? []
   const activeId = projectsQuery.data?.active_id ?? null
@@ -677,7 +892,14 @@ export function ProjectsScreen() {
           }}
           showArchived={showArchived}
           setShowArchived={setShowArchived}
+          onCreate={create}
+          busy={busy}
         />
+        {mutationError ? (
+          <div className="brd-error" role="alert">
+            {mutationError}
+          </div>
+        ) : null}
         <ProjectsCanvas
           projects={filtered}
           view={view}
@@ -691,6 +913,16 @@ export function ProjectsScreen() {
           project={activeProject}
           isActive={activeProject.id === activeId}
           onClose={() => setActiveProjectId(null)}
+          onEdit={() => edit(activeProject)}
+          onAddFolder={() => addFolder(activeProject)}
+          onSetPrimary={(path) => setPrimary(activeProject, path)}
+          onRemoveFolder={(path) => removeFolder(activeProject, path)}
+          onArchive={() => archive(activeProject)}
+          onRestore={() => restore(activeProject)}
+          onSetActive={() => setActive(activeProject)}
+          onDelete={() => hardDelete(activeProject)}
+          busy={busy}
+          error={mutationError}
         />
       ) : null}
     </div>

@@ -1,30 +1,60 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
+  AddProjectFolderInput,
+  CreateProjectInput,
   ProjectActivityResponse,
   ProjectDetailResponse,
   ProjectFoldersResponse,
+  ProjectMutationResponse,
   ProjectsListResponse,
+  UpdateProjectInput,
 } from './projects-types'
 
-async function projectsJson<T>(url: string): Promise<T> {
-  const res = await fetch(url)
+async function projectsJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init)
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as {
-      error?: string
-      detail?: string
+      error?: unknown
+      detail?: unknown
     }
+    const detail = body.detail ?? body.error
     throw new Error(
-      body.error ?? body.detail ?? `Request failed: ${res.status}`,
+      typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+          ? detail
+              .flatMap((item) =>
+                item &&
+                typeof item === 'object' &&
+                typeof item.msg === 'string'
+                  ? [item.msg]
+                  : [],
+              )
+              .join('; ') || `Request failed: ${res.status}`
+          : `Request failed: ${res.status}`,
     )
   }
   return res.json() as Promise<T>
+}
+
+function jsonBody(body: unknown): RequestInit {
+  return {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }
+}
+
+function projectPath(idOrSlug: string): string {
+  return `/api/hermes-projects/${encodeURIComponent(idOrSlug)}`
 }
 
 export const projectsKeys = {
   all: ['hermes-projects'] as const,
   list: (includeArchived: boolean) =>
     ['hermes-projects', 'list', { includeArchived }] as const,
-  detail: (idOrSlug: string) => ['hermes-projects', 'detail', idOrSlug] as const,
+  detail: (idOrSlug: string) =>
+    ['hermes-projects', 'detail', idOrSlug] as const,
   folders: (idOrSlug: string) =>
     ['hermes-projects', 'folders', idOrSlug] as const,
   activity: (idOrSlug: string) =>
@@ -69,6 +99,149 @@ export async function fetchProjectActivity(
   return projectsJson<ProjectActivityResponse>(
     `/api/hermes-projects/${encodeURIComponent(idOrSlug)}/activity${qs ? `?${qs}` : ''}`,
   )
+}
+
+export function createProject(
+  input: CreateProjectInput,
+): Promise<ProjectMutationResponse> {
+  return projectsJson<ProjectMutationResponse>('/api/hermes-projects', {
+    ...jsonBody(input),
+  })
+}
+
+export function updateProject(
+  idOrSlug: string,
+  input: UpdateProjectInput,
+): Promise<ProjectMutationResponse> {
+  return projectsJson<ProjectMutationResponse>(projectPath(idOrSlug), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export function addProjectFolder(
+  idOrSlug: string,
+  input: AddProjectFolderInput,
+): Promise<ProjectMutationResponse> {
+  return projectsJson<ProjectMutationResponse>(
+    `${projectPath(idOrSlug)}/folders`,
+    jsonBody(input),
+  )
+}
+
+export function removeProjectFolder(
+  idOrSlug: string,
+  path: string,
+): Promise<ProjectMutationResponse> {
+  return projectsJson<ProjectMutationResponse>(
+    `${projectPath(idOrSlug)}/folders`,
+    {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    },
+  )
+}
+
+export function setPrimaryProjectFolder(
+  idOrSlug: string,
+  path: string,
+): Promise<ProjectMutationResponse> {
+  return projectsJson<ProjectMutationResponse>(
+    `${projectPath(idOrSlug)}/folders/primary`,
+    jsonBody({ path }),
+  )
+}
+
+export function archiveProject(
+  idOrSlug: string,
+): Promise<ProjectMutationResponse> {
+  return projectsJson<ProjectMutationResponse>(
+    `${projectPath(idOrSlug)}/archive`,
+    jsonBody({}),
+  )
+}
+
+export function restoreProject(
+  idOrSlug: string,
+): Promise<ProjectMutationResponse> {
+  return projectsJson<ProjectMutationResponse>(
+    `${projectPath(idOrSlug)}/restore`,
+    jsonBody({}),
+  )
+}
+
+export function setActiveProject(
+  idOrSlug: string,
+): Promise<ProjectsListResponse> {
+  return projectsJson<ProjectsListResponse>(
+    `${projectPath(idOrSlug)}/active`,
+    jsonBody({}),
+  )
+}
+
+export function deleteProject(idOrSlug: string): Promise<ProjectsListResponse> {
+  return projectsJson<ProjectsListResponse>(projectPath(idOrSlug), {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+export function invalidateProjectQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  void queryClient.invalidateQueries({ queryKey: projectsKeys.all })
+}
+
+export function useProjectMutation<TInput>(
+  mutationFn: (input: TInput) => Promise<unknown>,
+) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn,
+    onSuccess: () => invalidateProjectQueries(queryClient),
+  })
+}
+
+export function useCreateProject() {
+  return useProjectMutation(createProject)
+}
+export function useUpdateProject() {
+  return useProjectMutation(
+    ({ idOrSlug, input }: { idOrSlug: string; input: UpdateProjectInput }) =>
+      updateProject(idOrSlug, input),
+  )
+}
+export function useAddProjectFolder() {
+  return useProjectMutation(
+    ({ idOrSlug, input }: { idOrSlug: string; input: AddProjectFolderInput }) =>
+      addProjectFolder(idOrSlug, input),
+  )
+}
+export function useRemoveProjectFolder() {
+  return useProjectMutation(
+    ({ idOrSlug, path }: { idOrSlug: string; path: string }) =>
+      removeProjectFolder(idOrSlug, path),
+  )
+}
+export function useSetPrimaryProjectFolder() {
+  return useProjectMutation(
+    ({ idOrSlug, path }: { idOrSlug: string; path: string }) =>
+      setPrimaryProjectFolder(idOrSlug, path),
+  )
+}
+export function useArchiveProject() {
+  return useProjectMutation(archiveProject)
+}
+export function useRestoreProject() {
+  return useProjectMutation(restoreProject)
+}
+export function useSetActiveProject() {
+  return useProjectMutation(setActiveProject)
+}
+export function useDeleteProject() {
+  return useProjectMutation(deleteProject)
 }
 
 export function useProjects(includeArchived = false, enabled = true) {

@@ -2,14 +2,18 @@
  * Server-only client for the Hermes Agent Dashboard Projects plugin.
  *
  * All HTTP calls use dashboardFetch() from gateway-capabilities.ts — never
- * import this module in client-side code. Read-only v1: GET endpoints only.
+ * import this module in client-side code.
  */
 import { dashboardFetch } from './gateway-capabilities'
+import { getActiveProfileName } from './profiles-browser'
 import type {
+  AddProjectFolderInput,
+  CreateProjectInput,
   ProjectActivityResponse,
   ProjectDetailResponse,
   ProjectFoldersResponse,
   ProjectsListResponse,
+  UpdateProjectInput,
 } from '../lib/projects-types'
 
 const BASE = '/api/plugins/projects'
@@ -18,19 +22,36 @@ const BASE = '/api/plugins/projects'
 // auth flow (cold-cache 401 retry: two 3s HTML-scrape token fetches).
 const PROJECTS_FETCH_TIMEOUT_MS = 12_000
 
+function projectsErrorDetail(body: unknown, fallback: string): string {
+  if (!body || typeof body !== 'object') return fallback
+  const value = (body as { detail?: unknown; error?: unknown }).detail ??
+    (body as { error?: unknown }).error
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) {
+    const messages = value.flatMap((item) =>
+      item && typeof item === 'object' && typeof item.msg === 'string'
+        ? [item.msg]
+        : [],
+    )
+    if (messages.length) return messages.join('; ')
+  }
+  return fallback
+}
+
 async function projectsFetch<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const res = await dashboardFetch(path, {
+  const separator = path.includes('?') ? '&' : '?'
+  const scopedPath = `${path}${separator}profile=${encodeURIComponent(getActiveProfileName())}`
+  const res = await dashboardFetch(scopedPath, {
     ...init,
     signal: init.signal ?? AbortSignal.timeout(PROJECTS_FETCH_TIMEOUT_MS),
   })
   if (!res.ok) {
     let detail = `Projects API error ${res.status}`
     try {
-      const body = (await res.json()) as { detail?: string; error?: string }
-      detail = body.detail ?? body.error ?? detail
+      detail = projectsErrorDetail(await res.json(), detail)
     } catch {
       // ignore parse failure
     }
@@ -39,16 +60,19 @@ async function projectsFetch<T>(
   return res.json() as Promise<T>
 }
 
+export function projectsErrorStatus(error: unknown, fallback = 503): number {
+  if (!(error instanceof Error)) return fallback
+  const match = /^Projects API error (\d{3}):/.exec(error.message)
+  return match ? Number(match[1]) : fallback
+}
+
 export async function listProjects(
   includeArchived = false,
 ): Promise<ProjectsListResponse> {
   const q = new URLSearchParams()
   if (includeArchived) q.set('include_archived', 'true')
   const qs = q.toString()
-  return projectsFetch<ProjectsListResponse>(
-    `${BASE}${qs ? `?${qs}` : ''}`,
-    {},
-  )
+  return projectsFetch<ProjectsListResponse>(`${BASE}${qs ? `?${qs}` : ''}`, {})
 }
 
 export async function getProject(
@@ -79,5 +103,97 @@ export async function getProjectActivity(
   return projectsFetch<ProjectActivityResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/activity?${q.toString()}`,
     {},
+  )
+}
+
+function jsonInit(method: string, body?: unknown): RequestInit {
+  return {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  }
+}
+
+async function mutateProject<T>(path: string, init: RequestInit): Promise<T> {
+  return projectsFetch<T>(path, init)
+}
+
+export function createProject(
+  input: CreateProjectInput,
+): Promise<ProjectDetailResponse> {
+  return mutateProject<ProjectDetailResponse>(BASE, jsonInit('POST', input))
+}
+
+export function updateProject(
+  idOrSlug: string,
+  input: UpdateProjectInput,
+): Promise<ProjectDetailResponse> {
+  return mutateProject<ProjectDetailResponse>(
+    `${BASE}/${encodeURIComponent(idOrSlug)}`,
+    jsonInit('PATCH', input),
+  )
+}
+
+export function addProjectFolder(
+  idOrSlug: string,
+  input: AddProjectFolderInput,
+): Promise<ProjectDetailResponse> {
+  return mutateProject<ProjectDetailResponse>(
+    `${BASE}/${encodeURIComponent(idOrSlug)}/folders`,
+    jsonInit('POST', input),
+  )
+}
+
+export function removeProjectFolder(
+  idOrSlug: string,
+  path: string,
+): Promise<ProjectDetailResponse> {
+  return mutateProject<ProjectDetailResponse>(
+    `${BASE}/${encodeURIComponent(idOrSlug)}/folders`,
+    jsonInit('DELETE', { path }),
+  )
+}
+
+export function setPrimaryProjectFolder(
+  idOrSlug: string,
+  path: string,
+): Promise<ProjectDetailResponse> {
+  return mutateProject<ProjectDetailResponse>(
+    `${BASE}/${encodeURIComponent(idOrSlug)}/folders/primary`,
+    jsonInit('POST', { path }),
+  )
+}
+
+export function archiveProject(
+  idOrSlug: string,
+): Promise<ProjectDetailResponse> {
+  return mutateProject<ProjectDetailResponse>(
+    `${BASE}/${encodeURIComponent(idOrSlug)}/archive`,
+    jsonInit('POST'),
+  )
+}
+
+export function restoreProject(
+  idOrSlug: string,
+): Promise<ProjectDetailResponse> {
+  return mutateProject<ProjectDetailResponse>(
+    `${BASE}/${encodeURIComponent(idOrSlug)}/restore`,
+    jsonInit('POST'),
+  )
+}
+
+export function setActiveProject(
+  idOrSlug: string,
+): Promise<ProjectsListResponse> {
+  return mutateProject<ProjectsListResponse>(
+    `${BASE}/${encodeURIComponent(idOrSlug)}/active`,
+    jsonInit('POST'),
+  )
+}
+
+export function deleteProject(idOrSlug: string): Promise<ProjectsListResponse> {
+  return mutateProject<ProjectsListResponse>(
+    `${BASE}/${encodeURIComponent(idOrSlug)}`,
+    jsonInit('DELETE'),
   )
 }

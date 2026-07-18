@@ -194,8 +194,11 @@ import { Route as ApiOperationsDispatchPreviewRouteImport } from './routes/api/o
 import { Route as ApiOperationsAgentsIdRouteImport } from './routes/api/operations/agents.$id'
 import { Route as ApiMcpHubSourcesIdRouteImport } from './routes/api/mcp/hub-sources.$id'
 import { Route as ApiMcpNameLogsRouteImport } from './routes/api/mcp/$name.logs'
+import { Route as ApiHermesProjectsIdRestoreRouteImport } from './routes/api/hermes-projects/$id.restore'
 import { Route as ApiHermesProjectsIdFoldersRouteImport } from './routes/api/hermes-projects/$id.folders'
+import { Route as ApiHermesProjectsIdArchiveRouteImport } from './routes/api/hermes-projects/$id.archive'
 import { Route as ApiHermesProjectsIdActivityRouteImport } from './routes/api/hermes-projects/$id.activity'
+import { Route as ApiHermesProjectsIdActiveRouteImport } from './routes/api/hermes-projects/$id.active'
 import { Route as ApiHermesKanbanTemplatesSlugRouteImport } from './routes/api/hermes-kanban/templates.$slug'
 import { Route as ApiHermesKanbanTasksTaskIdRouteImport } from './routes/api/hermes-kanban/tasks.$taskId'
 import { Route as ApiHermesKanbanBoardsSlugRouteImport } from './routes/api/hermes-kanban/boards.$slug'
@@ -210,6 +213,7 @@ import { Route as ApiSelfImproveExperimentsIdApproveRouteImport } from './routes
 import { Route as ApiSelfImproveExperimentsIdApplyRouteImport } from './routes/api/self-improve/experiments.$id.apply'
 import { Route as ApiOperationsAgentsIdResumeRouteImport } from './routes/api/operations/agents.$id.resume'
 import { Route as ApiOperationsAgentsIdPauseRouteImport } from './routes/api/operations/agents.$id.pause'
+import { Route as ApiHermesProjectsIdFoldersPrimaryRouteImport } from './routes/api/hermes-projects/$id.folders.primary'
 import { Route as ApiHermesKanbanTemplatesSlugInstantiateRouteImport } from './routes/api/hermes-kanban/templates.$slug.instantiate'
 import { Route as ApiHermesKanbanTasksTaskIdLogRouteImport } from './routes/api/hermes-kanban/tasks.$taskId.log'
 import { Route as ApiHermesKanbanTasksTaskIdCommentsRouteImport } from './routes/api/hermes-kanban/tasks.$taskId.comments'
@@ -1162,16 +1166,34 @@ const ApiMcpNameLogsRoute = ApiMcpNameLogsRouteImport.update({
   path: '/logs',
   getParentRoute: () => ApiMcpNameRoute,
 } as any)
+const ApiHermesProjectsIdRestoreRoute =
+  ApiHermesProjectsIdRestoreRouteImport.update({
+    id: '/restore',
+    path: '/restore',
+    getParentRoute: () => ApiHermesProjectsIdRoute,
+  } as any)
 const ApiHermesProjectsIdFoldersRoute =
   ApiHermesProjectsIdFoldersRouteImport.update({
     id: '/folders',
     path: '/folders',
     getParentRoute: () => ApiHermesProjectsIdRoute,
   } as any)
+const ApiHermesProjectsIdArchiveRoute =
+  ApiHermesProjectsIdArchiveRouteImport.update({
+    id: '/archive',
+    path: '/archive',
+    getParentRoute: () => ApiHermesProjectsIdRoute,
+  } as any)
 const ApiHermesProjectsIdActivityRoute =
   ApiHermesProjectsIdActivityRouteImport.update({
     id: '/activity',
     path: '/activity',
+    getParentRoute: () => ApiHermesProjectsIdRoute,
+  } as any)
+const ApiHermesProjectsIdActiveRoute =
+  ApiHermesProjectsIdActiveRouteImport.update({
+    id: '/active',
+    path: '/active',
     getParentRoute: () => ApiHermesProjectsIdRoute,
   } as any)
 const ApiHermesKanbanTemplatesSlugRoute =
@@ -1256,6 +1278,12 @@ const ApiOperationsAgentsIdPauseRoute =
     id: '/pause',
     path: '/pause',
     getParentRoute: () => ApiOperationsAgentsIdRoute,
+  } as any)
+const ApiHermesProjectsIdFoldersPrimaryRoute =
+  ApiHermesProjectsIdFoldersPrimaryRouteImport.update({
+    id: '/primary',
+    path: '/primary',
+    getParentRoute: () => ApiHermesProjectsIdFoldersRoute,
   } as any)
 const ApiHermesKanbanTemplatesSlugInstantiateRoute =
   ApiHermesKanbanTemplatesSlugInstantiateRouteImport.update({
@@ -1482,8 +1510,11 @@ export interface FileRoutesByFullPath {
   '/api/hermes-kanban/boards/$slug': typeof ApiHermesKanbanBoardsSlugRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/hermes-kanban/templates/$slug': typeof ApiHermesKanbanTemplatesSlugRouteWithChildren
+  '/api/hermes-projects/$id/active': typeof ApiHermesProjectsIdActiveRoute
   '/api/hermes-projects/$id/activity': typeof ApiHermesProjectsIdActivityRoute
-  '/api/hermes-projects/$id/folders': typeof ApiHermesProjectsIdFoldersRoute
+  '/api/hermes-projects/$id/archive': typeof ApiHermesProjectsIdArchiveRoute
+  '/api/hermes-projects/$id/folders': typeof ApiHermesProjectsIdFoldersRouteWithChildren
+  '/api/hermes-projects/$id/restore': typeof ApiHermesProjectsIdRestoreRoute
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
@@ -1504,6 +1535,7 @@ export interface FileRoutesByFullPath {
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
   '/api/hermes-kanban/templates/$slug/instantiate': typeof ApiHermesKanbanTemplatesSlugInstantiateRoute
+  '/api/hermes-projects/$id/folders/primary': typeof ApiHermesProjectsIdFoldersPrimaryRoute
   '/api/operations/agents/$id/pause': typeof ApiOperationsAgentsIdPauseRoute
   '/api/operations/agents/$id/resume': typeof ApiOperationsAgentsIdResumeRoute
   '/api/self-improve/experiments/$id/apply': typeof ApiSelfImproveExperimentsIdApplyRoute
@@ -1691,8 +1723,11 @@ export interface FileRoutesByTo {
   '/api/hermes-kanban/boards/$slug': typeof ApiHermesKanbanBoardsSlugRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/hermes-kanban/templates/$slug': typeof ApiHermesKanbanTemplatesSlugRouteWithChildren
+  '/api/hermes-projects/$id/active': typeof ApiHermesProjectsIdActiveRoute
   '/api/hermes-projects/$id/activity': typeof ApiHermesProjectsIdActivityRoute
-  '/api/hermes-projects/$id/folders': typeof ApiHermesProjectsIdFoldersRoute
+  '/api/hermes-projects/$id/archive': typeof ApiHermesProjectsIdArchiveRoute
+  '/api/hermes-projects/$id/folders': typeof ApiHermesProjectsIdFoldersRouteWithChildren
+  '/api/hermes-projects/$id/restore': typeof ApiHermesProjectsIdRestoreRoute
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
@@ -1713,6 +1748,7 @@ export interface FileRoutesByTo {
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
   '/api/hermes-kanban/templates/$slug/instantiate': typeof ApiHermesKanbanTemplatesSlugInstantiateRoute
+  '/api/hermes-projects/$id/folders/primary': typeof ApiHermesProjectsIdFoldersPrimaryRoute
   '/api/operations/agents/$id/pause': typeof ApiOperationsAgentsIdPauseRoute
   '/api/operations/agents/$id/resume': typeof ApiOperationsAgentsIdResumeRoute
   '/api/self-improve/experiments/$id/apply': typeof ApiSelfImproveExperimentsIdApplyRoute
@@ -1903,8 +1939,11 @@ export interface FileRoutesById {
   '/api/hermes-kanban/boards/$slug': typeof ApiHermesKanbanBoardsSlugRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/hermes-kanban/templates/$slug': typeof ApiHermesKanbanTemplatesSlugRouteWithChildren
+  '/api/hermes-projects/$id/active': typeof ApiHermesProjectsIdActiveRoute
   '/api/hermes-projects/$id/activity': typeof ApiHermesProjectsIdActivityRoute
-  '/api/hermes-projects/$id/folders': typeof ApiHermesProjectsIdFoldersRoute
+  '/api/hermes-projects/$id/archive': typeof ApiHermesProjectsIdArchiveRoute
+  '/api/hermes-projects/$id/folders': typeof ApiHermesProjectsIdFoldersRouteWithChildren
+  '/api/hermes-projects/$id/restore': typeof ApiHermesProjectsIdRestoreRoute
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
@@ -1925,6 +1964,7 @@ export interface FileRoutesById {
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
   '/api/hermes-kanban/tasks/$taskId/log': typeof ApiHermesKanbanTasksTaskIdLogRoute
   '/api/hermes-kanban/templates/$slug/instantiate': typeof ApiHermesKanbanTemplatesSlugInstantiateRoute
+  '/api/hermes-projects/$id/folders/primary': typeof ApiHermesProjectsIdFoldersPrimaryRoute
   '/api/operations/agents/$id/pause': typeof ApiOperationsAgentsIdPauseRoute
   '/api/operations/agents/$id/resume': typeof ApiOperationsAgentsIdResumeRoute
   '/api/self-improve/experiments/$id/apply': typeof ApiSelfImproveExperimentsIdApplyRoute
@@ -2116,8 +2156,11 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/boards/$slug'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/hermes-kanban/templates/$slug'
+    | '/api/hermes-projects/$id/active'
     | '/api/hermes-projects/$id/activity'
+    | '/api/hermes-projects/$id/archive'
     | '/api/hermes-projects/$id/folders'
+    | '/api/hermes-projects/$id/restore'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
     | '/api/operations/agents/$id'
@@ -2138,6 +2181,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/tasks/$taskId/comments'
     | '/api/hermes-kanban/tasks/$taskId/log'
     | '/api/hermes-kanban/templates/$slug/instantiate'
+    | '/api/hermes-projects/$id/folders/primary'
     | '/api/operations/agents/$id/pause'
     | '/api/operations/agents/$id/resume'
     | '/api/self-improve/experiments/$id/apply'
@@ -2325,8 +2369,11 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/boards/$slug'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/hermes-kanban/templates/$slug'
+    | '/api/hermes-projects/$id/active'
     | '/api/hermes-projects/$id/activity'
+    | '/api/hermes-projects/$id/archive'
     | '/api/hermes-projects/$id/folders'
+    | '/api/hermes-projects/$id/restore'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
     | '/api/operations/agents/$id'
@@ -2347,6 +2394,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/tasks/$taskId/comments'
     | '/api/hermes-kanban/tasks/$taskId/log'
     | '/api/hermes-kanban/templates/$slug/instantiate'
+    | '/api/hermes-projects/$id/folders/primary'
     | '/api/operations/agents/$id/pause'
     | '/api/operations/agents/$id/resume'
     | '/api/self-improve/experiments/$id/apply'
@@ -2536,8 +2584,11 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/boards/$slug'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/hermes-kanban/templates/$slug'
+    | '/api/hermes-projects/$id/active'
     | '/api/hermes-projects/$id/activity'
+    | '/api/hermes-projects/$id/archive'
     | '/api/hermes-projects/$id/folders'
+    | '/api/hermes-projects/$id/restore'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
     | '/api/operations/agents/$id'
@@ -2558,6 +2609,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/tasks/$taskId/comments'
     | '/api/hermes-kanban/tasks/$taskId/log'
     | '/api/hermes-kanban/templates/$slug/instantiate'
+    | '/api/hermes-projects/$id/folders/primary'
     | '/api/operations/agents/$id/pause'
     | '/api/operations/agents/$id/resume'
     | '/api/self-improve/experiments/$id/apply'
@@ -4014,6 +4066,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMcpNameLogsRouteImport
       parentRoute: typeof ApiMcpNameRoute
     }
+    '/api/hermes-projects/$id/restore': {
+      id: '/api/hermes-projects/$id/restore'
+      path: '/restore'
+      fullPath: '/api/hermes-projects/$id/restore'
+      preLoaderRoute: typeof ApiHermesProjectsIdRestoreRouteImport
+      parentRoute: typeof ApiHermesProjectsIdRoute
+    }
     '/api/hermes-projects/$id/folders': {
       id: '/api/hermes-projects/$id/folders'
       path: '/folders'
@@ -4021,11 +4080,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHermesProjectsIdFoldersRouteImport
       parentRoute: typeof ApiHermesProjectsIdRoute
     }
+    '/api/hermes-projects/$id/archive': {
+      id: '/api/hermes-projects/$id/archive'
+      path: '/archive'
+      fullPath: '/api/hermes-projects/$id/archive'
+      preLoaderRoute: typeof ApiHermesProjectsIdArchiveRouteImport
+      parentRoute: typeof ApiHermesProjectsIdRoute
+    }
     '/api/hermes-projects/$id/activity': {
       id: '/api/hermes-projects/$id/activity'
       path: '/activity'
       fullPath: '/api/hermes-projects/$id/activity'
       preLoaderRoute: typeof ApiHermesProjectsIdActivityRouteImport
+      parentRoute: typeof ApiHermesProjectsIdRoute
+    }
+    '/api/hermes-projects/$id/active': {
+      id: '/api/hermes-projects/$id/active'
+      path: '/active'
+      fullPath: '/api/hermes-projects/$id/active'
+      preLoaderRoute: typeof ApiHermesProjectsIdActiveRouteImport
       parentRoute: typeof ApiHermesProjectsIdRoute
     }
     '/api/hermes-kanban/templates/$slug': {
@@ -4125,6 +4198,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/operations/agents/$id/pause'
       preLoaderRoute: typeof ApiOperationsAgentsIdPauseRouteImport
       parentRoute: typeof ApiOperationsAgentsIdRoute
+    }
+    '/api/hermes-projects/$id/folders/primary': {
+      id: '/api/hermes-projects/$id/folders/primary'
+      path: '/primary'
+      fullPath: '/api/hermes-projects/$id/folders/primary'
+      preLoaderRoute: typeof ApiHermesProjectsIdFoldersPrimaryRouteImport
+      parentRoute: typeof ApiHermesProjectsIdFoldersRoute
     }
     '/api/hermes-kanban/templates/$slug/instantiate': {
       id: '/api/hermes-kanban/templates/$slug/instantiate'
@@ -4566,14 +4646,35 @@ const ApiHermesKanbanTemplatesRouteWithChildren =
     ApiHermesKanbanTemplatesRouteChildren,
   )
 
+interface ApiHermesProjectsIdFoldersRouteChildren {
+  ApiHermesProjectsIdFoldersPrimaryRoute: typeof ApiHermesProjectsIdFoldersPrimaryRoute
+}
+
+const ApiHermesProjectsIdFoldersRouteChildren: ApiHermesProjectsIdFoldersRouteChildren =
+  {
+    ApiHermesProjectsIdFoldersPrimaryRoute:
+      ApiHermesProjectsIdFoldersPrimaryRoute,
+  }
+
+const ApiHermesProjectsIdFoldersRouteWithChildren =
+  ApiHermesProjectsIdFoldersRoute._addFileChildren(
+    ApiHermesProjectsIdFoldersRouteChildren,
+  )
+
 interface ApiHermesProjectsIdRouteChildren {
+  ApiHermesProjectsIdActiveRoute: typeof ApiHermesProjectsIdActiveRoute
   ApiHermesProjectsIdActivityRoute: typeof ApiHermesProjectsIdActivityRoute
-  ApiHermesProjectsIdFoldersRoute: typeof ApiHermesProjectsIdFoldersRoute
+  ApiHermesProjectsIdArchiveRoute: typeof ApiHermesProjectsIdArchiveRoute
+  ApiHermesProjectsIdFoldersRoute: typeof ApiHermesProjectsIdFoldersRouteWithChildren
+  ApiHermesProjectsIdRestoreRoute: typeof ApiHermesProjectsIdRestoreRoute
 }
 
 const ApiHermesProjectsIdRouteChildren: ApiHermesProjectsIdRouteChildren = {
+  ApiHermesProjectsIdActiveRoute: ApiHermesProjectsIdActiveRoute,
   ApiHermesProjectsIdActivityRoute: ApiHermesProjectsIdActivityRoute,
-  ApiHermesProjectsIdFoldersRoute: ApiHermesProjectsIdFoldersRoute,
+  ApiHermesProjectsIdArchiveRoute: ApiHermesProjectsIdArchiveRoute,
+  ApiHermesProjectsIdFoldersRoute: ApiHermesProjectsIdFoldersRouteWithChildren,
+  ApiHermesProjectsIdRestoreRoute: ApiHermesProjectsIdRestoreRoute,
 }
 
 const ApiHermesProjectsIdRouteWithChildren =

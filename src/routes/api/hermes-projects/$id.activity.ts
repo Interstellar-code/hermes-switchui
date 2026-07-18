@@ -1,6 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
-import { getProjectActivity } from '../../../server/projects-client'
+import {
+  getProjectActivity,
+  projectsErrorStatus,
+} from '../../../server/projects-client'
 
 export const Route = createFileRoute('/api/hermes-projects/$id/activity')({
   server: {
@@ -20,9 +23,10 @@ export const Route = createFileRoute('/api/hermes-projects/$id/activity')({
           return Response.json(result)
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Not found'
-          const status =
-            msg.includes('404') || msg.includes('not found') ? 404 : 503
-          return Response.json({ error: msg }, { status })
+          return Response.json(
+            { error: msg },
+            { status: projectsErrorStatus(err) },
+          )
         }
       },
     },

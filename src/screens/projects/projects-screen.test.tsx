@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ProjectActivityTab, ProjectCard } from './projects-screen'
+import {
+  MainTop,
+  ProjectActivityTab,
+  ProjectCard,
+  ProjectDrawer,
+  confirmProjectDelete,
+  promptProjectEdit,
+} from './projects-screen'
 import type { Project, ProjectActivityItem } from '@/lib/projects-types'
 
 vi.mock('@tanstack/react-router', () => ({
@@ -14,6 +21,7 @@ const { mockUseProjectActivity } = vi.hoisted(() => ({
 vi.mock('@/lib/projects-api', () => ({
   useProjectActivity: (...args: Array<unknown>) =>
     mockUseProjectActivity(...args),
+  useProjectFolders: () => ({ data: { folders: [] } }),
 }))
 
 afterEach(() => {
@@ -151,5 +159,79 @@ describe('ProjectActivityTab', () => {
     render(<ProjectActivityTab project={project} />)
     expect(screen.getByText('Only task shown')).toBeTruthy()
     expect(screen.queryByText('A chat session')).toBeNull()
+  })
+})
+
+describe('Projects v3 actions', () => {
+  it('disables project creation while another mutation is pending', () => {
+    render(
+      <MainTop
+        allProjects={[]}
+        search=""
+        setSearch={() => {}}
+        filter="all"
+        setFilter={() => {}}
+        view="list"
+        setView={() => {}}
+        showArchived={false}
+        setShowArchived={() => {}}
+        onCreate={() => {}}
+        busy
+      />,
+    )
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', { name: 'New Project' })
+        .disabled,
+    ).toBe(true)
+  })
+
+  it('requires two confirmations before permanently deleting an archived project', () => {
+    const confirm = vi.fn().mockReturnValue(true)
+    expect(
+      confirmProjectDelete(
+        baseProject({ archived: true, is_active: false }),
+        confirm,
+      ),
+    ).toBe(true)
+    expect(confirm).toHaveBeenCalledTimes(2)
+
+    confirm.mockReset().mockReturnValueOnce(true).mockReturnValueOnce(false)
+    expect(
+      confirmProjectDelete(baseProject({ archived: true }), confirm),
+    ).toBe(false)
+    expect(confirm).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not clear board binding when edit is cancelled', () => {
+    const prompt = vi
+      .fn<typeof window.prompt>()
+      .mockReturnValueOnce('Renamed')
+      .mockReturnValueOnce(null)
+    expect(promptProjectEdit(baseProject({ board_slug: 'work' }), prompt)).toBe(
+      null,
+    )
+  })
+
+  it('shows mutation errors in the project drawer', () => {
+    render(
+      <ProjectDrawer
+        project={baseProject()}
+        isActive
+        onClose={() => {}}
+        onEdit={() => {}}
+        onAddFolder={() => {}}
+        onSetPrimary={() => {}}
+        onRemoveFolder={() => {}}
+        onArchive={() => {}}
+        onRestore={() => {}}
+        onSetActive={() => {}}
+        onDelete={() => {}}
+        busy={false}
+        error="Project update failed"
+      />,
+    )
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Project update failed',
+    )
   })
 })

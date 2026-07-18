@@ -2,7 +2,7 @@
  * Canonical Projects types for SwitchUI.
  *
  * Mirrors the Hermes Agent Dashboard `projects` plugin REST contract
- * (`/api/plugins/projects/*`). Read-only v1 — no create/edit/delete.
+ * (`/api/plugins/projects/*`).
  */
 
 export type Project = {
@@ -93,3 +93,30 @@ export type ProjectActivityResponse = {
   items: Array<ProjectActivityItem>
   next_cursor: string | null
 }
+
+export type CreateProjectInput = {
+  name: string
+  slug?: string
+  folders?: Array<string>
+  primary_path?: string
+  description?: string
+  icon?: string
+  color?: string
+  board_slug?: string
+}
+
+export type UpdateProjectInput = {
+  name?: string
+  description?: string
+  icon?: string
+  color?: string
+  board_slug?: string
+}
+
+export type AddProjectFolderInput = {
+  path: string
+  label?: string
+  is_primary?: boolean
+}
+
+export type ProjectMutationResponse = ProjectDetailResponse
