@@ -3,6 +3,15 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.12] — 2026-07-18
+
+Follow-up to the v2.5.10 stuck-thinking-bubble fix: handle the case where the backend is fully unreachable.
+
+### Fixed
+
+- The run-liveness watchdog only reconciled when the liveness probe positively confirmed the run was gone. When the gateway is mid `/restart` the probe can't be reached at all, so the watchdog exhausted its retries and did nothing — the thinking bubble hung until the 120s TTL (repro: run `/restart`, watch the last run spin on "Taking longer than usual"). It now reconciles on exhausted retries too, surfacing the interrupted/resend affordance. If the run is actually still live, the recovery check clears the interrupted flag on its next poll, so a false positive self-heals.
+- Added an 8s per-attempt timeout to the liveness probe so a hanging proxy can't wedge it in-flight and block every later tick.
+
 ## [2.5.11] — 2026-07-18
 
 Chat and terminal console-error cleanup.
