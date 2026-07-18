@@ -3,6 +3,26 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.13] — 2026-07-19
+
+Projects page **v2** — the read-only Projects screen gains live task/activity data and an Activity tab, consuming the enriched `projects` plugin contract from hermes-agent v2.1 (Interstellar-code/hermes-agent#170).
+
+### Added
+
+- Project cards now show task counts ("X tasks · Y open"), the bound board's **name** (chip linking to the board), last-activity relative time, folder count, and an active pill driven by the API's `is_active` flag.
+- New **Activity** tab in the project drawer: the project's top-10 recent kanban tasks (title · status · time), read-only, via `GET /api/plugins/projects/{id}/activity`.
+- `Project` type extended with the v2.1 fields; `getProjectActivity` client + `useProjectActivity` hook + `hermes-projects/$id.activity` BFF proxy route.
+
+### Fixed
+
+- Drawer header active state now derives from `is_active` (was still using the client-side active check, so it could read "idle" next to an "active" pill).
+- CI: `pnpm/action-setup` no longer fails with "Multiple versions of pnpm specified" — dropped the pinned workflow version in favour of `package.json#packageManager`.
+- CI: `eslint` ignores the `website/**` Astro subproject (own toolchain); quoted a docs frontmatter description containing a colon so the site build stops throwing.
+
+### Notes
+
+- Projects UI remains **read-only**. Create / edit / archive / bind-board stay CLI-only.
+
 ## [2.5.12] — 2026-07-18
 
 Follow-up to the v2.5.10 stuck-thinking-bubble fix: handle the case where the backend is fully unreachable.
