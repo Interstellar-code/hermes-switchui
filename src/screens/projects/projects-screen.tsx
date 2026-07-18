@@ -460,7 +460,11 @@ function ProjectDrawer({
               <div className="dr-meta">
                 <span>{project.slug}</span>
                 <span>
-                  {project.archived ? 'archived' : isActive ? 'active' : 'idle'}
+                  {project.archived
+                    ? 'archived'
+                    : orElse(project.is_active, isActive)
+                      ? 'active'
+                      : 'idle'}
                 </span>
                 <span>Created {formatDate(project.created_at)}</span>
               </div>
