@@ -3,6 +3,24 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.14] — 2026-07-19
+
+Projects CRUD v3, consuming the Hermes Agent 0.18.3 dashboard Projects API.
+
+### Added
+
+- Create and edit projects from the Projects screen.
+- Add, remove, and select primary project folders.
+- Set the active project, archive, restore, and permanently delete archived projects.
+- Profile-scoped Projects requests so each SwitchUI profile reads its own Hermes Projects database.
+- Mutation error handling, busy-state guards, query invalidation, and two-step deletion confirmation.
+
+### Testing
+
+- `pnpm test`: 222 files, 1,897 tests passed, 2 skipped.
+- Projects files pass scoped ESLint.
+- Production client/server bundles and prerender completed; the local Vite/esbuild process retains a native service handle after output generation on this macOS toolchain.
+
 ## [2.5.13] — 2026-07-19
 
 Projects page **v2** — the read-only Projects screen gains live task/activity data and an Activity tab, consuming the enriched `projects` plugin contract from hermes-agent v2.1 (Interstellar-code/hermes-agent#170).
