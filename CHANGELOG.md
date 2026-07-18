@@ -3,6 +3,15 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.9] — 2026-07-18
+
+Gateway capability-probe resilience and a route-tree warning cleanup.
+
+### Fixed
+
+- Raised the gateway capability-probe timeout from 3s to 8s. The dashboard's `/api/status` is cold (~3s) on the first hit after a (re)boot, which raced the old 3s `AbortSignal` timeout and intermittently flipped `dashboard.available` to false — marking Sessions/Skills/Config/Jobs/Kanban "missing" until a full restart. Warm hits still return in <1s.
+- Excluded `-connection-status-cache-helper.ts` from the TanStack route tree (prefixed with `-`) so the router no longer warns on startup about a helper file that doesn't export a `Route`.
+
 ## [2.5.8] — 2026-07-17
 
 Dashboard performance patch: paginated session loads and resilient overview rendering, plus matrix-theme polish for the Agent View panel.
