@@ -7,7 +7,7 @@ description: How the three kanban grouping primitives — boards, projects, and 
 
 > Boards are a workstream. Projects are a codebase. Tenants are a customer. Pick the layer that matches the question you're asking.
 
-Hermes Agent's kanban has three different grouping primitives. The Tasks and Boards pages in Switch UI show the **board** layer. The **project** layer also has a Switch UI surface upstream — a sidebar that lists registered projects, lets you create new ones, and groups chat sessions by their project's primary folder — but that surface has not yet been ported into this Switch UI build, so today the project store is reached through the CLI. The **tenant** layer is an agent-side concept that is set as a flag on each task.
+Hermes Agent's kanban has three different grouping primitives. The Tasks and Boards pages in Switch UI show the **board** layer. The **project** layer has a read-only Switch UI surface — the [Projects page](#the-switchui-projects-page-v2) — for browsing registered projects; creating, editing, and archiving projects is still CLI-only. The **tenant** layer is an agent-side concept that is set as a flag on each task.
 
 ## Where this feature came from
 
@@ -15,11 +15,11 @@ Projects and the kanban↔project wiring were added to Hermes Agent upstream in 
 
 ## The three layers at a glance
 
-| Primitive   | What it is                                                                                         | Switch UI surface                                                                                | CLI                                       |
-| ----------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------- |
-| **Board**   | A durable workstream with its own SQLite database, workspaces directory, and dispatcher scope.     | Tasks page, Boards page                                                                          | `hermes kanban …`                         |
-| **Project** | A human-named, multi-folder workspace anchored to a primary repository.                            | Projects sidebar (upstream — not yet ported to this build; reach via `hermes project …` for now) | `hermes project …`                        |
-| **Tenant**  | A string label on a task, propagated to workers as `$HERMES_TENANT` for per-customer data scoping. | None                                                                                             | `--tenant` flag on `hermes kanban create` |
+| Primitive   | What it is                                                                                         | Switch UI surface                                           | CLI                                       |
+| ----------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------- |
+| **Board**   | A durable workstream with its own SQLite database, workspaces directory, and dispatcher scope.     | Tasks page, Boards page                                     | `hermes kanban …`                         |
+| **Project** | A human-named, multi-folder workspace anchored to a primary repository.                            | [Projects page](#the-switchui-projects-page-v2) (read-only) | `hermes project …`                        |
+| **Tenant**  | A string label on a task, propagated to workers as `$HERMES_TENANT` for per-customer data scoping. | None                                                        | `--tenant` flag on `hermes kanban create` |
 
 Boards are the **hard** isolation layer. The dispatcher sets `HERMES_KANBAN_BOARD` in every worker's environment, so a worker on one board physically cannot see tasks on another. Projects and tenants are **soft** labels — they only enforce isolation if your worker is configured to honour them (via workspace path, memory key prefix, and so on).
 
@@ -48,6 +48,18 @@ When you are about to create a board, ask:
 3. **Is this just a temporary workstream for a sprint, a release, or a one-off campaign?** Yes → create a board with no project bound. Use the board for the duration of the work, then archive it.
 
 If you are not sure, default to creating a board. Boards are cheap to create and archive, and they give you the strongest isolation.
+
+## The SwitchUI Projects page (v2)
+
+The Projects page (`/projects`) lists every registered project as a card (or table row in list view). Each card shows:
+
+- **Tasks** — total `task_count` with an `{open_task_count} open` sublabel.
+- **Folders** — `folder_count` (falls back to the length of the folders array for stale payloads).
+- **Bound board** — a chip with the linked board's name and color when the project has one bound (`hermes project bind-board`); otherwise the raw `board_slug` is shown as plain text, or nothing if neither is set.
+- **Last active** — a relative-time string ("5 min ago", "3 days ago") derived from `last_activity_at`.
+- **Status pill** — `active` / `idle` / `archived`, driven by the project's `is_active` flag (falls back to whether the project is the workspace's current active project).
+
+Opening a card slides out a drawer with three tabs: **Overview** (metadata), **Folders** (the full folder list), and **Activity**. The Activity tab shows the 10 most recent kanban tasks for the project (task creation/status events only — chat sessions are filtered out), each row with its title, status pill, and relative time, backed by `GET /api/plugins/projects/{id}/activity`. It's read-only; a "View all in Tasks page" link is provided but does not yet deep-link to a project-filtered view.
 
 ## Managing projects from the CLI
 

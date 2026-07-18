@@ -157,7 +157,7 @@ function BoundBoardChip({ project }: { project: Project }) {
   )
 }
 
-function ProjectCard({
+export function ProjectCard({
   project,
   isActive,
   onOpen,
@@ -460,11 +460,7 @@ function ProjectDrawer({
               <div className="dr-meta">
                 <span>{project.slug}</span>
                 <span>
-                  {project.archived
-                    ? 'archived'
-                    : isActive
-                      ? 'active'
-                      : 'idle'}
+                  {project.archived ? 'archived' : isActive ? 'active' : 'idle'}
                 </span>
                 <span>Created {formatDate(project.created_at)}</span>
               </div>
@@ -580,7 +576,7 @@ function ProjectDrawer({
   )
 }
 
-function ProjectActivityTab({ project }: { project: Project }) {
+export function ProjectActivityTab({ project }: { project: Project }) {
   // Stable p_<hex> id as the query key — never the slug.
   const activityQuery = useProjectActivity(project.id)
   if (activityQuery.isLoading)
