@@ -469,6 +469,12 @@ export function TerminalWorkspace({
               setTabSessionId(tab.id, payload.sessionId)
               const nextTitle = tab.cwd === '~' ? tab.title : tab.cwd
               renameTab(tab.id, nextTitle)
+              // Resize only now that the session exists server-side. Firing at
+              // terminal creation raced ahead of this sessionId assignment and
+              // 404'd against a not-yet-live session — noisy on first mount and
+              // after a server/gateway restart re-issues sessionIds.
+              const liveTerminal = terminalMapRef.current.get(tab.id)
+              if (liveTerminal) void resizeSession(tab.id, liveTerminal)
             }
             continue
           }
@@ -552,7 +558,7 @@ export function TerminalWorkspace({
 
       setTabSessionId(tab.id, null)
     },
-    [renameTab, setTabSessionId, setTabStatus],
+    [renameTab, resizeSession, setTabSessionId, setTabStatus],
   )
 
   const ensureTerminalForTab = useCallback(
@@ -617,10 +623,11 @@ export function TerminalWorkspace({
 
       terminalMapRef.current.set(tab.id, terminal)
       fitMapRef.current.set(tab.id, fitAddon)
-      void resizeSession(tab.id, terminal)
+      // Resize is deferred to connectTab, which fires it once the server has
+      // assigned a live sessionId — resizing here raced the session and 404'd.
       void connectTab(tab)
     },
-    [connectTab, resizeSession, sendInput],
+    [connectTab, sendInput],
   )
 
   const handleCreateTab = useCallback(

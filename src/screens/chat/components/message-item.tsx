@@ -2467,8 +2467,8 @@ function MessageItemComponent({
       }),
     [effectiveStreamToolCalls, effectiveIsStreaming],
   )
-  const inlineToolSections = useMemo<Array<InlineToolSection>>(
-    () => [
+  const inlineToolSections = useMemo<Array<InlineToolSection>>(() => {
+    const combined: Array<InlineToolSection> = [
       ...streamToolSections,
       ...toolParts.map((toolPart, index) => {
         const rawOutput = toolPart.output
@@ -2499,15 +2499,25 @@ function MessageItemComponent({
         }
       }),
       ...attachedToolSections,
-    ],
-    [
-      attachedToolSections,
-      streamToolSections,
-      toolParts,
-      toolResultsByCallId,
-      message,
-    ],
-  )
+    ]
+    // A finalized message can carry the same tool call in BOTH its content
+    // (toolParts) and its embedded __streamToolCalls (streamToolSections) — the
+    // embed exists so pills survive after streaming state clears. Concatenating
+    // both yields duplicate React keys and double-rendered pills. Dedup by key,
+    // keeping the first occurrence.
+    const seen = new Set<string>()
+    return combined.filter((section) => {
+      if (seen.has(section.key)) return false
+      seen.add(section.key)
+      return true
+    })
+  }, [
+    attachedToolSections,
+    streamToolSections,
+    toolParts,
+    toolResultsByCallId,
+    message,
+  ])
   const toolSectionsWithClarify = useMemo(() => {
     if (!clarifyCard) return inlineToolSections
 
