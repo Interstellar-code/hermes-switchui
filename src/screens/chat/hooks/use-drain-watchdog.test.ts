@@ -74,6 +74,32 @@ describe('useDrainWatchdog', () => {
     expect(reconcile).toHaveBeenCalledWith(SESSION)
   })
 
+  it('reconciles when the backend is unreachable after all retries (gateway mid-restart)', async () => {
+    // The liveness endpoint can't be reached (gateway restarting). The old
+    // behaviour exhausted retries and did nothing, leaving the thinking bubble
+    // stuck forever. It must now reconcile so the interrupted affordance shows.
+    const fetchMock = vi.fn().mockRejectedValue(new Error('network down'))
+    vi.stubGlobal('fetch', fetchMock)
+    const reconcile = vi.fn()
+
+    renderHook(() =>
+      useDrainWatchdog({
+        sessionKey: SESSION,
+        isComposerLoading: true,
+        reconcile,
+      }),
+    )
+
+    // First tick fires attempt 1; retries fire ~1.5s apart until the attempt
+    // budget is exhausted, at which point the watchdog reconciles.
+    await runWatchdogTick()
+    await vi.advanceTimersByTimeAsync(1_500)
+    await vi.advanceTimersByTimeAsync(1_500)
+
+    expect(fetchMock).toHaveBeenCalled()
+    expect(reconcile).toHaveBeenCalledWith(SESSION)
+  })
+
   it('does not arm (no fetch) when the composer is not busy', async () => {
     enqueueOne()
     const fetchMock = mockActiveRun(null)

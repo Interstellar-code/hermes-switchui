@@ -24,9 +24,14 @@ import type { ActiveRunSnapshot } from './use-active-run-check'
  *     client missed the completion. Invoke `reconcile()` to release the stuck
  *     busy state. The EXISTING drain effect then dequeues and sends — this hook
  *     never dequeues, to avoid a double-send.
+ *   - Backend unreachable (all retries failed / timed out, e.g. the gateway is
+ *     mid `/restart`) → the run is neither streaming nor confirmable, so an
+ *     eternal spinner is misleading. Reconcile too. If the run is actually
+ *     still live, `useActiveRunCheck` clears the interrupted flag on its next
+ *     poll, so a false positive self-heals.
  *
- * No blind timeout drain: a timer alone never releases busy state; only a
- * not-recoverable snapshot does.
+ * No blind timeout drain on a REACHABLE-but-live backend: a recoverable
+ * snapshot always wins, so a slow run is never force-terminated.
  */
 
 export const DRAIN_WATCHDOG_IDLE_MS = 5_000
@@ -40,6 +45,9 @@ const DRAIN_WATCHDOG_TICK_MS = 1_000
 // does not permanently disarm the escape hatch.
 const DRAIN_WATCHDOG_FETCH_RETRY_MS = 1_500
 const DRAIN_WATCHDOG_FETCH_MAX_ATTEMPTS = 3
+// Per-attempt timeout so a hanging proxy (gateway mid-restart) can't wedge the
+// probe in-flight forever, blocking every later tick.
+const DRAIN_WATCHDOG_FETCH_TIMEOUT_MS = 8_000
 
 type ActiveRunResponse = {
   ok: boolean
@@ -95,7 +103,12 @@ export function useDrainWatchdog({
         try {
           const response = await fetch(
             `/api/sessions/${encodeURIComponent(sessionKey)}/active-run`,
-            { signal: controller.signal },
+            {
+              signal: AbortSignal.any([
+                controller.signal,
+                AbortSignal.timeout(DRAIN_WATCHDOG_FETCH_TIMEOUT_MS),
+              ]),
+            },
           )
           if (!response.ok)
             throw new Error(`Drain watchdog check failed: ${response.status}`)
@@ -115,12 +128,22 @@ export function useDrainWatchdog({
           reconciledOrLive = true
           reconcileRef.current(sessionKey)
         } catch (error) {
+          // Unmount (not a timeout) — the outer controller was aborted. Bail.
           if (controller.signal.aborted) return
           if (attempts < DRAIN_WATCHDOG_FETCH_MAX_ATTEMPTS) {
             retryTimer = window.setTimeout(() => {
               void attempt()
             }, DRAIN_WATCHDOG_FETCH_RETRY_MS)
+            return
           }
+          // Backend unreachable after every retry (e.g. the gateway is mid
+          // /restart). The run is neither streaming nor confirmable, so an
+          // eternal "thinking" spinner is misleading — reconcile so the wired
+          // handler surfaces the interrupted/resend affordance. If the run is
+          // actually still live, useActiveRunCheck clears the interrupted flag
+          // on its next poll, so this false positive self-heals.
+          reconciledOrLive = true
+          reconcileRef.current(sessionKey)
         }
       }
 
