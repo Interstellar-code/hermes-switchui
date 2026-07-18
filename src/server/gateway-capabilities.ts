@@ -247,6 +247,12 @@ export type EnhancedCapabilities = {
    * gracefully to a BackendUnavailableState when absent.
    */
   kanban: boolean
+  /**
+   * True when the Hermes Agent Dashboard Projects plugin is available at
+   * `/api/plugins/projects*`. The Projects screen requires this; degrades
+   * gracefully to a BackendUnavailableState when absent.
+   */
+  projects: boolean
 }
 
 export type DashboardCapabilities = {
@@ -292,6 +298,7 @@ let capabilities: GatewayCapabilities = {
   mcpFallback: false,
   conductor: false,
   kanban: false,
+  projects: false,
   dashboard: {
     available: false,
     url: CLAUDE_DASHBOARD_URL,
@@ -434,7 +441,8 @@ function withDashboardBase(requestPath: string): string {
 }
 
 function dashboardFailureReason(error: unknown): string {
-  if (error instanceof DOMException && error.name === 'AbortError') return 'aborted'
+  if (error instanceof DOMException && error.name === 'AbortError')
+    return 'aborted'
   if (error instanceof Error && error.name === 'TimeoutError') return 'timeout'
   return 'network-or-auth'
 }
@@ -792,6 +800,24 @@ async function probeKanban(dashboardAvailable: boolean): Promise<boolean> {
  * ship without it; those deployments should show a graceful placeholder
  * instead of letting the Conductor UI 500. See #262.
  */
+/**
+ * Probe for the Hermes Agent Dashboard Projects plugin. Some deployments ship
+ * without it; the Projects screen should show a BackendUnavailableState when
+ * absent, same treatment as Kanban.
+ */
+async function probeProjects(dashboardAvailable: boolean): Promise<boolean> {
+  if (!dashboardAvailable) return false
+  try {
+    const res = await dashboardFetch('/api/plugins/projects', {
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    })
+    if (res.status === 404 || res.status === 405) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function probeConductor(dashboardAvailable: boolean): Promise<boolean> {
   if (!dashboardAvailable) return false
   try {
@@ -822,6 +848,7 @@ const OPTIONAL_APIS = new Set([
   'mcp',
   'mcpFallback',
   'kanban', // task board degrades gracefully when Agent Kanban plugin is absent
+  'projects', // projects screen degrades gracefully when Projects plugin is absent
 ])
 
 function logCapabilities(next: GatewayCapabilities): void {
@@ -846,6 +873,7 @@ function logCapabilities(next: GatewayCapabilities): void {
     'mcpFallback',
     'conductor',
     'kanban',
+    'projects',
   ]
 
   for (const key of coreKeys) {
@@ -966,6 +994,7 @@ export async function probeGateway(options?: {
     // Conductor and Kanban probes run after dashboard probe.
     const conductor = await probeConductor(dashboard.available)
     const kanban = await probeKanban(dashboard.available)
+    const projects = await probeProjects(dashboard.available)
 
     // Phase 1.5 fallback: when native /api/mcp is missing but the dashboard
     // exposes `config.mcp_servers` AND we are loopback-only, allow a config
@@ -997,6 +1026,7 @@ export async function probeGateway(options?: {
       mcpFallback,
       conductor,
       kanban,
+      projects,
       dashboard,
     }
     lastProbeAt = Date.now()
@@ -1056,6 +1086,7 @@ export function getEnhancedCapabilities(): EnhancedCapabilities {
     mcpFallback: capabilities.mcpFallback,
     conductor: capabilities.conductor,
     kanban: capabilities.kanban,
+    projects: capabilities.projects,
   }
 }
 

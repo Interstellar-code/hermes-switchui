@@ -26,6 +26,7 @@ import { useSearchModal } from '@/hooks/use-search-modal'
 import { getTheme, getThemeVariant, isDarkTheme, setTheme } from '@/lib/theme'
 import { SettingsDialog } from '@/components/settings-dialog'
 import { useBoards } from '@/lib/boards-api'
+import { useProjects } from '@/lib/projects-api'
 import { useNavCounts } from '@/hooks/use-nav-counts'
 
 // ── Icons (inline SVG) ────────────────────────────────────────────────────────
@@ -40,7 +41,13 @@ function Icon({ d, size = 15 }: { d: string; size?: number }) {
       aria-hidden
       style={{ flexShrink: 0 }}
     >
-      <path d={d} stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d={d}
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
@@ -57,12 +64,15 @@ const ICONS = {
   commands: 'M3 3h10v10H3V3zM5 6l2 2-2 2M8.5 10h2.5',
   boards: 'M3 3h4v4H3V3zM9 3h4v4H9V3zM3 9h4v4H3V9zM9 9h4v4H9V9z',
   templates: 'M4 3h6l2 2v6H4V3zM6 6h4M6 8h3M2 5v8h7',
+  projects: 'M2 4a2 2 0 0 1 2-2h3l1.5 2H12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4z',
   conductor: 'M8 2L2 14h12L8 2zM8 8v3',
-  operations: 'M3 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM9 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM1 14c0-2.5 2-4 5-4s5 1.5 5 4M11 11c1.5 0 3 .8 3 3',
+  operations:
+    'M3 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM9 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM1 14c0-2.5 2-4 5-4s5 1.5 5 4M11 11c1.5 0 3 .8 3 3',
   matrix3d: 'M8 2l5 3v6l-5 3-5-3V5l5-3zM8 2v12M3 5l5 3 5-3M3 11l5-3 5 3',
   selfImprove: 'M2 12l4-4 3 3 5-7M13 4h1v4',
 
-  memory: 'M5 3h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM6 7h4M6 9h2',
+  memory:
+    'M5 3h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM6 7h4M6 9h2',
   skills: 'M8 2l1.8 3.8 4.2.6-3 3 .7 4.1L8 11.5l-3.7 2L5 9.4l-3-3 4.2-.6z',
   mcp: 'M4 8h8M8 4v8M3 3l10 10M13 3L3 13',
   profiles: 'M8 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM2 14c0-3 2.7-5 6-5s6 2 6 5',
@@ -88,10 +98,12 @@ function getItemStyle(active: boolean): React.CSSProperties {
       gap: 8,
       padding: '6px 10px',
       borderRadius: 4,
-      background: 'color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 10%, transparent)',
+      background:
+        'color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 10%, transparent)',
       color: 'var(--m-green-400, var(--theme-accent))',
       borderLeft: '2px solid var(--m-green-500, var(--theme-accent))',
-      boxShadow: 'inset 2px 0 6px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 20%, transparent)',
+      boxShadow:
+        'inset 2px 0 6px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 20%, transparent)',
       fontSize: 11,
       fontWeight: 500,
       cursor: 'pointer',
@@ -129,7 +141,15 @@ interface NavItemProps {
   compact?: boolean
 }
 
-function NavItem({ label, iconKey, to, active, collapsed, badge, compact }: NavItemProps) {
+function NavItem({
+  label,
+  iconKey,
+  to,
+  active,
+  collapsed,
+  badge,
+  compact,
+}: NavItemProps) {
   const baseStyle = getItemStyle(active)
   const style = collapsed
     ? { ...baseStyle, justifyContent: 'center', padding: '8px 0' }
@@ -150,7 +170,9 @@ function NavItem({ label, iconKey, to, active, collapsed, badge, compact }: NavI
             padding: '2px 5px',
             borderRadius: 999,
             border: '1px solid var(--theme-border)',
-            color: active ? 'var(--m-green-400, var(--theme-accent))' : 'var(--theme-muted)',
+            color: active
+              ? 'var(--m-green-400, var(--theme-accent))'
+              : 'var(--theme-muted)',
           }}
         >
           {badge}
@@ -217,45 +239,23 @@ function ConnectedFooter({ collapsed }: { collapsed?: boolean }) {
   }, [])
   return (
     <>
-    <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: collapsed ? 'center' : 'space-between',
-        gap: 8,
-        padding: collapsed ? '8px 0' : '8px 12px',
-        borderTop: '1px solid var(--theme-border)',
-        marginTop: 'auto',
-      }}
-    >
-      <button
-        type="button"
-        onClick={() => setSettingsOpen(true)}
-        aria-label="Settings"
-        className="m-mono"
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <div
         style={{
-          background: 'none',
-          border: 'none',
-          padding: 6,
-          borderRadius: 4,
-          color: 'var(--theme-muted)',
-          cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
+          justifyContent: collapsed ? 'center' : 'space-between',
           gap: 8,
-          fontSize: 11,
+          padding: collapsed ? '8px 0' : '8px 12px',
+          borderTop: '1px solid var(--theme-border)',
+          marginTop: 'auto',
         }}
       >
-        <Icon d={ICONS.cog} size={14} />
-        {!collapsed && <span>Settings</span>}
-      </button>
-      {!collapsed && (
         <button
           type="button"
-          onClick={handleToggleTheme}
-          aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-          title={isDark ? 'Light mode' : 'Dark mode'}
+          onClick={() => setSettingsOpen(true)}
+          aria-label="Settings"
+          className="m-mono"
           style={{
             background: 'none',
             border: 'none',
@@ -265,21 +265,71 @@ function ConnectedFooter({ collapsed }: { collapsed?: boolean }) {
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
+            gap: 8,
+            fontSize: 11,
           }}
         >
-          {isDark ? (
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
-              <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.4"/>
-              <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-            </svg>
-          ) : (
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
-              <path d="M13.5 9.5A6 6 0 0 1 6.5 2.5a6 6 0 1 0 7 7z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
-            </svg>
-          )}
+          <Icon d={ICONS.cog} size={14} />
+          {!collapsed && <span>Settings</span>}
         </button>
-      )}
-    </div>
+        {!collapsed && (
+          <button
+            type="button"
+            onClick={handleToggleTheme}
+            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={isDark ? 'Light mode' : 'Dark mode'}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 6,
+              borderRadius: 4,
+              color: 'var(--theme-muted)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            {isDark ? (
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                aria-hidden
+              >
+                <circle
+                  cx="8"
+                  cy="8"
+                  r="3"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                />
+                <path
+                  d="M8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                />
+              </svg>
+            ) : (
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                aria-hidden
+              >
+                <path
+                  d="M13.5 9.5A6 6 0 0 1 6.5 2.5a6 6 0 1 0 7 7z"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+          </button>
+        )}
+      </div>
     </>
   )
 }
@@ -301,7 +351,9 @@ function useAgentVersion(): string | null {
   const { data } = useQuery({
     queryKey: ['agent-version'],
     queryFn: async () => {
-      const res = await fetch('/api/agent-version', { credentials: 'same-origin' })
+      const res = await fetch('/api/agent-version', {
+        credentials: 'same-origin',
+      })
       if (!res.ok) return { version: null }
       return (await res.json()) as { version: string | null }
     },
@@ -319,14 +371,19 @@ export function PrimaryNavV2() {
   const toggleCollapsed = useCallback(() => {
     setCollapsed((c) => {
       const next = !c
-      try { window.localStorage.setItem(NAV_COLLAPSED_KEY, String(next)) } catch { /* noop */ }
+      try {
+        window.localStorage.setItem(NAV_COLLAPSED_KEY, String(next))
+      } catch {
+        /* noop */
+      }
       return next
     })
   }, [])
 
   // Active states
   const isDashboard = pathname === '/dashboard'
-  const isChat = pathname === '/' || pathname === '/new' || pathname.startsWith('/chat')
+  const isChat =
+    pathname === '/' || pathname === '/new' || pathname.startsWith('/chat')
   const isFiles = pathname.startsWith('/files')
   const isTerminal = pathname.startsWith('/terminal')
   const isJobs = pathname.startsWith('/jobs')
@@ -335,6 +392,7 @@ export function PrimaryNavV2() {
   const isCommands = pathname.startsWith('/commands')
   const isBoards = pathname.startsWith('/boards')
   const isTemplates = pathname.startsWith('/board-templates')
+  const isProjects = pathname.startsWith('/projects')
   const isConductor = pathname.startsWith('/conductor')
   // const isOperations = pathname.startsWith('/operations')
   const isMatrix3D = pathname.startsWith('/matrix3d')
@@ -349,16 +407,50 @@ export function PrimaryNavV2() {
   const isDocs = pathname.startsWith('/docs')
   const boardsQuery = useBoards(true, !collapsed)
   const boardsCount = boardsQuery.data?.boards.length
+  const projectsQuery = useProjects(false, !collapsed)
+  const projectsCount = projectsQuery.data?.projects.length
   const counts = useNavCounts(!collapsed)
   const boardChildren = useMemo(
     () => [
-      { label: 'Board', to: '/tasks', active: isTasks, iconKey: 'tasks' as const },
-      { label: 'Boards', to: '/boards', active: isBoards, iconKey: 'boards' as const, badge: boardsCount },
-      { label: 'Templates', to: '/board-templates', active: isTemplates, iconKey: 'templates' as const, badge: counts.templates },
+      {
+        label: 'Board',
+        to: '/tasks',
+        active: isTasks,
+        iconKey: 'tasks' as const,
+      },
+      {
+        label: 'Boards',
+        to: '/boards',
+        active: isBoards,
+        iconKey: 'boards' as const,
+        badge: boardsCount,
+      },
+      {
+        label: 'Templates',
+        to: '/board-templates',
+        active: isTemplates,
+        iconKey: 'templates' as const,
+        badge: counts.templates,
+      },
+      {
+        label: 'Projects',
+        to: '/projects',
+        active: isProjects,
+        iconKey: 'projects' as const,
+        badge: projectsCount,
+      },
     ],
-    [boardsCount, counts.templates, isBoards, isTasks, isTemplates],
+    [
+      boardsCount,
+      counts.templates,
+      isBoards,
+      isProjects,
+      isTasks,
+      isTemplates,
+      projectsCount,
+    ],
   )
-  const boardsSectionActive = isTasks || isBoards || isTemplates
+  const boardsSectionActive = isTasks || isBoards || isTemplates || isProjects
 
   const w = collapsed ? NAV_COLLAPSED_WIDTH : NAV_WIDTH
 
@@ -391,7 +483,9 @@ export function PrimaryNavV2() {
           flexShrink: 0,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}
+        >
           <img
             src="/claude-avatar.webp"
             alt="Hermes"
@@ -423,32 +517,40 @@ export function PrimaryNavV2() {
             </div>
           )}
         </div>
-        {!collapsed && <button
-          type="button"
-          onClick={toggleCollapsed}
-          aria-label="Collapse navigation"
-          title="Collapse"
-          style={{
-            background: 'none',
-            border: 'none',
-            padding: 4,
-            borderRadius: 4,
-            color: 'var(--theme-muted)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
-            <path
-              d={'M10 3L5 8l5 5'}
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>}
+        {!collapsed && (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label="Collapse navigation"
+            title="Collapse"
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 4,
+              borderRadius: 4,
+              color: 'var(--theme-muted)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden
+            >
+              <path
+                d={'M10 3L5 8l5 5'}
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Scrollable nav body */}
@@ -463,36 +565,35 @@ export function PrimaryNavV2() {
         }}
       >
         {/* Search */}
-        {!collapsed && <button
-          type="button"
-          onClick={openSearchModal}
-          className="m-mono"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '6px 12px',
-            borderRadius: 4,
-            width: '100%',
-            background: 'none',
-            border: 'none',
-            color: 'var(--theme-muted)',
-            fontSize: 11,
-            cursor: 'pointer',
-            boxSizing: 'border-box',
-            marginBottom: 2,
-          }}
-          aria-label="Search (⌘K)"
-        >
-          <Icon d={ICONS.search} />
-          <span style={{ flex: 1, textAlign: 'left' }}>Search</span>
-          <span
+        {!collapsed && (
+          <button
+            type="button"
+            onClick={openSearchModal}
             className="m-mono"
-            style={{ fontSize: 9, opacity: 0.5 }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '6px 12px',
+              borderRadius: 4,
+              width: '100%',
+              background: 'none',
+              border: 'none',
+              color: 'var(--theme-muted)',
+              fontSize: 11,
+              cursor: 'pointer',
+              boxSizing: 'border-box',
+              marginBottom: 2,
+            }}
+            aria-label="Search (⌘K)"
           >
-            ⌘K
-          </span>
-        </button>}
+            <Icon d={ICONS.search} />
+            <span style={{ flex: 1, textAlign: 'left' }}>Search</span>
+            <span className="m-mono" style={{ fontSize: 9, opacity: 0.5 }}>
+              ⌘K
+            </span>
+          </button>
+        )}
 
         {/* New Session — hidden when collapsed; chevron expand takes its slot */}
         {collapsed ? (
@@ -516,8 +617,20 @@ export function PrimaryNavV2() {
               border: 'none',
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
-              <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden
+            >
+              <path
+                d="M6 3l5 5-5 5"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           </button>
         ) : (
@@ -543,18 +656,49 @@ export function PrimaryNavV2() {
             }}
             aria-label="New Session"
           >
-            <Icon d={ICONS.newchat} />
-            + New Session
+            <Icon d={ICONS.newchat} />+ New Session
           </Link>
         )}
 
         {/* MAIN group */}
         {!collapsed && <GroupLabel label="Main" />}
-        <NavItem label="Dashboard" iconKey="dashboard" to="/dashboard" active={isDashboard} collapsed={collapsed} />
-        <NavItem label="Chat" iconKey="chat" to="/chat" active={isChat} collapsed={collapsed} badge={counts.chat} />
-        <NavItem label="Files" iconKey="files" to="/files" active={isFiles} collapsed={collapsed} />
-        <NavItem label="Terminal" iconKey="terminal" to="/terminal" active={isTerminal} collapsed={collapsed} />
-        <NavItem label="Jobs" iconKey="jobs" to="/jobs" active={isJobs} collapsed={collapsed} badge={counts.jobs} />
+        <NavItem
+          label="Dashboard"
+          iconKey="dashboard"
+          to="/dashboard"
+          active={isDashboard}
+          collapsed={collapsed}
+        />
+        <NavItem
+          label="Chat"
+          iconKey="chat"
+          to="/chat"
+          active={isChat}
+          collapsed={collapsed}
+          badge={counts.chat}
+        />
+        <NavItem
+          label="Files"
+          iconKey="files"
+          to="/files"
+          active={isFiles}
+          collapsed={collapsed}
+        />
+        <NavItem
+          label="Terminal"
+          iconKey="terminal"
+          to="/terminal"
+          active={isTerminal}
+          collapsed={collapsed}
+        />
+        <NavItem
+          label="Jobs"
+          iconKey="jobs"
+          to="/jobs"
+          active={isJobs}
+          collapsed={collapsed}
+          badge={counts.jobs}
+        />
         <NavItem
           label="Tasks"
           iconKey="tasks"
@@ -564,7 +708,9 @@ export function PrimaryNavV2() {
           badge={counts.tasks}
         />
         {!collapsed && (
-          <div style={{ display: 'grid', gap: 4, marginTop: -2, marginBottom: 2 }}>
+          <div
+            style={{ display: 'grid', gap: 4, marginTop: -2, marginBottom: 2 }}
+          >
             {boardChildren.map((item) => (
               <NavItem
                 key={item.label}
@@ -579,28 +725,105 @@ export function PrimaryNavV2() {
             ))}
           </div>
         )}
-        <NavItem label="Workflows" iconKey="workflows" to="/workflows" active={isWorkflows} collapsed={collapsed} badge={counts.workflows} />
-        <NavItem label="Commands" iconKey="commands" to="/commands" active={isCommands} collapsed={collapsed} badge={counts.commands} />
-        <NavItem label="Conductor" iconKey="conductor" to="/conductor" active={isConductor} collapsed={collapsed} />
+        <NavItem
+          label="Workflows"
+          iconKey="workflows"
+          to="/workflows"
+          active={isWorkflows}
+          collapsed={collapsed}
+          badge={counts.workflows}
+        />
+        <NavItem
+          label="Commands"
+          iconKey="commands"
+          to="/commands"
+          active={isCommands}
+          collapsed={collapsed}
+          badge={counts.commands}
+        />
+        <NavItem
+          label="Conductor"
+          iconKey="conductor"
+          to="/conductor"
+          active={isConductor}
+          collapsed={collapsed}
+        />
         {/* <NavItem label="Operations" iconKey="operations" to="/operations" active={isOperations} collapsed={collapsed} /> */}
-        <NavItem label="Matrix3D" iconKey="matrix3d" to="/matrix3d" active={isMatrix3D} collapsed={collapsed} />
-        <NavItem label="Self-Improve" iconKey="selfImprove" to="/self-improve" active={isSelfImprove} collapsed={collapsed} />
+        <NavItem
+          label="Matrix3D"
+          iconKey="matrix3d"
+          to="/matrix3d"
+          active={isMatrix3D}
+          collapsed={collapsed}
+        />
+        <NavItem
+          label="Self-Improve"
+          iconKey="selfImprove"
+          to="/self-improve"
+          active={isSelfImprove}
+          collapsed={collapsed}
+        />
 
         {/* KNOWLEDGE group */}
         {!collapsed && <GroupLabel label="Knowledge" />}
-        <NavItem label="Memory" iconKey="memory" to="/memory" active={isMemory} collapsed={collapsed} />
+        <NavItem
+          label="Memory"
+          iconKey="memory"
+          to="/memory"
+          active={isMemory}
+          collapsed={collapsed}
+        />
 
         {/* SETTINGS group */}
         {!collapsed && <GroupLabel label="Settings" />}
-        <NavItem label="Settings" iconKey="cog" to="/settings" active={isSettings} collapsed={collapsed} />
-        <NavItem label="Skills" iconKey="skills" to="/skills" active={isSkills} collapsed={collapsed} badge={counts.skills} />
-        <NavItem label="MCP" iconKey="mcp" to="/mcp" active={isMcp} collapsed={collapsed} badge={counts.mcp} />
-        <NavItem label="Profiles" iconKey="profiles" to="/profiles" active={isProfiles} collapsed={collapsed} badge={counts.profiles} />
-        <NavItem label="Backups" iconKey="backups" to="/backups" active={isBackups} collapsed={collapsed} />
+        <NavItem
+          label="Settings"
+          iconKey="cog"
+          to="/settings"
+          active={isSettings}
+          collapsed={collapsed}
+        />
+        <NavItem
+          label="Skills"
+          iconKey="skills"
+          to="/skills"
+          active={isSkills}
+          collapsed={collapsed}
+          badge={counts.skills}
+        />
+        <NavItem
+          label="MCP"
+          iconKey="mcp"
+          to="/mcp"
+          active={isMcp}
+          collapsed={collapsed}
+          badge={counts.mcp}
+        />
+        <NavItem
+          label="Profiles"
+          iconKey="profiles"
+          to="/profiles"
+          active={isProfiles}
+          collapsed={collapsed}
+          badge={counts.profiles}
+        />
+        <NavItem
+          label="Backups"
+          iconKey="backups"
+          to="/backups"
+          active={isBackups}
+          collapsed={collapsed}
+        />
 
         {/* HELP group */}
         {!collapsed && <GroupLabel label="Help" />}
-        <NavItem label="Docs" iconKey="docs" to="/docs" active={isDocs} collapsed={collapsed} />
+        <NavItem
+          label="Docs"
+          iconKey="docs"
+          to="/docs"
+          active={isDocs}
+          collapsed={collapsed}
+        />
       </div>
 
       {/* Footer */}

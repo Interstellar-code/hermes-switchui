@@ -15,6 +15,7 @@ import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as SkillsRouteImport } from './routes/skills'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SelfImproveRouteImport } from './routes/self-improve'
+import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as ProfilesRouteImport } from './routes/profiles'
 import { Route as OperationsRouteImport } from './routes/operations'
 import { Route as MemoryRouteImport } from './routes/memory'
@@ -92,6 +93,7 @@ import { Route as ApiAuthCheckRouteImport } from './routes/api/auth-check'
 import { Route as ApiAuthRouteImport } from './routes/api/auth'
 import { Route as ApiArtifactsRouteImport } from './routes/api/artifacts'
 import { Route as ApiAgentVersionRouteImport } from './routes/api/agent-version'
+import { Route as ApiHermesProjectsIndexRouteImport } from './routes/api/hermes-projects/index'
 import { Route as ApiWorkspaceAgentsRouteImport } from './routes/api/workspace.agents'
 import { Route as ApiWorkflowRunsRunIdRouteImport } from './routes/api/workflow-runs.$runId'
 import { Route as ApiWorkflowDefinitionsIdRouteImport } from './routes/api/workflow-definitions.$id'
@@ -147,6 +149,7 @@ import { Route as ApiKnowledgeReadRouteImport } from './routes/api/knowledge/rea
 import { Route as ApiKnowledgeListRouteImport } from './routes/api/knowledge/list'
 import { Route as ApiKnowledgeGraphRouteImport } from './routes/api/knowledge/graph'
 import { Route as ApiKnowledgeConfigRouteImport } from './routes/api/knowledge/config'
+import { Route as ApiHermesProjectsIdRouteImport } from './routes/api/hermes-projects/$id'
 import { Route as ApiHermesPluginSettingsRouteImport } from './routes/api/hermes-plugin.settings'
 import { Route as ApiHermesKanbanTemplatesRouteImport } from './routes/api/hermes-kanban/templates'
 import { Route as ApiHermesKanbanTasksRouteImport } from './routes/api/hermes-kanban/tasks'
@@ -191,6 +194,7 @@ import { Route as ApiOperationsDispatchPreviewRouteImport } from './routes/api/o
 import { Route as ApiOperationsAgentsIdRouteImport } from './routes/api/operations/agents.$id'
 import { Route as ApiMcpHubSourcesIdRouteImport } from './routes/api/mcp/hub-sources.$id'
 import { Route as ApiMcpNameLogsRouteImport } from './routes/api/mcp/$name.logs'
+import { Route as ApiHermesProjectsIdFoldersRouteImport } from './routes/api/hermes-projects/$id.folders'
 import { Route as ApiHermesKanbanTemplatesSlugRouteImport } from './routes/api/hermes-kanban/templates.$slug'
 import { Route as ApiHermesKanbanTasksTaskIdRouteImport } from './routes/api/hermes-kanban/tasks.$taskId'
 import { Route as ApiHermesKanbanBoardsSlugRouteImport } from './routes/api/hermes-kanban/boards.$slug'
@@ -242,6 +246,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const SelfImproveRoute = SelfImproveRouteImport.update({
   id: '/self-improve',
   path: '/self-improve',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectsRoute = ProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfilesRoute = ProfilesRouteImport.update({
@@ -629,6 +638,11 @@ const ApiAgentVersionRoute = ApiAgentVersionRouteImport.update({
   path: '/api/agent-version',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHermesProjectsIndexRoute = ApiHermesProjectsIndexRouteImport.update({
+  id: '/api/hermes-projects/',
+  path: '/api/hermes-projects/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWorkspaceAgentsRoute = ApiWorkspaceAgentsRouteImport.update({
   id: '/agents',
   path: '/agents',
@@ -906,6 +920,11 @@ const ApiKnowledgeConfigRoute = ApiKnowledgeConfigRouteImport.update({
   path: '/api/knowledge/config',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHermesProjectsIdRoute = ApiHermesProjectsIdRouteImport.update({
+  id: '/api/hermes-projects/$id',
+  path: '/api/hermes-projects/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHermesPluginSettingsRoute = ApiHermesPluginSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -1142,6 +1161,12 @@ const ApiMcpNameLogsRoute = ApiMcpNameLogsRouteImport.update({
   path: '/logs',
   getParentRoute: () => ApiMcpNameRoute,
 } as any)
+const ApiHermesProjectsIdFoldersRoute =
+  ApiHermesProjectsIdFoldersRouteImport.update({
+    id: '/folders',
+    path: '/folders',
+    getParentRoute: () => ApiHermesProjectsIdRoute,
+  } as any)
 const ApiHermesKanbanTemplatesSlugRoute =
   ApiHermesKanbanTemplatesSlugRouteImport.update({
     id: '/$slug',
@@ -1291,6 +1316,7 @@ export interface FileRoutesByFullPath {
   '/memory': typeof MemoryRoute
   '/operations': typeof OperationsRoute
   '/profiles': typeof ProfilesRoute
+  '/projects': typeof ProjectsRoute
   '/self-improve': typeof SelfImproveRoute
   '/settings': typeof SettingsRouteWithChildren
   '/skills': typeof SkillsRoute
@@ -1388,6 +1414,7 @@ export interface FileRoutesByFullPath {
   '/api/hermes-kanban/tasks': typeof ApiHermesKanbanTasksRouteWithChildren
   '/api/hermes-kanban/templates': typeof ApiHermesKanbanTemplatesRouteWithChildren
   '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
+  '/api/hermes-projects/$id': typeof ApiHermesProjectsIdRouteWithChildren
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
   '/api/knowledge/graph': typeof ApiKnowledgeGraphRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
@@ -1443,10 +1470,12 @@ export interface FileRoutesByFullPath {
   '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRouteWithChildren
   '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
   '/api/workspace/agents': typeof ApiWorkspaceAgentsRoute
+  '/api/hermes-projects/': typeof ApiHermesProjectsIndexRoute
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
   '/api/hermes-kanban/boards/$slug': typeof ApiHermesKanbanBoardsSlugRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/hermes-kanban/templates/$slug': typeof ApiHermesKanbanTemplatesSlugRouteWithChildren
+  '/api/hermes-projects/$id/folders': typeof ApiHermesProjectsIdFoldersRoute
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
@@ -1496,6 +1525,7 @@ export interface FileRoutesByTo {
   '/memory': typeof MemoryRoute
   '/operations': typeof OperationsRoute
   '/profiles': typeof ProfilesRoute
+  '/projects': typeof ProjectsRoute
   '/self-improve': typeof SelfImproveRoute
   '/skills': typeof SkillsRoute
   '/tasks': typeof TasksRoute
@@ -1592,6 +1622,7 @@ export interface FileRoutesByTo {
   '/api/hermes-kanban/tasks': typeof ApiHermesKanbanTasksRouteWithChildren
   '/api/hermes-kanban/templates': typeof ApiHermesKanbanTemplatesRouteWithChildren
   '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
+  '/api/hermes-projects/$id': typeof ApiHermesProjectsIdRouteWithChildren
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
   '/api/knowledge/graph': typeof ApiKnowledgeGraphRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
@@ -1647,10 +1678,12 @@ export interface FileRoutesByTo {
   '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRouteWithChildren
   '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
   '/api/workspace/agents': typeof ApiWorkspaceAgentsRoute
+  '/api/hermes-projects': typeof ApiHermesProjectsIndexRoute
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
   '/api/hermes-kanban/boards/$slug': typeof ApiHermesKanbanBoardsSlugRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/hermes-kanban/templates/$slug': typeof ApiHermesKanbanTemplatesSlugRouteWithChildren
+  '/api/hermes-projects/$id/folders': typeof ApiHermesProjectsIdFoldersRoute
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
@@ -1702,6 +1735,7 @@ export interface FileRoutesById {
   '/memory': typeof MemoryRoute
   '/operations': typeof OperationsRoute
   '/profiles': typeof ProfilesRoute
+  '/projects': typeof ProjectsRoute
   '/self-improve': typeof SelfImproveRoute
   '/settings': typeof SettingsRouteWithChildren
   '/skills': typeof SkillsRoute
@@ -1799,6 +1833,7 @@ export interface FileRoutesById {
   '/api/hermes-kanban/tasks': typeof ApiHermesKanbanTasksRouteWithChildren
   '/api/hermes-kanban/templates': typeof ApiHermesKanbanTemplatesRouteWithChildren
   '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
+  '/api/hermes-projects/$id': typeof ApiHermesProjectsIdRouteWithChildren
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
   '/api/knowledge/graph': typeof ApiKnowledgeGraphRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
@@ -1854,10 +1889,12 @@ export interface FileRoutesById {
   '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRouteWithChildren
   '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
   '/api/workspace/agents': typeof ApiWorkspaceAgentsRoute
+  '/api/hermes-projects/': typeof ApiHermesProjectsIndexRoute
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
   '/api/hermes-kanban/boards/$slug': typeof ApiHermesKanbanBoardsSlugRouteWithChildren
   '/api/hermes-kanban/tasks/$taskId': typeof ApiHermesKanbanTasksTaskIdRouteWithChildren
   '/api/hermes-kanban/templates/$slug': typeof ApiHermesKanbanTemplatesSlugRouteWithChildren
+  '/api/hermes-projects/$id/folders': typeof ApiHermesProjectsIdFoldersRoute
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
@@ -1910,6 +1947,7 @@ export interface FileRouteTypes {
     | '/memory'
     | '/operations'
     | '/profiles'
+    | '/projects'
     | '/self-improve'
     | '/settings'
     | '/skills'
@@ -2007,6 +2045,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/tasks'
     | '/api/hermes-kanban/templates'
     | '/api/hermes-plugin/settings'
+    | '/api/hermes-projects/$id'
     | '/api/knowledge/config'
     | '/api/knowledge/graph'
     | '/api/knowledge/list'
@@ -2062,10 +2101,12 @@ export interface FileRouteTypes {
     | '/api/workflow-definitions/$id'
     | '/api/workflow-runs/$runId'
     | '/api/workspace/agents'
+    | '/api/hermes-projects/'
     | '/api/conductor/missions/$id'
     | '/api/hermes-kanban/boards/$slug'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/hermes-kanban/templates/$slug'
+    | '/api/hermes-projects/$id/folders'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
     | '/api/operations/agents/$id'
@@ -2115,6 +2156,7 @@ export interface FileRouteTypes {
     | '/memory'
     | '/operations'
     | '/profiles'
+    | '/projects'
     | '/self-improve'
     | '/skills'
     | '/tasks'
@@ -2211,6 +2253,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/tasks'
     | '/api/hermes-kanban/templates'
     | '/api/hermes-plugin/settings'
+    | '/api/hermes-projects/$id'
     | '/api/knowledge/config'
     | '/api/knowledge/graph'
     | '/api/knowledge/list'
@@ -2266,10 +2309,12 @@ export interface FileRouteTypes {
     | '/api/workflow-definitions/$id'
     | '/api/workflow-runs/$runId'
     | '/api/workspace/agents'
+    | '/api/hermes-projects'
     | '/api/conductor/missions/$id'
     | '/api/hermes-kanban/boards/$slug'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/hermes-kanban/templates/$slug'
+    | '/api/hermes-projects/$id/folders'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
     | '/api/operations/agents/$id'
@@ -2320,6 +2365,7 @@ export interface FileRouteTypes {
     | '/memory'
     | '/operations'
     | '/profiles'
+    | '/projects'
     | '/self-improve'
     | '/settings'
     | '/skills'
@@ -2417,6 +2463,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/tasks'
     | '/api/hermes-kanban/templates'
     | '/api/hermes-plugin/settings'
+    | '/api/hermes-projects/$id'
     | '/api/knowledge/config'
     | '/api/knowledge/graph'
     | '/api/knowledge/list'
@@ -2472,10 +2519,12 @@ export interface FileRouteTypes {
     | '/api/workflow-definitions/$id'
     | '/api/workflow-runs/$runId'
     | '/api/workspace/agents'
+    | '/api/hermes-projects/'
     | '/api/conductor/missions/$id'
     | '/api/hermes-kanban/boards/$slug'
     | '/api/hermes-kanban/tasks/$taskId'
     | '/api/hermes-kanban/templates/$slug'
+    | '/api/hermes-projects/$id/folders'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
     | '/api/operations/agents/$id'
@@ -2527,6 +2576,7 @@ export interface RootRouteChildren {
   MemoryRoute: typeof MemoryRoute
   OperationsRoute: typeof OperationsRoute
   ProfilesRoute: typeof ProfilesRoute
+  ProjectsRoute: typeof ProjectsRoute
   SelfImproveRoute: typeof SelfImproveRoute
   SettingsRoute: typeof SettingsRouteWithChildren
   SkillsRoute: typeof SkillsRoute
@@ -2615,6 +2665,7 @@ export interface RootRouteChildren {
   ApiHermesKanbanStatsRoute: typeof ApiHermesKanbanStatsRoute
   ApiHermesKanbanTasksRoute: typeof ApiHermesKanbanTasksRouteWithChildren
   ApiHermesKanbanTemplatesRoute: typeof ApiHermesKanbanTemplatesRouteWithChildren
+  ApiHermesProjectsIdRoute: typeof ApiHermesProjectsIdRouteWithChildren
   ApiKnowledgeConfigRoute: typeof ApiKnowledgeConfigRoute
   ApiKnowledgeGraphRoute: typeof ApiKnowledgeGraphRoute
   ApiKnowledgeListRoute: typeof ApiKnowledgeListRoute
@@ -2648,6 +2699,7 @@ export interface RootRouteChildren {
   ApiUpdateAgentRoute: typeof ApiUpdateAgentRoute
   ApiUpdateStatusRoute: typeof ApiUpdateStatusRoute
   ApiUpdateWorkspaceRoute: typeof ApiUpdateWorkspaceRoute
+  ApiHermesProjectsIndexRoute: typeof ApiHermesProjectsIndexRoute
   ApiSelfImproveProfilesProfilePauseRoute: typeof ApiSelfImproveProfilesProfilePauseRoute
   ApiSelfImproveProfilesProfileResumeRoute: typeof ApiSelfImproveProfilesProfileResumeRoute
 }
@@ -2694,6 +2746,13 @@ declare module '@tanstack/react-router' {
       path: '/self-improve'
       fullPath: '/self-improve'
       preLoaderRoute: typeof SelfImproveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/projects': {
+      id: '/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof ProjectsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profiles': {
@@ -3235,6 +3294,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentVersionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/hermes-projects/': {
+      id: '/api/hermes-projects/'
+      path: '/api/hermes-projects'
+      fullPath: '/api/hermes-projects/'
+      preLoaderRoute: typeof ApiHermesProjectsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/workspace/agents': {
       id: '/api/workspace/agents'
       path: '/agents'
@@ -3620,6 +3686,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiKnowledgeConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/hermes-projects/$id': {
+      id: '/api/hermes-projects/$id'
+      path: '/api/hermes-projects/$id'
+      fullPath: '/api/hermes-projects/$id'
+      preLoaderRoute: typeof ApiHermesProjectsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/hermes-plugin/settings': {
       id: '/api/hermes-plugin/settings'
       path: '/settings'
@@ -3927,6 +4000,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/mcp/$name/logs'
       preLoaderRoute: typeof ApiMcpNameLogsRouteImport
       parentRoute: typeof ApiMcpNameRoute
+    }
+    '/api/hermes-projects/$id/folders': {
+      id: '/api/hermes-projects/$id/folders'
+      path: '/folders'
+      fullPath: '/api/hermes-projects/$id/folders'
+      preLoaderRoute: typeof ApiHermesProjectsIdFoldersRouteImport
+      parentRoute: typeof ApiHermesProjectsIdRoute
     }
     '/api/hermes-kanban/templates/$slug': {
       id: '/api/hermes-kanban/templates/$slug'
@@ -4466,6 +4546,17 @@ const ApiHermesKanbanTemplatesRouteWithChildren =
     ApiHermesKanbanTemplatesRouteChildren,
   )
 
+interface ApiHermesProjectsIdRouteChildren {
+  ApiHermesProjectsIdFoldersRoute: typeof ApiHermesProjectsIdFoldersRoute
+}
+
+const ApiHermesProjectsIdRouteChildren: ApiHermesProjectsIdRouteChildren = {
+  ApiHermesProjectsIdFoldersRoute: ApiHermesProjectsIdFoldersRoute,
+}
+
+const ApiHermesProjectsIdRouteWithChildren =
+  ApiHermesProjectsIdRoute._addFileChildren(ApiHermesProjectsIdRouteChildren)
+
 interface ApiOperationsAgentsIdRouteChildren {
   ApiOperationsAgentsIdPauseRoute: typeof ApiOperationsAgentsIdPauseRoute
   ApiOperationsAgentsIdResumeRoute: typeof ApiOperationsAgentsIdResumeRoute
@@ -4594,6 +4685,7 @@ const rootRouteChildren: RootRouteChildren = {
   MemoryRoute: MemoryRoute,
   OperationsRoute: OperationsRoute,
   ProfilesRoute: ProfilesRoute,
+  ProjectsRoute: ProjectsRoute,
   SelfImproveRoute: SelfImproveRoute,
   SettingsRoute: SettingsRouteWithChildren,
   SkillsRoute: SkillsRoute,
@@ -4683,6 +4775,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHermesKanbanStatsRoute: ApiHermesKanbanStatsRoute,
   ApiHermesKanbanTasksRoute: ApiHermesKanbanTasksRouteWithChildren,
   ApiHermesKanbanTemplatesRoute: ApiHermesKanbanTemplatesRouteWithChildren,
+  ApiHermesProjectsIdRoute: ApiHermesProjectsIdRouteWithChildren,
   ApiKnowledgeConfigRoute: ApiKnowledgeConfigRoute,
   ApiKnowledgeGraphRoute: ApiKnowledgeGraphRoute,
   ApiKnowledgeListRoute: ApiKnowledgeListRoute,
@@ -4716,6 +4809,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiUpdateAgentRoute: ApiUpdateAgentRoute,
   ApiUpdateStatusRoute: ApiUpdateStatusRoute,
   ApiUpdateWorkspaceRoute: ApiUpdateWorkspaceRoute,
+  ApiHermesProjectsIndexRoute: ApiHermesProjectsIndexRoute,
   ApiSelfImproveProfilesProfilePauseRoute:
     ApiSelfImproveProfilesProfilePauseRoute,
   ApiSelfImproveProfilesProfileResumeRoute:
