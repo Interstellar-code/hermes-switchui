@@ -3,6 +3,15 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.11] — 2026-07-18
+
+Chat and terminal console-error cleanup.
+
+### Fixed
+
+- Deduplicated tool-call pills in chat messages. A finalized message carries the same tool calls in both its content and an embedded `__streamToolCalls` copy (kept so pills survive after streaming state clears); rendering both produced React "duplicate key" warnings and double-rendered pills. The combined list is now deduped by key.
+- Stopped the `POST /api/terminal-resize 404` console spam. The initial resize fired at terminal creation with the tab's possibly-stale `sessionId`, before the session was established server-side — 404ing on first mount and after a gateway restart re-issues sessionIds. The resize is now deferred until the session is confirmed live.
+
 ## [2.5.10] — 2026-07-18
 
 Chat resilience: a run that dies mid-stream (e.g. the gateway restarting) now surfaces an actionable interrupted state instead of a stuck "thinking" indicator.
