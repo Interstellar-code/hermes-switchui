@@ -1,6 +1,6 @@
 ---
 title: Use the coding loop to autonomously fix GitHub issues
-description: Set up an autonomous coding loop for a GitHub repo: scrape bugs daily, dispatch a producer agent to open PRs, verify them, and review what landed.
+description: "Set up an autonomous coding loop for a GitHub repo: scrape bugs daily, dispatch a producer agent to open PRs, verify them, and review what landed."
 ---
 
 # Use the coding loop to autonomously fix GitHub issues

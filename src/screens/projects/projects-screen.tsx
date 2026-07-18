@@ -1,7 +1,12 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import type { Project, ProjectFolder } from '@/lib/projects-types'
 import { usePageTitle } from '@/hooks/use-page-title'
-import { useProjectFolders, useProjects } from '@/lib/projects-api'
+import {
+  useProjectActivity,
+  useProjectFolders,
+  useProjects,
+} from '@/lib/projects-api'
 import '@/styles/matrix-boards.css'
 
 type FilterMode = 'all' | 'active' | 'archived'
@@ -53,6 +58,35 @@ function formatDate(timestamp: number | null): string {
   })
 }
 
+// Copied from boards-screen.tsx — epoch-seconds → "5 min ago" / "—".
+function relativeTime(timestamp: number | null): string {
+  if (!timestamp) return '—'
+  const deltaMs = Date.now() - timestamp * 1000
+  const minutes = Math.floor(deltaMs / 60000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes} min ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} hr ago`
+  const days = Math.floor(hours / 24)
+  return `${days} day${days === 1 ? '' : 's'} ago`
+}
+
+// Defensive read: v2 fields are typed required, but a stale v1 dashboard can
+// omit them — distrust the type at the render boundary so a missing number/flag
+// renders a default instead of crashing the page. (0 and false are valid, so
+// `??` semantics are required here, not `||`.)
+function orElse<T>(value: T | null | undefined, fallback: T): T {
+  return value ?? fallback
+}
+
+const DRAWER_TABS = ['overview', 'folders', 'activity'] as const
+type DrawerTab = (typeof DRAWER_TABS)[number]
+const TAB_LABELS: Record<DrawerTab, string> = {
+  overview: 'Overview',
+  folders: 'Folders',
+  activity: 'Activity',
+}
+
 function SearchInput({
   value,
   onChange,
@@ -90,16 +124,40 @@ function StatusPill({
   project: Project
   isActive: boolean
 }) {
-  const label = project.archived ? 'archived' : isActive ? 'active' : 'idle'
+  // Prefer server-truth is_active; fall back to the prop for stale/v1 payloads.
+  const active = orElse(project.is_active, isActive)
+  const label = project.archived ? 'archived' : active ? 'active' : 'idle'
   return (
-    <span className={`status-pill ${label === 'idle' ? 'active' : label}`}>
+    <span className={`status-pill ${label}`}>
       <span className="d" />
       {label}
     </span>
   )
 }
 
-function ProjectCard({
+function BoundBoardChip({ project }: { project: Project }) {
+  const navigate = useNavigate()
+  const bound = project.bound_board ?? null
+  if (!bound) {
+    return project.board_slug ? (
+      <span className="bsl">{project.board_slug}</span>
+    ) : null
+  }
+  return (
+    <button
+      className="bound-board-chip"
+      onClick={(e) => {
+        e.stopPropagation()
+        navigate({ to: '/boards' })
+      }}
+    >
+      <span className="d" style={{ background: bound.color || COLORS[0] }} />
+      {bound.name || project.board_slug || '—'}
+    </button>
+  )
+}
+
+export function ProjectCard({
   project,
   isActive,
   onOpen,
@@ -132,22 +190,22 @@ function ProjectCard({
 
       <div className="bc-stats">
         <div className="bc-stat">
-          <span className="bsv">{project.folders.length}</span>
+          <span className="bsv">
+            {orElse(project.folder_count, project.folders.length)}
+          </span>
           <span className="bsl">Folders</span>
         </div>
-        {project.board_slug ? (
-          <div className="bc-stat">
-            <span className="bsv">{project.board_slug}</span>
-            <span className="bsl">Board</span>
-          </div>
-        ) : null}
+        <div className="bc-stat">
+          <span className="bsv">{orElse(project.task_count, 0)}</span>
+          <span className="bsl">{orElse(project.open_task_count, 0)} open</span>
+        </div>
       </div>
 
       <div className="bc-foot">
-        <div className="bc-agents">
-          <span>{project.color || 'no color'}</span>
-        </div>
-        <span className="bc-time">{formatDate(project.created_at)}</span>
+        <BoundBoardChip project={project} />
+        <span className="bc-time">
+          Last active {relativeTime(project.last_activity_at)}
+        </span>
         <div className="bc-acts">
           <button className="btn-mini" onClick={() => onOpen(project)}>
             Open
@@ -182,11 +240,18 @@ function ProjectRow({
         </div>
       </td>
       <td className="tbl-path-cell">{project.primary_path ?? '—'}</td>
-      <td>{project.folders.length}</td>
+      <td>{orElse(project.folder_count, project.folders.length)}</td>
+      <td>
+        {orElse(project.task_count, 0)} · {orElse(project.open_task_count, 0)}{' '}
+        open
+      </td>
+      <td onClick={(e) => e.stopPropagation()}>
+        <BoundBoardChip project={project} />
+      </td>
       <td>
         <StatusPill project={project} isActive={isActive} />
       </td>
-      <td className="tbl-time">{formatDate(project.created_at)}</td>
+      <td className="tbl-time">{relativeTime(project.last_activity_at)}</td>
       <td onClick={(e) => e.stopPropagation()}>
         <div className="tbl-acts">
           <button className="btn-mini" onClick={() => onOpen(project)}>
@@ -328,8 +393,10 @@ function ProjectsCanvas({
               <th>Name</th>
               <th>Primary Path</th>
               <th>Folders</th>
+              <th>Tasks</th>
+              <th>Board</th>
               <th>Status</th>
-              <th>Created</th>
+              <th>Last Active</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -374,6 +441,7 @@ function ProjectDrawer({
 }) {
   const foldersQuery = useProjectFolders(project.id)
   const folders = foldersQuery.data?.folders ?? project.folders
+  const [activeTab, setActiveTab] = useState<DrawerTab>('overview')
 
   return (
     <>
@@ -394,7 +462,7 @@ function ProjectDrawer({
                 <span>
                   {project.archived
                     ? 'archived'
-                    : isActive
+                    : orElse(project.is_active, isActive)
                       ? 'active'
                       : 'idle'}
                 </span>
@@ -408,57 +476,98 @@ function ProjectDrawer({
             </button>
           </div>
         </div>
+        <div className="dr-tabs">
+          {DRAWER_TABS.map((tab) => (
+            <button
+              key={tab}
+              className={activeTab === tab ? 'on' : ''}
+              onClick={() => setActiveTab(tab)}
+            >
+              {TAB_LABELS[tab]}
+            </button>
+          ))}
+        </div>
         <div className="dr-body">
-          <div className="panel-card">
-            <div className="pc-head">Project Metadata</div>
-            <div className="pc-body ws-grid">
-              <div className="ws-lbl">Slug</div>
-              <div className="ws-val">{project.slug}</div>
-              <div className="ws-lbl">Primary Path</div>
-              <div className="ws-val path">{project.primary_path ?? '—'}</div>
-              <div className="ws-lbl">Color</div>
-              <div className="ws-val">{project.color || '—'}</div>
-              <div className="ws-lbl">Board</div>
-              <div className="ws-val">{project.board_slug ?? '—'}</div>
-              <div className="ws-lbl">Archived</div>
-              <div className="ws-val">{project.archived ? 'Yes' : 'No'}</div>
-            </div>
-          </div>
-          {project.description ? (
+          {activeTab === 'overview' ? (
+            <>
+              <div className="panel-card">
+                <div className="pc-head">Project Metadata</div>
+                <div className="pc-body ws-grid">
+                  <div className="ws-lbl">Slug</div>
+                  <div className="ws-val">{project.slug}</div>
+                  <div className="ws-lbl">Primary Path</div>
+                  <div className="ws-val path">
+                    {project.primary_path ?? '—'}
+                  </div>
+                  <div className="ws-lbl">Color</div>
+                  <div className="ws-val">{project.color || '—'}</div>
+                  <div className="ws-lbl">Board</div>
+                  <div className="ws-val">{project.board_slug ?? '—'}</div>
+                  <div className="ws-lbl">Bound Board</div>
+                  <div className="ws-val">
+                    {project.bound_board?.name ?? project.board_slug ?? '—'}
+                  </div>
+                  <div className="ws-lbl">Tasks</div>
+                  <div className="ws-val">
+                    {orElse(project.task_count, 0)} total ·{' '}
+                    {orElse(project.open_task_count, 0)} open
+                  </div>
+                  <div className="ws-lbl">Last Active</div>
+                  <div className="ws-val">
+                    {relativeTime(project.last_activity_at)}
+                  </div>
+                  <div className="ws-lbl">Active</div>
+                  <div className="ws-val">
+                    <StatusPill project={project} isActive={isActive} />
+                  </div>
+                  <div className="ws-lbl">Archived</div>
+                  <div className="ws-val">
+                    {project.archived ? 'Yes' : 'No'}
+                  </div>
+                </div>
+              </div>
+              {project.description ? (
+                <div className="panel-card">
+                  <div className="pc-head">Description</div>
+                  <div className="pc-body description-copy">
+                    {project.description}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+          {activeTab === 'folders' ? (
             <div className="panel-card">
-              <div className="pc-head">Description</div>
-              <div className="pc-body description-copy">
-                {project.description}
+              <div className="pc-head">
+                Folders
+                <div className="pc-head-right">{folders.length}</div>
+              </div>
+              <div className="pc-body">
+                {folders.length === 0 ? (
+                  <div className="field-val muted">No folders.</div>
+                ) : (
+                  <div className="task-breakdown" style={{ display: 'block' }}>
+                    {folders.map((folder) => (
+                      <div key={folder.path} className="ws-grid pc-body">
+                        <div className="ws-lbl">
+                          {folderLabel(folder)}
+                          {folder.is_primary ? ' (primary)' : ''}
+                        </div>
+                        <div className="ws-val path">{folder.path}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ) : null}
-          <div className="panel-card">
-            <div className="pc-head">
-              Folders
-              <div className="pc-head-right">{folders.length}</div>
-            </div>
-            <div className="pc-body">
-              {folders.length === 0 ? (
-                <div className="field-val muted">No folders.</div>
-              ) : (
-                <div className="task-breakdown" style={{ display: 'block' }}>
-                  {folders.map((folder) => (
-                    <div key={folder.path} className="ws-grid pc-body">
-                      <div className="ws-lbl">
-                        {folderLabel(folder)}
-                        {folder.is_primary ? ' (primary)' : ''}
-                      </div>
-                      <div className="ws-val path">{folder.path}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          {activeTab === 'activity' ? (
+            <ProjectActivityTab project={project} />
+          ) : null}
         </div>
         <div className="dr-foot">
           <span className="dr-foot-time">
-            Created: {formatDate(project.created_at)}
+            Last active: {relativeTime(project.last_activity_at)}
           </span>
           <div className="dr-foot-acts">
             <button className="btn-mini" onClick={onClose}>
@@ -468,6 +577,42 @@ function ProjectDrawer({
         </div>
       </div>
     </>
+  )
+}
+
+export function ProjectActivityTab({ project }: { project: Project }) {
+  // Stable p_<hex> id as the query key — never the slug.
+  const activityQuery = useProjectActivity(project.id)
+  if (activityQuery.isLoading)
+    return <div className="field-val muted">Loading activity…</div>
+  if (activityQuery.isError)
+    return <div className="field-val muted">Activity unavailable.</div>
+  const items = (activityQuery.data?.items ?? [])
+    .filter((it) => it.kind === 'task')
+    .slice(0, 10)
+  if (items.length === 0)
+    return <div className="field-val muted">No recent activity</div>
+  return (
+    <div className="pa-timeline">
+      <div className="pa-line" />
+      {items.map((item) => (
+        <div key={item.id} className="pa-row">
+          <span className="pa-dot" />
+          <div className="pa-body">
+            <div className="pa-top">
+              <span className="pa-title">{item.title || '—'}</span>
+              <span className="status-pill">{item.status || '—'}</span>
+              <span className="pa-time">{relativeTime(item.occurred_at)}</span>
+            </div>
+            <span className="pa-kind">{item.event_kind || ''}</span>
+          </div>
+        </div>
+      ))}
+      {/* ponytail: no-op until tasks route supports ?project= filter */}
+      <a className="pa-viewall" href="/tasks">
+        View all in Tasks page →
+      </a>
+    </div>
   )
 }
 
