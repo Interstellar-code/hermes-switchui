@@ -3,6 +3,15 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.10] — 2026-07-18
+
+Chat resilience: a run that dies mid-stream (e.g. the gateway restarting) now surfaces an actionable interrupted state instead of a stuck "thinking" indicator.
+
+### Fixed
+
+- The run-liveness watchdog only armed while a message was queued behind the active run, so a single message whose gateway restarted mid-stream left the thinking bubble spinning until the 120s waiting TTL. It now arms whenever the composer is busy.
+- On a confirmed-dead run with nothing queued, the session is marked interrupted so the existing "interrupted — resend" banner replaces the misleading thinking bubble. When a message is queued, the drain effect still owns recovery (no banner, no double-send).
+
 ## [2.5.9] — 2026-07-18
 
 Gateway capability-probe resilience and a route-tree warning cleanup.
