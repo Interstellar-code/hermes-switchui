@@ -1,9 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-import {
-  normalizeMessageQueueSessionKey,
-  useChatStore,
-} from '../../../stores/chat-store'
+import { useChatStore } from '../../../stores/chat-store'
 import { isRecoverableActiveRun } from './use-active-run-check'
 import type { ActiveRunSnapshot } from './use-active-run-check'
 
@@ -16,8 +13,8 @@ import type { ActiveRunSnapshot } from './use-active-run-check'
  * truthy forever, and the queue stalls permanently — for up to the 120s waiting
  * TTL, and longer if other local signals stick.
  *
- * This watchdog ARMS only while there is a non-empty queue for the active
- * session AND the composer is currently busy. When SSE has gone silent for
+ * This watchdog ARMS whenever the composer is busy for the active session
+ * (a run is in flight). When SSE has gone silent for
  * `DRAIN_WATCHDOG_IDLE_MS`, it consults the liveness authority
  * (`GET /api/sessions/:sessionKey/active-run`) exactly once:
  *
@@ -49,13 +46,6 @@ type ActiveRunResponse = {
   run: ActiveRunSnapshot | null
 }
 
-function queuedCountForSession(sessionKey: string): number {
-  if (!sessionKey) return 0
-  const key = normalizeMessageQueueSessionKey(sessionKey)
-  const queue = useChatStore.getState().messageQueue[key]
-  return Array.isArray(queue) ? queue.length : 0
-}
-
 export function useDrainWatchdog({
   sessionKey,
   isComposerLoading,
@@ -79,12 +69,16 @@ export function useDrainWatchdog({
     reconcileRef.current = reconcile
   }, [reconcile])
 
-  // Arm only when busy AND there is something queued to drain. Reading the queue
-  // length once here is sufficient to gate arming; the tick re-checks liveness.
-  const hasQueued = isComposerLoading && queuedCountForSession(sessionKey) > 0
+  // Arm whenever the composer is busy. A live run can lose its SSE completion
+  // two ways: a dropped completion event, OR the gateway restarting mid-stream
+  // with NO queued message behind it. The old gate (non-empty queue) missed the
+  // common single-message case, so the thinking bubble stayed stuck until the
+  // 120s waiting TTL. `reconcile` decides what to do: drain if queued, otherwise
+  // surface the interrupted affordance (see the wiring in chat-screen.tsx).
+  const isArmed = isComposerLoading
 
   useEffect(() => {
-    if (!hasQueued || !sessionKey || sessionKey === 'new') return
+    if (!isArmed || !sessionKey || sessionKey === 'new') return
 
     const controller = new AbortController()
     let tickTimer: number | null = null
@@ -160,5 +154,5 @@ export function useDrainWatchdog({
       if (tickTimer) window.clearTimeout(tickTimer)
       if (retryTimer) window.clearTimeout(retryTimer)
     }
-  }, [hasQueued, sessionKey])
+  }, [isArmed, sessionKey])
 }

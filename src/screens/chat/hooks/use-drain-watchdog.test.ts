@@ -52,7 +52,11 @@ describe('useDrainWatchdog', () => {
     vi.restoreAllMocks()
   })
 
-  it('does not arm (no fetch) when the queue is empty', async () => {
+  it('arms on a busy composer even with an empty queue (single-message lost run)', async () => {
+    // No enqueue: the gateway-restart-mid-stream case has nothing queued behind
+    // the in-flight run. The watchdog must still arm on the busy composer, probe
+    // liveness, and reconcile when the run is gone — otherwise the thinking
+    // bubble stays stuck until the 120s TTL.
     const fetchMock = mockActiveRun(null)
     const reconcile = vi.fn()
 
@@ -66,8 +70,8 @@ describe('useDrainWatchdog', () => {
 
     await runWatchdogTick()
 
-    expect(fetchMock).not.toHaveBeenCalled()
-    expect(reconcile).not.toHaveBeenCalled()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(reconcile).toHaveBeenCalledWith(SESSION)
   })
 
   it('does not arm (no fetch) when the composer is not busy', async () => {

@@ -97,7 +97,10 @@ import { MobileSessionsPanel } from '@/components/mobile-sessions-panel'
 import { ContextAlertModal } from '@/components/usage-meter/context-alert-modal'
 import { ErrorToastContainer } from '@/components/error-toast'
 // ContextMeter removed — ContextBar (PR #32) replaces it
-import { useChatStore } from '@/stores/chat-store'
+import {
+  normalizeMessageQueueSessionKey,
+  useChatStore,
+} from '@/stores/chat-store'
 import { useContextUsageStore } from '@/stores/context-usage-store'
 // MOBILE_TAB_BAR_OFFSET removed — tab bar always hidden in chat
 import { useTapDebug } from '@/hooks/use-tap-debug'
@@ -1087,10 +1090,29 @@ export function ChatScreen({
   //                                     pendingGeneration — same as onComplete)
   // It deliberately does NOT dequeue/send; the drain effect owns that, so there
   // is no double-send.
+  //
+  // When nothing is queued behind the lost run (dropped completion OR gateway
+  // restart mid-stream), releasing busy alone would just revert to idle — a
+  // misleading silent stop. So we additionally mark the session interrupted,
+  // which surfaces the existing "interrupted — resend" banner (chat-notice-
+  // banners) instead of the stuck thinking bubble. When a message IS queued the
+  // drain effect owns recovery, so we skip the banner to avoid shadowing it.
+  const reconcileLostRun = useCallback(
+    (key: string) => {
+      reconcileStuckBusyState(key)
+      if (!key) return
+      const store = useChatStore.getState()
+      const queued = store.messageQueue[normalizeMessageQueueSessionKey(key)]
+      if (Array.isArray(queued) && queued.length > 0) return
+      store.setSessionInterrupted(key)
+    },
+    [reconcileStuckBusyState],
+  )
+
   useDrainWatchdog({
     sessionKey: activeQueueSessionKey || lastQueueSessionKeyRef.current,
     isComposerLoading,
-    reconcile: reconcileStuckBusyState,
+    reconcile: reconcileLostRun,
   })
 
   const errorNotice = useMemo(() => {
