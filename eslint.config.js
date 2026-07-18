@@ -22,9 +22,7 @@ export default [
       'public/**/*.js',
       'scripts/**/*.js',
       'server-entry.js',
-      'website/.astro/**',
-      'website/dist/**',
-      'website/public/vendor/**',
+      'website/**',
     ],
   },
   {
