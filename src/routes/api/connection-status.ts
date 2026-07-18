@@ -11,7 +11,7 @@ import {
   getChatMode,
 } from '../../server/gateway-capabilities'
 import { isAuthenticated } from '../../server/auth-middleware'
-import { readActiveModel } from './_connection-status-cache-helper'
+import { readActiveModel } from './-connection-status-cache-helper'
 
 const CONFIG_PATH = path.join(
   process.env.HERMES_HOME ?? process.env.CLAUDE_HOME ?? path.join(os.homedir(), '.hermes'),

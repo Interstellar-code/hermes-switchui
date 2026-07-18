@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { _resetCacheForTest, readActiveModel } from './_connection-status-cache-helper'
+import { _resetCacheForTest, readActiveModel } from './-connection-status-cache-helper'
 
 /**
  * Tests for #136 — mtime-gated config cache in readActiveModel().
