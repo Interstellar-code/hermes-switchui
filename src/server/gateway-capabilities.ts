@@ -179,7 +179,11 @@ export const CLAUDE_UPGRADE_INSTRUCTIONS =
 
 export const SESSIONS_API_UNAVAILABLE_MESSAGE = `Your Hermes backend does not support the sessions API. ${CLAUDE_UPGRADE_INSTRUCTIONS}`
 
-const PROBE_TIMEOUT_MS = 3_000
+// 8s, not 3s: the dashboard's /api/status is cold on the first hit after a
+// (re)boot — measured ~3s — which raced the old 3s abort and intermittently
+// flipped dashboard.available to false, marking every extended API "missing"
+// until a full restart. 8s clears the cold hit; warm hits return in <1s.
+const PROBE_TIMEOUT_MS = 8_000
 // Probe TTL: 120s when fully healthy, 15s otherwise. The shorter window
 // applies both when the gateway is unreachable (Docker boot race, see #275)
 // AND when the gateway is up but the dashboard (port 9119) is missing — so
