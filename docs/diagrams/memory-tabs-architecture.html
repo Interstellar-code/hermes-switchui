@@ -79,7 +79,7 @@
         <rect x="174" y="77" width="74" height="26" rx="4" fill="rgba(8,51,68,0.3)" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.4"/>
         <text x="211" y="94" fill="#7dd3fc" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">Wiki</text>
         <rect x="256" y="77" width="74" height="26" rx="4" fill="rgba(8,51,68,0.3)" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.4"/>
-        <text x="293" y="94" fill="#7dd3fc" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">Graph</text>
+        <text x="293" y="94" fill="#7dd3fc" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">Map</text>
         <rect x="338" y="77" width="74" height="26" rx="4" fill="rgba(8,51,68,0.3)" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.4"/>
         <text x="375" y="94" fill="#7dd3fc" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">Chat</text>
         <rect x="420" y="77" width="80" height="26" rx="4" fill="rgba(8,51,68,0.3)" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.4"/>
@@ -132,29 +132,29 @@
         <text x="360" y="406" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">rooted at MEMORY.md index</text>
         <text x="360" y="418" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">all agents can read</text>
 
-        <!-- ═══ COL 3: Graph ═══ -->
+        <!-- ═══ COL 3: Map ═══ -->
         <rect x="478" y="120" width="212" height="196" rx="6" fill="#0f172a"/>
         <rect x="478" y="120" width="212" height="196" rx="6" fill="rgba(8,51,68,0.35)" stroke="#22d3ee" stroke-width="1.5"/>
-        <text x="584" y="140" fill="#22d3ee" font-size="9" font-weight="700" text-anchor="middle" font-family="JetBrains Mono">Graph tab</text>
-        <text x="584" y="156" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">SVG adjacency graph</text>
-        <text x="584" y="172" fill="#475569" font-size="8" text-anchor="middle" font-family="JetBrains Mono">nodes = wiki pages + agent memory</text>
-        <text x="584" y="188" fill="#475569" font-size="8" text-anchor="middle" font-family="JetBrains Mono">edges = references between pages</text>
+        <text x="584" y="140" fill="#22d3ee" font-size="9" font-weight="700" text-anchor="middle" font-family="JetBrains Mono">Map tab</text>
+        <text x="584" y="156" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">D3 force-directed Memory Map</text>
+        <text x="584" y="172" fill="#475569" font-size="8" text-anchor="middle" font-family="JetBrains Mono">nodes = gist · fact · wiki entries</text>
+        <text x="584" y="188" fill="#475569" font-size="8" text-anchor="middle" font-family="JetBrains Mono">edges = ctx + reference links</text>
         <text x="584" y="204" fill="#475569" font-size="8" text-anchor="middle" font-family="JetBrains Mono">hover → title + connection count</text>
-        <text x="584" y="220" fill="#475569" font-size="8" text-anchor="middle" font-family="JetBrains Mono">1-hop / 2-hop / all modes</text>
+        <text x="584" y="220" fill="#475569" font-size="8" text-anchor="middle" font-family="JetBrains Mono">legend isolates node categories</text>
         <line x1="584" y1="232" x2="584" y2="248" stroke="#334155" stroke-width="1"/>
-        <text x="584" y="262" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">GET /api/knowledge/graph</text>
-        <text x="584" y="278" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">?action=rebuild (force reindex)</text>
-        <text x="584" y="294" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">fallback: flat list if unavailable</text>
+        <text x="584" y="262" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">GET /api/memory/graph</text>
+        <text x="584" y="278" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">mnemosyne knowledge graph</text>
+        <text x="584" y="294" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">gist / fact / wiki node types</text>
         <text x="584" y="310" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">routed via Hermes gateway :8642</text>
 
         <line x1="584" y1="316" x2="584" y2="352" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
 
         <rect x="478" y="354" width="212" height="72" rx="6" fill="#0f172a"/>
         <rect x="478" y="354" width="212" height="72" rx="6" fill="rgba(46,16,101,0.3)" stroke="#a78bfa" stroke-width="1.5"/>
-        <text x="584" y="374" fill="#a78bfa" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">graph index (in-memory)</text>
-        <text x="584" y="390" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">derived from ~/.hermes/ markdown</text>
-        <text x="584" y="406" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">SVG adjacency returned by gateway</text>
-        <text x="584" y="418" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">rebuilt via ?action=rebuild</text>
+        <text x="584" y="374" fill="#a78bfa" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">mnemosyne graph (gateway)</text>
+        <text x="584" y="390" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">gist / fact / wiki + edges</text>
+        <text x="584" y="406" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">served as JSON by gateway</text>
+        <text x="584" y="418" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">force-directed layout in browser</text>
 
         <!-- ═══ COL 4: Chat ═══ -->
         <rect x="702" y="120" width="222" height="196" rx="6" fill="#0f172a"/>
@@ -185,13 +185,12 @@
         <text x="1058" y="140" fill="#22d3ee" font-size="9" font-weight="700" text-anchor="middle" font-family="JetBrains Mono">Settings tab</text>
         <text x="1058" y="156" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">wiki source + cache controls</text>
         <text x="1058" y="172" fill="#475569" font-size="8" text-anchor="middle" font-family="JetBrains Mono">local filesystem vs GitHub wiki</text>
-        <text x="1058" y="188" fill="#475569" font-size="8" text-anchor="middle" font-family="JetBrains Mono">force graph rebuild button</text>
+        <text x="1058" y="188" fill="#475569" font-size="8" text-anchor="middle" font-family="JetBrains Mono">read + edit wiki source config</text>
         <text x="1058" y="204" fill="#475569" font-size="8" text-anchor="middle" font-family="JetBrains Mono">clear knowledge cache</text>
         <text x="1058" y="220" fill="#475569" font-size="8" text-anchor="middle" font-family="JetBrains Mono">per-agent memory → Profile wizard</text>
         <line x1="1058" y1="232" x2="1058" y2="248" stroke="#334155" stroke-width="1"/>
         <text x="1058" y="262" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">GET/PUT /api/knowledge/config</text>
-        <text x="1058" y="278" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">GET /api/knowledge/graph?action=rebuild</text>
-        <text x="1058" y="294" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">POST /api/knowledge/sync?action=clear</text>
+        <text x="1058" y="278" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">POST /api/knowledge/sync?action=clear</text>
         <text x="1058" y="310" fill="#475569" font-size="7" text-anchor="middle" font-family="JetBrains Mono">routed via Hermes gateway :8642</text>
 
         <line x1="1058" y1="316" x2="1058" y2="352" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
@@ -201,7 +200,7 @@
         <text x="1058" y="374" fill="#a78bfa" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">knowledge config + cache</text>
         <text x="1058" y="390" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">wiki source: local | github</text>
         <text x="1058" y="406" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">~/.hermes/knowledge-config.yaml</text>
-        <text x="1058" y="418" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">graph cache cleared via sync</text>
+        <text x="1058" y="418" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">knowledge cache cleared via sync</text>
 
         <!-- ═══ Shared disk layer ═══ -->
         <text x="600" y="456" fill="#475569" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">On-disk roots (all under ~/.hermes/)</text>
@@ -220,9 +219,9 @@
         <text x="398" y="536" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">all markdown · readable by all agents</text>
 
         <rect x="536" y="484" width="220" height="64" rx="4" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.5"/>
-        <text x="646" y="504" fill="#22d3ee" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">graph index</text>
-        <text x="646" y="520" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">derived from wiki markdown</text>
-        <text x="646" y="536" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">in-memory · SVG adjacency</text>
+        <text x="646" y="504" fill="#22d3ee" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">memory graph</text>
+        <text x="646" y="520" fill="#94a3b8" font-size="8" text-anchor="middle" font-family="JetBrains Mono">mnemosyne: gist · fact · wiki</text>
+        <text x="646" y="536" fill="#475569" font-size="7.5" text-anchor="middle" font-family="JetBrains Mono">served via /api/memory/graph</text>
 
         <rect x="774" y="484" width="220" height="64" rx="4" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1" stroke-opacity="0.5"/>
         <text x="884" y="504" fill="#22d3ee" font-size="9" font-weight="600" text-anchor="middle" font-family="JetBrains Mono">vector index</text>
@@ -263,13 +262,13 @@
         </ul>
       </div>
       <div class="card">
-        <div class="card-header"><div class="card-dot cyan"></div><h3>Graph tab</h3></div>
+        <div class="card-header"><div class="card-dot cyan"></div><h3>Map tab</h3></div>
         <ul>
-          <li>· SVG adjacency graph from /api/knowledge/graph</li>
-          <li>· Nodes: wiki pages + agent memory entries</li>
-          <li>· Edges: cross-references between pages</li>
-          <li>· 1-hop / 2-hop / all depth modes</li>
-          <li>· Fallback to flat list if gateway lacks endpoint</li>
+          <li>· D3 force-directed Memory Map from /api/memory/graph</li>
+          <li>· Nodes: gist, fact, and wiki entries</li>
+          <li>· Edges: ctx and reference links</li>
+          <li>· Legend isolates or mutes node categories</li>
+          <li>· Force-directed layout rendered in browser</li>
         </ul>
       </div>
       <div class="card">
@@ -278,7 +277,7 @@
           <li>· Chat: RAG — top-K retrieval + /api/send-stream SSE</li>
           <li>· Wiki chunks injected as LLM context</li>
           <li>· Settings: local vs GitHub wiki source toggle</li>
-          <li>· Force graph rebuild + clear cache controls</li>
+          <li>· Clear knowledge cache controls</li>
           <li>· Per-agent memory config lives in Profile wizard</li>
         </ul>
       </div>

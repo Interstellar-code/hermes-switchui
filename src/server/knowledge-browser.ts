@@ -26,11 +26,6 @@ export type WikiLink = {
   target: string
 }
 
-export type KnowledgeGraph = {
-  nodes: Array<{ id: string; title: string; type?: string; tags: Array<string> }>
-  edges: Array<{ source: string; target: string }>
-}
-
 type FrontmatterData = {
   title?: string
   type?: string
@@ -209,10 +204,6 @@ class GitHubKnowledgeProvider {
     // stay inside the knowledge-cache root.
     validateKnowledgeCachePath(base, expectedRoot)
     this.cacheDir = base
-  }
-
-  private get cacheRoot(): string {
-    return path.join(os.homedir(), '.claude', 'knowledge-cache', 'github', this.repo.replace('/', '_'), this.branch)
   }
 
   /** Fetch + decode the GitHub repo into the local cache directory. */
@@ -638,32 +629,4 @@ export function deleteKnowledgePage(relativePath: string): void {
     throw new Error(`ENOENT: Knowledge page not found: ${relativePath}`)
   }
   fs.unlinkSync(fullPath)
-}
-
-export function buildKnowledgeGraph(): KnowledgeGraph {
-  // Exclude raw/ pages — only curated wiki contributes to the graph.
-  const pages = getParsedKnowledgePages().filter((p) => isCuratedPage(p.meta.path))
-  const resolveLink = createWikilinkResolver(pages)
-  const edges = new Map<string, WikiLink>()
-
-  for (const page of pages) {
-    for (const wikilink of page.meta.wikilinks) {
-      const target = resolveLink(wikilink)
-      if (!target || !isCuratedPage(target)) continue
-      const key = `${page.meta.path}=>${target}`
-      if (!edges.has(key)) {
-        edges.set(key, { source: page.meta.path, target })
-      }
-    }
-  }
-
-  return {
-    nodes: pages.map((page) => ({
-      id: page.meta.path,
-      title: page.meta.title,
-      type: page.meta.type,
-      tags: page.meta.tags,
-    })),
-    edges: Array.from(edges.values()),
-  }
 }

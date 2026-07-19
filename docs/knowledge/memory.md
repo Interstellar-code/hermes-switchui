@@ -23,9 +23,9 @@ The page has five tabs:
 
 - **Agent Memory** — per-agent markdown files stored under `~/.hermes/profiles/<agent-id>/memory/`. Each built-in agent (Hermes Switch, Neo, Trinity, Morpheus) has its own memory space you can inspect and edit.
 - **Wiki** — a shared knowledge base of markdown pages stored under `~/.hermes/` (rooted at `MEMORY.md`, `memory/`, and `memories/`). Any page in the wiki is readable by all agents.
-- **Graph** — a visual adjacency graph of the knowledge base. Nodes are wiki pages and agent memory entries; edges show references between them.
+- **Map** — a D3 force-directed Memory Map that visualizes the full mnemosyne knowledge graph. Nodes are gist, working, fact, entity, episodic, and wiki entries; edges show ctx, references, mentions, about, relates, and summarizes links. Rendered on a canvas for scale (~7k nodes). The Map and Browse tabs appear only when matrix-memory is configured and activated (its mnemosyne DB exists and holds memories); otherwise they are hidden.
 - **Chat** — a retrieval-augmented chat that lets you ask questions grounded in the wiki corpus.
-- **Settings** — wiki source configuration, graph rebuild, and cache controls.
+- **Settings** — wiki source configuration and cache controls.
 
 The active tab persists in `localStorage` between visits so you land on the same tab you left.
 
@@ -47,11 +47,9 @@ The Wiki tab shows a filterable list of all markdown pages in the shared knowled
 
 Use the search box at the top of the list to filter pages by title or path.
 
-## Graph tab
+## Map tab
 
-The Graph tab renders the wiki as an SVG adjacency graph. Hover a node to see its full title, type, and connection count. Click a node to focus it and see its neighbors in a side panel. Use the legend to isolate or mute categories. Toggle between **1-hop**, **2-hop**, and **all** to control how much of the graph is shown around the selected node.
-
-If the gateway has not exposed `/api/knowledge/graph` yet, the tab falls back to a flat node and edge list.
+The Map tab renders a D3 force-directed Memory Map of the full mnemosyne knowledge graph, fetched from `/api/memory/graph`. Nodes represent gist, working, fact, entity, episodic, and wiki entries; edges show ctx (gist→fact), references (wiki→wiki), mentions (memory→entity), about (fact→entity), relates (entity→entity), and summarizes (episodic→memory) links. Entities are the hubs that interconnect memories. The graph is drawn on a canvas (d3-force layout, ~7k nodes / ~13k edges). Hover a node to highlight its neighbors and labels; click to focus it and open a detail panel; drag to pin (double-click to release). The Filters panel provides node-kind toggles, edge-type toggles, a "hide isolated nodes" switch, and a min-connections slider (raise it to reveal only the hubs) — default is everything visible. Use the search box and zoom controls to navigate. Labels are server-truncated (60 chars) — raw memory text is never sent to the client.
 
 ## Chat tab
 
@@ -61,12 +59,11 @@ Cited pages appear under each assistant message so you can click through to the 
 
 ## Settings tab
 
-The Settings tab covers four operational concerns for the knowledge base:
+The Settings tab covers three operational concerns for the knowledge base:
 
 1. **Wiki source** — switch between a local filesystem wiki and a GitHub-backed wiki. Settings are read and written through `/api/knowledge/config`.
-2. **Knowledge graph rebuild** — force a rebuild of the graph index by calling `/api/knowledge/graph?action=rebuild`.
-3. **Cache controls** — clear cached knowledge entries through `/api/knowledge/sync?action=clear`.
-4. **Provider config** — a notice that per-agent memory providers are managed inside each agent's Profile wizard (step 6), not here.
+2. **Cache controls** — clear cached knowledge entries through `/api/knowledge/sync?action=clear`.
+3. **Provider config** — a notice that per-agent memory providers are managed inside each agent's Profile wizard (step 6), not here.
 
 ## Where the data lives
 

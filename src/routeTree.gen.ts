@@ -132,8 +132,11 @@ import { Route as ApiMemoryWriteRouteImport } from './routes/api/memory/write'
 import { Route as ApiMemoryStatsRouteImport } from './routes/api/memory/stats'
 import { Route as ApiMemorySearchRouteImport } from './routes/api/memory/search'
 import { Route as ApiMemoryReadRouteImport } from './routes/api/memory/read'
+import { Route as ApiMemoryMnemosyneSearchRouteImport } from './routes/api/memory/mnemosyne-search'
 import { Route as ApiMemoryListRouteImport } from './routes/api/memory/list'
+import { Route as ApiMemoryGraphRouteImport } from './routes/api/memory/graph'
 import { Route as ApiMemoryGetRouteImport } from './routes/api/memory/get'
+import { Route as ApiMemoryChatRouteImport } from './routes/api/memory/chat'
 import { Route as ApiMemoryAgentFilesRouteImport } from './routes/api/memory/agent-files'
 import { Route as ApiMcpTestRouteImport } from './routes/api/mcp/test'
 import { Route as ApiMcpPresetsRouteImport } from './routes/api/mcp/presets'
@@ -147,7 +150,6 @@ import { Route as ApiKnowledgeSyncRouteImport } from './routes/api/knowledge/syn
 import { Route as ApiKnowledgeSearchRouteImport } from './routes/api/knowledge/search'
 import { Route as ApiKnowledgeReadRouteImport } from './routes/api/knowledge/read'
 import { Route as ApiKnowledgeListRouteImport } from './routes/api/knowledge/list'
-import { Route as ApiKnowledgeGraphRouteImport } from './routes/api/knowledge/graph'
 import { Route as ApiKnowledgeConfigRouteImport } from './routes/api/knowledge/config'
 import { Route as ApiHermesProjectsIdRouteImport } from './routes/api/hermes-projects/$id'
 import { Route as ApiHermesPluginSettingsRouteImport } from './routes/api/hermes-plugin.settings'
@@ -840,14 +842,30 @@ const ApiMemoryReadRoute = ApiMemoryReadRouteImport.update({
   path: '/read',
   getParentRoute: () => ApiMemoryRoute,
 } as any)
+const ApiMemoryMnemosyneSearchRoute =
+  ApiMemoryMnemosyneSearchRouteImport.update({
+    id: '/mnemosyne-search',
+    path: '/mnemosyne-search',
+    getParentRoute: () => ApiMemoryRoute,
+  } as any)
 const ApiMemoryListRoute = ApiMemoryListRouteImport.update({
   id: '/list',
   path: '/list',
   getParentRoute: () => ApiMemoryRoute,
 } as any)
+const ApiMemoryGraphRoute = ApiMemoryGraphRouteImport.update({
+  id: '/graph',
+  path: '/graph',
+  getParentRoute: () => ApiMemoryRoute,
+} as any)
 const ApiMemoryGetRoute = ApiMemoryGetRouteImport.update({
   id: '/get',
   path: '/get',
+  getParentRoute: () => ApiMemoryRoute,
+} as any)
+const ApiMemoryChatRoute = ApiMemoryChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
   getParentRoute: () => ApiMemoryRoute,
 } as any)
 const ApiMemoryAgentFilesRoute = ApiMemoryAgentFilesRouteImport.update({
@@ -913,11 +931,6 @@ const ApiKnowledgeReadRoute = ApiKnowledgeReadRouteImport.update({
 const ApiKnowledgeListRoute = ApiKnowledgeListRouteImport.update({
   id: '/api/knowledge/list',
   path: '/api/knowledge/list',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiKnowledgeGraphRoute = ApiKnowledgeGraphRouteImport.update({
-  id: '/api/knowledge/graph',
-  path: '/api/knowledge/graph',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiKnowledgeConfigRoute = ApiKnowledgeConfigRouteImport.update({
@@ -1451,7 +1464,6 @@ export interface FileRoutesByFullPath {
   '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
   '/api/hermes-projects/$id': typeof ApiHermesProjectsIdRouteWithChildren
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
-  '/api/knowledge/graph': typeof ApiKnowledgeGraphRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
   '/api/knowledge/read': typeof ApiKnowledgeReadRoute
   '/api/knowledge/search': typeof ApiKnowledgeSearchRoute
@@ -1465,8 +1477,11 @@ export interface FileRoutesByFullPath {
   '/api/mcp/presets': typeof ApiMcpPresetsRoute
   '/api/mcp/test': typeof ApiMcpTestRoute
   '/api/memory/agent-files': typeof ApiMemoryAgentFilesRoute
+  '/api/memory/chat': typeof ApiMemoryChatRoute
   '/api/memory/get': typeof ApiMemoryGetRoute
+  '/api/memory/graph': typeof ApiMemoryGraphRoute
   '/api/memory/list': typeof ApiMemoryListRoute
+  '/api/memory/mnemosyne-search': typeof ApiMemoryMnemosyneSearchRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
   '/api/memory/search': typeof ApiMemorySearchRoute
   '/api/memory/stats': typeof ApiMemoryStatsRoute
@@ -1664,7 +1679,6 @@ export interface FileRoutesByTo {
   '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
   '/api/hermes-projects/$id': typeof ApiHermesProjectsIdRouteWithChildren
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
-  '/api/knowledge/graph': typeof ApiKnowledgeGraphRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
   '/api/knowledge/read': typeof ApiKnowledgeReadRoute
   '/api/knowledge/search': typeof ApiKnowledgeSearchRoute
@@ -1678,8 +1692,11 @@ export interface FileRoutesByTo {
   '/api/mcp/presets': typeof ApiMcpPresetsRoute
   '/api/mcp/test': typeof ApiMcpTestRoute
   '/api/memory/agent-files': typeof ApiMemoryAgentFilesRoute
+  '/api/memory/chat': typeof ApiMemoryChatRoute
   '/api/memory/get': typeof ApiMemoryGetRoute
+  '/api/memory/graph': typeof ApiMemoryGraphRoute
   '/api/memory/list': typeof ApiMemoryListRoute
+  '/api/memory/mnemosyne-search': typeof ApiMemoryMnemosyneSearchRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
   '/api/memory/search': typeof ApiMemorySearchRoute
   '/api/memory/stats': typeof ApiMemoryStatsRoute
@@ -1880,7 +1897,6 @@ export interface FileRoutesById {
   '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
   '/api/hermes-projects/$id': typeof ApiHermesProjectsIdRouteWithChildren
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
-  '/api/knowledge/graph': typeof ApiKnowledgeGraphRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
   '/api/knowledge/read': typeof ApiKnowledgeReadRoute
   '/api/knowledge/search': typeof ApiKnowledgeSearchRoute
@@ -1894,8 +1910,11 @@ export interface FileRoutesById {
   '/api/mcp/presets': typeof ApiMcpPresetsRoute
   '/api/mcp/test': typeof ApiMcpTestRoute
   '/api/memory/agent-files': typeof ApiMemoryAgentFilesRoute
+  '/api/memory/chat': typeof ApiMemoryChatRoute
   '/api/memory/get': typeof ApiMemoryGetRoute
+  '/api/memory/graph': typeof ApiMemoryGraphRoute
   '/api/memory/list': typeof ApiMemoryListRoute
+  '/api/memory/mnemosyne-search': typeof ApiMemoryMnemosyneSearchRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
   '/api/memory/search': typeof ApiMemorySearchRoute
   '/api/memory/stats': typeof ApiMemoryStatsRoute
@@ -2097,7 +2116,6 @@ export interface FileRouteTypes {
     | '/api/hermes-plugin/settings'
     | '/api/hermes-projects/$id'
     | '/api/knowledge/config'
-    | '/api/knowledge/graph'
     | '/api/knowledge/list'
     | '/api/knowledge/read'
     | '/api/knowledge/search'
@@ -2111,8 +2129,11 @@ export interface FileRouteTypes {
     | '/api/mcp/presets'
     | '/api/mcp/test'
     | '/api/memory/agent-files'
+    | '/api/memory/chat'
     | '/api/memory/get'
+    | '/api/memory/graph'
     | '/api/memory/list'
+    | '/api/memory/mnemosyne-search'
     | '/api/memory/read'
     | '/api/memory/search'
     | '/api/memory/stats'
@@ -2310,7 +2331,6 @@ export interface FileRouteTypes {
     | '/api/hermes-plugin/settings'
     | '/api/hermes-projects/$id'
     | '/api/knowledge/config'
-    | '/api/knowledge/graph'
     | '/api/knowledge/list'
     | '/api/knowledge/read'
     | '/api/knowledge/search'
@@ -2324,8 +2344,11 @@ export interface FileRouteTypes {
     | '/api/mcp/presets'
     | '/api/mcp/test'
     | '/api/memory/agent-files'
+    | '/api/memory/chat'
     | '/api/memory/get'
+    | '/api/memory/graph'
     | '/api/memory/list'
+    | '/api/memory/mnemosyne-search'
     | '/api/memory/read'
     | '/api/memory/search'
     | '/api/memory/stats'
@@ -2525,7 +2548,6 @@ export interface FileRouteTypes {
     | '/api/hermes-plugin/settings'
     | '/api/hermes-projects/$id'
     | '/api/knowledge/config'
-    | '/api/knowledge/graph'
     | '/api/knowledge/list'
     | '/api/knowledge/read'
     | '/api/knowledge/search'
@@ -2539,8 +2561,11 @@ export interface FileRouteTypes {
     | '/api/mcp/presets'
     | '/api/mcp/test'
     | '/api/memory/agent-files'
+    | '/api/memory/chat'
     | '/api/memory/get'
+    | '/api/memory/graph'
     | '/api/memory/list'
+    | '/api/memory/mnemosyne-search'
     | '/api/memory/read'
     | '/api/memory/search'
     | '/api/memory/stats'
@@ -2732,7 +2757,6 @@ export interface RootRouteChildren {
   ApiHermesKanbanTemplatesRoute: typeof ApiHermesKanbanTemplatesRouteWithChildren
   ApiHermesProjectsIdRoute: typeof ApiHermesProjectsIdRouteWithChildren
   ApiKnowledgeConfigRoute: typeof ApiKnowledgeConfigRoute
-  ApiKnowledgeGraphRoute: typeof ApiKnowledgeGraphRoute
   ApiKnowledgeListRoute: typeof ApiKnowledgeListRoute
   ApiKnowledgeReadRoute: typeof ApiKnowledgeReadRoute
   ApiKnowledgeSearchRoute: typeof ApiKnowledgeSearchRoute
@@ -3632,6 +3656,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMemoryReadRouteImport
       parentRoute: typeof ApiMemoryRoute
     }
+    '/api/memory/mnemosyne-search': {
+      id: '/api/memory/mnemosyne-search'
+      path: '/mnemosyne-search'
+      fullPath: '/api/memory/mnemosyne-search'
+      preLoaderRoute: typeof ApiMemoryMnemosyneSearchRouteImport
+      parentRoute: typeof ApiMemoryRoute
+    }
     '/api/memory/list': {
       id: '/api/memory/list'
       path: '/list'
@@ -3639,11 +3670,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMemoryListRouteImport
       parentRoute: typeof ApiMemoryRoute
     }
+    '/api/memory/graph': {
+      id: '/api/memory/graph'
+      path: '/graph'
+      fullPath: '/api/memory/graph'
+      preLoaderRoute: typeof ApiMemoryGraphRouteImport
+      parentRoute: typeof ApiMemoryRoute
+    }
     '/api/memory/get': {
       id: '/api/memory/get'
       path: '/get'
       fullPath: '/api/memory/get'
       preLoaderRoute: typeof ApiMemoryGetRouteImport
+      parentRoute: typeof ApiMemoryRoute
+    }
+    '/api/memory/chat': {
+      id: '/api/memory/chat'
+      path: '/chat'
+      fullPath: '/api/memory/chat'
+      preLoaderRoute: typeof ApiMemoryChatRouteImport
       parentRoute: typeof ApiMemoryRoute
     }
     '/api/memory/agent-files': {
@@ -3735,13 +3780,6 @@ declare module '@tanstack/react-router' {
       path: '/api/knowledge/list'
       fullPath: '/api/knowledge/list'
       preLoaderRoute: typeof ApiKnowledgeListRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/knowledge/graph': {
-      id: '/api/knowledge/graph'
-      path: '/api/knowledge/graph'
-      fullPath: '/api/knowledge/graph'
-      preLoaderRoute: typeof ApiKnowledgeGraphRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/knowledge/config': {
@@ -4401,8 +4439,11 @@ const ApiMcpRouteWithChildren =
 
 interface ApiMemoryRouteChildren {
   ApiMemoryAgentFilesRoute: typeof ApiMemoryAgentFilesRoute
+  ApiMemoryChatRoute: typeof ApiMemoryChatRoute
   ApiMemoryGetRoute: typeof ApiMemoryGetRoute
+  ApiMemoryGraphRoute: typeof ApiMemoryGraphRoute
   ApiMemoryListRoute: typeof ApiMemoryListRoute
+  ApiMemoryMnemosyneSearchRoute: typeof ApiMemoryMnemosyneSearchRoute
   ApiMemoryReadRoute: typeof ApiMemoryReadRoute
   ApiMemorySearchRoute: typeof ApiMemorySearchRoute
   ApiMemoryStatsRoute: typeof ApiMemoryStatsRoute
@@ -4411,8 +4452,11 @@ interface ApiMemoryRouteChildren {
 
 const ApiMemoryRouteChildren: ApiMemoryRouteChildren = {
   ApiMemoryAgentFilesRoute: ApiMemoryAgentFilesRoute,
+  ApiMemoryChatRoute: ApiMemoryChatRoute,
   ApiMemoryGetRoute: ApiMemoryGetRoute,
+  ApiMemoryGraphRoute: ApiMemoryGraphRoute,
   ApiMemoryListRoute: ApiMemoryListRoute,
+  ApiMemoryMnemosyneSearchRoute: ApiMemoryMnemosyneSearchRoute,
   ApiMemoryReadRoute: ApiMemoryReadRoute,
   ApiMemorySearchRoute: ApiMemorySearchRoute,
   ApiMemoryStatsRoute: ApiMemoryStatsRoute,
@@ -4900,7 +4944,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHermesKanbanTemplatesRoute: ApiHermesKanbanTemplatesRouteWithChildren,
   ApiHermesProjectsIdRoute: ApiHermesProjectsIdRouteWithChildren,
   ApiKnowledgeConfigRoute: ApiKnowledgeConfigRoute,
-  ApiKnowledgeGraphRoute: ApiKnowledgeGraphRoute,
   ApiKnowledgeListRoute: ApiKnowledgeListRoute,
   ApiKnowledgeReadRoute: ApiKnowledgeReadRoute,
   ApiKnowledgeSearchRoute: ApiKnowledgeSearchRoute,

@@ -3,9 +3,8 @@
  *
  * Sections:
  * 1. Matrix wiki source — local FS vs GitHub-backed (read + edit via /api/knowledge/config)
- * 2. Knowledge graph rebuild — POST /api/knowledge/graph?action=rebuild (stub toast if not exposed)
- * 3. Cache controls — clear knowledge cache via /api/knowledge/sync?action=clear
- * 4. Provider config notice — per-agent memory providers live in Profile wizard step 6
+ * 2. Cache controls — clear knowledge cache via /api/knowledge/sync?action=clear
+ * 3. Provider config notice — per-agent memory providers live in Profile wizard step 6
  */
 
 import { useState } from 'react'
@@ -294,46 +293,6 @@ function WikiSourceSection() {
   )
 }
 
-// ── GraphRebuildSection ───────────────────────────────────────────────────────
-
-function GraphRebuildSection() {
-  const [rebuilding, setRebuilding] = useState(false)
-
-  function handleRebuild() {
-    setRebuilding(true)
-    try {
-      // The graph route only exposes GET (builds on read). POST ?action=rebuild is not yet
-      // a separate endpoint — stub with an informative toast per plan spec.
-      showToast(
-        'Backend graph rebuild not yet exposed — use GET /api/knowledge/graph to refresh',
-      )
-    } finally {
-      setRebuilding(false)
-    }
-  }
-
-  return (
-    <section className="mset-section">
-      <h2 className="mset-section-title">Knowledge Graph</h2>
-      <p className="mset-section-desc">
-        The knowledge graph is rebuilt automatically when you load the Graph
-        tab. Use this to force an immediate rebuild, e.g. after bulk-importing
-        matrix wiki pages.
-      </p>
-      <div className="mset-actions">
-        <button
-          type="button"
-          className="mem-btn"
-          onClick={handleRebuild}
-          disabled={rebuilding}
-        >
-          {rebuilding ? 'Rebuilding…' : 'Rebuild Graph'}
-        </button>
-      </div>
-    </section>
-  )
-}
-
 // ── CacheSection ──────────────────────────────────────────────────────────────
 
 function CacheSection() {
@@ -415,7 +374,6 @@ export function SettingsTab() {
   return (
     <div className="mset-shell">
       <WikiSourceSection />
-      <GraphRebuildSection />
       <CacheSection />
       <ProviderNoticeSection />
     </div>
