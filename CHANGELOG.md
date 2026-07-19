@@ -3,6 +3,12 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.16] — 2026-07-19
+
+### Fixed
+
+- **Build no longer hangs.** The SPA prerender (`maskPath: /settings`) runs server code at build time; two module-level `setInterval` maintenance timers (auth-token prune, rate-limit cleanup) plus the gateway plugin-sync heartbeat kept the event loop alive, so `pnpm build` never exited — hanging CI "Build & Lint" and the Docker image build for hours. Timers are now `.unref()`'d, and the gateway probe + plugin-sync boot are skipped during the prerender (`HERMES_SKIP_GATEWAY_BOOT`). Runtime and dev are unaffected.
+
 ## [2.5.15] — 2026-07-19
 
 Projects CRUD now uses in-app modals instead of native browser dialogs (follow-up to the v2.5.14 CRUD).
