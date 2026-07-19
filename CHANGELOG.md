@@ -3,6 +3,17 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.15] — 2026-07-19
+
+Projects CRUD now uses in-app modals instead of native browser dialogs (follow-up to the v2.5.14 CRUD).
+
+### Changed
+
+- **Create** project: `ProjectCreateWizard` modal with a live board dropdown, replacing `window.prompt`.
+- **Edit** project: 2-step stepper (Identity → Folders); the Folders step adds / removes / sets-primary against the live project, all in-app.
+- **Delete / archive**: reusable in-app `ConfirmDialog` (danger variant for delete), replacing `window.confirm`.
+- Drawer Folders tab: inline add-folder field (no prompt); the drawer collapses when a modal opens.
+
 ## [2.5.14] — 2026-07-19
 
 Projects CRUD v3, consuming the Hermes Agent 0.18.3 dashboard Projects API.
