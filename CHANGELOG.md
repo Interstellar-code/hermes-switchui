@@ -3,6 +3,13 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.18] — 2026-07-19
+
+### Fixed
+
+- The Agent Memory pane now shows the active per-profile `SOUL.md`, `MEMORY.md`, and `USER.md` as tabs. It reads `SOUL.md` from the profile root and the two built-in memory stores from the canonical `memories/` directory, instead of showing the stale profile-root `USER.md` placeholder.
+- Built-in profile bootstrap now creates `memories/MEMORY.md` and `memories/USER.md` where Hermes Agent actually loads them.
+
 ## [2.5.17] — 2026-07-19
 
 Memory screen overhaul: a real graph of your memory, and a chat that actually talks to it (#342).
