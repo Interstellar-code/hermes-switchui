@@ -5,12 +5,24 @@
  * Active tab persisted to localStorage via useMemoryScreenStore.
  */
 
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import type { MemoryTab } from '@/stores/memory-screen-store'
 import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
 import { useMemoryScreenStore } from '@/stores/memory-screen-store'
 import '@/styles/matrix-memory.css'
 import '@/styles/matrix-profiles.css'
+
+// Matrix Memory (mnemosyne) backs the Map tab. `/api/memory/stats` reports
+// whether the profile's mnemosyne DB exists — i.e. matrix-memory is
+// configured and activated.
+type MnemosyneAvailability = { db: { exists: boolean } }
+
+async function fetchMnemosyneAvailability(): Promise<MnemosyneAvailability> {
+  const res = await fetch('/api/memory/stats')
+  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  return res.json() as Promise<MnemosyneAvailability>
+}
 
 const AgentMemoryTab = lazy(async () => {
   const m = await import('./components/agent-memory-tab')
@@ -177,6 +189,20 @@ export function MemoryScreen() {
 
   const agentCount = BUILTIN_AGENTS.length
 
+  // Gate the Map tab on matrix-memory being configured + activated.
+  const { data: mnemo } = useQuery({
+    queryKey: ['memory', 'availability'],
+    queryFn: fetchMnemosyneAvailability,
+    staleTime: 60_000,
+  })
+  const mapAvailable = mnemo?.db.exists === true
+  const tabs = TABS.filter((t) => t.id !== 'map' || mapAvailable)
+
+  // If Map was the persisted tab but matrix-memory isn't available, fall back.
+  useEffect(() => {
+    if (activeTab === 'map' && mnemo && !mapAvailable) setActiveTab('memory')
+  }, [activeTab, mnemo, mapAvailable, setActiveTab])
+
   return (
     <div data-screen="memory" className="mem-shell">
       {/* Header */}
@@ -200,7 +226,7 @@ export function MemoryScreen() {
 
       {/* Tab bar */}
       <div className="mem-tabbar" role="tablist">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -233,7 +259,7 @@ export function MemoryScreen() {
             <WikiTab />
           </Suspense>
         )}
-        {activeTab === 'map' && (
+        {activeTab === 'map' && mapAvailable && (
           <Suspense fallback={<div className="mem-loading">Loading…</div>}>
             <MemoryMap />
           </Suspense>

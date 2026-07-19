@@ -23,7 +23,7 @@ The page has five tabs:
 
 - **Agent Memory** — per-agent markdown files stored under `~/.hermes/profiles/<agent-id>/memory/`. Each built-in agent (Hermes Switch, Neo, Trinity, Morpheus) has its own memory space you can inspect and edit.
 - **Wiki** — a shared knowledge base of markdown pages stored under `~/.hermes/` (rooted at `MEMORY.md`, `memory/`, and `memories/`). Any page in the wiki is readable by all agents.
-- **Map** — a D3 force-directed Memory Map that visualizes the full mnemosyne knowledge graph. Nodes are gist, working, fact, entity, episodic, and wiki entries; edges show ctx, references, mentions, about, relates, and summarizes links. Rendered on a canvas for scale (~7k nodes).
+- **Map** — a D3 force-directed Memory Map that visualizes the full mnemosyne knowledge graph. Nodes are gist, working, fact, entity, episodic, and wiki entries; edges show ctx, references, mentions, about, relates, and summarizes links. Rendered on a canvas for scale (~7k nodes). The tab appears only when matrix-memory is configured and activated (its mnemosyne DB exists).
 - **Chat** — a retrieval-augmented chat that lets you ask questions grounded in the wiki corpus.
 - **Settings** — wiki source configuration and cache controls.
 
