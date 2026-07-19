@@ -103,27 +103,20 @@ async function streamChat(
   onToken: (token: string) => void,
   signal: AbortSignal,
 ): Promise<void> {
-  const systemPrompt = `You are the user's personal memory assistant. Answer the question using ONLY the memory context provided below (the user's memory files and matrix-memory). If the answer is not contained in this memory, reply exactly: "${NOT_IN_MEMORY}" — do not use outside or general knowledge, and do not guess.
-
---- MEMORY CONTEXT ---
-${memoryContext}
---- END MEMORY CONTEXT ---`
-
   const lastMsg = messages[messages.length - 1]
   const priorTurns = messages.slice(0, -1)
-  const history: Array<{ role: string; content: string }> = [
-    { role: 'system', content: systemPrompt },
-    ...priorTurns,
-  ]
 
-  const res = await fetch('/api/send-stream', {
+  // Non-agentic completion: /api/memory/chat calls the model directly and
+  // grounds it on `context` server-side, so the answer is strictly gated to
+  // memory (the agentic /api/send-stream would run its own — currently broken
+  // — recall and override this; see hermes-agent#171).
+  const res = await fetch('/api/memory/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      sessionKey: 'new', // portable mode — no gateway session required
       message: lastMsg.content,
-      history,
-      stream: true,
+      history: priorTurns,
+      context: memoryContext,
     }),
     signal,
   })

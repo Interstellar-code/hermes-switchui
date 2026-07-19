@@ -136,6 +136,7 @@ import { Route as ApiMemoryMnemosyneSearchRouteImport } from './routes/api/memor
 import { Route as ApiMemoryListRouteImport } from './routes/api/memory/list'
 import { Route as ApiMemoryGraphRouteImport } from './routes/api/memory/graph'
 import { Route as ApiMemoryGetRouteImport } from './routes/api/memory/get'
+import { Route as ApiMemoryChatRouteImport } from './routes/api/memory/chat'
 import { Route as ApiMemoryAgentFilesRouteImport } from './routes/api/memory/agent-files'
 import { Route as ApiMcpTestRouteImport } from './routes/api/mcp/test'
 import { Route as ApiMcpPresetsRouteImport } from './routes/api/mcp/presets'
@@ -862,6 +863,11 @@ const ApiMemoryGetRoute = ApiMemoryGetRouteImport.update({
   path: '/get',
   getParentRoute: () => ApiMemoryRoute,
 } as any)
+const ApiMemoryChatRoute = ApiMemoryChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => ApiMemoryRoute,
+} as any)
 const ApiMemoryAgentFilesRoute = ApiMemoryAgentFilesRouteImport.update({
   id: '/agent-files',
   path: '/agent-files',
@@ -1471,6 +1477,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp/presets': typeof ApiMcpPresetsRoute
   '/api/mcp/test': typeof ApiMcpTestRoute
   '/api/memory/agent-files': typeof ApiMemoryAgentFilesRoute
+  '/api/memory/chat': typeof ApiMemoryChatRoute
   '/api/memory/get': typeof ApiMemoryGetRoute
   '/api/memory/graph': typeof ApiMemoryGraphRoute
   '/api/memory/list': typeof ApiMemoryListRoute
@@ -1685,6 +1692,7 @@ export interface FileRoutesByTo {
   '/api/mcp/presets': typeof ApiMcpPresetsRoute
   '/api/mcp/test': typeof ApiMcpTestRoute
   '/api/memory/agent-files': typeof ApiMemoryAgentFilesRoute
+  '/api/memory/chat': typeof ApiMemoryChatRoute
   '/api/memory/get': typeof ApiMemoryGetRoute
   '/api/memory/graph': typeof ApiMemoryGraphRoute
   '/api/memory/list': typeof ApiMemoryListRoute
@@ -1902,6 +1910,7 @@ export interface FileRoutesById {
   '/api/mcp/presets': typeof ApiMcpPresetsRoute
   '/api/mcp/test': typeof ApiMcpTestRoute
   '/api/memory/agent-files': typeof ApiMemoryAgentFilesRoute
+  '/api/memory/chat': typeof ApiMemoryChatRoute
   '/api/memory/get': typeof ApiMemoryGetRoute
   '/api/memory/graph': typeof ApiMemoryGraphRoute
   '/api/memory/list': typeof ApiMemoryListRoute
@@ -2120,6 +2129,7 @@ export interface FileRouteTypes {
     | '/api/mcp/presets'
     | '/api/mcp/test'
     | '/api/memory/agent-files'
+    | '/api/memory/chat'
     | '/api/memory/get'
     | '/api/memory/graph'
     | '/api/memory/list'
@@ -2334,6 +2344,7 @@ export interface FileRouteTypes {
     | '/api/mcp/presets'
     | '/api/mcp/test'
     | '/api/memory/agent-files'
+    | '/api/memory/chat'
     | '/api/memory/get'
     | '/api/memory/graph'
     | '/api/memory/list'
@@ -2550,6 +2561,7 @@ export interface FileRouteTypes {
     | '/api/mcp/presets'
     | '/api/mcp/test'
     | '/api/memory/agent-files'
+    | '/api/memory/chat'
     | '/api/memory/get'
     | '/api/memory/graph'
     | '/api/memory/list'
@@ -3672,6 +3684,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMemoryGetRouteImport
       parentRoute: typeof ApiMemoryRoute
     }
+    '/api/memory/chat': {
+      id: '/api/memory/chat'
+      path: '/chat'
+      fullPath: '/api/memory/chat'
+      preLoaderRoute: typeof ApiMemoryChatRouteImport
+      parentRoute: typeof ApiMemoryRoute
+    }
     '/api/memory/agent-files': {
       id: '/api/memory/agent-files'
       path: '/agent-files'
@@ -4420,6 +4439,7 @@ const ApiMcpRouteWithChildren =
 
 interface ApiMemoryRouteChildren {
   ApiMemoryAgentFilesRoute: typeof ApiMemoryAgentFilesRoute
+  ApiMemoryChatRoute: typeof ApiMemoryChatRoute
   ApiMemoryGetRoute: typeof ApiMemoryGetRoute
   ApiMemoryGraphRoute: typeof ApiMemoryGraphRoute
   ApiMemoryListRoute: typeof ApiMemoryListRoute
@@ -4432,6 +4452,7 @@ interface ApiMemoryRouteChildren {
 
 const ApiMemoryRouteChildren: ApiMemoryRouteChildren = {
   ApiMemoryAgentFilesRoute: ApiMemoryAgentFilesRoute,
+  ApiMemoryChatRoute: ApiMemoryChatRoute,
   ApiMemoryGetRoute: ApiMemoryGetRoute,
   ApiMemoryGraphRoute: ApiMemoryGraphRoute,
   ApiMemoryListRoute: ApiMemoryListRoute,

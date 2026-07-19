@@ -29,7 +29,7 @@ function mockFetch(fileResults: Array<FileMatch>, mnemoResults: Array<MnemoMatch
     if (u.includes('/api/memory/search')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ results: fileResults }) })
     }
-    if (u.includes('/api/send-stream')) {
+    if (u.includes('/api/memory/chat')) {
       return Promise.resolve({ ok: true, body: makeStream(sseText) })
     }
     return Promise.reject(new Error(`unexpected fetch url: ${u}`))
@@ -54,7 +54,7 @@ describe('ChatTab', () => {
     expect(screen.getByText('Ask about your memory')).toBeTruthy()
   })
 
-  it('gates on empty memory context: no /api/send-stream call, exact "not in memory" reply', async () => {
+  it('gates on empty memory context: no /api/memory/chat call, exact "not in memory" reply', async () => {
     const fetchMock = mockFetch([], [], '')
     vi.stubGlobal('fetch', fetchMock)
     render(<ChatTab />)
@@ -65,11 +65,11 @@ describe('ChatTab', () => {
       expect(screen.getByText("I don't have that in my memory.")).toBeTruthy()
     })
     expect(
-      fetchMock.mock.calls.some((call) => String(call[0]).includes('/api/send-stream')),
+      fetchMock.mock.calls.some((call) => String(call[0]).includes('/api/memory/chat')),
     ).toBe(false)
   })
 
-  it('streams a reply from /api/send-stream when memory context is found', async () => {
+  it('streams a reply from /api/memory/chat when memory context is found', async () => {
     const SSE_TEXT =
       'event: chunk\ndata: {"text":"Sub"}\n\nevent: chunk\ndata: {"text":"sHero"}\n\n'
     const fetchMock = mockFetch(
@@ -86,7 +86,7 @@ describe('ChatTab', () => {
       expect(screen.getByText('SubsHero')).toBeTruthy()
     })
     expect(
-      fetchMock.mock.calls.some((call) => String(call[0]).includes('/api/send-stream')),
+      fetchMock.mock.calls.some((call) => String(call[0]).includes('/api/memory/chat')),
     ).toBe(true)
   })
 })
