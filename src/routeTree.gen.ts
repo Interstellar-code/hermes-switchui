@@ -148,7 +148,6 @@ import { Route as ApiKnowledgeSyncRouteImport } from './routes/api/knowledge/syn
 import { Route as ApiKnowledgeSearchRouteImport } from './routes/api/knowledge/search'
 import { Route as ApiKnowledgeReadRouteImport } from './routes/api/knowledge/read'
 import { Route as ApiKnowledgeListRouteImport } from './routes/api/knowledge/list'
-import { Route as ApiKnowledgeGraphRouteImport } from './routes/api/knowledge/graph'
 import { Route as ApiKnowledgeConfigRouteImport } from './routes/api/knowledge/config'
 import { Route as ApiHermesProjectsIdRouteImport } from './routes/api/hermes-projects/$id'
 import { Route as ApiHermesPluginSettingsRouteImport } from './routes/api/hermes-plugin.settings'
@@ -921,11 +920,6 @@ const ApiKnowledgeListRoute = ApiKnowledgeListRouteImport.update({
   path: '/api/knowledge/list',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiKnowledgeGraphRoute = ApiKnowledgeGraphRouteImport.update({
-  id: '/api/knowledge/graph',
-  path: '/api/knowledge/graph',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiKnowledgeConfigRoute = ApiKnowledgeConfigRouteImport.update({
   id: '/api/knowledge/config',
   path: '/api/knowledge/config',
@@ -1457,7 +1451,6 @@ export interface FileRoutesByFullPath {
   '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
   '/api/hermes-projects/$id': typeof ApiHermesProjectsIdRouteWithChildren
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
-  '/api/knowledge/graph': typeof ApiKnowledgeGraphRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
   '/api/knowledge/read': typeof ApiKnowledgeReadRoute
   '/api/knowledge/search': typeof ApiKnowledgeSearchRoute
@@ -1671,7 +1664,6 @@ export interface FileRoutesByTo {
   '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
   '/api/hermes-projects/$id': typeof ApiHermesProjectsIdRouteWithChildren
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
-  '/api/knowledge/graph': typeof ApiKnowledgeGraphRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
   '/api/knowledge/read': typeof ApiKnowledgeReadRoute
   '/api/knowledge/search': typeof ApiKnowledgeSearchRoute
@@ -1888,7 +1880,6 @@ export interface FileRoutesById {
   '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
   '/api/hermes-projects/$id': typeof ApiHermesProjectsIdRouteWithChildren
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
-  '/api/knowledge/graph': typeof ApiKnowledgeGraphRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
   '/api/knowledge/read': typeof ApiKnowledgeReadRoute
   '/api/knowledge/search': typeof ApiKnowledgeSearchRoute
@@ -2106,7 +2097,6 @@ export interface FileRouteTypes {
     | '/api/hermes-plugin/settings'
     | '/api/hermes-projects/$id'
     | '/api/knowledge/config'
-    | '/api/knowledge/graph'
     | '/api/knowledge/list'
     | '/api/knowledge/read'
     | '/api/knowledge/search'
@@ -2320,7 +2310,6 @@ export interface FileRouteTypes {
     | '/api/hermes-plugin/settings'
     | '/api/hermes-projects/$id'
     | '/api/knowledge/config'
-    | '/api/knowledge/graph'
     | '/api/knowledge/list'
     | '/api/knowledge/read'
     | '/api/knowledge/search'
@@ -2536,7 +2525,6 @@ export interface FileRouteTypes {
     | '/api/hermes-plugin/settings'
     | '/api/hermes-projects/$id'
     | '/api/knowledge/config'
-    | '/api/knowledge/graph'
     | '/api/knowledge/list'
     | '/api/knowledge/read'
     | '/api/knowledge/search'
@@ -2744,7 +2732,6 @@ export interface RootRouteChildren {
   ApiHermesKanbanTemplatesRoute: typeof ApiHermesKanbanTemplatesRouteWithChildren
   ApiHermesProjectsIdRoute: typeof ApiHermesProjectsIdRouteWithChildren
   ApiKnowledgeConfigRoute: typeof ApiKnowledgeConfigRoute
-  ApiKnowledgeGraphRoute: typeof ApiKnowledgeGraphRoute
   ApiKnowledgeListRoute: typeof ApiKnowledgeListRoute
   ApiKnowledgeReadRoute: typeof ApiKnowledgeReadRoute
   ApiKnowledgeSearchRoute: typeof ApiKnowledgeSearchRoute
@@ -3754,13 +3741,6 @@ declare module '@tanstack/react-router' {
       path: '/api/knowledge/list'
       fullPath: '/api/knowledge/list'
       preLoaderRoute: typeof ApiKnowledgeListRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/knowledge/graph': {
-      id: '/api/knowledge/graph'
-      path: '/api/knowledge/graph'
-      fullPath: '/api/knowledge/graph'
-      preLoaderRoute: typeof ApiKnowledgeGraphRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/knowledge/config': {
@@ -4921,7 +4901,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHermesKanbanTemplatesRoute: ApiHermesKanbanTemplatesRouteWithChildren,
   ApiHermesProjectsIdRoute: ApiHermesProjectsIdRouteWithChildren,
   ApiKnowledgeConfigRoute: ApiKnowledgeConfigRoute,
-  ApiKnowledgeGraphRoute: ApiKnowledgeGraphRoute,
   ApiKnowledgeListRoute: ApiKnowledgeListRoute,
   ApiKnowledgeReadRoute: ApiKnowledgeReadRoute,
   ApiKnowledgeSearchRoute: ApiKnowledgeSearchRoute,
