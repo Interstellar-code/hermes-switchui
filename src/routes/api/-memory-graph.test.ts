@@ -7,6 +7,7 @@ vi.mock('../../server/auth-middleware', () => ({ isAuthenticated }))
 vi.mock('../../server/memory-graph', () => ({
   buildMemoryGraph,
   MAX_LIMIT: 5000,
+  EDGE_TYPES: ['ctx', 'references', 'mentions', 'about', 'relates', 'summarizes'],
 }))
 
 async function loadRoute() {
@@ -87,15 +88,15 @@ describe('/api/memory/graph', () => {
     expect(res.status).toBe(400)
   })
 
-  it('accepts allowlisted edgeType', async () => {
+  it('accepts every allowlisted edgeType', async () => {
     const handler = await getHandler()
-    const res = await handler({
-      request: new Request('http://localhost/api/memory/graph?edgeType=references'),
-    })
-    expect(res.status).toBe(200)
-    expect(buildMemoryGraph).toHaveBeenCalledWith(
-      expect.objectContaining({ edgeType: 'references' }),
-    )
+    for (const t of ['ctx', 'references', 'mentions', 'about', 'relates', 'summarizes']) {
+      const res = await handler({
+        request: new Request(`http://localhost/api/memory/graph?edgeType=${t}`),
+      })
+      expect(res.status, t).toBe(200)
+      expect(buildMemoryGraph).toHaveBeenCalledWith(expect.objectContaining({ edgeType: t }))
+    }
   })
 
   it('400s on an unparseable since', async () => {

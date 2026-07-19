@@ -29,58 +29,15 @@
 
 /* ── SVG canvas ─────────────────────────────────────────────────────────── */
 
-.mm-svg {
+.mm-canvas {
   width: 100%;
   height: 100%;
   display: block;
   cursor: grab;
   touch-action: none;
 }
-.mm-svg:active {
+.mm-canvas:active {
   cursor: grabbing;
-}
-
-.mm-node {
-  cursor: pointer;
-}
-.mm-shape {
-  transition: stroke-width 0.12s ease;
-  stroke: rgba(5, 8, 10, 0.9);
-  stroke-width: 0.5;
-}
-.mm-node:hover .mm-shape,
-.mm-node.mm-selected .mm-shape {
-  stroke: #ffffff;
-  stroke-width: 2;
-}
-.mm-node.mm-match .mm-shape {
-  stroke: #ffffff;
-  stroke-width: 2;
-}
-
-.mm-label {
-  font-size: 10px;
-  fill: rgba(220, 255, 220, 0.85);
-  pointer-events: none;
-  paint-order: stroke;
-  stroke: #05080a;
-  stroke-width: 3px;
-  opacity: 0;
-}
-.mm-node.mm-show-label .mm-label {
-  opacity: 1;
-}
-
-.mm-link {
-  stroke-linecap: round;
-}
-
-/* focus / filter states (applied imperatively) */
-.mm-dim {
-  opacity: 0.12;
-}
-.mm-hidden {
-  display: none;
 }
 
 /* ── overlay controls ───────────────────────────────────────────────────── */
@@ -149,13 +106,6 @@
   font-size: 1rem;
 }
 
-.mm-swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  display: inline-block;
-}
-
 /* ── legend ─────────────────────────────────────────────────────────────── */
 
 .mm-legend {
@@ -218,8 +168,17 @@
 .mm-detail-kind-fact {
   background: rgba(95, 207, 255, 0.18);
 }
-.mm-detail-kind-wiki {
+.mm-detail-kind-entity {
   background: rgba(255, 179, 71, 0.18);
+}
+.mm-detail-kind-working {
+  background: rgba(125, 255, 168, 0.18);
+}
+.mm-detail-kind-episodic {
+  background: rgba(199, 146, 234, 0.2);
+}
+.mm-detail-kind-wiki {
+  background: rgba(255, 107, 157, 0.2);
 }
 .mm-detail-label {
   font-size: 0.9rem;

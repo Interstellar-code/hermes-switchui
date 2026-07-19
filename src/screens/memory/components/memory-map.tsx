@@ -1,14 +1,18 @@
 /**
  * MemoryMap — D3 force-directed Memory Map tab (issue #342).
  *
- * Replaces the old hand-rolled spring-layout Graph tab. Fetches the
- * deduplicated graph from GET /api/memory/graph and renders it with a
- * d3-force simulation. Rendering is D3-owned (per-tick position updates are
- * imperative via d3-selection) so ~1,876 nodes never trigger a React re-render
- * per frame. React only owns the SVG shell and the overlay controls.
+ * Renders the full mnemosyne graph (GET /api/memory/graph): gist / working /
+ * fact / entity / episodic / wiki nodes tied together by ctx / references /
+ * mentions / about / relates / summarizes edges (~7k nodes / ~13k edges).
  *
- * Data DTOs from the API are cloned before the simulation touches them, since
- * d3-force / d3-link mutate node & link objects in place.
+ * At this scale SVG DOM is not viable, so rendering is on a <canvas>:
+ * d3-force drives the layout, we draw per tick, d3-zoom handles pan/zoom, and
+ * node dragging + hover use simulation.find() for hit-testing. d3-zoom's
+ * .filter defers to node-drag when the pointer is over a node.
+ *
+ * API DTOs are cloned before the sim mutates them (d3-force/link mutate in
+ * place). Full unmount cleanup stops the sim, cancels rAF, detaches
+ * zoom/drag/pointer listeners and the ResizeObserver.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -20,22 +24,19 @@ import {
   forceLink,
   forceManyBody,
   forceSimulation,
+  forceX,
+  forceY,
 } from 'd3-force'
-import { select } from 'd3-selection'
+import { pointer, select } from 'd3-selection'
 import { zoom as d3zoom, zoomIdentity } from 'd3-zoom'
-import type { Selection } from 'd3-selection'
-import type {
-  Simulation,
-  SimulationLinkDatum,
-  SimulationNodeDatum,
-} from 'd3-force'
-import type { ZoomBehavior } from 'd3-zoom'
+import type { Simulation, SimulationLinkDatum, SimulationNodeDatum } from 'd3-force'
+import type { ZoomTransform } from 'd3-zoom'
 import '@/styles/matrix-memory-map.css'
 
-// ── API types (mirror src/server/memory-graph.ts response) ──────────────────
+// ── API types (mirror src/server/memory-graph.ts) ───────────────────────────
 
-type Kind = 'gist' | 'fact' | 'wiki'
-type EdgeType = 'ctx' | 'references'
+type Kind = 'gist' | 'fact' | 'wiki' | 'entity' | 'working' | 'episodic'
+type EdgeType = 'ctx' | 'references' | 'mentions' | 'about' | 'relates' | 'summarizes'
 
 type GraphNode = { id: string; kind: Kind; label: string }
 type GraphEdge = {
@@ -56,24 +57,58 @@ type GraphMeta = {
 }
 type GraphResponse = { nodes: Array<GraphNode>; edges: Array<GraphEdge>; meta: GraphMeta }
 
-type SimNode = GraphNode & SimulationNodeDatum
+type SimNode = GraphNode & SimulationNodeDatum & { deg: number }
 type SimEdge = Omit<GraphEdge, 'source' | 'target'> &
   SimulationLinkDatum<SimNode> & { source: string | SimNode; target: string | SimNode }
 
-// ── constants ───────────────────────────────────────────────────────────────
+// ── palette / geometry ──────────────────────────────────────────────────────
 
 const KIND_COLOR: Record<Kind, string> = {
-  gist: '#00ff41', // matrix green
-  fact: '#5fcfff', // cyan
-  wiki: '#ffb347', // amber
+  gist: '#00ff41',
+  working: '#7dffa8',
+  fact: '#5fcfff',
+  entity: '#ffb347',
+  episodic: '#c792ea',
+  wiki: '#ff6b9d',
+}
+const KIND_LABEL: Record<Kind, string> = {
+  gist: 'gist',
+  working: 'working',
+  fact: 'fact',
+  entity: 'entity',
+  episodic: 'episodic',
+  wiki: 'wiki',
+}
+const BASE_R: Record<Kind, number> = {
+  gist: 2.6,
+  working: 2.6,
+  fact: 2.6,
+  entity: 3,
+  episodic: 3.4,
+  wiki: 4,
 }
 const EDGE_COLOR: Record<EdgeType, string> = {
-  ctx: 'rgba(0, 255, 65, 0.28)',
-  references: 'rgba(255, 179, 71, 0.34)',
+  ctx: 'rgba(0,255,65,0.30)',
+  references: 'rgba(255,107,157,0.45)',
+  mentions: 'rgba(255,179,71,0.12)',
+  about: 'rgba(95,207,255,0.22)',
+  relates: 'rgba(199,146,234,0.55)',
+  summarizes: 'rgba(125,255,168,0.30)',
 }
-const NODE_R: Record<Kind, number> = { gist: 5, fact: 5, wiki: 7 }
-const CHARGE: Record<Kind, number> = { gist: -34, fact: -34, wiki: -140 }
-const LINK_DISTANCE: Record<EdgeType, number> = { ctx: 45, references: 90 }
+const EDGE_ORDER: ReadonlyArray<EdgeType> = [
+  'mentions',
+  'about',
+  'ctx',
+  'summarizes',
+  'references',
+  'relates',
+]
+
+function nodeRadius(n: SimNode): number {
+  // entity hubs grow with degree so the connectors stand out
+  const boost = n.kind === 'entity' ? Math.min(6, Math.sqrt(n.deg)) : 0
+  return BASE_R[n.kind] + boost
+}
 
 async function fetchGraph(): Promise<GraphResponse> {
   const res = await fetch('/api/memory/graph', { credentials: 'same-origin' })
@@ -127,269 +162,295 @@ export function MemoryMap() {
   return <MemoryMapCanvas data={data} />
 }
 
-// Split so the simulation effect only mounts once real data exists.
 function MemoryMapCanvas({ data }: { data: GraphResponse }) {
-  const svgRef = useRef<SVGSVGElement | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
-  // interaction state (drives the detail panel + highlight, not per-tick)
   const [selected, setSelected] = useState<GraphNode | null>(null)
   const [hovered, setHovered] = useState<GraphNode | null>(null)
   const [search, setSearch] = useState('')
-  const [showCtx, setShowCtx] = useState(true)
-  const [showRefs, setShowRefs] = useState(true)
+  const [visibleTypes, setVisibleTypes] = useState<Record<EdgeType, boolean>>({
+    ctx: true,
+    references: true,
+    mentions: true,
+    about: true,
+    relates: true,
+    summarizes: true,
+  })
 
-  // handles kept across effects for imperative highlight + cleanup
   const simRef = useRef<Simulation<SimNode, SimEdge> | null>(null)
-  const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null)
-  const nodeSelRef = useRef<Selection<SVGGElement, SimNode, SVGGElement, unknown> | null>(null)
-  const linkSelRef = useRef<Selection<SVGLineElement, SimEdge, SVGGElement, unknown> | null>(null)
+  const zoomResetRef = useRef<(() => void) | null>(null)
+  const zoomByRef = useRef<((k: number) => void) | null>(null)
+
+  // live refs so interaction state reaches the (data-scoped) draw loop
+  // without rebuilding the simulation.
+  const stateRef = useRef({ selected, hovered, search, visibleTypes })
+  stateRef.current = { selected, hovered, search, visibleTypes }
 
   const counts = useMemo(() => {
-    const byKind: Record<Kind, number> = { gist: 0, fact: 0, wiki: 0 }
-    for (const n of data.nodes) byKind[n.kind]++
+    const byKind: Partial<Record<Kind, number>> = {}
+    for (const n of data.nodes) byKind[n.kind] = (byKind[n.kind] ?? 0) + 1
     return byKind
   }, [data])
 
-  // ── build simulation + D3-owned rendering (runs when data changes) ─────────
   useEffect(() => {
-    const svgEl = svgRef.current
     const wrapEl = wrapRef.current
-    if (!svgEl || !wrapEl) return
+    const canvas = canvasRef.current
+    if (!wrapEl || !canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
 
     const reduced = prefersReducedMotion()
+    const dpr = Math.min(2, (typeof window !== 'undefined' && window.devicePixelRatio) || 1)
 
     // clone DTOs — d3-force mutates node/link objects in place.
-    const nodes: Array<SimNode> = data.nodes.map((n) => ({ ...n }))
+    const degree = new Map<string, number>()
+    for (const e of data.edges) {
+      degree.set(e.source, (degree.get(e.source) ?? 0) + 1)
+      degree.set(e.target, (degree.get(e.target) ?? 0) + 1)
+    }
+    const nodes: Array<SimNode> = data.nodes.map((n) => ({
+      ...n,
+      deg: degree.get(n.id) ?? 0,
+    }))
     const edges: Array<SimEdge> = data.edges.map((e) => ({ ...e }))
+    const nodeById = new Map(nodes.map((n) => [n.id, n]))
 
     let width = wrapEl.clientWidth || 800
     let height = wrapEl.clientHeight || 600
+    let transform: ZoomTransform = zoomIdentity
 
-    const svg = select(svgEl)
-    svg.attr('viewBox', `0 0 ${width} ${height}`)
+    function sizeCanvas() {
+      canvas!.width = Math.floor(width * dpr)
+      canvas!.height = Math.floor(height * dpr)
+      canvas!.style.width = `${width}px`
+      canvas!.style.height = `${height}px`
+    }
+    sizeCanvas()
 
-    const viewport = svg.select<SVGGElement>('g.mm-viewport')
-    const linkG = viewport.select<SVGGElement>('g.mm-links')
-    const nodeG = viewport.select<SVGGElement>('g.mm-nodes')
-
-    // links
-    const linkSel = linkG
-      .selectAll<SVGLineElement, SimEdge>('line')
-      .data(edges)
-      .join('line')
-      .attr('class', (d) => `mm-link mm-link-${d.edgeType}`)
-      .attr('stroke', (d) => EDGE_COLOR[d.edgeType])
-      .attr('stroke-width', (d) => Math.min(3, 0.6 + d.occurrences * 0.25))
-    linkSelRef.current = linkSel
-
-    // node groups: dot (gist/fact) or card (wiki) + label + native <title>
-    const nodeSel = nodeG
-      .selectAll<SVGGElement, SimNode>('g.mm-node')
-      .data(nodes, (d) => d.id)
-      .join((enter) => {
-        const g = enter
-          .append('g')
-          .attr('class', (d) => `mm-node mm-node-${d.kind}`)
-          .attr('tabindex', -1)
-        g.append('title').text((d) => `${d.kind}: ${d.label}`)
-        // shape
-        g.each(function (d) {
-          const sel = select(this)
-          if (d.kind === 'wiki') {
-            sel
-              .append('rect')
-              .attr('class', 'mm-shape')
-              .attr('x', -6)
-              .attr('y', -6)
-              .attr('width', 12)
-              .attr('height', 12)
-              .attr('rx', 2)
-              .attr('fill', KIND_COLOR.wiki)
-          } else {
-            sel
-              .append('circle')
-              .attr('class', 'mm-shape')
-              .attr('r', NODE_R[d.kind])
-              .attr('fill', KIND_COLOR[d.kind])
-          }
-        })
-        // label (hidden by default via CSS, shown for wiki/hover/selected)
-        g.append('text')
-          .attr('class', 'mm-label')
-          .attr('x', 9)
-          .attr('y', 3)
-          .text((d) => d.label)
-        return g
-      })
-    nodeSelRef.current = nodeSel
-
-    // ── forces ────────────────────────────────────────────────────────────
     const sim = forceSimulation<SimNode, SimEdge>(nodes)
       .force(
         'link',
         forceLink<SimNode, SimEdge>(edges)
           .id((d) => d.id)
-          .distance((d) => LINK_DISTANCE[d.edgeType])
-          .strength(0.4),
+          .distance((d) => (d.edgeType === 'mentions' ? 40 : 28))
+          .strength(0.15),
       )
-      .force('charge', forceManyBody<SimNode>().strength((d) => CHARGE[d.kind]))
+      .force('charge', forceManyBody<SimNode>().strength(-14).distanceMax(400))
       .force('center', forceCenter(width / 2, height / 2))
-      .force(
-        'collide',
-        forceCollide<SimNode>().radius((d) => NODE_R[d.kind] + 3),
-      )
-      .alphaDecay(0.02)
+      .force('x', forceX(width / 2).strength(0.02))
+      .force('y', forceY(height / 2).strength(0.02))
+      .force('collide', forceCollide<SimNode>().radius((d) => nodeRadius(d) + 1).iterations(1))
+      .alphaDecay(0.03)
     simRef.current = sim
 
-    function ticked() {
-      linkSel
-        .attr('x1', (d) => (d.source as SimNode).x ?? 0)
-        .attr('y1', (d) => (d.source as SimNode).y ?? 0)
-        .attr('x2', (d) => (d.target as SimNode).x ?? 0)
-        .attr('y2', (d) => (d.target as SimNode).y ?? 0)
-      nodeSel.attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`)
+    // ── drawing ───────────────────────────────────────────────────────────
+    let raf = 0
+    function endpoints(e: SimEdge): [SimNode | undefined, SimNode | undefined] {
+      const s = typeof e.source === 'string' ? nodeById.get(e.source) : e.source
+      const t = typeof e.target === 'string' ? nodeById.get(e.target) : e.target
+      return [s, t]
     }
-    sim.on('tick', ticked)
+    function draw() {
+      const { selected: sel, hovered: hov, search: q, visibleTypes: vis } =
+        stateRef.current
+      const activeId = hov?.id ?? sel?.id ?? null
+      const query = q.trim().toLowerCase()
 
+      const neighbors = new Set<string>()
+      if (activeId) {
+        neighbors.add(activeId)
+        for (const e of edges) {
+          const [s, t] = endpoints(e)
+          if (!s || !t) continue
+          if (s.id === activeId) neighbors.add(t.id)
+          if (t.id === activeId) neighbors.add(s.id)
+        }
+      }
+
+      ctx!.save()
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0)
+      ctx!.clearRect(0, 0, width, height)
+      ctx!.translate(transform.x, transform.y)
+      ctx!.scale(transform.k, transform.k)
+
+      // edges, batched per type for throughput
+      ctx!.lineWidth = 1 / transform.k
+      for (const type of EDGE_ORDER) {
+        if (!vis[type]) continue
+        ctx!.strokeStyle = EDGE_COLOR[type]
+        ctx!.beginPath()
+        for (const e of edges) {
+          if (e.edgeType !== type) continue
+          const [s, t] = endpoints(e)
+          if (!s || !t || s.x == null || s.y == null || t.x == null || t.y == null) continue
+          if (activeId && !(s.id === activeId || t.id === activeId)) continue
+          ctx!.moveTo(s.x, s.y)
+          ctx!.lineTo(t.x, t.y)
+        }
+        ctx!.stroke()
+      }
+
+      // nodes
+      for (const n of nodes) {
+        if (n.x == null || n.y == null) continue
+        const matched = query.length > 0 && n.label.toLowerCase().includes(query)
+        const dim =
+          (query.length > 0 && !matched) ||
+          (activeId != null && !neighbors.has(n.id))
+        const r = nodeRadius(n)
+        ctx!.globalAlpha = dim ? 0.12 : 1
+        ctx!.fillStyle = KIND_COLOR[n.kind]
+        ctx!.beginPath()
+        if (n.kind === 'wiki') ctx!.rect(n.x - r, n.y - r, r * 2, r * 2)
+        else ctx!.arc(n.x, n.y, r, 0, Math.PI * 2)
+        ctx!.fill()
+        if (n.id === sel?.id || n.id === hov?.id || matched) {
+          ctx!.globalAlpha = 1
+          ctx!.lineWidth = 2 / transform.k
+          ctx!.strokeStyle = '#ffffff'
+          ctx!.stroke()
+        }
+      }
+      ctx!.globalAlpha = 1
+
+      // labels only for the active node + its neighbors (readable at any scale)
+      if (activeId) {
+        ctx!.fillStyle = '#dfffce'
+        ctx!.font = `${11 / transform.k}px ui-monospace, monospace`
+        for (const n of nodes) {
+          if (!neighbors.has(n.id) || n.x == null || n.y == null) continue
+          ctx!.fillText(n.label, n.x + nodeRadius(n) + 2, n.y + 3 / transform.k)
+        }
+      }
+      ctx!.restore()
+    }
+    function scheduleDraw() {
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        draw()
+      })
+    }
+
+    sim.on('tick', scheduleDraw)
     if (reduced) {
-      // Static layout: settle synchronously, no continuous animation.
       sim.stop()
-      sim.tick(180)
-      ticked()
+      sim.tick(250)
+      draw()
     }
 
-    // ── drag-to-pin ─────────────────────────────────────────────────────────
-    const dragBehavior = d3drag<SVGGElement, SimNode>()
-      .on('start', (event, d) => {
-        if (!event.active && !reduced) sim.alphaTarget(0.2).restart()
-        d.fx = d.x
-        d.fy = d.y
+    // ── hit testing ─────────────────────────────────────────────────────────
+    function nodeAt(px: number, py: number): SimNode | undefined {
+      const sx = (px - transform.x) / transform.k
+      const sy = (py - transform.y) / transform.k
+      return sim.find(sx, sy, 12 / transform.k)
+    }
+
+    // ── zoom / pan (defers to node-drag when pointer is on a node) ────────────
+    const zoomBehavior = d3zoom<HTMLCanvasElement, unknown>()
+      .scaleExtent([0.05, 8])
+      .filter((event: any) => {
+        if (event.type === 'wheel') return true
+        if (event.button != null && event.button !== 0) return false
+        const [px, py] = pointer(event, canvas)
+        return !nodeAt(px, py) // grab a node → let drag win; else pan
       })
-      .on('drag', (event, d) => {
-        d.fx = event.x
-        d.fy = event.y
-        if (reduced) ticked()
+      .on('zoom', (event: any) => {
+        transform = event.transform
+        scheduleDraw()
       })
-      .on('end', (event) => {
+    const canvasSel = select(canvas)
+    canvasSel.call(zoomBehavior as any)
+    zoomByRef.current = (k) =>
+      canvasSel.transition().duration(200).call(zoomBehavior.scaleBy as any, k)
+    zoomResetRef.current = () =>
+      canvasSel.transition().duration(200).call(zoomBehavior.transform as any, zoomIdentity)
+
+    // ── node drag ─────────────────────────────────────────────────────────
+    const dragBehavior = d3drag<HTMLCanvasElement, unknown>()
+      .container(canvas)
+      .subject((event: any) => {
+        const [px, py] = pointer(event, canvas)
+        return nodeAt(px, py)
+      })
+      .on('start', (event: any) => {
+        if (!event.active && !reduced) sim.alphaTarget(0.15).restart()
+        const s = event.subject as SimNode
+        s.fx = (event.x - transform.x) / transform.k
+        s.fy = (event.y - transform.y) / transform.k
+      })
+      .on('drag', (event: any) => {
+        const s = event.subject as SimNode
+        s.fx = (event.x - transform.x) / transform.k
+        s.fy = (event.y - transform.y) / transform.k
+        if (reduced) scheduleDraw()
+      })
+      .on('end', (event: any) => {
         if (!event.active) sim.alphaTarget(0)
-        // node stays pinned (fx/fy retained) — double-click to release
+        // stays pinned; double-click releases (below)
       })
-    nodeSel.call(dragBehavior)
+    canvasSel.call(dragBehavior as any)
 
     // ── hover / click ─────────────────────────────────────────────────────
-    nodeSel
-      .on('mouseenter', (_event, d) => setHovered(d))
-      .on('mouseleave', () => setHovered(null))
-      .on('click', (event, d) => {
-        event.stopPropagation()
-        setSelected((cur) => (cur?.id === d.id ? null : d))
-      })
-      .on('dblclick', (event, d) => {
-        // release a pinned node
-        event.stopPropagation()
-        d.fx = null
-        d.fy = null
+    function onMove(ev: MouseEvent) {
+      const rect = canvas!.getBoundingClientRect()
+      const n = nodeAt(ev.clientX - rect.left, ev.clientY - rect.top)
+      setHovered(n ?? null)
+      canvas!.style.cursor = n ? 'pointer' : 'grab'
+    }
+    function onClick(ev: MouseEvent) {
+      const rect = canvas!.getBoundingClientRect()
+      const n = nodeAt(ev.clientX - rect.left, ev.clientY - rect.top)
+      setSelected((cur) => (n ? (cur?.id === n.id ? null : n) : null))
+    }
+    function onDblClick(ev: MouseEvent) {
+      const rect = canvas!.getBoundingClientRect()
+      const n = nodeAt(ev.clientX - rect.left, ev.clientY - rect.top)
+      if (n) {
+        n.fx = null
+        n.fy = null
         if (!reduced) sim.alphaTarget(0.1).restart()
-      })
-    svg.on('click', () => setSelected(null))
+      }
+    }
+    canvas.addEventListener('mousemove', onMove)
+    canvas.addEventListener('click', onClick)
+    canvas.addEventListener('dblclick', onDblClick)
 
-    // ── zoom / pan ──────────────────────────────────────────────────────────
-    const zoomBehavior = d3zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.15, 6])
-      .on('zoom', (event) => {
-        viewport.attr('transform', event.transform.toString())
-      })
-    zoomRef.current = zoomBehavior
-    svg.call(zoomBehavior)
-
-    // ── resize ────────────────────────────────────────────────────────────
+    // ── resize ──────────────────────────────────────────────────────────────
     const ro = new ResizeObserver(() => {
       width = wrapEl.clientWidth || width
       height = wrapEl.clientHeight || height
-      svg.attr('viewBox', `0 0 ${width} ${height}`)
+      sizeCanvas()
       sim.force('center', forceCenter(width / 2, height / 2))
-      if (!reduced) sim.alpha(0.3).restart()
+      if (!reduced) sim.alpha(0.2).restart()
+      scheduleDraw()
     })
     ro.observe(wrapEl)
 
     // ── cleanup ─────────────────────────────────────────────────────────────
     return () => {
+      if (raf) cancelAnimationFrame(raf)
       sim.on('tick', null)
       sim.stop()
       ro.disconnect()
-      svg.on('.zoom', null)
-      svg.on('click', null)
-      nodeSel.on('.drag', null)
-      nodeSel.on('mouseenter', null).on('mouseleave', null).on('click', null).on('dblclick', null)
-      linkG.selectAll('*').remove()
-      nodeG.selectAll('*').remove()
+      canvasSel.on('.zoom', null).on('.drag', null)
+      canvas.removeEventListener('mousemove', onMove)
+      canvas.removeEventListener('click', onClick)
+      canvas.removeEventListener('dblclick', onDblClick)
       simRef.current = null
-      zoomRef.current = null
-      nodeSelRef.current = null
-      linkSelRef.current = null
+      zoomByRef.current = null
+      zoomResetRef.current = null
     }
+    // Rebuild only when the dataset changes; interaction reads via stateRef.
   }, [data])
 
-  // ── apply search / edge-toggle / highlight imperatively (no re-sim) ────────
-  useEffect(() => {
-    const nodeSel = nodeSelRef.current
-    const linkSel = linkSelRef.current
-    if (!nodeSel || !linkSel) return
-
-    const q = search.trim().toLowerCase()
-    const activeId = selected?.id ?? hovered?.id ?? null
-
-    // neighbor set for focus dimming
-    const neighbors = new Set<string>()
-    if (activeId) {
-      neighbors.add(activeId)
-      for (const e of linkSel.data()) {
-        const s = typeof e.source === 'string' ? e.source : e.source.id
-        const t = typeof e.target === 'string' ? e.target : e.target.id
-        if (s === activeId) neighbors.add(t)
-        if (t === activeId) neighbors.add(s)
-      }
-    }
-
-    function edgeVisible(et: EdgeType): boolean {
-      return et === 'ctx' ? showCtx : showRefs
-    }
-
-    nodeSel
-      .classed('mm-match', (d) => q.length > 0 && d.label.toLowerCase().includes(q))
-      .classed('mm-dim', (d) => {
-        if (q.length > 0) return !d.label.toLowerCase().includes(q)
-        if (activeId) return !neighbors.has(d.id)
-        return false
-      })
-      .classed('mm-selected', (d) => d.id === selected?.id)
-      .classed('mm-show-label', (d) => d.kind === 'wiki' || d.id === activeId || d.id === selected?.id)
-
-    linkSel
-      .classed('mm-hidden', (d) => !edgeVisible(d.edgeType))
-      .classed('mm-dim', (d) => {
-        if (!activeId) return false
-        const s = typeof d.source === 'string' ? d.source : d.source.id
-        const t = typeof d.target === 'string' ? d.target : d.target.id
-        return s !== activeId && t !== activeId
-      })
-  }, [search, selected, hovered, showCtx, showRefs, data])
-
-  function zoomBy(factor: number) {
-    const svgEl = svgRef.current
-    const zb = zoomRef.current
-    if (svgEl && zb) select(svgEl).transition().duration(200).call(zb.scaleBy, factor)
-  }
-  function zoomReset() {
-    const svgEl = svgRef.current
-    const zb = zoomRef.current
-    if (svgEl && zb) select(svgEl).transition().duration(200).call(zb.transform, zoomIdentity)
+  function toggleType(t: EdgeType) {
+    setVisibleTypes((v) => ({ ...v, [t]: !v[t] }))
   }
 
   return (
     <div className="mm-wrap" ref={wrapRef}>
-      {/* controls */}
       <div className="mm-controls">
         <input
           type="search"
@@ -400,53 +461,44 @@ function MemoryMapCanvas({ data }: { data: GraphResponse }) {
           onChange={(e) => setSearch(e.target.value)}
         />
         <div className="mm-toggles" role="group" aria-label="Edge type filters">
-          <button
-            type="button"
-            className={`mm-toggle ${showCtx ? 'is-on' : ''}`}
-            aria-pressed={showCtx}
-            onClick={() => setShowCtx((v) => !v)}
-          >
-            <span className="mm-swatch" style={{ background: KIND_COLOR.gist }} aria-hidden />
-            ctx
-          </button>
-          <button
-            type="button"
-            className={`mm-toggle ${showRefs ? 'is-on' : ''}`}
-            aria-pressed={showRefs}
-            onClick={() => setShowRefs((v) => !v)}
-          >
-            <span className="mm-swatch" style={{ background: KIND_COLOR.wiki }} aria-hidden />
-            references
-          </button>
+          {EDGE_ORDER.map((t) => (
+            <button
+              key={t}
+              type="button"
+              className={`mm-toggle ${visibleTypes[t] ? 'is-on' : ''}`}
+              aria-pressed={visibleTypes[t]}
+              onClick={() => toggleType(t)}
+            >
+              {t}
+            </button>
+          ))}
         </div>
         <div className="mm-zoom" role="group" aria-label="Zoom controls">
-          <button type="button" className="mm-zoom-btn" aria-label="Zoom in" onClick={() => zoomBy(1.4)}>
-            +
-          </button>
-          <button type="button" className="mm-zoom-btn" aria-label="Zoom out" onClick={() => zoomBy(1 / 1.4)}>
-            −
-          </button>
-          <button type="button" className="mm-zoom-btn" aria-label="Reset zoom" onClick={zoomReset}>
-            ⟲
-          </button>
+          <button type="button" className="mm-zoom-btn" aria-label="Zoom in" onClick={() => zoomByRef.current?.(1.4)}>+</button>
+          <button type="button" className="mm-zoom-btn" aria-label="Zoom out" onClick={() => zoomByRef.current?.(1 / 1.4)}>−</button>
+          <button type="button" className="mm-zoom-btn" aria-label="Reset zoom" onClick={() => zoomResetRef.current?.()}>⟲</button>
         </div>
       </div>
 
-      {/* legend (non-color-only: shape + name) */}
-      <div className="mm-legend" aria-hidden>
-        <span className="mm-legend-item"><span className="mm-legend-dot" style={{ background: KIND_COLOR.gist }} />gist ({counts.gist})</span>
-        <span className="mm-legend-item"><span className="mm-legend-dot" style={{ background: KIND_COLOR.fact }} />fact ({counts.fact})</span>
-        <span className="mm-legend-item"><span className="mm-legend-square" style={{ background: KIND_COLOR.wiki }} />wiki ({counts.wiki})</span>
+      <div className="mm-legend" aria-label="Node kinds legend">
+        {(Object.keys(KIND_COLOR) as Array<Kind>).map((k) => (
+          <span key={k} className="mm-legend-item">
+            <span
+              className={k === 'wiki' ? 'mm-legend-square' : 'mm-legend-dot'}
+              style={{ background: KIND_COLOR[k] }}
+            />
+            {KIND_LABEL[k]} ({counts[k] ?? 0})
+          </span>
+        ))}
       </div>
 
-      <svg ref={svgRef} className="mm-svg" role="img" aria-label={`Memory map: ${data.meta.nodeCount} nodes, ${data.meta.edgeCount} edges`}>
-        <g className="mm-viewport">
-          <g className="mm-links" />
-          <g className="mm-nodes" />
-        </g>
-      </svg>
+      <canvas
+        ref={canvasRef}
+        className="mm-canvas"
+        role="img"
+        aria-label={`Memory map: ${data.meta.nodeCount} nodes, ${data.meta.edgeCount} edges`}
+      />
 
-      {/* detail panel */}
       {selected && (
         <div className="mm-detail" role="region" aria-label="Selected node detail">
           <div className={`mm-detail-kind mm-detail-kind-${selected.kind}`}>{selected.kind}</div>

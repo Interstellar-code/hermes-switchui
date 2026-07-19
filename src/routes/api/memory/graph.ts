@@ -1,9 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
-import { MAX_LIMIT, buildMemoryGraph } from '../../../server/memory-graph'
+import {
+  EDGE_TYPES,
+  MAX_LIMIT,
+  buildMemoryGraph,
+} from '../../../server/memory-graph'
 import type { MemoryGraphEdgeType } from '../../../server/memory-graph'
-
-const EDGE_TYPES: ReadonlyArray<MemoryGraphEdgeType> = ['ctx', 'references']
 
 // Strict-ish ISO-8601: date, optional time, optional zone. Rejects garbage
 // while accepting the TEXT timestamps stored in graph_edges.

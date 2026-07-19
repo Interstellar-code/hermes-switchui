@@ -23,7 +23,7 @@ The page has five tabs:
 
 - **Agent Memory** — per-agent markdown files stored under `~/.hermes/profiles/<agent-id>/memory/`. Each built-in agent (Hermes Switch, Neo, Trinity, Morpheus) has its own memory space you can inspect and edit.
 - **Wiki** — a shared knowledge base of markdown pages stored under `~/.hermes/` (rooted at `MEMORY.md`, `memory/`, and `memories/`). Any page in the wiki is readable by all agents.
-- **Map** — a D3 force-directed Memory Map that visualizes the mnemosyne knowledge graph. Nodes are gist, fact, and wiki entries; edges show ctx and reference links between them.
+- **Map** — a D3 force-directed Memory Map that visualizes the full mnemosyne knowledge graph. Nodes are gist, working, fact, entity, episodic, and wiki entries; edges show ctx, references, mentions, about, relates, and summarizes links. Rendered on a canvas for scale (~7k nodes).
 - **Chat** — a retrieval-augmented chat that lets you ask questions grounded in the wiki corpus.
 - **Settings** — wiki source configuration and cache controls.
 
@@ -49,7 +49,7 @@ Use the search box at the top of the list to filter pages by title or path.
 
 ## Map tab
 
-The Map tab renders a D3 force-directed Memory Map of the mnemosyne knowledge graph, fetched from `/api/memory/graph`. Nodes represent gist, fact, and wiki entries; edges show ctx and reference links between them. Hover a node to see its full title, type, and connection count. Click a node to focus it and see its neighbors in a side panel. Use the legend to isolate or mute node categories.
+The Map tab renders a D3 force-directed Memory Map of the full mnemosyne knowledge graph, fetched from `/api/memory/graph`. Nodes represent gist, working, fact, entity, episodic, and wiki entries; edges show ctx (gist→fact), references (wiki→wiki), mentions (memory→entity), about (fact→entity), relates (entity→entity), and summarizes (episodic→memory) links. Entities are the hubs that interconnect memories. The graph is drawn on a canvas (d3-force layout, ~7k nodes / ~13k edges). Hover a node to highlight its neighbors and labels; click to focus it and open a detail panel; drag to pin (double-click to release); use the search box and per-edge-type toggles to filter, and the zoom controls to navigate. Labels are server-truncated (60 chars) — raw memory text is never sent to the client.
 
 ## Chat tab
 
