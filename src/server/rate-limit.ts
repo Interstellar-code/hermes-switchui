@@ -20,13 +20,15 @@ const _cleanupIntervalMs = (() => {
   return Number.isFinite(v) && v > 0 ? v : 120_000
 })()
 
+// unref() so this maintenance timer never keeps the process alive on its own;
+// at build/prerender (imported by route SSR) it would otherwise block exit.
 setInterval(() => {
   const now = Date.now()
   for (const [key, entry] of store) {
     entry.timestamps = entry.timestamps.filter((t) => now - t < CLEANUP_HORIZON_MS)
     if (entry.timestamps.length === 0) store.delete(key)
   }
-}, _cleanupIntervalMs)
+}, _cleanupIntervalMs).unref()
 
 /**
  * Check if a request is allowed under the rate limit.

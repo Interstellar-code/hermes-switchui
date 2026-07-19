@@ -152,8 +152,11 @@ function _persist(): void {
   })
 }
 
-// Sweep expired tokens every 10 minutes
-setInterval(_prune, 10 * 60 * 1000)
+// Sweep expired tokens every 10 minutes. unref() so this timer never keeps the
+// process alive on its own — at runtime the HTTP server holds the loop open, but
+// at build/prerender time (this module is imported by route SSR) an un-unref'd
+// interval would prevent the build process from exiting (hangs CI).
+setInterval(_prune, 10 * 60 * 1000).unref()
 
 // Persist migrated (hashed) tokens to disk now that the write queue is set up.
 if (_needsMigration) _persist()

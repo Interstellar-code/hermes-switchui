@@ -1135,7 +1135,14 @@ export function isClaudeConnected(): boolean {
   return capabilities.health || capabilities.dashboard.available
 }
 
-void ensureGatewayProbed()
-void import('./hermes-plugin-sync').then(({ ensureHermesPluginSync }) => {
-  ensureHermesPluginSync()
-})
+// Skip the gateway probe + plugin-sync heartbeat during build/prerender.
+// ensureHermesPluginSync() starts a setInterval heartbeat that keeps the
+// process alive, so at build time (TanStack prerender) the build never exits —
+// it hangs, hardest in CI where no gateway is reachable. Runtime (`pnpm start`,
+// dev) leaves the flag unset and boots these normally.
+if (!process.env.HERMES_SKIP_GATEWAY_BOOT) {
+  void ensureGatewayProbed()
+  void import('./hermes-plugin-sync').then(({ ensureHermesPluginSync }) => {
+    ensureHermesPluginSync()
+  })
+}

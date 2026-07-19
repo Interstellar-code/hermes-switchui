@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "rm -f src/routeTree.gen.ts && NODE_OPTIONS=\"--max-old-space-size=2048\" vite dev",
     "build:website": "if [ -d website ]; then PUBLIC_SITE_VERSION=$(node -p \"require('./package.json').version\") && cd website && npm install && SITE_BASE=/website PUBLIC_SITE_VERSION=$PUBLIC_SITE_VERSION npm run build; else echo 'website/ not present (excluded from Docker context) — skipping marketing site build'; fi",
-    "build": "pnpm build:website && vite build",
+    "build": "pnpm build:website && HERMES_SKIP_GATEWAY_BOOT=1 vite build",
     "prestart:all": "node scripts/check-ports.mjs",
     "start:all": "concurrently --kill-others \"hermes gateway run\" \"hermes dashboard --no-open --skip-build\" \"pnpm dev\"",
     "start": "NODE_OPTIONS=\"--max-old-space-size=2048\" node .output/server/index.mjs",
