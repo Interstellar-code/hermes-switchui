@@ -133,6 +133,7 @@ import { Route as ApiMemoryStatsRouteImport } from './routes/api/memory/stats'
 import { Route as ApiMemorySearchRouteImport } from './routes/api/memory/search'
 import { Route as ApiMemoryReadRouteImport } from './routes/api/memory/read'
 import { Route as ApiMemoryListRouteImport } from './routes/api/memory/list'
+import { Route as ApiMemoryGraphRouteImport } from './routes/api/memory/graph'
 import { Route as ApiMemoryGetRouteImport } from './routes/api/memory/get'
 import { Route as ApiMemoryAgentFilesRouteImport } from './routes/api/memory/agent-files'
 import { Route as ApiMcpTestRouteImport } from './routes/api/mcp/test'
@@ -845,6 +846,11 @@ const ApiMemoryListRoute = ApiMemoryListRouteImport.update({
   path: '/list',
   getParentRoute: () => ApiMemoryRoute,
 } as any)
+const ApiMemoryGraphRoute = ApiMemoryGraphRouteImport.update({
+  id: '/graph',
+  path: '/graph',
+  getParentRoute: () => ApiMemoryRoute,
+} as any)
 const ApiMemoryGetRoute = ApiMemoryGetRouteImport.update({
   id: '/get',
   path: '/get',
@@ -1466,6 +1472,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp/test': typeof ApiMcpTestRoute
   '/api/memory/agent-files': typeof ApiMemoryAgentFilesRoute
   '/api/memory/get': typeof ApiMemoryGetRoute
+  '/api/memory/graph': typeof ApiMemoryGraphRoute
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
   '/api/memory/search': typeof ApiMemorySearchRoute
@@ -1679,6 +1686,7 @@ export interface FileRoutesByTo {
   '/api/mcp/test': typeof ApiMcpTestRoute
   '/api/memory/agent-files': typeof ApiMemoryAgentFilesRoute
   '/api/memory/get': typeof ApiMemoryGetRoute
+  '/api/memory/graph': typeof ApiMemoryGraphRoute
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
   '/api/memory/search': typeof ApiMemorySearchRoute
@@ -1895,6 +1903,7 @@ export interface FileRoutesById {
   '/api/mcp/test': typeof ApiMcpTestRoute
   '/api/memory/agent-files': typeof ApiMemoryAgentFilesRoute
   '/api/memory/get': typeof ApiMemoryGetRoute
+  '/api/memory/graph': typeof ApiMemoryGraphRoute
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
   '/api/memory/search': typeof ApiMemorySearchRoute
@@ -2112,6 +2121,7 @@ export interface FileRouteTypes {
     | '/api/mcp/test'
     | '/api/memory/agent-files'
     | '/api/memory/get'
+    | '/api/memory/graph'
     | '/api/memory/list'
     | '/api/memory/read'
     | '/api/memory/search'
@@ -2325,6 +2335,7 @@ export interface FileRouteTypes {
     | '/api/mcp/test'
     | '/api/memory/agent-files'
     | '/api/memory/get'
+    | '/api/memory/graph'
     | '/api/memory/list'
     | '/api/memory/read'
     | '/api/memory/search'
@@ -2540,6 +2551,7 @@ export interface FileRouteTypes {
     | '/api/mcp/test'
     | '/api/memory/agent-files'
     | '/api/memory/get'
+    | '/api/memory/graph'
     | '/api/memory/list'
     | '/api/memory/read'
     | '/api/memory/search'
@@ -3639,6 +3651,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMemoryListRouteImport
       parentRoute: typeof ApiMemoryRoute
     }
+    '/api/memory/graph': {
+      id: '/api/memory/graph'
+      path: '/graph'
+      fullPath: '/api/memory/graph'
+      preLoaderRoute: typeof ApiMemoryGraphRouteImport
+      parentRoute: typeof ApiMemoryRoute
+    }
     '/api/memory/get': {
       id: '/api/memory/get'
       path: '/get'
@@ -4402,6 +4421,7 @@ const ApiMcpRouteWithChildren =
 interface ApiMemoryRouteChildren {
   ApiMemoryAgentFilesRoute: typeof ApiMemoryAgentFilesRoute
   ApiMemoryGetRoute: typeof ApiMemoryGetRoute
+  ApiMemoryGraphRoute: typeof ApiMemoryGraphRoute
   ApiMemoryListRoute: typeof ApiMemoryListRoute
   ApiMemoryReadRoute: typeof ApiMemoryReadRoute
   ApiMemorySearchRoute: typeof ApiMemorySearchRoute
@@ -4412,6 +4432,7 @@ interface ApiMemoryRouteChildren {
 const ApiMemoryRouteChildren: ApiMemoryRouteChildren = {
   ApiMemoryAgentFilesRoute: ApiMemoryAgentFilesRoute,
   ApiMemoryGetRoute: ApiMemoryGetRoute,
+  ApiMemoryGraphRoute: ApiMemoryGraphRoute,
   ApiMemoryListRoute: ApiMemoryListRoute,
   ApiMemoryReadRoute: ApiMemoryReadRoute,
   ApiMemorySearchRoute: ApiMemorySearchRoute,
