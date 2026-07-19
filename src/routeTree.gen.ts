@@ -190,6 +190,7 @@ import { Route as ApiSessionsSessionKeyDelegationsRouteImport } from './routes/a
 import { Route as ApiSessionsSessionKeyClarifyRouteImport } from './routes/api/sessions/$sessionKey.clarify'
 import { Route as ApiSessionsSessionKeyActiveRunRouteImport } from './routes/api/sessions/$sessionKey.active-run'
 import { Route as ApiSelfImproveScenariosIdRouteImport } from './routes/api/self-improve/scenarios.$id'
+import { Route as ApiSelfImproveProfilesProfileRouteImport } from './routes/api/self-improve/profiles.$profile'
 import { Route as ApiSelfImproveMetricsLatestRouteImport } from './routes/api/self-improve/metrics.latest'
 import { Route as ApiSelfImproveExperimentsIdRouteImport } from './routes/api/self-improve/experiments.$id'
 import { Route as ApiOperationsDispatchPreviewRouteImport } from './routes/api/operations/dispatch.preview'
@@ -1146,6 +1147,12 @@ const ApiSelfImproveScenariosIdRoute =
     path: '/$id',
     getParentRoute: () => ApiSelfImproveScenariosRoute,
   } as any)
+const ApiSelfImproveProfilesProfileRoute =
+  ApiSelfImproveProfilesProfileRouteImport.update({
+    id: '/api/self-improve/profiles/$profile',
+    path: '/api/self-improve/profiles/$profile',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiSelfImproveMetricsLatestRoute =
   ApiSelfImproveMetricsLatestRouteImport.update({
     id: '/latest',
@@ -1234,15 +1241,15 @@ const ApiConductorMissionsIdRoute = ApiConductorMissionsIdRouteImport.update({
 } as any)
 const ApiSelfImproveProfilesProfileResumeRoute =
   ApiSelfImproveProfilesProfileResumeRouteImport.update({
-    id: '/api/self-improve/profiles/$profile/resume',
-    path: '/api/self-improve/profiles/$profile/resume',
-    getParentRoute: () => rootRouteImport,
+    id: '/resume',
+    path: '/resume',
+    getParentRoute: () => ApiSelfImproveProfilesProfileRoute,
   } as any)
 const ApiSelfImproveProfilesProfilePauseRoute =
   ApiSelfImproveProfilesProfilePauseRouteImport.update({
-    id: '/api/self-improve/profiles/$profile/pause',
-    path: '/api/self-improve/profiles/$profile/pause',
-    getParentRoute: () => rootRouteImport,
+    id: '/pause',
+    path: '/pause',
+    getParentRoute: () => ApiSelfImproveProfilesProfileRoute,
   } as any)
 const ApiSelfImproveExperimentsIdVerifyRoute =
   ApiSelfImproveExperimentsIdVerifyRouteImport.update({
@@ -1536,6 +1543,7 @@ export interface FileRoutesByFullPath {
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
   '/api/self-improve/experiments/$id': typeof ApiSelfImproveExperimentsIdRouteWithChildren
   '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
+  '/api/self-improve/profiles/$profile': typeof ApiSelfImproveProfilesProfileRouteWithChildren
   '/api/self-improve/scenarios/$id': typeof ApiSelfImproveScenariosIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
@@ -1751,6 +1759,7 @@ export interface FileRoutesByTo {
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
   '/api/self-improve/experiments/$id': typeof ApiSelfImproveExperimentsIdRouteWithChildren
   '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
+  '/api/self-improve/profiles/$profile': typeof ApiSelfImproveProfilesProfileRouteWithChildren
   '/api/self-improve/scenarios/$id': typeof ApiSelfImproveScenariosIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
@@ -1969,6 +1978,7 @@ export interface FileRoutesById {
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
   '/api/self-improve/experiments/$id': typeof ApiSelfImproveExperimentsIdRouteWithChildren
   '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
+  '/api/self-improve/profiles/$profile': typeof ApiSelfImproveProfilesProfileRouteWithChildren
   '/api/self-improve/scenarios/$id': typeof ApiSelfImproveScenariosIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
@@ -2188,6 +2198,7 @@ export interface FileRouteTypes {
     | '/api/operations/dispatch/preview'
     | '/api/self-improve/experiments/$id'
     | '/api/self-improve/metrics/latest'
+    | '/api/self-improve/profiles/$profile'
     | '/api/self-improve/scenarios/$id'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/clarify'
@@ -2403,6 +2414,7 @@ export interface FileRouteTypes {
     | '/api/operations/dispatch/preview'
     | '/api/self-improve/experiments/$id'
     | '/api/self-improve/metrics/latest'
+    | '/api/self-improve/profiles/$profile'
     | '/api/self-improve/scenarios/$id'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/clarify'
@@ -2620,6 +2632,7 @@ export interface FileRouteTypes {
     | '/api/operations/dispatch/preview'
     | '/api/self-improve/experiments/$id'
     | '/api/self-improve/metrics/latest'
+    | '/api/self-improve/profiles/$profile'
     | '/api/self-improve/scenarios/$id'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/clarify'
@@ -2789,8 +2802,7 @@ export interface RootRouteChildren {
   ApiUpdateStatusRoute: typeof ApiUpdateStatusRoute
   ApiUpdateWorkspaceRoute: typeof ApiUpdateWorkspaceRoute
   ApiHermesProjectsIndexRoute: typeof ApiHermesProjectsIndexRoute
-  ApiSelfImproveProfilesProfilePauseRoute: typeof ApiSelfImproveProfilesProfilePauseRoute
-  ApiSelfImproveProfilesProfileResumeRoute: typeof ApiSelfImproveProfilesProfileResumeRoute
+  ApiSelfImproveProfilesProfileRoute: typeof ApiSelfImproveProfilesProfileRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -4062,6 +4074,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSelfImproveScenariosIdRouteImport
       parentRoute: typeof ApiSelfImproveScenariosRoute
     }
+    '/api/self-improve/profiles/$profile': {
+      id: '/api/self-improve/profiles/$profile'
+      path: '/api/self-improve/profiles/$profile'
+      fullPath: '/api/self-improve/profiles/$profile'
+      preLoaderRoute: typeof ApiSelfImproveProfilesProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/self-improve/metrics/latest': {
       id: '/api/self-improve/metrics/latest'
       path: '/latest'
@@ -4169,17 +4188,17 @@ declare module '@tanstack/react-router' {
     }
     '/api/self-improve/profiles/$profile/resume': {
       id: '/api/self-improve/profiles/$profile/resume'
-      path: '/api/self-improve/profiles/$profile/resume'
+      path: '/resume'
       fullPath: '/api/self-improve/profiles/$profile/resume'
       preLoaderRoute: typeof ApiSelfImproveProfilesProfileResumeRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ApiSelfImproveProfilesProfileRoute
     }
     '/api/self-improve/profiles/$profile/pause': {
       id: '/api/self-improve/profiles/$profile/pause'
-      path: '/api/self-improve/profiles/$profile/pause'
+      path: '/pause'
       fullPath: '/api/self-improve/profiles/$profile/pause'
       preLoaderRoute: typeof ApiSelfImproveProfilesProfilePauseRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ApiSelfImproveProfilesProfileRoute
     }
     '/api/self-improve/experiments/$id/verify': {
       id: '/api/self-improve/experiments/$id/verify'
@@ -4835,6 +4854,24 @@ const ApiSelfImproveScenariosRouteWithChildren =
     ApiSelfImproveScenariosRouteChildren,
   )
 
+interface ApiSelfImproveProfilesProfileRouteChildren {
+  ApiSelfImproveProfilesProfilePauseRoute: typeof ApiSelfImproveProfilesProfilePauseRoute
+  ApiSelfImproveProfilesProfileResumeRoute: typeof ApiSelfImproveProfilesProfileResumeRoute
+}
+
+const ApiSelfImproveProfilesProfileRouteChildren: ApiSelfImproveProfilesProfileRouteChildren =
+  {
+    ApiSelfImproveProfilesProfilePauseRoute:
+      ApiSelfImproveProfilesProfilePauseRoute,
+    ApiSelfImproveProfilesProfileResumeRoute:
+      ApiSelfImproveProfilesProfileResumeRoute,
+  }
+
+const ApiSelfImproveProfilesProfileRouteWithChildren =
+  ApiSelfImproveProfilesProfileRoute._addFileChildren(
+    ApiSelfImproveProfilesProfileRouteChildren,
+  )
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DocsRouteRoute: DocsRouteRouteWithChildren,
@@ -4976,10 +5013,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiUpdateStatusRoute: ApiUpdateStatusRoute,
   ApiUpdateWorkspaceRoute: ApiUpdateWorkspaceRoute,
   ApiHermesProjectsIndexRoute: ApiHermesProjectsIndexRoute,
-  ApiSelfImproveProfilesProfilePauseRoute:
-    ApiSelfImproveProfilesProfilePauseRoute,
-  ApiSelfImproveProfilesProfileResumeRoute:
-    ApiSelfImproveProfilesProfileResumeRoute,
+  ApiSelfImproveProfilesProfileRoute:
+    ApiSelfImproveProfilesProfileRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

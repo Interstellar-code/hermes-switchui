@@ -88,17 +88,30 @@
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.1s, color 0.1s;
+  transition:
+    background 0.1s,
+    color 0.1s;
   font-family: inherit;
 }
 
 .si-collect-btn:hover:not(:disabled) {
-  background: var(--theme-hover, rgba(255,255,255,0.06));
+  background: var(--theme-hover, rgba(255, 255, 255, 0.06));
 }
 
 .si-collect-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.si-collect-btn:focus-visible,
+.si-action-btn:focus-visible,
+.si-intro-dismiss:focus-visible,
+.si-drawer-close:focus-visible,
+.si-tooltip-trigger:focus-visible,
+.si-retry-btn:focus-visible,
+.si-profile-scope-select:focus-visible {
+  outline: 2px solid var(--theme-accent, #7c6af7);
+  outline-offset: 2px;
 }
 
 /* ── Cards grid ──────────────────────────────────────────────────────────────*/
@@ -148,7 +161,7 @@
   line-height: 1.4;
   padding: 6px 8px;
   border-radius: 4px;
-  background: var(--theme-hover, rgba(255,255,255,0.04));
+  background: var(--theme-hover, rgba(255, 255, 255, 0.04));
   border-left: 2px solid var(--theme-border, #333);
 }
 
@@ -204,7 +217,7 @@
   font-weight: 500;
   padding: 1px 5px;
   border-radius: 3px;
-  background: var(--theme-hover, rgba(255,255,255,0.06));
+  background: var(--theme-hover, rgba(255, 255, 255, 0.06));
   color: var(--theme-muted, #888);
 }
 
@@ -253,14 +266,19 @@
 .si-skeleton-line {
   height: 12px;
   border-radius: 4px;
-  background: var(--theme-hover, rgba(255,255,255,0.07));
+  background: var(--theme-hover, rgba(255, 255, 255, 0.07));
   animation: si-pulse 1.4s ease-in-out infinite;
   margin-bottom: 4px;
 }
 
 @keyframes si-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 
 /* ── Error / empty states ────────────────────────────────────────────────────*/
@@ -306,7 +324,7 @@
 }
 
 .si-retry-btn:hover {
-  background: var(--theme-hover, rgba(255,255,255,0.06));
+  background: var(--theme-hover, rgba(255, 255, 255, 0.06));
 }
 
 /* ── Proposals section ───────────────────────────────────────────────────────*/
@@ -394,7 +412,7 @@
   font-family: monospace;
   color: var(--theme-text, #e8e8e8);
   font-size: 11px;
-  background: var(--theme-code-bg, rgba(255,255,255,0.05));
+  background: var(--theme-code-bg, rgba(255, 255, 255, 0.05));
   padding: 1px 5px;
   border-radius: 3px;
 }
@@ -459,7 +477,7 @@
 }
 
 .si-action-btn:hover:not(:disabled) {
-  background: var(--theme-hover, rgba(255,255,255,0.06));
+  background: var(--theme-hover, rgba(255, 255, 255, 0.06));
 }
 
 .si-action-btn:disabled {
@@ -551,31 +569,31 @@
   letter-spacing: 0.04em;
   border: 1px solid var(--theme-border, #333);
   color: var(--theme-muted, #888);
-  background: var(--theme-hover, rgba(255,255,255,0.04));
+  background: var(--theme-hover, rgba(255, 255, 255, 0.04));
 }
 
 .si-state-badge--approved {
   border-color: #60a5fa;
   color: #60a5fa;
-  background: rgba(96,165,250,0.08);
+  background: rgba(96, 165, 250, 0.08);
 }
 
 .si-state-badge--live {
   border-color: var(--m-green-400, #4ade80);
   color: var(--m-green-400, #4ade80);
-  background: rgba(74,222,128,0.08);
+  background: rgba(74, 222, 128, 0.08);
 }
 
 .si-state-badge--verified {
   border-color: #a78bfa;
   color: #a78bfa;
-  background: rgba(167,139,250,0.08);
+  background: rgba(167, 139, 250, 0.08);
 }
 
 .si-state-badge--reverted {
   border-color: #f87171;
   color: #f87171;
-  background: rgba(248,113,113,0.08);
+  background: rgba(248, 113, 113, 0.08);
 }
 
 .si-state-badge--rejected {
@@ -662,7 +680,7 @@
 .si-lc-progress-track {
   height: 4px;
   border-radius: 2px;
-  background: var(--theme-hover, rgba(255,255,255,0.08));
+  background: var(--theme-hover, rgba(255, 255, 255, 0.08));
   overflow: hidden;
 }
 
@@ -690,7 +708,7 @@
 .si-lc-sha code {
   font-family: monospace;
   color: var(--theme-text, #bbb);
-  background: var(--theme-code-bg, rgba(255,255,255,0.05));
+  background: var(--theme-code-bg, rgba(255, 255, 255, 0.05));
   padding: 1px 4px;
   border-radius: 3px;
 }
@@ -717,7 +735,7 @@
 .si-drawer-scrim {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.55);
+  background: rgba(0, 0, 0, 0.55);
   z-index: 200;
   opacity: 0;
   pointer-events: none;
@@ -778,7 +796,7 @@
 }
 
 .si-drawer-close:hover {
-  background: var(--theme-hover, rgba(255,255,255,0.06));
+  background: var(--theme-hover, rgba(255, 255, 255, 0.06));
   color: var(--theme-text, #e8e8e8);
 }
 
@@ -922,8 +940,8 @@
 /* ── P3: Baseline chart section ───────────────────────────────────────────── */
 
 .si-baseline-chart-section {
-  background: var(--theme-card-bg, rgba(255,255,255,0.04));
-  border: 1px solid var(--theme-border, rgba(255,255,255,0.08));
+  background: var(--theme-card-bg, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.08));
   border-radius: 10px;
   padding: 18px 20px 14px;
   margin-bottom: 16px;
@@ -942,7 +960,7 @@
 }
 
 .si-bc-grid {
-  stroke: var(--theme-border, rgba(255,255,255,0.1));
+  stroke: var(--theme-border, rgba(255, 255, 255, 0.1));
   stroke-width: 1;
   stroke-dasharray: 3 3;
 }
@@ -995,8 +1013,8 @@
 /* ── P3: Scenario section ─────────────────────────────────────────────────── */
 
 .si-scenario-section {
-  background: var(--theme-card-bg, rgba(255,255,255,0.04));
-  border: 1px solid var(--theme-border, rgba(255,255,255,0.08));
+  background: var(--theme-card-bg, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.08));
   border-radius: 10px;
   padding: 18px 20px 14px;
   margin-bottom: 16px;
@@ -1052,8 +1070,14 @@
 
 .si-scenario-table {
   width: 100%;
+  min-width: 680px;
   border-collapse: collapse;
   font-size: 13px;
+}
+
+.si-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .si-scenario-table th {
@@ -1064,12 +1088,12 @@
   color: var(--theme-muted, #888);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  border-bottom: 1px solid var(--theme-border, rgba(255,255,255,0.08));
+  border-bottom: 1px solid var(--theme-border, rgba(255, 255, 255, 0.08));
 }
 
 .si-scenario-table td {
   padding: 7px 10px;
-  border-bottom: 1px solid var(--theme-border, rgba(255,255,255,0.05));
+  border-bottom: 1px solid var(--theme-border, rgba(255, 255, 255, 0.05));
   color: var(--theme-text, #e8e8e8);
   vertical-align: top;
 }
@@ -1134,7 +1158,7 @@
 
 .si-dialog {
   background: var(--theme-surface, #1e1e2e);
-  border: 1px solid var(--theme-border, rgba(255,255,255,0.12));
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.12));
   border-radius: 12px;
   padding: 24px 28px;
   min-width: 380px;
@@ -1143,6 +1167,8 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
 }
 
 .si-dialog-title {
@@ -1173,8 +1199,8 @@
 
 .si-dialog-input,
 .si-dialog-textarea {
-  background: var(--theme-input-bg, rgba(255,255,255,0.06));
-  border: 1px solid var(--theme-border, rgba(255,255,255,0.12));
+  background: var(--theme-input-bg, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--theme-border, rgba(255, 255, 255, 0.12));
   border-radius: 6px;
   color: var(--theme-text, #e8e8e8);
   font-size: 13px;
@@ -1687,3 +1713,30 @@
   margin-top: 32px;
 }
 
+@media (max-width: 640px) {
+  .si-screen {
+    padding: 16px;
+  }
+  .si-title-row,
+  .si-header-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .si-header-controls,
+  .si-profile-scope-select,
+  .si-header-controls .si-collect-btn {
+    width: 100%;
+  }
+  .si-scenario-controls .si-collect-btn {
+    flex: 1 1 auto;
+  }
+  .si-baseline-chart-section,
+  .si-scenario-section {
+    padding: 14px;
+  }
+  .si-dialog {
+    min-width: 0;
+    width: calc(100% - 32px);
+    padding: 20px;
+  }
+}

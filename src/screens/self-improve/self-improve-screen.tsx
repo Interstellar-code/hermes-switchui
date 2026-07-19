@@ -1,11 +1,16 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { BaselineChart } from './components/baseline-chart'
 import { ExperimentCard } from './components/experiment-card'
 import { ProfileScopeSelect } from './components/profile-scope-select'
-import type { Baseline, MetricsSnapshot, PluginHealth, Scenario } from '@/lib/self-improve-types'
+import type {
+  Baseline,
+  MetricsSnapshot,
+  PluginHealth,
+  Scenario,
+} from '@/lib/self-improve-types'
 import { useAgentProfiles } from '@/hooks/use-agent-profiles'
 import { toast } from '@/components/ui/toast'
 import {
@@ -16,6 +21,7 @@ import {
   fetchHealth,
   fetchLatestMetrics,
   fetchMetrics,
+  fetchProfileStatus,
   fetchScenarios,
   pauseProfile,
   resumeProfile,
@@ -39,10 +45,12 @@ const REFETCH_INTERVAL = 30_000
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatCost(cost: number): string {
-  if (cost === 0) return '$0.00'
-  if (cost < 0.01) return `$${cost.toFixed(4)}`
-  return `$${cost.toFixed(2)}`
+export function formatCost(cost: number): string {
+  const sign = cost < 0 ? '-' : ''
+  const absolute = Math.abs(cost)
+  if (absolute === 0) return '$0.00'
+  if (absolute < 0.01) return `${sign}$${absolute.toFixed(4)}`
+  return `${sign}$${absolute.toFixed(2)}`
 }
 
 function safeRate(numerator: number, denominator: number): string {
@@ -65,9 +73,27 @@ function relativeTime(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
+export function selectAvailableProfile(
+  current: string,
+  active: string,
+  profiles: Array<string>,
+): string {
+  if (profiles.includes(current)) return current
+  if (profiles.includes(active)) return active
+  return profiles[0] ?? ''
+}
+
 // ── Sparkline (inline SVG, no deps) ──────────────────────────────────────────
 
-function Sparkline({ values, width = 80, height = 24 }: { values: Array<number>; width?: number; height?: number }) {
+function Sparkline({
+  values,
+  width = 80,
+  height = 24,
+}: {
+  values: Array<number>
+  width?: number
+  height?: number
+}) {
   if (values.length < 2) {
     return <span className="si-spark-empty">—</span>
   }
@@ -95,7 +121,13 @@ function Sparkline({ values, width = 80, height = 24 }: { values: Array<number>;
       className={`si-sparkline si-sparkline--${trend}`}
       aria-hidden
     >
-      <polyline points={pts} fill="none" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline
+        points={pts}
+        fill="none"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
@@ -105,11 +137,15 @@ function Sparkline({ values, width = 80, height = 24 }: { values: Array<number>;
 function HealthStrip({ health }: { health: PluginHealth }) {
   return (
     <div className="si-health-strip">
-      <span className={`si-health-dot ${health.ok ? 'si-health-dot--ok' : 'si-health-dot--err'}`} />
+      <span
+        className={`si-health-dot ${health.ok ? 'si-health-dot--ok' : 'si-health-dot--err'}`}
+      />
       <span className="si-health-label">{health.plugin}</span>
       <span className="si-health-version">v{health.version}</span>
       <span className="si-health-sep">·</span>
-      <span className={`si-health-db ${health.db_exists ? '' : 'si-health-db--missing'}`}>
+      <span
+        className={`si-health-db ${health.db_exists ? '' : 'si-health-db--missing'}`}
+      >
         {health.db_exists ? 'DB ready' : 'DB missing'}
       </span>
     </div>
@@ -126,7 +162,9 @@ interface ProfileCardProps {
 
 function ProfileCard({ snapshot, history, baselines }: ProfileCardProps) {
   const profileHistory = history.filter((m) => m.profile === snapshot.profile)
-  const profileBaselines = baselines.filter((b) => b.profile === snapshot.profile)
+  const profileBaselines = baselines.filter(
+    (b) => b.profile === snapshot.profile,
+  )
   const noSessions = snapshot.sessions_count <= 0
 
   // Cost sparkline values (most recent last)
@@ -137,32 +175,41 @@ function ProfileCard({ snapshot, history, baselines }: ProfileCardProps) {
     .map((b) => b.score ?? 0)
 
   // Delta vs previous cost snapshot
-  const prevCost = costValues.length >= 2 ? costValues[costValues.length - 2] : null
+  const prevCost =
+    costValues.length >= 2 ? costValues[costValues.length - 2] : null
   const costDelta = prevCost !== null ? snapshot.cost - prevCost : null
 
   return (
     <div className="si-card">
       <div className="si-card-header">
         <span className="si-profile-name">{snapshot.profile}</span>
-        <span className="si-captured-at">{relativeTime(snapshot.captured_at)}</span>
+        <span className="si-captured-at">
+          {relativeTime(snapshot.captured_at)}
+        </span>
       </div>
 
       {noSessions && (
         <div className="si-no-sessions-note">
-          No sessions in window — metrics will populate once the agent logs activity with a profile tag.
+          No sessions in window — metrics will populate once the agent logs
+          activity with a profile tag.
         </div>
       )}
 
       <div className="si-metrics-grid">
         <div className="si-metric">
           <span className="si-metric-label">Sessions/window</span>
-          <span className="si-metric-value">{snapshot.sessions_count.toLocaleString()}</span>
+          <span className="si-metric-value">
+            {snapshot.sessions_count.toLocaleString()}
+          </span>
         </div>
 
         <div className="si-metric">
           <span className="si-metric-label">Error+Warn rate</span>
           <span className="si-metric-value">
-            {safeRate(snapshot.error_count + snapshot.warn_count, snapshot.sessions_count)}
+            {safeRate(
+              snapshot.error_count + snapshot.warn_count,
+              snapshot.sessions_count,
+            )}
           </span>
           {noSessions && (
             <span className="si-metric-sub">
@@ -188,8 +235,11 @@ function ProfileCard({ snapshot, history, baselines }: ProfileCardProps) {
           <div className="si-metric-row">
             <span className="si-metric-value">{formatCost(snapshot.cost)}</span>
             {costDelta !== null && (
-              <span className={`si-delta ${costDelta > 0 ? 'si-delta--up' : costDelta < 0 ? 'si-delta--down' : ''}`}>
-                {costDelta > 0 ? '+' : ''}{formatCost(costDelta)}
+              <span
+                className={`si-delta ${costDelta > 0 ? 'si-delta--up' : costDelta < 0 ? 'si-delta--down' : ''}`}
+              >
+                {costDelta > 0 ? '+' : ''}
+                {formatCost(costDelta)}
               </span>
             )}
             {costValues.length >= 2 && <Sparkline values={costValues} />}
@@ -203,8 +253,13 @@ function ProfileCard({ snapshot, history, baselines }: ProfileCardProps) {
               <span className="si-metric-value">
                 {baselineScores[baselineScores.length - 1].toFixed(2)}
               </span>
-              {baselineScores.length >= 2 && <Sparkline values={baselineScores} />}
-              <span className="si-metric-sub">{profileBaselines.length} baseline{profileBaselines.length !== 1 ? 's' : ''}</span>
+              {baselineScores.length >= 2 && (
+                <Sparkline values={baselineScores} />
+              )}
+              <span className="si-metric-sub">
+                {profileBaselines.length} baseline
+                {profileBaselines.length !== 1 ? 's' : ''}
+              </span>
             </div>
           </div>
         )}
@@ -221,7 +276,10 @@ function SkeletonCards() {
       {Array.from({ length: 3 }).map((_, i) => (
         <div key={i} className="si-card si-card--skeleton">
           <div className="si-skeleton-line" style={{ width: '40%' }} />
-          <div className="si-skeleton-line" style={{ width: '70%', marginTop: 12 }} />
+          <div
+            className="si-skeleton-line"
+            style={{ width: '70%', marginTop: 12 }}
+          />
           <div className="si-skeleton-line" style={{ width: '55%' }} />
         </div>
       ))}
@@ -237,12 +295,17 @@ interface ExperimentsFeedProps {
   onMutated: () => void
 }
 
-function ExperimentsFeed({ profile, baselines, onMutated }: ExperimentsFeedProps) {
+function ExperimentsFeed({
+  profile,
+  baselines,
+  onMutated,
+}: ExperimentsFeedProps) {
   const queryClient = useQueryClient()
 
   const experimentsQuery = useQuery({
     queryKey: ['self-improve', 'experiments', 'all', profile],
-    queryFn: () => fetchExperiments({ profile: profile || undefined }),
+    queryFn: () => fetchExperiments({ profile }),
+    enabled: !!profile,
     refetchInterval: REFETCH_INTERVAL,
   })
 
@@ -252,17 +315,27 @@ function ExperimentsFeed({ profile, baselines, onMutated }: ExperimentsFeedProps
       if ('skipped' in data) {
         toast(`Propose skipped: ${data.reason}`)
       } else {
-        toast(`Proposal created (experiment #${'experiment_id' in data ? data.experiment_id : '?'})`)
-        void queryClient.invalidateQueries({ queryKey: ['self-improve', 'experiments'] })
+        toast(
+          `Proposal created (experiment #${'experiment_id' in data ? data.experiment_id : '?'})`,
+        )
+        void queryClient.invalidateQueries({
+          queryKey: ['self-improve', 'experiments'],
+        })
       }
       onMutated()
     },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Propose failed', { type: 'error' }),
+    onError: (e) =>
+      toast(e instanceof Error ? e.message : 'Propose failed', {
+        type: 'error',
+      }),
   })
 
-  const experiments = (experimentsQuery.data ?? []).slice().sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-  )
+  const experiments = (experimentsQuery.data ?? [])
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    )
 
   return (
     <div className="si-experiments-section">
@@ -294,7 +367,8 @@ function ExperimentsFeed({ profile, baselines, onMutated }: ExperimentsFeedProps
         <div className="si-empty-state si-empty-state--proposals">
           <p>No experiments yet for this profile.</p>
           <p className="si-empty-sub">
-            Click <strong>Propose</strong> to have the agent generate an improvement proposal.
+            Click <strong>Propose</strong> to have the agent generate an
+            improvement proposal.
           </p>
         </div>
       ) : (
@@ -334,6 +408,15 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
   const [newChecks, setNewChecks] = useState('')
   const [newHoldout, setNewHoldout] = useState(false)
 
+  useEffect(() => {
+    if (!createOpen) return
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setCreateOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [createOpen])
+
   const scenariosQK = qkScenarios(profile, includeHoldout)
 
   const scenariosQuery = useQuery({
@@ -342,8 +425,16 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
     enabled: !!profile,
   })
 
+  const profileStatusQuery = useQuery({
+    queryKey: ['self-improve', 'profile-status', profile],
+    queryFn: () => fetchProfileStatus(profile),
+    enabled: !!profile,
+  })
+
   function invalidateScenarios() {
-    void queryClient.invalidateQueries({ queryKey: ['self-improve', 'scenarios', profile] })
+    void queryClient.invalidateQueries({
+      queryKey: ['self-improve', 'scenarios', profile],
+    })
   }
 
   const createMutation = useMutation({
@@ -369,7 +460,10 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
       setNewChecks('')
       setNewHoldout(false)
     },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Create failed', { type: 'error' }),
+    onError: (e) =>
+      toast(e instanceof Error ? e.message : 'Create failed', {
+        type: 'error',
+      }),
   })
 
   const deleteMutation = useMutation({
@@ -379,28 +473,42 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
       toast('Scenario deleted')
       setDeleteTarget(null)
     },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Delete failed', { type: 'error' }),
+    onError: (e) =>
+      toast(e instanceof Error ? e.message : 'Delete failed', {
+        type: 'error',
+      }),
   })
 
   const pauseMutation = useMutation({
     mutationFn: (p: string) => pauseProfile(p),
     onSuccess: (data) => {
+      void queryClient.invalidateQueries({
+        queryKey: ['self-improve', 'profile-status', profile],
+      })
       toast(`Profile "${data.profile}" paused`)
       setPauseTarget(null)
     },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Pause failed', { type: 'error' }),
+    onError: (e) =>
+      toast(e instanceof Error ? e.message : 'Pause failed', { type: 'error' }),
   })
 
   const resumeMutation = useMutation({
     mutationFn: (p: string) => resumeProfile(p),
     onSuccess: (data) => {
+      void queryClient.invalidateQueries({
+        queryKey: ['self-improve', 'profile-status', profile],
+      })
       toast(`Profile "${data.profile}" resumed`)
       setResumeTarget(null)
     },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Resume failed', { type: 'error' }),
+    onError: (e) =>
+      toast(e instanceof Error ? e.message : 'Resume failed', {
+        type: 'error',
+      }),
   })
 
   const scenarios = scenariosQuery.data ?? []
+  const isPaused = profileStatusQuery.data?.paused ?? false
 
   return (
     <div className="si-scenario-section">
@@ -415,23 +523,27 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
             />
             Show held-out
           </label>
-          <button
-            type="button"
-            className="si-collect-btn"
-            onClick={() => setPauseTarget(profile)}
-          >
-            Pause
-          </button>
-          <button
-            type="button"
-            className="si-collect-btn si-btn-resume"
-            onClick={() => setResumeTarget(profile)}
-          >
-            Resume
-          </button>
+          {isPaused ? (
+            <button
+              type="button"
+              className="si-collect-btn si-btn-resume"
+              onClick={() => setResumeTarget(profile)}
+            >
+              Resume
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="si-collect-btn"
+              onClick={() => setPauseTarget(profile)}
+            >
+              Pause
+            </button>
+          )}
           <button
             type="button"
             className="si-collect-btn si-btn-primary"
+            disabled={!profile}
             onClick={() => setCreateOpen(true)}
           >
             + New scenario
@@ -440,10 +552,12 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
       </div>
 
       <p className="si-pause-note">
-        Note: paused state is not yet readable from the API — Pause/Resume are fire-and-confirm actions.
+        Self-improvement is {isPaused ? 'paused' : 'active'} for this profile.
       </p>
 
-      {scenariosQuery.isLoading && <div className="si-loading">Loading scenarios…</div>}
+      {scenariosQuery.isLoading && (
+        <div className="si-loading">Loading scenarios…</div>
+      )}
       {scenariosQuery.isError && (
         <div className="si-error">
           {scenariosQuery.error instanceof Error
@@ -452,67 +566,99 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
         </div>
       )}
 
-      {!scenariosQuery.isLoading && !scenariosQuery.isError && scenarios.length === 0 && (
-        <div className="si-empty">
-          <p>No scenarios for <strong>{profile}</strong>.</p>
-          {!includeHoldout && <p className="si-empty-sub">Try enabling "Show held-out" to see holdout scenarios.</p>}
-        </div>
-      )}
+      {!scenariosQuery.isLoading &&
+        !scenariosQuery.isError &&
+        scenarios.length === 0 && (
+          <div className="si-empty">
+            <p>
+              No scenarios for <strong>{profile}</strong>.
+            </p>
+            {!includeHoldout && (
+              <p className="si-empty-sub">
+                Try enabling "Show held-out" to see holdout scenarios.
+              </p>
+            )}
+          </div>
+        )}
 
       {scenarios.length > 0 && (
-        <table className="si-scenario-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Input</th>
-              <th>Checks</th>
-              <th>Created</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {scenarios.map((s) => (
-              <tr key={s.id} className={s.holdout ? 'si-scenario-holdout' : ''}>
-                <td className="si-scenario-id">#{s.id}</td>
-                <td>
-                  {s.name}
-                  {s.holdout === 1 && <span className="si-badge si-badge-holdout">holdout</span>}
-                </td>
-                <td className="si-scenario-input" title={s.input}>{s.input ? s.input.slice(0, 60) + (s.input.length > 60 ? '…' : '') : '—'}</td>
-                <td className="si-scenario-checks">
-                  {s.checks && s.checks !== '[]' ? (
-                    (() => {
-                      try {
-                        const arr = JSON.parse(s.checks) as Array<string>
-                        return arr.length > 0 ? arr.slice(0, 2).join(', ') + (arr.length > 2 ? ` +${arr.length - 2}` : '') : '—'
-                      } catch {
-                        return s.checks.slice(0, 40)
-                      }
-                    })()
-                  ) : '—'}
-                </td>
-                <td className="si-scenario-date">{s.created_at.slice(0, 10)}</td>
-                <td>
-                  <button
-                    type="button"
-                    className="si-action-btn si-action-btn--danger"
-                    onClick={() => setDeleteTarget(s)}
-                  >
-                    Delete
-                  </button>
-                </td>
+        <div className="si-table-scroll">
+          <table className="si-scenario-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Input</th>
+                <th>Checks</th>
+                <th>Created</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {scenarios.map((s) => (
+                <tr
+                  key={s.id}
+                  className={s.holdout ? 'si-scenario-holdout' : ''}
+                >
+                  <td className="si-scenario-id">#{s.id}</td>
+                  <td>
+                    {s.name}
+                    {s.holdout === 1 && (
+                      <span className="si-badge si-badge-holdout">holdout</span>
+                    )}
+                  </td>
+                  <td className="si-scenario-input" title={s.input}>
+                    {s.input
+                      ? s.input.slice(0, 60) + (s.input.length > 60 ? '…' : '')
+                      : '—'}
+                  </td>
+                  <td className="si-scenario-checks">
+                    {s.checks && s.checks !== '[]'
+                      ? (() => {
+                          try {
+                            const arr = JSON.parse(s.checks) as Array<string>
+                            return arr.length > 0
+                              ? arr.slice(0, 2).join(', ') +
+                                  (arr.length > 2 ? ` +${arr.length - 2}` : '')
+                              : '—'
+                          } catch {
+                            return s.checks.slice(0, 40)
+                          }
+                        })()
+                      : '—'}
+                  </td>
+                  <td className="si-scenario-date">
+                    {s.created_at.slice(0, 10)}
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="si-action-btn si-action-btn--danger"
+                      onClick={() => setDeleteTarget(s)}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {/* Create dialog */}
       {createOpen && (
         <div className="si-dialog-overlay" onClick={() => setCreateOpen(false)}>
-          <div className="si-dialog" onClick={(e) => e.stopPropagation()}>
-            <h3 className="si-dialog-title">New Scenario</h3>
+          <div
+            className="si-dialog"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="si-create-scenario-title"
+          >
+            <h3 id="si-create-scenario-title" className="si-dialog-title">
+              New Scenario
+            </h3>
             <label className="si-dialog-label">
               Profile
               <input className="si-dialog-input" value={profile} readOnly />
@@ -543,7 +689,7 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
                 className="si-dialog-textarea"
                 value={newChecks}
                 onChange={(e) => setNewChecks(e.target.value)}
-                placeholder={"contains greeting\nno profanity"}
+                placeholder={'contains greeting\nno profanity'}
                 rows={3}
               />
             </label>
@@ -582,7 +728,10 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
         title="Delete scenario"
         message={`Delete scenario "${deleteTarget?.name ?? ''}" (#${deleteTarget?.id ?? ''})? This cannot be undone.`}
         confirmLabel="Delete"
-        onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id) }}
+        destructive
+        onConfirm={() => {
+          if (deleteTarget) deleteMutation.mutate(deleteTarget.id)
+        }}
         onCancel={() => setDeleteTarget(null)}
       />
 
@@ -590,9 +739,11 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
       <ConfirmDialog
         open={pauseTarget !== null}
         title="Pause profile"
-        message={`Pause self-improvement for profile "${pauseTarget ?? ''}"? Note: paused state is not readable from the API — this is fire-and-confirm.`}
+        message={`Pause self-improvement for profile "${pauseTarget ?? ''}"?`}
         confirmLabel="Pause"
-        onConfirm={() => { if (pauseTarget) pauseMutation.mutate(pauseTarget) }}
+        onConfirm={() => {
+          if (pauseTarget) pauseMutation.mutate(pauseTarget)
+        }}
         onCancel={() => setPauseTarget(null)}
       />
 
@@ -600,9 +751,11 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
       <ConfirmDialog
         open={resumeTarget !== null}
         title="Resume profile"
-        message={`Resume self-improvement for profile "${resumeTarget ?? ''}"? Note: paused state is not readable from the API — this is fire-and-confirm.`}
+        message={`Resume self-improvement for profile "${resumeTarget ?? ''}"?`}
         confirmLabel="Resume"
-        onConfirm={() => { if (resumeTarget) resumeMutation.mutate(resumeTarget) }}
+        onConfirm={() => {
+          if (resumeTarget) resumeMutation.mutate(resumeTarget)
+        }}
         onCancel={() => setResumeTarget(null)}
       />
     </div>
@@ -624,9 +777,18 @@ export function SelfImproveScreen() {
         : '',
   )
 
+  useEffect(() => {
+    if (agentProfiles.length > 0) {
+      setProfile((current) =>
+        selectAvailableProfile(current, activeProfile, agentProfiles),
+      )
+    }
+  }, [activeProfile, agentProfiles])
+
   // Dismissible intro card — persisted to localStorage
   const [introDismissed, setIntroDismissed] = useState(
-    typeof window !== 'undefined' && window.localStorage.getItem('si-intro-dismissed') === 'true',
+    typeof window !== 'undefined' &&
+      window.localStorage.getItem('si-intro-dismissed') === 'true',
   )
 
   function dismissIntro() {
@@ -665,20 +827,29 @@ export function SelfImproveScreen() {
   }, [queryClient])
 
   const collectMutation = useMutation({
-    mutationFn: triggerCollect,
+    mutationFn: () => triggerCollect(profile),
     onSuccess: (data) => {
       invalidateAll()
-      toast(`Collected ${data.collected} snapshot${data.collected !== 1 ? 's' : ''}`)
+      toast(
+        `Collected ${data.collected} snapshot${data.collected !== 1 ? 's' : ''}`,
+      )
     },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Collect failed', { type: 'error' }),
+    onError: (e) =>
+      toast(e instanceof Error ? e.message : 'Collect failed', {
+        type: 'error',
+      }),
   })
 
-  const isLoading = latestQuery.isLoading || historyQuery.isLoading || baselinesQuery.isLoading
-  const isError = latestQuery.isError || historyQuery.isError || baselinesQuery.isError
+  const isLoading =
+    latestQuery.isLoading || historyQuery.isLoading || baselinesQuery.isLoading
+  const isError =
+    latestQuery.isError || historyQuery.isError || baselinesQuery.isError
   const errorMsg =
     (latestQuery.error instanceof Error ? latestQuery.error.message : null) ??
     (historyQuery.error instanceof Error ? historyQuery.error.message : null) ??
-    (baselinesQuery.error instanceof Error ? baselinesQuery.error.message : null) ??
+    (baselinesQuery.error instanceof Error
+      ? baselinesQuery.error.message
+      : null) ??
     'Failed to load'
 
   const snapshots = latestQuery.data ?? []
@@ -694,9 +865,10 @@ export function SelfImproveScreen() {
       {!introDismissed && (
         <div className="si-intro-card">
           <span className="si-intro-text">
-            This page lets the agent propose one small edit to a profile's instructions, test it
-            against behavior scenarios (graded by a different model), and keep it only if it scores
-            better — with your approval. Each kept change is committed to git.
+            This page lets the agent propose one small edit to a profile's
+            instructions, test it against behavior scenarios (graded by a
+            different model), and keep it only if it scores better — with your
+            approval. Each kept change is committed to git.
           </span>
           <button
             type="button"
@@ -722,7 +894,7 @@ export function SelfImproveScreen() {
             <button
               type="button"
               className="si-collect-btn"
-              disabled={collectMutation.isPending}
+              disabled={collectMutation.isPending || !profile}
               onClick={() => collectMutation.mutate()}
             >
               {collectMutation.isPending ? 'Collecting…' : 'Collect now'}
@@ -738,7 +910,11 @@ export function SelfImproveScreen() {
       ) : isError ? (
         <div className="si-error-state">
           <p className="si-error-msg">{errorMsg}</p>
-          <button type="button" className="si-retry-btn" onClick={invalidateAll}>
+          <button
+            type="button"
+            className="si-retry-btn"
+            onClick={invalidateAll}
+          >
             Retry
           </button>
         </div>
@@ -758,21 +934,26 @@ export function SelfImproveScreen() {
               : 'No metrics collected yet.'}
           </p>
           <p className="si-empty-sub">
-            Click <strong>Collect now</strong> to run the first snapshot, or wait for the agent to
-            emit metrics.
+            Click <strong>Collect now</strong> to run the first snapshot, or
+            wait for the agent to emit metrics.
           </p>
         </div>
       )}
 
       {/* ── Unified experiments feed (FIX 2) ── */}
-      <ExperimentsFeed profile={profile} baselines={baselines} onMutated={invalidateAll} />
+      <ExperimentsFeed
+        profile={profile}
+        baselines={baselines}
+        onMutated={invalidateAll}
+      />
 
       {/* ── Baseline curve — scoped to selected profile (FIX 1) ── */}
       <div className="si-baseline-chart-section">
         <div className="si-section-header">
           <h2 className="si-section-title">Baseline Curve</h2>
           <span className="si-section-caption">
-            Score = fraction of behavior scenarios passed (0–100%). Higher is better.
+            Score = fraction of behavior scenarios passed (0–100%). Higher is
+            better.
           </span>
         </div>
         {baselines.length > 0 ? (

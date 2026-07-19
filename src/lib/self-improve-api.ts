@@ -17,6 +17,7 @@ import type {
   MetricsSnapshot,
   PauseResumeResponse,
   PluginHealth,
+  ProfileStatus,
   ProposeResponse,
   ProposeSkippedResponse,
   Scenario,
@@ -43,7 +44,9 @@ export async function fetchHealth(): Promise<PluginHealth> {
 }
 
 export async function fetchLatestMetrics(): Promise<Array<MetricsSnapshot>> {
-  const { metrics } = await apiFetch<MetricsResponse>('/api/self-improve/metrics/latest')
+  const { metrics } = await apiFetch<MetricsResponse>(
+    '/api/self-improve/metrics/latest',
+  )
   return metrics
 }
 
@@ -73,10 +76,13 @@ export async function fetchBaselines(params?: {
   return baselines
 }
 
-export async function triggerCollect(): Promise<CollectResponse> {
+export async function triggerCollect(
+  profile: string,
+): Promise<CollectResponse> {
   return apiFetch<CollectResponse>('/api/self-improve/metrics', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile }),
   })
 }
 
@@ -100,8 +106,12 @@ export async function fetchExperiment(id: number): Promise<Experiment> {
   return apiFetch<Experiment>(`/api/self-improve/experiments/${id}`)
 }
 
-export async function fetchExperimentHistory(id: number): Promise<ExperimentHistoryResponse> {
-  return apiFetch<ExperimentHistoryResponse>(`/api/self-improve/experiments/${id}/history`)
+export async function fetchExperimentHistory(
+  id: number,
+): Promise<ExperimentHistoryResponse> {
+  return apiFetch<ExperimentHistoryResponse>(
+    `/api/self-improve/experiments/${id}/history`,
+  )
 }
 
 export async function createExperiment(
@@ -118,11 +128,14 @@ export async function approveExperiment(
   id: number,
   actor: string,
 ): Promise<{ ok: boolean; state: string }> {
-  return apiFetch<{ ok: boolean; state: string }>(`/api/self-improve/experiments/${id}/approve`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ actor }),
-  })
+  return apiFetch<{ ok: boolean; state: string }>(
+    `/api/self-improve/experiments/${id}/approve`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actor }),
+    },
+  )
 }
 
 export async function rejectExperiment(
@@ -130,21 +143,27 @@ export async function rejectExperiment(
   actor: string,
   reason: string,
 ): Promise<{ ok: boolean; state: string }> {
-  return apiFetch<{ ok: boolean; state: string }>(`/api/self-improve/experiments/${id}/reject`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ actor, reason }),
-  })
+  return apiFetch<{ ok: boolean; state: string }>(
+    `/api/self-improve/experiments/${id}/reject`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actor, reason }),
+    },
+  )
 }
 
 export async function triggerPropose(
   profile: string,
 ): Promise<ProposeResponse | ProposeSkippedResponse> {
-  return apiFetch<ProposeResponse | ProposeSkippedResponse>('/api/self-improve/propose', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile }),
-  })
+  return apiFetch<ProposeResponse | ProposeSkippedResponse>(
+    '/api/self-improve/propose',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile }),
+    },
+  )
 }
 
 // ── Lifecycle actions (P2) ────────────────────────────────────────────────────
@@ -214,7 +233,9 @@ export async function createScenario(
   })
 }
 
-export async function deleteScenario(id: number): Promise<DeleteScenarioResponse> {
+export async function deleteScenario(
+  id: number,
+): Promise<DeleteScenarioResponse> {
   return apiFetch<DeleteScenarioResponse>(`/api/self-improve/scenarios/${id}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
@@ -224,7 +245,17 @@ export async function deleteScenario(id: number): Promise<DeleteScenarioResponse
 
 // ── P3: Pause / Resume ────────────────────────────────────────────────────────
 
-export async function pauseProfile(profile: string): Promise<PauseResumeResponse> {
+export async function fetchProfileStatus(
+  profile: string,
+): Promise<ProfileStatus> {
+  return apiFetch<ProfileStatus>(
+    `/api/self-improve/profiles/${encodeURIComponent(profile)}`,
+  )
+}
+
+export async function pauseProfile(
+  profile: string,
+): Promise<PauseResumeResponse> {
   return apiFetch<PauseResumeResponse>(
     `/api/self-improve/profiles/${encodeURIComponent(profile)}/pause`,
     {
@@ -235,7 +266,9 @@ export async function pauseProfile(profile: string): Promise<PauseResumeResponse
   )
 }
 
-export async function resumeProfile(profile: string): Promise<PauseResumeResponse> {
+export async function resumeProfile(
+  profile: string,
+): Promise<PauseResumeResponse> {
   return apiFetch<PauseResumeResponse>(
     `/api/self-improve/profiles/${encodeURIComponent(profile)}/resume`,
     {
