@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import type { Project, ProjectFolder } from '@/lib/projects-types'
+import type {
+  Project,
+  ProjectFolder,
+  UpdateProjectInput,
+} from '@/lib/projects-types'
 import { usePageTitle } from '@/hooks/use-page-title'
 import {
   useAddProjectFolder,
@@ -16,6 +20,7 @@ import {
   useSetPrimaryProjectFolder,
   useUpdateProject,
 } from '@/lib/projects-api'
+import { useBoards } from '@/lib/boards-api'
 import '@/styles/matrix-boards.css'
 
 type FilterMode = 'all' | 'active' | 'archived'
@@ -65,6 +70,15 @@ function formatDate(timestamp: number | null): string {
     day: 'numeric',
     year: 'numeric',
   })
+}
+
+// Copied from boards-screen.tsx — backend-required slug from a display name.
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
 }
 
 // Copied from boards-screen.tsx — epoch-seconds → "5 min ago" / "—".
@@ -489,7 +503,7 @@ export function ProjectDrawer({
   isActive: boolean
   onClose: () => void
   onEdit: () => void
-  onAddFolder: () => void
+  onAddFolder: (path: string) => void
   onSetPrimary: (path: string) => void
   onRemoveFolder: (path: string) => void
   onArchive: () => void
@@ -502,6 +516,7 @@ export function ProjectDrawer({
   const foldersQuery = useProjectFolders(project.id)
   const folders = foldersQuery.data?.folders ?? project.folders
   const [activeTab, setActiveTab] = useState<DrawerTab>('overview')
+  const [newFolder, setNewFolder] = useState('')
 
   return (
     <>
@@ -611,13 +626,30 @@ export function ProjectDrawer({
                 <div className="pc-head-right">{folders.length}</div>
               </div>
               <div className="pc-body">
-                <button
-                  className="btn-mini prim"
-                  onClick={onAddFolder}
-                  disabled={busy}
-                >
-                  Add Folder
-                </button>
+                <div className="wz-link-add">
+                  <input
+                    className="form-inp"
+                    placeholder="/path/to/folder"
+                    value={newFolder}
+                    onChange={(e) => setNewFolder(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newFolder.trim()) {
+                        onAddFolder(newFolder.trim())
+                        setNewFolder('')
+                      }
+                    }}
+                  />
+                  <button
+                    className="btn-mini prim"
+                    disabled={!newFolder.trim() || busy}
+                    onClick={() => {
+                      onAddFolder(newFolder.trim())
+                      setNewFolder('')
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
                 {folders.length === 0 ? (
                   <div className="field-val muted">No folders.</div>
                 ) : (
@@ -740,6 +772,461 @@ export function ProjectActivityTab({ project }: { project: Project }) {
   )
 }
 
+type CreateDraft = {
+  name: string
+  slug: string
+  description: string
+  primary_path: string
+  board_slug: string
+  color: string
+}
+
+const CREATE_INIT: CreateDraft = {
+  name: '',
+  slug: '',
+  description: '',
+  primary_path: '',
+  board_slug: '',
+  color: COLORS[0],
+}
+
+// Board picker shared by the create and edit modals — live boards list.
+function BoardSelect({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (slug: string) => void
+}) {
+  const boardsQuery = useBoards()
+  const boards = boardsQuery.data?.boards ?? []
+  return (
+    <div className="form-row">
+      <label>Board</label>
+      <select
+        className="form-inp"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="">— None (default) —</option>
+        {boards.map((b) => (
+          <option key={b.slug} value={b.slug}>
+            {b.name || b.slug}
+          </option>
+        ))}
+      </select>
+      <span className="form-hint">
+        {boardsQuery.isLoading
+          ? 'Loading boards…'
+          : 'Optional default board for this project.'}
+      </span>
+    </div>
+  )
+}
+
+// In-app create modal, mirroring boards-screen's CreateWizard chrome so the
+// flow matches the rest of the app instead of a native window.prompt().
+// ponytail: single-step form (boards uses a 2-step wizard) — projects create
+// has few fields, so one panel is enough; reuses the same .wizard-*/.wz-*/.form-* CSS.
+function ProjectCreateWizard({
+  state,
+  onChange,
+  onClose,
+  onCreate,
+  creating,
+}: {
+  state: CreateDraft
+  onChange: (next: CreateDraft) => void
+  onClose: () => void
+  onCreate: () => Promise<void>
+  creating: boolean
+}) {
+  function set<TKey extends keyof CreateDraft>(
+    key: TKey,
+    value: CreateDraft[TKey],
+  ) {
+    onChange({ ...state, [key]: value })
+  }
+  function onNameChange(value: string) {
+    onChange({ ...state, name: value, slug: slugify(value) })
+  }
+  const canCreate =
+    state.name.trim().length >= 2 && state.slug.trim().length >= 1
+
+  return (
+    <div
+      className="wizard-scrim"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className="wizard-modal">
+        <div className="wz-head">
+          <div className="wz-icon">◪</div>
+          <div>
+            <h2>New Project</h2>
+            <div className="wz-sub">Backend-supported fields only.</div>
+          </div>
+          <button className="wz-close" onClick={onClose}>
+            ×
+          </button>
+        </div>
+        <div className="wz-body">
+          <div className="form-row">
+            <label>
+              Project Name <span className="req">*</span>
+            </label>
+            <input
+              className="form-inp"
+              autoFocus
+              placeholder="e.g. Hermes SwitchUI"
+              value={state.name}
+              onChange={(e) => onNameChange(e.target.value)}
+            />
+            <span className="form-hint">Minimum 2 characters.</span>
+          </div>
+          <div className="form-row">
+            <label>
+              Slug <span className="req">*</span>
+            </label>
+            <input
+              className="form-inp"
+              value={state.slug}
+              onChange={(e) => set('slug', slugify(e.target.value))}
+            />
+            <span className="form-hint">Backend-required identifier.</span>
+          </div>
+          <div className="form-row">
+            <label>Description</label>
+            <textarea
+              className="form-ta"
+              placeholder="What lives in this project?"
+              value={state.description}
+              onChange={(e) => set('description', e.target.value)}
+            />
+          </div>
+          <div className="form-row">
+            <label>Primary Path</label>
+            <input
+              className="form-inp"
+              placeholder="/path/to/repo (optional)"
+              value={state.primary_path}
+              onChange={(e) => set('primary_path', e.target.value)}
+            />
+          </div>
+          <BoardSelect
+            value={state.board_slug}
+            onChange={(v) => set('board_slug', v)}
+          />
+          <div className="form-row">
+            <label>Accent Color</label>
+            <div className="color-swatches">
+              {COLORS.map((color) => (
+                <div
+                  key={color}
+                  className={`color-swatch${state.color === color ? ' sel' : ''}`}
+                  style={{
+                    background: color,
+                    boxShadow: `0 0 8px ${color}60`,
+                    ['--sw' as string]: color,
+                  }}
+                  onClick={() => set('color', color)}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="wz-foot">
+          <span className="wz-foot-step">New project</span>
+          <div className="wz-nav">
+            <button className="btn-mini" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              className="btn-mini prim"
+              disabled={!canCreate || creating}
+              style={{ opacity: canCreate && !creating ? 1 : 0.45 }}
+              onClick={() => void onCreate()}
+            >
+              {creating ? 'Creating…' : 'Create Project'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// In-app edit wizard — same stepper chrome as boards. Step 1 Identity (name,
+// description, board, color via UpdateProjectInput; slug/primary_path are
+// immutable server-side). Step 2 Folders — add/remove/set-primary applied
+// immediately against the live project. `project` must be the LIVE list entry
+// so the folder list refreshes after each mutation invalidates the query.
+function ProjectEditModal({
+  project,
+  onClose,
+  onSave,
+  saving,
+  onAddFolder,
+  onRemoveFolder,
+  onSetPrimary,
+}: {
+  project: Project
+  onClose: () => void
+  onSave: (input: UpdateProjectInput) => Promise<void>
+  saving: boolean
+  onAddFolder: (path: string) => Promise<void>
+  onRemoveFolder: (path: string) => Promise<void>
+  onSetPrimary: (path: string) => Promise<void>
+}) {
+  const steps = ['Identity', 'Folders']
+  const [step, setStep] = useState(1)
+  const [name, setName] = useState(project.name)
+  const [description, setDescription] = useState(project.description ?? '')
+  const [boardSlug, setBoardSlug] = useState(project.board_slug ?? '')
+  const [color, setColor] = useState(project.color ?? COLORS[0])
+  const [newFolder, setNewFolder] = useState('')
+  const canSave = name.trim().length >= 2
+  const folders = orElse(project.folders, [])
+
+  const submitFolder = async () => {
+    const path = newFolder.trim()
+    if (!path) return
+    await onAddFolder(path)
+    setNewFolder('')
+  }
+
+  return (
+    <div
+      className="wizard-scrim"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className="wizard-modal">
+        <div className="wz-head">
+          <div className="wz-icon">◪</div>
+          <div>
+            <h2>Edit Project</h2>
+            <div className="wz-sub">
+              Step {step} of {steps.length} — {steps[step - 1]}
+            </div>
+          </div>
+          <button className="wz-close" onClick={onClose}>
+            ×
+          </button>
+        </div>
+        <div className="wz-steps">
+          <div className="wz-steps-line" />
+          {steps.map((label, index) => {
+            const n = index + 1
+            const cls = n < step ? 'done' : n === step ? 'cur' : ''
+            return (
+              <div key={n} className={`wz-step ${cls}`}>
+                <div className="wz-dot">{n < step ? '✓' : n}</div>
+                <div className="wz-lbl">{label}</div>
+              </div>
+            )
+          })}
+        </div>
+        <div className="wz-body">
+          {step === 1 ? (
+            <>
+              <div className="form-row">
+                <label>
+                  Project Name <span className="req">*</span>
+                </label>
+                <input
+                  className="form-inp"
+                  autoFocus
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+                <span className="form-hint">Minimum 2 characters.</span>
+              </div>
+              <div className="form-row">
+                <label>Description</label>
+                <textarea
+                  className="form-ta"
+                  placeholder="What lives in this project?"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+              <BoardSelect value={boardSlug} onChange={setBoardSlug} />
+              <div className="form-row">
+                <label>Accent Color</label>
+                <div className="color-swatches">
+                  {COLORS.map((c) => (
+                    <div
+                      key={c}
+                      className={`color-swatch${color === c ? ' sel' : ''}`}
+                      style={{
+                        background: c,
+                        boxShadow: `0 0 8px ${c}60`,
+                        ['--sw' as string]: c,
+                      }}
+                      onClick={() => setColor(c)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="wz-p">
+                Folders link local paths to this project. Changes apply
+                immediately.
+              </p>
+              <div className="form-row">
+                <label>Add Folder</label>
+                <div className="wz-link-add">
+                  <input
+                    className="form-inp"
+                    placeholder="/path/to/folder"
+                    value={newFolder}
+                    onChange={(e) => setNewFolder(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void submitFolder()
+                    }}
+                  />
+                  <button
+                    className="btn-mini prim"
+                    disabled={!newFolder.trim() || saving}
+                    onClick={() => void submitFolder()}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+              {folders.length === 0 ? (
+                <div className="field-val muted">No folders yet.</div>
+              ) : (
+                <div className="task-breakdown" style={{ display: 'block' }}>
+                  {folders.map((folder) => (
+                    <div key={folder.path} className="ws-grid pc-body">
+                      <div className="ws-lbl">
+                        {folderLabel(folder)}
+                        {folder.is_primary ? ' (primary)' : ''}
+                      </div>
+                      <div className="ws-val path">{folder.path}</div>
+                      <div className="ws-val">
+                        {!folder.is_primary ? (
+                          <button
+                            className="btn-mini"
+                            disabled={saving}
+                            onClick={() => void onSetPrimary(folder.path)}
+                          >
+                            Set Primary
+                          </button>
+                        ) : null}
+                        <button
+                          className="btn-mini danger"
+                          disabled={saving}
+                          onClick={() => void onRemoveFolder(folder.path)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <div className="wz-foot">
+          <span className="wz-foot-step">
+            Step {step} / {steps.length}
+          </span>
+          <div className="wz-nav">
+            {step > 1 ? (
+              <button className="btn-mini" onClick={() => setStep(1)}>
+                ← Back
+              </button>
+            ) : (
+              <button className="btn-mini" onClick={onClose}>
+                Cancel
+              </button>
+            )}
+            {step < steps.length ? (
+              <button
+                className="btn-mini prim"
+                disabled={!canSave}
+                style={{ opacity: canSave ? 1 : 0.45 }}
+                onClick={() => setStep(step + 1)}
+              >
+                Next →
+              </button>
+            ) : null}
+            <button
+              className="btn-mini prim"
+              disabled={!canSave || saving}
+              style={{ opacity: canSave && !saving ? 1 : 0.45 }}
+              onClick={() =>
+                void onSave({
+                  name: name.trim(),
+                  description: description.trim() || undefined,
+                  board_slug: boardSlug.trim() || undefined,
+                  color,
+                })
+              }
+            >
+              {saving ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+type ConfirmState = {
+  title: string
+  message: string
+  confirmLabel: string
+  danger: boolean
+  action: () => Promise<void>
+}
+
+// Reusable in-app confirm modal (archive / delete), replacing window.confirm.
+// Mirrors boards-screen's DeleteConfirm chrome.
+function ConfirmDialog({
+  state,
+  onClose,
+  busy,
+}: {
+  state: ConfirmState
+  onClose: () => void
+  busy: boolean
+}) {
+  return (
+    <div
+      className="confirm-scrim"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className="confirm-box">
+        <h3>{state.title}</h3>
+        <p>{state.message}</p>
+        <div className="conf-acts">
+          <button className="btn-mini" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className={`btn-mini ${state.danger ? 'danger' : 'prim'}`}
+            disabled={busy}
+            onClick={() => void state.action()}
+          >
+            {state.confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ProjectsScreen() {
   usePageTitle('Projects')
   const [showArchived, setShowArchived] = useState(false)
@@ -748,6 +1235,9 @@ export function ProjectsScreen() {
   const [filter, setFilter] = useState<FilterMode>('all')
   const [search, setSearch] = useState('')
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
+  const [draft, setDraft] = useState<CreateDraft | null>(null)
+  const [editing, setEditing] = useState<string | null>(null)
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const createMutation = useCreateProject()
   const updateMutation = useUpdateProject()
   const addFolderMutation = useAddProjectFolder()
@@ -782,32 +1272,51 @@ export function ProjectsScreen() {
   }
 
   const create = () => {
-    const name = window.prompt('Project name')?.trim()
-    if (!name) return
-    void runMutation(() => createMutation.mutateAsync({ name }))
+    setActiveProjectId(null) // collapse the drawer behind the modal
+    setDraft({ ...CREATE_INIT })
+  }
+
+  const submitCreate = async () => {
+    if (!draft) return
+    await runMutation(async () => {
+      await createMutation.mutateAsync({
+        name: draft.name.trim(),
+        slug: draft.slug.trim() || slugify(draft.name),
+        description: draft.description.trim() || undefined,
+        primary_path: draft.primary_path.trim() || undefined,
+        board_slug: draft.board_slug.trim() || undefined,
+        color: draft.color,
+      })
+      setDraft(null)
+    })
   }
 
   const edit = (project: Project) => {
-    const input = promptProjectEdit(project, window.prompt)
-    if (!input) return
+    setActiveProjectId(null) // collapse the drawer behind the modal
+    setEditing(project.id)
+  }
+
+  const submitEdit = async (input: UpdateProjectInput) => {
+    if (!editing) return
+    await runMutation(async () => {
+      await updateMutation.mutateAsync({ idOrSlug: editing, input })
+      setEditing(null)
+    })
+  }
+
+  const addFolder = (project: Project, path: string) => {
+    const trimmed = path.trim()
+    if (!trimmed) return
     void runMutation(() =>
-      updateMutation.mutateAsync({
+      addFolderMutation.mutateAsync({
         idOrSlug: project.id,
-        input,
+        input: { path: trimmed },
       }),
     )
   }
 
-  const addFolder = (project: Project) => {
-    const path = window.prompt('Folder path')?.trim()
-    if (!path) return
-    void runMutation(() =>
-      addFolderMutation.mutateAsync({ idOrSlug: project.id, input: { path } }),
-    )
-  }
-
   const removeFolder = (project: Project, path: string) => {
-    if (!window.confirm(`Remove folder ${path}?`)) return
+    // Immediate — a folder link is low-stakes and re-addable (matches the edit wizard).
     void runMutation(() =>
       removeFolderMutation.mutateAsync({ idOrSlug: project.id, path }),
     )
@@ -820,8 +1329,17 @@ export function ProjectsScreen() {
   }
 
   const archive = (project: Project) => {
-    if (!window.confirm(`Archive ${project.name}?`)) return
-    void runMutation(() => archiveMutation.mutateAsync(project.id))
+    setActiveProjectId(null) // collapse the drawer behind the dialog
+    setConfirm({
+      title: 'Archive Project',
+      message: `Archive ${project.name}? It will be hidden from active lists — you can restore it later.`,
+      confirmLabel: 'Archive',
+      danger: false,
+      action: async () => {
+        await runMutation(() => archiveMutation.mutateAsync(project.id))
+        setConfirm(null)
+      },
+    })
   }
 
   const restore = (project: Project) => {
@@ -833,15 +1351,26 @@ export function ProjectsScreen() {
   }
 
   const hardDelete = (project: Project) => {
-    if (!confirmProjectDelete(project, window.confirm)) return
-    void runMutation(async () => {
-      await deleteMutation.mutateAsync(project.id)
-      setActiveProjectId(null)
+    setActiveProjectId(null) // collapse the drawer behind the dialog
+    setConfirm({
+      title: 'Delete Project',
+      message: `Permanently delete ${project.name}? This cannot be undone.`,
+      confirmLabel: 'Delete Project',
+      danger: true,
+      action: async () => {
+        await runMutation(() => deleteMutation.mutateAsync(project.id))
+        setConfirm(null)
+      },
     })
   }
 
   const projects = projectsQuery.data?.projects ?? []
   const activeId = projectsQuery.data?.active_id ?? null
+  // Live project for the edit modal so its folder list refreshes after each
+  // folder mutation invalidates the query (editing holds the stable id).
+  const editingProject = editing
+    ? (projects.find((p) => p.id === editing) ?? null)
+    : null
 
   const filtered = useMemo(
     () =>
@@ -914,7 +1443,7 @@ export function ProjectsScreen() {
           isActive={activeProject.id === activeId}
           onClose={() => setActiveProjectId(null)}
           onEdit={() => edit(activeProject)}
-          onAddFolder={() => addFolder(activeProject)}
+          onAddFolder={(path) => addFolder(activeProject, path)}
           onSetPrimary={(path) => setPrimary(activeProject, path)}
           onRemoveFolder={(path) => removeFolder(activeProject, path)}
           onArchive={() => archive(activeProject)}
@@ -923,6 +1452,54 @@ export function ProjectsScreen() {
           onDelete={() => hardDelete(activeProject)}
           busy={busy}
           error={mutationError}
+        />
+      ) : null}
+
+      {draft ? (
+        <ProjectCreateWizard
+          state={draft}
+          onChange={setDraft}
+          onClose={() => setDraft(null)}
+          onCreate={submitCreate}
+          creating={busy}
+        />
+      ) : null}
+
+      {editingProject ? (
+        <ProjectEditModal
+          project={editingProject}
+          onClose={() => setEditing(null)}
+          onSave={submitEdit}
+          saving={busy}
+          onAddFolder={(path) =>
+            runMutation(() =>
+              addFolderMutation.mutateAsync({
+                idOrSlug: editingProject.id,
+                input: { path },
+              }),
+            )
+          }
+          onRemoveFolder={(path) =>
+            runMutation(() =>
+              removeFolderMutation.mutateAsync({
+                idOrSlug: editingProject.id,
+                path,
+              }),
+            )
+          }
+          onSetPrimary={(path) =>
+            runMutation(() =>
+              primaryMutation.mutateAsync({ idOrSlug: editingProject.id, path }),
+            )
+          }
+        />
+      ) : null}
+
+      {confirm ? (
+        <ConfirmDialog
+          state={confirm}
+          busy={busy}
+          onClose={() => setConfirm(null)}
         />
       ) : null}
     </div>
