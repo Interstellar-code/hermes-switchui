@@ -21,7 +21,7 @@ The Memory page gives you a browser for everything your Hermes agents remember b
 
 The page has five tabs:
 
-- **Agent Memory** — per-agent markdown files stored under `~/.hermes/profiles/<agent-id>/memory/`. Each built-in agent (Hermes Switch, Neo, Trinity, Morpheus) has its own memory space you can inspect and edit.
+- **Agent Memory** — per-agent `SOUL.md` plus the active `MEMORY.md` and `USER.md` stores under `~/.hermes/profiles/<agent-id>/memories/`. Each built-in agent (Hermes Switch, Neo, Trinity, Morpheus) has its own memory space you can inspect and edit.
 - **Wiki** — a shared knowledge base of markdown pages stored under `~/.hermes/` (rooted at `MEMORY.md`, `memory/`, and `memories/`). Any page in the wiki is readable by all agents.
 - **Map** — a D3 force-directed Memory Map that visualizes the full mnemosyne knowledge graph. Nodes are gist, working, fact, entity, episodic, and wiki entries; edges show ctx, references, mentions, about, relates, and summarizes links. Rendered on a canvas for scale (~7k nodes). The Map and Browse tabs appear only when matrix-memory is configured and activated (its mnemosyne DB exists and holds memories); otherwise they are hidden.
 - **Chat** — a retrieval-augmented chat that lets you ask questions grounded in the wiki corpus.
@@ -69,7 +69,7 @@ The Settings tab covers three operational concerns for the knowledge base:
 
 | Store | Path |
 |---|---|
-| Agent memory files | `~/.hermes/profiles/<agent-id>/memory/*.md` |
+| Agent memory files | `~/.hermes/profiles/<agent-id>/SOUL.md`, `memories/*.md` |
 | Shared wiki pages | `~/.hermes/MEMORY.md`, `~/.hermes/memory/`, `~/.hermes/memories/` |
 
 Changes you make in the UI are written directly to these paths. You can also edit the files with any text editor and reload the page to see the updates.

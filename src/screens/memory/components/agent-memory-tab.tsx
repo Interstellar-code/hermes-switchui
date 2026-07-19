@@ -3,7 +3,7 @@
  *
  * Left rail: built-in T1/T2 agents (T3 excluded per spec).
  * Right pane: file list tabs + viewer/editor for the selected agent's memory files.
- * Files live at $HERMES_HOME/profiles/<agent_id>/memory/*.md
+ * SOUL.md lives at the profile root; memory files live under memories/.
  */
 
 import { createPortal } from 'react-dom'

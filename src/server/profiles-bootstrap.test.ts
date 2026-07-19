@@ -7,10 +7,10 @@ import type * as ProfilesBootstrapModule from './profiles-bootstrap'
 const PROFILE_DIR_ENTRIES = [
   'config.yaml',
   'SOUL.md',
-  'MEMORY.md',
-  'USER.md',
   '.env',
   'memory',
+  'memories/MEMORY.md',
+  'memories/USER.md',
   'sessions',
   'skills',
 ]

@@ -40,7 +40,7 @@ function resolveBuiltinAgents(): Array<BuiltinAgent> {
  * Ensures each builtin agent (hermes-switch, neo, trinity, morpheus) has a
  * disk profile at ~/.hermes/profiles/{id}/ with full layout:
  * - config.yaml
- * - SOUL.md, MEMORY.md, USER.md
+ * - SOUL.md, memories/MEMORY.md, memories/USER.md
  * - memory/IDENTITY.md
  * - .env (empty)
  * - sessions/, skills/ directories
@@ -80,6 +80,7 @@ export function ensureBuiltinProfiles(): void {
       fs.mkdirSync(path.join(profileDir, 'skills'), { recursive: true })
       fs.mkdirSync(path.join(profileDir, 'sessions'), { recursive: true })
       fs.mkdirSync(path.join(profileDir, 'memory'), { recursive: true })
+      fs.mkdirSync(path.join(profileDir, 'memories'), { recursive: true })
 
       // Write each profile file independently, guarded by existence check
       ensureConfigYaml(profileDir, agent)
@@ -164,7 +165,7 @@ ${defaultPersona}
  * Write MEMORY.md if it doesn't exist. Stub for long-term agent memory.
  */
 function ensureMemoryMd(profileDir: string, agent: BuiltinAgent): void {
-  const memoryPath = path.join(profileDir, 'MEMORY.md')
+  const memoryPath = path.join(profileDir, 'memories', 'MEMORY.md')
   if (fs.existsSync(memoryPath)) return
 
   const content = `# ${agent.name} — MEMORY
@@ -179,7 +180,7 @@ This file tracks long-term notes and learnings the agent has written.
  * Write USER.md if it doesn't exist. Stub for user profile as known by the agent.
  */
 function ensureUserMd(profileDir: string, agent: BuiltinAgent): void {
-  const userPath = path.join(profileDir, 'USER.md')
+  const userPath = path.join(profileDir, 'memories', 'USER.md')
   if (fs.existsSync(userPath)) return
 
   const content = `# User profile (as known by ${agent.name})

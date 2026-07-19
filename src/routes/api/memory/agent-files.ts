@@ -1,12 +1,8 @@
 /**
  * /api/memory/agent-files — CRUD for per-agent memory files.
  *
- * Path layout: $HERMES_HOME/profiles/<agent_id>/memory/*.md
- *
- * Rationale: ~/.hermes/agents/ does not exist on this install; profiles/<id>/
- * is the established per-agent directory already used by the profiles system.
- * The `memory/` sub-directory is new but safe — profiles-browser.ts never
- * touches it (it only reads config.yaml, .env, skills/, sessions/).
+ * Path layout: $HERMES_HOME/profiles/<agent_id>/SOUL.md and memories/*.md.
+ * MEMORY.md and USER.md live in memories/ but are exposed as flat UI tabs.
  *
  * Routes:
  *   GET    ?agent=<id>                  → list files for agent
@@ -31,75 +27,54 @@ function getHermesRoot(): string {
     : path.resolve(path.join(os.homedir(), '.hermes'))
 }
 
-// T1 Hermes Switch stores memory files directly at the Hermes root (~/.hermes/).
-// T2 agents (neo/trinity/morpheus) use profiles/<id>/memory/ subdirectory.
-function getAgentMemoryDir(agentId: string): string {
-  if (agentId === 'hermes-switch') {
-    return getHermesRoot()
-  }
-  return path.join(getHermesRoot(), 'profiles', agentId, 'memory')
+function getAgentProfileDir(agentId: string): string {
+  return path.join(getHermesRoot(), 'profiles', agentId)
 }
 
-// Resolve a (possibly subdir-prefixed) filename to an absolute path,
-// verifying the result is inside the agent's base dir. Returns null if unsafe.
-function resolveAgentFilePath(agentId: string, filename: string): string | null {
-  const root = getHermesRoot()
-  let base: string
-  let rel: string
-  if (agentId === 'hermes-switch') {
-    base = root
-    rel = filename // e.g. 'SOUL.md' or 'memories/MEMORY.md'
-  } else {
-    base = path.join(root, 'profiles', agentId, 'memory')
-    rel = filename
-  }
-  const resolved = path.resolve(base, rel)
-  if (!resolved.startsWith(base + path.sep) && resolved !== base) return null
-  return resolved
+function resolveAgentFilePath(agentId: string, filename: string): string {
+  const profileDir = getAgentProfileDir(agentId)
+  return filename === 'SOUL.md'
+    ? path.join(profileDir, filename)
+    : path.join(profileDir, 'memories', filename)
 }
 
-// List all memory files for an agent. For T1 (hermes-switch) includes both
-// root .md files and memories/*.md prefixed with 'memories/'.
 function listAgentFiles(agentId: string): Array<AgentFileEntry> {
-  const root = getHermesRoot()
+  const profileDir = getAgentProfileDir(agentId)
   const results: Array<AgentFileEntry> = []
 
-  if (agentId === 'hermes-switch') {
-    // Root .md files
-    if (fs.existsSync(root)) {
-      const rootEntries = fs.readdirSync(root, { withFileTypes: true })
-      for (const e of rootEntries) {
-        if (e.isFile() && e.name.toLowerCase().endsWith('.md')) {
-          const stat = fs.statSync(path.join(root, e.name))
-          results.push({ filename: e.name, sizeBytes: stat.size, modifiedAt: stat.mtime.toISOString() })
-        }
-      }
-    }
-    // memories/ subfolder
-    const memoriesDir = path.join(root, 'memories')
-    if (fs.existsSync(memoriesDir)) {
-      const subEntries = fs.readdirSync(memoriesDir, { withFileTypes: true })
-      for (const e of subEntries) {
-        if (e.isFile() && e.name.toLowerCase().endsWith('.md')) {
-          const stat = fs.statSync(path.join(memoriesDir, e.name))
-          results.push({ filename: `memories/${e.name}`, sizeBytes: stat.size, modifiedAt: stat.mtime.toISOString() })
-        }
-      }
-    }
-    return results.sort((a, b) => a.filename.localeCompare(b.filename))
+  const soulPath = path.join(profileDir, 'SOUL.md')
+  if (fs.existsSync(soulPath)) {
+    const stat = fs.statSync(soulPath)
+    results.push({
+      filename: 'SOUL.md',
+      sizeBytes: stat.size,
+      modifiedAt: stat.mtime.toISOString(),
+    })
   }
 
-  // T2 agents
-  const memDir = path.join(root, 'profiles', agentId, 'memory')
-  if (!fs.existsSync(memDir)) return []
-  const entries = fs.readdirSync(memDir, { withFileTypes: true })
-  for (const e of entries) {
-    if (e.isFile() && e.name.toLowerCase().endsWith('.md')) {
-      const stat = fs.statSync(path.join(memDir, e.name))
-      results.push({ filename: e.name, sizeBytes: stat.size, modifiedAt: stat.mtime.toISOString() })
+  const memoriesDir = path.join(profileDir, 'memories')
+  if (fs.existsSync(memoriesDir)) {
+    for (const entry of fs.readdirSync(memoriesDir, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
+        const stat = fs.statSync(path.join(memoriesDir, entry.name))
+        results.push({
+          filename: entry.name,
+          sizeBytes: stat.size,
+          modifiedAt: stat.mtime.toISOString(),
+        })
+      }
     }
   }
-  return results.sort((a, b) => a.filename.localeCompare(b.filename))
+
+  const order = new Map(
+    ['SOUL.md', 'MEMORY.md', 'USER.md'].map((name, index) => [name, index]),
+  )
+  return results.sort(
+    (a, b) =>
+      (order.get(a.filename) ?? order.size) -
+        (order.get(b.filename) ?? order.size) ||
+      a.filename.localeCompare(b.filename),
+  )
 }
 
 function validateAgentId(id: unknown): string {
@@ -110,26 +85,13 @@ function validateAgentId(id: unknown): string {
   return trimmed
 }
 
-const ALLOWED_SUBDIRS = new Set(['memories'])
-
-function validateFilename(name: unknown, agentId?: string): string {
+function validateFilename(name: unknown): string {
   if (typeof name !== 'string' || !name.trim())
     throw new Error('filename is required')
   const trimmed = name.trim()
   if (trimmed.includes('\\') || trimmed.includes('..'))
     throw new Error('Invalid filename')
-  const slashCount = (trimmed.match(/\//g) ?? []).length
-  if (slashCount > 1) throw new Error('Invalid filename')
-  if (slashCount === 1) {
-    const [dir, base] = trimmed.split('/')
-    if (!ALLOWED_SUBDIRS.has(dir))
-      throw new Error(`Subdirectory '${dir}' is not allowed`)
-    if (agentId !== 'hermes-switch')
-      throw new Error('Subdirectory filenames are only supported for hermes-switch')
-    if (!base || base.includes('..') || !base.toLowerCase().endsWith('.md'))
-      throw new Error('Invalid filename')
-    return trimmed
-  }
+  if (trimmed.includes('/')) throw new Error('Invalid filename')
   if (!trimmed.toLowerCase().endsWith('.md'))
     throw new Error('Only .md files are allowed')
   return trimmed
@@ -169,9 +131,9 @@ export const Route = createFileRoute('/api/memory/agent-files')({
 
           if (filename) {
             // Read single file
-            const fname = validateFilename(filename, agentId)
+            const fname = validateFilename(filename)
             const fullPath = resolveAgentFilePath(agentId, fname)
-            if (!fullPath || !fs.existsSync(fullPath)) {
+            if (!fs.existsSync(fullPath)) {
               return Response.json({ error: 'File not found' }, { status: 404 })
             }
             const stat = fs.statSync(fullPath)
@@ -187,7 +149,10 @@ export const Route = createFileRoute('/api/memory/agent-files')({
 
           // List files
           const files: Array<AgentFileEntry> = listAgentFiles(agentId)
-          return Response.json({ agent: agentId, files } satisfies AgentFilesListResponse)
+          return Response.json({
+            agent: agentId,
+            files,
+          } satisfies AgentFilesListResponse)
         } catch (err) {
           const message =
             err instanceof Error ? err.message : 'Failed to list agent files'
@@ -209,18 +174,18 @@ export const Route = createFileRoute('/api/memory/agent-files')({
             content?: unknown
           }
           const agentId = validateAgentId(body.agent)
-          const filename = validateFilename(body.filename, agentId)
+          const filename = validateFilename(body.filename)
           const content = typeof body.content === 'string' ? body.content : ''
           const fullPath = resolveAgentFilePath(agentId, filename)
-          if (!fullPath) throw new Error('Invalid file path')
           fs.mkdirSync(path.dirname(fullPath), { recursive: true })
           fs.writeFileSync(fullPath, content, 'utf-8')
           return Response.json({ success: true, agent: agentId, filename })
         } catch (err) {
           const message =
             err instanceof Error ? err.message : 'Failed to write agent file'
-          const status =
-            /required|invalid|\.md|unknown/i.test(message) ? 400 : 500
+          const status = /required|invalid|\.md|unknown/i.test(message)
+            ? 400
+            : 500
           return Response.json({ error: message }, { status })
         }
       },
@@ -238,9 +203,8 @@ export const Route = createFileRoute('/api/memory/agent-files')({
             filename?: unknown
           }
           const agentId = validateAgentId(body.agent)
-          const filename = validateFilename(body.filename, agentId)
+          const filename = validateFilename(body.filename)
           const fullPath = resolveAgentFilePath(agentId, filename)
-          if (!fullPath) throw new Error('Invalid file path')
           if (!fs.existsSync(fullPath)) {
             return Response.json({ error: 'File not found' }, { status: 404 })
           }
@@ -249,8 +213,9 @@ export const Route = createFileRoute('/api/memory/agent-files')({
         } catch (err) {
           const message =
             err instanceof Error ? err.message : 'Failed to delete agent file'
-          const status =
-            /required|invalid|\.md|unknown/i.test(message) ? 400 : 500
+          const status = /required|invalid|\.md|unknown/i.test(message)
+            ? 400
+            : 500
           return Response.json({ error: message }, { status })
         }
       },
