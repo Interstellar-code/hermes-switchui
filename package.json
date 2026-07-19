@@ -68,7 +68,7 @@
     "electron-updater": "^6.6.2",
     "framer-motion": "^12.40.0",
     "gray-matter": "^4.0.3",
-    "hono": "^4.12.23",
+    "hono": "^4.12.31",
     "lucide-react": "^1.17.0",
     "marked": "^18.0.5",
     "mermaid": "^11.15.0",
@@ -124,7 +124,7 @@
     "concurrently": "^10.0.3",
     "electron": "^42.3.3",
     "electron-builder": "^26.8.1",
-    "esbuild": "^0.28.0",
+    "esbuild": "^0.28.1",
     "eslint": "^10.4.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "jsdom": "^29.1.1",
@@ -150,7 +150,13 @@
       "brace-expansion@2": "2.1.1",
       "brace-expansion@5": "5.0.6",
       "tmp": "^0.2.6",
-      "dompurify": "^3.4.7"
+      "dompurify": "^3.4.12",
+      "form-data@4": ">=4.0.6",
+      "tar@7": ">=7.5.16",
+      "js-yaml@3": ">=3.15.0",
+      "js-yaml@4": ">=4.2.0",
+      "undici@6": ">=6.27.0",
+      "undici@7": ">=7.28.0"
     }
   }
 }
