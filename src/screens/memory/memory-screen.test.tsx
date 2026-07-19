@@ -13,7 +13,7 @@ vi.mock('./components/memory-map', () => ({ MemoryMap: () => <div>map-body</div>
 vi.mock('./components/settings-tab', () => ({ SettingsTab: () => <div>settings</div> }))
 vi.mock('./components/chat-tab', () => ({ ChatTab: () => <div>chat</div> }))
 
-function mockStats(exists: boolean) {
+function mockStats(exists: boolean, total: number) {
   vi.stubGlobal(
     'fetch',
     vi.fn(() =>
@@ -23,7 +23,7 @@ function mockStats(exists: boolean) {
           Promise.resolve({
             checkedAt: 0,
             db: { exists },
-            counts: { working: 0, episodic: 0, triples: 0, fts: 0, total: 0 },
+            counts: { working: total, episodic: 0, triples: 0, fts: 0, total },
           }),
       }),
     ),
@@ -47,26 +47,34 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('MemoryScreen — Map tab gating', () => {
-  it('hides the Map tab when matrix-memory is not configured (db missing)', async () => {
-    mockStats(false)
+describe('MemoryScreen — matrix-memory tab gating (Map + Browse)', () => {
+  it('hides Map and Browse when the DB is missing', async () => {
+    mockStats(false, 0)
     renderScreen()
-    // non-mnemosyne tabs always present
-    expect(screen.getByRole('tab', { name: /agent memory/i })).toBeTruthy()
-    // give the availability query time to settle, then confirm Map stays hidden
+    expect(screen.getByRole('tab', { name: /agent memory/i })).toBeTruthy() // ungated
     await waitFor(() => expect((globalThis.fetch as any)).toHaveBeenCalled())
     expect(screen.queryByRole('tab', { name: 'Map' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'Browse' })).toBeNull()
   })
 
-  it('shows the Map tab when matrix-memory is configured + activated (db exists)', async () => {
-    mockStats(true)
+  it('hides Map and Browse when the DB exists but holds no memories', async () => {
+    mockStats(true, 0)
+    renderScreen()
+    await waitFor(() => expect((globalThis.fetch as any)).toHaveBeenCalled())
+    expect(screen.queryByRole('tab', { name: 'Map' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'Browse' })).toBeNull()
+  })
+
+  it('shows Map and Browse when matrix-memory is configured + activated', async () => {
+    mockStats(true, 42)
     renderScreen()
     await waitFor(() => expect(screen.getByRole('tab', { name: 'Map' })).toBeTruthy())
+    expect(screen.getByRole('tab', { name: 'Browse' })).toBeTruthy()
   })
 
-  it('redirects away from a persisted Map tab when matrix-memory is unavailable', async () => {
-    useMemoryScreenStore.setState({ activeTab: 'map' })
-    mockStats(false)
+  it('redirects away from a persisted gated tab when matrix-memory is unavailable', async () => {
+    useMemoryScreenStore.setState({ activeTab: 'browse' })
+    mockStats(true, 0)
     renderScreen()
     await waitFor(() => expect(useMemoryScreenStore.getState().activeTab).toBe('memory'))
   })

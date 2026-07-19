@@ -16,7 +16,7 @@ import '@/styles/matrix-profiles.css'
 // Matrix Memory (mnemosyne) backs the Map tab. `/api/memory/stats` reports
 // whether the profile's mnemosyne DB exists — i.e. matrix-memory is
 // configured and activated.
-type MnemosyneAvailability = { db: { exists: boolean } }
+type MnemosyneAvailability = { db: { exists: boolean }; counts: { total: number } }
 
 async function fetchMnemosyneAvailability(): Promise<MnemosyneAvailability> {
   const res = await fetch('/api/memory/stats')
@@ -189,19 +189,24 @@ export function MemoryScreen() {
 
   const agentCount = BUILTIN_AGENTS.length
 
-  // Gate the Map tab on matrix-memory being configured + activated.
+  // Matrix-memory is "configured + activated" when its mnemosyne DB exists AND
+  // actually holds memories. The Map and Browse tabs both depend on it.
   const { data: mnemo } = useQuery({
     queryKey: ['memory', 'availability'],
     queryFn: fetchMnemosyneAvailability,
     staleTime: 60_000,
   })
-  const mapAvailable = mnemo?.db.exists === true
-  const tabs = TABS.filter((t) => t.id !== 'map' || mapAvailable)
+  const matrixMemoryActive =
+    mnemo?.db.exists === true && mnemo.counts.total > 0
+  const isGatedTab = (t: MemoryTab) => t === 'map' || t === 'browse'
+  const tabs = TABS.filter((t) => !isGatedTab(t.id) || matrixMemoryActive)
 
-  // If Map was the persisted tab but matrix-memory isn't available, fall back.
+  // If a matrix-memory tab is persisted-active but it's unavailable, fall back.
   useEffect(() => {
-    if (activeTab === 'map' && mnemo && !mapAvailable) setActiveTab('memory')
-  }, [activeTab, mnemo, mapAvailable, setActiveTab])
+    if (mnemo && !matrixMemoryActive && (activeTab === 'map' || activeTab === 'browse')) {
+      setActiveTab('memory')
+    }
+  }, [activeTab, mnemo, matrixMemoryActive, setActiveTab])
 
   return (
     <div data-screen="memory" className="mem-shell">
@@ -249,7 +254,7 @@ export function MemoryScreen() {
             <AgentMemoryTab />
           </Suspense>
         )}
-        {activeTab === 'browse' && (
+        {activeTab === 'browse' && matrixMemoryActive && (
           <Suspense fallback={<div className="mem-loading">Loading…</div>}>
             <BrowseTab />
           </Suspense>
@@ -259,7 +264,7 @@ export function MemoryScreen() {
             <WikiTab />
           </Suspense>
         )}
-        {activeTab === 'map' && mapAvailable && (
+        {activeTab === 'map' && matrixMemoryActive && (
           <Suspense fallback={<div className="mem-loading">Loading…</div>}>
             <MemoryMap />
           </Suspense>
