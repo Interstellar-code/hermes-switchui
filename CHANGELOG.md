@@ -3,6 +3,29 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.17] — 2026-07-19
+
+Memory screen overhaul: a real graph of your memory, and a chat that actually talks to it (#342).
+
+### Added
+
+- **Memory Map** — a D3 force-directed graph replaces the old Wiki Graph tab. It renders the full mnemosyne knowledge graph on a canvas (~7k nodes / ~13k edges): `gist` / `working` / `fact` / `entity` / `episodic` / `wiki` nodes tied together by `ctx` / `references` / `mentions` / `about` / `relates` / `summarizes` edges — so memories actually interconnect through shared entities instead of floating as star-dust. Backed by a read-only BFF at `/api/memory/graph` (edge dedup, per-kind labels truncated to 60 chars; raw memory text never leaves the server).
+- **Filter panel** on the Map — node-kind toggles, edge-type toggles, a "hide isolated nodes" switch, and a min-connections slider (raise it to peel the long tail and reveal just the hubs). Default is everything visible.
+- **Memory Chat** — the Chat tab is now a strictly memory-grounded assistant. It retrieves from your memory files (`/api/memory/search`) **and** matrix-memory (`/api/memory/mnemosyne-search`), then answers **only** from that context via a non-agentic completion (`/api/memory/chat`). If nothing relevant is found it replies "I don't have that in my memory." — no general-knowledge guessing.
+
+### Changed
+
+- The **Map** and **Browse** tabs now appear only when matrix-memory is configured and activated (its mnemosyne DB exists and holds memories); they are hidden otherwise, and a persisted-active gated tab falls back to Agent Memory.
+- Memory screen store bumped to v2 (persisted `graph` tab migrates to `map`; unknown values → `memory`).
+
+### Fixed
+
+- The memory Chat previously did nothing: it mis-parsed the streaming response (expected OpenAI `choices[]`, but the server emits `event: chunk` / `{text}`) and was grounded in the wiki rather than memory. It now parses the stream correctly and grounds strictly in memory.
+
+### Removed
+
+- Legacy Wiki Graph tab (`graph-tab.tsx`), the `/api/knowledge/graph` route, and `buildKnowledgeGraph()` / the `KnowledgeGraph` type — the wiki parser, CRUD, providers and resolvers are retained.
+
 ## [2.5.16] — 2026-07-19
 
 ### Fixed
