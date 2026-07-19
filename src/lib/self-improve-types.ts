@@ -194,3 +194,8 @@ export interface PauseResumeResponse {
   profile: string
   paused: boolean
 }
+
+export interface ProfileStatus {
+  profile: string
+  paused: boolean
+}

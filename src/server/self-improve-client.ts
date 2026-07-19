@@ -20,6 +20,7 @@ import type {
   MetricsSnapshot,
   PauseResumeResponse,
   PluginHealth,
+  ProfileStatus,
   ProposeResponse,
   ProposeSkippedResponse,
   Scenario,
@@ -31,7 +32,10 @@ const BASE = '/api/plugins/karpathy-self-improve'
 // Must exceed worst-case dashboardFetch auth flow (cold-cache 401 retry = ~6s).
 const FETCH_TIMEOUT_MS = 12_000
 
-async function selfImproveFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function selfImproveFetch<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
   const res = await dashboardFetch(path, {
     ...init,
     signal: init.signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS),
@@ -70,7 +74,9 @@ export async function listMetrics(params?: {
 }
 
 export async function latestMetrics(): Promise<Array<MetricsSnapshot>> {
-  const { metrics } = await selfImproveFetch<MetricsResponse>(`${BASE}/metrics/latest`)
+  const { metrics } = await selfImproveFetch<MetricsResponse>(
+    `${BASE}/metrics/latest`,
+  )
   return metrics
 }
 
@@ -86,10 +92,13 @@ export async function listBaselines(params?: {
   return baselines
 }
 
-export async function collectMetrics(): Promise<CollectResponse> {
+export async function collectMetrics(
+  profile: string,
+): Promise<CollectResponse> {
   return selfImproveFetch<CollectResponse>(`${BASE}/metrics/collect`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile }),
   })
 }
 
@@ -113,11 +122,17 @@ export async function getExperiment(id: number): Promise<Experiment> {
   return selfImproveFetch<Experiment>(`${BASE}/experiments/${id}`)
 }
 
-export async function getExperimentHistory(id: number): Promise<ExperimentHistoryResponse> {
-  return selfImproveFetch<ExperimentHistoryResponse>(`${BASE}/experiments/${id}/history`)
+export async function getExperimentHistory(
+  id: number,
+): Promise<ExperimentHistoryResponse> {
+  return selfImproveFetch<ExperimentHistoryResponse>(
+    `${BASE}/experiments/${id}/history`,
+  )
 }
 
-export async function createExperiment(body: CreateExperimentBody): Promise<{ experiment_id: number }> {
+export async function createExperiment(
+  body: CreateExperimentBody,
+): Promise<{ experiment_id: number }> {
   return selfImproveFetch<{ experiment_id: number }>(`${BASE}/experiments`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -129,11 +144,14 @@ export async function approveExperiment(
   id: number,
   actor: string,
 ): Promise<{ ok: boolean; state: string }> {
-  return selfImproveFetch<{ ok: boolean; state: string }>(`${BASE}/experiments/${id}/approve`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ actor }),
-  })
+  return selfImproveFetch<{ ok: boolean; state: string }>(
+    `${BASE}/experiments/${id}/approve`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actor }),
+    },
+  )
 }
 
 export async function rejectExperiment(
@@ -141,21 +159,27 @@ export async function rejectExperiment(
   actor: string,
   reason: string,
 ): Promise<{ ok: boolean; state: string }> {
-  return selfImproveFetch<{ ok: boolean; state: string }>(`${BASE}/experiments/${id}/reject`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ actor, reason }),
-  })
+  return selfImproveFetch<{ ok: boolean; state: string }>(
+    `${BASE}/experiments/${id}/reject`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actor, reason }),
+    },
+  )
 }
 
 export async function proposeExperiment(
   profile: string,
 ): Promise<ProposeResponse | ProposeSkippedResponse> {
-  return selfImproveFetch<ProposeResponse | ProposeSkippedResponse>(`${BASE}/propose`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile }),
-  })
+  return selfImproveFetch<ProposeResponse | ProposeSkippedResponse>(
+    `${BASE}/propose`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile }),
+    },
+  )
 }
 
 // ── Lifecycle actions (P2) ────────────────────────────────────────────────────
@@ -163,14 +187,15 @@ export async function proposeExperiment(
 export async function applyExperiment(
   id: number,
 ): Promise<{ ok: boolean; state: 'live'; apply_commit_sha: string }> {
-  return selfImproveFetch<{ ok: boolean; state: 'live'; apply_commit_sha: string }>(
-    `${BASE}/experiments/${id}/apply`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    },
-  )
+  return selfImproveFetch<{
+    ok: boolean
+    state: 'live'
+    apply_commit_sha: string
+  }>(`${BASE}/experiments/${id}/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
 }
 
 export async function verifyExperiment(
@@ -204,26 +229,30 @@ export async function listScenarios(
 export async function createScenario(
   body: CreateScenarioBody,
 ): Promise<CreateScenarioResponse> {
-  return selfImproveFetch<CreateScenarioResponse>(
-    `${BASE}/scenarios`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    },
-  )
+  return selfImproveFetch<CreateScenarioResponse>(`${BASE}/scenarios`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
 }
 
 export async function deleteScenario(
   id: number,
 ): Promise<DeleteScenarioResponse> {
-  return selfImproveFetch<DeleteScenarioResponse>(
-    `${BASE}/scenarios/${id}`,
-    { method: 'DELETE' },
-  )
+  return selfImproveFetch<DeleteScenarioResponse>(`${BASE}/scenarios/${id}`, {
+    method: 'DELETE',
+  })
 }
 
 // ── P3: Pause / Resume ────────────────────────────────────────────────────────
+
+export async function getProfileStatus(
+  profile: string,
+): Promise<ProfileStatus> {
+  return selfImproveFetch<ProfileStatus>(
+    `${BASE}/profiles/${encodeURIComponent(profile)}`,
+  )
+}
 
 export async function pauseProfile(
   profile: string,

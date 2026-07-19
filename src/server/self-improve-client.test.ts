@@ -9,6 +9,7 @@ import {
   getExperiment,
   getExperimentHistory,
   getHealth,
+  getProfileStatus,
   latestMetrics,
   listBaselines,
   listExperiments,
@@ -50,7 +51,13 @@ beforeEach(() => {
 
 describe('getHealth', () => {
   it('returns parsed PluginHealth on success', async () => {
-    const payload = { ok: true, plugin: 'karpathy-self-improve', version: '0.1.0', db_path: '/tmp/si.db', db_exists: true }
+    const payload = {
+      ok: true,
+      plugin: 'karpathy-self-improve',
+      version: '0.1.0',
+      db_path: '/tmp/si.db',
+      db_exists: true,
+    }
     mockFetch.mockResolvedValue(jsonOk(payload))
     const result = await getHealth()
     expect(result).toEqual(payload)
@@ -61,18 +68,29 @@ describe('getHealth', () => {
   })
 
   it('throws on non-ok response', async () => {
-    mockFetch.mockResolvedValue(errorResponse(503, { detail: 'Plugin offline' }))
+    mockFetch.mockResolvedValue(
+      errorResponse(503, { detail: 'Plugin offline' }),
+    )
     await expect(getHealth()).rejects.toThrow('503')
   })
 })
 
 describe('listMetrics', () => {
   const snapshot = {
-    id: 1, profile: 'default', captured_at: '2026-06-11T00:00:00Z',
-    sessions_count: 5, error_count: 0, warn_count: 1,
-    tokens: 1000, cost: 0.01, retries: 0,
-    window_started_at: null, window_ended_at: null,
-    from_offset: null, to_offset: null, payload: '{}',
+    id: 1,
+    profile: 'default',
+    captured_at: '2026-06-11T00:00:00Z',
+    sessions_count: 5,
+    error_count: 0,
+    warn_count: 1,
+    tokens: 1000,
+    cost: 0.01,
+    retries: 0,
+    window_started_at: null,
+    window_ended_at: null,
+    from_offset: null,
+    to_offset: null,
+    payload: '{}',
   }
 
   it('returns metrics array', async () => {
@@ -110,8 +128,12 @@ describe('latestMetrics', () => {
 
 describe('listBaselines', () => {
   const baseline = {
-    id: 1, profile: 'default', file: 'src/index.ts',
-    commit_sha: 'abc123', score: 0.95, experiment_id: null,
+    id: 1,
+    profile: 'default',
+    file: 'src/index.ts',
+    commit_sha: 'abc123',
+    score: 0.95,
+    experiment_id: null,
     created_at: '2026-06-11T00:00:00Z',
   }
 
@@ -136,12 +158,22 @@ describe('collectMetrics', () => {
   it('POSTs and returns CollectResponse', async () => {
     const payload = { collected: 3, snapshots: [] }
     mockFetch.mockResolvedValue(jsonOk(payload))
-    const result = await collectMetrics()
+    const result = await collectMetrics('prod')
     expect(result).toEqual(payload)
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('/metrics/collect'),
-      expect.objectContaining({ method: 'POST' }),
+      expect.objectContaining({ method: 'POST', body: '{"profile":"prod"}' }),
     )
+  })
+})
+
+describe('getProfileStatus', () => {
+  it('returns paused state', async () => {
+    mockFetch.mockResolvedValue(jsonOk({ profile: 'neo', paused: true }))
+    await expect(getProfileStatus('neo')).resolves.toEqual({
+      profile: 'neo',
+      paused: true,
+    })
   })
 })
 
@@ -191,7 +223,9 @@ describe('listExperiments', () => {
   })
 
   it('throws on error response', async () => {
-    mockFetch.mockResolvedValue(errorResponse(503, { detail: 'Plugin unavailable' }))
+    mockFetch.mockResolvedValue(
+      errorResponse(503, { detail: 'Plugin unavailable' }),
+    )
     await expect(listExperiments()).rejects.toThrow()
   })
 })
@@ -232,7 +266,9 @@ describe('getExperimentHistory', () => {
   })
 
   it('throws on error response', async () => {
-    mockFetch.mockResolvedValue(errorResponse(503, { detail: 'Plugin unavailable' }))
+    mockFetch.mockResolvedValue(
+      errorResponse(503, { detail: 'Plugin unavailable' }),
+    )
     await expect(getExperimentHistory(1)).rejects.toThrow()
   })
 })
@@ -240,7 +276,11 @@ describe('getExperimentHistory', () => {
 describe('createExperiment', () => {
   it('POSTs body and returns experiment_id on success', async () => {
     mockFetch.mockResolvedValue(jsonOk({ experiment_id: 42 }))
-    const result = await createExperiment({ profile: 'default', diff: 'diff text', rationale: 'why' })
+    const result = await createExperiment({
+      profile: 'default',
+      diff: 'diff text',
+      rationale: 'why',
+    })
     expect(result.experiment_id).toBe(42)
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('/experiments'),
@@ -300,7 +340,9 @@ describe('rejectExperiment', () => {
 
 describe('proposeExperiment', () => {
   it('POSTs to propose endpoint and returns ProposeResponse', async () => {
-    mockFetch.mockResolvedValue(jsonOk({ experiment_id: 7, offline_score: 0.9 }))
+    mockFetch.mockResolvedValue(
+      jsonOk({ experiment_id: 7, offline_score: 0.9 }),
+    )
     const result = await proposeExperiment('default')
     expect(result).toMatchObject({ experiment_id: 7, offline_score: 0.9 })
     expect(mockFetch).toHaveBeenCalledWith(
@@ -313,7 +355,9 @@ describe('proposeExperiment', () => {
   })
 
   it('returns skipped response when agent skips', async () => {
-    mockFetch.mockResolvedValue(jsonOk({ skipped: true, reason: 'no new data' }))
+    mockFetch.mockResolvedValue(
+      jsonOk({ skipped: true, reason: 'no new data' }),
+    )
     const result = await proposeExperiment('default')
     expect(result).toMatchObject({ skipped: true, reason: 'no new data' })
   })
@@ -434,7 +478,15 @@ describe('listScenarios', () => {
   })
 
   it('returns scenario array from response', async () => {
-    const scenario = { id: 1, profile: 'default', name: 'test', input: 'hi', checks: '[]', holdout: 0, created_at: '2026-01-01T00:00:00Z' }
+    const scenario = {
+      id: 1,
+      profile: 'default',
+      name: 'test',
+      input: 'hi',
+      checks: '[]',
+      holdout: 0,
+      created_at: '2026-01-01T00:00:00Z',
+    }
     mockFetch.mockResolvedValue(jsonOk({ scenarios: [scenario] }))
     const result = await listScenarios('default')
     expect(result).toHaveLength(1)
@@ -452,7 +504,10 @@ describe('listScenarios', () => {
 describe('createScenario', () => {
   it('POSTs to /scenarios with required fields', async () => {
     mockFetch.mockResolvedValue(jsonOk({ scenario_id: 42 }))
-    const result = await createScenario({ profile: 'default', name: 'greeting' })
+    const result = await createScenario({
+      profile: 'default',
+      name: 'greeting',
+    })
     expect(result.scenario_id).toBe(42)
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('/scenarios'),
@@ -465,7 +520,11 @@ describe('createScenario', () => {
 
   it('includes checks array in body when provided', async () => {
     mockFetch.mockResolvedValue(jsonOk({ scenario_id: 7 }))
-    await createScenario({ profile: 'p', name: 'n', checks: ['check1', 'check2'] })
+    await createScenario({
+      profile: 'p',
+      name: 'n',
+      checks: ['check1', 'check2'],
+    })
     expect(mockFetch).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -508,7 +567,9 @@ describe('deleteScenario', () => {
 
 describe('pauseProfile', () => {
   it('POSTs to /profiles/{profile}/pause and returns paused=true', async () => {
-    mockFetch.mockResolvedValue(jsonOk({ ok: true, profile: 'default', paused: true }))
+    mockFetch.mockResolvedValue(
+      jsonOk({ ok: true, profile: 'default', paused: true }),
+    )
     const result = await pauseProfile('default')
     expect(result.ok).toBe(true)
     expect(result.paused).toBe(true)
@@ -519,7 +580,9 @@ describe('pauseProfile', () => {
   })
 
   it('URL-encodes profile name', async () => {
-    mockFetch.mockResolvedValue(jsonOk({ ok: true, profile: 'my profile', paused: true }))
+    mockFetch.mockResolvedValue(
+      jsonOk({ ok: true, profile: 'my profile', paused: true }),
+    )
     await pauseProfile('my profile')
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('/profiles/my%20profile/pause'),
@@ -537,7 +600,9 @@ describe('pauseProfile', () => {
 
 describe('resumeProfile', () => {
   it('POSTs to /profiles/{profile}/resume and returns paused=false', async () => {
-    mockFetch.mockResolvedValue(jsonOk({ ok: true, profile: 'default', paused: false }))
+    mockFetch.mockResolvedValue(
+      jsonOk({ ok: true, profile: 'default', paused: false }),
+    )
     const result = await resumeProfile('default')
     expect(result.ok).toBe(true)
     expect(result.paused).toBe(false)
