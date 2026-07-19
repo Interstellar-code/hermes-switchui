@@ -3,6 +3,21 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.19] — 2026-07-19
+
+### Added
+
+- **Profile-scoped Self-Improve metrics.** The Self-Improve screen now collects and reports metrics per agent profile instead of one global `"(unknown)"` bucket. Metric collection sends the selected profile, every query is gated on a chosen profile, and a sensible default is picked as profiles load. Adds a `GET /api/self-improve/profiles/{profile}` status route (paused/running) and a `ProfileStatus` type. Requires the matching per-profile backend in the `karpathy-self-improve` plugin (Interstellar-code/hermes-agent#174).
+
+### Changed
+
+- `collect` now requires a profile — the metrics POST route rejects missing/blank profiles and invalid JSON with `400`.
+
+### Fixed
+
+- Negative cost deltas now format as currency (e.g. `-$0.25`) instead of a bare minus.
+- `Escape` closes the scenario create dialog; focus-visible outlines added to Self-Improve controls; the screen lays out correctly under 640px.
+
 ## [2.5.18] — 2026-07-19
 
 ### Fixed
