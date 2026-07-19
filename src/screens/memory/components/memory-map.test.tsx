@@ -19,6 +19,9 @@ const GRAPH = {
 
 const roDisconnect = vi.fn()
 
+const okFetch = (body: unknown) =>
+  vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(body) }))
+
 function renderMap() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -72,7 +75,9 @@ describe('MemoryMap', () => {
   it('shows an error state when the request fails', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({ ok: false, status: 500, json: async () => ({ error: 'boom' }) })),
+      vi.fn(() =>
+        Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({ error: 'boom' }) }),
+      ),
     )
     renderMap()
     await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/boom/i))
@@ -81,17 +86,14 @@ describe('MemoryMap', () => {
   it('shows an empty state when there are no nodes', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => ({
-        ok: true,
-        json: async () => ({ nodes: [], edges: [], meta: { ...GRAPH.meta, nodeCount: 0, edgeCount: 0, dbMissing: true } }),
-      })),
+      okFetch({ nodes: [], edges: [], meta: { ...GRAPH.meta, nodeCount: 0, edgeCount: 0, dbMissing: true } }),
     )
     renderMap()
     await waitFor(() => expect(screen.getByRole('status').textContent).toMatch(/no memory database/i))
   })
 
   it('renders nodes and stops the simulation + disconnects the observer on unmount', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => GRAPH })))
+    vi.stubGlobal('fetch', okFetch(GRAPH))
     const { container, unmount } = renderMap()
     await waitFor(() => expect(container.querySelector('.mm-svg')).toBeTruthy())
     await waitFor(() =>
@@ -103,7 +105,7 @@ describe('MemoryMap', () => {
 
   it('renders a static layout under prefers-reduced-motion', async () => {
     mockMatchMedia(true)
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => GRAPH })))
+    vi.stubGlobal('fetch', okFetch(GRAPH))
     const { container } = renderMap()
     // reduced-motion path ticks synchronously, so nodes have finite positions immediately.
     await waitFor(() =>
