@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryMap } from './memory-map'
 
@@ -116,12 +116,29 @@ describe('MemoryMap', () => {
     await waitFor(() => expect(mockCtx.arc).toHaveBeenCalled())
   })
 
-  it('renders the edge-type toggle controls', async () => {
+  it('exposes node-kind + edge-type filters, hide-isolated, and a min-connections slider', async () => {
     vi.stubGlobal('fetch', okFetch(GRAPH))
     renderMap()
-    await waitFor(() => expect(screen.getByRole('button', { name: 'mentions' })).toBeTruthy())
+    await waitFor(() => expect(screen.getByRole('button', { name: /filters/i })).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: /filters/i }))
+
     for (const t of ['ctx', 'references', 'mentions', 'about', 'relates', 'summarizes']) {
       expect(screen.getByRole('button', { name: t })).toBeTruthy()
     }
+    for (const k of ['gist', 'working', 'fact', 'entity', 'episodic', 'wiki']) {
+      expect(screen.getByRole('button', { name: k })).toBeTruthy()
+    }
+    expect(screen.getByRole('checkbox', { name: /hide isolated/i })).toBeTruthy()
+    expect(screen.getByRole('slider', { name: /minimum connections/i })).toBeTruthy()
+  })
+
+  it('re-renders (redraws) when an edge type is filtered off', async () => {
+    vi.stubGlobal('fetch', okFetch(GRAPH))
+    renderMap()
+    await waitFor(() => expect(screen.getByRole('button', { name: /filters/i })).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: /filters/i }))
+    mockCtx.arc.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'mentions' }))
+    await waitFor(() => expect(mockCtx.arc).toHaveBeenCalled())
   })
 })

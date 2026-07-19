@@ -106,6 +106,56 @@
   font-size: 1rem;
 }
 
+/* ── filter panel ───────────────────────────────────────────────────────── */
+
+.mm-filter-btn.is-on {
+  color: #cfffd6;
+  border-color: rgba(0, 255, 65, 0.7);
+}
+
+.mm-filter-panel {
+  position: absolute;
+  top: 52px;
+  left: 12px;
+  right: 12px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(0, 12, 6, 0.94);
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  border-radius: 8px;
+}
+.mm-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.mm-filter-label {
+  min-width: 78px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(207, 255, 214, 0.6);
+}
+.mm-filter-check,
+.mm-filter-slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: rgba(207, 255, 214, 0.85);
+}
+.mm-filter-slider input[type='range'] {
+  width: 140px;
+  accent-color: #00ff41;
+}
+.mm-filter-check input[type='checkbox'] {
+  accent-color: #00ff41;
+}
+
 /* ── legend ─────────────────────────────────────────────────────────────── */
 
 .mm-legend {

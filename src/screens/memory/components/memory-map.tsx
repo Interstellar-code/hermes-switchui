@@ -103,6 +103,14 @@ const EDGE_ORDER: ReadonlyArray<EdgeType> = [
   'references',
   'relates',
 ]
+const KIND_ORDER: ReadonlyArray<Kind> = [
+  'gist',
+  'working',
+  'fact',
+  'entity',
+  'episodic',
+  'wiki',
+]
 
 function nodeRadius(n: SimNode): number {
   // entity hubs grow with degree so the connectors stand out
@@ -177,20 +185,60 @@ function MemoryMapCanvas({ data }: { data: GraphResponse }) {
     relates: true,
     summarizes: true,
   })
+  const [visibleKinds, setVisibleKinds] = useState<Record<Kind, boolean>>({
+    gist: true,
+    working: true,
+    fact: true,
+    entity: true,
+    episodic: true,
+    wiki: true,
+  })
+  const [hideIsolated, setHideIsolated] = useState(false)
+  const [minConnections, setMinConnections] = useState(0)
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   const simRef = useRef<Simulation<SimNode, SimEdge> | null>(null)
   const zoomResetRef = useRef<(() => void) | null>(null)
   const zoomByRef = useRef<((k: number) => void) | null>(null)
+  const redrawRef = useRef<(() => void) | null>(null)
 
   // live refs so interaction state reaches the (data-scoped) draw loop
   // without rebuilding the simulation.
-  const stateRef = useRef({ selected, hovered, search, visibleTypes })
-  stateRef.current = { selected, hovered, search, visibleTypes }
+  const stateRef = useRef({
+    selected,
+    hovered,
+    search,
+    visibleTypes,
+    visibleKinds,
+    hideIsolated,
+    minConnections,
+  })
+  stateRef.current = {
+    selected,
+    hovered,
+    search,
+    visibleTypes,
+    visibleKinds,
+    hideIsolated,
+    minConnections,
+  }
 
   const counts = useMemo(() => {
     const byKind: Partial<Record<Kind, number>> = {}
     for (const n of data.nodes) byKind[n.kind] = (byKind[n.kind] ?? 0) + 1
     return byKind
+  }, [data])
+
+  // Slider ceiling = highest node degree (capped so the control stays usable).
+  const maxConn = useMemo(() => {
+    const deg = new Map<string, number>()
+    for (const e of data.edges) {
+      deg.set(e.source, (deg.get(e.source) ?? 0) + 1)
+      deg.set(e.target, (deg.get(e.target) ?? 0) + 1)
+    }
+    let m = 0
+    for (const v of deg.values()) if (v > m) m = v
+    return Math.max(1, Math.min(m, 50))
   }, [data])
 
   useEffect(() => {
@@ -251,16 +299,63 @@ function MemoryMapCanvas({ data }: { data: GraphResponse }) {
       const t = typeof e.target === 'string' ? nodeById.get(e.target) : e.target
       return [s, t]
     }
+
+    // ── filter visibility (recomputed only when filter state changes) ────────
+    let visKey = ''
+    const nodeDeg = new Map<string, number>()
+    const visibleNodes = new Set<string>()
+    function recomputeVisibility(
+      vt: Record<EdgeType, boolean>,
+      vk: Record<Kind, boolean>,
+      hideIso: boolean,
+      minC: number,
+    ) {
+      nodeDeg.clear()
+      for (const e of edges) {
+        if (!vt[e.edgeType]) continue
+        const [s, t] = endpoints(e)
+        if (!s || !t || !vk[s.kind] || !vk[t.kind]) continue
+        nodeDeg.set(s.id, (nodeDeg.get(s.id) ?? 0) + 1)
+        nodeDeg.set(t.id, (nodeDeg.get(t.id) ?? 0) + 1)
+      }
+      const min = Math.max(minC, hideIso ? 1 : 0)
+      visibleNodes.clear()
+      for (const n of nodes) {
+        if (!vk[n.kind]) continue
+        if ((nodeDeg.get(n.id) ?? 0) >= min) visibleNodes.add(n.id)
+      }
+    }
+    const edgeShown = (e: SimEdge, vt: Record<EdgeType, boolean>): boolean => {
+      if (!vt[e.edgeType]) return false
+      const [s, t] = endpoints(e)
+      return !!s && !!t && visibleNodes.has(s.id) && visibleNodes.has(t.id)
+    }
+
     function draw() {
-      const { selected: sel, hovered: hov, search: q, visibleTypes: vis } =
-        stateRef.current
-      const activeId = hov?.id ?? sel?.id ?? null
+      const {
+        selected: sel,
+        hovered: hov,
+        search: q,
+        visibleTypes: vis,
+        visibleKinds: vkinds,
+        hideIsolated: hideIso,
+        minConnections: minC,
+      } = stateRef.current
+      const key = JSON.stringify([vis, vkinds, hideIso, minC])
+      if (key !== visKey) {
+        visKey = key
+        recomputeVisibility(vis, vkinds, hideIso, minC)
+      }
+      const activeId =
+        (hov && visibleNodes.has(hov.id) ? hov.id : null) ??
+        (sel && visibleNodes.has(sel.id) ? sel.id : null)
       const query = q.trim().toLowerCase()
 
       const neighbors = new Set<string>()
       if (activeId) {
         neighbors.add(activeId)
         for (const e of edges) {
+          if (!edgeShown(e, vis)) continue
           const [s, t] = endpoints(e)
           if (!s || !t) continue
           if (s.id === activeId) neighbors.add(t.id)
@@ -284,6 +379,7 @@ function MemoryMapCanvas({ data }: { data: GraphResponse }) {
           if (e.edgeType !== type) continue
           const [s, t] = endpoints(e)
           if (!s || !t || s.x == null || s.y == null || t.x == null || t.y == null) continue
+          if (!visibleNodes.has(s.id) || !visibleNodes.has(t.id)) continue
           if (activeId && !(s.id === activeId || t.id === activeId)) continue
           ctx!.moveTo(s.x, s.y)
           ctx!.lineTo(t.x, t.y)
@@ -294,6 +390,7 @@ function MemoryMapCanvas({ data }: { data: GraphResponse }) {
       // nodes
       for (const n of nodes) {
         if (n.x == null || n.y == null) continue
+        if (!visibleNodes.has(n.id)) continue
         const matched = query.length > 0 && n.label.toLowerCase().includes(query)
         const dim =
           (query.length > 0 && !matched) ||
@@ -332,6 +429,9 @@ function MemoryMapCanvas({ data }: { data: GraphResponse }) {
         draw()
       })
     }
+    // let React trigger a repaint on filter/selection change even when the
+    // simulation has cooled (no ticks firing).
+    redrawRef.current = scheduleDraw
 
     sim.on('tick', scheduleDraw)
     if (reduced) {
@@ -344,7 +444,10 @@ function MemoryMapCanvas({ data }: { data: GraphResponse }) {
     function nodeAt(px: number, py: number): SimNode | undefined {
       const sx = (px - transform.x) / transform.k
       const sy = (py - transform.y) / transform.k
-      return sim.find(sx, sy, 12 / transform.k)
+      const n = sim.find(sx, sy, 12 / transform.k)
+      if (!n) return undefined
+      // ignore nodes hidden by the current filters
+      return visibleNodes.size === 0 || visibleNodes.has(n.id) ? n : undefined
     }
 
     // ── zoom / pan (defers to node-drag when pointer is on a node) ────────────
@@ -441,13 +544,33 @@ function MemoryMapCanvas({ data }: { data: GraphResponse }) {
       simRef.current = null
       zoomByRef.current = null
       zoomResetRef.current = null
+      redrawRef.current = null
     }
     // Rebuild only when the dataset changes; interaction reads via stateRef.
   }, [data])
 
+  // repaint on any filter / selection / search change (sim may be cooled)
+  useEffect(() => {
+    redrawRef.current?.()
+  }, [selected, hovered, search, visibleTypes, visibleKinds, hideIsolated, minConnections])
+
   function toggleType(t: EdgeType) {
     setVisibleTypes((v) => ({ ...v, [t]: !v[t] }))
   }
+  function toggleKind(k: Kind) {
+    setVisibleKinds((v) => ({ ...v, [k]: !v[k] }))
+  }
+  function resetFilters() {
+    setVisibleTypes({ ctx: true, references: true, mentions: true, about: true, relates: true, summarizes: true })
+    setVisibleKinds({ gist: true, working: true, fact: true, entity: true, episodic: true, wiki: true })
+    setHideIsolated(false)
+    setMinConnections(0)
+  }
+  const filtersActive =
+    hideIsolated ||
+    minConnections > 0 ||
+    EDGE_ORDER.some((t) => !visibleTypes[t]) ||
+    KIND_ORDER.some((k) => !visibleKinds[k])
 
   return (
     <div className="mm-wrap" ref={wrapRef}>
@@ -460,25 +583,85 @@ function MemoryMapCanvas({ data }: { data: GraphResponse }) {
           aria-label="Search memory map nodes by label"
           onChange={(e) => setSearch(e.target.value)}
         />
-        <div className="mm-toggles" role="group" aria-label="Edge type filters">
-          {EDGE_ORDER.map((t) => (
-            <button
-              key={t}
-              type="button"
-              className={`mm-toggle ${visibleTypes[t] ? 'is-on' : ''}`}
-              aria-pressed={visibleTypes[t]}
-              onClick={() => toggleType(t)}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
+        <button
+          type="button"
+          className={`mm-toggle mm-filter-btn ${filtersActive ? 'is-on' : ''}`}
+          aria-expanded={filtersOpen}
+          onClick={() => setFiltersOpen((o) => !o)}
+        >
+          Filters{filtersActive ? ' •' : ''}
+        </button>
         <div className="mm-zoom" role="group" aria-label="Zoom controls">
           <button type="button" className="mm-zoom-btn" aria-label="Zoom in" onClick={() => zoomByRef.current?.(1.4)}>+</button>
           <button type="button" className="mm-zoom-btn" aria-label="Zoom out" onClick={() => zoomByRef.current?.(1 / 1.4)}>−</button>
           <button type="button" className="mm-zoom-btn" aria-label="Reset zoom" onClick={() => zoomResetRef.current?.()}>⟲</button>
         </div>
       </div>
+
+      {filtersOpen && (
+        <div className="mm-filter-panel" role="group" aria-label="Graph filters">
+          <div className="mm-filter-row">
+            <span className="mm-filter-label">Node kinds</span>
+            <div className="mm-toggles">
+              {KIND_ORDER.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  className={`mm-toggle ${visibleKinds[k] ? 'is-on' : ''}`}
+                  aria-pressed={visibleKinds[k]}
+                  onClick={() => toggleKind(k)}
+                >
+                  <span
+                    className={k === 'wiki' ? 'mm-legend-square' : 'mm-legend-dot'}
+                    style={{ background: KIND_COLOR[k] }}
+                  />
+                  {KIND_LABEL[k]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mm-filter-row">
+            <span className="mm-filter-label">Edge types</span>
+            <div className="mm-toggles" role="group" aria-label="Edge type filters">
+              {EDGE_ORDER.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className={`mm-toggle ${visibleTypes[t] ? 'is-on' : ''}`}
+                  aria-pressed={visibleTypes[t]}
+                  onClick={() => toggleType(t)}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mm-filter-row">
+            <label className="mm-filter-check">
+              <input
+                type="checkbox"
+                checked={hideIsolated}
+                onChange={(e) => setHideIsolated(e.target.checked)}
+              />
+              Hide isolated nodes
+            </label>
+            <label className="mm-filter-slider">
+              <span>Min connections: {minConnections}</span>
+              <input
+                type="range"
+                min={0}
+                max={maxConn}
+                value={minConnections}
+                onChange={(e) => setMinConnections(Number(e.target.value))}
+                aria-label="Minimum connections"
+              />
+            </label>
+            <button type="button" className="mm-toggle" onClick={resetFilters}>
+              Reset
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="mm-legend" aria-label="Node kinds legend">
         {(Object.keys(KIND_COLOR) as Array<Kind>).map((k) => (
