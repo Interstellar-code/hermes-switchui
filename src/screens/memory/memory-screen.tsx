@@ -1,7 +1,7 @@
 /**
  * MemoryScreen — Matrix-themed Memory & Matrix Wiki shell (MEM-01).
  *
- * Tabs: Agent Memory (P3) | Wiki (P4) | Graph (P4) | Settings (P5) | Chat (P5)
+ * Tabs: Agent Memory (P3) | Wiki (P4) | Map (P4) | Settings (P5) | Chat (P5)
  * Active tab persisted to localStorage via useMemoryScreenStore.
  */
 
@@ -27,9 +27,9 @@ const WikiTab = lazy(async () => {
   return { default: m.WikiTab }
 })
 
-const GraphTab = lazy(async () => {
-  const m = await import('./components/graph-tab')
-  return { default: m.GraphTab }
+const MemoryMap = lazy(async () => {
+  const m = await import('./components/memory-map')
+  return { default: m.MemoryMap }
 })
 
 const SettingsTab = lazy(async () => {
@@ -95,7 +95,7 @@ function IconBook() {
   )
 }
 
-function IconGraph() {
+function IconMap() {
   return (
     <svg
       viewBox="0 0 16 16"
@@ -165,7 +165,7 @@ const TABS: Array<TabDef> = [
   { id: 'memory', label: 'Agent Memory', icon: <IconMem /> },
   { id: 'browse', label: 'Browse', icon: <IconBrowse /> },
   { id: 'wiki', label: 'Wiki', icon: <IconBook /> },
-  { id: 'graph', label: 'Graph', icon: <IconGraph /> },
+  { id: 'map', label: 'Map', icon: <IconMap /> },
   { id: 'settings', label: 'Settings', icon: <IconCog /> },
   { id: 'chat', label: 'Chat', icon: <IconChat /> },
 ]
@@ -233,9 +233,9 @@ export function MemoryScreen() {
             <WikiTab />
           </Suspense>
         )}
-        {activeTab === 'graph' && (
+        {activeTab === 'map' && (
           <Suspense fallback={<div className="mem-loading">Loading…</div>}>
-            <GraphTab />
+            <MemoryMap />
           </Suspense>
         )}
         {activeTab === 'settings' && (
