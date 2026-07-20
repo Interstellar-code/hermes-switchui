@@ -34,7 +34,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // ignore
     }
-    throw new Error(msg)
+    throw Object.assign(new Error(msg), { status: res.status })
   }
   return res.json() as Promise<T>
 }

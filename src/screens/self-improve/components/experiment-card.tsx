@@ -73,6 +73,19 @@ function stateTailWord(state: string): string {
   }
 }
 
+/** Apply-error toast copy: 422 = patch conflict, else generic. */
+export function applyErrorMessage(e: unknown): string {
+  if ((e as { status?: number }).status === 422) {
+    return 'Patch failed — experiment not applied'
+  }
+  return e instanceof Error ? e.message : 'Apply failed'
+}
+
+/** Badge copy for live_takes_effect_at_next_session (1/null = next session, 0 = now). */
+export function effectBadgeLabel(v: number | null): string {
+  return v === 0 ? 'Live now' : 'Takes effect on next session'
+}
+
 export function summarizeExperiment(exp: Experiment, liveScore: number | null): string {
   const parts: Array<string> = []
 
@@ -242,7 +255,7 @@ export function ExperimentCard({ exp, profile: _profile, baselines, onMutated }:
       invalidateAll()
       toast(`Experiment #${exp.id} applied — now live`)
     },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Apply failed', { type: 'error' }),
+    onError: (e) => toast(applyErrorMessage(e), { type: 'error' }),
   })
 
   const verifyMutation = useMutation({
@@ -280,6 +293,9 @@ export function ExperimentCard({ exp, profile: _profile, baselines, onMutated }:
       {/* ── Header row ── */}
       <div className="si-exp-header">
         <span className={`si-state-badge ${stateBadgeClass(exp.state)}`}>{exp.state}</span>
+        <span className="si-effect-badge">
+          {effectBadgeLabel(exp.live_takes_effect_at_next_session)}
+        </span>
         <span className="si-exp-file">{exp.file}</span>
         <span className="si-exp-time">{relativeTime(exp.created_at)}</span>
         <span className="si-exp-id">#{exp.id}</span>
