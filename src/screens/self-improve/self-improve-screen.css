@@ -1740,3 +1740,105 @@
     padding: 20px;
   }
 }
+
+/* ── Profile configuration panel ─────────────────────────────────────────────*/
+
+.si-config-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--theme-border, #333);
+  border-radius: 10px;
+  background: var(--theme-hover, rgba(255, 255, 255, 0.02));
+}
+
+.si-config-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.si-config-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--theme-fg, #ddd);
+}
+
+.si-config-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--theme-border, #333);
+}
+
+.si-config-status--running {
+  border-color: var(--m-green-400, #4ade80);
+  color: var(--m-green-400, #4ade80);
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.si-config-status--paused {
+  border-color: #fbbf24;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.si-config-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.si-config-target {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+}
+
+.si-config-target-label {
+  font-weight: 600;
+}
+
+.si-config-target-path {
+  font-family: var(--font-mono, monospace);
+  color: var(--theme-fg, #ddd);
+}
+
+.si-config-target-root {
+  color: var(--theme-muted, #666);
+}
+
+.si-config-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+}
+
+.si-config-hint code {
+  font-family: var(--font-mono, monospace);
+  color: var(--theme-fg, #ccc);
+}
+
+/* ── "Takes effect" badge ────────────────────────────────────────────────────*/
+
+.si-effect-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--theme-border, #333);
+  color: var(--theme-muted, #888);
+  background: var(--theme-hover, rgba(255, 255, 255, 0.04));
+}

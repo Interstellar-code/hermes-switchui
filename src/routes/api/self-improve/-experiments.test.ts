@@ -94,6 +94,9 @@ const baseExp = {
   judge_model: null,
   sentence_delta_count: null,
   baseline_id: null,
+  target_relpath: null,
+  target_profile_root: null,
+  live_takes_effect_at_next_session: 1,
   created_at: '2026-06-11T00:00:00Z',
   updated_at: '2026-06-11T00:00:00Z',
 }

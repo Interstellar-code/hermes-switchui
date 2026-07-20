@@ -762,6 +762,120 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
   )
 }
 
+// ── Profile configuration panel ─────────────────────────────────────────────
+
+function ProfileConfigPanel({ profile }: { profile: string }) {
+  const queryClient = useQueryClient()
+
+  const statusQuery = useQuery({
+    queryKey: ['self-improve', 'profile-status', profile],
+    queryFn: () => fetchProfileStatus(profile),
+    enabled: !!profile,
+    refetchInterval: REFETCH_INTERVAL,
+  })
+
+  // Reuses the ExperimentsFeed query (same key) — no extra request.
+  const experimentsQuery = useQuery({
+    queryKey: ['self-improve', 'experiments', 'all', profile],
+    queryFn: () => fetchExperiments({ profile }),
+    enabled: !!profile,
+    refetchInterval: REFETCH_INTERVAL,
+  })
+
+  const invalidateStatus = useCallback(() => {
+    void queryClient.invalidateQueries({
+      queryKey: ['self-improve', 'profile-status', profile],
+    })
+  }, [queryClient, profile])
+
+  const pauseMutation = useMutation({
+    mutationFn: () => pauseProfile(profile),
+    onSuccess: () => {
+      invalidateStatus()
+      toast(`Paused self-improve for "${profile}"`)
+    },
+    onError: (e) =>
+      toast(e instanceof Error ? e.message : 'Pause failed', { type: 'error' }),
+  })
+
+  const resumeMutation = useMutation({
+    mutationFn: () => resumeProfile(profile),
+    onSuccess: () => {
+      invalidateStatus()
+      toast(`Resumed self-improve for "${profile}"`)
+    },
+    onError: (e) =>
+      toast(e instanceof Error ? e.message : 'Resume failed', {
+        type: 'error',
+      }),
+  })
+
+  const paused = statusQuery.data?.paused ?? false
+  const busy = pauseMutation.isPending || resumeMutation.isPending
+
+  // Newest experiment for the selected profile → the file the ratchet edits.
+  // noUncheckedIndexedAccess is OFF — guard with .length before indexing.
+  const sortedExperiments = (experimentsQuery.data ?? [])
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    )
+  const newest = sortedExperiments.length > 0 ? sortedExperiments[0] : null
+  const targetRelpath = newest?.target_relpath ?? null
+  const targetRoot = newest?.target_profile_root ?? null
+
+  return (
+    <div className="si-config-panel">
+      <div className="si-config-row">
+        <span className="si-config-label">Profile configuration</span>
+        <span
+          className={`si-config-status ${
+            paused ? 'si-config-status--paused' : 'si-config-status--running'
+          }`}
+        >
+          {statusQuery.isLoading ? '…' : paused ? 'Paused' : 'Running'}
+        </span>
+        <div className="si-config-actions">
+          <button
+            type="button"
+            className="si-action-btn"
+            disabled={busy || paused || !profile}
+            onClick={() => pauseMutation.mutate()}
+          >
+            {pauseMutation.isPending ? 'Pausing…' : 'Pause'}
+          </button>
+          <button
+            type="button"
+            className="si-action-btn si-action-btn--approve"
+            disabled={busy || !paused || !profile}
+            onClick={() => resumeMutation.mutate()}
+          >
+            {resumeMutation.isPending ? 'Resuming…' : 'Resume'}
+          </button>
+        </div>
+      </div>
+
+      {targetRelpath ? (
+        <div className="si-config-target">
+          <span className="si-config-target-label">Target file</span>
+          <code className="si-config-target-path">{targetRelpath}</code>
+          {targetRoot && (
+            <span className="si-config-target-root">in {targetRoot}</span>
+          )}
+        </div>
+      ) : (
+        <p className="si-config-hint">
+          Not bootstrapped? Run:{' '}
+          <code>
+            hermes karpathy bootstrap --profile {profile || '<profile>'}
+          </code>
+        </p>
+      )}
+    </div>
+  )
+}
+
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export function SelfImproveScreen() {
@@ -903,6 +1017,9 @@ export function SelfImproveScreen() {
         </div>
         {healthQuery.data && <HealthStrip health={healthQuery.data} />}
       </div>
+
+      {/* ── Profile configuration (pause/resume + target file) ── */}
+      <ProfileConfigPanel profile={profile} />
 
       {/* ── Metrics scorecard for selected profile (FIX 1) ── */}
       {isLoading ? (

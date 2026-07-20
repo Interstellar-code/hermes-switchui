@@ -76,6 +76,11 @@ export interface Experiment {
   judge_model: string | null
   sentence_delta_count: number | null
   baseline_id: number | null
+  // git ratchet target (plugin returns via SELECT *)
+  target_relpath: string | null
+  target_profile_root: string | null
+  // #175 Option-C dashboard metadata; 1/null = next session, 0 = live now
+  live_takes_effect_at_next_session: number | null
   created_at: string
   updated_at: string
 }
