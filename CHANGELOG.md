@@ -3,6 +3,21 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.20] — 2026-07-20
+
+### Added
+
+- **Profile configuration panel** on the Self-Improve screen — shows the selected profile's paused state with Pause/Resume controls, the target file the ratchet edits (`target_relpath` / `target_profile_root`, sourced from the newest experiment), and a copy-paste `hermes karpathy bootstrap --profile <p>` hint for un-bootstrapped profiles.
+- **"Takes effect" badge** on experiment cards — renders "Takes effect on next session" or "Live now" from the plugin's `live_takes_effect_at_next_session` field.
+
+### Changed
+
+- `Experiment` type now carries `live_takes_effect_at_next_session`, `target_relpath`, and `target_profile_root` (all already returned by the plugin's experiments API).
+
+### Fixed
+
+- **Apply failures are now distinguishable.** A failed patch (HTTP 422 from the plugin) shows "Patch failed — experiment not applied" instead of a generic error — the browser fetch wrapper now attaches the HTTP status to thrown errors so callers can branch on it.
+
 ## [2.5.19] — 2026-07-19
 
 ### Added
