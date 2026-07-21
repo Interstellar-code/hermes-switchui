@@ -878,9 +878,17 @@ function StatusSummarySection({
   const statusUnavailable = statusQuery.isError || !status
 
   const nextStepTarget = NEXT_STEP_TARGET[nextStep.key]
+  const nextStepActionable =
+    nextStep.key === 'bootstrap' || nextStepTarget !== null
   const handleNextStep = useCallback(() => {
     if (nextStep.key === 'collect') {
       if (!collectMutation.isPending && profile) collectMutation.mutate()
+      return
+    }
+    if (nextStep.key === 'bootstrap') {
+      const cmd = `hermes karpathy bootstrap --profile ${profile}`
+      void navigator.clipboard?.writeText(cmd)
+      toast(`Copied: ${cmd} — run it in your terminal`)
       return
     }
     if (nextStepTarget) {
@@ -897,7 +905,7 @@ function StatusSummarySection({
         health={health}
         status={status}
         nextStep={nextStep}
-        onNextStepAction={nextStepTarget ? handleNextStep : undefined}
+        onNextStepAction={nextStepActionable ? handleNextStep : undefined}
       >
         <button
           type="button"
