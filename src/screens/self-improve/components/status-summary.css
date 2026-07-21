@@ -161,6 +161,57 @@
   flex: 1;
 }
 
+/* Actionable variant — the whole next-step line is a button (button reset +
+   affordance). Keeps the same look as the static div, adds hover + a → glyph. */
+button.si-summary-next-step--action {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  align-items: center;
+  font: inherit;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+
+button.si-summary-next-step--action:hover {
+  border-color: var(--m-green-400, #4ade80);
+  background: linear-gradient(
+    90deg,
+    rgba(74, 222, 128, 0.13),
+    rgba(74, 222, 128, 0.03)
+  );
+}
+
+button.si-summary-next-step--action:focus-visible {
+  outline: 2px solid var(--m-green-400, #4ade80);
+  outline-offset: 2px;
+}
+
+.si-summary-next-step-go {
+  flex-shrink: 0;
+  align-self: center;
+  color: var(--m-green-400, #4ade80);
+  font-family: var(--m-font-mono, monospace);
+  font-size: 15px;
+  font-weight: 600;
+  transition: transform 0.12s ease;
+}
+
+button.si-summary-next-step--action:hover .si-summary-next-step-go {
+  transform: translateX(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.si-summary-next-step--action,
+  .si-summary-next-step-go {
+    transition: none;
+  }
+  button.si-summary-next-step--action:hover .si-summary-next-step-go {
+    transform: none;
+  }
+}
+
 .si-summary-next-step strong {
   color: var(--theme-text, #e8e8e8);
   font-weight: 600;

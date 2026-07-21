@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   formatCost,
+  formatWindowRange,
   parseScenarioChecks,
   safeRate,
   selectAvailableProfile,
@@ -38,5 +39,14 @@ describe('self-improve screen helpers', () => {
         '[{"type":"unknown","value":"bad"},{"type":"judge","rubric":"Useful"}]',
       ),
     ).toEqual([{ type: 'judge', rubric: 'Useful' }])
+  })
+
+  it('formats a window range, or returns null when either end is missing', () => {
+    expect(formatWindowRange(null, null)).toBeNull()
+    expect(formatWindowRange('2026-07-14T00:00:00Z', null)).toBeNull()
+    expect(formatWindowRange(null, '2026-07-21T00:00:00Z')).toBeNull()
+    expect(
+      formatWindowRange('2026-07-14T00:00:00Z', '2026-07-21T00:00:00Z'),
+    ).toContain('→')
   })
 })

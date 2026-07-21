@@ -8,6 +8,8 @@ interface StatusSummaryProps {
   health: PluginHealth | undefined
   status: ProfileStatus | undefined
   nextStep: NextStep | undefined
+  /** When provided, the next-step line becomes a button that runs this. */
+  onNextStepAction?: () => void
   children?: ReactNode
 }
 
@@ -62,6 +64,7 @@ export function StatusSummary({
   health,
   status,
   nextStep,
+  onNextStepAction,
   children,
 }: StatusSummaryProps) {
   const plugin = pluginPill(health)
@@ -95,14 +98,29 @@ export function StatusSummary({
         {experimentTotal ?? '0'}
       </div>
 
-      {nextStep && (
-        <div className="si-summary-next-step">
-          <span className="si-summary-next-step-tag">Next step</span>
-          <span className="si-summary-next-step-body">
-            <strong>{nextStep.label}</strong> — {nextStep.hint}
-          </span>
-        </div>
-      )}
+      {nextStep &&
+        (onNextStepAction ? (
+          <button
+            type="button"
+            className="si-summary-next-step si-summary-next-step--action"
+            onClick={onNextStepAction}
+          >
+            <span className="si-summary-next-step-tag">Next step</span>
+            <span className="si-summary-next-step-body">
+              <strong>{nextStep.label}</strong> — {nextStep.hint}
+            </span>
+            <span className="si-summary-next-step-go" aria-hidden="true">
+              →
+            </span>
+          </button>
+        ) : (
+          <div className="si-summary-next-step">
+            <span className="si-summary-next-step-tag">Next step</span>
+            <span className="si-summary-next-step-body">
+              <strong>{nextStep.label}</strong> — {nextStep.hint}
+            </span>
+          </div>
+        ))}
 
       <div className="si-summary-freshness">
         Freshness: collected {relativeTime(status?.last_collection_at)} ·

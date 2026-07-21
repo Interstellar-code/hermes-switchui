@@ -793,6 +793,23 @@ function ScenarioSection({ profile, nextStep }: ScenarioSectionProps) {
 
 // ── Status summary section (StatusSummary card + controls cluster) ──────────
 
+// Where each next-step sends the user. 'collect' fires the mutation in place;
+// null keys have no in-app destination (bootstrap is a CLI action, healthy is
+// terminal) so the next-step stays a static label for them.
+const NEXT_STEP_TARGET: Record<NextStep['key'], string | null> = {
+  bootstrap: null,
+  'add-training': 'si-scenarios-anchor',
+  'add-holdout': 'si-scenarios-anchor',
+  collect: 'si-summary-anchor',
+  propose: 'si-experiments-anchor',
+  review: 'si-experiments-anchor',
+  apply: 'si-experiments-anchor',
+  observe: 'si-experiments-anchor',
+  verify: 'si-experiments-anchor',
+  baseline: 'si-experiments-anchor',
+  healthy: null,
+}
+
 interface StatusSummarySectionProps {
   profile: string
   health: PluginHealth | undefined
@@ -860,13 +877,27 @@ function StatusSummarySection({
   const busy = pauseMutation.isPending || resumeMutation.isPending
   const statusUnavailable = statusQuery.isError || !status
 
+  const nextStepTarget = NEXT_STEP_TARGET[nextStep.key]
+  const handleNextStep = useCallback(() => {
+    if (nextStep.key === 'collect') {
+      if (!collectMutation.isPending && profile) collectMutation.mutate()
+      return
+    }
+    if (nextStepTarget) {
+      document
+        .getElementById(nextStepTarget)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [nextStep.key, nextStepTarget, collectMutation, profile])
+
   return (
-    <div className="si-overview-summary">
+    <div className="si-overview-summary" id="si-summary-anchor">
       <StatusSummary
         profile={profile}
         health={health}
         status={status}
         nextStep={nextStep}
+        onNextStepAction={nextStepTarget ? handleNextStep : undefined}
       >
         <button
           type="button"
@@ -1172,16 +1203,20 @@ export function SelfImproveScreen() {
       </section>
 
       {/* ── Unified experiments feed (FIX 2) ── */}
-      <ExperimentsFeed
-        profile={profile}
-        baselines={baselines}
-        status={statusQuery.data}
-        nextStep={nextStep}
-        onMutated={invalidateAll}
-      />
+      <div id="si-experiments-anchor" style={{ scrollMarginTop: '16px' }}>
+        <ExperimentsFeed
+          profile={profile}
+          baselines={baselines}
+          status={statusQuery.data}
+          nextStep={nextStep}
+          onMutated={invalidateAll}
+        />
+      </div>
 
       {/* ── Scenario management — scoped to selected profile (FIX 1) ── */}
-      <ScenarioSection profile={profile} nextStep={nextStep} />
+      <div id="si-scenarios-anchor" style={{ scrollMarginTop: '16px' }}>
+        <ScenarioSection profile={profile} nextStep={nextStep} />
+      </div>
     </div>
   )
 }
