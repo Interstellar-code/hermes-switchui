@@ -5,14 +5,23 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { BaselineChart } from './components/baseline-chart'
 import { ExperimentCard } from './components/experiment-card'
 import { ProfileScopeSelect } from './components/profile-scope-select'
+import { ScenarioDeleteDialog } from './components/scenario-delete-dialog'
+import { ScenarioWizard } from './components/scenario-wizard'
 import type {
   Baseline,
   MetricsSnapshot,
   PluginHealth,
   Scenario,
+  ScenarioCheck,
 } from '@/lib/self-improve-types'
 import { useAgentProfiles } from '@/hooks/use-agent-profiles'
 import { toast } from '@/components/ui/toast'
+import {
+  MenuContent,
+  MenuItem,
+  MenuRoot,
+  MenuTrigger,
+} from '@/components/ui/menu'
 import {
   createScenario,
   deleteScenario,
@@ -28,7 +37,6 @@ import {
   triggerCollect,
   triggerPropose,
 } from '@/lib/self-improve-api'
-import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 import './self-improve-screen.css'
 
 // ── Query keys ────────────────────────────────────────────────────────────────
@@ -53,8 +61,8 @@ export function formatCost(cost: number): string {
   return `${sign}$${absolute.toFixed(2)}`
 }
 
-function safeRate(numerator: number, denominator: number): string {
-  if (denominator <= 0) return `${numerator} (raw)`
+export function safeRate(numerator: number, denominator: number): string {
+  if (denominator <= 0) return '—'
   return ((numerator / denominator) * 100).toFixed(1) + '%'
 }
 
@@ -81,6 +89,54 @@ export function selectAvailableProfile(
   if (profiles.includes(current)) return current
   if (profiles.includes(active)) return active
   return profiles[0] ?? ''
+}
+
+export function parseScenarioChecks(
+  raw: string,
+): Array<ScenarioCheck | string> {
+  if (!raw || raw === '[]') return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    return Array.isArray(parsed)
+      ? parsed.filter((check): check is ScenarioCheck | string =>
+          typeof check === 'string' && check.trim().length > 0
+            ? true
+            : isScenarioCheck(check),
+        )
+      : []
+  } catch {
+    return [raw]
+  }
+}
+
+function isScenarioCheck(value: unknown): value is ScenarioCheck {
+  if (!value || typeof value !== 'object') return false
+  const check = value as Record<string, unknown>
+  if (check.type === 'max_tokens') {
+    return typeof check.value === 'number' && Number.isFinite(check.value)
+  }
+  if (check.type === 'judge') {
+    return typeof check.rubric === 'string' && check.rubric.trim().length > 0
+  }
+  return (
+    (check.type === 'must_contain' ||
+      check.type === 'must_not_contain' ||
+      check.type === 'tool_used') &&
+    typeof check.value === 'string' &&
+    check.value.trim().length > 0
+  )
+}
+
+function scenarioCheckLabel(check: ScenarioCheck | string): string {
+  if (typeof check === 'string') return check
+  if (check.type === 'judge') return `Judge: ${check.rubric}`
+  if (check.type === 'max_tokens') return `Max ${check.value} tokens`
+  const labels = {
+    must_contain: 'Must contain',
+    must_not_contain: 'Must avoid',
+    tool_used: 'Tool used',
+  }
+  return `${labels[check.type]}: ${check.value}`
 }
 
 // ── Sparkline (inline SVG, no deps) ──────────────────────────────────────────
@@ -362,6 +418,13 @@ function ExperimentsFeed({
           {experimentsQuery.error instanceof Error
             ? experimentsQuery.error.message
             : 'Failed to load experiments'}
+          <button
+            type="button"
+            className="si-retry-btn"
+            onClick={() => void experimentsQuery.refetch()}
+          >
+            Retry
+          </button>
         </div>
       ) : experiments.length === 0 ? (
         <div className="si-empty-state si-empty-state--proposals">
@@ -396,39 +459,19 @@ interface ScenarioSectionProps {
 
 function ScenarioSection({ profile }: ScenarioSectionProps) {
   const queryClient = useQueryClient()
-  const [includeHoldout, setIncludeHoldout] = useState(false)
+  const [splitFilter, setSplitFilter] = useState<'all' | 'train' | 'holdout'>(
+    'all',
+  )
   const [createOpen, setCreateOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Scenario | null>(null)
-  const [pauseTarget, setPauseTarget] = useState<string | null>(null)
-  const [resumeTarget, setResumeTarget] = useState<string | null>(null)
 
-  // Create form state
-  const [newName, setNewName] = useState('')
-  const [newInput, setNewInput] = useState('')
-  const [newChecks, setNewChecks] = useState('')
-  const [newHoldout, setNewHoldout] = useState(false)
-
-  useEffect(() => {
-    if (!createOpen) return
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setCreateOpen(false)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [createOpen])
-
-  const scenariosQK = qkScenarios(profile, includeHoldout)
+  const scenariosQK = qkScenarios(profile, true)
 
   const scenariosQuery = useQuery({
     queryKey: scenariosQK,
-    queryFn: () => fetchScenarios(profile, includeHoldout),
+    queryFn: () => fetchScenarios(profile, true),
     enabled: !!profile,
-  })
-
-  const profileStatusQuery = useQuery({
-    queryKey: ['self-improve', 'profile-status', profile],
-    queryFn: () => fetchProfileStatus(profile),
-    enabled: !!profile,
+    refetchInterval: REFETCH_INTERVAL,
   })
 
   function invalidateScenarios() {
@@ -438,27 +481,11 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
   }
 
   const createMutation = useMutation({
-    mutationFn: () => {
-      const checksArr = newChecks
-        .split(/[\n,]+/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-      return createScenario({
-        profile,
-        name: newName.trim(),
-        input: newInput,
-        checks: checksArr.length > 0 ? checksArr : undefined,
-        holdout: newHoldout,
-      })
-    },
+    mutationFn: createScenario,
     onSuccess: (data) => {
       invalidateScenarios()
       toast(`Scenario #${data.scenario_id} created`)
       setCreateOpen(false)
-      setNewName('')
-      setNewInput('')
-      setNewChecks('')
-      setNewHoldout(false)
     },
     onError: (e) =>
       toast(e instanceof Error ? e.message : 'Create failed', {
@@ -479,81 +506,47 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
       }),
   })
 
-  const pauseMutation = useMutation({
-    mutationFn: (p: string) => pauseProfile(p),
-    onSuccess: (data) => {
-      void queryClient.invalidateQueries({
-        queryKey: ['self-improve', 'profile-status', profile],
-      })
-      toast(`Profile "${data.profile}" paused`)
-      setPauseTarget(null)
-    },
-    onError: (e) =>
-      toast(e instanceof Error ? e.message : 'Pause failed', { type: 'error' }),
+  const scenarios = (scenariosQuery.data ?? []).filter((scenario) => {
+    if (splitFilter === 'holdout') return scenario.holdout === 1
+    if (splitFilter === 'train') return scenario.holdout === 0
+    return true
   })
-
-  const resumeMutation = useMutation({
-    mutationFn: (p: string) => resumeProfile(p),
-    onSuccess: (data) => {
-      void queryClient.invalidateQueries({
-        queryKey: ['self-improve', 'profile-status', profile],
-      })
-      toast(`Profile "${data.profile}" resumed`)
-      setResumeTarget(null)
-    },
-    onError: (e) =>
-      toast(e instanceof Error ? e.message : 'Resume failed', {
-        type: 'error',
-      }),
-  })
-
-  const scenarios = scenariosQuery.data ?? []
-  const isPaused = profileStatusQuery.data?.paused ?? false
 
   return (
     <div className="si-scenario-section">
       <div className="si-section-header">
         <h2 className="si-section-title">Scenarios</h2>
         <div className="si-scenario-controls">
-          <label className="si-holdout-toggle">
-            <input
-              type="checkbox"
-              checked={includeHoldout}
-              onChange={(e) => setIncludeHoldout(e.target.checked)}
-            />
-            Show held-out
-          </label>
-          {isPaused ? (
-            <button
-              type="button"
-              className="si-collect-btn si-btn-resume"
-              onClick={() => setResumeTarget(profile)}
-            >
-              Resume
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="si-collect-btn"
-              onClick={() => setPauseTarget(profile)}
-            >
-              Pause
-            </button>
-          )}
+          <div className="si-split-filter" aria-label="Filter scenario split">
+            {(['all', 'train', 'holdout'] as const).map((split) => (
+              <button
+                key={split}
+                type="button"
+                className={splitFilter === split ? 'is-active' : ''}
+                aria-pressed={splitFilter === split}
+                onClick={() => setSplitFilter(split)}
+              >
+                {split === 'all'
+                  ? 'All'
+                  : split === 'train'
+                    ? 'Training'
+                    : 'Held-out'}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             className="si-collect-btn si-btn-primary"
             disabled={!profile}
-            onClick={() => setCreateOpen(true)}
+            onClick={() => {
+              createMutation.reset()
+              setCreateOpen(true)
+            }}
           >
             + New scenario
           </button>
         </div>
       </div>
-
-      <p className="si-pause-note">
-        Self-improvement is {isPaused ? 'paused' : 'active'} for this profile.
-      </p>
 
       {scenariosQuery.isLoading && (
         <div className="si-loading">Loading scenarios…</div>
@@ -563,6 +556,13 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
           {scenariosQuery.error instanceof Error
             ? scenariosQuery.error.message
             : 'Failed to load scenarios'}
+          <button
+            type="button"
+            className="si-retry-btn"
+            onClick={() => void scenariosQuery.refetch()}
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -573,11 +573,9 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
             <p>
               No scenarios for <strong>{profile}</strong>.
             </p>
-            {!includeHoldout && (
-              <p className="si-empty-sub">
-                Try enabling "Show held-out" to see holdout scenarios.
-              </p>
-            )}
+            <p className="si-empty-sub">
+              Create a scenario or choose another split.
+            </p>
           </div>
         )}
 
@@ -602,10 +600,12 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
                 >
                   <td className="si-scenario-id">#{s.id}</td>
                   <td>
-                    {s.name}
-                    {s.holdout === 1 && (
-                      <span className="si-badge si-badge-holdout">holdout</span>
-                    )}
+                    <div className="si-scenario-name-cell">
+                      <strong>{s.name}</strong>
+                      <span className="si-badge">
+                        {s.holdout === 1 ? 'held-out' : 'training'}
+                      </span>
+                    </div>
                   </td>
                   <td className="si-scenario-input" title={s.input}>
                     {s.input
@@ -613,31 +613,43 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
                       : '—'}
                   </td>
                   <td className="si-scenario-checks">
-                    {s.checks && s.checks !== '[]'
-                      ? (() => {
-                          try {
-                            const arr = JSON.parse(s.checks) as Array<string>
-                            return arr.length > 0
-                              ? arr.slice(0, 2).join(', ') +
-                                  (arr.length > 2 ? ` +${arr.length - 2}` : '')
-                              : '—'
-                          } catch {
-                            return s.checks.slice(0, 40)
-                          }
-                        })()
-                      : '—'}
+                    <div className="si-check-chip-list">
+                      {parseScenarioChecks(s.checks).length === 0
+                        ? '—'
+                        : parseScenarioChecks(s.checks)
+                            .slice(0, 2)
+                            .map((check, index) => (
+                              <span key={index} className="si-check-chip">
+                                {scenarioCheckLabel(check)}
+                              </span>
+                            ))}
+                      {parseScenarioChecks(s.checks).length > 2 && (
+                        <span className="si-check-chip">
+                          +{parseScenarioChecks(s.checks).length - 2}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="si-scenario-date">
                     {s.created_at.slice(0, 10)}
                   </td>
                   <td>
-                    <button
-                      type="button"
-                      className="si-action-btn si-action-btn--danger"
-                      onClick={() => setDeleteTarget(s)}
-                    >
-                      Delete
-                    </button>
+                    <MenuRoot>
+                      <MenuTrigger
+                        className="si-row-menu-trigger"
+                        aria-label={`Actions for ${s.name}`}
+                      >
+                        ···
+                      </MenuTrigger>
+                      <MenuContent align="end">
+                        <MenuItem
+                          className="text-[var(--theme-danger,#ff5f6d)]"
+                          onClick={() => setDeleteTarget(s)}
+                        >
+                          Delete scenario
+                        </MenuItem>
+                      </MenuContent>
+                    </MenuRoot>
                   </td>
                 </tr>
               ))}
@@ -646,117 +658,34 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
         </div>
       )}
 
-      {/* Create dialog */}
-      {createOpen && (
-        <div className="si-dialog-overlay" onClick={() => setCreateOpen(false)}>
-          <div
-            className="si-dialog"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="si-create-scenario-title"
-          >
-            <h3 id="si-create-scenario-title" className="si-dialog-title">
-              New Scenario
-            </h3>
-            <label className="si-dialog-label">
-              Profile
-              <input className="si-dialog-input" value={profile} readOnly />
-            </label>
-            <label className="si-dialog-label">
-              Name <span className="si-required">*</span>
-              <input
-                className="si-dialog-input"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="e.g. basic-greeting"
-                autoFocus
-              />
-            </label>
-            <label className="si-dialog-label">
-              Input
-              <textarea
-                className="si-dialog-textarea"
-                value={newInput}
-                onChange={(e) => setNewInput(e.target.value)}
-                placeholder="User input for this scenario"
-                rows={3}
-              />
-            </label>
-            <label className="si-dialog-label">
-              Checks (newline or comma separated)
-              <textarea
-                className="si-dialog-textarea"
-                value={newChecks}
-                onChange={(e) => setNewChecks(e.target.value)}
-                placeholder={'contains greeting\nno profanity'}
-                rows={3}
-              />
-            </label>
-            <label className="si-dialog-label si-dialog-label--inline">
-              <input
-                type="checkbox"
-                checked={newHoldout}
-                onChange={(e) => setNewHoldout(e.target.checked)}
-              />
-              Hold-out (exclude from training eval)
-            </label>
-            <div className="si-dialog-actions">
-              <button
-                type="button"
-                className="si-action-btn"
-                onClick={() => setCreateOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="si-collect-btn si-btn-primary"
-                disabled={!newName.trim() || createMutation.isPending}
-                onClick={() => createMutation.mutate()}
-              >
-                {createMutation.isPending ? 'Creating…' : 'Create'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ScenarioWizard
+        open={createOpen}
+        profile={profile}
+        pending={createMutation.isPending}
+        error={
+          createMutation.error instanceof Error
+            ? createMutation.error.message
+            : createMutation.isError
+              ? 'Failed to create scenario'
+              : null
+        }
+        onOpenChange={(open) => {
+          if (!open) createMutation.reset()
+          setCreateOpen(open)
+        }}
+        onCreate={(payload) => createMutation.mutate(payload)}
+      />
 
       {/* Delete confirm */}
-      <ConfirmDialog
+      <ScenarioDeleteDialog
         open={deleteTarget !== null}
-        title="Delete scenario"
-        message={`Delete scenario "${deleteTarget?.name ?? ''}" (#${deleteTarget?.id ?? ''})? This cannot be undone.`}
-        confirmLabel="Delete"
-        destructive
+        scenarioName={deleteTarget?.name ?? 'this scenario'}
+        scenarioId={deleteTarget?.id ?? null}
+        pending={deleteMutation.isPending}
         onConfirm={() => {
           if (deleteTarget) deleteMutation.mutate(deleteTarget.id)
         }}
         onCancel={() => setDeleteTarget(null)}
-      />
-
-      {/* Pause confirm */}
-      <ConfirmDialog
-        open={pauseTarget !== null}
-        title="Pause profile"
-        message={`Pause self-improvement for profile "${pauseTarget ?? ''}"?`}
-        confirmLabel="Pause"
-        onConfirm={() => {
-          if (pauseTarget) pauseMutation.mutate(pauseTarget)
-        }}
-        onCancel={() => setPauseTarget(null)}
-      />
-
-      {/* Resume confirm */}
-      <ConfirmDialog
-        open={resumeTarget !== null}
-        title="Resume profile"
-        message={`Resume self-improvement for profile "${resumeTarget ?? ''}"?`}
-        confirmLabel="Resume"
-        onConfirm={() => {
-          if (resumeTarget) resumeMutation.mutate(resumeTarget)
-        }}
-        onCancel={() => setResumeTarget(null)}
       />
     </div>
   )
@@ -812,6 +741,7 @@ function ProfileConfigPanel({ profile }: { profile: string }) {
 
   const paused = statusQuery.data?.paused ?? false
   const busy = pauseMutation.isPending || resumeMutation.isPending
+  const statusUnavailable = statusQuery.isError || !statusQuery.data
 
   // Newest experiment for the selected profile → the file the ratchet edits.
   // noUncheckedIndexedAccess is OFF — guard with .length before indexing.
@@ -831,16 +761,26 @@ function ProfileConfigPanel({ profile }: { profile: string }) {
         <span className="si-config-label">Profile configuration</span>
         <span
           className={`si-config-status ${
-            paused ? 'si-config-status--paused' : 'si-config-status--running'
+            statusQuery.isError
+              ? 'si-config-status--error'
+              : paused
+                ? 'si-config-status--paused'
+                : 'si-config-status--running'
           }`}
         >
-          {statusQuery.isLoading ? '…' : paused ? 'Paused' : 'Running'}
+          {statusQuery.isLoading
+            ? 'Checking…'
+            : statusQuery.isError
+              ? 'Unavailable'
+              : paused
+                ? 'Paused'
+                : 'Running'}
         </span>
         <div className="si-config-actions">
           <button
             type="button"
             className="si-action-btn"
-            disabled={busy || paused || !profile}
+            disabled={busy || statusUnavailable || paused || !profile}
             onClick={() => pauseMutation.mutate()}
           >
             {pauseMutation.isPending ? 'Pausing…' : 'Pause'}
@@ -848,13 +788,30 @@ function ProfileConfigPanel({ profile }: { profile: string }) {
           <button
             type="button"
             className="si-action-btn si-action-btn--approve"
-            disabled={busy || !paused || !profile}
+            disabled={busy || statusUnavailable || !paused || !profile}
             onClick={() => resumeMutation.mutate()}
           >
             {resumeMutation.isPending ? 'Resuming…' : 'Resume'}
           </button>
         </div>
       </div>
+
+      {statusQuery.isError && (
+        <div className="si-config-error" role="alert">
+          <span>
+            {statusQuery.error instanceof Error
+              ? statusQuery.error.message
+              : 'Failed to load profile status'}
+          </span>
+          <button
+            type="button"
+            className="si-retry-btn"
+            onClick={() => void statusQuery.refetch()}
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {targetRelpath ? (
         <div className="si-config-target">
@@ -998,7 +955,14 @@ export function SelfImproveScreen() {
       {/* ── Page header with global profile selector ── */}
       <div className="si-header">
         <div className="si-title-row">
-          <h1 className="si-title">Self-Improve</h1>
+          <div className="si-title-copy">
+            <span className="si-page-kicker">Autonomous evaluation</span>
+            <h1 className="si-title">Self-Improve</h1>
+            <p className="si-page-subtitle">
+              Measure behavior, test one controlled change, and promote only
+              verified improvements.
+            </p>
+          </div>
           <div className="si-header-controls">
             <ProfileScopeSelect
               value={profile}
@@ -1015,47 +979,94 @@ export function SelfImproveScreen() {
             </button>
           </div>
         </div>
+        {healthQuery.isLoading && (
+          <div className="si-health-state">Checking plugin health…</div>
+        )}
+        {healthQuery.isError && (
+          <div className="si-health-state si-health-state--error" role="alert">
+            <span>
+              {healthQuery.error instanceof Error
+                ? healthQuery.error.message
+                : 'Failed to load plugin health'}
+            </span>
+            <button
+              type="button"
+              className="si-retry-btn"
+              onClick={() => void healthQuery.refetch()}
+            >
+              Retry
+            </button>
+          </div>
+        )}
         {healthQuery.data && <HealthStrip health={healthQuery.data} />}
       </div>
 
-      {/* ── Profile configuration (pause/resume + target file) ── */}
-      <ProfileConfigPanel profile={profile} />
+      <section className="si-overview-section">
+        <div className="si-section-heading">
+          <div>
+            <span className="si-section-eyebrow">Current profile</span>
+            <h2 className="si-section-title">Overview</h2>
+          </div>
+          <span className="si-profile-context">{profile}</span>
+        </div>
 
-      {/* ── Metrics scorecard for selected profile (FIX 1) ── */}
-      {isLoading ? (
-        <SkeletonCards />
-      ) : isError ? (
-        <div className="si-error-state">
-          <p className="si-error-msg">{errorMsg}</p>
-          <button
-            type="button"
-            className="si-retry-btn"
-            onClick={invalidateAll}
-          >
-            Retry
-          </button>
+        <div className="si-overview-grid">
+          <div className="si-overview-primary">
+            <ProfileConfigPanel profile={profile} />
+            {isLoading ? (
+              <SkeletonCards />
+            ) : isError ? (
+              <div className="si-error-state">
+                <p className="si-error-msg">{errorMsg}</p>
+                <button
+                  type="button"
+                  className="si-retry-btn"
+                  onClick={invalidateAll}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : activeSnapshot !== null ? (
+              <div className="si-cards-grid si-cards-grid--single">
+                <ProfileCard
+                  snapshot={activeSnapshot}
+                  history={history}
+                  baselines={baselines}
+                />
+              </div>
+            ) : (
+              <div className="si-empty-state si-overview-empty">
+                <p>No metrics collected for {profile || 'this profile'}.</p>
+                <p className="si-empty-sub">
+                  Collect the first snapshot to establish current behavior.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="si-baseline-chart-section">
+            <div className="si-section-header">
+              <div>
+                <span className="si-section-eyebrow">Quality signal</span>
+                <h2 className="si-section-title">Baseline Curve</h2>
+              </div>
+            </div>
+            <p className="si-section-caption">
+              Fraction of behavior scenarios passed. Higher is better.
+            </p>
+            {baselines.length > 0 ? (
+              <BaselineChart baselines={baselines} profile={profile} />
+            ) : (
+              <div className="si-empty-state">
+                <p>No verified baseline yet.</p>
+                <p className="si-empty-sub">
+                  Approve and verify an experiment to establish one.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
-      ) : activeSnapshot !== null ? (
-        <div className="si-cards-grid">
-          <ProfileCard
-            snapshot={activeSnapshot}
-            history={history}
-            baselines={baselines}
-          />
-        </div>
-      ) : (
-        <div className="si-empty-state">
-          <p>
-            {profile
-              ? `No metrics collected yet for profile "${profile}".`
-              : 'No metrics collected yet.'}
-          </p>
-          <p className="si-empty-sub">
-            Click <strong>Collect now</strong> to run the first snapshot, or
-            wait for the agent to emit metrics.
-          </p>
-        </div>
-      )}
+      </section>
 
       {/* ── Unified experiments feed (FIX 2) ── */}
       <ExperimentsFeed
@@ -1063,27 +1074,6 @@ export function SelfImproveScreen() {
         baselines={baselines}
         onMutated={invalidateAll}
       />
-
-      {/* ── Baseline curve — scoped to selected profile (FIX 1) ── */}
-      <div className="si-baseline-chart-section">
-        <div className="si-section-header">
-          <h2 className="si-section-title">Baseline Curve</h2>
-          <span className="si-section-caption">
-            Score = fraction of behavior scenarios passed (0–100%). Higher is
-            better.
-          </span>
-        </div>
-        {baselines.length > 0 ? (
-          <BaselineChart baselines={baselines} profile={profile} />
-        ) : (
-          <div className="si-empty-state">
-            <p>No baseline data yet.</p>
-            <p className="si-empty-sub">
-              Baselines are created when an experiment is verified and promoted.
-            </p>
-          </div>
-        )}
-      </div>
 
       {/* ── Scenario management — scoped to selected profile (FIX 1) ── */}
       <ScenarioSection profile={profile} />

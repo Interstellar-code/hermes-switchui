@@ -5,6 +5,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { isAuthenticated } from '../../../server/auth-middleware'
+import { requireJsonContentType } from '../../../server/rate-limit'
 import {
   createScenario,
   deleteScenario,
@@ -49,6 +50,7 @@ const resumeHandlers = (ResumeRoute as any).options.server.handlers
 const profileHandlers = (ProfileRoute as any).options.server.handlers
 
 const mockIsAuthenticated = vi.mocked(isAuthenticated)
+const mockRequireJsonContentType = vi.mocked(requireJsonContentType)
 const mockListScenarios = vi.mocked(listScenarios)
 const mockCreateScenario = vi.mocked(createScenario)
 const mockDeleteScenario = vi.mocked(deleteScenario)
@@ -76,6 +78,7 @@ const baseScenario = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockRequireJsonContentType.mockReturnValue(null)
   mockIsAuthenticated.mockReturnValue(false)
 })
 
@@ -184,13 +187,56 @@ describe('POST /api/self-improve/scenarios', () => {
     expect(res.status).toBe(400)
   })
 
+  it('rejects blank names after trimming', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    const req = makeRequest(
+      'POST',
+      'http://localhost/api/self-improve/scenarios',
+      {
+        profile: ' default ',
+        name: '   ',
+        checks: [{ type: 'must_contain', value: 'hello' }],
+      },
+    )
+    const res: Response = await scenariosHandlers.POST({
+      request: req,
+      params: {},
+    })
+    expect(res.status).toBe(400)
+    expect(mockCreateScenario).not.toHaveBeenCalled()
+  })
+
+  it('rejects non-string input', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    const req = makeRequest(
+      'POST',
+      'http://localhost/api/self-improve/scenarios',
+      {
+        profile: 'default',
+        name: 'test',
+        input: 42,
+        checks: [{ type: 'must_contain', value: 'hello' }],
+      },
+    )
+    const res: Response = await scenariosHandlers.POST({
+      request: req,
+      params: {},
+    })
+    expect(res.status).toBe(400)
+    expect(mockCreateScenario).not.toHaveBeenCalled()
+  })
+
   it('creates scenario and returns 201', async () => {
     mockIsAuthenticated.mockReturnValue(true)
     mockCreateScenario.mockResolvedValue({ scenario_id: 42 })
     const req = makeRequest(
       'POST',
       'http://localhost/api/self-improve/scenarios',
-      { profile: 'default', name: 'greeting' },
+      {
+        profile: 'default',
+        name: 'greeting',
+        checks: [{ type: 'must_contain', value: 'hello' }],
+      },
     )
     const res: Response = await scenariosHandlers.POST({
       request: req,
@@ -199,6 +245,28 @@ describe('POST /api/self-improve/scenarios', () => {
     expect(res.status).toBe(201)
     const body = (await res.json()) as { scenario_id: number }
     expect(body.scenario_id).toBe(42)
+    expect(mockCreateScenario).toHaveBeenCalledWith({
+      profile: 'default',
+      name: 'greeting',
+      input: undefined,
+      checks: [{ type: 'must_contain', value: 'hello' }],
+      holdout: undefined,
+    })
+  })
+
+  it('rejects unstructured checks', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    const req = makeRequest(
+      'POST',
+      'http://localhost/api/self-improve/scenarios',
+      { profile: 'default', name: 'greeting', checks: ['contains hello'] },
+    )
+    const res: Response = await scenariosHandlers.POST({
+      request: req,
+      params: {},
+    })
+    expect(res.status).toBe(400)
+    expect(mockCreateScenario).not.toHaveBeenCalled()
   })
 
   it('returns 503 on client error', async () => {
@@ -207,7 +275,11 @@ describe('POST /api/self-improve/scenarios', () => {
     const req = makeRequest(
       'POST',
       'http://localhost/api/self-improve/scenarios',
-      { profile: 'default', name: 'test' },
+      {
+        profile: 'default',
+        name: 'test',
+        checks: [{ type: 'judge', rubric: 'Answer directly' }],
+      },
     )
     const res: Response = await scenariosHandlers.POST({
       request: req,
@@ -220,6 +292,25 @@ describe('POST /api/self-improve/scenarios', () => {
 // ── DELETE /scenarios/{id} ─────────────────────────────────────────────────────
 
 describe('DELETE /api/self-improve/scenarios/$id', () => {
+  it('rejects non-JSON deletes before authentication', async () => {
+    mockRequireJsonContentType.mockReturnValue(
+      Response.json(
+        { error: 'Content-Type must be application/json' },
+        { status: 415 },
+      ),
+    )
+    const req = makeRequest(
+      'DELETE',
+      'http://localhost/api/self-improve/scenarios/1',
+    )
+    const res: Response = await scenarioIdHandlers.DELETE({
+      request: req,
+      params: { id: '1' },
+    })
+    expect(res.status).toBe(415)
+    expect(mockIsAuthenticated).not.toHaveBeenCalled()
+  })
+
   it('returns 401 when not authenticated', async () => {
     mockIsAuthenticated.mockReturnValue(false)
     const req = makeRequest(

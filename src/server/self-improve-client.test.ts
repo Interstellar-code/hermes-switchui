@@ -523,7 +523,10 @@ describe('createScenario', () => {
     await createScenario({
       profile: 'p',
       name: 'n',
-      checks: ['check1', 'check2'],
+      checks: [
+        { type: 'must_contain', value: 'check1' },
+        { type: 'must_not_contain', value: 'check2' },
+      ],
     })
     expect(mockFetch).toHaveBeenCalledWith(
       expect.anything(),

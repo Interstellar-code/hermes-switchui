@@ -172,6 +172,13 @@ export interface Scenario {
   created_at: string
 }
 
+export type ScenarioCheck =
+  | { type: 'must_contain'; value: string }
+  | { type: 'must_not_contain'; value: string }
+  | { type: 'max_tokens'; value: number }
+  | { type: 'tool_used'; value: string }
+  | { type: 'judge'; rubric: string }
+
 export interface ScenariosResponse {
   scenarios: Array<Scenario>
 }
@@ -180,7 +187,7 @@ export interface CreateScenarioBody {
   profile: string
   name: string
   input?: string
-  checks?: Array<string> | string
+  checks?: Array<ScenarioCheck>
   holdout?: boolean
 }
 
