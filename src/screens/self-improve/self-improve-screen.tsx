@@ -1,19 +1,24 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { BaselineChart } from './components/baseline-chart'
 import { ExperimentCard } from './components/experiment-card'
 import { ProfileScopeSelect } from './components/profile-scope-select'
+import { ProposeConfirmDialog } from './components/propose-confirm-dialog'
 import { ScenarioDeleteDialog } from './components/scenario-delete-dialog'
 import { ScenarioWizard } from './components/scenario-wizard'
+import { StatusSummary } from './components/status-summary'
 import type {
   Baseline,
   MetricsSnapshot,
   PluginHealth,
+  ProfileStatus,
   Scenario,
   ScenarioCheck,
 } from '@/lib/self-improve-types'
+import type { NextStep } from '@/lib/self-improve-next-step'
+import { computeNextStep } from '@/lib/self-improve-next-step'
 import { useAgentProfiles } from '@/hooks/use-agent-profiles'
 import { toast } from '@/components/ui/toast'
 import {
@@ -79,6 +84,19 @@ function relativeTime(iso: string): string {
   const hrs = Math.floor(mins / 60)
   if (hrs < 24) return `${hrs}h ago`
   return `${Math.floor(hrs / 24)}d ago`
+}
+
+export function formatWindowRange(
+  start: string | null,
+  end: string | null,
+): string | null {
+  if (!start || !end) return null
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    })
+  return `${fmt(start)} → ${fmt(end)}`
 }
 
 export function selectAvailableProfile(
@@ -188,26 +206,6 @@ function Sparkline({
   )
 }
 
-// ── Health strip ──────────────────────────────────────────────────────────────
-
-function HealthStrip({ health }: { health: PluginHealth }) {
-  return (
-    <div className="si-health-strip">
-      <span
-        className={`si-health-dot ${health.ok ? 'si-health-dot--ok' : 'si-health-dot--err'}`}
-      />
-      <span className="si-health-label">{health.plugin}</span>
-      <span className="si-health-version">v{health.version}</span>
-      <span className="si-health-sep">·</span>
-      <span
-        className={`si-health-db ${health.db_exists ? '' : 'si-health-db--missing'}`}
-      >
-        {health.db_exists ? 'DB ready' : 'DB missing'}
-      </span>
-    </div>
-  )
-}
-
 // ── Profile card ──────────────────────────────────────────────────────────────
 
 interface ProfileCardProps {
@@ -235,13 +233,23 @@ function ProfileCard({ snapshot, history, baselines }: ProfileCardProps) {
     costValues.length >= 2 ? costValues[costValues.length - 2] : null
   const costDelta = prevCost !== null ? snapshot.cost - prevCost : null
 
+  const windowRange = formatWindowRange(
+    snapshot.window_started_at,
+    snapshot.window_ended_at,
+  )
+
   return (
     <div className="si-card">
       <div className="si-card-header">
         <span className="si-profile-name">{snapshot.profile}</span>
-        <span className="si-captured-at">
-          {relativeTime(snapshot.captured_at)}
-        </span>
+        <div className="si-card-header-meta">
+          {windowRange && (
+            <span className="si-window-range">Window: {windowRange}</span>
+          )}
+          <span className="si-captured-at">
+            {relativeTime(snapshot.captured_at)}
+          </span>
+        </div>
       </div>
 
       {noSessions && (
@@ -261,7 +269,12 @@ function ProfileCard({ snapshot, history, baselines }: ProfileCardProps) {
 
         <div className="si-metric">
           <span className="si-metric-label">Error+Warn rate</span>
-          <span className="si-metric-value">
+          <span
+            className="si-metric-value"
+            title={
+              noSessions ? 'No sessions in window — rate undefined' : undefined
+            }
+          >
             {safeRate(
               snapshot.error_count + snapshot.warn_count,
               snapshot.sessions_count,
@@ -287,12 +300,13 @@ function ProfileCard({ snapshot, history, baselines }: ProfileCardProps) {
         </div>
 
         <div className="si-metric si-metric--wide">
-          <span className="si-metric-label">Cost trend</span>
+          <span className="si-metric-label">Cost (window)</span>
           <div className="si-metric-row">
             <span className="si-metric-value">{formatCost(snapshot.cost)}</span>
             {costDelta !== null && (
               <span
                 className={`si-delta ${costDelta > 0 ? 'si-delta--up' : costDelta < 0 ? 'si-delta--down' : ''}`}
+                title="vs previous snapshot"
               >
                 {costDelta > 0 ? '+' : ''}
                 {formatCost(costDelta)}
@@ -348,15 +362,21 @@ function SkeletonCards() {
 interface ExperimentsFeedProps {
   profile: string
   baselines: Array<Baseline>
+  status: ProfileStatus | undefined
+  nextStep: NextStep
   onMutated: () => void
 }
 
 function ExperimentsFeed({
   profile,
   baselines,
+  status,
+  nextStep,
   onMutated,
 }: ExperimentsFeedProps) {
   const queryClient = useQueryClient()
+  // Propose spends API tokens — always confirm first.
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const experimentsQuery = useQuery({
     queryKey: ['self-improve', 'experiments', 'all', profile],
@@ -384,6 +404,7 @@ function ExperimentsFeed({
       toast(e instanceof Error ? e.message : 'Propose failed', {
         type: 'error',
       }),
+    onSettled: () => setConfirmOpen(false),
   })
 
   const experiments = (experimentsQuery.data ?? [])
@@ -401,7 +422,7 @@ function ExperimentsFeed({
           type="button"
           className="si-collect-btn si-btn-primary"
           disabled={proposeMutation.isPending || !profile}
-          onClick={() => proposeMutation.mutate(profile)}
+          onClick={() => setConfirmOpen(true)}
         >
           {proposeMutation.isPending
             ? 'Proposing…'
@@ -430,8 +451,8 @@ function ExperimentsFeed({
         <div className="si-empty-state si-empty-state--proposals">
           <p>No experiments yet for this profile.</p>
           <p className="si-empty-sub">
-            Click <strong>Propose</strong> to have the agent generate an
-            improvement proposal.
+            An experiment is created when the agent proposes a change. Next:{' '}
+            <strong>{nextStep.label}</strong> — {nextStep.hint}
           </p>
         </div>
       ) : (
@@ -447,6 +468,17 @@ function ExperimentsFeed({
           ))}
         </div>
       )}
+
+      <ProposeConfirmDialog
+        open={confirmOpen}
+        profile={profile}
+        targetRelpath={status?.target_relpath}
+        proposerModel={status?.proposer_model}
+        judgeModel={status?.judge_model}
+        pending={proposeMutation.isPending}
+        onConfirm={() => proposeMutation.mutate(profile)}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   )
 }
@@ -455,15 +487,18 @@ function ExperimentsFeed({
 
 interface ScenarioSectionProps {
   profile: string
+  nextStep: NextStep
 }
 
-function ScenarioSection({ profile }: ScenarioSectionProps) {
+function ScenarioSection({ profile, nextStep }: ScenarioSectionProps) {
   const queryClient = useQueryClient()
   const [splitFilter, setSplitFilter] = useState<'all' | 'train' | 'holdout'>(
     'all',
   )
   const [createOpen, setCreateOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Scenario | null>(null)
+  // Which scenario row is expanded — disclosure only, no route change
+  const [expandedId, setExpandedId] = useState<number | null>(null)
 
   const scenariosQK = qkScenarios(profile, true)
 
@@ -568,22 +603,33 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
 
       {!scenariosQuery.isLoading &&
         !scenariosQuery.isError &&
-        scenarios.length === 0 && (
+        scenarios.length === 0 &&
+        ((scenariosQuery.data ?? []).length === 0 ? (
           <div className="si-empty">
             <p>
               No scenarios for <strong>{profile}</strong>.
             </p>
             <p className="si-empty-sub">
-              Create a scenario or choose another split.
+              Scenarios define the behaviors experiments are graded against.
+              Next: <strong>{nextStep.label}</strong> — {nextStep.hint}
             </p>
           </div>
-        )}
+        ) : (
+          <div className="si-empty">
+            <p>
+              No {splitFilter === 'train' ? 'training' : 'held-out'} scenarios
+              for <strong>{profile}</strong>.
+            </p>
+            <p className="si-empty-sub">Choose another split.</p>
+          </div>
+        ))}
 
       {scenarios.length > 0 && (
         <div className="si-table-scroll">
           <table className="si-scenario-table">
             <thead>
               <tr>
+                <th className="si-scenario-expand-cell"></th>
                 <th>ID</th>
                 <th>Name</th>
                 <th>Input</th>
@@ -593,66 +639,120 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
               </tr>
             </thead>
             <tbody>
-              {scenarios.map((s) => (
-                <tr
-                  key={s.id}
-                  className={s.holdout ? 'si-scenario-holdout' : ''}
-                >
-                  <td className="si-scenario-id">#{s.id}</td>
-                  <td>
-                    <div className="si-scenario-name-cell">
-                      <strong>{s.name}</strong>
-                      <span className="si-badge">
-                        {s.holdout === 1 ? 'held-out' : 'training'}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="si-scenario-input" title={s.input}>
-                    {s.input
-                      ? s.input.slice(0, 60) + (s.input.length > 60 ? '…' : '')
-                      : '—'}
-                  </td>
-                  <td className="si-scenario-checks">
-                    <div className="si-check-chip-list">
-                      {parseScenarioChecks(s.checks).length === 0
-                        ? '—'
-                        : parseScenarioChecks(s.checks)
-                            .slice(0, 2)
-                            .map((check, index) => (
-                              <span key={index} className="si-check-chip">
-                                {scenarioCheckLabel(check)}
-                              </span>
-                            ))}
-                      {parseScenarioChecks(s.checks).length > 2 && (
-                        <span className="si-check-chip">
-                          +{parseScenarioChecks(s.checks).length - 2}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="si-scenario-date">
-                    {s.created_at.slice(0, 10)}
-                  </td>
-                  <td>
-                    <MenuRoot>
-                      <MenuTrigger
-                        className="si-row-menu-trigger"
-                        aria-label={`Actions for ${s.name}`}
-                      >
-                        ···
-                      </MenuTrigger>
-                      <MenuContent align="end">
-                        <MenuItem
-                          className="text-[var(--theme-danger,#ff5f6d)]"
-                          onClick={() => setDeleteTarget(s)}
+              {scenarios.map((s) => {
+                const checks = parseScenarioChecks(s.checks)
+                const expanded = expandedId === s.id
+                return (
+                  <Fragment key={s.id}>
+                    <tr className={s.holdout ? 'si-scenario-holdout' : ''}>
+                      <td className="si-scenario-expand-cell">
+                        <button
+                          type="button"
+                          className="si-expand-btn"
+                          aria-expanded={expanded}
+                          aria-label={`${expanded ? 'Collapse' : 'Expand'} details for ${s.name}`}
+                          onClick={() => setExpandedId(expanded ? null : s.id)}
                         >
-                          Delete scenario
-                        </MenuItem>
-                      </MenuContent>
-                    </MenuRoot>
-                  </td>
-                </tr>
-              ))}
+                          {expanded ? '▾' : '▸'}
+                        </button>
+                      </td>
+                      <td className="si-scenario-id">#{s.id}</td>
+                      <td>
+                        <div className="si-scenario-name-cell">
+                          <strong>{s.name}</strong>
+                          <span className="si-badge">
+                            {s.holdout === 1 ? 'held-out' : 'training'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="si-scenario-input" title={s.input}>
+                        {s.input
+                          ? s.input.slice(0, 60) +
+                            (s.input.length > 60 ? '…' : '')
+                          : '—'}
+                      </td>
+                      <td className="si-scenario-checks">
+                        <div className="si-check-chip-list">
+                          {checks.length === 0
+                            ? '—'
+                            : checks.slice(0, 2).map((check, index) => (
+                                <span key={index} className="si-check-chip">
+                                  {scenarioCheckLabel(check)}
+                                </span>
+                              ))}
+                          {checks.length > 2 && (
+                            <span className="si-check-chip">
+                              +{checks.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="si-scenario-date">
+                        {s.created_at.slice(0, 10)}
+                      </td>
+                      <td>
+                        <MenuRoot>
+                          <MenuTrigger
+                            className="si-row-menu-trigger"
+                            aria-label={`Actions for ${s.name}`}
+                          >
+                            ···
+                          </MenuTrigger>
+                          <MenuContent align="end">
+                            <MenuItem
+                              className="text-[var(--theme-danger,#ff5f6d)]"
+                              onClick={() => setDeleteTarget(s)}
+                            >
+                              Delete scenario
+                            </MenuItem>
+                          </MenuContent>
+                        </MenuRoot>
+                      </td>
+                    </tr>
+                    {expanded && (
+                      <tr className="si-scenario-detail-row">
+                        <td colSpan={7}>
+                          <div className="si-scenario-detail">
+                            <div className="si-scenario-detail-meta">
+                              <span className="si-badge">
+                                {s.holdout === 1 ? 'held-out' : 'training'}
+                              </span>
+                              <span>Created {s.created_at.slice(0, 10)}</span>
+                            </div>
+                            <div>
+                              <span className="si-scenario-detail-label">
+                                Input
+                              </span>
+                              <pre className="si-scenario-detail-input">
+                                {s.input || '—'}
+                              </pre>
+                            </div>
+                            <div>
+                              <span className="si-scenario-detail-label">
+                                Checks ({checks.length})
+                              </span>
+                              {checks.length === 0 ? (
+                                <span className="si-empty-sub">No checks</span>
+                              ) : (
+                                <div className="si-check-chip-list si-check-chip-list--wrap">
+                                  {checks.map((check, index) => (
+                                    <span
+                                      key={index}
+                                      className="si-check-chip"
+                                    >
+                                      {scenarioCheckLabel(check)}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -691,9 +791,19 @@ function ScenarioSection({ profile }: ScenarioSectionProps) {
   )
 }
 
-// ── Profile configuration panel ─────────────────────────────────────────────
+// ── Status summary section (StatusSummary card + controls cluster) ──────────
 
-function ProfileConfigPanel({ profile }: { profile: string }) {
+interface StatusSummarySectionProps {
+  profile: string
+  health: PluginHealth | undefined
+  nextStep: NextStep
+}
+
+function StatusSummarySection({
+  profile,
+  health,
+  nextStep,
+}: StatusSummarySectionProps) {
   const queryClient = useQueryClient()
 
   const statusQuery = useQuery({
@@ -703,19 +813,25 @@ function ProfileConfigPanel({ profile }: { profile: string }) {
     refetchInterval: REFETCH_INTERVAL,
   })
 
-  // Reuses the ExperimentsFeed query (same key) — no extra request.
-  const experimentsQuery = useQuery({
-    queryKey: ['self-improve', 'experiments', 'all', profile],
-    queryFn: () => fetchExperiments({ profile }),
-    enabled: !!profile,
-    refetchInterval: REFETCH_INTERVAL,
-  })
-
   const invalidateStatus = useCallback(() => {
     void queryClient.invalidateQueries({
       queryKey: ['self-improve', 'profile-status', profile],
     })
   }, [queryClient, profile])
+
+  const collectMutation = useMutation({
+    mutationFn: () => triggerCollect(profile),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ['self-improve'] })
+      toast(
+        `Collected ${data.collected} snapshot${data.collected !== 1 ? 's' : ''}`,
+      )
+    },
+    onError: (e) =>
+      toast(e instanceof Error ? e.message : 'Collect failed', {
+        type: 'error',
+      }),
+  })
 
   const pauseMutation = useMutation({
     mutationFn: () => pauseProfile(profile),
@@ -739,62 +855,50 @@ function ProfileConfigPanel({ profile }: { profile: string }) {
       }),
   })
 
-  const paused = statusQuery.data?.paused ?? false
+  const status = statusQuery.data
+  const paused = status?.paused ?? false
   const busy = pauseMutation.isPending || resumeMutation.isPending
-  const statusUnavailable = statusQuery.isError || !statusQuery.data
-
-  // Newest experiment for the selected profile → the file the ratchet edits.
-  // noUncheckedIndexedAccess is OFF — guard with .length before indexing.
-  const sortedExperiments = (experimentsQuery.data ?? [])
-    .slice()
-    .sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    )
-  const newest = sortedExperiments.length > 0 ? sortedExperiments[0] : null
-  const targetRelpath = newest?.target_relpath ?? null
-  const targetRoot = newest?.target_profile_root ?? null
+  const statusUnavailable = statusQuery.isError || !status
 
   return (
-    <div className="si-config-panel">
-      <div className="si-config-row">
-        <span className="si-config-label">Profile configuration</span>
-        <span
-          className={`si-config-status ${
-            statusQuery.isError
-              ? 'si-config-status--error'
-              : paused
-                ? 'si-config-status--paused'
-                : 'si-config-status--running'
-          }`}
+    <div className="si-overview-summary">
+      <StatusSummary
+        profile={profile}
+        health={health}
+        status={status}
+        nextStep={nextStep}
+      >
+        <button
+          type="button"
+          className="si-collect-btn"
+          disabled={collectMutation.isPending || !profile}
+          onClick={() => collectMutation.mutate()}
         >
-          {statusQuery.isLoading
-            ? 'Checking…'
-            : statusQuery.isError
-              ? 'Unavailable'
-              : paused
-                ? 'Paused'
-                : 'Running'}
-        </span>
-        <div className="si-config-actions">
-          <button
-            type="button"
-            className="si-action-btn"
-            disabled={busy || statusUnavailable || paused || !profile}
-            onClick={() => pauseMutation.mutate()}
-          >
-            {pauseMutation.isPending ? 'Pausing…' : 'Pause'}
-          </button>
-          <button
-            type="button"
-            className="si-action-btn si-action-btn--approve"
-            disabled={busy || statusUnavailable || !paused || !profile}
-            onClick={() => resumeMutation.mutate()}
-          >
-            {resumeMutation.isPending ? 'Resuming…' : 'Resume'}
-          </button>
+          {collectMutation.isPending ? 'Collecting…' : 'Collect now'}
+        </button>
+        <button
+          type="button"
+          className="si-action-btn"
+          disabled={busy || statusUnavailable || paused || !profile}
+          onClick={() => pauseMutation.mutate()}
+        >
+          {pauseMutation.isPending ? 'Pausing…' : 'Pause'}
+        </button>
+        <button
+          type="button"
+          className="si-action-btn si-action-btn--approve"
+          disabled={busy || statusUnavailable || !paused || !profile}
+          onClick={() => resumeMutation.mutate()}
+        >
+          {resumeMutation.isPending ? 'Resuming…' : 'Resume'}
+        </button>
+      </StatusSummary>
+
+      {health && !health.db_exists && (
+        <div className="si-health-state si-health-state--error" role="alert">
+          Plugin DB missing — collected metrics and experiments cannot persist.
         </div>
-      </div>
+      )}
 
       {statusQuery.isError && (
         <div className="si-config-error" role="alert">
@@ -813,15 +917,7 @@ function ProfileConfigPanel({ profile }: { profile: string }) {
         </div>
       )}
 
-      {targetRelpath ? (
-        <div className="si-config-target">
-          <span className="si-config-target-label">Target file</span>
-          <code className="si-config-target-path">{targetRelpath}</code>
-          {targetRoot && (
-            <span className="si-config-target-root">in {targetRoot}</span>
-          )}
-        </div>
-      ) : (
+      {status?.configured === false && (
         <p className="si-config-hint">
           Not bootstrapped? Run:{' '}
           <code>
@@ -893,23 +989,25 @@ export function SelfImproveScreen() {
     refetchInterval: REFETCH_INTERVAL,
   })
 
+  // Shared keys with StatusSummarySection / ExperimentsFeed — react-query
+  // dedupes by key, so these add no extra network requests.
+  const statusQuery = useQuery({
+    queryKey: ['self-improve', 'profile-status', profile],
+    queryFn: () => fetchProfileStatus(profile),
+    enabled: !!profile,
+    refetchInterval: REFETCH_INTERVAL,
+  })
+
+  const experimentsQuery = useQuery({
+    queryKey: ['self-improve', 'experiments', 'all', profile],
+    queryFn: () => fetchExperiments({ profile }),
+    enabled: !!profile,
+    refetchInterval: REFETCH_INTERVAL,
+  })
+
   const invalidateAll = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['self-improve'] })
   }, [queryClient])
-
-  const collectMutation = useMutation({
-    mutationFn: () => triggerCollect(profile),
-    onSuccess: (data) => {
-      invalidateAll()
-      toast(
-        `Collected ${data.collected} snapshot${data.collected !== 1 ? 's' : ''}`,
-      )
-    },
-    onError: (e) =>
-      toast(e instanceof Error ? e.message : 'Collect failed', {
-        type: 'error',
-      }),
-  })
 
   const isLoading =
     latestQuery.isLoading || historyQuery.isLoading || baselinesQuery.isLoading
@@ -929,6 +1027,13 @@ export function SelfImproveScreen() {
 
   // The metrics snapshot for the currently-selected profile
   const activeSnapshot = snapshots.find((s) => s.profile === profile) ?? null
+
+  // Dependency-chain guidance — drives the summary line and every empty state
+  const nextStep = computeNextStep({
+    status: statusQuery.data,
+    hasMetrics: activeSnapshot !== null,
+    experiments: experimentsQuery.data ?? [],
+  })
 
   return (
     <div className="si-screen">
@@ -969,14 +1074,6 @@ export function SelfImproveScreen() {
               onChange={setProfile}
               profiles={agentProfiles}
             />
-            <button
-              type="button"
-              className="si-collect-btn"
-              disabled={collectMutation.isPending || !profile}
-              onClick={() => collectMutation.mutate()}
-            >
-              {collectMutation.isPending ? 'Collecting…' : 'Collect now'}
-            </button>
           </div>
         </div>
         {healthQuery.isLoading && (
@@ -998,7 +1095,6 @@ export function SelfImproveScreen() {
             </button>
           </div>
         )}
-        {healthQuery.data && <HealthStrip health={healthQuery.data} />}
       </div>
 
       <section className="si-overview-section">
@@ -1010,9 +1106,14 @@ export function SelfImproveScreen() {
           <span className="si-profile-context">{profile}</span>
         </div>
 
+        <StatusSummarySection
+          profile={profile}
+          health={healthQuery.data}
+          nextStep={nextStep}
+        />
+
         <div className="si-overview-grid">
           <div className="si-overview-primary">
-            <ProfileConfigPanel profile={profile} />
             {isLoading ? (
               <SkeletonCards />
             ) : isError ? (
@@ -1038,7 +1139,8 @@ export function SelfImproveScreen() {
               <div className="si-empty-state si-overview-empty">
                 <p>No metrics collected for {profile || 'this profile'}.</p>
                 <p className="si-empty-sub">
-                  Collect the first snapshot to establish current behavior.
+                  Metrics populate from a collected snapshot of agent sessions.
+                  Next: <strong>{nextStep.label}</strong> — {nextStep.hint}
                 </p>
               </div>
             )}
@@ -1060,7 +1162,8 @@ export function SelfImproveScreen() {
               <div className="si-empty-state">
                 <p>No verified baseline yet.</p>
                 <p className="si-empty-sub">
-                  Approve and verify an experiment to establish one.
+                  A baseline is written when an applied experiment verifies.
+                  Next: <strong>{nextStep.label}</strong> — {nextStep.hint}
                 </p>
               </div>
             )}
@@ -1072,11 +1175,13 @@ export function SelfImproveScreen() {
       <ExperimentsFeed
         profile={profile}
         baselines={baselines}
+        status={statusQuery.data}
+        nextStep={nextStep}
         onMutated={invalidateAll}
       />
 
       {/* ── Scenario management — scoped to selected profile (FIX 1) ── */}
-      <ScenarioSection profile={profile} />
+      <ScenarioSection profile={profile} nextStep={nextStep} />
     </div>
   )
 }

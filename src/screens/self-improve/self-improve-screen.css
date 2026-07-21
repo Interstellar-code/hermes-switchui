@@ -56,47 +56,7 @@
   margin: 0;
 }
 
-/* ── Health strip ────────────────────────────────────────────────────────────*/
-
-.si-health-strip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--theme-muted, #888);
-}
-
-.si-health-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.si-health-dot--ok {
-  background: var(--m-green-400, var(--theme-accent, #4ade80));
-}
-
-.si-health-dot--err {
-  background: #f87171;
-}
-
-.si-health-label {
-  font-weight: 600;
-  color: var(--theme-text, #e8e8e8);
-}
-
-.si-health-version {
-  color: var(--theme-muted, #888);
-}
-
-.si-health-sep {
-  color: var(--theme-border, #333);
-}
-
-.si-health-db--missing {
-  color: #f87171;
-}
+/* ── Health state (loading / error / DB-missing notes) ───────────────────────*/
 
 .si-health-state {
   display: flex;
@@ -1775,10 +1735,6 @@
   gap: 12px;
 }
 
-.si-overview-primary .si-config-panel {
-  margin-bottom: 0;
-}
-
 .si-overview-empty {
   border: 1px dashed var(--theme-border-subtle);
   border-radius: 10px;
@@ -1820,87 +1776,13 @@
   }
 }
 
-/* ── Profile configuration panel ─────────────────────────────────────────────*/
+/* ── Status summary block (StatusSummary card + notes below it) ──────────────*/
 
-.si-config-panel {
+.si-overview-summary {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 14px 16px;
   margin-bottom: 16px;
-  border: 1px solid var(--theme-border, #333);
-  border-radius: 10px;
-  background: var(--theme-panel);
-}
-
-.si-config-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.si-config-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--theme-text, #ddd);
-}
-
-.si-config-status {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  border: 1px solid var(--theme-border, #333);
-}
-
-.si-config-status--running {
-  border-color: var(--m-green-400, #4ade80);
-  color: var(--m-green-400, #4ade80);
-  background: rgba(74, 222, 128, 0.08);
-}
-
-.si-config-status--paused {
-  border-color: #fbbf24;
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.08);
-}
-
-.si-config-status--error {
-  border-color: #f87171;
-  color: #f87171;
-  background: rgba(248, 113, 113, 0.08);
-}
-
-.si-config-actions {
-  display: flex;
-  gap: 8px;
-  margin-left: auto;
-}
-
-.si-config-target {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: var(--theme-muted, #888);
-}
-
-.si-config-target-label {
-  font-weight: 600;
-}
-
-.si-config-target-path {
-  font-family: var(--font-mono, monospace);
-  color: var(--theme-text, #ddd);
-}
-
-.si-config-target-root {
-  color: var(--theme-muted, #666);
 }
 
 .si-config-hint {
@@ -2291,4 +2173,104 @@
   .si-wizard-check input {
     grid-column: 2 / -1;
   }
+}
+
+/* ── Product-ready redesign: metric semantics + scenario row expand ────────── */
+
+.si-card-header-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.si-window-range {
+  font: 500 10px var(--m-font-mono, monospace);
+  color: var(--theme-muted, #888);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.si-scenario-expand-cell {
+  width: 26px;
+  white-space: nowrap;
+}
+
+.si-expand-btn {
+  background: none;
+  border: none;
+  padding: 0 2px;
+  cursor: pointer;
+  color: var(--theme-muted, #888);
+  font-size: 11px;
+  line-height: 1;
+  font-family: inherit;
+}
+
+.si-expand-btn:hover {
+  color: var(--theme-text, #e8e8e8);
+}
+
+.si-expand-btn:focus-visible {
+  outline: 2px solid var(--theme-accent, #7c6af7);
+  outline-offset: 2px;
+}
+
+.si-scenario-detail-row td {
+  background: var(--theme-card, #111);
+}
+
+.si-scenario-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 2px 8px;
+}
+
+.si-scenario-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--theme-muted, #888);
+}
+
+.si-scenario-detail-meta .si-badge {
+  margin-left: 0;
+}
+
+.si-scenario-detail-label {
+  display: block;
+  font: 600 10px var(--m-font-mono, monospace);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--theme-muted, #888);
+  margin-bottom: 4px;
+}
+
+.si-scenario-detail-input {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--theme-border-subtle);
+  border-radius: 6px;
+  background: var(--theme-card2, rgba(255, 255, 255, 0.03));
+  color: var(--theme-text, #e8e8e8);
+  font: 12px/1.5 var(--m-font-mono, monospace);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.si-check-chip-list--wrap {
+  flex-wrap: wrap;
+  max-width: none;
+  overflow: visible;
+}
+
+.si-check-chip-list--wrap .si-check-chip {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }

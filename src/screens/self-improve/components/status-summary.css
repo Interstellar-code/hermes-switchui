@@ -1,0 +1,222 @@
+/* StatusSummary — hero "at a glance" card. Scoped under .si-summary so it
+   never collides with self-improve-screen.css class names. */
+
+.si-summary {
+  position: relative;
+  overflow: hidden;
+  background: var(--theme-card, var(--theme-card2, rgba(255, 255, 255, 0.03)));
+  border: 1px solid var(--m-green-800, rgba(74, 222, 128, 0.22));
+  border-radius: 12px;
+  padding: 20px 22px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* Accent hairline across the top edge — signals this is the primary panel. */
+.si-summary::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--m-green-400, #4ade80),
+    transparent
+  );
+  opacity: 0.45;
+}
+
+.si-summary-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.si-summary-profile {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--m-green-400, var(--theme-accent, #4ade80));
+  font-family: var(--m-font-mono, monospace);
+}
+
+.si-summary-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+/* ── Status pills ─────────────────────────────────────────────────────────── */
+
+.si-summary-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.si-summary-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border-subtle, rgba(255, 255, 255, 0.1));
+  background: var(--theme-card2, rgba(255, 255, 255, 0.03));
+  font-family: var(--m-font-mono, monospace);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--theme-text, #e8e8e8);
+  white-space: nowrap;
+}
+
+/* Tint the chip border to match its dot tone (no extra markup needed). */
+.si-summary-pill:has(.si-summary-dot--ok) {
+  border-color: var(--m-green-800, rgba(74, 222, 128, 0.28));
+}
+.si-summary-pill:has(.si-summary-dot--warn) {
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+.si-summary-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.si-summary-dot--ok {
+  background: var(--m-green-400, var(--theme-accent, #4ade80));
+  box-shadow: 0 0 7px rgba(74, 222, 128, 0.5);
+}
+
+.si-summary-dot--warn {
+  background: #fbbf24;
+  box-shadow: 0 0 7px rgba(251, 191, 36, 0.45);
+}
+
+.si-summary-dot--dim {
+  background: var(--theme-muted, #6f8a72);
+  opacity: 0.6;
+}
+
+/* ── Counts row ───────────────────────────────────────────────────────────── */
+
+.si-summary-counts {
+  font-family: var(--m-font-mono, monospace);
+  font-size: 12px;
+  color: var(--theme-muted, #888);
+  padding-top: 14px;
+  border-top: 1px solid var(--theme-border-subtle, rgba(255, 255, 255, 0.07));
+}
+
+.si-summary-counts strong {
+  color: var(--theme-text, #e8e8e8);
+  font-weight: 600;
+}
+
+/* ── Next-step callout ────────────────────────────────────────────────────── */
+
+.si-summary-next-step {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 12px 14px;
+  border-radius: 9px;
+  border: 1px solid var(--m-green-800, rgba(74, 222, 128, 0.22));
+  background: linear-gradient(
+    90deg,
+    rgba(74, 222, 128, 0.08),
+    rgba(74, 222, 128, 0.01)
+  );
+  font-size: 13px;
+  color: var(--theme-muted, #888);
+  line-height: 1.5;
+}
+
+/* "Next step" eyebrow chip. */
+.si-summary-next-step-tag {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 1px;
+  font-family: var(--m-font-mono, monospace);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--m-green-400, #4ade80);
+  border: 1px solid var(--m-green-800, rgba(74, 222, 128, 0.28));
+  border-radius: 5px;
+  padding: 4px 7px;
+  white-space: nowrap;
+}
+
+.si-summary-next-step-body {
+  flex: 1;
+}
+
+.si-summary-next-step strong {
+  color: var(--theme-text, #e8e8e8);
+  font-weight: 600;
+}
+
+/* ── Freshness + config details ───────────────────────────────────────────── */
+
+.si-summary-freshness {
+  font-family: var(--m-font-mono, monospace);
+  font-size: 11px;
+  color: var(--theme-muted, #6f8a72);
+  opacity: 0.85;
+}
+
+.si-summary-freshness strong {
+  color: var(--theme-text, #d8e8d8);
+  font-weight: 600;
+}
+
+.si-summary-details {
+  display: inline;
+  margin-left: 10px;
+}
+
+.si-summary-details summary {
+  display: inline;
+  cursor: pointer;
+  color: var(--m-green-400, var(--theme-accent, #4ade80));
+  font-family: var(--m-font-mono, monospace);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  list-style: none;
+}
+
+.si-summary-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.si-summary-details[open] summary {
+  opacity: 0.75;
+}
+
+.si-summary-details-body {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+  font-family: var(--m-font-mono, monospace);
+  font-size: 10.5px;
+}
+
+.si-summary-details-body > div {
+  padding: 8px 10px;
+  border: 1px solid var(--theme-border-subtle, rgba(255, 255, 255, 0.07));
+  border-radius: 7px;
+  background: var(--theme-card2, rgba(255, 255, 255, 0.03));
+  color: var(--theme-muted, #888);
+  word-break: break-all;
+}

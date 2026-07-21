@@ -210,4 +210,26 @@ export interface PauseResumeResponse {
 export interface ProfileStatus {
   profile: string
   paused: boolean
+  // Extended config surface (plugin >= config-status endpoint). All optional so
+  // the UI degrades gracefully against older plugin builds — feature-detect.
+  // Field names must match plugin REST API exactly — do not rename.
+  configured?: boolean
+  target_relpath?: string | null
+  profile_root?: string | null
+  proposer_model?: string | null
+  judge_model?: string | null
+  live_sessions_target?: number | null
+  scenario_counts?: { train: number; holdout: number }
+  experiment_counts?: {
+    proposed: number
+    approved: number
+    live: number
+    verified: number
+    reverted: number
+    rejected: number
+  }
+  latest_baseline_score?: number | null
+  last_collection_at?: string | null
+  last_proposal_at?: string | null
+  last_verification_at?: string | null
 }
