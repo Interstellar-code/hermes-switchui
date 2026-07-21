@@ -3,6 +3,20 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.21] — 2026-07-21
+
+### Added
+
+- **Guided Self-Improve scenarios** — create training or held-out scenarios with typed checks, inspect full prompts and readable check labels, and delete scenarios through a confirmation dialog.
+- **Analysis-first status summary** — independently reports plugin, profile, and loop state, then recommends the next action from bootstrap through collection, proposal, approval, and observation.
+- **Actionable next steps** — collect metrics, jump to the relevant screen section, or copy the profile-specific bootstrap command directly from the summary.
+- **Proposal confirmation** — shows the target, models, and estimated cost before starting an experiment.
+
+### Changed
+
+- The Self-Improve screen now leads with current state and the next required action, with clearer metric windows, experiment state, responsive layout, and accessible interactions.
+- Updated `react-grab` from 0.1.44 to 0.1.48.
+
 ## [2.5.20] — 2026-07-20
 
 ### Added
