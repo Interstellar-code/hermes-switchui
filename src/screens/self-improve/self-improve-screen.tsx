@@ -736,10 +736,7 @@ function ScenarioSection({ profile, nextStep }: ScenarioSectionProps) {
                               ) : (
                                 <div className="si-check-chip-list si-check-chip-list--wrap">
                                   {checks.map((check, index) => (
-                                    <span
-                                      key={index}
-                                      className="si-check-chip"
-                                    >
+                                    <span key={index} className="si-check-chip">
                                       {scenarioCheckLabel(check)}
                                     </span>
                                   ))}
@@ -887,7 +884,7 @@ function StatusSummarySection({
     }
     if (nextStep.key === 'bootstrap') {
       const cmd = `hermes karpathy bootstrap --profile ${profile}`
-      void navigator.clipboard?.writeText(cmd)
+      void navigator.clipboard.writeText(cmd)
       toast(`Copied: ${cmd} — run it in your terminal`)
       return
     }

@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest'
+import type {
+  Experiment,
+  ExperimentState,
+  ProfileStatus,
+} from '@/lib/self-improve-types'
 import { computeNextStep } from '@/lib/self-improve-next-step'
-import type { Experiment, ExperimentState, ProfileStatus } from '@/lib/self-improve-types'
 
-function makeExperiment(state: ExperimentState, overrides: Partial<Experiment> = {}): Experiment {
+function makeExperiment(
+  state: ExperimentState,
+  overrides: Partial<Experiment> = {},
+): Experiment {
   return {
     id: 1,
     profile: 'default',
@@ -60,7 +67,10 @@ describe('computeNextStep', () => {
 
   it('add-training: fewer than 2 training scenarios', () => {
     const step = computeNextStep({
-      status: makeStatus({ configured: true, scenario_counts: { train: 1, holdout: 5 } }),
+      status: makeStatus({
+        configured: true,
+        scenario_counts: { train: 1, holdout: 5 },
+      }),
       hasMetrics: true,
       experiments: [],
     })
@@ -69,7 +79,10 @@ describe('computeNextStep', () => {
 
   it('add-holdout: no held-out scenarios', () => {
     const step = computeNextStep({
-      status: makeStatus({ configured: true, scenario_counts: { train: 5, holdout: 0 } }),
+      status: makeStatus({
+        configured: true,
+        scenario_counts: { train: 5, holdout: 0 },
+      }),
       hasMetrics: true,
       experiments: [],
     })
@@ -78,7 +91,10 @@ describe('computeNextStep', () => {
 
   it('collect: scenario counts satisfied but no metrics yet', () => {
     const step = computeNextStep({
-      status: makeStatus({ configured: true, scenario_counts: { train: 5, holdout: 2 } }),
+      status: makeStatus({
+        configured: true,
+        scenario_counts: { train: 5, holdout: 2 },
+      }),
       hasMetrics: false,
       experiments: [],
     })
@@ -87,7 +103,10 @@ describe('computeNextStep', () => {
 
   it('propose: metrics exist, no proposed/approved/live experiment', () => {
     const step = computeNextStep({
-      status: makeStatus({ configured: true, scenario_counts: { train: 5, holdout: 2 } }),
+      status: makeStatus({
+        configured: true,
+        scenario_counts: { train: 5, holdout: 2 },
+      }),
       hasMetrics: true,
       experiments: [makeExperiment('rejected')],
     })
@@ -117,7 +136,10 @@ describe('computeNextStep', () => {
       status: makeStatus(),
       hasMetrics: true,
       experiments: [
-        makeExperiment('live', { live_sessions_target: 10, live_sessions_observed: 3 }),
+        makeExperiment('live', {
+          live_sessions_target: 10,
+          live_sessions_observed: 3,
+        }),
       ],
     })
     expect(step.key).toBe('observe')
@@ -161,10 +183,18 @@ describe('computeNextStep', () => {
       }),
     ).not.toThrow()
 
-    const noMetrics = computeNextStep({ status: makeStatus(), hasMetrics: false, experiments: [] })
+    const noMetrics = computeNextStep({
+      status: makeStatus(),
+      hasMetrics: false,
+      experiments: [],
+    })
     expect(noMetrics.key).toBe('collect')
 
-    const withMetrics = computeNextStep({ status: makeStatus(), hasMetrics: true, experiments: [] })
+    const withMetrics = computeNextStep({
+      status: makeStatus(),
+      hasMetrics: true,
+      experiments: [],
+    })
     expect(withMetrics.key).toBe('propose')
   })
 
@@ -172,7 +202,11 @@ describe('computeNextStep', () => {
     expect(() =>
       computeNextStep({ status: undefined, hasMetrics: true, experiments: [] }),
     ).not.toThrow()
-    const step = computeNextStep({ status: undefined, hasMetrics: true, experiments: [] })
+    const step = computeNextStep({
+      status: undefined,
+      hasMetrics: true,
+      experiments: [],
+    })
     expect(step.key).toBe('propose')
   })
 })

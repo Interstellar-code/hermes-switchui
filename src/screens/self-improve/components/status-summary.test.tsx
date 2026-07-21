@@ -2,9 +2,9 @@
 
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
+import { StatusSummary } from './status-summary'
 import type { PluginHealth, ProfileStatus } from '@/lib/self-improve-types'
 import type { NextStep } from '@/lib/self-improve-next-step'
-import { StatusSummary } from './status-summary'
 
 afterEach(cleanup)
 
@@ -91,9 +91,7 @@ describe('StatusSummary', () => {
       />,
     )
 
-    expect(
-      screen.getByText(/Scenarios 4 train \/ 0 held-out/),
-    ).toBeTruthy()
+    expect(screen.getByText(/Scenarios 4 train \/ 0 held-out/)).toBeTruthy()
     expect(screen.getByText(/Baseline none/)).toBeTruthy()
     expect(screen.getByText(/Experiments 0/)).toBeTruthy()
   })

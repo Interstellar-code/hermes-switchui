@@ -3,7 +3,7 @@
  * user should take. Drives a summary line and empty-state hints. No React,
  * no UI imports.
  */
-import type { ProfileStatus, Experiment } from '@/lib/self-improve-types'
+import type { Experiment, ProfileStatus } from '@/lib/self-improve-types'
 
 export interface NextStep {
   /** short imperative label, e.g. "Add held-out scenarios" */

@@ -79,11 +79,7 @@ export function ProposeConfirmDialog({
           <Button variant="outline" disabled={pending} onClick={onCancel}>
             Cancel
           </Button>
-          <Button
-            disabled={pending}
-            aria-busy={pending}
-            onClick={onConfirm}
-          >
+          <Button disabled={pending} aria-busy={pending} onClick={onConfirm}>
             {pending ? 'Proposing…' : 'Propose'}
           </Button>
         </DialogFooter>

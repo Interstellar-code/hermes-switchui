@@ -54,8 +54,10 @@ function profilePill(status: ProfileStatus | undefined) {
 }
 
 function loopPill(status: ProfileStatus | undefined) {
-  if (status?.paused === true) return { tone: 'warn' as const, label: 'Loop paused' }
-  if (status?.paused === false) return { tone: 'ok' as const, label: 'Loop active' }
+  if (status?.paused === true)
+    return { tone: 'warn' as const, label: 'Loop paused' }
+  if (status?.paused === false)
+    return { tone: 'ok' as const, label: 'Loop active' }
   return { tone: 'dim' as const, label: 'Loop unknown' }
 }
 
