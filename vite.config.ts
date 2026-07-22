@@ -479,6 +479,9 @@ const config = defineConfig(({ mode, command }) => {
       ),
     },
     resolve: {
+      // Base UI's optimized CommonJS modules must share the application's React
+      // instance. Without deduping, hooks can resolve to a null dispatcher.
+      dedupe: ['react', 'react-dom'],
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
         'next/image': fileURLToPath(new URL('./src/shims/next-image.tsx', import.meta.url)),

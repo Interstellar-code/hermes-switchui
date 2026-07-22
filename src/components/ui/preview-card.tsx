@@ -1,27 +1,40 @@
 'use client'
 
-import { PreviewCard as PreviewCardPrimitive } from '@base-ui/react/preview-card'
+import type * as React from 'react'
+
 import { cn } from '@/lib/utils'
 
-const PreviewCard = PreviewCardPrimitive.Root
+type PreviewCardProps = React.ComponentPropsWithoutRef<'div'>
 
-type PreviewCardTriggerProps = React.ComponentProps<
-  typeof PreviewCardPrimitive.Trigger
->
-
-function PreviewCardTrigger({ className, ...props }: PreviewCardTriggerProps) {
+function PreviewCard({ className, ...props }: PreviewCardProps) {
   return (
-    <PreviewCardPrimitive.Trigger
-      className={cn(className)}
-      data-slot="preview-card-trigger"
+    <div
+      className={cn('group/preview-card relative inline-block', className)}
       {...props}
     />
   )
 }
 
-type PreviewCardPopupProps = PreviewCardPrimitive.Popup.Props & {
-  align?: PreviewCardPrimitive.Positioner.Props['align']
-  sideOffset?: PreviewCardPrimitive.Positioner.Props['sideOffset']
+type PreviewCardTriggerProps = React.ComponentPropsWithoutRef<'div'>
+
+function PreviewCardTrigger({
+  className,
+  tabIndex,
+  ...props
+}: PreviewCardTriggerProps) {
+  return (
+    <div
+      className={cn(className)}
+      data-slot="preview-card-trigger"
+      tabIndex={props['aria-label'] ? (tabIndex ?? 0) : tabIndex}
+      {...props}
+    />
+  )
+}
+
+type PreviewCardPopupProps = React.ComponentPropsWithoutRef<'div'> & {
+  align?: 'start' | 'center' | 'end'
+  sideOffset?: number
 }
 
 function PreviewCardPopup({
@@ -29,33 +42,31 @@ function PreviewCardPopup({
   children,
   align = 'center',
   sideOffset = 6,
+  style,
   ...props
 }: PreviewCardPopupProps) {
   return (
-    <PreviewCardPrimitive.Portal>
-      <PreviewCardPrimitive.Positioner
-        align={align}
-        className="z-50"
-        data-slot="preview-card-positioner"
-        sideOffset={sideOffset}
-      >
-        <PreviewCardPrimitive.Popup
-          className={cn(
-            'relative w-64 origin-(--transform-origin) rounded-lg p-3 text-sm text-pretty outline shadow-2xs',
-            className,
-          )}
-          data-slot="preview-card-content"
-          style={{
-            background: 'var(--theme-card)',
-            color: 'var(--theme-text)',
-            outlineColor: 'var(--theme-border)',
-          }}
-          {...props}
-        >
-          {children}
-        </PreviewCardPrimitive.Popup>
-      </PreviewCardPrimitive.Positioner>
-    </PreviewCardPrimitive.Portal>
+    <div
+      className={cn(
+        'pointer-events-none absolute top-full z-50 hidden w-64 origin-top rounded-lg p-3 text-sm text-pretty opacity-0 shadow-2xs transition-opacity group-hover/preview-card:block group-hover/preview-card:opacity-100 group-focus-within/preview-card:block group-focus-within/preview-card:opacity-100',
+        align === 'start' && 'left-0',
+        align === 'center' && 'left-1/2 -translate-x-1/2',
+        align === 'end' && 'right-0',
+        className,
+      )}
+      data-slot="preview-card-content"
+      role="tooltip"
+      style={{
+        marginTop: sideOffset,
+        background: 'var(--theme-card)',
+        color: 'var(--theme-text)',
+        outlineColor: 'var(--theme-border)',
+        ...style,
+      }}
+      {...props}
+    >
+      {children}
+    </div>
   )
 }
 
