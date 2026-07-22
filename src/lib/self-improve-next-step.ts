@@ -38,7 +38,7 @@ export function computeNextStep(input: NextStepInput): NextStep {
     return {
       key: 'bootstrap',
       label: 'Bootstrap profile',
-      hint: 'Run: hermes karpathy bootstrap --profile <name> so it has a target file.',
+      hint: 'Run: hermes --profile <name> karpathy bootstrap so it has a target file.',
     }
   }
 

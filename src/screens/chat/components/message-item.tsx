@@ -5,10 +5,12 @@ import { Reply } from 'lucide-react'
 import {
   getMessageTimestamp,
   getToolCallsFromMessage,
+  hasMeaningfulNarrationText,
+  hasVisibleText,
   textFromMessage,
 } from '../utils'
 import { MessageActionsBar } from './message-actions-bar'
-import { MessageContextMenu  } from './message-context-menu'
+import { MessageContextMenu } from './message-context-menu'
 import {
   buildHermesActivitySummary,
   shouldAutoExpandHermesActivityCard,
@@ -17,7 +19,7 @@ import { selectVisibleLifecycleEvents } from './streaming-lifecycle-ui'
 import { TuiActivityCard, attachClarifyCard } from './tui-activity-card'
 import type { ReactNode } from 'react'
 import type { Components } from 'react-markdown'
-import type {MessageContextMenuPosition} from './message-context-menu';
+import type { MessageContextMenuPosition } from './message-context-menu'
 import type { ChatAttachment, ChatMessage, ToolCallContent } from '../types'
 import type { ToolPart } from '@/components/prompt-kit/tool'
 import { useSharedTicker } from '@/screens/chat/hooks/use-shared-ticker'
@@ -139,7 +141,9 @@ const USER_MARKDOWN_COMPONENTS = {
     return <tbody>{children}</tbody>
   },
   tr: function UserTr({ children }) {
-    return <tr className="border-b border-current/10 last:border-0">{children}</tr>
+    return (
+      <tr className="border-b border-current/10 last:border-0">{children}</tr>
+    )
   },
   th: function UserTh({ children }) {
     return (
@@ -1254,8 +1258,7 @@ function ToolCallPill({ toolCall }: { toolCall: StreamToolCall }) {
           {/* Show args (input) */}
           {toolCall.args != null &&
             typeof toolCall.args === 'object' &&
-            Object.keys(toolCall.args).length >
-              0 && (
+            Object.keys(toolCall.args).length > 0 && (
               <div className="px-2.5 py-1.5">
                 <div className="text-[9px] uppercase tracking-widest opacity-40 mb-0.5">
                   Input
@@ -2111,8 +2114,9 @@ function MessageItemComponent({
   const profileAvatarDataUrl = useChatSettingsStore(
     selectChatProfileAvatarDataUrl,
   )
-  const [messageContextMenu, setMessageContextMenu] =
-    useState<(MessageContextMenuPosition & { selectedText?: string }) | null>(null)
+  const [messageContextMenu, setMessageContextMenu] = useState<
+    (MessageContextMenuPosition & { selectedText?: string }) | null
+  >(null)
 
   const bubbleRef = useRef<HTMLDivElement | null>(null)
 
@@ -2328,7 +2332,8 @@ function MessageItemComponent({
   }, [message.content])
   const hasInlineImages = inlineImages.length > 0
 
-  const hasText = displayText.length > 0
+  const hasText = hasVisibleText(displayText)
+  const hasNarrationText = hasMeaningfulNarrationText(displayText)
   const hasRevealedText = effectiveIsStreaming
     ? assistantDisplayText.length > 0
     : hasText
@@ -2535,7 +2540,9 @@ function MessageItemComponent({
   // Prevents stuck timers from race conditions where tool.completed SSE
   // arrives after the done event or phase wasn't properly updated
   const finalToolSections = useMemo(() => {
-    const visibleToolSections = withoutDelegateTaskToolSections(toolSectionsWithClarify)
+    const visibleToolSections = withoutDelegateTaskToolSections(
+      toolSectionsWithClarify,
+    )
     if (effectiveIsStreaming) return visibleToolSections
     return visibleToolSections.map((section) =>
       section.state === 'input-available' || section.state === 'input-streaming'
@@ -2603,9 +2610,10 @@ function MessageItemComponent({
   const replyMessageAction = onReplyMessage
     ? () => onReplyMessage(message)
     : undefined
-  const quoteMessageAction = onReplyMessage && messageContextMenu?.selectedText
-    ? () => onReplyMessage(message, messageContextMenu.selectedText)
-    : undefined
+  const quoteMessageAction =
+    onReplyMessage && messageContextMenu?.selectedText
+      ? () => onReplyMessage(message, messageContextMenu.selectedText)
+      : undefined
 
   if (execNotification) {
     const isSuccess = execNotification.ok ?? execNotification.exitCode === 0
@@ -2708,7 +2716,7 @@ function MessageItemComponent({
         </div>
       )}
       {/* Narration messages (tool-call activity) — compact collapsible row */}
-      {!isUser && (message as any).__isNarration && hasText && (
+      {!isUser && (message as any).__isNarration && hasNarrationText && (
         <div className="w-full max-w-[var(--chat-content-max-width)]">
           <details className="group/narration rounded-lg border border-primary-200/50 bg-primary-50/30 hover:bg-primary-50 dark:hover:bg-primary-800/50 transition-colors">
             <summary className="flex items-center gap-2 cursor-pointer select-none px-3 py-2 list-none [&::-webkit-details-marker]:hidden">
@@ -2753,16 +2761,25 @@ function MessageItemComponent({
             data-chat-message-bubble={isUser ? 'user' : 'assistant'}
             onContextMenu={(event) => {
               event.preventDefault()
-              const selection = typeof window !== 'undefined' ? window.getSelection() : null
+              const selection =
+                typeof window !== 'undefined' ? window.getSelection() : null
               const selectedText = (() => {
                 const raw = selection?.toString().trim() ?? ''
                 const anchor = selection?.anchorNode
                 const focus = selection?.focusNode
                 if (!raw || !bubbleRef.current || !anchor || !focus) return ''
-                if (!bubbleRef.current.contains(anchor) || !bubbleRef.current.contains(focus)) return ''
+                if (
+                  !bubbleRef.current.contains(anchor) ||
+                  !bubbleRef.current.contains(focus)
+                )
+                  return ''
                 return raw.replace(/\s+/g, ' ').trim()
               })()
-              setMessageContextMenu({ x: event.clientX, y: event.clientY, ...(selectedText ? { selectedText } : {}) })
+              setMessageContextMenu({
+                x: event.clientX,
+                y: event.clientY,
+                ...(selectedText ? { selectedText } : {}),
+              })
             }}
             className={cn(
               'break-words whitespace-normal min-w-0 flex flex-col gap-2 px-3 py-2 max-w-[80%]',
@@ -3046,11 +3063,14 @@ export function areMessagesEqual(
   }
   if (prevProps.message !== nextProps.message) {
     if (
-      prevProps.message.__streamingStatus !== nextProps.message.__streamingStatus
+      prevProps.message.__streamingStatus !==
+      nextProps.message.__streamingStatus
     ) {
       return false
     }
-    if (prevProps.message.__streamingText !== nextProps.message.__streamingText) {
+    if (
+      prevProps.message.__streamingText !== nextProps.message.__streamingText
+    ) {
       return false
     }
     if (

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { hasMeaningfulNarrationText, hasVisibleText } from '../utils'
 import { areMessagesEqual } from './message-item'
 import type { ChatMessage } from '../types'
 
@@ -11,9 +12,7 @@ const baseMessage: ChatMessage = {
   timestamp: 1_000,
 }
 
-function makeProps(
-  attachedToolMessages: Array<ChatMessage>,
-): MessageItemProps {
+function makeProps(attachedToolMessages: Array<ChatMessage>): MessageItemProps {
   return {
     message: baseMessage,
     attachedToolMessages,
@@ -95,8 +94,14 @@ describe('areMessagesEqual — isLastAssistant', () => {
 
 describe('areMessagesEqual — clarifyCard', () => {
   it('returns false when clarifyCard changes', () => {
-    const prev = { message: baseMessage, clarifyCard: 'first' } as MessageItemProps
-    const next = { message: baseMessage, clarifyCard: 'second' } as MessageItemProps
+    const prev = {
+      message: baseMessage,
+      clarifyCard: 'first',
+    } as MessageItemProps
+    const next = {
+      message: baseMessage,
+      clarifyCard: 'second',
+    } as MessageItemProps
 
     expect(areMessagesEqual(prev, next)).toBe(false)
   })
@@ -113,19 +118,39 @@ describe('areMessagesEqual — clarifyCard', () => {
 describe('areMessagesEqual — stable message reference', () => {
   it('skips message content parsing when the message object is unchanged', () => {
     let contentReads = 0
-    const message = Object.defineProperty(
-      { ...baseMessage },
-      'content',
-      {
-        get() {
-          contentReads += 1
-          return baseMessage.content
-        },
+    const message = Object.defineProperty({ ...baseMessage }, 'content', {
+      get() {
+        contentReads += 1
+        return baseMessage.content
       },
-    )
+    })
     const props = { message, attachedToolMessages: [] } as MessageItemProps
 
     expect(areMessagesEqual(props, props)).toBe(true)
     expect(contentReads).toBe(0)
+  })
+})
+
+describe('hasVisibleText', () => {
+  it('rejects whitespace and invisible reply-marker characters', () => {
+    expect(
+      hasVisibleText(' \n\u200B\u200C\u200D\u2060\u2063\uFE0F\uFEFF '),
+    ).toBe(false)
+  })
+
+  it('keeps genuine narration text visible', () => {
+    expect(hasVisibleText('\u200BRunning a tool…')).toBe(true)
+  })
+})
+
+describe('hasMeaningfulNarrationText', () => {
+  it('rejects activity records shorter than ten visible characters', () => {
+    expect(hasMeaningfulNarrationText('.')).toBe(false)
+    expect(hasMeaningfulNarrationText('Running')).toBe(false)
+  })
+
+  it('keeps narration once it has ten visible characters', () => {
+    expect(hasMeaningfulNarrationText('Running now')).toBe(true)
+    expect(hasMeaningfulNarrationText('\u200BRunning now')).toBe(true)
   })
 })

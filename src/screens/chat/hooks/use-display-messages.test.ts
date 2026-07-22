@@ -5,7 +5,10 @@ import { cleanup, renderHook } from '@testing-library/react'
 import { useDisplayMessages } from './use-display-messages'
 import type { ChatMessage } from '../types'
 
-function userMsg(text: string, overrides: Partial<ChatMessage> = {}): ChatMessage {
+function userMsg(
+  text: string,
+  overrides: Partial<ChatMessage> = {},
+): ChatMessage {
   return { role: 'user', content: [{ type: 'text', text }], ...overrides }
 }
 
@@ -81,6 +84,12 @@ describe('useDisplayMessages', () => {
     expect(result).toHaveLength(1)
   })
 
+  it('drops assistant messages containing only invisible formatting characters', () => {
+    const result = renderDisplay([assistantMsg('\u200B\u2060\uFEFF')])
+
+    expect(result).toHaveLength(0)
+  })
+
   it('keeps assistant messages with tool calls only (no text)', () => {
     const msgs = [assistantToolCall()]
     const result = renderDisplay(msgs)
@@ -107,14 +116,23 @@ describe('useDisplayMessages', () => {
 
   it('keeps streaming assistant messages regardless of content', () => {
     const msgs = [
-      { role: 'assistant', content: [], __streamingStatus: 'streaming' } as ChatMessage,
+      {
+        role: 'assistant',
+        content: [],
+        __streamingStatus: 'streaming',
+      } as ChatMessage,
     ]
     const result = renderDisplay(msgs)
     expect(result).toHaveLength(1)
   })
 
   it('drops messages with unknown roles', () => {
-    const msgs = [{ role: 'system', content: [{ type: 'text', text: 'sys' }] } as ChatMessage]
+    const msgs = [
+      {
+        role: 'system',
+        content: [{ type: 'text', text: 'sys' }],
+      } as ChatMessage,
+    ]
     const result = renderDisplay(msgs)
     expect(result).toHaveLength(0)
   })
@@ -189,18 +207,14 @@ describe('useDisplayMessages', () => {
       }),
     )
     const display = result.current.finalDisplayMessages
-    const streaming = display.filter(
-      (m) => m.__streamingStatus === 'streaming',
-    )
+    const streaming = display.filter((m) => m.__streamingStatus === 'streaming')
     expect(streaming.length).toBeGreaterThanOrEqual(1)
   })
 
   it('does NOT inject a placeholder when not streaming', () => {
     const msgs = [userMsg('Hello'), assistantMsg('Hi there', { id: 'a-1' })]
     const result = renderDisplay(msgs, { activeIsRealtimeStreaming: false })
-    expect(
-      result.some((m) => m.__streamingStatus === 'streaming'),
-    ).toBe(false)
+    expect(result.some((m) => m.__streamingStatus === 'streaming')).toBe(false)
   })
 
   it('reuses the current-turn assistant instead of injecting a duplicate streaming row', () => {
@@ -214,9 +228,7 @@ describe('useDisplayMessages', () => {
       }),
     )
     const display = result.current.finalDisplayMessages
-    const streaming = display.filter(
-      (m) => m.__streamingStatus === 'streaming',
-    )
+    const streaming = display.filter((m) => m.__streamingStatus === 'streaming')
     expect(display).toHaveLength(2)
     expect(streaming).toHaveLength(1)
     expect(streaming[0]).toMatchObject({ id: 'a-1' })
@@ -259,9 +271,7 @@ describe('useDisplayMessages', () => {
       }),
     )
     const display = result.current.finalDisplayMessages
-    const streaming = display.filter(
-      (m) => m.__streamingStatus === 'streaming',
-    )
+    const streaming = display.filter((m) => m.__streamingStatus === 'streaming')
     expect(streaming).toHaveLength(1)
   })
 
@@ -269,7 +279,8 @@ describe('useDisplayMessages', () => {
 
   it('returns stable array identity when deps do not change', () => {
     const msgs = [userMsg('Hello')]
-    const stableToolCalls: Array<{ id: string; name: string; phase: string }> = []
+    const stableToolCalls: Array<{ id: string; name: string; phase: string }> =
+      []
     const { result, rerender } = renderHook(() =>
       useDisplayMessages({
         realtimeMessages: msgs,

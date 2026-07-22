@@ -241,9 +241,22 @@ function ThinkingBubble({
 
   return (
     <div className="flex items-end gap-2">
-      {/* Avatar with pulsing glow ring */}
-      <div className="thinking-avatar-glow shrink-0 rounded-lg">
-        <AssistantAvatar size={28} />
+      {/* Avatar with the response activity indicator. */}
+      <div className="flex shrink-0 items-center gap-1">
+        <div className="thinking-avatar-glow rounded-lg">
+          <AssistantAvatar size={28} />
+        </div>
+        {!isCompacting && (
+          <span
+            className="flex items-center gap-0.5"
+            role="status"
+            aria-label="Hermes is responding"
+          >
+            <span className="thinking-dot thinking-dot-1" />
+            <span className="thinking-dot thinking-dot-2" />
+            <span className="thinking-dot thinking-dot-3" />
+          </span>
+        )}
       </div>
 
       {/* Chat bubble */}
@@ -269,13 +282,7 @@ function ThinkingBubble({
                     className="inline-block size-3 rounded-full border border-primary-300 border-t-primary-500 animate-spin"
                     aria-hidden="true"
                   />
-                ) : (
-                  <>
-                    <span className="thinking-dot thinking-dot-1" />
-                    <span className="thinking-dot thinking-dot-2" />
-                    <span className="thinking-dot thinking-dot-3" />
-                  </>
-                )}
+                ) : null}
                 <span
                   className="thinking-label ml-1.5 text-xs font-mono font-medium transition-opacity duration-300"
                   style={{
@@ -313,7 +320,6 @@ function ThinkingBubble({
             </span>
           ) : null}
         </div>
-
       </div>
     </div>
   )

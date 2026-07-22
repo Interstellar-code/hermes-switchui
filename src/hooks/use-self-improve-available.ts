@@ -1,32 +1,40 @@
 /**
- * Tristate hook: null = loading, true = plugin available, false = not available.
- * Checks /api/dashboard/plugins for an entry with name === 'karpathy-self-improve'.
+ * Tristate hook: null = loading, true = active, false = inactive.
+ * The SwitchUI plugin reports the gateway's live enabled-plugin list.
  */
 import { useQuery } from '@tanstack/react-query'
-import { listDashboardPlugins } from '@/lib/hermes-client'
 
-interface DashboardPlugin {
-  name: string
-  [key: string]: unknown
+const SELF_IMPROVE_PLUGIN = 'karpathy-self-improve'
+
+type HermesPluginSnapshot = {
+  connection?: { enabled_plugins?: Array<string> | null } | null
+}
+
+export function isSelfImprovePluginActive(
+  enabledPlugins: ReadonlyArray<string> | null | undefined,
+): boolean {
+  return enabledPlugins?.includes(SELF_IMPROVE_PLUGIN) === true
+}
+
+async function fetchEnabledPlugins(): Promise<Array<string>> {
+  const response = await fetch('/api/hermes-plugin', { cache: 'no-store' })
+  if (!response.ok) throw new Error(`status ${response.status}`)
+  const snapshot = (await response.json()) as HermesPluginSnapshot
+  return Array.isArray(snapshot.connection?.enabled_plugins)
+    ? snapshot.connection.enabled_plugins
+    : []
 }
 
 export function useSelfImproveAvailable(): boolean | null {
-  const { data, isLoading } = useQuery({
-    queryKey: ['dashboard-plugins'],
-    queryFn: async () => {
-      const raw = await listDashboardPlugins()
-      // Response may be wrapped ({plugins:[...]}) or a bare array
-      if (Array.isArray(raw)) return raw as Array<DashboardPlugin>
-      if (raw && typeof raw === 'object') {
-        const obj = raw as Record<string, unknown>
-        const arr = obj['plugins'] ?? obj['data'] ?? obj['items']
-        if (Array.isArray(arr)) return arr as Array<DashboardPlugin>
-      }
-      return [] as Array<DashboardPlugin>
-    },
-    staleTime: 30_000,
+  const { data, isError, isLoading } = useQuery({
+    queryKey: ['hermes-plugin', 'enabled-plugins'],
+    queryFn: fetchEnabledPlugins,
+    staleTime: 5_000,
+    refetchInterval: 5_000,
+    retry: 1,
   })
 
+  if (isError) return false
   if (isLoading || data === undefined) return null
-  return data.some((p) => p.name === 'karpathy-self-improve')
+  return isSelfImprovePluginActive(data)
 }

@@ -6,26 +6,34 @@ import type { ScenarioResult } from '@/lib/self-improve-types'
 
 export interface ScenarioChecklistProps {
   results: Array<ScenarioResult>
+  label?: string
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function parseName(snapshot: string): string {
+export function parseScenarioSnapshot(snapshot: string): {
+  input: string
+  name: string
+} {
   try {
-    const obj = JSON.parse(snapshot) as { name?: string }
-    return obj.name ?? '(unnamed)'
+    const obj = JSON.parse(snapshot) as { input?: string; name?: string }
+    return {
+      input: obj.input ?? '',
+      name: obj.name ?? '(unnamed)',
+    }
   } catch {
-    return '(unnamed)'
+    return { input: '', name: '(unnamed)' }
   }
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function ScenarioChecklist({ results }: ScenarioChecklistProps) {
+export function ScenarioChecklist({
+  results,
+  label = 'Evaluation results',
+}: ScenarioChecklistProps) {
   if (results.length === 0) {
-    return (
-      <div className="si-checklist-empty">No scenario results yet.</div>
-    )
+    return <div className="si-checklist-empty">No scenario results yet.</div>
   }
 
   const passed = results.filter((r) => r.pass_fail === 1).length
@@ -34,11 +42,14 @@ export function ScenarioChecklist({ results }: ScenarioChecklistProps) {
   return (
     <div className="si-checklist">
       <div className="si-checklist-summary">
-        {passed}/{total} scenarios passed
+        <span>{label}</span>
+        <strong>
+          {passed}/{total} scenarios passed
+        </strong>
       </div>
       <ul className="si-checklist-list">
         {results.map((r) => {
-          const name = parseName(r.scenario_snapshot)
+          const { name } = parseScenarioSnapshot(r.scenario_snapshot)
           const ok = r.pass_fail === 1
           return (
             <li

@@ -18,6 +18,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -25,6 +26,7 @@ import type { TouchEvent } from 'react'
 import { cn } from '@/lib/utils'
 import { hapticTap } from '@/lib/haptics'
 import { useSettings } from '@/hooks/use-settings'
+import { useSelfImproveAvailable } from '@/hooks/use-self-improve-available'
 
 /** Height constant for consistent bottom insets on mobile routes with tab bar */
 export const MOBILE_TAB_BAR_OFFSET = 'var(--tabbar-h, 80px)'
@@ -142,6 +144,14 @@ export const MOBILE_NAV_TABS: Array<TabItem> = [
 export function MobileTabBar() {
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const selfImproveAvailable = useSelfImproveAvailable()
+  const availableTabs = useMemo(
+    () =>
+      selfImproveAvailable === true
+        ? MOBILE_NAV_TABS
+        : MOBILE_NAV_TABS.filter((tab) => tab.id !== 'self-improve'),
+    [selfImproveAvailable],
+  )
   const navRef = useRef<HTMLElement>(null)
 
   // Drag-to-switch state
@@ -186,22 +196,22 @@ export function MobileTabBar() {
 
       if (Math.abs(delta) < threshold) return
 
-      const currentIdx = MOBILE_NAV_TABS.findIndex((tab) => tab.match(pathname))
+      const currentIdx = availableTabs.findIndex((tab) => tab.match(pathname))
       const nextIdx =
         delta < 0
-          ? Math.min(currentIdx + 1, MOBILE_NAV_TABS.length - 1) // swipe left → next tab
+          ? Math.min(currentIdx + 1, availableTabs.length - 1) // swipe left → next tab
           : Math.max(currentIdx - 1, 0) // swipe right → prev tab
 
       if (
         nextIdx !== currentIdx &&
         nextIdx >= 0 &&
-        nextIdx < MOBILE_NAV_TABS.length
+        nextIdx < availableTabs.length
       ) {
         hapticTap()
-        void navigate({ to: MOBILE_NAV_TABS[nextIdx].to })
+        void navigate({ to: availableTabs[nextIdx].to })
       }
     },
-    [navigate, pathname],
+    [availableTabs, navigate, pathname],
   )
 
   // Measure pill for --tabbar-h (~80px total = pill + bottom offset)
@@ -282,7 +292,7 @@ export function MobileTabBar() {
         onTouchEnd={handlePillTouchEnd}
       >
         <div className="flex items-center gap-1">
-          {MOBILE_NAV_TABS.map((tab, idx) => {
+          {availableTabs.map((tab, idx) => {
             const isActive = tab.match(pathname)
             const isCenter = tab.id === 'chat'
             const circleSize =

@@ -1,5 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { BackendUnavailableState } from '@/components/backend-unavailable-state'
+import { Navigate, createFileRoute } from '@tanstack/react-router'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { useSelfImproveAvailable } from '@/hooks/use-self-improve-available'
 import { SelfImproveScreen } from '@/screens/self-improve/self-improve-screen'
@@ -22,12 +21,7 @@ function SelfImproveRoute() {
   }
 
   if (available === false) {
-    return (
-      <BackendUnavailableState
-        feature="Self-Improve"
-        description="The Self-Improve workspace requires the karpathy-self-improve Hermes Agent Dashboard plugin. Start the Agent dashboard with the karpathy-self-improve plugin enabled."
-      />
-    )
+    return <Navigate to="/dashboard" replace />
   }
 
   return <SelfImproveScreen />

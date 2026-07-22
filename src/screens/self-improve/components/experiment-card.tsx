@@ -2,23 +2,33 @@
 
 import { useCallback, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { DiffView } from './diff-view'
+import { DiffView, SplitDiffView } from './diff-view'
 import { HistoryDrawer } from './history-drawer'
 import { LifecycleStepper } from './lifecycle-stepper'
 import { ScenarioChecklist } from './scenario-checklist'
 import { ScoreContext } from './score-context'
-import type { Baseline, Experiment, ExperimentHistoryResponse } from '@/lib/self-improve-types'
+import type {
+  Baseline,
+  Experiment,
+  ExperimentHistoryResponse,
+} from '@/lib/self-improve-types'
+import { Button } from '@/components/shadcn/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/shadcn/ui/dialog'
 import {
   applyExperiment,
   approveExperiment,
-  createExperiment,
   fetchExperimentHistory,
   rejectExperiment,
   revertExperiment,
-  verifyExperiment,
 } from '@/lib/self-improve-api'
 import { toast } from '@/components/ui/toast'
-import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -86,7 +96,34 @@ export function effectBadgeLabel(v: number | null): string {
   return v === 0 ? 'Live now' : 'Takes effect on next session'
 }
 
-export function summarizeExperiment(exp: Experiment, liveScore: number | null): string {
+export function latestRunForKind(
+  history: ExperimentHistoryResponse | undefined,
+  kind: 'offline' | 'live',
+) {
+  return (
+    history?.eval_runs
+      .filter((run) => run.kind === kind)
+      .sort(
+        (a, b) => b.created_at.localeCompare(a.created_at) || b.id - a.id,
+      )[0] ?? null
+  )
+}
+
+export function resultsForRun(
+  history: ExperimentHistoryResponse | undefined,
+  evalRunId: number | null,
+) {
+  return evalRunId === null
+    ? []
+    : (history?.scenario_results ?? []).filter(
+        (result) => result.eval_run_id === evalRunId,
+      )
+}
+
+export function summarizeExperiment(
+  exp: Experiment,
+  liveScore: number | null,
+): string {
   const parts: Array<string> = []
 
   // Rationale first sentence
@@ -102,7 +139,9 @@ export function summarizeExperiment(exp: Experiment, liveScore: number | null): 
   const hasLive = liveScore !== null
 
   if (hasOffline || hasLive) {
-    const offPct = hasOffline ? `${(exp.offline_score! * 100).toFixed(0)}%` : null
+    const offPct = hasOffline
+      ? `${(exp.offline_score! * 100).toFixed(0)}%`
+      : null
     const livePct = hasLive ? `${(liveScore * 100).toFixed(0)}%` : null
 
     if (offPct && livePct) {
@@ -137,11 +176,20 @@ export interface ExperimentCardProps {
   baselines: Array<Baseline>
   /** Called after any mutation so the feed can refetch */
   onMutated: () => void
+  onShowResults?: (kind: 'offline' | 'live') => void
+  compact?: boolean
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function ExperimentCard({ exp, profile: _profile, baselines, onMutated }: ExperimentCardProps) {
+export function ExperimentCard({
+  exp,
+  profile: _profile,
+  baselines,
+  onMutated,
+  onShowResults,
+  compact = false,
+}: ExperimentCardProps) {
   const queryClient = useQueryClient()
 
   // Per-card history for stepper / live score / checklist
@@ -151,9 +199,16 @@ export function ExperimentCard({ exp, profile: _profile, baselines, onMutated }:
   })
 
   const history = historyQuery.data
-  const liveRun = history?.eval_runs.find((r) => r.kind === 'live') ?? null
+  const offlineRun = latestRunForKind(history, 'offline')
+  const liveRun = latestRunForKind(history, 'live')
   const liveScore = liveRun?.aggregate_score ?? null
-  const scenarioResults = history?.scenario_results ?? []
+  const offlineScore = offlineRun?.aggregate_score ?? exp.offline_score
+  const [resultKind, setResultKind] = useState<'offline' | 'live'>('live')
+  const selectedRun = resultKind === 'live' ? liveRun : offlineRun
+  const scenarioResults = resultsForRun(history, selectedRun?.id ?? null)
+  const targetFile = exp.target_relpath ?? exp.file
+  const offlineResults = resultsForRun(history, offlineRun?.id ?? null)
+  const liveResults = resultsForRun(history, liveRun?.id ?? null)
 
   // Find the most recent baseline for this experiment's file that predates (or equals)
   // this experiment's created_at, excluding this experiment's own baseline entry.
@@ -168,7 +223,9 @@ export function ExperimentCard({ exp, profile: _profile, baselines, onMutated }:
         b.created_at <= exp.created_at,
     )
     if (candidates.length > 0) {
-      const sorted = candidates.slice().sort((a, b) => b.created_at.localeCompare(a.created_at))
+      const sorted = candidates
+        .slice()
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
       return sorted[0].score
     }
     // Fallback: latest baseline for this file excluding this experiment's own entry
@@ -180,7 +237,9 @@ export function ExperimentCard({ exp, profile: _profile, baselines, onMutated }:
         b.experiment_id !== exp.id,
     )
     if (fallbacks.length > 0) {
-      const sorted = fallbacks.slice().sort((a, b) => b.created_at.localeCompare(a.created_at))
+      const sorted = fallbacks
+        .slice()
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
       return sorted[0].score
     }
     return null
@@ -192,111 +251,111 @@ export function ExperimentCard({ exp, profile: _profile, baselines, onMutated }:
   // Mutation state
   const [rejectOpen, setRejectOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
-  const [editOpen, setEditOpen] = useState(false)
-  const [editDiff, setEditDiff] = useState(exp.diff)
-  const [editRationale, setEditRationale] = useState(exp.rationale)
   const [applyOpen, setApplyOpen] = useState(false)
-  const [verifyOpen, setVerifyOpen] = useState(false)
   const [revertOpen, setRevertOpen] = useState(false)
   const [revertReason, setRevertReason] = useState('')
 
   const invalidateAll = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ['self-improve', 'experiments'] })
-    void queryClient.invalidateQueries({ queryKey: ['self-improve', 'metrics-latest'] })
-    void queryClient.invalidateQueries({ queryKey: ['self-improve', 'baselines'] })
+    void queryClient.invalidateQueries({
+      queryKey: ['self-improve', 'experiments'],
+    })
+    void queryClient.invalidateQueries({
+      queryKey: ['self-improve', 'metrics-latest'],
+    })
+    void queryClient.invalidateQueries({
+      queryKey: ['self-improve', 'baselines'],
+    })
     void queryClient.invalidateQueries({
       queryKey: ['self-improve', 'experiment-history', exp.id],
     })
     onMutated()
   }, [queryClient, exp.id, onMutated])
 
+  const updateCachedState = useCallback(
+    (state: Experiment['state']) => {
+      queryClient.setQueriesData<Array<Experiment>>(
+        { queryKey: ['self-improve', 'experiments'] },
+        (experiments) =>
+          experiments?.map((experiment) =>
+            experiment.id === exp.id ? { ...experiment, state } : experiment,
+          ),
+      )
+    },
+    [queryClient, exp.id],
+  )
+
   const approveMutation = useMutation({
     mutationFn: () => approveExperiment(exp.id, ACTOR),
     onSuccess: () => {
+      updateCachedState('approved')
       invalidateAll()
       toast(`Experiment #${exp.id} approved`)
     },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Approve failed', { type: 'error' }),
-  })
-
-  const editApproveMutation = useMutation({
-    mutationFn: async () => {
-      const { experiment_id: newId } = await createExperiment({
-        profile: exp.profile,
-        file: exp.file,
-        diff: editDiff,
-        rationale: editRationale,
-      })
-      await approveExperiment(newId, ACTOR)
-    },
-    onSuccess: () => {
-      invalidateAll()
-      toast('Edited proposal created and approved')
-      setEditOpen(false)
-    },
     onError: (e) =>
-      toast(e instanceof Error ? e.message : 'Edit-approve failed', { type: 'error' }),
+      toast(e instanceof Error ? e.message : 'Approve failed', {
+        type: 'error',
+      }),
   })
 
   const rejectMutation = useMutation({
     mutationFn: (reason: string) => rejectExperiment(exp.id, ACTOR, reason),
     onSuccess: () => {
+      updateCachedState('rejected')
       invalidateAll()
       toast(`Experiment #${exp.id} rejected`)
       setRejectOpen(false)
       setRejectReason('')
     },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Reject failed', { type: 'error' }),
+    onError: (e) =>
+      toast(e instanceof Error ? e.message : 'Reject failed', {
+        type: 'error',
+      }),
   })
 
   const applyMutation = useMutation({
     mutationFn: () => applyExperiment(exp.id),
     onSuccess: () => {
+      updateCachedState('live')
       invalidateAll()
       toast(`Experiment #${exp.id} applied — now live`)
     },
     onError: (e) => toast(applyErrorMessage(e), { type: 'error' }),
   })
 
-  const verifyMutation = useMutation({
-    mutationFn: () => verifyExperiment(exp.id),
-    onSuccess: () => {
-      invalidateAll()
-      toast(`Experiment #${exp.id} verified — promoted to baseline`)
-    },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Verify failed', { type: 'error' }),
-  })
-
   const revertMutation = useMutation({
     mutationFn: () => revertExperiment(exp.id, revertReason),
     onSuccess: () => {
+      updateCachedState('reverted')
       invalidateAll()
       toast(`Experiment #${exp.id} reverted`)
       setRevertOpen(false)
       setRevertReason('')
     },
-    onError: (e) => toast(e instanceof Error ? e.message : 'Revert failed', { type: 'error' }),
+    onError: (e) =>
+      toast(e instanceof Error ? e.message : 'Revert failed', {
+        type: 'error',
+      }),
   })
 
   const isBusy =
     approveMutation.isPending ||
-    editApproveMutation.isPending ||
     rejectMutation.isPending ||
     applyMutation.isPending ||
-    verifyMutation.isPending ||
     revertMutation.isPending
 
   const summary = summarizeExperiment(exp, liveScore)
 
   return (
-    <div className="si-exp-card">
+    <div className={`si-exp-card${compact ? ' si-exp-card--compact' : ''}`}>
       {/* ── Header row ── */}
       <div className="si-exp-header">
-        <span className={`si-state-badge ${stateBadgeClass(exp.state)}`}>{exp.state}</span>
+        <span className={`si-state-badge ${stateBadgeClass(exp.state)}`}>
+          {exp.state}
+        </span>
         <span className="si-effect-badge">
           {effectBadgeLabel(exp.live_takes_effect_at_next_session)}
         </span>
-        <span className="si-exp-file">{exp.file}</span>
+        <span className="si-exp-file">{targetFile}</span>
         <span className="si-exp-time">{relativeTime(exp.created_at)}</span>
         <span className="si-exp-id">#{exp.id}</span>
       </div>
@@ -304,25 +363,71 @@ export function ExperimentCard({ exp, profile: _profile, baselines, onMutated }:
       {/* ── Summary sentence ── */}
       <p className="si-exp-summary">{summary}</p>
 
-      {/* ── HERO diff ── */}
-      <div className="si-exp-diff-wrap">
-        <DiffView diff={exp.diff} className="si-exp-diff" />
-      </div>
+      {!compact && (
+        <>
+          {/* ── HERO diff ── */}
+          <div className="si-exp-diff-wrap">
+            <SplitDiffView diff={exp.diff} className="si-exp-split-diff" />
+            <DiffView
+              diff={exp.diff}
+              className="si-exp-diff si-exp-diff--narrow"
+            />
+          </div>
 
-      {/* ── Score context strip ── */}
-      <ScoreContext
-        offline={exp.offline_score}
-        live={liveScore}
-        baselineScore={baselineScore}
-        atomic={exp.sentence_delta_count}
-      />
+          {/* ── Score context strip ── */}
+          <ScoreContext
+            offline={offlineScore}
+            live={liveScore}
+            baselineScore={baselineScore}
+            atomic={exp.sentence_delta_count}
+            offlineRunId={offlineRun?.id ?? null}
+            offlineResultCount={offlineResults.length}
+            liveRunId={liveRun?.id ?? null}
+            liveResultCount={liveResults.length}
+          />
 
-      {/* ── Lifecycle stepper ── */}
-      <LifecycleStepper exp={exp} />
+          {/* ── Lifecycle stepper ── */}
+          <LifecycleStepper exp={exp} />
 
-      {/* ── Scenario checklist ── */}
-      {scenarioResults.length > 0 && (
-        <ScenarioChecklist results={scenarioResults} />
+          {/* ── Scenario checklist ── */}
+          {(offlineRun || liveRun) && (
+            <div className="si-results">
+              <div className="si-result-tabs" aria-label="Evaluation run">
+                {(['offline', 'live'] as const).map((kind) => {
+                  const run = kind === 'offline' ? offlineRun : liveRun
+                  return (
+                    <button
+                      key={kind}
+                      type="button"
+                      aria-pressed={resultKind === kind}
+                      className={resultKind === kind ? 'is-active' : ''}
+                      disabled={!run}
+                      onClick={() => setResultKind(kind)}
+                    >
+                      {kind === 'offline' ? 'Offline' : 'Live'}
+                      {run?.aggregate_score !== null && run
+                        ? ` · ${(run.aggregate_score * 100).toFixed(0)}%`
+                        : ''}
+                    </button>
+                  )
+                })}
+              </div>
+              <ScenarioChecklist
+                results={scenarioResults}
+                label={`${resultKind === 'offline' ? 'Offline' : 'Live'} evaluation`}
+              />
+              {onShowResults && selectedRun && (
+                <button
+                  type="button"
+                  className="si-results-link"
+                  onClick={() => onShowResults(resultKind)}
+                >
+                  View these results in Scenarios
+                </button>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {/* ── Action buttons ── */}
@@ -336,18 +441,6 @@ export function ExperimentCard({ exp, profile: _profile, baselines, onMutated }:
               onClick={() => approveMutation.mutate()}
             >
               {approveMutation.isPending ? 'Approving…' : 'Approve'}
-            </button>
-            <button
-              type="button"
-              className="si-action-btn si-action-btn--edit"
-              disabled={isBusy}
-              onClick={() => {
-                setEditDiff(exp.diff)
-                setEditRationale(exp.rationale)
-                setEditOpen(true)
-              }}
-            >
-              Edit &amp; approve
             </button>
             <button
               type="button"
@@ -372,14 +465,10 @@ export function ExperimentCard({ exp, profile: _profile, baselines, onMutated }:
         )}
 
         {exp.state === 'live' && (
-          <button
-            type="button"
-            className="si-action-btn si-action-btn--approve"
-            disabled={isBusy}
-            onClick={() => setVerifyOpen(true)}
-          >
-            {verifyMutation.isPending ? 'Verifying…' : 'Verify'}
-          </button>
+          <span className="si-action-note">
+            Verification is performed by the daemon after its live-session
+            target is reached.
+          </span>
         )}
 
         {(exp.state === 'live' || exp.state === 'verified') && (
@@ -401,46 +490,6 @@ export function ExperimentCard({ exp, profile: _profile, baselines, onMutated }:
           History
         </button>
       </div>
-
-      {/* ── Edit & approve inline dialog ── */}
-      {editOpen && (
-        <div className="si-inline-dialog">
-          <p className="si-inline-dialog-note">
-            This creates a new edited proposal and approves it immediately.
-          </p>
-          <label className="si-inline-dialog-label">Rationale</label>
-          <textarea
-            className="si-inline-textarea"
-            rows={3}
-            value={editRationale}
-            onChange={(e) => setEditRationale(e.target.value)}
-          />
-          <label className="si-inline-dialog-label">Diff</label>
-          <textarea
-            className="si-inline-textarea si-inline-textarea--diff"
-            rows={10}
-            value={editDiff}
-            onChange={(e) => setEditDiff(e.target.value)}
-          />
-          <div className="si-inline-dialog-actions">
-            <button
-              type="button"
-              className="si-action-btn"
-              onClick={() => setEditOpen(false)}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="si-action-btn si-action-btn--approve"
-              disabled={editApproveMutation.isPending}
-              onClick={() => editApproveMutation.mutate()}
-            >
-              {editApproveMutation.isPending ? 'Saving…' : 'Create & approve'}
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* ── Reject inline dialog ── */}
       {rejectOpen && (
@@ -481,7 +530,8 @@ export function ExperimentCard({ exp, profile: _profile, baselines, onMutated }:
         <div className="si-inline-dialog">
           <label className="si-inline-dialog-label">Revert reason</label>
           <p className="si-inline-dialog-note">
-            This will git-revert the applied commit and mark the experiment reverted.
+            This restores the saved snapshot and marks the experiment reverted.
+            A Git audit revert is created when the plugin has an audit SHA.
           </p>
           <textarea
             className="si-inline-textarea"
@@ -514,28 +564,37 @@ export function ExperimentCard({ exp, profile: _profile, baselines, onMutated }:
       )}
 
       {/* ── Confirm dialogs ── */}
-      <ConfirmDialog
-        open={applyOpen}
-        title="Apply experiment?"
-        message={`This will write the diff to "${exp.file}" in profile "${exp.profile}" and create a git commit. Proceed?`}
-        confirmLabel="Apply"
-        onConfirm={() => {
-          setApplyOpen(false)
-          applyMutation.mutate()
-        }}
-        onCancel={() => setApplyOpen(false)}
-      />
-      <ConfirmDialog
-        open={verifyOpen}
-        title="Verify experiment?"
-        message={`Mark experiment #${exp.id} as verified and promote to baseline?`}
-        confirmLabel="Verify"
-        onConfirm={() => {
-          setVerifyOpen(false)
-          verifyMutation.mutate()
-        }}
-        onCancel={() => setVerifyOpen(false)}
-      />
+      <Dialog open={applyOpen} onOpenChange={setApplyOpen}>
+        <DialogContent className="si-apply-dialog">
+          <DialogHeader>
+            <DialogTitle>Apply experiment?</DialogTitle>
+            <DialogDescription>
+              This will write the diff to <code>{targetFile}</code> in profile{' '}
+              <code>{exp.profile}</code>. A database snapshot rollback is
+              guaranteed; the Git audit SHA is best-effort.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={applyMutation.isPending}
+              onClick={() => setApplyOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={applyMutation.isPending}
+              aria-busy={applyMutation.isPending}
+              onClick={() => {
+                setApplyOpen(false)
+                applyMutation.mutate()
+              }}
+            >
+              {applyMutation.isPending ? 'Applying…' : 'Apply'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── History drawer ── */}
       <HistoryDrawer

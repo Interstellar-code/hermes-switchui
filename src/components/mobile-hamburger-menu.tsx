@@ -17,7 +17,7 @@ import {
   UserGroupIcon,
   UserMultipleIcon,
 } from '@hugeicons/core-free-icons'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { hapticTap } from '@/lib/haptics'
 import { getTheme, getThemeVariant, isDarkTheme, setTheme } from '@/lib/theme'
@@ -25,6 +25,7 @@ import {
   selectChatProfileDisplayName,
   useChatSettingsStore,
 } from '@/hooks/use-chat-settings'
+import { useSelfImproveAvailable } from '@/hooks/use-self-improve-available'
 
 export const MOBILE_HAMBURGER_NAV_ITEMS = [
   {
@@ -156,6 +157,16 @@ export function MobileHamburgerMenu() {
 
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const selfImproveAvailable = useSelfImproveAvailable()
+  const navigationItems = useMemo(
+    () =>
+      selfImproveAvailable === true
+        ? MOBILE_HAMBURGER_NAV_ITEMS
+        : MOBILE_HAMBURGER_NAV_ITEMS.filter(
+            (item) => item.id !== 'self-improve',
+          ),
+    [selfImproveAvailable],
+  )
   const profileDisplayName = useChatSettingsStore(selectChatProfileDisplayName)
   const isChatRoute =
     pathname.startsWith('/chat') || pathname === '/new' || pathname === '/'
@@ -244,7 +255,7 @@ export function MobileHamburgerMenu() {
 
         {/* Nav items */}
         <nav className="flex flex-col gap-1 px-3 pt-4 flex-1">
-          {MOBILE_HAMBURGER_NAV_ITEMS.map((item) => {
+          {navigationItems.map((item) => {
             const isActive = item.match(pathname)
             return (
               <button

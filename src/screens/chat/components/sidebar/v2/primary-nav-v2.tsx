@@ -28,6 +28,7 @@ import { SettingsDialog } from '@/components/settings-dialog'
 import { useBoards } from '@/lib/boards-api'
 import { useProjects } from '@/lib/projects-api'
 import { useNavCounts } from '@/hooks/use-nav-counts'
+import { useSelfImproveAvailable } from '@/hooks/use-self-improve-available'
 
 // ── Icons (inline SVG) ────────────────────────────────────────────────────────
 
@@ -365,6 +366,7 @@ function useAgentVersion(): string | null {
 
 export function PrimaryNavV2() {
   const pathname = useRouterState({ select: selectPathname })
+  const selfImproveAvailable = useSelfImproveAvailable()
   const openSearchModal = useSearchModal((s) => s.openModal)
   const agentVersion = useAgentVersion()
   const [collapsed, setCollapsed] = useState<boolean>(readInitialCollapsed)
@@ -756,13 +758,15 @@ export function PrimaryNavV2() {
           active={isMatrix3D}
           collapsed={collapsed}
         />
-        <NavItem
-          label="Self-Improve"
-          iconKey="selfImprove"
-          to="/self-improve"
-          active={isSelfImprove}
-          collapsed={collapsed}
-        />
+        {selfImproveAvailable === true && (
+          <NavItem
+            label="Self-Improve"
+            iconKey="selfImprove"
+            to="/self-improve"
+            active={isSelfImprove}
+            collapsed={collapsed}
+          />
+        )}
 
         {/* KNOWLEDGE group */}
         {!collapsed && <GroupLabel label="Knowledge" />}

@@ -2,9 +2,9 @@
  * Browser-side fetch client for the /api/self-improve/* proxy routes.
  * This module is safe to import in client components.
  */
+import { z } from 'zod'
 import type {
   Baseline,
-  BaselinesResponse,
   CollectResponse,
   CreateExperimentBody,
   CreateScenarioBody,
@@ -12,8 +12,6 @@ import type {
   DeleteScenarioResponse,
   Experiment,
   ExperimentHistoryResponse,
-  ExperimentsResponse,
-  MetricsResponse,
   MetricsSnapshot,
   PauseResumeResponse,
   PluginHealth,
@@ -21,8 +19,40 @@ import type {
   ProposeResponse,
   ProposeSkippedResponse,
   Scenario,
-  ScenariosResponse,
 } from './self-improve-types'
+
+const healthSchema = z.object({
+  ok: z.boolean(),
+  plugin: z.string(),
+  version: z.string(),
+  db_path: z.string().nullable(),
+  db_exists: z.boolean(),
+})
+
+const metricsResponseSchema = z.object({
+  metrics: z.array(
+    z.object({ profile: z.string(), captured_at: z.string() }).passthrough(),
+  ),
+})
+const baselinesResponseSchema = z.object({
+  baselines: z.array(
+    z.object({ profile: z.string(), file: z.string() }).passthrough(),
+  ),
+})
+const experimentsResponseSchema = z.object({
+  experiments: z.array(
+    z
+      .object({ id: z.number(), profile: z.string(), state: z.string() })
+      .passthrough(),
+  ),
+})
+const scenariosResponseSchema = z.object({
+  scenarios: z.array(
+    z
+      .object({ id: z.number(), profile: z.string(), name: z.string() })
+      .passthrough(),
+  ),
+})
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init)
@@ -36,18 +66,19 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw Object.assign(new Error(msg), { status: res.status })
   }
-  return res.json() as Promise<T>
+  const body: unknown = await res.json()
+  return body as T
 }
 
 export async function fetchHealth(): Promise<PluginHealth> {
-  return apiFetch<PluginHealth>('/api/self-improve/health')
+  return healthSchema.parse(await apiFetch('/api/self-improve/health'))
 }
 
 export async function fetchLatestMetrics(): Promise<Array<MetricsSnapshot>> {
-  const { metrics } = await apiFetch<MetricsResponse>(
-    '/api/self-improve/metrics/latest',
+  const { metrics } = metricsResponseSchema.parse(
+    await apiFetch('/api/self-improve/metrics/latest'),
   )
-  return metrics
+  return metrics as unknown as Array<MetricsSnapshot>
 }
 
 export async function fetchMetrics(params?: {
@@ -58,10 +89,10 @@ export async function fetchMetrics(params?: {
   if (params?.profile) q.set('profile', params.profile)
   if (params?.limit !== undefined) q.set('limit', String(params.limit))
   const qs = q.toString()
-  const { metrics } = await apiFetch<MetricsResponse>(
-    `/api/self-improve/metrics${qs ? `?${qs}` : ''}`,
+  const { metrics } = metricsResponseSchema.parse(
+    await apiFetch(`/api/self-improve/metrics${qs ? `?${qs}` : ''}`),
   )
-  return metrics
+  return metrics as unknown as Array<MetricsSnapshot>
 }
 
 export async function fetchBaselines(params?: {
@@ -70,10 +101,10 @@ export async function fetchBaselines(params?: {
   const q = new URLSearchParams()
   if (params?.profile) q.set('profile', params.profile)
   const qs = q.toString()
-  const { baselines } = await apiFetch<BaselinesResponse>(
-    `/api/self-improve/baselines${qs ? `?${qs}` : ''}`,
+  const { baselines } = baselinesResponseSchema.parse(
+    await apiFetch(`/api/self-improve/baselines${qs ? `?${qs}` : ''}`),
   )
-  return baselines
+  return baselines as unknown as Array<Baseline>
 }
 
 export async function triggerCollect(
@@ -96,10 +127,10 @@ export async function fetchExperiments(params?: {
   if (params?.profile) q.set('profile', params.profile)
   if (params?.state) q.set('state', params.state)
   const qs = q.toString()
-  const { experiments } = await apiFetch<ExperimentsResponse>(
-    `/api/self-improve/experiments${qs ? `?${qs}` : ''}`,
+  const { experiments } = experimentsResponseSchema.parse(
+    await apiFetch(`/api/self-improve/experiments${qs ? `?${qs}` : ''}`),
   )
-  return experiments
+  return experiments as unknown as Array<Experiment>
 }
 
 export async function fetchExperiment(id: number): Promise<Experiment> {
@@ -170,15 +201,16 @@ export async function triggerPropose(
 
 export async function applyExperiment(
   id: number,
-): Promise<{ ok: boolean; state: 'live'; apply_commit_sha: string }> {
-  return apiFetch<{ ok: boolean; state: 'live'; apply_commit_sha: string }>(
-    `/api/self-improve/experiments/${id}/apply`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    },
-  )
+): Promise<{ ok: boolean; state: 'live'; apply_commit_sha: string | null }> {
+  return apiFetch<{
+    ok: boolean
+    state: 'live'
+    apply_commit_sha: string | null
+  }>(`/api/self-improve/experiments/${id}/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
 }
 
 export async function verifyExperiment(
@@ -217,10 +249,10 @@ export async function fetchScenarios(
   const q = new URLSearchParams()
   q.set('profile', profile)
   q.set('include_holdout', includeHoldout ? '1' : '0')
-  const { scenarios } = await apiFetch<ScenariosResponse>(
-    `/api/self-improve/scenarios?${q.toString()}`,
+  const { scenarios } = scenariosResponseSchema.parse(
+    await apiFetch(`/api/self-improve/scenarios?${q.toString()}`),
   )
-  return scenarios
+  return scenarios as unknown as Array<Scenario>
 }
 
 export async function createScenario(

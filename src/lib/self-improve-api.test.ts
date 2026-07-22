@@ -28,12 +28,22 @@ describe('apiFetch error handling', () => {
       vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
-        json: () => Promise.resolve({ ok: true, plugin: 'karpathy' }),
+        json: () =>
+          Promise.resolve({
+            ok: true,
+            plugin: 'karpathy',
+            version: '1.0.0',
+            db_path: null,
+            db_exists: true,
+          }),
       }),
     )
     await expect(fetchHealth()).resolves.toEqual({
       ok: true,
       plugin: 'karpathy',
+      version: '1.0.0',
+      db_path: null,
+      db_exists: true,
     })
   })
 })

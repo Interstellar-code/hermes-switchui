@@ -186,11 +186,11 @@ export async function proposeExperiment(
 
 export async function applyExperiment(
   id: number,
-): Promise<{ ok: boolean; state: 'live'; apply_commit_sha: string }> {
+): Promise<{ ok: boolean; state: 'live'; apply_commit_sha: string | null }> {
   return selfImproveFetch<{
     ok: boolean
     state: 'live'
-    apply_commit_sha: string
+    apply_commit_sha: string | null
   }>(`${BASE}/experiments/${id}/apply`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

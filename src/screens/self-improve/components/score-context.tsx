@@ -14,6 +14,11 @@ export interface ScoreContextProps {
   baselineScore: number | null
   /** sentence_delta_count — number of sentences changed */
   atomic: number | null
+  /** Plugin eval-run evidence. A score is never derived by this UI. */
+  offlineRunId: number | null
+  offlineResultCount: number
+  liveRunId: number | null
+  liveResultCount: number
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -53,7 +58,9 @@ function ScoreBar({ label, score, baselineScore, emptyLabel }: ScoreBarProps) {
 
   const fillPct = Math.min(100, Math.max(0, score * 100))
   const baselinePct =
-    baselineScore !== null ? Math.min(100, Math.max(0, baselineScore * 100)) : null
+    baselineScore !== null
+      ? Math.min(100, Math.max(0, baselineScore * 100))
+      : null
   const delta = baselineScore !== null ? score - baselineScore : null
 
   return (
@@ -65,7 +72,11 @@ function ScoreBar({ label, score, baselineScore, emptyLabel }: ScoreBarProps) {
           <div
             className="si-score-bar-baseline"
             style={{ left: `${baselinePct}%` }}
-            title={baselineScore !== null ? `Baseline: ${pct(baselineScore)}` : undefined}
+            title={
+              baselineScore !== null
+                ? `Baseline: ${pct(baselineScore)}`
+                : undefined
+            }
           />
         )}
       </div>
@@ -81,7 +92,16 @@ function ScoreBar({ label, score, baselineScore, emptyLabel }: ScoreBarProps) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function ScoreContext({ offline, live, baselineScore, atomic }: ScoreContextProps) {
+export function ScoreContext({
+  offline,
+  live,
+  baselineScore,
+  atomic,
+  offlineRunId,
+  offlineResultCount,
+  liveRunId,
+  liveResultCount,
+}: ScoreContextProps) {
   return (
     <div className="si-score-context">
       <div className="si-score-context-header">
@@ -103,6 +123,14 @@ export function ScoreContext({ offline, live, baselineScore, atomic }: ScoreCont
         baselineScore={baselineScore}
         emptyLabel="not run yet"
       />
+
+      <p className="si-score-source">
+        {offlineRunId === null
+          ? 'Offline has not run yet.'
+          : `Offline is the backend aggregate from run #${offlineRunId}; ${offlineResultCount === 0 ? 'no per-scenario rows were returned.' : `${offlineResultCount} scenario result${offlineResultCount === 1 ? '' : 's'} recorded.`}`}
+        {liveRunId !== null &&
+          ` Live run #${liveRunId}: ${liveResultCount} scenario result${liveResultCount === 1 ? '' : 's'} recorded.`}
+      </p>
 
       {atomic !== null && (
         <div className="si-score-atomic">

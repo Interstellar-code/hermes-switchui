@@ -91,7 +91,6 @@ import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { useVoiceRecorder } from '@/hooks/use-voice-recorder'
 
-
 // Mirror of the shared ChatComposerProps contract. Imported types keep the
 // payload shapes identical while this shadcn implementation owns the UI.
 type ChatComposerShadcnProps = {
@@ -499,24 +498,24 @@ function ChatComposerShadcn({
   const voiceRecorder = useVoiceRecorder({
     onRecorded: React.useCallback(
       (blob: Blob, _durationMs: number) => {
-        const ext = blob.type.includes('webm') ? 'webm' : 'mp4'
-        const file = new File([blob], `voice-note-${Date.now()}.${ext}`, {
-          type: blob.type || 'audio/webm',
-        })
-        void readFileAsDataUrl(file).then((dataUrl) => {
-          if (!dataUrl) return
-          setAttachments((prev) => [
-            ...prev,
-            {
-              id: crypto.randomUUID(),
-              name: file.name,
-              contentType: file.type,
-              size: file.size,
-              dataUrl,
-              kind: 'audio',
-            },
-          ])
-        })
+      const ext = blob.type.includes('webm') ? 'webm' : 'mp4'
+      const file = new File([blob], `voice-note-${Date.now()}.${ext}`, {
+        type: blob.type || 'audio/webm',
+      })
+      void readFileAsDataUrl(file).then((dataUrl) => {
+        if (!dataUrl) return
+        setAttachments((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            name: file.name,
+            contentType: file.type,
+            size: file.size,
+            dataUrl,
+            kind: 'audio',
+          },
+        ])
+      })
       },
       [],
     ),
@@ -868,43 +867,68 @@ function ChatComposerShadcn({
         {/* composer card; SlashCommandMenu positions itself absolutely
             relative to this wrapper (it renders its own container). */}
         <div className="relative">
-            <div
-              onDrop={handleDrop}
-              onDragOver={(e) => {
-                if (!disabled) e.preventDefault()
-              }}
-              className={cn(
-                'rounded-2xl border border-border bg-card text-card-foreground shadow-sm ring-1 ring-border focus-within:ring-2 focus-within:ring-ring',
-                disabled && 'opacity-60',
-              )}
-            >
-              <div className="px-2 pt-2" onPaste={handlePaste}>
-                <Textarea
-                  ref={textareaRef}
-                  value={value}
-                  disabled={disabled}
-                  onFocus={() => setMobileComposerFocused(true)}
-                  onBlur={() => setMobileComposerFocused(false)}
-                  onChange={(e) => {
-                    setIsSlashMenuDismissed(false)
-                    setValue(e.target.value)
-                  }}
-                  onKeyDown={handleKeyDown}
-                  rows={1}
-                  placeholder="Message the agent…  (try /, paste a file)"
-                  className="max-h-60 min-h-[56px] resize-none border-0 bg-transparent px-2 py-2 text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
-                />
-              </div>
+          <div
+            onDrop={handleDrop}
+            onDragOver={(e) => {
+              if (!disabled) e.preventDefault()
+            }}
+            className={cn(
+              'rounded-2xl border border-border bg-card text-card-foreground shadow-sm ring-1 ring-border focus-within:ring-2 focus-within:ring-ring',
+              disabled && 'opacity-60',
+              isLoading &&
+                'animate-pulse-glow ring-2 ring-primary/40 motion-reduce:animate-none',
+            )}
+          >
+            <div className="px-2 pt-2" onPaste={handlePaste}>
+              <Textarea
+                ref={textareaRef}
+                value={value}
+                disabled={disabled}
+                onFocus={() => setMobileComposerFocused(true)}
+                onBlur={() => setMobileComposerFocused(false)}
+                onChange={(e) => {
+                  setIsSlashMenuDismissed(false)
+                  setValue(e.target.value)
+                }}
+                onKeyDown={handleKeyDown}
+                rows={1}
+                placeholder="Message the agent…  (try /, paste a file)"
+                className="max-h-60 min-h-[56px] resize-none border-0 bg-transparent px-2 py-2 text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
+              />
+            </div>
 
-              {/* footer toolbar */}
-              <div className="flex items-center gap-1 px-3 pb-2 pt-1">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  hidden
-                  onChange={handleFilePick}
-                />
+            {/* footer toolbar */}
+            <div className="flex items-center gap-1 px-3 pb-2 pt-1">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                hidden
+                onChange={handleFilePick}
+              />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={disabled}
+                    onClick={() => fileInputRef.current?.click()}
+                    aria-label="Attach file"
+                  >
+                    <Paperclip className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Attach file</TooltipContent>
+              </Tooltip>
+
+              <SlashCommandPicker
+                disabled={disabled}
+                onSelect={handleSelectSlashCommand}
+              />
+
+              {/* voice (mic) — preserves switchui voice parity */}
+              {voiceSupported && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -912,248 +936,225 @@ function ChatComposerShadcn({
                       variant="ghost"
                       size="icon-sm"
                       disabled={disabled}
-                      onClick={() => fileInputRef.current?.click()}
-                      aria-label="Attach file"
-                    >
-                      <Paperclip className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Attach file</TooltipContent>
-                </Tooltip>
-
-                <SlashCommandPicker
-                  disabled={disabled}
-                  onSelect={handleSelectSlashCommand}
-                />
-
-                {/* voice (mic) — preserves switchui voice parity */}
-                {voiceSupported && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        disabled={disabled}
-                        onClick={toggleVoice}
-                        aria-label="Voice input"
-                        className={cn(
+                      onClick={toggleVoice}
+                      aria-label="Voice input"
+                      className={cn(
                           (voiceInput.isListening ||
                             voiceRecorder.isRecording) &&
-                            'text-destructive',
-                        )}
-                      >
-                        <Mic className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {voiceRecorder.isRecording
-                        ? `Recording… ${Math.round(voiceRecorder.durationMs / 1000)}s`
-                        : voiceInput.isListening
-                          ? 'Listening…'
-                          : 'Voice input'}
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-
-                {/* fast-mode toggle — submits fastMode into onSubmit; the
-                    effective value is gated by thinkingLevel === 'off'. */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      disabled={disabled}
-                      onClick={() => setFastMode((prev) => !prev)}
-                      aria-label="Fast mode"
-                      aria-pressed={fastMode}
-                      className={cn(fastMode && 'text-primary')}
+                          'text-destructive',
+                      )}
                     >
+                      <Mic className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {voiceRecorder.isRecording
+                      ? `Recording… ${Math.round(voiceRecorder.durationMs / 1000)}s`
+                      : voiceInput.isListening
+                        ? 'Listening…'
+                        : 'Voice input'}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
+              {/* fast-mode toggle — submits fastMode into onSubmit; the
+                    effective value is gated by thinkingLevel === 'off'. */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={disabled}
+                    onClick={() => setFastMode((prev) => !prev)}
+                    aria-label="Fast mode"
+                    aria-pressed={fastMode}
+                    className={cn(fastMode && 'text-primary')}
+                  >
                       <Zap
                         className={cn('size-4', fastMode && 'fill-current')}
                       />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {fastMode
-                      ? thinkingLevel === 'off'
-                        ? 'Fast mode on'
-                        : 'Fast mode (disabled while thinking is on)'
-                      : 'Fast mode'}
-                  </TooltipContent>
-                </Tooltip>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {fastMode
+                    ? thinkingLevel === 'off'
+                      ? 'Fast mode on'
+                      : 'Fast mode (disabled while thinking is on)'
+                    : 'Fast mode'}
+                </TooltipContent>
+              </Tooltip>
 
-                {/* web-search toggle — honors webSearchEnabled prop +
+              {/* web-search toggle — honors webSearchEnabled prop +
                     onToggleWebSearch, else falls back to local state. */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={disabled}
+                    onClick={toggleWebSearch}
+                    aria-label="Web search"
+                    aria-pressed={isWebSearchActive}
+                    className={cn(isWebSearchActive && 'text-primary')}
+                  >
+                    <Globe className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {isWebSearchActive ? 'Web search on' : 'Web search'}
+                </TooltipContent>
+              </Tooltip>
+
+              {/* system-messages toggle — Eye/EyeOff based on systemMessagesHidden */}
+              {onToggleSystemMessages && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      disabled={disabled}
-                      onClick={toggleWebSearch}
-                      aria-label="Web search"
-                      aria-pressed={isWebSearchActive}
-                      className={cn(isWebSearchActive && 'text-primary')}
+                      onClick={onToggleSystemMessages}
+                      aria-label={
+                        systemMessagesHidden
+                          ? 'Show system messages'
+                          : 'Hide system messages'
+                      }
+                      aria-pressed={!systemMessagesHidden}
+                      className={cn(!systemMessagesHidden && 'text-primary')}
                     >
-                      <Globe className="size-4" />
+                      {systemMessagesHidden ? (
+                        <EyeOff className="size-4" />
+                      ) : (
+                        <Eye className="size-4" />
+                      )}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    {isWebSearchActive ? 'Web search on' : 'Web search'}
+                    {systemMessagesHidden
+                      ? 'Show system messages'
+                      : 'Hide system messages'}
                   </TooltipContent>
                 </Tooltip>
+              )}
 
-                {/* system-messages toggle — Eye/EyeOff based on systemMessagesHidden */}
-                {onToggleSystemMessages && (
+              {/* tool-display mode cycle: expanded → collapsed → hidden */}
+              {onCycleToolDisplayMode && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={onCycleToolDisplayMode}
+                      aria-label={
+                        toolDisplayMode === 'expanded'
+                          ? 'Tool sections expanded — click to collapse'
+                          : toolDisplayMode === 'collapsed'
+                            ? 'Tool sections collapsed — click to hide'
+                            : 'Tool sections hidden — click to expand'
+                      }
+                      aria-pressed={toolDisplayMode !== 'hidden'}
+                      className={cn(
+                        toolDisplayMode === 'expanded' && 'text-primary',
+                        toolDisplayMode === 'hidden' && 'opacity-40',
+                      )}
+                    >
+                      {toolDisplayMode === 'expanded' ? (
+                        <ListTree className="size-4" />
+                      ) : toolDisplayMode === 'collapsed' ? (
+                        <ListCollapse className="size-4" />
+                      ) : (
+                        <Wrench className="size-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {toolDisplayMode === 'expanded'
+                      ? 'Tools: expanded'
+                      : toolDisplayMode === 'collapsed'
+                        ? 'Tools: collapsed'
+                        : 'Tools: hidden'}
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
+              {/* new-chat button */}
+              {onNewSession && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={onNewSession}
+                      aria-label="New chat"
+                    >
+                      <SquarePen className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>New chat</TooltipContent>
+                </Tooltip>
+              )}
+
+              <div className="flex-1" />
+
+              {/* live context counter (real ContextBar) */}
+              <ContextBar compact sessionId={sessionKey} />
+
+              {/* send / stop */}
+              {isLoading ? (
+                <>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
                         type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={onToggleSystemMessages}
-                        aria-label={
-                          systemMessagesHidden
-                            ? 'Show system messages'
-                            : 'Hide system messages'
-                        }
-                        aria-pressed={!systemMessagesHidden}
-                        className={cn(!systemMessagesHidden && 'text-primary')}
+                        size="sm"
+                        variant="default"
+                        onClick={handleQueueSubmit}
+                        disabled={!canQueue}
+                        aria-label="Add to queue"
+                        className="rounded-full"
                       >
-                        {systemMessagesHidden ? (
-                          <EyeOff className="size-4" />
-                        ) : (
-                          <Eye className="size-4" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {systemMessagesHidden
-                        ? 'Show system messages'
-                        : 'Hide system messages'}
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-
-                {/* tool-display mode cycle: expanded → collapsed → hidden */}
-                {onCycleToolDisplayMode && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={onCycleToolDisplayMode}
-                        aria-label={
-                          toolDisplayMode === 'expanded'
-                            ? 'Tool sections expanded — click to collapse'
-                            : toolDisplayMode === 'collapsed'
-                              ? 'Tool sections collapsed — click to hide'
-                              : 'Tool sections hidden — click to expand'
-                        }
-                        aria-pressed={toolDisplayMode !== 'hidden'}
-                        className={cn(
-                          toolDisplayMode === 'expanded' && 'text-primary',
-                          toolDisplayMode === 'hidden' && 'opacity-40',
-                        )}
-                      >
-                        {toolDisplayMode === 'expanded' ? (
-                          <ListTree className="size-4" />
-                        ) : toolDisplayMode === 'collapsed' ? (
-                          <ListCollapse className="size-4" />
-                        ) : (
-                          <Wrench className="size-4" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {toolDisplayMode === 'expanded'
-                        ? 'Tools: expanded'
-                        : toolDisplayMode === 'collapsed'
-                          ? 'Tools: collapsed'
-                          : 'Tools: hidden'}
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-
-                {/* new-chat button */}
-                {onNewSession && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={onNewSession}
-                        aria-label="New chat"
-                      >
-                        <SquarePen className="size-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>New chat</TooltipContent>
-                  </Tooltip>
-                )}
-
-                <div className="flex-1" />
-
-                {/* live context counter (real ContextBar) */}
-                <ContextBar compact sessionId={sessionKey} />
-
-                {/* send / stop */}
-                {isLoading ? (
-                  <>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="default"
-                          onClick={handleQueueSubmit}
-                          disabled={!canQueue}
-                          aria-label="Add to queue"
-                          className="rounded-full"
-                        >
-                          <ListPlus className="size-4" />
+                        <ListPlus className="size-4" />
                           <span className="hidden sm:inline">
                             Add to queue
                           </span>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Add to queue</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          size="icon-sm"
-                          variant="destructive"
-                          onClick={() => onAbort?.()}
-                          aria-label="Stop generation"
-                          className="rounded-full"
-                        >
-                          <Square className="size-3.5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Stop generation</TooltipContent>
-                    </Tooltip>
-                  </>
-                ) : (
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    onClick={handleSubmit}
-                    disabled={!canSend}
-                    aria-label="Send message"
-                    className="rounded-full"
-                  >
-                    <ArrowUp className="size-4" />
-                  </Button>
-                )}
-              </div>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Add to queue</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="destructive"
+                        onClick={() => onAbort?.()}
+                        aria-label="Stop generation"
+                        className="rounded-full"
+                      >
+                        <Square className="size-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Stop generation</TooltipContent>
+                  </Tooltip>
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  onClick={handleSubmit}
+                  disabled={!canSend}
+                  aria-label="Send message"
+                  className="rounded-full"
+                >
+                  <ArrowUp className="size-4" />
+                </Button>
+              )}
             </div>
+          </div>
 
           {/* slash menu (real SlashCommandMenu — self-positions above the
               composer wrapper above). */}

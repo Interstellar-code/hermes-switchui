@@ -1,13 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import {
+  NEXT_STEP_TAB,
   formatCost,
   formatWindowRange,
+  outcomeLabel,
   parseScenarioChecks,
+  passSummary,
   safeRate,
   selectAvailableProfile,
 } from './self-improve-screen'
 
 describe('self-improve screen helpers', () => {
+  it('sends tab-backed next steps to a visible tab', () => {
+    expect(NEXT_STEP_TAB.observe).toBe('run')
+    expect(NEXT_STEP_TAB['add-training']).toBe('evaluation')
+  })
+
   it('selects a profile after profiles load', () => {
     expect(selectAvailableProfile('', 'default', ['default', 'reviewer'])).toBe(
       'default',
@@ -48,5 +56,14 @@ describe('self-improve screen helpers', () => {
     expect(
       formatWindowRange('2026-07-14T00:00:00Z', '2026-07-21T00:00:00Z'),
     ).toContain('→')
+  })
+
+  it('uses plain-language outcomes and keeps absent evaluation distinct from a failed run', () => {
+    expect(outcomeLabel('proposed')).toBe('Awaiting review')
+    expect(outcomeLabel('live')).toBe('Checking in real use')
+    expect(outcomeLabel('verified')).toBe('Proven better')
+    expect(outcomeLabel('reverted')).toBe('Not kept')
+    expect(passSummary([])).toBe('Not run yet')
+    expect(passSummary([{ pass_fail: 0 }, { pass_fail: 1 }])).toBe('1/2 passed')
   })
 })

@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import {
@@ -113,6 +115,20 @@ describe('getTrailingToolOnlyTurnSummary', () => {
 })
 
 describe('isThinkingIndicatorSurfaceVisible', () => {
+  it('places the response activity indicator beside the Hermes avatar', () => {
+    const source = readFileSync(
+      resolve(
+        process.cwd(),
+        'src/screens/chat/components/chat-message-list.tsx',
+      ),
+      'utf8',
+    )
+
+    expect(source).toContain('aria-label="Hermes is responding"')
+    expect(source).toContain('<AssistantAvatar size={28} />')
+    expect(source).toContain('<span className="thinking-dot thinking-dot-1" />')
+  })
+
   it('reports the local thinking grace indicator as an active send boundary', () => {
     expect(
       isThinkingIndicatorSurfaceVisible({

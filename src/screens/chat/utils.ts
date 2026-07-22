@@ -131,6 +131,14 @@ export function textFromMessage(msg: ChatMessage): string {
   return stripChannelPrefix(cleaned)
 }
 
+export function hasVisibleText(value: string): boolean {
+  return value.replace(/[\p{C}\p{M}\p{Z}]/gu, '').length > 0
+}
+
+export function hasMeaningfulNarrationText(value: string): boolean {
+  return value.replace(/[\p{C}\p{M}\p{Z}]/gu, '').length >= 10
+}
+
 export function getToolCallsFromMessage(
   msg: ChatMessage,
 ): Array<ToolCallContent> {
@@ -217,7 +225,7 @@ export function normalizeSessions(
         : deriveFriendlyIdFromKey(session.friendlyId ?? session.key)
     const friendlyIdCandidate =
       typeof session.friendlyId === 'string' &&
-        session.friendlyId.trim().length > 0
+      session.friendlyId.trim().length > 0
         ? session.friendlyId.trim()
         : deriveFriendlyIdFromKey(key)
 
@@ -231,12 +239,12 @@ export function normalizeSessions(
         : undefined
     const derivedTitle =
       typeof session.derivedTitle === 'string' &&
-        session.derivedTitle.trim().length > 0
+      session.derivedTitle.trim().length > 0
         ? session.derivedTitle.trim()
         : typeof session.preview === 'string' &&
-          session.preview.trim().length > 0
+            session.preview.trim().length > 0
           ? session.preview.trim()
-          : getSessionOrchestrationMeta(key, session.kind).title ?? undefined
+          : (getSessionOrchestrationMeta(key, session.kind).title ?? undefined)
     const titleStatus = deriveTitleStatus(
       label,
       explicitTitle,
@@ -263,36 +271,46 @@ export function normalizeSessions(
       titleSource,
       titleError: session.titleError ?? null,
       preview: session.preview ?? null,
-      tokenCount: typeof (session as Record<string, unknown>).tokenCount === 'number'
-        ? ((session as Record<string, unknown>).tokenCount as number)
-        : typeof (session as Record<string, unknown>).totalTokens === 'number'
+      tokenCount:
+        typeof (session as Record<string, unknown>).tokenCount === 'number'
+          ? ((session as Record<string, unknown>).tokenCount as number)
+          : typeof (session as Record<string, unknown>).totalTokens === 'number'
+            ? ((session as Record<string, unknown>).totalTokens as number)
+            : undefined,
+      totalTokens:
+        typeof (session as Record<string, unknown>).totalTokens === 'number'
           ? ((session as Record<string, unknown>).totalTokens as number)
           : undefined,
-      totalTokens: typeof (session as Record<string, unknown>).totalTokens === 'number'
-        ? ((session as Record<string, unknown>).totalTokens as number)
-        : undefined,
-      messageCount: typeof (session as Record<string, unknown>).messageCount === 'number'
-        ? ((session as Record<string, unknown>).messageCount as number)
-        : typeof (session as Record<string, unknown>).message_count === 'number'
-          ? ((session as Record<string, unknown>).message_count as number)
+      messageCount:
+        typeof (session as Record<string, unknown>).messageCount === 'number'
+          ? ((session as Record<string, unknown>).messageCount as number)
+          : typeof (session as Record<string, unknown>).message_count ===
+              'number'
+            ? ((session as Record<string, unknown>).message_count as number)
+            : undefined,
+      toolCallCount:
+        typeof (session as Record<string, unknown>).toolCallCount === 'number'
+          ? ((session as Record<string, unknown>).toolCallCount as number)
+          : typeof (session as Record<string, unknown>).tool_call_count ===
+              'number'
+            ? ((session as Record<string, unknown>).tool_call_count as number)
+            : undefined,
+      model:
+        typeof (session as Record<string, unknown>).model === 'string'
+          ? ((session as Record<string, unknown>).model as string)
           : undefined,
-      toolCallCount: typeof (session as Record<string, unknown>).toolCallCount === 'number'
-        ? ((session as Record<string, unknown>).toolCallCount as number)
-        : typeof (session as Record<string, unknown>).tool_call_count === 'number'
-          ? ((session as Record<string, unknown>).tool_call_count as number)
+      status:
+        typeof (session as Record<string, unknown>).status === 'string'
+          ? ((session as Record<string, unknown>).status as string)
           : undefined,
-      model: typeof (session as Record<string, unknown>).model === 'string'
-        ? ((session as Record<string, unknown>).model as string)
-        : undefined,
-      status: typeof (session as Record<string, unknown>).status === 'string'
-        ? ((session as Record<string, unknown>).status as string)
-        : undefined,
-      kind: typeof (session as Record<string, unknown>).kind === 'string'
-        ? ((session as Record<string, unknown>).kind as string)
-        : undefined,
-      source: typeof (session as Record<string, unknown>).source === 'string'
-        ? ((session as Record<string, unknown>).source as string)
-        : undefined,
+      kind:
+        typeof (session as Record<string, unknown>).kind === 'string'
+          ? ((session as Record<string, unknown>).kind as string)
+          : undefined,
+      source:
+        typeof (session as Record<string, unknown>).source === 'string'
+          ? ((session as Record<string, unknown>).source as string)
+          : undefined,
     }
   })
 }

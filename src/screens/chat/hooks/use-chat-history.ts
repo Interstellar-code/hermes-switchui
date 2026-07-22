@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { chatQueryKeys, fetchHistory } from '../chat-queries'
-import { getMessageTimestamp, textFromMessage } from '../utils'
+import { getMessageTimestamp, hasVisibleText, textFromMessage } from '../utils'
 import {
   cleanupExpiredPendingSends,
   clearPendingMessage,
@@ -170,9 +170,7 @@ function getAttachmentSignature(message: ChatMessage): string {
       const size =
         typeof attachment.size === 'number' ? String(attachment.size) : ''
       const type =
-        typeof attachment.contentType === 'string'
-          ? attachment.contentType
-          : ''
+        typeof attachment.contentType === 'string' ? attachment.contentType : ''
       return `${name}:${size}:${type}`
     })
     .sort()
@@ -334,10 +332,10 @@ export function useChatHistory({
       const cached = queryClient.getQueryData(historyKey)
       const optimisticMessages = Array.isArray((cached as any)?.messages)
         ? (cached as any).messages.filter((message: any) => {
-          if (message.status === 'sending') return true
-          if (message.__optimisticId) return true
-          return Boolean(message.clientId)
-        })
+            if (message.status === 'sending') return true
+            if (message.__optimisticId) return true
+            return Boolean(message.clientId)
+          })
         : []
 
       const serverData = await fetchHistory({
@@ -470,8 +468,8 @@ export function useChatHistory({
   const historyMessages = useMemo(() => {
     const messages = persistedPending
       ? mergeOptimisticHistoryMessages(rawHistoryMessages, [
-        persistedPending.optimisticMessage,
-      ])
+          persistedPending.optimisticMessage,
+        ])
       : rawHistoryMessages
     const last = messages[messages.length - 1]
     const lastId =
@@ -501,7 +499,7 @@ export function useChatHistory({
         const text = textFromMessage(msg)
         const execNotification = parseExecNotification(text)
         if (execNotification) {
-          ; (msg as any).__execNotification = execNotification
+          ;(msg as any).__execNotification = execNotification
           return true
         }
         if ((msg as any).__execNotification) {
@@ -543,7 +541,7 @@ export function useChatHistory({
           (c) =>
             c.type === 'text' &&
             typeof c.text === 'string' &&
-            c.text.trim().length > 0,
+            hasVisibleText(c.text),
         )
         if (!hasText) return false
 
@@ -588,7 +586,7 @@ export function useChatHistory({
           filtered.splice(i, 1)
           i--
         } else {
-          ; (msg as any).__isNarration = true
+          ;(msg as any).__isNarration = true
         }
       }
     }

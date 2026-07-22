@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 
-import { textFromMessage } from '../utils'
+import { hasVisibleText, textFromMessage } from '../utils'
 import type { ChatMessage, StreamingToolCall } from '../types'
 import { stripQueuedWrapper } from '@/lib/strip-queued-wrapper'
 
@@ -95,9 +95,7 @@ function getMessageAttachmentSignature(message: ChatMessage): string {
       const size =
         typeof attachment.size === 'number' ? String(attachment.size) : ''
       const type =
-        typeof attachment.contentType === 'string'
-          ? attachment.contentType
-          : ''
+        typeof attachment.contentType === 'string' ? attachment.contentType : ''
       return `${name}:${size}:${type}`
     })
     .sort()
@@ -193,7 +191,7 @@ export function useDisplayMessages(params: {
       if (msg.role === 'assistant') {
         if (msg.__streamingStatus === 'streaming') return true
         if ((msg as any).__optimisticId && msg.content.length === 0) return true
-        if (textFromMessage(msg).trim().length > 0) return true
+        if (hasVisibleText(textFromMessage(msg))) return true
         const content = Array.isArray(msg.content) ? msg.content : []
         const hasToolCalls = content.some((part) => part.type === 'toolCall')
         const hasStreamToolCalls =
@@ -320,9 +318,7 @@ export function useDisplayMessages(params: {
     )
     const currentTurnAssistantIdx = nextMessages.reduce(
       (lastIdx, message, index) =>
-        lastUserIdx >= 0 &&
-        index > lastUserIdx &&
-        message.role === 'assistant'
+        lastUserIdx >= 0 && index > lastUserIdx && message.role === 'assistant'
           ? index
           : lastIdx,
       -1,
