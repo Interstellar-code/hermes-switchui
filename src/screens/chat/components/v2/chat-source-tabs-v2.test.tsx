@@ -28,13 +28,17 @@ function queryTab(container: HTMLElement, name: string): HTMLButtonElement | nul
 }
 
 describe('ChatSourceTabsV2', () => {
-  it('renders all three tabs', () => {
+  it('renders chat, tool, todo, MCP, skill, and files tabs', () => {
     const { container } = renderInto(
       <ChatSourceTabsV2 activeTab="chat" onTabChange={() => {}} />,
     )
     expect(queryTab(container, 'chat')).not.toBeNull()
     expect(queryTab(container, 'tool')).not.toBeNull()
+    expect(queryTab(container, 'todos')).not.toBeNull()
+    expect(queryTab(container, 'mcp')).not.toBeNull()
     expect(queryTab(container, 'skills')).not.toBeNull()
+    expect(queryTab(container, 'files')).not.toBeNull()
+    expect(queryTab(container, 'delegations')).toBeNull()
   })
 
   it('marks the active tab as selected', () => {
@@ -55,6 +59,13 @@ describe('ChatSourceTabsV2', () => {
       queryTab(container, 'skills')?.click()
     })
     expect(onTabChange).toHaveBeenCalledWith('skills')
+  })
+
+  it('selects the MCP tab', () => {
+    const { container } = renderInto(
+      <ChatSourceTabsV2 activeTab="mcp" onTabChange={() => {}} />,
+    )
+    expect(queryTab(container, 'mcp')?.getAttribute('aria-selected')).toBe('true')
   })
 
   it('switches active tab when rerendered with new prop', () => {

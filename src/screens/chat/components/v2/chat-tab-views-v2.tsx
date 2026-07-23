@@ -23,7 +23,11 @@ type ToolTabViewProps = {
   messages: Array<ChatMessage>
   streamingToolCalls?: Array<StreamingToolCall>
   events?: Array<LifecycleEvent>
+  view?: ToolHistoryView
+  mcpToolNames?: ReadonlySet<string>
 }
+
+export type ToolHistoryView = 'all' | 'todos' | 'mcp' | 'files'
 
 /**
  * Categorize a tool entry by inferring its "kind" from arg keys + name.
@@ -105,6 +109,55 @@ type FlatToolEntry = {
   displayTs?: number
 }
 
+export function isMcpToolEntry(
+  entry: Pick<FlatToolEntry, 'name'>,
+  mcpToolNames: ReadonlySet<string> = new Set(),
+): boolean {
+  const name = entry.name.toLowerCase()
+  return (
+    name === 'load_mcp_tools' ||
+    name === 'load_mcp_server' ||
+    name.startsWith('mcp__') ||
+    name.startsWith('mcp_') ||
+    mcpToolNames.has(name)
+  )
+}
+
+export function isFileToolEntry(
+  entry: Pick<FlatToolEntry, 'name' | 'input'>,
+): boolean {
+  const name = entry.name.toLowerCase()
+  if (
+    /(^|_)(read|write|edit|patch|delete|remove|rename|move|create|search|list)_?file(s)?$/.test(name) ||
+    /^file_(read|write|edit|patch|delete|remove|rename|move|create|search|list)$/.test(name)
+  ) return true
+  if (['read', 'write', 'edit', 'delete', 'remove', 'rename', 'move', 'glob', 'apply_patch'].includes(name)) return true
+
+  const input = unwrapToolInput(entry.input)
+  if (!input || !['file_path', 'path', 'target_file', 'filepath'].some((key) => key in input)) {
+    return false
+  }
+  return /(^|_)(read|write|edit|patch|delete|remove|rename|move|create|search|list|file|notebook)/.test(name)
+}
+
+export function filterToolEntries(
+  entries: Array<FlatToolEntry>,
+  view: ToolHistoryView,
+  mcpToolNames: ReadonlySet<string> = new Set(),
+): Array<FlatToolEntry> {
+  if (view === 'todos') return entries.filter((entry) => entry.name.toLowerCase() === 'todo')
+  if (view === 'mcp') return entries.filter((entry) => isMcpToolEntry(entry, mcpToolNames))
+  if (view === 'files') {
+    return entries.filter((entry) => !isMcpToolEntry(entry, mcpToolNames) && isFileToolEntry(entry))
+  }
+  return entries.filter(
+    (entry) =>
+      entry.name.toLowerCase() !== 'todo' &&
+      !isMcpToolEntry(entry, mcpToolNames) &&
+      !isFileToolEntry(entry),
+  )
+}
+
 /**
  * Read a usable timestamp off a chat message. Tries createdAt, timestamp
  * (number or ISO string), then __receiveTime. Returns undefined if none.
@@ -131,6 +184,69 @@ type RootLevelResult = {
   isError?: boolean
   output: string
   timestamp?: number
+}
+
+type TodoItem = {
+  content: string
+  status: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+/** Gateway arguments may be wrapped as `{ value: "{...}" }`. */
+function unwrapToolInput(input?: Record<string, unknown>): Record<string, unknown> | undefined {
+  if (!input || typeof input.value !== 'string') return input
+  try {
+    const value = JSON.parse(input.value)
+    return isRecord(value) ? value : input
+  } catch {
+    return input
+  }
+}
+
+function readTodoItems(input?: Record<string, unknown>): Array<TodoItem> {
+  const payload = unwrapToolInput(input)
+  if (!payload) return []
+  const todos = payload.todos
+  if (!Array.isArray(todos)) return []
+  return todos.flatMap((todo) => {
+    if (!isRecord(todo)) return []
+    const { content, status } = todo
+    return typeof content === 'string' && content.trim()
+      ? [{ content: content.trim(), status: typeof status === 'string' ? status : 'pending' }]
+      : []
+  })
+}
+
+function TodoChecklist({ items }: { items: Array<TodoItem> }) {
+  return (
+    <div>
+      <div className="m-label mb-1 opacity-50" style={{ color: 'var(--theme-muted)' }}>
+        To-dos
+      </div>
+      <ul className="space-y-1.5">
+        {items.map((item, index) => {
+          const complete = item.status === 'completed'
+          const inProgress = item.status === 'in_progress'
+          const label = item.status.replaceAll('_', ' ')
+          const color = complete
+            ? 'var(--theme-success, #22c55e)'
+            : inProgress
+              ? 'var(--theme-accent, #6366f1)'
+              : 'var(--theme-muted)'
+          return (
+            <li key={`${item.content}-${index}`} className="flex items-start gap-2">
+              <span aria-label={label} style={{ color }}>{complete ? '✓' : inProgress ? '◐' : '○'}</span>
+              <span className={complete ? 'line-through opacity-50' : ''}>{item.content}</span>
+              <span className="m-label ml-auto shrink-0 opacity-50" style={{ color }}>{label}</span>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
 }
 
 /** Determine phase → status. Unknown phases fail closed to avoid phantom spinners. */
@@ -411,14 +527,133 @@ function statusBadge(entry: FlatToolEntry) {
   return { label: 'running', color: 'var(--theme-accent, #6366f1)' }
 }
 
+function readableWords(value: string): string {
+  return value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function readableToolName(name: string, input?: Record<string, unknown>): string {
+  const lower = name.toLowerCase()
+  if (lower === 'load_mcp_tools') return 'Load MCP tools'
+  if (lower === 'load_mcp_server') return 'Load MCP server'
+  if (lower.startsWith('mcp__')) {
+    const [, server = 'server', ...tool] = name.split('__')
+    return `MCP · ${readableWords(server)} · ${readableWords(tool.join(' ') || 'tool')}`
+  }
+  return formatStreamingActivityLabel(name, input)
+}
+
+function inputLabel(key: string): string {
+  const labels: Record<string, string> = {
+    command: 'Command',
+    cmd: 'Command',
+    file_path: 'File',
+    path: 'Path',
+    target_file: 'File',
+    query: 'Query',
+    q: 'Query',
+    url: 'URL',
+    prompt: 'Prompt',
+    pattern: 'Pattern',
+    name: 'Name',
+    action: 'Action',
+    tool_names: 'MCP tools',
+    server_names: 'MCP servers',
+  }
+  return labels[key] ?? readableWords(key).replace(/^./, (letter) => letter.toUpperCase())
+}
+
+function readableInputValue(value: unknown, listItem = false): string | null {
+  if (typeof value === 'string') return listItem ? readableWords(value) : value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  return null
+}
+
+function toolInputRows(input?: Record<string, unknown>): Array<{ label: string; value: string }> {
+  const args = unwrapToolInput(input)
+  if (!args) return []
+  const rows: Array<{ label: string; value: string }> = []
+  for (const [key, value] of Object.entries(args)) {
+    if (key === 'value') continue
+    if (Array.isArray(value)) {
+      const values = value
+        .map((item) => readableInputValue(item, key === 'tool_names' || key === 'server_names'))
+        .filter((item): item is string => item !== null)
+      if (values.length) rows.push({ label: inputLabel(key), value: values.join(', ') })
+      continue
+    }
+    const readable = readableInputValue(value)
+    if (readable) rows.push({ label: inputLabel(key), value: readable })
+  }
+  return rows.slice(0, 4)
+}
+
+function RawToolDetails({ entry }: { entry: FlatToolEntry }) {
+  return (
+    <div className="mt-2 space-y-1.5">
+      {entry.input && Object.keys(entry.input).length > 0 ? (
+        <details>
+          <summary className="cursor-pointer opacity-50">Raw input</summary>
+          <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px]" style={{ color: 'var(--code-foreground, var(--theme-text))' }}>
+            {JSON.stringify(entry.input, null, 2)}
+          </pre>
+        </details>
+      ) : null}
+      {entry.output !== undefined && entry.output !== '' ? (
+        <details>
+          <summary className="cursor-pointer opacity-50">Raw {entry.isError ? 'error' : 'output'}</summary>
+          <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px]" style={{ color: entry.isError ? 'var(--theme-danger, #ef4444)' : 'var(--code-foreground, var(--theme-text))' }}>
+            {entry.output}
+          </pre>
+        </details>
+      ) : null}
+    </div>
+  )
+}
+
+function HumanToolDetails({ entry, todoItems }: { entry: FlatToolEntry; todoItems: Array<TodoItem> }) {
+  const rows = toolInputRows(entry.input)
+  const hasOutput = entry.output !== undefined && entry.output !== ''
+
+  return (
+    <>
+      {todoItems.length > 0 ? <TodoChecklist items={todoItems} /> : null}
+      {rows.length > 0 ? (
+        <dl className={todoItems.length > 0 ? 'mt-2 space-y-1' : 'space-y-1'}>
+          {rows.map((row) => (
+            <div key={row.label} className="flex items-start gap-2">
+              <dt className="m-label shrink-0 opacity-50" style={{ color: 'var(--theme-muted)' }}>{row.label}</dt>
+              <dd className="min-w-0 break-words" style={{ color: 'var(--code-foreground, var(--theme-text))' }}>{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      {hasOutput ? (
+        <div className={todoItems.length > 0 || rows.length > 0 ? 'mt-2' : ''}>
+          <div className="m-label mb-0.5 opacity-50" style={{ color: entry.isError ? 'var(--theme-danger, #ef4444)' : 'var(--theme-muted)' }}>
+            {entry.isError ? 'Error' : 'Result'}
+          </div>
+          <div className="max-h-32 overflow-auto whitespace-pre-wrap break-words" style={{ color: entry.isError ? 'var(--theme-danger, #ef4444)' : 'var(--code-foreground, var(--theme-text))' }}>
+            {entry.output}
+          </div>
+        </div>
+      ) : null}
+      {todoItems.length === 0 && rows.length === 0 && !hasOutput ? (
+        <div className="font-sans text-[9px] opacity-40 italic">no details available</div>
+      ) : null}
+      <RawToolDetails entry={entry} />
+    </>
+  )
+}
+
 function ExpandableToolCard({ entry }: { entry: FlatToolEntry }) {
   const [open, setOpen] = useState(false)
   const badge = statusBadge(entry)
   const hasInput = !!(entry.input && Object.keys(entry.input).length > 0)
   const hasOutput = entry.output !== undefined && entry.output !== ''
+  const todoItems = entry.name.toLowerCase() === 'todo' ? readTodoItems(entry.input) : []
   // canExpand: allow inspection whenever there's input, output, or call is settled (done/error)
   const canExpand = hasInput || hasOutput || badge.label === 'done' || badge.label === 'error'
-  const displayName = formatStreamingActivityLabel(entry.name, entry.input)
+  const displayName = readableToolName(entry.name, unwrapToolInput(entry.input))
 
   return (
     <div
@@ -477,39 +712,7 @@ function ExpandableToolCard({ entry }: { entry: FlatToolEntry }) {
             borderColor: 'var(--theme-border)',
           }}
         >
-          {hasInput ? (
-            <div>
-              <div className="m-label mb-0.5 opacity-50" style={{ color: 'var(--theme-muted)' }}>
-                Input
-              </div>
-              <pre
-                className="max-h-32 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px]"
-                style={{ color: 'var(--code-foreground, var(--theme-text))' }}
-              >
-                {JSON.stringify(entry.input, null, 2)}
-              </pre>
-            </div>
-          ) : (
-            <div className="mb-0.5 font-sans text-[9px] opacity-40 italic">no input</div>
-          )}
-          {hasOutput ? (
-            <div className={hasInput ? 'mt-1.5' : ''}>
-              <div
-                className="m-label mb-0.5 opacity-50"
-                style={{ color: entry.isError ? 'var(--theme-danger, #ef4444)' : 'var(--theme-muted)' }}
-              >
-                {entry.isError ? 'Error' : 'Output'}
-              </div>
-              <pre
-                className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px]"
-                style={{ color: entry.isError ? 'var(--theme-danger, #ef4444)' : 'var(--code-foreground, var(--theme-text))' }}
-              >
-                {entry.output}
-              </pre>
-            </div>
-          ) : (
-            <div className={`font-sans text-[9px] opacity-40 italic ${hasInput ? 'mt-1.5' : ''}`}>no output</div>
-          )}
+          <HumanToolDetails entry={entry} todoItems={todoItems} />
         </div>
       ) : null}
     </div>
@@ -564,7 +767,13 @@ const filterPillStyle = (active: boolean): React.CSSProperties => ({
   fontWeight: active ? 600 : 400,
 })
 
-export function ToolTabView({ messages, streamingToolCalls = [], events = [] }: ToolTabViewProps) {
+export function ToolTabView({
+  messages,
+  streamingToolCalls = [],
+  events = [],
+  view = 'all',
+  mcpToolNames,
+}: ToolTabViewProps) {
   const [filter, setFilter] = useState<string>('all')
   const [sortDir, setSortDir] = useState<'oldest' | 'newest'>('oldest')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -585,12 +794,20 @@ export function ToolTabView({ messages, streamingToolCalls = [], events = [] }: 
     [completedEntries, messageEntries, streamingEntries],
   )
 
-  const allRows = useMemo(() => buildMixedRows(entries, events), [entries, events])
+  const scopedEntries = useMemo(
+    () => filterToolEntries(entries, view, mcpToolNames),
+    [entries, mcpToolNames, view],
+  )
+  const scopedEvents = view === 'all' ? events : []
+  const allRows = useMemo(
+    () => buildMixedRows(scopedEntries, scopedEvents),
+    [scopedEntries, scopedEvents],
+  )
 
   // Derive the set of categories present in the current tool entries
   const categoriesPresent = useMemo(
-    () => Array.from(new Set(entries.map((e) => categorizeEntry(e)))).sort(),
-    [entries],
+    () => Array.from(new Set(scopedEntries.map((e) => categorizeEntry(e)))).sort(),
+    [scopedEntries],
   )
   const q = useMemo(() => searchQuery.trim().toLowerCase(), [searchQuery])
   const filteredRows = useMemo(() => {
@@ -620,7 +837,15 @@ export function ToolTabView({ messages, streamingToolCalls = [], events = [] }: 
     [filteredRows, sortDir],
   )
 
-  const isEmpty = entries.length === 0 && events.length === 0
+  const isEmpty = scopedEntries.length === 0 && scopedEvents.length === 0
+  const emptyMessage =
+    view === 'todos'
+      ? 'No to-do tool calls yet'
+      : view === 'mcp'
+        ? 'No MCP tool calls yet'
+        : view === 'files'
+          ? 'No file activity yet'
+        : 'No tool invocations yet'
 
   return (
     <div className="m-mono flex-1 min-h-0 overflow-y-auto flex flex-col" style={toolViewStyle}>
@@ -686,7 +911,7 @@ export function ToolTabView({ messages, streamingToolCalls = [], events = [] }: 
 
       {isEmpty ? (
         <div className="flex-1 flex items-start justify-center pt-8 p-4">
-          <p className="opacity-40 text-center">No tool invocations yet</p>
+          <p className="opacity-40 text-center">{emptyMessage}</p>
         </div>
       ) : (
         <div className="flex-1 min-h-0 p-4 pt-1 space-y-2">

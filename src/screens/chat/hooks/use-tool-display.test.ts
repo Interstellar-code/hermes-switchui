@@ -133,7 +133,7 @@ describe('useToolDisplay', () => {
       expect(result.current.totalToolCount).toBe(0)
     })
 
-    it('counts active streaming tool calls', () => {
+    it('counts general tools separately from file calls', () => {
       const activeToolCalls: Array<StreamingToolCall> = [
         { id: 'tc1', name: 'Bash', phase: 'streaming' },
         { id: 'tc2', name: 'Read', phase: 'streaming' },
@@ -144,10 +144,45 @@ describe('useToolDisplay', () => {
           activeToolCalls,
         }),
       )
-      expect(result.current.totalToolCount).toBe(2)
+      expect(result.current.totalToolCount).toBe(1)
+      expect(result.current.totalFileCount).toBe(1)
     })
 
-    it('counts completed tool calls embedded on realtimeMessages', () => {
+    it('excludes to-dos and MCP calls represented in their own tabs', () => {
+      const activeToolCalls: Array<StreamingToolCall> = [
+        { id: 'todo-1', name: 'todo', phase: 'streaming' },
+        { id: 'mcp-1', name: 'mcp__github__search', phase: 'streaming' },
+        { id: 'exec-1', name: 'exec', phase: 'streaming' },
+      ]
+      const { result } = renderHook(() =>
+        useToolDisplay({
+          realtimeMessages: EMPTY_MESSAGES,
+          activeToolCalls,
+        }),
+      )
+
+      expect(result.current.totalToolCount).toBe(1)
+      expect(result.current.totalTodoCount).toBe(1)
+      expect(result.current.totalMcpCount).toBe(1)
+    })
+
+    it('excludes file calls represented in the Files tab', () => {
+      const activeToolCalls: Array<StreamingToolCall> = [
+        { id: 'read-1', name: 'read_file', phase: 'streaming', args: { file_path: 'src/app.tsx' } },
+        { id: 'exec-1', name: 'exec', phase: 'streaming' },
+      ]
+      const { result } = renderHook(() =>
+        useToolDisplay({
+          realtimeMessages: EMPTY_MESSAGES,
+          activeToolCalls,
+        }),
+      )
+
+      expect(result.current.totalToolCount).toBe(1)
+      expect(result.current.totalFileCount).toBe(1)
+    })
+
+    it('counts completed general and file calls in their respective tabs', () => {
       const realtimeMessages: Array<ChatMessage> = [
         {
           role: 'assistant',
@@ -163,7 +198,8 @@ describe('useToolDisplay', () => {
           activeToolCalls: EMPTY_TOOL_CALLS,
         }),
       )
-      expect(result.current.totalToolCount).toBe(2)
+      expect(result.current.totalToolCount).toBe(1)
+      expect(result.current.totalFileCount).toBe(1)
     })
 
     it('recomputes when realtimeMessages prop changes', () => {
@@ -197,7 +233,8 @@ describe('useToolDisplay', () => {
       expect(result.current.totalToolCount).toBe(1)
 
       rerender({ realtimeMessages: twoCalls, activeToolCalls: EMPTY_TOOL_CALLS })
-      expect(result.current.totalToolCount).toBe(2)
+      expect(result.current.totalToolCount).toBe(1)
+      expect(result.current.totalFileCount).toBe(1)
     })
 
     it('recomputes when activeToolCalls prop changes', () => {
@@ -268,6 +305,24 @@ describe('useToolDisplay', () => {
         activeToolCalls: [{ id: 'sk1', name: 'skill', phase: 'streaming' }],
       })
       expect(result.current.totalSkillCount).toBe(1)
+    })
+  })
+
+  describe('todo and MCP counts', () => {
+    it('separates todo and configured MCP calls', () => {
+      const { result } = renderHook(() =>
+        useToolDisplay({
+          realtimeMessages: EMPTY_MESSAGES,
+          activeToolCalls: [
+            { id: 'todo-1', name: 'todo', phase: 'complete' },
+            { id: 'mcp-1', name: 'github_search', phase: 'complete' },
+            { id: 'bash-1', name: 'bash', phase: 'complete' },
+          ],
+          mcpToolNames: new Set(['github_search']),
+        }),
+      )
+      expect(result.current.totalTodoCount).toBe(1)
+      expect(result.current.totalMcpCount).toBe(1)
     })
   })
 

@@ -5,6 +5,7 @@ import {
   extractStreamToolCallsFromMessages,
   extractStreamingEntries,
   extractToolEntries,
+  filterToolEntries,
   mergeToolEntries,
 } from '../components/v2/chat-tab-views-v2'
 import { countSkillEntries } from '../components/v2/chat-skills-tab-v2'
@@ -15,8 +16,9 @@ import type { ChatMessage, StreamingToolCall } from '../types'
 export function useToolDisplay(params: {
   realtimeMessages: Array<ChatMessage>
   activeToolCalls: Array<StreamingToolCall>
+  mcpToolNames?: ReadonlySet<string>
 }) {
-  const { realtimeMessages, activeToolCalls } = params
+  const { realtimeMessages, activeToolCalls, mcpToolNames } = params
 
   const [activeTab, setActiveTab] = useState<SourceTab>('chat')
 
@@ -49,7 +51,7 @@ export function useToolDisplay(params: {
     })
   }, [])
 
-  const totalToolCount = useMemo(() => {
+  const toolEntries = useMemo(() => {
     const resultTsMap = buildResultTsMap(realtimeMessages)
     const streamingEntries = extractStreamingEntries(activeToolCalls)
     const completedEntries = extractStreamToolCallsFromMessages(
@@ -58,8 +60,24 @@ export function useToolDisplay(params: {
     )
     const messageEntries = extractToolEntries(realtimeMessages)
     return mergeToolEntries(streamingEntries, completedEntries, messageEntries)
-      .length
   }, [realtimeMessages, activeToolCalls])
+
+  const totalToolCount = useMemo(
+    () => filterToolEntries(toolEntries, 'all', mcpToolNames).length,
+    [mcpToolNames, toolEntries],
+  )
+  const totalTodoCount = useMemo(
+    () => filterToolEntries(toolEntries, 'todos').length,
+    [toolEntries],
+  )
+  const totalMcpCount = useMemo(
+    () => filterToolEntries(toolEntries, 'mcp', mcpToolNames).length,
+    [mcpToolNames, toolEntries],
+  )
+  const totalFileCount = useMemo(
+    () => filterToolEntries(toolEntries, 'files', mcpToolNames).length,
+    [mcpToolNames, toolEntries],
+  )
 
   const totalSkillCount = useMemo(
     () => countSkillEntries(realtimeMessages, activeToolCalls),
@@ -73,6 +91,9 @@ export function useToolDisplay(params: {
     setToolDisplayMode,
     cycleToolDisplayMode,
     totalToolCount,
+    totalTodoCount,
+    totalMcpCount,
+    totalFileCount,
     totalSkillCount,
   }
 }

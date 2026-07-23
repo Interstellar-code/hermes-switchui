@@ -2,11 +2,24 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchHistory } from '../chat-queries'
 import { readError } from '../utils'
 import type { Delegation } from '../../../server/delegations'
+import type { StreamingDelegation } from '../../../stores/chat-store'
 
 type DelegationsResponse = {
   ok: boolean
   delegations?: Array<Delegation>
   error?: string
+}
+
+/** Count persisted and live agents once when both sources describe the same child. */
+export function countSessionAgents(
+  delegations: Array<Pick<Delegation, 'childSessionId'>>,
+  streamingDelegations: Array<Pick<StreamingDelegation, 'subagentId' | 'childSessionId'>>,
+): number {
+  const ids = new Set(delegations.map((delegation) => delegation.childSessionId))
+  for (const delegation of streamingDelegations) {
+    ids.add(delegation.childSessionId || `stream:${delegation.subagentId}`)
+  }
+  return ids.size
 }
 
 async function fetchDelegations(sessionKey: string): Promise<Array<Delegation>> {

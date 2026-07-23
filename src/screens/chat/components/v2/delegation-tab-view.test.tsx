@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { fireEvent } from '@testing-library/dom'
-import { DelegationTabView } from './delegation-tab-view'
+import { DelegationSidebarOverlay } from './delegation-tab-view'
 
 const useDelegationsMock = vi.fn()
 const useDelegationMessagesMock = vi.fn()
@@ -32,11 +32,11 @@ function renderInto(ui: React.ReactElement): HTMLElement {
   return container
 }
 
-describe('DelegationTabView', () => {
-  it('shows the empty state when there are no delegations', () => {
+describe('DelegationSidebarOverlay', () => {
+  it('shows the empty state when there are no agents', () => {
     useDelegationsMock.mockReturnValue({ delegations: [], isLoading: false, error: null })
-    const container = renderInto(<DelegationTabView sessionKey="s1" />)
-    expect(container.textContent).toMatch(/No delegations in this session/)
+    const container = renderInto(<DelegationSidebarOverlay sessionKey="s1" onClose={() => {}} />)
+    expect(container.textContent).toMatch(/No agents in this session/)
   })
 
   it('shows an error state', () => {
@@ -45,7 +45,7 @@ describe('DelegationTabView', () => {
       isLoading: false,
       error: 'boom',
     })
-    const container = renderInto(<DelegationTabView sessionKey="s1" />)
+    const container = renderInto(<DelegationSidebarOverlay sessionKey="s1" onClose={() => {}} />)
     expect(container.textContent).toMatch(/boom/)
   })
 
@@ -68,8 +68,8 @@ describe('DelegationTabView', () => {
     })
     useDelegationMessagesMock.mockReturnValue({ messages: [], isLoading: false, error: null })
 
-    const container = renderInto(<DelegationTabView sessionKey="s1" />)
-    expect(container.textContent).toMatch(/Untitled delegation/)
+    const container = renderInto(<DelegationSidebarOverlay sessionKey="s1" onClose={() => {}} />)
+    expect(container.textContent).toMatch(/Untitled agent task/)
     expect(container.textContent).toMatch(/unknown/)
     expect(container.textContent).toMatch(/running/)
   })
@@ -93,14 +93,28 @@ describe('DelegationTabView', () => {
     })
     useDelegationMessagesMock.mockReturnValue({ messages: [], isLoading: false, error: null })
 
-    const container = renderInto(<DelegationTabView sessionKey="s1" />)
+    const container = renderInto(<DelegationSidebarOverlay sessionKey="s1" onClose={() => {}} />)
     expect(container.textContent).not.toContain('No activity recorded.')
 
-    act(() => {
-      fireEvent.click(container.querySelector('button')!)
-    })
+    const delegationButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent.includes('Do the thing'),
+    )
+    act(() => { delegationButton?.click() })
 
     expect(container.textContent).toContain('No activity recorded.')
     expect(useDelegationMessagesMock).toHaveBeenLastCalledWith('child-1')
+  })
+
+  it('closes from the backdrop or Escape key', () => {
+    useDelegationsMock.mockReturnValue({ delegations: [], isLoading: false, error: null })
+    const onClose = vi.fn()
+    const container = renderInto(<DelegationSidebarOverlay sessionKey="s1" onClose={onClose} />)
+
+    act(() => { fireEvent.keyDown(window, { key: 'Escape' }) })
+    expect(onClose).toHaveBeenCalledTimes(1)
+
+    const backdrop = container.querySelector<HTMLButtonElement>('button[aria-label="Close agents"]')
+    act(() => { backdrop?.click() })
+    expect(onClose).toHaveBeenCalledTimes(2)
   })
 })

@@ -53,6 +53,84 @@ describe('ToolTabView streaming tool calls', () => {
     expect(container.textContent).toContain('hi')
   })
 
+  it('renders common tool arguments and results as readable details', () => {
+    const container = renderInto(
+      <ToolTabView
+        messages={[]}
+        streamingToolCalls={[
+          {
+            id: 'readable-1',
+            name: 'exec',
+            phase: 'complete',
+            args: { value: JSON.stringify({ command: 'pnpm vitest run', timeout: 30 }) },
+            result: '27 tests passed',
+          },
+        ]}
+      />,
+    )
+
+    act(() => { fireEvent.click(container.querySelector('button[aria-expanded]')!) })
+    expect(container.textContent).toContain('Command')
+    expect(container.textContent).toContain('pnpm vitest run')
+    expect(container.textContent).toContain('Result')
+    expect(container.textContent).toContain('27 tests passed')
+    expect(container.textContent).toContain('Raw input')
+    expect(container.textContent).toContain('Raw output')
+  })
+
+  it('renders MCP loads as named tool and server lists', () => {
+    const container = renderInto(
+      <ToolTabView
+        view="mcp"
+        messages={[]}
+        streamingToolCalls={[
+          {
+            id: 'mcp-tools',
+            name: 'load_mcp_tools',
+            phase: 'complete',
+            args: { tool_names: ['github_search', 'github_get_issue'] },
+          },
+          {
+            id: 'mcp-server',
+            name: 'load_mcp_server',
+            phase: 'complete',
+            args: { server_names: ['github'] },
+          },
+        ]}
+      />,
+    )
+
+    const cards = container.querySelectorAll('button[aria-expanded]')
+    const [toolsCard, serverCard] = Array.from(cards)
+    expect(toolsCard).toBeDefined()
+    expect(serverCard).toBeDefined()
+    act(() => { fireEvent.click(toolsCard) })
+    act(() => { fireEvent.click(serverCard) })
+    expect(container.textContent).toContain('MCP tools')
+    expect(container.textContent).toContain('github search')
+    expect(container.textContent).toContain('MCP servers')
+    expect(container.textContent).toContain('github')
+  })
+
+  it('uses a readable server and action name for MCP calls', () => {
+    const container = renderInto(
+      <ToolTabView
+        view="mcp"
+        messages={[]}
+        streamingToolCalls={[
+          {
+            id: 'mcp-issues',
+            name: 'mcp__github__list_issues',
+            phase: 'complete',
+            args: { query: 'open bugs' },
+          },
+        ]}
+      />,
+    )
+
+    expect(container.textContent).toContain('MCP · github · list issues')
+  })
+
   it('renders error status for errored tool call', () => {
     const streamingToolCalls = [
       { id: 'c3', name: 'baz', phase: 'error', args: {}, result: 'boom' },
@@ -185,7 +263,7 @@ describe('ToolTabView streaming tool calls', () => {
         ],
       } as unknown as Parameters<typeof ToolTabView>[0]['messages'][number],
     ]
-    const container = renderInto(<ToolTabView messages={messages} streamingToolCalls={[]} />)
+    const container = renderInto(<ToolTabView view="todos" messages={messages} streamingToolCalls={[]} />)
     expect(container.textContent).toContain('done')
     expect(container.textContent).not.toContain('running')
   })
@@ -224,7 +302,7 @@ describe('ToolTabView streaming tool calls', () => {
         ],
       } as any,
     ]
-    const container = renderInto(<ToolTabView messages={messages} streamingToolCalls={[]} />)
+    const container = renderInto(<ToolTabView view="todos" messages={messages} streamingToolCalls={[]} />)
     expect(container.textContent).toContain('done')
   })
 
@@ -252,8 +330,7 @@ describe('ToolTabView streaming tool calls', () => {
     expect(container.textContent).toContain('profile data')
   })
 
-  it('todo tool is not categorized as skill chip', () => {
-    // todo is its own tool, not a skill; it should NOT appear under 'skill' filter
+  it('keeps todo calls out of the general tools view', () => {
     const messages = [
       {
         role: 'assistant',
@@ -262,13 +339,106 @@ describe('ToolTabView streaming tool calls', () => {
       },
     ] as any
     const container = renderInto(<ToolTabView messages={messages} streamingToolCalls={[]} />)
-    // The 'skill' filter pill should NOT appear since there are no skill entries
-    const pills = container.querySelectorAll('button')
-    const skillPill = Array.from(pills).find((b) => b.textContent === 'skill')
-    expect(skillPill).toBeUndefined()
-    // But 'todo' pill should appear
-    const todoPill = Array.from(pills).find((b) => b.textContent === 'todo')
-    expect(todoPill).not.toBeUndefined()
+    expect(container.textContent).toContain('No tool invocations yet')
+    expect(container.textContent).not.toContain('call_todo')
+  })
+
+  it('shows only todo calls in the todos view', () => {
+    const container = renderInto(
+      <ToolTabView
+        view="todos"
+        messages={[]}
+        streamingToolCalls={[
+          { id: 'todo-1', name: 'todo', phase: 'complete', args: { todos: [] } },
+          { id: 'bash-1', name: 'bash', phase: 'complete', args: { command: 'pwd' } },
+        ]}
+      />,
+    )
+    expect(container.textContent).toContain('todo')
+    expect(container.textContent).not.toContain('bash')
+  })
+
+  it('renders wrapped todo input as a readable checklist', () => {
+    const container = renderInto(
+      <ToolTabView
+        view="todos"
+        messages={[]}
+        streamingToolCalls={[
+          {
+            id: 'todo-1',
+            name: 'todo',
+            phase: 'complete',
+            args: {
+              value: JSON.stringify({
+                todos: [
+                  { content: 'Ship the focused UI test', status: 'completed' },
+                  { content: 'Check the visual result', status: 'in_progress' },
+                  { content: 'Write release notes', status: 'pending' },
+                ],
+              }),
+            },
+          },
+        ]}
+      />,
+    )
+    act(() => { fireEvent.click(container.querySelector('button[aria-expanded]')!) })
+    expect(container.textContent).toContain('Ship the focused UI test')
+    expect(container.textContent).toContain('Check the visual result')
+    expect(container.textContent).toContain('in progress')
+    expect(container.textContent).toContain('Write release notes')
+    expect(container.textContent).toContain('Raw input')
+    expect(container.querySelector('details')?.open).toBe(false)
+  })
+
+  it('shows configured MCP calls and excludes ordinary tools in the MCP view', () => {
+    const container = renderInto(
+      <ToolTabView
+        view="mcp"
+        mcpToolNames={new Set(['github_search'])}
+        messages={[]}
+        streamingToolCalls={[
+          { id: 'mcp-1', name: 'github_search', phase: 'complete', args: { q: 'switchui' } },
+          { id: 'bash-1', name: 'bash', phase: 'complete', args: { command: 'pwd' } },
+        ]}
+      />,
+    )
+    expect(container.textContent).toContain('github_search')
+    expect(container.textContent).not.toContain('bash')
+  })
+
+  it('keeps to-dos and MCP calls out of the general tools view', () => {
+    const container = renderInto(
+      <ToolTabView
+        mcpToolNames={new Set(['github_search'])}
+        messages={[]}
+        streamingToolCalls={[
+          { id: 'todo-1', name: 'todo', phase: 'complete', args: { todos: [] } },
+          { id: 'mcp-1', name: 'github_search', phase: 'complete', args: { q: 'switchui' } },
+          { id: 'exec-1', name: 'exec', phase: 'complete', args: { command: 'pwd' } },
+        ]}
+      />,
+    )
+
+    expect(container.textContent).toContain('exec')
+    expect(container.textContent).not.toContain('todo-1')
+    expect(container.textContent).not.toContain('github_search')
+  })
+
+  it('moves file operations to the Files view and out of Tools', () => {
+    const streamingToolCalls = [
+      { id: 'read-1', name: 'read_file', phase: 'complete', args: { file_path: 'src/app.tsx' } },
+      { id: 'write-1', name: 'write_file', phase: 'complete', args: { path: 'src/app.tsx' } },
+      { id: 'exec-1', name: 'exec', phase: 'complete', args: { command: 'pwd' } },
+    ]
+    const tools = renderInto(<ToolTabView messages={[]} streamingToolCalls={streamingToolCalls} />)
+    const files = renderInto(<ToolTabView view="files" messages={[]} streamingToolCalls={streamingToolCalls} />)
+
+    expect(tools.textContent).toContain('exec')
+    expect(tools.textContent).not.toContain('read_file')
+    expect(tools.textContent).not.toContain('write_file')
+    expect(files.textContent).toContain('read_file')
+    expect(files.textContent).toContain('write_file')
+    expect(files.textContent).not.toContain('exec')
   })
 
   it('task tool appears under kanban category not skill', () => {
@@ -324,7 +494,7 @@ describe('ToolTabView streaming tool calls', () => {
       { id: 'call_a', name: 'todo', phase: 'calling', args: { x: 1 } },
     ]
     const container = renderInto(
-      <ToolTabView messages={messages} streamingToolCalls={streamingToolCalls} />,
+      <ToolTabView view="todos" messages={messages} streamingToolCalls={streamingToolCalls} />,
     )
     expect(container.textContent).toContain('done')
     expect(container.textContent).not.toContain('running')

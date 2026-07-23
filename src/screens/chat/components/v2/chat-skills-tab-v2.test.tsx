@@ -284,6 +284,19 @@ describe('ChatSkillsTabV2', () => {
     expect(container.textContent).toContain('caveman')
   })
 
+  it('uses a plain-language action and keeps raw skill details available', () => {
+    const messages = makeSkillManageMessage('id-readable', 'caveman')
+    const { container } = renderInto(<ChatSkillsTabV2 messages={messages} />)
+    const card = container.querySelector<HTMLButtonElement>('[aria-expanded]')
+
+    act(() => { card?.click() })
+
+    expect(container.textContent).toContain('Updated')
+    expect(container.textContent).toContain('Result')
+    expect(container.textContent).toContain('Raw input')
+    expect(container.textContent).toContain('Raw result')
+  })
+
   it('enumerate filter shows only skills_list entries', () => {
     const messages: Array<ChatMessage> = [
       ...makeSkillMessage('id-leg', 'ralph'),

@@ -3,6 +3,23 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.23] — 2026-07-23
+
+### Added
+
+- **Dedicated chat-history views** for to-dos, MCP calls, skills, and file activity. Each view has its own count and keeps unrelated calls out of the way.
+- **Agents drawer** — a robot-icon launcher beside the composer opens the session's sub-agent activity and shows the current agent count.
+
+### Changed
+
+- Tool, MCP, skill, and to-do call details are now human-readable: meaningful labels and fields are shown first, with raw input/output available on demand.
+- The chat no longer reserves a permanent Agent View column; the on-demand Agents drawer preserves more room for the conversation.
+
+### Fixed
+
+- Agent counts combine persisted child sessions with live delegation events without double-counting, and remain correct before a child session is persisted.
+- Base UI preview cards no longer crash when their preview ref is unavailable.
+
 ## [2.5.21] — 2026-07-21
 
 ### Added

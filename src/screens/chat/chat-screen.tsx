@@ -5,9 +5,11 @@ import {
   useRef,
   useState,
 } from 'react'
+import { Bot } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 
+import { useMcpServers } from '../mcp/hooks/use-mcp-servers'
 import {
   deriveFriendlyIdFromKey,
   readError,
@@ -50,6 +52,7 @@ import {
   useSessionsFeed,
 } from './sessions-feed'
 import { useToolDisplay } from './hooks/use-tool-display'
+import { countSessionAgents, useDelegations } from './hooks/use-delegations'
 import { useDisplayMessages } from './hooks/use-display-messages'
 import { useDrainWatchdog } from './hooks/use-drain-watchdog'
 import { useChatMobile } from './hooks/use-chat-mobile'
@@ -70,10 +73,7 @@ import { ChatHeaderV2 } from './components/v2/chat-header-v2'
 import { ChatMetaBarV2 } from './components/v2/chat-meta-bar-v2'
 import { ChatSkillsTabV2 } from './components/v2/chat-skills-tab-v2'
 import { ToolTabView } from './components/v2/chat-tab-views-v2'
-import { DelegationTabView } from './components/v2/delegation-tab-view'
-import { ChatDelegations } from './components/v2/chat-delegations-strip'
-import { extractDelegateTaskToolCalls, mergeChatDelegations } from './chat-delegations'
-import { useDelegations } from './hooks/use-delegations'
+import { DelegationSidebarOverlay } from './components/v2/delegation-tab-view'
 import type {
   ChatComposerAttachment,
   ChatComposerHandle,
@@ -87,8 +87,6 @@ import { cn } from '@/lib/utils'
 import { FileExplorerSidebar } from '@/components/file-explorer'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { TerminalPanel } from '@/components/terminal-panel'
-import { AgentViewPanel } from '@/components/agent-view/agent-view-panel'
-import { ErrorBoundary } from '@/components/error-boundary'
 import { useTerminalPanelStore } from '@/stores/terminal-panel-store'
 import {
   useEnabledUserCommands,
@@ -155,6 +153,7 @@ export function ChatScreen({
   const enabledUserCommands = userCommandsQuery.data
   const [_creatingSession, setCreatingSession] = useState(false)
   const [sessionsOpen, setSessionsOpen] = useState(false)
+  const [agentsOpen, setAgentsOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isRedirecting, setIsRedirecting] = useState(false)
   const { headerRef, composerRef, mainRef, pinGroupMinHeight, headerHeight } =
@@ -190,8 +189,6 @@ export function ChatScreen({
     chatFocusMode,
     isFocusMode,
     fileExplorerCollapsed,
-    handleToggleFocusMode,
-    handleToggleSidebarCollapse,
     handleToggleFileExplorer,
     handleInsertFileReference,
   } = useFocusMode({ compact, composerHandleRef })
@@ -475,35 +472,47 @@ export function ChatScreen({
   // Sync bridge ref for sendMessage (seam #4 PR 2)
   clearCompletedStreamingRef.current = clearCompletedStreaming
 
+  const mcpServersQuery = useMcpServers({
+    tab: 'all',
+    category: 'All',
+    search: '',
+  })
+  const mcpToolNames = useMemo(
+    () =>
+      new Set(
+        (mcpServersQuery.data?.servers ?? [])
+          .flatMap((server) => server.discoveredTools)
+          .map((tool) => tool.name.toLowerCase()),
+      ),
+    [mcpServersQuery.data],
+  )
+
   const {
     activeTab,
     setActiveTab,
     toolDisplayMode,
     cycleToolDisplayMode,
     totalToolCount,
+    totalTodoCount,
+    totalMcpCount,
+    totalFileCount,
     totalSkillCount,
-  } = useToolDisplay({ realtimeMessages, activeToolCalls })
+  } = useToolDisplay({ realtimeMessages, activeToolCalls, mcpToolNames })
 
   const { delegations } = useDelegations(activeSessionKey || activeFriendlyId)
-  const sessionStreamingDelegations = useChatStore(
+  const streamingDelegations = useChatStore(
     useCallback(
-      (s) =>
+      (state) =>
         resolvedSessionKey
-          ? s.streamingState.get(resolvedSessionKey)?.delegations
-          : undefined,
+          ? state.streamingState.get(resolvedSessionKey)?.delegations ??
+            EMPTY_STREAMING_DELEGATIONS
+          : EMPTY_STREAMING_DELEGATIONS,
       [resolvedSessionKey],
     ),
   )
-  const streamingDelegations =
-    sessionStreamingDelegations ?? EMPTY_STREAMING_DELEGATIONS
-  const mergedDelegations = useMemo(
-    () =>
-      mergeChatDelegations({
-        delegations,
-        toolCalls: extractDelegateTaskToolCalls(realtimeMessages, activeToolCalls),
-        streamingDelegations,
-      }),
-    [delegations, activeToolCalls, realtimeMessages, streamingDelegations],
+  const agentCount = useMemo(
+    () => countSessionAgents(delegations, streamingDelegations),
+    [delegations, streamingDelegations],
   )
 
   useEffect(() => {
@@ -1206,10 +1215,6 @@ export function ChatScreen({
 
   // Pull-to-refresh offset removed
 
-  const handleOpenAgentDetails = useCallback(() => {
-    // agent view panel removed
-  }, [])
-
   const handleRenameActiveSessionTitle = useCallback(
     async (nextTitle: string) => {
       const sessionKey =
@@ -1289,8 +1294,10 @@ export function ChatScreen({
                 tabCounts={{
                   chat: finalDisplayMessages.length,
                   tool: totalToolCount,
+                  todos: totalTodoCount,
+                  mcp: totalMcpCount,
                   skills: totalSkillCount,
-                  delegations: delegations.length,
+                  files: totalFileCount,
                 }}
               />
               <ChatMetaBarV2
@@ -1322,6 +1329,27 @@ export function ChatScreen({
               messages={realtimeMessages}
               streamingToolCalls={activeToolCalls}
               events={realtimeLifecycleEvents}
+              mcpToolNames={mcpToolNames}
+            />
+          ) : activeTab === 'todos' ? (
+            <ToolTabView
+              messages={realtimeMessages}
+              streamingToolCalls={activeToolCalls}
+              view="todos"
+            />
+          ) : activeTab === 'mcp' ? (
+            <ToolTabView
+              messages={realtimeMessages}
+              streamingToolCalls={activeToolCalls}
+              view="mcp"
+              mcpToolNames={mcpToolNames}
+            />
+          ) : activeTab === 'files' ? (
+            <ToolTabView
+              messages={realtimeMessages}
+              streamingToolCalls={activeToolCalls}
+              view="files"
+              mcpToolNames={mcpToolNames}
             />
           ) : activeTab === 'skills' ? (
             <ChatSkillsTabV2
@@ -1329,8 +1357,6 @@ export function ChatScreen({
               streamingToolCalls={activeToolCalls}
               events={realtimeLifecycleEvents}
             />
-          ) : activeTab === 'delegations' ? (
-            <DelegationTabView sessionKey={activeSessionKey || activeFriendlyId} />
           ) : null}
           {hideUi || activeTab !== 'chat' ? null : (
             <StreamingTextContext.Provider
@@ -1382,46 +1408,57 @@ export function ChatScreen({
             </StreamingTextContext.Provider>
           )}
           {showComposer ? (
-            <ChatDelegations
-              delegations={mergedDelegations}
-            />
-          ) : null}
-          {showComposer ? (
-            <ChatComposerShadcn
-              onSubmit={send}
-              onAbort={handleAbortStreaming}
-              isLoading={isComposerLoading}
-              disabled={hideUi || (!!activeClarify && !activeClarify.resolved)}
-              sessionKey={activeQueueSessionKey || undefined}
-              wrapperRef={composerRef}
-              composerRef={composerHandleRef}
-              embedded={embedded}
-              // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
-              focusKey={`${isNewChat ? 'new' : activeFriendlyId}:${activeCanonicalKey ?? ''}`}
-              thinkingLevel={thinkingLevel}
-              replyTo={replyTo}
-              onClearReply={handleClearReply}
-              systemMessagesHidden={hideSystemMessages}
-              onToggleSystemMessages={handleToggleSystemMessages}
-              toolDisplayMode={toolDisplayMode}
-              onCycleToolDisplayMode={cycleToolDisplayMode}
-              onNewSession={handleNewSession}
-            />
+            <>
+              <ChatComposerShadcn
+                onSubmit={send}
+                onAbort={handleAbortStreaming}
+                isLoading={isComposerLoading}
+                disabled={hideUi || (!!activeClarify && !activeClarify.resolved)}
+                sessionKey={activeQueueSessionKey || undefined}
+                wrapperRef={composerRef}
+                composerRef={composerHandleRef}
+                embedded={embedded}
+                // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
+                focusKey={`${isNewChat ? 'new' : activeFriendlyId}:${activeCanonicalKey ?? ''}`}
+                thinkingLevel={thinkingLevel}
+                replyTo={replyTo}
+                onClearReply={handleClearReply}
+                systemMessagesHidden={hideSystemMessages}
+                onToggleSystemMessages={handleToggleSystemMessages}
+                toolDisplayMode={toolDisplayMode}
+                onCycleToolDisplayMode={cycleToolDisplayMode}
+                onNewSession={handleNewSession}
+              />
+              {!compact && !hideUi && !isMobile && !isFocusMode ? (
+                <button
+                  type="button"
+                  aria-label={agentsOpen ? 'Close agents' : `Show ${agentCount} agents`}
+                  aria-pressed={agentsOpen}
+                  title={agentsOpen ? 'Close agents' : `Show ${agentCount} agents`}
+                  onClick={() => setAgentsOpen((open) => !open)}
+                  className={cn(
+                    'absolute right-6 z-30 flex h-8 items-center gap-1.5 rounded-full border px-3 font-mono text-[11px] transition-colors',
+                    agentsOpen
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-primary/60 bg-card text-primary hover:bg-primary/10',
+                  )}
+                  style={{ bottom: `calc(${terminalPanelInset}px + 2.5rem)` }}
+                >
+                  <Bot className="size-4" aria-hidden="true" />
+                  <span>agents</span>
+                  <span className="tabular-nums opacity-80">{agentCount}</span>
+                </button>
+              ) : null}
+            </>
           ) : null}
         </main>
-        {/* Isolated boundary: an AgentViewPanel crash (e.g. AnimatePresence
-            re-render loop) must degrade to a retry card, never take down chat. */}
-        {!compact && !isFocusMode && (
-          <ErrorBoundary
-            inline
-            className="m-2 w-72 self-start"
-            title="Agent panel crashed"
-            description="Chat is unaffected. Retry to remount the panel."
-          >
-            <AgentViewPanel />
-          </ErrorBoundary>
-        )}
       </div>
+      {!compact && agentsOpen ? (
+        <DelegationSidebarOverlay
+          sessionKey={activeSessionKey || activeFriendlyId}
+          onClose={() => setAgentsOpen(false)}
+        />
+      ) : null}
       {!compact && !hideUi && !isMobile && !isFocusMode && <TerminalPanel />}
 
       {isMobile && (

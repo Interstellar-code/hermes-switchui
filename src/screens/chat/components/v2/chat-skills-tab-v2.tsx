@@ -56,6 +56,7 @@ type SkillInvocation = {
   key: string
   timestamp?: number
   displayTs?: number
+  action: string
   args?: Record<string, unknown>
   result?: string
   isError?: boolean
@@ -100,22 +101,36 @@ function statusColor(status: SkillGroup['status']): string {
   return 'var(--theme-accent, #6366f1)'
 }
 
+function unwrapArgs(args?: Record<string, unknown>): Record<string, unknown> | undefined {
+  if (!args || typeof args.value !== 'string') return args
+  try {
+    const parsed = JSON.parse(args.value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : args
+  } catch {
+    return args
+  }
+}
+
+function skillAction(toolName: string, args?: Record<string, unknown>): string {
+  if (toolName === 'skills_list') return 'Catalog viewed'
+  if (toolName === 'skill_manage') {
+    const action = unwrapArgs(args)?.action
+    if (action === 'create') return 'Created'
+    if (action === 'delete') return 'Deleted'
+    return 'Updated'
+  }
+  return 'Loaded'
+}
+
 /**
  * Extract a human-readable summary from tool args. Recurses into a
  * stringified `value` field (gateway sometimes wraps args this way).
  */
 function argsSummary(args?: Record<string, unknown>): string {
   if (!args || Object.keys(args).length === 0) return ''
-  let a: Record<string, unknown> = args
-  const v = a.value
-  if (typeof v === 'string') {
-    try {
-      const parsed = JSON.parse(v) as Record<string, unknown>
-      if (typeof parsed === 'object' && !Array.isArray(parsed)) a = parsed
-    } catch {
-      /* keep wrapper */
-    }
-  }
+  const a = unwrapArgs(args) ?? args
   // todo: extract `todos[].content`
   if (Array.isArray(a.todos)) {
     const items = (a.todos as Array<Record<string, unknown>>)
@@ -201,6 +216,7 @@ function SkillCard({ group }: { group: SkillGroup }) {
               >
                 <div className="flex items-center gap-2">
                   <span className="tabular-nums opacity-50">#{i + 1}</span>
+                  <span className="font-semibold" style={greenStyle}>{inv.action}</span>
                   {inv.displayTs != null ? (
                     <span className="tabular-nums opacity-40">{fmtTs(inv.displayTs)}</span>
                   ) : null}
@@ -209,15 +225,28 @@ function SkillCard({ group }: { group: SkillGroup }) {
                   ) : null}
                 </div>
                 {summary ? (
-                  <div className="mt-0.5 opacity-60 break-all">{summary}</div>
+                  <div className="mt-0.5 break-all opacity-60">{summary}</div>
                 ) : null}
                 {resultSnip ? (
                   <div
                     className="mt-0.5 break-all"
                     style={{ color: inv.isError ? 'var(--theme-danger, #ef4444)' : 'var(--code-foreground, var(--theme-text))' }}
                   >
+                    <span className="m-label mr-1 opacity-50">{inv.isError ? 'Error' : 'Result'}</span>
                     {resultSnip}
                   </div>
+                ) : null}
+                {inv.args && Object.keys(inv.args).length > 0 ? (
+                  <details className="mt-1 opacity-70">
+                    <summary className="cursor-pointer">Raw input</summary>
+                    <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words">{JSON.stringify(inv.args, null, 2)}</pre>
+                  </details>
+                ) : null}
+                {inv.result ? (
+                  <details className="mt-1 opacity-70">
+                    <summary className="cursor-pointer">Raw result</summary>
+                    <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words">{inv.result}</pre>
+                  </details>
                 ) : null}
               </div>
             )
@@ -295,6 +324,7 @@ export function ChatSkillsTabV2({ messages, streamingToolCalls = [], events: _ev
       key: entry.key,
       timestamp: entry.timestamp,
       displayTs: entry.displayTs,
+      action: skillAction(entry.name, entry.input),
       args: entry.input,
       result: entry.output,
       isError: entry.isError,

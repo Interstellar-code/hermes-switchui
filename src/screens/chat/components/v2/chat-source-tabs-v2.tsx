@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
-export type SourceTab = 'chat' | 'tool' | 'skills' | 'delegations'
+export type SourceTab = 'chat' | 'tool' | 'todos' | 'mcp' | 'skills' | 'files'
 
 type TabDef = {
   id: SourceTab
@@ -29,6 +29,28 @@ const TABS: Array<TabDef> = [
     ),
   },
   {
+    id: 'todos',
+    label: 'todos',
+    icon: (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M9 11l3 3L22 4" />
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+      </svg>
+    ),
+  },
+  {
+    id: 'mcp',
+    label: 'mcp',
+    icon: (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M12 2v7" />
+        <path d="M8 5l4 4 4-4" />
+        <path d="M5 12a3 3 0 0 0 0 6h2v-6H5zM19 12a3 3 0 0 1 0 6h-2v-6h2z" />
+        <path d="M7 15h10" />
+      </svg>
+    ),
+  },
+  {
     id: 'skills',
     label: 'skills',
     icon: (
@@ -40,14 +62,12 @@ const TABS: Array<TabDef> = [
     ),
   },
   {
-    id: 'delegations',
-    label: 'delegations',
+    id: 'files',
+    label: 'files',
     icon: (
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <circle cx="18" cy="5" r="3" />
-        <circle cx="6" cy="12" r="3" />
-        <circle cx="18" cy="19" r="3" />
-        <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
+        <path d="M4 3h7l2 3h7v15H4z" />
+        <path d="M4 8h16" />
       </svg>
     ),
   },
