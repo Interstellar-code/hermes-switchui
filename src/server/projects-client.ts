@@ -13,6 +13,9 @@ import type {
   ProjectDetailResponse,
   ProjectFoldersResponse,
   ProjectsListResponse,
+  SessionProjectBindingResponse,
+  SessionProjectResolution,
+  SessionProjectUnbindResponse,
   UpdateProjectInput,
 } from '../lib/projects-types'
 
@@ -24,7 +27,8 @@ const PROJECTS_FETCH_TIMEOUT_MS = 12_000
 
 function projectsErrorDetail(body: unknown, fallback: string): string {
   if (!body || typeof body !== 'object') return fallback
-  const value = (body as { detail?: unknown; error?: unknown }).detail ??
+  const value =
+    (body as { detail?: unknown; error?: unknown }).detail ??
     (body as { error?: unknown }).error
   if (typeof value === 'string') return value
   if (Array.isArray(value)) {
@@ -188,6 +192,33 @@ export function setActiveProject(
   return mutateProject<ProjectsListResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/active`,
     jsonInit('POST'),
+  )
+}
+
+export function resolveSessionProject(
+  sessionId: string,
+): Promise<SessionProjectResolution> {
+  return projectsFetch<SessionProjectResolution>(
+    `${BASE}/session/${encodeURIComponent(sessionId)}`,
+  )
+}
+
+export function bindSessionProject(
+  sessionId: string,
+  projectSlug: string,
+): Promise<SessionProjectBindingResponse> {
+  return mutateProject<SessionProjectBindingResponse>(
+    `${BASE}/session?session_id=${encodeURIComponent(sessionId)}`,
+    jsonInit('POST', { project_slug: projectSlug, bound_by: 'switchui' }),
+  )
+}
+
+export function unbindSessionProject(
+  sessionId: string,
+): Promise<SessionProjectUnbindResponse> {
+  return mutateProject<SessionProjectUnbindResponse>(
+    `${BASE}/session/${encodeURIComponent(sessionId)}`,
+    jsonInit('DELETE'),
   )
 }
 

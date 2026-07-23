@@ -7,6 +7,9 @@ import type {
   ProjectFoldersResponse,
   ProjectMutationResponse,
   ProjectsListResponse,
+  SessionProjectBindingResponse,
+  SessionProjectResolution,
+  SessionProjectUnbindResponse,
   UpdateProjectInput,
 } from './projects-types'
 
@@ -24,9 +27,7 @@ async function projectsJson<T>(url: string, init?: RequestInit): Promise<T> {
         : Array.isArray(detail)
           ? detail
               .flatMap((item) =>
-                item &&
-                typeof item === 'object' &&
-                typeof item.msg === 'string'
+                item && typeof item === 'object' && typeof item.msg === 'string'
                   ? [item.msg]
                   : [],
               )
@@ -59,6 +60,8 @@ export const projectsKeys = {
     ['hermes-projects', 'folders', idOrSlug] as const,
   activity: (idOrSlug: string) =>
     ['hermes-projects', 'activity', idOrSlug] as const,
+  session: (sessionKey: string) =>
+    ['hermes-projects', 'session', sessionKey] as const,
 }
 
 export async function fetchProjects(
@@ -98,6 +101,41 @@ export async function fetchProjectActivity(
   const qs = q.toString()
   return projectsJson<ProjectActivityResponse>(
     `/api/hermes-projects/${encodeURIComponent(idOrSlug)}/activity${qs ? `?${qs}` : ''}`,
+  )
+}
+
+function sessionProjectPath(sessionKey: string): string {
+  return `/api/hermes-projects/session?sessionKey=${encodeURIComponent(sessionKey)}`
+}
+
+export function fetchSessionProject(
+  sessionKey: string,
+): Promise<SessionProjectResolution> {
+  return projectsJson<SessionProjectResolution>(sessionProjectPath(sessionKey))
+}
+
+export function bindSessionProject({
+  sessionKey,
+  projectSlug,
+}: {
+  sessionKey: string
+  projectSlug: string
+}): Promise<SessionProjectBindingResponse> {
+  return projectsJson<SessionProjectBindingResponse>(
+    sessionProjectPath(sessionKey),
+    jsonBody({ project_slug: projectSlug }),
+  )
+}
+
+export function unbindSessionProject(
+  sessionKey: string,
+): Promise<SessionProjectUnbindResponse> {
+  return projectsJson<SessionProjectUnbindResponse>(
+    sessionProjectPath(sessionKey),
+    {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    },
   )
 }
 
@@ -244,6 +282,33 @@ export function useDeleteProject() {
   return useProjectMutation(deleteProject)
 }
 
+function invalidateSessionProjectQuery(
+  queryClient: ReturnType<typeof useQueryClient>,
+  sessionKey: string,
+) {
+  return queryClient.invalidateQueries({
+    queryKey: projectsKeys.session(sessionKey),
+  })
+}
+
+export function useBindSessionProject() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: bindSessionProject,
+    onSuccess: (_, { sessionKey }) =>
+      invalidateSessionProjectQuery(queryClient, sessionKey),
+  })
+}
+
+export function useUnbindSessionProject() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: unbindSessionProject,
+    onSuccess: (_, sessionKey) =>
+      invalidateSessionProjectQuery(queryClient, sessionKey),
+  })
+}
+
 export function useProjects(includeArchived = false, enabled = true) {
   return useQuery({
     queryKey: projectsKeys.list(includeArchived),
@@ -277,5 +342,14 @@ export function useProjectActivity(
     queryKey: projectsKeys.activity(idOrSlug),
     queryFn: () => fetchProjectActivity(idOrSlug, opts),
     enabled: enabled && !!idOrSlug,
+  })
+}
+
+export function useSessionProject(sessionKey?: string) {
+  return useQuery({
+    queryKey: projectsKeys.session(sessionKey ?? ''),
+    queryFn: () => fetchSessionProject(sessionKey!),
+    enabled: Boolean(sessionKey),
+    staleTime: 30_000,
   })
 }

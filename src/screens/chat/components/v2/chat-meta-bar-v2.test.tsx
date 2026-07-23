@@ -10,6 +10,14 @@ type MockQueryResult = {
   isError?: boolean
 }
 
+type MockMutationOptions = {
+  mutationFn?: (input: unknown) => Promise<unknown>
+  onSuccess?: (data: unknown, input: unknown) => unknown
+  onError?: (error: unknown, input: unknown) => unknown
+}
+
+type MockMutationHandlers = Pick<MockMutationOptions, 'onSuccess' | 'onError'>
+
 const { mockQueries, mockStatus, baseStatus } = vi.hoisted(() => {
   const initialStatus = {
     contextPercent: 0,
@@ -64,9 +72,20 @@ vi.mock('@tanstack/react-query', () => ({
       isLoading: false,
       isError: false,
     },
-  useMutation: () => ({
-    mutate: () => undefined,
-    mutateAsync: () => Promise.resolve(),
+  useMutation: (options: MockMutationOptions = {}) => ({
+    mutate: (input: unknown, handlers?: MockMutationHandlers) => {
+      void options
+        .mutationFn?.(input)
+        .then((data) => {
+          options.onSuccess?.(data, input)
+          handlers?.onSuccess?.(data, input)
+        })
+        .catch((error: unknown) => {
+          options.onError?.(error, input)
+          handlers?.onError?.(error, input)
+        })
+    },
+    mutateAsync: (input: unknown) => options.mutationFn?.(input),
     isPending: false,
   }),
   useQueryClient: () => ({
@@ -81,6 +100,18 @@ vi.mock('@/hooks/use-session-status', () => ({
 }))
 
 beforeEach(() => {
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: () => undefined,
+  })
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  )
   Object.assign(mockStatus, baseStatus)
   mockQueries['claude|models'] = {
     data: undefined,
@@ -93,6 +124,16 @@ beforeEach(() => {
     isError: false,
   }
   mockQueries['workspace|composer-context'] = {
+    data: undefined,
+    isLoading: false,
+    isError: false,
+  }
+  mockQueries['hermes-projects|list|[object Object]'] = {
+    data: undefined,
+    isLoading: false,
+    isError: false,
+  }
+  mockQueries['hermes-projects|session|abc'] = {
     data: undefined,
     isLoading: false,
     isError: false,
@@ -187,6 +228,142 @@ describe('ChatMetaBarV2', () => {
     const container = renderInto(<ChatMetaBarV2 sessionKey="t_49b85d13" />)
     const selectors = container.querySelector('[data-testid="meta-selectors"]')
     expect(selectors).not.toBeNull()
+  })
+
+  it('shows each session binding and never changes the active project', async () => {
+    mockQueries['hermes-projects|list|[object Object]'] = {
+      data: {
+        active_id: 'project-active',
+        projects: [
+          {
+            id: 'project-active',
+            slug: 'hermes-agent',
+            name: 'Hermes Agent',
+            icon: '⚡',
+            color: '#00ff41',
+            primary_path: '/Users/rohits/hermes-agent',
+            board_slug: 'hermes-board',
+            bound_board: { name: 'Hermes board' },
+            is_active: true,
+          },
+          {
+            id: 'project-other',
+            slug: 'switchui',
+            name: 'SwitchUI',
+            icon: null,
+            color: null,
+            primary_path: '/Users/rohits/Development/hermes-switchui',
+            board_slug: null,
+            bound_board: null,
+            is_active: false,
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    }
+    mockQueries['hermes-projects|session|chat-a'] = {
+      data: {
+        session_id: 'chat-a',
+        project: {
+          id: 'project-active',
+          slug: 'hermes-agent',
+          name: 'Hermes Agent',
+        },
+        source: 'binding',
+      },
+      isLoading: false,
+      isError: false,
+    }
+    mockQueries['hermes-projects|session|chat-b'] = {
+      data: {
+        session_id: 'chat-b',
+        project: { id: 'project-other', slug: 'switchui', name: 'SwitchUI' },
+        source: 'binding',
+      },
+      isLoading: false,
+      isError: false,
+    }
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({ projects: [], active_id: 'project-other' }),
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const container = renderInto(<ChatMetaBarV2 sessionKey="chat-a" />)
+    const selector = container.querySelector(
+      '[data-testid="project-selector"]',
+    ) as HTMLButtonElement
+    expect(selector.textContent).toContain('Hermes Agent')
+
+    const second = renderInto(<ChatMetaBarV2 sessionKey="chat-b" />)
+    expect(
+      second.querySelector('[data-testid="project-selector"]')?.textContent,
+    ).toContain('SwitchUI')
+
+    await act(() => {
+      selector.click()
+    })
+    const option = document.querySelector(
+      '[data-testid="project-option-project-other"]',
+    ) as HTMLButtonElement
+    expect(option.textContent).toContain('SwitchUI')
+    expect(option.textContent).toContain(
+      '/Users/rohits/Development/hermes-switchui',
+    )
+
+    await act(() => {
+      option.click()
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/hermes-projects/session?sessionKey=chat-a',
+      expect.objectContaining({ method: 'POST' }),
+    )
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringContaining('/active'),
+      expect.anything(),
+    )
+  })
+
+  it('shows no project when a chat only inherits the profile default', () => {
+    mockQueries['hermes-projects|list|[object Object]'] = {
+      data: {
+        active_id: 'project-active',
+        projects: [
+          {
+            id: 'project-active',
+            slug: 'india-grand-tour',
+            name: 'India Grand Tour 2026',
+            icon: null,
+            color: null,
+            is_active: true,
+          },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    }
+    mockQueries['hermes-projects|session|new-chat'] = {
+      data: {
+        session_id: 'new-chat',
+        project: {
+          id: 'project-active',
+          slug: 'india-grand-tour',
+          name: 'India Grand Tour 2026',
+        },
+        source: 'active',
+      },
+      isLoading: false,
+      isError: false,
+    }
+
+    const container = renderInto(<ChatMetaBarV2 sessionKey="new-chat" />)
+    expect(
+      container.querySelector('[data-testid="project-selector"]')?.textContent,
+    ).toContain('No project')
   })
 
   it('tolerates null profile and workspace rows from query payloads', () => {

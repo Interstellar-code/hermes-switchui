@@ -151,6 +151,7 @@ import { Route as ApiKnowledgeSearchRouteImport } from './routes/api/knowledge/s
 import { Route as ApiKnowledgeReadRouteImport } from './routes/api/knowledge/read'
 import { Route as ApiKnowledgeListRouteImport } from './routes/api/knowledge/list'
 import { Route as ApiKnowledgeConfigRouteImport } from './routes/api/knowledge/config'
+import { Route as ApiHermesProjectsSessionRouteImport } from './routes/api/hermes-projects/session'
 import { Route as ApiHermesProjectsIdRouteImport } from './routes/api/hermes-projects/$id'
 import { Route as ApiHermesPluginSettingsRouteImport } from './routes/api/hermes-plugin.settings'
 import { Route as ApiHermesKanbanTemplatesRouteImport } from './routes/api/hermes-kanban/templates'
@@ -939,6 +940,12 @@ const ApiKnowledgeConfigRoute = ApiKnowledgeConfigRouteImport.update({
   path: '/api/knowledge/config',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHermesProjectsSessionRoute =
+  ApiHermesProjectsSessionRouteImport.update({
+    id: '/api/hermes-projects/session',
+    path: '/api/hermes-projects/session',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiHermesProjectsIdRoute = ApiHermesProjectsIdRouteImport.update({
   id: '/api/hermes-projects/$id',
   path: '/api/hermes-projects/$id',
@@ -1470,6 +1477,7 @@ export interface FileRoutesByFullPath {
   '/api/hermes-kanban/templates': typeof ApiHermesKanbanTemplatesRouteWithChildren
   '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
   '/api/hermes-projects/$id': typeof ApiHermesProjectsIdRouteWithChildren
+  '/api/hermes-projects/session': typeof ApiHermesProjectsSessionRoute
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
   '/api/knowledge/read': typeof ApiKnowledgeReadRoute
@@ -1686,6 +1694,7 @@ export interface FileRoutesByTo {
   '/api/hermes-kanban/templates': typeof ApiHermesKanbanTemplatesRouteWithChildren
   '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
   '/api/hermes-projects/$id': typeof ApiHermesProjectsIdRouteWithChildren
+  '/api/hermes-projects/session': typeof ApiHermesProjectsSessionRoute
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
   '/api/knowledge/read': typeof ApiKnowledgeReadRoute
@@ -1905,6 +1914,7 @@ export interface FileRoutesById {
   '/api/hermes-kanban/templates': typeof ApiHermesKanbanTemplatesRouteWithChildren
   '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
   '/api/hermes-projects/$id': typeof ApiHermesProjectsIdRouteWithChildren
+  '/api/hermes-projects/session': typeof ApiHermesProjectsSessionRoute
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
   '/api/knowledge/read': typeof ApiKnowledgeReadRoute
@@ -2125,6 +2135,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/templates'
     | '/api/hermes-plugin/settings'
     | '/api/hermes-projects/$id'
+    | '/api/hermes-projects/session'
     | '/api/knowledge/config'
     | '/api/knowledge/list'
     | '/api/knowledge/read'
@@ -2341,6 +2352,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/templates'
     | '/api/hermes-plugin/settings'
     | '/api/hermes-projects/$id'
+    | '/api/hermes-projects/session'
     | '/api/knowledge/config'
     | '/api/knowledge/list'
     | '/api/knowledge/read'
@@ -2559,6 +2571,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/templates'
     | '/api/hermes-plugin/settings'
     | '/api/hermes-projects/$id'
+    | '/api/hermes-projects/session'
     | '/api/knowledge/config'
     | '/api/knowledge/list'
     | '/api/knowledge/read'
@@ -2769,6 +2782,7 @@ export interface RootRouteChildren {
   ApiHermesKanbanTasksRoute: typeof ApiHermesKanbanTasksRouteWithChildren
   ApiHermesKanbanTemplatesRoute: typeof ApiHermesKanbanTemplatesRouteWithChildren
   ApiHermesProjectsIdRoute: typeof ApiHermesProjectsIdRouteWithChildren
+  ApiHermesProjectsSessionRoute: typeof ApiHermesProjectsSessionRoute
   ApiKnowledgeConfigRoute: typeof ApiKnowledgeConfigRoute
   ApiKnowledgeListRoute: typeof ApiKnowledgeListRoute
   ApiKnowledgeReadRoute: typeof ApiKnowledgeReadRoute
@@ -3799,6 +3813,13 @@ declare module '@tanstack/react-router' {
       path: '/api/knowledge/config'
       fullPath: '/api/knowledge/config'
       preLoaderRoute: typeof ApiKnowledgeConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hermes-projects/session': {
+      id: '/api/hermes-projects/session'
+      path: '/api/hermes-projects/session'
+      fullPath: '/api/hermes-projects/session'
+      preLoaderRoute: typeof ApiHermesProjectsSessionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/hermes-projects/$id': {
@@ -4980,6 +5001,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHermesKanbanTasksRoute: ApiHermesKanbanTasksRouteWithChildren,
   ApiHermesKanbanTemplatesRoute: ApiHermesKanbanTemplatesRouteWithChildren,
   ApiHermesProjectsIdRoute: ApiHermesProjectsIdRouteWithChildren,
+  ApiHermesProjectsSessionRoute: ApiHermesProjectsSessionRoute,
   ApiKnowledgeConfigRoute: ApiKnowledgeConfigRoute,
   ApiKnowledgeListRoute: ApiKnowledgeListRoute,
   ApiKnowledgeReadRoute: ApiKnowledgeReadRoute,

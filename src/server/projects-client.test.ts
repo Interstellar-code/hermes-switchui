@@ -239,4 +239,49 @@ describe('projects-client', () => {
       expect(calledPath).not.toContain('cursor')
     })
   })
+
+  describe('session project bindings', () => {
+    it('resolves the project for one chat session', async () => {
+      mockDashboardFetch.mockResolvedValueOnce(
+        makeOkResponse({
+          session_id: 'chat-1',
+          project: { id: 'p_1', slug: 'demo', name: 'Demo' },
+          source: 'binding',
+        }),
+      )
+      const { resolveSessionProject } = await import('./projects-client')
+      await resolveSessionProject('chat-1')
+      expect(mockDashboardFetch).toHaveBeenCalledWith(
+        '/api/plugins/projects/session/chat-1?profile=hermes-switch',
+        expect.any(Object),
+      )
+    })
+
+    it('binds a project to one chat session without changing the active project', async () => {
+      mockDashboardFetch.mockResolvedValueOnce(
+        makeOkResponse({ binding: {}, project: { id: 'p_1' } }),
+      )
+      const { bindSessionProject } = await import('./projects-client')
+      await bindSessionProject('chat-1', 'demo')
+      expect(mockDashboardFetch).toHaveBeenCalledWith(
+        '/api/plugins/projects/session?session_id=chat-1&profile=hermes-switch',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ project_slug: 'demo', bound_by: 'switchui' }),
+        }),
+      )
+    })
+
+    it('removes only one chat session binding', async () => {
+      mockDashboardFetch.mockResolvedValueOnce(
+        makeOkResponse({ session_id: 'chat-1', removed: 1 }),
+      )
+      const { unbindSessionProject } = await import('./projects-client')
+      await unbindSessionProject('chat-1')
+      expect(mockDashboardFetch).toHaveBeenCalledWith(
+        '/api/plugins/projects/session/chat-1?profile=hermes-switch',
+        expect.objectContaining({ method: 'DELETE' }),
+      )
+    })
+  })
 })

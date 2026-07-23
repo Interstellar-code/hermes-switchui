@@ -19,6 +19,7 @@ import {
   Briefcase,
   Check,
   ChevronDown,
+  FolderKanban,
   UserRound,
   X,
 } from 'lucide-react'
@@ -49,14 +50,28 @@ import type {
   ThinkingLevel,
   WorkspaceDetectionResponse,
 } from '../chat-composer-types'
+import type { Project } from '@/lib/projects-types'
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
 } from '@/components/shadcn/ui/popover'
+import {
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/shadcn/ui/command'
 import { formatModelName } from '@/lib/format-model-name'
 import { usePinnedModels } from '@/hooks/use-pinned-models'
 import { cn } from '@/lib/utils'
+import {
+  useBindSessionProject,
+  useProjects,
+  useSessionProject,
+  useUnbindSessionProject,
+} from '@/lib/projects-api'
 import { useGatewayRestartStore } from '@/stores/gateway-restart-store'
 import { useSessionModelStore } from '@/stores/session-model-store'
 
@@ -203,6 +218,7 @@ function SessionSelectorsV2Component({
   const [modelMenuOpen, setModelMenuOpen] = React.useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = React.useState(false)
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = React.useState(false)
+  const [projectMenuOpen, setProjectMenuOpen] = React.useState(false)
   const [thinkingMenuOpen, setThinkingMenuOpen] = React.useState(false)
   const [modelNotice, setModelNotice] =
     React.useState<ModelSwitchNotice | null>(null)
@@ -238,6 +254,10 @@ function SessionSelectorsV2Component({
     retry: false,
     staleTime: 30_000,
   })
+  const projectsQuery = useProjects(false)
+  const sessionProjectQuery = useSessionProject(sessionKey)
+  const bindSessionProjectMutation = useBindSessionProject()
+  const unbindSessionProjectMutation = useUnbindSessionProject()
   const gatewayModeQuery = useQuery({
     queryKey: ['gateway-status', 'mode'],
     queryFn: fetchGatewayMode,
@@ -261,6 +281,7 @@ function SessionSelectorsV2Component({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['profiles'] }),
         queryClient.invalidateQueries({ queryKey: ['workspace'] }),
+        queryClient.invalidateQueries({ queryKey: ['hermes-projects'] }),
         queryClient.invalidateQueries({ queryKey: ['claude', 'models'] }),
         queryClient.invalidateQueries({
           queryKey: ['claude', 'session-status-model'],
@@ -362,6 +383,76 @@ function SessionSelectorsV2Component({
     workspaceContextQuery.data?.folderName ||
     shortPathLabel(detectedWorkspacePath) ||
     'Workspace'
+  const projects = projectsQuery.data?.projects ?? []
+  // The backend may report a profile-level fallback. The chat control only
+  // represents an explicit assignment, so a new chat starts unassigned.
+  const sessionProject =
+    sessionProjectQuery.data?.source === 'binding'
+      ? sessionProjectQuery.data.project
+      : null
+  const selectedProject = sessionProject
+    ? (projects.find((project) => project.id === sessionProject.id) ??
+      projects.find((project) => project.slug === sessionProject.slug) ??
+      sessionProject)
+    : null
+  const selectedProjectDetails =
+    selectedProject && 'icon' in selectedProject ? selectedProject : null
+  const projectButtonLabel = selectedProject?.name || 'No project'
+  const projectSelectionIsBinding =
+    sessionProjectQuery.data?.source === 'binding'
+  const projectSelectorDisabled =
+    !sessionKey ||
+    bindSessionProjectMutation.isPending ||
+    unbindSessionProjectMutation.isPending
+
+  const selectProject = React.useCallback(
+    (project: Project) => {
+      if (!sessionKey) return
+      if (projectSelectionIsBinding && project.id === selectedProject?.id) {
+        setProjectMenuOpen(false)
+        return
+      }
+      bindSessionProjectMutation.mutate(
+        { sessionKey, projectSlug: project.slug },
+        {
+          onSuccess: () => {
+            setProjectMenuOpen(false)
+          },
+          onError: (error) => {
+            setModelNotice({
+              tone: 'error',
+              message:
+                error instanceof Error
+                  ? error.message
+                  : 'Failed to link project to chat',
+            })
+          },
+        },
+      )
+    },
+    [
+      bindSessionProjectMutation,
+      projectSelectionIsBinding,
+      selectedProject?.id,
+      sessionKey,
+    ],
+  )
+
+  const clearSessionProject = React.useCallback(() => {
+    if (!sessionKey) return
+    unbindSessionProjectMutation.mutate(sessionKey, {
+      onSuccess: () => setProjectMenuOpen(false),
+      onError: (error) => {
+        setModelNotice({
+          tone: 'error',
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Failed to clear project from chat',
+        })
+      },
+    })
+  }, [sessionKey, unbindSessionProjectMutation])
 
   const selectModel = React.useCallback(
     (modelId: string, provider?: string) => {
@@ -387,6 +478,7 @@ function SessionSelectorsV2Component({
         setPersistedSessionModel(sessionKey, resolved)
       }
       setModelMenuOpen(false)
+      setProjectMenuOpen(false)
       // Also switch the gateway's live model (config write / local override) so
       // the running agent reflects the pick, surfacing success/error inline.
       void switchModel(model, provider, sessionKey)
@@ -547,6 +639,7 @@ function SessionSelectorsV2Component({
             setProfileMenuOpen(open)
             if (open) {
               setModelMenuOpen(false)
+              setProjectMenuOpen(false)
               setWorkspaceMenuOpen(false)
               setThinkingMenuOpen(false)
             }
@@ -625,6 +718,7 @@ function SessionSelectorsV2Component({
             if (open) {
               setModelMenuOpen(false)
               setProfileMenuOpen(false)
+              setProjectMenuOpen(false)
               setThinkingMenuOpen(false)
             }
           }}
@@ -696,6 +790,146 @@ function SessionSelectorsV2Component({
         </Popover>
       )}
 
+      {/* A project link is scoped to this chat; it never changes the profile default. */}
+      {showModelSelector && (
+        <Popover
+          open={projectMenuOpen}
+          onOpenChange={(open) => {
+            setProjectMenuOpen(open)
+            if (open) {
+              setModelMenuOpen(false)
+              setProfileMenuOpen(false)
+              setWorkspaceMenuOpen(false)
+              setThinkingMenuOpen(false)
+            }
+          }}
+        >
+          <PopoverAnchor asChild>
+            <button
+              type="button"
+              onClick={() => setProjectMenuOpen((open) => !open)}
+              disabled={projectSelectorDisabled}
+              title={
+                !sessionKey
+                  ? 'Send a message first to link this chat to a project.'
+                  : selectedProject
+                    ? `${selectedProject.name}${'primary_path' in selectedProject && selectedProject.primary_path ? ` · ${selectedProject.primary_path}` : ''}`
+                    : 'Link this chat to a project'
+              }
+              className="hidden max-w-32 items-center gap-1 rounded-md border border-[var(--theme-accent-border)] bg-[var(--theme-accent-subtle)] px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50 sm:inline-flex"
+              data-testid="project-selector"
+            >
+              {selectedProjectDetails?.icon ? (
+                <span aria-hidden="true" className="text-xs leading-none">
+                  {selectedProjectDetails.icon.slice(0, 2)}
+                </span>
+              ) : (
+                <FolderKanban
+                  className="size-3"
+                  style={
+                    selectedProjectDetails?.color
+                      ? { color: selectedProjectDetails.color }
+                      : undefined
+                  }
+                />
+              )}
+              <span className="truncate">{projectButtonLabel}</span>
+              <ChevronDown className="size-2.5 opacity-60" />
+            </button>
+          </PopoverAnchor>
+          <PopoverContent
+            align="start"
+            className="w-80 overflow-hidden p-0"
+            onOpenAutoFocus={(event) => event.preventDefault()}
+          >
+            <Command>
+              <CommandInput placeholder="Search projects…" />
+              <CommandList className="max-h-64 p-1">
+                <div className="px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Project for this chat
+                </div>
+                {projectSelectionIsBinding ? (
+                  <CommandItem
+                    value="clear project from chat"
+                    onSelect={clearSessionProject}
+                    disabled={unbindSessionProjectMutation.isPending}
+                    className="mb-1 flex rounded-sm px-2 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+                    data-testid="project-use-profile-default"
+                  >
+                    Clear project
+                  </CommandItem>
+                ) : null}
+                {projects.length > 0 ? (
+                  projects.map((project) => {
+                    const selected = project.id === selectedProject?.id
+                    return (
+                      <CommandItem
+                        key={project.id}
+                        value={`${project.name} ${project.slug} ${project.primary_path ?? ''} ${project.bound_board?.name ?? project.board_slug ?? ''}`}
+                        onSelect={() => selectProject(project)}
+                        disabled={bindSessionProjectMutation.isPending}
+                        data-testid={`project-option-${project.id}`}
+                        className={cn(
+                          'flex w-full flex-col rounded-sm px-2 py-2 text-left transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50',
+                          selected && 'bg-accent/50',
+                        )}
+                      >
+                        <span className="flex w-full items-center gap-2">
+                          {project.icon ? (
+                            <span
+                              aria-hidden="true"
+                              className="text-sm leading-none"
+                            >
+                              {project.icon.slice(0, 2)}
+                            </span>
+                          ) : (
+                            <FolderKanban
+                              className="size-3.5 shrink-0"
+                              style={
+                                project.color
+                                  ? { color: project.color }
+                                  : undefined
+                              }
+                            />
+                          )}
+                          <span className="flex-1 truncate text-sm font-medium">
+                            {project.name}
+                          </span>
+                          {selected ? <Check className="size-3.5" /> : null}
+                        </span>
+                        {project.primary_path ? (
+                          <span className="mt-0.5 max-w-[16rem] truncate text-[10px] text-muted-foreground">
+                            {project.primary_path}
+                          </span>
+                        ) : null}
+                        {project.bound_board?.name || project.board_slug ? (
+                          <span className="mt-0.5 max-w-[16rem] truncate text-[10px] text-muted-foreground">
+                            Board ·{' '}
+                            {project.bound_board?.name ?? project.board_slug}
+                          </span>
+                        ) : null}
+                      </CommandItem>
+                    )
+                  })
+                ) : (
+                  <div className="px-2 py-2 text-xs text-muted-foreground">
+                    {projectsQuery.isLoading
+                      ? 'Loading projects…'
+                      : 'No active projects available'}
+                  </div>
+                )}
+                <CommandEmpty>No projects match your search.</CommandEmpty>
+                {projectsQuery.isError ? (
+                  <div className="px-2 py-2 text-xs text-destructive">
+                    Failed to load projects
+                  </div>
+                ) : null}
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      )}
+
       {/* thinking-level menu — honors thinkingLevel + onThinkingLevelChange */}
       {showModelSelector && (
         <Popover
@@ -706,6 +940,7 @@ function SessionSelectorsV2Component({
               setModelMenuOpen(false)
               setProfileMenuOpen(false)
               setWorkspaceMenuOpen(false)
+              setProjectMenuOpen(false)
             }
           }}
         >

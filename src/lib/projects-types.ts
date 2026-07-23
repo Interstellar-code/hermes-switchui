@@ -120,3 +120,22 @@ export type AddProjectFolderInput = {
 }
 
 export type ProjectMutationResponse = ProjectDetailResponse
+
+/** The small project reference returned when resolving a chat's project. */
+export type SessionProjectRef = Pick<Project, 'id' | 'slug' | 'name'>
+
+export type SessionProjectResolution = {
+  session_id: string
+  project: SessionProjectRef | null
+  source: 'binding' | 'active' | null
+}
+
+export type SessionProjectBindingResponse = {
+  binding: unknown
+  project: Pick<Project, 'id'>
+}
+
+export type SessionProjectUnbindResponse = {
+  session_id: string
+  removed: number
+}
