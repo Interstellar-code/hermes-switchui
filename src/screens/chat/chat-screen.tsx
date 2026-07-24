@@ -1369,7 +1369,6 @@ export function ChatScreen({
                     ? undefined
                     : forcedSessionKey || resolvedSessionKey || activeSessionKey
                 }
-                isStreaming={isRealtimeStreaming}
                 toolCount={totalToolCount}
                 modelFallback={sessionModelFallback}
                 thinkingLevel={thinkingLevel}

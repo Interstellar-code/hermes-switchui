@@ -46,7 +46,7 @@ const APP_CSP = [
   "child-src 'self' blob:",
   "worker-src 'self' blob:",
   "media-src 'self' blob: data:",
-  "frame-src 'self' http: https:",
+  "frame-src 'self' blob: http: https:",
 ].join('; ')
 
 const THEME_STORAGE_KEY = 'claude-theme'

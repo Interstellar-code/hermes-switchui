@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { FileEntry } from './file-tree'
-import { formatBytes, formatDate } from '@/lib/format'
-import { FIcon, KIND_COLOR, fileKindKey } from './files-icons'
+import { FIcon, KIND_COLOR, SvgIco, fileKindKey } from './files-icons'
 import { Highlight, fuzzy } from './files-search'
+import type { FileEntry } from './file-tree'
+import { formatBytes, formatRelativeIso } from '@/lib/format'
 
 type SortKey = 'name' | 'size' | 'modified' | 'type'
 type SortDir = 'asc' | 'desc'
@@ -17,6 +17,22 @@ type FolderListingProps = {
   onContextMenu: (e: React.MouseEvent, entry: FileEntry) => void
 }
 
+/**
+ * Timestamp shown in the Modified column: a file's own mtime, or for folders
+ * the newest immediate child's mtime (design: FolderView `modOf`).
+ */
+function modifiedIso(entry: FileEntry): string | undefined {
+  if (entry.type === 'file') return entry.modifiedAt
+  let newest: string | undefined
+  for (const child of entry.children ?? []) {
+    if (!child.modifiedAt) continue
+    if (!newest || Date.parse(child.modifiedAt) > Date.parse(newest)) {
+      newest = child.modifiedAt
+    }
+  }
+  return newest
+}
+
 export function FolderListing({
   entries,
   folderPath,
@@ -28,6 +44,11 @@ export function FolderListing({
 }: FolderListingProps) {
   const [sortKey, setSortKey] = useState<SortKey>('modified')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [nameQuery, setNameQuery] = useState('')
+  const [nameSearchOpen, setNameSearchOpen] = useState(false)
+
+  // Name-column search local to this grid, OR'd with the screen-level `query`.
+  const activeQuery = (nameQuery.trim() || query || '').trim()
 
   // Screen-level sort dropdown drives the grid too; header clicks still
   // override afterwards.
@@ -46,7 +67,7 @@ export function FolderListing({
       ) {
         return false
       }
-      if (query && !fuzzy(query, e.name)) return false
+      if (activeQuery && !fuzzy(activeQuery, e.name)) return false
       return true
     })
     const sorted = filtered.sort((a, b) => {
@@ -69,7 +90,7 @@ export function FolderListing({
       return sortDir === 'asc' ? cmp : -cmp
     })
     return sorted
-  }, [entries, sortKey, sortDir, query, typeFilter])
+  }, [entries, sortKey, sortDir, activeQuery, typeFilter])
 
   const ariaSortFor = (key: SortKey): 'ascending' | 'descending' | 'none' => {
     if (key !== sortKey) return 'none'
@@ -91,7 +112,7 @@ export function FolderListing({
   }
 
   if (rows.length === 0) {
-    const filtering = Boolean(query) || typeFilter !== 'all'
+    const filtering = Boolean(activeQuery) || typeFilter !== 'all'
     return (
       <div className="files-empty-state">
         <div>
@@ -136,13 +157,58 @@ export function FolderListing({
       <table>
         <thead>
           <tr>
-            {renderSortHeader('name', 'Name', 'col-name')}
+            <th className="col-serial">Sl. No.</th>
+            <th className="col-name" aria-sort={ariaSortFor('name')}>
+              <div className="col-name-head">
+                <button
+                  type="button"
+                  className="files-folder-sort"
+                  onClick={() => toggleSort('name')}
+                >
+                  Name{arrow('name')}
+                </button>
+                <button
+                  type="button"
+                  className={`files-folder-name-toggle${nameQuery ? ' is-active' : ''}`}
+                  onClick={() =>
+                    setNameSearchOpen((open) => {
+                      if (open) setNameQuery('')
+                      return !open
+                    })
+                  }
+                  aria-label="Search files by name"
+                  aria-expanded={nameSearchOpen}
+                >
+                  <SvgIco name="search" size={13} />
+                </button>
+                {nameSearchOpen ? (
+                  <input
+                    type="text"
+                    className="files-folder-name-search"
+                    value={nameQuery}
+                    onChange={(e) => setNameQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setNameQuery('')
+                        setNameSearchOpen(false)
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!nameQuery) setNameSearchOpen(false)
+                    }}
+                    placeholder="Search name…"
+                    aria-label="Search files by name"
+                    autoFocus
+                  />
+                ) : null}
+              </div>
+            </th>
             {renderSortHeader('size', 'Size', 'col-size')}
             {renderSortHeader('modified', 'Modified', 'col-mod')}
           </tr>
         </thead>
         <tbody>
-          {rows.map((entry) => {
+          {rows.map((entry, index) => {
             const color =
               entry.type === 'file'
                 ? KIND_COLOR[fileKindKey(entry.name)]
@@ -156,6 +222,7 @@ export function FolderListing({
                 onKeyDown={(e) => handleRowKey(e, entry)}
                 onContextMenu={(e) => onContextMenu(e, entry)}
               >
+                <td className="col-serial">{index + 1}</td>
                 <td className="col-name">
                   <span
                     className="icon"
@@ -165,24 +232,27 @@ export function FolderListing({
                     <FIcon file={entry} size={14} />
                   </span>
                   <span className="name">
-                    {query ? (
+                    {activeQuery ? (
                       <Highlight
                         text={entry.name}
-                        ranges={fuzzy(query, entry.name)?.ranges}
+                        ranges={fuzzy(activeQuery, entry.name)?.ranges}
                       />
                     ) : (
                       entry.name
                     )}
                   </span>
+                  {entry.type === 'folder' ? (
+                    <span className="files-folder-count">
+                      {entry.children?.length ?? 0}
+                    </span>
+                  ) : null}
                 </td>
                 <td className="col-size">
                   {entry.type === 'file' && entry.size !== undefined
                     ? formatBytes(entry.size)
                     : '—'}
                 </td>
-                <td className="col-mod">
-                  {entry.modifiedAt ? formatDate(entry.modifiedAt) : '—'}
-                </td>
+                <td className="col-mod">{formatRelativeIso(modifiedIso(entry))}</td>
               </tr>
             )
           })}

@@ -32,8 +32,25 @@ function isImageFile(path: string) {
   )
 }
 
+const BINARY_EXTS = new Set([
+  'db',
+  'sqlite',
+  'sqlite3',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'ppt',
+  'pptx',
+  'zip',
+])
+
+function isBinaryFile(path: string) {
+  return BINARY_EXTS.has(getExtension(path))
+}
+
 function isTextFile(path: string) {
-  return !isImageFile(path)
+  return !isImageFile(path) && !isBinaryFile(path)
 }
 
 type FilePreviewDialogProps = {
@@ -63,7 +80,10 @@ export default function FilePreviewDialog({
     if (!path) return
     setLoading(true)
     setError(null)
+    setContent('')
+    setDataUrl('')
     try {
+      if (isBinaryFile(path)) return
       const res = await fetch(
         `/api/files?action=read&path=${encodeURIComponent(path)}`,
       )
@@ -144,6 +164,19 @@ export default function FilePreviewDialog({
                   className="max-h-[60vh] max-w-full rounded-lg border border-primary-200"
                 />
               ) : null}
+            </div>
+          ) : path && isBinaryFile(path) ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+              <p className="text-sm text-primary-500">
+                Preview unavailable for this binary file.
+              </p>
+              <a
+                href={`/api/files?action=download&path=${encodeURIComponent(path)}`}
+                download
+                className="text-sm text-primary-700 underline"
+              >
+                Download {path.split('/').pop()}
+              </a>
             </div>
           ) : (
             <div className="h-[60vh]">

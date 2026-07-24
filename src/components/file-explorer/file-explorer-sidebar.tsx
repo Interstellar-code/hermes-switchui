@@ -17,6 +17,8 @@ import {
   Upload01Icon,
 } from '@hugeicons/core-free-icons'
 import FilePreviewDialog from './file-preview-dialog'
+import { FilesPalette } from '@/screens/files/files-palette'
+import '@/styles/matrix-files.css'
 import { cn } from '@/lib/utils'
 import {
   ScrollAreaCorner,
@@ -151,6 +153,7 @@ export function FileExplorerSidebar({
   const [promptValue, setPromptValue] = useState('')
   const [previewPath, setPreviewPath] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const uploadTargetRef = useRef<string>('')
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -191,6 +194,18 @@ export function FileExplorerSidebar({
   )
 
   const isSearchActive = search.trim().length > 0
+
+  const paletteFiles = useMemo(() => {
+    const files: Array<FileEntry> = []
+    const walk = (items: Array<FileEntry>) => {
+      for (const entry of items) {
+        if (entry.type === 'folder') walk(entry.children ?? [])
+        else files.push(entry)
+      }
+    }
+    walk(entries)
+    return files
+  }, [entries])
 
   const toggleFolder = useCallback((pathValue: string) => {
     setExpanded((prev) => {
@@ -257,7 +272,8 @@ export function FileExplorerSidebar({
 
   const handleDelete = useCallback(
     async (entry: FileEntry) => {
-      if (!window.confirm(`Delete ${entry.name}? This cannot be undone.`)) return
+      if (!window.confirm(`Delete ${entry.name}? This cannot be undone.`))
+        return
       setActionError(null)
       try {
         const res = await fetch('/api/files', {
@@ -362,7 +378,11 @@ export function FileExplorerSidebar({
         res = await fetch('/api/files', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ action: 'write', path: nextPath, content: '' }),
+          body: JSON.stringify({
+            action: 'write',
+            path: nextPath,
+            content: '',
+          }),
         })
       }
       if (!res.ok) throw new Error(await res.text())
@@ -384,6 +404,18 @@ export function FileExplorerSidebar({
     },
     [toggleFolder],
   )
+
+  const handlePalettePick = useCallback((entry: FileEntry) => {
+    setPreviewPath(entry.path)
+    const parts = entry.path.split('/').filter(Boolean)
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      for (let i = 1; i < parts.length; i += 1) {
+        next.add(parts.slice(0, i).join('/'))
+      }
+      return next
+    })
+  }, [])
 
   const handleCopyPath = useCallback(async (entry: FileEntry) => {
     setActionError(null)
@@ -443,9 +475,8 @@ export function FileExplorerSidebar({
 
   const renderEntry = useCallback(
     (entry: FileEntry, depth: number) => {
-      const Icon = getFileIcon(entry)
       const isExpanded = isSearchActive ? true : expanded.has(entry.path)
-      const padding = 12 + depth * 14
+      const padding = 12 + depth * 16
 
       return (
         <div key={entry.path}>
@@ -462,25 +493,25 @@ export function FileExplorerSidebar({
               })
             }}
             className={cn(
-              'group flex w-full items-center gap-2 rounded-md py-1.5 text-left text-sm text-[var(--m-text,var(--theme-text))]',
-              'hover:bg-[var(--m-surface-2,rgba(255,255,255,0.08))]',
+              'files-tree-row',
+              entry.type === 'folder' && isExpanded ? 'is-expanded' : '',
+              entry.type === 'file' ? 'is-leaf' : '',
             )}
             style={{ paddingLeft: padding }}
           >
             {entry.type === 'folder' ? (
-              <span
-                className={cn(
-                  'transition-transform',
-                  isExpanded ? 'rotate-90' : 'rotate-0',
-                )}
-              >
-                <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
-              </span>
+              <span className="chev">▶</span>
             ) : (
-              <span className="w-4" />
+              <span className="chev">▶</span>
             )}
-            <HugeiconsIcon icon={Icon} size={18} strokeWidth={1.6} />
-            <span className="truncate">{entry.name}</span>
+            <span
+              className={cn('icon', entry.type === 'folder' ? 'is-folder' : '')}
+              aria-hidden="true"
+            />
+            <span className="name">{entry.name}</span>
+            {entry.type === 'folder' && entry.children?.length ? (
+              <span className="badge">{entry.children.length}</span>
+            ) : null}
           </button>
           {entry.type === 'folder' && isExpanded && entry.children?.length ? (
             <div>
@@ -490,375 +521,355 @@ export function FileExplorerSidebar({
         </div>
       )
     },
-    [expanded, handleFileClick, isSearchActive, setContextMenu],
+    [expanded, handleFileClick, isSearchActive],
   )
 
   if (hidden) return null
 
   return (
-    <aside
-      className={cn(
-        'h-full w-full flex flex-col transition-all duration-200 ease-out overflow-hidden',
-        collapsed && 'w-0 opacity-0 pointer-events-none',
-        className,
-      )}
-      style={{
-        background: 'var(--theme-sidebar)',
-        color: 'var(--m-text, var(--theme-text))',
-      }}
-    >
-      <div
-        className="flex items-center justify-between h-11 px-3 shrink-0"
-        style={{ borderBottom: '1px solid var(--theme-border)' }}
+    <div data-screen="files" className="h-full w-full">
+      <aside
+        className={cn(
+          'files-tree h-full transition-all duration-200 ease-out',
+          collapsed && 'is-collapsed pointer-events-none opacity-0',
+          className,
+        )}
       >
-        <div
-          className="text-[10px] font-mono font-semibold tracking-wider"
-          style={{ color: 'var(--m-green, var(--theme-accent, #4ade80))' }}
+        <div className="files-tree-head">
+          <h3>{ROOT_LABEL}</h3>
+          <div className="files-tree-actions">
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={refresh}
+              title="Refresh"
+            >
+              <HugeiconsIcon icon={RefreshIcon} size={18} />
+            </Button>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={() => handleUploadClick('')}
+              title="Upload"
+            >
+              <HugeiconsIcon icon={Upload01Icon} size={18} />
+            </Button>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={() => openPrompt({ mode: 'new-file', targetPath: '' })}
+              title="New file"
+            >
+              <HugeiconsIcon icon={PlusSignIcon} size={18} />
+            </Button>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={onToggle}
+              title="Close file explorer"
+              aria-label="Close file explorer"
+            >
+              <HugeiconsIcon icon={Cancel01Icon} size={18} />
+            </Button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="files-quickjump"
+          onClick={() => setPaletteOpen(true)}
+          aria-label="Quick jump to any file"
         >
-          [{ROOT_LABEL.toUpperCase()}]
+          <span aria-hidden="true">⌘K</span>
+          <span className="qj-text">Quick jump to any file…</span>
+          <kbd aria-hidden="true">⌘K</kbd>
+        </button>
+
+        <div className="files-tree-search">
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search workspace…"
+            aria-label="Search files"
+          />
         </div>
-        <div className="flex items-center gap-1">
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={refresh}
-            title="Refresh"
-          >
-            <HugeiconsIcon icon={RefreshIcon} size={18} />
-          </Button>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={() => handleUploadClick('')}
-            title="Upload"
-          >
-            <HugeiconsIcon icon={Upload01Icon} size={18} />
-          </Button>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={() => openPrompt({ mode: 'new-file', targetPath: '' })}
-            title="New file"
-          >
-            <HugeiconsIcon icon={PlusSignIcon} size={18} />
-          </Button>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={onToggle}
-            title="Close file explorer"
-            aria-label="Close file explorer"
-          >
-            <HugeiconsIcon icon={Cancel01Icon} size={18} />
-          </Button>
-        </div>
-      </div>
 
-      <div className="px-3 py-2">
-        <input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search files"
-          className="w-full rounded-md px-2 py-1 text-sm focus:outline-none"
-          style={{
-            background: 'var(--theme-card, rgba(0,0,0,0.3))',
-            border: '1px solid var(--theme-border)',
-            color: 'var(--m-text, var(--theme-text))',
-          }}
-        />
-      </div>
+        {actionError ? (
+          <p className="px-3 pb-2 text-xs text-destructive" role="status">
+            {actionError}
+          </p>
+        ) : null}
 
-      {actionError ? (
-        <p className="px-3 pb-2 text-xs text-destructive" role="status">
-          {actionError}
-        </p>
-      ) : null}
-
-      <ScrollAreaRoot className="flex-1 min-h-0">
-        <ScrollAreaViewport className="px-1">
-          {loading ? (
-            <div className="px-3 py-2 text-xs text-[var(--m-muted,var(--theme-muted,#6b7280))]">Loading…</div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center gap-3 px-4 py-8 text-center">
-              <div className="flex size-10 items-center justify-center rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card,rgba(0,0,0,0.3))]">
-                <HugeiconsIcon
-                  icon={Folder01Icon}
-                  size={20}
-                  strokeWidth={1.5}
-                  className="text-[var(--m-muted,var(--theme-muted,#6b7280))]"
-                />
+        <ScrollAreaRoot className="files-tree-body">
+          <ScrollAreaViewport>
+            {loading ? (
+              <div className="files-tree-loading">Loading…</div>
+            ) : error ? (
+              <div className="files-tree-error">
+                No workspace selected.{' '}
+                <button type="button" onClick={refresh}>
+                  Retry
+                </button>
               </div>
-              <div>
-                <p className="text-sm font-medium text-[var(--m-text,var(--theme-text))]">
-                  No workspace selected
-                </p>
-                <p className="mt-1 text-xs text-[var(--m-muted,var(--theme-muted,#6b7280))] text-pretty">
-                  Select a folder to browse and edit files.
-                </p>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={refresh}
-                className="mt-1"
-              >
-                <HugeiconsIcon icon={RefreshIcon} size={16} />
-                Retry
-              </Button>
-            </div>
-          ) : entries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 px-4 py-8 text-center">
-              <div className="flex size-10 items-center justify-center rounded-xl border border-[var(--theme-border)] bg-[var(--theme-card,rgba(0,0,0,0.3))]">
-                <HugeiconsIcon
-                  icon={Folder01Icon}
-                  size={20}
-                  strokeWidth={1.5}
-                  className="text-[var(--m-muted,var(--theme-muted,#6b7280))]"
-                />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-[var(--m-text,var(--theme-text))]">
-                  Workspace is empty
-                </p>
-                <p className="mt-1 text-xs text-[var(--m-muted,var(--theme-muted,#6b7280))] text-pretty">
-                  Create files or upload content to get started.
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
+            ) : entries.length === 0 ? (
+              <div className="files-tree-empty">
+                Workspace is empty.{' '}
+                <button
+                  type="button"
                   onClick={() =>
                     openPrompt({ mode: 'new-file', targetPath: '' })
                   }
                 >
-                  <HugeiconsIcon icon={PlusSignIcon} size={16} />
                   New file
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleUploadClick('')}
+                </button>
+              </div>
+            ) : (
+              <div>{filteredEntries.map((entry) => renderEntry(entry, 0))}</div>
+            )}
+          </ScrollAreaViewport>
+          <ScrollAreaScrollbar orientation="vertical">
+            <ScrollAreaThumb />
+          </ScrollAreaScrollbar>
+          <ScrollAreaCorner />
+        </ScrollAreaRoot>
+
+        <div className="files-tree-foot">
+          <span>
+            <b>{paletteFiles.length}</b> files
+          </span>
+        </div>
+
+        <input
+          ref={uploadInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={handleUploadChange}
+        />
+
+        {resolvedContextPosition && typeof document !== 'undefined'
+          ? createPortal(
+              <div
+                role="menu"
+                aria-label="File actions"
+                className="fixed z-50 min-w-[160px] rounded-lg p-1 text-sm text-[var(--m-text,var(--theme-text))] shadow-lg"
+                style={{
+                  background: 'var(--theme-card,#0a0a0a)',
+                  border: '1px solid var(--theme-border)',
+                  top: resolvedContextPosition.y,
+                  left: resolvedContextPosition.x,
+                }}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
+                  onClick={() => {
+                    if (resolvedContextPosition.entry.type === 'folder') {
+                      toggleFolder(resolvedContextPosition.entry.path)
+                    } else {
+                      setPreviewPath(resolvedContextPosition.entry.path)
+                    }
+                    setContextMenu(null)
+                  }}
                 >
-                  <HugeiconsIcon icon={Upload01Icon} size={16} />
-                  Upload
-                </Button>
+                  <HugeiconsIcon
+                    icon={
+                      resolvedContextPosition.entry.type === 'folder'
+                        ? Folder01Icon
+                        : File01Icon
+                    }
+                    size={16}
+                  />{' '}
+                  Open
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
+                  onClick={() => {
+                    void handleCopyPath(resolvedContextPosition.entry)
+                    setContextMenu(null)
+                  }}
+                >
+                  <HugeiconsIcon icon={Copy01Icon} size={16} /> Copy path
+                </button>
+                {resolvedContextPosition.entry.type === 'file' ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
+                    onClick={() => {
+                      onInsertReference(
+                        buildReference(resolvedContextPosition.entry.path),
+                      )
+                      setContextMenu(null)
+                    }}
+                  >
+                    <HugeiconsIcon icon={File01Icon} size={16} /> Add reference
+                    to chat
+                  </button>
+                ) : null}
+                {resolvedContextPosition.entry.type === 'file' &&
+                isAttachableFile(resolvedContextPosition.entry.name) ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
+                    onClick={() => {
+                      void handleAttachFile(resolvedContextPosition.entry)
+                      setContextMenu(null)
+                    }}
+                  >
+                    <HugeiconsIcon icon={Attachment01Icon} size={16} /> Attach
+                    to chat
+                  </button>
+                ) : null}
+                {resolvedContextPosition.entry.type === 'file' &&
+                isImageFile(resolvedContextPosition.entry.name) ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
+                    onClick={() => {
+                      void handleAttachImage(resolvedContextPosition.entry)
+                      setContextMenu(null)
+                    }}
+                  >
+                    <HugeiconsIcon icon={Image01Icon} size={16} /> Attach image
+                    to chat
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
+                  onClick={() => {
+                    handleRename(resolvedContextPosition.entry)
+                    setContextMenu(null)
+                  }}
+                >
+                  <HugeiconsIcon icon={Pen01Icon} size={16} /> Rename
+                </button>
+                {resolvedContextPosition.entry.type === 'folder' ? (
+                  <>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
+                      onClick={() => {
+                        handleNewFile(resolvedContextPosition.entry)
+                        setContextMenu(null)
+                      }}
+                    >
+                      <HugeiconsIcon icon={PlusSignIcon} size={16} /> New file
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
+                      onClick={() => {
+                        handleNewFolder(resolvedContextPosition.entry)
+                        setContextMenu(null)
+                      }}
+                    >
+                      <HugeiconsIcon icon={Folder01Icon} size={16} /> New folder
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
+                      onClick={() => {
+                        handleUploadClick(resolvedContextPosition.entry.path)
+                        setContextMenu(null)
+                      }}
+                    >
+                      <HugeiconsIcon icon={Upload01Icon} size={16} /> Upload
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
+                    onClick={() => {
+                      void handleDownload(resolvedContextPosition.entry)
+                      setContextMenu(null)
+                    }}
+                  >
+                    <HugeiconsIcon icon={Download01Icon} size={16} /> Download
+                  </button>
+                )}
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-red-700 hover:bg-red-50/80"
+                  onClick={() => {
+                    void handleDelete(resolvedContextPosition.entry)
+                    setContextMenu(null)
+                  }}
+                >
+                  <HugeiconsIcon icon={Delete01Icon} size={16} /> Delete
+                </button>
+              </div>,
+              document.body,
+            )
+          : null}
+
+        <Dialog
+          open={Boolean(promptState)}
+          onOpenChange={(open) => {
+            if (!open) setPromptState(null)
+          }}
+        >
+          <DialogContent>
+            <div className="p-5 space-y-3">
+              <DialogTitle>
+                {promptState?.mode === 'rename'
+                  ? 'Rename'
+                  : promptState?.mode === 'new-folder'
+                    ? 'New Folder'
+                    : 'New File'}
+              </DialogTitle>
+              <DialogDescription>
+                {promptState?.mode === 'rename'
+                  ? 'Enter a new name.'
+                  : 'Enter a name to create.'}
+              </DialogDescription>
+              <input
+                value={promptValue}
+                onChange={(event) => setPromptValue(event.target.value)}
+                className="w-full rounded-md px-3 py-2 text-sm text-[var(--m-text,var(--theme-text))] focus:outline-none"
+                style={{
+                  background: 'var(--theme-card,rgba(0,0,0,0.3))',
+                  border: '1px solid var(--theme-border)',
+                }}
+                autoFocus
+              />
+              <div className="flex justify-end gap-2 pt-2">
+                <DialogClose asChild>
+                  <Button variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button onClick={handlePromptSubmit}>Save</Button>
               </div>
             </div>
-          ) : (
-            <div className="pb-4">
-              {filteredEntries.map((entry) => renderEntry(entry, 0))}
-            </div>
-          )}
-        </ScrollAreaViewport>
-        <ScrollAreaScrollbar orientation="vertical">
-          <ScrollAreaThumb />
-        </ScrollAreaScrollbar>
-        <ScrollAreaScrollbar orientation="horizontal">
-          <ScrollAreaThumb />
-        </ScrollAreaScrollbar>
-        <ScrollAreaCorner />
-      </ScrollAreaRoot>
+          </DialogContent>
+        </Dialog>
 
-      <input
-        ref={uploadInputRef}
-        type="file"
-        multiple
-        className="hidden"
-        onChange={handleUploadChange}
-      />
-
-      {resolvedContextPosition && typeof document !== 'undefined'
-        ? createPortal(
-        <div
-          role="menu"
-          aria-label="File actions"
-          className="fixed z-50 min-w-[160px] rounded-lg p-1 text-sm text-[var(--m-text,var(--theme-text))] shadow-lg"
-          style={{ background: 'var(--theme-card,#0a0a0a)', border: '1px solid var(--theme-border)', top: resolvedContextPosition.y, left: resolvedContextPosition.x }}
-        >
-          <button
-            type="button"
-            role="menuitem"
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
-            onClick={() => {
-              if (resolvedContextPosition.entry.type === 'folder') {
-                toggleFolder(resolvedContextPosition.entry.path)
-              } else {
-                setPreviewPath(resolvedContextPosition.entry.path)
-              }
-              setContextMenu(null)
-            }}
-          >
-            <HugeiconsIcon icon={resolvedContextPosition.entry.type === 'folder' ? Folder01Icon : File01Icon} size={16} /> Open
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
-            onClick={() => {
-              void handleCopyPath(resolvedContextPosition.entry)
-              setContextMenu(null)
-            }}
-          >
-            <HugeiconsIcon icon={Copy01Icon} size={16} /> Copy path
-          </button>
-          {resolvedContextPosition.entry.type === 'file' ? (
-            <button
-              type="button"
-              role="menuitem"
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
-              onClick={() => {
-                onInsertReference(buildReference(resolvedContextPosition.entry.path))
-                setContextMenu(null)
-              }}
-            >
-              <HugeiconsIcon icon={File01Icon} size={16} /> Add reference to chat
-            </button>
-          ) : null}
-          {resolvedContextPosition.entry.type === 'file' && isAttachableFile(resolvedContextPosition.entry.name) ? (
-            <button
-              type="button"
-              role="menuitem"
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
-              onClick={() => {
-                void handleAttachFile(resolvedContextPosition.entry)
-                setContextMenu(null)
-              }}
-            >
-              <HugeiconsIcon icon={Attachment01Icon} size={16} /> Attach to chat
-            </button>
-          ) : null}
-          {resolvedContextPosition.entry.type === 'file' && isImageFile(resolvedContextPosition.entry.name) ? (
-            <button
-              type="button"
-              role="menuitem"
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
-              onClick={() => {
-                void handleAttachImage(resolvedContextPosition.entry)
-                setContextMenu(null)
-              }}
-            >
-              <HugeiconsIcon icon={Image01Icon} size={16} /> Attach image to chat
-            </button>
-          ) : null}
-          <button
-            type="button"
-            role="menuitem"
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
-            onClick={() => {
-              handleRename(resolvedContextPosition.entry)
-              setContextMenu(null)
-            }}
-          >
-            <HugeiconsIcon icon={Pen01Icon} size={16} /> Rename
-          </button>
-          {resolvedContextPosition.entry.type === 'folder' ? (
-            <>
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
-                onClick={() => {
-                  handleNewFile(resolvedContextPosition.entry)
-                  setContextMenu(null)
-                }}
-              >
-                <HugeiconsIcon icon={PlusSignIcon} size={16} /> New file
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
-                onClick={() => {
-                  handleNewFolder(resolvedContextPosition.entry)
-                  setContextMenu(null)
-                }}
-              >
-                <HugeiconsIcon icon={Folder01Icon} size={16} /> New folder
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
-                onClick={() => {
-                  handleUploadClick(resolvedContextPosition.entry.path)
-                  setContextMenu(null)
-                }}
-              >
-                <HugeiconsIcon icon={Upload01Icon} size={16} /> Upload
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              role="menuitem"
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
-              onClick={() => {
-                void handleDownload(resolvedContextPosition.entry)
-                setContextMenu(null)
-              }}
-            >
-              <HugeiconsIcon icon={Download01Icon} size={16} /> Download
-            </button>
-          )}
-          <button
-            type="button"
-            role="menuitem"
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-red-700 hover:bg-red-50/80"
-            onClick={() => {
-              void handleDelete(resolvedContextPosition.entry)
-              setContextMenu(null)
-            }}
-          >
-            <HugeiconsIcon icon={Delete01Icon} size={16} /> Delete
-          </button>
-        </div>,
-        document.body,
-      )
-        : null}
-
-      <Dialog
-        open={Boolean(promptState)}
-        onOpenChange={(open) => {
-          if (!open) setPromptState(null)
-        }}
-      >
-        <DialogContent>
-          <div className="p-5 space-y-3">
-            <DialogTitle>
-              {promptState?.mode === 'rename'
-                ? 'Rename'
-                : promptState?.mode === 'new-folder'
-                  ? 'New Folder'
-                  : 'New File'}
-            </DialogTitle>
-            <DialogDescription>
-              {promptState?.mode === 'rename'
-                ? 'Enter a new name.'
-                : 'Enter a name to create.'}
-            </DialogDescription>
-            <input
-              value={promptValue}
-              onChange={(event) => setPromptValue(event.target.value)}
-              className="w-full rounded-md px-3 py-2 text-sm text-[var(--m-text,var(--theme-text))] focus:outline-none"
-              style={{ background: 'var(--theme-card,rgba(0,0,0,0.3))', border: '1px solid var(--theme-border)' }}
-              autoFocus
-            />
-            <div className="flex justify-end gap-2 pt-2">
-              <DialogClose asChild>
-                <Button variant="outline">Cancel</Button>
-              </DialogClose>
-              <Button onClick={handlePromptSubmit}>Save</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <FilePreviewDialog
-        path={previewPath}
-        onClose={() => setPreviewPath(null)}
-        onSaved={refresh}
-      />
-    </aside>
+        <FilePreviewDialog
+          path={previewPath}
+          onClose={() => setPreviewPath(null)}
+          onSaved={refresh}
+        />
+        {paletteOpen ? (
+          <FilesPalette
+            files={paletteFiles}
+            recents={[]}
+            onClose={() => setPaletteOpen(false)}
+            onPick={handlePalettePick}
+          />
+        ) : null}
+      </aside>
+    </div>
   )
 }

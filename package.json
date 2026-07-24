@@ -1,6 +1,6 @@
 {
   "name": "hermes-switchui",
-  "version": "2.5.24",
+  "version": "2.5.25",
   "description": "Hermes SwitchUI — Interstellar Code's opinionated workspace for Hermes Agent",
   "author": "Interstellar Code (https://github.com/Interstellar-code)",
   "license": "MIT",
@@ -137,7 +137,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "jsdom": "^29.1.1",
     "prettier": "^3.8.3",
-    "react-grab": "^0.1.48",
+    "react-grab": "^0.1.50",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",

@@ -10,6 +10,16 @@ import { createPortal } from 'react-dom'
 import { useSearch } from '@tanstack/react-router'
 import { FileTree, IGNORED_DIRS } from './file-tree'
 import { FolderListing } from './folder-listing'
+import {
+  FIcon,
+  KIND_COLOR,
+  KIND_LABEL,
+  SvgIco,
+  fileKindKey,
+} from './files-icons'
+import { fuzzy } from './files-search'
+import { FilesPalette } from './files-palette'
+import { FilesTweaks } from './files-tweaks'
 import type { FileEntry } from './file-tree'
 import type { CSSProperties, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
@@ -28,16 +38,6 @@ import { formatBytes, formatDate } from '@/lib/format'
 import { getExt, getParentPath } from '@/lib/path-utils'
 import { writeTextToClipboard } from '@/lib/clipboard'
 import { clampContextMenuPosition } from '@/lib/context-menu'
-import {
-  FIcon,
-  KIND_COLOR,
-  KIND_LABEL,
-  SvgIco,
-  fileKindKey,
-} from './files-icons'
-import { fuzzy } from './files-search'
-import { FilesPalette } from './files-palette'
-import { FilesTweaks } from './files-tweaks'
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Types
@@ -109,8 +109,36 @@ function isHtmlFile(name: string): boolean {
   return ext === 'html' || ext === 'htm'
 }
 
+function isPdfFile(name: string): boolean {
+  return getExt(name) === 'pdf'
+}
+
+// Binary formats with no inline preview — never fetch or render their bytes.
+const BINARY_EXTS = new Set([
+  'xlsx',
+  'xls',
+  'docx',
+  'doc',
+  'pptx',
+  'ppt',
+  'zip',
+  'tar',
+  'gz',
+  'bin',
+  'exe',
+  'dmg',
+  'wasm',
+  'db',
+  'sqlite',
+  'sqlite3',
+])
+
+function isBinaryFile(name: string): boolean {
+  return BINARY_EXTS.has(getExt(name))
+}
+
 function isEditableFile(name: string): boolean {
-  return !isImageFile(name)
+  return !isImageFile(name) && !isPdfFile(name) && !isBinaryFile(name)
 }
 
 function getPathParts(pathValue: string): Array<string> {
@@ -635,22 +663,43 @@ function DiffModal({
 // Breadcrumb
 // ──────────────────────────────────────────────────────────────────────────────
 
-function Breadcrumb({ path, className }: { path: string; className?: string }) {
+function Breadcrumb({
+  path,
+  className,
+  onNavigate,
+}: {
+  path: string
+  className?: string
+  onNavigate: (path: string) => void
+}) {
   const parts = getPathParts(path)
   return (
-    <div className={cn('files-preview-crumbs', className)}>
-      <span className="files-seg">workspace</span>
+    <nav
+      className={cn('files-preview-crumbs', className)}
+      aria-label="Breadcrumb"
+    >
+      <button
+        type="button"
+        className={cn('files-seg', parts.length === 0 ? 'current' : '')}
+        aria-current={parts.length === 0 ? 'location' : undefined}
+        onClick={() => onNavigate('')}
+      >
+        workspace
+      </button>
       {parts.map((part, i) => (
         <Fragment key={`${part}-${i}`}>
           <span className="files-sep">/</span>
-          <span
+          <button
+            type="button"
             className={cn('files-seg', i === parts.length - 1 ? 'current' : '')}
+            aria-current={i === parts.length - 1 ? 'location' : undefined}
+            onClick={() => onNavigate(parts.slice(0, i + 1).join('/'))}
           >
             {part}
-          </span>
+          </button>
         </Fragment>
       ))}
-    </div>
+    </nav>
   )
 }
 
@@ -662,6 +711,7 @@ function Breadcrumb({ path, className }: { path: string; className?: string }) {
 type FilePanelProps = {
   workspacePath?: string
   selectedEntry: FileEntry | null
+  onNavigate: (path: string) => void
   isPinned: boolean
   onTogglePin: (path: string) => void
   onDeleteRequest: (entry: FileEntry) => void
@@ -671,6 +721,7 @@ type FilePanelProps = {
 function FilePanel({
   workspacePath,
   selectedEntry,
+  onNavigate,
   isPinned,
   onTogglePin,
   onDeleteRequest,
@@ -680,6 +731,7 @@ function FilePanel({
   const [fileError, setFileError] = useState<string | null>(null)
   const [content, setContent] = useState('')
   const [dataUrl, setDataUrl] = useState('')
+  const [pdfUrl, setPdfUrl] = useState('')
   const [editValue, setEditValue] = useState('')
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -699,6 +751,8 @@ function FilePanel({
   const isImage = isImageFile(fileName)
   const isMd = isMarkdownFile(fileName)
   const isHtml = isHtmlFile(fileName)
+  const isPdf = isPdfFile(fileName)
+  const isBinary = isBinaryFile(fileName)
   const isCode = isCodeFile(fileName)
   const isEditable = isEditableFile(fileName)
   const kind = getEntryKind(selectedEntry)
@@ -764,9 +818,25 @@ function FilePanel({
     setFileError(null)
     setContent('')
     setDataUrl('')
+    setPdfUrl('')
     setDirty(false)
     setActiveTab('preview')
     try {
+      if (isBinaryFile(path)) {
+        // No inline preview for these formats — don't pull the bytes at all.
+        return
+      }
+      if (isPdfFile(path)) {
+        // The text `read` endpoint mangles PDF bytes; fetch the raw bytes and
+        // let the browser's native PDF viewer render a blob: URL instead.
+        const res = await fetch(
+          `/api/files?action=download&path=${encodeURIComponent(path)}`,
+        )
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const blob = await res.blob()
+        setPdfUrl(URL.createObjectURL(blob))
+        return
+      }
       const res = await fetch(
         `/api/files?action=read&path=${encodeURIComponent(path)}`,
       )
@@ -792,40 +862,49 @@ function FilePanel({
     void loadFile(selectedEntry.path)
   }, [selectedEntry, loadFile])
 
-  const commitSave = useCallback(async (path: string, value: string) => {
-    setSaving(true)
-    setShowDiff(false)
-    try {
-      // Verify the file hasn't changed on disk since it was loaded
-      const liveRes = await fetch(
-        `/api/files?action=read&path=${encodeURIComponent(path)}`,
-      )
-      if (liveRes.ok) {
-        const liveData = (await liveRes.json()) as { content?: string }
-        if (liveData.content !== undefined && liveData.content !== content) {
-          setFileError(
-            'File changed on disk since you opened it. Reload to see the latest, then re-apply your edits.',
-          )
-          setSaving(false)
-          return
+  // Revoke stale PDF object URLs on change/unmount so blobs don't leak.
+  useEffect(() => {
+    if (!pdfUrl) return
+    return () => URL.revokeObjectURL(pdfUrl)
+  }, [pdfUrl])
+
+  const commitSave = useCallback(
+    async (path: string, value: string) => {
+      setSaving(true)
+      setShowDiff(false)
+      try {
+        // Verify the file hasn't changed on disk since it was loaded
+        const liveRes = await fetch(
+          `/api/files?action=read&path=${encodeURIComponent(path)}`,
+        )
+        if (liveRes.ok) {
+          const liveData = (await liveRes.json()) as { content?: string }
+          if (liveData.content !== undefined && liveData.content !== content) {
+            setFileError(
+              'File changed on disk since you opened it. Reload to see the latest, then re-apply your edits.',
+            )
+            setSaving(false)
+            return
+          }
         }
+        const res = await fetch('/api/files', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'write', path, content: value }),
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        setContent(value)
+        setDirty(false)
+        setSavedOk(true)
+        setTimeout(() => setSavedOk(false), 2000)
+      } catch (err) {
+        setFileError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setSaving(false)
       }
-      const res = await fetch('/api/files', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'write', path, content: value }),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      setContent(value)
-      setDirty(false)
-      setSavedOk(true)
-      setTimeout(() => setSavedOk(false), 2000)
-    } catch (err) {
-      setFileError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setSaving(false)
-    }
-  }, [content])
+    },
+    [content],
+  )
 
   const handleSave = useCallback(() => {
     if (!selectedEntry || !dirty) return
@@ -857,6 +936,12 @@ function FilePanel({
       window.open(dataUrl, '_blank', 'noopener,noreferrer')
       return
     }
+    if (isPdf) {
+      if (pdfUrl) window.open(pdfUrl, '_blank', 'noopener,noreferrer')
+      return
+    }
+    // Binary formats have no fetched content — nothing sensible to open.
+    if (isBinary) return
     if (isHtml) {
       blob = new Blob([buildHtmlPreviewDocument(content)], {
         type: 'text/html',
@@ -868,7 +953,16 @@ function FilePanel({
     const url = URL.createObjectURL(blob)
     window.open(url, '_blank', 'noopener,noreferrer')
     setTimeout(() => URL.revokeObjectURL(url), 30_000)
-  }, [content, dataUrl, isHtml, isImage, selectedEntry])
+  }, [
+    content,
+    dataUrl,
+    isBinary,
+    isHtml,
+    isImage,
+    isPdf,
+    pdfUrl,
+    selectedEntry,
+  ])
 
   const diffModal = (
     <DiffModal
@@ -952,7 +1046,11 @@ function FilePanel({
       ],
       [
         'Encoding',
-        selectedEntry && selectedEntry.type === 'file' && !isImage
+        selectedEntry &&
+        selectedEntry.type === 'file' &&
+        !isImage &&
+        !isPdf &&
+        !isBinary
           ? 'text / utf-8 assumed'
           : 'unknown',
       ],
@@ -1010,6 +1108,18 @@ function FilePanel({
           'Raw binary preview is not available',
           'Use the Preview tab for images.',
         )
+      if (isPdf)
+        return renderEmpty(
+          '📄',
+          'Raw binary preview is not available',
+          'Use the Preview tab for PDFs.',
+        )
+      if (isBinary)
+        return renderEmpty(
+          '📦',
+          'Raw binary preview is not available',
+          'Use Download to open it in its app.',
+        )
       return isEditable ? renderEditor() : renderCode(content)
     }
     if (isImage) {
@@ -1019,6 +1129,28 @@ function FilePanel({
         </div>
       ) : (
         renderEmpty('🖼', 'No preview')
+      )
+    }
+    if (isPdf) {
+      return pdfUrl ? (
+        <div className="files-html-shell">
+          {/* blob: URL of same-origin bytes rendered by the browser's native
+              PDF viewer — no sandbox tokens needed or added. */}
+          <iframe
+            title={`${selectedEntry.name} preview`}
+            className="files-pdf-frame"
+            src={pdfUrl}
+          />
+        </div>
+      ) : (
+        renderEmpty('📄', 'No preview')
+      )
+    }
+    if (isBinary) {
+      return renderEmpty(
+        '📦',
+        'No preview for this file type',
+        'Download to open it in its app.',
       )
     }
     if (isMd) {
@@ -1088,7 +1220,10 @@ function FilePanel({
       {diffModal}
       <section className="files-preview" aria-label="File preview">
         <div className="files-preview-top">
-          <Breadcrumb path={selectedEntry?.path ?? ''} />
+          <Breadcrumb
+            path={selectedEntry?.path ?? ''}
+            onNavigate={onNavigate}
+          />
           <div className="files-preview-actions">
             {kindKey ? (
               <span
@@ -1414,7 +1549,10 @@ function loadFilesTweaks(): FilesTweaksState {
   try {
     const raw = window.localStorage.getItem('files.tweaks')
     return raw
-      ? { ...FILES_TWEAKS_DEFAULTS, ...(JSON.parse(raw) as Partial<FilesTweaksState>) }
+      ? {
+          ...FILES_TWEAKS_DEFAULTS,
+          ...(JSON.parse(raw) as Partial<FilesTweaksState>),
+        }
       : FILES_TWEAKS_DEFAULTS
   } catch {
     return FILES_TWEAKS_DEFAULTS
@@ -1500,7 +1638,9 @@ export function FilesScreen() {
       const rawRecents = window.localStorage.getItem(
         `files.recents.${workspacePath}`,
       )
-      setRecentPaths(rawRecents ? (JSON.parse(rawRecents) as Array<string>) : [])
+      setRecentPaths(
+        rawRecents ? (JSON.parse(rawRecents) as Array<string>) : [],
+      )
     } catch {
       // corrupt/blocked storage — start empty
       setPinned(new Set())
@@ -1904,7 +2044,11 @@ export function FilesScreen() {
         res = await fetch('/api/files', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ action: 'write', path: nextPath, content: '' }),
+          body: JSON.stringify({
+            action: 'write',
+            path: nextPath,
+            content: '',
+          }),
         })
       }
       if (!res.ok) {
@@ -1948,6 +2092,15 @@ export function FilesScreen() {
     if (!selectedPath) return null
     return findEntryByPath(entries, selectedPath)
   }, [entries, selectedPath, findEntryByPath])
+
+  const handleBreadcrumbNavigate = useCallback(
+    (path: string) => {
+      if (!path) return handleSelectRoot()
+      const target = findEntryByPath(entries, path)
+      if (target) handleRevealFile(target)
+    },
+    [entries, findEntryByPath, handleRevealFile, handleSelectRoot],
+  )
 
   useEffect(() => {
     if (!search.open) return
@@ -2154,7 +2307,11 @@ export function FilesScreen() {
       <div
         data-screen="files"
         className="files-shell"
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
       >
         <div
           className="files-workspace-picker"
@@ -2242,7 +2399,11 @@ export function FilesScreen() {
             </div>
           )}
 
-          <form onSubmit={(e) => { void handlePickerSubmit(e) }}>
+          <form
+            onSubmit={(e) => {
+              void handlePickerSubmit(e)
+            }}
+          >
             <label
               htmlFor="workspace-path-input"
               style={{
@@ -2333,17 +2494,20 @@ export function FilesScreen() {
                 // workspace root (empty string).
                 let target = ''
                 if (selectedEntry) {
-                  target = selectedEntry.type === 'folder'
-                    ? selectedEntry.path
-                    : (getParentPath(selectedEntry.path) || '')
+                  target =
+                    selectedEntry.type === 'folder'
+                      ? selectedEntry.path
+                      : getParentPath(selectedEntry.path) || ''
                 }
                 openUploadPicker(target)
               }}
-              title={selectedEntry?.type === 'folder'
-                ? `Upload to ${selectedEntry.path}`
-                : selectedEntry
-                  ? `Upload to ${getParentPath(selectedEntry.path) || 'workspace root'}`
-                  : 'Upload to workspace root'}
+              title={
+                selectedEntry?.type === 'folder'
+                  ? `Upload to ${selectedEntry.path}`
+                  : selectedEntry
+                    ? `Upload to ${getParentPath(selectedEntry.path) || 'workspace root'}`
+                    : 'Upload to workspace root'
+              }
             >
               <SvgIco name="upload" size={14} />
             </button>
@@ -2362,7 +2526,11 @@ export function FilesScreen() {
                 <SvgIco name="sort" size={14} />
               </button>
               {sortMenuOpen ? (
-                <div className="files-sort-menu" role="menu" aria-label="Sort files">
+                <div
+                  className="files-sort-menu"
+                  role="menu"
+                  aria-label="Sort files"
+                >
                   {(
                     [
                       ['name', 'Name'],
@@ -2406,7 +2574,14 @@ export function FilesScreen() {
             title={treeCollapsed ? 'Expand tree' : 'Collapse tree'}
             aria-label={treeCollapsed ? 'Expand tree' : 'Collapse tree'}
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              width="14"
+              height="14"
+            >
               {treeCollapsed ? (
                 <path d="M9 18l6-6-6-6" />
               ) : (
@@ -2441,7 +2616,11 @@ export function FilesScreen() {
         </div>
 
         {/* type filter chips */}
-        <div className="files-kind-chips" role="group" aria-label="Filter by file type">
+        <div
+          className="files-kind-chips"
+          role="group"
+          aria-label="Filter by file type"
+        >
           <button
             type="button"
             className={cn(
@@ -2466,7 +2645,8 @@ export function FilesScreen() {
               onClick={() => setTypeFilter(k)}
             >
               <span className="dot" aria-hidden="true" />
-              {KIND_LABEL[k] ?? k} <span className="ct">{kindCounts[k] ?? 0}</span>
+              {KIND_LABEL[k] ?? k}{' '}
+              <span className="ct">{kindCounts[k] ?? 0}</span>
             </button>
           ))}
         </div>
@@ -2481,6 +2661,7 @@ export function FilesScreen() {
         <Breadcrumb
           path={selectedEntry?.path ?? ''}
           className="files-tree-breadcrumb"
+          onNavigate={handleBreadcrumbNavigate}
         />
 
         {/* body — keyboard nav delegates from the focusable tree row buttons */}
@@ -2568,6 +2749,7 @@ export function FilesScreen() {
           <FilePanel
             workspacePath={workspacePath}
             selectedEntry={liveSelected}
+            onNavigate={handleBreadcrumbNavigate}
             isPinned={pinned.has(liveSelected.path)}
             onTogglePin={togglePin}
             onDeleteRequest={setDeleteConfirm}
@@ -2576,18 +2758,36 @@ export function FilesScreen() {
         ) : (
           <section className="files-preview" aria-label="Folder listing">
             <div className="files-preview-top">
-              <Breadcrumb path={liveSelected?.path ?? ''} />
-              <span className="files-preview-kind">folder</span>
+              <Breadcrumb
+                path={liveSelected?.path ?? ''}
+                onNavigate={handleBreadcrumbNavigate}
+              />
               <div className="files-preview-actions">
+                <span
+                  className="files-kind-badge"
+                  style={{ color: 'var(--f-accent)' }}
+                  title="Folder"
+                >
+                  <SvgIco name="folder" size={11} />
+                  Folder
+                </span>
                 <button
                   type="button"
-                  className="files-icon-btn"
-                  onClick={() =>
-                    openUploadPicker(liveSelected?.path ?? '')
-                  }
+                  className="files-preview-act"
+                  onClick={() => openNewFilePrompt(liveSelected?.path ?? '')}
+                  title="New file here"
+                >
+                  <SvgIco name="plus" size={13} />
+                  New
+                </button>
+                <button
+                  type="button"
+                  className="files-preview-act"
+                  onClick={() => openUploadPicker(liveSelected?.path ?? '')}
                   title="Upload here"
                 >
-                  <SvgIco name="upload" size={14} />
+                  <SvgIco name="upload" size={13} />
+                  Upload
                 </button>
                 {liveSelected ? (
                   <button
@@ -2613,9 +2813,20 @@ export function FilesScreen() {
               />
             </div>
             <div className="files-preview-foot">
-              <span>{liveSelected?.path ?? 'workspace root'}</span>
+              <span>
+                folder{' '}
+                {liveSelected?.path
+                  ? (liveSelected.path.split('/').pop() ?? liveSelected.path)
+                  : 'workspace'}
+              </span>
               <span className="files-divider" />
               <span>{listingFolderEntries.length} items</span>
+              <span className="files-foot-right">
+                {listingFolderEntries.filter((e) => e.type === 'folder').length}{' '}
+                folders ·{' '}
+                {listingFolderEntries.filter((e) => e.type === 'file').length}{' '}
+                files
+              </span>
             </div>
           </section>
         )}
@@ -2657,130 +2868,137 @@ export function FilesScreen() {
       {/* ── Context menu ──────────────────────────────────────────────────── */}
       {resolvedContextMenu && typeof document !== 'undefined'
         ? createPortal(
-        <div
-          role="menu"
-          aria-label="File actions"
-          className="files-ctx-menu"
-          style={{
-            top: resolvedContextMenu.y,
-            left: resolvedContextMenu.x,
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            type="button"
-            role="menuitem"
-            className="files-ctx-item"
-            onClick={() => {
-              handleOpen(resolvedContextMenu.entry)
-              setContextMenu(null)
-            }}
-          >
-            <SvgIco name="open" size={14} /> Open
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="files-ctx-item"
-            onClick={() => {
-              void handleCopyPath(resolvedContextMenu.entry)
-              setContextMenu(null)
-            }}
-          >
-            <SvgIco name="copy" size={14} /> Copy path
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="files-ctx-item"
-            onClick={() => {
-              openRenamePrompt(resolvedContextMenu.entry)
-              setContextMenu(null)
-            }}
-          >
-            <SvgIco name="rename" size={14} /> Rename
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            className="files-ctx-item"
-            onClick={() => {
-              openMovePrompt(resolvedContextMenu.entry)
-              setContextMenu(null)
-            }}
-          >
-            <SvgIco name="move" size={14} /> Move to…
-          </button>
-          {resolvedContextMenu.entry.type === 'folder' ? (
-            <>
-              <button
-                type="button"
-                role="menuitem"
-                className="files-ctx-item"
-                onClick={() => {
-                  openNewFilePrompt(resolvedContextMenu.entry.path)
-                  setContextMenu(null)
+            // Wrapper carries data-screen="files" so the scoped .files-ctx-menu
+            // CSS + --f-* tokens resolve even though the menu is portaled to <body>.
+            <div data-screen="files">
+              <div
+                role="menu"
+                aria-label="File actions"
+                className="files-ctx-menu"
+                style={{
+                  top: resolvedContextMenu.y,
+                  left: resolvedContextMenu.x,
                 }}
+                onClick={(e) => e.stopPropagation()}
               >
-                <SvgIco name="plus" size={14} /> New file
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="files-ctx-item"
-                onClick={() => {
-                  openNewFolderPrompt(resolvedContextMenu.entry.path)
-                  setContextMenu(null)
-                }}
-              >
-                <SvgIco name="folder" size={14} /> New folder
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className="files-ctx-item"
-                onClick={() => {
-                  openUploadPicker(resolvedContextMenu.entry.path)
-                  setContextMenu(null)
-                }}
-              >
-                <SvgIco name="upload" size={14} /> Upload here
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              role="menuitem"
-              className="files-ctx-item"
-              onClick={() => {
-                void handleDownload(resolvedContextMenu.entry)
-                setContextMenu(null)
-              }}
-            >
-              <SvgIco name="dl" size={14} /> Download
-            </button>
-          )}
-          <button
-            type="button"
-            role="menuitem"
-            className="files-ctx-item is-danger"
-            onClick={() => {
-              setDeleteConfirm(resolvedContextMenu.entry)
-              setContextMenu(null)
-            }}
-          >
-            <SvgIco name="trash" size={14} /> Delete
-          </button>
-        </div>,
-        document.body,
-      )
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="files-ctx-item"
+                  onClick={() => {
+                    handleOpen(resolvedContextMenu.entry)
+                    setContextMenu(null)
+                  }}
+                >
+                  <SvgIco name="open" size={14} /> Open
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="files-ctx-item"
+                  onClick={() => {
+                    void handleCopyPath(resolvedContextMenu.entry)
+                    setContextMenu(null)
+                  }}
+                >
+                  <SvgIco name="copy" size={14} /> Copy path
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="files-ctx-item"
+                  onClick={() => {
+                    openRenamePrompt(resolvedContextMenu.entry)
+                    setContextMenu(null)
+                  }}
+                >
+                  <SvgIco name="rename" size={14} /> Rename
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="files-ctx-item"
+                  onClick={() => {
+                    openMovePrompt(resolvedContextMenu.entry)
+                    setContextMenu(null)
+                  }}
+                >
+                  <SvgIco name="move" size={14} /> Move to…
+                </button>
+                {resolvedContextMenu.entry.type === 'folder' ? (
+                  <>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="files-ctx-item"
+                      onClick={() => {
+                        openNewFilePrompt(resolvedContextMenu.entry.path)
+                        setContextMenu(null)
+                      }}
+                    >
+                      <SvgIco name="plus" size={14} /> New file
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="files-ctx-item"
+                      onClick={() => {
+                        openNewFolderPrompt(resolvedContextMenu.entry.path)
+                        setContextMenu(null)
+                      }}
+                    >
+                      <SvgIco name="folder" size={14} /> New folder
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="files-ctx-item"
+                      onClick={() => {
+                        openUploadPicker(resolvedContextMenu.entry.path)
+                        setContextMenu(null)
+                      }}
+                    >
+                      <SvgIco name="upload" size={14} /> Upload here
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="files-ctx-item"
+                    onClick={() => {
+                      void handleDownload(resolvedContextMenu.entry)
+                      setContextMenu(null)
+                    }}
+                  >
+                    <SvgIco name="dl" size={14} /> Download
+                  </button>
+                )}
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="files-ctx-item is-danger"
+                  onClick={() => {
+                    setDeleteConfirm(resolvedContextMenu.entry)
+                    setContextMenu(null)
+                  }}
+                >
+                  <SvgIco name="trash" size={14} /> Delete
+                </button>
+              </div>
+            </div>,
+            document.body,
+          )
         : null}
 
       {/* ── Rename / New-folder prompt dialog ─────────────────────────────── */}
       <Dialog
         open={Boolean(promptState)}
         onOpenChange={(open) => {
-          if (!open) { setPromptState(null); setPromptError(null) }
+          if (!open) {
+            setPromptState(null)
+            setPromptError(null)
+          }
         }}
       >
         <DialogContent>
@@ -2828,7 +3046,10 @@ export function FilesScreen() {
       <Dialog
         open={Boolean(deleteConfirm)}
         onOpenChange={(open) => {
-          if (!open) { setDeleteConfirm(null); setDeleteError(null) }
+          if (!open) {
+            setDeleteConfirm(null)
+            setDeleteError(null)
+          }
         }}
       >
         <DialogContent>

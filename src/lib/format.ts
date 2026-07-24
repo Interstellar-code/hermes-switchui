@@ -42,11 +42,22 @@ export function formatCostUsd(usd: number): string {
   return `$${Math.round(usd).toLocaleString()}`
 }
 
-/** Format a unix-epoch (seconds) timestamp as relative-to-now ("3h ago"). */
+/** Format a unix-epoch (seconds) timestamp as relative-to-now ("3h ago", "2w ago"). */
 export function formatRelative(epochSeconds: number): string {
   const diff = Math.floor(Date.now() / 1000 - epochSeconds)
   if (diff < 60) return 'just now'
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-  return `${Math.floor(diff / 86400)}d ago`
+  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`
+  if (diff < 86400 * 30) return `${Math.floor(diff / (86400 * 7))}w ago`
+  if (diff < 86400 * 365) return `${Math.floor(diff / (86400 * 30))}mo ago`
+  return `${Math.floor(diff / (86400 * 365))}y ago`
+}
+
+/** Format an ISO timestamp as relative-to-now; "—" for missing/invalid dates. */
+export function formatRelativeIso(iso: string | undefined): string {
+  if (!iso) return '—'
+  const ms = Date.parse(iso)
+  if (Number.isNaN(ms)) return '—'
+  return formatRelative(Math.floor(ms / 1000))
 }

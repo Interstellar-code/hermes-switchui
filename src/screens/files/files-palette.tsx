@@ -6,7 +6,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { FileEntry } from './file-tree'
 import {
   FIcon,
   KIND_COLOR,
@@ -15,6 +14,7 @@ import {
   fileKindKey,
 } from './files-icons'
 import { Highlight, fuzzy } from './files-search'
+import type { FileEntry } from './file-tree'
 
 type PaletteResult = {
   file: FileEntry
@@ -41,6 +41,11 @@ export function FilesPalette({
 
   useEffect(() => {
     inputRef.current?.focus()
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = overflow
+    }
   }, [])
 
   const results = useMemo<Array<PaletteResult>>(() => {
@@ -73,21 +78,30 @@ export function FilesPalette({
       setIdx((i) => Math.max(i - 1, 0))
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      const chosen = results[idx]
-      if (chosen) {
-        onPick(chosen.file)
-        onClose()
-      }
+      const chosen = results.at(idx)
+      if (!chosen) return
+      onPick(chosen.file)
+      onClose()
     } else if (e.key === 'Escape') {
       e.preventDefault()
       onClose()
     }
   }
 
-  if (typeof document === 'undefined') return null
-
   return createPortal(
-    <div data-screen="files" className="pal-backdrop" onClick={onClose}>
+    <div
+      data-screen="files"
+      className="pal-backdrop"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 60,
+        display: 'grid',
+        placeItems: 'center',
+        padding: 24,
+      }}
+      onClick={onClose}
+    >
       <div
         className="pal"
         role="dialog"
@@ -114,7 +128,9 @@ export function FilesPalette({
         <div className="pal-list">
           {results.length === 0 ? (
             <div className="pal-empty">
-              {query.trim() ? `No files match “${query.trim()}”.` : 'No recent files.'}
+              {query.trim()
+                ? `No files match “${query.trim()}”.`
+                : 'No recent files.'}
             </div>
           ) : (
             results.map((r, i) => {

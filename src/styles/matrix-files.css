@@ -7,15 +7,28 @@
   --f-panel: var(--m-panel, var(--theme-card, #0d1711));
   --f-panel-2: var(--m-panel-2, #0a130e);
   --f-border: var(--m-border, var(--theme-border, rgba(51, 255, 102, 0.18)));
-  --f-border-subtle: var(--m-border-subtle, var(--theme-border, rgba(51, 255, 102, 0.09)));
+  --f-border-subtle: var(
+    --m-border-subtle,
+    var(--theme-border, rgba(51, 255, 102, 0.09))
+  );
   --f-text: var(--m-text, var(--theme-text, #d6f8de));
   --f-text-2: var(--m-text-muted, var(--theme-muted, #7ec78c));
   --f-text-3: var(--m-text-faint, var(--theme-muted, #4a7c56));
   --f-accent: var(--m-green-500, var(--theme-accent, #37ff63));
-  --f-accent-soft: color-mix(in srgb, var(--m-green-500, var(--theme-accent, #37ff63)) 12%, transparent);
+  --f-accent-soft: color-mix(
+    in srgb,
+    var(--m-green-500, var(--theme-accent, #37ff63)) 12%,
+    transparent
+  );
   --f-danger: #ff6b8f;
   --f-shadow:
-    0 0 0 1px color-mix(in srgb, var(--m-green-500, var(--theme-accent, #37ff63)) 5%, transparent), 0 18px 48px rgba(0, 0, 0, 0.28);
+    0 0 0 1px
+      color-mix(
+        in srgb,
+        var(--m-green-500, var(--theme-accent, #37ff63)) 5%,
+        transparent
+      ),
+    0 18px 48px rgba(0, 0, 0, 0.28);
   --rowpad: 7px;
 
   &.files-shell {
@@ -37,7 +50,9 @@
     overflow: hidden;
     background: var(--f-panel, var(--theme-card));
     border-right: 1px solid var(--f-border);
-    transition: width 180ms ease-out, min-width 180ms ease-out;
+    transition:
+      width 180ms ease-out,
+      min-width 180ms ease-out;
   }
 
   .files-tree.is-collapsed {
@@ -86,7 +101,7 @@
   .files-tree-head h3 {
     margin: 0;
     font: 700 12px var(--m-font-mono, ui-monospace, monospace);
-    letter-spacing: .14em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--f-accent);
   }
@@ -119,7 +134,9 @@
     cursor: pointer;
     display: grid;
     place-items: center;
-    transition: color 120ms, border-color 120ms;
+    transition:
+      color 120ms,
+      border-color 120ms;
     flex-shrink: 0;
   }
 
@@ -160,7 +177,12 @@
     color: var(--f-accent);
     border-color: var(--f-border);
     background: var(--f-accent-soft);
-    box-shadow: 0 0 12px color-mix(in srgb, var(--m-green-500, var(--theme-accent, #37ff63)) 16%, transparent);
+    box-shadow: 0 0 12px
+      color-mix(
+        in srgb,
+        var(--m-green-500, var(--theme-accent, #37ff63)) 16%,
+        transparent
+      );
   }
 
   .files-icon-btn.danger:hover {
@@ -234,7 +256,19 @@
   }
 
   .files-seg {
+    appearance: none;
+    border: 0;
+    padding: 0;
+    background: none;
     color: var(--f-text-2);
+    cursor: pointer;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+  }
+  .files-seg:hover,
+  .files-seg:focus-visible {
+    color: var(--f-text-1);
   }
   .files-seg.current {
     color: var(--f-accent);
@@ -263,7 +297,9 @@
     color: var(--f-text-2);
     text-align: left;
     cursor: pointer;
-    transition: background 100ms, color 100ms;
+    transition:
+      background 100ms,
+      color 100ms;
     font: 500 11px var(--m-font-sans, system-ui, sans-serif);
   }
 
@@ -381,7 +417,10 @@
     color: var(--f-text-3);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.14s ease, color 0.14s ease, background 0.14s ease;
+    transition:
+      opacity 0.14s ease,
+      color 0.14s ease,
+      background 0.14s ease;
   }
 
   /* Sustained hover before revealing — accidental skim-overs don't expose
@@ -450,7 +489,7 @@
     font: 700 9px var(--m-font-mono, ui-monospace, monospace);
     writing-mode: vertical-rl;
     text-orientation: mixed;
-    letter-spacing: .14em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--f-accent);
   }
@@ -620,7 +659,11 @@
     background:
       radial-gradient(
         circle at 20% 0%,
-        color-mix(in srgb, var(--m-green-500, var(--theme-accent, #37ff63)) 8%, transparent),
+        color-mix(
+          in srgb,
+          var(--m-green-500, var(--theme-accent, #37ff63)) 8%,
+          transparent
+        ),
         transparent 34%
       ),
       rgba(0, 0, 0, 0.18);
@@ -782,7 +825,12 @@
   }
 
   .files-textarea:focus {
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--m-green-500, var(--theme-accent, #37ff63)) 16%, transparent);
+    box-shadow: 0 0 0 2px
+      color-mix(
+        in srgb,
+        var(--m-green-500, var(--theme-accent, #37ff63)) 16%,
+        transparent
+      );
   }
 
   .files-image-shell {
@@ -905,6 +953,12 @@
       white-space: nowrap;
     }
 
+    .col-serial {
+      width: 64px;
+      white-space: nowrap;
+      text-align: right;
+    }
+
     tbody td {
       padding: 6px 12px;
       border-bottom: 1px solid var(--f-border-subtle);
@@ -942,8 +996,21 @@
       white-space: nowrap;
     }
 
+    .files-folder-count {
+      flex-shrink: 0;
+      min-width: 18px;
+      padding: 1px 5px;
+      border: 1px solid var(--f-border);
+      border-radius: 999px;
+      color: var(--f-text-2);
+      font-size: 9px;
+      line-height: 14px;
+      text-align: center;
+    }
+
     .col-size,
-    .col-mod {
+    .col-mod,
+    .col-serial {
       color: var(--f-text-2);
       font-variant-numeric: tabular-nums;
     }
@@ -955,7 +1022,11 @@
    .files-kind-chips and the header .files-sort-menu, see end of file.) */
 .files-tree-row mark,
 .files-folder-row mark {
-  background: color-mix(in srgb, var(--f-accent, var(--accent)) 30%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--f-accent, var(--accent)) 30%,
+    transparent
+  );
   color: inherit;
   border-radius: 2px;
 }
@@ -1081,17 +1152,16 @@
   position: fixed;
   inset: 0;
   z-index: 60;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 14vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(2px);
 }
 
 [data-screen='files'] .pal {
   width: min(640px, 92vw);
-  max-height: 66vh;
+  max-height: min(640px, calc(100dvh - 48px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1099,7 +1169,13 @@
   border: 1px solid var(--f-border);
   border-radius: 12px;
   box-shadow: var(--f-shadow);
-  font-family: var(--m-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-family: var(
+    --m-font-mono,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace
+  );
 }
 
 [data-screen='files'] .pal-in {
@@ -1259,7 +1335,9 @@
   color: var(--f-text-2);
   text-align: left;
   cursor: pointer;
-  transition: background 100ms, color 100ms;
+  transition:
+    background 100ms,
+    color 100ms;
 }
 
 [data-screen='files'] .files-ctx-item:hover,
@@ -1306,7 +1384,9 @@
   color: var(--f-text-2);
   box-shadow: var(--f-shadow);
   cursor: pointer;
-  transition: color 120ms, border-color 120ms;
+  transition:
+    color 120ms,
+    border-color 120ms;
 }
 
 [data-screen='files'] .tw-fab:hover {
@@ -1404,7 +1484,9 @@
   color: var(--f-text-2);
   font-size: 11px;
   cursor: pointer;
-  transition: background 100ms, color 100ms;
+  transition:
+    background 100ms,
+    color 100ms;
 }
 
 [data-screen='files'] .tw-row .seg button + button {
@@ -1658,4 +1740,105 @@
 .files-preview-menu button.is-danger:hover {
   background: rgba(255, 107, 143, 0.08);
   color: var(--f-danger, #ff6b8f);
+}
+
+/* ── Files v2 — FolderView header actions + footer (task #14) ──────────── */
+
+.files-kind-badge {
+  gap: 5px;
+}
+
+.files-preview-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--f-border);
+  background: transparent;
+  color: var(--f-text-2);
+  font: 600 10px var(--m-font-mono, ui-monospace, monospace);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.files-preview-act:hover {
+  color: var(--f-accent);
+  border-color: var(--f-accent);
+  background: var(--f-accent-soft);
+}
+
+.files-preview-foot .files-foot-right {
+  margin-left: auto;
+}
+
+/* PDF preview — blob: URL rendered by the browser's native PDF viewer. */
+.files-pdf-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 480px;
+  border: 0;
+}
+
+/* ── Folder-listing: Name column header with inline search ─────────────── */
+[data-screen='files'] .files-folder-listing .col-name-head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+[data-screen='files'] .files-folder-listing .files-folder-name-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--f-text-3);
+  cursor: pointer;
+  transition:
+    color 120ms,
+    border-color 120ms,
+    background 120ms;
+}
+
+[data-screen='files'] .files-folder-listing .files-folder-name-toggle:hover,
+[data-screen='files']
+  .files-folder-listing
+  .files-folder-name-toggle.is-active {
+  color: var(--f-accent);
+  border-color: var(--f-border-subtle);
+  background: var(--f-accent-soft);
+}
+
+[data-screen='files'] .files-folder-listing .files-folder-name-search {
+  width: 170px;
+  height: 24px;
+  background: var(--f-bg, var(--theme-hover));
+  border: 1px solid var(--f-border-subtle);
+  border-radius: 6px;
+  padding: 0 9px;
+  font: 400 11px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--f-text);
+  outline: none;
+  text-transform: none;
+  letter-spacing: normal;
+  transition: border-color 100ms;
+}
+
+[data-screen='files']
+  .files-folder-listing
+  .files-folder-name-search::placeholder {
+  color: var(--f-text-3);
+}
+
+[data-screen='files'] .files-folder-listing .files-folder-name-search:focus {
+  border-color: var(--f-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--f-accent) 15%, transparent);
 }

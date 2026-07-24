@@ -172,7 +172,6 @@ describe('ChatMetaBarV2', () => {
     const container = renderInto(
       <ChatMetaBarV2
         sessionKey="t_49b85d13"
-        isStreaming={false}
         toolCount={14}
         profile="default"
       />,
@@ -184,7 +183,6 @@ describe('ChatMetaBarV2', () => {
     const container = renderInto(
       <ChatMetaBarV2
         sessionKey="abc"
-        isStreaming={false}
         toolCount={0}
         profile="default"
       />,
@@ -198,30 +196,9 @@ describe('ChatMetaBarV2', () => {
     expect(sid?.textContent).toContain('session')
   })
 
-  it('shows tok/s when streaming and tokPerSec provided', () => {
-    const container = renderInto(
-      <ChatMetaBarV2
-        sessionKey="abc"
-        isStreaming={true}
-        tokPerSec={37}
-        toolCount={0}
-      />,
-    )
-    const tps = container.querySelector('[data-testid="tok-per-sec"]')
-    expect(tps?.textContent).toContain('37')
-  })
-
-  it('hides tok/s when not streaming', () => {
-    const container = renderInto(
-      <ChatMetaBarV2
-        sessionKey="abc"
-        isStreaming={false}
-        tokPerSec={37}
-        toolCount={0}
-      />,
-    )
-    const tps = container.querySelector('[data-testid="tok-per-sec"]')
-    expect(tps).toBeNull()
+  it('does not render the removed token-rate field', () => {
+    const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
+    expect(container.querySelector('[data-testid="tok-per-sec"]')).toBeNull()
   })
 
   it('renders selectors slot (model/provider live here, not a standalone field)', () => {

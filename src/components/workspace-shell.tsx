@@ -32,7 +32,6 @@ import { useWorkspaceStore } from '@/stores/workspace-store'
 import { SIDEBAR_TOGGLE_EVENT } from '@/hooks/use-global-shortcuts'
 import { useSwipeNavigation } from '@/hooks/use-swipe-navigation'
 import { ChatPanel } from '@/components/chat-panel'
-import { ChatPanelToggle } from '@/components/chat-panel-toggle'
 import { LoginScreen } from '@/components/auth/login-screen'
 import { MobileTabBar } from '@/components/mobile-tab-bar'
 import { MobileHamburgerMenu } from '@/components/mobile-hamburger-menu'
@@ -375,9 +374,6 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
           {/* Chat panel — visible on non-chat routes */}
           {!isOnChatRoute && !isMobile && <ChatPanel />}
         </div>
-
-        {/* Floating chat toggle — visible on non-chat routes */}
-        {!isOnChatRoute && !isMobile && <ChatPanelToggle />}
 
         {!authState.checked ? (
           <ConnectionStartupScreen onConnected={handleStartupConnected} />

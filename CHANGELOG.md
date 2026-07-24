@@ -3,6 +3,19 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.25] — 2026-07-24
+
+### Added
+
+- **Files v2 sidebar in Chat** — the chat file explorer now shares the Files workspace styling, quick jump, search, and file actions.
+- **SQLite binary handling** — `.db`, `.sqlite`, and `.sqlite3` files are safely identified as binary and offered for download instead of being decoded as text.
+
+### Changed
+
+- Quick Jump is centered and viewport-bounded so its results remain visible instead of rendering at the bottom of the page.
+- Folder listings use serial numbers and show folder item counts beside names.
+- Removed the chat token-rate indicator from the session metadata bar.
+
 ## [2.5.24] — 2026-07-24
 
 ### Added
