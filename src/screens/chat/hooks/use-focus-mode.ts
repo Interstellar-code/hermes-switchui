@@ -17,6 +17,8 @@ export function useFocusMode(params: {
   handleToggleSidebarCollapse: () => void
   handleToggleFileExplorer: () => void
   handleInsertFileReference: (reference: string) => void
+  handleAttachWorkspaceImage: (path: string) => Promise<void>
+  handleAttachWorkspaceFile: (path: string) => Promise<void>
 } {
   const { compact, composerHandleRef } = params
 
@@ -117,6 +119,51 @@ export function useFocusMode(params: {
     composerHandleRef.current?.insertText(reference)
   }, [])
 
+  const handleAttachWorkspaceImage = useCallback(
+    async (path: string) => {
+      const composer = composerHandleRef.current
+      if (!composer) throw new Error('Chat composer is unavailable')
+
+      const res = await fetch(
+        `/api/files?action=read&path=${encodeURIComponent(path)}`,
+      )
+      if (!res.ok) throw new Error(`Could not read image (HTTP ${res.status})`)
+      const data = (await res.json()) as { type?: string; content?: string }
+      if (data.type !== 'image' || !data.content) {
+        throw new Error('This workspace file is not an image')
+      }
+
+      const imageResponse = await fetch(data.content)
+      if (!imageResponse.ok) throw new Error('Could not prepare image attachment')
+      const blob = await imageResponse.blob()
+      const name = path.split('/').filter(Boolean).pop() || 'workspace-image'
+      await composer.addFiles([
+        new File([blob], name, { type: blob.type || 'image/*' }),
+      ])
+    },
+    [composerHandleRef],
+  )
+
+  const handleAttachWorkspaceFile = useCallback(
+    async (path: string) => {
+      const composer = composerHandleRef.current
+      if (!composer) throw new Error('Chat composer is unavailable')
+
+      const res = await fetch(
+        `/api/files?action=download&path=${encodeURIComponent(path)}`,
+      )
+      if (!res.ok) throw new Error(`Could not read file (HTTP ${res.status})`)
+      const blob = await res.blob()
+      const name = path.split('/').filter(Boolean).pop() || 'workspace-file'
+      await composer.addFiles([
+        new File([blob], name, {
+          type: blob.type || 'application/octet-stream',
+        }),
+      ])
+    },
+    [composerHandleRef],
+  )
+
   return {
     chatFocusMode,
     isFocusMode,
@@ -125,5 +172,7 @@ export function useFocusMode(params: {
     handleToggleSidebarCollapse,
     handleToggleFileExplorer,
     handleInsertFileReference,
+    handleAttachWorkspaceImage,
+    handleAttachWorkspaceFile,
   }
 }

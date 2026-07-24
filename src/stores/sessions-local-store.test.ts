@@ -6,9 +6,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const store: Record<string, string> = {}
 const localStorageMock = {
   getItem: (key: string) => store[key] ?? null,
-  setItem: (key: string, val: string) => { store[key] = val },
-  removeItem: (key: string) => { delete store[key] },
-  clear: () => { for (const k in store) delete store[k] },
+  setItem: (key: string, val: string) => {
+    store[key] = val
+  },
+  removeItem: (key: string) => {
+    delete store[key]
+  },
+  clear: () => {
+    for (const k in store) delete store[k]
+  },
 }
 vi.stubGlobal('localStorage', localStorageMock)
 // Provide window.localStorage for code paths that use `window.` directly
@@ -31,7 +37,33 @@ describe('sessions-local-store', () => {
     expect(s.pinned).toEqual([])
     expect(s.starred).toEqual([])
     expect(s.archived).toEqual([])
-    expect(s.version).toBe(1)
+    expect(s.lastSeenUpdate).toEqual({})
+    expect(s.seenUpdatesInitialized).toBe(false)
+    expect(s.version).toBe(2)
+  })
+
+  it('baselines existing sessions, then marks later updates unseen until opened', async () => {
+    const useStore = await getStore()
+    const state = useStore.getState()
+    state.initializeSeenUpdates([{ id: 'chat:one', when: 10 }])
+
+    expect(useStore.getState().seenUpdatesInitialized).toBe(true)
+    expect(useStore.getState().lastSeenUpdate['chat:one']).toBe(10)
+
+    useStore.getState().markSessionSeen('chat:one', 20)
+    expect(useStore.getState().lastSeenUpdate['chat:one']).toBe(20)
+  })
+
+  it('marks all settled sessions read without clearing live-session attention', async () => {
+    const useStore = await getStore()
+    useStore.getState().initializeSeenUpdates([{ id: 'chat:done', when: 10 }])
+    useStore.getState().markSessionsSeen([
+      { id: 'chat:done', when: 20, live: false },
+      { id: 'chat:live', when: 30, live: true },
+    ])
+
+    expect(useStore.getState().lastSeenUpdate).toMatchObject({ 'chat:done': 20 })
+    expect(useStore.getState().lastSeenUpdate['chat:live']).toBeUndefined()
   })
 
   it('togglePinned adds and removes', async () => {
@@ -84,7 +116,10 @@ describe('sessions-local-store', () => {
     // Seed legacy store (zustand persist format)
     localStorageMock.setItem(
       'pinned-sessions',
-      JSON.stringify({ state: { pinnedSessionKeys: ['key1', 'key2'] }, version: 0 }),
+      JSON.stringify({
+        state: { pinnedSessionKeys: ['key1', 'key2'] },
+        version: 0,
+      }),
     )
     // Test the exported readLegacyPinned function directly
     const { readLegacyPinned } = await import('./sessions-local-store')
@@ -97,7 +132,10 @@ describe('sessions-local-store', () => {
     // Already-namespaced ids should pass through unchanged
     localStorageMock.setItem(
       'pinned-sessions',
-      JSON.stringify({ state: { pinnedSessionKeys: ['chat:key1', 'key2'] }, version: 0 }),
+      JSON.stringify({
+        state: { pinnedSessionKeys: ['chat:key1', 'key2'] },
+        version: 0,
+      }),
     )
     const { readLegacyPinned } = await import('./sessions-local-store')
     const result = readLegacyPinned()
@@ -109,7 +147,10 @@ describe('sessions-local-store', () => {
   it('rehydrate: legacy pinned-sessions merged into store state', async () => {
     localStorageMock.setItem(
       'pinned-sessions',
-      JSON.stringify({ state: { pinnedSessionKeys: ['abc', 'chat:def'] }, version: 0 }),
+      JSON.stringify({
+        state: { pinnedSessionKeys: ['abc', 'chat:def'] },
+        version: 0,
+      }),
     )
     const useStore = await getStore()
     // Trigger rehydrate
@@ -145,7 +186,10 @@ describe('sessions-local-store', () => {
   it('future version (v99) drops to defaults', async () => {
     localStorageMock.setItem(
       'hermes.sessions.local',
-      JSON.stringify({ state: { version: 99, pinned: ['chat:x'], starred: [], archived: [] }, version: 99 }),
+      JSON.stringify({
+        state: { version: 99, pinned: ['chat:x'], starred: [], archived: [] },
+        version: 99,
+      }),
     )
     const useStore = await getStore()
     await new Promise((r) => setTimeout(r, 10))

@@ -16,6 +16,7 @@
   --f-danger: #ff6b8f;
   --f-shadow:
     0 0 0 1px color-mix(in srgb, var(--m-green-500, var(--theme-accent, #37ff63)) 5%, transparent), 0 18px 48px rgba(0, 0, 0, 0.28);
+  --rowpad: 7px;
 
   &.files-shell {
     display: flex;
@@ -254,8 +255,8 @@
     align-items: center;
     gap: 8px;
     width: 100%;
-    padding: 0 8px;
-    height: 28px;
+    padding: var(--rowpad, 7px) 8px;
+    min-height: 24px;
     border-radius: 4px;
     border: none;
     background: transparent;
@@ -659,8 +660,25 @@
     color: var(--f-text);
   }
 
-  .files-doc-shell :where(h1, h2, h3, h4) {
-    color: var(--f-text);
+  /* Files v2 reference: markdown headings render mono + accent green.
+     Scoped to .markdown-preview so a non-markdown doc shell stays untouched. */
+  .files-doc-shell.markdown-preview :where(h1, h2, h3, h4) {
+    color: var(--f-accent);
+    font-family: var(--m-font-mono, ui-monospace, monospace);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .files-doc-shell.markdown-preview :where(h1) {
+    font-size: 21px;
+  }
+  .files-doc-shell.markdown-preview :where(h2) {
+    font-size: 16px;
+  }
+  .files-doc-shell.markdown-preview :where(h3) {
+    font-size: 13px;
+  }
+  .files-doc-shell.markdown-preview :where(h4) {
+    font-size: 12px;
   }
   .files-doc-shell :where(p, li, blockquote, td, th) {
     color: #bfe8c7;
@@ -930,4 +948,714 @@
       font-variant-numeric: tabular-nums;
     }
   }
+}
+
+/* ── Files v2: search highlight ────────────────────────────────────────── */
+/* (.files-tree-filters two-select row removed — replaced by .files-quickjump,
+   .files-kind-chips and the header .files-sort-menu, see end of file.) */
+.files-tree-row mark,
+.files-folder-row mark {
+  background: color-mix(in srgb, var(--f-accent, var(--accent)) 30%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Files v2 — Quick Access (.qa) + Command palette (.pal)  [append only]
+   The palette portals to <body> under a data-screen="files" wrapper, so the
+   --f-* tokens defined on [data-screen='files'] resolve for it too.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* ── Quick Access groups (in the tree sidebar) ──────────────────────────── */
+[data-screen='files'] .qa {
+  padding: 2px 6px 4px;
+}
+
+[data-screen='files'] .qa-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 6px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  color: var(--f-text-2);
+  font: 700 10px var(--m-font-mono, ui-monospace, monospace);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+[data-screen='files'] .qa-h:hover {
+  color: var(--f-accent);
+}
+
+[data-screen='files'] .qa-h .chev2 {
+  display: inline-flex;
+  transition: transform 140ms ease-out;
+}
+
+[data-screen='files'] .qa-h.closed .chev2 {
+  transform: rotate(-90deg);
+}
+
+[data-screen='files'] .qa-h .qa-label {
+  flex: 0 0 auto;
+}
+
+[data-screen='files'] .qa-h .cnt {
+  margin-left: auto;
+  font-size: 9px;
+  color: var(--f-text-3);
+  background: var(--f-accent-soft);
+  border: 1px solid var(--f-border-subtle);
+  border-radius: 999px;
+  padding: 0 5px;
+}
+
+[data-screen='files'] .qa-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--rowpad, 7px) 8px;
+  margin: 0 2px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--f-text);
+  font: 12px var(--m-font-mono, ui-monospace, monospace);
+}
+
+[data-screen='files'] .qa-row:hover {
+  background: var(--f-accent-soft);
+}
+
+[data-screen='files'] .qa-row.on {
+  background: var(--f-accent-soft);
+  box-shadow: inset 2px 0 0 var(--f-accent);
+}
+
+[data-screen='files'] .qa-row .ic {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+[data-screen='files'] .qa-row .nm {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-screen='files'] .qa-row .pk {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+}
+
+[data-screen='files'] .qa-row .qa-star {
+  flex: 0 0 auto;
+  opacity: 0;
+  width: 20px;
+  height: 20px;
+}
+
+[data-screen='files'] .qa-row:hover .qa-star,
+[data-screen='files'] .qa-row .qa-star.is-pinned {
+  opacity: 1;
+}
+
+/* ── Pinned star (preview action bar + quick-access rows) ────────────────── */
+[data-screen='files'] .files-icon-btn.is-pinned {
+  color: var(--f-accent);
+}
+
+[data-screen='files'] .files-icon-btn.is-pinned svg {
+  fill: var(--f-accent);
+}
+
+/* ── Command palette (⌘K) ───────────────────────────────────────────────── */
+[data-screen='files'] .pal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14vh;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+[data-screen='files'] .pal {
+  width: min(640px, 92vw);
+  max-height: 66vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--f-panel);
+  border: 1px solid var(--f-border);
+  border-radius: 12px;
+  box-shadow: var(--f-shadow);
+  font-family: var(--m-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+[data-screen='files'] .pal-in {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--f-border-subtle);
+  color: var(--f-text-2);
+}
+
+[data-screen='files'] .pal-in input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--f-text);
+  font: 14px var(--m-font-mono, ui-monospace, monospace);
+}
+
+[data-screen='files'] .pal-in input::placeholder {
+  color: var(--f-text-3);
+}
+
+[data-screen='files'] .pal-in .esc {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--f-text-3);
+  border: 1px solid var(--f-border-subtle);
+  border-radius: 4px;
+  padding: 2px 5px;
+}
+
+[data-screen='files'] .pal-hint {
+  padding: 6px 14px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--f-text-3);
+  border-bottom: 1px solid var(--f-border-subtle);
+}
+
+[data-screen='files'] .pal-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+[data-screen='files'] .pal-empty {
+  padding: 24px 14px;
+  text-align: center;
+  color: var(--f-text-3);
+  font-size: 12px;
+}
+
+[data-screen='files'] .pal-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  color: var(--f-text);
+}
+
+[data-screen='files'] .pal-item.sel {
+  background: var(--f-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--f-border);
+}
+
+[data-screen='files'] .pal-item .ic {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+[data-screen='files'] .pal-item .nm {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+[data-screen='files'] .pal-item .nm mark {
+  background: transparent;
+  color: var(--f-accent);
+  font-weight: 700;
+}
+
+[data-screen='files'] .pal-item .pk {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+[data-screen='files'] .pal-item .pth {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-size: 11px;
+  color: var(--f-text-3);
+}
+
+[data-screen='files'] .pal-foot {
+  display: flex;
+  gap: 16px;
+  padding: 9px 14px;
+  border-top: 1px solid var(--f-border-subtle);
+  color: var(--f-text-3);
+  font-size: 10px;
+}
+
+[data-screen='files'] .pal-foot kbd {
+  color: var(--f-text-2);
+  border: 1px solid var(--f-border-subtle);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-right: 4px;
+  font-family: inherit;
+}
+
+/* ── Context menu (Matrix) ─────────────────────────────────────────────── */
+[data-screen='files'] .files-ctx-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 220px;
+  padding: 5px;
+  border-radius: 8px;
+  background: var(--f-panel);
+  border: 1px solid var(--f-border);
+  box-shadow: var(--f-shadow);
+  font: 500 12px var(--m-font-sans, system-ui, sans-serif);
+  color: var(--f-text);
+}
+
+[data-screen='files'] .files-ctx-menu .sect-div {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--f-border-subtle);
+}
+
+[data-screen='files'] .files-ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 6px 9px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--f-text-2);
+  text-align: left;
+  cursor: pointer;
+  transition: background 100ms, color 100ms;
+}
+
+[data-screen='files'] .files-ctx-item:hover,
+[data-screen='files'] .files-ctx-item:focus-visible {
+  background: var(--f-accent-soft);
+  color: var(--f-text);
+  outline: none;
+}
+
+[data-screen='files'] .files-ctx-item.is-danger {
+  color: var(--f-danger);
+}
+
+[data-screen='files'] .files-ctx-item.is-danger:hover,
+[data-screen='files'] .files-ctx-item.is-danger:focus-visible {
+  background: color-mix(in srgb, var(--f-danger) 14%, transparent);
+  color: var(--f-danger);
+}
+
+/* ── Markdown outline scrollspy ────────────────────────────────────────── */
+[data-screen='files'] .files-outline a.is-active {
+  color: var(--f-accent);
+  border-left-color: var(--f-accent);
+}
+
+/* ── Labels toggle: Icons mode hides the kind pill text ────────────────── */
+[data-screen='files'][data-labels='off'] .files-preview-kind {
+  display: none;
+}
+
+/* ── Tweaks panel ──────────────────────────────────────────────────────── */
+[data-screen='files'] .tw-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 45;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--f-panel);
+  border: 1px solid var(--f-border);
+  color: var(--f-text-2);
+  box-shadow: var(--f-shadow);
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms;
+}
+
+[data-screen='files'] .tw-fab:hover {
+  color: var(--f-accent);
+  border-color: var(--f-accent);
+}
+
+[data-screen='files'] .tw-panel {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 46;
+  width: 260px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--f-panel);
+  border: 1px solid var(--f-border);
+  box-shadow: var(--f-shadow);
+  color: var(--f-text);
+}
+
+[data-screen='files'] .tw-panel h4 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 12px;
+  font: 600 12px var(--m-font-sans, system-ui, sans-serif);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--f-text-2);
+}
+
+[data-screen='files'] .tw-panel h4 .x {
+  display: grid;
+  place-items: center;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  color: var(--f-text-3);
+  cursor: pointer;
+}
+
+[data-screen='files'] .tw-panel h4 .x:hover {
+  color: var(--f-text);
+}
+
+[data-screen='files'] .tw-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+}
+
+[data-screen='files'] .tw-row .l {
+  font-size: 11px;
+  color: var(--f-text-2);
+}
+
+[data-screen='files'] .tw-row .swatches {
+  display: flex;
+  gap: 6px;
+}
+
+[data-screen='files'] .tw-row .swatches .sw {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  box-shadow: 0 0 0 1px var(--f-border-subtle);
+  transition: transform 100ms;
+}
+
+[data-screen='files'] .tw-row .swatches .sw:hover {
+  transform: scale(1.12);
+}
+
+[data-screen='files'] .tw-row .swatches .sw.on {
+  border-color: var(--f-bg);
+  box-shadow: 0 0 0 2px currentColor;
+}
+
+[data-screen='files'] .tw-row .seg {
+  display: inline-flex;
+  border: 1px solid var(--f-border-subtle);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+[data-screen='files'] .tw-row .seg button {
+  padding: 4px 9px;
+  border: none;
+  background: transparent;
+  color: var(--f-text-2);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 100ms, color 100ms;
+}
+
+[data-screen='files'] .tw-row .seg button + button {
+  border-left: 1px solid var(--f-border-subtle);
+}
+
+[data-screen='files'] .tw-row .seg button.on {
+  background: var(--f-accent-soft);
+  color: var(--f-accent);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Files v2 — quick-jump bar, kind-filter chips, header sort menu [append only]
+   ────────────────────────────────────────────────────────────────────────── */
+.files-quickjump {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 12px 8px;
+  padding: 5px 9px;
+  width: calc(100% - 24px);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  color: var(--f-text-3, var(--muted-foreground));
+  background: transparent;
+  border: 1px solid var(--f-border-subtle, var(--border));
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.files-quickjump:hover,
+.files-quickjump:focus-visible {
+  border-color: var(--f-accent, var(--accent));
+  color: var(--f-text-2, var(--foreground));
+}
+
+.files-quickjump .qj-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.files-quickjump kbd {
+  font: inherit;
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 5px;
+  border: 1px solid var(--f-border-subtle, var(--border));
+  border-radius: 4px;
+  color: var(--f-text-3, var(--muted-foreground));
+}
+
+.files-tree.is-collapsed .files-quickjump {
+  display: none;
+}
+
+.files-kind-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 12px 8px;
+}
+
+.files-tree.is-collapsed .files-kind-chips {
+  display: none;
+}
+
+.files-kind-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border: 1px solid var(--f-border-subtle, var(--border));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--f-text-2, var(--muted-foreground));
+  cursor: pointer;
+}
+
+.files-kind-chip .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--chip-c, var(--f-text-3, currentColor));
+}
+
+.files-kind-chip .ct {
+  color: var(--f-text-3, var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+.files-kind-chip:hover {
+  border-color: var(--f-accent, var(--accent));
+}
+
+.files-kind-chip.is-active {
+  background: var(--f-accent-soft);
+  border-color: var(--f-accent, var(--accent));
+  color: var(--f-text, var(--foreground));
+}
+
+.files-sort-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.files-sort-wrap .files-icon-btn.is-open {
+  background: var(--f-accent-soft);
+  color: var(--f-accent, var(--accent));
+}
+
+.files-sort-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 40;
+  min-width: 130px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--f-panel, var(--theme-card));
+  border: 1px solid var(--f-border, var(--border));
+  border-radius: 6px;
+  box-shadow: var(--f-shadow, 0 8px 24px rgba(0, 0, 0, 0.35));
+}
+
+.files-sort-menu button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  padding: 4px 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--f-text-2, var(--muted-foreground));
+  cursor: pointer;
+}
+
+.files-sort-menu button:hover {
+  background: var(--f-accent-soft);
+  color: var(--f-text, var(--foreground));
+}
+
+.files-sort-menu button.is-active {
+  color: var(--f-accent, var(--accent));
+}
+
+.files-sort-menu .mark {
+  width: 12px;
+  display: inline-block;
+}
+
+/* ── Files v2 — preview action bar (task #8): kind badge, filled OPEN,
+   ghost DOWNLOAD, and the ⋮ overflow menu (mirrors .files-sort-menu). ── */
+
+.files-kind-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  margin-right: 4px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  font: 600 10px var(--m-font-mono, ui-monospace, monospace);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.files-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--f-accent, var(--accent));
+  background: var(--f-accent, var(--accent));
+  color: var(--f-bg, var(--theme-bg, #07110b));
+  font: 600 11px var(--m-font-mono, ui-monospace, monospace);
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    filter 0.16s ease,
+    background 0.16s ease,
+    color 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.files-open-btn:hover {
+  filter: brightness(1.12);
+}
+
+.files-open-btn.is-ghost {
+  background: transparent;
+  border-color: var(--f-border, var(--border));
+  color: var(--f-text-2, var(--muted-foreground));
+}
+
+.files-open-btn.is-ghost:hover {
+  filter: none;
+  color: var(--f-accent, var(--accent));
+  border-color: var(--f-accent, var(--accent));
+  background: var(--f-accent-soft);
+}
+
+.files-preview-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 40;
+  min-width: 160px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--f-panel, var(--theme-card));
+  border: 1px solid var(--f-border, var(--border));
+  border-radius: 6px;
+  box-shadow: var(--f-shadow, 0 8px 24px rgba(0, 0, 0, 0.35));
+}
+
+.files-preview-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  padding: 6px 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--f-text-2, var(--muted-foreground));
+  cursor: pointer;
+}
+
+.files-preview-menu button:hover {
+  background: var(--f-accent-soft);
+  color: var(--f-text, var(--foreground));
+}
+
+.files-preview-menu button.is-danger:hover {
+  background: rgba(255, 107, 143, 0.08);
+  color: var(--f-danger, #ff6b8f);
 }

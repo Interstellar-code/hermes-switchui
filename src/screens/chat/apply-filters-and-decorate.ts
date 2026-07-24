@@ -10,6 +10,7 @@ import { matchesSessionSearch } from './session-search'
 import type { SessionFeedItem, SessionSource } from './sessions-feed-types'
 import type { FilterState } from '@/stores/sessions-filter-store'
 import type { LocalState } from '@/stores/sessions-local-store'
+import { isSessionUpdateUnseen } from '@/stores/sessions-local-store'
 
 // ── Group label type ───────────────────────────────────────────────────────────
 
@@ -38,7 +39,8 @@ function matchesDateRange(
   }
   if (to) {
     const [year, month, day] = to.split('-').map(Number)
-    if (item.when > new Date(year, month - 1, day, 23, 59, 59, 999).getTime()) return false
+    if (item.when > new Date(year, month - 1, day, 23, 59, 59, 999).getTime())
+      return false
   }
   return true
 }
@@ -50,12 +52,15 @@ function decorateItem(
   pinnedSet: Set<string>,
   starredSet: Set<string>,
   archivedSet: Set<string>,
+  local: Pick<LocalState, 'lastSeenUpdate' | 'seenUpdatesInitialized'>,
 ): SessionFeedItem {
   return {
     ...item,
     pinned: pinnedSet.has(item.id),
     starred: starredSet.has(item.id),
     archived: archivedSet.has(item.id) || item.state === 'archived',
+    hasUnseenUpdate:
+      !item.live && isSessionUpdateUnseen(item.id, item.when, local),
   }
 }
 
@@ -71,8 +76,23 @@ function decorateItem(
  */
 export function applyFiltersAndDecorate(
   items: Array<SessionFeedItem>,
-  filter: Pick<FilterState, 'sources' | 'state' | 'query' | 'dateRange' | 'sort'>,
-  local: Pick<LocalState, 'pinned' | 'starred' | 'archived'>,
+  filter: Pick<
+    FilterState,
+    | 'sources'
+    | 'state'
+    | 'query'
+    | 'dateRange'
+    | 'sort'
+    | 'updatesOnly'
+  >,
+  local: Pick<
+    LocalState,
+    | 'pinned'
+    | 'starred'
+    | 'archived'
+    | 'lastSeenUpdate'
+    | 'seenUpdatesInitialized'
+  >,
 ): FilterAndDecorateResult {
   const pinnedSet = new Set(local.pinned)
   const starredSet = new Set(local.starred)
@@ -88,21 +108,36 @@ export function applyFiltersAndDecorate(
       if (filter.state !== 'all' && item.state !== filter.state) return false
     }
     if (query && !matchesSessionSearch(item, query)) return false
-    return matchesDateRange(item, filter.dateRange.from, filter.dateRange.to)
+    if (
+      filter.updatesOnly &&
+      (item.live || !isSessionUpdateUnseen(item.id, item.when, local))
+    )
+      return false
+    // Pending updates must remain discoverable even after the usual sidebar
+    // date window has moved on.
+    return (
+      filter.updatesOnly ||
+      matchesDateRange(item, filter.dateRange.from, filter.dateRange.to)
+    )
   }
 
   const sourceCounts: Partial<Record<SessionSource, number>> = {}
   for (const item of items) {
-    if (passesBaseFilters(item)) sourceCounts[item.src] = (sourceCounts[item.src] ?? 0) + 1
+    if (passesBaseFilters(item))
+      sourceCounts[item.src] = (sourceCounts[item.src] ?? 0) + 1
   }
 
   const sourceSet = new Set(filter.sources)
   const filtered = items.filter(
-    (item) => (sourceSet.size === 0 || sourceSet.has(item.src)) && passesBaseFilters(item),
+    (item) =>
+      (sourceSet.size === 0 || sourceSet.has(item.src)) &&
+      passesBaseFilters(item),
   )
 
   const decorated = sortItems(
-    filtered.map((item) => decorateItem(item, pinnedSet, starredSet, archivedSet)),
+    filtered.map((item) =>
+      decorateItem(item, pinnedSet, starredSet, archivedSet, local),
+    ),
     filter.sort,
   )
 
@@ -125,10 +160,13 @@ export function applyFiltersAndDecorate(
   }
 
   const groups: Array<SessionDayGroup> = []
-  if (pinnedItems.length > 0) groups.push({ label: 'Pinned', items: pinnedItems })
+  if (pinnedItems.length > 0)
+    groups.push({ label: 'Pinned', items: pinnedItems })
   if (todayItems.length > 0) groups.push({ label: 'Today', items: todayItems })
-  if (yesterdayItems.length > 0) groups.push({ label: 'Yesterday', items: yesterdayItems })
-  if (earlierItems.length > 0) groups.push({ label: 'Earlier', items: earlierItems })
+  if (yesterdayItems.length > 0)
+    groups.push({ label: 'Yesterday', items: yesterdayItems })
+  if (earlierItems.length > 0)
+    groups.push({ label: 'Earlier', items: earlierItems })
 
   return {
     groups,

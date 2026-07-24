@@ -102,6 +102,16 @@ export function SearchModal() {
         },
       },
       {
+        id: 'qa-plugins',
+        emoji: '🧩',
+        label: 'Plugins',
+        description: 'Manage Hermes Dashboard plugins',
+        onSelect: () => {
+          closeModal()
+          navigate({ to: '/plugins' })
+        },
+      },
+      {
         id: 'qa-mcp',
         emoji: '🔌',
         label: 'MCP',

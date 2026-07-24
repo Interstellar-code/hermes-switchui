@@ -1,27 +1,18 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FileEntry } from './file-tree'
-import { cn } from '@/lib/utils'
 import { formatBytes, formatDate } from '@/lib/format'
-import { getExt } from '@/lib/path-utils'
+import { FIcon, KIND_COLOR, fileKindKey } from './files-icons'
+import { Highlight, fuzzy } from './files-search'
 
-const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'])
-
-function getIconClass(entry: FileEntry): string {
-  if (entry.type === 'folder') return 'folder'
-  const ext = getExt(entry.name)
-  if (ext === 'md' || ext === 'mdx') return 'markdown'
-  if (ext === 'json') return 'json'
-  if (ext === 'ts' || ext === 'tsx' || ext === 'js' || ext === 'jsx') return 'code'
-  if (IMAGE_EXTS.has(ext)) return 'image'
-  return 'file'
-}
-
-type SortKey = 'name' | 'size' | 'modified'
+type SortKey = 'name' | 'size' | 'modified' | 'type'
 type SortDir = 'asc' | 'desc'
 
 type FolderListingProps = {
   entries: Array<FileEntry>
   folderPath: string
+  query?: string
+  typeFilter?: string
+  externalSort?: SortKey | null
   onSelect: (entry: FileEntry) => void
   onContextMenu: (e: React.MouseEvent, entry: FileEntry) => void
 }
@@ -29,20 +20,47 @@ type FolderListingProps = {
 export function FolderListing({
   entries,
   folderPath,
+  query,
+  typeFilter = 'all',
+  externalSort,
   onSelect,
   onContextMenu,
 }: FolderListingProps) {
   const [sortKey, setSortKey] = useState<SortKey>('modified')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
 
+  // Screen-level sort dropdown drives the grid too; header clicks still
+  // override afterwards.
+  useEffect(() => {
+    if (!externalSort) return
+    setSortKey(externalSort)
+    setSortDir(externalSort === 'modified' ? 'desc' : 'asc')
+  }, [externalSort])
+
   const rows = useMemo(() => {
-    const sorted = [...entries].sort((a, b) => {
+    const filtered = entries.filter((e) => {
+      if (
+        e.type === 'file' &&
+        typeFilter !== 'all' &&
+        fileKindKey(e.name) !== typeFilter
+      ) {
+        return false
+      }
+      if (query && !fuzzy(query, e.name)) return false
+      return true
+    })
+    const sorted = filtered.sort((a, b) => {
       if (a.type !== b.type) return a.type === 'folder' ? -1 : 1
       let cmp = 0
       if (sortKey === 'name') {
         cmp = a.name.localeCompare(b.name)
       } else if (sortKey === 'size') {
         cmp = (a.size ?? 0) - (b.size ?? 0)
+      } else if (sortKey === 'type') {
+        cmp =
+          (a.type === 'file' ? fileKindKey(a.name) : '').localeCompare(
+            b.type === 'file' ? fileKindKey(b.name) : '',
+          ) || a.name.localeCompare(b.name)
       } else {
         const am = a.modifiedAt ? Date.parse(a.modifiedAt) : 0
         const bm = b.modifiedAt ? Date.parse(b.modifiedAt) : 0
@@ -51,7 +69,7 @@ export function FolderListing({
       return sortDir === 'asc' ? cmp : -cmp
     })
     return sorted
-  }, [entries, sortKey, sortDir])
+  }, [entries, sortKey, sortDir, query, typeFilter])
 
   const ariaSortFor = (key: SortKey): 'ascending' | 'descending' | 'none' => {
     if (key !== sortKey) return 'none'
@@ -73,13 +91,18 @@ export function FolderListing({
   }
 
   if (rows.length === 0) {
+    const filtering = Boolean(query) || typeFilter !== 'all'
     return (
       <div className="files-empty-state">
         <div>
           <div className="files-empty-glyph">📁</div>
-          <div className="files-empty-copy">Empty folder</div>
+          <div className="files-empty-copy">
+            {filtering ? 'No matches' : 'Empty folder'}
+          </div>
           <div className="files-empty-subcopy">
-            {folderPath || 'workspace root'} has no items.
+            {filtering
+              ? 'No items match the current search or type filter.'
+              : `${folderPath || 'workspace root'} has no items.`}
           </div>
         </div>
       </div>
@@ -120,7 +143,10 @@ export function FolderListing({
         </thead>
         <tbody>
           {rows.map((entry) => {
-            const iconClass = getIconClass(entry)
+            const color =
+              entry.type === 'file'
+                ? KIND_COLOR[fileKindKey(entry.name)]
+                : undefined
             return (
               <tr
                 key={entry.path}
@@ -132,10 +158,22 @@ export function FolderListing({
               >
                 <td className="col-name">
                   <span
-                    className={cn('icon', `is-${iconClass}`)}
+                    className="icon"
+                    style={color ? { color } : undefined}
                     aria-hidden="true"
-                  />
-                  <span className="name">{entry.name}</span>
+                  >
+                    <FIcon file={entry} size={14} />
+                  </span>
+                  <span className="name">
+                    {query ? (
+                      <Highlight
+                        text={entry.name}
+                        ranges={fuzzy(query, entry.name)?.ranges}
+                      />
+                    ) : (
+                      entry.name
+                    )}
+                  </span>
                 </td>
                 <td className="col-size">
                   {entry.type === 'file' && entry.size !== undefined
@@ -153,3 +191,5 @@ export function FolderListing({
     </div>
   )
 }
+
+export type { SortKey as FolderSortKey }

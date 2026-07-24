@@ -13,4 +13,11 @@ describe('normalizeSessions orchestration titles', () => {
 
     expect(session.derivedTitle).toBe('Subagent Worker')
   })
+
+  it('preserves the gateway active-session flag for sidebar activity', () => {
+    const [session] = normalizeSessions([
+      { key: 'active-session', is_active: true },
+    ])
+    expect(session.isActive).toBe(true)
+  })
 })

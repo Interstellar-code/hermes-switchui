@@ -1,6 +1,6 @@
-/* matrix-skills.css — scoped to [data-screen="skills"] to prevent token bleed */
-
-[data-screen="skills"] {
+/* matrix-skills.css — shared Skills/Plugins inventory contract. */
+/* prettier-ignore */
+[data-screen="skills"], [data-screen="plugins"] {
 
 /* ── shell layout (applied to same element as data-screen) ── */
 &.sk-shell {

@@ -16,6 +16,7 @@ import { fetchJobs } from '@/lib/jobs-api'
 import { commandsKeys, fetchUserCommands } from '@/lib/commands-api'
 import { fetchStats } from '@/lib/tasks-api'
 import { fetchTemplates } from '@/lib/board-templates-api'
+import { getPluginsHub } from '@/lib/hermes-client'
 
 /** Fetch `url` and return its authoritative total, falling back to array length. */
 export async function countFromArray(
@@ -41,6 +42,7 @@ export interface NavCounts {
   skills?: number
   mcp?: number
   profiles?: number
+  plugins?: number
 }
 
 export function useNavCounts(enabled: boolean): NavCounts {
@@ -110,6 +112,12 @@ export function useNavCounts(enabled: boolean): NavCounts {
     queryFn: () => countFromArray('/api/profiles/list', 'profiles'),
     ...common,
   })
+  const plugins = useQuery({
+    queryKey: ['plugins-hub'],
+    queryFn: getPluginsHub,
+    ...common,
+    select: (hub) => hub.plugins.length,
+  })
 
   return {
     tasks: tasks.data,
@@ -121,5 +129,6 @@ export function useNavCounts(enabled: boolean): NavCounts {
     skills: skills.data,
     mcp: mcp.data,
     profiles: profiles.data,
+    plugins: plugins.data,
   }
 }

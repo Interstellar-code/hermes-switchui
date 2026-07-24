@@ -7,19 +7,28 @@
  */
 
 /** All feed sources. */
-export type SessionSource = 'chat' | 'recovered' | 'cron' | 'api' | 'task' | 'tool' | 'tg' | 'cli' | 'a2a'
+export type SessionSource =
+  | 'chat'
+  | 'recovered'
+  | 'cron'
+  | 'api'
+  | 'task'
+  | 'tool'
+  | 'tg'
+  | 'cli'
+  | 'a2a'
 
 /**
  * Lifecycle state of a session/job/task item.
  * Mapped from source-specific state strings in each per-source hook.
  */
 export type SessionState =
-  | 'live'      // actively streaming / running right now
-  | 'idle'      // paused, waiting, scheduled but not running
-  | 'complete'  // finished successfully
-  | 'error'     // failed / errored
-  | 'archived'  // archived (hidden from default view)
-  | 'unknown'   // state not determinable
+  | 'live' // actively streaming / running right now
+  | 'idle' // paused, waiting, scheduled but not running
+  | 'complete' // finished successfully
+  | 'error' // failed / errored
+  | 'archived' // archived (hidden from default view)
+  | 'unknown' // state not determinable
 
 /** Day bucket for grouping. Computed from `when` in browser local time. */
 export type SessionDayBucket = 'today' | 'yesterday' | 'earlier'
@@ -53,6 +62,7 @@ export type SessionSourceMeta = Record<string, unknown>
  *   when      — Unix timestamp (ms) of last activity / update
  *   day       — day bucket derived from `when`; computed by the merge hook
  *   live      — true when the item is currently streaming / actively running
+ *   hasUnseenUpdate — true when a completed update happened after this session was last opened
  *   state     — normalized lifecycle state
  *   badges    — small tags (tool names, assignee, etc.)
  *   pinned    — locally pinned (set by sessions-local-store, Phase 2)
@@ -68,6 +78,7 @@ export type SessionFeedItem = {
   when: number
   day: SessionDayBucket
   live: boolean
+  hasUnseenUpdate?: boolean
   state: SessionState
   badges: Array<SessionBadge>
   pinned: boolean

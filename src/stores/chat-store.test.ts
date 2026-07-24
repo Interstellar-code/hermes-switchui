@@ -559,7 +559,7 @@ describe('delegation stream events', () => {
     const processEvent = useChatStore.getState().processEvent
     processEvent({
       type: 'delegation', kind: 'start', subagentId: 'sa-0-abc', goal: 'Inspect repo',
-      childSessionId: 'child-1', depth: 0, sessionKey: 'session-1',
+      childSessionId: 'child-1', agentId: 'neo', depth: 0, sessionKey: 'session-1',
     })
     processEvent({
       type: 'delegation', kind: 'tool', subagentId: 'sa-0-abc', toolName: 'read_file',
@@ -568,7 +568,7 @@ describe('delegation stream events', () => {
 
     expect(useChatStore.getState().streamingState.get('session-1')?.delegations).toHaveLength(1)
     expect(useChatStore.getState().streamingState.get('session-1')?.delegations[0]).toMatchObject({
-      subagentId: 'sa-0-abc', goal: 'Inspect repo', childSessionId: 'child-1',
+      subagentId: 'sa-0-abc', agentId: 'neo', goal: 'Inspect repo', childSessionId: 'child-1',
       kind: 'tool', toolName: 'read_file', text: 'Reading package.json', toolCount: 1,
     })
   })

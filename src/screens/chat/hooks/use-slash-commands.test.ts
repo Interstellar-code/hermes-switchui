@@ -37,7 +37,9 @@ function makeMessage(role: string, text: string): ChatMessage {
   } as unknown as ChatMessage
 }
 
-function makeUserCommand(overrides: Partial<UserCommandRecord> = {}): UserCommandRecord {
+function makeUserCommand(
+  overrides: Partial<UserCommandRecord> = {},
+): UserCommandRecord {
   return {
     id: 'cmd-1',
     name: 'Test Command',
@@ -200,6 +202,19 @@ describe('useSlashCommands', () => {
       expect(navigate).toHaveBeenCalledWith({ to: '/skills' })
     })
 
+    it('/plugins navigates to /plugins', () => {
+      const navigate = vi.fn()
+      const { result } = renderHook(() =>
+        useSlashCommands(defaultParams({ navigate })),
+      )
+
+      act(() => {
+        result.current.handleUiSlashCommand('/plugins')
+      })
+
+      expect(navigate).toHaveBeenCalledWith({ to: '/plugins' })
+    })
+
     it('/stop cancels streaming and resets sending state', () => {
       const cancelStreaming = vi.fn()
       const setSending = vi.fn()
@@ -236,9 +251,7 @@ describe('useSlashCommands', () => {
       const activeSendRef = makeRef<ActiveSendRecord>(null)
 
       const { result } = renderHook(() =>
-        useSlashCommands(
-          defaultParams({ cancelStreaming, activeSendRef }),
-        ),
+        useSlashCommands(defaultParams({ cancelStreaming, activeSendRef })),
       )
 
       const handled = result.current.handleUiSlashCommand('/stop')
@@ -334,9 +347,7 @@ describe('useSlashCommands', () => {
 
     it('returns null when no matching command exists', () => {
       const { result } = renderHook(() => useSlashCommands(defaultParams()))
-      expect(
-        result.current.expandCustomSlashCommand('/nonexistent'),
-      ).toBeNull()
+      expect(result.current.expandCustomSlashCommand('/nonexistent')).toBeNull()
     })
 
     it('expands a matching user-defined command with {{input}} placeholder', () => {
@@ -345,14 +356,12 @@ describe('useSlashCommands', () => {
         prompt: 'Expanded: {{input}}',
       })
       const { result } = renderHook(() =>
-        useSlashCommands(
-          defaultParams({ enabledUserCommands: [command] }),
-        ),
+        useSlashCommands(defaultParams({ enabledUserCommands: [command] })),
       )
 
-      expect(
-        result.current.expandCustomSlashCommand('/test my args'),
-      ).toBe('Expanded: my args')
+      expect(result.current.expandCustomSlashCommand('/test my args')).toBe(
+        'Expanded: my args',
+      )
     })
 
     it('appends input when prompt has no placeholder', () => {
@@ -361,14 +370,12 @@ describe('useSlashCommands', () => {
         prompt: 'Static prompt body',
       })
       const { result } = renderHook(() =>
-        useSlashCommands(
-          defaultParams({ enabledUserCommands: [command] }),
-        ),
+        useSlashCommands(defaultParams({ enabledUserCommands: [command] })),
       )
 
-      expect(
-        result.current.expandCustomSlashCommand('/test my args'),
-      ).toBe('Static prompt body\n\nmy args')
+      expect(result.current.expandCustomSlashCommand('/test my args')).toBe(
+        'Static prompt body\n\nmy args',
+      )
     })
 
     it('expands a command with no arguments', () => {
@@ -377,9 +384,7 @@ describe('useSlashCommands', () => {
         prompt: 'No args prompt',
       })
       const { result } = renderHook(() =>
-        useSlashCommands(
-          defaultParams({ enabledUserCommands: [command] }),
-        ),
+        useSlashCommands(defaultParams({ enabledUserCommands: [command] })),
       )
 
       expect(result.current.expandCustomSlashCommand('/test')).toBe(
@@ -521,9 +526,9 @@ describe('useSlashCommands', () => {
         ),
       )
 
-      expect(window.sessionStorage.getItem(
-        CHAT_PENDING_COMMAND_STORAGE_KEY,
-      )).toBeNull()
+      expect(
+        window.sessionStorage.getItem(CHAT_PENDING_COMMAND_STORAGE_KEY),
+      ).toBeNull()
     })
 
     it('runs pending command from sessionStorage', () => {
@@ -564,16 +569,16 @@ describe('useSlashCommands', () => {
       )
 
       expect(send).not.toHaveBeenCalled()
-      expect(window.sessionStorage.getItem(
-        CHAT_PENDING_COMMAND_STORAGE_KEY,
-      )).toBe('/unknown')
+      expect(
+        window.sessionStorage.getItem(CHAT_PENDING_COMMAND_STORAGE_KEY),
+      ).toBe('/unknown')
 
       rerender({ pending: false })
 
       expect(send).toHaveBeenCalledWith('/unknown', [], false, commandHelpers)
-      expect(window.sessionStorage.getItem(
-        CHAT_PENDING_COMMAND_STORAGE_KEY,
-      )).toBeNull()
+      expect(
+        window.sessionStorage.getItem(CHAT_PENDING_COMMAND_STORAGE_KEY),
+      ).toBeNull()
     })
   })
 
@@ -587,9 +592,7 @@ describe('useSlashCommands', () => {
       ]
 
       const { result } = renderHook(() =>
-        useSlashCommands(
-          defaultParams({ finalDisplayMessages: messages }),
-        ),
+        useSlashCommands(defaultParams({ finalDisplayMessages: messages })),
       )
 
       const handled = result.current.handleUiSlashCommand('/save')

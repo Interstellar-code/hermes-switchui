@@ -17,6 +17,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SelfImproveRouteImport } from './routes/self-improve'
 import { Route as ProjectsRouteImport } from './routes/projects'
 import { Route as ProfilesRouteImport } from './routes/profiles'
+import { Route as PluginsRouteImport } from './routes/plugins'
 import { Route as OperationsRouteImport } from './routes/operations'
 import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as McpRouteImport } from './routes/mcp'
@@ -265,6 +266,11 @@ const ProjectsRoute = ProjectsRouteImport.update({
 const ProfilesRoute = ProfilesRouteImport.update({
   id: '/profiles',
   path: '/profiles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PluginsRoute = PluginsRouteImport.update({
+  id: '/plugins',
+  path: '/plugins',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OperationsRoute = OperationsRouteImport.update({
@@ -1377,6 +1383,7 @@ export interface FileRoutesByFullPath {
   '/mcp': typeof McpRoute
   '/memory': typeof MemoryRoute
   '/operations': typeof OperationsRoute
+  '/plugins': typeof PluginsRoute
   '/profiles': typeof ProfilesRoute
   '/projects': typeof ProjectsRoute
   '/self-improve': typeof SelfImproveRoute
@@ -1595,6 +1602,7 @@ export interface FileRoutesByTo {
   '/mcp': typeof McpRoute
   '/memory': typeof MemoryRoute
   '/operations': typeof OperationsRoute
+  '/plugins': typeof PluginsRoute
   '/profiles': typeof ProfilesRoute
   '/projects': typeof ProjectsRoute
   '/self-improve': typeof SelfImproveRoute
@@ -1814,6 +1822,7 @@ export interface FileRoutesById {
   '/mcp': typeof McpRoute
   '/memory': typeof MemoryRoute
   '/operations': typeof OperationsRoute
+  '/plugins': typeof PluginsRoute
   '/profiles': typeof ProfilesRoute
   '/projects': typeof ProjectsRoute
   '/self-improve': typeof SelfImproveRoute
@@ -2035,6 +2044,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/memory'
     | '/operations'
+    | '/plugins'
     | '/profiles'
     | '/projects'
     | '/self-improve'
@@ -2253,6 +2263,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/memory'
     | '/operations'
+    | '/plugins'
     | '/profiles'
     | '/projects'
     | '/self-improve'
@@ -2471,6 +2482,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/memory'
     | '/operations'
+    | '/plugins'
     | '/profiles'
     | '/projects'
     | '/self-improve'
@@ -2691,6 +2703,7 @@ export interface RootRouteChildren {
   McpRoute: typeof McpRoute
   MemoryRoute: typeof MemoryRoute
   OperationsRoute: typeof OperationsRoute
+  PluginsRoute: typeof PluginsRoute
   ProfilesRoute: typeof ProfilesRoute
   ProjectsRoute: typeof ProjectsRoute
   SelfImproveRoute: typeof SelfImproveRoute
@@ -2875,6 +2888,13 @@ declare module '@tanstack/react-router' {
       path: '/profiles'
       fullPath: '/profiles'
       preLoaderRoute: typeof ProfilesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/plugins': {
+      id: '/plugins'
+      path: '/plugins'
+      fullPath: '/plugins'
+      preLoaderRoute: typeof PluginsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/operations': {
@@ -4909,6 +4929,7 @@ const rootRouteChildren: RootRouteChildren = {
   McpRoute: McpRoute,
   MemoryRoute: MemoryRoute,
   OperationsRoute: OperationsRoute,
+  PluginsRoute: PluginsRoute,
   ProfilesRoute: ProfilesRoute,
   ProjectsRoute: ProjectsRoute,
   SelfImproveRoute: SelfImproveRoute,

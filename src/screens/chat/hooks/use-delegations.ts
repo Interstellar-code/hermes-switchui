@@ -22,6 +22,31 @@ export function countSessionAgents(
   return ids.size
 }
 
+/**
+ * A persisted child is live only while its server-derived status is running.
+ * A stream event is live until it explicitly reports a terminal status, which
+ * keeps the trigger responsive before the child reaches the local database.
+ */
+export function hasActiveSessionAgents(
+  delegations: Array<Pick<Delegation, 'status'>>,
+  streamingDelegations: Array<Pick<StreamingDelegation, 'status'>>,
+): boolean {
+  if (delegations.some((delegation) => delegation.status === 'running')) return true
+
+  return streamingDelegations.some((delegation) => {
+    const status = delegation.status?.toLowerCase()
+    return !status || ![
+      'completed',
+      'failed',
+      'error',
+      'aborted',
+      'cancelled',
+      'canceled',
+      'stopped',
+    ].includes(status)
+  })
+}
+
 async function fetchDelegations(sessionKey: string): Promise<Array<Delegation>> {
   const res = await fetch(
     `/api/sessions/${encodeURIComponent(sessionKey)}/delegations`,

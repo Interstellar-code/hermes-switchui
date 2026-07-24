@@ -1,0 +1,112 @@
+/* Plugin-specific controls; layout lives in matrix-skills.css. */
+
+[data-screen='plugins'] .pl-install,
+[data-screen='plugins'] .pl-notice {
+  margin: 0 22px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--m-border-subtle, var(--theme-border));
+  border-radius: var(--m-radius-md, 6px);
+  background: var(--m-fill-subtle, var(--theme-hover));
+  color: var(--m-text-muted, var(--theme-muted));
+  font: 400 10.5px/1.5 var(--m-font-mono, ui-monospace, monospace);
+}
+
+[data-screen='plugins'] .pl-install {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-screen='plugins'] .pl-install input {
+  min-width: 0;
+  flex: 1;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--m-border-subtle, var(--theme-border));
+  border-radius: 4px;
+  background: var(--m-bg, var(--theme-hover));
+  color: var(--m-text, var(--theme-text));
+  font: inherit;
+}
+
+[data-screen='plugins'] .pl-install input:focus {
+  outline: none;
+  border-color: var(--m-green-500, #00ff41);
+}
+
+[data-screen='plugins'] .pl-install button,
+[data-screen='plugins'] .pl-actions button {
+  min-height: 26px;
+  padding: 4px 8px;
+  border: 1px solid var(--m-border-subtle, var(--theme-border));
+  border-radius: 4px;
+  background: transparent;
+  color: var(--m-text-muted, var(--theme-muted));
+  cursor: pointer;
+  font: 600 9.5px var(--m-font-mono, ui-monospace, monospace);
+  letter-spacing: 0.04em;
+}
+
+[data-screen='plugins'] .pl-install button:hover:not(:disabled),
+[data-screen='plugins'] .pl-actions button:hover:not(:disabled) {
+  border-color: var(--m-green-500, #00ff41);
+  color: var(--m-green-500, #00ff41);
+}
+
+[data-screen='plugins'] .pl-actions button.pl-danger:hover:not(:disabled) {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+}
+
+[data-screen='plugins'] .pl-install button:disabled,
+[data-screen='plugins'] .pl-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+[data-screen='plugins'] .pl-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 0 16px 12px;
+}
+
+[data-screen='plugins'] .sk-table .pl-actions {
+  padding: 0;
+}
+
+[data-screen='plugins'] .pl-cli,
+[data-screen='plugins'] .pl-auth {
+  margin: 0 16px 10px;
+  color: var(--m-text-faint, var(--theme-muted));
+  font: 400 9.5px/1.45 var(--m-font-mono, ui-monospace, monospace);
+}
+
+[data-screen='plugins'] .pl-cli code,
+[data-screen='plugins'] .pl-auth code,
+[data-screen='plugins'] .pl-notice code {
+  color: #5fcfff;
+  word-break: break-word;
+}
+
+[data-screen='plugins'] .pl-table-detail {
+  display: block;
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--m-text-faint, var(--theme-muted));
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-screen='plugins'] .sk-status-pill.unknown {
+  color: var(--m-text-muted, var(--theme-muted));
+  background: transparent;
+}
+
+@media (max-width: 720px) {
+  [data-screen='plugins'] .pl-install {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

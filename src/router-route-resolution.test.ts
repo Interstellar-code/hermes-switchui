@@ -9,4 +9,14 @@ describe('router route generation invalidation', () => {
     expect(viteConfig).not.toContain("'**/routeTree.gen.ts'")
     expect(viteConfig).not.toContain('"**/routeTree.gen.ts"')
   })
+
+  it('forwards POST requests after the legacy workspace-daemon cleanup', () => {
+    const viteConfig = readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8')
+    const middleware = viteConfig.match(
+      /server\.middlewares\.use\(async \(req, res, next\) => \{([\s\S]*?)\n          \}\)/,
+    )?.[1]
+
+    expect(middleware).toContain('next()')
+    expect(middleware).not.toContain("req.method !== 'POST'")
+  })
 })

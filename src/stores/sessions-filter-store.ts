@@ -10,7 +10,7 @@ import { persist } from 'zustand/middleware'
 import type { SessionDateRange, SessionFeedSort, SessionSource, SessionState } from '@/screens/chat/sessions-feed-types'
 
 export type FilterState = {
-  version: 5
+  version: 6
   /** Multi-select; empty array = all sources (no implicit "All" chip). */
   sources: Array<SessionSource>
   /** Single-select; kept for compatibility, sidebar uses all. */
@@ -21,6 +21,8 @@ export type FilterState = {
   dateRange: SessionDateRange
   /** Sort order. */
   sort: SessionFeedSort
+  /** Show only settled sessions with an update that has not been opened. */
+  updatesOnly: boolean
   /** Sidebar collapsed state. */
   collapsed: boolean
   /** Which panel renders in the left column: sessions list or file explorer. */
@@ -33,6 +35,7 @@ type FilterActions = {
   setQuery: (q: string) => void
   setDateRange: (from: string | null, to: string | null) => void
   setSort: (s: SessionFeedSort) => void
+  toggleUpdatesOnly: () => void
   setCollapsed: (b: boolean) => void
   setLeftPanel: (p: 'sessions' | 'files') => void
   reset: () => void
@@ -51,12 +54,13 @@ export function buildDefaultDateRange(): SessionDateRange {
 
 function buildInitialState(): FilterState {
   return {
-    version: 5,
+    version: 6,
     sources: [],
     state: 'all',
     query: '',
     dateRange: buildDefaultDateRange(),
     sort: 'recent',
+    updatesOnly: false,
     collapsed: false,
     leftPanel: 'sessions',
   }
@@ -84,6 +88,9 @@ export const useSessionsFilterStore = create<FilterState & FilterActions>()(
 
       setSort: (sort) => set({ sort }),
 
+      toggleUpdatesOnly: () =>
+        set((state) => ({ updatesOnly: !state.updatesOnly })),
+
       setCollapsed: (collapsed) => set({ collapsed }),
 
       setLeftPanel: (leftPanel) => set({ leftPanel }),
@@ -99,20 +106,20 @@ export const useSessionsFilterStore = create<FilterState & FilterActions>()(
         const storedDateRange = stored.dateRange ?? { from: null, to: null }
         const hasExplicitDateRange = Boolean(storedDateRange.from || storedDateRange.to)
 
-        if (v === 5) return stored as FilterState
+        if (v === 6) return stored as FilterState
 
-        if (v === 2 || v === 3 || v === 4) {
+        if (v === 2 || v === 3 || v === 4 || v === 5) {
           return {
             ...defaults,
             ...stored,
-            version: 5,
+            version: 6,
             sources: v === 3 ? [] : (stored.sources ?? defaults.sources),
             dateRange: hasExplicitDateRange ? storedDateRange : defaults.dateRange,
           }
         }
         return defaults
       },
-      version: 5,
+      version: 6,
     },
   ),
 )

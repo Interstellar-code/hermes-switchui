@@ -29,9 +29,10 @@ describe('sessions-filter-store', () => {
     expect(s.query).toBe('')
     expect(s.dateRange).toEqual(buildDefaultDateRange())
     expect(s.sort).toBe('recent')
+    expect(s.updatesOnly).toBe(false)
     expect(s.collapsed).toBe(false)
     expect(s.leftPanel).toBe('sessions')
-    expect(s.version).toBe(5)
+    expect(s.version).toBe(6)
   })
 
   it('toggleSource adds and removes sources', async () => {
@@ -49,6 +50,14 @@ describe('sessions-filter-store', () => {
     const { useSessionsFilterStore: useStore } = await getStore()
     useStore.getState().setDateRange('2025-01-01', '2025-12-31')
     expect(useStore.getState().dateRange).toEqual({ from: '2025-01-01', to: '2025-12-31' })
+  })
+
+  it('toggleUpdatesOnly toggles the pending-update filter', async () => {
+    const { useSessionsFilterStore: useStore } = await getStore()
+    useStore.getState().toggleUpdatesOnly()
+    expect(useStore.getState().updatesOnly).toBe(true)
+    useStore.getState().toggleUpdatesOnly()
+    expect(useStore.getState().updatesOnly).toBe(false)
   })
 
   it('reset returns to default 7d date range', async () => {
@@ -70,7 +79,7 @@ describe('sessions-filter-store', () => {
     )
     const { useSessionsFilterStore: useStore, buildDefaultDateRange } = await getStore()
     await new Promise((r) => setTimeout(r, 10))
-    expect(useStore.getState().version).toBe(5)
+    expect(useStore.getState().version).toBe(6)
     expect(useStore.getState().sources).toContain('cron')
     expect(useStore.getState().leftPanel).toBe('files')
     expect(useStore.getState().dateRange).toEqual(buildDefaultDateRange())

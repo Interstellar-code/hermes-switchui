@@ -81,6 +81,7 @@ export type ChatStreamEvent =
       subagentId: string
       parentId?: string
       childSessionId?: string
+      agentId?: string
       depth?: number
       goal?: string
       model?: string

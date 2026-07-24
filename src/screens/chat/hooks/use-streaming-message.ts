@@ -628,6 +628,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
             parentId: typeof payload.parentId === 'string' ? payload.parentId : undefined,
             childSessionId:
               typeof payload.childSessionId === 'string' ? payload.childSessionId : undefined,
+            agentId: typeof payload.agentId === 'string' ? payload.agentId : undefined,
             depth: typeof payload.depth === 'number' ? payload.depth : undefined,
             goal: typeof payload.goal === 'string' ? payload.goal : undefined,
             model: typeof payload.model === 'string' ? payload.model : undefined,

@@ -212,6 +212,11 @@ export function useSlashCommands(
         return true
       }
 
+      if (trimmedCommand === '/plugins') {
+        navigate({ to: '/plugins' })
+        return true
+      }
+
       if (trimmedCommand === '/save') {
         const exported = exportConversationTranscript({
           sessionLabel: activeFriendlyId || 'conversation',

@@ -692,11 +692,54 @@ code {
   border-radius: 0;
 }
 
+@keyframes session-attention-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+
+.session-attention-pulse {
+  animation: session-attention-pulse 1.6s ease-in-out infinite;
+}
+
+/* Live work needs a stronger cue than the selected state of an ordinary pill. */
+@keyframes attention-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 32%, transparent),
+      0 0 10px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 18%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 62%, transparent),
+      0 0 22px 2px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 34%, transparent);
+  }
+}
+
+.attention-pulse {
+  animation: attention-pulse 1.8s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .chat-streaming-glow {
     animation: none;
     box-shadow: 0 0 0 1.5px
       color-mix(in srgb, var(--color-accent-500) 40%, transparent);
+  }
+
+  .session-attention-pulse {
+    animation: none;
+  }
+
+  .attention-pulse {
+    animation: none;
+    box-shadow: 0 0 0 1px
+      color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 48%, transparent);
   }
 }
 

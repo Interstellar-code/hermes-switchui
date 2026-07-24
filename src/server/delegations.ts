@@ -7,6 +7,7 @@ export type DelegationStatus = 'running' | 'completed' | 'failed'
 
 export type Delegation = {
   childSessionId: string
+  agentId: string | null
   goal: string
   model: string
   status: DelegationStatus
@@ -22,6 +23,7 @@ export type Delegation = {
  */
 export type DelegationRow = {
   id: string
+  agent_id: string | null
   title: string | null
   model: string | null
   started_at: number | null
@@ -56,6 +58,7 @@ export function deriveDelegationStatus(
 export function toDelegation(row: DelegationRow, nowSeconds = Date.now() / 1000): Delegation {
   return {
     childSessionId: row.id,
+    agentId: row.agent_id,
     goal: row.title || 'Untitled delegation',
     model: row.model || 'unknown',
     status: deriveDelegationStatus(row, nowSeconds),
@@ -86,7 +89,9 @@ if has is None:
     print(json.dumps(out)); raise SystemExit(0)
 
 rows = cur.execute("""
-SELECT s.id, s.title, s.model, s.started_at, s.ended_at, s.end_reason,
+SELECT s.id,
+       CASE WHEN json_valid(s.model_config) THEN json_extract(s.model_config, '$._agent_id') END AS agent_id,
+       s.title, s.model, s.started_at, s.ended_at, s.end_reason,
        s.input_tokens, s.output_tokens,
        (SELECT MAX(timestamp) FROM messages WHERE session_id = s.id) AS last_active
 FROM sessions s
@@ -103,7 +108,7 @@ for r in rows:
         ).fetchone()
         title = ((first["content"] if first else None) or "").strip()[:140] or None
     out.append({
-      "id": r["id"], "title": title, "model": r["model"],
+      "id": r["id"], "agent_id": r["agent_id"], "title": title, "model": r["model"],
       "started_at": r["started_at"], "ended_at": r["ended_at"],
       "end_reason": r["end_reason"], "last_active": r["last_active"],
       "input_tokens": r["input_tokens"], "output_tokens": r["output_tokens"],

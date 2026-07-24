@@ -48,7 +48,11 @@ describe('dashboard-proxy CSRF guard', () => {
   it('returns 415 for POST with non-JSON content type', async () => {
     vi.mocked(isAuthenticated).mockReturnValue(true)
 
-    const res = await invoke('POST', makeFormRequest('POST', '/restart'), '/restart')
+    const res = await invoke(
+      'POST',
+      makeFormRequest('POST', '/restart'),
+      '/restart',
+    )
 
     expect(res.status).toBe(415)
     await expect(res.json()).resolves.toMatchObject({
@@ -58,19 +62,31 @@ describe('dashboard-proxy CSRF guard', () => {
 
   it('returns 415 for PUT with non-JSON content type', async () => {
     vi.mocked(isAuthenticated).mockReturnValue(true)
-    const res = await invoke('PUT', makeFormRequest('PUT', '/config'), '/config')
+    const res = await invoke(
+      'PUT',
+      makeFormRequest('PUT', '/config'),
+      '/config',
+    )
     expect(res.status).toBe(415)
   })
 
   it('returns 415 for PATCH with non-JSON content type', async () => {
     vi.mocked(isAuthenticated).mockReturnValue(true)
-    const res = await invoke('PATCH', makeFormRequest('PATCH', '/env/FOO'), '/env/FOO')
+    const res = await invoke(
+      'PATCH',
+      makeFormRequest('PATCH', '/env/FOO'),
+      '/env/FOO',
+    )
     expect(res.status).toBe(415)
   })
 
   it('returns 415 for DELETE with non-JSON content type', async () => {
     vi.mocked(isAuthenticated).mockReturnValue(true)
-    const res = await invoke('DELETE', makeFormRequest('DELETE', '/tokens/123'), '/tokens/123')
+    const res = await invoke(
+      'DELETE',
+      makeFormRequest('DELETE', '/tokens/123'),
+      '/tokens/123',
+    )
     expect(res.status).toBe(415)
   })
 
@@ -83,10 +99,40 @@ describe('dashboard-proxy CSRF guard', () => {
       }),
     )
 
-    const res = await invoke('POST', makeJsonRequest('POST', '/restart'), '/restart')
+    const res = await invoke(
+      'POST',
+      makeJsonRequest('POST', '/restart'),
+      '/restart',
+    )
 
     expect(res.status).toBe(200)
     expect(dashboardFetch).toHaveBeenCalled()
+  })
+
+  it('forwards an authenticated JSON DELETE to the dashboard', async () => {
+    vi.mocked(isAuthenticated).mockReturnValue(true)
+    vi.mocked(dashboardFetch).mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+
+    const res = await invoke(
+      'DELETE',
+      makeJsonRequest('DELETE', '/api/dashboard/agent-plugins/example'),
+      '/api/dashboard/agent-plugins/example',
+    )
+
+    expect(res.status).toBe(200)
+    expect(dashboardFetch).toHaveBeenCalledWith(
+      '/api/dashboard/agent-plugins/example',
+      expect.objectContaining({
+        method: 'DELETE',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      }),
+    )
   })
 
   it('GET skip CSRF and require auth', async () => {
@@ -99,7 +145,11 @@ describe('dashboard-proxy CSRF guard', () => {
   it('still requires auth after CSRF passes', async () => {
     vi.mocked(isAuthenticated).mockReturnValue(false)
 
-    const res = await invoke('POST', makeJsonRequest('POST', '/restart'), '/restart')
+    const res = await invoke(
+      'POST',
+      makeJsonRequest('POST', '/restart'),
+      '/restart',
+    )
 
     expect(res.status).toBe(401)
   })

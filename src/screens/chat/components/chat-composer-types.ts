@@ -21,6 +21,7 @@ export type ChatComposerHelpers = {
 export type ChatComposerHandle = {
   setValue: (value: string) => void
   insertText: (value: string) => void
+  addFiles: (files: Array<File>) => Promise<void>
 }
 
 export type ChatComposerProps = {

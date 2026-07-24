@@ -65,7 +65,8 @@ const ICONS = {
   commands: 'M3 3h10v10H3V3zM5 6l2 2-2 2M8.5 10h2.5',
   boards: 'M3 3h4v4H3V3zM9 3h4v4H9V3zM3 9h4v4H3V9zM9 9h4v4H9V9z',
   templates: 'M4 3h6l2 2v6H4V3zM6 6h4M6 8h3M2 5v8h7',
-  projects: 'M2 4a2 2 0 0 1 2-2h3l1.5 2H12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4z',
+  projects:
+    'M2 4a2 2 0 0 1 2-2h3l1.5 2H12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4z',
   conductor: 'M8 2L2 14h12L8 2zM8 8v3',
   operations:
     'M3 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM9 5a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM1 14c0-2.5 2-4 5-4s5 1.5 5 4M11 11c1.5 0 3 .8 3 3',
@@ -402,6 +403,7 @@ export function PrimaryNavV2() {
 
   const isMemory = pathname.startsWith('/memory')
   const isSkills = pathname.startsWith('/skills')
+  const isPlugins = pathname.startsWith('/plugins')
   const isMcp = pathname.startsWith('/mcp')
   const isProfiles = pathname.startsWith('/profiles')
   const isSettings = pathname.startsWith('/settings')
@@ -794,6 +796,14 @@ export function PrimaryNavV2() {
           active={isSkills}
           collapsed={collapsed}
           badge={counts.skills}
+        />
+        <NavItem
+          label="Plugins"
+          iconKey="skills"
+          to="/plugins"
+          active={isPlugins}
+          collapsed={collapsed}
+          badge={counts.plugins}
         />
         <NavItem
           label="MCP"

@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   ArrowRight01Icon,
+  Attachment01Icon,
+  Cancel01Icon,
+  Copy01Icon,
   Delete01Icon,
   Download01Icon,
   File01Icon,
@@ -29,6 +33,8 @@ import {
   DialogTitle,
 } from '@/components/shadcn/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { writeTextToClipboard } from '@/lib/clipboard'
+import { clampContextMenuPosition } from '@/lib/context-menu'
 
 export type FileEntry = {
   name: string
@@ -41,6 +47,8 @@ type FileExplorerSidebarProps = {
   collapsed: boolean
   onToggle: () => void
   onInsertReference: (reference: string) => void
+  onAttachImage: (path: string) => Promise<void>
+  onAttachFile: (path: string) => Promise<void>
   hidden?: boolean
   className?: string
 }
@@ -64,6 +72,12 @@ function isImageFile(fileName: string) {
   return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)
 }
 
+// Extensions the composer can embed directly (text + multimodal formats).
+function isAttachableFile(fileName: string) {
+  const ext = fileName.split('.').pop()?.toLowerCase() || ''
+  return ['txt', 'md', 'json', 'jpg', 'jpeg', 'png', 'pdf'].includes(ext)
+}
+
 function getFileIcon(entry: FileEntry) {
   if (entry.type === 'folder') return Folder01Icon
   if (isImageFile(entry.name)) return Image01Icon
@@ -84,6 +98,10 @@ function getParentPath(pathValue: string) {
 function buildReference(pathValue: string) {
   const normalized = normalizePath(pathValue)
   return `See file: workspace/${normalized}`
+}
+
+function buildWorkspacePath(pathValue: string) {
+  return `workspace/${normalizePath(pathValue)}`
 }
 
 async function fetchFileTree(): Promise<Array<FileEntry>> {
@@ -118,6 +136,8 @@ export function FileExplorerSidebar({
   collapsed,
   onToggle,
   onInsertReference,
+  onAttachImage,
+  onAttachFile,
   hidden = false,
   className,
 }: FileExplorerSidebarProps) {
@@ -130,6 +150,7 @@ export function FileExplorerSidebar({
   const [promptState, setPromptState] = useState<PromptState | null>(null)
   const [promptValue, setPromptValue] = useState('')
   const [previewPath, setPreviewPath] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const uploadTargetRef = useRef<string>('')
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -157,11 +178,9 @@ export function FileExplorerSidebar({
       if (event.key === 'Escape') setContextMenu(null)
     }
     window.addEventListener('click', handleClick)
-    window.addEventListener('contextmenu', handleClick)
     window.addEventListener('keydown', handleEscape)
     return () => {
       window.removeEventListener('click', handleClick)
-      window.removeEventListener('contextmenu', handleClick)
       window.removeEventListener('keydown', handleEscape)
     }
   }, [contextMenu])
@@ -238,29 +257,42 @@ export function FileExplorerSidebar({
 
   const handleDelete = useCallback(
     async (entry: FileEntry) => {
-      if (!window.confirm(`Move ${entry.name} to trash?`)) return
-      await fetch('/api/files', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'delete', path: entry.path }),
-      })
-      await refresh()
+      if (!window.confirm(`Delete ${entry.name}? This cannot be undone.`)) return
+      setActionError(null)
+      try {
+        const res = await fetch('/api/files', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'delete', path: entry.path }),
+        })
+        if (!res.ok) throw new Error(await res.text())
+        await refresh()
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : String(err))
+      }
     },
     [refresh],
   )
 
   const handleDownload = useCallback(async (entry: FileEntry) => {
-    const res = await fetch(
-      `/api/files?action=download&path=${encodeURIComponent(entry.path)}`,
-    )
-    if (!res.ok) return
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = entry.name
-    anchor.click()
-    URL.revokeObjectURL(url)
+    setActionError(null)
+    try {
+      const res = await fetch(
+        `/api/files?action=download&path=${encodeURIComponent(entry.path)}`,
+      )
+      if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = entry.name
+      anchor.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : 'Could not download the file.',
+      )
+    }
   }, [])
 
   const handleUploadClick = useCallback((targetPath: string) => {
@@ -272,15 +304,24 @@ export function FileExplorerSidebar({
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(event.target.files || [])
       if (files.length === 0) return
-      for (const file of files) {
-        const form = new FormData()
-        form.append('action', 'upload')
-        form.append('path', uploadTargetRef.current || '')
-        form.append('file', file)
-        await fetch('/api/files', { method: 'POST', body: form })
+      setActionError(null)
+      try {
+        for (const file of files) {
+          const form = new FormData()
+          form.append('action', 'upload')
+          form.append('path', uploadTargetRef.current || '')
+          form.append('file', file)
+          const res = await fetch('/api/files', { method: 'POST', body: form })
+          if (!res.ok) throw new Error(`Upload failed: HTTP ${res.status}`)
+        }
+        await refresh()
+      } catch (err) {
+        setActionError(
+          err instanceof Error ? err.message : 'Could not upload the file.',
+        )
+      } finally {
+        event.target.value = ''
       }
-      event.target.value = ''
-      await refresh()
     },
     [refresh],
   )
@@ -290,41 +331,47 @@ export function FileExplorerSidebar({
     const value = promptValue.trim()
     if (!value) return
 
-    if (promptState.mode === 'rename') {
-      const parent = getParentPath(promptState.targetPath)
-      const nextPath = parent ? `${parent}/${value}` : value
-      await fetch('/api/files', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          action: 'rename',
-          from: promptState.targetPath,
-          to: nextPath,
-        }),
-      })
-    } else if (promptState.mode === 'new-folder') {
-      const nextPath = promptState.targetPath
-        ? `${promptState.targetPath}/${value}`
-        : value
-      await fetch('/api/files', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'mkdir', path: nextPath }),
-      })
-    } else {
-      const nextPath = promptState.targetPath
-        ? `${promptState.targetPath}/${value}`
-        : value
-      await fetch('/api/files', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'write', path: nextPath, content: '' }),
-      })
+    setActionError(null)
+    try {
+      let res: Response
+      if (promptState.mode === 'rename') {
+        const parent = getParentPath(promptState.targetPath)
+        const nextPath = parent ? `${parent}/${value}` : value
+        res = await fetch('/api/files', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            action: 'rename',
+            from: promptState.targetPath,
+            to: nextPath,
+          }),
+        })
+      } else if (promptState.mode === 'new-folder') {
+        const nextPath = promptState.targetPath
+          ? `${promptState.targetPath}/${value}`
+          : value
+        res = await fetch('/api/files', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'mkdir', path: nextPath }),
+        })
+      } else {
+        const nextPath = promptState.targetPath
+          ? `${promptState.targetPath}/${value}`
+          : value
+        res = await fetch('/api/files', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'write', path: nextPath, content: '' }),
+        })
+      }
+      if (!res.ok) throw new Error(await res.text())
+      setPromptState(null)
+      setPromptValue('')
+      await refresh()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
     }
-
-    setPromptState(null)
-    setPromptValue('')
-    await refresh()
   }, [promptState, promptValue, refresh])
 
   const handleFileClick = useCallback(
@@ -333,11 +380,66 @@ export function FileExplorerSidebar({
         toggleFolder(entry.path)
         return
       }
-      onInsertReference(buildReference(entry.path))
       setPreviewPath(entry.path)
     },
-    [onInsertReference, toggleFolder],
+    [toggleFolder],
   )
+
+  const handleCopyPath = useCallback(async (entry: FileEntry) => {
+    setActionError(null)
+    try {
+      await writeTextToClipboard(buildWorkspacePath(entry.path))
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not copy path')
+    }
+  }, [])
+
+  const handleAttachImage = useCallback(
+    async (entry: FileEntry) => {
+      setActionError(null)
+      try {
+        await onAttachImage(entry.path)
+      } catch (err) {
+        setActionError(
+          err instanceof Error ? err.message : 'Could not attach image',
+        )
+      }
+    },
+    [onAttachImage],
+  )
+
+  const handleAttachFile = useCallback(
+    async (entry: FileEntry) => {
+      setActionError(null)
+      try {
+        await onAttachFile(entry.path)
+      } catch (err) {
+        setActionError(
+          err instanceof Error ? err.message : 'Could not attach file',
+        )
+      }
+    },
+    [onAttachFile],
+  )
+
+  const resolvedContextPosition = useMemo(() => {
+    if (!contextMenu || typeof window === 'undefined') return contextMenu
+    const { entry } = contextMenu
+    const itemCount =
+      entry.type === 'folder'
+        ? 8
+        : 6 +
+          (isAttachableFile(entry.name) ? 1 : 0) +
+          (isImageFile(entry.name) ? 1 : 0)
+    return {
+      ...contextMenu,
+      ...clampContextMenuPosition(
+        contextMenu,
+        { width: 220, height: itemCount * 36 + 16 },
+        { width: window.innerWidth, height: window.innerHeight },
+      ),
+    }
+  }, [contextMenu])
 
   const renderEntry = useCallback(
     (entry: FileEntry, depth: number) => {
@@ -352,6 +454,7 @@ export function FileExplorerSidebar({
             onClick={() => handleFileClick(entry)}
             onContextMenu={(event) => {
               event.preventDefault()
+              event.stopPropagation()
               setContextMenu({
                 x: event.clientX,
                 y: event.clientY,
@@ -439,6 +542,15 @@ export function FileExplorerSidebar({
           >
             <HugeiconsIcon icon={PlusSignIcon} size={18} />
           </Button>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            onClick={onToggle}
+            title="Close file explorer"
+            aria-label="Close file explorer"
+          >
+            <HugeiconsIcon icon={Cancel01Icon} size={18} />
+          </Button>
         </div>
       </div>
 
@@ -455,6 +567,12 @@ export function FileExplorerSidebar({
           }}
         />
       </div>
+
+      {actionError ? (
+        <p className="px-3 pb-2 text-xs text-destructive" role="status">
+          {actionError}
+        </p>
+      ) : null}
 
       <ScrollAreaRoot className="flex-1 min-h-0">
         <ScrollAreaViewport className="px-1">
@@ -550,44 +668,120 @@ export function FileExplorerSidebar({
         onChange={handleUploadChange}
       />
 
-      {contextMenu ? (
+      {resolvedContextPosition && typeof document !== 'undefined'
+        ? createPortal(
         <div
+          role="menu"
+          aria-label="File actions"
           className="fixed z-50 min-w-[160px] rounded-lg p-1 text-sm text-[var(--m-text,var(--theme-text))] shadow-lg"
-          style={{ background: 'var(--theme-card,#0a0a0a)', border: '1px solid var(--theme-border)', top: contextMenu.y, left: contextMenu.x }}
+          style={{ background: 'var(--theme-card,#0a0a0a)', border: '1px solid var(--theme-border)', top: resolvedContextPosition.y, left: resolvedContextPosition.x }}
         >
           <button
+            type="button"
+            role="menuitem"
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
             onClick={() => {
-              handleRename(contextMenu.entry)
+              if (resolvedContextPosition.entry.type === 'folder') {
+                toggleFolder(resolvedContextPosition.entry.path)
+              } else {
+                setPreviewPath(resolvedContextPosition.entry.path)
+              }
+              setContextMenu(null)
+            }}
+          >
+            <HugeiconsIcon icon={resolvedContextPosition.entry.type === 'folder' ? Folder01Icon : File01Icon} size={16} /> Open
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
+            onClick={() => {
+              void handleCopyPath(resolvedContextPosition.entry)
+              setContextMenu(null)
+            }}
+          >
+            <HugeiconsIcon icon={Copy01Icon} size={16} /> Copy path
+          </button>
+          {resolvedContextPosition.entry.type === 'file' ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
+              onClick={() => {
+                onInsertReference(buildReference(resolvedContextPosition.entry.path))
+                setContextMenu(null)
+              }}
+            >
+              <HugeiconsIcon icon={File01Icon} size={16} /> Add reference to chat
+            </button>
+          ) : null}
+          {resolvedContextPosition.entry.type === 'file' && isAttachableFile(resolvedContextPosition.entry.name) ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
+              onClick={() => {
+                void handleAttachFile(resolvedContextPosition.entry)
+                setContextMenu(null)
+              }}
+            >
+              <HugeiconsIcon icon={Attachment01Icon} size={16} /> Attach to chat
+            </button>
+          ) : null}
+          {resolvedContextPosition.entry.type === 'file' && isImageFile(resolvedContextPosition.entry.name) ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
+              onClick={() => {
+                void handleAttachImage(resolvedContextPosition.entry)
+                setContextMenu(null)
+              }}
+            >
+              <HugeiconsIcon icon={Image01Icon} size={16} /> Attach image to chat
+            </button>
+          ) : null}
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
+            onClick={() => {
+              handleRename(resolvedContextPosition.entry)
               setContextMenu(null)
             }}
           >
             <HugeiconsIcon icon={Pen01Icon} size={16} /> Rename
           </button>
-          {contextMenu.entry.type === 'folder' ? (
+          {resolvedContextPosition.entry.type === 'folder' ? (
             <>
               <button
+                type="button"
+                role="menuitem"
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
                 onClick={() => {
-                  handleNewFile(contextMenu.entry)
+                  handleNewFile(resolvedContextPosition.entry)
                   setContextMenu(null)
                 }}
               >
                 <HugeiconsIcon icon={PlusSignIcon} size={16} /> New file
               </button>
               <button
+                type="button"
+                role="menuitem"
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
                 onClick={() => {
-                  handleNewFolder(contextMenu.entry)
+                  handleNewFolder(resolvedContextPosition.entry)
                   setContextMenu(null)
                 }}
               >
                 <HugeiconsIcon icon={Folder01Icon} size={16} /> New folder
               </button>
               <button
+                type="button"
+                role="menuitem"
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
                 onClick={() => {
-                  handleUploadClick(contextMenu.entry.path)
+                  handleUploadClick(resolvedContextPosition.entry.path)
                   setContextMenu(null)
                 }}
               >
@@ -596,9 +790,11 @@ export function FileExplorerSidebar({
             </>
           ) : (
             <button
+              type="button"
+              role="menuitem"
               className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))]"
               onClick={() => {
-                void handleDownload(contextMenu.entry)
+                void handleDownload(resolvedContextPosition.entry)
                 setContextMenu(null)
               }}
             >
@@ -606,16 +802,20 @@ export function FileExplorerSidebar({
             </button>
           )}
           <button
+            type="button"
+            role="menuitem"
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-red-700 hover:bg-red-50/80"
             onClick={() => {
-              void handleDelete(contextMenu.entry)
+              void handleDelete(resolvedContextPosition.entry)
               setContextMenu(null)
             }}
           >
             <HugeiconsIcon icon={Delete01Icon} size={16} /> Delete
           </button>
-        </div>
-      ) : null}
+        </div>,
+        document.body,
+      )
+        : null}
 
       <Dialog
         open={Boolean(promptState)}
@@ -658,13 +858,6 @@ export function FileExplorerSidebar({
         path={previewPath}
         onClose={() => setPreviewPath(null)}
         onSaved={refresh}
-      />
-
-      <button
-        type="button"
-        onClick={onToggle}
-        className="sr-only"
-        aria-label="Toggle file explorer"
       />
     </aside>
   )

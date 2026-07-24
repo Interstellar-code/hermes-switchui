@@ -3,7 +3,6 @@ import { ChatSourceTabsV2 } from './chat-source-tabs-v2'
 import { ChatHeaderActionsV2 } from './chat-header-actions-v2'
 import type { SourceTab } from './chat-source-tabs-v2'
 import type { SessionSource } from '@/screens/chat/sessions-feed-types'
-import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 import { useSessionStatus } from '@/hooks/use-session-status'
 import { formatCostUsd } from '@/lib/format'
 import { SOURCE_COLORS, SOURCE_LABELS } from '@/screens/chat/source-visuals'
@@ -15,6 +14,8 @@ type ChatHeaderV2Props = {
   onTabChange: (tab: SourceTab) => void
   tabCounts?: Partial<Record<SourceTab, number>>
   sourceKind?: SessionSource
+  fileExplorerCollapsed: boolean
+  onToggleFileExplorer: () => void
 }
 
 function ChatHeaderV2Component({
@@ -24,6 +25,8 @@ function ChatHeaderV2Component({
   onTabChange,
   tabCounts,
   sourceKind = 'chat',
+  fileExplorerCollapsed,
+  onToggleFileExplorer,
 }: ChatHeaderV2Props) {
   const displayTitle = activeTitle || 'New Chat'
   const accent = SOURCE_COLORS[sourceKind]
@@ -70,7 +73,10 @@ function ChatHeaderV2Component({
       </div>
 
       {/* File explorer toggle */}
-      <FileExplorerToggle />
+      <FileExplorerToggle
+        collapsed={fileExplorerCollapsed}
+        onToggle={onToggleFileExplorer}
+      />
 
       {/* Session cost pill */}
       <SessionCostPill sessionKey={sessionKey} />
@@ -87,24 +93,22 @@ function ChatHeaderV2Component({
   )
 }
 
-function FileExplorerToggle() {
-  const leftPanel = useSessionsFilterStore((s) => s.leftPanel)
-  const collapsed = useSessionsFilterStore((s) => s.collapsed)
-  const setLeftPanel = useSessionsFilterStore((s) => s.setLeftPanel)
-  const setCollapsed = useSessionsFilterStore((s) => s.setCollapsed)
-  const isFiles = leftPanel === 'files'
+function FileExplorerToggle({
+  collapsed,
+  onToggle,
+}: {
+  collapsed: boolean
+  onToggle: () => void
+}) {
   return (
     <button
       type="button"
-      aria-label={isFiles ? 'Show sessions' : 'Show file explorer'}
-      aria-pressed={isFiles}
-      title={isFiles ? 'Show sessions' : 'Show file explorer'}
-      onClick={() => {
-        if (collapsed) setCollapsed(false)
-        setLeftPanel(isFiles ? 'sessions' : 'files')
-      }}
+      aria-label={collapsed ? 'Show file explorer' : 'Hide file explorer'}
+      aria-pressed={!collapsed}
+      title={collapsed ? 'Show file explorer' : 'Hide file explorer'}
+      onClick={onToggle}
       className="flex items-center justify-center w-7 h-7 rounded transition-colors hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))] shrink-0"
-      style={{ color: isFiles ? 'var(--m-green,#4ade80)' : 'var(--m-muted,var(--theme-muted,#6b7280))' }}
+      style={{ color: !collapsed ? 'var(--m-green,#4ade80)' : 'var(--m-muted,var(--theme-muted,#6b7280))' }}
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />

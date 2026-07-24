@@ -19,19 +19,6 @@ interface SidebarCardV2Props {
   isActive?: boolean
 }
 
-const RAIL_GLOW: Record<string, string> = {
-  chat: '0 0 6px var(--m-green-500, #00ff41)',
-  recovered: '0 0 6px #7dff9a66',
-  task: '0 0 6px #5fcfff66',
-  cron: '0 0 6px #d6ff5f66',
-  api: '0 0 6px #5fcfff66',
-  cli: '0 0 6px #5fffd666',
-  a2a: '0 0 6px #c85fff66',
-  tg: '0 0 6px #ff5fa266',
-  mem: '0 0 6px #7dff9a66',
-  tool: '0 0 6px #b98aff66',
-}
-
 // ── Badge colors ───────────────────────────────────────────────────────────────
 
 function getBadgeStyle(text: string): React.CSSProperties {
@@ -40,19 +27,33 @@ function getBadgeStyle(text: string): React.CSSProperties {
     return {
       background: 'color-mix(in srgb, var(--m-green-500) 20%, transparent)',
       color: 'var(--m-green-500)',
-      border: '1px solid color-mix(in srgb, var(--m-green-500) 40%, transparent)',
+      border:
+        '1px solid color-mix(in srgb, var(--m-green-500) 40%, transparent)',
     }
   if (t === 'err' || t === 'error')
-    return { background: 'color-mix(in srgb, #ff5f5f 20%, transparent)', color: '#ff5f5f', border: '1px solid #ff5f5f66' }
+    return {
+      background: 'color-mix(in srgb, #ff5f5f 20%, transparent)',
+      color: '#ff5f5f',
+      border: '1px solid #ff5f5f66',
+    }
   if (t === 'tg' || t === 'telegram')
-    return { background: 'color-mix(in srgb, #ff5fa2 20%, transparent)', color: '#ff5fa2', border: '1px solid #ff5fa266' }
+    return {
+      background: 'color-mix(in srgb, #ff5fa2 20%, transparent)',
+      color: '#ff5fa2',
+      border: '1px solid #ff5fa266',
+    }
   if (t === 'system')
-    return { background: 'color-mix(in srgb, #5fcfff 20%, transparent)', color: '#5fcfff', border: '1px solid #5fcfff66' }
+    return {
+      background: 'color-mix(in srgb, #5fcfff 20%, transparent)',
+      color: '#5fcfff',
+      border: '1px solid #5fcfff66',
+    }
   if (t === 'done' || t === 'ok' || t === 'complete')
     return {
       background: 'color-mix(in srgb, var(--m-green-500) 15%, transparent)',
       color: 'var(--m-green-500)',
-      border: '1px solid color-mix(in srgb, var(--m-green-500) 40%, transparent)',
+      border:
+        '1px solid color-mix(in srgb, var(--m-green-500) 40%, transparent)',
     }
   return {
     background: 'var(--theme-card)',
@@ -69,7 +70,10 @@ function formatWhen(when: number): string {
   const diffDays = Math.floor(diffMs / 86_400_000)
 
   if (diffDays === 0) {
-    return new Date(when).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    return new Date(when).toLocaleTimeString([], {
+      hour: 'numeric',
+      minute: '2-digit',
+    })
   }
   if (diffDays === 1) return 'Yesterday'
   const d = new Date(when)
@@ -88,9 +92,7 @@ function formatTokens(n: number): string {
 
 function SidebarCardV2Impl({ item, isActive }: SidebarCardV2Props) {
   const railColor = SOURCE_COLORS[item.src]
-  // Glow: always emit when item.live is true regardless of isActive; active also glows
-  const railGlow =
-    item.live || isActive ? (RAIL_GLOW[item.src] ?? 'none') : 'none'
+  const isBackgroundLive = item.live && !isActive
 
   // Determine link target per source.
   // `tool` has no detail route — left non-clickable intentionally.
@@ -159,12 +161,16 @@ function SidebarCardV2Impl({ item, isActive }: SidebarCardV2Props) {
       {/* Left rail — 3px color strip with glow on active/hover/live */}
       <div
         aria-hidden
+        className={isBackgroundLive ? 'session-attention-pulse' : undefined}
         data-testid={`card-rail-${item.src}`}
         style={{
           width: 3,
           background: railColor,
           flexShrink: 0,
-          boxShadow: isActive || hovered || item.live ? `0 0 8px ${railColor}, 0 0 4px ${railColor}` : `0 0 2px ${railColor}66`,
+          boxShadow:
+            isActive || hovered || item.live
+              ? `0 0 8px ${railColor}, 0 0 4px ${railColor}`
+              : `0 0 2px ${railColor}66`,
           opacity: isActive ? 1 : hovered ? 0.95 : 0.75,
           transition: 'box-shadow 120ms ease-out, opacity 120ms ease-out',
         }}
@@ -189,7 +195,9 @@ function SidebarCardV2Impl({ item, isActive }: SidebarCardV2Props) {
           <span
             className="m-mono truncate"
             style={{
-              color: isActive ? 'var(--m-green-400, var(--theme-accent))' : 'var(--theme-text)',
+              color: isActive
+                ? 'var(--m-green-400, var(--theme-accent))'
+                : 'var(--theme-text)',
               fontSize: 12.5,
               fontWeight: isActive ? 600 : 500,
               lineHeight: 1.35,
@@ -223,17 +231,27 @@ function SidebarCardV2Impl({ item, isActive }: SidebarCardV2Props) {
               fontVariantNumeric: 'tabular-nums',
             }}
           >
-            {typeof item.sourceMeta.model === 'string' && item.sourceMeta.model && (
-              <span title="Model">{String(item.sourceMeta.model)}</span>
-            )}
-            {typeof item.sourceMeta.messageCount === 'number' && item.sourceMeta.messageCount > 0 && (
-              <span title={`${item.sourceMeta.messageCount} messages`}>💬 {item.sourceMeta.messageCount}</span>
-            )}
-            {typeof item.sourceMeta.toolCallCount === 'number' && item.sourceMeta.toolCallCount > 0 && (
-              <span title={`${item.sourceMeta.toolCallCount} tool calls`}>🔧 {item.sourceMeta.toolCallCount}</span>
-            )}
+            {typeof item.sourceMeta.model === 'string' &&
+              item.sourceMeta.model && (
+                <span title="Model">{String(item.sourceMeta.model)}</span>
+              )}
+            {typeof item.sourceMeta.messageCount === 'number' &&
+              item.sourceMeta.messageCount > 0 && (
+                <span title={`${item.sourceMeta.messageCount} messages`}>
+                  💬 {item.sourceMeta.messageCount}
+                </span>
+              )}
+            {typeof item.sourceMeta.toolCallCount === 'number' &&
+              item.sourceMeta.toolCallCount > 0 && (
+                <span title={`${item.sourceMeta.toolCallCount} tool calls`}>
+                  🔧 {item.sourceMeta.toolCallCount}
+                </span>
+              )}
             {item.tokens != null && item.tokens > 0 && (
-              <span title={`${item.tokens} tokens`} style={{ fontVariantNumeric: 'tabular-nums' }}>
+              <span
+                title={`${item.tokens} tokens`}
+                style={{ fontVariantNumeric: 'tabular-nums' }}
+              >
                 {formatTokens(item.tokens)} tok
               </span>
             )}
@@ -275,15 +293,45 @@ function SidebarCardV2Impl({ item, isActive }: SidebarCardV2Props) {
             ⋯
           </button>
         ) : (
-          <span
-            className="m-timestamp"
-            style={{
-              color: 'var(--theme-muted)',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {formatWhen(item.when)}
-          </span>
+          <>
+            {isBackgroundLive ? (
+              <span
+                aria-label="Session is active"
+                data-testid={`session-live-${item.id}`}
+                title="Session is active"
+                className="session-attention-pulse"
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  background: railColor,
+                  boxShadow: `0 0 7px ${railColor}`,
+                }}
+              />
+            ) : !isActive && item.hasUnseenUpdate ? (
+              <span
+                aria-label="Session has an unread update"
+                data-testid={`session-updated-${item.id}`}
+                title="Session has an unread update"
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  background: railColor,
+                  boxShadow: `0 0 5px ${railColor}99`,
+                }}
+              />
+            ) : null}
+            <span
+              className="m-timestamp"
+              style={{
+                color: 'var(--theme-muted)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {formatWhen(item.when)}
+            </span>
+          </>
         )}
       </div>
     </div>
@@ -313,10 +361,18 @@ function SidebarCardV2Impl({ item, isActive }: SidebarCardV2Props) {
     )
   }
 
-  return <>{cardContent}{contextMenuEl}</>
+  return (
+    <>
+      {cardContent}
+      {contextMenuEl}
+    </>
+  )
 }
 
-function cardPropsEqual(prev: SidebarCardV2Props, next: SidebarCardV2Props): boolean {
+function cardPropsEqual(
+  prev: SidebarCardV2Props,
+  next: SidebarCardV2Props,
+): boolean {
   if (prev.isActive !== next.isActive) return false
   const a = prev.item
   const b = next.item
@@ -326,6 +382,7 @@ function cardPropsEqual(prev: SidebarCardV2Props, next: SidebarCardV2Props): boo
     a.title === b.title &&
     a.when === b.when &&
     a.live === b.live &&
+    a.hasUnseenUpdate === b.hasUnseenUpdate &&
     a.pinned === b.pinned &&
     a.starred === b.starred &&
     a.archived === b.archived &&

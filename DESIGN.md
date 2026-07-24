@@ -3,9 +3,9 @@
 ## Source of truth
 
 - Status: Draft
-- Last refreshed: 2026-07-21
-- Primary product surfaces: `/self-improve`, `src/screens/self-improve`, `src/lib/self-improve-*`
-- Evidence reviewed: `docs/plans/self-improve-ux-redesign-210.md`, `docs/main/self-improve.md`, `src/screens/self-improve/self-improve-screen.tsx`, `src/screens/memory/memory-screen.tsx`, `src/components/ui/tabs.tsx`, and the installed `karpathy-self-improve` plugin API/DB implementation.
+- Last refreshed: 2026-07-23
+- Primary product surfaces: `/self-improve`, `/chat/:sessionKey`, `src/screens/self-improve`, `src/screens/chat`
+- Evidence reviewed: `docs/plans/self-improve-ux-redesign-210.md`, `docs/main/self-improve.md`, `src/screens/self-improve/self-improve-screen.tsx`, `src/screens/memory/memory-screen.tsx`, `src/components/ui/tabs.tsx`, the installed `karpathy-self-improve` plugin API/DB implementation, `src/screens/chat/chat-screen.tsx`, and `src/screens/chat/components/v2/delegation-tab-view.tsx`.
 
 ## Brand
 
@@ -69,7 +69,7 @@
 - Typography: existing UI font for prose; mono for paths, SHAs, model names, and diff content.
 - Spacing/layout rhythm: compact shell and tabs like Memory; generous detail panels; 8–10px card radius consistent with existing Self-Improve and Jobs surfaces.
 - Shape/radius/elevation: existing borders and subtle panels; no new shadow system.
-- Motion: short tab/detail transitions only; respect reduced motion.
+- Motion: short tab/detail transitions only; respect reduced motion. In chat, a soft green pulse/glow is reserved for work that is actively running or unseen; a selected control uses a stable accent fill instead.
 - Imagery/iconography: existing inline/Lucide icons; no decorative imagery.
 
 ## Components
@@ -80,7 +80,7 @@
   a shared selected experiment/run context owned by `SelfImproveScreen`, and
   `ScenarioResultsMatrix` (Evaluation). Reuse the existing scenario table and
   `ScenarioChecklist` row semantics instead of adding a second dashboard.
-- Variants and states: loading, unavailable, empty, selected, proposed/approved/live/verified/reverted/rejected, offline/live/holdout, narrow-screen fallback.
+- Variants and states: loading, unavailable, empty, selected, proposed/approved/live/verified/reverted/rejected, offline/live/holdout, narrow-screen fallback. The chat agent trigger pulses only while at least one sub-agent is live; delegation rows show an agent identity glyph only when the delegation source reports one, plus a status rail, clear live/complete/failure label, concise metadata, and expandable activity detail. Pending session updates pulse their filter control and enable the corresponding mark-read action.
 - Token/component ownership: page-specific CSS remains in `self-improve-screen.css`; shared tab primitives remain in `src/components/ui/tabs.tsx`.
 
 ## Accessibility

@@ -7,6 +7,7 @@ const NOW = 1_000_000
 function row(overrides: Partial<DelegationRow>): DelegationRow {
   return {
     id: 's1',
+    agent_id: null,
     title: null,
     model: null,
     started_at: null,
@@ -58,6 +59,7 @@ describe('toDelegation', () => {
     )
     expect(result).toEqual({
       childSessionId: 'child-1',
+      agentId: null,
       goal: 'Do X',
       model: 'gpt',
       status: 'completed',
@@ -66,6 +68,10 @@ describe('toDelegation', () => {
       startedAt: 100_000,
       endedAt: 200_000,
     })
+  })
+
+  it('preserves the persisted assigned agent identity', () => {
+    expect(toDelegation(row({ agent_id: 'neo', last_active: NOW - 5 }), NOW).agentId).toBe('neo')
   })
 
   it('falls back to untitled/unknown and zero tokens when missing', () => {

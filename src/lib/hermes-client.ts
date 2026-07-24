@@ -59,7 +59,10 @@ async function proxySend<T>(
 }
 
 async function proxyDelete(path: string): Promise<void> {
-  const res = await proxyFetch(path, { method: 'DELETE' })
+  const res = await proxyFetch(path, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+  })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new Error(
@@ -271,6 +274,103 @@ export async function listDashboardPlugins(): Promise<unknown> {
   return proxyGet('/api/dashboard/plugins')
 }
 
+/** The only dashboard-manifest details that SwitchUI is allowed to render. */
+export type DashboardPluginManifestSummary = {
+  label?: string
+  hasApi: boolean
+  hasTab: boolean
+  tabHidden: boolean
+}
+
+/** A UI-safe projection of a Dashboard Plugins Hub row. */
+export type PluginsHubPlugin = {
+  name: string
+  version: string
+  description: string
+  source: string
+  runtimeStatus: string
+  hasDashboardManifest: boolean
+  dashboardManifest: DashboardPluginManifestSummary | null
+  canRemove: boolean
+  canUpdateGit: boolean
+  authRequired: boolean
+  authCommand: string
+  userHidden: boolean
+}
+
+/** The Plugins Manager intentionally ignores Hub providers and orphan manifests. */
+export type PluginsHub = { plugins: Array<PluginsHubPlugin> }
+
+export type DashboardPluginsRescan = { ok: boolean; count: number }
+
+function record(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function string(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function bool(value: unknown): boolean {
+  return value === true
+}
+
+/**
+ * Drops filesystem locations and executable manifest data before any UI can
+ * consume Hub data. Keep this projection at the browser trust boundary.
+ */
+export function projectPluginsHub(raw: unknown): PluginsHub {
+  const hub = record(raw)
+  const rows = Array.isArray(hub?.plugins) ? hub.plugins : []
+
+  return {
+    plugins: rows.flatMap((rawPlugin) => {
+      const plugin = record(rawPlugin)
+      if (!plugin) return []
+
+      const rawManifest = record(plugin.dashboard_manifest)
+      const rawTab = record(rawManifest?.tab)
+      const label = string(rawManifest?.label)
+
+      return [
+        {
+          name: string(plugin.name),
+          version: string(plugin.version),
+          description: string(plugin.description),
+          source: string(plugin.source),
+          runtimeStatus: string(plugin.runtime_status),
+          hasDashboardManifest: bool(plugin.has_dashboard_manifest),
+          dashboardManifest: rawManifest
+            ? {
+                ...(label ? { label } : {}),
+                hasApi: bool(rawManifest.has_api),
+                hasTab: rawTab !== null,
+                tabHidden: bool(rawTab?.hidden),
+              }
+            : null,
+          canRemove: bool(plugin.can_remove),
+          canUpdateGit: bool(plugin.can_update_git),
+          authRequired: bool(plugin.auth_required),
+          authCommand: string(plugin.auth_command),
+          userHidden: bool(plugin.user_hidden),
+        },
+      ]
+    }),
+  }
+}
+
+export async function getPluginsHub(): Promise<PluginsHub> {
+  return projectPluginsHub(
+    await proxyGet<unknown>('/api/dashboard/plugins/hub'),
+  )
+}
+
+export async function rescanDashboardPlugins(): Promise<DashboardPluginsRescan> {
+  return proxyGet<DashboardPluginsRescan>('/api/dashboard/plugins/rescan')
+}
+
 export async function getA2AFleetConversations(): Promise<A2AFleetConversationsResponse> {
   return proxyGet('/api/plugins/a2a_fleet/conversations')
 }
@@ -287,12 +387,16 @@ export async function getA2AFleetPeers(): Promise<A2AFleetPeersResponse> {
   return proxyGet('/api/plugins/a2a_fleet/peers')
 }
 
-export async function installAgentPlugin(body: {
+export async function installAgentPlugin({
+  identifier,
+}: {
   identifier: string
-  force?: boolean
-  enable?: boolean
 }): Promise<unknown> {
-  return proxySend('POST', '/api/dashboard/agent-plugins/install', body)
+  return proxySend('POST', '/api/dashboard/agent-plugins/install', {
+    identifier,
+    force: false,
+    enable: false,
+  })
 }
 
 export async function enableAgentPlugin(name: string): Promise<unknown> {

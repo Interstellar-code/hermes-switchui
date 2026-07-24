@@ -99,6 +99,13 @@ export const MOBILE_HAMBURGER_NAV_ITEMS = [
     match: (p: string) => p.startsWith('/skills'),
   },
   {
+    id: 'plugins',
+    label: 'Plugins',
+    icon: PuzzleIcon,
+    to: '/plugins',
+    match: (p: string) => p.startsWith('/plugins'),
+  },
+  {
     id: 'mcp',
     label: 'MCP',
     icon: McpServerIcon,

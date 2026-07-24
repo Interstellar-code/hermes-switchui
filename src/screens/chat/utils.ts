@@ -311,6 +311,12 @@ export function normalizeSessions(
         typeof (session as Record<string, unknown>).source === 'string'
           ? ((session as Record<string, unknown>).source as string)
           : undefined,
+      isActive:
+        typeof (session as Record<string, unknown>).isActive === 'boolean'
+          ? ((session as Record<string, unknown>).isActive as boolean)
+          : typeof (session as Record<string, unknown>).is_active === 'boolean'
+            ? ((session as Record<string, unknown>).is_active as boolean)
+            : undefined,
     }
   })
 }

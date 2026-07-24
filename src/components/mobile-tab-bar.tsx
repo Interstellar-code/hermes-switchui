@@ -119,6 +119,13 @@ export const MOBILE_NAV_TABS: Array<TabItem> = [
     match: (p) => p.startsWith('/skills'),
   },
   {
+    id: 'plugins',
+    label: 'Plugins',
+    icon: PuzzleIcon,
+    to: '/plugins',
+    match: (p) => p.startsWith('/plugins'),
+  },
+  {
     id: 'mcp',
     label: 'MCP',
     icon: McpServerIcon,

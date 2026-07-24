@@ -27,6 +27,8 @@ When you add an attachment, a preview chip appears above the composer text area.
 
 **Drag and drop** — Drag a file from your desktop or file manager onto the composer area. The composer highlights when a drag is detected. Drop to attach.
 
+**Workspace explorer** — Open the folder icon in the chat header, right-click a workspace file, then choose **Add reference to chat**. This inserts `See file: workspace/path/to/file` into the active draft. For workspace images, choose **Attach image to chat** to add the image through the same attachment flow as the paperclip.
+
 ## Supported file types
 
 **Images** — PNG, JPEG, GIF, WebP, BMP, SVG, AVIF, HEIC, HEIF, TIFF. Large images are automatically resized to a maximum of 1920 px on the longest side and compressed to JPEG at 85% quality before sending to keep the payload within transport limits (1 MB per image after processing).

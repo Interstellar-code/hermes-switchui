@@ -260,6 +260,14 @@ function getMimeType(filePath: string) {
       return 'image/webp'
     case '.svg':
       return 'image/svg+xml'
+    case '.pdf':
+      return 'application/pdf'
+    case '.txt':
+      return 'text/plain'
+    case '.md':
+      return 'text/markdown'
+    case '.json':
+      return 'application/json'
     default:
       return 'application/octet-stream'
   }

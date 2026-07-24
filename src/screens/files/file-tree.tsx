@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { Highlight, fuzzy } from './files-search'
 
 export type FileEntry = {
   name: string
@@ -36,6 +37,7 @@ type FolderTreeNodeProps = {
   expanded: Set<string>
   forceExpanded?: boolean
   selectedPath: string | null
+  query?: string
   onToggle: (path: string) => void
   onSelect: (entry: FileEntry) => void
   onDeleteRequest: (entry: FileEntry) => void
@@ -48,6 +50,7 @@ function FolderTreeNode({
   expanded,
   forceExpanded = false,
   selectedPath,
+  query,
   onToggle,
   onSelect,
   onDeleteRequest,
@@ -82,7 +85,16 @@ function FolderTreeNode({
       >
         <span className="chev">▶</span>
         <span className="icon is-folder" aria-hidden="true" />
-        <span className="name">{entry.name}</span>
+        <span className="name">
+          {query ? (
+            <Highlight
+              text={entry.name}
+              ranges={fuzzy(query, entry.name)?.ranges}
+            />
+          ) : (
+            entry.name
+          )}
+        </span>
         {fileCount > 0 ? <span className="badge">{fileCount}</span> : null}
         <span
           role="button"
@@ -115,6 +127,7 @@ function FolderTreeNode({
               expanded={expanded}
               forceExpanded={forceExpanded}
               selectedPath={selectedPath}
+              query={query}
               onToggle={onToggle}
               onSelect={onSelect}
               onDeleteRequest={onDeleteRequest}
@@ -132,6 +145,7 @@ type FileTreeProps = {
   expanded: Set<string>
   forceExpanded?: boolean
   selectedPath: string | null
+  query?: string
   onToggle: (path: string) => void
   onSelect: (entry: FileEntry) => void
   onDeleteRequest: (entry: FileEntry) => void
@@ -143,6 +157,7 @@ export function FileTree({
   expanded,
   forceExpanded,
   selectedPath,
+  query,
   onToggle,
   onSelect,
   onDeleteRequest,
@@ -161,6 +176,7 @@ export function FileTree({
           expanded={expanded}
           forceExpanded={forceExpanded}
           selectedPath={selectedPath}
+          query={query}
           onToggle={onToggle}
           onSelect={onSelect}
           onDeleteRequest={onDeleteRequest}

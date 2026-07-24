@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { countSessionAgents } from './use-delegations'
+import { countSessionAgents, hasActiveSessionAgents } from './use-delegations'
 
 describe('countSessionAgents', () => {
   it('dedupes a live child session that has already persisted', () => {
@@ -18,5 +18,24 @@ describe('countSessionAgents', () => {
     expect(
       countSessionAgents([], [{ subagentId: 'subagent-1' }]),
     ).toBe(1)
+  })
+})
+
+describe('hasActiveSessionAgents', () => {
+  it('is live while a persisted child is running', () => {
+    expect(hasActiveSessionAgents([{ status: 'running' }], [])).toBe(true)
+  })
+
+  it('does not light the trigger for settled children', () => {
+    expect(
+      hasActiveSessionAgents(
+        [{ status: 'completed' }, { status: 'failed' }],
+        [{ status: 'completed' }, { status: 'error' }, { status: 'aborted' }],
+      ),
+    ).toBe(false)
+  })
+
+  it('lights immediately for an in-flight stream event without a status', () => {
+    expect(hasActiveSessionAgents([], [{}])).toBe(true)
   })
 })

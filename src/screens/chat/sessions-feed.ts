@@ -30,6 +30,7 @@ import type {
   SessionsFeedResult,
 } from './sessions-feed-types'
 import { fetchJobs, findJobById } from '@/lib/jobs-api'
+import { useChatStore } from '@/stores/chat-store'
 
 // ── Capability accessor ────────────────────────────────────────────────────────
 // We read capabilities from the /api/connection-status endpoint (already used
@@ -148,7 +149,10 @@ export function parseCronSessionKey(key: string): CronSessionParts | null {
   }
 }
 
-export function formatCronRunTitle(job: ClaudeJob | null, parts: CronSessionParts): string {
+export function formatCronRunTitle(
+  job: ClaudeJob | null,
+  parts: CronSessionParts,
+): string {
   const jobName = job ? job.name.trim() : ''
   const name = jobName || `Cron ${parts.jobId}`
   if (!parts.runStartedAt) return name
@@ -161,7 +165,10 @@ export function formatCronRunTitle(job: ClaudeJob | null, parts: CronSessionPart
   return `${name} — ${runLabel}`
 }
 
-export function getCronSessionSub(job: ClaudeJob | null, fallback: string | null): string | null {
+export function getCronSessionSub(
+  job: ClaudeJob | null,
+  fallback: string | null,
+): string | null {
   const prompt = job ? job.prompt.trim() : ''
   if (!prompt) return fallback
   return prompt.split(/\n+/)[0]?.trim() || fallback
@@ -232,6 +239,7 @@ export function useChatSessionsFeed(): SessionSourceResult {
   })
 
   const available = capsQuery.data?.sessions ?? false
+  const waitingSessionKeys = useChatStore((s) => s.waitingSessionKeys)
 
   // S4 perf: share the raw sessions fetch with the legacy chatQueryKeys.sessions
   // cache so only ONE /api/sessions network request is made. All mutation
@@ -301,6 +309,10 @@ export function useChatSessionsFeed(): SessionSourceResult {
         isTaskTriggered,
         s.kind,
       )
+      const live =
+        Boolean(s.isActive) ||
+        waitingSessionKeys.has(s.key) ||
+        waitingSessionKeys.has(s.friendlyId)
       return {
         id: makeId('chat', s.key),
         src: kind,
@@ -309,8 +321,8 @@ export function useChatSessionsFeed(): SessionSourceResult {
         tokens: s.tokenCount ?? s.totalTokens ?? null,
         when,
         day: getDayBucket(when, nowMs),
-        live: false, // live flag set by chat-store subscriber in Phase 3
-        state: 'idle',
+        live,
+        state: live ? 'live' : 'idle',
         badges,
         pinned: false,
         starred: false,
@@ -331,7 +343,7 @@ export function useChatSessionsFeed(): SessionSourceResult {
         },
       }
     })
-  }, [rawSessions, jobs])
+  }, [rawSessions, jobs, waitingSessionKeys])
 
   const queryHasData = items.length > 0 || sessionsQuery.isSuccess
   const effectiveAvailable = available || queryHasData
@@ -489,7 +501,11 @@ export function useSessionsFeed(
     }
 
     if (raw) {
-      return { items: merged, sources: allSources, loading: allSources.some((s) => s.available && s.loading) }
+      return {
+        items: merged,
+        sources: allSources,
+        loading: allSources.some((s) => s.available && s.loading),
+      }
     }
 
     // Source filter applied at the item level — chat hook may emit items with

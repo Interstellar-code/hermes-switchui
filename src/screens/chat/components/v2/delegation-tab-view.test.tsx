@@ -71,7 +71,23 @@ describe('DelegationSidebarOverlay', () => {
     const container = renderInto(<DelegationSidebarOverlay sessionKey="s1" onClose={() => {}} />)
     expect(container.textContent).toMatch(/Untitled agent task/)
     expect(container.textContent).toMatch(/unknown/)
-    expect(container.textContent).toMatch(/running/)
+    expect(container.textContent).toMatch(/Working/)
+    expect(container.textContent).toMatch(/1 live/)
+    expect(container.querySelector('[aria-label="Delegated subagent"]')?.textContent).toBe('SUB')
+  })
+
+  it('renders the assigned profile glyph when the delegation identifies its agent', () => {
+    useDelegationsMock.mockReturnValue({
+      delegations: [{
+        childSessionId: 'child-neo', agentId: 'neo', goal: 'Implement it', model: 'auto',
+        status: 'running', inputTokens: 0, outputTokens: 0, startedAt: null, endedAt: null,
+      }],
+      isLoading: false,
+      error: null,
+    })
+
+    const container = renderInto(<DelegationSidebarOverlay sessionKey="s1" onClose={() => {}} />)
+    expect(container.querySelector('[aria-label="Assigned agent: Neo"]')?.textContent).toBe('NE')
   })
 
   it('expands delegation activity inline when a card is clicked', () => {
@@ -103,6 +119,31 @@ describe('DelegationSidebarOverlay', () => {
 
     expect(container.textContent).toContain('No activity recorded.')
     expect(useDelegationMessagesMock).toHaveBeenLastCalledWith('child-1')
+    expect(delegationButton?.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('uses a distinct settled status rather than a live indicator', () => {
+    useDelegationsMock.mockReturnValue({
+      delegations: [
+        {
+          childSessionId: 'child-1',
+          goal: 'Finished task',
+          model: 'gpt-4',
+          status: 'completed',
+          inputTokens: 1_000,
+          outputTokens: 2_500,
+          startedAt: 1_000,
+          endedAt: 2_000,
+        },
+      ],
+      isLoading: false,
+      error: null,
+    })
+
+    const container = renderInto(<DelegationSidebarOverlay sessionKey="s1" onClose={() => {}} />)
+    expect(container.textContent).toContain('Completed')
+    expect(container.textContent).not.toContain('live')
+    expect(container.textContent).toContain('3.5k tok')
   })
 
   it('closes from the backdrop or Escape key', () => {

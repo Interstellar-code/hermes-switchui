@@ -6,7 +6,9 @@ import type { LocalState } from '@/stores/sessions-local-store'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function makeItem(overrides: Partial<SessionFeedItem> & { id: string }): SessionFeedItem {
+function makeItem(
+  overrides: Partial<SessionFeedItem> & { id: string },
+): SessionFeedItem {
   return {
     src: 'chat',
     title: 'Test Session',
@@ -25,22 +27,39 @@ function makeItem(overrides: Partial<SessionFeedItem> & { id: string }): Session
   }
 }
 
-function makeFilter(overrides: Partial<FilterState> = {}): Pick<FilterState, 'sources' | 'state' | 'query' | 'dateRange' | 'sort'> {
+function makeFilter(
+  overrides: Partial<FilterState> = {},
+): Pick<
+  FilterState,
+  'sources' | 'state' | 'query' | 'dateRange' | 'sort' | 'updatesOnly'
+> {
   return {
     sources: [],
     state: 'all',
     query: '',
     dateRange: { from: null, to: null },
     sort: 'recent',
+    updatesOnly: false,
     ...overrides,
   }
 }
 
-function makeLocal(overrides: Partial<LocalState> = {}): Pick<LocalState, 'pinned' | 'starred' | 'archived'> {
+function makeLocal(
+  overrides: Partial<LocalState> = {},
+): Pick<
+  LocalState,
+  | 'pinned'
+  | 'starred'
+  | 'archived'
+  | 'lastSeenUpdate'
+  | 'seenUpdatesInitialized'
+> {
   return {
     pinned: [],
     starred: [],
     archived: [],
+    lastSeenUpdate: {},
+    seenUpdatesInitialized: false,
     ...overrides,
   }
 }
@@ -54,7 +73,11 @@ describe('applyFiltersAndDecorate', () => {
       makeItem({ id: 'task:b', src: 'task' }),
       makeItem({ id: 'cron:c', src: 'cron' }),
     ]
-    const result = applyFiltersAndDecorate(items, makeFilter({ sources: [] }), makeLocal())
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ sources: [] }),
+      makeLocal(),
+    )
     expect(result.totalCount).toBe(3)
   })
 
@@ -63,9 +86,15 @@ describe('applyFiltersAndDecorate', () => {
       makeItem({ id: 'chat:a', src: 'chat' }),
       makeItem({ id: 'task:b', src: 'task' }),
     ]
-    const result = applyFiltersAndDecorate(items, makeFilter({ sources: ['chat'] }), makeLocal())
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ sources: ['chat'] }),
+      makeLocal(),
+    )
     expect(result.totalCount).toBe(1)
-    expect(result.groups.flatMap((g) => g.items).every((i) => i.src === 'chat')).toBe(true)
+    expect(
+      result.groups.flatMap((g) => g.items).every((i) => i.src === 'chat'),
+    ).toBe(true)
   })
 
   it('state filter = live shows only live items', () => {
@@ -74,9 +103,66 @@ describe('applyFiltersAndDecorate', () => {
       makeItem({ id: 'chat:b', state: 'idle' }),
       makeItem({ id: 'chat:c', state: 'complete' }),
     ]
-    const result = applyFiltersAndDecorate(items, makeFilter({ state: 'live' }), makeLocal())
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ state: 'live' }),
+      makeLocal(),
+    )
     expect(result.totalCount).toBe(1)
     expect(result.groups.flatMap((g) => g.items)[0].id).toBe('chat:a')
+  })
+
+  it('marks a completed background update and never marks a live session as updated', () => {
+    const result = applyFiltersAndDecorate(
+      [
+        makeItem({ id: 'chat:updated', when: 20 }),
+        makeItem({ id: 'chat:live', when: 20, live: true, state: 'live' }),
+      ],
+      makeFilter(),
+      makeLocal({
+        seenUpdatesInitialized: true,
+        lastSeenUpdate: { 'chat:updated': 10, 'chat:live': 10 },
+      }),
+    )
+
+    const byId = Object.fromEntries(
+      result.groups
+        .flatMap((group) => group.items)
+        .map((item) => [item.id, item]),
+    )
+    expect(byId['chat:updated'].hasUnseenUpdate).toBe(true)
+    expect(byId['chat:live'].hasUnseenUpdate).toBe(false)
+  })
+
+  it('updates-only excludes read and live sessions', () => {
+    const result = applyFiltersAndDecorate(
+      [
+        makeItem({ id: 'chat:updated', when: Date.UTC(2025, 0, 1) }),
+        makeItem({ id: 'chat:read', when: Date.UTC(2025, 0, 1) }),
+        makeItem({
+          id: 'chat:live',
+          when: Date.UTC(2025, 0, 1),
+          live: true,
+          state: 'live',
+        }),
+      ],
+      makeFilter({
+        updatesOnly: true,
+        dateRange: { from: '2026-01-01', to: '2026-01-31' },
+      }),
+      makeLocal({
+        seenUpdatesInitialized: true,
+        lastSeenUpdate: {
+          'chat:updated': 10,
+          'chat:read': Date.UTC(2025, 0, 1),
+          'chat:live': 10,
+        },
+      }),
+    )
+
+    expect(result.groups.flatMap((group) => group.items).map((item) => item.id)).toEqual([
+      'chat:updated',
+    ])
   })
 
   it('archived items hidden by default (state = all)', () => {
@@ -95,7 +181,11 @@ describe('applyFiltersAndDecorate', () => {
       makeItem({ id: 'chat:a', state: 'idle' }),
       makeItem({ id: 'chat:b', state: 'idle' }),
     ]
-    const result = applyFiltersAndDecorate(items, makeFilter(), makeLocal({ archived: ['chat:b'] }))
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter(),
+      makeLocal({ archived: ['chat:b'] }),
+    )
     expect(result.totalCount).toBe(1)
     const ids = result.groups.flatMap((g) => g.items).map((i) => i.id)
     expect(ids).not.toContain('chat:b')
@@ -108,7 +198,11 @@ describe('applyFiltersAndDecorate', () => {
       makeItem({ id: 'chat:c', state: 'idle' }),
     ]
     const local = makeLocal({ archived: ['chat:c'] })
-    const result = applyFiltersAndDecorate(items, makeFilter({ state: 'archived' }), local)
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ state: 'archived' }),
+      local,
+    )
     const ids = result.groups.flatMap((g) => g.items).map((i) => i.id)
     expect(ids).toContain('chat:b')
     expect(ids).toContain('chat:c')
@@ -120,7 +214,11 @@ describe('applyFiltersAndDecorate', () => {
       makeItem({ id: 'chat:a', title: 'Hello World' }),
       makeItem({ id: 'chat:b', title: 'Goodbye' }),
     ]
-    const result = applyFiltersAndDecorate(items, makeFilter({ query: 'hello' }), makeLocal())
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ query: 'hello' }),
+      makeLocal(),
+    )
     expect(result.totalCount).toBe(1)
     expect(result.groups.flatMap((g) => g.items)[0].id).toBe('chat:a')
   })
@@ -130,7 +228,11 @@ describe('applyFiltersAndDecorate', () => {
       makeItem({ id: 'chat:a', title: 'Session', sub: 'last message preview' }),
       makeItem({ id: 'chat:b', title: 'Other', sub: null }),
     ]
-    const result = applyFiltersAndDecorate(items, makeFilter({ query: 'PREVIEW' }), makeLocal())
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ query: 'PREVIEW' }),
+      makeLocal(),
+    )
     expect(result.totalCount).toBe(1)
   })
 
@@ -167,20 +269,44 @@ describe('applyFiltersAndDecorate', () => {
 
   it('date range: items before from are excluded', () => {
     const items = [
-      makeItem({ id: 'chat:a', when: new Date('2025-01-15').getTime(), day: 'earlier' }),
-      makeItem({ id: 'chat:b', when: new Date('2025-03-01').getTime(), day: 'earlier' }),
+      makeItem({
+        id: 'chat:a',
+        when: new Date('2025-01-15').getTime(),
+        day: 'earlier',
+      }),
+      makeItem({
+        id: 'chat:b',
+        when: new Date('2025-03-01').getTime(),
+        day: 'earlier',
+      }),
     ]
-    const result = applyFiltersAndDecorate(items, makeFilter({ dateRange: { from: '2025-02-01', to: null } }), makeLocal())
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ dateRange: { from: '2025-02-01', to: null } }),
+      makeLocal(),
+    )
     expect(result.totalCount).toBe(1)
     expect(result.groups.flatMap((g) => g.items)[0].id).toBe('chat:b')
   })
 
   it('date range: items after to are excluded (inclusive to-day)', () => {
     const items = [
-      makeItem({ id: 'chat:a', when: new Date('2025-01-15').getTime(), day: 'earlier' }),
-      makeItem({ id: 'chat:b', when: new Date('2025-03-01').getTime(), day: 'earlier' }),
+      makeItem({
+        id: 'chat:a',
+        when: new Date('2025-01-15').getTime(),
+        day: 'earlier',
+      }),
+      makeItem({
+        id: 'chat:b',
+        when: new Date('2025-03-01').getTime(),
+        day: 'earlier',
+      }),
     ]
-    const result = applyFiltersAndDecorate(items, makeFilter({ dateRange: { from: null, to: '2025-02-01' } }), makeLocal())
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ dateRange: { from: null, to: '2025-02-01' } }),
+      makeLocal(),
+    )
     expect(result.totalCount).toBe(1)
     expect(result.groups.flatMap((g) => g.items)[0].id).toBe('chat:a')
   })
@@ -204,7 +330,11 @@ describe('applyFiltersAndDecorate', () => {
     const now = Date.now()
     const items = [
       makeItem({ id: 'chat:today', when: now, day: 'today' }),
-      makeItem({ id: 'chat:yesterday', when: now - 86400001, day: 'yesterday' }),
+      makeItem({
+        id: 'chat:yesterday',
+        when: now - 86400001,
+        day: 'yesterday',
+      }),
       makeItem({ id: 'chat:earlier', when: now - 172800001, day: 'earlier' }),
     ]
     const local = makeLocal({ pinned: ['chat:earlier'] })
@@ -226,7 +356,11 @@ describe('applyFiltersAndDecorate', () => {
   it('source-archived item gets archived=true after decoration', () => {
     // item.state === 'archived' should decorate archived=true even without local entry
     const items = [makeItem({ id: 'chat:b', state: 'archived' })]
-    const result = applyFiltersAndDecorate(items, makeFilter({ state: 'archived' }), makeLocal())
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ state: 'archived' }),
+      makeLocal(),
+    )
     const item = result.groups.flatMap((g) => g.items)[0]
     expect(item).toBeDefined()
     expect(item.archived).toBe(true)
@@ -237,7 +371,11 @@ describe('applyFiltersAndDecorate', () => {
       makeItem({ id: 'chat:old', when: 1000 }),
       makeItem({ id: 'chat:new', when: 9000 }),
     ]
-    const result = applyFiltersAndDecorate(items, makeFilter({ sort: 'recent' }), makeLocal())
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ sort: 'recent' }),
+      makeLocal(),
+    )
     const ids = result.groups.flatMap((g) => g.items).map((i) => i.id)
     expect(ids[0]).toBe('chat:new')
   })
@@ -248,7 +386,11 @@ describe('applyFiltersAndDecorate', () => {
       makeItem({ id: 'chat:b', tokens: 500 }),
       makeItem({ id: 'chat:c', tokens: 50 }),
     ]
-    const result = applyFiltersAndDecorate(items, makeFilter({ sort: 'tokens' }), makeLocal())
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ sort: 'tokens' }),
+      makeLocal(),
+    )
     const ids = result.groups.flatMap((g) => g.items).map((i) => i.id)
     expect(ids[0]).toBe('chat:b')
   })
@@ -258,7 +400,11 @@ describe('applyFiltersAndDecorate', () => {
       makeItem({ id: 'task:a', src: 'task' }),
       makeItem({ id: 'chat:a', src: 'chat' }),
     ]
-    const result = applyFiltersAndDecorate(items, makeFilter({ sort: 'source' }), makeLocal())
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ sort: 'source' }),
+      makeLocal(),
+    )
     const ids = result.groups.flatMap((g) => g.items).map((i) => i.id)
     expect(ids[0]).toBe('chat:a')
   })
@@ -270,7 +416,11 @@ describe('applyFiltersAndDecorate', () => {
       makeItem({ id: 'cron:a', src: 'cron', state: 'idle' }),
     ]
     // Filter to chat only, but sourceCounts should reflect all sources
-    const result = applyFiltersAndDecorate(items, makeFilter({ sources: ['chat'] }), makeLocal())
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ sources: ['chat'] }),
+      makeLocal(),
+    )
     expect(result.sourceCounts['chat']).toBe(1)
     expect(result.sourceCounts['task']).toBe(1)
     expect(result.sourceCounts['cron']).toBe(1)
@@ -284,7 +434,11 @@ describe('applyFiltersAndDecorate', () => {
       makeItem({ id: 'chat:b', src: 'chat', state: 'idle' }),
       makeItem({ id: 'task:a', src: 'task', state: 'live' }),
     ]
-    const result = applyFiltersAndDecorate(items, makeFilter({ sources: [], state: 'live' }), makeLocal())
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ sources: [], state: 'live' }),
+      makeLocal(),
+    )
     expect(result.sourceCounts['chat']).toBe(1)
     expect(result.sourceCounts['task']).toBe(1)
     expect(result.sourceCounts['cron']).toBeUndefined()
@@ -319,7 +473,11 @@ describe('applyFiltersAndDecorate', () => {
 
   it('totalCount is 0 when nothing matches', () => {
     const items = [makeItem({ id: 'chat:a', title: 'hello' })]
-    const result = applyFiltersAndDecorate(items, makeFilter({ query: 'zzznomatch' }), makeLocal())
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ query: 'zzznomatch' }),
+      makeLocal(),
+    )
     expect(result.totalCount).toBe(0)
     expect(result.groups).toEqual([])
   })

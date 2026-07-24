@@ -3,6 +3,24 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.24] — 2026-07-24
+
+### Added
+
+- **Finder-style Files workspace** — two-pane browsing, folder navigation, search, selection, context actions, and responsive mobile access replace the previous single-purpose file view.
+- **Plugins screen** — browse installed plugins, navigate to them from the app shell and command palette, and manage registered MCP-plugin integration from Settings.
+- **Unified chat navigation** — session filtering, focus mode, slash-command support, cleaner source chips, and accurate delegation/session indicators.
+- **Project session selection** — chat sessions can be associated with the active project.
+
+### Changed
+
+- File documentation and design assets now describe the current Files v2 experience.
+- Removed the retired workspace-daemon development proxy and auto-spawn plumbing.
+
+### Fixed
+
+- **Web chat delivery in development.** The retired daemon middleware now forwards every non-healthcheck request, so `POST /api/send-stream` reaches Hermes Agent again.
+
 ## [2.5.23] — 2026-07-23
 
 ### Added

@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { createPortal } from 'react-dom'
 import { Bot } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -52,7 +53,11 @@ import {
   useSessionsFeed,
 } from './sessions-feed'
 import { useToolDisplay } from './hooks/use-tool-display'
-import { countSessionAgents, useDelegations } from './hooks/use-delegations'
+import {
+  countSessionAgents,
+  hasActiveSessionAgents,
+  useDelegations,
+} from './hooks/use-delegations'
 import { useDisplayMessages } from './hooks/use-display-messages'
 import { useDrainWatchdog } from './hooks/use-drain-watchdog'
 import { useChatMobile } from './hooks/use-chat-mobile'
@@ -191,8 +196,34 @@ export function ChatScreen({
     fileExplorerCollapsed,
     handleToggleFileExplorer,
     handleInsertFileReference,
+    handleAttachWorkspaceImage,
+    handleAttachWorkspaceFile,
   } = useFocusMode({ compact, composerHandleRef })
   const { isMobile } = useChatMobile(queryClient)
+
+  // File explorer overlays the sessions-sidebar footprint (portal-into-node).
+  // It renders into the sidebar-shell-v2 DOM node so it lands exactly over the
+  // 320px sessions panel with zero coordinate math; the panel stays mounted
+  // underneath. Resolve the target once the explorer opens (the sidebar shell
+  // is a sibling rendered by WorkspaceShell, so it may not exist on first paint).
+  const fileExplorerOpen = !fileExplorerCollapsed && !isMobile
+  const [fileExplorerNode, setFileExplorerNode] = useState<HTMLElement | null>(
+    null,
+  )
+  useEffect(() => {
+    if (!fileExplorerOpen) return
+    setFileExplorerNode(
+      document.querySelector<HTMLElement>('[data-testid="sidebar-shell-v2"]'),
+    )
+  }, [fileExplorerOpen])
+  useEffect(() => {
+    if (!fileExplorerOpen) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') handleToggleFileExplorer()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fileExplorerOpen, handleToggleFileExplorer])
   const mobileKeyboardInset = useWorkspaceStore((s) => s.mobileKeyboardInset)
   const mobileComposerFocused = useWorkspaceStore(
     (s) => s.mobileComposerFocused,
@@ -512,6 +543,10 @@ export function ChatScreen({
   )
   const agentCount = useMemo(
     () => countSessionAgents(delegations, streamingDelegations),
+    [delegations, streamingDelegations],
+  )
+  const hasActiveAgents = useMemo(
+    () => hasActiveSessionAgents(delegations, streamingDelegations),
     [delegations, streamingDelegations],
   )
 
@@ -1260,16 +1295,41 @@ export function ChatScreen({
             ? 'flex min-h-0 w-full flex-col'
             : isMobile
               ? 'flex flex-col'
-              : 'grid grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)]',
+              : 'grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)]',
         )}
       >
-        {hideUi || compact || isFocusMode ? null : isMobile ? null : (
-          <FileExplorerSidebar
-            collapsed={fileExplorerCollapsed}
-            onToggle={handleToggleFileExplorer}
-            onInsertReference={handleInsertFileReference}
-          />
-        )}
+        {/* File explorer overlays the sessions-sidebar footprint via a portal
+            into the sidebar-shell-v2 node. Kept mounted once opened so the tree
+            and expanded state persist; toggled invisible when collapsed. The
+            sessions panel stays mounted underneath. When the sessions sidebar is
+            collapsed to its rail, this anchors to the (narrow) rail region. */}
+        {fileExplorerNode &&
+          !hideUi &&
+          !compact &&
+          !isFocusMode &&
+          !isMobile &&
+          createPortal(
+            <div
+              className={cn(
+                'absolute inset-0 z-20 m-2 flex flex-col overflow-hidden rounded-md border transition-opacity duration-150',
+                fileExplorerCollapsed && 'pointer-events-none opacity-0',
+              )}
+              style={{
+                borderColor: 'var(--theme-border)',
+                background: 'var(--theme-sidebar)',
+              }}
+              aria-hidden={fileExplorerCollapsed}
+            >
+              <FileExplorerSidebar
+                collapsed={false}
+                onToggle={handleToggleFileExplorer}
+                onInsertReference={handleInsertFileReference}
+                onAttachImage={handleAttachWorkspaceImage}
+                onAttachFile={handleAttachWorkspaceFile}
+              />
+            </div>,
+            fileExplorerNode,
+          )}
 
         <main
           className={cn(
@@ -1289,6 +1349,8 @@ export function ChatScreen({
                 activeTitle={activeTitle}
                 sessionKey={activeSessionKey || activeFriendlyId}
                 sourceKind={activeSourceKind}
+                fileExplorerCollapsed={fileExplorerCollapsed}
+                onToggleFileExplorer={handleToggleFileExplorer}
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
                 tabCounts={{
@@ -1441,6 +1503,7 @@ export function ChatScreen({
                     agentsOpen
                       ? 'border-primary bg-primary text-primary-foreground'
                       : 'border-primary/60 bg-card text-primary hover:bg-primary/10',
+                    hasActiveAgents && !agentsOpen && 'attention-pulse',
                   )}
                   style={{ bottom: `calc(${terminalPanelInset}px + 2.5rem)` }}
                 >

@@ -116,6 +116,8 @@ export type SessionSummary = {
   titleSource?: SessionTitleSource
   titleError?: string | null
   preview?: string | null
+  isActive?: boolean
+  is_active?: boolean
 }
 
 export type SessionListResponse = {
@@ -149,6 +151,7 @@ export type SessionMeta = {
   kind?: string
   /** Gateway origin: 'telegram' | 'cron' | 'cli' | 'api_server' | 'a2a_fleet' | 'local' | '' */
   source?: string
+  isActive?: boolean
 }
 
 export type PathsPayload = {

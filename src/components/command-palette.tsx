@@ -132,6 +132,11 @@ export function CommandPalette({ pathname, sessions }: CommandPaletteProps) {
       return
     }
 
+    if (command === '/plugins') {
+      void navigate({ to: '/plugins' })
+      return
+    }
+
     if (command === '/mcp') {
       void navigate({ to: '/mcp' })
       return
@@ -223,6 +228,15 @@ export function CommandPalette({ pathname, sessions }: CommandPaletteProps) {
         onSelect: () => void navigate({ to: '/skills' }),
       },
       {
+        id: 'screen-plugins',
+        group: 'Screens',
+        label: 'Plugins',
+        keywords: 'manage installed extensions dashboard hub',
+        shortcut: 'Go',
+        icon: PuzzleIcon,
+        onSelect: () => void navigate({ to: '/plugins' }),
+      },
+      {
         id: 'screen-mcp',
         group: 'Screens',
         label: 'MCP',
@@ -302,6 +316,15 @@ export function CommandPalette({ pathname, sessions }: CommandPaletteProps) {
         shortcut: 'Run',
         icon: CommandLineIcon,
         onSelect: () => runSlashCommand('/skills'),
+      },
+      {
+        id: 'slash-plugins',
+        group: 'Slash Commands',
+        label: '/plugins',
+        keywords: 'browse manage plugins page',
+        shortcut: 'Run',
+        icon: CommandLineIcon,
+        onSelect: () => runSlashCommand('/plugins'),
       },
       {
         id: 'slash-mcp',

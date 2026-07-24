@@ -81,20 +81,22 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   const [slideClass, setSlideClass] = useState<string>('')
   const prevTabIndexRef = useRef<number>(-1)
 
-  // Map pathname to tab index (mirrors TABS order in mobile-tab-bar)
+  // Map pathname to tab index (mirrors MOBILE_NAV_TABS in mobile-tab-bar).
   const getTabIndex = useCallback((path: string): number => {
     if (path === '/dashboard') return 0
     if (path.startsWith('/chat') || path === '/new' || path === '/') return 1
     if (path.startsWith('/files')) return 2
     if (path.startsWith('/terminal')) return 3
     if (path.startsWith('/jobs')) return 4
-    if (path.startsWith('/matrix3d')) return 5
-
-    if (path.startsWith('/memory')) return 6
-    if (path.startsWith('/skills')) return 7
-    if (path.startsWith('/mcp')) return 8
-    if (path.startsWith('/profiles')) return 9
-    if (path.startsWith('/settings')) return 10
+    if (path.startsWith('/self-improve')) return 5
+    if (path.startsWith('/commands')) return 6
+    if (path.startsWith('/matrix3d')) return 7
+    if (path.startsWith('/memory')) return 8
+    if (path.startsWith('/skills')) return 9
+    if (path.startsWith('/plugins')) return 10
+    if (path.startsWith('/mcp')) return 11
+    if (path.startsWith('/profiles')) return 12
+    if (path.startsWith('/settings')) return 13
     return -1
   }, [])
 
@@ -166,6 +168,7 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
 
     if (pathname.startsWith('/memory')) return 'Memory'
     if (pathname.startsWith('/skills')) return 'Skills'
+    if (pathname.startsWith('/plugins')) return 'Plugins'
     if (pathname.startsWith('/mcp')) return 'MCP'
     if (pathname.startsWith('/profiles')) return 'Profiles'
     if (pathname.startsWith('/settings')) return 'Settings'

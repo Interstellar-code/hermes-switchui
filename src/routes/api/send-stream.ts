@@ -1115,6 +1115,7 @@ export const Route = createFileRoute('/api/send-stream')({
                         subagentId,
                         parentId: readString(data.parent_id) || undefined,
                         childSessionId: readString(data.child_session_id) || undefined,
+                        agentId: readString(data.agent_id) || undefined,
                         depth: Number.isFinite(Number(data.depth)) ? Number(data.depth) : undefined,
                         goal: readString(data.goal) || undefined,
                         model: readString(data.model) || undefined,

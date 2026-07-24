@@ -25,7 +25,9 @@ The page has a two-column layout. The left side holds a collapsible **Files** tr
 
 ### Files tree (left)
 
-The tree lists all files and folders under the Hermes workspace root, up to 3 levels deep. Standard build artifact directories (`node_modules`, `.git`, `dist`, `__pycache__`, `.venv`) are hidden automatically. Each row shows a file-type icon, the entry name, and its size in bytes. A delete button appears on hover. Right-clicking any entry opens a context menu with **Rename**, **Download** (files) or **New folder inside** (folders), and **Delete**.
+The tree lists all files and folders under the Hermes workspace root. Standard build artifact directories (`node_modules`, `.git`, `dist`, `__pycache__`, `.venv`) are hidden automatically. Each row shows a file-type icon, the entry name, and its size in bytes. A delete button appears on hover.
+
+Right-click a file or folder for common manager actions: **Open**, **Copy path**, **Rename**, **Move to…**, and **Delete**. Files also offer **Download**. Folders offer **New file**, **New folder**, and **Upload here**. Copied paths use the stable workspace-relative form `workspace/path/to/file`.
 
 The tree footer shows a count of files and folders. When you type in the search box the tree filters live to matching names and auto-expands matched subtrees.
 
@@ -46,8 +48,10 @@ When you save an edited file, the workspace re-fetches the on-disk version to de
 - To preview a file: click it in the tree. The preview tab opens automatically.
 - To edit a file: select it, click the pencil icon or the **raw** tab, make changes, then click the save button. A diff dialog appears if the file changed on disk.
 - To upload files: click the upload button (⤴) in the tree header or the **upload** link in the panel tab bar. A native file picker opens; multi-select is supported.
-- To rename or move a file: right-click it in the tree and choose **Rename**, then enter the new name.
-- To create a subfolder: right-click a folder and choose **New folder inside**, or click the ＋ button in the tree header for a root-level folder.
+- To rename a file or folder: right-click it and choose **Rename**, then enter the new name.
+- To move a file or folder: right-click it, choose **Move to…**, and enter the workspace-relative destination path including its name.
+- To copy a path for use in chat or a command: right-click it and choose **Copy path**. The copied value starts with `workspace/`.
+- To create content in a folder: right-click the folder and choose **New file**, **New folder**, or **Upload here**. The tree-header ＋ button creates a root-level folder.
 - To download a file: click the download button in the panel header, or right-click in the tree and choose **Download**.
 
 ## Where data comes from
@@ -58,7 +62,7 @@ All file operations go through the workspace API at `/api/files`. The server rea
 
 - **Tree shows "Could not load files — request timed out"** — `HERMES_WORKSPACE_DIR` is not set or points to an inaccessible path. Check your `.env` file and restart the dev server.
 - **"File changed on disk since you opened it"** — another process wrote the file while you were editing. The diff dialog will show both versions; use **Save anyway** if you want to overwrite, or reload the page to discard your edits.
-- **Upload silently does nothing** — the file picker closed without selecting a file, or the server returned a non-OK status. Open the browser console to see the HTTP error detail.
+- **Upload fails** — the file picker closed without selecting a file, or the server rejected it. The Files sidebar shows the response error; confirm the workspace is writable and retry.
 
 ## Related
 

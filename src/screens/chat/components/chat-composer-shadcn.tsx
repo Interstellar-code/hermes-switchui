@@ -374,12 +374,6 @@ function ChatComposerShadcn({
     },
     [focusPrompt],
   )
-  React.useImperativeHandle(
-    composerRef,
-    () => ({ setValue: setComposerValue, insertText }),
-    [setComposerValue, insertText],
-  )
-
   // ─── helpers passed into onSubmit ────────────────────────────────────────
   const reset = React.useCallback(() => {
     setIsSlashMenuDismissed(false)
@@ -417,6 +411,12 @@ function ChatComposerShadcn({
       focusPrompt()
     },
     [disabled, focusPrompt],
+  )
+
+  React.useImperativeHandle(
+    composerRef,
+    () => ({ setValue: setComposerValue, insertText, addFiles }),
+    [setComposerValue, insertText, addFiles],
   )
 
   const insertAtCursor = React.useCallback(

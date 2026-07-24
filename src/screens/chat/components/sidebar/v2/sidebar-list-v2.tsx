@@ -14,7 +14,10 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import { SidebarCardV2 } from './sidebar-card-v2'
 import type { Range } from '@tanstack/react-virtual'
-import type { DayGroupLabel, SessionDayGroup } from '@/screens/chat/apply-filters-and-decorate'
+import type {
+  DayGroupLabel,
+  SessionDayGroup,
+} from '@/screens/chat/apply-filters-and-decorate'
 
 const COLLAPSED_KEY = 'hermes.sessions.groups.collapsed'
 const HEADER_ESTIMATE = 36
@@ -48,15 +51,38 @@ const GROUP_LABEL_STYLE: Record<DayGroupLabel, React.CSSProperties> = {
 }
 
 type RowModel =
-  | { type: 'header'; key: string; label: DayGroupLabel; count: number; collapsed: boolean }
-  | { type: 'card'; key: string; groupLabel: DayGroupLabel; item: SessionDayGroup['items'][number]; isActive: boolean }
+  | {
+      type: 'header'
+      key: string
+      label: DayGroupLabel
+      count: number
+      collapsed: boolean
+    }
+  | {
+      type: 'card'
+      key: string
+      groupLabel: DayGroupLabel
+      item: SessionDayGroup['items'][number]
+      isActive: boolean
+    }
 
 interface SidebarListV2Props {
   groups: Array<SessionDayGroup>
+  updatesOnly?: boolean
+  hasPendingUpdates?: boolean
+  onToggleUpdatesOnly?: () => void
+  onMarkAllRead?: () => void
 }
 
-export function SidebarListV2({ groups }: SidebarListV2Props) {
-  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(readCollapsedMap)
+export function SidebarListV2({
+  groups,
+  updatesOnly = false,
+  hasPendingUpdates = false,
+  onToggleUpdatesOnly,
+  onMarkAllRead,
+}: SidebarListV2Props) {
+  const [collapsedMap, setCollapsedMap] =
+    useState<Record<string, boolean>>(readCollapsedMap)
   const toggleGroup = (label: DayGroupLabel) => {
     setCollapsedMap((prev) => {
       const next = { ...prev, [label]: !prev[label] }
@@ -66,7 +92,9 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
   }
 
   const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const activeSessionKey = pathname.startsWith('/chat/') ? pathname.split('/chat/')[1] : null
+  const activeSessionKey = pathname.startsWith('/chat/')
+    ? pathname.split('/chat/')[1]
+    : null
   const parentRef = useRef<HTMLDivElement | null>(null)
   // Tracks the header index that should be pinned at the top of the
   // viewport for the current scroll offset. Driven by `rangeExtractor`
@@ -90,7 +118,14 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
         for (const item of groupItems) {
           const rawId = item.id.split(':').slice(1).join(':')
           const isActive =
-            (item.src === 'chat' || item.src === 'recovered' || item.src === 'cron' || item.src === 'api' || item.src === 'task') &&
+            (item.src === 'chat' ||
+              item.src === 'recovered' ||
+              item.src === 'cron' ||
+              item.src === 'api' ||
+              item.src === 'task' ||
+              item.src === 'cli' ||
+              item.src === 'a2a' ||
+              item.src === 'tg') &&
             rawId === activeSessionKey
           next.push({
             type: 'card',
@@ -129,7 +164,8 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: (index) => (rows[index]?.type === 'header' ? HEADER_ESTIMATE : CARD_ESTIMATE),
+    estimateSize: (index) =>
+      rows[index]?.type === 'header' ? HEADER_ESTIMATE : CARD_ESTIMATE,
     overscan: 8,
     rangeExtractor,
   })
@@ -155,10 +191,16 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
           <div className="flex flex-col items-center gap-2">
             <span style={{ fontSize: 24, opacity: 0.3 }}>∅</span>
             <span className="text-xs" style={{ color: 'var(--theme-muted)' }}>
-              No sessions
+              {updatesOnly ? 'No unseen updates' : 'No sessions'}
             </span>
           </div>
         </div>
+        <SidebarAttentionActions
+          updatesOnly={updatesOnly}
+          hasPendingUpdates={hasPendingUpdates}
+          onToggleUpdatesOnly={onToggleUpdatesOnly}
+          onMarkAllRead={onMarkAllRead}
+        />
         <NewChatFooter />
       </div>
     )
@@ -166,8 +208,17 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
-      <div ref={parentRef} className="flex-1 overflow-y-auto" data-testid="sessions-list-v2">
-        <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
+      <div
+        ref={parentRef}
+        className="flex-1 overflow-y-auto"
+        data-testid="sessions-list-v2"
+      >
+        <div
+          style={{
+            height: rowVirtualizer.getTotalSize(),
+            position: 'relative',
+          }}
+        >
           {rowVirtualizer.getVirtualItems().map((virtualRow) => {
             const row = rows[virtualRow.index]
             const isStickyHeader =
@@ -223,7 +274,9 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
                         textAlign: 'center',
                         color: 'var(--theme-muted)',
                         opacity: 0.7,
-                        transform: row.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                        transform: row.collapsed
+                          ? 'rotate(-90deg)'
+                          : 'rotate(0deg)',
                         transition: 'transform 120ms ease-out',
                       }}
                     >
@@ -241,7 +294,8 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
                     <span
                       className="m-mono rounded-full px-1.5 flex-shrink-0"
                       style={{
-                        border: '1px solid var(--m-green-500, var(--theme-accent))',
+                        border:
+                          '1px solid var(--m-green-500, var(--theme-accent))',
                         color: 'var(--m-green-400, var(--theme-accent))',
                         background: 'transparent',
                         lineHeight: '14px',
@@ -255,7 +309,8 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
                       style={{
                         flex: 1,
                         height: 1,
-                        background: 'var(--theme-border-subtle, var(--theme-border))',
+                        background:
+                          'var(--theme-border-subtle, var(--theme-border))',
                         opacity: 0.5,
                       }}
                     />
@@ -271,20 +326,89 @@ export function SidebarListV2({ groups }: SidebarListV2Props) {
         </div>
       </div>
 
+      <SidebarAttentionActions
+        updatesOnly={updatesOnly}
+        hasPendingUpdates={hasPendingUpdates}
+        onToggleUpdatesOnly={onToggleUpdatesOnly}
+        onMarkAllRead={onMarkAllRead}
+      />
       <NewChatFooter />
+    </div>
+  )
+}
+
+function SidebarAttentionActions({
+  updatesOnly,
+  hasPendingUpdates,
+  onToggleUpdatesOnly,
+  onMarkAllRead,
+}: Omit<SidebarListV2Props, 'groups'>) {
+  return (
+    <div
+      className="flex gap-1.5 shrink-0 px-3 py-2"
+      style={{ borderTop: '1px solid var(--theme-border)' }}
+    >
+      <button
+        type="button"
+        className={`m-chip flex-1 rounded py-1 transition-all${hasPendingUpdates ? ' attention-pulse' : ''}`}
+        aria-label="Show unread updates"
+        aria-pressed={updatesOnly}
+        onClick={onToggleUpdatesOnly}
+        style={{
+          background: updatesOnly
+            ? 'color-mix(in srgb, var(--m-green-400, var(--theme-accent)) 18%, transparent)'
+            : 'var(--theme-card)',
+          border: `1px solid ${updatesOnly ? 'var(--m-green-400, var(--theme-accent))' : 'var(--theme-border)'}`,
+          color: updatesOnly
+            ? 'var(--m-green-400, var(--theme-accent))'
+            : 'var(--theme-muted)',
+          cursor: 'pointer',
+        }}
+      >
+        UPDATES
+      </button>
+      <button
+        type="button"
+        className="m-chip flex-1 rounded py-1 transition-all"
+        aria-label="Mark all updates as read"
+        disabled={!hasPendingUpdates}
+        onClick={onMarkAllRead}
+        title={hasPendingUpdates ? 'Mark all unread updates as read' : 'No unread updates'}
+        style={{
+          background: hasPendingUpdates
+            ? 'color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 10%, transparent)'
+            : 'var(--theme-card)',
+          border: `1px solid ${hasPendingUpdates ? 'var(--m-green-500, var(--theme-accent))' : 'var(--theme-border)'}`,
+          color: hasPendingUpdates
+            ? 'var(--m-green-400, var(--theme-accent))'
+            : 'var(--theme-muted)',
+          cursor: hasPendingUpdates ? 'pointer' : 'default',
+          opacity: hasPendingUpdates ? 1 : 0.45,
+        }}
+      >
+        MARK READ
+      </button>
     </div>
   )
 }
 
 function NewChatFooter() {
   return (
-    <div className="shrink-0 px-3 py-2" style={{ borderTop: '1px solid var(--theme-border)' }}>
-      <Link to="/chat/$sessionKey" params={{ sessionKey: 'new' }} style={{ textDecoration: 'none', display: 'block' }}>
+    <div
+      className="shrink-0 px-3 py-2"
+      style={{ borderTop: '1px solid var(--theme-border)' }}
+    >
+      <Link
+        to="/chat/$sessionKey"
+        params={{ sessionKey: 'new' }}
+        style={{ textDecoration: 'none', display: 'block' }}
+      >
         <button
           type="button"
           className="m-label w-full rounded py-1.5 font-bold transition-all"
           style={{
-            background: 'color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 20%, transparent)',
+            background:
+              'color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 20%, transparent)',
             color: 'var(--m-green-400, var(--theme-accent))',
             border: '1px solid var(--m-green-500, var(--theme-accent))',
             boxShadow: '0 0 8px var(--m-green-500, var(--theme-accent))44',

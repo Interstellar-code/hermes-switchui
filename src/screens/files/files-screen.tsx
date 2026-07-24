@@ -6,10 +6,12 @@ import {
   useRef,
   useState,
 } from 'react'
+import { createPortal } from 'react-dom'
+import { useSearch } from '@tanstack/react-router'
 import { FileTree, IGNORED_DIRS } from './file-tree'
 import { FolderListing } from './folder-listing'
 import type { FileEntry } from './file-tree'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { Button } from '@/components/ui/button'
@@ -24,6 +26,18 @@ import { Markdown } from '@/components/prompt-kit/markdown'
 import '@/styles/matrix-files.css'
 import { formatBytes, formatDate } from '@/lib/format'
 import { getExt, getParentPath } from '@/lib/path-utils'
+import { writeTextToClipboard } from '@/lib/clipboard'
+import { clampContextMenuPosition } from '@/lib/context-menu'
+import {
+  FIcon,
+  KIND_COLOR,
+  KIND_LABEL,
+  SvgIco,
+  fileKindKey,
+} from './files-icons'
+import { fuzzy } from './files-search'
+import { FilesPalette } from './files-palette'
+import { FilesTweaks } from './files-tweaks'
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Types
@@ -42,7 +56,7 @@ type FileReadResponse = {
 }
 
 type PromptState = {
-  mode: 'rename' | 'new-folder'
+  mode: 'rename' | 'move' | 'new-file' | 'new-folder'
   targetPath: string
   defaultValue?: string
 }
@@ -646,13 +660,19 @@ function Breadcrumb({ path, className }: { path: string; className?: string }) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 type FilePanelProps = {
+  workspacePath?: string
   selectedEntry: FileEntry | null
+  isPinned: boolean
+  onTogglePin: (path: string) => void
   onDeleteRequest: (entry: FileEntry) => void
   onUploadRequest: (targetPath: string) => void
 }
 
 function FilePanel({
+  workspacePath,
   selectedEntry,
+  isPinned,
+  onTogglePin,
   onDeleteRequest,
   onUploadRequest,
 }: FilePanelProps) {
@@ -669,6 +689,9 @@ function FilePanel({
     'preview',
   )
   const [showDiff, setShowDiff] = useState(false)
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
+  const [activeHeading, setActiveHeading] = useState<string | null>(null)
+  const scrollerRef = useRef<HTMLDivElement | null>(null)
   const prevPathRef = useRef<string | null>(null)
 
   const fileName = selectedEntry?.name ?? ''
@@ -679,6 +702,23 @@ function FilePanel({
   const isCode = isCodeFile(fileName)
   const isEditable = isEditableFile(fileName)
   const kind = getEntryKind(selectedEntry)
+  const kindKey = selectedEntry?.type === 'file' ? fileKindKey(fileName) : null
+
+  // Overflow (⋮) actions menu — closes on outside click / Esc, mirroring the
+  // tree sort menu pattern.
+  useEffect(() => {
+    if (!actionsMenuOpen) return
+    const handleClick = () => setActionsMenuOpen(false)
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActionsMenuOpen(false)
+    }
+    window.addEventListener('click', handleClick)
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      window.removeEventListener('click', handleClick)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [actionsMenuOpen])
 
   const highlighted = useMemo<Array<ReactNode>>(
     () => (content ? highlightCodeContent(content, isMd ? 'md' : ext) : []),
@@ -688,6 +728,36 @@ function FilePanel({
     () => (isMd && content ? getMarkdownOutline(content) : []),
     [isMd, content],
   )
+
+  // Scrollspy: ensure rendered headings carry slug ids matching the outline
+  // (so anchor jumps work), then highlight whichever heading sits under the
+  // top of the viewport as the user scrolls.
+  useEffect(() => {
+    const el = scrollerRef.current
+    if (!el || activeTab !== 'preview' || !isMd || outline.length === 0) {
+      setActiveHeading(null)
+      return
+    }
+    for (const h of el.querySelectorAll('h2, h3')) {
+      if (!h.id) {
+        h.id = (h.textContent || '')
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '')
+      }
+    }
+    const onScroll = () => {
+      let current = outline[0]?.id ?? null
+      for (const heading of outline) {
+        const node = el.querySelector(`#${CSS.escape(heading.id)}`)
+        if (node && node.getBoundingClientRect().top < 130) current = heading.id
+      }
+      setActiveHeading(current)
+    }
+    onScroll()
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [activeTab, isMd, outline, content])
 
   const loadFile = useCallback(async (path: string) => {
     setLoadingFile(true)
@@ -768,22 +838,15 @@ function FilePanel({
 
   const handleCopyPath = useCallback(async () => {
     if (!selectedEntry) return
-    const value = `workspace/${selectedEntry.path}`
     try {
-      await navigator.clipboard.writeText(value)
-    } catch {
-      const textarea = document.createElement('textarea')
-      textarea.value = value
-      textarea.setAttribute('readonly', '')
-      textarea.style.position = 'fixed'
-      textarea.style.opacity = '0'
-      document.body.appendChild(textarea)
-      textarea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textarea)
+      await writeTextToClipboard(`workspace/${selectedEntry.path}`)
+      setCopiedOk(true)
+      setTimeout(() => setCopiedOk(false), 1400)
+    } catch (err) {
+      setFileError(
+        err instanceof Error ? err.message : 'Could not copy the file path.',
+      )
     }
-    setCopiedOk(true)
-    setTimeout(() => setCopiedOk(false), 1400)
   }, [selectedEntry])
 
   const handleOpenPreview = useCallback(() => {
@@ -961,6 +1024,7 @@ function FilePanel({
     if (isMd) {
       return (
         <div
+          ref={scrollerRef}
           className={cn(
             'files-canvas-scroll',
             outline.length > 0 ? 'has-outline' : '',
@@ -973,11 +1037,17 @@ function FilePanel({
           </div>
           {outline.length > 0 ? (
             <aside className="files-outline" aria-label="Markdown outline">
-              <h5>Outline</h5>
+              <h5>On this page</h5>
               {outline.map((heading) => (
                 <a
                   key={heading.id}
-                  className={heading.level === 3 ? 'is-h3' : ''}
+                  className={cn(
+                    heading.level === 3 ? 'is-h3' : '',
+                    activeHeading === heading.id ? 'is-active' : '',
+                  )}
+                  aria-current={
+                    activeHeading === heading.id ? 'location' : undefined
+                  }
                   href={`#${heading.id}`}
                 >
                   {heading.text}
@@ -1019,58 +1089,25 @@ function FilePanel({
       <section className="files-preview" aria-label="File preview">
         <div className="files-preview-top">
           <Breadcrumb path={selectedEntry?.path ?? ''} />
-          <span className="files-preview-kind">{kind}</span>
           <div className="files-preview-actions">
-            {selectedEntry?.type === 'file' ? (
-              <button
-                type="button"
-                className="files-icon-btn"
-                onClick={() => void handleCopyPath()}
-                title="Copy path"
+            {kindKey ? (
+              <span
+                className="files-kind-badge"
+                style={{ color: KIND_COLOR[kindKey] }}
+                title={kind}
               >
-                {copiedOk ? '✓' : '⧉'}
-              </button>
-            ) : null}
-            {isEditable && selectedEntry?.type === 'file' ? (
-              <button
-                type="button"
-                className={cn(
-                  'files-icon-btn',
-                  activeTab === 'raw' ? 'is-active' : '',
-                )}
-                onClick={() => setActiveTab('raw')}
-                title="Edit source"
-              >
-                ✎
-              </button>
+                {KIND_LABEL[kindKey] ?? kind}
+              </span>
             ) : null}
             {selectedEntry?.type === 'file' ? (
               <button
                 type="button"
-                className="files-icon-btn"
-                onClick={handleOpenPreview}
-                title="Open preview in new tab"
+                className={cn('files-icon-btn', isPinned ? 'is-pinned' : '')}
+                onClick={() => onTogglePin(selectedEntry.path)}
+                title={isPinned ? 'Unpin file' : 'Pin file'}
+                aria-pressed={isPinned}
               >
-                ↗
-              </button>
-            ) : null}
-            {selectedEntry?.type === 'file' ? (
-              <a
-                className="files-icon-btn"
-                href={`/api/files?action=download&path=${encodeURIComponent(selectedEntry.path)}`}
-                title="Download"
-              >
-                ⇩
-              </a>
-            ) : null}
-            {selectedEntry ? (
-              <button
-                type="button"
-                className="files-icon-btn danger"
-                onClick={() => onDeleteRequest(selectedEntry)}
-                title={`Delete ${selectedEntry.type}`}
-              >
-                🗑
+                <SvgIco name="star" size={14} />
               </button>
             ) : null}
             {isEditable && selectedEntry?.type === 'file' ? (
@@ -1083,6 +1120,88 @@ function FilePanel({
               >
                 {saving ? '…' : savedOk ? '✓' : '💾'}
               </button>
+            ) : null}
+            {selectedEntry?.type === 'file' ? (
+              <button
+                type="button"
+                className="files-open-btn"
+                onClick={handleOpenPreview}
+                title="Open preview in new tab"
+              >
+                <SvgIco name="ext" size={13} />
+                Open
+              </button>
+            ) : null}
+            {selectedEntry?.type === 'file' ? (
+              <a
+                className="files-open-btn is-ghost"
+                href={`/api/files?action=download&path=${encodeURIComponent(selectedEntry.path)}`}
+                title="Download"
+              >
+                <SvgIco name="dl" size={13} />
+                Download
+              </a>
+            ) : null}
+            {selectedEntry ? (
+              <div className="files-sort-wrap">
+                <button
+                  type="button"
+                  className={cn(
+                    'files-icon-btn',
+                    actionsMenuOpen ? 'is-open' : '',
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setActionsMenuOpen((v) => !v)
+                  }}
+                  title="More actions"
+                  aria-haspopup="menu"
+                  aria-expanded={actionsMenuOpen}
+                >
+                  <SvgIco name="dots" size={14} />
+                </button>
+                {actionsMenuOpen ? (
+                  <div
+                    className="files-preview-menu"
+                    role="menu"
+                    aria-label="File actions"
+                  >
+                    {isEditable && selectedEntry.type === 'file' ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => setActiveTab('raw')}
+                      >
+                        <SvgIco name="edit" size={13} />
+                        Edit source
+                      </button>
+                    ) : null}
+                    {selectedEntry.type === 'file' ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={(e) => {
+                          // Keep the menu open so the ✓ feedback is visible.
+                          e.stopPropagation()
+                          void handleCopyPath()
+                        }}
+                      >
+                        <SvgIco name="copy" size={13} />
+                        {copiedOk ? 'Copied ✓' : 'Copy path'}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="is-danger"
+                      onClick={() => onDeleteRequest(selectedEntry)}
+                    >
+                      <SvgIco name="trash" size={13} />
+                      {`Delete ${selectedEntry.type}`}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </div>
@@ -1104,6 +1223,10 @@ function FilePanel({
                 ? formatDate(selectedEntry.modifiedAt)
                 : 'unknown'}
             </b>
+          </span>
+          <span className="dot" />
+          <span className="kv">
+            kind <b>{kind}</b>
           </span>
           <span className="dot" />
           <span className="kv">
@@ -1153,7 +1276,18 @@ function FilePanel({
             tab <b>{activeTab}</b>
           </span>
           <span className="files-divider" />
-          <span>{selectedEntry?.path ?? 'workspace root'}</span>
+          <span>
+            viewing <b>{selectedEntry?.path ?? 'workspace root'}</b>
+          </span>
+          {workspacePath ? (
+            <>
+              <span className="files-divider" />
+              <span>
+                workspace{' '}
+                <b>{workspacePath.replace(/^\/(?:Users|home)\/[^/]+/, '~')}</b>
+              </span>
+            </>
+          ) : null}
           {dirty ? (
             <>
               <span className="files-divider" />
@@ -1183,8 +1317,113 @@ type WorkspaceCatalog = {
   last: string
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Quick Access — Pinned / Recents collapsible groups in the tree sidebar
+// ──────────────────────────────────────────────────────────────────────────────
+
+type QuickAccessGroupProps = {
+  variant: 'pinned' | 'recent'
+  files: Array<FileEntry>
+  open: boolean
+  onToggleOpen: () => void
+  activePath: string | null
+  onPick: (file: FileEntry) => void
+  onTogglePin: (path: string) => void
+}
+
+function QuickAccessGroup({
+  variant,
+  files,
+  open,
+  onToggleOpen,
+  activePath,
+  onPick,
+  onTogglePin,
+}: QuickAccessGroupProps) {
+  if (files.length === 0) return null
+  const isPinnedGroup = variant === 'pinned'
+  return (
+    <div className="qa">
+      <button
+        type="button"
+        className={cn('qa-h', open ? '' : 'closed')}
+        onClick={onToggleOpen}
+        aria-expanded={open}
+      >
+        <span className="chev2">
+          <SvgIco name="chevDown" size={13} />
+        </span>
+        <SvgIco name={isPinnedGroup ? 'star' : 'clock'} size={13} />
+        <span className="qa-label">{isPinnedGroup ? 'Pinned' : 'Recent'}</span>
+        <span className="cnt">{files.length}</span>
+      </button>
+      {open
+        ? files.map((file) => {
+            const kind = fileKindKey(file.name)
+            return (
+              <div
+                key={file.path}
+                className={cn('qa-row', file.path === activePath ? 'on' : '')}
+                onClick={() => onPick(file)}
+              >
+                <span className="ic" style={{ color: KIND_COLOR[kind] }}>
+                  <FIcon file={file} size={14} />
+                </span>
+                <span className="nm">{file.name}</span>
+                <span className="pk" style={{ color: KIND_COLOR[kind] }}>
+                  {KIND_LABEL[kind]}
+                </span>
+                <button
+                  type="button"
+                  className={cn(
+                    'files-icon-btn qa-star',
+                    isPinnedGroup ? 'is-pinned' : '',
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onTogglePin(file.path)
+                  }}
+                  title={isPinnedGroup ? 'Unpin file' : 'Pin file'}
+                >
+                  <SvgIco name="star" size={12} />
+                </button>
+              </div>
+            )
+          })
+        : null}
+    </div>
+  )
+}
+
+type FilesTweaksState = {
+  accent: string
+  density: string
+  labels: string
+  showQA: boolean
+}
+
+const FILES_TWEAKS_DEFAULTS: FilesTweaksState = {
+  accent: '#00ff41',
+  density: '7px',
+  labels: 'on',
+  showQA: true,
+}
+
+function loadFilesTweaks(): FilesTweaksState {
+  if (typeof window === 'undefined') return FILES_TWEAKS_DEFAULTS
+  try {
+    const raw = window.localStorage.getItem('files.tweaks')
+    return raw
+      ? { ...FILES_TWEAKS_DEFAULTS, ...(JSON.parse(raw) as Partial<FilesTweaksState>) }
+      : FILES_TWEAKS_DEFAULTS
+  } catch {
+    return FILES_TWEAKS_DEFAULTS
+  }
+}
+
 export function FilesScreen() {
   usePageTitle('Files')
+  const search = useSearch({ from: '/files' })
 
   const [entries, setEntries] = useState<Array<FileEntry>>([])
   const [treeLoading, setTreeLoading] = useState(false)
@@ -1216,8 +1455,94 @@ export function FilesScreen() {
   const [treeCollapsed, setTreeCollapsed] = useState(false)
   const [treeQuery, setTreeQuery] = useState('')
   const [debouncedTreeQuery, setDebouncedTreeQuery] = useState('')
+  const [typeFilter, setTypeFilter] = useState<string>('all')
+  const [treeSort, setTreeSort] = useState<'name' | 'modified' | 'type'>('name')
   const uploadTargetRef = useRef('')
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
+
+  // ── Quick Access + command palette (Files v2 Phase 3/4) ─────────────────────
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [sortMenuOpen, setSortMenuOpen] = useState(false)
+  const [pinned, setPinned] = useState<Set<string>>(() => new Set())
+  const [recentPaths, setRecentPaths] = useState<Array<string>>([])
+  const [qaPinnedOpen, setQaPinnedOpen] = useState(true)
+  const [qaRecentOpen, setQaRecentOpen] = useState(true)
+
+  // ── Tweaks panel (Files v2 Phase 6) ──────────────────────────────────────
+  const [tweaksOpen, setTweaksOpen] = useState(false)
+  const [accent, setAccent] = useState(() => loadFilesTweaks().accent)
+  const [density, setDensity] = useState(() => loadFilesTweaks().density)
+  const [labels, setLabels] = useState(() => loadFilesTweaks().labels)
+  const [showQA, setShowQA] = useState(() => loadFilesTweaks().showQA)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(
+        'files.tweaks',
+        JSON.stringify({ accent, density, labels, showQA }),
+      )
+    } catch {
+      // ponytail: best-effort persistence, ignore quota/private-mode failures
+    }
+  }, [accent, density, labels, showQA])
+
+  const workspacePath = workspaceCatalog?.path ?? ''
+  const pinsKey = workspacePath ? `files.pins.${workspacePath}` : ''
+  const recentsKey = workspacePath ? `files.recents.${workspacePath}` : ''
+
+  // Load persisted pins/recents when the workspace root is known/changes.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !workspacePath) return
+    try {
+      const rawPins = window.localStorage.getItem(`files.pins.${workspacePath}`)
+      setPinned(new Set(rawPins ? (JSON.parse(rawPins) as Array<string>) : []))
+      const rawRecents = window.localStorage.getItem(
+        `files.recents.${workspacePath}`,
+      )
+      setRecentPaths(rawRecents ? (JSON.parse(rawRecents) as Array<string>) : [])
+    } catch {
+      // corrupt/blocked storage — start empty
+      setPinned(new Set())
+      setRecentPaths([])
+    }
+  }, [workspacePath])
+
+  const togglePin = useCallback(
+    (path: string) => {
+      setPinned((prev) => {
+        const next = new Set(prev)
+        if (next.has(path)) next.delete(path)
+        else next.add(path)
+        if (typeof window !== 'undefined' && pinsKey) {
+          try {
+            window.localStorage.setItem(pinsKey, JSON.stringify([...next]))
+          } catch {
+            // ignore write failure
+          }
+        }
+        return next
+      })
+    },
+    [pinsKey],
+  )
+
+  const pushRecent = useCallback(
+    (path: string) => {
+      setRecentPaths((prev) => {
+        const next = [path, ...prev.filter((p) => p !== path)].slice(0, 8)
+        if (typeof window !== 'undefined' && recentsKey) {
+          try {
+            window.localStorage.setItem(recentsKey, JSON.stringify(next))
+          } catch {
+            // ignore write failure
+          }
+        }
+        return next
+      })
+    },
+    [recentsKey],
+  )
 
   // CRUD state
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
@@ -1226,6 +1551,7 @@ export function FilesScreen() {
   const [promptError, setPromptError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<FileEntry | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const loadTree = useCallback(async () => {
     setTreeLoading(true)
@@ -1305,7 +1631,7 @@ export function FilesScreen() {
     [pickerPath, loadTree],
   )
 
-  // Close context menu on outside click / escape
+  // Close context menu on outside click / escape.
   useEffect(() => {
     if (!contextMenu) return
     const handleClick = () => setContextMenu(null)
@@ -1313,14 +1639,47 @@ export function FilesScreen() {
       if (e.key === 'Escape') setContextMenu(null)
     }
     window.addEventListener('click', handleClick)
-    window.addEventListener('contextmenu', handleClick)
     window.addEventListener('keydown', handleEscape)
     return () => {
       window.removeEventListener('click', handleClick)
-      window.removeEventListener('contextmenu', handleClick)
       window.removeEventListener('keydown', handleEscape)
     }
   }, [contextMenu])
+
+  // Close the header sort menu on outside click / escape.
+  useEffect(() => {
+    if (!sortMenuOpen) return
+    const handleClick = () => setSortMenuOpen(false)
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSortMenuOpen(false)
+    }
+    window.addEventListener('click', handleClick)
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      window.removeEventListener('click', handleClick)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [sortMenuOpen])
+
+  // ⌘K / Ctrl+K toggles the file-jump palette. Registered in capture phase and
+  // preventDefault()'d so the global CommandPalette (workspace-shell) bails via
+  // its own `if (event.defaultPrevented) return` guard — no double-open.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        !e.shiftKey &&
+        !e.altKey &&
+        e.key.toLowerCase() === 'k'
+      ) {
+        e.preventDefault()
+        e.stopPropagation()
+        setPaletteOpen((open) => !open)
+      }
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [])
 
   const handleToggle = useCallback((path: string) => {
     setExpanded((prev) => {
@@ -1350,15 +1709,47 @@ export function FilesScreen() {
     setSelectedEntry(null)
   }, [])
 
+  // Select a file and expand the tree down to it (palette pick / quick access).
+  const handleRevealFile = useCallback((file: FileEntry) => {
+    setSelectedEntry(file)
+    const parentParts = getPathParts(getParentPath(file.path))
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      for (let index = 1; index <= parentParts.length; index += 1) {
+        next.add(parentParts.slice(0, index).join('/'))
+      }
+      return next
+    })
+  }, [])
+
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, entry: FileEntry) => {
       e.preventDefault()
+      e.stopPropagation()
       setContextMenu({ x: e.clientX, y: e.clientY, entry })
     },
     [],
   )
 
   // ── CRUD actions ────────────────────────────────────────────────────────────
+
+  const handleOpen = useCallback((entry: FileEntry) => {
+    setSelectedEntry(entry)
+    if (entry.type === 'folder') {
+      setExpanded((prev) => new Set(prev).add(entry.path))
+    }
+  }, [])
+
+  const handleCopyPath = useCallback(async (entry: FileEntry) => {
+    setActionError(null)
+    try {
+      await writeTextToClipboard(`workspace/${entry.path}`)
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : 'Could not copy the file path.',
+      )
+    }
+  }, [])
 
   const handleDeleteConfirmed = useCallback(async () => {
     if (!deleteConfirm) return
@@ -1385,17 +1776,24 @@ export function FilesScreen() {
   }, [deleteConfirm, selectedEntry, loadTree])
 
   const handleDownload = useCallback(async (entry: FileEntry) => {
-    const res = await fetch(
-      `/api/files?action=download&path=${encodeURIComponent(entry.path)}`,
-    )
-    if (!res.ok) return
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = entry.name
-    anchor.click()
-    URL.revokeObjectURL(url)
+    setActionError(null)
+    try {
+      const res = await fetch(
+        `/api/files?action=download&path=${encodeURIComponent(entry.path)}`,
+      )
+      if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = entry.name
+      anchor.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : 'Could not download the file.',
+      )
+    }
   }, [])
 
   const openRenamePrompt = useCallback((entry: FileEntry) => {
@@ -1407,8 +1805,22 @@ export function FilesScreen() {
     setPromptValue(entry.name)
   }, [])
 
-  const openNewFolderPrompt = useCallback(() => {
-    setPromptState({ mode: 'new-folder', targetPath: '' })
+  const openMovePrompt = useCallback((entry: FileEntry) => {
+    setPromptState({
+      mode: 'move',
+      targetPath: entry.path,
+      defaultValue: entry.path,
+    })
+    setPromptValue(entry.path)
+  }, [])
+
+  const openNewFilePrompt = useCallback((targetPath = '') => {
+    setPromptState({ mode: 'new-file', targetPath })
+    setPromptValue('')
+  }, [])
+
+  const openNewFolderPrompt = useCallback((targetPath = '') => {
+    setPromptState({ mode: 'new-folder', targetPath })
     setPromptValue('')
   }, [])
 
@@ -1422,19 +1834,26 @@ export function FilesScreen() {
       const files = Array.from(event.target.files || [])
       if (files.length === 0) return
 
-      for (const file of files) {
-        const form = new FormData()
-        form.append('action', 'upload')
-        form.append('path', uploadTargetRef.current)
-        form.append('file', file)
-        const res = await fetch('/api/files', { method: 'POST', body: form })
-        if (!res.ok) {
-          throw new Error(`Upload failed: HTTP ${res.status}`)
+      setActionError(null)
+      try {
+        for (const file of files) {
+          const form = new FormData()
+          form.append('action', 'upload')
+          form.append('path', uploadTargetRef.current)
+          form.append('file', file)
+          const res = await fetch('/api/files', { method: 'POST', body: form })
+          if (!res.ok) {
+            throw new Error(`Upload failed: HTTP ${res.status}`)
+          }
         }
+        await loadTree()
+      } catch (err) {
+        setActionError(
+          err instanceof Error ? err.message : 'Could not upload the file.',
+        )
+      } finally {
+        event.target.value = ''
       }
-
-      event.target.value = ''
-      await loadTree()
     },
     [loadTree],
   )
@@ -1459,8 +1878,17 @@ export function FilesScreen() {
             to: nextPath,
           }),
         })
-      } else {
-        // new-folder
+      } else if (promptState.mode === 'move') {
+        res = await fetch('/api/files', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            action: 'rename',
+            from: promptState.targetPath,
+            to: value,
+          }),
+        })
+      } else if (promptState.mode === 'new-folder') {
         const nextPath = promptState.targetPath
           ? `${promptState.targetPath}/${value}`
           : value
@@ -1468,6 +1896,15 @@ export function FilesScreen() {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ action: 'mkdir', path: nextPath }),
+        })
+      } else {
+        const nextPath = promptState.targetPath
+          ? `${promptState.targetPath}/${value}`
+          : value
+        res = await fetch('/api/files', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'write', path: nextPath, content: '' }),
         })
       }
       if (!res.ok) {
@@ -1513,6 +1950,24 @@ export function FilesScreen() {
   }, [entries, selectedPath, findEntryByPath])
 
   useEffect(() => {
+    if (!search.open) return
+    const target = findEntryByPath(entries, search.open)
+    if (!target) return
+
+    setSelectedEntry((current) =>
+      current?.path === target.path ? current : target,
+    )
+    const parentParts = getPathParts(getParentPath(target.path))
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      for (let index = 1; index <= parentParts.length; index += 1) {
+        next.add(parentParts.slice(0, index).join('/'))
+      }
+      return next
+    })
+  }, [entries, findEntryByPath, search.open])
+
+  useEffect(() => {
     if (selectedPath && !liveSelected) {
       setSelectedEntry(null)
     }
@@ -1528,19 +1983,32 @@ export function FilesScreen() {
   }, [liveSelected, entries])
 
   const visibleEntries = useMemo(() => {
-    const query = debouncedTreeQuery.trim().toLowerCase()
+    const query = debouncedTreeQuery.trim()
+
+    const compareEntries = (a: FileEntry, b: FileEntry): number => {
+      if (a.type !== b.type) return a.type === 'folder' ? -1 : 1
+      if (treeSort === 'modified') {
+        const am = a.modifiedAt ? Date.parse(a.modifiedAt) : 0
+        const bm = b.modifiedAt ? Date.parse(b.modifiedAt) : 0
+        if (bm !== am) return bm - am
+      } else if (treeSort === 'type' && a.type === 'file') {
+        const cmp = fileKindKey(a.name).localeCompare(fileKindKey(b.name))
+        if (cmp !== 0) return cmp
+      }
+      // 'type' degenerates to name for the folders-only tree rows.
+      return a.name.localeCompare(b.name)
+    }
 
     const filterItems = (items: Array<FileEntry>): Array<FileEntry> =>
       items
         .filter((entry) => !IGNORED_DIRS.has(entry.name))
-        .map((entry) => {
-          if (!query) return entry
-
+        .map((entry): FileEntry | null => {
           const children = entry.children
             ? filterItems(entry.children)
             : undefined
+          if (!query) return { ...entry, children }
           if (
-            entry.name.toLowerCase().includes(query) ||
+            fuzzy(query, entry.name) !== null ||
             (children && children.length > 0)
           ) {
             return { ...entry, children }
@@ -1549,10 +2017,135 @@ export function FilesScreen() {
           return null
         })
         .filter((entry): entry is FileEntry => Boolean(entry))
+        .sort(compareEntries)
 
     return filterItems(entries)
-  }, [entries, debouncedTreeQuery])
+  }, [entries, debouncedTreeQuery, treeSort])
+
+  // Kinds present anywhere in the workspace — drives the type filter options.
+  const availableKinds = useMemo(() => {
+    const kinds = new Set<string>()
+    const walk = (items: Array<FileEntry>) => {
+      for (const item of items) {
+        if (IGNORED_DIRS.has(item.name)) continue
+        if (item.type === 'file') kinds.add(fileKindKey(item.name))
+        else if (item.children) walk(item.children)
+      }
+    }
+    walk(entries)
+    return Object.keys(KIND_LABEL).filter((k) => kinds.has(k))
+  }, [entries])
+
+  // Tree rows in render order (folders only), for ↑/↓ keyboard navigation.
+  const flatTreeRows = useMemo(() => {
+    const force = Boolean(debouncedTreeQuery.trim())
+    const out: Array<FileEntry> = []
+    const walk = (items: Array<FileEntry>) => {
+      for (const item of items) {
+        if (item.type !== 'folder' || IGNORED_DIRS.has(item.name)) continue
+        out.push(item)
+        if ((force || expanded.has(item.path)) && item.children) {
+          walk(item.children)
+        }
+      }
+    }
+    walk(visibleEntries)
+    return out
+  }, [visibleEntries, expanded, debouncedTreeQuery])
+
+  const handleTreeKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        if (flatTreeRows.length === 0) return
+        const idx = flatTreeRows.findIndex((r) => r.path === selectedPath)
+        const next =
+          e.key === 'ArrowDown'
+            ? Math.min(idx + 1, flatTreeRows.length - 1)
+            : Math.max(idx - 1, 0)
+        setSelectedEntry(flatTreeRows[next])
+      } else if (e.key === 'Enter') {
+        const current = flatTreeRows.find((r) => r.path === selectedPath)
+        if (!current) return
+        e.preventDefault()
+        handleSelect(current)
+        handleToggle(current.path)
+      } else if (e.key === 'Escape') {
+        setTreeQuery('')
+        if (e.target instanceof HTMLElement) e.target.blur()
+      }
+    },
+    [flatTreeRows, selectedPath, handleSelect, handleToggle],
+  )
   const entryCounts = useMemo(() => countEntries(entries), [entries])
+
+  // Flat file list (files only, ignored dirs skipped) — feeds the palette + QA.
+  const flatFiles = useMemo(() => {
+    const out: Array<FileEntry> = []
+    const walk = (items: Array<FileEntry>) => {
+      for (const item of items) {
+        if (IGNORED_DIRS.has(item.name)) continue
+        if (item.type === 'folder') {
+          if (item.children) walk(item.children)
+        } else {
+          out.push(item)
+        }
+      }
+    }
+    walk(entries)
+    return out
+  }, [entries])
+
+  // Per-kind file counts for the type-filter chip row.
+  const kindCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const file of flatFiles) {
+      const kind = fileKindKey(file.name)
+      counts[kind] = (counts[kind] ?? 0) + 1
+    }
+    return counts
+  }, [flatFiles])
+
+  const fileByPath = useMemo(() => {
+    const map = new Map<string, FileEntry>()
+    for (const file of flatFiles) map.set(file.path, file)
+    return map
+  }, [flatFiles])
+
+  const pinnedFiles = useMemo(
+    () =>
+      [...pinned]
+        .map((path) => fileByPath.get(path))
+        .filter((file): file is FileEntry => Boolean(file)),
+    [pinned, fileByPath],
+  )
+
+  const recentFiles = useMemo(
+    () =>
+      recentPaths
+        .map((path) => fileByPath.get(path))
+        .filter((file): file is FileEntry => Boolean(file)),
+    [recentPaths, fileByPath],
+  )
+
+  // Record every file selection (tree / grid / palette / context-open / search)
+  // into recents — one central hook covers all selection paths.
+  useEffect(() => {
+    if (selectedEntry?.type === 'file') pushRecent(selectedEntry.path)
+  }, [selectedEntry?.path, selectedEntry?.type, pushRecent])
+
+  const resolvedContextMenu = useMemo(() => {
+    if (!contextMenu || typeof window === 'undefined') return contextMenu
+    const itemCount = contextMenu.entry.type === 'folder' ? 8 : 6
+    return {
+      ...contextMenu,
+      ...clampContextMenuPosition(
+        contextMenu,
+        { width: 220, height: itemCount * 36 + 16 },
+        { width: window.innerWidth, height: window.innerHeight },
+      ),
+    }
+  }, [contextMenu])
 
   // ── First-run workspace picker ──────────────────────────────────────────────
   if (needsWorkspacePicker) {
@@ -1712,7 +2305,9 @@ export function FilesScreen() {
   return (
     <div
       data-screen="files"
+      data-labels={labels}
       className={cn('files-shell', treeCollapsed ? 'tree-collapsed' : '')}
+      style={{ '--f-accent': accent, '--rowpad': density } as CSSProperties}
     >
       <aside className={cn('files-tree', treeCollapsed ? 'is-collapsed' : '')}>
         {/* header */}
@@ -1720,6 +2315,14 @@ export function FilesScreen() {
           <h3>Files</h3>
           <span className="ct">{entryCounts.files + entryCounts.folders}</span>
           <div className="files-tree-actions">
+            <button
+              type="button"
+              className="files-icon-btn"
+              onClick={() => openNewFolderPrompt()}
+              title="New folder"
+            >
+              <SvgIco name="plus" size={14} />
+            </button>
             <button
               type="button"
               className="files-icon-btn"
@@ -1742,23 +2345,58 @@ export function FilesScreen() {
                   ? `Upload to ${getParentPath(selectedEntry.path) || 'workspace root'}`
                   : 'Upload to workspace root'}
             >
-              ⤴
+              <SvgIco name="upload" size={14} />
             </button>
-            <button
-              type="button"
-              className="files-icon-btn"
-              onClick={openNewFolderPrompt}
-              title="New folder"
-            >
-              ＋
-            </button>
+            <span className="files-sort-wrap">
+              <button
+                type="button"
+                className={cn('files-icon-btn', sortMenuOpen ? 'is-open' : '')}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSortMenuOpen((v) => !v)
+                }}
+                title="Sort"
+                aria-haspopup="menu"
+                aria-expanded={sortMenuOpen}
+              >
+                <SvgIco name="sort" size={14} />
+              </button>
+              {sortMenuOpen ? (
+                <div className="files-sort-menu" role="menu" aria-label="Sort files">
+                  {(
+                    [
+                      ['name', 'Name'],
+                      ['modified', 'Modified'],
+                      ['type', 'Type'],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={treeSort === value}
+                      className={cn(treeSort === value ? 'is-active' : '')}
+                      onClick={() => {
+                        setTreeSort(value)
+                        setSortMenuOpen(false)
+                      }}
+                    >
+                      <span className="mark" aria-hidden="true">
+                        {treeSort === value ? '✓' : ''}
+                      </span>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </span>
             <button
               type="button"
               className="files-icon-btn"
               onClick={() => void loadTree()}
               title="Refresh"
             >
-              ↺
+              <SvgIco name="refresh" size={14} />
             </button>
           </div>
           <button
@@ -1778,16 +2416,66 @@ export function FilesScreen() {
           </button>
         </div>
 
+        {/* quick jump — trigger for the ⌘K palette, styled as an input */}
+        <button
+          type="button"
+          className="files-quickjump"
+          onClick={() => setPaletteOpen(true)}
+          aria-label="Quick jump to any file"
+        >
+          <SvgIco name="cmd" size={13} />
+          <span className="qj-text">Quick jump to any file…</span>
+          <kbd aria-hidden="true">⌘K</kbd>
+        </button>
+
         {/* search */}
         <div className="files-tree-search">
           <input
             type="text"
             value={treeQuery}
             onChange={(e) => setTreeQuery(e.target.value)}
+            onKeyDown={handleTreeKeyDown}
             placeholder="Search workspace…"
             aria-label="Search files"
           />
         </div>
+
+        {/* type filter chips */}
+        <div className="files-kind-chips" role="group" aria-label="Filter by file type">
+          <button
+            type="button"
+            className={cn(
+              'files-kind-chip',
+              typeFilter === 'all' ? 'is-active' : '',
+            )}
+            aria-pressed={typeFilter === 'all'}
+            onClick={() => setTypeFilter('all')}
+          >
+            ALL <span className="ct">{flatFiles.length}</span>
+          </button>
+          {availableKinds.map((k) => (
+            <button
+              key={k}
+              type="button"
+              className={cn(
+                'files-kind-chip',
+                typeFilter === k ? 'is-active' : '',
+              )}
+              aria-pressed={typeFilter === k}
+              style={{ '--chip-c': KIND_COLOR[k] } as CSSProperties}
+              onClick={() => setTypeFilter(k)}
+            >
+              <span className="dot" aria-hidden="true" />
+              {KIND_LABEL[k] ?? k} <span className="ct">{kindCounts[k] ?? 0}</span>
+            </button>
+          ))}
+        </div>
+
+        {actionError ? (
+          <p className="px-3 pb-2 text-xs text-destructive" role="status">
+            {actionError}
+          </p>
+        ) : null}
 
         {/* breadcrumb */}
         <Breadcrumb
@@ -1795,8 +2483,30 @@ export function FilesScreen() {
           className="files-tree-breadcrumb"
         />
 
-        {/* body */}
-        <div className="files-tree-body">
+        {/* body — keyboard nav delegates from the focusable tree row buttons */}
+        <div className="files-tree-body" onKeyDown={handleTreeKeyDown}>
+          {showQA && !treeQuery.trim() && typeFilter === 'all' ? (
+            <>
+              <QuickAccessGroup
+                variant="pinned"
+                files={pinnedFiles}
+                open={qaPinnedOpen}
+                onToggleOpen={() => setQaPinnedOpen((o) => !o)}
+                activePath={selectedPath}
+                onPick={handleRevealFile}
+                onTogglePin={togglePin}
+              />
+              <QuickAccessGroup
+                variant="recent"
+                files={recentFiles}
+                open={qaRecentOpen}
+                onToggleOpen={() => setQaRecentOpen((o) => !o)}
+                activePath={selectedPath}
+                onPick={handleRevealFile}
+                onTogglePin={togglePin}
+              />
+            </>
+          ) : null}
           {treeLoading ? (
             <div className="files-tree-loading">Loading…</div>
           ) : treeError ? (
@@ -1825,6 +2535,7 @@ export function FilesScreen() {
                 expanded={expanded}
                 forceExpanded={Boolean(treeQuery.trim())}
                 selectedPath={selectedPath}
+                query={debouncedTreeQuery.trim() || undefined}
                 onToggle={handleToggle}
                 onSelect={handleSelect}
                 onDeleteRequest={setDeleteConfirm}
@@ -1855,7 +2566,10 @@ export function FilesScreen() {
       <main className="files-preview-host">
         {liveSelected && liveSelected.type === 'file' ? (
           <FilePanel
+            workspacePath={workspacePath}
             selectedEntry={liveSelected}
+            isPinned={pinned.has(liveSelected.path)}
+            onTogglePin={togglePin}
             onDeleteRequest={setDeleteConfirm}
             onUploadRequest={openUploadPicker}
           />
@@ -1873,7 +2587,7 @@ export function FilesScreen() {
                   }
                   title="Upload here"
                 >
-                  ⤴
+                  <SvgIco name="upload" size={14} />
                 </button>
                 {liveSelected ? (
                   <button
@@ -1882,7 +2596,7 @@ export function FilesScreen() {
                     onClick={() => setDeleteConfirm(liveSelected)}
                     title="Delete folder"
                   >
-                    🗑
+                    <SvgIco name="trash" size={14} />
                   </button>
                 ) : null}
               </div>
@@ -1891,6 +2605,9 @@ export function FilesScreen() {
               <FolderListing
                 entries={listingFolderEntries}
                 folderPath={liveSelected?.path ?? ''}
+                query={debouncedTreeQuery.trim() || undefined}
+                typeFilter={typeFilter}
+                externalSort={treeSort}
                 onSelect={handleListingSelect}
                 onContextMenu={handleContextMenu}
               />
@@ -1914,58 +2631,150 @@ export function FilesScreen() {
         }}
       />
 
+      {/* ── Command palette (⌘K) ──────────────────────────────────────────── */}
+      {paletteOpen ? (
+        <FilesPalette
+          files={flatFiles}
+          recents={recentFiles}
+          onClose={() => setPaletteOpen(false)}
+          onPick={handleRevealFile}
+        />
+      ) : null}
+
+      <FilesTweaks
+        open={tweaksOpen}
+        setOpen={setTweaksOpen}
+        accent={accent}
+        setAccent={setAccent}
+        density={density}
+        setDensity={setDensity}
+        labels={labels}
+        setLabels={setLabels}
+        showQA={showQA}
+        setShowQA={setShowQA}
+      />
+
       {/* ── Context menu ──────────────────────────────────────────────────── */}
-      {contextMenu ? (
+      {resolvedContextMenu && typeof document !== 'undefined'
+        ? createPortal(
         <div
-          className="fixed z-50 min-w-[160px] rounded-lg bg-primary-50 dark:bg-neutral-900 p-1 text-sm text-primary-900 dark:text-neutral-100 shadow-lg outline outline-primary-900/10 dark:outline-neutral-700"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
+          role="menu"
+          aria-label="File actions"
+          className="files-ctx-menu"
+          style={{
+            top: resolvedContextMenu.y,
+            left: resolvedContextMenu.x,
+          }}
           onClick={(e) => e.stopPropagation()}
         >
           <button
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-primary-100 dark:hover:bg-neutral-800"
+            type="button"
+            role="menuitem"
+            className="files-ctx-item"
             onClick={() => {
-              openRenamePrompt(contextMenu.entry)
+              handleOpen(resolvedContextMenu.entry)
               setContextMenu(null)
             }}
           >
-            ✏️ Rename
+            <SvgIco name="open" size={14} /> Open
           </button>
-          {contextMenu.entry.type === 'folder' ? (
-            <button
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-primary-100 dark:hover:bg-neutral-800"
-              onClick={() => {
-                setPromptState({
-                  mode: 'new-folder',
-                  targetPath: contextMenu.entry.path,
-                })
-                setPromptValue('')
-                setContextMenu(null)
-              }}
-            >
-              📁 New folder inside
-            </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="files-ctx-item"
+            onClick={() => {
+              void handleCopyPath(resolvedContextMenu.entry)
+              setContextMenu(null)
+            }}
+          >
+            <SvgIco name="copy" size={14} /> Copy path
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="files-ctx-item"
+            onClick={() => {
+              openRenamePrompt(resolvedContextMenu.entry)
+              setContextMenu(null)
+            }}
+          >
+            <SvgIco name="rename" size={14} /> Rename
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="files-ctx-item"
+            onClick={() => {
+              openMovePrompt(resolvedContextMenu.entry)
+              setContextMenu(null)
+            }}
+          >
+            <SvgIco name="move" size={14} /> Move to…
+          </button>
+          {resolvedContextMenu.entry.type === 'folder' ? (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                className="files-ctx-item"
+                onClick={() => {
+                  openNewFilePrompt(resolvedContextMenu.entry.path)
+                  setContextMenu(null)
+                }}
+              >
+                <SvgIco name="plus" size={14} /> New file
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="files-ctx-item"
+                onClick={() => {
+                  openNewFolderPrompt(resolvedContextMenu.entry.path)
+                  setContextMenu(null)
+                }}
+              >
+                <SvgIco name="folder" size={14} /> New folder
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="files-ctx-item"
+                onClick={() => {
+                  openUploadPicker(resolvedContextMenu.entry.path)
+                  setContextMenu(null)
+                }}
+              >
+                <SvgIco name="upload" size={14} /> Upload here
+              </button>
+            </>
           ) : (
             <button
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 hover:bg-primary-100 dark:hover:bg-neutral-800"
+              type="button"
+              role="menuitem"
+              className="files-ctx-item"
               onClick={() => {
-                void handleDownload(contextMenu.entry)
+                void handleDownload(resolvedContextMenu.entry)
                 setContextMenu(null)
               }}
             >
-              ⬇️ Download
+              <SvgIco name="dl" size={14} /> Download
             </button>
           )}
           <button
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
+            type="button"
+            role="menuitem"
+            className="files-ctx-item is-danger"
             onClick={() => {
-              setDeleteConfirm(contextMenu.entry)
+              setDeleteConfirm(resolvedContextMenu.entry)
               setContextMenu(null)
             }}
           >
-            🗑️ Delete
+            <SvgIco name="trash" size={14} /> Delete
           </button>
-        </div>
-      ) : null}
+        </div>,
+        document.body,
+      )
+        : null}
 
       {/* ── Rename / New-folder prompt dialog ─────────────────────────────── */}
       <Dialog
@@ -1977,12 +2786,20 @@ export function FilesScreen() {
         <DialogContent>
           <div className="p-5 space-y-3">
             <DialogTitle>
-              {promptState?.mode === 'rename' ? 'Rename' : 'New Folder'}
+              {promptState?.mode === 'rename'
+                ? 'Rename'
+                : promptState?.mode === 'move'
+                  ? 'Move to'
+                  : promptState?.mode === 'new-file'
+                    ? 'New File'
+                    : 'New Folder'}
             </DialogTitle>
             <DialogDescription>
               {promptState?.mode === 'rename'
                 ? 'Enter a new name.'
-                : 'Enter a folder name to create.'}
+                : promptState?.mode === 'move'
+                  ? 'Enter the destination path, including the new name.'
+                  : `Enter a ${promptState?.mode === 'new-file' ? 'file' : 'folder'} name to create.`}
             </DialogDescription>
             <input
               value={promptValue}

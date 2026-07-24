@@ -214,4 +214,41 @@ describe('useFocusMode', () => {
       }),
     ).not.toThrow()
   })
+
+  it('reads a workspace image and adds it through the composer attachment flow', async () => {
+    const addFiles = vi.fn().mockResolvedValue(undefined)
+    const composerHandleRef = makeComposerRef({ addFiles })
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            type: 'image',
+            content: 'data:image/png;base64,aGVsbG8=',
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response('hello', {
+          headers: { 'content-type': 'image/png' },
+        }),
+      )
+    const { result } = renderHook(() =>
+      useFocusMode({ compact: false, composerHandleRef }),
+    )
+
+    await act(async () => {
+      await result.current.handleAttachWorkspaceImage('assets/diagram.png')
+    })
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      '/api/files?action=read&path=assets%2Fdiagram.png',
+    )
+    const [attachedFile] = addFiles.mock.calls[0][0] as Array<File>
+    expect(attachedFile.name).toBe('diagram.png')
+    expect(attachedFile.type).toBe('image/png')
+    fetchMock.mockRestore()
+  })
 })
