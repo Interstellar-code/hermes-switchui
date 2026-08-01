@@ -102,15 +102,23 @@ function buildReference(pathValue: string) {
   return `See file: workspace/${normalized}`
 }
 
-function buildWorkspacePath(pathValue: string) {
-  return `workspace/${normalizePath(pathValue)}`
+function buildFilePath(workspaceRoot: string, pathValue: string) {
+  const normalizedPath = normalizePath(pathValue).replace(/^\/+/, '')
+  const normalizedRoot = normalizePath(workspaceRoot).replace(/\/+$/, '')
+  return normalizedRoot ? `${normalizedRoot}/${normalizedPath}` : normalizedPath
 }
 
-async function fetchFileTree(): Promise<Array<FileEntry>> {
+async function fetchFileTree(): Promise<{
+  entries: Array<FileEntry>
+  workspaceRoot: string
+}> {
   const res = await fetch('/api/files?action=list')
   if (!res.ok) throw new Error('Failed to load files')
-  const data = (await res.json()) as { entries?: Array<FileEntry> }
-  return Array.isArray(data.entries) ? data.entries : []
+  const data = (await res.json()) as { entries?: Array<FileEntry>; base?: string }
+  return {
+    entries: Array.isArray(data.entries) ? data.entries : [],
+    workspaceRoot: typeof data.base === 'string' ? data.base : '',
+  }
 }
 
 function filterTree(entries: Array<FileEntry>, term: string): Array<FileEntry> {
@@ -144,6 +152,7 @@ export function FileExplorerSidebar({
   className,
 }: FileExplorerSidebarProps) {
   const [entries, setEntries] = useState<Array<FileEntry>>([])
+  const [workspaceRoot, setWorkspaceRoot] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -161,8 +170,10 @@ export function FileExplorerSidebar({
     setLoading(true)
     setError(null)
     try {
-      const nextEntries = await fetchFileTree()
+      const { entries: nextEntries, workspaceRoot: nextWorkspaceRoot } =
+        await fetchFileTree()
       setEntries(nextEntries)
+      setWorkspaceRoot(nextWorkspaceRoot)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -420,11 +431,11 @@ export function FileExplorerSidebar({
   const handleCopyPath = useCallback(async (entry: FileEntry) => {
     setActionError(null)
     try {
-      await writeTextToClipboard(buildWorkspacePath(entry.path))
+      await writeTextToClipboard(buildFilePath(workspaceRoot, entry.path))
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Could not copy path')
     }
-  }, [])
+  }, [workspaceRoot])
 
   const handleAttachImage = useCallback(
     async (entry: FileEntry) => {

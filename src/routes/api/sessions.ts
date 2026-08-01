@@ -8,7 +8,9 @@ import {
   deleteSession,
   ensureGatewayProbed,
   getGatewayCapabilities,
+  getSession,
   listSessions,
+  searchSessions,
   toSessionSummary,
   updateSession,
 } from '../../server/hermes-api'
@@ -20,7 +22,6 @@ import {
 } from '../../server/local-session-store'
 import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
 
-
 async function listAllSessions(pageSize = 1000) {
   const sessions = [] as Array<Awaited<ReturnType<typeof listSessions>>[number]>
   for (let offset = 0; ; offset += pageSize) {
@@ -31,13 +32,32 @@ async function listAllSessions(pageSize = 1000) {
   return sessions
 }
 
+function toLocalSessionSummary(session: ReturnType<typeof listLocalSessions>[number]) {
+  return {
+    key: session.id,
+    id: session.id,
+    friendlyId: session.id,
+    title: session.title || 'Local Chat',
+    label: session.title || 'Local Chat',
+    derivedTitle: session.title || 'Local Chat',
+    startedAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    message_count: session.messageCount,
+    model: session.model,
+    source: 'local',
+  }
+}
+
 export const Route = createFileRoute('/api/sessions')({
   server: {
     handlers: {
       GET: async ({ request }) => {
         // Auth check
         if (!isAuthenticated(request)) {
-          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json(
+            { ok: false, error: 'Unauthorized' },
+            { status: 401 },
+          )
         }
         const capabilities = await ensureGatewayProbed()
         if (!capabilities.sessions) {
@@ -51,40 +71,98 @@ export const Route = createFileRoute('/api/sessions')({
 
         try {
           const url = new URL(request.url)
+          const searchQuery = url.searchParams.get('q')?.trim()
+          if (searchQuery) {
+            const searchResult = await searchSessions(searchQuery, 20)
+            const resultRows = Array.isArray(searchResult.results)
+              ? searchResult.results
+              : []
+            const snippetBySessionId = new Map<string, string>()
+            const sessionIds = [
+              ...new Set(
+                resultRows
+                  .map((result) => {
+                    if (!result || typeof result !== 'object') return ''
+                    const record = result as Record<string, unknown>
+                    const sessionId =
+                      typeof record.session_id === 'string'
+                        ? record.session_id
+                        : ''
+                    if (
+                      sessionId &&
+                      typeof record.snippet === 'string' &&
+                      !snippetBySessionId.has(sessionId)
+                    ) {
+                      snippetBySessionId.set(sessionId, record.snippet)
+                    }
+                    return sessionId
+                  })
+                  .filter(Boolean),
+              ),
+            ]
+            const sessions = (
+              await Promise.all(
+                sessionIds.map((sessionId) =>
+                  getSession(sessionId).catch(() => null),
+                ),
+              )
+            ).filter((session) => session !== null)
+            return Response.json({
+              sessions: sessions.map((session) => ({
+                ...toSessionSummary(session),
+                preview: snippetBySessionId.get(session.id),
+              })),
+            })
+          }
+          const requestedSessionKey = url.searchParams.get('sessionKey')?.trim()
+          if (requestedSessionKey) {
+            const localSession = getLocalSession(requestedSessionKey)
+            if (localSession) {
+              return Response.json({
+                sessions: [toLocalSessionSummary(localSession)],
+              })
+            }
+            const session = await getSession(requestedSessionKey)
+            return Response.json({ sessions: [toSessionSummary(session)] })
+          }
           const requestedLimit = Number(url.searchParams.get('limit'))
           const requestedOffset = Number(url.searchParams.get('offset'))
-          const hasPagination = Number.isFinite(requestedLimit) && requestedLimit > 0
+          const hasPagination =
+            Number.isFinite(requestedLimit) && requestedLimit > 0
           const limit = hasPagination ? Math.min(requestedLimit, 1000) : 1000
-          const offset = Number.isFinite(requestedOffset) && requestedOffset > 0
-            ? requestedOffset
+          const offset =
+            Number.isFinite(requestedOffset) && requestedOffset > 0
+              ? requestedOffset
+              : 0
+          const localSessions = listLocalSessions()
+          const gatewayOffset = hasPagination
+            ? Math.max(0, offset - localSessions.length)
             : 0
           const sessions = hasPagination
-            ? await listSessions(limit, offset)
+            ? await listSessions(limit + localSessions.length, gatewayOffset)
             : await listAllSessions(limit)
           const gatewaySessions = sessions.map(toSessionSummary)
 
           // Merge local portable sessions (Ollama, Atomic Chat, etc.)
-          const localSessions = listLocalSessions()
-          const gatewayIds = new Set(gatewaySessions.map((s: any) => s.key || s.id))
+          const gatewayIds = new Set(
+            gatewaySessions.map((s: any) => s.key || s.id),
+          )
           for (const ls of localSessions) {
             if (!gatewayIds.has(ls.id)) {
-              gatewaySessions.push({
-                key: ls.id,
-                id: ls.id,
-                friendlyId: ls.id,
-                title: ls.title || 'Local Chat',
-                label: ls.title || 'Local Chat',
-                derivedTitle: ls.title || 'Local Chat',
-                startedAt: ls.createdAt,
-                updatedAt: ls.updatedAt,
-                message_count: ls.messageCount,
-                model: ls.model,
-                source: 'local',
-              })
+              gatewaySessions.push(toLocalSessionSummary(ls))
             }
           }
 
-          return Response.json({ sessions: gatewaySessions })
+          if (!hasPagination) {
+            return Response.json({ sessions: gatewaySessions })
+          }
+          gatewaySessions.sort(
+            (a, b) => Number(b.updatedAt ?? 0) - Number(a.updatedAt ?? 0),
+          )
+          const pageStart = offset - gatewayOffset
+          return Response.json({
+            sessions: gatewaySessions.slice(pageStart, pageStart + limit),
+          })
         } catch (err) {
           return Response.json(
             {
@@ -96,7 +174,10 @@ export const Route = createFileRoute('/api/sessions')({
       },
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json(
+            { ok: false, error: 'Unauthorized' },
+            { status: 401 },
+          )
         }
         const csrfCheckPost = requireJsonContentType(request)
         if (csrfCheckPost) return csrfCheckPost
@@ -176,7 +257,10 @@ export const Route = createFileRoute('/api/sessions')({
       },
       PATCH: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json(
+            { ok: false, error: 'Unauthorized' },
+            { status: 401 },
+          )
         }
         const csrfCheckPatch = requireJsonContentType(request)
         if (csrfCheckPatch) return csrfCheckPatch
@@ -282,7 +366,10 @@ export const Route = createFileRoute('/api/sessions')({
       },
       DELETE: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json(
+            { ok: false, error: 'Unauthorized' },
+            { status: 401 },
+          )
         }
         const url = new URL(request.url)
         const rawSessionKey = url.searchParams.get('sessionKey') ?? ''
@@ -322,10 +409,7 @@ export const Route = createFileRoute('/api/sessions')({
           if (msg.includes(': 404')) {
             return Response.json({ ok: true, sessionKey, alreadyDeleted: true })
           }
-          return Response.json(
-            { ok: false, error: msg },
-            { status: 500 },
-          )
+          return Response.json({ ok: false, error: msg }, { status: 500 })
         }
       },
     },

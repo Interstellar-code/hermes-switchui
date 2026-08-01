@@ -40,6 +40,7 @@ beforeEach(() => {
                 type: 'file',
               },
             ],
+            base: '/Users/rohits/workspace',
           }),
           { status: 200 },
         ),
@@ -85,7 +86,7 @@ describe('FileExplorerSidebar', () => {
     ).toBeTruthy()
   })
 
-  it('offers chat and file actions for workspace images and copies workspace paths', async () => {
+  it('offers chat and file actions for workspace images and copies real paths', async () => {
     renderSidebar()
 
     const entry = await screen.findByText('image.png')
@@ -106,7 +107,7 @@ describe('FileExplorerSidebar', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Copy path' }))
     await waitFor(() =>
       expect(writeTextToClipboard).toHaveBeenCalledWith(
-        'workspace/assets/image.png',
+        '/Users/rohits/workspace/assets/image.png',
       ),
     )
   })

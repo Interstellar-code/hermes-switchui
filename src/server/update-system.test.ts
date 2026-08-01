@@ -1,24 +1,36 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, expect, it } from 'vitest'
 import {
+  canonicalGitHubRepo,
   isOnlyTrivialDirty,
   isUpdateAvailable,
   remoteUrlMatches,
   resolveUpdatePresentation,
+  strictUpdateReason,
+  workspaceUpdateAssertionsMatch,
 } from './update-system'
 
 /**
  * Create a temporary git repo with an initial package.json commit.
  */
 function createTempRepo(initialVersion = '2.3.27'): string {
-  const repo = join(tmpdir(), `test-trivial-dirty-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const repo = join(
+    tmpdir(),
+    `test-trivial-dirty-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  )
   mkdirSync(repo, { recursive: true })
   execFileSync('git', ['init'], { cwd: repo, stdio: 'ignore' })
-  execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: repo, stdio: 'ignore' })
-  execFileSync('git', ['config', 'user.name', 'Test'], { cwd: repo, stdio: 'ignore' })
+  execFileSync('git', ['config', 'user.email', 'test@test.com'], {
+    cwd: repo,
+    stdio: 'ignore',
+  })
+  execFileSync('git', ['config', 'user.name', 'Test'], {
+    cwd: repo,
+    stdio: 'ignore',
+  })
   writeFileSync(
     join(repo, 'package.json'),
     JSON.stringify({ name: 'test', version: initialVersion }, null, 2) + '\n',
@@ -29,22 +41,74 @@ function createTempRepo(initialVersion = '2.3.27'): string {
 }
 
 describe('update-system helpers', () => {
-  it('matches GitHub URL forms against expected repo aliases', () => {
+  it('accepts only exact canonical GitHub owner/repo matches', () => {
     expect(
-      remoteUrlMatches('https://github.com/outsourc-e/hermes-workspace.git', [
-        'outsourc-e/hermes-workspace',
-      ]),
+      canonicalGitHubRepo(
+        'git@github.com:Interstellar-code/hermes-switchui.git',
+      ),
+    ).toBe('interstellar-code/hermes-switchui')
+    expect(
+      remoteUrlMatches(
+        'https://github.com/Interstellar-code/hermes-switchui.git',
+        ['interstellar-code/hermes-switchui', 'outsourc-e/hermes-workspace'],
+      ),
     ).toBe(true)
     expect(
-      remoteUrlMatches('git@github.com:NousResearch/hermes-agent.git', [
-        'hermes-agent',
-      ]),
-    ).toBe(true)
-    expect(
-      remoteUrlMatches('https://github.com/example/other.git', [
-        'hermes-switchui',
+      remoteUrlMatches('https://github.com/example/hermes-switchui.git', [
+        'interstellar-code/hermes-switchui',
       ]),
     ).toBe(false)
+    expect(
+      remoteUrlMatches(
+        'https://github.com/Interstellar-code/hermes-switchui-fork.git',
+        ['interstellar-code/hermes-switchui'],
+      ),
+    ).toBe(false)
+  })
+})
+
+describe('workspaceUpdateAssertionsMatch', () => {
+  it('requires both server heads to match client assertions', () => {
+    const status = { currentHead: 'current', latestHead: 'target' }
+    expect(
+      workspaceUpdateAssertionsMatch(status, {
+        expectedCurrentHead: 'current',
+        expectedTargetHead: 'target',
+      }),
+    ).toBe(true)
+    expect(
+      workspaceUpdateAssertionsMatch(status, {
+        expectedCurrentHead: 'other',
+        expectedTargetHead: 'target',
+      }),
+    ).toBe(false)
+    expect(
+      workspaceUpdateAssertionsMatch(status, {
+        expectedCurrentHead: 'current',
+        expectedTargetHead: 'other',
+      }),
+    ).toBe(false)
+  })
+})
+
+describe('strictUpdateReason', () => {
+  it('keeps clean states actionable and explains blocked states', () => {
+    expect(strictUpdateReason('clean-behind')).toBeNull()
+    expect(strictUpdateReason('dirty')).toContain('local changes')
+    expect(strictUpdateReason('diverged')).toContain('manual Git resolution')
+  })
+})
+
+describe('updater mutation safety contract', () => {
+  it('does not contain destructive Git recovery commands', () => {
+    const source = readFileSync(
+      new URL('./update-system.ts', import.meta.url),
+      'utf8',
+    )
+    expect(source).not.toContain("['reset', '--hard'")
+    expect(source).not.toContain("['stash'")
+    expect(source).not.toContain("['rebase'")
+    expect(source).not.toContain("['clean', '-f")
   })
 })
 
@@ -155,7 +219,11 @@ const BASE_HEADS = { currentHead: 'aaa', latestHead: 'bbb' }
 describe('isUpdateAvailable', () => {
   it('returns false when supportedBranch is false', () => {
     expect(
-      isUpdateAvailable({ supportedBranch: false, ...BASE_HEADS, localBehindRemote: true }),
+      isUpdateAvailable({
+        supportedBranch: false,
+        ...BASE_HEADS,
+        localBehindRemote: true,
+      }),
     ).toBe(false)
   })
 
@@ -194,13 +262,21 @@ describe('isUpdateAvailable', () => {
 
   it('returns false when heads differ but localBehindRemote is false (ahead or diverged)', () => {
     expect(
-      isUpdateAvailable({ supportedBranch: true, ...BASE_HEADS, localBehindRemote: false }),
+      isUpdateAvailable({
+        supportedBranch: true,
+        ...BASE_HEADS,
+        localBehindRemote: false,
+      }),
     ).toBe(false)
   })
 
   it('returns true only when heads differ AND localBehindRemote is true', () => {
     expect(
-      isUpdateAvailable({ supportedBranch: true, ...BASE_HEADS, localBehindRemote: true }),
+      isUpdateAvailable({
+        supportedBranch: true,
+        ...BASE_HEADS,
+        localBehindRemote: true,
+      }),
     ).toBe(true)
   })
 })
@@ -249,7 +325,11 @@ describe('resolveUpdatePresentation', () => {
       ff: true,
       labels: LABELS,
     })
-    expect(result).toEqual({ state: 'blocked', reason: 'local changes msg', blocked: true })
+    expect(result).toEqual({
+      state: 'blocked',
+      reason: 'local changes msg',
+      blocked: true,
+    })
   })
 
   it('does NOT block for trivial dirty (version-only package.json changes)', () => {
@@ -273,7 +353,11 @@ describe('resolveUpdatePresentation', () => {
       ff: true,
       labels: LABELS,
     })
-    expect(result).toEqual({ state: 'blocked', reason: 'verify ref msg', blocked: true })
+    expect(result).toEqual({
+      state: 'blocked',
+      reason: 'verify ref msg',
+      blocked: true,
+    })
   })
 
   it('returns available/diverged when update available, canSync true, ff false', () => {
@@ -285,7 +369,11 @@ describe('resolveUpdatePresentation', () => {
       ff: false,
       labels: LABELS,
     })
-    expect(result).toEqual({ state: 'available', reason: 'diverged msg', blocked: false })
+    expect(result).toEqual({
+      state: 'available',
+      reason: 'diverged msg',
+      blocked: false,
+    })
   })
 
   it('returns available/null when update available, canSync true, ff true (clean fast-forward)', () => {

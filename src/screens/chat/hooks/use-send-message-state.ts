@@ -8,7 +8,6 @@ import {
   updateHistoryMessageByClientIdEverywhere,
   updateSessionLastMessage,
 } from '../chat-queries'
-import { invalidateSessionLists } from '../sessions-feed'
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 
@@ -482,33 +481,30 @@ export function useSendMessageState(params: {
       }
 
       const currentModel = currentModelRef.current
-      void startStreamingRef.current({
-        sessionKey,
-        friendlyId,
-        message: enrichedBody,
-        history,
-        attachments:
-          payloadAttachments.length > 0 ? payloadAttachments : undefined,
-        thinking:
-          currentThinkingLevel === 'off' ? undefined : currentThinkingLevel,
-        fastMode,
-        model: currentModel || undefined,
-        idempotencyKey: optimisticClientId || crypto.randomUUID(),
-      }).catch((err: unknown) => {
-        const messageText = err instanceof Error ? err.message : String(err)
-        if (import.meta.env.DEV) {
-          console.warn('[chat] send-stream failed', messageText)
-        }
-      })
+      void startStreamingRef
+        .current({
+          sessionKey,
+          friendlyId,
+          message: enrichedBody,
+          history,
+          attachments:
+            payloadAttachments.length > 0 ? payloadAttachments : undefined,
+          thinking:
+            currentThinkingLevel === 'off' ? undefined : currentThinkingLevel,
+          fastMode,
+          model: currentModel || undefined,
+          idempotencyKey: optimisticClientId || crypto.randomUUID(),
+        })
+        .catch((err: unknown) => {
+          const messageText = err instanceof Error ? err.message : String(err)
+          if (import.meta.env.DEV) {
+            console.warn('[chat] send-stream failed', messageText)
+          }
+        })
     },
     // All late-bound values are accessed via refs (stable), so the only
     // reactive deps are the direct-value params and internal lifecycle fns.
-    [
-      queryClient,
-      setLocalActivity,
-      streamFinish,
-      streamStart,
-    ],
+    [queryClient, setLocalActivity, streamFinish, streamStart],
   )
 
   // --- Group D (PR 3): SSE Callbacks ---
@@ -533,10 +529,7 @@ export function useSendMessageState(params: {
           friendlyId,
         }
       }
-      if (
-        sessionKey === activeFriendlyId &&
-        friendlyId === activeFriendlyId
-      ) {
+      if (sessionKey === activeFriendlyId && friendlyId === activeFriendlyId) {
         return
       }
       onSessionResolvedProp?.({ sessionKey, friendlyId })
@@ -577,10 +570,6 @@ export function useSendMessageState(params: {
     activeSendRef.current = null
     refreshHistoryRef.current()
     setSending(false)
-    // Invalidate both session-list caches so the session moves into today's
-    // bucket immediately after the assistant response completes (last_active is
-    // freshest at this point — gateway updatedAt reflects the just-finished turn) (#218).
-    invalidateSessionLists(queryClient)
     // Clear waitingForResponse so ThinkingBubble hides and message renders
     streamFinish()
     // Play notification sound if the user opted in (Settings → Chat).

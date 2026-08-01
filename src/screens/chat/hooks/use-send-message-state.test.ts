@@ -10,7 +10,7 @@ import {
   updateSessionLastMessage,
 } from '../chat-queries'
 import { invalidateSessionLists } from '../sessions-feed'
-import { isMissingAuth, missingAuthMessage  } from '../utils'
+import { isMissingAuth, missingAuthMessage } from '../utils'
 import { useSendMessageState } from './use-send-message-state'
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 
@@ -134,22 +134,23 @@ function makeParams(overrides?: {
 }): Parameters<typeof useSendMessageState>[0] {
   const o = overrides ?? {}
   return {
-    activeFriendlyId:
-      'activeFriendlyId' in o ? o.activeFriendlyId : 'sess-1',
+    activeFriendlyId: 'activeFriendlyId' in o ? o.activeFriendlyId : 'sess-1',
     isNewChat: o.isNewChat ?? false,
     waitingForResponse: o.waitingForResponse ?? false,
     activeRealtimeStreamingRef: makeBooleanRef(),
     thinkingLevelRef: o.thinkingLevelRef ?? makeStringRef('off'),
-    setLocalActivity: (o.setLocalActivity ?? vi.fn()) as (a: AgentActivity) => void,
-    setError: (o.setError ?? vi.fn()) as Dispatch<SetStateAction<string | null>>,
-    clearCompletedStreamingRef:
-      o.clearCompletedStreamingRef ?? makeVoidFnRef(),
+    setLocalActivity: (o.setLocalActivity ?? vi.fn()) as (
+      a: AgentActivity,
+    ) => void,
+    setError: (o.setError ?? vi.fn()) as Dispatch<
+      SetStateAction<string | null>
+    >,
+    clearCompletedStreamingRef: o.clearCompletedStreamingRef ?? makeVoidFnRef(),
     startStreamingRef: o.startStreamingRef ?? makeStartStreamingRef(),
     queryClient: (o.queryClient ?? {}) as Parameters<
       typeof useSendMessageState
     >[0]['queryClient'],
-    finalDisplayMessagesRef:
-      o.finalDisplayMessagesRef ?? makeMessagesRef([]),
+    finalDisplayMessagesRef: o.finalDisplayMessagesRef ?? makeMessagesRef([]),
     currentModelRef: o.currentModelRef ?? makeModelRef('test-model'),
     onSessionResolved: o.onSessionResolved,
     navigate: (o.navigate ?? vi.fn()) as (opts: {
@@ -309,9 +310,7 @@ describe('useSendMessageState', () => {
 
       const queryClient = { __mock: true }
       const { result } = renderHook(() =>
-        useSendMessageState(
-          makeParams({ queryClient }),
-        ),
+        useSendMessageState(makeParams({ queryClient })),
       )
 
       result.current.sessionKeyForWaiting.current = 'sess-1'
@@ -555,7 +554,7 @@ describe('useSendMessageState', () => {
   // --- SSE callback tests (PR 3 — Group D) ---
 
   describe('onComplete', () => {
-    it('clears activeSendRef, calls streamFinish, and invalidates session lists', () => {
+    it('clears activeSendRef and does not refetch the session list', () => {
       vi.spyOn(useChatStore, 'getState').mockReturnValue({
         setSessionWaiting: vi.fn(),
         clearSessionWaiting: vi.fn(),
@@ -583,8 +582,8 @@ describe('useSendMessageState', () => {
         'client-abc',
         expect.any(Function),
       )
-      expect(invalidateSessionLists).toHaveBeenCalledWith(queryClient)
       expect(result.current.sending).toBe(false)
+      expect(invalidateSessionLists).not.toHaveBeenCalled()
 
       vi.restoreAllMocks()
     })
@@ -660,9 +659,7 @@ describe('useSendMessageState', () => {
       } as unknown as ReturnType<typeof useChatStore.getState>)
 
       const { result } = renderHook(() =>
-        useSendMessageState(
-          makeParams({ navigate, embedded: false }),
-        ),
+        useSendMessageState(makeParams({ navigate, embedded: false })),
       )
 
       result.current.sessionKeyForWaiting.current = 'sess-1'
@@ -689,9 +686,7 @@ describe('useSendMessageState', () => {
       } as unknown as ReturnType<typeof useChatStore.getState>)
 
       const { result } = renderHook(() =>
-        useSendMessageState(
-          makeParams({ navigate, embedded: true }),
-        ),
+        useSendMessageState(makeParams({ navigate, embedded: true })),
       )
 
       result.current.sessionKeyForWaiting.current = 'sess-1'

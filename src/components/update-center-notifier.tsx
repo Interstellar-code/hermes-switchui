@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -10,53 +10,22 @@ import {
   Loading03Icon,
   Tick01Icon,
 } from '@hugeicons/core-free-icons'
+import type {
+  ApplyUpdateResult,
+  ProductId,
+  ProductUpdateStatus,
+  ReleaseNoteSection,
+  UpdateStatus,
+} from '@/lib/update-center'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toast'
-
-type ProductId = 'workspace' | 'agent'
-type ProductUpdateStatus = {
-  id: ProductId
-  label: string
-  installKind: 'git' | 'desktop' | 'docker' | 'unknown'
-  version: string
-  path: string | null
-  repoPath: string | null
-  branch: string | null
-  currentHead: string | null
-  latestHead: string | null
-  updateAvailable: boolean
-  canUpdate: boolean
-  state: 'current' | 'available' | 'blocked' | 'unsupported' | 'error'
-  reason: string | null
-  blockingFiles?: Array<string>
-  updateMode: string
-}
-
-type UpdateStatus = {
-  ok: true
-  checkedAt: number
-  products: Record<ProductId, ProductUpdateStatus>
-  updateAvailable: boolean
-  pendingReleaseNotes?: Array<ReleaseNoteSection>
-}
-
-type ReleaseNoteSection = {
-  product: ProductId
-  label: string
-  from: string | null
-  to: string | null
-  commits: Array<string>
-}
-
-type ApplyUpdateResult = {
-  ok: boolean
-  product: ProductId
-  output?: string
-  restartRequired?: boolean
-  status?: ProductUpdateStatus
-  releaseNotes?: Array<ReleaseNoteSection>
-  error?: string
-}
+import {
+  UPDATE_STATUS_QUERY_KEY,
+  applyDesktopWorkspaceUpdate,
+  fetchUpdateStatus,
+  mergeDesktopUpdateState,
+  subscribeDesktopUpdates,
+} from '@/lib/update-center'
 
 type Phase = 'idle' | 'updating' | 'done' | 'error'
 type Notes = {
@@ -72,6 +41,12 @@ const NOTES_SEEN_KEY = 'hermes-update-v2-release-notes-seen'
 
 function shortSha(value: string | null | undefined): string {
   return value ? value.slice(0, 7) : 'unknown'
+}
+
+function productVersionLabel(product: ProductUpdateStatus): string {
+  return product.installKind === 'desktop'
+    ? (product.targetVersion ?? product.version)
+    : shortSha(product.latestHead)
 }
 
 function productDismissKey(product: ProductUpdateStatus): string {
@@ -136,6 +111,7 @@ export function UpdateCenterNotifier() {
     agent: '',
   })
   const [notes, setNotes] = useState<Notes | null>(null)
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     const values = new Set<string>()
@@ -147,17 +123,25 @@ export function UpdateCenterNotifier() {
     setNotes(readNotes())
   }, [])
 
-  const { data } = useQuery({
-    queryKey: ['update-status-v2'],
-    queryFn: async () => {
-      const res = await fetch('/api/update/status')
-      if (!res.ok) return null
-      return res.json() as Promise<UpdateStatus>
-    },
+  const { data, refetch, isFetching } = useQuery({
+    queryKey: UPDATE_STATUS_QUERY_KEY,
+    queryFn: fetchUpdateStatus,
     refetchInterval: CHECK_INTERVAL_MS,
     staleTime: CHECK_INTERVAL_MS,
     retry: false,
   })
+
+  useEffect(
+    () =>
+      subscribeDesktopUpdates((state) => {
+        queryClient.setQueryData<UpdateStatus>(
+          UPDATE_STATUS_QUERY_KEY,
+          (current) =>
+            current ? mergeDesktopUpdateState(current, state) : current,
+        )
+      }),
+    [queryClient],
+  )
 
   useEffect(() => {
     if (!data?.pendingReleaseNotes?.length) return
@@ -169,6 +153,10 @@ export function UpdateCenterNotifier() {
     const products = data ? [data.products.workspace, data.products.agent] : []
     return products.filter((product) => {
       if (!product.updateAvailable) return false
+      // Local development commonly has intentional source edits. Keep the
+      // diagnosis in Settings → Updates without repeatedly raising a global
+      // popup that cannot perform an action.
+      if (import.meta.env.DEV && !product.canUpdate) return false
       if (phases[product.id] === 'done') return false
       return !dismissed.has(productDismissKey(product))
     })
@@ -182,37 +170,68 @@ export function UpdateCenterNotifier() {
 
   async function update(product: ProductUpdateStatus) {
     if (!product.canUpdate) return
+    if (
+      !window.confirm(
+        `Update ${product.label} from ${product.installKind === 'desktop' ? product.version : shortSha(product.currentHead)} to ${productVersionLabel(product)}?`,
+      )
+    )
+      return
     setPhases((prev) => ({ ...prev, [product.id]: 'updating' }))
     setErrors((prev) => ({ ...prev, [product.id]: '' }))
     try {
-      const res = await fetch(
-        `/api/update/${product.id === 'workspace' ? 'workspace' : 'agent'}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        },
-      )
-      const result = (await res.json()) as ApplyUpdateResult
-      if (!res.ok || !result.ok) {
+      const result =
+        product.installKind === 'desktop'
+          ? await applyDesktopWorkspaceUpdate()
+          : await (async () => {
+              const res = await fetch(
+                `/api/update/${product.id === 'workspace' ? 'workspace' : 'agent'}`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    expectedCurrentHead: product.currentHead,
+                    expectedTargetHead: product.latestHead,
+                  }),
+                },
+              )
+              return {
+                response: res,
+                result: (await res.json()) as ApplyUpdateResult,
+              }
+            })()
+      const response = 'response' in result ? result.response : null
+      const applyResult = 'result' in result ? result.result : result
+      if ((response && !response.ok) || !applyResult.ok) {
         setPhases((prev) => ({ ...prev, [product.id]: 'error' }))
         setErrors((prev) => ({
           ...prev,
-          [product.id]: result.error || `${product.label} update failed`,
+          [product.id]: applyResult.error || `${product.label} update failed`,
         }))
         return
       }
-      setPhases((prev) => ({ ...prev, [product.id]: 'done' }))
-      dismiss(product)
-      const stored = result.releaseNotes?.length
-        ? storeNotes(result.releaseNotes)
+      const desktopDownloaded =
+        product.installKind === 'desktop' && !applyResult.restartRequired
+      setPhases((prev) => ({
+        ...prev,
+        [product.id]: desktopDownloaded ? 'idle' : 'done',
+      }))
+      if (!desktopDownloaded) dismiss(product)
+      const stored = applyResult.releaseNotes?.length
+        ? storeNotes(applyResult.releaseNotes)
         : null
       if (stored) setNotes(stored)
-      await queryClient.invalidateQueries({ queryKey: ['update-status-v2'] })
-      toast(`${product.label} updated. Restart may be required.`, {
-        type: 'success',
-        duration: 7000,
-      })
+      await queryClient.invalidateQueries({ queryKey: UPDATE_STATUS_QUERY_KEY })
+      toast(
+        desktopDownloaded
+          ? `${product.label} downloaded. Ready to install and restart.`
+          : applyResult.restartRequired
+            ? `${product.label} updated. Restart required.`
+            : `${product.label} updated.`,
+        {
+          type: 'success',
+          duration: 7000,
+        },
+      )
     } catch (err) {
       setPhases((prev) => ({ ...prev, [product.id]: 'error' }))
       setErrors((prev) => ({
@@ -230,21 +249,151 @@ export function UpdateCenterNotifier() {
   return (
     <>
       <ReleaseNotes notes={notes} onClose={closeNotes} />
-      <div className="pointer-events-none fixed left-1/2 top-[calc(var(--titlebar-h,0px)+1rem)] z-[9998] flex w-[92vw] max-w-md -translate-x-1/2 flex-col gap-3">
-        <AnimatePresence>
-          {visibleProducts.map((product) => (
-            <UpdateCard
-              key={product.id}
-              product={product}
-              phase={phases[product.id]}
-              error={errors[product.id]}
-              onDismiss={() => dismiss(product)}
-              onUpdate={() => update(product)}
-            />
-          ))}
-        </AnimatePresence>
-      </div>
+      <AnimatePresence>
+        {visibleProducts.length ? (
+          <motion.button
+            type="button"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            onClick={() => setOpen(true)}
+            className="fixed bottom-5 right-5 z-[9998] flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-white shadow-2xl"
+            style={{ background: 'var(--theme-accent)' }}
+            aria-label={`Open updates (${visibleProducts.length} available)`}
+          >
+            <HugeiconsIcon icon={ArrowUp02Icon} size={17} strokeWidth={2} />
+            {visibleProducts.length === 1
+              ? 'Update available'
+              : `${visibleProducts.length} updates`}
+          </motion.button>
+        ) : null}
+      </AnimatePresence>
+      <UpdateDialog
+        open={open}
+        products={visibleProducts}
+        phases={phases}
+        errors={errors}
+        isFetching={isFetching}
+        onClose={() => setOpen(false)}
+        onRefresh={() => void refetch()}
+        onDismiss={dismiss}
+        onUpdate={(product) => void update(product)}
+      />
     </>
+  )
+}
+
+function UpdateDialog({
+  open,
+  products,
+  phases,
+  errors,
+  isFetching,
+  onClose,
+  onRefresh,
+  onDismiss,
+  onUpdate,
+}: {
+  open: boolean
+  products: Array<ProductUpdateStatus>
+  phases: Record<ProductId, Phase>
+  errors: Record<ProductId, string>
+  isFetching: boolean
+  onClose: () => void
+  onRefresh: () => void
+  onDismiss: (product: ProductUpdateStatus) => void
+  onUpdate: (product: ProductUpdateStatus) => void
+}) {
+  const closeRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!open) return
+    closeRef.current?.focus()
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open, onClose])
+  if (!open) return null
+  return (
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="update-center-title"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
+      <div
+        className="w-full max-w-lg overflow-hidden rounded-2xl shadow-2xl"
+        style={{
+          background: 'var(--theme-card)',
+          border: '1px solid var(--theme-border)',
+        }}
+      >
+        <div
+          className="flex items-center gap-3 border-b px-5 py-4"
+          style={{ borderColor: 'var(--theme-border)' }}
+        >
+          <div className="min-w-0 flex-1">
+            <h2
+              id="update-center-title"
+              className="font-semibold"
+              style={{ color: 'var(--theme-text)' }}
+            >
+              Update Center
+            </h2>
+            <p className="text-sm" style={{ color: 'var(--theme-muted)' }}>
+              Review each product before applying an update.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isFetching}
+            className="rounded-lg px-3 py-1.5 text-xs font-semibold"
+            style={{
+              background: 'var(--theme-card2)',
+              color: 'var(--theme-text)',
+            }}
+          >
+            {isFetching ? 'Checking…' : 'Check again'}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            ref={closeRef}
+            className="rounded-lg p-2"
+            aria-label="Close Update Center"
+            style={{ color: 'var(--theme-muted)' }}
+          >
+            <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
+          </button>
+        </div>
+        <div className="max-h-[70vh] space-y-3 overflow-auto p-4">
+          {products.length ? (
+            products.map((product) => (
+              <UpdateCard
+                key={product.id}
+                product={product}
+                phase={phases[product.id]}
+                error={errors[product.id]}
+                onDismiss={() => onDismiss(product)}
+                onUpdate={() => onUpdate(product)}
+              />
+            ))
+          ) : (
+            <p
+              className="p-6 text-center text-sm"
+              style={{ color: 'var(--theme-muted)' }}
+            >
+              No updates available.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -268,13 +417,15 @@ function UpdateCard({
       ? error
       : blocked
         ? product.reason || 'Update requires manual review.'
-        : `${shortSha(product.currentHead)} → ${shortSha(product.latestHead)} · ${product.installKind}`
+        : product.installKind === 'desktop'
+          ? `${product.version} → ${productVersionLabel(product)} · desktop`
+          : `${shortSha(product.currentHead)} → ${shortSha(product.latestHead)} · ${product.installKind}`
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: -24, scale: 0.96 }}
+      initial={{ opacity: 0, y: 8, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -24, scale: 0.96 }}
+      exit={{ opacity: 0, y: 8, scale: 0.98 }}
       transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
       className="pointer-events-auto overflow-hidden rounded-2xl shadow-2xl"
       style={{
@@ -350,7 +501,9 @@ function UpdateCard({
               {product.repoPath}
             </p>
           ) : null}
-          {blocked && product.blockingFiles && product.blockingFiles.length > 0 ? (
+          {blocked &&
+          product.blockingFiles &&
+          product.blockingFiles.length > 0 ? (
             <ul className="mt-1 max-h-24 overflow-auto pr-1">
               {product.blockingFiles.slice(0, 8).map((file) => (
                 <li
@@ -382,7 +535,15 @@ function UpdateCard({
               className="rounded-lg px-4 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
               style={{ background: 'var(--theme-accent)' }}
             >
-              {updating ? 'Updating' : 'Update'}
+              {updating
+                ? product.updateMode === 'hermes-strict'
+                  ? 'Refreshing & restarting'
+                  : 'Updating'
+                : product.updateMode === 'desktop-install-ready'
+                  ? 'Install & restart'
+                  : product.installKind === 'desktop'
+                    ? 'Download'
+                    : 'Update'}
             </button>
           ) : (
             <span

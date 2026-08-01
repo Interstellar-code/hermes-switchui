@@ -18,6 +18,7 @@ import {
   formatCronRunTitle,
   getCronSessionSub,
   getDayBucket,
+  mergeSessionFeedItems,
   parseCronSessionKey,
   sortItems,
 } from './sessions-feed'
@@ -300,6 +301,30 @@ describe('active session source lookup', () => {
     expect(
       findSessionSource([item], ['20260711_204819_e83d5592']),
     ).toBe('tg')
+  })
+})
+
+describe('server session search merge', () => {
+  it('adds older matches and replaces duplicate recent-session metadata', () => {
+    const recent = makeItem({
+      id: 'chat:recent',
+      src: 'chat',
+      sub: 'stale preview',
+    })
+    const refreshed = makeItem({
+      id: 'chat:recent',
+      src: 'chat',
+      sub: 'matching server snippet',
+    })
+    const older = makeItem({ id: 'chat:older', src: 'chat' })
+
+    const merged = mergeSessionFeedItems([recent], [refreshed, older])
+
+    expect(merged.map((item) => item.id)).toEqual([
+      'chat:recent',
+      'chat:older',
+    ])
+    expect(merged[0]?.sub).toBe('matching server snippet')
   })
 })
 

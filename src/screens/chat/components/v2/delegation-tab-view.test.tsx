@@ -146,6 +146,35 @@ describe('DelegationSidebarOverlay', () => {
     expect(container.textContent).toContain('3.5k tok')
   })
 
+  it('shows a completed agent response when its transcript has no tool calls', () => {
+    useDelegationsMock.mockReturnValue({
+      delegations: [{
+        childSessionId: 'child-1', goal: 'Assess it', model: 'auto', status: 'completed',
+        inputTokens: 0, outputTokens: 0, startedAt: 1_000, endedAt: 2_000,
+      }],
+      isLoading: false,
+      error: null,
+    })
+    useDelegationMessagesMock.mockReturnValue({
+      messages: [{
+        role: 'assistant',
+        content: [{ type: 'text', text: 'This task needs no tool calls.' }],
+      }],
+      isLoading: false,
+      error: null,
+    })
+
+    const container = renderInto(<DelegationSidebarOverlay sessionKey="s1" onClose={() => {}} />)
+    const delegationButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent.includes('Assess it'),
+    )
+    act(() => { delegationButton?.click() })
+
+    expect(container.textContent).toContain('No tool activity recorded.')
+    expect(container.textContent).toContain('Agent response')
+    expect(container.textContent).toContain('This task needs no tool calls.')
+  })
+
   it('closes from the backdrop or Escape key', () => {
     useDelegationsMock.mockReturnValue({ delegations: [], isLoading: false, error: null })
     const onClose = vi.fn()

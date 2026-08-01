@@ -13,4 +13,12 @@ describe('UpdateCenterNotifier blocked state label', () => {
     expect(src).not.toContain('Review required')
     expect(src).toContain('aria-label={`${product.label} update blocked`}')
   })
+
+  it('keeps non-actionable development blocks out of the global popup', () => {
+    const src = readFileSync(
+      resolve(process.cwd(), 'src/components/update-center-notifier.tsx'),
+      'utf8',
+    )
+    expect(src).toContain('import.meta.env.DEV && !product.canUpdate')
+  })
 })

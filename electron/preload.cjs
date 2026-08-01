@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('hermesDesktop', {
   updates: {
     check: () => ipcRenderer.invoke('desktop:update-check'),
     getState: () => ipcRenderer.invoke('desktop:update-state'),
+    download: () => ipcRenderer.invoke('desktop:update-download'),
+    install: () => ipcRenderer.invoke('desktop:update-install'),
     onStateChange: (callback) => {
       const wrapped = (_event, data) => callback(data)
       updateListenerMap.set(callback, wrapped)

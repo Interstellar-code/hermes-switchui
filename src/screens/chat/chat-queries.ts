@@ -50,15 +50,42 @@ function isMatchingClientMessage(
 
 export const chatQueryKeys = {
   sessions: ['chat', 'sessions'] as const,
+  session: (sessionId: string) => ['chat', 'session', sessionId] as const,
   history: function history(friendlyId: string, sessionKey: string) {
     return ['chat', 'history', friendlyId, sessionKey] as const
   },
 } as const
 
 export const DEFAULT_CHAT_HISTORY_LIMIT = 150
+export const DEFAULT_SESSION_LIST_LIMIT = 200
 
 export async function fetchSessions(): Promise<Array<SessionMeta>> {
-  const res = await fetch('/api/sessions')
+  const query = new URLSearchParams({
+    limit: String(DEFAULT_SESSION_LIST_LIMIT),
+    offset: '0',
+  })
+  const res = await fetch(`/api/sessions?${query.toString()}`)
+  if (!res.ok) throw new Error(await readError(res))
+  const data = (await res.json()) as SessionListResponse
+  return normalizeSessions(data.sessions)
+}
+
+export async function fetchSession(
+  sessionId: string,
+): Promise<SessionMeta | null> {
+  if (!sessionId || sessionId === 'new' || sessionId === 'main') return null
+  const query = new URLSearchParams({ sessionKey: sessionId })
+  const res = await fetch(`/api/sessions?${query.toString()}`)
+  if (!res.ok) throw new Error(await readError(res))
+  const data = (await res.json()) as SessionListResponse
+  return normalizeSessions(data.sessions)[0] ?? null
+}
+
+export async function searchSessions(
+  queryText: string,
+): Promise<Array<SessionMeta>> {
+  const query = new URLSearchParams({ q: queryText })
+  const res = await fetch(`/api/sessions?${query.toString()}`)
   if (!res.ok) throw new Error(await readError(res))
   const data = (await res.json()) as SessionListResponse
   return normalizeSessions(data.sessions)
@@ -540,14 +567,17 @@ export function reconcileSessionDraft(
             key: toSessionKey,
             friendlyId: toFriendlyId,
             lastMessage: source.lastMessage ?? session.lastMessage,
-            updatedAt: Math.max(source.updatedAt ?? 0, session.updatedAt ?? 0) ||
+            updatedAt:
+              Math.max(source.updatedAt ?? 0, session.updatedAt ?? 0) ||
               session.updatedAt ||
               source.updatedAt,
             label: session.label ?? source.label,
             title: session.title ?? source.title,
             derivedTitle: session.derivedTitle ?? source.derivedTitle,
             titleStatus:
-              session.titleStatus === 'idle' ? source.titleStatus : session.titleStatus,
+              session.titleStatus === 'idle'
+                ? source.titleStatus
+                : session.titleStatus,
             titleSource: session.titleSource ?? source.titleSource,
             titleError: session.titleError ?? source.titleError,
           },
@@ -563,19 +593,40 @@ export function updateSessionLastMessage(
   friendlyId: string,
   message: ChatMessage,
 ) {
+  const activeSession = queryClient.getQueryData<SessionMeta>(
+    chatQueryKeys.session(friendlyId),
+  )
   queryClient.setQueryData(
     chatQueryKeys.sessions,
     function update(messages: unknown) {
       if (!Array.isArray(messages)) return messages
-      return (messages as Array<SessionMeta>).map((session) => {
+      const updatedAt = Date.now()
+      const sessions = messages as Array<SessionMeta>
+      const found = sessions.some(
+        (session) =>
+          session.key === sessionKey || session.friendlyId === friendlyId,
+      )
+      if (found) return sessions.map((session) => {
         if (session.key !== sessionKey && session.friendlyId !== friendlyId) {
           return session
         }
         return {
           ...session,
           lastMessage: message,
+          updatedAt,
         }
       })
+      return [
+        {
+          ...activeSession,
+          key: sessionKey,
+          friendlyId,
+          label: activeSession?.label ?? 'Chat',
+          lastMessage: message,
+          updatedAt,
+        },
+        ...sessions,
+      ]
     },
   )
 }

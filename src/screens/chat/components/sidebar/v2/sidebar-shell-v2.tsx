@@ -47,7 +47,7 @@ export function SidebarShellV2() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
 
   // Single feed subscription — SidebarListV2 consumes groups via prop (no duplicate hook)
-  const { items, sources } = useSessionsFeed({ raw: true })
+  const { items, sources } = useSessionsFeed({ raw: true, query: fQuery })
 
   useEffect(() => {
     if (!sources.some((source) => source.src === 'chat' && source.available))

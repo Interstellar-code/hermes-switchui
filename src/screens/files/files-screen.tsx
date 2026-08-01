@@ -145,6 +145,12 @@ function getPathParts(pathValue: string): Array<string> {
   return pathValue ? pathValue.split('/').filter(Boolean) : []
 }
 
+function buildFilePath(workspaceRoot: string, pathValue: string): string {
+  const normalizedPath = pathValue.replace(/\\/g, '/').replace(/^\/+/, '')
+  const normalizedRoot = workspaceRoot.replace(/\\/g, '/').replace(/\/+$/, '')
+  return normalizedRoot ? `${normalizedRoot}/${normalizedPath}` : normalizedPath
+}
+
 function getEntryKind(entry: FileEntry | null): string {
   if (!entry) return 'workspace'
   if (entry.type === 'folder') return 'folder'
@@ -918,7 +924,7 @@ function FilePanel({
   const handleCopyPath = useCallback(async () => {
     if (!selectedEntry) return
     try {
-      await writeTextToClipboard(`workspace/${selectedEntry.path}`)
+      await writeTextToClipboard(buildFilePath(workspacePath ?? '', selectedEntry.path))
       setCopiedOk(true)
       setTimeout(() => setCopiedOk(false), 1400)
     } catch (err) {
@@ -926,7 +932,7 @@ function FilePanel({
         err instanceof Error ? err.message : 'Could not copy the file path.',
       )
     }
-  }, [selectedEntry])
+  }, [selectedEntry, workspacePath])
 
   const handleOpenPreview = useCallback(() => {
     if (!selectedEntry || selectedEntry.type !== 'file') return
@@ -1564,6 +1570,7 @@ export function FilesScreen() {
   const search = useSearch({ from: '/files' })
 
   const [entries, setEntries] = useState<Array<FileEntry>>([])
+  const [workspaceRoot, setWorkspaceRoot] = useState('')
   const [treeLoading, setTreeLoading] = useState(false)
   const [treeError, setTreeError] = useState<string | null>(null)
 
@@ -1710,6 +1717,7 @@ export function FilesScreen() {
         )
       const data = (await res.json()) as FilesListResponse
       setEntries(Array.isArray(data.entries) ? data.entries : [])
+      setWorkspaceRoot(data.base)
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         setTreeError(
@@ -1883,13 +1891,13 @@ export function FilesScreen() {
   const handleCopyPath = useCallback(async (entry: FileEntry) => {
     setActionError(null)
     try {
-      await writeTextToClipboard(`workspace/${entry.path}`)
+      await writeTextToClipboard(buildFilePath(workspaceRoot, entry.path))
     } catch (err) {
       setActionError(
         err instanceof Error ? err.message : 'Could not copy the file path.',
       )
     }
-  }, [])
+  }, [workspaceRoot])
 
   const handleDeleteConfirmed = useCallback(async () => {
     if (!deleteConfirm) return
@@ -2698,19 +2706,6 @@ export function FilesScreen() {
             </div>
           ) : (
             <>
-              <button
-                type="button"
-                onClick={handleSelectRoot}
-                className={cn(
-                  'files-tree-row',
-                  selectedPath === null ? 'is-active' : '',
-                )}
-                style={{ paddingLeft: 12 }}
-              >
-                <span className="chev">▼</span>
-                <span className="icon is-folder" aria-hidden="true" />
-                <span className="name">workspace</span>
-              </button>
               <FileTree
                 entries={visibleEntries}
                 expanded={expanded}

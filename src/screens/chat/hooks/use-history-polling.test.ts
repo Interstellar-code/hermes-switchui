@@ -4,7 +4,6 @@ import { act, renderHook } from '@testing-library/react'
 import { useHistoryPolling } from './use-history-polling'
 import type { RefObject } from 'react'
 
-
 function ref<T>(initial: T): RefObject<T> {
   return { current: initial }
 }
@@ -84,22 +83,23 @@ describe('useHistoryPolling', () => {
       await vi.advanceTimersByTimeAsync(0)
     })
 
-    // Drain the remount 2 s delayed refetch so it doesn't pollute counts.
+    // Idle mounts rely on useChatHistory's mount refetch; this hook schedules
+    // no delayed duplicate request.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(2_000)
+      await vi.advanceTimersByTimeAsync(10_000)
     })
-    expect(refetch).toHaveBeenCalledTimes(1)
+    expect(refetch).not.toHaveBeenCalled()
 
     // Tab becomes visible but we are not waiting — only the immediate refetch.
     setVisibility('visible')
     dispatchVisibility()
-    expect(refetch).toHaveBeenCalledTimes(2)
+    expect(refetch).toHaveBeenCalledTimes(1)
 
     // Advance well past the 3 s poll interval — no extra calls.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10_000)
     })
-    expect(refetch).toHaveBeenCalledTimes(2)
+    expect(refetch).toHaveBeenCalledTimes(1)
   })
 
   it('visibility poll: starts bounded loop when tab becomes visible + waitingForResponse is true', async () => {
@@ -115,29 +115,23 @@ describe('useHistoryPolling', () => {
       await vi.advanceTimersByTimeAsync(0)
     })
 
-    // Drain remount 2 s timer.
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2_000)
-    })
-    expect(refetch).toHaveBeenCalledTimes(1)
-
     // Flip waiting ON, then make tab visible.
     waitingRef.current = true
     setVisibility('visible')
     dispatchVisibility()
-    expect(refetch).toHaveBeenCalledTimes(2) // immediate refetch on return
+    expect(refetch).toHaveBeenCalledTimes(1) // immediate refetch on return
 
     // First poll at +3 s.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3_000)
     })
-    expect(refetch).toHaveBeenCalledTimes(3)
+    expect(refetch).toHaveBeenCalledTimes(2)
 
     // Second poll at +6 s.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3_000)
     })
-    expect(refetch).toHaveBeenCalledTimes(4)
+    expect(refetch).toHaveBeenCalledTimes(3)
   })
 
   it('visibility poll: loop stops once waitingForResponse clears', async () => {
@@ -153,11 +147,6 @@ describe('useHistoryPolling', () => {
       await vi.advanceTimersByTimeAsync(0)
     })
 
-    // Drain remount 2 s timer.
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2_000)
-    })
-
     // Start the visibility loop.
     waitingRef.current = true
     setVisibility('visible')
@@ -165,8 +154,8 @@ describe('useHistoryPolling', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3_000)
     })
-    // 1 (remount 2 s) + 1 (visibility immediate) + 1 (first poll) = 3.
-    expect(refetch).toHaveBeenCalledTimes(3)
+    // 1 (visibility immediate) + 1 (first poll) = 2.
+    expect(refetch).toHaveBeenCalledTimes(2)
 
     // Response arrives — loop should stop after the pending poll's scheduleNext.
     waitingRef.current = false
@@ -174,18 +163,18 @@ describe('useHistoryPolling', () => {
       await vi.advanceTimersByTimeAsync(3_000)
     })
     // The pending poll timer fires its refetch before scheduleNext notices.
-    expect(refetch).toHaveBeenCalledTimes(4)
+    expect(refetch).toHaveBeenCalledTimes(3)
 
     // No further polls.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(9_000)
     })
-    expect(refetch).toHaveBeenCalledTimes(4)
+    expect(refetch).toHaveBeenCalledTimes(3)
   })
 
   // ── remount catch-up ─────────────────────────────────────────────────
 
-  it('remount catch-up: schedules a 2 s delayed refetch on mount', async () => {
+  it('remount recovery: skips the delayed refetch when not waiting', async () => {
     const refetch = vi.fn()
     renderHook(() =>
       useHistoryPolling({
@@ -197,20 +186,11 @@ describe('useHistoryPolling', () => {
       await vi.advanceTimersByTimeAsync(0)
     })
 
-    // Not called immediately.
-    expect(refetch).not.toHaveBeenCalled()
-
-    // Just before 2 s.
+    // No duplicate full-history request after mounting an idle chat.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1_999)
+      await vi.advanceTimersByTimeAsync(10_000)
     })
     expect(refetch).not.toHaveBeenCalled()
-
-    // At 2 s.
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1)
-    })
-    expect(refetch).toHaveBeenCalledTimes(1)
   })
 
   it('remount catch-up: starts bounded loop if waiting on mount', async () => {
@@ -299,14 +279,10 @@ describe('useHistoryPolling', () => {
       await vi.advanceTimersByTimeAsync(0)
     })
 
-    // Drain remount 2 s timer, then start the visibility loop.
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2_000)
-    })
     waitingRef.current = true
     setVisibility('visible')
     dispatchVisibility()
-    expect(refetch).toHaveBeenCalledTimes(2) // remount + visibility immediate
+    expect(refetch).toHaveBeenCalledTimes(1) // visibility immediate
 
     // Unmount — cleanup sets returnPollActiveRef = false. The already-scheduled
     // poll timer still fires its refetch before scheduleNext notices the guard
@@ -317,7 +293,7 @@ describe('useHistoryPolling', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(30_000)
     })
-    // 2 (so far) + 1 orphaned poll = 3. Critically, NOT 4+ — the loop stopped.
-    expect(refetch).toHaveBeenCalledTimes(3)
+    // 1 (so far) + 1 orphaned poll = 2. Critically, NOT 3+ — the loop stopped.
+    expect(refetch).toHaveBeenCalledTimes(2)
   })
 })

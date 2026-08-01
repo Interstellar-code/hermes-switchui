@@ -70,7 +70,7 @@ beforeEach(() => {
 
 it('passes the raw merged feed to the filtering owner', () => {
   render(<SidebarShellV2 />)
-  expect(useSessionsFeed).toHaveBeenCalledWith({ raw: true })
+  expect(useSessionsFeed).toHaveBeenCalledWith({ raw: true, query: 'needle' })
   expect(applyFiltersAndDecorate).toHaveBeenCalledWith(
     [{ id: 'chat:a' }, { id: 'task:b' }],
     expect.objectContaining({

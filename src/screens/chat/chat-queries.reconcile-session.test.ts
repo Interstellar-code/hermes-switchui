@@ -90,3 +90,42 @@ describe('reconcileSessionDraft', () => {
     })
   })
 })
+
+describe('updateSessionLastMessage', () => {
+  it('moves an existing session to the front by refreshing updatedAt', async () => {
+    const { updateSessionLastMessage } = await import('./chat-queries')
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(['chat', 'sessions'], [
+      makeSession({ key: 'old', friendlyId: 'old', updatedAt: 1 }),
+    ])
+    const message = makeSession().lastMessage!
+
+    updateSessionLastMessage(queryClient, 'old', 'old', message)
+
+    const sessions = queryClient.getQueryData(['chat', 'sessions']) as Array<SessionMeta>
+    expect(sessions[0]?.updatedAt).toBeGreaterThan(1)
+    expect(sessions[0]?.lastMessage).toEqual(message)
+  })
+
+  it('inserts a deep-linked session missing from the recent page', async () => {
+    const { updateSessionLastMessage } = await import('./chat-queries')
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(['chat', 'sessions'], [
+      makeSession({ key: 'recent', friendlyId: 'recent' }),
+    ])
+    queryClient.setQueryData(['chat', 'session', 'older'],
+      makeSession({ key: 'older', friendlyId: 'older', label: 'Older title' }),
+    )
+    const message = makeSession().lastMessage!
+
+    updateSessionLastMessage(queryClient, 'older', 'older', message)
+
+    const sessions = queryClient.getQueryData(['chat', 'sessions']) as Array<SessionMeta>
+    expect(sessions[0]).toMatchObject({
+      key: 'older',
+      friendlyId: 'older',
+      label: 'Older title',
+      lastMessage: message,
+    })
+  })
+})

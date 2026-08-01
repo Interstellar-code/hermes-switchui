@@ -38,6 +38,7 @@ const SectionTelemetry = lazy(() => import('./sections/section-telemetry'))
 const SectionApiKeys = lazy(() => import('./sections/section-api-keys'))
 const SectionNetwork = lazy(() => import('./sections/section-network'))
 const SectionPerformance = lazy(() => import('./sections/section-performance'))
+const SectionUpdates = lazy(() => import('./sections/section-updates'))
 const SectionShortcuts = lazy(() => import('./sections/section-shortcuts'))
 const SectionAdvanced = lazy(() => import('./sections/section-advanced'))
 const SectionRawConfig = lazy(() => import('./sections/section-raw-config'))
@@ -64,6 +65,7 @@ const SECTION_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   'api-keys': SectionApiKeys,
   network: SectionNetwork,
   performance: SectionPerformance,
+  updates: SectionUpdates,
   shortcuts: SectionShortcuts,
   advanced: SectionAdvanced,
   'raw-config': SectionRawConfig,
@@ -107,6 +109,7 @@ const SECTIONS: Array<SectionDef> = [
   { id: 'api-keys', label: 'API Keys', group: 'System', p: 2 },
   { id: 'network', label: 'Network', group: 'System', p: 6 },
   { id: 'performance', label: 'Performance', group: 'System', p: 6 },
+  { id: 'updates', label: 'Updates', group: 'System', p: 1 },
   // Other
   { id: 'shortcuts', label: 'Shortcuts', group: 'Shortcuts', p: 6 },
   { id: 'advanced', label: 'Advanced', group: 'Advanced', p: 7 },

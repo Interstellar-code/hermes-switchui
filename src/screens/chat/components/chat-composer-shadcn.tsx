@@ -67,7 +67,10 @@ import type {
 } from './chat-composer-types'
 import type { ToolDisplayMode } from './message-item'
 import type { Ref } from 'react'
-import type { MessageQueueActivity, QueuedChatMessage } from '@/stores/chat-store'
+import type {
+  MessageQueueActivity,
+  QueuedChatMessage,
+} from '@/stores/chat-store'
 import type {
   SlashCommandDefinition,
   SlashCommandMenuHandle,
@@ -86,7 +89,10 @@ import {
   SlashCommandMenu,
   SlashCommandPicker,
 } from '@/components/slash-command-menu'
-import { normalizeMessageQueueSessionKey, useChatStore } from '@/stores/chat-store'
+import {
+  normalizeMessageQueueSessionKey,
+  useChatStore,
+} from '@/stores/chat-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { useVoiceRecorder } from '@/hooks/use-voice-recorder'
@@ -189,7 +195,10 @@ async function buildAttachment(
   return {
     id: crypto.randomUUID(),
     name: file.name || (isImage ? 'pasted-image' : 'pasted-file'),
-    contentType: file.type || 'application/octet-stream',
+    contentType:
+      /^data:([^;,]+)/i.exec(dataUrl)?.[1] ||
+      file.type ||
+      'application/octet-stream',
     size: file.size,
     dataUrl,
     previewUrl: isImage ? dataUrl : undefined,
@@ -403,9 +412,7 @@ function ChatComposerShadcn({
       const built = await Promise.all(
         files.map((f) => buildAttachment(f, onOversize)),
       )
-      const valid = built.filter(
-        (a): a is ChatComposerAttachment => a !== null,
-      )
+      const valid = built.filter((a): a is ChatComposerAttachment => a !== null)
       if (valid.length === 0) return
       setAttachments((prev) => [...prev, ...valid])
       focusPrompt()
@@ -496,8 +503,7 @@ function ChatComposerShadcn({
     }, []),
   })
   const voiceRecorder = useVoiceRecorder({
-    onRecorded: React.useCallback(
-      (blob: Blob, _durationMs: number) => {
+    onRecorded: React.useCallback((blob: Blob, _durationMs: number) => {
       const ext = blob.type.includes('webm') ? 'webm' : 'mp4'
       const file = new File([blob], `voice-note-${Date.now()}.${ext}`, {
         type: blob.type || 'audio/webm',
@@ -516,9 +522,7 @@ function ChatComposerShadcn({
           },
         ])
       })
-      },
-      [],
-    ),
+    }, []),
   })
   const voiceSupported = voiceInput.isSupported || voiceRecorder.isSupported
   const toggleVoice = () => {
@@ -939,8 +943,7 @@ function ChatComposerShadcn({
                       onClick={toggleVoice}
                       aria-label="Voice input"
                       className={cn(
-                          (voiceInput.isListening ||
-                            voiceRecorder.isRecording) &&
+                        (voiceInput.isListening || voiceRecorder.isRecording) &&
                           'text-destructive',
                       )}
                     >
@@ -971,9 +974,7 @@ function ChatComposerShadcn({
                     aria-pressed={fastMode}
                     className={cn(fastMode && 'text-primary')}
                   >
-                      <Zap
-                        className={cn('size-4', fastMode && 'fill-current')}
-                      />
+                    <Zap className={cn('size-4', fastMode && 'fill-current')} />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -1118,9 +1119,7 @@ function ChatComposerShadcn({
                         className="rounded-full"
                       >
                         <ListPlus className="size-4" />
-                          <span className="hidden sm:inline">
-                            Add to queue
-                          </span>
+                        <span className="hidden sm:inline">Add to queue</span>
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>Add to queue</TooltipContent>

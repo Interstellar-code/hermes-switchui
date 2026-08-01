@@ -14,13 +14,13 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
-import { chatQueryKeys, fetchSessions } from './chat-queries'
+import { chatQueryKeys, fetchSessions, searchSessions } from './chat-queries'
 import { filterSessionsWithTombstones } from './session-tombstones'
 import { matchesSessionSearch } from './session-search'
+import type { SessionMeta } from './types'
 import type { QueryClient } from '@tanstack/react-query'
 import type { ClaudeJob } from '@/lib/jobs-api'
 import type {
-  SessionBadge,
   SessionDayBucket,
   SessionFeedItem,
   SessionFeedSort,
@@ -250,8 +250,8 @@ export function useChatSessionsFeed(): SessionSourceResult {
   const sessionsQuery = useQuery({
     queryKey: chatQueryKeys.sessions,
     queryFn: fetchSessions,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 60_000,
+    refetchInterval: 120_000,
   })
 
   // Cron-job enrichment is a separate lightweight fetch: only runs when cron
@@ -276,74 +276,10 @@ export function useChatSessionsFeed(): SessionSourceResult {
 
   const jobs = jobsQuery.data ?? []
 
-  const items = useMemo(() => {
-    const sessions = filterSessionsWithTombstones(rawSessions)
-    const nowMs = Date.now()
-    return sessions.map((s): SessionFeedItem => {
-      const when = s.updatedAt ?? 0
-      const cronParts = parseCronSessionKey(s.key)
-      const cronJob = cronParts ? findJobById(jobs, cronParts.jobId) : null
-      const fallbackTitle = s.title ?? s.derivedTitle ?? s.label ?? s.key
-      const fallbackSub = s.preview ?? null
-      const rawTitle = cronParts
-        ? formatCronRunTitle(cronJob, cronParts)
-        : fallbackTitle
-      const rawSub = cronParts
-        ? getCronSessionSub(cronJob, fallbackSub)
-        : fallbackSub
-      const badges: Array<SessionBadge> = []
-      // Detect session origin by key prefix:
-      //   cron_{jobId}_{YYYYMMDD_HHMMSS} — scheduled cron run (scheduler.py:1003)
-      //   api-{hex}                       — programmatic API caller (CLI, MCP, scripts)
-      //   YYYYMMDD_HHMMSS_*               — manual UI-created chat
-      const titleLower = (s.title ?? s.derivedTitle ?? '').toLowerCase()
-      const previewLower = (s.preview ?? '').toLowerCase()
-      const isTaskTriggered =
-        titleLower.startsWith('work kanban task ') ||
-        previewLower.startsWith('work kanban task ')
-      // Prefer the authoritative gateway `source` field; fall back to key-prefix
-      // heuristics for rows that predate source tagging.
-      const kind = classifySessionSource(
-        s.source,
-        s.key,
-        isTaskTriggered,
-        s.kind,
-      )
-      const live =
-        Boolean(s.isActive) ||
-        waitingSessionKeys.has(s.key) ||
-        waitingSessionKeys.has(s.friendlyId)
-      return {
-        id: makeId('chat', s.key),
-        src: kind,
-        title: rawTitle,
-        sub: rawSub,
-        tokens: s.tokenCount ?? s.totalTokens ?? null,
-        when,
-        day: getDayBucket(when, nowMs),
-        live,
-        state: live ? 'live' : 'idle',
-        badges,
-        pinned: false,
-        starred: false,
-        archived: false,
-        sourceMeta: {
-          key: s.key,
-          friendlyId: s.friendlyId,
-          titleStatus: s.titleStatus,
-          lastMessage: s.lastMessage,
-          kind,
-          messageCount: s.messageCount,
-          toolCallCount: s.toolCallCount,
-          model: s.model,
-          cronJobId: cronParts?.jobId,
-          cronJobName: cronJob?.name,
-          originalTitle: fallbackTitle,
-          originalPreview: fallbackSub,
-        },
-      }
-    })
-  }, [rawSessions, jobs, waitingSessionKeys])
+  const items = useMemo(
+    () => sessionsToFeedItems(rawSessions, jobs, waitingSessionKeys),
+    [rawSessions, jobs, waitingSessionKeys],
+  )
 
   const queryHasData = items.length > 0 || sessionsQuery.isSuccess
   const effectiveAvailable = available || queryHasData
@@ -357,6 +293,76 @@ export function useChatSessionsFeed(): SessionSourceResult {
         error: sessionsQuery.error,
       }
     : { src: 'chat', items: [], available: false, loading: false, error: null }
+}
+
+function sessionsToFeedItems(
+  rawSessions: Array<SessionMeta>,
+  jobs: Array<ClaudeJob>,
+  waitingSessionKeys: Set<string>,
+): Array<SessionFeedItem> {
+  const sessions = filterSessionsWithTombstones(rawSessions)
+  const nowMs = Date.now()
+  return sessions.map((s): SessionFeedItem => {
+    const when = s.updatedAt ?? 0
+    const cronParts = parseCronSessionKey(s.key)
+    const cronJob = cronParts ? findJobById(jobs, cronParts.jobId) : null
+    const fallbackTitle = s.title ?? s.derivedTitle ?? s.label ?? s.key
+    const fallbackSub = s.preview ?? null
+    const rawTitle = cronParts
+      ? formatCronRunTitle(cronJob, cronParts)
+      : fallbackTitle
+    const rawSub = cronParts
+      ? getCronSessionSub(cronJob, fallbackSub)
+      : fallbackSub
+    const titleLower = (s.title ?? s.derivedTitle ?? '').toLowerCase()
+    const previewLower = (s.preview ?? '').toLowerCase()
+    const isTaskTriggered =
+      titleLower.startsWith('work kanban task ') ||
+      previewLower.startsWith('work kanban task ')
+    const kind = classifySessionSource(s.source, s.key, isTaskTriggered, s.kind)
+    const live =
+      Boolean(s.isActive) ||
+      waitingSessionKeys.has(s.key) ||
+      waitingSessionKeys.has(s.friendlyId)
+    return {
+      id: makeId('chat', s.key),
+      src: kind,
+      title: rawTitle,
+      sub: rawSub,
+      tokens: s.tokenCount ?? s.totalTokens ?? null,
+      when,
+      day: getDayBucket(when, nowMs),
+      live,
+      state: live ? 'live' : 'idle',
+      badges: [],
+      pinned: false,
+      starred: false,
+      archived: false,
+      sourceMeta: {
+        key: s.key,
+        friendlyId: s.friendlyId,
+        titleStatus: s.titleStatus,
+        lastMessage: s.lastMessage,
+        kind,
+        model: s.model,
+        messageCount: s.messageCount,
+        toolCallCount: s.toolCallCount,
+        cronJobId: cronParts?.jobId,
+        cronJobName: cronJob?.name,
+        originalTitle: fallbackTitle,
+        originalPreview: fallbackSub,
+      },
+    }
+  })
+}
+
+export function mergeSessionFeedItems(
+  current: Array<SessionFeedItem>,
+  incoming: Array<SessionFeedItem>,
+): Array<SessionFeedItem> {
+  const byId = new Map(current.map((item) => [item.id, item]))
+  for (const item of incoming) byId.set(item.id, item)
+  return [...byId.values()]
 }
 
 // ── Tool / Telegram source hooks — permanently unavailable ───────────────────
@@ -467,10 +473,22 @@ export function useSessionsFeed(
     dateRange,
     sort = 'recent',
   } = options
+  const waitingSessionKeys = useChatStore((s) => s.waitingSessionKeys)
 
   const chat = useChatSessionsFeed()
   const tool = useToolSessionsFeed()
   const tg = useTelegramSessionsFeed()
+  const remoteSearchQuery = useQuery({
+    queryKey: ['sessions-feed', 'search', query.trim()],
+    queryFn: () => searchSessions(query.trim()),
+    enabled: query.trim().length >= 2,
+    staleTime: 60_000,
+  })
+  const remoteSearchItems = useMemo(
+    () =>
+      sessionsToFeedItems(remoteSearchQuery.data ?? [], [], waitingSessionKeys),
+    [remoteSearchQuery.data, waitingSessionKeys],
+  )
   // cron/task/memory removed from sidebar:
   //   - cron-generated chat sessions appear directly in chat source.
   //   - tasks moved to a dedicated chat-header tab (see chat-source-tabs-v2).
@@ -498,6 +516,10 @@ export function useSessionsFeed(
       if (!sourceResult.available) continue
       const rebased = sourceResult.items.map(rebase)
       merged.push(...rebased)
+    }
+
+    if (remoteSearchItems.length > 0) {
+      merged = mergeSessionFeedItems(merged, remoteSearchItems)
     }
 
     if (raw) {
@@ -552,6 +574,7 @@ export function useSessionsFeed(
     chat.loading,
     tool.available,
     tg.available,
+    remoteSearchItems,
     raw,
     requestedSources,
     stateFilter,

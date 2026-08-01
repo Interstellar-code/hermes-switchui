@@ -3,6 +3,29 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.26] — 2026-08-01
+
+### Added
+
+- **Update Center** — review SwitchUI and Hermes Agent updates from Settings or the in-app update prompt, inspect version and blocking-file details, and confirm before applying.
+- **Desktop update controls** — Electron builds can download an update and install it on restart from inside the app.
+- **Searchable older chat sessions** — sidebar search reaches sessions outside the initial recent page without loading the full collection.
+
+### Changed
+
+- **Faster chat navigation at scale.** Chat initially loads the 200 most recent sessions, fetches older deep-linked sessions directly, and updates active sidebar rows without reloading every session.
+- Session refreshes are less frequent, idle navigation avoids a redundant history request, and live-tool recovery reads only the newest 100 messages.
+- Update checks use verified fast-forward targets; Hermes Agent updates use its strict updater path so dependency refresh and restart behavior are preserved.
+- Copied file paths now use the real workspace root instead of a generic `workspace/` prefix.
+
+### Fixed
+
+- Session navigation shows immediate accessible **Opening…** feedback while the target chat loads.
+- Image attachments preserve their MIME type through the send path.
+- Delegation views show a child agent's final response even when it recorded no tool activity.
+- Update prompts no longer interrupt users with native Electron dialogs, and local development check-only states no longer create non-actionable global prompts.
+- The application CSP permits supported `data:` connection flows.
+
 ## [2.5.25] — 2026-07-24
 
 ### Added

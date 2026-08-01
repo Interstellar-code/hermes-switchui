@@ -7,7 +7,7 @@
  * Layout: [rail 3px] | [body: title / src·sub / badges] | [right: time / tokens]
  */
 
-import { memo, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { SidebarCardContextMenuV2 } from './sidebar-card-context-menu-v2'
 import type { ContextMenuPosition } from './sidebar-card-context-menu-v2'
@@ -120,7 +120,12 @@ function SidebarCardV2Impl({ item, isActive }: SidebarCardV2Props) {
   const isClickable = isChatItem
 
   const [hovered, setHovered] = useState(false)
+  const [opening, setOpening] = useState(false)
   const [ctxMenu, setCtxMenu] = useState<ContextMenuPosition | null>(null)
+
+  useEffect(() => {
+    if (isActive) setOpening(false)
+  }, [isActive])
 
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault()
@@ -204,7 +209,7 @@ function SidebarCardV2Impl({ item, isActive }: SidebarCardV2Props) {
               textShadow: isActive ? `0 0 6px ${railColor}55` : 'none',
             }}
           >
-            {item.title}
+            {opening ? 'Opening…' : item.title}
           </span>
         </div>
 
@@ -352,6 +357,10 @@ function SidebarCardV2Impl({ item, isActive }: SidebarCardV2Props) {
           to="/chat/$sessionKey"
           params={{ sessionKey: rawId }}
           preload="intent"
+          onClick={() => {
+            if (!isActive) setOpening(true)
+          }}
+          aria-busy={opening || undefined}
           style={{ display: 'block', textDecoration: 'none' }}
         >
           {cardContent}

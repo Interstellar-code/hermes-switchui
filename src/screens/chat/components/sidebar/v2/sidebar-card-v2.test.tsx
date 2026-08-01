@@ -1,11 +1,19 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarCardV2 } from './sidebar-card-v2'
 import type { SessionFeedItem } from '@/screens/chat/sessions-feed-types'
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  Link: ({
+    children,
+    onClick,
+    'aria-busy': ariaBusy,
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a href="#" onClick={onClick} aria-busy={ariaBusy}>
+      {children}
+    </a>
+  ),
 }))
 
 vi.mock('./sidebar-card-context-menu-v2', () => ({
@@ -67,5 +75,24 @@ describe('SidebarCardV2 attention markers', () => {
     )
 
     expect(screen.queryByTestId('session-updated-chat:session-1')).toBeNull()
+  })
+
+  it('shows immediate feedback while opening a session', () => {
+    render(<SidebarCardV2 item={makeItem()} />)
+
+    fireEvent.click(screen.getByText('Session'))
+
+    expect(screen.getByText('Opening…')).toBeTruthy()
+    expect(screen.getByRole('link').getAttribute('aria-busy')).toBe('true')
+  })
+
+
+  it('does not show opening feedback for the already active session', () => {
+    render(<SidebarCardV2 item={makeItem()} isActive />)
+
+    fireEvent.click(screen.getByText('Session'))
+
+    expect(screen.queryByText('Opening…')).toBeNull()
+    expect(screen.getByRole('link').getAttribute('aria-busy')).toBeNull()
   })
 })

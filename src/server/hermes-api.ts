@@ -90,13 +90,6 @@ export type SessionMessagesQuery = {
   offset?: number
 }
 
-function hasPaginationQuery(query: SessionMessagesQuery): boolean {
-  return (
-    typeof query.limit === 'number' ||
-    typeof query.offset === 'number'
-  )
-}
-
 // ── Helpers ───────────────────────────────────────────────────────
 
 // Hard cap on how long any non-streaming gateway/dashboard request may hang.
@@ -147,7 +140,11 @@ async function claudePost<T>(
   try {
     res = await fetch(`${CLAUDE_API}${path}`, {
       method: 'POST',
-      headers: { ..._authHeaders(), 'Content-Type': 'application/json', ...extraHeaders },
+      headers: {
+        ..._authHeaders(),
+        'Content-Type': 'application/json',
+        ...extraHeaders,
+      },
       body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(GATEWAY_REQUEST_TIMEOUT_MS),
     })
@@ -204,7 +201,10 @@ async function claudeDeleteReq(path: string): Promise<void> {
 // On SSR (Node), falls back to direct dashboardFetch so the server-to-server
 // call goes straight to port 9119 without an HTTP round-trip through itself.
 
-function _dashboardProxyFetch(path: string, init?: RequestInit): Promise<Response> {
+function _dashboardProxyFetch(
+  path: string,
+  init?: RequestInit,
+): Promise<Response> {
   if (typeof window !== 'undefined') {
     // Browser: call same-origin proxy, no CORS issue
     const proxyPath = `/api/dashboard-proxy${path.startsWith('/') ? path : `/${path}`}`
@@ -230,7 +230,11 @@ async function dashboardGet<T>(path: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
-async function dashboardSend<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function dashboardSend<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<T> {
   let res: Response
   try {
     res = await _dashboardProxyFetch(path, {
@@ -244,7 +248,9 @@ async function dashboardSend<T>(method: string, path: string, body?: unknown): P
   }
   if (!res.ok) {
     const text = (await res.text().catch(() => '')).slice(0, ERROR_BODY_CAP)
-    throw new Error(`Hermes Dashboard API ${method} ${path}: ${res.status} ${text}`)
+    throw new Error(
+      `Hermes Dashboard API ${method} ${path}: ${res.status} ${text}`,
+    )
   }
   return res.json() as Promise<T>
 }
@@ -261,7 +267,9 @@ async function dashboardDelete(path: string): Promise<void> {
   }
   if (!res.ok) {
     const text = (await res.text().catch(() => '')).slice(0, ERROR_BODY_CAP)
-    throw new Error(`Hermes Dashboard API DELETE ${path}: ${res.status} ${text}`)
+    throw new Error(
+      `Hermes Dashboard API DELETE ${path}: ${res.status} ${text}`,
+    )
   }
 }
 
@@ -352,7 +360,7 @@ export async function getMessages(
   sessionId: string,
   query: SessionMessagesQuery = {},
 ): Promise<Array<ClaudeMessage>> {
-  if (getCapabilities().dashboard.available && !hasPaginationQuery(query)) {
+  if (getCapabilities().dashboard.available) {
     const resp = await getDashboardSessionMessages(sessionId, query)
     return resp.messages as Array<ClaudeMessage>
   }
@@ -368,9 +376,7 @@ export async function getMessages(
     items?: Array<ClaudeMessage>
     data?: Array<ClaudeMessage>
     total?: number
-  }>(
-    `/api/sessions/${sessionId}/messages${suffix}`,
-  )
+  }>(`/api/sessions/${sessionId}/messages${suffix}`)
   return resp.items ?? resp.data ?? []
 }
 
@@ -437,7 +443,11 @@ export function toChatMessage(
         phase: 'complete',
       })
       let parsedArgs: Record<string, unknown> | undefined
-      if (toolArgs && typeof toolArgs === 'object' && !Array.isArray(toolArgs)) {
+      if (
+        toolArgs &&
+        typeof toolArgs === 'object' &&
+        !Array.isArray(toolArgs)
+      ) {
         parsedArgs = toolArgs as Record<string, unknown>
       } else if (typeof toolArgs === 'string' && toolArgs.trim()) {
         try {
@@ -560,7 +570,12 @@ type StreamChatOptions = {
 export async function streamChat(
   sessionId: string,
   body: {
-    message: string
+    message:
+      | string
+      | Array<
+          | { type: 'text'; text: string }
+          | { type: 'image_url'; image_url: { url: string } }
+        >
     model?: string
     system_message?: string
     attachments?: Array<Record<string, unknown>>
@@ -606,13 +621,12 @@ export async function streamChat(
       const os = await import('node:os')
       const dir = path.join(os.tmpdir(), 'hermes-tool-debug')
       fs.mkdirSync(dir, { recursive: true })
-      const file = path.join(
-        dir,
-        `sse-${sessionId}-${Date.now()}.log`,
-      )
+      const file = path.join(dir, `sse-${sessionId}-${Date.now()}.log`)
       toolDebugStream = fs.createWriteStream(file, { flags: 'a' })
       console.log(`[hermes-api][tool-debug] writing SSE dump to ${file}`)
-      toolDebugStream.write(`# session=${sessionId} ts=${new Date().toISOString()}\n`)
+      toolDebugStream.write(
+        `# session=${sessionId} ts=${new Date().toISOString()}\n`,
+      )
     } catch (err) {
       console.warn('[hermes-api][tool-debug] failed to open dump file:', err)
     }
@@ -640,7 +654,9 @@ export async function streamChat(
           if (toolDebugStream) {
             // Truncate very long payloads so the dump stays human-readable.
             const trimmed =
-              dataStr.length > 4000 ? dataStr.slice(0, 4000) + '...[trunc]' : dataStr
+              dataStr.length > 4000
+                ? dataStr.slice(0, 4000) + '...[trunc]'
+                : dataStr
             toolDebugStream.write(`data: ${trimmed}\n\n`)
           }
           try {
@@ -705,7 +721,10 @@ export async function getSkillCategories(): Promise<unknown> {
   return dashboardGet('/api/skills/categories')
 }
 
-export async function toggleSkill(name: string, enabled: boolean): Promise<unknown> {
+export async function toggleSkill(
+  name: string,
+  enabled: boolean,
+): Promise<unknown> {
   return dashboardSend('POST', '/api/skills/toggle', { name, enabled })
 }
 
@@ -728,23 +747,41 @@ export async function installAgentPlugin(body: {
 }
 
 export async function enableAgentPlugin(name: string): Promise<unknown> {
-  return dashboardSend('POST', `/api/dashboard/agent-plugins/${encodeURIComponent(name)}/enable`)
+  return dashboardSend(
+    'POST',
+    `/api/dashboard/agent-plugins/${encodeURIComponent(name)}/enable`,
+  )
 }
 
 export async function disableAgentPlugin(name: string): Promise<unknown> {
-  return dashboardSend('POST', `/api/dashboard/agent-plugins/${encodeURIComponent(name)}/disable`)
+  return dashboardSend(
+    'POST',
+    `/api/dashboard/agent-plugins/${encodeURIComponent(name)}/disable`,
+  )
 }
 
 export async function updateAgentPlugin(name: string): Promise<unknown> {
-  return dashboardSend('POST', `/api/dashboard/agent-plugins/${encodeURIComponent(name)}/update`)
+  return dashboardSend(
+    'POST',
+    `/api/dashboard/agent-plugins/${encodeURIComponent(name)}/update`,
+  )
 }
 
 export async function deleteAgentPlugin(name: string): Promise<void> {
-  return dashboardDelete(`/api/dashboard/agent-plugins/${encodeURIComponent(name)}`)
+  return dashboardDelete(
+    `/api/dashboard/agent-plugins/${encodeURIComponent(name)}`,
+  )
 }
 
-export async function setPluginVisibility(name: string, hidden: boolean): Promise<unknown> {
-  return dashboardSend('POST', `/api/dashboard/plugins/${encodeURIComponent(name)}/visibility`, { hidden })
+export async function setPluginVisibility(
+  name: string,
+  hidden: boolean,
+): Promise<unknown> {
+  return dashboardSend(
+    'POST',
+    `/api/dashboard/plugins/${encodeURIComponent(name)}/visibility`,
+    { hidden },
+  )
 }
 
 // ── Config ───────────────────────────────────────────────────────
@@ -758,9 +795,7 @@ export async function getConfig(): Promise<ClaudeConfig> {
 // round-trip. The cache is invalidated whenever patchConfig writes.
 let configCache: { value: ClaudeConfig; expiresAt: number } | null = null
 
-export async function getConfigCached(
-  ttlMs = 30_000,
-): Promise<ClaudeConfig> {
+export async function getConfigCached(ttlMs = 30_000): Promise<ClaudeConfig> {
   const now = Date.now()
   if (configCache && configCache.expiresAt > now) {
     return configCache.value
@@ -809,7 +844,12 @@ export type ModelOptions = {
 }
 
 export type ModelAuxiliary = {
-  tasks: Array<{ task: string; provider: string; model: string; base_url?: string }>
+  tasks: Array<{
+    task: string
+    provider: string
+    model: string
+    base_url?: string
+  }>
   main: { provider: string; model: string }
   [key: string]: unknown
 }
@@ -932,11 +972,15 @@ export async function deleteEnv(key: string): Promise<void> {
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(`Hermes Dashboard API DELETE /api/env: ${res.status} ${text}`)
+    throw new Error(
+      `Hermes Dashboard API DELETE /api/env: ${res.status} ${text}`,
+    )
   }
 }
 
-export async function revealEnv(key: string): Promise<{ key: string; value: string }> {
+export async function revealEnv(
+  key: string,
+): Promise<{ key: string; value: string }> {
   const res = await _dashboardProxyFetch('/api/env/reveal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -947,7 +991,9 @@ export async function revealEnv(key: string): Promise<{ key: string; value: stri
   }
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(`Hermes Dashboard API POST /api/env/reveal: ${res.status} ${text}`)
+    throw new Error(
+      `Hermes Dashboard API POST /api/env/reveal: ${res.status} ${text}`,
+    )
   }
   return res.json() as Promise<{ key: string; value: string }>
 }
@@ -964,7 +1010,9 @@ export type OAuthProvider = {
 }
 
 export async function listOAuthProviders(): Promise<Array<OAuthProvider>> {
-  const res = await dashboardGet<{ providers?: Array<OAuthProvider> } | Array<OAuthProvider>>('/api/providers/oauth')
+  const res = await dashboardGet<
+    { providers?: Array<OAuthProvider> } | Array<OAuthProvider>
+  >('/api/providers/oauth')
   if (Array.isArray(res)) return res
   return res.providers ?? []
 }

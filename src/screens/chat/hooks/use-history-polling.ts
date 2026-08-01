@@ -11,10 +11,10 @@ import type { RefObject } from 'react'
  *     becomes visible and we are still waiting for a response, one refetch
  *     may not be enough, so we keep polling every 3 s up to 20 times (60 s
  *     cap) until `waitingForResponse` clears.
- *  3. Re-mount catch-up — navigating back to chat re-mounts the component;
- *     if a response finished while away, the initial refetch may hit stale
- *     data, so we schedule a 2 s delayed refetch and (if still waiting) the
- *     same bounded poll loop.
+ *  3. Re-mount recovery — navigating back to chat re-mounts the component;
+ *     if a response is still pending, we schedule a 2 s delayed refetch and
+ *     the same bounded poll loop. Idle mounts rely on useChatHistory's mount
+ *     refetch instead of requesting the full transcript again.
  *
  * Extracted verbatim from `chat-screen.tsx` (pure move, no behavior change).
  *
@@ -84,20 +84,22 @@ export function useHistoryPolling(params: {
     }
   }, [refetchHistory, waitingForResponseRef]) // waitingForResponseRef is a stable ref — no dep needed
 
-  // Re-mount catch-up: when navigating back to chat from another tab (Skills,
-  // Memory, etc.), the component re-mounts. If a response finished while we
-  // were away, the initial refetch may hit stale data.  When still waiting,
-  // run the same bounded poll loop so we keep retrying until the answer lands.
+  // Re-mount recovery: when navigating back to chat from another tab (Skills,
+  // Memory, etc.) while a response is pending, retry until the answer lands.
+  // useChatHistory already refetches on every mount, so idle sessions do not
+  // need another delayed full-transcript request.
   // See: https://github.com/outsourc-e/hermes-workspace/issues/43, #208
   useEffect(() => {
-    // Always schedule the original 2 s delayed refetch.
+    if (!waitingForResponseRef.current) return
+
+    // Preserve the delayed recovery fetch for an in-flight response.
     const timer = window.setTimeout(() => {
       refetchHistory()
     }, 2000)
 
-    // If waiting, also start the bounded poll loop (guard against overlap with
-    // the visibilitychange loop via the shared returnPollActiveRef).
-    if (waitingForResponseRef.current && !returnPollActiveRef.current) {
+    // Start the bounded poll loop (guard against overlap with the
+    // visibilitychange loop via the shared returnPollActiveRef).
+    if (!returnPollActiveRef.current) {
       returnPollActiveRef.current = true
       let attempt = 0
       const POLL_INTERVAL_MS = 3_000

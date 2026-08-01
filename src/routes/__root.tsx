@@ -42,7 +42,7 @@ const APP_CSP = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://static.userback.io https://*.userback.io",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://fonts.gstatic.com https://static.userback.io https://*.userback.io",
-  "connect-src 'self' ws: wss: http: https:",
+  "connect-src 'self' data: ws: wss: http: https:",
   "child-src 'self' blob:",
   "worker-src 'self' blob:",
   "media-src 'self' blob: data:",

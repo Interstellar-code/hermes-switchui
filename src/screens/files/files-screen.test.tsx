@@ -175,7 +175,7 @@ describe('FilesScreen', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: /copy path/i }))
 
     await waitFor(() =>
-      expect(writeTextToClipboard).toHaveBeenCalledWith('workspace/src'),
+      expect(writeTextToClipboard).toHaveBeenCalledWith('/workspace/src'),
     )
   })
 })

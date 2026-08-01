@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useDelegationMessages, useDelegations } from '../../hooks/use-delegations'
 import { ToolTabView } from './chat-tab-views-v2'
 import type { Delegation, DelegationStatus } from '../../../../server/delegations'
+import type { ChatMessage } from '../../types'
 import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
 
 type DelegationSidebarOverlayProps = {
@@ -61,6 +62,32 @@ function statusPresentation(status: DelegationStatus): {
   }
 }
 
+function hasToolActivity(messages: Array<ChatMessage>): boolean {
+  return messages.some((message) =>
+    message.role === 'tool' ||
+    message.content?.some(
+      (content) =>
+        content.type === 'toolCall' || content.type === 'toolResult',
+    ) ||
+    (Array.isArray(message.streamToolCalls) && message.streamToolCalls.length > 0) ||
+    (Array.isArray(message.__streamToolCalls) && message.__streamToolCalls.length > 0),
+  )
+}
+
+function getLastAssistantResponse(messages: Array<ChatMessage>): string {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message.role !== 'assistant') continue
+    const text = message.content
+      ?.filter((content) => content.type === 'text')
+      .map((content) => content.text ?? '')
+      .join('')
+      .trim() || message.text?.trim()
+    if (text) return text
+  }
+  return ''
+}
+
 function DelegationCard({
   delegation,
   open,
@@ -73,6 +100,8 @@ function DelegationCard({
   const status = statusPresentation(delegation.status)
   const isRunning = delegation.status === 'running'
   const detail = useDelegationMessages(open ? delegation.childSessionId : null)
+  const hasActivity = hasToolActivity(detail.messages)
+  const finalResponse = getLastAssistantResponse(detail.messages)
   const totalTokens = delegation.inputTokens + delegation.outputTokens
   const assignedAgent = delegation.agentId ? BUILTIN_AGENT_BY_ID.get(delegation.agentId) : undefined
   const agentGlyph = assignedAgent?.glyph ?? delegation.agentId?.slice(0, 3).toUpperCase() ?? 'SUB'
@@ -153,7 +182,18 @@ function DelegationCard({
           {detail.isLoading ? <p className="p-2 opacity-40">Loading activity…</p> : null}
           {detail.error ? <p className="p-2" style={{ color: 'var(--theme-danger, #ef4444)' }}>{detail.error}</p> : null}
           {!detail.isLoading && !detail.error && detail.messages.length === 0 ? <p className="p-2 opacity-40">No activity recorded.</p> : null}
-          {!detail.isLoading && !detail.error && detail.messages.length > 0 ? <ToolTabView messages={detail.messages} /> : null}
+          {!detail.isLoading && !detail.error && detail.messages.length > 0 && !hasActivity ? (
+            <div className="space-y-2 p-2">
+              <p className="opacity-40">No tool activity recorded.</p>
+              {finalResponse ? (
+                <div className="rounded border p-2" style={cardStyle}>
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide opacity-50">Agent response</p>
+                  <p className="whitespace-pre-wrap text-foreground">{finalResponse}</p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {!detail.isLoading && !detail.error && hasActivity ? <ToolTabView messages={detail.messages} /> : null}
         </div>
       ) : null}
     </div>

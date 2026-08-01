@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, shell } = require('electron')
 const { join } = require('path')
 const { existsSync } = require('fs')
 const { spawn, execSync } = require('child_process')
@@ -62,7 +62,7 @@ function configureAutoUpdater() {
     updateState = { ...updateState, checking: true, error: null }
     broadcastUpdateState()
   })
-  autoUpdater.on('update-available', async (info) => {
+  autoUpdater.on('update-available', (info) => {
     updateState = {
       ...updateState,
       checking: false,
@@ -72,18 +72,6 @@ function configureAutoUpdater() {
       latestVersion: info?.version || null,
     }
     broadcastUpdateState()
-    const result = await dialog.showMessageBox({
-      type: 'info',
-      buttons: ['Download update', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
-      title: 'Update available',
-      message: `A new hermes-switchui version (${info?.version || 'latest'}) is available.`,
-      detail: 'Download and install it from inside the app?',
-    })
-    if (result.response === 0) {
-      await autoUpdater.downloadUpdate()
-    }
   })
   autoUpdater.on('update-not-available', () => {
     updateState = {
@@ -95,7 +83,7 @@ function configureAutoUpdater() {
     }
     broadcastUpdateState()
   })
-  autoUpdater.on('update-downloaded', async (info) => {
+  autoUpdater.on('update-downloaded', (info) => {
     updateState = {
       ...updateState,
       checking: false,
@@ -105,18 +93,6 @@ function configureAutoUpdater() {
       latestVersion: info?.version || null,
     }
     broadcastUpdateState()
-    const result = await dialog.showMessageBox({
-      type: 'info',
-      buttons: ['Install and restart', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
-      title: 'Update ready',
-      message: `hermes-switchui ${info?.version || ''} is ready to install.`,
-      detail: 'The app will restart to finish the update.',
-    })
-    if (result.response === 0) {
-      autoUpdater.quitAndInstall()
-    }
   })
   autoUpdater.on('error', (error) => {
     updateState = {
@@ -364,6 +340,30 @@ ipcMain.handle('desktop:open-logs', async () => {
 })
 ipcMain.handle('desktop:update-check', async () => checkForAppUpdates())
 ipcMain.handle('desktop:update-state', async () => updateState)
+ipcMain.handle('desktop:update-download', async () => {
+  if (!autoUpdater) {
+    return {
+      ok: false,
+      error: 'built-in updater unavailable in this build',
+    }
+  }
+  try {
+    await autoUpdater.downloadUpdate()
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, error: error?.message || String(error) }
+  }
+})
+ipcMain.handle('desktop:update-install', async () => {
+  if (!autoUpdater) {
+    return {
+      ok: false,
+      error: 'built-in updater unavailable in this build',
+    }
+  }
+  autoUpdater.quitAndInstall()
+  return { ok: true }
+})
 
 app.whenReady().then(async () => {
   configureAutoUpdater()

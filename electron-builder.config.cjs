@@ -48,7 +48,7 @@ module.exports = {
   },
   publish: {
     provider: 'github',
-    owner: 'outsourc-e',
+    owner: 'Interstellar-code',
     repo: 'hermes-switchui',
     releaseType: 'release',
   },

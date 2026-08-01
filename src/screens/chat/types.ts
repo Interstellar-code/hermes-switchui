@@ -118,6 +118,16 @@ export type SessionSummary = {
   preview?: string | null
   isActive?: boolean
   is_active?: boolean
+  tokenCount?: number
+  totalTokens?: number
+  messageCount?: number
+  message_count?: number
+  toolCallCount?: number
+  tool_call_count?: number
+  model?: string
+  status?: string
+  kind?: string
+  source?: string
 }
 
 export type SessionListResponse = {
