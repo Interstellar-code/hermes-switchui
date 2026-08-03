@@ -29,9 +29,11 @@ describe('tasks-api (Agent Kanban backend)', () => {
           columns: [
             { name: 'triage', tasks: [{ id: 't1', title: 'T1', status: 'triage', priority: 0, spawn_failures: 0 }] },
             { name: 'todo', tasks: [] },
+            { name: 'scheduled', tasks: [{ id: 't2', title: 'Scheduled', status: 'scheduled', priority: 0, spawn_failures: 0 }] },
             { name: 'ready', tasks: [] },
             { name: 'running', tasks: [] },
             { name: 'blocked', tasks: [] },
+            { name: 'review', tasks: [{ id: 't3', title: 'Review', status: 'review', priority: 0, spawn_failures: 0 }] },
             { name: 'done', tasks: [] },
           ],
           tenants: [],
@@ -45,6 +47,8 @@ describe('tasks-api (Agent Kanban backend)', () => {
     const calledUrl = mockFetch.mock.calls[0][0] as string
     expect(calledUrl).toContain('/api/hermes-kanban/board')
     expect(tasks.some((t) => t.id === 't1')).toBe(true)
+    expect(tasks.map((t) => t.status)).toContain('scheduled')
+    expect(tasks.map((t) => t.status)).toContain('review')
   })
 
   it('createTask posts to /api/hermes-kanban/tasks with Agent fields', async () => {

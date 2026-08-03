@@ -1,7 +1,7 @@
 /**
  * Canonical Agent Kanban types and helpers for SwitchUI.
  *
- * All persistence uses Agent statuses (triage/todo/ready/running/blocked/done/archived).
+ * All persistence uses the Hermes Agent Kanban lifecycle declared below.
  * UI labels may be friendlier but must not invent new persisted states.
  */
 
@@ -10,9 +10,11 @@
 export type HermesKanbanStatus =
   | 'triage'
   | 'todo'
+  | 'scheduled'
   | 'ready'
   | 'running'
   | 'blocked'
+  | 'review'
   | 'done'
   | 'archived'
 
@@ -20,7 +22,7 @@ export type HermesKanbanStatus =
 export const HERMES_KANBAN_VISIBLE_STATUS_ORDER: Array<Exclude<
   HermesKanbanStatus,
   'archived'
->> = ['triage', 'todo', 'ready', 'running', 'blocked', 'done']
+>> = ['triage', 'todo', 'scheduled', 'ready', 'running', 'blocked', 'review', 'done']
 
 /** Full set including archived — used for filters and migration. */
 export const HERMES_KANBAN_ALL_STATUSES: Array<HermesKanbanStatus> = [
@@ -31,9 +33,11 @@ export const HERMES_KANBAN_ALL_STATUSES: Array<HermesKanbanStatus> = [
 export const HERMES_KANBAN_STATUS_LABELS: Record<HermesKanbanStatus, string> = {
   triage: 'Backlog',
   todo: 'Todo',
+  scheduled: 'Scheduled',
   ready: 'Ready',
   running: 'Running',
   blocked: 'Blocked',
+  review: 'Review',
   done: 'Done',
   archived: 'Archived',
 }
@@ -305,7 +309,7 @@ export function mapLegacyColumnToKanbanStatus(
     case 'in_progress':
       return 'running'
     case 'review':
-      return 'triage' // review has no Agent status; safer default is triage
+      return 'review'
     case 'done':
       return 'done'
     default:

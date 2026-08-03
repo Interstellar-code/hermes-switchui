@@ -692,8 +692,10 @@ function TaskOverviewTab({ task, detail }: { task: HermesKanbanTask; detail: Her
             {status === 'triage' && 'Backlog — agent will not pick up automatically.'}
             {status === 'ready' && 'Dispatchable — agent can claim immediately.'}
             {status === 'todo' && 'Held — waiting on parent dependencies.'}
+            {status === 'scheduled' && 'Scheduled — waiting for its configured start.'}
             {status === 'blocked' && 'Blocked — enter a reason below.'}
             {status === 'running' && 'Running — agent is actively working this task.'}
+            {status === 'review' && 'Review — awaiting verification or approval.'}
             {status === 'done' && 'Done — task is complete.'}
           </p>
         </div>

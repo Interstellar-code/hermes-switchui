@@ -31,6 +31,8 @@ vi.mock('../../../server/projects-client', () => ({
   resolveSessionProject: vi.fn(),
   bindSessionProject: vi.fn(),
   unbindSessionProject: vi.fn(),
+  explicitProjectProfile: (request: Request) =>
+    new URL(request.url).searchParams.get('profile') || undefined,
   projectsErrorStatus: (error: unknown, fallback = 503) => {
     if (!(error instanceof Error)) return fallback
     const match = /^Projects API error (\d{3}):/.exec(error.message)
@@ -74,6 +76,17 @@ describe('GET /api/hermes-projects', () => {
     const body = await res.json()
     expect(body.active_id).toBe('p_1')
     expect(body.projects).toHaveLength(1)
+  })
+
+  it('forwards the selected profile', async () => {
+    mockListProjects.mockResolvedValue({ projects: [], active_id: null })
+    await indexHandlers.GET({
+      request: makeRequest(
+        'GET',
+        'http://localhost/api/hermes-projects?profile=selected-profile',
+      ),
+    })
+    expect(mockListProjects).toHaveBeenCalledWith(false, 'selected-profile')
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -125,6 +138,18 @@ describe('GET /api/hermes-projects/:id', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.project.slug).toBe('demo')
+  })
+
+  it('forwards the selected profile to detail reads', async () => {
+    mockGetProject.mockResolvedValue({ project: { id: 'p_1' } as never })
+    await detailHandlers.GET({
+      request: makeRequest(
+        'GET',
+        'http://localhost/api/hermes-projects/demo?profile=selected-profile',
+      ),
+      params: { id: 'demo' },
+    })
+    expect(mockGetProject).toHaveBeenCalledWith('demo', 'selected-profile')
   })
 
   it('returns 404 when not found', async () => {

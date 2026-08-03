@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
 import {
+  explicitProjectProfile,
   projectsErrorStatus,
   setPrimaryProjectFolder,
 } from '../../../server/projects-client'
@@ -24,7 +25,7 @@ export const Route = createFileRoute(
         }
         try {
           return Response.json(
-            await setPrimaryProjectFolder(params.id, body.path ?? ''),
+            await setPrimaryProjectFolder(params.id, body.path ?? '', explicitProjectProfile(request)),
           )
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Set primary failed'

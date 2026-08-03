@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   bindSessionProject,
+  createProject,
+  fetchProject,
+  fetchProjectActivity,
+  fetchProjectFolders,
+  fetchProjects,
   fetchSessionProject,
   invalidateProjectQueries,
   projectsKeys,
@@ -14,6 +19,39 @@ describe('Projects mutations', () => {
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: projectsKeys.all,
     })
+  })
+
+  it('routes reads and writes through the explicitly selected profile', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve({}) }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await fetchProjects(false, 'work profile')
+    await fetchProject('demo', 'work profile')
+    await fetchProjectFolders('demo', 'work profile')
+    await fetchProjectActivity('demo', undefined, 'work profile')
+    await createProject({ name: 'Demo' }, 'work profile')
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/hermes-projects?profile=work+profile',
+      '/api/hermes-projects/demo?profile=work%20profile',
+      '/api/hermes-projects/demo/folders?profile=work%20profile',
+      '/api/hermes-projects/demo/activity?profile=work%20profile',
+      '/api/hermes-projects?profile=work%20profile',
+    ])
+  })
+
+  it('separates profile-scoped query keys', () => {
+    expect(projectsKeys.detail('demo', 'alpha')).not.toEqual(
+      projectsKeys.detail('demo', 'beta'),
+    )
+    expect(projectsKeys.folders('demo', 'alpha')).not.toEqual(
+      projectsKeys.folders('demo', 'beta'),
+    )
+    expect(projectsKeys.activity('demo', 'alpha')).not.toEqual(
+      projectsKeys.activity('demo', 'beta'),
+    )
   })
 })
 

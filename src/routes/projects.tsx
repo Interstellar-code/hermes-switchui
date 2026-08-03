@@ -1,10 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { z } from 'zod'
 import { useIsFeatureAvailable } from '@/hooks/use-gateway-caps'
 import { BackendUnavailableState } from '@/components/backend-unavailable-state'
 import { ProjectsScreen } from '@/screens/projects/projects-screen'
 
 export const Route = createFileRoute('/projects')({
   ssr: false,
+  validateSearch: z.object({ profile: z.string().trim().min(1).optional() }),
   component: ProjectsRoute,
 })
 

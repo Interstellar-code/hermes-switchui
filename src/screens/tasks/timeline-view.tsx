@@ -42,7 +42,7 @@ function computeBar(task: ClaudeTask, now: number): BarLayout {
     return { left, width, label: `running ${pct}%`, live: true, ghost: false }
   }
 
-  if (status === 'todo' || status === 'ready') {
+  if (status === 'todo' || status === 'scheduled' || status === 'ready') {
     const left = 60 // ~+1h slot
     const width = 18 + hashJitter(task.id, 4) // 18-22%, stable per task id
     return { left, width, label: 'scheduled +1h', live: false, ghost: true }
@@ -50,6 +50,10 @@ function computeBar(task: ClaudeTask, now: number): BarLayout {
 
   if (status === 'blocked') {
     return { left: 50, width: 20, label: 'blocked', live: false, ghost: true }
+  }
+
+  if (status === 'review') {
+    return { left: 42, width: 18, label: 'in review', live: false, ghost: true }
   }
 
   // triage / backlog
@@ -60,9 +64,10 @@ function computeBar(task: ClaudeTask, now: number): BarLayout {
 
 function statusOrder(status: string): number {
   if (status === 'running') return 0
-  if (status === 'todo' || status === 'ready') return 1
+  if (status === 'todo' || status === 'scheduled' || status === 'ready') return 1
   if (status === 'triage') return 2
-  if (status === 'blocked') return 3
+  if (status === 'review') return 3
+  if (status === 'blocked') return 4
   return 4
 }
 

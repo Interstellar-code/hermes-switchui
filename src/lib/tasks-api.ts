@@ -228,9 +228,11 @@ export async function fetchStats(): Promise<KanbanStats> {
 export const COLUMN_COLORS: Record<HermesKanbanStatus, string> = {
   triage: '#6b7280',
   todo: '#3b82f6',
+  scheduled: '#06b6d4',
   ready: '#8b5cf6',
   running: '#f97316',
   blocked: '#ef4444',
+  review: '#eab308',
   done: '#22c55e',
   archived: '#94a3b8',
 }

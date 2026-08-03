@@ -1,7 +1,7 @@
 import type { ClaudeTask } from '@/lib/tasks-api'
 import { COLUMN_COLORS, COLUMN_LABELS } from '@/lib/tasks-api'
 
-const SWIM_STATUSES = ['triage', 'todo', 'ready', 'running', 'blocked'] as const
+const SWIM_STATUSES = ['triage', 'todo', 'scheduled', 'ready', 'running', 'blocked', 'review'] as const
 type SwimStatus = (typeof SWIM_STATUSES)[number]
 
 function roleLabel(assigneeId: string | null): string {
@@ -31,7 +31,7 @@ function SwimRow({ assigneeId, label, tasks, onCardClick }: SwimRowProps) {
       acc[s] = tasks.filter((t) => t.status === s)
       return acc
     },
-    { triage: [], todo: [], ready: [], running: [], blocked: [] },
+    { triage: [], todo: [], scheduled: [], ready: [], running: [], blocked: [], review: [] },
   )
 
   return (

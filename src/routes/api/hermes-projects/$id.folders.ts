@@ -3,6 +3,7 @@ import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
 import {
   addProjectFolder,
+  explicitProjectProfile,
   getProjectFolders,
   projectsErrorStatus,
   removeProjectFolder,
@@ -17,7 +18,7 @@ export const Route = createFileRoute('/api/hermes-projects/$id/folders')({
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         try {
-          const result = await getProjectFolders(params.id)
+          const result = await getProjectFolders(params.id, explicitProjectProfile(request))
           return Response.json(result)
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Not found'
@@ -39,7 +40,7 @@ export const Route = createFileRoute('/api/hermes-projects/$id/folders')({
           return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
         }
         try {
-          return Response.json(await addProjectFolder(params.id, body))
+          return Response.json(await addProjectFolder(params.id, body, explicitProjectProfile(request)))
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Add folder failed'
           return Response.json(
@@ -61,7 +62,7 @@ export const Route = createFileRoute('/api/hermes-projects/$id/folders')({
         }
         try {
           return Response.json(
-            await removeProjectFolder(params.id, body.path ?? ''),
+            await removeProjectFolder(params.id, body.path ?? '', explicitProjectProfile(request)),
           )
         } catch (err) {
           const msg =

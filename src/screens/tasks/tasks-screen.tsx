@@ -3,9 +3,8 @@
 import '@/styles/matrix-tasks.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useSearch } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import {
-  keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
@@ -33,6 +32,12 @@ import { TaskDialog } from './task-dialog'
 import { TaskDetailDrawer } from './task-detail-drawer'
 import { SwimView } from './swim-view'
 import { TimelineView } from './timeline-view'
+import {
+  UNASSIGNED_FILTER,
+  assigneeMatches,
+  buildAssigneeFilterOptions,
+  countStatuses,
+} from './task-filter-model'
 import type { TaskDialogSubmit } from './task-dialog'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import type { BulkResponse, HermesKanbanStatus } from '@/lib/hermes-kanban-types'
@@ -50,14 +55,17 @@ import {
   createTask,
   fetchAssignees,
   fetchKanbanConfig,
-  fetchStats,
   fetchTasks,
   moveTask,
   updateTask,
 } from '@/lib/tasks-api'
-import { unionAssigneesWithProfiles } from '@/lib/assignee-profile-union'
 import { useKanbanEvents } from '@/hooks/use-kanban-events'
 import { toast } from '@/components/ui/toast'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/shadcn/ui/popover'
 import { cn } from '@/lib/utils'
 
 const KANBAN_BASE = '/api/hermes-kanban'
@@ -70,9 +78,11 @@ export const TASKS_BOARD_HELP_TEXT =
 
 export const TASKS_COLUMN_VISIBILITY_DEFAULTS = {
   triage: true,
+  scheduled: true,
   ready: true,
   running: true,
   blocked: true,
+  review: true,
   done: false,
   archived: false,
 } as const
@@ -229,6 +239,12 @@ export function TasksScreen() {
         : TASKS_COLUMN_VISIBILITY_DEFAULTS.ready
     } catch { return TASKS_COLUMN_VISIBILITY_DEFAULTS.ready }
   })
+  const [showScheduled, setShowScheduled] = useState<boolean>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}') as Record<string, unknown>
+      return typeof raw.scheduled === 'boolean' ? raw.scheduled : true
+    } catch { return true }
+  })
   const [showRunning, setShowRunning] = useState<boolean>(() => {
     try {
       const raw = JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}') as Record<string, unknown>
@@ -244,6 +260,12 @@ export function TasksScreen() {
         ? raw.blocked
         : TASKS_COLUMN_VISIBILITY_DEFAULTS.blocked
     } catch { return TASKS_COLUMN_VISIBILITY_DEFAULTS.blocked }
+  })
+  const [showReview, setShowReview] = useState<boolean>(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(COLS_KEY) ?? '{}') as Record<string, unknown>
+      return typeof raw.review === 'boolean' ? raw.review : true
+    } catch { return true }
   })
   const [filtersCollapsed, setFiltersCollapsed] = useState(false)
   const [taskSearch, setTaskSearch] = useState('')
@@ -343,11 +365,11 @@ export function TasksScreen() {
     try {
       localStorage.setItem(COLS_KEY, JSON.stringify({
         done: showDone, archived: showArchived,
-        triage: showTriage, ready: showReady, running: showRunning, blocked: showBlocked,
+        triage: showTriage, scheduled: showScheduled, ready: showReady, running: showRunning, blocked: showBlocked, review: showReview,
         migrated_v3: true,
       }))
     } catch { /* storage quota / private-mode — silently ignore */ }
-  }, [showDone, showArchived, showTriage, showReady, showRunning, showBlocked])
+  }, [showDone, showArchived, showTriage, showScheduled, showReady, showRunning, showBlocked, showReview])
 
   // Persist date filter to localStorage
   useEffect(() => {
@@ -357,26 +379,27 @@ export function TasksScreen() {
   }, [dateRange, dateStart, dateEnd])
 
   const search = useSearch({ from: '/tasks' })
+  const navigate = useNavigate()
   const initialAssignee =
     typeof search.assignee === 'string' ? search.assignee : null
   const [assigneeFilter, setAssigneeFilter] = useState<string | null>(
     initialAssignee,
   )
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  useEffect(() => setAssigneeFilter(initialAssignee), [initialAssignee])
+  const selectAssignee = useCallback((value: string | null) => {
+    setAssigneeFilter(value)
+    void navigate({ to: '/tasks', search: (prev) => ({ ...prev, assignee: value || undefined }) })
+  }, [navigate])
   const [tenantFilter, setTenantFilter] = useState<string | null>(null)
   const [dispatchResult, setDispatchResult] = useState<string | null>(null)
   const dispatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (dispatchTimerRef.current) clearTimeout(dispatchTimerRef.current) }, [])
 
   const tasksQuery = useQuery({
-    queryKey: [...QUERY_KEY, showDone, showArchived, tenantFilter],
-    queryFn: () =>
-      fetchTasks({
-        include_done: showDone,
-        include_archived: showArchived,
-        ...(tenantFilter ? { tenant: tenantFilter } : {}),
-      }),
+    queryKey: QUERY_KEY,
+    queryFn: () => fetchTasks({ include_done: true, include_archived: true }),
     refetchInterval: 30_000,
-    placeholderData: keepPreviousData,
   })
 
   const assigneesQuery = useQuery({
@@ -385,55 +408,42 @@ export function TasksScreen() {
     staleTime: 5 * 60_000,
   })
 
-  const doneTasksQuery = useQuery({
-    queryKey: [...QUERY_KEY, 'done-only', tenantFilter],
-    queryFn: () =>
-      fetchTasks({
-        include_done: true,
-        ...(tenantFilter ? { tenant: tenantFilter } : {}),
-      }),
-    enabled: showDoneList,
-    staleTime: 30_000,
-  })
-
-  const statsQuery = useQuery({
-    queryKey: ['claude', 'tasks', 'stats'],
-    queryFn: fetchStats,
-    staleTime: 30_000,
-    refetchInterval: 30_000,
-  })
-
-  // Gateway /stats omits archived from by_status. Derive it by fetching
-  // include_archived=true and counting the archived bucket. Slower path —
-  // long stale to avoid hammering the gateway.
-  const archivedCountQuery = useQuery({
-    queryKey: ['claude', 'tasks', 'archived-count'],
-    queryFn: async () => {
-      const all = await fetchTasks({ include_archived: true })
-      return all.filter((t) => t.status === 'archived').length
-    },
-    staleTime: 60_000,
-    refetchInterval: 120_000,
-  })
-
   const assignees: Array<TaskAssignee> = assigneesQuery.data?.assignees ?? []
   const profilesQuery = useQuery({
     queryKey: ['profiles', 'list'],
     queryFn: () => fetch('/api/profiles/list').then(r => r.json()) as Promise<{ profiles: Array<{ name: string }>; activeProfile: string }>,
     staleTime: 60_000,
   })
-  const assigneeOptions = unionAssigneesWithProfiles(
-    assignees,
-    profilesQuery.data?.profiles ?? [],
-    profilesQuery.data?.activeProfile,
+  const allTasks = tasksQuery.data ?? []
+  const scopedTasks = useMemo(
+    () => tenantFilter ? allTasks.filter((task) => task.tenant === tenantFilter) : allTasks,
+    [allTasks, tenantFilter],
   )
+  const visibleTasks = useMemo(
+    () => scopedTasks.filter((task) =>
+      (showDone || task.status !== 'done') &&
+      (showArchived || task.status !== 'archived')),
+    [scopedTasks, showDone, showArchived],
+  )
+  const assigneeOptions = useMemo(() => buildAssigneeFilterOptions({
+    assignees,
+    profiles: profilesQuery.data?.profiles ?? [],
+    activeProfile: profilesQuery.data?.activeProfile,
+    visibleTasks,
+    scopedTasks,
+  }), [assignees, profilesQuery.data, visibleTasks, scopedTasks])
+  const profileAssignees = assigneeOptions.filter((option) => option.kind === 'profile')
+  const historicalAssignees = assigneeOptions.filter((option) => option.kind === 'historical')
+  const unassignedTasks = scopedTasks.filter((task) => task.assignee == null)
+  const visibleUnassignedCount = visibleTasks.filter((task) => task.assignee == null).length
   const assigneeLabels = useMemo(() => {
     const map: Record<string, string> = {}
-    for (const a of assignees) map[a.id] = a.label
+    for (const a of assigneeOptions) map[a.id] = a.label
     return map
-  }, [assignees])
+  }, [assigneeOptions])
 
-  const tasks = tasksQuery.data ?? []
+  const tasks = visibleTasks
+  const selectedAssignee = assigneeOptions.find((a) => a.id === assigneeFilter)
 
   // Group tasks by Agent status
   const tasksByStatus = useMemo(() => {
@@ -451,15 +461,17 @@ export function TasksScreen() {
     const map: Record<HermesKanbanStatus, Array<ClaudeTask>> = {
       triage: [],
       todo: [],
+      scheduled: [],
       ready: [],
       running: [],
       blocked: [],
+      review: [],
       done: [],
       archived: [],
     }
     for (const t of tasks) {
       const status = t.status
-      if (assigneeFilter && t.assignee !== assigneeFilter) continue
+      if (!assigneeMatches(t, assigneeFilter)) continue
       if (dateCutoffMs !== null && t.created_at * 1000 < dateCutoffMs) continue
       if (dateEndMs !== null && t.created_at * 1000 > dateEndMs) continue
       if (!taskMatchesSearch(t, taskSearch)) continue
@@ -469,13 +481,13 @@ export function TasksScreen() {
   }, [tasks, assigneeFilter, dateRange, dateStart, dateEnd, taskSearch])
 
   const stats = useMemo(() => {
-    const total = tasks.length
-    const running = tasks.filter((t) => t.status === 'running').length
-    const blocked = tasks.filter((t) => t.status === 'blocked').length
-    const done = tasks.filter((t) => t.status === 'done').length
+    const total = scopedTasks.length
+    const running = scopedTasks.filter((t) => t.status === 'running').length
+    const blocked = scopedTasks.filter((t) => t.status === 'blocked').length
+    const done = scopedTasks.filter((t) => t.status === 'done').length
     const completion = total > 0 ? Math.round((done / total) * 100) : 0
     return { total, running, blocked, done, completion }
-  }, [tasks])
+  }, [scopedTasks])
 
   const invalidate = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: QUERY_KEY })
@@ -655,9 +667,9 @@ export function TasksScreen() {
   // Derive unique tenants from current tasks for filter dropdown
   const uniqueTenants = useMemo(() => {
     const set = new Set<string>()
-    for (const t of tasks) if (t.tenant) set.add(t.tenant)
+    for (const t of allTasks) if (t.tenant) set.add(t.tenant)
     return Array.from(set).sort()
-  }, [tasks])
+  }, [allTasks])
 
   function toggleSelect(taskId: string, e: React.MouseEvent) {
     e.stopPropagation()
@@ -669,24 +681,22 @@ export function TasksScreen() {
     })
   }
 
-  // SPEC-05: fixed 5-col board — triage, todo, ready, running, blocked.
-  // `done` is intentionally excluded from board columns regardless of showDone.
-  // showDone only controls the `include_done` query param for stats math and
-  // the Done stat cell click-to-list drawer; it must NOT add a board column.
   const visibleStatuses: Array<HermesKanbanStatus> = (
     [...HERMES_KANBAN_VISIBLE_STATUS_ORDER, 'archived'] as Array<HermesKanbanStatus>
   ).filter((s) => {
     if (s === 'done' && !showDone) return false
     if (s === 'triage' && !showTriage) return false
+    if (s === 'scheduled' && !showScheduled) return false
     if (s === 'ready' && !showReady) return false
     if (s === 'running' && !showRunning) return false
     if (s === 'blocked' && !showBlocked) return false
+    if (s === 'review' && !showReview) return false
     if (s === 'archived' && !showArchived) return false
     return true
   })
 
   return (
-    <div className="h-screen bg-surface text-ink tk-shell" data-screen="tasks">
+    <div className="h-full bg-surface text-ink tk-shell" data-screen="tasks">
 
       {/* ── Filter sidebar ── */}
       <aside className={cn('tk-filter', filtersCollapsed && 'collapsed')} aria-label="Task filters">
@@ -730,35 +740,50 @@ export function TasksScreen() {
               aria-expanded={openSections.profile}
               onClick={() => toggleSection('profile')}
             >
-              <span>Agent profile</span>
+              <span>Assignee</span>
               <svg className="tk-sec-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </button>
             {openSections.profile && (
-            <div className="tk-filter-list">
-              <button
-                type="button"
-                className={cn('tk-filter-item', !assigneeFilter && 'active')}
-                onClick={() => setAssigneeFilter(null)}
-              >
-                <span className="item-label">All profiles</span>
-                <span className="item-ct">{tasks.length}</span>
-              </button>
-              {assigneeOptions.map((a) => (
-                <button
-                  key={a.id}
-                  type="button"
-                  className={cn('tk-filter-item', assigneeFilter === a.id && 'active')}
-                  onClick={() => setAssigneeFilter(assigneeFilter === a.id ? null : a.id)}
-                >
-                  <span className="item-label">{a.onDisk ? a.label : `${a.label} ⚠`}</span>
-                  <span className="item-ct">
-                    {tasks.filter((t) => t.assignee === a.id).length}
-                  </span>
-                </button>
-              ))}
-            </div>
+              <div className="tk-filter-list">
+                <Popover open={profileMenuOpen} onOpenChange={setProfileMenuOpen}>
+                  <PopoverTrigger asChild>
+                    <button type="button" className="tk-profile-trigger" aria-label="Assignee" aria-expanded={profileMenuOpen}>
+                      <span className="tk-profile-trigger-label">{assigneeFilter === UNASSIGNED_FILTER ? 'Unassigned' : selectedAssignee?.label ?? 'All assignees'}</span>
+                      <span className="tk-profile-trigger-count">{assigneeFilter === UNASSIGNED_FILTER ? visibleUnassignedCount : selectedAssignee?.visibleCount ?? tasks.length}</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent data-screen="tasks" role="listbox" aria-label="Assignee options" align="start" sideOffset={5} className="tk-profile-menu">
+                    <div className="tk-profile-menu-label">Filter by assignee</div>
+                    <button type="button" role="option" aria-selected={!assigneeFilter} className={cn('tk-profile-option', !assigneeFilter && 'active')} onClick={() => { selectAssignee(null); setProfileMenuOpen(false) }}>
+                      <span>All assignees</span><span className="tk-profile-option-count">{tasks.length} / {scopedTasks.length}</span>
+                    </button>
+                    <button type="button" role="option" aria-selected={assigneeFilter === UNASSIGNED_FILTER} className={cn('tk-profile-option', assigneeFilter === UNASSIGNED_FILTER && 'active')} onClick={() => { selectAssignee(UNASSIGNED_FILTER); setProfileMenuOpen(false) }}>
+                      <span className="tk-profile-option-name">Unassigned<small>no profile</small></span>
+                      <span className="tk-profile-option-count">{visibleUnassignedCount} / {unassignedTasks.length}</span>
+                    </button>
+                    {profileAssignees.length > 0 && <div className="tk-profile-menu-label">Configured profiles</div>}
+                    {profileAssignees.map((assignee) => {
+                      const selected = assigneeFilter === assignee.id
+                      return <button key={assignee.id} type="button" role="option" aria-selected={selected} className={cn('tk-profile-option', selected && 'active')} onClick={() => { selectAssignee(assignee.id); setProfileMenuOpen(false) }}>
+                        <span className="tk-profile-option-name">{assignee.label}{assignee.isActive ? <small>active</small> : null}</span>
+                        <span className="tk-profile-option-count">{assignee.visibleCount} / {assignee.totalCount}</span>
+                      </button>
+                    })}
+                    {historicalAssignees.length > 0 && <div className="tk-profile-menu-label tk-profile-menu-warning">Historical assignees</div>}
+                    {historicalAssignees.map((assignee) => {
+                      const selected = assigneeFilter === assignee.id
+                      return <button key={assignee.id} type="button" role="option" aria-selected={selected} className={cn('tk-profile-option', 'historical', selected && 'active')} onClick={() => { selectAssignee(assignee.id); setProfileMenuOpen(false) }}>
+                        <span className="tk-profile-option-name">{assignee.label}<small>historical</small></span>
+                        <span className="tk-profile-option-count">{assignee.visibleCount} / {assignee.totalCount}</span>
+                      </button>
+                    })}
+                    <div className="tk-profile-menu-foot">visible / total in current scope</div>
+                  </PopoverContent>
+                </Popover>
+              </div>
             )}
           </div>
 
@@ -783,7 +808,7 @@ export function TasksScreen() {
                   onClick={() => setTenantFilter(null)}
                 >
                   <span className="item-label">All tenants</span>
-                  <span className="item-ct">{tasks.length}</span>
+                  <span className="item-ct">{allTasks.length}</span>
                 </button>
                 {uniqueTenants.map((t) => (
                   <button
@@ -794,7 +819,7 @@ export function TasksScreen() {
                   >
                     <span className="item-label">{t}</span>
                     <span className="item-ct">
-                      {tasks.filter((task) => task.tenant === t).length}
+                      {allTasks.filter((task) => task.tenant === t).length}
                     </span>
                   </button>
                 ))}
@@ -867,9 +892,11 @@ export function TasksScreen() {
             <div className="tk-filter-list">
               {([
                 { key: 'triage', label: 'Triage / Backlog', on: showTriage, toggle: () => setShowTriage((v) => !v) },
+                { key: 'scheduled', label: 'Scheduled', on: showScheduled, toggle: () => setShowScheduled((v) => !v) },
                 { key: 'ready', label: 'Ready', on: showReady, toggle: () => setShowReady((v) => !v) },
                 { key: 'running', label: 'Running', on: showRunning, toggle: () => setShowRunning((v) => !v) },
                 { key: 'blocked', label: 'Blocked', on: showBlocked, toggle: () => setShowBlocked((v) => !v) },
+                { key: 'review', label: 'Review', on: showReview, toggle: () => setShowReview((v) => !v) },
                 { key: 'done', label: 'Done', on: showDone, toggle: () => setShowDone((v) => !v) },
                 { key: 'archived', label: 'Archived', on: showArchived, toggle: () => setShowArchived((v) => !v) },
               ] as const).map(({ key, label, on, toggle }) => (
@@ -901,15 +928,17 @@ export function TasksScreen() {
             className="reset-btn"
             onClick={() => {
               setTaskSearch('')
-              setAssigneeFilter(null)
+              selectAssignee(null)
               setTenantFilter(null)
               setDateRange('all')
               setDateStart('')
               setDateEnd('')
               setShowTriage(TASKS_COLUMN_VISIBILITY_DEFAULTS.triage)
+              setShowScheduled(TASKS_COLUMN_VISIBILITY_DEFAULTS.scheduled)
               setShowReady(TASKS_COLUMN_VISIBILITY_DEFAULTS.ready)
               setShowRunning(TASKS_COLUMN_VISIBILITY_DEFAULTS.running)
               setShowBlocked(TASKS_COLUMN_VISIBILITY_DEFAULTS.blocked)
+              setShowReview(TASKS_COLUMN_VISIBILITY_DEFAULTS.review)
               setShowDone(TASKS_COLUMN_VISIBILITY_DEFAULTS.done)
               setShowArchived(TASKS_COLUMN_VISIBILITY_DEFAULTS.archived)
             }}
@@ -1020,9 +1049,9 @@ export function TasksScreen() {
           {(() => {
             // Use completed_at (unix seconds) for done tasks; fall back to created_at.
             const cutoffMs = rangeCutoffMs(archiveDoneRange)
-            const doneTasks = tasks.filter((t) => {
+            const doneTasks = scopedTasks.filter((t) => {
               if (t.status !== 'done') return false
-              if (assigneeFilter && t.assignee !== assigneeFilter) return false
+              if (!assigneeMatches(t, assigneeFilter)) return false
               if (!cutoffMs) return true
               const ts = t.completed_at != null ? t.completed_at * 1000 : t.created_at * 1000
               return ts >= cutoffMs
@@ -1053,8 +1082,9 @@ export function TasksScreen() {
                       {(['today', '7d', '30d', 'all'] as const).map((r) => {
                         const count = (() => {
                           const c = rangeCutoffMs(r)
-                          return tasks.filter((t) => {
+                          return scopedTasks.filter((t) => {
                             if (t.status !== 'done') return false
+                            if (!assigneeMatches(t, assigneeFilter)) return false
                             if (!c) return true
                             const ts = t.completed_at != null ? t.completed_at * 1000 : t.created_at * 1000
                             return ts >= c
@@ -1143,15 +1173,11 @@ export function TasksScreen() {
                           ))}
                           <div className="border-t border-red-500/20 mt-1 pt-1 px-1.5 pb-1">
                             <button
-                              onClick={async () => {
-                                // One-shot fetch archived tasks, then show confirm step
+                              onClick={() => {
                                 const cutoffMs = rangeCutoffMs(purgeRange)
-                                // archived tasks may not be in current `tasks` (only when showArchived=true)
-                                // do a targeted fetch
-                                const allWithArchived = await fetchTasks({ include_done: true, include_archived: true })
-                                const matching = allWithArchived.filter((t) => {
+                                const matching = scopedTasks.filter((t) => {
                                   if (t.status !== 'archived') return false
-                                  if (assigneeFilter && t.assignee !== assigneeFilter) return false
+                                  if (!assigneeMatches(t, assigneeFilter)) return false
                                   if (!cutoffMs) return true
                                   const ts = t.completed_at != null ? t.completed_at * 1000 : t.created_at * 1000
                                   return ts >= cutoffMs
@@ -1218,39 +1244,34 @@ export function TasksScreen() {
         </div>
         </div>
 
-        {/* Global stripe — 5-pip legend + progress bar */}
-        {statsQuery.isLoading ? (
+        {/* Current tenant/board scope — same source as the visible board. */}
+        {tasksQuery.isLoading ? (
           <div className="actbar-stripe-skeleton" />
-        ) : statsQuery.data ? (() => {
-          const counts = statsQuery.data.by_status ?? {}
-          const globalTotal = Object.values(counts).reduce<number>((acc, n) => acc + (typeof n === 'number' ? n : 0), 0)
-          const globalDone = typeof counts.done === 'number' ? counts.done : 0
-          const globalRun = typeof counts.running === 'number' ? counts.running : 0
-          const globalTodo = typeof counts.todo === 'number' ? counts.todo : 0
-          const globalBacklog = (typeof counts.triage === 'number' ? counts.triage : 0) + (typeof counts.ready === 'number' ? counts.ready : 0)
-          const globalBlocked = typeof counts.blocked === 'number' ? counts.blocked : 0
-          const globalArchived = archivedCountQuery.data ?? (typeof counts.archived === 'number' ? counts.archived : 0)
-          const globalPct = globalTotal > 0 ? Math.round((globalDone / globalTotal) * 1000) / 10 : 0
+        ) : (() => {
+          const counts = countStatuses(scopedTasks)
+          const total = scopedTasks.length
+          const backlog = counts.triage + counts.ready + counts.scheduled
+          const pct = total > 0 ? Math.round((counts.done / total) * 1000) / 10 : 0
           return (
             <div className="actbar-stripe">
-              <span className="gs-lbl">Global · {globalTotal} Total</span>
+              <span className="gs-lbl">{tenantFilter ? `Tenant: ${tenantFilter}` : 'Current board'} · {total} Total</span>
               <div className="gs-pips">
-                <span className="gs-pip-item"><span className="pip done" /><span className="pip-ct">{globalDone}</span>&nbsp;Done</span>
-                <span className="gs-pip-item"><span className="pip run" /><span className="pip-ct">{globalRun}</span>&nbsp;Run</span>
-                <span className="gs-pip-item"><span className="pip todo" /><span className="pip-ct">{globalTodo}</span>&nbsp;Todo</span>
-                <span className="gs-pip-item"><span className="pip bk" /><span className="pip-ct">{globalBacklog}</span>&nbsp;Backlog</span>
-                <span className="gs-pip-item"><span className="pip bl" /><span className="pip-ct">{globalBlocked}</span>&nbsp;Blocked</span>
-                <span className="gs-pip-item"><span className="pip ar" /><span className="pip-ct">{globalArchived}</span>&nbsp;Archived</span>
+                <span className="gs-pip-item"><span className="pip done" /><span className="pip-ct">{counts.done}</span>&nbsp;Done</span>
+                <span className="gs-pip-item"><span className="pip run" /><span className="pip-ct">{counts.running}</span>&nbsp;Run</span>
+                <span className="gs-pip-item"><span className="pip todo" /><span className="pip-ct">{counts.todo}</span>&nbsp;Todo</span>
+                <span className="gs-pip-item"><span className="pip bk" /><span className="pip-ct">{backlog}</span>&nbsp;Queued</span>
+                <span className="gs-pip-item"><span className="pip bl" /><span className="pip-ct">{counts.blocked}</span>&nbsp;Blocked</span>
+                <span className="gs-pip-item"><span className="pip ar" /><span className="pip-ct">{counts.archived}</span>&nbsp;Archived</span>
               </div>
               <div className="gs-right">
-                <span className="gs-pct">{globalPct}%</span>
+                <span className="gs-pct">{pct}%</span>
                 <div className="gs-bar">
-                  <i style={{ width: `${globalPct}%` }} />
+                  <i style={{ width: `${pct}%` }} />
                 </div>
               </div>
             </div>
           )
-        })() : null}
+        })()}
 
         {/* Hint + active filter chip */}
         <div className="actbar-subhint sub">
@@ -1260,12 +1281,13 @@ export function TasksScreen() {
               <span className="dot" aria-hidden="true" />
               {assigneeFilter && (() => {
                 const a = assigneeOptions.find(x => x.id === assigneeFilter)
-                return <span style={{ color: a && !a.onDisk ? 'var(--m-amber,#ffb454)' : undefined }}>profile:{assigneeFilter}{a && !a.onDisk ? ' ⚠' : ''}</span>
+                const historical = a?.kind === 'historical'
+                return <span style={{ color: historical ? 'var(--m-amber,#ffb454)' : undefined }}>assignee:{assigneeFilter === UNASSIGNED_FILTER ? 'unassigned' : assigneeFilter}{historical ? ' ⚠' : ''}</span>
               })()}
               {tenantFilter && <span>tenant:{tenantFilter}</span>}
               <button
                 type="button"
-                onClick={() => { setAssigneeFilter(null); setTenantFilter(null) }}
+                onClick={() => { selectAssignee(null); setTenantFilter(null) }}
                 style={{ color: 'var(--m-text-faint)', cursor: 'pointer', background: 'none', border: 'none', font: 'inherit', letterSpacing: 'inherit' }}
               >
                 ✕ Clear
@@ -1359,6 +1381,9 @@ export function TasksScreen() {
                   {status === 'todo' && (
                     <><span><b>{colTasks.length}</b> Ready</span><span><b>{colTasks.filter(t => (t.link_counts?.parents ?? 0) > 0).length}</b> Blockers</span><span>Lead —</span></>
                   )}
+                  {status === 'scheduled' && (
+                    <span>Waiting for its scheduled start</span>
+                  )}
                   {status === 'ready' && (
                     <span>Queued · will auto-dispatch</span>
                   )}
@@ -1367,6 +1392,9 @@ export function TasksScreen() {
                   )}
                   {status === 'blocked' && (
                     <span>Drop tasks waiting on dependencies or input</span>
+                  )}
+                  {status === 'review' && (
+                    <span>Awaiting verification or approval</span>
                   )}
                   {status === 'done' && (
                     <><span><b>{colTasks.length}</b> Completed</span><span>Auto-archive 7d</span></>
@@ -1450,7 +1478,7 @@ export function TasksScreen() {
           open={showCreate}
           onOpenChange={setShowCreate}
           defaultColumn={createColumn}
-          assignees={assigneeOptions as Array<TaskAssignee>}
+          assignees={assignees}
           isSubmitting={createMutation.isPending}
           onSubmit={async (payload) => {
             await createMutation.mutateAsync(payload)
@@ -1469,7 +1497,7 @@ export function TasksScreen() {
         {showDoneList && (
           <TaskDetailDrawer
             mode="list"
-            listTasks={(doneTasksQuery.data ?? []).filter((t) => t.status === 'done')}
+            listTasks={scopedTasks.filter((t) => t.status === 'done')}
             onClose={() => setShowDoneList(false)}
           />
         )}

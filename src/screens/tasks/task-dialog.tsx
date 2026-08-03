@@ -140,7 +140,7 @@ export function TaskDialog({
       triage = false
     } else if (status === 'todo' && parentsArr.length > 0) {
       triage = false // Agent derives todo from parents
-    } else if (status === 'todo' || status === 'blocked' || status === 'done' || status === 'running') {
+    } else if (status === 'todo' || status === 'scheduled' || status === 'blocked' || status === 'review' || status === 'done' || status === 'running') {
       triage = false
       desiredStatus = status
     }
@@ -227,8 +227,10 @@ export function TaskDialog({
                   {status === 'triage' && 'Backlog — agent will not pick up automatically.'}
                   {status === 'ready' && 'Dispatchable — agent can claim immediately.'}
                   {status === 'todo' && 'Held — set if adding parent deps; patched after create.'}
+                  {status === 'scheduled' && 'Scheduled — waiting for its configured start.'}
                   {status === 'blocked' && 'Blocked — enter a reason below; patched after create.'}
                   {status === 'running' && 'Running — manual; prefer dispatching from Ready.'}
+                  {status === 'review' && 'Review — awaiting verification or approval.'}
                   {status === 'done' && 'Done — for import/testing purposes; patched after create.'}
                 </p>
               </div>

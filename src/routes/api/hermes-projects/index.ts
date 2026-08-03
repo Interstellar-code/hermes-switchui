@@ -3,6 +3,7 @@ import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
 import {
   createProject,
+  explicitProjectProfile,
   listProjects,
   projectsErrorStatus,
 } from '../../../server/projects-client'
@@ -18,8 +19,9 @@ export const Route = createFileRoute('/api/hermes-projects/')({
         const url = new URL(request.url)
         const includeArchived =
           url.searchParams.get('include_archived') === 'true'
+        const profile = explicitProjectProfile(request)
         try {
-          const result = await listProjects(includeArchived)
+          const result = await listProjects(includeArchived, profile)
           return Response.json(result)
         } catch (err) {
           const msg =
@@ -43,7 +45,7 @@ export const Route = createFileRoute('/api/hermes-projects/')({
           return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
         }
         try {
-          return Response.json(await createProject(body))
+          return Response.json(await createProject(body, explicitProjectProfile(request)))
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Create failed'
           return Response.json(

@@ -1,5 +1,5 @@
-import { cn } from '@/lib/utils'
 import { Highlight, fuzzy } from './files-search'
+import { cn } from '@/lib/utils'
 
 export type FileEntry = {
   name: string

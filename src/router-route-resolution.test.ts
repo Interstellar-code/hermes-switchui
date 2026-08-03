@@ -13,7 +13,7 @@ describe('router route generation invalidation', () => {
   it('forwards POST requests after the legacy workspace-daemon cleanup', () => {
     const viteConfig = readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8')
     const middleware = viteConfig.match(
-      /server\.middlewares\.use\(async \(req, res, next\) => \{([\s\S]*?)\n          \}\)/,
+      /server\.middlewares\.use\(async \(req, res, next\) => \{([\s\S]*?)\n {10}\}\)/,
     )?.[1]
 
     expect(middleware).toContain('next()')

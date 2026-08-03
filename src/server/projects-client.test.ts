@@ -57,6 +57,18 @@ describe('projects-client', () => {
       expect(calledPath).toContain('include_archived=true')
     })
 
+    it('uses an explicit profile without falling back to the active profile', async () => {
+      mockDashboardFetch.mockResolvedValueOnce(
+        makeOkResponse({ projects: [], active_id: null }),
+      )
+      const { listProjects } = await import('./projects-client')
+      await listProjects(false, 'selected-profile')
+      expect(mockDashboardFetch).toHaveBeenCalledWith(
+        '/api/plugins/projects?profile=selected-profile',
+        expect.any(Object),
+      )
+    })
+
     it('throws a useful error on non-OK response', async () => {
       mockDashboardFetch.mockResolvedValueOnce(
         makeErrorResponse(503, { detail: 'Service unavailable' }),
@@ -164,6 +176,18 @@ describe('projects-client', () => {
           method: 'POST',
           body: JSON.stringify({ name: 'Demo', folders: ['/repo/demo'] }),
         }),
+      )
+    })
+
+    it('routes a mutation to the explicit profile', async () => {
+      mockDashboardFetch.mockResolvedValueOnce(
+        makeOkResponse({ project: { id: 'p_1' } }),
+      )
+      const { updateProject } = await import('./projects-client')
+      await updateProject('demo', { name: 'Renamed' }, 'selected-profile')
+      expect(mockDashboardFetch).toHaveBeenCalledWith(
+        '/api/plugins/projects/demo?profile=selected-profile',
+        expect.objectContaining({ method: 'PATCH' }),
       )
     })
 

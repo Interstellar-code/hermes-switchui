@@ -55,6 +55,20 @@ type WorkspaceShellProps = {
   children?: React.ReactNode
 }
 
+export function shouldReserveTerminalSpace({
+  isMobile,
+  showTerminalSurface,
+  isOnChatRoute,
+  isOnTerminalRoute,
+}: {
+  isMobile: boolean
+  showTerminalSurface: boolean
+  isOnChatRoute: boolean
+  isOnTerminalRoute: boolean
+}) {
+  return !isMobile && showTerminalSurface && !isOnChatRoute && !isOnTerminalRoute
+}
+
 export function WorkspaceShell({ children }: WorkspaceShellProps) {
   const navigate = useNavigate()
   const pathname = useRouterState({
@@ -187,6 +201,12 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   const isOnTerminalRoute = pathname.startsWith('/terminal')
   const showTerminalSurface =
     isOnTerminalRoute || (!isMobile && terminalPanelOpen)
+  const reserveTerminalSpace = shouldReserveTerminalSpace({
+    isMobile,
+    showTerminalSurface,
+    isOnChatRoute,
+    isOnTerminalRoute,
+  })
   const hideChatSidebar = isOnChatRoute && chatFocusMode
 
   const isNewChat = activeFriendlyId === 'new'
@@ -396,7 +416,12 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
                 !isOnChatRoute &&
                 !isOnTerminalRoute &&
                 mobilePageTitle && <MobilePageHeader title={mobilePageTitle} />}
-              {children}
+              <div
+                className="h-full min-h-0"
+                style={reserveTerminalSpace ? { paddingBottom: terminalPanelHeight } : undefined}
+              >
+                {children}
+              </div>
             </div>
           </main>
 

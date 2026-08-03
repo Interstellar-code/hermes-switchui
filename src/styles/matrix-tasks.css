@@ -662,7 +662,7 @@
   .swim-lane .stats b { color: var(--m-text, var(--theme-text)); }
   .swim-cells {
     display: grid;
-    grid-template-columns: repeat(5, minmax(180px, 1fr));
+  grid-template-columns: repeat(7, minmax(180px, 1fr));
     border-left: 1px dashed var(--m-border-subtle, var(--theme-border));
     overflow-x: auto;
   }
@@ -997,6 +997,121 @@
     display: flex;
     flex-direction: column;
     gap: 1px;
+  }
+  .tk-profile-trigger {
+    width: 100%;
+    min-width: 0;
+    height: 32px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 8px;
+    padding: 0 9px;
+    border: 1px solid var(--m-border-subtle, var(--theme-border));
+    border-radius: var(--m-radius-md, 6px);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--m-green-500, #00ff41) 4%, transparent), transparent), var(--m-bg, var(--theme-hover));
+    color: var(--m-text, var(--theme-text));
+    font: 600 11px var(--m-font-mono, ui-monospace, monospace);
+    cursor: pointer;
+    transition: border-color var(--m-dur-fast, 100ms), box-shadow var(--m-dur-fast, 100ms), color var(--m-dur-fast, 100ms);
+  }
+  .tk-profile-trigger:hover,
+  .tk-profile-trigger[aria-expanded='true'] {
+    border-color: color-mix(in srgb, var(--m-green-500, #00ff41) 70%, var(--m-border, var(--theme-border)));
+    color: var(--m-green-500, #00ff41);
+  }
+  .tk-profile-trigger:focus-visible {
+    outline: none;
+    border-color: var(--m-green-500, #00ff41);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--m-green-500, #00ff41) 15%, transparent), 0 0 14px rgba(0,255,65,.1);
+  }
+  .tk-profile-trigger-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+  }
+  .tk-profile-trigger-count,
+  .tk-profile-option-count {
+    min-width: 22px;
+    color: var(--m-green-500, #00ff41);
+    font: 600 9.5px var(--m-font-mono, ui-monospace, monospace);
+    text-align: right;
+  }
+  .tk-profile-trigger svg {
+    width: 11px;
+    height: 11px;
+    color: var(--m-text-faint, var(--theme-muted));
+    transition: transform var(--m-dur-fast, 150ms);
+  }
+  .tk-profile-trigger[aria-expanded='true'] svg { transform: rotate(180deg); }
+  .tk-profile-menu {
+    width: var(--radix-popover-trigger-width);
+    min-width: 210px;
+    max-height: min(320px, var(--radix-popover-content-available-height));
+    overflow-y: auto;
+    padding: 5px;
+    border: 1px solid color-mix(in srgb, var(--m-green-500, #00ff41) 38%, var(--m-border, var(--theme-border)));
+    border-radius: var(--m-radius-md, 6px);
+    background: color-mix(in srgb, var(--m-bg, var(--theme-card)) 96%, black);
+    color: var(--m-text, var(--theme-text));
+    box-shadow: 0 14px 38px rgba(0,0,0,.58), 0 0 22px rgba(0,255,65,.08);
+  }
+  .tk-profile-menu-label {
+    padding: 5px 8px 7px;
+    color: var(--m-text-faint, var(--theme-muted));
+    font: 600 8.5px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: .18em;
+    text-transform: uppercase;
+  }
+  .tk-profile-menu-warning { color: var(--m-amber, #ffb454); }
+  .tk-profile-menu-foot {
+    padding: 7px 8px 3px;
+    color: var(--m-text-faint, var(--theme-muted));
+    font: 500 8px var(--m-font-mono, ui-monospace, monospace);
+    text-align: right;
+  }
+  .tk-profile-option {
+    width: 100%;
+    min-height: 30px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 8px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--m-text-muted, var(--theme-muted));
+    font: 500 11px var(--m-font-mono, ui-monospace, monospace);
+    text-align: left;
+    cursor: pointer;
+  }
+  .tk-profile-option:hover,
+  .tk-profile-option:focus-visible {
+    outline: none;
+    border-color: var(--m-border-subtle, var(--theme-border));
+    background: color-mix(in srgb, var(--m-green-500, #00ff41) 7%, transparent);
+    color: var(--m-text, var(--theme-text));
+  }
+  .tk-profile-option.active {
+    border-color: color-mix(in srgb, var(--m-green-500, #00ff41) 28%, transparent);
+    background: color-mix(in srgb, var(--m-green-500, #00ff41) 11%, transparent);
+    color: var(--m-green-500, #00ff41);
+  }
+  .tk-profile-option.historical .tk-profile-option-count { color: var(--m-amber, #ffb454); }
+  .tk-profile-option-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tk-profile-option-name small {
+    margin-left: 7px;
+    color: var(--m-text-faint, var(--theme-muted));
+    font-size: 8px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
   }
   .tk-filter-item {
     display: flex;

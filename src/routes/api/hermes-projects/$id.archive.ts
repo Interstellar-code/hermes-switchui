@@ -3,6 +3,7 @@ import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
 import {
   archiveProject,
+  explicitProjectProfile,
   projectsErrorStatus,
 } from '../../../server/projects-client'
 
@@ -15,7 +16,7 @@ export const Route = createFileRoute('/api/hermes-projects/$id/archive')({
         if (!isAuthenticated(request))
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         try {
-          return Response.json(await archiveProject(params.id))
+          return Response.json(await archiveProject(params.id, explicitProjectProfile(request)))
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Archive failed'
           return Response.json(

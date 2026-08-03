@@ -198,6 +198,7 @@ function MainTop({ allBoards, search, setSearch, filter, setFilter, view, setVie
           <div className="crumbs">Workspace<span className="sep">/</span>Tasks<span className="sep">/</span><span className="cur">Boards</span></div>
           <h1>Boards</h1>
           <div className="top-sub">Hermes boards using only backend-supported fields.</div>
+          <span className="text-[10px] uppercase tracking-wider text-[var(--theme-text-muted)]" title="Boards and tasks are shared across Hermes profiles">Global Kanban · shared across profiles</span>
         </div>
         <div className="top-right">
           <div className="top-stat"><b>{allBoards.length}</b>Boards</div>

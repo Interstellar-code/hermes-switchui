@@ -3,6 +3,26 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.28] — 2026-08-03
+
+### Added
+
+- **Profile-scoped Projects** — select a Hermes profile from Projects and carry that explicit scope through list, detail, folder, activity, create, edit, archive, restore, delete, and active-project requests.
+- **Complete Kanban lifecycle** — Tasks now displays and edits Hermes-supported `scheduled` and `review` statuses instead of silently dropping those cards.
+- **Assignee clarity** — Tasks separates configured profiles, historical assignees, and unassigned work, with visible and total counts for the current scope.
+
+### Changed
+
+- The persistent terminal now reserves layout space for non-chat workspaces, so Tasks, Boards, Projects, Files, and Settings resize instead of rendering behind it.
+- Task counts and summary statistics come from the same current board and tenant scope as the displayed cards.
+- Boards explicitly identifies Kanban data as global and shared across profiles.
+
+### Fixed
+
+- Tasks no longer mixes backend-global assignee totals with visibility-filtered card counts.
+- Historical assignees such as completed producer identities retain attribution without being presented as configured profiles.
+- Assignee selection remains synchronized with `/tasks?assignee=...`, including the explicit Unassigned filter.
+
 ## [2.5.27] — 2026-08-03
 
 ### Added

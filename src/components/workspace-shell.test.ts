@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { MOBILE_HAMBURGER_NAV_ITEMS } from './mobile-hamburger-menu'
 import { MOBILE_NAV_TABS } from './mobile-tab-bar'
+import { shouldReserveTerminalSpace } from './workspace-shell'
 
 describe('swarm nav items removed', () => {
   it('has no swarm entry in the mobile hamburger menu', () => {
@@ -11,5 +12,34 @@ describe('swarm nav items removed', () => {
   it('has no swarm tab in the mobile tab bar', () => {
     const swarm = MOBILE_NAV_TABS.find((item) => item.id === 'swarm')
     expect(swarm).toBeUndefined()
+  })
+})
+
+describe('terminal route layout', () => {
+  it('reserves panel height only for desktop non-chat routes', () => {
+    expect(
+      shouldReserveTerminalSpace({
+        isMobile: false,
+        showTerminalSurface: true,
+        isOnChatRoute: false,
+        isOnTerminalRoute: false,
+      }),
+    ).toBe(true)
+    expect(
+      shouldReserveTerminalSpace({
+        isMobile: false,
+        showTerminalSurface: true,
+        isOnChatRoute: true,
+        isOnTerminalRoute: false,
+      }),
+    ).toBe(false)
+    expect(
+      shouldReserveTerminalSpace({
+        isMobile: true,
+        showTerminalSurface: true,
+        isOnChatRoute: false,
+        isOnTerminalRoute: false,
+      }),
+    ).toBe(false)
   })
 })

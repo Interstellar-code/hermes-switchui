@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import type {
   Project,
   ProjectFolder,
   UpdateProjectInput,
 } from '@/lib/projects-types'
+import { useAgentProfiles } from '@/hooks/use-agent-profiles'
 import { usePageTitle } from '@/hooks/use-page-title'
 import {
   useAddProjectFolder,
@@ -322,6 +323,9 @@ export function MainTop({
   setShowArchived,
   onCreate,
   busy,
+  profiles,
+  selectedProfile,
+  onProfileChange,
 }: {
   allProjects: Array<Project>
   search: string
@@ -334,6 +338,9 @@ export function MainTop({
   setShowArchived: (value: boolean) => void
   onCreate: () => void
   busy: boolean
+  profiles?: Array<string>
+  selectedProfile?: string
+  onProfileChange?: (profile: string) => void
 }) {
   const activeCount = allProjects.filter((p) => !p.archived).length
   const archivedCount = allProjects.filter((p) => p.archived).length
@@ -351,6 +358,10 @@ export function MainTop({
           </div>
         </div>
         <div className="top-right">
+          <label className="sr-only" htmlFor="projects-profile">Project profile</label>
+          {profiles?.length ? <select id="projects-profile" aria-label="Project profile" value={selectedProfile} onChange={(event) => onProfileChange?.(event.target.value)}>
+            {profiles.map((profile) => <option key={profile} value={profile}>{profile}</option>)}
+          </select> : null}
           <div className="top-stat">
             <b>{allProjects.length}</b>Projects
           </div>
@@ -498,6 +509,7 @@ export function ProjectDrawer({
   onDelete,
   busy,
   error,
+  profile,
 }: {
   project: Project
   isActive: boolean
@@ -512,8 +524,9 @@ export function ProjectDrawer({
   onDelete: () => void
   busy: boolean
   error: string | null
+  profile?: string
 }) {
-  const foldersQuery = useProjectFolders(project.id)
+  const foldersQuery = useProjectFolders(project.id, true, profile)
   const folders = foldersQuery.data?.folders ?? project.folders
   const [activeTab, setActiveTab] = useState<DrawerTab>('overview')
   const [newFolder, setNewFolder] = useState('')
@@ -687,7 +700,7 @@ export function ProjectDrawer({
             </div>
           ) : null}
           {activeTab === 'activity' ? (
-            <ProjectActivityTab project={project} />
+            <ProjectActivityTab project={project} profile={profile} />
           ) : null}
         </div>
         <div className="dr-foot">
@@ -736,9 +749,9 @@ export function ProjectDrawer({
   )
 }
 
-export function ProjectActivityTab({ project }: { project: Project }) {
+export function ProjectActivityTab({ project, profile }: { project: Project; profile?: string }) {
   // Stable p_<hex> id as the query key — never the slug.
-  const activityQuery = useProjectActivity(project.id)
+  const activityQuery = useProjectActivity(project.id, undefined, true, profile)
   if (activityQuery.isLoading)
     return <div className="field-val muted">Loading activity…</div>
   if (activityQuery.isError)
@@ -1229,8 +1242,11 @@ function ConfirmDialog({
 
 export function ProjectsScreen() {
   usePageTitle('Projects')
+  const searchParams = useSearch({ from: '/projects' })
+  const { profiles, activeProfile } = useAgentProfiles()
+  const selectedProfile = searchParams.profile || activeProfile || profiles[0] || ''
   const [showArchived, setShowArchived] = useState(false)
-  const projectsQuery = useProjects(showArchived)
+  const projectsQuery = useProjects(showArchived, true, selectedProfile)
   const [view, setView] = useState<ViewMode>(readInitialView)
   const [filter, setFilter] = useState<FilterMode>('all')
   const [search, setSearch] = useState('')
@@ -1238,15 +1254,16 @@ export function ProjectsScreen() {
   const [draft, setDraft] = useState<CreateDraft | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
-  const createMutation = useCreateProject()
-  const updateMutation = useUpdateProject()
-  const addFolderMutation = useAddProjectFolder()
-  const removeFolderMutation = useRemoveProjectFolder()
-  const primaryMutation = useSetPrimaryProjectFolder()
-  const archiveMutation = useArchiveProject()
-  const restoreMutation = useRestoreProject()
-  const activeMutation = useSetActiveProject()
-  const deleteMutation = useDeleteProject()
+  const navigate = useNavigate()
+  const createMutation = useCreateProject(selectedProfile)
+  const updateMutation = useUpdateProject(selectedProfile)
+  const addFolderMutation = useAddProjectFolder(selectedProfile)
+  const removeFolderMutation = useRemoveProjectFolder(selectedProfile)
+  const primaryMutation = useSetPrimaryProjectFolder(selectedProfile)
+  const archiveMutation = useArchiveProject(selectedProfile)
+  const restoreMutation = useRestoreProject(selectedProfile)
+  const activeMutation = useSetActiveProject(selectedProfile)
+  const deleteMutation = useDeleteProject(selectedProfile)
   const [mutationError, setMutationError] = useState<string | null>(null)
   const busy = [
     createMutation,
@@ -1259,6 +1276,14 @@ export function ProjectsScreen() {
     activeMutation,
     deleteMutation,
   ].some((mutation) => mutation.isPending)
+
+  const changeProfile = (profile: string) => {
+    setActiveProjectId(null)
+    setDraft(null)
+    setEditing(null)
+    setConfirm(null)
+    void navigate({ to: '/projects', search: profile ? { profile } : {} })
+  }
 
   const runMutation = async (action: () => Promise<unknown>) => {
     setMutationError(null)
@@ -1423,6 +1448,9 @@ export function ProjectsScreen() {
           setShowArchived={setShowArchived}
           onCreate={create}
           busy={busy}
+          profiles={profiles}
+          selectedProfile={selectedProfile}
+          onProfileChange={changeProfile}
         />
         {mutationError ? (
           <div className="brd-error" role="alert">
@@ -1451,6 +1479,7 @@ export function ProjectsScreen() {
           onSetActive={() => setActive(activeProject)}
           onDelete={() => hardDelete(activeProject)}
           busy={busy}
+          profile={selectedProfile}
           error={mutationError}
         />
       ) : null}

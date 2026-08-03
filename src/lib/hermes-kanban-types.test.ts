@@ -14,17 +14,21 @@ describe('hermes-kanban-types', () => {
     expect(HERMES_KANBAN_VISIBLE_STATUS_ORDER).toEqual([
       'triage',
       'todo',
+      'scheduled',
       'ready',
       'running',
       'blocked',
+      'review',
       'done',
     ])
     expect(HERMES_KANBAN_ALL_STATUSES).toEqual([
       'triage',
       'todo',
+      'scheduled',
       'ready',
       'running',
       'blocked',
+      'review',
       'done',
       'archived',
     ])
@@ -36,7 +40,7 @@ describe('hermes-kanban-types', () => {
     expect(mapLegacyColumnToKanbanStatus('backlog')).toBe('triage')
     expect(mapLegacyColumnToKanbanStatus('todo')).toBe('todo')
     expect(mapLegacyColumnToKanbanStatus('in_progress')).toBe('running')
-    expect(mapLegacyColumnToKanbanStatus('review')).toBe('triage')
+    expect(mapLegacyColumnToKanbanStatus('review')).toBe('review')
     expect(mapLegacyColumnToKanbanStatus('done')).toBe('done')
     expect(mapLegacyColumnToKanbanStatus('unknown_col')).toBe('triage')
   })

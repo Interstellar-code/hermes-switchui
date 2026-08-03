@@ -25,6 +25,11 @@ const BASE = '/api/plugins/projects'
 // auth flow (cold-cache 401 retry: two 3s HTML-scrape token fetches).
 const PROJECTS_FETCH_TIMEOUT_MS = 12_000
 
+export function explicitProjectProfile(request: Request): string | undefined {
+  const value = new URL(request.url).searchParams.get('profile')?.trim()
+  return value || undefined
+}
+
 function projectsErrorDetail(body: unknown, fallback: string): string {
   if (!body || typeof body !== 'object') return fallback
   const value =
@@ -45,9 +50,10 @@ function projectsErrorDetail(body: unknown, fallback: string): string {
 async function projectsFetch<T>(
   path: string,
   init: RequestInit = {},
+  profile?: string,
 ): Promise<T> {
   const separator = path.includes('?') ? '&' : '?'
-  const scopedPath = `${path}${separator}profile=${encodeURIComponent(getActiveProfileName())}`
+  const scopedPath = `${path}${separator}profile=${encodeURIComponent(profile || getActiveProfileName())}`
   const res = await dashboardFetch(scopedPath, {
     ...init,
     signal: init.signal ?? AbortSignal.timeout(PROJECTS_FETCH_TIMEOUT_MS),
@@ -72,41 +78,45 @@ export function projectsErrorStatus(error: unknown, fallback = 503): number {
 
 export async function listProjects(
   includeArchived = false,
+  profile?: string,
 ): Promise<ProjectsListResponse> {
   const q = new URLSearchParams()
   if (includeArchived) q.set('include_archived', 'true')
   const qs = q.toString()
-  return projectsFetch<ProjectsListResponse>(`${BASE}${qs ? `?${qs}` : ''}`, {})
+  return projectsFetch<ProjectsListResponse>(`${BASE}${qs ? `?${qs}` : ''}`, {}, profile)
 }
 
 export async function getProject(
   idOrSlug: string,
+  profile?: string,
 ): Promise<ProjectDetailResponse> {
   return projectsFetch<ProjectDetailResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}`,
-    {},
+    {}, profile,
   )
 }
 
 export async function getProjectFolders(
   idOrSlug: string,
+  profile?: string,
 ): Promise<ProjectFoldersResponse> {
   return projectsFetch<ProjectFoldersResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/folders`,
-    {},
+    {}, profile,
   )
 }
 
 export async function getProjectActivity(
   idOrSlug: string,
   opts?: { limit?: number; cursor?: string | null },
+  profile?: string,
 ): Promise<ProjectActivityResponse> {
   const q = new URLSearchParams()
   q.set('limit', String(opts?.limit ?? 10))
   if (opts?.cursor != null) q.set('cursor', opts.cursor)
   return projectsFetch<ProjectActivityResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/activity?${q.toString()}`,
-    {},
+    {}, profile,
   )
 }
 
@@ -118,80 +128,88 @@ function jsonInit(method: string, body?: unknown): RequestInit {
   }
 }
 
-async function mutateProject<T>(path: string, init: RequestInit): Promise<T> {
-  return projectsFetch<T>(path, init)
+async function mutateProject<T>(path: string, init: RequestInit, profile?: string): Promise<T> {
+  return projectsFetch<T>(path, init, profile)
 }
 
 export function createProject(
   input: CreateProjectInput,
+  profile?: string,
 ): Promise<ProjectDetailResponse> {
-  return mutateProject<ProjectDetailResponse>(BASE, jsonInit('POST', input))
+  return mutateProject<ProjectDetailResponse>(BASE, jsonInit('POST', input), profile)
 }
 
 export function updateProject(
   idOrSlug: string,
   input: UpdateProjectInput,
+  profile?: string,
 ): Promise<ProjectDetailResponse> {
   return mutateProject<ProjectDetailResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}`,
-    jsonInit('PATCH', input),
+    jsonInit('PATCH', input), profile,
   )
 }
 
 export function addProjectFolder(
   idOrSlug: string,
   input: AddProjectFolderInput,
+  profile?: string,
 ): Promise<ProjectDetailResponse> {
   return mutateProject<ProjectDetailResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/folders`,
-    jsonInit('POST', input),
+    jsonInit('POST', input), profile,
   )
 }
 
 export function removeProjectFolder(
   idOrSlug: string,
   path: string,
+  profile?: string,
 ): Promise<ProjectDetailResponse> {
   return mutateProject<ProjectDetailResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/folders`,
-    jsonInit('DELETE', { path }),
+    jsonInit('DELETE', { path }), profile,
   )
 }
 
 export function setPrimaryProjectFolder(
   idOrSlug: string,
   path: string,
+  profile?: string,
 ): Promise<ProjectDetailResponse> {
   return mutateProject<ProjectDetailResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/folders/primary`,
-    jsonInit('POST', { path }),
+    jsonInit('POST', { path }), profile,
   )
 }
 
 export function archiveProject(
   idOrSlug: string,
+  profile?: string,
 ): Promise<ProjectDetailResponse> {
   return mutateProject<ProjectDetailResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/archive`,
-    jsonInit('POST'),
+    jsonInit('POST'), profile,
   )
 }
 
 export function restoreProject(
   idOrSlug: string,
+  profile?: string,
 ): Promise<ProjectDetailResponse> {
   return mutateProject<ProjectDetailResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/restore`,
-    jsonInit('POST'),
+    jsonInit('POST'), profile,
   )
 }
 
 export function setActiveProject(
   idOrSlug: string,
+  profile?: string,
 ): Promise<ProjectsListResponse> {
   return mutateProject<ProjectsListResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/active`,
-    jsonInit('POST'),
+    jsonInit('POST'), profile,
   )
 }
 
@@ -222,9 +240,9 @@ export function unbindSessionProject(
   )
 }
 
-export function deleteProject(idOrSlug: string): Promise<ProjectsListResponse> {
+export function deleteProject(idOrSlug: string, profile?: string): Promise<ProjectsListResponse> {
   return mutateProject<ProjectsListResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}`,
-    jsonInit('DELETE'),
+    jsonInit('DELETE'), profile,
   )
 }

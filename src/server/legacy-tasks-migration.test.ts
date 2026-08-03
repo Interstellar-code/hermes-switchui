@@ -97,11 +97,11 @@ describe('legacy-tasks-migration', () => {
     expect(doneTask?.target_status).toBe('done')
   })
 
-  it('maps review → triage (no review Agent status)', async () => {
+  it('preserves the Hermes review status', async () => {
     const { previewMigration } = await import('./legacy-tasks-migration')
     const preview = previewMigration()
     const reviewTask = preview.tasks.find((t) => t.title === 'Review task')
-    expect(reviewTask?.target_status).toBe('triage')
+    expect(reviewTask?.target_status).toBe('review')
   })
 
   it('preview returns 4 tasks from mock data', async () => {

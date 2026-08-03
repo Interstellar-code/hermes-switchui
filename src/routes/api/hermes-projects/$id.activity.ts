@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import {
+  explicitProjectProfile,
   getProjectActivity,
   projectsErrorStatus,
 } from '../../../server/projects-client'
@@ -19,7 +20,7 @@ export const Route = createFileRoute('/api/hermes-projects/$id/activity')({
           const result = await getProjectActivity(params.id, {
             limit: limitParam != null ? Number(limitParam) : undefined,
             cursor,
-          })
+          }, explicitProjectProfile(request))
           return Response.json(result)
         } catch (err) {
           const msg = err instanceof Error ? err.message : 'Not found'

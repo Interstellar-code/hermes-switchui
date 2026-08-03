@@ -28,7 +28,7 @@ describe('tasks UX copy', () => {
 describe('Agent Kanban board column order', () => {
   it('board columns follow Agent lifecycle order', () => {
     expect(HERMES_KANBAN_VISIBLE_STATUS_ORDER).toEqual([
-      'triage', 'todo', 'ready', 'running', 'blocked', 'done',
+      'triage', 'todo', 'scheduled', 'ready', 'running', 'blocked', 'review', 'done',
     ])
   })
 
@@ -40,15 +40,12 @@ describe('Agent Kanban board column order', () => {
     expect(HERMES_KANBAN_ALL_STATUSES[HERMES_KANBAN_ALL_STATUSES.length - 1]).toBe('archived')
   })
 
-  it('review column is gone — not a persisted Agent status', () => {
-    expect(HERMES_KANBAN_VISIBLE_STATUS_ORDER).not.toContain('review')
-    expect(HERMES_KANBAN_ALL_STATUSES).not.toContain('review')
-  })
-
-  it('new Agent statuses ready and blocked are present', () => {
+  it('includes every Hermes lifecycle status', () => {
+    expect(HERMES_KANBAN_VISIBLE_STATUS_ORDER).toContain('scheduled')
     expect(HERMES_KANBAN_VISIBLE_STATUS_ORDER).toContain('ready')
     expect(HERMES_KANBAN_VISIBLE_STATUS_ORDER).toContain('running')
     expect(HERMES_KANBAN_VISIBLE_STATUS_ORDER).toContain('blocked')
+    expect(HERMES_KANBAN_VISIBLE_STATUS_ORDER).toContain('review')
   })
 })
 
@@ -56,9 +53,11 @@ describe('task column visibility defaults', () => {
   it('keeps ready/running visible alongside triage/blocked by default', () => {
     expect(TASKS_COLUMN_VISIBILITY_DEFAULTS).toMatchObject({
       triage: true,
+      scheduled: true,
       ready: true,
       running: true,
       blocked: true,
+      review: true,
       done: false,
       archived: false,
     })
