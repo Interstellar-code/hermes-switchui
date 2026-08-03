@@ -14,7 +14,12 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
-import { chatQueryKeys, fetchSessions, searchSessions } from './chat-queries'
+import {
+  chatQueryKeys,
+  fetchProfileSessions,
+  fetchSessions,
+  searchSessions,
+} from './chat-queries'
 import { filterSessionsWithTombstones } from './session-tombstones'
 import { matchesSessionSearch } from './session-search'
 import type { SessionMeta } from './types'
@@ -31,6 +36,11 @@ import type {
 } from './sessions-feed-types'
 import { fetchJobs, findJobById } from '@/lib/jobs-api'
 import { useChatStore } from '@/stores/chat-store'
+import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
+import { activeScopeKey, activeScopeSegments } from '@/lib/session-scope'
+
+/** Sentinel profile: the gateway's current profile, read unscoped. */
+export const ACTIVE_PROFILE = 'active'
 
 // ── Capability accessor ────────────────────────────────────────────────────────
 // We read capabilities from the /api/connection-status endpoint (already used
@@ -42,19 +52,27 @@ type CapabilityMap = {
   jobs: boolean
   kanban: boolean
   memory: boolean
+  dashboard: boolean
 }
 
 async function fetchCapabilities(): Promise<CapabilityMap> {
   try {
     const res = await fetch('/api/connection-status')
     if (!res.ok)
-      return { sessions: false, jobs: false, kanban: false, memory: false }
+      return {
+        sessions: false,
+        jobs: false,
+        kanban: false,
+        memory: false,
+        dashboard: false,
+      }
     const data = (await res.json()) as {
       capabilities?: Partial<CapabilityMap>
       sessions?: boolean
       jobs?: boolean
       kanban?: boolean
       memory?: boolean
+      dashboard?: boolean
     }
     const caps = data.capabilities ?? data
     return {
@@ -63,12 +81,20 @@ async function fetchCapabilities(): Promise<CapabilityMap> {
       kanban: Boolean(caps.kanban),
       // memory capability is always true in the gateway (reads filesystem)
       memory: caps.memory !== false,
+      dashboard: Boolean(caps.dashboard),
     }
   } catch {
-    return { sessions: false, jobs: false, kanban: false, memory: false }
+    return {
+      sessions: false,
+      jobs: false,
+      kanban: false,
+      memory: false,
+      dashboard: false,
+    }
   }
 }
 
+// Gateway capability probe — profile-agnostic by design (P0A §3.2 row 27).
 const CAPABILITIES_QUERY_KEY = ['sessions-feed', 'capabilities'] as const
 
 /**
@@ -76,7 +102,9 @@ const CAPABILITIES_QUERY_KEY = ['sessions-feed', 'capabilities'] as const
  * the V2 sidebar feed independently. The sub-key `['sessions-feed','chat']`
  * matches the cron-jobs query prefix so a single invalidate clears it too.
  */
-export const SESSIONS_FEED_KEY = ['sessions-feed', 'chat'] as const
+export function sessionsFeedKey(): Array<unknown> {
+  return ['sessions-feed', 'chat', ...activeScopeSegments()]
+}
 
 /**
  * Invalidate the single session-list cache.
@@ -230,8 +258,13 @@ export function findSessionSource(
  * `/api/connection-status`: that endpoint is a coarse capability snapshot and
  * can be stale during gateway/dashboard restarts, leaving the sidebar stuck at
  * "0" even while `/api/sessions` is healthy.
+ *
+ * `enabled` is false only while the sidebar is browsing a FOREIGN profile —
+ * that read goes through `useScopedChatSessionsFeed` instead, and polling the
+ * active profile's list in the background would be pointless traffic. Defaults
+ * to true, so the unscoped path is byte-identical.
  */
-export function useChatSessionsFeed(): SessionSourceResult {
+export function useChatSessionsFeed(enabled = true): SessionSourceResult {
   const capsQuery = useQuery({
     queryKey: CAPABILITIES_QUERY_KEY,
     queryFn: fetchCapabilities,
@@ -251,7 +284,8 @@ export function useChatSessionsFeed(): SessionSourceResult {
     queryKey: chatQueryKeys.sessions,
     queryFn: fetchSessions,
     staleTime: 60_000,
-    refetchInterval: 120_000,
+    refetchInterval: enabled ? 120_000 : false,
+    enabled,
   })
 
   // Cron-job enrichment is a separate lightweight fetch: only runs when cron
@@ -268,7 +302,7 @@ export function useChatSessionsFeed(): SessionSourceResult {
   }, [rawSessions])
 
   const jobsQuery = useQuery({
-    queryKey: ['sessions-feed', 'chat', 'cron-jobs', [...cronJobIds].sort()],
+    queryKey: [...sessionsFeedKey(), 'cron-jobs', [...cronJobIds].sort()],
     queryFn: () => fetchJobs().catch(() => [] as Array<ClaudeJob>),
     enabled: cronJobIds.size > 0,
     staleTime: 60_000,
@@ -293,6 +327,52 @@ export function useChatSessionsFeed(): SessionSourceResult {
         error: sessionsQuery.error,
       }
     : { src: 'chat', items: [], available: false, loading: false, error: null }
+}
+
+/**
+ * Chat sessions of ONE named profile, for the sidebar's profile browse.
+ *
+ * Deliberately NOT `chatQueryKeys.sessions`. That key is the active profile's
+ * list and every mutation helper (rename, auto-title, upsert, reconcile,
+ * remove) writes into it via `setQueryData`; parking another profile's rows
+ * there would let those helpers mutate foreign-profile data. This owns a
+ * separate key and never touches the shared cache.
+ *
+ * Returns `available: true` while scoped even on error, so a failed or
+ * degraded profile surfaces through `result.sources` instead of rendering as
+ * an empty list — an empty list reads as "no sessions", which is the same lie
+ * as a silent zero.
+ *
+ * Cron-job enrichment is skipped: the jobs endpoint is active-profile scoped,
+ * so cross-profile cron runs keep their raw key-derived title.
+ */
+export function useScopedChatSessionsFeed(profile: string): SessionSourceResult {
+  const scoped = Boolean(profile) && profile !== ACTIVE_PROFILE
+  const waitingSessionKeys = useChatStore((s) => s.waitingSessionKeys)
+
+  const scopedQuery = useQuery({
+    queryKey: ['sessions-feed', 'scoped-chat', profile],
+    queryFn: () => fetchProfileSessions(profile),
+    enabled: scoped,
+    staleTime: 60_000,
+    refetchInterval: scoped ? 120_000 : false,
+  })
+
+  const items = useMemo(
+    () => sessionsToFeedItems(scopedQuery.data ?? [], [], waitingSessionKeys),
+    [scopedQuery.data, waitingSessionKeys],
+  )
+
+  if (!scoped) {
+    return { src: 'chat', items: [], available: false, loading: false, error: null }
+  }
+  return {
+    src: 'chat',
+    items,
+    available: true,
+    loading: scopedQuery.isLoading,
+    error: scopedQuery.error,
+  }
 }
 
 function sessionsToFeedItems(
@@ -322,8 +402,8 @@ function sessionsToFeedItems(
     const kind = classifySessionSource(s.source, s.key, isTaskTriggered, s.kind)
     const live =
       Boolean(s.isActive) ||
-      waitingSessionKeys.has(s.key) ||
-      waitingSessionKeys.has(s.friendlyId)
+      waitingSessionKeys.has(activeScopeKey(s.key)) ||
+      waitingSessionKeys.has(activeScopeKey(s.friendlyId))
     return {
       id: makeId('chat', s.key),
       src: kind,
@@ -351,9 +431,89 @@ function sessionsToFeedItems(
         cronJobName: cronJob?.name,
         originalTitle: fallbackTitle,
         originalPreview: fallbackSub,
+        profile: s.profile,
       },
     }
   })
+}
+
+// ── Cross-profile browse totals (P3 sidebar lane) ─────────────────────────────
+
+/** One row of the profile-browse summary: name, session count, and — for
+ * profiles with a drifted `state.db` schema — the upstream error string.
+ * `error` set means `count` is NOT trustworthy (the dashboard could not
+ * compute it) and must render as a degraded row, never as `0`. */
+export type ProfileTotalRow = {
+  profile: string
+  count: number
+  error: string | null
+}
+
+type ProfileTotalsPayload = {
+  profile_totals?: Record<string, number>
+  errors?: Array<{ profile: string; error: string }>
+}
+
+async function fetchProfileTotals(): Promise<ProfileTotalsPayload> {
+  try {
+    const res = await fetch('/api/sessions?profile=all&limit=1')
+    if (!res.ok) return {}
+    return (await res.json()) as ProfileTotalsPayload
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Cross-profile session totals for the sidebar's profile-browse row.
+ *
+ * Read-only, informational — requires the dashboard capability (§1.5:
+ * cross-profile browsing goes through the dashboard's `/api/profiles/sessions`
+ * aggregation, not the gateway multiplex prefix). Disabled entirely when the
+ * dashboard isn't available, so single-gateway installs never issue this
+ * request — unscoped behaviour stays byte-identical.
+ */
+export function useProfileSessionTotals(): {
+  totals: Array<ProfileTotalRow>
+  loading: boolean
+} {
+  const capsQuery = useQuery({
+    queryKey: CAPABILITIES_QUERY_KEY,
+    queryFn: fetchCapabilities,
+    staleTime: 120_000,
+  })
+  const dashboardAvailable = capsQuery.data?.dashboard ?? false
+
+  const totalsQuery = useQuery({
+    queryKey: ['sessions-feed', 'profile-totals'],
+    queryFn: fetchProfileTotals,
+    enabled: dashboardAvailable,
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  })
+
+  const totals = useMemo(() => {
+    const data = totalsQuery.data
+    if (!data) return []
+    const errorByProfile = new Map(
+      (data.errors ?? []).map((e) => [e.profile, e.error]),
+    )
+    const names = new Set([
+      ...Object.keys(data.profile_totals ?? {}),
+      ...errorByProfile.keys(),
+    ])
+    return [...names]
+      .map(
+        (profile): ProfileTotalRow => ({
+          profile,
+          count: data.profile_totals?.[profile] ?? 0,
+          error: errorByProfile.get(profile) ?? null,
+        }),
+      )
+      .sort((a, b) => a.profile.localeCompare(b.profile))
+  }, [totalsQuery.data])
+
+  return { totals, loading: dashboardAvailable && totalsQuery.isLoading }
 }
 
 export function mergeSessionFeedItems(
@@ -474,14 +634,27 @@ export function useSessionsFeed(
     sort = 'recent',
   } = options
   const waitingSessionKeys = useChatStore((s) => s.waitingSessionKeys)
+  const profile = useSessionsFilterStore((s) => s.profile)
+  const unscoped = !profile || profile === ACTIVE_PROFILE
 
-  const chat = useChatSessionsFeed()
+  // Both hooks always run (hooks cannot be conditional); the inactive one is
+  // gated off by `enabled` so only one of them polls.
+  const chat = useChatSessionsFeed(unscoped)
+  const scopedChat = useScopedChatSessionsFeed(unscoped ? ACTIVE_PROFILE : profile)
   const tool = useToolSessionsFeed()
   const tg = useTelegramSessionsFeed()
   const remoteSearchQuery = useQuery({
-    queryKey: ['sessions-feed', 'search', query.trim()],
+    queryKey: [
+      'sessions-feed',
+      'search',
+      ...activeScopeSegments(),
+      query.trim(),
+    ],
+    // Remote search is active-profile scoped (`searchSessions` reads the URL
+    // scope, not this filter), so merging its hits while browsing a foreign
+    // profile would leak the active profile's sessions into the list.
+    enabled: query.trim().length >= 2 && unscoped,
     queryFn: () => searchSessions(query.trim()),
-    enabled: query.trim().length >= 2,
     staleTime: 60_000,
   })
   const remoteSearchItems = useMemo(
@@ -493,7 +666,8 @@ export function useSessionsFeed(
   //   - cron-generated chat sessions appear directly in chat source.
   //   - tasks moved to a dedicated chat-header tab (see chat-source-tabs-v2).
   //   - memory removed entirely from chat sidebar.
-  const allSources: Array<SessionSourceResult> = [chat, tool, tg]
+  const chatSource = unscoped ? chat : scopedChat
+  const allSources: Array<SessionSourceResult> = [chatSource, tool, tg]
 
   const result = useMemo(() => {
     const now = Date.now()
@@ -569,9 +743,9 @@ export function useSessionsFeed(
       loading,
     }
   }, [
-    chat.items,
-    chat.available,
-    chat.loading,
+    chatSource.items,
+    chatSource.available,
+    chatSource.loading,
     tool.available,
     tg.available,
     remoteSearchItems,

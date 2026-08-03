@@ -6,7 +6,11 @@
  */
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '@/server/auth-middleware'
-import { dashboardFetch, ensureGatewayProbed } from '@/server/gateway-capabilities'
+import {
+  dashboardFetch,
+  ensureGatewayProbed,
+} from '@/server/gateway-capabilities'
+import { getActiveProfileName } from '@/server/profiles-browser'
 
 export const Route = createFileRoute('/api/backups/download')({
   server: {
@@ -36,7 +40,7 @@ export const Route = createFileRoute('/api/backups/download')({
         try {
           // Proxy to dashboard with streaming response
           const upstream = await dashboardFetch(
-            `/api/ops/backup/download?archive=${encodeURIComponent(archive)}`,
+            `/api/ops/backup/download?archive=${encodeURIComponent(archive)}&profile=${encodeURIComponent(getActiveProfileName())}`,
           )
 
           if (!upstream.ok) {
@@ -51,7 +55,8 @@ export const Route = createFileRoute('/api/backups/download')({
           const contentType = upstream.headers.get('content-type')
           if (contentType) responseHeaders.set('content-type', contentType)
           const contentDisposition = upstream.headers.get('content-disposition')
-          if (contentDisposition) responseHeaders.set('content-disposition', contentDisposition)
+          if (contentDisposition)
+            responseHeaders.set('content-disposition', contentDisposition)
 
           return new Response(upstream.body, {
             status: upstream.status,

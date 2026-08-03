@@ -10,6 +10,13 @@ import {
   stripDataUrlPrefix,
 } from '../../lib/stream-utils'
 import { resolveSessionKey } from '../../server/session-utils'
+import {
+  assertProfileServed,
+  isProfileScopeError,
+  profileErrorStatus,
+  readProfile,
+} from '../../server/profile-scope'
+import { scopeKey } from '../../lib/session-scope'
 import { resolveMainSessionId } from '../../server/main-session-resolver'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { requireJsonContentType } from '../../server/rate-limit'
@@ -306,6 +313,27 @@ export const Route = createFileRoute('/api/send-stream')({
           )
         }
 
+        // Fail closed on the profile scope BEFORE resolving a session key and
+        // before any local state mutation. A raw session ID resolved in the
+        // wrong profile's state.db is the cross-profile collision the whole
+        // mechanism exists to prevent, and a queued/persisted run must never
+        // record a send the gateway could have misrouted.
+        const profile = readProfile(body.profile)
+        if (profile) {
+          try {
+            await assertProfileServed(profile)
+          } catch (err) {
+            if (!isProfileScopeError(err)) throw err
+            return new Response(
+              JSON.stringify({ ok: false, error: (err as Error).message }),
+              {
+                status: profileErrorStatus(err),
+                headers: { 'Content-Type': 'application/json' },
+              },
+            )
+          }
+        }
+
         // Resolve session key
         let sessionKey: string
         let resolvedFriendlyId: string
@@ -453,10 +481,17 @@ export const Route = createFileRoute('/api/send-stream')({
               friendlyId: string,
             ) => {
               if (!runId || persistedRunReady) return
-              activeRunSessionKey = runSessionKey
+              // Store under the composite `profile::sessionId`. Session ids are
+              // not unique across profiles, so a bare key lets two profiles'
+              // same-id sessions overwrite each other's run state — and the
+              // active-run poller would then read the wrong profile's run.
+              // `scopeKey` is identity when unscoped. The reader
+              // (`/api/sessions/:key/active-run`) composes the same key.
+              const runStoreKey = scopeKey(profile, runSessionKey)
+              activeRunSessionKey = runStoreKey
               persistedRunReady = createPersistedRun({
                 runId,
-                sessionKey: runSessionKey,
+                sessionKey: runStoreKey,
                 friendlyId,
               }).catch(() => null)
             }
@@ -587,6 +622,7 @@ export const Route = createFileRoute('/api/send-stream')({
                         sessionId: portableSessionKey,
                         stableSessionKey,
                         signal: abortController.signal,
+                        profile,
                       })
                       for await (const ev of responsesStream) {
                         if (ev.kind === 'text.delta') {
@@ -736,6 +772,10 @@ export const Route = createFileRoute('/api/send-stream')({
                       closeStream()
                       return
                     } catch (err) {
+                      // A profile-scope failure is never a transport problem —
+                      // falling back would just retry against a topology we
+                      // already proved can't honour the prefix. Surface it.
+                      if (isProfileScopeError(err)) throw err
                       // Log and fall through to the openaiChat path so a
                       // misconfigured /v1/responses surface (older agent,
                       // CORS issue, network blip) doesn't break the chat.
@@ -763,6 +803,7 @@ export const Route = createFileRoute('/api/send-stream')({
                     sessionId: portableSessionKey,
                     stableSessionKey,
                     baseUrl: localBaseUrl,
+                    profile,
                   })
 
                   let chatThinking = ''
@@ -899,7 +940,10 @@ export const Route = createFileRoute('/api/send-stream')({
                 // and Operations per-agent sessions so the orchestrator
                 // chat doesn't latch onto them.
                 let reused: string | null = null
-                if (sessionKey === 'main') {
+                // listSessions() is unscoped (active profile), so reusing its
+                // 'main' pick under an explicit profile would latch onto a
+                // foreign session ID. Scoped sends always create instead.
+                if (sessionKey === 'main' && !profile) {
                   try {
                     reused = await resolveMainSessionId({ listSessions })
                   } catch {
@@ -910,7 +954,7 @@ export const Route = createFileRoute('/api/send-stream')({
                   sessionKey = reused
                   resolvedFriendlyId = reused
                 } else {
-                  const session = await createSession()
+                  const session = await createSession(undefined, profile)
                   sessionKey = session.id
                   resolvedFriendlyId = session.id
                 }
@@ -949,6 +993,7 @@ export const Route = createFileRoute('/api/send-stream')({
                   const baseline = (await getSessionMessagesFromAgent(
                     sessionKey,
                     { limit: liveToolMessageLimit },
+                    profile,
                   )) as unknown as Array<Record<string, unknown>>
                   if (Array.isArray(baseline)) {
                     collectSyntheticLiveToolEvents({
@@ -970,6 +1015,7 @@ export const Route = createFileRoute('/api/send-stream')({
                     const allMsgs = (await getSessionMessagesFromAgent(
                       sessionKey,
                       { limit: liveToolMessageLimit },
+                      profile,
                     )) as unknown as Array<Record<string, unknown>>
                     livePollConsecutiveFailures = 0
                     if (!Array.isArray(allMsgs) || allMsgs.length === 0) {
@@ -1026,6 +1072,7 @@ export const Route = createFileRoute('/api/send-stream')({
                   {
                     signal: abortController.signal,
                     stableSessionKey,
+                    profile,
                     async onEvent({ event, data }) {
                       const sessionKeyFromEvent =
                         typeof data.session_id === 'string' &&
@@ -1514,9 +1561,11 @@ export const Route = createFileRoute('/api/send-stream')({
                             > = []
                             try {
                               persistedMessages =
-                                await getSessionMessagesFromAgent(sid, {
-                                  limit: liveToolMessageLimit,
-                                })
+                                await getSessionMessagesFromAgent(
+                                  sid,
+                                  { limit: liveToolMessageLimit },
+                                  profile,
+                                )
                             } catch {
                               persistedMessages = []
                             }

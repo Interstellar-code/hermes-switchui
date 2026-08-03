@@ -28,6 +28,10 @@ vi.mock('@/server/gateway-capabilities', () => ({
   dashboardFetch: gateway.dashboardFetch,
 }))
 
+vi.mock('@/server/profiles-browser', () => ({
+  getActiveProfileName: () => 'hermes-switch',
+}))
+
 async function getPostHandler() {
   const mod = await import('./create')
   return (mod.Route as unknown as { options: { server: { handlers: { POST: (ctx: { request: Request }) => Promise<Response> } } } }).options.server.handlers.POST
@@ -94,7 +98,7 @@ describe('POST /api/backups/create', () => {
     const res = await handler({ request: req })
 
     expect(gateway.dashboardFetch).toHaveBeenCalledTimes(1)
-    expect(gateway.dashboardFetch).toHaveBeenCalledWith('/api/ops/backup', {
+    expect(gateway.dashboardFetch).toHaveBeenCalledWith('/api/ops/backup?profile=hermes-switch', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ output: '/path/to/backup.zip' }),
@@ -137,7 +141,7 @@ describe('POST /api/backups/create', () => {
     })
     const res = await handler({ request: req })
 
-    expect(gateway.dashboardFetch).toHaveBeenCalledWith('/api/ops/backup', {
+    expect(gateway.dashboardFetch).toHaveBeenCalledWith('/api/ops/backup?profile=hermes-switch', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({}),

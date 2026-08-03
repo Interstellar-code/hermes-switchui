@@ -16,6 +16,7 @@ import type { AgentActivity } from '@/stores/chat-activity-store'
 import { useChatStore } from '@/stores/chat-store'
 import { useChatSettingsStore } from '@/hooks/use-chat-settings'
 import { stripDataUrlPrefix } from '@/lib/stream-utils'
+import { isProfileRefusal } from '@/lib/session-scope'
 import { playChatComplete } from '@/lib/sounds'
 import { toast } from '@/components/ui/toast'
 import { showErrorToast } from '@/components/error-toast'
@@ -610,9 +611,16 @@ export function useSendMessageState(params: {
         }
         return
       }
-      const errorMessage = `Failed to send message. ${messageText}`
+      // A profile-scope refusal means nothing was sent and nothing was
+      // misrouted — the user needs the reason, not "failed to send".
+      const refused = isProfileRefusal(messageText)
+      const errorMessage = refused
+        ? messageText
+        : `Failed to send message. ${messageText}`
       setError(errorMessage)
-      toast('Failed to send message', { type: 'error' })
+      toast(refused ? 'Message not sent' : 'Failed to send message', {
+        type: 'error',
+      })
       showErrorToast(messageText)
       setPendingGeneration(false)
       setWaitingForResponse(false)

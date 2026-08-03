@@ -61,10 +61,13 @@ export const Route = createFileRoute('/api/terminal-stream')({
         if (command && command.length > 0) {
           const binError = isAllowedTerminalBinary(command[0])
           if (binError) {
-            return new Response(JSON.stringify({ ok: false, error: binError }), {
-              status: 400,
-              headers: { 'Content-Type': 'application/json' },
-            })
+            return new Response(
+              JSON.stringify({ ok: false, error: binError }),
+              {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' },
+              },
+            )
           }
         }
 
@@ -96,11 +99,25 @@ export const Route = createFileRoute('/api/terminal-stream')({
             ? body.sessionId.trim()
             : null
 
+        // An explicit attach is a continuity request, not a create fallback.
+        // Returning 404 lets clients clear stale ids instead of silently
+        // creating a second shell.
+        if (attachSessionId && !getTerminalSession(attachSessionId)) {
+          return new Response(
+            JSON.stringify({ ok: false, error: 'Terminal session not found' }),
+            {
+              status: 404,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          )
+        }
+
         const encoder = new TextEncoder()
         const stream = new ReadableStream({
           start(controller) {
             let isStreamActive = true
             let isReattach = false
+            let cleanedUp = false
 
             const send = (event: string, data: unknown) => {
               if (!isStreamActive || controller.desiredSize === null) return
@@ -161,8 +178,7 @@ export const Route = createFileRoute('/api/terminal-stream')({
 
             const handleClose = () => {
               send('close', { sessionId: session.id })
-              if (!isStreamActive) return
-              isStreamActive = false
+              cleanup(false)
               try {
                 controller.close()
               } catch {
@@ -177,18 +193,18 @@ export const Route = createFileRoute('/api/terminal-stream')({
               send('ping', { t: Date.now() })
             }, 8000)
 
-            const abort = () => {
+            const cleanup = (detached: boolean) => {
+              if (cleanedUp) return
+              cleanedUp = true
               isStreamActive = false
               clearInterval(keepAlive)
               session.emitter.off('event', handleEvent)
               session.emitter.off('close', handleClose)
-              // DON'T close the PTY on SSE disconnect. Let it survive so
-              // the user can reattach after a network blip / tab suspension /
-              // HMR reload. The session reaps itself after DETACH_TTL_MS if
-              // no client reattaches. See #298.
-              session.markDetached()
+              request.signal.removeEventListener('abort', abort)
+              if (detached) session.markDetached()
             }
 
+            const abort = () => cleanup(true)
             request.signal.addEventListener('abort', abort)
           },
         })

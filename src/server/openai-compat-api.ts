@@ -3,6 +3,7 @@ import {
   HERMES_SESSION_KEY_HEADER,
 } from '../lib/send-stream-session-headers'
 import { BEARER_TOKEN, CLAUDE_API } from './gateway-capabilities'
+import { assertProfileResponseOk, scopedPath } from './profile-scope'
 
 /**
  * Optional bearer token for authenticated OpenAI-compatible endpoints
@@ -29,20 +30,28 @@ function getBearerToken(): string {
   return BEARER_TOKEN
 }
 
-/** Cached first available model from /v1/models — used as fallback when no model is specified. */
-let _cachedDefaultModel: string | null = null
+/** Cached first available model from /v1/models — used as fallback when no
+ *  model is specified. Keyed by profile: each profile home has its own config
+ *  and therefore its own model list, so one global slot would let a
+ *  cross-profile send pick a model the target profile doesn't have. */
+const _cachedDefaultModel = new Map<string, string>()
 
-async function getDefaultModel(): Promise<string> {
-  if (_cachedDefaultModel) return _cachedDefaultModel
+async function getDefaultModel(profile?: string | null): Promise<string> {
+  const cacheKey = profile ?? ''
+  const hit = _cachedDefaultModel.get(cacheKey)
+  if (hit) return hit
   if (process.env.CLAUDE_DEFAULT_MODEL) {
-    _cachedDefaultModel = process.env.CLAUDE_DEFAULT_MODEL
-    return _cachedDefaultModel
+    _cachedDefaultModel.set(cacheKey, process.env.CLAUDE_DEFAULT_MODEL)
+    return process.env.CLAUDE_DEFAULT_MODEL
   }
+  // Outside the try: a profile-scope failure must propagate, not degrade into
+  // the 'default' fallback below.
+  const modelsPath = await scopedPath('/v1/models', profile)
   try {
     const headers: Record<string, string> = {}
     const bearer = getBearerToken()
     if (bearer) headers['Authorization'] = `Bearer ${bearer}`
-    const res = await fetch(`${CLAUDE_API}/v1/models`, {
+    const res = await fetch(`${CLAUDE_API}${modelsPath}`, {
       headers,
       signal: AbortSignal.timeout(3_000),
     })
@@ -53,8 +62,9 @@ async function getDefaultModel(): Promise<string> {
         const preferred = data.data.find((m) =>
           /qwen|llama|mistral|gemma/i.test(m.id),
         )
-        _cachedDefaultModel = preferred?.id ?? data.data[0].id
-        return _cachedDefaultModel
+        const picked = preferred?.id ?? data.data[0].id
+        _cachedDefaultModel.set(cacheKey, picked)
+        return picked
       }
     }
   } catch {
@@ -81,6 +91,9 @@ export type OpenAIChatOptions = {
   stableSessionKey?: string
   /** Override the base URL (e.g. for local providers). Bypasses gateway. */
   baseUrl?: string
+  /** Explicitly selected profile; null/absent = unscoped (active profile).
+   *  Ignored when `baseUrl` is set — that target is not the hermes gateway. */
+  profile?: string | null
 }
 
 type OpenAIChatRequest = {
@@ -108,7 +121,7 @@ export async function buildRequestBody(
   const model =
     options.model && options.model !== 'default'
       ? options.model
-      : await getDefaultModel()
+      : await getDefaultModel(options.baseUrl ? null : options.profile)
   return {
     model,
     messages,
@@ -294,7 +307,7 @@ export async function openaiChat(
 
   const endpoint = options.baseUrl
     ? `${options.baseUrl.replace(/\/+$/, '')}/chat/completions`
-    : `${CLAUDE_API}/v1/chat/completions`
+    : `${CLAUDE_API}${await scopedPath('/v1/chat/completions', options.profile)}`
   const response = await fetch(endpoint, {
     method: 'POST',
     headers,
@@ -302,6 +315,10 @@ export async function openaiChat(
     signal: options.signal,
   })
 
+  await assertProfileResponseOk(
+    response,
+    options.baseUrl ? null : options.profile,
+  )
   if (!response.ok) {
     const text = await response.text().catch(() => '')
     throw new Error(`OpenAI-compatible chat: ${response.status} ${text}`)

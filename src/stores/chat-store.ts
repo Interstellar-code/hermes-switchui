@@ -31,6 +31,17 @@ import type {
 } from '../screens/chat/types'
 import type { ChatComposerAttachment } from '../screens/chat/components/chat-composer-types'
 
+// Every session-keyed map in this store is keyed by the composite
+// `profile::sessionKey` (see `@/lib/session-scope`). Scoping happens once per
+// entry point — each action head, plus the event stream — so no map write can
+// be bare. `activeScopeKey` is idempotent, so an action calling another action
+// does not double-scope, and it is a no-op when no profile is selected.
+import {
+  activeScopeKey,
+  getSessionProfile,
+  normalizeProfile,
+} from '@/lib/session-scope'
+
 const MESSAGE_QUEUE_PREFIX = 'switchui:message-queue:'
 
 /**
@@ -211,6 +222,11 @@ export type QueuedChatMessage = {
   id: string
   text: string
   attachments: Array<ChatComposerAttachment>
+  /**
+   * The profile this message was composed under, stamped by `enqueue`. Absent
+   * on entries persisted before scoping existed, which parse as unscoped.
+   */
+  profile?: string | null
 }
 
 /**
@@ -435,7 +451,7 @@ export function clearRecoveryMessage(sessionKey: string): void {
 }
 
 export function normalizeMessageQueueSessionKey(sessionKey: string): string {
-  return normalizeString(sessionKey) || 'main'
+  return activeScopeKey(normalizeString(sessionKey) || 'main')
 }
 
 function readQueuedMessagesAdapter(
@@ -926,10 +942,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return get().sendStreamRunIds.has(runId)
   },
 
-  enqueue: (sessionKey, item) => {
+  enqueue: (sessionKeyRaw, item) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     const key = normalizeMessageQueueSessionKey(sessionKey)
     const current = get().messageQueue[key] ?? readQueuedMessages(key)
-    const nextQueue = [...current, item]
+    // Stamp the profile HERE rather than at send time. A queued message can sit
+    // across a scope change, and the send path reads the ambient profile when it
+    // fires — so a message composed in `neo` could be written into whatever
+    // profile is ambient when the queue drains. Stamping in the store action
+    // means no call site can forget to capture it. Unscoped adds no key at all,
+    // so single-profile queue entries stay byte-identical in sessionStorage.
+    const capturedProfile = item.profile ?? getSessionProfile()
+    const nextItem: QueuedChatMessage = capturedProfile
+      ? { ...item, profile: capturedProfile }
+      : item
+    const nextQueue = [...current, nextItem]
     persistQueuedMessages(key, nextQueue)
     set((state) => ({
       messageQueue: setQueueForSession(state.messageQueue, key, nextQueue),
@@ -938,18 +965,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
         key,
         {
           phase: 'queued',
-          item,
+          item: nextItem,
           occurredAt: Date.now(),
         },
       ),
     }))
   },
 
-  dequeue: (sessionKey) => {
+  dequeue: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     const key = normalizeMessageQueueSessionKey(sessionKey)
     const current = get().messageQueue[key] ?? readQueuedMessages(key)
     if (current.length === 0) return null
     const [nextItem, ...remaining] = current
+    // Fail closed rather than send into the wrong profile. The send path reads
+    // the ambient profile as it fires, so handing back an item composed under a
+    // different one would write it there — a silent duplicate in the wrong
+    // `state.db`. Holding it in the queue is recoverable; a wrong write is not.
+    // (Bucket keys embed the profile, but `activeScopeKey` is idempotent, so a
+    // caller passing an already-scoped key reaches the right bucket under any
+    // ambient value — which is exactly how the mismatch becomes reachable.)
+    if (normalizeProfile(nextItem.profile) !== getSessionProfile()) return null
     persistQueuedMessages(key, remaining)
     set((state) => ({
       messageQueue: setQueueForSession(state.messageQueue, key, remaining),
@@ -966,7 +1002,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return nextItem
   },
 
-  removeQueued: (sessionKey, id) => {
+  removeQueued: (sessionKeyRaw, id) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     const key = normalizeMessageQueueSessionKey(sessionKey)
     const current = get().messageQueue[key] ?? readQueuedMessages(key)
     const nextQueue = current.filter((item) => item.id !== id)
@@ -980,7 +1017,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }))
   },
 
-  clearQueue: (sessionKey) => {
+  clearQueue: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     const key = normalizeMessageQueueSessionKey(sessionKey)
     persistQueuedMessages(key, [])
     set((state) => ({
@@ -993,7 +1031,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }))
   },
 
-  setSessionWaiting: (sessionKey, runId) => {
+  setSessionWaiting: (sessionKeyRaw, runId) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     const meta = {
       since: get().waitingSessionMeta[sessionKey]?.since ?? Date.now(),
       runId: runId ?? null,
@@ -1006,7 +1045,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     get().setRunPhase(sessionKey, 'streaming', 'liveness-snapshot')
   },
 
-  clearSessionWaiting: (sessionKey) => {
+  clearSessionWaiting: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     const nextKeys = new Set(get().waitingSessionKeys)
     nextKeys.delete(sessionKey)
     const { [sessionKey]: _, ...nextMeta } = get().waitingSessionMeta
@@ -1015,15 +1055,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     get().setRunPhase(sessionKey, 'idle', 'liveness-clear')
   },
 
-  isSessionWaiting: (sessionKey) => {
+  isSessionWaiting: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     return get().waitingSessionKeys.has(sessionKey)
   },
 
-  getPendingClarify: (sessionKey) => {
+  getPendingClarify: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     return get().pendingClarify[sessionKey] ?? null
   },
 
-  clearPendingClarify: (sessionKey) => {
+  clearPendingClarify: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     const current = get().pendingClarify
     if (!current[sessionKey]) return
     const next = { ...current }
@@ -1031,7 +1074,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ pendingClarify: next })
   },
 
-  markClarifyResolved: (sessionKey, clarifyId, answer) => {
+  markClarifyResolved: (sessionKeyRaw, clarifyId, answer) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     const current = get().pendingClarify[sessionKey]
     if (!current) return
     if (clarifyId && current.clarifyId !== clarifyId) return
@@ -1047,7 +1091,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })
   },
 
-  dismissUnresolvedClarify: (sessionKey) => {
+  dismissUnresolvedClarify: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     const current = get().pendingClarify
     const entry = current[sessionKey]
     // Keep answered cards (visual record); only drop stale unanswered ones.
@@ -1057,25 +1102,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ pendingClarify: next })
   },
 
-  setSessionInterrupted: (sessionKey) => {
+  setSessionInterrupted: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     const nextKeys = new Set(get().interruptedSessionKeys)
     nextKeys.add(sessionKey)
     set({ interruptedSessionKeys: nextKeys })
     get().setRunPhase(sessionKey, 'interrupted', 'predicate-clear')
   },
 
-  clearSessionInterrupted: (sessionKey) => {
+  clearSessionInterrupted: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     const nextKeys = new Set(get().interruptedSessionKeys)
     nextKeys.delete(sessionKey)
     set({ interruptedSessionKeys: nextKeys })
     get().setRunPhase(sessionKey, 'idle', 'predicate-clear')
   },
 
-  isSessionInterrupted: (sessionKey) => {
+  isSessionInterrupted: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     return get().interruptedSessionKeys.has(sessionKey)
   },
 
-  setRunPhase: (sessionKey, next, trigger) => {
+  setRunPhase: (sessionKeyRaw, next, trigger) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     const current = get().runPhase.get(sessionKey) ?? 'idle'
     const resolved = reduceRunPhase(current, next, trigger)
     if (resolved === null) {
@@ -1089,15 +1138,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ runPhase: nextMap })
   },
 
-  getRunPhase: (sessionKey) => {
+  getRunPhase: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     return get().runPhase.get(sessionKey) ?? 'idle'
   },
 
-  isRunPhaseBusy: (sessionKey) => {
+  isRunPhaseBusy: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     return isRunPhaseBusy(get().runPhase.get(sessionKey) ?? 'idle')
   },
 
-  selectIsComposerBusy: (sessionKey, refSignal, derived, pending) => {
+  selectIsComposerBusy: (sessionKeyRaw, refSignal, derived, pending) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     const phaseBusy = isRunPhaseBusy(get().runPhase.get(sessionKey) ?? 'idle')
     return (
       phaseBusy ||
@@ -1111,7 +1163,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   processEvent: (event) => {
     const state = get()
-    const sessionKey = event.sessionKey
+    const sessionKey = activeScopeKey(event.sessionKey)
     const now = Date.now()
 
     // Skip ALL events for runs being handled by send-stream.
@@ -1656,15 +1708,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  getRealtimeMessages: (sessionKey) => {
+  getRealtimeMessages: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     return get().realtimeMessages.get(sessionKey) ?? []
   },
 
-  getStreamingState: (sessionKey) => {
+  getStreamingState: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     return get().streamingState.get(sessionKey) ?? null
   },
 
-  clearSession: (sessionKey) => {
+  clearSession: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     // Cancel any pending debounced streaming persist for this session so a
     // trailing timer can't re-write state after the session is cleared.
     cancelPersistStreamingState(sessionKey)
@@ -1675,13 +1730,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ realtimeMessages: messages, streamingState: streaming })
   },
 
-  clearRealtimeBuffer: (sessionKey) => {
+  clearRealtimeBuffer: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     const messages = new Map(get().realtimeMessages)
     messages.delete(sessionKey)
     set({ realtimeMessages: messages })
   },
 
-  clearStreamingSession: (sessionKey) => {
+  clearStreamingSession: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     cancelPersistStreamingState(sessionKey)
     const streaming = new Map(get().streamingState)
     if (!streaming.has(sessionKey)) return
@@ -1694,7 +1751,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ streamingState: new Map() })
   },
 
-  mergeHistoryMessages: (sessionKey, historyMessages) => {
+  mergeHistoryMessages: (sessionKeyRaw, historyMessages) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
     const realtimeMessages = get().realtimeMessages.get(sessionKey) ?? []
 
     if (realtimeMessages.length === 0) {

@@ -22,6 +22,10 @@ vi.mock('@/server/gateway-capabilities', () => ({
   ensureGatewayProbed: gateway.ensureGatewayProbed,
 }))
 
+vi.mock('@/server/profiles-browser', () => ({
+  getActiveProfileName: () => 'hermes-switch',
+}))
+
 async function getGetHandler() {
   const mod = await import('./list')
   return (mod.Route as unknown as { options: { server: { handlers: { GET: (ctx: { request: Request }) => Promise<Response> } } } }).options.server.handlers.GET
@@ -117,6 +121,6 @@ describe('GET /api/backups/list', () => {
     await handler({ request: req })
 
     expect(gateway.ensureGatewayProbed).toHaveBeenCalledTimes(1)
-    expect(gateway.dashboardFetch).toHaveBeenCalledTimes(1)
+    expect(gateway.dashboardFetch).toHaveBeenCalledWith('/api/ops/backup/list?profile=hermes-switch')
   })
 })

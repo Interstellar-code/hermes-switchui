@@ -2,8 +2,8 @@ import { useCallback, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { chatQueryKeys } from '../chat-queries'
 import { invalidateSessionLists } from '../sessions-feed'
-import { readError } from '../utils'
 import { updateSessionTitleState } from '../session-title-store'
+import { profileBody, readSendFailure } from '@/lib/session-scope'
 
 export type RenameSessionResult = {
   renameSession: (
@@ -37,9 +37,10 @@ export function useRenameSession(): RenameSessionResult {
           sessionKey: payload.sessionKey,
           friendlyId: payload.friendlyId ?? undefined,
           label: payload.newTitle,
+          ...profileBody(),
         }),
       })
-      if (!res.ok) throw new Error(await readError(res))
+      if (!res.ok) throw new Error(await readSendFailure(res))
       return payload
     },
     onMutate: async function onMutate(payload) {

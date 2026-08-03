@@ -3,6 +3,27 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.27] — 2026-08-03
+
+### Added
+
+- **Profile-safe chat sessions** — browse sessions by Hermes profile while client caches, active runs, queued messages, history, clarification, delegation, rename, delete, and send operations preserve the selected profile identity.
+- **Terminal workspace reliability** — real PTY resizing, ordered input delivery, lossless output buffering, bounded reconnects, split panes with draggable sizing, project working-directory choices, accessible tabs, and hardened mobile input.
+
+### Changed
+
+- Secondary terminal panes now select a working directory using the same Hermes home, user home, and project list as new sessions; matching terminals are reused and missing ones are created automatically.
+- Portable chat sends support multimodal attachments and fall back safely between Responses and Chat Completions providers.
+- Gateway connection changes and reprobes invalidate cached profile topology, and backup endpoints consistently enforce the authenticated/local access boundary.
+- Terminal rendering pauses hidden decorative work and avoids duplicate workspace ownership.
+
+### Fixed
+
+- Profile-scoped requests fail closed when the running gateway cannot prove that it serves the requested profile, preventing cross-profile session collisions or writes.
+- Session search, active-run polling, streaming recovery, local queues, and route transitions retain their correct profile scope.
+- Terminal resize now reaches the live PTY, normal shell exits stay exited, reconnects clean up stale readers, and high-volume output is no longer truncated.
+- Removed the terminal Debug Analyzer panel and the redundant background-effects toggle.
+
 ## [2.5.26] — 2026-08-01
 
 ### Added

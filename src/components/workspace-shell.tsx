@@ -20,7 +20,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useRouterState } from '@tanstack/react-router'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import type { AuthStatus } from '@/lib/claude-auth'
 import { fetchClaudeAuthStatus } from '@/lib/claude-auth'
 import { cn } from '@/lib/utils'
@@ -41,6 +41,8 @@ import { MobileTerminalInput } from '@/components/terminal/mobile-terminal-input
 import { ClaudeReconnectBanner } from '@/components/claude-reconnect-banner'
 import { useMobileKeyboard } from '@/hooks/use-mobile-keyboard'
 import { CommandPalette } from '@/components/command-palette'
+import { ErrorBoundary } from '@/components/error-boundary'
+import { useTerminalPanelStore } from '@/stores/terminal-panel-store'
 // ActivityTicker moved to dashboard-only (too noisy for global header)
 
 const TerminalWorkspace = lazy(() =>
@@ -54,6 +56,7 @@ type WorkspaceShellProps = {
 }
 
 export function WorkspaceShell({ children }: WorkspaceShellProps) {
+  const navigate = useNavigate()
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
@@ -64,6 +67,8 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   )
 
   const chatFocusMode = useWorkspaceStore((s) => s.chatFocusMode)
+  const terminalPanelOpen = useTerminalPanelStore((s) => s.isPanelOpen)
+  const terminalPanelHeight = useTerminalPanelStore((s) => s.panelHeight)
   const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar)
   const setSidebarCollapsed = useWorkspaceStore((s) => s.setSidebarCollapsed)
   const { onTouchStart, onTouchMove, onTouchEnd } = useSwipeNavigation()
@@ -180,6 +185,8 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
   const activeFriendlyId = chatMatch ? chatMatch[1] : 'main'
   const isOnChatRoute = Boolean(chatMatch) || pathname === '/new'
   const isOnTerminalRoute = pathname.startsWith('/terminal')
+  const showTerminalSurface =
+    isOnTerminalRoute || (!isMobile && terminalPanelOpen)
   const hideChatSidebar = isOnChatRoute && chatFocusMode
 
   const isNewChat = activeFriendlyId === 'new'
@@ -331,22 +338,44 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
               className="flex flex-col"
               style={{
                 position: 'absolute',
-                inset: 0,
-                visibility: isOnTerminalRoute ? 'visible' : 'hidden',
-                pointerEvents: isOnTerminalRoute ? 'auto' : 'none',
-                zIndex: isOnTerminalRoute ? 1 : -1,
+                ...(isOnTerminalRoute
+                  ? { inset: 0 }
+                  : { insetInline: 0, bottom: 0, height: terminalPanelHeight }),
+                visibility: showTerminalSurface ? 'visible' : 'hidden',
+                pointerEvents: showTerminalSurface ? 'auto' : 'none',
+                zIndex: showTerminalSurface ? 40 : -1,
               }}
             >
               {isMobile && isOnTerminalRoute && (
                 <MobilePageHeader title="Terminal" />
               )}
               <div className="flex-1 min-h-0 overflow-hidden">
-                <Suspense fallback={null}>
-                  <TerminalWorkspace
-                    mode="fullscreen"
-                    panelVisible={isOnTerminalRoute}
-                  />
-                </Suspense>
+                <ErrorBoundary
+                  inline
+                  title="Terminal unavailable"
+                  description="The terminal surface failed to load."
+                  className="h-full"
+                >
+                  <Suspense
+                    fallback={
+                      <div className="flex h-full items-center justify-center text-xs text-primary-500">
+                        Loading terminal…
+                      </div>
+                    }
+                  >
+                    <TerminalWorkspace
+                      mode={isOnTerminalRoute ? 'fullscreen' : 'panel'}
+                      panelVisible={showTerminalSurface}
+                      onMinimizePanel={() =>
+                        useTerminalPanelStore.getState().setPanelOpen(false)
+                      }
+                      onMaximizePanel={() => void navigate({ to: '/terminal' })}
+                      onClosePanel={() =>
+                        useTerminalPanelStore.getState().setPanelOpen(false)
+                      }
+                    />
+                  </Suspense>
+                </ErrorBoundary>
               </div>
               {/* Mobile input bar — only mount on the terminal route.
                   It uses fixed bottom positioning, so if it stays mounted while

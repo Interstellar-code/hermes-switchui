@@ -10,7 +10,7 @@ import { persist } from 'zustand/middleware'
 import type { SessionDateRange, SessionFeedSort, SessionSource, SessionState } from '@/screens/chat/sessions-feed-types'
 
 export type FilterState = {
-  version: 6
+  version: 7
   /** Multi-select; empty array = all sources (no implicit "All" chip). */
   sources: Array<SessionSource>
   /** Single-select; kept for compatibility, sidebar uses all. */
@@ -27,6 +27,9 @@ export type FilterState = {
   collapsed: boolean
   /** Which panel renders in the left column: sessions list or file explorer. */
   leftPanel: 'sessions' | 'files'
+  /** Profile to scope the sessions feed to. `'active'` = the gateway's
+   *  current profile (unscoped, byte-identical to pre-P2 behaviour). */
+  profile: string
 }
 
 type FilterActions = {
@@ -38,6 +41,7 @@ type FilterActions = {
   toggleUpdatesOnly: () => void
   setCollapsed: (b: boolean) => void
   setLeftPanel: (p: 'sessions' | 'files') => void
+  setProfile: (p: string) => void
   reset: () => void
 }
 
@@ -54,7 +58,7 @@ export function buildDefaultDateRange(): SessionDateRange {
 
 function buildInitialState(): FilterState {
   return {
-    version: 6,
+    version: 7,
     sources: [],
     state: 'all',
     query: '',
@@ -63,6 +67,7 @@ function buildInitialState(): FilterState {
     updatesOnly: false,
     collapsed: false,
     leftPanel: 'sessions',
+    profile: 'active',
   }
 }
 
@@ -95,6 +100,8 @@ export const useSessionsFilterStore = create<FilterState & FilterActions>()(
 
       setLeftPanel: (leftPanel) => set({ leftPanel }),
 
+      setProfile: (profile) => set({ profile }),
+
       reset: () => set(buildInitialState()),
     }),
     {
@@ -106,20 +113,21 @@ export const useSessionsFilterStore = create<FilterState & FilterActions>()(
         const storedDateRange = stored.dateRange ?? { from: null, to: null }
         const hasExplicitDateRange = Boolean(storedDateRange.from || storedDateRange.to)
 
-        if (v === 6) return stored as FilterState
+        if (v === 7) return stored as FilterState
 
-        if (v === 2 || v === 3 || v === 4 || v === 5) {
+        if (v === 2 || v === 3 || v === 4 || v === 5 || v === 6) {
           return {
             ...defaults,
             ...stored,
-            version: 6,
+            version: 7,
             sources: v === 3 ? [] : (stored.sources ?? defaults.sources),
             dateRange: hasExplicitDateRange ? storedDateRange : defaults.dateRange,
+            profile: stored.profile ?? 'active',
           }
         }
         return defaults
       },
-      version: 6,
+      version: 7,
     },
   ),
 )

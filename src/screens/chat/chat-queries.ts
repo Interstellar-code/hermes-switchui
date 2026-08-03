@@ -6,6 +6,11 @@ import type {
   SessionListResponse,
   SessionMeta,
 } from './types'
+import {
+  activeScopeKey,
+  activeScopeSegments,
+  getSessionProfile,
+} from '@/lib/session-scope'
 
 export type StatusResponse = {
   ok: boolean
@@ -48,19 +53,91 @@ function isMatchingClientMessage(
   return false
 }
 
+/**
+ * Chat query keys — the single construction point for every session-derived
+ * cache key.
+ *
+ * Session IDs are not unique across Hermes profiles, so every ID that lands in
+ * a key goes through `activeScopeKey` and every collection key carries
+ * `activeScopeSegments()`. Both are no-ops when no profile is selected, so an
+ * unscoped app produces byte-identical keys to before.
+ *
+ * Build keys HERE, never inline: an inline `['chat', 'history', id]` is a bare
+ * key, and a bare key is a silent cross-profile cache hit.
+ */
 export const chatQueryKeys = {
-  sessions: ['chat', 'sessions'] as const,
-  session: (sessionId: string) => ['chat', 'session', sessionId] as const,
-  history: function history(friendlyId: string, sessionKey: string) {
-    return ['chat', 'history', friendlyId, sessionKey] as const
+  get sessions(): Array<string> {
+    return ['chat', 'sessions', ...activeScopeSegments()]
   },
-} as const
+  /** Raw session list (context bar / header re-fetch). */
+  get sessionsRaw(): Array<string> {
+    return ['chat', 'sessions', 'raw', ...activeScopeSegments()]
+  },
+  /**
+   * Prefix matching EVERY history entry across ALL profiles. Only for sweeps
+   * targeted by a globally-unique id (clientId / optimisticId), never for
+   * reading or invalidating "the" history.
+   */
+  historyRootAllProfiles: ['chat', 'history'] as const,
+  session: (sessionId: string): Array<string> => [
+    'chat',
+    'session',
+    activeScopeKey(sessionId),
+  ],
+  history: (friendlyId: string, sessionKey: string): Array<string> => [
+    'chat',
+    'history',
+    activeScopeKey(friendlyId),
+    activeScopeKey(sessionKey),
+  ],
+  /** Prefix for every history entry of one friendly id, in this profile. */
+  historyByFriendlyId: (friendlyId: string): Array<string> => [
+    'chat',
+    'history',
+    activeScopeKey(friendlyId),
+  ],
+  /** Sub-agent delegations for a session. */
+  delegations: (sessionKey: string): Array<string> => [
+    'chat',
+    'delegations',
+    activeScopeKey(sessionKey),
+  ],
+  /** Messages of a delegated child session. */
+  delegationMessages: (childSessionId: string): Array<string> => [
+    'chat',
+    'delegation-messages',
+    activeScopeKey(childSessionId),
+  ],
+}
 
 export const DEFAULT_CHAT_HISTORY_LIMIT = 150
 export const DEFAULT_SESSION_LIST_LIMIT = 200
 
 export async function fetchSessions(): Promise<Array<SessionMeta>> {
   const query = new URLSearchParams({
+    limit: String(DEFAULT_SESSION_LIST_LIMIT),
+    offset: '0',
+  })
+  const res = await fetch(`/api/sessions?${query.toString()}`)
+  if (!res.ok) throw new Error(await readError(res))
+  const data = (await res.json()) as SessionListResponse
+  return normalizeSessions(data.sessions)
+}
+
+/**
+ * Read one named profile's session list.
+ *
+ * Cross-profile browse only — `/api/sessions?profile=X` goes through the
+ * dashboard aggregation, never the gateway's unscoped listing. The result must
+ * NOT be written into `chatQueryKeys.sessions`: that cache is the active
+ * profile's, and every mutation helper (rename, auto-title, upsert, reconcile,
+ * remove) writes into it. See `useScopedChatSessionsFeed`.
+ */
+export async function fetchProfileSessions(
+  profile: string,
+): Promise<Array<SessionMeta>> {
+  const query = new URLSearchParams({
+    profile,
     limit: String(DEFAULT_SESSION_LIST_LIMIT),
     offset: '0',
   })
@@ -85,6 +162,12 @@ export async function searchSessions(
   queryText: string,
 ): Promise<Array<SessionMeta>> {
   const query = new URLSearchParams({ q: queryText })
+  // Session IDs are not unique across profiles, so an unscoped search inside a
+  // scoped chat returns the gateway-active profile's hits — which then render
+  // as this profile's sessions and are clickable. Omitted when unscoped, so
+  // the single-profile URL stays byte-identical.
+  const profile = getSessionProfile()
+  if (profile) query.set('profile', profile)
   const res = await fetch(`/api/sessions?${query.toString()}`)
   if (!res.ok) throw new Error(await readError(res))
   const data = (await res.json()) as SessionListResponse
@@ -100,6 +183,13 @@ export async function fetchHistory(payload: {
   })
   if (payload.sessionKey) query.set('sessionKey', payload.sessionKey)
   if (payload.friendlyId) query.set('friendlyId', payload.friendlyId)
+  // Session IDs are not unique across profiles. Without this the transcript of
+  // a scoped chat is fetched from whichever profile the gateway is running —
+  // either empty (looks like the conversation vanished) or, worse, another
+  // profile's same-ID session rendered as if it were this one. Omitted when
+  // unscoped, so the single-profile URL stays byte-identical.
+  const profile = getSessionProfile()
+  if (profile) query.set('profile', profile)
   const res = await fetch(`/api/history?${query.toString()}`)
   if (!res.ok) throw new Error(await readError(res))
   return (await res.json()) as HistoryResponse
@@ -428,8 +518,10 @@ export function updateHistoryMessageByClientIdEverywhere(
   const normalizedClientId = normalizeId(clientId)
   if (!normalizedClientId) return
   const optimisticId = `opt-${normalizedClientId}`
+  // Cross-profile by design: clientId / optimisticId are globally unique, so
+  // matching on them cannot hit another profile's message.
   const historyQueries = queryClient.getQueriesData<HistoryResponse>({
-    queryKey: ['chat', 'history'],
+    queryKey: chatQueryKeys.historyRootAllProfiles,
   })
 
   for (const [queryKey, data] of historyQueries) {
@@ -606,16 +698,17 @@ export function updateSessionLastMessage(
         (session) =>
           session.key === sessionKey || session.friendlyId === friendlyId,
       )
-      if (found) return sessions.map((session) => {
-        if (session.key !== sessionKey && session.friendlyId !== friendlyId) {
-          return session
-        }
-        return {
-          ...session,
-          lastMessage: message,
-          updatedAt,
-        }
-      })
+      if (found)
+        return sessions.map((session) => {
+          if (session.key !== sessionKey && session.friendlyId !== friendlyId) {
+            return session
+          }
+          return {
+            ...session,
+            lastMessage: message,
+            updatedAt,
+          }
+        })
       return [
         {
           ...activeSession,
@@ -647,12 +740,12 @@ export function removeSessionFromCache(
   )
 
   queryClient.removeQueries({
-    queryKey: ['chat', 'history', friendlyId],
+    queryKey: chatQueryKeys.historyByFriendlyId(friendlyId),
     exact: false,
   })
   if (sessionKey && sessionKey !== friendlyId) {
     queryClient.removeQueries({
-      queryKey: ['chat', 'history', sessionKey],
+      queryKey: chatQueryKeys.historyByFriendlyId(sessionKey),
       exact: false,
     })
   }

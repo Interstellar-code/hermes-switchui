@@ -4,6 +4,7 @@ import type { PendingClarify } from '../../../stores/chat-store'
 import type { ChatMessage } from '../types'
 import { cn } from '@/lib/utils'
 import { normalizeClarifyChoices } from '@/lib/clarify-choices'
+import { profileBody, readSendFailure } from '@/lib/session-scope'
 
 type InlineClarifyCardProps = {
   clarify: PendingClarify
@@ -137,16 +138,18 @@ export function InlineClarifyCard({
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(
-            clarify.interactionId
+          body: JSON.stringify({
+            ...(clarify.interactionId
               ? { answer: trimmed }
-              : { clarify_id: clarify.clarifyId, answer: trimmed },
-          ),
+              : { clarify_id: clarify.clarifyId, answer: trimmed }),
+            // Resuming a blocked turn is a write: the raw session id below is
+            // only meaningful inside the profile it came from.
+            ...profileBody(),
+          }),
         },
       )
       if (!res.ok) {
-        const json = (await res.json().catch(() => ({}))) as unknown
-        throw new Error(formatClarifyError(json) || `HTTP ${res.status}`)
+        throw new Error(await readSendFailure(res))
       }
     } catch (err) {
       // Keep the selected receipt visible; show a readable diagnostic only.

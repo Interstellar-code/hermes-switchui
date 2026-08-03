@@ -11,11 +11,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 
 import { useMcpServers } from '../mcp/hooks/use-mcp-servers'
-import {
-  deriveFriendlyIdFromKey,
-  readError,
-  textFromMessage,
-} from './utils'
+import { deriveFriendlyIdFromKey, textFromMessage } from './utils'
 import {
   advanceStickyStreamingText,
   scrollChatToBottom as scrollChatToBottomImpl,
@@ -87,11 +83,15 @@ import type {
 import type { ChatAttachment, ChatMessage, SessionMeta } from './types'
 import type { AgentActivity } from '@/stores/chat-activity-store'
 import type { StreamingDelegation } from '@/stores/chat-store'
+import {
+  activeScopeKey,
+  profileBody,
+  readSendFailure,
+} from '@/lib/session-scope'
 
 import { cn } from '@/lib/utils'
 import { FileExplorerSidebar } from '@/components/file-explorer'
 import { useWorkspaceStore } from '@/stores/workspace-store'
-import { TerminalPanel } from '@/components/terminal-panel'
 import { useTerminalPanelStore } from '@/stores/terminal-panel-store'
 import {
   useEnabledUserCommands,
@@ -288,7 +288,8 @@ export function ChatScreen({
     portableMode: isPortableMode,
   })
 
-  const waitingStoreKey = resolvedSessionKey
+  // Store maps are keyed by the composite profile::session key.
+  const waitingStoreKey = activeScopeKey(resolvedSessionKey)
   const selectWaitingForSession = useCallback(
     (s: ReturnType<typeof useChatStore.getState>) =>
       waitingStoreKey ? s.waitingSessionKeys.has(waitingStoreKey) : false,
@@ -300,7 +301,9 @@ export function ChatScreen({
   // resolvedSessionKey is already available here (from useChatHistory above).
   const selectActiveClarify = useCallback(
     (s: ReturnType<typeof useChatStore.getState>) =>
-      resolvedSessionKey ? (s.pendingClarify[resolvedSessionKey] ?? null) : null,
+      resolvedSessionKey
+        ? (s.pendingClarify[activeScopeKey(resolvedSessionKey)] ?? null)
+        : null,
     [resolvedSessionKey],
   )
   const activeClarify = useChatStore(selectActiveClarify)
@@ -535,7 +538,8 @@ export function ChatScreen({
     useCallback(
       (state) =>
         resolvedSessionKey
-          ? state.streamingState.get(resolvedSessionKey)?.delegations ??
+          ? state.streamingState.get(activeScopeKey(resolvedSessionKey))
+              ?.delegations ??
             EMPTY_STREAMING_DELEGATIONS
           : EMPTY_STREAMING_DELEGATIONS,
       [resolvedSessionKey],
@@ -964,13 +968,16 @@ export function ChatScreen({
         const res = await fetch('/api/sessions', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(
-            preferredFriendlyId && preferredFriendlyId.trim().length > 0
+          body: JSON.stringify({
+            ...(preferredFriendlyId && preferredFriendlyId.trim().length > 0
               ? { friendlyId: preferredFriendlyId }
-              : {},
-          ),
+              : {}),
+            // Creating the row is itself a write — it must land in the
+            // selected profile's state.db, not the gateway's active one.
+            ...profileBody(),
+          }),
         })
-        if (!res.ok) throw new Error(await readError(res))
+        if (!res.ok) throw new Error(await readSendFailure(res))
 
         const data = (await res.json()) as {
           sessionKey?: string
@@ -1521,7 +1528,6 @@ export function ChatScreen({
           onClose={() => setAgentsOpen(false)}
         />
       ) : null}
-      {!compact && !hideUi && !isMobile && !isFocusMode && <TerminalPanel />}
 
       {isMobile && (
         <MobileSessionsPanel

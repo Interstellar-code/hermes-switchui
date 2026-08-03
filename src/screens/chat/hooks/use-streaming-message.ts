@@ -5,6 +5,11 @@ import { readResolvedSessionHeaders } from '@/lib/send-stream-session-headers'
 import { useChatStore } from '@/stores/chat-store'
 import { useContextUsageStore } from '@/stores/context-usage-store'
 import { pushActivity } from '@/components/inspector/activity-store'
+import {
+  activeScopeKey,
+  profileBody,
+  readSendFailure,
+} from '@/lib/session-scope'
 
 /**
  * Determine whether a stream-resolved session key change should trigger
@@ -274,7 +279,9 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
         if (reason === 'handoff') {
           const store = useChatStore.getState()
           const streamingState =
-            store.streamingState.get(activeSessionKeyRef.current) ?? null
+            store.streamingState.get(
+              activeScopeKey(activeSessionKeyRef.current),
+            ) ?? null
           const lastEventTimestamp = store.lastEventAt
           if (
             streamingState !== null ||
@@ -977,13 +984,16 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
               typeof window !== 'undefined'
                 ? localStorage.getItem('hermes-switchui-locale') || 'en'
                 : 'en',
+            // The scoped profile, or nothing at all when unscoped. Without it
+            // the server has no profile to fail closed on and the send lands
+            // in whichever profile the gateway is running (P0A §1.1).
+            ...profileBody(),
           }),
           signal: abortController.signal,
         })
 
         if (!response.ok) {
-          const errorText = await response.text()
-          throw new Error(errorText || 'Stream request failed')
+          throw new Error(await readSendFailure(response))
         }
 
         const resolvedHeaders = readResolvedSessionHeaders(response.headers, {

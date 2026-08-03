@@ -12,6 +12,7 @@ import type {
   SessionProjectUnbindResponse,
   UpdateProjectInput,
 } from './projects-types'
+import { activeScopeKey } from '@/lib/session-scope'
 
 async function projectsJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init)
@@ -61,7 +62,7 @@ export const projectsKeys = {
   activity: (idOrSlug: string) =>
     ['hermes-projects', 'activity', idOrSlug] as const,
   session: (sessionKey: string) =>
-    ['hermes-projects', 'session', sessionKey] as const,
+    ['hermes-projects', 'session', activeScopeKey(sessionKey)] as const,
 }
 
 export async function fetchProjects(

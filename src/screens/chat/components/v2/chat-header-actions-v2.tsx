@@ -4,7 +4,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { cn } from '@/lib/utils'
 import { useSessionsLocalStore } from '@/stores/sessions-local-store'
 import { useSessionStatus } from '@/hooks/use-session-status'
-import { fetchSessions } from '@/screens/chat/chat-queries'
+import { chatQueryKeys, fetchSessions } from '@/screens/chat/chat-queries'
 
 type ChatHeaderActionsV2Props = {
   sessionId: string
@@ -26,7 +26,7 @@ export function ChatHeaderActionsV2({ sessionId, sessionKey, title }: ChatHeader
   // Pull live session metadata for the copy payload
   const status = useSessionStatus(sessionKey)
   const sessionsQuery = useQuery({
-    queryKey: ['chat', 'sessions', 'raw'],
+    queryKey: chatQueryKeys.sessionsRaw,
     queryFn: fetchSessions,
     staleTime: 30_000,
   })

@@ -118,9 +118,47 @@ conn.close()
 print(json.dumps(out))
 `
 
-/** Read all delegations (child sessions) spawned by `parentSessionId` from the profile DB. */
-export function readDelegationsForParent(parentSessionId: string): Array<Delegation> {
-  const dbPath = join(getProfileClaudeHome('hermes-switch'), 'state.db')
+/**
+ * The single profile whose `state.db` delegations are read from.
+ *
+ * ponytail: one hardcoded profile, no filesystem profile->DB-path scan. The
+ * DB path below has always been pinned this way; this const only stops the
+ * literal from being restated at each use, so the upgrade path — a real
+ * `?profile=`-aware lookup, if another profile ever needs delegation data —
+ * is a change here rather than a grep-and-hope across the module.
+ */
+const DELEGATIONS_PROFILE = 'hermes-switch'
+
+/**
+ * Thrown when a profile-scoped delegations read targets any profile other
+ * than `DELEGATIONS_PROFILE`. Delegations read `state.db` straight off disk
+ * (bypassing HTTP — see QUERY_SCRIPT above), so there is no cross-profile DB
+ * resolution here. Explicit typed failure so a foreign profile never silently
+ * reads as "no delegations".
+ */
+export class DelegationProfileUnavailableError extends Error {
+  readonly profile: string
+  constructor(profile: string) {
+    super(
+      `Delegations are only available for the ${DELEGATIONS_PROFILE} profile (requested: "${profile}").`,
+    )
+    this.name = 'DelegationProfileUnavailableError'
+    this.profile = profile
+  }
+}
+
+/** Read all delegations (child sessions) spawned by `parentSessionId` from the profile DB.
+ *  `profile` is optional and, when set to anything but `DELEGATIONS_PROFILE`,
+ *  throws `DelegationProfileUnavailableError` rather than silently returning
+ *  that profile's data or an empty list. */
+export function readDelegationsForParent(
+  parentSessionId: string,
+  profile?: string | null,
+): Array<Delegation> {
+  if (profile && profile !== DELEGATIONS_PROFILE) {
+    throw new DelegationProfileUnavailableError(profile)
+  }
+  const dbPath = join(getProfileClaudeHome(DELEGATIONS_PROFILE), 'state.db')
   if (!existsSync(dbPath)) return []
   try {
     const raw = execFileSync(

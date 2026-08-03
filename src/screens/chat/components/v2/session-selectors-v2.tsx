@@ -20,11 +20,13 @@ import {
   Check,
   ChevronDown,
   FolderKanban,
+  RotateCw,
   UserRound,
   X,
 } from 'lucide-react'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useShallow } from 'zustand/react/shallow'
 
 import {
@@ -37,6 +39,7 @@ import {
   fetchGatewayMode,
   fetchModelInfo,
   fetchProfiles,
+  fetchScopeStatus,
   fetchWorkspaceContext,
   getResolvedModelKey,
   nextThinkingLevel,
@@ -74,6 +77,7 @@ import {
 } from '@/lib/projects-api'
 import { useGatewayRestartStore } from '@/stores/gateway-restart-store'
 import { useSessionModelStore } from '@/stores/session-model-store'
+import { activeScopeSegments, getSessionProfile } from '@/lib/session-scope'
 
 // ─── Model catalog (curated /api/models) ───────────────────────────────────
 type NormalizedModel = {
@@ -135,8 +139,19 @@ function normalizeWorkspaces(value: unknown): Array<SelectableWorkspace> {
   })
 }
 
-async function fetchModelCatalog(): Promise<Array<NormalizedModel>> {
-  const response = await fetch('/api/models')
+/** Exported for the row-34 scoping test — importing the component tree just to
+ *  reach it is heavier than exposing the function. */
+export async function fetchModelCatalog(): Promise<Array<NormalizedModel>> {
+  // Profiles are separate data homes with their own config.yaml, so a scoped
+  // chat must offer that profile's providers/models, not the gateway-active
+  // profile's. `/api/models?profile=` reads the foreign config off disk.
+  // Omitted when unscoped, so the single-profile request is byte-identical.
+  const profile = getSessionProfile()
+  const response = await fetch(
+    profile
+      ? `/api/models?profile=${encodeURIComponent(profile)}`
+      : '/api/models',
+  )
   if (!response.ok) {
     throw new Error(`Models request failed (${response.status})`)
   }
@@ -228,7 +243,7 @@ function SessionSelectorsV2Component({
   // ─── real model data sources ─────────────────────────────────────────────
   const { pinned, isPinned } = usePinnedModels()
   const modelsQuery = useQuery({
-    queryKey: ['claude', 'models'],
+    queryKey: ['claude', 'models', ...activeScopeSegments()],
     queryFn: fetchModelCatalog,
     refetchInterval: 60_000,
     retry: false,
@@ -270,6 +285,52 @@ function SessionSelectorsV2Component({
     staleTime: 30_000,
     retry: false,
   })
+  // Multiplex topology (profile-scope.ts's GatewayMode) — distinct from
+  // `gatewayModeQuery` above, which is the unrelated vanilla/enhanced-agent
+  // mode. Powers the picker's served badge + per-row session count.
+  const scopeStatusQuery = useQuery({
+    queryKey: ['profiles', 'scope-status'],
+    queryFn: fetchScopeStatus,
+    staleTime: 5_000,
+    retry: false,
+  })
+  const scopeMode = scopeStatusQuery.data?.mode ?? 'single'
+  const servedProfiles = scopeStatusQuery.data?.servedProfiles ?? null
+  const sessionCounts = scopeStatusQuery.data?.sessionCounts ?? {}
+
+  // The profile this chat TAB is scoped to via `?profile=` — set only by
+  // navigating (below), read here so a browser back/forward also updates the
+  // picker. `strict: false` because this component renders under whichever
+  // route matched; only `/chat/$sessionKey` declares the `profile` search key.
+  const navigate = useNavigate()
+  const routeSearch = useSearch({ strict: false })
+  const scopedProfileName = routeSearch.profile?.trim() || null
+
+  /** The `?profile=` write/clear trigger — the only place this composer sets
+   * scope. Routes through the existing `validateSearch` contract on
+   * `/chat/$sessionKey` rather than inventing a parallel mechanism. */
+  const setScopedProfile = React.useCallback(
+    (name: string | null) => {
+      // `navigate()` here is generic (no `to`) since this component renders
+      // under whichever route matched, and only `/chat/$sessionKey` declares
+      // `profile` — the reducer can't be typed against a specific route's
+      // search schema, so it's cast at the call boundary.
+
+      ;(navigate as (opts: any) => void)({
+        // Clearing sets `profile: undefined` instead of dropping the key.
+        // `/chat/$sessionKey` retains `profile` across navigations, and that
+        // middleware only fills the key back in when the navigation never
+        // mentioned it — omitting it here would read as "unspecified" and the
+        // scope could never be cleared. `undefined` is stripped from the URL.
+        search: (prev: Record<string, unknown>) => ({
+          ...prev,
+          profile: name || undefined,
+        }),
+      })
+      setProfileMenuOpen(false)
+    },
+    [navigate],
+  )
   const zeroForkModelInfoFlags = React.useMemo(
     () => getZeroForkModelInfoFlags(modelInfoQuery.data),
     [modelInfoQuery.data],
@@ -651,53 +712,121 @@ function SessionSelectorsV2Component({
               onClick={() => setProfileMenuOpen((o) => !o)}
               disabled={profileActivateMutation.isPending}
               title={
-                activeProfile
-                  ? `${activeProfile.name}${profileMeta(activeProfile) ? ` · ${profileMeta(activeProfile)}` : ''}`
-                  : activeProfileName
+                scopedProfileName
+                  ? `Scoped to ${scopedProfileName}${
+                      scopeMode === 'multiplex'
+                        ? servedProfiles?.includes(scopedProfileName)
+                          ? ' — sending enabled'
+                          : ' — not served by this gateway, view only'
+                        : ' — gateway not multiplexing, view only'
+                    }`
+                  : activeProfile
+                    ? `${activeProfile.name}${profileMeta(activeProfile) ? ` · ${profileMeta(activeProfile)}` : ''}`
+                    : activeProfileName
               }
-              className="inline-flex max-w-28 items-center gap-1 rounded-md border border-[var(--theme-accent-border)] bg-[var(--theme-accent-subtle)] px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+              className={cn(
+                'inline-flex max-w-28 items-center gap-1 rounded-md border border-[var(--theme-accent-border)] bg-[var(--theme-accent-subtle)] px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50',
+                scopedProfileName && 'ring-1 ring-[var(--theme-accent)]',
+              )}
+              data-testid="profile-selector"
             >
               <UserRound className="size-3" />
-              <span className="truncate">{activeProfileName}</span>
+              <span className="truncate">
+                {scopedProfileName ?? activeProfileName}
+              </span>
               <ChevronDown className="size-2.5 opacity-60" />
             </button>
           </PopoverAnchor>
           <PopoverContent
             align="start"
-            className="w-60 p-1"
+            className="w-64 p-1"
             onOpenAutoFocus={(e) => e.preventDefault()}
           >
             <div className="px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
               Agent profile
+              {scopeMode === 'single' ? ' — scoping is view-only' : ''}
             </div>
             {profiles.map((profile) => {
               const selected = profile.name === activeProfileName
+              const isScoped = profile.name === scopedProfileName
+              const served =
+                scopeMode === 'multiplex'
+                  ? (servedProfiles?.includes(profile.name) ?? false)
+                  : null
+              const count = sessionCounts[profile.name]
               return (
-                <button
-                  key={profile.name}
-                  type="button"
-                  onClick={() => {
-                    if (selected) {
-                      setProfileMenuOpen(false)
-                      return
+                <div key={profile.name} className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setScopedProfile(isScoped ? null : profile.name)
                     }
-                    profileActivateMutation.mutate(profile.name)
-                  }}
-                  className={cn(
-                    'flex w-full flex-col rounded-sm px-2 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground',
-                    selected && 'bg-accent/50',
-                  )}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="truncate font-medium">{profile.name}</span>
-                    {selected ? <Check className="size-3.5" /> : null}
-                  </span>
-                  {profileMeta(profile) ? (
-                    <span className="mt-0.5 max-w-[12rem] truncate text-[11px] text-muted-foreground">
-                      {profileMeta(profile)}
+                    data-testid={`profile-option-${profile.name}`}
+                    title={
+                      scopeMode === 'multiplex'
+                        ? served
+                          ? `Scope this tab to ${profile.name} — sending enabled, no restart`
+                          : `Scope this tab to ${profile.name} — not served, view only`
+                        : `Scope this tab to ${profile.name} — view only (gateway not multiplexing)`
+                    }
+                    className={cn(
+                      'flex w-full flex-col rounded-sm px-2 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground',
+                      selected && 'bg-accent/50',
+                      isScoped &&
+                        'ring-1 ring-inset ring-[var(--theme-accent)]',
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="truncate font-medium">
+                        {profile.name}
+                      </span>
+                      {selected ? <Check className="size-3.5" /> : null}
+                      {isScoped ? (
+                        <span className="rounded-sm bg-[var(--theme-accent-subtle)] px-1 text-[9px] uppercase tracking-wide text-card-foreground">
+                          Scoped
+                        </span>
+                      ) : null}
+                      {served !== null ? (
+                        <span
+                          className={cn(
+                            'ml-auto shrink-0 rounded-sm px-1 text-[9px] uppercase tracking-wide',
+                            served
+                              ? 'bg-[var(--theme-accent-subtle)] text-card-foreground'
+                              : 'text-muted-foreground',
+                          )}
+                        >
+                          {served ? 'Served' : 'Not served'}
+                        </span>
+                      ) : null}
                     </span>
-                  ) : null}
-                </button>
+                    {profileMeta(profile) || typeof count === 'number' ? (
+                      <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        {profileMeta(profile) ? (
+                          <span className="max-w-[8rem] truncate">
+                            {profileMeta(profile)}
+                          </span>
+                        ) : null}
+                        {typeof count === 'number' ? (
+                          <span className="ml-auto shrink-0">
+                            {count} session{count === 1 ? '' : 's'}
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : null}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selected) return
+                      profileActivateMutation.mutate(profile.name)
+                    }}
+                    disabled={selected || profileActivateMutation.isPending}
+                    title={`Activate ${profile.name} gateway-wide — requires a gateway restart`}
+                    className="shrink-0 rounded-sm p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-30"
+                  >
+                    <RotateCw className="size-3" />
+                  </button>
+                </div>
               )
             })}
             {profilesQuery.isError ? (

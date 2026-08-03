@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { verbForTool } from '../chat-screen-utils'
-import { isRecoverableActiveRun } from './use-active-run-check'
+import { activeRunUrl, isRecoverableActiveRun } from './use-active-run-check'
 import type { RefObject } from 'react'
 
 import type { ActiveSendRecord } from './use-send-message-state'
@@ -40,9 +40,7 @@ export function useActiveRunPoller(params: {
     if (!waitingForResponse || !resolvedSessionKey) return
     const interval = window.setInterval(async () => {
       try {
-        const res = await fetch(
-          `/api/sessions/${encodeURIComponent(resolvedSessionKey)}/active-run`,
-        )
+        const res = await fetch(activeRunUrl(resolvedSessionKey))
         if (!res.ok) return
         const data = await res.json()
         if (!data.ok) return
@@ -81,10 +79,9 @@ export function useActiveRunPoller(params: {
       // on it made the label go stale during the silent tool phase while the
       // bubble was still visible.
       try {
-        const res = await fetch(
-          `/api/sessions/${encodeURIComponent(resolvedSessionKey)}/active-run`,
-          { signal: ac.signal },
-        )
+        const res = await fetch(activeRunUrl(resolvedSessionKey), {
+          signal: ac.signal,
+        })
         if (!res.ok) return
         const data = await res.json()
         if (ac.signal.aborted || !data.ok || !data.run) return

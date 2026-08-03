@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { fetchHistory } from '../chat-queries'
+import { chatQueryKeys, fetchHistory } from '../chat-queries'
 import { readError } from '../utils'
 import type { Delegation } from '../../../server/delegations'
 import type { StreamingDelegation } from '../../../stores/chat-store'
@@ -59,7 +59,7 @@ async function fetchDelegations(sessionKey: string): Promise<Array<Delegation>> 
 
 export function useDelegations(sessionKey: string) {
   const query = useQuery({
-    queryKey: ['chat', 'delegations', sessionKey],
+    queryKey: chatQueryKeys.delegations(sessionKey),
     queryFn: () => fetchDelegations(sessionKey),
     enabled: sessionKey.length > 0,
     // ponytail: base 12s poll so a delegation spawned mid-session is picked up
@@ -84,7 +84,7 @@ export function useDelegations(sessionKey: string) {
 /** Drill-in: fetch a single delegation's full message transcript on demand. */
 export function useDelegationMessages(childSessionId: string | null) {
   const query = useQuery({
-    queryKey: ['chat', 'delegation-messages', childSessionId],
+    queryKey: chatQueryKeys.delegationMessages(childSessionId ?? ''),
     queryFn: () =>
       fetchHistory({ sessionKey: childSessionId ?? '', friendlyId: childSessionId ?? '' }),
     enabled: Boolean(childSessionId),

@@ -8,6 +8,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '@/server/auth-middleware'
 import { dashboardFetch } from '@/server/gateway-capabilities'
+import { getActiveProfileName } from '@/server/profiles-browser'
 
 export const Route = createFileRoute('/api/backups/restore-upload')({
   server: {
@@ -39,13 +40,19 @@ export const Route = createFileRoute('/api/backups/restore-upload')({
           }
 
           // Proxy to dashboard with streaming multipart body
-          const upstream = await dashboardFetch('/api/ops/import-upload', init)
+          const upstream = await dashboardFetch(
+            `/api/ops/import-upload?profile=${encodeURIComponent(getActiveProfileName())}`,
+            init,
+          )
 
           // Forward response
           const responseBody = await upstream.text()
           return new Response(responseBody, {
             status: upstream.status,
-            headers: { 'content-type': upstream.headers.get('content-type') || 'application/json' },
+            headers: {
+              'content-type':
+                upstream.headers.get('content-type') || 'application/json',
+            },
           })
         } catch (err) {
           return Response.json(

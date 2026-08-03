@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { useChatStore } from '../../../stores/chat-store'
-import { isRecoverableActiveRun } from './use-active-run-check'
+import { activeRunUrl, isRecoverableActiveRun } from './use-active-run-check'
 import type { ActiveRunSnapshot } from './use-active-run-check'
 
 /**
@@ -102,7 +102,7 @@ export function useDrainWatchdog({
         attempts += 1
         try {
           const response = await fetch(
-            `/api/sessions/${encodeURIComponent(sessionKey)}/active-run`,
+            activeRunUrl(sessionKey),
             {
               signal: AbortSignal.any([
                 controller.signal,

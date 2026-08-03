@@ -1,6 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
-import { readDelegationsForParent } from '../../../server/delegations'
+import {
+  DelegationProfileUnavailableError,
+  readDelegationsForParent,
+} from '../../../server/delegations'
 import {
   SESSIONS_API_UNAVAILABLE_MESSAGE,
   ensureGatewayProbed,
@@ -28,13 +31,21 @@ export const Route = createFileRoute('/api/sessions/$sessionKey/delegations')({
           return Response.json({ ok: false, error: 'sessionKey required' }, { status: 400 })
         }
 
+        const profile = new URL(request.url).searchParams.get('profile')?.trim() || null
+
         try {
           // Resolve the UI session key to its gateway session id (the value stored
           // as parent_session_id on delegated child sessions).
-          const session = await getSession(sessionKey)
-          const delegations = readDelegationsForParent(session.id)
+          const session = await getSession(sessionKey, profile)
+          const delegations = readDelegationsForParent(session.id, profile)
           return Response.json({ ok: true, delegations })
         } catch (err) {
+          if (err instanceof DelegationProfileUnavailableError) {
+            return Response.json(
+              { ok: false, unavailable: true, error: err.message, profile: err.profile },
+              { status: 409 },
+            )
+          }
           return Response.json(
             { ok: false, error: err instanceof Error ? err.message : String(err) },
             { status: 500 },

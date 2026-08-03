@@ -25,6 +25,7 @@ import {
   searchSessions as searchDashboardSessions,
   updateSession as updateDashboardSession,
 } from './claude-dashboard-api'
+import { assertProfileResponseOk, scopedPath } from './profile-scope'
 
 const _authHeaders = (): Record<string, string> =>
   BEARER_TOKEN ? { Authorization: `Bearer ${BEARER_TOKEN}` } : {}
@@ -64,6 +65,10 @@ export type ClaudeSession = {
   last_active?: number | null
   preview?: string | null
   is_active?: boolean
+  /** Present only on rows from listProfileSessions (dashboard multiplex aggregation). */
+  profile?: string
+  profile_name?: string
+  is_default_profile?: boolean
 }
 
 export type ClaudeMessage = {
@@ -114,16 +119,22 @@ function _asGatewayError(err: unknown, path: string): Error {
   return err instanceof Error ? err : new Error(String(err))
 }
 
-async function claudeGet<T>(path: string): Promise<T> {
+// Every gateway call routes its path through scopedPath(). `profile` is the
+// explicit selection: null/undefined leaves the path untouched and probes
+// nothing; when set, scopedPath() fails closed before the fetch is issued.
+
+async function claudeGet<T>(path: string, profile?: string | null): Promise<T> {
+  const wirePath = await scopedPath(path, profile)
   let res: Response
   try {
-    res = await fetch(`${CLAUDE_API}${path}`, {
+    res = await fetch(`${CLAUDE_API}${wirePath}`, {
       headers: _authHeaders(),
       signal: AbortSignal.timeout(GATEWAY_REQUEST_TIMEOUT_MS),
     })
   } catch (err) {
     throw _asGatewayError(err, path)
   }
+  await assertProfileResponseOk(res, profile)
   if (!res.ok) {
     const body = (await res.text().catch(() => '')).slice(0, ERROR_BODY_CAP)
     throw new Error(`Hermes Agent API ${path}: ${res.status} ${body}`)
@@ -135,10 +146,12 @@ async function claudePost<T>(
   path: string,
   body?: unknown,
   extraHeaders: Record<string, string> = {},
+  profile?: string | null,
 ): Promise<T> {
+  const wirePath = await scopedPath(path, profile)
   let res: Response
   try {
-    res = await fetch(`${CLAUDE_API}${path}`, {
+    res = await fetch(`${CLAUDE_API}${wirePath}`, {
       method: 'POST',
       headers: {
         ..._authHeaders(),
@@ -151,6 +164,7 @@ async function claudePost<T>(
   } catch (err) {
     throw _asGatewayError(err, `POST ${path}`)
   }
+  await assertProfileResponseOk(res, profile)
   if (!res.ok) {
     const text = (await res.text().catch(() => '')).slice(0, ERROR_BODY_CAP)
     throw new Error(`Hermes Agent API POST ${path}: ${res.status} ${text}`)
@@ -158,10 +172,15 @@ async function claudePost<T>(
   return res.json() as Promise<T>
 }
 
-async function claudePatch<T>(path: string, body: unknown): Promise<T> {
+async function claudePatch<T>(
+  path: string,
+  body: unknown,
+  profile?: string | null,
+): Promise<T> {
+  const wirePath = await scopedPath(path, profile)
   let res: Response
   try {
-    res = await fetch(`${CLAUDE_API}${path}`, {
+    res = await fetch(`${CLAUDE_API}${wirePath}`, {
       method: 'PATCH',
       headers: { ..._authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -170,6 +189,7 @@ async function claudePatch<T>(path: string, body: unknown): Promise<T> {
   } catch (err) {
     throw _asGatewayError(err, `PATCH ${path}`)
   }
+  await assertProfileResponseOk(res, profile)
   if (!res.ok) {
     const text = (await res.text().catch(() => '')).slice(0, ERROR_BODY_CAP)
     throw new Error(`Hermes Agent API PATCH ${path}: ${res.status} ${text}`)
@@ -177,10 +197,14 @@ async function claudePatch<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>
 }
 
-async function claudeDeleteReq(path: string): Promise<void> {
+async function claudeDeleteReq(
+  path: string,
+  profile?: string | null,
+): Promise<void> {
+  const wirePath = await scopedPath(path, profile)
   let res: Response
   try {
-    res = await fetch(`${CLAUDE_API}${path}`, {
+    res = await fetch(`${CLAUDE_API}${wirePath}`, {
       method: 'DELETE',
       headers: _authHeaders(),
       signal: AbortSignal.timeout(GATEWAY_REQUEST_TIMEOUT_MS),
@@ -188,6 +212,7 @@ async function claudeDeleteReq(path: string): Promise<void> {
   } catch (err) {
     throw _asGatewayError(err, `DELETE ${path}`)
   }
+  await assertProfileResponseOk(res, profile)
   if (!res.ok) {
     const text = (await res.text().catch(() => '')).slice(0, ERROR_BODY_CAP)
     throw new Error(`Hermes Agent API DELETE ${path}: ${res.status} ${text}`)
@@ -295,22 +320,36 @@ export async function listSessions(
   return resp.items
 }
 
-export async function getSession(sessionId: string): Promise<ClaudeSession> {
-  if (getCapabilities().dashboard.available) {
+// The dashboard branches below are UNSCOPED — they hit :9119, which resolves
+// against the active profile home. When an explicit profile is selected we
+// must take the gateway path so the `/p/<profile>/` prefix (and its
+// fail-closed check) applies. Cross-profile dashboard *reads* get the
+// `?profile=` treatment in P2; they are not a substitute here.
+
+export async function getSession(
+  sessionId: string,
+  profile?: string | null,
+): Promise<ClaudeSession> {
+  if (!profile && getCapabilities().dashboard.available) {
     return getDashboardSession(sessionId) as Promise<ClaudeSession>
   }
   const resp = await claudeGet<{ session: ClaudeSession }>(
     `/api/sessions/${sessionId}`,
+    profile,
   )
   return resp.session
 }
 
-export async function createSession(opts?: {
-  id?: string
-  title?: string
-  model?: string
-}): Promise<ClaudeSession> {
+export async function createSession(
+  opts?: {
+    id?: string
+    title?: string
+    model?: string
+  },
+  profile?: string | null,
+): Promise<ClaudeSession> {
   if (
+    !profile &&
     getCapabilities().dashboard.available &&
     !getCapabilities().enhancedChat
   ) {
@@ -320,6 +359,8 @@ export async function createSession(opts?: {
   const resp = await claudePost<{ session: ClaudeSession }>(
     '/api/sessions',
     opts || {},
+    {},
+    profile,
   )
   return resp.session
 }
@@ -327,8 +368,13 @@ export async function createSession(opts?: {
 export async function updateSession(
   sessionId: string,
   updates: { title?: string },
+  profile?: string | null,
 ): Promise<ClaudeSession> {
+  // The dashboard shortcut has no `?profile=` scoping — for an explicit
+  // profile it would silently rename in whatever profile the dashboard
+  // considers active, dropping the scope (same guard as createSession()).
   if (
+    !profile &&
     getCapabilities().dashboard.available &&
     !getCapabilities().enhancedChat
   ) {
@@ -338,12 +384,19 @@ export async function updateSession(
   const resp = await claudePatch<{ session: ClaudeSession }>(
     `/api/sessions/${sessionId}`,
     updates,
+    profile,
   )
   return resp.session
 }
 
-export async function deleteSession(sessionId: string): Promise<void> {
-  if (getCapabilities().dashboard.available) {
+export async function deleteSession(
+  sessionId: string,
+  profile?: string | null,
+): Promise<void> {
+  // Same reasoning as updateSession(): the dashboard delete has no profile
+  // scoping, so a scoped delete must go through the gateway chokepoint
+  // (claudeDeleteReq -> scopedPath), never the dashboard shortcut.
+  if (!profile && getCapabilities().dashboard.available) {
     try {
       await deleteDashboardSession(sessionId)
       return
@@ -353,14 +406,15 @@ export async function deleteSession(sessionId: string): Promise<void> {
       if (!msg.includes(': 404')) throw err
     }
   }
-  return claudeDeleteReq(`/api/sessions/${sessionId}`)
+  return claudeDeleteReq(`/api/sessions/${sessionId}`, profile)
 }
 
 export async function getMessages(
   sessionId: string,
   query: SessionMessagesQuery = {},
+  profile?: string | null,
 ): Promise<Array<ClaudeMessage>> {
-  if (getCapabilities().dashboard.available) {
+  if (!profile && getCapabilities().dashboard.available) {
     const resp = await getDashboardSessionMessages(sessionId, query)
     return resp.messages as Array<ClaudeMessage>
   }
@@ -376,32 +430,48 @@ export async function getMessages(
     items?: Array<ClaudeMessage>
     data?: Array<ClaudeMessage>
     total?: number
-  }>(`/api/sessions/${sessionId}/messages${suffix}`)
+  }>(`/api/sessions/${sessionId}/messages${suffix}`, profile)
   return resp.items ?? resp.data ?? []
 }
 
 export async function searchSessions(
   query: string,
   limit = 20,
+  profile?: string | null,
 ): Promise<{ query?: string; count?: number; results: Array<unknown> }> {
-  if (getCapabilities().dashboard.available) {
+  // The dashboard search endpoint has no profile scoping — taking it for an
+  // explicit profile searches whatever the dashboard considers active and
+  // returns another profile's session IDs, which the caller then resolves and
+  // acts on (same guard as updateSession/deleteSession).
+  if (!profile && getCapabilities().dashboard.available) {
     return searchDashboardSessions(query)
   }
   return claudeGet(
     `/api/sessions/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+    profile,
   )
 }
 
 export async function forkSession(
   sessionId: string,
+  profile?: string | null,
 ): Promise<{ session: ClaudeSession; forked_from: string }> {
-  if (getCapabilities().dashboard.available) {
+  // A fork is a write. Unscoped, it resolves the raw session ID against
+  // whichever state.db the gateway is running on, so an explicitly scoped
+  // fork MUST go through the gateway chokepoint (claudePost -> scopedPath),
+  // never the unscoped dashboard shortcut.
+  if (!profile && getCapabilities().dashboard.available) {
     return forkDashboardSession(sessionId) as Promise<{
       session: ClaudeSession
       forked_from: string
     }>
   }
-  return claudePost(`/api/sessions/${sessionId}/fork`)
+  return claudePost(
+    `/api/sessions/${sessionId}/fork`,
+    undefined,
+    undefined,
+    profile,
+  )
 }
 
 // ── Conversion helpers (Claude → Chat format) ─────────────────
@@ -534,6 +604,7 @@ export function toSessionSummary(
     reasoningTokens: session.reasoning_tokens ?? 0,
     apiCallCount: session.api_call_count ?? 0,
     source: session.source ?? '',
+    profile: session.profile ?? session.profile_name ?? undefined,
     endReason: session.end_reason ?? '',
     createdAt: session.started_at ? session.started_at * 1000 : Date.now(),
     startedAt: session.started_at ? session.started_at * 1000 : Date.now(),
@@ -557,6 +628,8 @@ export function toSessionSummary(
 type StreamChatOptions = {
   signal?: AbortSignal
   stableSessionKey?: string
+  /** Explicitly selected profile; null/absent = unscoped (active profile). */
+  profile?: string | null
   onEvent: (payload: {
     event: string
     data: Record<string, unknown>
@@ -587,16 +660,20 @@ export async function streamChat(
     'Content-Type': 'application/json',
     [HERMES_SESSION_KEY_HEADER]: opts.stableSessionKey || sessionId,
   }
-  const res = await fetch(
-    `${CLAUDE_API}/api/sessions/${sessionId}/chat/stream`,
-    {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-      signal: opts.signal,
-    },
+  // Bypasses the claudeGet/claudePost chokepoints (streaming), so it scopes
+  // its own path — same fail-closed contract, applied before the fetch.
+  const wirePath = await scopedPath(
+    `/api/sessions/${sessionId}/chat/stream`,
+    opts.profile,
   )
+  const res = await fetch(`${CLAUDE_API}${wirePath}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+    signal: opts.signal,
+  })
 
+  await assertProfileResponseOk(res, opts.profile)
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new Error(`Hermes chat stream: ${res.status} ${text}`)
@@ -689,7 +766,7 @@ export async function sendChat(
   sessionId: string,
   messageOrOpts: string | { message: string; model?: string },
   model?: string,
-  options: { stableSessionKey?: string } = {},
+  options: { stableSessionKey?: string; profile?: string | null } = {},
 ): Promise<Record<string, unknown>> {
   const msg =
     typeof messageOrOpts === 'string' ? messageOrOpts : messageOrOpts.message
@@ -698,6 +775,7 @@ export async function sendChat(
     `/api/sessions/${sessionId}/chat`,
     { message: msg, model: mdl },
     { [HERMES_SESSION_KEY_HEADER]: options.stableSessionKey || sessionId },
+    options.profile,
   )
 }
 
@@ -887,11 +965,11 @@ export async function setModelAssignment(body: {
 
 // ── Models ───────────────────────────────────────────────────────
 
-export async function listModels(): Promise<{
+export async function listModels(profile?: string | null): Promise<{
   object: string
   data: Array<{ id: string; object: string }>
 }> {
-  return claudeGet('/v1/models')
+  return claudeGet('/v1/models', profile)
 }
 
 // ── Toolsets ─────────────────────────────────────────────────────

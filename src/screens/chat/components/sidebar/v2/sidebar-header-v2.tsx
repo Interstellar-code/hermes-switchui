@@ -3,19 +3,26 @@
 /**
  * sidebar-header-v2.tsx — header row for the sessions panel.
  *
- * Shows: "SESSIONS" title, session count · N, refresh / date-filter / filter / collapse icons.
+ * Shows: profile selector (or plain "SESSIONS · N"), date-filter / collapse icons.
  * Phase 3c: calendar icon wired to SidebarDatePopoverV2.
  */
 
 import { useState } from 'react'
 import { SidebarDatePopoverV2 } from './sidebar-date-popover-v2'
+import { SidebarProfileDropdownV2 } from './sidebar-profile-dropdown-v2'
+import type { ProfileTotalRow } from '@/screens/chat/sessions-feed'
 
 interface SidebarHeaderV2Props {
   onCollapse?: () => void
   count?: number
+  totals?: Array<ProfileTotalRow>
 }
 
-export function SidebarHeaderV2({ onCollapse, count }: SidebarHeaderV2Props) {
+export function SidebarHeaderV2({
+  onCollapse,
+  count,
+  totals,
+}: SidebarHeaderV2Props) {
   const [dateOpen, setDateOpen] = useState(false)
 
   return (
@@ -29,22 +36,8 @@ export function SidebarHeaderV2({ onCollapse, count }: SidebarHeaderV2Props) {
         position: 'relative',
       }}
     >
-      {/* Left: title + count */}
-      <div className="flex items-center gap-1 min-w-0">
-        <span
-          className="m-label m-label-accent select-none"
-        >
-          SESSIONS
-        </span>
-        {count != null && (
-          <span
-            className="m-mono select-none"
-            style={{ color: 'var(--theme-muted)' }}
-          >
-            · {count}
-          </span>
-        )}
-      </div>
+      {/* Left: profile selector (falls back to plain title + count) */}
+      <SidebarProfileDropdownV2 totals={totals ?? []} count={count} />
 
       {/* Right: action icons */}
       <div className="flex items-center gap-0.5">

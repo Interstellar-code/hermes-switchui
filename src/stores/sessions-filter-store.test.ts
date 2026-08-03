@@ -32,7 +32,8 @@ describe('sessions-filter-store', () => {
     expect(s.updatesOnly).toBe(false)
     expect(s.collapsed).toBe(false)
     expect(s.leftPanel).toBe('sessions')
-    expect(s.version).toBe(6)
+    expect(s.profile).toBe('active')
+    expect(s.version).toBe(7)
   })
 
   it('toggleSource adds and removes sources', async () => {
@@ -79,10 +80,11 @@ describe('sessions-filter-store', () => {
     )
     const { useSessionsFilterStore: useStore, buildDefaultDateRange } = await getStore()
     await new Promise((r) => setTimeout(r, 10))
-    expect(useStore.getState().version).toBe(6)
+    expect(useStore.getState().version).toBe(7)
     expect(useStore.getState().sources).toContain('cron')
     expect(useStore.getState().leftPanel).toBe('files')
     expect(useStore.getState().dateRange).toEqual(buildDefaultDateRange())
+    expect(useStore.getState().profile).toBe('active')
   })
 
   it('migration preserves an explicit stored dateRange', async () => {
@@ -96,5 +98,37 @@ describe('sessions-filter-store', () => {
     const { useSessionsFilterStore: useStore } = await getStore()
     await new Promise((r) => setTimeout(r, 10))
     expect(useStore.getState().dateRange).toEqual({ from: '2025-03-01', to: '2025-03-31' })
+  })
+
+  it('migration from v6 adds profile default without disturbing other fields', async () => {
+    localStorageMock.setItem(
+      'hermes.sessions.filter',
+      JSON.stringify({
+        state: { version: 6, sources: ['cli'], state: 'all', query: 'foo', dateRange: { from: '2025-03-01', to: '2025-03-31' }, sort: 'recent', collapsed: true, leftPanel: 'files' },
+        version: 6,
+      }),
+    )
+    const { useSessionsFilterStore: useStore } = await getStore()
+    await new Promise((r) => setTimeout(r, 10))
+    const s = useStore.getState()
+    expect(s.version).toBe(7)
+    expect(s.profile).toBe('active')
+    expect(s.sources).toContain('cli')
+    expect(s.query).toBe('foo')
+    expect(s.collapsed).toBe(true)
+    expect(s.dateRange).toEqual({ from: '2025-03-01', to: '2025-03-31' })
+  })
+
+  it('v7 persisted state with an explicit profile passes through unchanged', async () => {
+    localStorageMock.setItem(
+      'hermes.sessions.filter',
+      JSON.stringify({
+        state: { version: 7, sources: [], state: 'all', query: '', dateRange: { from: null, to: null }, sort: 'recent', collapsed: false, leftPanel: 'sessions', profile: 'work' },
+        version: 7,
+      }),
+    )
+    const { useSessionsFilterStore: useStore } = await getStore()
+    await new Promise((r) => setTimeout(r, 10))
+    expect(useStore.getState().profile).toBe('work')
   })
 })

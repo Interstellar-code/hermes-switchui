@@ -19,7 +19,10 @@ import {
   useSessionsLocalStore,
 } from '@/stores/sessions-local-store'
 import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
-import { useSessionsFeed } from '@/screens/chat/sessions-feed'
+import {
+  useProfileSessionTotals,
+  useSessionsFeed,
+} from '@/screens/chat/sessions-feed'
 import { applyFiltersAndDecorate } from '@/screens/chat/apply-filters-and-decorate'
 
 export function SidebarShellV2() {
@@ -48,6 +51,7 @@ export function SidebarShellV2() {
 
   // Single feed subscription — SidebarListV2 consumes groups via prop (no duplicate hook)
   const { items, sources } = useSessionsFeed({ raw: true, query: fQuery })
+  const { totals: profileTotals } = useProfileSessionTotals()
 
   useEffect(() => {
     if (!sources.some((source) => source.src === 'chat' && source.available))
@@ -148,6 +152,7 @@ export function SidebarShellV2() {
           <SidebarHeaderV2
             onCollapse={() => setCollapsed(true)}
             count={totalCount}
+            totals={profileTotals}
           />
           <SidebarSearchV2 />
           <SidebarSourceChipsV2

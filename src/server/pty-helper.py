@@ -5,7 +5,7 @@ Spawns a real PTY process and bridges stdin/stdout.
 Usage: python3 pty-helper.py [cwd] [cols] [rows] -- [command arg1 arg2 ...]
 If no command is provided, falls back to an interactive shell.
 """
-import sys, os, pty, select, signal, struct, fcntl, termios
+import sys, os, pty, select, signal, struct, fcntl, termios, json
 
 def set_winsize(fd, rows, cols):
     s = struct.pack('HHHH', rows, cols, 0, 0)
@@ -59,30 +59,24 @@ def main():
         # Parent: bridge stdin <-> master_fd <-> stdout
         os.close(slave_fd)
 
-        # Make stdin non-blocking
+        # fd 3 is a line-delimited control channel. It deliberately stays
+        # separate from terminal stdin so resize commands cannot become shell
+        # input.
         import io
         stdin_fd = sys.stdin.fileno()
         stdout_fd = sys.stdout.fileno()
+        control_fd = 3
+        control_buffer = b''
 
         # Set stdout to binary/unbuffered
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, write_through=True)
 
-        # Handle resize signal
-        def handle_winch(signum, frame):
-            # Read new size from environment (set by parent process)
-            try:
-                new_cols = int(os.environ.get('COLUMNS', cols))
-                new_rows = int(os.environ.get('LINES', rows))
-                set_winsize(master_fd, new_rows, new_cols)
-                os.kill(pid, signal.SIGWINCH)
-            except:
-                pass
-
-        signal.signal(signal.SIGWINCH, handle_winch)
-
         try:
             while True:
-                rlist, _, _ = select.select([master_fd, stdin_fd], [], [], 1.0)
+                read_fds = [master_fd, stdin_fd]
+                if control_fd >= 0:
+                    read_fds.append(control_fd)
+                rlist, _, _ = select.select(read_fds, [], [], 1.0)
                 
                 if master_fd in rlist:
                     try:
@@ -101,6 +95,25 @@ def main():
                     if not data:
                         break
                     os.write(master_fd, data)
+
+                if control_fd in rlist:
+                    data = os.read(control_fd, 4096)
+                    if not data:
+                        control_fd = -1
+                    else:
+                        control_buffer += data
+                        while b'\n' in control_buffer:
+                            line, control_buffer = control_buffer.split(b'\n', 1)
+                            try:
+                                message = json.loads(line)
+                                if message.get('type') == 'resize':
+                                    new_cols = int(message['cols'])
+                                    new_rows = int(message['rows'])
+                                    if new_cols > 0 and new_rows > 0:
+                                        set_winsize(master_fd, new_rows, new_cols)
+                                        os.kill(pid, signal.SIGWINCH)
+                            except (ValueError, KeyError, TypeError, json.JSONDecodeError):
+                                pass
         except (IOError, OSError):
             pass
         finally:

@@ -13,6 +13,7 @@ import {
 } from '../../server/local-session-store'
 import { resolveMainSessionId } from '../../server/main-session-resolver'
 import { resolveSessionKey } from '../../server/session-utils'
+import { readProfile } from '../../server/profile-scope'
 import { isAuthenticated } from '@/server/auth-middleware'
 
 const DEFAULT_HISTORY_LIMIT = 150
@@ -39,6 +40,7 @@ export const Route = createFileRoute('/api/history')({
           const limit = Number(url.searchParams.get('limit') || String(DEFAULT_HISTORY_LIMIT))
           const rawSessionKey = url.searchParams.get('sessionKey')?.trim()
           const friendlyId = url.searchParams.get('friendlyId')?.trim()
+          const profile = readProfile(url.searchParams.get('profile'))
           let { sessionKey } = await resolveSessionKey({
             rawSessionKey,
             friendlyId,
@@ -61,6 +63,17 @@ export const Route = createFileRoute('/api/history')({
           // Cron + Operations per-agent sessions are skipped so the
           // orchestrator chat doesn't latch onto runtime junk.
           if (sessionKey === 'main') {
+            // `listSessions()` is unscoped, i.e. the active profile. Picking a
+            // "main" out of it under an explicit profile would latch onto a
+            // foreign session, so a scoped "main" simply presents as a fresh
+            // chat. Mirrors send-stream's identical guard.
+            if (profile) {
+              return Response.json({
+                sessionKey: 'new',
+                sessionId: 'new',
+                messages: [],
+              })
+            }
             try {
               const resolvedId = await resolveMainSessionId({ listSessions })
               if (resolvedId) {
@@ -81,10 +94,11 @@ export const Route = createFileRoute('/api/history')({
           }
           let messages: Awaited<ReturnType<typeof getMessages>> = []
           try {
-            messages = await getMessages(sessionKey, {
-              limit: limit > 0 ? limit : undefined,
-              offset: 0,
-            })
+            messages = await getMessages(
+              sessionKey,
+              { limit: limit > 0 ? limit : undefined, offset: 0 },
+              profile,
+            )
           } catch (err) {
             // A gateway failure here previously collapsed into an empty
             // transcript, making a real outage indistinguishable from an

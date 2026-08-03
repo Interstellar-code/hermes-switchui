@@ -7,6 +7,7 @@ import { textFromMessage } from '../utils'
 import { isInternalSystemMessage } from '../internal-message-filter'
 import type { ChatMessage } from '../types'
 import type { StreamingState } from '../../../stores/chat-store'
+import { activeScopeKey } from '@/lib/session-scope'
 
 const PORTABLE_HISTORY_STORAGE_KEY = 'claude_portable_chat_main'
 const PORTABLE_HISTORY_LIMIT = 100
@@ -172,18 +173,18 @@ export function useRealtimeChatHistory({
     void backfillHistory()
   }, [backfillHistory, effectiveSessionKey, enabled])
 
-
-
   const mergeHistoryMessages = useChatStore((s) => s.mergeHistoryMessages)
   const clearSession = useChatStore((s) => s.clearSession)
   const lastEventAt = useChatStore((s) => s.lastEventAt)
   const realtimeMessages = useChatStore(
-    (s) => s.realtimeMessages.get(effectiveSessionKey) ?? EMPTY_MESSAGES,
+    (s) =>
+      s.realtimeMessages.get(activeScopeKey(effectiveSessionKey)) ??
+      EMPTY_MESSAGES,
   )
 
   // Subscribe directly to streaming state — useMemo with stable fn ref was stale (bug #1)
   const streamingState = useChatStore(
-    (s) => s.streamingState.get(effectiveSessionKey) ?? null,
+    (s) => s.streamingState.get(activeScopeKey(effectiveSessionKey)) ?? null,
   )
   const streamingStateRef = useRef(streamingState)
   const lastStreamClearTimeRef = useRef<number>(0)

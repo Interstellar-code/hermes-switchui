@@ -20,6 +20,7 @@
  */
 import { HERMES_SESSION_KEY_HEADER } from '../lib/send-stream-session-headers'
 import { BEARER_TOKEN, CLAUDE_API } from './gateway-capabilities'
+import { assertProfileResponseOk, scopedPath } from './profile-scope'
 
 export type ResponsesStreamEvent =
   | { kind: 'text.delta'; delta: string }
@@ -55,6 +56,8 @@ export type ResponsesChatRequest = {
   sessionId?: string
   stableSessionKey?: string
   signal?: AbortSignal
+  /** Explicitly selected profile; null/absent = unscoped (active profile). */
+  profile?: string | null
 }
 
 const _authHeaders = (): Record<string, string> =>
@@ -115,7 +118,8 @@ export async function* streamResponses(
     headers['X-Hermes-Session-Id'] = req.sessionId
   }
   if (req.stableSessionKey || req.sessionId) {
-    headers[HERMES_SESSION_KEY_HEADER] = req.stableSessionKey || req.sessionId || ''
+    headers[HERMES_SESSION_KEY_HEADER] =
+      req.stableSessionKey || req.sessionId || ''
   }
 
   const body: Record<string, unknown> = {
@@ -123,17 +127,20 @@ export async function* streamResponses(
     stream: true,
     store: false,
   }
-  if (req.conversationHistory) body.conversation_history = req.conversationHistory
+  if (req.conversationHistory)
+    body.conversation_history = req.conversationHistory
   if (req.instructions) body.instructions = req.instructions
   if (req.model) body.model = req.model
   if (req.sessionId) body.session_id = req.sessionId
 
-  const res = await fetch(`${CLAUDE_API}/v1/responses`, {
+  const wirePath = await scopedPath('/v1/responses', req.profile)
+  const res = await fetch(`${CLAUDE_API}${wirePath}`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
     signal: req.signal,
   })
+  await assertProfileResponseOk(res, req.profile)
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new Error(`responses stream: ${res.status} ${text}`)
@@ -175,8 +182,7 @@ export async function* streamResponses(
         } catch {
           continue
         }
-        const eventType =
-          typeof parsed.type === 'string' ? parsed.type : ''
+        const eventType = typeof parsed.type === 'string' ? parsed.type : ''
 
         if (eventType === 'response.output_text.delta') {
           const delta = typeof parsed.delta === 'string' ? parsed.delta : ''
@@ -190,8 +196,7 @@ export async function* streamResponses(
           const itemType = typeof item.type === 'string' ? item.type : ''
 
           if (itemType === 'function_call') {
-            const callId =
-              typeof item.call_id === 'string' ? item.call_id : ''
+            const callId = typeof item.call_id === 'string' ? item.call_id : ''
             const itemId = typeof item.id === 'string' ? item.id : ''
             if (callId && itemId) itemIdToCallId.set(itemId, callId)
             const argsRaw =
@@ -207,8 +212,7 @@ export async function* streamResponses(
           }
 
           if (itemType === 'function_call_output') {
-            const callId =
-              typeof item.call_id === 'string' ? item.call_id : ''
+            const callId = typeof item.call_id === 'string' ? item.call_id : ''
             const output = extractOutputText(item.output)
             if (callId) yield { kind: 'tool.output', callId, output }
             continue
@@ -242,9 +246,7 @@ export async function* streamResponses(
         }
         if (eventType === 'response.failed') {
           const err =
-            typeof parsed.error === 'string'
-              ? parsed.error
-              : 'Response failed'
+            typeof parsed.error === 'string' ? parsed.error : 'Response failed'
           yield { kind: 'failed', error: err }
           continue
         }

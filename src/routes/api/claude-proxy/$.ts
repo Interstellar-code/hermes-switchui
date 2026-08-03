@@ -1,6 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { BEARER_TOKEN, CLAUDE_API } from '../../../server/gateway-capabilities'
 import { isAuthenticated } from '../../../server/auth-middleware'
+import {
+  isProfileScopeError,
+  profileErrorStatus,
+  readProfile,
+  scopedPath,
+} from '../../../server/profile-scope'
 
 /**
  * Operator-supplied allowlist of permitted proxy target hostnames.
@@ -39,9 +45,13 @@ function isAllowedProxyHost(hostname: string): boolean {
 async function fallbackAvailableModels(
   provider: string,
   authHeaders: Record<string, string>,
+  profile: string | null,
 ): Promise<Response> {
   try {
-    const res = await fetch(`${CLAUDE_API}/v1/models`, { headers: authHeaders })
+    const res = await fetch(
+      `${CLAUDE_API}${await scopedPath('/v1/models', profile)}`,
+      { headers: authHeaders },
+    )
     if (!res.ok) {
       return new Response(JSON.stringify({ models: [] }), {
         status: 200,
@@ -55,8 +65,11 @@ async function fallbackAvailableModels(
       .map((m) => {
         const id = typeof m.id === 'string' ? m.id : ''
         if (!id) return null
-        const owned = typeof m.owned_by === 'string' ? m.owned_by.toLowerCase() : ''
-        const idProvider = id.includes('/') ? id.split('/')[0].toLowerCase() : owned
+        const owned =
+          typeof m.owned_by === 'string' ? m.owned_by.toLowerCase() : ''
+        const idProvider = id.includes('/')
+          ? id.split('/')[0].toLowerCase()
+          : owned
         if (wanted && idProvider !== wanted) return null
         return { id }
       })
@@ -73,9 +86,50 @@ async function fallbackAvailableModels(
   }
 }
 
+/**
+ * Profile policy for this proxy.
+ *
+ * This is a generic, client-driven passthrough to ANY gateway path, so it is
+ * an unbounded send surface — the one place where a caller could reach the
+ * gateway without going through a scoped helper. Two rules keep it honest:
+ *
+ *  1. A client-supplied `/p/<profile>/` splat is REJECTED. It looks scoped but
+ *    bypasses the topology check entirely, so on a non-multiplex gateway it is
+ *    silently ignored and the write lands in whatever home the gateway runs on
+ *    (Hazard A). A prefix nobody validated is worse than no prefix.
+ *  2. Scoping is opt-in via the `x-hermes-profile` request header, which is
+ *    validated server-side and prefixed through `profilePath`. Without it the
+ *    proxy is active-profile-only, exactly as it has always been.
+ */
+const PROFILE_HEADER = 'x-hermes-profile'
+
 async function proxyRequest(request: Request, splat: string) {
   const incomingUrl = new URL(request.url)
-  const targetPath = splat.startsWith('/') ? splat : `/${splat}`
+  const rawPath = splat.startsWith('/') ? splat : `/${splat}`
+  if (/^\/p\//.test(rawPath)) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: `Client-supplied /p/ prefixes are not accepted here; send the ${PROFILE_HEADER} header instead.`,
+      }),
+      { status: 400, headers: { 'content-type': 'application/json' } },
+    )
+  }
+
+  const profile = readProfile(request.headers.get(PROFILE_HEADER))
+  let targetPath: string
+  try {
+    targetPath = await scopedPath(rawPath, profile)
+  } catch (err) {
+    if (!isProfileScopeError(err)) throw err
+    return new Response(
+      JSON.stringify({ ok: false, error: (err as Error).message }),
+      {
+        status: profileErrorStatus(err),
+        headers: { 'content-type': 'application/json' },
+      },
+    )
+  }
   const targetUrl = new URL(`${CLAUDE_API}${targetPath}`)
   targetUrl.search = incomingUrl.search
 
@@ -89,7 +143,12 @@ async function proxyRequest(request: Request, splat: string) {
 
   // Only forward a safe subset of request headers — never pass cookies or
   // workspace-internal auth headers to the upstream gateway.
-  const FORWARDED_REQUEST_HEADERS = ['accept', 'content-type', 'content-length', 'range']
+  const FORWARDED_REQUEST_HEADERS = [
+    'accept',
+    'content-type',
+    'content-length',
+    'range',
+  ]
   const headers = new Headers()
   for (const name of FORWARDED_REQUEST_HEADERS) {
     const val = request.headers.get(name)
@@ -101,7 +160,11 @@ async function proxyRequest(request: Request, splat: string) {
   const bearer =
     process.env.HERMES_API_TOKEN || process.env.CLAUDE_API_TOKEN || BEARER_TOKEN
   const configuredHost = (() => {
-    try { return new URL(CLAUDE_API).host } catch { return null }
+    try {
+      return new URL(CLAUDE_API).host
+    } catch {
+      return null
+    }
   })()
   if (bearer && configuredHost && targetUrl.host === configuredHost) {
     headers.set('Authorization', `Bearer ${bearer}`)
@@ -128,7 +191,7 @@ async function proxyRequest(request: Request, splat: string) {
     const authHeaders: Record<string, string> = bearer
       ? { Authorization: `Bearer ${bearer}` }
       : {}
-    return fallbackAvailableModels(provider, authHeaders)
+    return fallbackAvailableModels(provider, authHeaders, profile)
   }
 
   const body = await upstream.text()

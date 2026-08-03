@@ -6,6 +6,7 @@ import {
   latestTurnIsToolOnly,
 } from '../chat-screen-utils'
 import type { ChatMessage } from '../types'
+import { getSessionProfile } from '@/lib/session-scope'
 
 export type ActiveRunStatus =
   | 'accepted'
@@ -28,6 +29,22 @@ export type ActiveRunSnapshot = {
 type ActiveRunResponse = {
   ok: boolean
   run: ActiveRunSnapshot | null
+}
+
+/**
+ * The only place the active-run URL is built.
+ *
+ * Runs are persisted per session id, and a session id is not unique across
+ * profiles — two profiles' same-id sessions would otherwise share one run
+ * record, so a scoped chat could read the other profile's run as its own and
+ * clear (or sustain) its waiting state on it. The server composes the same
+ * composite key from this parameter. Omitted when unscoped, so the
+ * single-profile URL is byte-identical to before.
+ */
+export function activeRunUrl(sessionKey: string): string {
+  const profile = getSessionProfile()
+  const query = profile ? `?profile=${encodeURIComponent(profile)}` : ''
+  return `/api/sessions/${encodeURIComponent(sessionKey)}/active-run${query}`
 }
 
 const RECOVERABLE_HANDOFF_WINDOW_MS = 30_000
@@ -113,10 +130,9 @@ export function useActiveRunCheck({
     async function check() {
       attempts += 1
       try {
-        const response = await fetch(
-          `/api/sessions/${encodeURIComponent(sessionKey)}/active-run`,
-          { signal: controller.signal },
-        )
+        const response = await fetch(activeRunUrl(sessionKey), {
+          signal: controller.signal,
+        })
         if (!response.ok)
           throw new Error(`Active run check failed: ${response.status}`)
 

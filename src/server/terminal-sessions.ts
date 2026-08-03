@@ -182,7 +182,8 @@ export function createTerminalSession(params: {
         COLUMNS: String(cols),
         LINES: String(rows),
       },
-      stdio: ['pipe', 'pipe', 'pipe'],
+      // fd 3 is a control channel, kept separate from user input on stdin.
+      stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
     },
   )
 
@@ -218,6 +219,7 @@ export function createTerminalSession(params: {
   })
 
   let detachTimer: ReturnType<typeof setTimeout> | null = null
+  let closed = false
 
   const session: TerminalSession = {
     id: sessionId,
@@ -230,16 +232,15 @@ export function createTerminalSession(params: {
       }
     },
 
-    resize(_newCols: number, _newRows: number) {
-      // Send SIGWINCH to the Python helper, which propagates to the PTY
-      if (proc.pid) {
-        // Note: can't update env on running ChildProcess, SIGWINCH alone is sent
-        try {
-          process.kill(proc.pid, 'SIGWINCH')
-        } catch {
-          /* */
-        }
-      }
+    resize(newCols: number, newRows: number) {
+      if (closed) return
+      const control = proc.stdio[3]
+      if (!control || !('writable' in control) || !control.writable) return
+      const nextCols = Math.max(1, Math.floor(newCols))
+      const nextRows = Math.max(1, Math.floor(newRows))
+      control.write(
+        `${JSON.stringify({ type: 'resize', cols: nextCols, rows: nextRows })}\n`,
+      )
     },
 
     markDetached() {
@@ -261,11 +262,15 @@ export function createTerminalSession(params: {
     },
 
     close() {
+      if (closed) return
+      closed = true
       if (detachTimer) {
         clearTimeout(detachTimer)
         detachTimer = null
       }
       try {
+        const control = proc.stdio[3]
+        if (control && 'writable' in control && control.writable) control.end()
         proc.kill('SIGTERM')
         setTimeout(() => {
           try {

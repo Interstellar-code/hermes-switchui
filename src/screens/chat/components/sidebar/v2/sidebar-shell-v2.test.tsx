@@ -8,7 +8,10 @@ const { useSessionsFeed, applyFiltersAndDecorate } = vi.hoisted(() => ({
   applyFiltersAndDecorate: vi.fn(),
 }))
 
-vi.mock('@/screens/chat/sessions-feed', () => ({ useSessionsFeed }))
+vi.mock('@/screens/chat/sessions-feed', () => ({
+  useSessionsFeed,
+  useProfileSessionTotals: () => ({ totals: [], loading: false }),
+}))
 vi.mock('@/screens/chat/apply-filters-and-decorate', () => ({
   applyFiltersAndDecorate,
 }))

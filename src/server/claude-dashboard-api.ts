@@ -135,6 +135,42 @@ export async function getSession(id: string): Promise<DashboardSession> {
   return dashboardJson(`/api/sessions/${encodeURIComponent(id)}`)
 }
 
+/** Session row shape returned by `/api/profiles/sessions` — a superset of
+ * `DashboardSession` carrying which profile each row came from. */
+export type DashboardProfileSession = DashboardSession & {
+  profile?: string
+  profile_name?: string
+  is_default_profile?: boolean
+}
+
+/**
+ * Cross-profile session listing via the dashboard's `?profile=` read
+ * mechanism (P2). Distinct from `listSessions`/gateway `/p/` prefixing:
+ * this always hits the dashboard (:9119) and never falls back to the
+ * gateway, so an unavailable dashboard throws (via `dashboardJson`)
+ * instead of silently returning active-profile data.
+ *
+ * Some profiles have drifted `state.db` schemas and fail server-side —
+ * those show up in `errors`, NOT as a silent zero-count profile. Callers
+ * must surface `errors` rather than inferring "empty" from `sessions: []`.
+ */
+export async function listProfileSessions(
+  profile: string,
+  limit = 50,
+  offset = 0,
+): Promise<{
+  sessions: Array<DashboardProfileSession>
+  total: number
+  profile_totals?: Record<string, number>
+  limit: number
+  offset: number
+  errors?: Array<{ profile: string; error: string }>
+}> {
+  return dashboardJson(
+    `/api/profiles/sessions?profile=${encodeURIComponent(profile)}&limit=${limit}&offset=${offset}`,
+  )
+}
+
 export async function getSessionMessages(
   id: string,
   query: SessionMessagesQuery = {},

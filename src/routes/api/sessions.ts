@@ -3,11 +3,17 @@ import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { requireJsonContentType } from '../../server/rate-limit'
 import {
+  assertProfileServed,
+  isProfileScopeError,
+  profileErrorStatus,
+  readProfile,
+} from '../../server/profile-scope'
+import { listProfileSessions } from '../../server/claude-dashboard-api'
+import {
   SESSIONS_API_UNAVAILABLE_MESSAGE,
   createSession,
   deleteSession,
   ensureGatewayProbed,
-  getGatewayCapabilities,
   getSession,
   listSessions,
   searchSessions,
@@ -20,6 +26,7 @@ import {
   listLocalSessions,
   updateLocalSessionTitle,
 } from '../../server/local-session-store'
+import type { ClaudeSession } from '../../server/hermes-api'
 import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
 
 async function listAllSessions(pageSize = 1000) {
@@ -32,7 +39,9 @@ async function listAllSessions(pageSize = 1000) {
   return sessions
 }
 
-function toLocalSessionSummary(session: ReturnType<typeof listLocalSessions>[number]) {
+function toLocalSessionSummary(
+  session: ReturnType<typeof listLocalSessions>[number],
+) {
   return {
     key: session.id,
     id: session.id,
@@ -71,9 +80,36 @@ export const Route = createFileRoute('/api/sessions')({
 
         try {
           const url = new URL(request.url)
+
+          // Cross-profile browse (P2). An explicit `?profile=` read goes
+          // through the dashboard's aggregation endpoint, never the unscoped
+          // active-profile listing below — that fallback is the silent
+          // wrong-profile hazard. `errors[]` is passed through verbatim: a
+          // profile whose `state.db` schema has drifted must render as
+          // DEGRADED, never as a `0` that claims it is empty.
+          const requestedProfile = readProfile(url.searchParams.get('profile'))
           const searchQuery = url.searchParams.get('q')?.trim()
+
+          // Search is checked BEFORE the profile browse below: `?profile=X&q=`
+          // used to fall into the browse branch and silently drop `q`,
+          // answering a search with an unfiltered listing.
           if (searchQuery) {
-            const searchResult = await searchSessions(searchQuery, 20)
+            if (requestedProfile) {
+              try {
+                await assertProfileServed(requestedProfile)
+              } catch (err) {
+                if (!isProfileScopeError(err)) throw err
+                return Response.json(
+                  { ok: false, error: (err as Error).message },
+                  { status: profileErrorStatus(err) },
+                )
+              }
+            }
+            const searchResult = await searchSessions(
+              searchQuery,
+              20,
+              requestedProfile,
+            )
             const resultRows = Array.isArray(searchResult.results)
               ? searchResult.results
               : []
@@ -100,10 +136,13 @@ export const Route = createFileRoute('/api/sessions')({
                   .filter(Boolean),
               ),
             ]
+            // Hydration is scoped too: an unscoped getSession() would resolve
+            // these IDs against the gateway's own profile, and IDs are not
+            // unique across profiles.
             const sessions = (
               await Promise.all(
                 sessionIds.map((sessionId) =>
-                  getSession(sessionId).catch(() => null),
+                  getSession(sessionId, requestedProfile).catch(() => null),
                 ),
               )
             ).filter((session) => session !== null)
@@ -114,6 +153,40 @@ export const Route = createFileRoute('/api/sessions')({
               })),
             })
           }
+
+          if (requestedProfile) {
+            const profileLimit = Number(url.searchParams.get('limit'))
+            const profileOffset = Number(url.searchParams.get('offset'))
+            const result = await listProfileSessions(
+              requestedProfile,
+              Number.isFinite(profileLimit) && profileLimit > 0
+                ? Math.min(profileLimit, 1000)
+                : 50,
+              Number.isFinite(profileOffset) && profileOffset > 0
+                ? profileOffset
+                : 0,
+            )
+            return Response.json({
+              ok: true,
+              sessions: result.sessions.map((row) => {
+                // Only `source` differs between the dashboard row and
+                // ClaudeSession (`string | null` vs `string`); normalizing it
+                // avoids a cast that `no-unnecessary-type-assertion` could eat.
+                const session: ClaudeSession = {
+                  ...row,
+                  source: row.source ?? undefined,
+                }
+                return {
+                  ...toSessionSummary(session),
+                  profile: row.profile ?? row.profile_name ?? requestedProfile,
+                }
+              }),
+              total: result.total,
+              profile_totals: result.profile_totals,
+              errors: result.errors ?? [],
+            })
+          }
+
           const requestedSessionKey = url.searchParams.get('sessionKey')?.trim()
           if (requestedSessionKey) {
             const localSession = getLocalSession(requestedSessionKey)
@@ -210,7 +283,31 @@ export const Route = createFileRoute('/api/sessions')({
             typeof body.model === 'string' ? body.model.trim() : ''
           const model = requestedModel || undefined
 
-          if (capabilities.dashboard.available && !capabilities.enhancedChat) {
+          // Fail closed before anything is created. Same ordering as
+          // PATCH/DELETE below and send-stream.ts:320 — a create that cannot
+          // prove its profile is routable must not reach the gateway, because
+          // a `/p/` prefix on a non-multiplexing gateway returns 200 while
+          // landing in the active profile's state.db.
+          const profile = readProfile(body.profile)
+          if (profile) {
+            try {
+              await assertProfileServed(profile)
+            } catch (err) {
+              if (!isProfileScopeError(err)) throw err
+              return Response.json(
+                { ok: false, error: (err as Error).message },
+                { status: profileErrorStatus(err) },
+              )
+            }
+          }
+
+          // The dashboard shortcut is unscoped — taking it for an explicit
+          // profile would silently drop the scope.
+          if (
+            !profile &&
+            capabilities.dashboard.available &&
+            !capabilities.enhancedChat
+          ) {
             return Response.json({
               ok: true,
               sessionKey: friendlyId,
@@ -232,11 +329,14 @@ export const Route = createFileRoute('/api/sessions')({
             })
           }
 
-          const session = await createSession({
-            id: friendlyId || randomUUID(),
-            title: label,
-            model,
-          })
+          const session = await createSession(
+            {
+              id: friendlyId || randomUUID(),
+              title: label,
+              model,
+            },
+            profile,
+          )
 
           return Response.json({
             ok: true,
@@ -305,6 +405,22 @@ export const Route = createFileRoute('/api/sessions')({
             )
           }
 
+          // Fail closed before any mutation — local or gateway. A rename that
+          // cannot prove its profile is routable must not touch either store
+          // (mirrors the create-path guard above and send-stream.ts:320).
+          const profile = readProfile(body.profile)
+          if (profile) {
+            try {
+              await assertProfileServed(profile)
+            } catch (err) {
+              if (!isProfileScopeError(err)) throw err
+              return Response.json(
+                { ok: false, error: (err as Error).message },
+                { status: profileErrorStatus(err) },
+              )
+            }
+          }
+
           const localSession = getLocalSession(sessionKey)
           if (localSession) {
             if (label) updateLocalSessionTitle(sessionKey, label)
@@ -329,7 +445,11 @@ export const Route = createFileRoute('/api/sessions')({
             })
           }
 
-          if (capabilities.dashboard.available && !capabilities.enhancedChat) {
+          if (
+            !profile &&
+            capabilities.dashboard.available &&
+            !capabilities.enhancedChat
+          ) {
             return Response.json({
               ok: true,
               sessionKey,
@@ -345,9 +465,11 @@ export const Route = createFileRoute('/api/sessions')({
             })
           }
 
-          const session = await updateSession(sessionKey, {
-            title: label,
-          })
+          const session = await updateSession(
+            sessionKey,
+            { title: label },
+            profile,
+          )
 
           return Response.json({
             ok: true,
@@ -383,6 +505,31 @@ export const Route = createFileRoute('/api/sessions')({
           )
         }
 
+        // Optional JSON body carries the scoped profile. Tolerant of a
+        // missing/empty body so existing unscoped callers (no body at all)
+        // are unaffected.
+        const body = (await request.json().catch(() => ({}))) as Record<
+          string,
+          unknown
+        >
+
+        // Fail closed before any mutation — local or gateway. A delete that
+        // cannot prove its profile is routable must not touch either store:
+        // deleting a colliding session ID in the wrong profile's state.db
+        // is unrecoverable (mirrors PATCH above and send-stream.ts:320).
+        const profile = readProfile(body.profile)
+        if (profile) {
+          try {
+            await assertProfileServed(profile)
+          } catch (err) {
+            if (!isProfileScopeError(err)) throw err
+            return Response.json(
+              { ok: false, error: (err as Error).message },
+              { status: profileErrorStatus(err) },
+            )
+          }
+        }
+
         // Local sessions live in the workspace portable store, not the
         // gateway. Delete them locally without hitting the gateway.
         if (getLocalSession(sessionKey)) {
@@ -400,7 +547,7 @@ export const Route = createFileRoute('/api/sessions')({
           })
         }
         try {
-          await deleteSession(sessionKey)
+          await deleteSession(sessionKey, profile)
 
           return Response.json({ ok: true, sessionKey })
         } catch (err) {

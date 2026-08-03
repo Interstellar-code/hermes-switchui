@@ -7,10 +7,10 @@ import {
 } from '../chat-queries'
 import { clearPendingSendForSession, resetPendingSend } from '../pending-send'
 import { clearSessionDeleted, markSessionDeleted } from '../session-tombstones'
-import { SESSIONS_FEED_KEY, invalidateSessionLists } from '../sessions-feed'
-import { readError } from '../utils'
+import { invalidateSessionLists, sessionsFeedKey } from '../sessions-feed'
 import { clearSessionTitleState } from '../session-title-store'
 import { useSessionModelStore } from '@/stores/session-model-store'
+import { profileBody, readSendFailure } from '@/lib/session-scope'
 
 export type DeleteSessionResult = {
   deleteSession: (
@@ -36,12 +36,22 @@ export function useDeleteSession(): DeleteSessionResult {
       const query = new URLSearchParams()
       if (payload.sessionKey) query.set('sessionKey', payload.sessionKey)
       if (payload.friendlyId) query.set('friendlyId', payload.friendlyId)
+      // Only attach a JSON body (and Content-Type) when a profile is
+      // ambient — keeps the unscoped request byte-identical to before.
+      const scope = profileBody()
       const res = await fetch(`/api/sessions?${query.toString()}`, {
         method: 'DELETE',
+        ...(Object.keys(scope).length
+          ? {
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(scope),
+            }
+          : {}),
       })
       // 404 = backend already lacks this session; treat as already-deleted so
       // stale UI rows can be cleared without a hard error.
-      if (!res.ok && res.status !== 404) throw new Error(await readError(res))
+      if (!res.ok && res.status !== 404)
+        throw new Error(await readSendFailure(res))
       return payload
     },
     onMutate: async function onMutate(payload) {
@@ -50,13 +60,13 @@ export function useDeleteSession(): DeleteSessionResult {
       clearPendingSendForSession(payload.sessionKey, payload.friendlyId)
       await queryClient.cancelQueries({ queryKey: chatQueryKeys.sessions })
       // Optimistically drop the card from the V2 sidebar feed (tombstone-backed)
-      queryClient.invalidateQueries({ queryKey: SESSIONS_FEED_KEY })
+      queryClient.invalidateQueries({ queryKey: sessionsFeedKey() })
     },
     onError: function onError(err, _payload, _context) {
       clearSessionDeleted(_payload.sessionKey || _payload.friendlyId)
       setError(err instanceof Error ? err.message : String(err))
       // Delete failed — tombstone cleared, refetch to restore the card
-      queryClient.invalidateQueries({ queryKey: SESSIONS_FEED_KEY })
+      queryClient.invalidateQueries({ queryKey: sessionsFeedKey() })
     },
     onSuccess: function onSuccess(payload) {
       removeSessionFromCache(

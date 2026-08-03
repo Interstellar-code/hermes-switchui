@@ -5,6 +5,7 @@ import YAML from 'yaml'
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { ensureGatewayProbed } from '../../server/hermes-api'
+import { getProfileClaudeHome } from '../../server/claude-paths'
 import {
   ensureDiscovery,
   ensureProviderInConfig,
@@ -41,10 +42,12 @@ function readString(value: unknown): string {
  * array (model metadata). models.json is ignored — it's a legacy cache the
  * Hermes runtime no longer reads.
  */
-function readConfigOnce(): Record<string, unknown> | null {
+function readConfigOnce(
+  configPath: string = CONFIG_PATH,
+): Record<string, unknown> | null {
   try {
-    if (!fs.existsSync(CONFIG_PATH)) return null
-    const parsed = YAML.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'))
+    if (!fs.existsSync(configPath)) return null
+    const parsed = YAML.parse(fs.readFileSync(configPath, 'utf-8'))
     if (!parsed || typeof parsed !== 'object') return null
     return parsed as Record<string, unknown>
   } catch {
@@ -248,7 +251,16 @@ export const Route = createFileRoute('/api/models')({
           // Hermes runtime reads only this file; mirror it for the picker so
           // dropdown stays in sync with what the agent actually uses.
           // Parse the YAML once and thread it through every reader.
-          const parsedConfig = readConfigOnce()
+          //
+          // `?profile=` reads a foreign profile's config.yaml directly off disk
+          // (P2). Local-provider discovery below stays active-profile-only —
+          // that lives in local-provider-discovery.ts, outside this lane.
+          const url = new URL(request.url)
+          const profile = url.searchParams.get('profile')?.trim() || null
+          const configPath = profile
+            ? path.join(getProfileClaudeHome(profile), 'config.yaml')
+            : CONFIG_PATH
+          const parsedConfig = readConfigOnce(configPath)
           let gatewayModels = readProvidersFromConfig(parsedConfig)
           const source = 'config.yaml'
 

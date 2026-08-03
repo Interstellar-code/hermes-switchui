@@ -9,6 +9,12 @@ import {
   sendChat,
 } from '../../../server/hermes-api'
 import { resolveSessionKey } from '../../../server/session-utils'
+import {
+  assertProfileServed,
+  isProfileScopeError,
+  profileErrorStatus,
+  readProfile,
+} from '../../../server/profile-scope'
 
 export const Route = createFileRoute('/api/sessions/send')({
   server: {
@@ -51,6 +57,24 @@ export const Route = createFileRoute('/api/sessions/send')({
             )
           }
 
+          // Fail closed BEFORE the session is resolved or anything is sent —
+          // same ordering as sessions.ts PATCH/DELETE and send-stream.ts:320.
+          // `sendChat` already accepts a profile; without reading it here the
+          // caller's scope was silently dropped and the message landed in
+          // whatever profile the gateway runs on.
+          const profile = readProfile(body.profile)
+          if (profile) {
+            try {
+              await assertProfileServed(profile)
+            } catch (err) {
+              if (!isProfileScopeError(err)) throw err
+              return Response.json(
+                { ok: false, error: (err as Error).message },
+                { status: profileErrorStatus(err) },
+              )
+            }
+          }
+
           const { sessionKey } = await resolveSessionKey({
             rawSessionKey,
             friendlyId,
@@ -63,8 +87,8 @@ export const Route = createFileRoute('/api/sessions/send')({
               ? body.idempotencyKey.trim()
               : randomUUID()
 
-          const result = await sendChat(sessionKey, {
-            message,
+          const result = await sendChat(sessionKey, { message }, undefined, {
+            profile,
           })
 
           return Response.json({

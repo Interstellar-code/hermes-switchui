@@ -6,6 +6,7 @@ import {
   getCapabilities,
 } from '@/server/gateway-capabilities'
 import { getLocalMessages, getLocalSession } from '@/server/local-session-store'
+import { scopedPath } from '@/server/profile-scope'
 
 export type ContextUsageSnapshot = {
   ok: true
@@ -58,6 +59,14 @@ function authHeaders(): Record<string, string> {
   return BEARER_TOKEN ? { Authorization: `Bearer ${BEARER_TOKEN}` } : {}
 }
 
+/** Append `profile=` to a dashboard path. No-op when profile is falsy, so
+ *  unscoped callers get the exact same path as before P2. */
+function withProfileQuery(path: string, profile?: string | null): string {
+  if (!profile) return path
+  const sep = path.includes('?') ? '&' : '?'
+  return `${path}${sep}profile=${encodeURIComponent(profile)}`
+}
+
 function emptySnapshot(): ContextUsageSnapshot {
   return {
     ok: true,
@@ -72,6 +81,7 @@ function emptySnapshot(): ContextUsageSnapshot {
 
 export async function readContextUsage(
   sessionId = '',
+  profile?: string | null,
 ): Promise<ContextUsageSnapshot> {
   try {
     let sessionData: Record<string, unknown> | null = null
@@ -106,11 +116,15 @@ export async function readContextUsage(
     if (explicitSessionId) {
       try {
         const res = capabilities.dashboard.available
-          ? await dashboardFetch(`/api/sessions/${encodeURIComponent(explicitSessionId)}`, {
-              signal: AbortSignal.timeout(3000),
-            })
+          ? await dashboardFetch(
+              withProfileQuery(
+                `/api/sessions/${encodeURIComponent(explicitSessionId)}`,
+                profile,
+              ),
+              { signal: AbortSignal.timeout(3000) },
+            )
           : await fetch(
-              `${CLAUDE_API}/api/sessions/${encodeURIComponent(explicitSessionId)}`,
+              `${CLAUDE_API}${await scopedPath(`/api/sessions/${encodeURIComponent(explicitSessionId)}`, profile)}`,
               {
                 headers: authHeaders(),
                 signal: AbortSignal.timeout(3000),
@@ -135,13 +149,16 @@ export async function readContextUsage(
     if (!sessionData) {
       try {
         const listRes = capabilities.dashboard.available
-          ? await dashboardFetch('/api/sessions?limit=1', {
+          ? await dashboardFetch(withProfileQuery('/api/sessions?limit=1', profile), {
               signal: AbortSignal.timeout(3000),
             })
-          : await fetch(`${CLAUDE_API}/api/sessions?limit=1`, {
-              headers: authHeaders(),
-              signal: AbortSignal.timeout(3000),
-            })
+          : await fetch(
+              `${CLAUDE_API}${await scopedPath('/api/sessions?limit=1', profile)}`,
+              {
+                headers: authHeaders(),
+                signal: AbortSignal.timeout(3000),
+              },
+            )
         if (listRes.ok) {
           const listData = (await listRes.json()) as {
             items?: Array<Record<string, unknown>>
@@ -205,13 +222,14 @@ export async function readContextUsage(
           const capabilitiesNow = getCapabilities()
           const msgRes = capabilitiesNow.dashboard.available
             ? await dashboardFetch(
-                `/api/sessions/${encodeURIComponent(targetSessionId)}/messages`,
-                {
-                  signal: AbortSignal.timeout(5000),
-                },
+                withProfileQuery(
+                  `/api/sessions/${encodeURIComponent(targetSessionId)}/messages`,
+                  profile,
+                ),
+                { signal: AbortSignal.timeout(5000) },
               )
             : await fetch(
-                `${CLAUDE_API}/api/sessions/${encodeURIComponent(targetSessionId)}/messages`,
+                `${CLAUDE_API}${await scopedPath(`/api/sessions/${encodeURIComponent(targetSessionId)}/messages`, profile)}`,
                 {
                   headers: authHeaders(),
                   signal: AbortSignal.timeout(5000),

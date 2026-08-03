@@ -16,6 +16,7 @@ import {
   setGatewayUrl,
 } from '../../server/gateway-capabilities'
 import { requireJsonContentType } from '../../server/rate-limit'
+import { invalidateGatewayMode } from '../../server/profile-scope'
 
 /**
  * RFC-1918 / link-local / cloud-metadata IP ranges that must not be accepted
@@ -123,6 +124,14 @@ export const Route = createFileRoute('/api/connection-settings')({
             }
             setDashboardUrl(value)
           }
+          // Repointing either URL means the cached profile-multiplex topology
+          // describes a process we are no longer talking to. Drop it now
+          // rather than letting the 5s TTL expire: for that window a scoped
+          // write would be authorised by the OLD gateway's mode and sent to
+          // the NEW one, and a `/p/` prefix a non-multiplexing gateway ignores
+          // returns 200 while landing in its own state.db. Same call
+          // gateway-reprobe.ts:34 makes for the same reason.
+          invalidateGatewayMode()
           // Reprobe so the UI can immediately reflect the new state.
           await ensureGatewayProbed()
           return Response.json({ ok: true, ...getResolvedUrls() })

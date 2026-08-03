@@ -61,6 +61,7 @@ export const Route = createFileRoute('/api/context-usage')({
           url.searchParams.get('sessionId')?.trim() ||
           url.searchParams.get('sessionKey')?.trim() ||
           ''
+        const profile = url.searchParams.get('profile')?.trim() || null
 
         if (sessionId === 'new' || sessionId === 'main') {
           return Response.json({
@@ -74,7 +75,7 @@ export const Route = createFileRoute('/api/context-usage')({
           })
         }
 
-        const snapshot = await readContextUsage(sessionId)
+        const snapshot = await readContextUsage(sessionId, profile)
         return Response.json(snapshot)
       },
     },

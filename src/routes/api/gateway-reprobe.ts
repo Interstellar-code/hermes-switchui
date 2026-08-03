@@ -17,6 +17,9 @@ import {
 } from '../../server/gateway-capabilities'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { requireJsonContentType } from '../../server/rate-limit'
+// NOTE: distinct from getGatewayMode() above — that one reports the chat
+// transport mode; this module owns the profile-multiplex topology.
+import { invalidateGatewayMode } from '../../server/profile-scope'
 
 export const Route = createFileRoute('/api/gateway-reprobe')({
   server: {
@@ -28,6 +31,7 @@ export const Route = createFileRoute('/api/gateway-reprobe')({
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
+        invalidateGatewayMode()
         const capabilities = await forceReprobeGateway()
         return Response.json({
           ok: true,

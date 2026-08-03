@@ -3,6 +3,7 @@ import {
   Outlet,
   Scripts,
   createRootRoute,
+  useRouterState,
 } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
@@ -31,6 +32,7 @@ import {
 import { ErrorBoundary } from '@/components/error-boundary'
 import { LoginScreen } from '@/components/auth/login-screen'
 import { saveMissionStoreBeforeUnload } from '@/stores/mission-store'
+import { syncSessionProfileToPath } from '@/lib/session-scope'
 
 const APP_CSP = [
   "default-src 'self'",
@@ -273,6 +275,14 @@ function RootLayout() {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null)
   const [mounted, setMounted] = useState(false)
   useApplyChatWidth()
+
+  // The ambient chat profile is set by `/chat/$sessionKey` and must not outlive
+  // it. Applied during render, before the routed subtree renders, so a non-chat
+  // surface never builds a key or a request body from the previous chat's
+  // profile. Idempotent module state, not React state — safe here.
+  syncSessionProfileToPath(
+    useRouterState({ select: (state) => state.location.pathname }),
+  )
 
   useEffect(() => {
     // react-grab is a dev inspection overlay. Loaded only when the Vite dev

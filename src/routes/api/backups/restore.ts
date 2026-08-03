@@ -9,6 +9,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '@/server/auth-middleware'
 import { requireJsonContentType } from '@/server/rate-limit'
 import { dashboardFetch } from '@/server/gateway-capabilities'
+import { getActiveProfileName } from '@/server/profiles-browser'
 
 export const Route = createFileRoute('/api/backups/restore')({
   server: {
@@ -36,17 +37,23 @@ export const Route = createFileRoute('/api/backups/restore')({
         }
 
         // Proxy to dashboard with force:true injected
-        const upstream = await dashboardFetch('/api/ops/import', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
+        const upstream = await dashboardFetch(
+          `/api/ops/import?profile=${encodeURIComponent(getActiveProfileName())}`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload),
+          },
+        )
 
         // Forward response
         const responseBody = await upstream.text()
         return new Response(responseBody, {
           status: upstream.status,
-          headers: { 'content-type': upstream.headers.get('content-type') || 'application/json' },
+          headers: {
+            'content-type':
+              upstream.headers.get('content-type') || 'application/json',
+          },
         })
       },
     },

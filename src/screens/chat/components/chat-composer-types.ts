@@ -95,3 +95,14 @@ export type ActivateProfileResponse = {
   profile: string
   needsGatewayRestart: boolean
 }
+
+/** The `scope` field nested in `GET /api/gateway-status` — multiplex
+ * topology for the composer's scope picker. `mode`/`servedProfiles` mirror
+ * `profile-scope.ts`'s `GatewayMode` (a different concept from
+ * `gateway-status.ts`'s top-level `mode`, which is the unrelated
+ * vanilla/enhanced chat-transport mode from `gateway-capabilities.ts`). */
+export type ScopeStatusResponse = {
+  mode: 'single' | 'multiplex'
+  servedProfiles: Array<string> | null
+  sessionCounts: Record<string, number>
+}

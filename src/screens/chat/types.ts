@@ -128,6 +128,8 @@ export type SessionSummary = {
   status?: string
   kind?: string
   source?: string
+  /** Present only on rows from a profile-scoped `?profile=` fetch (P2). */
+  profile?: string
 }
 
 export type SessionListResponse = {
@@ -162,6 +164,8 @@ export type SessionMeta = {
   /** Gateway origin: 'telegram' | 'cron' | 'cli' | 'api_server' | 'a2a_fleet' | 'local' | '' */
   source?: string
   isActive?: boolean
+  /** Present only on rows from a profile-scoped `?profile=` fetch (P2). */
+  profile?: string
 }
 
 export type PathsPayload = {

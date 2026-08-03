@@ -4,7 +4,13 @@ import { persist } from 'zustand/middleware'
 const DEFAULT_PANEL_HEIGHT = 280
 const MIN_PANEL_HEIGHT = 100
 
-export type TerminalTabStatus = 'active' | 'idle'
+export type TerminalTabStatus =
+  | 'active'
+  | 'idle'
+  | 'connecting'
+  | 'reconnecting'
+  | 'exited'
+  | 'error'
 
 export type TerminalTab = {
   id: string
@@ -142,7 +148,7 @@ export const useTerminalPanelStore = create<TerminalPanelState>()(
         return {
           isPanelOpen: state.isPanelOpen,
           panelHeight: state.panelHeight,
-          tabs: state.tabs,
+          tabs: state.tabs.map((tab) => ({ ...tab, status: 'idle' as const })),
           activeTabId: state.activeTabId,
           terminalCounter: state.terminalCounter,
         }
@@ -159,12 +165,17 @@ export const useTerminalPanelStore = create<TerminalPanelState>()(
             })
             return
           }
-          const activeExists = state.tabs.some(
-            (tab) => tab.id === state.activeTabId,
-          )
-          if (!activeExists) {
-            useTerminalPanelStore.setState({ activeTabId: state.tabs[0].id })
-          }
+          // Persist tab descriptors (including session IDs for intentional
+          // PTY reattach), but never resurrect transient connection status.
+          const tabs = state.tabs.map((tab) => ({
+            ...tab,
+            status: 'idle' as const,
+          }))
+          const activeExists = tabs.some((tab) => tab.id === state.activeTabId)
+          useTerminalPanelStore.setState({
+            tabs,
+            ...(activeExists ? {} : { activeTabId: tabs[0].id }),
+          })
         }
       },
     },

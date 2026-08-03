@@ -25,6 +25,7 @@ import {
   getLogs,
 } from '@/lib/hermes-client'
 import { useChatStore } from '@/stores/chat-store'
+import { activeScopeKey } from '@/lib/session-scope'
 
 const IDLE_LEISURE_AREAS: Array<OfficeIdleLeisureArea> = [
   'pingpong',
@@ -1005,7 +1006,7 @@ ${parseLogText(gatewayLogsQuery.data)}`
       }
 
       const sessionKey = p.activeSessionKey ?? p.id
-      const streaming = streamingState.get(sessionKey)
+      const streaming = streamingState.get(activeScopeKey(sessionKey))
       const { room } = inferActiveRoom(streaming)
 
       switch (room) {
@@ -1053,7 +1054,7 @@ ${parseLogText(gatewayLogsQuery.data)}`
     const result: Record<string, string | null> = {}
     for (const p of presence) {
       const sessionKey = p.activeSessionKey ?? p.id
-      const state = streamingState.get(sessionKey)
+      const state = streamingState.get(activeScopeKey(sessionKey))
       result[p.id] = activeBubbleTextForPresence(p, state)
     }
     return result

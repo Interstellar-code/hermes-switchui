@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/preview-card'
 import { useSessionStatus } from '@/hooks/use-session-status'
 import { useContextUsageStore } from '@/stores/context-usage-store'
-import { fetchSessions } from '@/screens/chat/chat-queries'
+import { chatQueryKeys, fetchSessions } from '@/screens/chat/chat-queries'
 
 type ModelCatalogEntry = {
   id?: string
@@ -107,7 +107,7 @@ function ContextBarComponent({
     s.sessionKey === sessionId ? s.messagesAfter : null,
   )
   const sessionsQuery = useQuery({
-    queryKey: ['chat', 'sessions', 'raw'],
+    queryKey: chatQueryKeys.sessionsRaw,
     queryFn: fetchSessions,
     staleTime: 30_000,
     enabled: Boolean(sessionId),

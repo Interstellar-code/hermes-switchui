@@ -317,6 +317,10 @@ export function normalizeSessions(
           : typeof (session as Record<string, unknown>).is_active === 'boolean'
             ? ((session as Record<string, unknown>).is_active as boolean)
             : undefined,
+      profile:
+        typeof (session as Record<string, unknown>).profile === 'string'
+          ? ((session as Record<string, unknown>).profile as string)
+          : undefined,
     }
   })
 }

@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react'
 
 type Props = {
+  /** Set false when the terminal pane is not currently shown. */
+  active?: boolean
   fontSize?: number
   speed?: number
   density?: number
@@ -12,9 +14,10 @@ const GLYPHS =
   'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789Z:.="*+-<>¦|_'
 
 export function MatrixRainCanvas({
+  active = true,
   fontSize = 16,
-  speed = 0.08,
-  density = 2,
+  speed = 0.06,
+  density = 0.35,
   columnSpacing = 0.7,
   className,
 }: Props) {
@@ -27,15 +30,39 @@ export function MatrixRainCanvas({
     if (!ctx) return
 
     let raf = 0
-    let dpr = window.devicePixelRatio || 1
+    let dpr = Math.min(window.devicePixelRatio || 1, 2)
     let cols = 0
     let drops: Array<number> = []
     let lastTs = 0
+    let isIntersecting = false
+    let isDocumentVisible = !document.hidden
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+
+    function shouldAnimate() {
+      return (
+        active && isIntersecting && isDocumentVisible && !motionQuery.matches
+      )
+    }
+
+    function stop() {
+      cancelAnimationFrame(raf)
+      raf = 0
+      lastTs = 0
+    }
+
+    function start() {
+      if (!raf && shouldAnimate()) raf = requestAnimationFrame(draw)
+    }
+
+    function updateAnimation() {
+      if (shouldAnimate()) start()
+      else stop()
+    }
 
     function resize() {
       if (!canvas) return
       const rect = canvas.getBoundingClientRect()
-      dpr = window.devicePixelRatio || 1
+      dpr = Math.min(window.devicePixelRatio || 1, 2)
       canvas.width = Math.max(1, Math.floor(rect.width * dpr))
       canvas.height = Math.max(1, Math.floor(rect.height * dpr))
       ctx!.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -59,7 +86,7 @@ export function MatrixRainCanvas({
       const step = (fontSize * speed * dt) / 32
 
       for (let i = 0; i < cols; i++) {
-        if (Math.random() > density * 0.985) continue
+        if (Math.random() > density) continue
         const y = drops[i]
         const x = i * fontSize * columnSpacing
         const ch = GLYPHS.charAt(Math.floor(Math.random() * GLYPHS.length))
@@ -84,19 +111,39 @@ export function MatrixRainCanvas({
         }
       }
 
-      raf = requestAnimationFrame(draw)
+      raf = 0
+      start()
     }
 
     resize()
-    raf = requestAnimationFrame(draw)
     const ro = new ResizeObserver(resize)
     ro.observe(canvas)
+    const io = new IntersectionObserver(
+      function updateIntersection(entries) {
+        isIntersecting = entries[0]?.isIntersecting ?? false
+        updateAnimation()
+      },
+      { threshold: 0.01 },
+    )
+    io.observe(canvas)
+    const onVisibilityChange = function onVisibilityChange() {
+      isDocumentVisible = !document.hidden
+      updateAnimation()
+    }
+    const onMotionChange = function onMotionChange() {
+      updateAnimation()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    motionQuery.addEventListener('change', onMotionChange)
 
     return () => {
-      cancelAnimationFrame(raf)
+      stop()
       ro.disconnect()
+      io.disconnect()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      motionQuery.removeEventListener('change', onMotionChange)
     }
-  }, [fontSize, speed, density, columnSpacing])
+  }, [active, fontSize, speed, density, columnSpacing])
 
   return <canvas ref={canvasRef} className={className} aria-hidden="true" />
 }

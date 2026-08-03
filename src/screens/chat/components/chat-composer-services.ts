@@ -3,6 +3,7 @@ import type {
   ModelInfoApiResponse,
   ProfileSummary,
   ProfilesListResponse,
+  ScopeStatusResponse,
   ThinkingLevel,
   WorkspaceDetectionResponse,
 } from './chat-composer-types'
@@ -11,6 +12,7 @@ import { setLocalModelOverride } from '@/screens/chat/local-model-override'
 
 type GatewayStatusApiResponse = {
   mode?: string
+  scope?: ScopeStatusResponse
 }
 
 const LOCAL_PROVIDERS_SET = new Set(['ollama', 'atomic-chat'])
@@ -121,6 +123,17 @@ export async function fetchProfiles(): Promise<ProfilesListResponse> {
     throw new Error(await readResponseError(response))
   }
   return (await response.json()) as ProfilesListResponse
+}
+
+export async function fetchScopeStatus(): Promise<ScopeStatusResponse> {
+  const response = await fetch('/api/gateway-status')
+  if (!response.ok) {
+    throw new Error(await readResponseError(response))
+  }
+  const payload = (await response.json()) as GatewayStatusApiResponse
+  return (
+    payload.scope ?? { mode: 'single', servedProfiles: null, sessionCounts: {} }
+  )
 }
 
 export async function activateProfile(

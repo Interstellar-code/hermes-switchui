@@ -19,6 +19,7 @@ import {
 } from '../../server/local-session-store'
 import { resolveMainSessionId } from '../../server/main-session-resolver'
 import { resolveSessionKey } from '../../server/session-utils'
+import { readProfile } from '../../server/profile-scope'
 import { isAuthenticated } from '@/server/auth-middleware'
 
 export const Route = createFileRoute('/api/session-history')({
@@ -36,6 +37,9 @@ export const Route = createFileRoute('/api/session-history')({
           ''
         const limit = Number(url.searchParams.get('limit') || '200')
         const includeTools = url.searchParams.get('includeTools') === 'true'
+        // Same-ID sessions exist in every profile; an unscoped read here hands
+        // back the active profile's transcript under the scoped chat's id.
+        const profile = readProfile(url.searchParams.get('profile'))
         if (!key) {
           return Response.json({ ok: false, messages: [], error: 'key is required' })
         }
@@ -59,9 +63,13 @@ export const Route = createFileRoute('/api/session-history')({
             defaultKey: 'main',
           })
           void includeTools
+          // `listSessions()` is unscoped (active profile), so a scoped "main"
+          // would resolve to a foreign session — present it as empty instead.
           const effectiveSessionKey =
             resolved.sessionKey === 'main'
-              ? await resolveMainSessionId({ listSessions })
+              ? profile
+                ? null
+                : await resolveMainSessionId({ listSessions })
               : resolved.sessionKey
           if (!effectiveSessionKey) {
             return Response.json({
@@ -71,10 +79,11 @@ export const Route = createFileRoute('/api/session-history')({
               source: 'gateway',
             })
           }
-          const rows = await getMessages(effectiveSessionKey, {
-            limit: limit > 0 ? limit : undefined,
-            offset: 0,
-          })
+          const rows = await getMessages(
+            effectiveSessionKey,
+            { limit: limit > 0 ? limit : undefined, offset: 0 },
+            profile,
+          )
           const trimmed = rows.slice(-limit)
           return Response.json({
             ok: true,

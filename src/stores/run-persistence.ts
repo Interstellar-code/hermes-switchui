@@ -17,7 +17,16 @@
  * old localStorage key on first read for one release, drains it into
  * sessionStorage, then clears the localStorage key. After migration,
  * sessionStorage is the only writer.
+ *
+ * Profile scoping (P2): `<sk>` above is the composite key from
+ * `@/lib/session-scope` — bare when no profile is selected (so every existing
+ * entry keeps working untouched, no migration), `<profile>::<sk>` when one is.
+ * Pre-existing bare-keyed entries therefore stay readable as exactly what they
+ * are: unscoped state. They can never be served to a scoped session, because a
+ * scoped read never looks at a bare slot.
  */
+
+import { activeScopeKey } from '@/lib/session-scope'
 
 const STREAMING_PREFIX = 'claude_streaming_'
 const STREAMING_TTL_MS = 60_000
@@ -44,7 +53,7 @@ export function persistStreamingState(
 ): void {
   if (typeof sessionStorage === 'undefined') return
   sessionStorage.setItem(
-    `${STREAMING_PREFIX}${sessionKey}`,
+    `${STREAMING_PREFIX}${activeScopeKey(sessionKey)}`,
     JSON.stringify({ ...state, _savedAt: Date.now() }),
   )
 }
@@ -53,27 +62,36 @@ export function restoreStreamingState(
   sessionKey: string,
 ): StreamingStateRecord | null {
   if (typeof sessionStorage === 'undefined') return null
-  const raw = sessionStorage.getItem(`${STREAMING_PREFIX}${sessionKey}`)
+  const raw = sessionStorage.getItem(
+    `${STREAMING_PREFIX}${activeScopeKey(sessionKey)}`,
+  )
   if (!raw) return null
   try {
     const parsed = JSON.parse(raw) as StreamingStateRecord
     const savedAt = parsed._savedAt
-    if (typeof savedAt !== 'number' || Date.now() - savedAt > STREAMING_TTL_MS) {
-      sessionStorage.removeItem(`${STREAMING_PREFIX}${sessionKey}`)
+    if (
+      typeof savedAt !== 'number' ||
+      Date.now() - savedAt > STREAMING_TTL_MS
+    ) {
+      sessionStorage.removeItem(
+        `${STREAMING_PREFIX}${activeScopeKey(sessionKey)}`,
+      )
       return null
     }
     const { _savedAt, ...rest } = parsed
     void _savedAt
     return rest
   } catch {
-    sessionStorage.removeItem(`${STREAMING_PREFIX}${sessionKey}`)
+    sessionStorage.removeItem(
+      `${STREAMING_PREFIX}${activeScopeKey(sessionKey)}`,
+    )
     return null
   }
 }
 
 export function removeStreamingState(sessionKey: string): void {
   if (typeof sessionStorage === 'undefined') return
-  sessionStorage.removeItem(`${STREAMING_PREFIX}${sessionKey}`)
+  sessionStorage.removeItem(`${STREAMING_PREFIX}${activeScopeKey(sessionKey)}`)
 }
 
 // ── Recovery message ───────────────────────────────────────────────
@@ -85,7 +103,7 @@ export function persistRecoveryMessage(
   if (typeof sessionStorage === 'undefined') return
   try {
     sessionStorage.setItem(
-      `${RECOVERY_MSG_PREFIX}${sessionKey}`,
+      `${RECOVERY_MSG_PREFIX}${activeScopeKey(sessionKey)}`,
       JSON.stringify({ message, storedAt: Date.now() }),
     )
   } catch {
@@ -95,7 +113,9 @@ export function persistRecoveryMessage(
 
 export function restoreRecoveryMessage(sessionKey: string): unknown {
   if (typeof sessionStorage === 'undefined') return null
-  const raw = sessionStorage.getItem(`${RECOVERY_MSG_PREFIX}${sessionKey}`)
+  const raw = sessionStorage.getItem(
+    `${RECOVERY_MSG_PREFIX}${activeScopeKey(sessionKey)}`,
+  )
   if (!raw) return null
   try {
     const parsed = JSON.parse(raw) as { message?: unknown; storedAt?: number }
@@ -103,19 +123,25 @@ export function restoreRecoveryMessage(sessionKey: string): unknown {
       typeof parsed.storedAt !== 'number' ||
       Date.now() - parsed.storedAt > RECOVERY_MSG_TTL_MS
     ) {
-      sessionStorage.removeItem(`${RECOVERY_MSG_PREFIX}${sessionKey}`)
+      sessionStorage.removeItem(
+        `${RECOVERY_MSG_PREFIX}${activeScopeKey(sessionKey)}`,
+      )
       return null
     }
     return parsed.message ?? null
   } catch {
-    sessionStorage.removeItem(`${RECOVERY_MSG_PREFIX}${sessionKey}`)
+    sessionStorage.removeItem(
+      `${RECOVERY_MSG_PREFIX}${activeScopeKey(sessionKey)}`,
+    )
     return null
   }
 }
 
 export function clearRecoveryMessage(sessionKey: string): void {
   if (typeof sessionStorage === 'undefined') return
-  sessionStorage.removeItem(`${RECOVERY_MSG_PREFIX}${sessionKey}`)
+  sessionStorage.removeItem(
+    `${RECOVERY_MSG_PREFIX}${activeScopeKey(sessionKey)}`,
+  )
 }
 
 // ── Waiting state ──────────────────────────────────────────────────
@@ -128,14 +154,14 @@ export function persistWaitingState(
 ): void {
   if (typeof sessionStorage === 'undefined') return
   sessionStorage.setItem(
-    `${WAITING_PREFIX}${sessionKey}`,
+    `${WAITING_PREFIX}${activeScopeKey(sessionKey)}`,
     JSON.stringify(meta),
   )
 }
 
 export function removeWaitingState(sessionKey: string): void {
   if (typeof sessionStorage === 'undefined') return
-  sessionStorage.removeItem(`${WAITING_PREFIX}${sessionKey}`)
+  sessionStorage.removeItem(`${WAITING_PREFIX}${activeScopeKey(sessionKey)}`)
 }
 
 export function restoreAllWaitingSessions(): {
@@ -178,7 +204,7 @@ function normalizeSessionKey(sessionKey: string): string {
 }
 
 function queueKey(sessionKey: string): string {
-  return `${MESSAGE_QUEUE_PREFIX}${normalizeSessionKey(sessionKey)}`
+  return `${MESSAGE_QUEUE_PREFIX}${activeScopeKey(normalizeSessionKey(sessionKey))}`
 }
 
 function isMigrationDone(): boolean {
@@ -207,10 +233,7 @@ export function readQueuedMessages<T>(sessionKey: string): Array<T> {
 
   // One-time migration: if not yet done, copy any localStorage entries
   // with this prefix into sessionStorage.
-  if (
-    typeof localStorage !== 'undefined' &&
-    !isMigrationDone()
-  ) {
+  if (typeof localStorage !== 'undefined' && !isMigrationDone()) {
     migrateQueueFromLocalStorage()
   }
 
@@ -244,7 +267,10 @@ export function clearQueuedMessages(sessionKey: string): void {
 }
 
 function migrateQueueFromLocalStorage(): void {
-  if (typeof localStorage === 'undefined' || typeof sessionStorage === 'undefined') {
+  if (
+    typeof localStorage === 'undefined' ||
+    typeof sessionStorage === 'undefined'
+  ) {
     markMigrationDone()
     return
   }

@@ -9,13 +9,22 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { requireJsonContentType } from '../../server/rate-limit'
+import {
+  assertProfileServed,
+  isProfileScopeError,
+  profileErrorStatus,
+  readProfile,
+} from '../../server/profile-scope'
 
 export const Route = createFileRoute('/api/session-send')({
   server: {
     handlers: {
       POST: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json(
+            { ok: false, error: 'Unauthorized' },
+            { status: 401 },
+          )
         }
         const csrfCheck = requireJsonContentType(request)
         if (csrfCheck) return csrfCheck
@@ -23,8 +32,14 @@ export const Route = createFileRoute('/api/session-send')({
           const body = (await request.json()) as {
             sessionKey?: string
             message?: string
+            profile?: string
           }
           const sessionKey = (body.sessionKey || '').trim()
+          // Forward the profile or this whole panel sends unscoped. The check
+          // also runs here, not just downstream: the fetch below is
+          // fire-and-forget, so a scope rejection from /api/send-stream would
+          // otherwise be discarded and reported to the caller as queued.
+          const profile = readProfile(body.profile)
           const message = (body.message || '').trim()
           if (!sessionKey) {
             return Response.json(
@@ -37,6 +52,17 @@ export const Route = createFileRoute('/api/session-send')({
               { ok: false, error: 'message is required' },
               { status: 400 },
             )
+          }
+          if (profile) {
+            try {
+              await assertProfileServed(profile)
+            } catch (err) {
+              if (!isProfileScopeError(err)) throw err
+              return Response.json(
+                { ok: false, error: (err as Error).message },
+                { status: profileErrorStatus(err) },
+              )
+            }
           }
           // Fire-and-forget: kick off the stream, then return. Operations
           // chat panel polls /api/session-history for new assistant turns.
@@ -51,6 +77,7 @@ export const Route = createFileRoute('/api/session-send')({
             body: JSON.stringify({
               sessionKey,
               message,
+              ...(profile ? { profile } : {}),
             }),
           }).catch(() => {
             // swallow; UI discovers failures via next /api/session-history poll

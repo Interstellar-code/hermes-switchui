@@ -13,13 +13,20 @@ import type * as FitAddonModule from '@xterm/addon-fit'
 import type { Terminal } from '@xterm/xterm'
 import type * as XtermModule from '@xterm/xterm'
 import type * as WebLinksAddonModule from '@xterm/addon-web-links'
-import type { DebugAnalysis } from '@/components/terminal/debug-panel'
 import type { TerminalTab } from '@/stores/terminal-panel-store'
-import { DebugPanel } from '@/components/terminal/debug-panel'
 import { MatrixRainCanvas } from '@/components/terminal/matrix-rain-canvas'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { clampContextMenuPosition } from '@/lib/context-menu'
 import { useTerminalPanelStore } from '@/stores/terminal-panel-store'
+import { useProjects } from '@/lib/projects-api'
+import {
+  closeTerminalSession,
+  createTerminalInputQueue,
+  parseTerminalEventBlock,
+  postTerminalInput,
+  postTerminalResize,
+} from '@/components/terminal/terminal-stream'
 import '@/styles/matrix-terminal.css'
 
 // Dynamic imports to avoid SSR crash (xterm uses `self` which doesn't exist on server)
@@ -65,51 +72,7 @@ type TerminalSessionResponse = {
 type SplitMode = 'single' | 'horizontal' | 'vertical'
 
 const DEFAULT_TERMINAL_CWD = '~/.hermes'
-
-function toDebugAnalysis(value: unknown): DebugAnalysis | null {
-  if (!value || typeof value !== 'object') return null
-  const entry = value as Record<string, unknown>
-  const summary = typeof entry.summary === 'string' ? entry.summary.trim() : ''
-  const rootCause =
-    typeof entry.rootCause === 'string' ? entry.rootCause.trim() : ''
-  const rawCommands = Array.isArray(entry.suggestedCommands)
-    ? entry.suggestedCommands
-    : []
-
-  if (!summary || !rootCause) return null
-
-  const suggestedCommands = rawCommands
-    .map(function mapCommand(commandEntry) {
-      if (!commandEntry || typeof commandEntry !== 'object') return null
-      const command = commandEntry as Record<string, unknown>
-      const commandText =
-        typeof command.command === 'string' ? command.command.trim() : ''
-      const descriptionText =
-        typeof command.description === 'string'
-          ? command.description.trim()
-          : ''
-      if (!commandText || !descriptionText) return null
-      return { command: commandText, description: descriptionText }
-    })
-    .filter(function removeNulls(command): command is {
-      command: string
-      description: string
-    } {
-      return Boolean(command)
-    })
-
-  const docsLink =
-    typeof entry.docsLink === 'string' && entry.docsLink.trim()
-      ? entry.docsLink.trim()
-      : undefined
-
-  return {
-    summary,
-    rootCause,
-    suggestedCommands,
-    ...(docsLink ? { docsLink } : {}),
-  }
-}
+const MAX_RECONNECT_ATTEMPTS = 4
 
 export function TerminalWorkspace({
   mode,
@@ -133,13 +96,16 @@ export function TerminalWorkspace({
 
   const [termHeight, setTermHeight] = useState<number | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
-  const [debugAnalysis, setDebugAnalysis] = useState<DebugAnalysis | null>(null)
-  const [debugLoading, setDebugLoading] = useState(false)
-  const [showDebugPanel, setShowDebugPanel] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
   const [sessionFilter, setSessionFilter] = useState('')
   const [splitMode, setSplitMode] = useState<SplitMode>('single')
   const [copiedOutput, setCopiedOutput] = useState(false)
+  const [renameTabId, setRenameTabId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [secondaryTabId, setSecondaryTabId] = useState<string | null>(null)
+  const [splitRatio, setSplitRatio] = useState(50)
+  const [newSessionCwd, setNewSessionCwd] = useState(DEFAULT_TERMINAL_CWD)
+  const projectsQuery = useProjects(false, panelVisible)
 
   const containerMapRef = useRef(new Map<string, HTMLDivElement>())
   const terminalMapRef = useRef(new Map<string, Terminal>())
@@ -148,6 +114,11 @@ export function TerminalWorkspace({
     new Map<string, ReadableStreamDefaultReader<Uint8Array>>(),
   )
   const connectedRef = useRef(new Set<string>())
+  const inputQueueMapRef = useRef(
+    new Map<string, ReturnType<typeof createTerminalInputQueue>>(),
+  )
+  const reconnectAttemptsRef = useRef(new Map<string, number>())
+  const reconnectTimersRef = useRef(new Map<string, number>())
 
   const activeTab = useMemo(
     function activeTabMemo() {
@@ -163,30 +134,66 @@ export function TerminalWorkspace({
       `${tab.title} ${tab.cwd} ${tab.status}`.toLowerCase().includes(query),
     )
   }, [sessionFilter, tabs])
+  const cwdOptions = useMemo(
+    () => [
+      { id: 'hermes', value: DEFAULT_TERMINAL_CWD, label: 'Hermes home' },
+      { id: 'home', value: '~', label: 'User home' },
+      ...(projectsQuery.data?.projects ?? [])
+        .filter((project) => project.primary_path)
+        .map((project) => ({
+          id: project.id,
+          value: project.primary_path ?? '~',
+          label: project.name,
+        })),
+    ],
+    [projectsQuery.data?.projects],
+  )
   const visibleTerminalTabs = useMemo(() => {
     if (splitMode === 'single') return [activeTab]
-    const secondary = tabs.find((tab) => tab.id !== activeTab.id) ?? activeTab
+    const secondary =
+      tabs.find(
+        (tab) => tab.id === secondaryTabId && tab.id !== activeTab.id,
+      ) ??
+      tabs.find((tab) => tab.id !== activeTab.id) ??
+      activeTab
     return secondary.id === activeTab.id ? [activeTab] : [activeTab, secondary]
-  }, [activeTab, splitMode, tabs])
+  }, [activeTab, secondaryTabId, splitMode, tabs])
+  const contextMenuPosition = contextMenu
+    ? clampContextMenuPosition(
+        contextMenu,
+        { width: 150, height: 80 },
+        {
+          width: typeof window === 'undefined' ? 0 : window.innerWidth,
+          height: typeof window === 'undefined' ? 0 : window.innerHeight,
+        },
+      )
+    : null
 
-  const sendInput = useCallback(function handleSendInput(
+  const sendInputRequest = useCallback(async function sendQueuedInput(
     tabId: string,
     data: string,
-  ) {
+  ): Promise<boolean> {
     // Look up session ID from store at call time (not stale closure)
     const currentTab = useTerminalPanelStore
       .getState()
       .tabs.find((t) => t.id === tabId)
-    if (!currentTab?.sessionId) return
-    // Fire-and-forget — never await, never block input
-    fetch('/api/terminal-input', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: currentTab.sessionId, data }),
-    }).catch(function ignore() {
-      return undefined
-    })
+    if (!currentTab?.sessionId) return false
+    return postTerminalInput(currentTab.sessionId, data)
   }, [])
+
+  const sendInput = useCallback(
+    function handleSendInput(tabId: string, data: string) {
+      let queue = inputQueueMapRef.current.get(tabId)
+      if (!queue) {
+        queue = createTerminalInputQueue((chunk) =>
+          sendInputRequest(tabId, chunk),
+        )
+        inputQueueMapRef.current.set(tabId, queue)
+      }
+      queue.push(data)
+    },
+    [sendInputRequest],
+  )
 
   const resizeSession = useCallback(async function handleResizeSession(
     tabId: string,
@@ -196,17 +203,7 @@ export function TerminalWorkspace({
       .getState()
       .tabs.find((t) => t.id === tabId)
     if (!currentTab?.sessionId) return
-    await fetch('/api/terminal-resize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: currentTab.sessionId,
-        cols: terminal.cols,
-        rows: terminal.rows,
-      }),
-    }).catch(function ignore() {
-      return undefined
-    })
+    await postTerminalResize(currentTab.sessionId, terminal.cols, terminal.rows)
   }, [])
 
   const captureRecentTerminalOutput = useCallback(
@@ -227,56 +224,6 @@ export function TerminalWorkspace({
       return recentLines.join('\n').trim()
     },
     [],
-  )
-
-  const handleAnalyzeDebug = useCallback(
-    async function analyzeDebug() {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
-      if (!activeTab) return
-
-      setShowDebugPanel(true)
-      setDebugLoading(true)
-      setDebugAnalysis(null)
-
-      try {
-        const terminalOutput = captureRecentTerminalOutput(activeTab.id)
-        const response = await fetch('/api/debug-analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ terminalOutput }),
-        })
-
-        const payload = (await response.json().catch(function fallback() {
-          return null
-        })) as unknown
-
-        const analysis = toDebugAnalysis(payload)
-        if (!analysis) {
-          throw new Error('Invalid analysis response payload')
-        }
-
-        setDebugAnalysis(analysis)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        setDebugAnalysis({
-          summary: 'Debug analysis failed.',
-          rootCause: message,
-          suggestedCommands: [],
-        })
-      } finally {
-        setDebugLoading(false)
-      }
-    },
-    [activeTab, captureRecentTerminalOutput],
-  )
-
-  const handleRunDebugCommand = useCallback(
-    function runDebugCommand(command: string) {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
-      if (!activeTab) return
-      void sendInput(activeTab.id, `${command}\r`)
-    },
-    [activeTab, sendInput],
   )
 
   const handleCopyOutput = useCallback(
@@ -300,10 +247,6 @@ export function TerminalWorkspace({
     },
     [activeTab.id],
   )
-
-  const handleCloseDebugPanel = useCallback(function closeDebugPanel() {
-    setShowDebugPanel(false)
-  }, [])
 
   const focusActiveTerminal = useCallback(
     function focusTerminal() {
@@ -332,15 +275,12 @@ export function TerminalWorkspace({
     fitMapRef.current.delete(tabId)
     containerMapRef.current.delete(tabId)
     connectedRef.current.delete(tabId)
+    inputQueueMapRef.current.get(tabId)?.flush()
+    inputQueueMapRef.current.get(tabId)?.clear()
+    inputQueueMapRef.current.delete(tabId)
 
     if (sessionId) {
-      await fetch('/api/terminal-close', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId }),
-      }).catch(function ignore() {
-        return undefined
-      })
+      await closeTerminalSession(sessionId)
     }
   }, [])
 
@@ -359,7 +299,6 @@ export function TerminalWorkspace({
         void closeTabResources(tab.id, tab.sessionId)
       }
       closeAllTabs()
-      setShowDebugPanel(false)
       if (onClosePanel) onClosePanel()
     },
     [closeAllTabs, closeTabResources, onClosePanel],
@@ -372,13 +311,14 @@ export function TerminalWorkspace({
       if (!terminal) return
 
       connectedRef.current.add(tab.id)
-      setTabStatus(tab.id, 'active')
+      reconnectTimersRef.current.delete(tab.id)
+      setTabStatus(tab.id, 'connecting')
 
       const response = await fetch('/api/terminal-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          cwd: DEFAULT_TERMINAL_CWD,
+          cwd: tab.cwd || DEFAULT_TERMINAL_CWD,
           // Let the server pick the shell from $SHELL
           cols: terminal.cols,
           rows: terminal.rows,
@@ -393,9 +333,10 @@ export function TerminalWorkspace({
       })
 
       if (!response || !response.ok || !response.body) {
+        if (response?.status === 404) setTabSessionId(tab.id, null)
         terminal.writeln('\r\n[terminal] failed to connect\r\n')
         connectedRef.current.delete(tab.id)
-        setTabStatus(tab.id, 'idle')
+        setTabStatus(tab.id, 'error')
         return
       }
 
@@ -403,12 +344,12 @@ export function TerminalWorkspace({
       readerMapRef.current.set(tab.id, reader)
       const decoder = new TextDecoder()
       let buffer = ''
+      let processExited = false
 
       // Throttled terminal writes — yields to input events between flushes
       let writeBuf = ''
       let flushTimer: ReturnType<typeof setTimeout> | undefined
       const FLUSH_MS = 80 // ~12fps — generous gaps for input
-      const MAX_BUF = 8192 // drop old data if buffer overflows (screen redraws)
       function flushWrites() {
         flushTimer = undefined
         if (writeBuf && terminal) {
@@ -419,10 +360,6 @@ export function TerminalWorkspace({
       }
       function queueWrite(data: string) {
         writeBuf += data
-        // If buffer is huge (TUI redraw flood), keep only the tail
-        if (writeBuf.length > MAX_BUF) {
-          writeBuf = writeBuf.slice(-MAX_BUF)
-        }
         if (!flushTimer) flushTimer = setTimeout(flushWrites, FLUSH_MS)
       }
 
@@ -445,28 +382,16 @@ export function TerminalWorkspace({
             await new Promise((r) => setTimeout(r, 0))
           const block = blocks[_bi]
           if (!block.trim()) continue
-          const lines = block.split('\n')
-          let eventName = ''
-          let eventData = ''
-          for (const line of lines) {
-            if (line.startsWith('event: ')) {
-              eventName = line.slice(7).trim()
-              continue
-            }
-            if (line.startsWith('data: ')) {
-              eventData += line.slice(6)
-              continue
-            }
-            if (line.startsWith('data:')) {
-              eventData += line.slice(5)
-            }
-          }
-          if (!eventName || eventName === 'ping') continue
+          const parsed = parseTerminalEventBlock(block)
+          if (!parsed) continue
+          const eventName = parsed.event
+          const eventData = parsed.data
 
           if (eventName === 'session' && eventData) {
-            const payload = JSON.parse(eventData) as TerminalSessionResponse
+            const payload = eventData as TerminalSessionResponse
             if (payload.sessionId) {
               setTabSessionId(tab.id, payload.sessionId)
+              setTabStatus(tab.id, 'active')
               const nextTitle = tab.cwd === '~' ? tab.title : tab.cwd
               renameTab(tab.id, nextTitle)
               // Resize only now that the session exists server-side. Firing at
@@ -480,7 +405,7 @@ export function TerminalWorkspace({
           }
 
           if (eventName === 'data' && eventData) {
-            const payload = JSON.parse(eventData) as { data?: string }
+            const payload = eventData as { data?: string }
             if (typeof payload.data === 'string') {
               queueWrite(payload.data)
             }
@@ -488,7 +413,8 @@ export function TerminalWorkspace({
           }
 
           if (eventName === 'exit' && eventData) {
-            const payload = JSON.parse(eventData) as {
+            processExited = true
+            const payload = eventData as {
               exitCode?: number
               signal?: number
             }
@@ -525,7 +451,13 @@ export function TerminalWorkspace({
       // server says the session is gone, we fall through to a clean idle.
       const previousSessionId = latestTab?.sessionId ?? null
       connectedRef.current.delete(tab.id)
-      setTabStatus(tab.id, 'idle')
+      if (processExited) {
+        reconnectAttemptsRef.current.delete(tab.id)
+        setTabSessionId(tab.id, null)
+        setTabStatus(tab.id, 'exited')
+        return
+      }
+      setTabStatus(tab.id, 'reconnecting')
 
       if (previousSessionId) {
         // Don't call /api/terminal-close — we *want* the PTY to live so
@@ -540,23 +472,30 @@ export function TerminalWorkspace({
             .getState()
             .tabs.find((item) => item.id === tab.id)?.sessionId ===
           previousSessionId
-        if (stillSameTab) {
+        const attempt = reconnectAttemptsRef.current.get(tab.id) ?? 0
+        if (stillSameTab && attempt < MAX_RECONNECT_ATTEMPTS) {
+          reconnectAttemptsRef.current.set(tab.id, attempt + 1)
           terminal.writeln('\r\n\x1b[2m[reconnecting...]\x1b[0m')
           // Schedule a reconnect on the next tick to break out of this
           // closure cleanly. connectTab guards against double-connecting.
-          setTimeout(() => {
-            const refreshed = useTerminalPanelStore
-              .getState()
-              .tabs.find((item) => item.id === tab.id)
-            if (refreshed && refreshed.sessionId === previousSessionId) {
-              void connectTab(refreshed)
-            }
-          }, 600)
+          const timer = window.setTimeout(
+            () => {
+              const refreshed = useTerminalPanelStore
+                .getState()
+                .tabs.find((item) => item.id === tab.id)
+              if (refreshed && refreshed.sessionId === previousSessionId) {
+                void connectTab(refreshed)
+              }
+            },
+            Math.min(8000, 600 * 2 ** attempt),
+          )
+          reconnectTimersRef.current.set(tab.id, timer)
           return
         }
       }
 
       setTabSessionId(tab.id, null)
+      setTabStatus(tab.id, 'error')
     },
     [renameTab, resizeSession, setTabSessionId, setTabStatus],
   )
@@ -632,7 +571,7 @@ export function TerminalWorkspace({
 
   const handleCreateTab = useCallback(
     function createTerminalTab() {
-      const newTabId = createTab(DEFAULT_TERMINAL_CWD)
+      const newTabId = createTab(newSessionCwd)
       window.setTimeout(function focusNewTab() {
         const tab = useTerminalPanelStore
           .getState()
@@ -642,7 +581,55 @@ export function TerminalWorkspace({
         focusActiveTerminal()
       }, 0)
     },
-    [createTab, ensureTerminalForTab, focusActiveTerminal],
+    [createTab, ensureTerminalForTab, focusActiveTerminal, newSessionCwd],
+  )
+
+  const handleSecondaryCwdChange = useCallback(
+    function changeSecondaryCwd(cwd: string) {
+      const primaryTabId = activeTab.id
+      const existingTab = tabs.find(
+        (tab) => tab.id !== primaryTabId && tab.cwd === cwd,
+      )
+      const secondaryId = existingTab?.id ?? createTab(cwd)
+
+      setSecondaryTabId(secondaryId)
+      setActiveTab(primaryTabId)
+
+      if (!existingTab) {
+        window.setTimeout(function initializeSecondaryTab() {
+          const secondaryTab = useTerminalPanelStore
+            .getState()
+            .tabs.find((tab) => tab.id === secondaryId)
+          if (secondaryTab) ensureTerminalForTab(secondaryTab)
+        }, 0)
+      }
+    },
+    [activeTab.id, createTab, ensureTerminalForTab, setActiveTab, tabs],
+  )
+
+  const handleSplitResizeStart = useCallback(
+    function resizeSplit(event: React.PointerEvent<HTMLDivElement>) {
+      if (splitMode === 'single') return
+      event.preventDefault()
+      const area = event.currentTarget.parentElement
+      if (!area) return
+      const splitArea = area
+      function onMove(moveEvent: PointerEvent) {
+        const rect = splitArea.getBoundingClientRect()
+        const raw =
+          splitMode === 'horizontal'
+            ? ((moveEvent.clientX - rect.left) / rect.width) * 100
+            : ((moveEvent.clientY - rect.top) / rect.height) * 100
+        setSplitRatio(Math.max(20, Math.min(80, raw)))
+      }
+      function onUp() {
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onUp)
+      }
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onUp)
+    },
+    [splitMode],
   )
 
   useEffect(
@@ -681,11 +668,12 @@ export function TerminalWorkspace({
 
   useEffect(
     function initializeVisibleTabs() {
-      for (const tab of tabs) {
+      if (!panelVisible) return
+      for (const tab of visibleTerminalTabs) {
         ensureTerminalForTab(tab)
       }
     },
-    [ensureTerminalForTab, tabs],
+    [ensureTerminalForTab, panelVisible, visibleTerminalTabs],
   )
 
   useEffect(
@@ -709,6 +697,75 @@ export function TerminalWorkspace({
       }, 100)
     },
     [focusActiveTerminal, panelVisible, resizeSession],
+  )
+
+  useEffect(
+    function fitObservedContainers() {
+      if (!panelVisible) return
+      let frame = 0
+      const lastSize = new Map<string, string>()
+      const observer = new ResizeObserver((entries) => {
+        cancelAnimationFrame(frame)
+        frame = requestAnimationFrame(() => {
+          for (const entry of entries) {
+            const tabId = entry.target.getAttribute('data-terminal-tab')
+            if (!tabId) continue
+            const fit = fitMapRef.current.get(tabId)
+            const terminal = terminalMapRef.current.get(tabId)
+            if (!fit || !terminal) continue
+            try {
+              fit.fit()
+              const size = `${terminal.cols}x${terminal.rows}`
+              if (lastSize.get(tabId) !== size) {
+                lastSize.set(tabId, size)
+                void resizeSession(tabId, terminal)
+              }
+            } catch {
+              // Container can briefly have zero size while changing routes.
+            }
+          }
+        })
+      })
+      for (const container of containerMapRef.current.values()) {
+        observer.observe(container)
+      }
+      return () => {
+        cancelAnimationFrame(frame)
+        observer.disconnect()
+      }
+    },
+    [panelVisible, resizeSession, visibleTerminalTabs],
+  )
+
+  useEffect(
+    function terminalKeyboardShortcuts() {
+      if (!panelVisible) return
+      function onKeyDown(event: KeyboardEvent) {
+        if (!(event.ctrlKey || event.metaKey)) return
+        if (event.key.toLowerCase() === 't') {
+          event.preventDefault()
+          handleCreateTab()
+        } else if (event.key.toLowerCase() === 'w') {
+          event.preventDefault()
+          handleCloseTab(activeTab)
+        } else if (event.key === 'PageDown' || event.key === 'PageUp') {
+          event.preventDefault()
+          const index = tabs.findIndex((tab) => tab.id === activeTab.id)
+          const delta = event.key === 'PageDown' ? 1 : -1
+          setActiveTab(tabs[(index + delta + tabs.length) % tabs.length].id)
+        }
+      }
+      window.addEventListener('keydown', onKeyDown)
+      return () => window.removeEventListener('keydown', onKeyDown)
+    },
+    [
+      activeTab,
+      handleCloseTab,
+      handleCreateTab,
+      panelVisible,
+      setActiveTab,
+      tabs,
+    ],
   )
 
   useEffect(
@@ -783,6 +840,12 @@ export function TerminalWorkspace({
       fitMapRef.current.clear()
       containerMapRef.current.clear()
       connectedRef.current.clear()
+      for (const timer of reconnectTimersRef.current.values()) {
+        window.clearTimeout(timer)
+      }
+      reconnectTimersRef.current.clear()
+      for (const queue of inputQueueMapRef.current.values()) queue.clear()
+      inputQueueMapRef.current.clear()
     }
   }, [])
 
@@ -808,9 +871,18 @@ export function TerminalWorkspace({
             className="term-ico-btn collapse-btn"
             onClick={() => setSidebarCollapsed((v) => !v)}
             title={sidebarCollapsed ? 'Expand sessions' : 'Collapse sessions'}
-            aria-label={sidebarCollapsed ? 'Expand sessions' : 'Collapse sessions'}
+            aria-label={
+              sidebarCollapsed ? 'Expand sessions' : 'Collapse sessions'
+            }
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              width="14"
+              height="14"
+            >
               {sidebarCollapsed ? (
                 <path d="M9 18l6-6-6-6" />
               ) : (
@@ -839,7 +911,6 @@ export function TerminalWorkspace({
               const isActive = tab.id === activeTab.id
               return (
                 <button
-                  key={tab.id}
                   type="button"
                   className={cn(
                     'term-row',
@@ -869,6 +940,17 @@ export function TerminalWorkspace({
 
         {/* foot */}
         <div className="term-sessions-foot">
+          <select
+            value={newSessionCwd}
+            onChange={(event) => setNewSessionCwd(event.target.value)}
+            aria-label="New terminal working directory"
+          >
+            {cwdOptions.map((option) => (
+              <option key={option.id} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
           <Button
             className="term-new-session"
             size="sm"
@@ -888,56 +970,73 @@ export function TerminalWorkspace({
 
       <main className="term-main">
         <div className="term-tabs">
-          <div className="term-tabs-scroll">
+          <div
+            className="term-tabs-scroll"
+            role="tablist"
+            aria-label="Terminal tabs"
+          >
             {tabs.map(function renderTab(tab) {
               // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
               const isActive = tab.id === activeTab?.id
               return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={function onClick() {
-                    setActiveTab(tab.id)
-                    window.setTimeout(function focusCurrent() {
-                      terminalMapRef.current.get(tab.id)?.focus()
-                    }, 0)
-                  }}
-                  onContextMenu={function onContextMenu(event) {
-                    event.preventDefault()
-                    setContextMenu({
-                      tabId: tab.id,
-                      x: event.clientX,
-                      y: event.clientY,
-                    })
-                  }}
-                  className={cn(
-                    'term-tab',
-                    tab.status === 'active' ? 'live' : '',
-                    isActive ? 'on' : '',
-                  )}
-                >
-                  <span className="d" />
-                  <HugeiconsIcon
-                    icon={ComputerTerminal01Icon}
-                    size={20}
-                    strokeWidth={1.5}
-                    className="ic"
-                  />
-                  <span className="name">{tab.title}</span>
-                  <span className="badge">{tab.status}</span>
+                <div className="term-tab-wrap" key={tab.id}>
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    id={`terminal-tab-${tab.id}`}
+                    aria-selected={isActive}
+                    aria-controls={`terminal-pane-${tab.id}`}
+                    tabIndex={isActive ? 0 : -1}
+                    onClick={function onClick() {
+                      setActiveTab(tab.id)
+                      window.setTimeout(function focusCurrent() {
+                        terminalMapRef.current.get(tab.id)?.focus()
+                      }, 0)
+                    }}
+                    onContextMenu={function onContextMenu(event) {
+                      event.preventDefault()
+                      setContextMenu({
+                        tabId: tab.id,
+                        x: event.clientX,
+                        y: event.clientY,
+                      })
+                    }}
+                    onKeyDown={(event) => {
+                      if (
+                        event.key !== 'ArrowLeft' &&
+                        event.key !== 'ArrowRight'
+                      )
+                        return
+                      event.preventDefault()
+                      const index = tabs.findIndex((item) => item.id === tab.id)
+                      const delta = event.key === 'ArrowRight' ? 1 : -1
+                      setActiveTab(
+                        tabs[(index + delta + tabs.length) % tabs.length].id,
+                      )
+                    }}
+                    className={cn(
+                      'term-tab',
+                      tab.status === 'active' ? 'live' : '',
+                      isActive ? 'on' : '',
+                    )}
+                  >
+                    <span className="d" />
+                    <HugeiconsIcon
+                      icon={ComputerTerminal01Icon}
+                      size={20}
+                      strokeWidth={1.5}
+                      className="ic"
+                    />
+                    <span className="name">{tab.title}</span>
+                    <span className="badge">{tab.status}</span>
+                  </button>
                   {tabs.length > 1 ? (
-                    <span
-                      role="button"
-                      tabIndex={0}
+                    <button
+                      type="button"
+                      aria-label={`Close ${tab.title}`}
                       onClick={function onClose(event) {
-                        event.stopPropagation()
                         handleCloseTab(tab)
-                      }}
-                      onKeyDown={function onCloseByKeyboard(event) {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault()
-                          handleCloseTab(tab)
-                        }
                       }}
                       className="x"
                     >
@@ -946,9 +1045,9 @@ export function TerminalWorkspace({
                         size={20}
                         strokeWidth={1.5}
                       />
-                    </span>
+                    </button>
                   ) : null}
-                </button>
+                </div>
               )
             })}
           </div>
@@ -957,11 +1056,31 @@ export function TerminalWorkspace({
             className="add"
             onClick={handleCreateTab}
             title="New tab"
+            aria-label="New terminal tab"
           >
             <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.7} />
           </button>
 
           <div className="right-cluster">
+            {splitMode !== 'single' ? (
+              <select
+                className="term-pane-select"
+                value={visibleTerminalTabs[1]?.cwd ?? ''}
+                onChange={(event) =>
+                  handleSecondaryCwdChange(event.target.value)
+                }
+                aria-label="Secondary pane working directory"
+              >
+                <option value="" disabled>
+                  Choose working directory
+                </option>
+                {cwdOptions.map((option) => (
+                  <option key={option.id} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            ) : null}
             <button
               type="button"
               className={cn(
@@ -970,6 +1089,8 @@ export function TerminalWorkspace({
               )}
               onClick={() => setSplitMode('single')}
               title="Single pane"
+              aria-label="Single pane"
+              aria-pressed={splitMode === 'single'}
             >
               ▣
             </button>
@@ -981,6 +1102,8 @@ export function TerminalWorkspace({
               )}
               onClick={() => setSplitMode('horizontal')}
               title="Split right"
+              aria-label="Split right"
+              aria-pressed={splitMode === 'horizontal'}
             >
               ◫
             </button>
@@ -992,6 +1115,8 @@ export function TerminalWorkspace({
               )}
               onClick={() => setSplitMode('vertical')}
               title="Split down"
+              aria-label="Split down"
+              aria-pressed={splitMode === 'vertical'}
             >
               ⊟
             </button>
@@ -1001,6 +1126,7 @@ export function TerminalWorkspace({
               className="term-ico-btn"
               onClick={() => void handleCopyOutput()}
               title="Copy recent output"
+              aria-label="Copy recent output"
             >
               {copiedOutput ? (
                 '✓'
@@ -1008,6 +1134,24 @@ export function TerminalWorkspace({
                 <HugeiconsIcon icon={Copy01Icon} size={16} strokeWidth={1.6} />
               )}
             </button>
+            <button
+              type="button"
+              className="term-ico-btn"
+              onClick={handleClearActiveTerminal}
+              title="Clear terminal"
+              aria-label="Clear terminal"
+            >
+              ⌫
+            </button>
+            {activeTab.status === 'error' || activeTab.status === 'exited' ? (
+              <button
+                type="button"
+                className="term-retry-btn"
+                onClick={() => void connectTab(activeTab)}
+              >
+                {activeTab.status === 'exited' ? 'Restart' : 'Retry'}
+              </button>
+            ) : null}
             {mode === 'panel' ? (
               <>
                 <button
@@ -1057,6 +1201,13 @@ export function TerminalWorkspace({
             splitMode === 'horizontal' ? 'split-h' : '',
             splitMode === 'vertical' ? 'split-v' : '',
           )}
+          style={
+            splitMode === 'horizontal'
+              ? { gridTemplateColumns: `${splitRatio}% minmax(0, 1fr)` }
+              : splitMode === 'vertical'
+                ? { gridTemplateRows: `${splitRatio}% minmax(0, 1fr)` }
+                : undefined
+          }
         >
           {tabs.map(function renderTerminal(tab) {
             // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
@@ -1067,13 +1218,19 @@ export function TerminalWorkspace({
             return (
               <div
                 key={tab.id}
+                id={`terminal-pane-${tab.id}`}
+                role="tabpanel"
+                aria-labelledby={`terminal-tab-${tab.id}`}
                 className={cn(
                   'term-pane',
                   isActive ? 'focused' : '',
                   isVisible ? '' : 'hidden',
                 )}
               >
-                <MatrixRainCanvas className="matrix-rain-canvas" />
+                <MatrixRainCanvas
+                  active={panelVisible && isVisible}
+                  className="matrix-rain-canvas"
+                />
                 <div className="term-hud">
                   <span className="d" />
                   <span>
@@ -1083,15 +1240,17 @@ export function TerminalWorkspace({
                   <span>{tab.sessionId ? 'attached' : 'starting'}</span>
                 </div>
                 <div
+                  data-terminal-tab={tab.id}
                   ref={function assignContainer(node) {
                     if (node) {
                       containerMapRef.current.set(tab.id, node)
-                      ensureTerminalForTab(tab)
+                      if (panelVisible && isVisible) ensureTerminalForTab(tab)
                       return
                     }
                     containerMapRef.current.delete(tab.id)
                   }}
                   onClick={function tapToFocus() {
+                    setActiveTab(tab.id)
                     terminalMapRef.current.get(tab.id)?.focus()
                   }}
                   className="term-xterm"
@@ -1099,6 +1258,25 @@ export function TerminalWorkspace({
               </div>
             )
           })}
+          {visibleTerminalTabs.length > 1 ? (
+            <div
+              className={cn(
+                'term-split-divider',
+                splitMode === 'vertical' ? 'vertical' : '',
+              )}
+              role="separator"
+              aria-orientation={
+                splitMode === 'vertical' ? 'horizontal' : 'vertical'
+              }
+              aria-valuenow={Math.round(splitRatio)}
+              onPointerDown={handleSplitResizeStart}
+              style={
+                splitMode === 'vertical'
+                  ? { top: `calc(${splitRatio}% - 2px)` }
+                  : { left: `calc(${splitRatio}% - 2px)` }
+              }
+            />
+          ) : null}
         </div>
 
         <footer className="term-foot">
@@ -1113,25 +1291,23 @@ export function TerminalWorkspace({
           <span>
             workspace <b>{DEFAULT_TERMINAL_CWD}</b>
           </span>
-          <span className="ok">terminal ready</span>
+          <span
+            className={cn('ok', activeTab.status === 'error' ? 'error' : '')}
+          >
+            {activeTab.status === 'active'
+              ? 'terminal ready'
+              : activeTab.status}
+          </span>
         </footer>
       </main>
 
       {/* Mobile input bar moved to WorkspaceShell as a sibling to prevent re-render freeze */}
 
-      {showDebugPanel ? (
-        <DebugPanel
-          analysis={debugAnalysis}
-          isLoading={debugLoading}
-          onRunCommand={handleRunDebugCommand}
-          onClose={handleCloseDebugPanel}
-        />
-      ) : null}
-
-      {contextMenu ? (
+      {contextMenu && contextMenuPosition ? (
         <div
           className="term-context-menu"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
+          role="menu"
+          style={{ top: contextMenuPosition.y, left: contextMenuPosition.x }}
           onClick={function stop(event) {
             event.stopPropagation()
           }}
@@ -1139,16 +1315,14 @@ export function TerminalWorkspace({
           <button
             type="button"
             className="term-context-item"
+            role="menuitem"
+            autoFocus
             onClick={function renameTabFromMenu() {
               const menuTab = tabs.find((tab) => tab.id === contextMenu.tabId)
               setContextMenu(null)
               if (!menuTab) return
-              const nextName = window.prompt(
-                'Rename terminal tab',
-                menuTab.title,
-              )
-              if (!nextName) return
-              renameTab(menuTab.id, nextName)
+              setRenameTabId(menuTab.id)
+              setRenameValue(menuTab.title)
             }}
           >
             Rename
@@ -1156,6 +1330,7 @@ export function TerminalWorkspace({
           <button
             type="button"
             className="term-context-item"
+            role="menuitem"
             onClick={function closeTabFromMenu() {
               const menuTab = tabs.find((tab) => tab.id === contextMenu.tabId)
               setContextMenu(null)
@@ -1165,6 +1340,36 @@ export function TerminalWorkspace({
           >
             Close
           </button>
+        </div>
+      ) : null}
+      {renameTabId ? (
+        <div className="term-rename-scrim" role="presentation">
+          <form
+            className="term-rename-dialog"
+            onSubmit={(event) => {
+              event.preventDefault()
+              renameTab(renameTabId, renameValue)
+              setRenameTabId(null)
+            }}
+          >
+            <label htmlFor="terminal-tab-name">Rename terminal</label>
+            <input
+              id="terminal-tab-name"
+              autoFocus
+              value={renameValue}
+              onChange={(event) => setRenameValue(event.target.value)}
+            />
+            <div>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setRenameTabId(null)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit">Rename</Button>
+            </div>
+          </form>
         </div>
       ) : null}
     </div>

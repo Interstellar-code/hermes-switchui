@@ -4,9 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const store: Record<string, string> = {}
 const localStorageMock = {
   getItem: (key: string) => store[key] ?? null,
-  setItem: (key: string, val: string) => { store[key] = val },
-  removeItem: (key: string) => { delete store[key] },
-  clear: () => { for (const k in store) delete store[k] },
+  setItem: (key: string, val: string) => {
+    store[key] = val
+  },
+  removeItem: (key: string) => {
+    delete store[key]
+  },
+  clear: () => {
+    for (const k in store) delete store[k]
+  },
 }
 vi.stubGlobal('localStorage', localStorageMock)
 vi.stubGlobal('window', { localStorage: localStorageMock })
@@ -41,7 +47,9 @@ describe('terminal-panel-store onRehydrateStorage — setState not direct assign
     const useStore = await getStore()
 
     let notified = false
-    const unsub = useStore.subscribe(() => { notified = true })
+    const unsub = useStore.subscribe(() => {
+      notified = true
+    })
 
     await useStore.persist.rehydrate()
 
@@ -76,7 +84,9 @@ describe('terminal-panel-store onRehydrateStorage — setState not direct assign
     const useStore = await getStore()
 
     let notified = false
-    const unsub = useStore.subscribe(() => { notified = true })
+    const unsub = useStore.subscribe(() => {
+      notified = true
+    })
 
     await useStore.persist.rehydrate()
 
@@ -108,13 +118,48 @@ describe('terminal-panel-store onRehydrateStorage — setState not direct assign
     expect(useStore.getState().activeTabId).toBe(tabId)
   })
 
+  it('rehydrate: keeps session descriptor but resets transient status to idle', async () => {
+    const tabId = 'tab-reconnectable'
+    localStorageMock.setItem(
+      STORE_KEY,
+      JSON.stringify({
+        state: {
+          tabs: [
+            {
+              id: tabId,
+              title: 'Terminal 1',
+              cwd: '~',
+              sessionId: 'session-to-reattach',
+              status: 'reconnecting',
+            },
+          ],
+          activeTabId: tabId,
+          terminalCounter: 1,
+        },
+        version: 0,
+      }),
+    )
+
+    const useStore = await getStore()
+    await useStore.persist.rehydrate()
+
+    expect(useStore.getState().tabs[0]).toMatchObject({
+      sessionId: 'session-to-reattach',
+      status: 'idle',
+    })
+  })
+
   it('rehydrate with error: handler does nothing', async () => {
     const useStore = await getStore()
 
     let notified = false
-    const unsub = useStore.subscribe(() => { notified = true })
+    const unsub = useStore.subscribe(() => {
+      notified = true
+    })
 
-    const handler = useStore.persist.getOptions().onRehydrateStorage?.(useStore.getState())
+    const handler = useStore.persist
+      .getOptions()
+      .onRehydrateStorage?.(useStore.getState())
     if (handler) handler(undefined, new Error('simulated'))
 
     expect(notified).toBe(false)

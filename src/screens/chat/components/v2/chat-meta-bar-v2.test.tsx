@@ -18,6 +18,16 @@ type MockMutationOptions = {
 
 type MockMutationHandlers = Pick<MockMutationOptions, 'onSuccess' | 'onError'>
 
+const { mockNavigate, mockSearch } = vi.hoisted(() => ({
+  mockNavigate: vi.fn(),
+  mockSearch: { profile: undefined as string | undefined },
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => mockNavigate,
+  useSearch: () => mockSearch,
+}))
+
 const { mockQueries, mockStatus, baseStatus } = vi.hoisted(() => {
   const initialStatus = {
     contextPercent: 0,
@@ -36,32 +46,34 @@ const { mockQueries, mockStatus, baseStatus } = vi.hoisted(() => {
     source: '',
     endReason: '',
   }
+  const queries: Record<string, MockQueryResult> = {
+    'claude|models': { data: undefined, isLoading: false, isError: false },
+    'profiles|composer': { data: undefined, isLoading: false, isError: false },
+    'workspace|composer-context': {
+      data: undefined,
+      isLoading: false,
+      isError: false,
+    },
+    'gateway-status|mode': {
+      data: undefined,
+      isLoading: false,
+      isError: false,
+    },
+    'dashboard|model-info': {
+      data: undefined,
+      isLoading: false,
+      isError: false,
+    },
+    'profiles|scope-status': {
+      data: undefined,
+      isLoading: false,
+      isError: false,
+    },
+  }
   return {
     baseStatus: initialStatus,
     mockStatus: { ...initialStatus },
-    mockQueries: {
-      'claude|models': { data: undefined, isLoading: false, isError: false },
-      'profiles|composer': {
-        data: undefined,
-        isLoading: false,
-        isError: false,
-      },
-      'workspace|composer-context': {
-        data: undefined,
-        isLoading: false,
-        isError: false,
-      },
-      'gateway-status|mode': {
-        data: undefined,
-        isLoading: false,
-        isError: false,
-      },
-      'dashboard|model-info': {
-        data: undefined,
-        isLoading: false,
-        isError: false,
-      },
-    },
+    mockQueries: queries,
   }
 })
 
@@ -148,6 +160,13 @@ beforeEach(() => {
     isLoading: false,
     isError: false,
   }
+  mockQueries['profiles|scope-status'] = {
+    data: undefined,
+    isLoading: false,
+    isError: false,
+  }
+  mockNavigate.mockClear()
+  mockSearch.profile = undefined
   vi.stubGlobal(
     'fetch',
     vi.fn(() => Promise.resolve({ ok: false })),
@@ -181,11 +200,7 @@ describe('ChatMetaBarV2', () => {
 
   it('does not render the removed profile field', () => {
     const container = renderInto(
-      <ChatMetaBarV2
-        sessionKey="abc"
-        toolCount={0}
-        profile="default"
-      />,
+      <ChatMetaBarV2 sessionKey="abc" toolCount={0} profile="default" />,
     )
     expect(container.querySelector('[data-testid="meta-profile"]')).toBeNull()
   })
@@ -382,5 +397,117 @@ describe('ChatMetaBarV2', () => {
     mockStatus.apiCallCount = 42
     const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
     expect(container.querySelector('[data-testid="meta-apicalls"]')).toBeNull()
+  })
+
+  describe('profile scoping', () => {
+    beforeEach(() => {
+      mockQueries['profiles|composer'] = {
+        data: {
+          activeProfile: 'default',
+          profiles: [{ name: 'default', active: true }, { name: 'other' }],
+        },
+        isLoading: false,
+        isError: false,
+      }
+    })
+
+    it('single mode: row click writes ?profile= via navigate and hides served badges', () => {
+      mockQueries['profiles|scope-status'] = {
+        data: { mode: 'single', servedProfiles: null, sessionCounts: {} },
+        isLoading: false,
+        isError: false,
+      }
+
+      const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
+      act(() => {
+        container
+          .querySelector<HTMLButtonElement>('[data-testid="profile-selector"]')
+          ?.click()
+      })
+      const row = document.body.querySelector<HTMLButtonElement>(
+        '[data-testid="profile-option-other"]',
+      )
+      expect(row?.textContent).not.toContain('Served')
+      act(() => {
+        row?.click()
+      })
+
+      expect(mockNavigate).toHaveBeenCalledTimes(1)
+      const opts = mockNavigate.mock.calls[0][0] as {
+        search: (prev: Record<string, unknown>) => Record<string, unknown>
+      }
+      expect(opts.search({})).toEqual({ profile: 'other' })
+      // Scoping never calls the gateway-wide activate endpoint.
+      expect(
+        (fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+          (call: Array<unknown>) =>
+            String(call[0]).includes('/api/profiles/activate'),
+        ),
+      ).toBe(false)
+    })
+
+    it('multiplex mode: shows per-row served/not-served badges', () => {
+      mockQueries['profiles|scope-status'] = {
+        data: {
+          mode: 'multiplex',
+          servedProfiles: ['default'],
+          sessionCounts: { default: 3 },
+        },
+        isLoading: false,
+        isError: false,
+      }
+
+      const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
+      act(() => {
+        container
+          .querySelector<HTMLButtonElement>('[data-testid="profile-selector"]')
+          ?.click()
+      })
+      expect(
+        document.body.querySelector('[data-testid="profile-option-default"]')
+          ?.textContent,
+      ).toContain('Served')
+      expect(
+        document.body.querySelector('[data-testid="profile-option-other"]')
+          ?.textContent,
+      ).toContain('Not served')
+
+      const row = document.body.querySelector<HTMLButtonElement>(
+        '[data-testid="profile-option-other"]',
+      )
+      act(() => {
+        row?.click()
+      })
+      expect(mockNavigate).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears ?profile= when the scoped row is clicked again', () => {
+      mockSearch.profile = 'other'
+      mockQueries['profiles|scope-status'] = {
+        data: { mode: 'single', servedProfiles: null, sessionCounts: {} },
+        isLoading: false,
+        isError: false,
+      }
+
+      const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
+      act(() => {
+        container
+          .querySelector<HTMLButtonElement>('[data-testid="profile-selector"]')
+          ?.click()
+      })
+      const row = document.body.querySelector<HTMLButtonElement>(
+        '[data-testid="profile-option-other"]',
+      )
+      act(() => {
+        row?.click()
+      })
+
+      const opts = mockNavigate.mock.calls[0][0] as {
+        search: (prev: Record<string, unknown>) => Record<string, unknown>
+      }
+      expect(opts.search({ profile: 'other', foo: 'bar' })).toEqual({
+        foo: 'bar',
+      })
+    })
   })
 })

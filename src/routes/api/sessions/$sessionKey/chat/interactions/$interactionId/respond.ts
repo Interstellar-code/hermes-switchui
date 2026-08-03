@@ -6,6 +6,14 @@ import {
   getGatewayCapabilities,
   getSession,
 } from '@/server/hermes-api'
+import { gatewayFetch } from '@/server/gateway-capabilities'
+import {
+  assertProfileServed,
+  isProfileScopeError,
+  profileErrorStatus,
+  readProfile,
+  scopedPath,
+} from '@/server/profile-scope'
 
 export const Route = createFileRoute(
   '/api/sessions/$sessionKey/chat/interactions/$interactionId/respond',
@@ -37,9 +45,13 @@ export const Route = createFileRoute(
           )
         }
 
-        let body: { answer?: string; response?: string }
+        let body: { answer?: string; response?: string; profile?: string }
         try {
-          body = (await request.json()) as { answer?: string; response?: string }
+          body = (await request.json()) as {
+            answer?: string
+            response?: string
+            profile?: string
+          }
         } catch {
           return Response.json(
             { ok: false, error: 'Invalid JSON body' },
@@ -47,25 +59,32 @@ export const Route = createFileRoute(
           )
         }
 
+        // Fail closed before resolving the session — the raw ID below is only
+        // meaningful inside the profile it came from.
+        const profile = readProfile(body.profile)
         try {
-          const session = await getSession(sessionKey)
-          const gatewayUrl =
-            process.env.HERMES_API_URL ||
-            process.env.CLAUDE_API_URL ||
-            'http://127.0.0.1:8642'
-          const gatewayToken =
-            process.env.HERMES_API_TOKEN || process.env.CLAUDE_API_TOKEN || ''
+          if (profile) await assertProfileServed(profile)
+        } catch (err) {
+          if (!isProfileScopeError(err)) throw err
+          return Response.json(
+            { ok: false, error: (err as Error).message },
+            { status: profileErrorStatus(err) },
+          )
+        }
 
-          const res = await fetch(
-            `${gatewayUrl}/api/sessions/${session.id}/chat/interactions/${encodeURIComponent(interactionId)}/respond`,
+        try {
+          const session = await getSession(sessionKey, profile)
+          // gatewayFetch() reads the live CLAUDE_API and the single listener
+          // key — the previous env-only resolution here hardcoded :8642 and
+          // missed runtime port discovery.
+          const res = await gatewayFetch(
+            await scopedPath(
+              `/api/sessions/${session.id}/chat/interactions/${encodeURIComponent(interactionId)}/respond`,
+              profile,
+            ),
             {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                ...(gatewayToken
-                  ? { Authorization: `Bearer ${gatewayToken}` }
-                  : {}),
-              },
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 answer: body.answer ?? body.response ?? '',
               }),
@@ -76,6 +95,12 @@ export const Route = createFileRoute(
           const json = await res.json().catch(() => ({ ok: res.ok }))
           return Response.json(json, { status: res.ok ? 200 : res.status })
         } catch (err) {
+          if (isProfileScopeError(err)) {
+            return Response.json(
+              { ok: false, error: (err as Error).message },
+              { status: profileErrorStatus(err) },
+            )
+          }
           return Response.json(
             {
               ok: false,
