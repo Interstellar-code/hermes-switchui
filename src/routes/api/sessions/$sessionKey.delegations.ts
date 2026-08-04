@@ -10,6 +10,10 @@ import {
   getGatewayCapabilities,
   getSession,
 } from '../../../server/hermes-api'
+import {
+  isProfileScopeError,
+  profileErrorStatus,
+} from '../../../server/profile-scope'
 
 export const Route = createFileRoute('/api/sessions/$sessionKey/delegations')({
   server: {
@@ -27,8 +31,8 @@ export const Route = createFileRoute('/api/sessions/$sessionKey/delegations')({
         }
 
         const sessionKey = params.sessionKey.trim()
-        if (!sessionKey) {
-          return Response.json({ ok: false, error: 'sessionKey required' }, { status: 400 })
+        if (!sessionKey || sessionKey === 'new') {
+          return Response.json({ ok: true, delegations: [] })
         }
 
         const profile = new URL(request.url).searchParams.get('profile')?.trim() || null
@@ -44,6 +48,12 @@ export const Route = createFileRoute('/api/sessions/$sessionKey/delegations')({
             return Response.json(
               { ok: false, unavailable: true, error: err.message, profile: err.profile },
               { status: 409 },
+            )
+          }
+          if (isProfileScopeError(err)) {
+            return Response.json(
+              { ok: false, unavailable: true, error: (err as Error).message, profile },
+              { status: profileErrorStatus(err) },
             )
           }
           return Response.json(

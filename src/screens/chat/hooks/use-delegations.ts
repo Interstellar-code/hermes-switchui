@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { getSessionProfile } from '@/lib/session-scope'
 import { chatQueryKeys, fetchHistory } from '../chat-queries'
 import { readError } from '../utils'
 import type { Delegation } from '../../../server/delegations'
@@ -48,8 +49,13 @@ export function hasActiveSessionAgents(
 }
 
 async function fetchDelegations(sessionKey: string): Promise<Array<Delegation>> {
+  if (!sessionKey || sessionKey === 'new') return []
+  const query = new URLSearchParams()
+  const profile = getSessionProfile()
+  if (profile) query.set('profile', profile)
+  const qs = query.toString()
   const res = await fetch(
-    `/api/sessions/${encodeURIComponent(sessionKey)}/delegations`,
+    `/api/sessions/${encodeURIComponent(sessionKey)}/delegations${qs ? `?${qs}` : ''}`,
   )
   if (!res.ok) throw new Error(await readError(res))
   const data = (await res.json()) as DelegationsResponse
@@ -61,7 +67,7 @@ export function useDelegations(sessionKey: string) {
   const query = useQuery({
     queryKey: chatQueryKeys.delegations(sessionKey),
     queryFn: () => fetchDelegations(sessionKey),
-    enabled: sessionKey.length > 0,
+    enabled: Boolean(sessionKey && sessionKey !== 'new'),
     // ponytail: base 12s poll so a delegation spawned mid-session is picked up
     // (the initial fetch is empty, so a running-only interval would never restart);
     // 5s while any child is running for a live-ticking elapsed. Ceiling: one small

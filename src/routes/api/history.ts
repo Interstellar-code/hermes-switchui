@@ -13,7 +13,11 @@ import {
 } from '../../server/local-session-store'
 import { resolveMainSessionId } from '../../server/main-session-resolver'
 import { resolveSessionKey } from '../../server/session-utils'
-import { readProfile } from '../../server/profile-scope'
+import {
+  isProfileScopeError,
+  profileErrorStatus,
+  readProfile,
+} from '../../server/profile-scope'
 import { isAuthenticated } from '@/server/auth-middleware'
 
 const DEFAULT_HISTORY_LIMIT = 150
@@ -100,6 +104,15 @@ export const Route = createFileRoute('/api/history')({
               profile,
             )
           } catch (err) {
+            if (isProfileScopeError(err)) {
+              return Response.json(
+                {
+                  error: (err as Error).message,
+                  profile,
+                },
+                { status: profileErrorStatus(err) },
+              )
+            }
             // A gateway failure here previously collapsed into an empty
             // transcript, making a real outage indistinguishable from an
             // empty session and wiping the rendered chat (#217). Surface a
@@ -148,6 +161,14 @@ export const Route = createFileRoute('/api/history')({
             ),
           })
         } catch (err) {
+          if (isProfileScopeError(err)) {
+            return Response.json(
+              {
+                error: (err as Error).message,
+              },
+              { status: profileErrorStatus(err) },
+            )
+          }
           return Response.json(
             {
               error: err instanceof Error ? err.message : String(err),

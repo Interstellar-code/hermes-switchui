@@ -129,29 +129,27 @@ async function probeMode(dashboardUrl: string): Promise<GatewayMode> {
     const body = (await res.json()) as {
       gateway_mode?: string
       gateways?: Array<{ profile?: string; served_profiles?: Array<string> }>
+      profiles?: Array<string>
     }
-    if (body.gateway_mode !== 'multiplex') {
-      // Non-multiplexed: exactly one gateway, and `gateways[0].profile` is the
-      // profile it is running. That is the profile an UNPREFIXED request
-      // provably reaches, so capture it — without it, asking for the profile
-      // you are already on would fail closed for no reason. If the shape is
-      // unreadable we fall back to SINGLE (activeProfile null) and keep
-      // failing closed rather than guessing.
-      const active = (body.gateways ?? []).find((g) => g.profile)?.profile
+    const entries = body.gateways ?? []
+    const isMultiplex =
+      body.gateway_mode === 'multiplex' ||
+      body.gateway_mode === 'multiple' ||
+      entries.some((g) => (g.served_profiles?.length ?? 0) > 1)
+
+    if (!isMultiplex) {
+      const active = entries.find((g) => g.profile)?.profile
       return active
         ? { mode: 'single', servedProfiles: null, activeProfile: String(active) }
         : SINGLE
     }
-    // The multiplexer is the `default` gateway; `gateways[]` is only surfaced
-    // on a loopback/insecure bind. If we can't read the served list we keep
-    // mode=multiplex with an empty roster, so membership checks still fail
-    // closed rather than waving every profile through.
-    const entries = body.gateways ?? []
-    const served =
-      entries.find((g) => g.profile === 'default' && g.served_profiles)
-        ?.served_profiles ??
-      entries.find((g) => g.served_profiles)?.served_profiles ??
-      []
+
+    const served = Array.from(
+      new Set([
+        ...entries.flatMap((g) => g.served_profiles ?? []),
+        ...entries.map((g) => g.profile).filter((p): p is string => Boolean(p)),
+      ]),
+    )
     return {
       mode: 'multiplex',
       servedProfiles: served.map(String),

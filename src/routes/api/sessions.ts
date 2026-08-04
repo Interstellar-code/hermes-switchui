@@ -108,7 +108,7 @@ export const Route = createFileRoute('/api/sessions')({
             const searchResult = await searchSessions(
               searchQuery,
               20,
-              requestedProfile ?? undefined,
+              requestedProfile || undefined,
             )
             const resultRows = Array.isArray(searchResult.results)
               ? searchResult.results
@@ -142,7 +142,7 @@ export const Route = createFileRoute('/api/sessions')({
             const sessions = (
               await Promise.all(
                 sessionIds.map((sessionId) =>
-                  getSession(sessionId, requestedProfile ?? undefined).catch(
+                  getSession(sessionId, requestedProfile || undefined).catch(
                     () => null,
                   ),
                 ),
@@ -158,23 +158,39 @@ export const Route = createFileRoute('/api/sessions')({
 
           const requestedSessionKey = url.searchParams.get('sessionKey')?.trim()
           if (requestedSessionKey) {
+            if (requestedSessionKey === 'new') {
+              return Response.json({
+                ok: true,
+                sessions: [],
+              })
+            }
             const localSession = getLocalSession(requestedSessionKey)
             if (localSession) {
               return Response.json({
                 sessions: [toLocalSessionSummary(localSession)],
               })
             }
-            const session = requestedProfile
-              ? await getSession(requestedSessionKey, requestedProfile)
-              : await getSession(requestedSessionKey)
-            return Response.json({
-              sessions: [
-                {
-                  ...toSessionSummary(session),
-                  ...(requestedProfile ? { profile: requestedProfile } : {}),
-                },
-              ],
-            })
+            try {
+              const session = requestedProfile
+                ? await getSession(requestedSessionKey, requestedProfile)
+                : await getSession(requestedSessionKey)
+              return Response.json({
+                sessions: [
+                  {
+                    ...toSessionSummary(session),
+                    ...(requestedProfile ? { profile: requestedProfile } : {}),
+                  },
+                ],
+              })
+            } catch (err) {
+              if (isProfileScopeError(err)) {
+                return Response.json(
+                  { ok: false, error: (err as Error).message },
+                  { status: profileErrorStatus(err) },
+                )
+              }
+              throw err
+            }
           }
 
           if (requestedProfile) {
@@ -249,6 +265,12 @@ export const Route = createFileRoute('/api/sessions')({
             sessions: gatewaySessions.slice(pageStart, pageStart + limit),
           })
         } catch (err) {
+          if (isProfileScopeError(err)) {
+            return Response.json(
+              { ok: false, error: (err as Error).message },
+              { status: profileErrorStatus(err) },
+            )
+          }
           return Response.json(
             {
               error: err instanceof Error ? err.message : String(err),

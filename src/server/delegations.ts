@@ -148,17 +148,17 @@ export class DelegationProfileUnavailableError extends Error {
 }
 
 /** Read all delegations (child sessions) spawned by `parentSessionId` from the profile DB.
- *  `profile` is optional and, when set to anything but `DELEGATIONS_PROFILE`,
- *  throws `DelegationProfileUnavailableError` rather than silently returning
- *  that profile's data or an empty list. */
+ *  `profile` is optional and resolves to that profile's `state.db` (or falls back to `hermes-switch`). */
 export function readDelegationsForParent(
   parentSessionId: string,
   profile?: string | null,
 ): Array<Delegation> {
-  if (profile && profile !== DELEGATIONS_PROFILE) {
-    throw new DelegationProfileUnavailableError(profile)
-  }
-  const dbPath = join(getProfileClaudeHome(DELEGATIONS_PROFILE), 'state.db')
+  const targetDir = profile
+    ? profile === 'default'
+      ? getHermesRoot()
+      : getProfileClaudeHome(profile)
+    : getProfileClaudeHome('hermes-switch')
+  const dbPath = join(targetDir, 'state.db')
   if (!existsSync(dbPath)) return []
   try {
     const raw = execFileSync(

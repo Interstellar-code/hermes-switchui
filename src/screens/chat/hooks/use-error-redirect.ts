@@ -118,7 +118,9 @@ export function useErrorRedirect(params: {
     refetchInterval: 60_000, // Re-check every 60s to clear stale errors
   })
   const serverError = sessionsError ?? historyError
-  const serverErrorStatus: number | undefined = undefined
+  const serverErrorStatus: number | undefined =
+    (sessionsQuery.error as { status?: number } | null)?.status ??
+    (historyQuery.error as { status?: number } | null)?.status
   const showErrorNotice = Boolean(serverError) && !isNewChat
   const handleRefetch = useCallback(() => {
     void statusQuery.refetch()

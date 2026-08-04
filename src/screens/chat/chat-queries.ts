@@ -121,7 +121,11 @@ export async function fetchSessions(): Promise<Array<SessionMeta>> {
   const profile = getSessionProfile()
   if (profile) query.set('profile', profile)
   const res = await fetch(`/api/sessions?${query.toString()}`)
-  if (!res.ok) throw new Error(await readError(res))
+  if (!res.ok) {
+    const error = new Error(await readError(res)) as Error & { status?: number }
+    error.status = res.status
+    throw error
+  }
   const data = (await res.json()) as SessionListResponse
   return normalizeSessions(data.sessions)
 }
@@ -144,7 +148,11 @@ export async function fetchProfileSessions(
     offset: '0',
   })
   const res = await fetch(`/api/sessions?${query.toString()}`)
-  if (!res.ok) throw new Error(await readError(res))
+  if (!res.ok) {
+    const error = new Error(await readError(res)) as Error & { status?: number }
+    error.status = res.status
+    throw error
+  }
   const data = (await res.json()) as SessionListResponse
   return normalizeSessions(data.sessions)
 }
@@ -157,7 +165,11 @@ export async function fetchSession(
   const profile = getSessionProfile()
   if (profile) query.set('profile', profile)
   const res = await fetch(`/api/sessions?${query.toString()}`)
-  if (!res.ok) throw new Error(await readError(res))
+  if (!res.ok) {
+    const error = new Error(await readError(res)) as Error & { status?: number }
+    error.status = res.status
+    throw error
+  }
   const data = (await res.json()) as SessionListResponse
   return normalizeSessions(data.sessions)[0] ?? null
 }
@@ -173,7 +185,11 @@ export async function searchSessions(
   const profile = getSessionProfile()
   if (profile) query.set('profile', profile)
   const res = await fetch(`/api/sessions?${query.toString()}`)
-  if (!res.ok) throw new Error(await readError(res))
+  if (!res.ok) {
+    const error = new Error(await readError(res)) as Error & { status?: number }
+    error.status = res.status
+    throw error
+  }
   const data = (await res.json()) as SessionListResponse
   return normalizeSessions(data.sessions)
 }
@@ -195,7 +211,11 @@ export async function fetchHistory(payload: {
   const profile = getSessionProfile()
   if (profile) query.set('profile', profile)
   const res = await fetch(`/api/history?${query.toString()}`)
-  if (!res.ok) throw new Error(await readError(res))
+  if (!res.ok) {
+    const error = new Error(await readError(res)) as Error & { status?: number }
+    error.status = res.status
+    throw error
+  }
   return (await res.json()) as HistoryResponse
 }
 

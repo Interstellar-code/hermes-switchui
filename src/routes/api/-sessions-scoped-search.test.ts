@@ -143,7 +143,7 @@ describe('GET /api/sessions scoped search (row 10)', () => {
     const res = await get('q=needle')
 
     expect(res.status).toBe(200)
-    expect(hermes.searchSessions).toHaveBeenCalledWith('needle', 20, null)
-    expect(hermes.getSession).toHaveBeenCalledWith('sess-1', null)
+    expect(hermes.searchSessions).toHaveBeenCalledWith('needle', 20, undefined)
+    expect(hermes.getSession).toHaveBeenCalledWith('sess-1', undefined)
   })
 })

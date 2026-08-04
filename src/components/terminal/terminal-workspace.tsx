@@ -911,6 +911,7 @@ export function TerminalWorkspace({
               const isActive = tab.id === activeTab.id
               return (
                 <button
+                  key={tab.id}
                   type="button"
                   className={cn(
                     'term-row',
