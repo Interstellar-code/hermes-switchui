@@ -9,7 +9,7 @@ type Props = {
   onClose: () => void
   sessions: Array<SessionMeta>
   activeFriendlyId: string
-  onSelectSession: (key: string) => void
+  onSelectSession: (session: SessionMeta) => void
   onNewChat: () => void
 }
 
@@ -125,7 +125,7 @@ export function MobileSessionsPanel({
                     <button
                       key={session.key}
                       type="button"
-                      onClick={() => onSelectSession(session.friendlyId)}
+                      onClick={() => onSelectSession(session)}
                       className={cn(
                         'w-full rounded-lg border px-3 py-2 text-left transition-colors',
                         active

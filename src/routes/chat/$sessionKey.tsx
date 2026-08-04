@@ -42,10 +42,8 @@ export const Route = createFileRoute('/chat/$sessionKey')({
   // next one added. A middleware here cannot be forgotten by a future author,
   // because there is nothing for them to remember.
   //
-  // Explicit intent still wins: the middleware only fills `profile` in when the
-  // navigation did not mention the key at all, so the composer's profile picker
-  // clears scope by sending `profile: undefined` (present-but-empty) rather
-  // than by omitting the key.
+  // Explicit intent still wins for a sidebar link to a session in another
+  // profile. The composer itself only writes this while the route is `/chat/new`.
   search: { middlewares: [retainSearchParams(['profile'])] },
   beforeLoad: ({ search }) => {
     setSessionProfile(search.profile ?? null)

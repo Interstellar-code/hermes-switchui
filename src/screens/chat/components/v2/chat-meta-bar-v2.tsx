@@ -21,6 +21,8 @@ type ChatMetaBarV2Props = {
   /** Session key the selectors use for per-session model persistence
    *  (undefined for new chats). Falls back to `sessionKey` if omitted. */
   selectorSessionKey?: string | null | undefined
+  /** True only while composing a not-yet-created chat session. */
+  profileMutable?: boolean
   /** Number of tool_use blocks visible in message list */
   toolCount?: number
   /** Profile/model override label */
@@ -38,6 +40,7 @@ type ChatMetaBarV2Props = {
 function ChatMetaBarV2Component({
   sessionKey,
   selectorSessionKey,
+  profileMutable = false,
   thinkingLevel,
   onThinkingLevelChange,
   hideSelectors = false,
@@ -101,6 +104,7 @@ function ChatMetaBarV2Component({
                   ? sessionKey
                   : selectorSessionKey) ?? undefined
               }
+              profileMutable={profileMutable}
               thinkingLevel={thinkingLevel}
               onThinkingLevelChange={onThinkingLevelChange}
             />

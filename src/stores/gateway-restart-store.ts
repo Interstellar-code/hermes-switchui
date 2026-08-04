@@ -22,7 +22,14 @@ export const useGatewayRestartStore = create<GatewayRestartState>()(
     }),
     {
       name: 'hermes-gateway-restart',
-      version: 1,
+      // v2 discards restart warnings created by the old Chat profile picker.
+      version: 2,
+      migrate: (persisted) => ({
+        ...(persisted as Partial<GatewayRestartState>),
+        needsRestart: false,
+        profileName: null,
+        since: null,
+      }),
     },
   ),
 )

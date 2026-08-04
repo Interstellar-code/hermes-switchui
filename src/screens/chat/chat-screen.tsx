@@ -156,7 +156,7 @@ export function ChatScreen({
   const queryClient = useQueryClient()
   const userCommandsQuery = useEnabledUserCommands()
   const enabledUserCommands = userCommandsQuery.data
-  const [_creatingSession, setCreatingSession] = useState(false)
+  const [creatingSession, setCreatingSession] = useState(false)
   const [sessionsOpen, setSessionsOpen] = useState(false)
   const [agentsOpen, setAgentsOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1376,6 +1376,7 @@ export function ChatScreen({
                     ? undefined
                     : forcedSessionKey || resolvedSessionKey || activeSessionKey
                 }
+                profileMutable={isNewChat && !creatingSession}
                 toolCount={totalToolCount}
                 modelFallback={sessionModelFallback}
                 thinkingLevel={thinkingLevel}
@@ -1535,11 +1536,12 @@ export function ChatScreen({
           onClose={() => setSessionsOpen(false)}
           sessions={sessions}
           activeFriendlyId={activeFriendlyId}
-          onSelectSession={(friendlyId) => {
+          onSelectSession={(session) => {
             setSessionsOpen(false)
             void navigate({
               to: '/chat/$sessionKey',
-              params: { sessionKey: friendlyId },
+              params: { sessionKey: session.friendlyId },
+              search: { profile: session.profile },
             })
           }}
           onNewChat={() => {

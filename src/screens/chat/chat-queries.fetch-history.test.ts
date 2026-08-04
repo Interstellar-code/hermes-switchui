@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_CHAT_HISTORY_LIMIT,
   fetchHistory,
+  fetchSession,
+  fetchSessions,
 } from './chat-queries'
 import { setSessionProfile } from '@/lib/session-scope'
 
@@ -47,5 +49,24 @@ describe('fetchHistory', () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       `/api/history?limit=${DEFAULT_CHAT_HISTORY_LIMIT}&sessionKey=session-1&friendlyId=friendly-1&profile=neo`,
     )
+  })
+})
+
+describe('session reads', () => {
+  it('carries the selected profile in list and individual-session reads', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ sessions: [] }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    setSessionProfile('morpheus')
+
+    await fetchSessions()
+    await fetchSession('session-1')
+
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual([
+      '/api/sessions?limit=200&offset=0&profile=morpheus',
+      '/api/sessions?sessionKey=session-1&profile=morpheus',
+    ])
   })
 })

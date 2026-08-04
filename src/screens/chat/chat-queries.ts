@@ -118,6 +118,8 @@ export async function fetchSessions(): Promise<Array<SessionMeta>> {
     limit: String(DEFAULT_SESSION_LIST_LIMIT),
     offset: '0',
   })
+  const profile = getSessionProfile()
+  if (profile) query.set('profile', profile)
   const res = await fetch(`/api/sessions?${query.toString()}`)
   if (!res.ok) throw new Error(await readError(res))
   const data = (await res.json()) as SessionListResponse
@@ -152,6 +154,8 @@ export async function fetchSession(
 ): Promise<SessionMeta | null> {
   if (!sessionId || sessionId === 'new' || sessionId === 'main') return null
   const query = new URLSearchParams({ sessionKey: sessionId })
+  const profile = getSessionProfile()
+  if (profile) query.set('profile', profile)
   const res = await fetch(`/api/sessions?${query.toString()}`)
   if (!res.ok) throw new Error(await readError(res))
   const data = (await res.json()) as SessionListResponse

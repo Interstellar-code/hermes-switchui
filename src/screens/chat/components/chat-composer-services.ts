@@ -1,5 +1,4 @@
 import type {
-  ActivateProfileResponse,
   ModelInfoApiResponse,
   ProfileSummary,
   ProfilesListResponse,
@@ -134,20 +133,6 @@ export async function fetchScopeStatus(): Promise<ScopeStatusResponse> {
   return (
     payload.scope ?? { mode: 'single', servedProfiles: null, sessionCounts: {} }
   )
-}
-
-export async function activateProfile(
-  name: string,
-): Promise<ActivateProfileResponse> {
-  const response = await fetch('/api/profiles/activate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
-  })
-  if (!response.ok) {
-    throw new Error(await readResponseError(response))
-  }
-  return (await response.json()) as ActivateProfileResponse
 }
 
 export async function fetchWorkspaceContext(): Promise<WorkspaceDetectionResponse> {

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useGatewayRestartStore } from '@/stores/gateway-restart-store'
 import { cn } from '@/lib/utils'
 
-const RESTART_HINT = 'pkill -f hermes-agent && hermes-agent start'
+const RESTART_HINT = 'hermes gateway restart'
 
 export function GatewayRestartBanner() {
   const needsRestart = useGatewayRestartStore((s) => s.needsRestart)

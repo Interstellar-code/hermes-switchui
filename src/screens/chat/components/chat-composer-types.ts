@@ -90,12 +90,6 @@ export type ModelSwitchNotice = {
   retryProvider?: string
 }
 
-export type ActivateProfileResponse = {
-  ok: boolean
-  profile: string
-  needsGatewayRestart: boolean
-}
-
 /** The `scope` field nested in `GET /api/gateway-status` — multiplex
  * topology for the composer's scope picker. `mode`/`servedProfiles` mirror
  * `profile-scope.ts`'s `GatewayMode` (a different concept from

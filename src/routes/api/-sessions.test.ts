@@ -217,6 +217,32 @@ describe('GET /api/sessions', () => {
     ])
   })
 
+  it('fetches one requested session from its explicit profile', async () => {
+    hermes.ensureGatewayProbed.mockResolvedValue({ sessions: true })
+    profileScope.readProfile.mockImplementationOnce(realReadProfile)
+    localStore.getLocalSession.mockReturnValue(null)
+    hermes.getSession.mockResolvedValue({ id: 'same-id' })
+    hermes.toSessionSummary.mockReturnValue({
+      key: 'same-id',
+      friendlyId: 'same-id',
+    })
+
+    const handler = await getHandler()
+    const res = await handler({
+      request: new Request(
+        'http://localhost/api/sessions?sessionKey=same-id&profile=morpheus',
+      ),
+    })
+    const body = (await res.json()) as {
+      sessions: Array<{ profile?: string }>
+    }
+
+    expect(res.status).toBe(200)
+    expect(hermes.getSession).toHaveBeenCalledWith('same-id', 'morpheus')
+    expect(dashboard.listProfileSessions).not.toHaveBeenCalled()
+    expect(body.sessions[0]?.profile).toBe('morpheus')
+  })
+
   it('returns session summaries for server-side search results', async () => {
     hermes.ensureGatewayProbed.mockResolvedValue({ sessions: true })
     hermes.searchSessions.mockResolvedValue({

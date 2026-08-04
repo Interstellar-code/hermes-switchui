@@ -11,12 +11,13 @@ const source = () =>
     .join('\n')
 
 describe('ChatComposer context controls', () => {
-  it('wires profile selection through the existing profile APIs', () => {
+  it('keeps profile selection session-scoped and never activates the gateway profile', () => {
     const src = source()
 
     expect(src).toContain("fetch('/api/profiles/list')")
-    expect(src).toContain("fetch('/api/profiles/activate'")
-    expect(src).toContain('activateProfile')
+    expect(src).not.toContain("fetch('/api/profiles/activate'")
+    expect(src).not.toContain('activateProfile')
+    expect(src).toContain('profileMutable')
   })
 
   it('surfaces workspace and reasoning controls next to the model picker', () => {

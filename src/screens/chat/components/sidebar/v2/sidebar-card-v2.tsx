@@ -118,6 +118,10 @@ function SidebarCardV2Impl({ item, isActive }: SidebarCardV2Props) {
   // layout. Kept non-clickable until the backend exposes a session mapping.
   // Unblocked by: ClaudeJob.session_key | HermesKanbanTask.chat_session_key
   const isClickable = isChatItem
+  const profile =
+    typeof item.sourceMeta.profile === 'string' && item.sourceMeta.profile.trim()
+      ? item.sourceMeta.profile.trim()
+      : undefined
 
   const [hovered, setHovered] = useState(false)
   const [opening, setOpening] = useState(false)
@@ -356,6 +360,7 @@ function SidebarCardV2Impl({ item, isActive }: SidebarCardV2Props) {
         <Link
           to="/chat/$sessionKey"
           params={{ sessionKey: rawId }}
+          search={{ profile }}
           preload="intent"
           onClick={() => {
             if (!isActive) setOpening(true)

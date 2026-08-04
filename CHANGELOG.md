@@ -3,6 +3,20 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.29] — 2026-08-04
+
+### Changed
+
+- Chat profiles are selected only when creating a session; after the first run, the session remains visibly bound to its original profile.
+- Desktop and mobile session navigation preserve explicit profile scope, including direct session reads and history queries.
+- The gateway restart banner now shows the supported `hermes gateway restart` command.
+
+### Fixed
+
+- Changing the profile for a new chat no longer changes the gateway-wide active profile or incorrectly requests a gateway restart.
+- Existing sessions can no longer be retargeted to another profile from the composer.
+- Obsolete restart warnings created by the former Chat profile activation flow are cleared from persisted state.
+
 ## [2.5.28] — 2026-08-03
 
 ### Added

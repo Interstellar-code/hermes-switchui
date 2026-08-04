@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/shadcn/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { toast } from '@/components/ui/toast'
+import { useGatewayRestartStore } from '@/stores/gateway-restart-store'
 import '@/styles/matrix-profiles.css'
 
 // ── Unified row type used by card + table ────────────────────────────────────
@@ -240,6 +241,7 @@ export function ProfilesScreen() {
     setBusyName(profileName)
     try {
       await postJson('/api/profiles/activate', { name: profileName })
+      useGatewayRestartStore.getState().markNeedsRestart(profileName)
       toast(`Activated agent ${profileName}`, { type: 'success' })
       await refreshProfiles()
     } catch (error) {

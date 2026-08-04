@@ -20,7 +20,6 @@ import {
   Check,
   ChevronDown,
   FolderKanban,
-  RotateCw,
   UserRound,
   X,
 } from 'lucide-react'
@@ -35,7 +34,6 @@ import {
   shouldBlockZeroForkModelSwitch,
 } from '../chat-composer-model-switch'
 import {
-  activateProfile,
   fetchGatewayMode,
   fetchModelInfo,
   fetchProfiles,
@@ -75,7 +73,6 @@ import {
   useSessionProject,
   useUnbindSessionProject,
 } from '@/lib/projects-api'
-import { useGatewayRestartStore } from '@/stores/gateway-restart-store'
 import { useSessionModelStore } from '@/stores/session-model-store'
 import { activeScopeSegments, getSessionProfile } from '@/lib/session-scope'
 
@@ -218,6 +215,8 @@ function groupModelsByProvider(
 
 type SessionSelectorsV2Props = {
   sessionKey?: string
+  /** Profile selection is only valid before the first session is created. */
+  profileMutable?: boolean
   thinkingLevel?: ThinkingLevel
   onThinkingLevelChange?: (level: ThinkingLevel) => void
   hideModelSelector?: boolean
@@ -225,6 +224,7 @@ type SessionSelectorsV2Props = {
 
 function SessionSelectorsV2Component({
   sessionKey,
+  profileMutable = false,
   thinkingLevel: externalThinkingLevel,
   onThinkingLevelChange,
   hideModelSelector = false,
@@ -336,41 +336,6 @@ function SessionSelectorsV2Component({
     [modelInfoQuery.data],
   )
 
-  const profileActivateMutation = useMutation({
-    mutationFn: activateProfile,
-    onSuccess: async (data, profileName) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['profiles'] }),
-        queryClient.invalidateQueries({ queryKey: ['workspace'] }),
-        queryClient.invalidateQueries({ queryKey: ['hermes-projects'] }),
-        queryClient.invalidateQueries({ queryKey: ['claude', 'models'] }),
-        queryClient.invalidateQueries({
-          queryKey: ['claude', 'session-status-model'],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ['dashboard', 'model-info'],
-        }),
-        queryClient.invalidateQueries({
-          queryKey: ['gateway-status', 'mode'],
-        }),
-      ])
-      setProfileMenuOpen(false)
-      if (data.needsGatewayRestart) {
-        useGatewayRestartStore.getState().markNeedsRestart(profileName)
-      }
-      setModelNotice({
-        tone: 'success',
-        message: `Activated profile ${profileName} — restart gateway to apply`,
-      })
-    },
-    onError: (error) => {
-      setModelNotice({
-        tone: 'error',
-        message:
-          error instanceof Error ? error.message : 'Failed to activate profile',
-      })
-    },
-  })
   const workspaceSelectMutation = useMutation({
     mutationFn: async (workspace: { path: string; name?: string }) => {
       const response = await fetch('/api/workspace', {
@@ -428,6 +393,8 @@ function SessionSelectorsV2Component({
     readModelText(profilesQuery.data?.activeProfile) ||
     profiles.find((profile) => profile.active)?.name ||
     'default'
+  const displayedProfileName =
+    scopedProfileName ?? (scopeMode === 'multiplex' ? 'default' : activeProfileName)
   const activeProfile = profiles.find(
     (profile) => profile.name === activeProfileName,
   )
@@ -692,10 +659,10 @@ function SessionSelectorsV2Component({
         </Popover>
       )}
 
-      {/* profile menu — /api/profiles/list + /api/profiles/activate */}
+      {/* Session profile: selectable before creation, immutable afterward. */}
       {showModelSelector && (
         <Popover
-          open={profileMenuOpen}
+          open={profileMutable && profileMenuOpen}
           onOpenChange={(open) => {
             setProfileMenuOpen(open)
             if (open) {
@@ -710,9 +677,16 @@ function SessionSelectorsV2Component({
             <button
               type="button"
               onClick={() => setProfileMenuOpen((o) => !o)}
-              disabled={profileActivateMutation.isPending}
+              disabled={!profileMutable}
+              aria-label={
+                profileMutable
+                  ? 'Select agent profile for new session'
+                  : `Agent profile ${displayedProfileName}, bound to this session`
+              }
               title={
-                scopedProfileName
+                !profileMutable
+                  ? `Bound to ${displayedProfileName}. Start a new chat to use another profile.`
+                  : scopedProfileName
                   ? `Scoped to ${scopedProfileName}${
                       scopeMode === 'multiplex'
                         ? servedProfiles?.includes(scopedProfileName)
@@ -731,10 +705,10 @@ function SessionSelectorsV2Component({
               data-testid="profile-selector"
             >
               <UserRound className="size-3" />
-              <span className="truncate">
-                {scopedProfileName ?? activeProfileName}
-              </span>
-              <ChevronDown className="size-2.5 opacity-60" />
+              <span className="truncate">{displayedProfileName}</span>
+              {profileMutable ? (
+                <ChevronDown className="size-2.5 opacity-60" />
+              ) : null}
             </button>
           </PopoverAnchor>
           <PopoverContent
@@ -758,9 +732,7 @@ function SessionSelectorsV2Component({
                 <div key={profile.name} className="flex items-center gap-1">
                   <button
                     type="button"
-                    onClick={() =>
-                      setScopedProfile(isScoped ? null : profile.name)
-                    }
+                    onClick={() => setScopedProfile(profile.name)}
                     data-testid={`profile-option-${profile.name}`}
                     title={
                       scopeMode === 'multiplex'
@@ -813,18 +785,6 @@ function SessionSelectorsV2Component({
                         ) : null}
                       </span>
                     ) : null}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (selected) return
-                      profileActivateMutation.mutate(profile.name)
-                    }}
-                    disabled={selected || profileActivateMutation.isPending}
-                    title={`Activate ${profile.name} gateway-wide — requires a gateway restart`}
-                    className="shrink-0 rounded-sm p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-30"
-                  >
-                    <RotateCw className="size-3" />
                   </button>
                 </div>
               )

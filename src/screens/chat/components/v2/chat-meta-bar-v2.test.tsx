@@ -418,7 +418,9 @@ describe('ChatMetaBarV2', () => {
         isError: false,
       }
 
-      const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
+      const container = renderInto(
+        <ChatMetaBarV2 sessionKey="abc" profileMutable />,
+      )
       act(() => {
         container
           .querySelector<HTMLButtonElement>('[data-testid="profile-selector"]')
@@ -457,7 +459,9 @@ describe('ChatMetaBarV2', () => {
         isError: false,
       }
 
-      const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
+      const container = renderInto(
+        <ChatMetaBarV2 sessionKey="abc" profileMutable />,
+      )
       act(() => {
         container
           .querySelector<HTMLButtonElement>('[data-testid="profile-selector"]')
@@ -481,7 +485,7 @@ describe('ChatMetaBarV2', () => {
       expect(mockNavigate).toHaveBeenCalledTimes(1)
     })
 
-    it('clears ?profile= when the scoped row is clicked again', () => {
+    it('keeps the selected profile when its row is clicked again', () => {
       mockSearch.profile = 'other'
       mockQueries['profiles|scope-status'] = {
         data: { mode: 'single', servedProfiles: null, sessionCounts: {} },
@@ -489,7 +493,9 @@ describe('ChatMetaBarV2', () => {
         isError: false,
       }
 
-      const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
+      const container = renderInto(
+        <ChatMetaBarV2 sessionKey="abc" profileMutable />,
+      )
       act(() => {
         container
           .querySelector<HTMLButtonElement>('[data-testid="profile-selector"]')
@@ -506,8 +512,25 @@ describe('ChatMetaBarV2', () => {
         search: (prev: Record<string, unknown>) => Record<string, unknown>
       }
       expect(opts.search({ profile: 'other', foo: 'bar' })).toEqual({
+        profile: 'other',
         foo: 'bar',
       })
+    })
+
+    it('locks the profile selector for an existing session', () => {
+      mockSearch.profile = 'other'
+      const container = renderInto(<ChatMetaBarV2 sessionKey="abc" />)
+      const selector = container.querySelector<HTMLButtonElement>(
+        '[data-testid="profile-selector"]',
+      )
+
+      expect(selector?.disabled).toBe(true)
+      expect(selector?.title).toContain('Bound to other')
+      act(() => selector?.click())
+      expect(
+        document.body.querySelector('[data-testid="profile-option-other"]'),
+      ).toBeNull()
+      expect(mockNavigate).not.toHaveBeenCalled()
     })
   })
 })

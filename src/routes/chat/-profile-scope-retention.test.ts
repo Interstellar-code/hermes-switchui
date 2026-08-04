@@ -56,13 +56,13 @@ describe('chat route profile retention', () => {
     expect(router.state.location.search).toEqual({ profile: 'neo' })
   })
 
-  it('lets an explicit profile change win over retention', async () => {
+  it('lets an explicitly profiled session link switch profiles', async () => {
     const router = buildRouter('/chat/session-a?profile=neo')
     await router.load()
 
     await router.navigate({
       to: '/chat/$sessionKey',
-      params: { sessionKey: 'session-a' },
+      params: { sessionKey: 'session-b' },
       search: { profile: 'morpheus' },
     })
     await router.invalidate()
@@ -70,16 +70,15 @@ describe('chat route profile retention', () => {
     expect(router.state.location.search).toEqual({ profile: 'morpheus' })
   })
 
-  it('lets an explicit clear win over retention', async () => {
+  it('lets an explicit unscoped session link clear the retained profile', async () => {
     const router = buildRouter('/chat/session-a?profile=neo')
     await router.load()
 
-    // The composer's profile picker clears by setting the key to `undefined`
-    // rather than omitting it — an omitted key reads as "unspecified" and
-    // would be refilled by the retention middleware.
+    // An unscoped/default-profile sidebar row clears the key explicitly; an
+    // omitted key means "keep the current session scope".
     await router.navigate({
       to: '/chat/$sessionKey',
-      params: { sessionKey: 'session-a' },
+      params: { sessionKey: 'session-b' },
       search: { profile: undefined },
     })
     await router.invalidate()
@@ -88,8 +87,8 @@ describe('chat route profile retention', () => {
   })
 
   it('treats an omitted key as unspecified, not as a clear', async () => {
-    // Pins the contract session-selectors-v2 depends on: dropping the key
-    // cannot clear the scope, which is why its picker sends `undefined`.
+    // Pins the navigation contract: a caller that does not specify a profile
+    // keeps the current one.
     const router = buildRouter('/chat/session-a?profile=neo')
     await router.load()
 

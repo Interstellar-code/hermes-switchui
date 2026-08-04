@@ -8,9 +8,12 @@ vi.mock('@tanstack/react-router', () => ({
   Link: ({
     children,
     onClick,
+    search,
     'aria-busy': ariaBusy,
-  }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-    <a href="#" onClick={onClick} aria-busy={ariaBusy}>
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+    search?: { profile?: string }
+  }) => (
+    <a href="#" onClick={onClick} aria-busy={ariaBusy} data-profile={search?.profile}>
       {children}
     </a>
   ),
@@ -94,5 +97,11 @@ describe('SidebarCardV2 attention markers', () => {
 
     expect(screen.queryByText('Opening…')).toBeNull()
     expect(screen.getByRole('link').getAttribute('aria-busy')).toBeNull()
+  })
+
+  it('carries the session profile in the chat link', () => {
+    render(<SidebarCardV2 item={makeItem({ sourceMeta: { profile: 'morpheus' } })} />)
+
+    expect(screen.getByRole('link').getAttribute('data-profile')).toBe('morpheus')
   })
 })
