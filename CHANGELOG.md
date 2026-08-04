@@ -3,6 +3,14 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.30] — 2026-08-04
+
+### Fixed
+
+- **Multi-Profile Multiplexing Recognition**: Enhanced `probeMode()` in `profile-scope.ts` to inspect served profiles and profile rosters across all gateways, preventing single-profile false positives and 409 Conflict errors when targeting secondary profiles (`neo`, `morpheus`, `trinity`).
+- **Profile-Aware Delegations DB Resolution**: Fixed delegation DB resolution to inspect target profile home paths dynamically instead of hardcoding default profile paths.
+- **Secondary Gateway Port-Binding Isolation**: Disabled redundant secondary `a2a_fleet` port bindings on secondary profiles so multiplexed gateways load and serve all host profiles cleanly without startup skips.
+
 ## [2.5.29] — 2026-08-04
 
 ### Changed
