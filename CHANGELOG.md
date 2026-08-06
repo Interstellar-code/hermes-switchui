@@ -3,6 +3,12 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.31] — 2026-08-06
+
+### Fixed
+
+- **Remote & Active Profile Probing**: Fixed `probeMode()` in `profile-scope.ts` to fall back to `hermes_home` when resolving the active profile name, preventing false-positive `ProfileScopeUnavailableError` when accessing SwitchUI remotely via Tailscale or LAN while `gateways` array is empty.
+
 ## [2.5.30] — 2026-08-04
 
 ### Fixed
