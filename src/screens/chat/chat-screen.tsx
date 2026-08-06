@@ -1506,16 +1506,18 @@ export function ChatScreen({
                   title={agentsOpen ? 'Close agents' : `Show ${agentCount} agents`}
                   onClick={() => setAgentsOpen((open) => !open)}
                   className={cn(
-                    'absolute right-6 z-30 flex h-8 items-center gap-1.5 rounded-full border px-3 font-mono text-[11px] transition-colors',
+                    'absolute right-4 sm:right-6 z-30 flex h-8 items-center gap-1.5 rounded-full border px-3 font-mono text-[11px] shadow-md backdrop-blur-md transition-colors',
                     agentsOpen
                       ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-primary/60 bg-card text-primary hover:bg-primary/10',
+                      : 'border-primary/60 bg-card/90 text-primary hover:bg-primary/10',
                     hasActiveAgents && !agentsOpen && 'attention-pulse',
                   )}
-                  style={{ bottom: `calc(${terminalPanelInset}px + 2.5rem)` }}
+                  style={{
+                    bottom: `calc(${terminalPanelInset}px + var(--chat-composer-height, 90px) + 12px)`,
+                  }}
                 >
                   <Bot className="size-4" aria-hidden="true" />
-                  <span>agents</span>
+                  <span className="hidden sm:inline">agents</span>
                   <span className="tabular-nums opacity-80">{agentCount}</span>
                 </button>
               ) : null}
