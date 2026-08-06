@@ -3,6 +3,12 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.32] — 2026-08-06
+
+### Fixed
+
+- **Agents Toggle Button Layout & Overlap**: Fixed `Show agents` toggle button positioning in `chat-screen.tsx` by offsetting it dynamically above `--chat-composer-height`, preventing button overlap with composer action controls and input text on smaller desktop resolutions.
+
 ## [2.5.31] — 2026-08-06
 
 ### Fixed
