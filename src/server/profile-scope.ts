@@ -128,6 +128,7 @@ async function probeMode(dashboardUrl: string): Promise<GatewayMode> {
     if (!res.ok) return SINGLE
     const body = (await res.json()) as {
       gateway_mode?: string
+      hermes_home?: string
       gateways?: Array<{ profile?: string; served_profiles?: Array<string> }>
       profiles?: Array<string>
     }
@@ -137,8 +138,14 @@ async function probeMode(dashboardUrl: string): Promise<GatewayMode> {
       body.gateway_mode === 'multiple' ||
       entries.some((g) => (g.served_profiles?.length ?? 0) > 1)
 
+    const homeProfile = body.hermes_home
+      ? body.hermes_home.includes('/profiles/')
+        ? body.hermes_home.split('/profiles/').pop()?.split('/')[0] || null
+        : 'default'
+      : null
+    const active = entries.find((g) => g.profile)?.profile || homeProfile
+
     if (!isMultiplex) {
-      const active = entries.find((g) => g.profile)?.profile
       return active
         ? { mode: 'single', servedProfiles: null, activeProfile: String(active) }
         : SINGLE
