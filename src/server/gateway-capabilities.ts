@@ -182,8 +182,8 @@ export const SESSIONS_API_UNAVAILABLE_MESSAGE = `Your Hermes backend does not su
 // 8s, not 3s: the dashboard's /api/status is cold on the first hit after a
 // (re)boot — measured ~3s — which raced the old 3s abort and intermittently
 // flipped dashboard.available to false, marking every extended API "missing"
-// until a full restart. 8s clears the cold hit; warm hits return in <1s.
-const PROBE_TIMEOUT_MS = 8_000
+// until a full restart. 15s clears cold/loaded hits; warm hits return in <1s.
+const PROBE_TIMEOUT_MS = 15_000
 // Probe TTL: 120s when fully healthy, 15s otherwise. The shorter window
 // applies both when the gateway is unreachable (Docker boot race, see #275)
 // AND when the gateway is up but the dashboard (port 9119) is missing — so
@@ -762,20 +762,47 @@ async function probeMcpConfigKey(): Promise<boolean> {
 }
 
 async function probeDashboard(): Promise<{ available: boolean; url: string }> {
+  // Fast path: probe root HTML first (<10ms). Avoids waiting 15s for /api/status
+  // when Python SQLite locks or cold loads are active.
+  try {
+    const res = await fetch(`${CLAUDE_DASHBOARD_URL}/`, {
+      signal: AbortSignal.timeout(3000),
+    })
+    if (res.ok) {
+      const html = await res.text()
+      const token = html.match(DASHBOARD_TOKEN_REGEX)?.[1]?.trim()
+      if (token) {
+        dashboardTokenCache = token
+        return { available: true, url: CLAUDE_DASHBOARD_URL }
+      }
+      if (
+        html.includes('__HERMES_SESSION_TOKEN__') ||
+        html.includes('__CLAUDE_SESSION_TOKEN__') ||
+        html.includes('Hermes Agent')
+      ) {
+        return { available: true, url: CLAUDE_DASHBOARD_URL }
+      }
+    }
+  } catch {
+    // Fall through to api/status below
+  }
+
   try {
     const res = await fetch(`${CLAUDE_DASHBOARD_URL}/api/status`, {
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     })
-    if (!res.ok) return { available: false, url: CLAUDE_DASHBOARD_URL }
-    const body = (await res.json()) as { version?: string }
-    if (!body.version) return { available: false, url: CLAUDE_DASHBOARD_URL }
-    // Keep public availability version-compatible. Protected callers still get
-    // classified failures from dashboardFetch when token acquisition fails.
-    await fetchDashboardToken().catch(() => '')
-    return { available: true, url: CLAUDE_DASHBOARD_URL }
+    if (res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { version?: string }
+      if (body.version) {
+        await fetchDashboardToken().catch(() => '')
+        return { available: true, url: CLAUDE_DASHBOARD_URL }
+      }
+    }
   } catch {
-    return { available: false, url: CLAUDE_DASHBOARD_URL }
+    // Dashboard unavailable
   }
+
+  return { available: false, url: CLAUDE_DASHBOARD_URL }
 }
 
 /**
@@ -932,7 +959,7 @@ async function autoDetectGatewayUrl(): Promise<void> {
 }
 
 async function autoDetectDashboardUrl(): Promise<void> {
-  if (process.env.CLAUDE_DASHBOARD_URL) return
+  if (process.env.HERMES_DASHBOARD_URL || process.env.CLAUDE_DASHBOARD_URL) return
 
   const candidates = ['http://127.0.0.1:9119']
   for (const candidate of candidates) {
@@ -953,16 +980,18 @@ async function autoDetectDashboardUrl(): Promise<void> {
 export async function probeGateway(options?: {
   force?: boolean
 }): Promise<GatewayCapabilities> {
+  if (probePromise) {
+    return probePromise
+  }
   const force = options?.force === true
   if (!force && capabilities.probed) {
     return capabilities
   }
-  if (probePromise) {
-    return probePromise
-  }
 
   probePromise = (async () => {
     await Promise.all([autoDetectGatewayUrl(), autoDetectDashboardUrl()])
+
+    const dashboard = await probeDashboard()
 
     const [
       health,
@@ -973,17 +1002,15 @@ export async function probeGateway(options?: {
       legacySkills,
       legacyConfig,
       legacyJobs,
-      dashboard,
     ] = await Promise.all([
       probe('/health'),
       probeChatCompletions(),
       probe('/v1/models'),
-      probe('/api/sessions'),
+      dashboard.available ? Promise.resolve(false) : probe('/api/sessions'),
       probeEnhancedChatStream(),
-      probe('/api/skills'),
-      probe('/api/config'),
-      probe('/api/jobs'),
-      probeDashboard(),
+      dashboard.available ? Promise.resolve(false) : probe('/api/skills'),
+      dashboard.available ? Promise.resolve(false) : probe('/api/config'),
+      dashboard.available ? Promise.resolve(false) : probe('/api/jobs'),
     ])
 
     // Strict MCP probe runs after dashboard probe so dashboard token

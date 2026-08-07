@@ -14,7 +14,9 @@ import { expect, test } from '@playwright/test'
 test.describe('sidebar-v2 feature flag OFF (default)', () => {
   test('existing sidebar renders when flag is off', async ({ page }) => {
     await page.goto('/')
-    await expect(page.locator('[data-testid="sidebar-shell-v2"]')).toHaveCount(0)
+    await expect(page.locator('[data-testid="sidebar-shell-v2"]')).toHaveCount(
+      0,
+    )
   })
 })
 
@@ -83,7 +85,9 @@ test.describe('sidebar-v2 feature flag ON', () => {
   test('ALL chip clears active source selection', async ({ page }) => {
     await page.goto('/')
     const chatChip = page.locator('[data-testid="chip-chat"]')
-    const allChip = page.locator('[data-testid="sessions-panel"] button').filter({ hasText: 'ALL' })
+    const allChip = page
+      .locator('[data-testid="sessions-panel"] button')
+      .filter({ hasText: 'ALL' })
 
     // Activate a source chip
     await chatChip.click()
@@ -123,7 +127,9 @@ test.describe('sidebar-v2 feature flag ON', () => {
 
   // ── Card rail color test ──────────────────────────────────────────────────
 
-  test('session cards render with rail element matching source', async ({ page }) => {
+  test('session cards render with rail element matching source', async ({
+    page,
+  }) => {
     await page.goto('/')
     const list = page.locator('[data-testid="sessions-list-v2"]')
     await expect(list).toBeVisible()
@@ -139,7 +145,9 @@ test.describe('sidebar-v2 feature flag ON', () => {
 
   // ── Collapse test ─────────────────────────────────────────────────────────
 
-  test('collapse button hides sessions panel and shows rail', async ({ page }) => {
+  test('collapse button hides sessions panel and shows rail', async ({
+    page,
+  }) => {
     await page.goto('/')
     const panel = page.locator('[data-testid="sessions-panel"]')
     await expect(panel).toBeVisible()
