@@ -1,0 +1,112 @@
+/**
+ * setup-checklist-card.css — dashboard-local styling for the reused
+ * `OnboardingChecklist` component.
+ *
+ * `OnboardingChecklist` (src/screens/onboarding/components/onboarding-checklist.tsx)
+ * is shared verbatim with the wizard's own summary/finish steps — its
+ * `ob-list*` class names come from `matrix-onboarding.css`, and its "Open"
+ * button's `wz-btn` class comes from `wizard.css`. Both stylesheets scope
+ * everything under an attribute selector (`[data-screen='onboarding']` and
+ * `[data-wizard]` respectively), and `[data-wizard]` in particular carries a
+ * real layout side effect (`display: grid; grid-template-rows: auto 1fr auto`)
+ * meant for the full wizard shell — stamping that attribute on a dashboard
+ * card would fight the card's own layout, not just reskin some text.
+ *
+ * So this card gets dashboard-local rules instead: the same `ob-list*`/`wz-btn`
+ * class names the component actually renders, rescoped under `.setup-checklist-card`
+ * so they never leak into (or fight with) the real onboarding screens, and
+ * built from the plain `--theme-*` custom properties the rest of this
+ * directory uses (see dashboard-screen.tsx's `GlassCard`/`SecondaryAction`) —
+ * no `--m-*` Matrix-specific fallbacks, since this card is dashboard chrome,
+ * not part of the Matrix-themed onboarding surface. No hex literals here for
+ * the same reason those files ban them: every colour must repaint correctly
+ * across all ten themes.
+ */
+
+.setup-checklist-card .ob-list {
+  display: grid;
+  gap: 6px;
+}
+
+.setup-checklist-card .ob-list-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--theme-border-subtle);
+  border-radius: 8px;
+  background: var(--theme-card2);
+}
+
+.setup-checklist-card .ob-list-icon {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 10px;
+  color: var(--theme-muted);
+}
+
+.setup-checklist-card .ob-list-item.is-done .ob-list-icon {
+  color: var(--theme-success);
+  box-shadow: 0 0 6px currentColor;
+}
+
+.setup-checklist-card .ob-list-item.is-skipped .ob-list-icon {
+  color: var(--theme-muted);
+}
+
+.setup-checklist-card .ob-list-item.is-todo .ob-list-icon {
+  color: var(--theme-muted);
+}
+
+.setup-checklist-card .ob-list-item.is-blocked .ob-list-icon {
+  color: var(--theme-danger);
+}
+
+.setup-checklist-card .ob-list-label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--theme-text);
+}
+
+.setup-checklist-card .ob-list-detail {
+  grid-column: 2 / 3;
+  font-size: 11px;
+  color: var(--theme-muted);
+}
+
+.setup-checklist-card .ob-list-action {
+  justify-self: end;
+}
+
+.setup-checklist-card .wz-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 6px;
+  border: 1px solid var(--theme-border);
+  background: transparent;
+  color: var(--theme-muted);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.setup-checklist-card .wz-btn:hover {
+  color: var(--theme-text);
+  border-color: var(--theme-accent);
+  background: color-mix(in srgb, var(--theme-accent) 10%, transparent);
+}

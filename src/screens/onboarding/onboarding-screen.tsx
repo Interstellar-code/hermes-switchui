@@ -611,6 +611,7 @@ function OnboardingFlow({
     <WizardShell
       screen="onboarding"
       variant={relaunch ? 'modal' : 'fullscreen'}
+      className={relaunch ? 'ob-relaunch' : 'ob-surface'}
       title={step.title ?? step.label}
       subtitle={step.blurb}
       headActions={

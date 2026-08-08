@@ -37,6 +37,7 @@ import {
 } from '@/screens/chat/chat-events'
 import { useEnabledUserCommands } from '@/lib/commands-api'
 import { useSetupWizardStore } from '@/stores/setup-wizard-store'
+import { useOnboardingChecklist } from '@/screens/onboarding/hooks/use-onboarding-checklist'
 import { cn } from '@/lib/utils'
 
 type CommandPaletteProps = {
@@ -120,6 +121,15 @@ export function CommandPalette({ pathname, sessions }: CommandPaletteProps) {
     if (typeof navigator === 'undefined') return true
     return navigator.platform.toLowerCase().includes('mac')
   }, [])
+  const { outstanding: setupOutstanding, ready: setupReady } =
+    useOnboardingChecklist()
+  // No dedicated subtitle line exists on `CommandItem` — just `label` and a
+  // small `shortcut` badge — so the outstanding count rides along in the
+  // label itself, the minimal option that fits the existing layout.
+  const setupWizardLabel =
+    setupReady && setupOutstanding > 0
+      ? `Setup Wizard (${setupOutstanding} left)`
+      : 'Setup Wizard'
 
   const runSlashCommand = (command: string) => {
     if (command === '/new') {
@@ -268,14 +278,14 @@ export function CommandPalette({ pathname, sessions }: CommandPaletteProps) {
       {
         id: 'setup-wizard',
         group: 'Screens',
-        label: 'Setup Wizard',
+        label: setupWizardLabel,
         keywords: 'onboarding setup wizard connect backend first run guide',
         shortcut: 'Run',
         icon: Rocket01Icon,
         onSelect: () => useSetupWizardStore.getState().openSetupWizard(),
       },
     ],
-    [navigate],
+    [navigate, setupWizardLabel],
   )
 
   const recentSessionActions = useMemo<Array<CommandAction>>(

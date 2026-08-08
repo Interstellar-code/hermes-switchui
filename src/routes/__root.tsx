@@ -269,6 +269,7 @@ function RootLayout() {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null)
   const [mounted, setMounted] = useState(false)
   const setupWizardOpen = useSetupWizardStore((s) => s.open)
+  const setupWizardTarget = useSetupWizardStore((s) => s.target)
   const closeSetupWizard = useSetupWizardStore((s) => s.closeSetupWizard)
   useApplyChatWidth()
 
@@ -408,7 +409,11 @@ function RootLayout() {
           {/* Sidebar-launched re-run of the setup wizard. Controlled mode →
               it will not write provider config unless the user unlocks it. */}
           {setupWizardOpen ? (
-            <OnboardingScreen open onClose={closeSetupWizard} />
+            <OnboardingScreen
+              open
+              onClose={closeSetupWizard}
+              initialStepId={setupWizardTarget ?? undefined}
+            />
           ) : null}
         </>
       ) : null}

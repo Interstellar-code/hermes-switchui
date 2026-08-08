@@ -30,6 +30,7 @@ import { useProjects } from '@/lib/projects-api'
 import { useNavCounts } from '@/hooks/use-nav-counts'
 import { useSelfImproveAvailable } from '@/hooks/use-self-improve-available'
 import { useSetupWizardStore } from '@/stores/setup-wizard-store'
+import { useOnboardingChecklist } from '@/screens/onboarding/hooks/use-onboarding-checklist'
 
 // ── Icons (inline SVG) ────────────────────────────────────────────────────────
 
@@ -399,6 +400,8 @@ export function PrimaryNavV2() {
   const selfImproveAvailable = useSelfImproveAvailable()
   const openSearchModal = useSearchModal((s) => s.openModal)
   const openSetupWizard = useSetupWizardStore((s) => s.openSetupWizard)
+  const { outstanding: setupOutstanding, ready: setupReady } =
+    useOnboardingChecklist()
   const agentVersion = useAgentVersion()
   const [collapsed, setCollapsed] = useState<boolean>(readInitialCollapsed)
   const toggleCollapsed = useCallback(() => {
@@ -875,6 +878,9 @@ export function PrimaryNavV2() {
           onClick={openSetupWizard}
           active={false}
           collapsed={collapsed}
+          badge={
+            setupReady && setupOutstanding > 0 ? setupOutstanding : undefined
+          }
         />
         <NavItem
           label="Docs"

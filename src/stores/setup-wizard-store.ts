@@ -7,16 +7,27 @@
  * mode that opens read-only and writes no provider config until the user
  * explicitly unlocks it.
  *
- * Consumers: primary-nav-v2.tsx + command-palette.tsx (open), __root.tsx (render).
+ * `target` carries an optional deep link: the sidebar badge, the command
+ * palette, and the dashboard checklist card can all jump straight to a
+ * specific step (`openSetupWizard('provider')`) instead of landing on the
+ * relaunch summary. A bare `openSetupWizard()` call clears `target` so the
+ * wizard falls back to its own entry-step resolution (always the summary on
+ * relaunch). `closeSetupWizard` clears `target` too, so a later bare open
+ * never inherits a stale deep link from a previous jump.
+ *
+ * Consumers: primary-nav-v2.tsx + command-palette.tsx + the dashboard setup
+ * checklist card (open), __root.tsx (render).
  */
 import { create } from 'zustand'
+import type { OnboardingStepId } from '@/screens/onboarding/lib/onboarding-steps'
 
 export type SetupWizardState = {
   open: boolean
+  target: OnboardingStepId | null
 }
 
 export type SetupWizardActions = {
-  openSetupWizard: () => void
+  openSetupWizard: (at?: OnboardingStepId) => void
   closeSetupWizard: () => void
 }
 
@@ -24,6 +35,7 @@ export const useSetupWizardStore = create<
   SetupWizardState & SetupWizardActions
 >((set) => ({
   open: false,
-  openSetupWizard: () => set({ open: true }),
-  closeSetupWizard: () => set({ open: false }),
+  target: null,
+  openSetupWizard: (at) => set({ open: true, target: at ?? null }),
+  closeSetupWizard: () => set({ open: false, target: null }),
 }))
