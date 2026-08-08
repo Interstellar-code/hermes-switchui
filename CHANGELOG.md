@@ -3,6 +3,30 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.33] — 2026-08-09
+
+### Added
+
+- **Providers Inventory Screen**: Rebuilt `/settings/providers` in the house pattern used by `/skills` and `/mcp` — collapsible filter rail (status / origin / auth / models with live counts), card grid and table views, stats header, and a right-anchored detail drawer with Overview, Models, Credentials and Config tabs. Catalog providers not yet in `config.yaml` render as `available` cards, so adding one is a click from the provider you want.
+- **Working Add Provider Wizard**: Choose → Connect → Review & Save → Verify. The review step shows the literal YAML fragment before anything is written, and verification polls `/api/models` afterwards, offering an inline gateway restart when the provider is saved but not yet visible.
+- **Relaunchable Setup Wizard**: The first-run onboarding wizard is now reachable from the sidebar and the command palette. Relaunches start locked and will not modify an existing provider configuration until changes are explicitly unlocked.
+- **Provider Removal**: `DELETE /api/claude-config` removes a provider's `providers` entry, its `custom_providers` row and matching `model_aliases`, reassigns the active provider to a survivor, and can optionally drop its env key — refusing when another provider still references it.
+
+### Fixed
+
+- **`.env` Comment Destruction**: `writeEnv()` serialised a parsed key map back out, erasing every comment and blank line in `~/.hermes/.env` the first time a user saved an API key — a documented 500-line file collapsed to 13. Key values were preserved, the file was not. Replaced with in-place line editing.
+- **Add & Delete Provider Never Worked**: The wizard POSTed API keys to `/api/config-patch`, a route that does not exist, in an `auth.profiles.*` shape nothing reads; delete POSTed to a method with no handler and failed every time.
+- **Inline Provider Configs Reported As Unconfigured**: Providers defined inside the `model:` block with the key stored in `config.yaml` (rather than in a `providers:` map with `key_env`) were shown as having no credential. Edits to them now patch that block in place instead of adding a second definition the gateway ignores.
+- **OAuth Providers Falsely Reported Configured**: `GET /api/claude-config` treated any provider with no env keys as configured and sourced from `env`.
+- **`custom_providers` Key Mismatch**: `models.ts` indexes those entries by `id` while `isProviderConfigured()` matched only on `name`, so an entry written by one reader was invisible to the other.
+- **Unreadable Provider Page In Dark Themes**: Hard-coded `bg-white` surfaces rendered light-green text on white across the Models, AI & Agents, Session and Memory tabs. The screen now has a scoped Matrix stylesheet with no hard-coded light surfaces, verified across four themes.
+
+### Changed
+
+- **Single Provider Registry**: Six divergent provider lists are consolidated into `PROVIDER_CATALOG`, which now carries `envKey`, `baseUrl` and `origin` and grows from 18 to 24 entries. The server config route derives its list from it, lifting the 12-id ceiling on its auth-status payload. A contract test keeps the remaining display-only lists anchored to it.
+- **Removed Nine Non-Persisting Settings**: The Models, AI & Agents, Session and Memory tabs wrote to `agents.defaults.*` through the phantom `/api/config-patch` route — a namespace present in neither `config.yaml` nor the gateway. Their real counterparts already exist in the Settings sections.
+- **Shared Credential Row**: Reveal-with-auto-hide, edit and delete behaviour is extracted into `useEnvVarRow`, shared by the API Keys section and the provider drawer.
+
 ## [2.5.32] — 2026-08-06
 
 ### Fixed
