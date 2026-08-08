@@ -157,11 +157,23 @@ export function ConnectStep({
               </button>
             </>
           ) : null}
-          {oauth.stage === 'starting' ? <p>Starting sign-in…</p> : null}
+          {oauth.stage === 'starting' ? (
+            <p role="status">Starting sign-in…</p>
+          ) : null}
+          {/* A live region, because the code appears without the user doing
+              anything and is the one thing they have to read off the screen.
+              The visible copy is hidden from assistive tech in favour of a
+              spelled-out one: read as a word, an eight-character code is
+              unusable, and `aria-label` on a `<p>` is not reliably honoured. */}
           {oauth.stage === 'waiting' ? (
-            <>
+            <div className="ob-oauth-wait" role="status">
               <p>Enter this code at the portal:</p>
-              <p className="ob-oauth-code">{oauth.userCode}</p>
+              <p className="ob-oauth-code" aria-hidden="true">
+                {oauth.userCode}
+              </p>
+              <span className="wz-sr">
+                Code: {oauth.userCode.split('').join(' ')}
+              </span>
               {oauth.verificationUrl ? (
                 <button
                   type="button"
@@ -174,7 +186,7 @@ export function ConnectStep({
                 </button>
               ) : null}
               <p>Waiting for approval…</p>
-            </>
+            </div>
           ) : null}
           {oauth.stage === 'success' ? (
             <WizardNote tone="ok">
@@ -198,7 +210,9 @@ export function ConnectStep({
             {choice.name} authenticates through the CLI — the gateway has no
             device-code flow for it. Run this, then continue:
           </p>
-          <pre className="ob-cli">{cliCommand}</pre>
+          <pre className="ob-cli" tabIndex={0}>
+            {cliCommand}
+          </pre>
           <button
             type="button"
             className="wz-btn"
@@ -206,6 +220,11 @@ export function ConnectStep({
           >
             {copiedCli ? 'Copied' : 'Copy command'}
           </button>
+          {/* The button's own label changing is not reliably announced while
+              it holds focus; this region is. */}
+          <span className="wz-sr" role="status">
+            {copiedCli ? 'Command copied to the clipboard.' : ''}
+          </span>
         </WizardPanel>
       ) : null}
 

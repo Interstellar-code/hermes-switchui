@@ -34,6 +34,18 @@ const STATE_CLASS: Record<VerifyOutcome['status'], string> = {
   missing: 'is-missing',
 }
 
+/**
+ * `STATE_CLASS` paints the outcome; this names it. The outcome message is
+ * prose written for the specific failure and does not always start with the
+ * verdict, so the verdict is stated separately rather than inferred from the
+ * colour of the box it sits in.
+ */
+const STATE_LABEL: Record<VerifyOutcome['status'], string> = {
+  confirmed: 'Verified',
+  'pending-restart': 'Restart needed',
+  missing: 'Not found',
+}
+
 export function VerifyStep({
   providerId,
   outcome,
@@ -55,7 +67,12 @@ export function VerifyStep({
 
   return (
     <div className="ob-verify">
-      <div className={`ob-verify-state${stateModifier}`}>{stateMessage}</div>
+      <div className={`ob-verify-state${stateModifier}`} role="status">
+        {outcome && !verifying ? (
+          <span className="wz-sr">{STATE_LABEL[outcome.status]}. </span>
+        ) : null}
+        {stateMessage}
+      </div>
 
       <div className="ob-verify-actions">
         <button

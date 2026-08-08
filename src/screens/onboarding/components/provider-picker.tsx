@@ -77,14 +77,18 @@ export function ProviderPicker({
           <div className="ob-prov-group" key={id}>
             <p className="ob-prov-group-label">{label}</p>
             <div className="ob-prov-grid">
+              {/* The logo sits outside the button, so without aria-hidden a
+                  screen reader reads `ProviderLogo`'s own `alt` (the raw
+                  provider id) and the monogram's two letters as stray text
+                  ahead of the card they decorate. */}
               {groupChoices.map((choice) => (
                 <div className="ob-prov" key={choice.id}>
                   {choice.hasLogo ? (
-                    <span className="ob-prov-logo">
+                    <span className="ob-prov-logo" aria-hidden="true">
                       <ProviderLogo provider={choice.id} size={32} />
                     </span>
                   ) : (
-                    <span className="ob-prov-fallback">
+                    <span className="ob-prov-fallback" aria-hidden="true">
                       {providerInitials(choice.name)}
                     </span>
                   )}

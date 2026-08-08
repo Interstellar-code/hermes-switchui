@@ -3,6 +3,23 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.34] — 2026-08-09
+
+### Added
+
+- **Rebuilt First-Run Setup**: The first thing a new install shows is now a branching wizard rather than a product tour. Quick start is welcome → provider → connect → review → verify → finish; full setup adds a system check, the core plugins, and the theme picker. The provider step lists all 24 catalog entries grouped as detected, free, popular and all; the review step prints the literal `config.yaml` and `.env` text before anything is written; verification polls the gateway afterwards and offers an inline restart.
+- **Setup Survives Being Interrupted**: Progress is drafted to local storage as you go (never the API key), so closing the tab mid-setup resumes where you left off. Returning users and every relaunch open on a read-only summary instead, listing what is configured and what is still outstanding, with skipped steps one click away.
+
+### Fixed
+
+- **Wizard Vanished Mid-Setup**: On an install whose backend was already reachable, the connection probe could resolve while the user was part-way through and close the wizard under them, discarding whatever had been typed. The probe now only redirects a flow the user has not touched.
+- **Skipping Setup Counted As Finishing It**: "I'll set this up later" wrote the same completion flag as finishing the wizard, so the user was never prompted again and landed in a workspace with no provider. It records a dismissal, which stays re-promptable.
+
+### Changed
+
+- **Removed `react-joyride`**: The guided product tour it powered is gone, replaced by the wizard above.
+- **Onboarding Reads In All Ten Themes**: The flow is two scoped stylesheets with no hard-coded colours, checked by contract tests. Status colours chain to `--theme-warning` / `--theme-danger` rather than Matrix hex, which is what made warnings illegible on the five light themes. The wizard is usable at 320px, every status is stated in text and not only in colour, and all animation stops under `prefers-reduced-motion`.
+
 ## [2.5.33] — 2026-08-09
 
 ### Added
@@ -951,7 +968,7 @@ Fresh-install fixes: MCP page + File Manager.
 
 ### Fixed
 
-- **MCP servers page empty on fresh installs (#185).** The `mcpFallback` capability gate required the agent's `config.yaml` to already contain an `mcp_servers` key — which a fresh install doesn't have — so `/mcp` returned an unavailable payload even when the dashboard was running. Chicken-and-egg: you couldn't add a server because the key was missing, and the key was missing because no server was ever added. `probeMcpConfigKey()` now gates on config *reachability* (not key presence); the write path already creates `mcp_servers` on first add, and the `isLocalhostDeployment()` safety gate is kept.
+- **MCP servers page empty on fresh installs (#185).** The `mcpFallback` capability gate required the agent's `config.yaml` to already contain an `mcp_servers` key — which a fresh install doesn't have — so `/mcp` returned an unavailable payload even when the dashboard was running. Chicken-and-egg: you couldn't add a server because the key was missing, and the key was missing because no server was ever added. `probeMcpConfigKey()` now gates on config _reachability_ (not key presence); the write path already creates `mcp_servers` on first add, and the `isLocalhostDeployment()` safety gate is kept.
 - **File Manager blank on fresh installs.** When no real workspace is selected (or the throwaway auto-created `~/workspace` default), `/files` now shows a first-run "Choose your workspace folder" picker instead of an empty view. It reuses the existing `POST /api/workspace` mechanism (shared with the chat composer), surfaces known workspaces as quick-picks, and loads the chosen folder immediately.
 
 ## [2.3.23] — 2026-06-05
@@ -1175,6 +1192,7 @@ First release as **Switch UI** — fork of `outsourc-e/hermes-workspace` with a 
 ## [Unreleased pre-fork]
 
 ### Changed
+
 - **`docker compose up` now pulls pre-built images by default** (#82) — `nousresearch/hermes-agent:latest` for the gateway and `ghcr.io/outsourc-e/hermes-workspace:latest` for the UI. Agent state persists in the `claude-data` named volume. Adds `docker-compose.dev.yml` overlay for building from source.
 
 ## [2.0.0] — 2026-04-20
@@ -1182,6 +1200,7 @@ First release as **Switch UI** — fork of `outsourc-e/hermes-workspace` with a 
 **Zero-fork release.** Clone, don't fork. Hermes Switch UI now runs on vanilla `pip install hermes-agent` with no patches, no drift, no custom gateway required.
 
 ### Added
+
 - **Zero-fork architecture** — dual gateway/dashboard routing; workspace talks directly to vanilla `hermes-agent` 0.10.0+ via standard endpoints (`/v1/models`, `/api/sessions`, `/api/skills`, `/api/config`, `/api/jobs`)
 - **One-liner curl installer** — `curl -fsSL … | bash` provisions workspace + gateway + defaults
 - **Claude-Nous theme** — dark + light editorial variants with cobalt/paper surface pass, thin 1px architectural borders, editorial type accents
@@ -1195,6 +1214,7 @@ First release as **Switch UI** — fork of `outsourc-e/hermes-workspace` with a 
 - **Splash + screenshots refresh** — Conductor, Dashboard, Tasks, Jobs captured in new editorial theme
 
 ### Changed
+
 - **Model picker** — fetches from gateway (`~/.hermes/models.json` for user-configured models), matches OCPlatform behavior; shows only configured providers instead of all upstream
 - **`enhanced-fork` mode label** no longer implies a fork is required; it indicates streaming route availability on vanilla gateway
 - **Dashboard + enhanced-chat capabilities** marked optional; missing endpoints no longer trigger warnings
@@ -1203,6 +1223,7 @@ First release as **Switch UI** — fork of `outsourc-e/hermes-workspace` with a 
 - **Session pill** — solid dark-mode background, matches model selector
 
 ### Fixed
+
 - Duplicate responses and disappearing history on interrupt (#62)
 - Portable-mode double user message, uncleaned timeouts, orphaned unregister callbacks
 - Local model selection actually propagates to chat (no silent fallback)
@@ -1214,6 +1235,7 @@ First release as **Switch UI** — fork of `outsourc-e/hermes-workspace` with a 
 - Installer output uses defined escape vars (removed undefined BOLD/RESET)
 
 ### Removed
+
 - All references to the legacy "enhanced fork" as a requirement
 - Stale fork-era gateway instructions and feature-gate copy
 

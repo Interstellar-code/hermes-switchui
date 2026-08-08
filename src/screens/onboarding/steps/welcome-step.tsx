@@ -68,7 +68,7 @@ export function WelcomeStep({
         </span>
         <h3 className="ob-title">Hermes Switch UI</h3>
         <p className="ob-tagline">
-          Connect a model provider and the workspace is yours.
+          Connect a model provider to start using the workspace.
         </p>
       </div>
 

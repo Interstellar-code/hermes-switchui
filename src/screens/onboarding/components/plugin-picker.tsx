@@ -70,6 +70,11 @@ function PluginCliBlock({ command }: { command: string }) {
       <button type="button" className="wz-btn" onClick={handleCopy}>
         {copied ? 'Copied' : <>{CopyIcon} Copy</>}
       </button>
+      {/* The button's own label changing is not reliably announced while it
+          holds focus; this region is. */}
+      <span className="wz-sr" role="status">
+        {copied ? 'Command copied to the clipboard.' : ''}
+      </span>
       <p>
         This plugin isn&apos;t bundled, so it has to be enabled from the CLI.
       </p>

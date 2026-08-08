@@ -26,6 +26,15 @@
  * colours, and may fall back to `none`. A literal `#00ff41` or
  * `rgba(0,255,65,…)` here is a bug — re-tokenise on copy, per the providers
  * and wizard ancestors this was ported from.
+ *
+ * That rule covers the status tokens too, and this is the file where it
+ * started being kept: `--m-danger` / `--m-warning` / `--m-info` are declared
+ * only inside `[data-theme='matrix']`, so the older `var(--m-warning, #d6ff5f)`
+ * form painted Matrix lime on every other theme — illegible on the five light
+ * ones. They now chain to `--theme-warning` / `--theme-danger` / `--theme-link`,
+ * which all ten themes define. The contract test does not catch this (its
+ * `colourish` list stops at bg/panel/card/border/text/green/fill/stripe); the
+ * four other `matrix-*.css` files still carry the old hex fallbacks.
  */
 
 @keyframes ob-scanline {
@@ -56,13 +65,18 @@
 
 [data-screen='onboarding'] {
   /* ── surface ──────────────────────────────────────────────────────────── */
+  /* This class lands on the wizard's own root, so it is the four-row grid
+     itself — not a page that contains one. It therefore must not set
+     `align-items`/`justify-items`: those apply to `.wz-head` / `.wz-rail` /
+     `.wz-body` / `.wz-foot`, and centring them stops the body stretching into
+     its `1fr` track, which is the only thing that makes its scrollbar appear.
+     Vertical centring for the three chromeless steps lives in the wizard
+     overrides at the end of this file, on `.wz-body` where it belongs. */
   &.ob-surface {
     position: relative;
-    min-height: 100dvh;
+    height: 100dvh;
     width: 100%;
     display: grid;
-    align-items: center;
-    justify-items: center;
     padding: env(safe-area-inset-top) env(safe-area-inset-right)
       env(safe-area-inset-bottom) env(safe-area-inset-left);
     background: var(--m-bg, var(--theme-bg));
@@ -220,6 +234,10 @@
   .ob-later:hover {
     color: var(--m-text-muted, var(--theme-muted));
   }
+  .ob-later:focus-visible {
+    outline: 1px solid var(--m-green-500, var(--theme-accent));
+    outline-offset: 3px;
+  }
 
   /* ── system check ─────────────────────────────────────────────────────── */
   .ob-checks {
@@ -227,6 +245,7 @@
     gap: 6px;
   }
   .ob-check-row {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -247,10 +266,10 @@
     box-shadow: 0 0 6px currentColor;
   }
   .ob-check-dot.is-warn {
-    background: var(--m-warning, #d6ff5f);
+    background: var(--m-warning, var(--theme-warning));
   }
   .ob-check-dot.is-fail {
-    background: var(--m-danger, #ff5f6d);
+    background: var(--m-danger, var(--theme-danger));
   }
   .ob-check-dot.is-unknown {
     background: var(--m-text-faint, var(--theme-muted));
@@ -259,14 +278,21 @@
     font: 500 12.5px var(--m-font-mono, ui-monospace, monospace);
     color: var(--m-text, var(--theme-text));
   }
+  /* Details are strings from the probes ("Running hermes-agent 0.9.1", a URL),
+     so they wrap and shrink rather than widening the row past the viewport. */
   .ob-check-detail {
     margin-left: auto;
+    min-width: 0;
     text-align: right;
+    overflow-wrap: anywhere;
     font: 400 11px var(--m-font-sans, system-ui, sans-serif);
     color: var(--m-text-faint, var(--theme-muted));
   }
+  /* The change-url variant puts a labelled input next to its button; at 320px
+     that is two lines, not one. */
   .ob-heal {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
   }
@@ -275,6 +301,8 @@
      inline per-row by the component. */
   .ob-type {
     display: inline-block;
+    min-width: 0;
+    max-width: 100%;
     overflow: hidden;
     white-space: nowrap;
     vertical-align: bottom;
@@ -354,14 +382,18 @@
     color: var(--m-text-faint, var(--theme-muted));
   }
   .ob-badge-oauth {
-    color: var(--m-info, #5fcfff);
-    border-color: color-mix(in srgb, var(--m-info, #5fcfff) 35%, transparent);
-  }
-  .ob-badge-local {
-    color: var(--m-warning, #d6ff5f);
+    color: var(--m-info, var(--theme-link));
     border-color: color-mix(
       in srgb,
-      var(--m-warning, #d6ff5f) 35%,
+      var(--m-info, var(--theme-link)) 35%,
+      transparent
+    );
+  }
+  .ob-badge-local {
+    color: var(--m-warning, var(--theme-warning));
+    border-color: color-mix(
+      in srgb,
+      var(--m-warning, var(--theme-warning)) 35%,
       transparent
     );
   }
@@ -388,9 +420,18 @@
     border-radius: var(--m-radius-md, 4px);
     background: var(--m-card, var(--theme-card));
   }
+  /* The waiting stage is a live region, so it is a box of its own rather than
+     a bare fragment; it repeats `.ob-oauth`'s gap for the rows it now owns. */
+  .ob-oauth-wait {
+    display: grid;
+    gap: 10px;
+  }
+  /* Device codes are issued by the portal, not by us — a long one must break
+     instead of pushing the panel wider than a 320px screen. */
   .ob-oauth-code {
     font: 600 28px var(--m-font-mono, ui-monospace, monospace);
     letter-spacing: 0.3em;
+    overflow-wrap: anywhere;
     color: var(--m-green-500, var(--theme-accent));
     text-shadow: var(--m-text-glow, none);
   }
@@ -403,6 +444,12 @@
     font: 400 12px var(--m-font-mono, ui-monospace, monospace);
     white-space: pre;
     overflow-x: auto;
+  }
+  /* A command long enough to scroll is focusable so it can be reached with a
+     keyboard (WCAG 2.1.1), which means it needs a ring of its own. */
+  .ob-cli:focus-visible {
+    outline: 1px solid var(--m-green-500, var(--theme-accent));
+    outline-offset: 2px;
   }
 
   /* ── verify ───────────────────────────────────────────────────────────── */
@@ -425,21 +472,34 @@
     border-color: var(--m-border, var(--theme-border));
   }
   .ob-verify-state.is-pending {
-    color: var(--m-warning, #d6ff5f);
-    background: color-mix(in srgb, var(--m-warning, #d6ff5f) 7%, transparent);
+    color: var(--m-warning, var(--theme-warning));
+    background: color-mix(
+      in srgb,
+      var(--m-warning, var(--theme-warning)) 7%,
+      transparent
+    );
     border-color: color-mix(
       in srgb,
-      var(--m-warning, #d6ff5f) 40%,
+      var(--m-warning, var(--theme-warning)) 40%,
       transparent
     );
   }
   .ob-verify-state.is-missing {
-    color: var(--m-danger, #ff5f6d);
-    background: color-mix(in srgb, var(--m-danger, #ff5f6d) 8%, transparent);
-    border-color: color-mix(in srgb, var(--m-danger, #ff5f6d) 40%, transparent);
+    color: var(--m-danger, var(--theme-danger));
+    background: color-mix(
+      in srgb,
+      var(--m-danger, var(--theme-danger)) 8%,
+      transparent
+    );
+    border-color: color-mix(
+      in srgb,
+      var(--m-danger, var(--theme-danger)) 40%,
+      transparent
+    );
   }
   .ob-verify-actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
   }
@@ -461,6 +521,7 @@
   }
   .ob-plugin-name {
     font: 600 12.5px var(--m-font-mono, ui-monospace, monospace);
+    overflow-wrap: anywhere;
     color: var(--m-text-strong, var(--theme-text));
   }
   .ob-plugin-purpose {
@@ -495,18 +556,30 @@
     background: color-mix(in srgb, currentColor 6%, transparent);
   }
   .ob-plugin-state.is-absent {
-    color: var(--m-warning, #d6ff5f);
-    background: color-mix(in srgb, var(--m-warning, #d6ff5f) 8%, transparent);
+    color: var(--m-warning, var(--theme-warning));
+    background: color-mix(
+      in srgb,
+      var(--m-warning, var(--theme-warning)) 8%,
+      transparent
+    );
     border-color: color-mix(
       in srgb,
-      var(--m-warning, #d6ff5f) 35%,
+      var(--m-warning, var(--theme-warning)) 35%,
       transparent
     );
   }
   .ob-plugin-state.is-self {
-    color: var(--m-info, #5fcfff);
-    background: color-mix(in srgb, var(--m-info, #5fcfff) 8%, transparent);
-    border-color: color-mix(in srgb, var(--m-info, #5fcfff) 35%, transparent);
+    color: var(--m-info, var(--theme-link));
+    background: color-mix(
+      in srgb,
+      var(--m-info, var(--theme-link)) 8%,
+      transparent
+    );
+    border-color: color-mix(
+      in srgb,
+      var(--m-info, var(--theme-link)) 35%,
+      transparent
+    );
   }
   .ob-plugin-cli {
     grid-column: 1 / -1;
@@ -520,13 +593,22 @@
   }
   .ob-restart-notice {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     padding: 9px 12px;
     border: 1px solid
-      color-mix(in srgb, var(--m-warning, #d6ff5f) 40%, transparent);
+      color-mix(
+        in srgb,
+        var(--m-warning, var(--theme-warning)) 40%,
+        transparent
+      );
     border-radius: var(--m-radius-md, 4px);
-    background: color-mix(in srgb, var(--m-warning, #d6ff5f) 7%, transparent);
+    background: color-mix(
+      in srgb,
+      var(--m-warning, var(--theme-warning)) 7%,
+      transparent
+    );
     font: 400 11.5px var(--m-font-sans, system-ui, sans-serif);
     color: var(--m-text, var(--theme-text));
   }
@@ -552,6 +634,10 @@
   }
   .ob-theme:hover {
     border-color: var(--m-border, var(--theme-border));
+  }
+  .ob-theme:focus-visible {
+    outline: 1px solid var(--m-green-500, var(--theme-accent));
+    outline-offset: 2px;
   }
   .ob-theme.on {
     border-color: var(--m-green-500, var(--theme-accent));
@@ -616,14 +702,16 @@
     color: var(--m-text-muted, var(--theme-muted));
   }
   .ob-list-item.is-blocked .ob-list-icon {
-    color: var(--m-danger, #ff5f6d);
+    color: var(--m-danger, var(--theme-danger));
   }
   .ob-list-label {
     font: 500 12.5px var(--m-font-mono, ui-monospace, monospace);
+    overflow-wrap: anywhere;
     color: var(--m-text, var(--theme-text));
   }
   .ob-list-detail {
     grid-column: 2 / 3;
+    overflow-wrap: anywhere;
     font: 400 11px var(--m-font-sans, system-ui, sans-serif);
     color: var(--m-text-faint, var(--theme-muted));
   }
@@ -655,13 +743,17 @@
     letter-spacing: 0.18em;
     color: var(--m-text-faint, var(--theme-muted));
   }
+  /* The value is a provider id or a model id straight from the config, so it
+     breaks rather than widening its 120px-minimum grid column. */
   .ob-stat-value {
     font: 600 16px var(--m-font-mono, ui-monospace, monospace);
+    overflow-wrap: anywhere;
     color: var(--m-green-500, var(--theme-accent));
     text-shadow: var(--m-text-glow, none);
   }
   .ob-summary-actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
   }
@@ -686,11 +778,13 @@
 
   /* ── narrow viewports ─────────────────────────────────────────────────── */
   @media (max-width: 640px) {
-    &.ob-surface {
-      align-items: end;
-      max-height: 92dvh;
-      border-radius: var(--m-radius-lg, 8px) var(--m-radius-lg, 8px) 0 0;
-    }
+    /* `.ob-surface` deliberately gets nothing here. It is the first-run
+       variant, which owns the whole viewport with nothing behind it, so the
+       bottom-sheet treatment belongs to the relaunch modal below — and a
+       `max-height` on it could never have applied anyway, since a box cannot
+       be both `height: 100dvh` and shorter than that. */
+
+    /* Two 190px cards will not fit; one full-width card per row will. */
     .ob-fork {
       grid-template-columns: 1fr;
     }
@@ -699,6 +793,22 @@
     }
     .ob-themes {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* A label plus a right-aligned detail cannot share a 292px line without
+       one of them being squeezed to a couple of characters. */
+    .ob-check-row {
+      flex-wrap: wrap;
+      row-gap: 4px;
+    }
+
+    /* The relaunch sheet: `&[data-wizard].ob-relaunch` below is (0,3,0) and
+       beats wizard.css's own `.wz-modal` bottom-sheet rule, so the full-width
+       sizing has to be restated at that specificity or the sheet keeps its
+       desktop width on a phone. */
+    &[data-wizard].ob-relaunch {
+      width: 100%;
+      max-height: 88dvh;
     }
   }
 
@@ -718,7 +828,11 @@
       width: auto;
     }
     &,
-    & * {
+    & *,
+    &::before,
+    &::after,
+    & *::before,
+    & *::after {
       transition-duration: 0s !important;
       transition-delay: 0s !important;
     }
@@ -743,6 +857,23 @@
     gap: var(--m-space-4, 16px);
   }
 
+  /* The three chromeless steps (welcome, summary, finish) render no rail and
+     no footer buttons, so their body *is* the screen. `data-stepper='false'`
+     is exactly that set — `WizardShell` sets it whenever no stepper is
+     passed, and `chromeless` is what suppresses the stepper. Centring belongs
+     here rather than on the surface: `.wz-body` keeps stretching into its
+     `1fr` track (and keeps its scrollbar), and `safe center` degrades to
+     `start` the moment the content is taller than the track, so a long
+     checklist never has its top edge scrolled out of reach. */
+  &[data-wizard][data-stepper='false'] .wz-body {
+    align-content: safe center;
+  }
+  &[data-wizard][data-stepper='false'] .wz-body > * {
+    width: 100%;
+    max-width: 560px;
+    justify-self: center;
+  }
+
   /* Relaunch modal: narrower than the generic `.wz-modal` box. `.ob-relaunch`
      and `.wz-modal` land on the same node (both are the shell's own root
      class), so a plain `.ob-relaunch` rule would tie `.wz-modal` on
@@ -754,7 +885,9 @@
   &[data-wizard].ob-relaunch {
     width: min(640px, calc(100vw - 32px));
     height: fit-content;
-    max-height: min(86vh, calc(100vh - 64px));
+    /* dvh, not vh: on a phone `vh` measures the viewport as if the browser
+       chrome were retracted, so a `vh` cap lets the sheet run under it. */
+    max-height: min(86dvh, calc(100dvh - 64px));
     margin: auto;
   }
 }
