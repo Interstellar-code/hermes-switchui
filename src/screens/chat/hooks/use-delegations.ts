@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { getSessionProfile } from '@/lib/session-scope'
 import { chatQueryKeys, fetchHistory } from '../chat-queries'
 import { readError } from '../utils'
 import type { Delegation } from '../../../server/delegations'
 import type { StreamingDelegation } from '../../../stores/chat-store'
+import { getSessionProfile } from '@/lib/session-scope'
 
 type DelegationsResponse = {
   ok: boolean
