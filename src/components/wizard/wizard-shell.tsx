@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useId, useRef } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
 import './wizard.css'
+import { cn } from '@/lib/utils'
 
 const FOCUSABLE = [
   'a[href]',
@@ -32,6 +33,10 @@ export type WizardShellProps = {
   /** Screen slug — becomes `data-screen` and the `data-testid` suffix. */
   screen: string
   variant?: 'fullscreen' | 'modal'
+  /** Extra class(es) appended to the shell's own root class, for a screen
+   * stylesheet (e.g. `matrix-onboarding.css`) to hook onto the same node
+   * that carries `data-screen`. */
+  className?: string
   title: ReactNode
   subtitle?: ReactNode
   headActions?: ReactNode
@@ -49,6 +54,7 @@ export type WizardShellProps = {
 export function WizardShell({
   screen,
   variant = 'fullscreen',
+  className,
   title,
   subtitle,
   headActions,
@@ -129,7 +135,7 @@ export function WizardShell({
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
-      className={variant === 'modal' ? 'wz-modal' : 'wz-surface'}
+      className={cn(variant === 'modal' ? 'wz-modal' : 'wz-surface', className)}
       onKeyDown={handleKeyDown}
     >
       {backdrop ? (

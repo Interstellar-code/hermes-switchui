@@ -19,7 +19,10 @@ import type { SystemCheck } from '../lib/system-checks'
 export type SystemCheckListProps = {
   checks: Array<SystemCheck>
   loading: boolean
-  onHeal: (action: NonNullable<SystemCheck['heal']>) => void
+  onHeal: (
+    action: NonNullable<SystemCheck['heal']>,
+    payload?: { gatewayUrl?: string },
+  ) => void
   healing: string | null
 }
 
@@ -61,7 +64,7 @@ export function SystemCheckList({
               <SelfHealActions
                 action={heal}
                 busy={healing === heal}
-                onRun={() => onHeal(heal)}
+                onRun={(payload) => onHeal(heal, payload)}
                 gatewayUrl={urlDrafts[check.id] ?? ''}
                 onGatewayUrlChange={(value) =>
                   setUrlDrafts((prev) => ({ ...prev, [check.id]: value }))

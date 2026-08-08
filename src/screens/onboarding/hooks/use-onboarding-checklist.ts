@@ -1,0 +1,157 @@
+'use client'
+
+/**
+ * use-onboarding-checklist.ts — the same "what's left" list the wizard's
+ * summary/finish steps render, available outside the wizard entirely.
+ *
+ * Skipped and never-done items must stay discoverable after the wizard
+ * closes — that's why the sidebar badge and the dashboard card exist. Both
+ * read through this hook rather than duplicating the storage/fetch wiring
+ * `onboarding-screen.tsx` already does for its own summary step.
+ *
+ * `verified` and `pluginsTouched` are always passed as `false` here: those
+ * signals come from live probes (`useSystemChecks`/`useCorePlugins`/the save
+ * hook's verify outcome) that only run *inside* an active wizard session.
+ * Outside the wizard we only have what's in storage, and neither of those is
+ * independently persisted once the wizard's draft is cleared on completion —
+ * the same gap `checklist.ts`'s header comment already documents for the
+ * relaunch summary. `false` is the conservative read: an item that isn't
+ * provably done falls through to whatever `skipped`/`todo` state the stored
+ * outcome supports, which is exactly the "stay discoverable" behaviour this
+ * hook exists for.
+ */
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { buildChecklist, outstandingCount } from '../lib/checklist'
+import {
+  ONBOARDING_COMPLETE_EVENT,
+  ONBOARDING_KEYS,
+  readOnboardingDraft,
+  readOnboardingOutcome,
+} from '../lib/onboarding-storage'
+import type { ChecklistItem } from '../lib/checklist'
+import type {
+  OnboardingDraft,
+  OnboardingOutcome,
+  StorageLike,
+} from '../lib/onboarding-storage'
+
+// Same key `onboarding-screen.tsx` uses for its own `/api/claude-config`
+// query — reusing the literal keeps this hook and a concurrently-mounted
+// wizard sharing one TanStack Query cache entry instead of double-fetching.
+const CONFIG_QUERY_KEY = ['onboarding', 'claude-config'] as const
+
+type ConfigProviderRow = {
+  id?: string
+  configured?: boolean
+  maskedKeys?: Record<string, string>
+}
+
+type ClaudeConfigPayload = {
+  providers?: Array<ConfigProviderRow>
+  activeProvider?: string
+  activeModel?: string
+}
+
+const WATCHED_KEYS: ReadonlySet<string> = new Set(
+  Object.values(ONBOARDING_KEYS),
+)
+
+const EMPTY_ITEMS: Array<ChecklistItem> = []
+
+function safeStorage(): StorageLike | null {
+  if (typeof window === 'undefined') return null
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
+
+async function fetchClaudeConfig(): Promise<ClaudeConfigPayload | null> {
+  try {
+    const res = await fetch('/api/claude-config')
+    if (!res.ok) return null
+    return (await res.json()) as ClaudeConfigPayload
+  } catch {
+    return null
+  }
+}
+
+type Snapshot = {
+  outcome: OnboardingOutcome
+  draft: OnboardingDraft | null
+}
+
+export type UseOnboardingChecklistResult = {
+  items: Array<ChecklistItem>
+  outstanding: number
+  ready: boolean
+}
+
+export function useOnboardingChecklist(): UseOnboardingChecklistResult {
+  const [ready, setReady] = useState(false)
+  const [snapshot, setSnapshot] = useState<Snapshot>({
+    outcome: { kind: 'fresh' },
+    draft: null,
+  })
+
+  const readSnapshot = useCallback(() => {
+    const storage = safeStorage()
+    setSnapshot({
+      outcome: readOnboardingOutcome(storage),
+      draft: readOnboardingDraft(storage),
+    })
+    setReady(true)
+  }, [])
+
+  useEffect(() => {
+    // Never throws: this effect only runs client-side (React skips effects
+    // during SSR), but `readSnapshot`/`safeStorage` stay defensive anyway.
+    readSnapshot()
+
+    const onComplete = () => readSnapshot()
+    const onStorage = (event: StorageEvent) => {
+      // A cleared storage area (`event.key === null`) or a change to any key
+      // this contract owns both warrant a re-read; anything else is noise
+      // from an unrelated feature sharing the same localStorage.
+      if (event.key === null || WATCHED_KEYS.has(event.key)) readSnapshot()
+    }
+
+    window.addEventListener(ONBOARDING_COMPLETE_EVENT, onComplete)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener(ONBOARDING_COMPLETE_EVENT, onComplete)
+      window.removeEventListener('storage', onStorage)
+    }
+  }, [readSnapshot])
+
+  const configQuery = useQuery({
+    queryKey: CONFIG_QUERY_KEY,
+    queryFn: fetchClaudeConfig,
+    retry: false,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  })
+  const activeProvider = configQuery.data?.activeProvider || null
+
+  const items = useMemo(
+    () =>
+      ready
+        ? buildChecklist({
+            outcome: snapshot.outcome,
+            draft: snapshot.draft,
+            activeProvider,
+            verified: false,
+            pluginsTouched: false,
+          })
+        : EMPTY_ITEMS,
+    [activeProvider, ready, snapshot],
+  )
+
+  return {
+    items,
+    outstanding: ready ? outstandingCount(items) : 0,
+    ready,
+  }
+}

@@ -11,7 +11,7 @@ import { WizardField } from '@/components/wizard'
 export type SelfHealActionsProps = {
   action: NonNullable<SystemCheck['heal']>
   busy: boolean
-  onRun: () => void
+  onRun: (payload?: { gatewayUrl?: string }) => void
   gatewayUrl?: string
   onGatewayUrlChange?: (value: string) => void
 }
@@ -37,6 +37,14 @@ export function SelfHealActions({
   gatewayUrl,
   onGatewayUrlChange,
 }: SelfHealActionsProps) {
+  const handleRun = () => {
+    if (action === 'change-url') {
+      onRun({ gatewayUrl })
+      return
+    }
+    onRun()
+  }
+
   return (
     <div className="ob-heal">
       {action === 'change-url' ? (
@@ -54,7 +62,12 @@ export function SelfHealActions({
           )}
         </WizardField>
       ) : null}
-      <button type="button" className="wz-btn" disabled={busy} onClick={onRun}>
+      <button
+        type="button"
+        className="wz-btn"
+        disabled={busy}
+        onClick={handleRun}
+      >
         {busy ? BUSY_LABEL[action] : RUN_LABEL[action]}
       </button>
     </div>

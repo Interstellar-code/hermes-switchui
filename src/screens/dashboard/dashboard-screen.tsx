@@ -13,6 +13,7 @@ import {
   Sun02Icon,
 } from '@hugeicons/core-free-icons'
 import { OpsStrip } from './components/ops-strip'
+import { SetupChecklistCard } from './components/setup-checklist-card'
 import { AchievementsCard } from './components/achievements-card'
 import { HeroMetrics } from './components/hero-metrics'
 import { AnalyticsChartCard } from './components/analytics-chart-card'
@@ -596,6 +597,13 @@ export function DashboardScreen() {
           </button>
         </div>
       </div>
+
+      {/* ── Setup checklist card: only renders once the client-only read
+           settles and finds outstanding, non-dismissed items — see
+           `shouldShowSetupChecklistCard`. Sits above the attention marquee
+           since it's an operator-facing, one-time-ish call to action rather
+           than an ongoing incident feed. ── */}
+      <SetupChecklistCard />
 
       {/* ── Attention marquee ──
            Iteration 008: lifted *out* of the OpsStrip into its own

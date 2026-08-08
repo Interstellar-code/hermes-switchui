@@ -70,13 +70,12 @@
     overflow: hidden;
   }
   /* The relaunch entry point (reopening onboarding from settings later)
-     frames the same content as a centred modal instead of a full page. */
-  &.ob-relaunch {
-    width: min(640px, calc(100vw - 32px));
-    height: fit-content;
-    max-height: min(86vh, calc(100vh - 64px));
-    margin: auto;
-  }
+     frames the same content as a centred modal instead of a full page —
+     see the `&[data-wizard].ob-relaunch` rule in the wizard-overrides
+     section below, which is where its sizing actually lives: it must beat
+     `.wz-modal`'s own width/max-height, and both classes land on the same
+     node, so the plain `.ob-relaunch` form here would tie on specificity
+     and the winner would depend on chunk load order. */
 
   /* ── rain layer ───────────────────────────────────────────────────────── */
   .ob-rain {
@@ -742,5 +741,20 @@
      breathing room than the denser generic wizard forms. */
   &[data-wizard] .wz-body {
     gap: var(--m-space-4, 16px);
+  }
+
+  /* Relaunch modal: narrower than the generic `.wz-modal` box. `.ob-relaunch`
+     and `.wz-modal` land on the same node (both are the shell's own root
+     class), so a plain `.ob-relaunch` rule would tie `.wz-modal` on
+     specificity and the winner would depend on which stylesheet's chunk
+     loads first. Compounding with `[data-wizard]` bumps this to (0,3,0),
+     which beats `.wz-modal`'s (0,2,0) deterministically. `height` and
+     `margin` are repeated from `.wz-modal` for clarity even though they
+     already agree with it. */
+  &[data-wizard].ob-relaunch {
+    width: min(640px, calc(100vw - 32px));
+    height: fit-content;
+    max-height: min(86vh, calc(100vh - 64px));
+    margin: auto;
   }
 }
