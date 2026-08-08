@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import {
+  findBadMatrixFallbacks,
+  stripComments,
+  topLevelSelectors,
+} from '@/lib/css-contract'
 
 /**
  * The providers screen owns a scoped stylesheet. These rules are what keep it
@@ -14,37 +19,20 @@ function read(relPath: string) {
   return readFileSync(resolve(process.cwd(), relPath), 'utf8')
 }
 
-/** Comments can contain braces and colour words; nothing else needs masking. */
-function stripComments(css: string): string {
-  return css.replace(/\/\*[\s\S]*?\*\//g, '')
-}
-
 describe('matrix-providers.css', () => {
   const css = read(CSS_PATH)
   const clean = stripComments(css)
 
   it('is one top-level block, scoped to the screen', () => {
     // Walk brace depth; every rule that opens at depth 0 must be the scope.
-    let depth = 0
-    const topLevelSelectors: Array<string> = []
-    let buffer = ''
+    const selectors = topLevelSelectors(clean)
 
-    for (const char of clean) {
-      if (char === '{') {
-        if (depth === 0) topLevelSelectors.push(buffer.trim())
-        depth += 1
-        buffer = ''
-      } else if (char === '}') {
-        depth -= 1
-        buffer = ''
-      } else {
-        buffer += char
-      }
-    }
-
-    expect(depth).toBe(0)
-    expect(topLevelSelectors).toHaveLength(1)
-    expect(topLevelSelectors[0]).toBe("[data-screen='providers']")
+    // Balanced braces: as many closers as openers.
+    expect((clean.match(/\{/g) ?? []).length).toBe(
+      (clean.match(/\}/g) ?? []).length,
+    )
+    expect(selectors).toHaveLength(1)
+    expect(selectors[0]).toBe("[data-screen='providers']")
   })
 
   it('never paints a hard-coded light surface', () => {
@@ -59,19 +47,7 @@ describe('matrix-providers.css', () => {
     // Every --m-* colour token needs a --theme-* fallback so non-Matrix themes
     // resolve too. Non-colour tokens (fonts, radii, timings) may fall back to
     // a literal, since those are theme-independent.
-    const colourish =
-      /--m-(bg|panel|card|border|text|green|fill|stripe)[a-z0-9-]*/
-    // Glows and shadows are effects, not colours — `none` is a valid fallback
-    // for a theme that does not want the Matrix bloom.
-    const isEffect = /--m-[a-z0-9-]*(glow|shadow)/
-    const badFallbacks = (clean.match(/var\(--m-[^)]*\)/g) ?? []).filter(
-      (token) =>
-        colourish.test(token) &&
-        !isEffect.test(token) &&
-        !token.includes('var(--theme-') &&
-        !token.includes('currentColor'),
-    )
-    expect(badFallbacks).toEqual([])
+    expect(findBadMatrixFallbacks(clean)).toEqual([])
   })
 
   it('is wired to the screen and the portalled wizard', () => {

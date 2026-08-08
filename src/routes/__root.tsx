@@ -19,7 +19,6 @@ import { Toaster } from '@/components/ui/toast'
 import { GatewayRestartBanner } from '@/components/gateway-restart-banner'
 import { DashboardUnavailableBanner } from '@/components/dashboard-unavailable-banner'
 import { UserbackWidget } from '@/components/userback-widget'
-import { OnboardingTour } from '@/components/onboarding/onboarding-tour'
 import { KeyboardShortcutsModal } from '@/components/keyboard-shortcuts-modal'
 import { UpdateCenterNotifier } from '@/components/update-center-notifier'
 import { initializeSettingsAppearance } from '@/hooks/use-settings'
@@ -415,9 +414,6 @@ function RootLayout() {
               it will not write provider config unless the user unlocks it. */}
           {setupWizardOpen ? (
             <ClaudeOnboarding open onClose={closeSetupWizard} />
-          ) : null}
-          {rootSurfaceState.showPostOnboardingOverlays ? (
-            <OnboardingTour />
           ) : null}
         </>
       ) : null}
