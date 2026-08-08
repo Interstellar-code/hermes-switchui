@@ -14,69 +14,53 @@ import {
 } from '../../server/gateway-capabilities'
 import { requireJsonContentType } from '../../server/rate-limit'
 import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
+import {
+  PROVIDER_CATALOG,
+  getProviderEnvKey,
+  getProviderEnvKeys,
+  normalizeProviderId,
+} from '@/lib/provider-catalog'
 
 type AuthResult = Response | true
 
-const CLAUDE_HOME = process.env.HERMES_HOME ?? process.env.CLAUDE_HOME ?? path.join(os.homedir(), '.hermes')
+const CLAUDE_HOME =
+  process.env.HERMES_HOME ??
+  process.env.CLAUDE_HOME ??
+  path.join(os.homedir(), '.hermes')
 const CONFIG_PATH = path.join(CLAUDE_HOME, 'config.yaml')
 const ENV_PATH = path.join(CLAUDE_HOME, '.env')
 
-// Known Hermes providers
-const PROVIDERS = [
-  { id: 'nous', name: 'Nous Portal', authType: 'oauth', envKeys: [] },
-  { id: 'openai-codex', name: 'OpenAI Codex', authType: 'oauth', envKeys: [] },
-  {
-    id: 'anthropic',
-    name: 'Anthropic',
-    authType: 'api_key',
-    envKeys: ['ANTHROPIC_API_KEY'],
-  },
-  {
-    id: 'openrouter',
-    name: 'OpenRouter',
-    authType: 'api_key',
-    envKeys: ['OPENROUTER_API_KEY'],
-  },
-  {
-    id: 'zai',
-    name: 'Z.AI / GLM',
-    authType: 'api_key',
-    envKeys: ['GLM_API_KEY'],
-  },
-  {
-    id: 'kimi-coding',
-    name: 'Kimi / Moonshot',
-    authType: 'api_key',
-    envKeys: ['KIMI_API_KEY'],
-  },
-  {
-    id: 'minimax',
-    name: 'MiniMax',
-    authType: 'api_key',
-    envKeys: ['MINIMAX_API_KEY'],
-  },
-  {
-    id: 'minimax-cn',
-    name: 'MiniMax (China)',
-    authType: 'api_key',
-    envKeys: ['MINIMAX_CN_API_KEY'],
-  },
-  {
-    id: 'xiaomi',
-    name: 'Xiaomi MiMo',
-    authType: 'api_key',
-    envKeys: ['XIAOMI_API_KEY'],
-  },
-  { id: 'ollama', name: 'Ollama (Local)', authType: 'none', envKeys: [] },
-  {
-    id: 'atomic-chat',
-    name: 'Atomic Chat (Local)',
-    authType: 'none',
-    envKeys: [],
-  },
+type ProviderStatusEntry = {
+  id: string
+  name: string
+  authType: 'api_key' | 'oauth' | 'none'
+  envKeys: Array<string>
+}
+
+/**
+ * Known Hermes providers, derived from the shared catalog so this route and
+ * the UI can never disagree about which providers exist or which env var
+ * holds their key. Previously a hardcoded 12-entry list that capped what the
+ * provider UI could report on.
+ */
+const PROVIDERS: Array<ProviderStatusEntry> = [
+  ...PROVIDER_CATALOG.map((provider) => ({
+    id: provider.id,
+    name: provider.name,
+    authType: provider.authTypes.includes('api-key')
+      ? ('api_key' as const)
+      : provider.authTypes.includes('oauth') ||
+          provider.authTypes.includes('cli-token')
+        ? ('oauth' as const)
+        : ('none' as const),
+    envKeys: getProviderEnvKeys(provider.id),
+  })),
+  // Legacy: installs created before `manifest` was the recommended id still
+  // carry a `custom` provider. The gateway cannot resolve it, but its key is
+  // real and must keep showing up as configured.
   {
     id: 'custom',
-    name: 'Custom OpenAI-compatible',
+    name: 'Custom OpenAI-compatible (legacy)',
     authType: 'api_key',
     envKeys: ['CUSTOM_API_KEY'],
   },
@@ -96,7 +80,45 @@ function readConfig(): Record<string, unknown> {
 
 function writeConfig(config: Record<string, unknown>): void {
   fs.mkdirSync(CLAUDE_HOME, { recursive: true })
-  fs.writeFileSync(CONFIG_PATH, YAML.stringify(config), 'utf-8')
+  const serialized = YAML.stringify(config)
+
+  // Keep the previous revision recoverable — this file holds the only copy of
+  // a user's provider setup.
+  try {
+    if (fs.existsSync(CONFIG_PATH)) {
+      fs.copyFileSync(CONFIG_PATH, `${CONFIG_PATH}.bak`)
+    }
+  } catch {
+    // A failed backup must not block the write.
+  }
+
+  // Write-then-rename: a crash mid-write cannot leave a truncated config.yaml.
+  const tmpPath = `${CONFIG_PATH}.tmp`
+  fs.writeFileSync(tmpPath, serialized, 'utf-8')
+  fs.renameSync(tmpPath, CONFIG_PATH)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+/** Top-level config keys a provider delete is permitted to empty. */
+const PROVIDER_WIRING_KEYS = new Set([
+  'providers',
+  'custom_providers',
+  'model_aliases',
+  'provider',
+])
+
+/** Find the real key in `providers`, which may not be normalized on disk. */
+function findProviderKey(
+  providers: Record<string, unknown>,
+  id: string,
+): string | null {
+  for (const key of Object.keys(providers)) {
+    if (normalizeProviderId(key) === id) return key
+  }
+  return null
 }
 
 function readEnv(): Record<string, string> {
@@ -126,10 +148,55 @@ function readEnv(): Record<string, string> {
   }
 }
 
-function writeEnv(env: Record<string, string>): void {
+/**
+ * Apply key updates to ~/.hermes/.env, editing lines in place.
+ *
+ * A previous version serialised `Object.entries(env)` back out, which silently
+ * destroyed every comment, blank line and commented-out example in the file —
+ * a .env shipped with documentation would lose ~490 of its 500 lines the first
+ * time a user saved an API key. Values were preserved, but the file was not.
+ *
+ * `null` or `''` deletes a key, matching the PATCH contract.
+ */
+function applyEnvUpdates(updates: Record<string, string | null>): void {
   fs.mkdirSync(CLAUDE_HOME, { recursive: true })
-  const lines = Object.entries(env).map(([k, v]) => `${k}=${v}`)
-  fs.writeFileSync(ENV_PATH, lines.join('\n') + '\n', 'utf-8')
+
+  let existing = ''
+  try {
+    existing = fs.readFileSync(ENV_PATH, 'utf-8')
+  } catch {
+    existing = ''
+  }
+
+  const lines = existing ? existing.split('\n') : []
+  const pending = new Map(Object.entries(updates))
+
+  const kept: Array<string> = []
+  for (const line of lines) {
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(line)
+    const key = match?.[1]
+    if (!key || !pending.has(key)) {
+      kept.push(line)
+      continue
+    }
+    const value = pending.get(key) ?? null
+    pending.delete(key)
+    // Deletion drops the line entirely; an update rewrites just that line.
+    if (value !== null && value !== '') kept.push(`${key}=${value}`)
+  }
+
+  // Whatever is left is new — append it, keeping a trailing newline.
+  const additions: Array<string> = []
+  for (const [key, value] of pending) {
+    if (value !== null && value !== '') additions.push(`${key}=${value}`)
+  }
+  if (additions.length > 0) {
+    while (kept.length > 0 && kept[kept.length - 1].trim() === '') kept.pop()
+    kept.push(...additions)
+  }
+
+  const body = kept.join('\n')
+  fs.writeFileSync(ENV_PATH, body.endsWith('\n') ? body : `${body}\n`, 'utf-8')
 }
 
 function maskKey(key: string): string {
@@ -154,7 +221,11 @@ function checkAuthStore(providerId: string): {
         const p = value as Record<string, unknown>
         const token = String(p.token || p.key || p.access || '').trim()
         if (token) {
-          return { hasToken: true, source: 'claude-auth-store', maskedKey: maskKey(token) }
+          return {
+            hasToken: true,
+            source: 'claude-auth-store',
+            maskedKey: maskKey(token),
+          }
         }
       }
     }
@@ -185,8 +256,10 @@ export const Route = createFileRoute('/api/claude-config')({
 
         // Build provider status
         const providerStatus = PROVIDERS.map((p) => {
-          const hasEnvKey =
-            p.envKeys.length === 0 || p.envKeys.some((k) => !!env[k])
+          // A provider with no env keys has no key *present* — it used to
+          // report `true` here, which made every OAuth provider look
+          // configured and sourced from `env`.
+          const hasEnvKey = p.envKeys.some((k) => !!env[k])
           const authStoreCheck = checkAuthStore(p.id)
           const hasKey =
             hasEnvKey || authStoreCheck.hasToken || p.authType === 'none'
@@ -294,16 +367,7 @@ export const Route = createFileRoute('/api/claude-config')({
 
         // Handle env var updates
         if (body.env && typeof body.env === 'object') {
-          const currentEnv = readEnv()
-          const envUpdates = body.env as Record<string, string | null>
-          for (const [key, value] of Object.entries(envUpdates)) {
-            if (value === '' || value === null) {
-              delete currentEnv[key]
-            } else {
-              currentEnv[key] = value
-            }
-          }
-          writeEnv(currentEnv)
+          applyEnvUpdates(body.env as Record<string, string | null>)
         }
 
         return Response.json({
@@ -314,6 +378,171 @@ export const Route = createFileRoute('/api/claude-config')({
             'or `pnpm start:all` if you launched everything together) for the provider ' +
             'change to take effect.',
           requiresGatewayRestart: true,
+        })
+      },
+
+      /**
+       * Remove a provider. A narrow verb rather than a null-valued PATCH:
+       * the deep merge above assigns nested nulls rather than deleting them
+       * (it would poison config.yaml), and removing a provider means four
+       * correlated edits that must land together or not at all.
+       */
+      DELETE: async ({ request }) => {
+        const authResult = isAuthenticated(request) as AuthResult
+        if (authResult !== true) return authResult
+
+        const contentTypeError = requireJsonContentType(request)
+        if (contentTypeError) return contentTypeError
+
+        await ensureGatewayProbed()
+        if (!getCapabilities().config) {
+          return Response.json(createCapabilityUnavailablePayload('config'), {
+            status: 503,
+          })
+        }
+
+        let body: { provider?: unknown; removeKey?: unknown }
+        try {
+          body = (await request.json()) as typeof body
+        } catch {
+          return Response.json(
+            { ok: false, error: 'Invalid JSON body' },
+            { status: 400 },
+          )
+        }
+
+        const rawId =
+          typeof body.provider === 'string' ? body.provider.trim() : ''
+        if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(rawId)) {
+          return Response.json(
+            { ok: false, error: 'Invalid provider id' },
+            { status: 400 },
+          )
+        }
+        const id = normalizeProviderId(rawId)
+
+        const config = readConfig()
+        const beforeKeys = Object.keys(config)
+
+        const providers = isRecord(config.providers) ? config.providers : {}
+        const providerKey = findProviderKey(providers, id)
+        const customProviders = Array.isArray(config.custom_providers)
+          ? config.custom_providers
+          : []
+        const matchesId = (entry: unknown) =>
+          isRecord(entry) &&
+          (normalizeProviderId(String(entry.id ?? '')) === id ||
+            normalizeProviderId(String(entry.name ?? '')) === id)
+        const inCustom = customProviders.some(matchesId)
+
+        if (!providerKey && !inCustom) {
+          // Never a silent success — the old UI's failure mode was a delete
+          // that reported nothing and changed nothing.
+          return Response.json(
+            { ok: false, error: `Unknown provider: ${rawId}` },
+            { status: 404 },
+          )
+        }
+
+        // Resolve the credential env var before the entry disappears.
+        const providerEntry = providerKey ? providers[providerKey] : null
+        const keyEnv =
+          (isRecord(providerEntry) && typeof providerEntry.key_env === 'string'
+            ? providerEntry.key_env
+            : null) ?? getProviderEnvKey(id)
+
+        // 1. providers map
+        if (providerKey) delete providers[providerKey]
+        if (Object.keys(providers).length === 0) delete config.providers
+
+        // 2. custom_providers array
+        if (inCustom) {
+          const remaining = customProviders.filter((entry) => !matchesId(entry))
+          if (remaining.length === 0) delete config.custom_providers
+          else config.custom_providers = remaining
+        }
+
+        // 3. model_aliases pointing at this provider
+        if (isRecord(config.model_aliases)) {
+          for (const [alias, value] of Object.entries(config.model_aliases)) {
+            if (
+              isRecord(value) &&
+              normalizeProviderId(String(value.provider ?? '')) === id
+            ) {
+              delete config.model_aliases[alias]
+            }
+          }
+          if (Object.keys(config.model_aliases).length === 0) {
+            delete config.model_aliases
+          }
+        }
+
+        // 4. active provider — hand off to a survivor rather than leaving a
+        //    dangling reference the gateway cannot resolve.
+        const survivor = isRecord(config.providers)
+          ? (Object.keys(config.providers)[0] ?? null)
+          : null
+        let clearedActiveProvider = false
+        if (
+          isRecord(config.model) &&
+          normalizeProviderId(String(config.model.provider ?? '')) === id
+        ) {
+          clearedActiveProvider = true
+          if (survivor) config.model.provider = survivor
+          else delete config.model.provider
+        }
+        if (
+          typeof config.provider === 'string' &&
+          normalizeProviderId(config.provider) === id
+        ) {
+          clearedActiveProvider = true
+          if (survivor) config.provider = survivor
+          else delete config.provider
+        }
+
+        // Guard: a provider delete may only ever empty the four keys that hold
+        // provider wiring. Anything else disappearing means a bug in the code
+        // above, and we would rather 500 than hand back a mangled config.
+        // (An empty result is legitimate when those keys were all the file
+        // held — a config.yaml containing nothing but one provider.)
+        const droppedKeys = beforeKeys.filter((key) => !(key in config))
+        const unexpectedDrop = droppedKeys.find(
+          (key) => !PROVIDER_WIRING_KEYS.has(key),
+        )
+        if (unexpectedDrop) {
+          return Response.json(
+            {
+              ok: false,
+              error: `Refusing a delete that would remove unrelated key: ${unexpectedDrop}`,
+            },
+            { status: 500 },
+          )
+        }
+
+        // 5. credential — opt-in, and never if another provider still uses it.
+        let removedEnvKey: string | null = null
+        if (body.removeKey === true && keyEnv) {
+          const stillReferenced = Object.values(
+            isRecord(config.providers) ? config.providers : {},
+          ).some((entry) => isRecord(entry) && entry.key_env === keyEnv)
+          if (!stillReferenced) {
+            const env = readEnv()
+            if (keyEnv in env) {
+              applyEnvUpdates({ [keyEnv]: null })
+              removedEnvKey = keyEnv
+            }
+          }
+        }
+
+        writeConfig(config)
+
+        return Response.json({
+          ok: true,
+          removed: id,
+          removedEnvKey,
+          clearedActiveProvider,
+          requiresGatewayRestart: true,
+          message: `Removed ${rawId} from ~/.hermes/config.yaml. Restart the Hermes Agent gateway for the change to take effect.`,
         })
       },
     },
