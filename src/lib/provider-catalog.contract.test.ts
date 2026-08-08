@@ -11,6 +11,7 @@ import {
   getProviderEnvKeys,
   stripProviderPrefix,
 } from './provider-catalog'
+import { buildOnboardingProviderChoices } from '@/screens/onboarding/lib/provider-choices'
 
 /**
  * The catalog is the single source of truth for which providers exist and
@@ -106,19 +107,29 @@ describe('registries stay anchored to the catalog', () => {
     expect(ids.filter((id) => !KNOWN_IDS.has(id))).toEqual([])
   })
 
-  it('every provider offered by onboarding exists', () => {
-    const ids = idsIn(
-      'src/components/onboarding/claude-onboarding.tsx',
-      'PROVIDERS',
-    )
+  /**
+   * Onboarding no longer keeps a provider list of its own to grep for: the
+   * choices are *derived* from the catalog at runtime, so this asserts the
+   * real function output instead of its source text. That is a stronger
+   * check — a source-grep passes on a list that exists but is never used.
+   */
+  it('offers every catalog provider except the reserved id', () => {
+    const ids = buildOnboardingProviderChoices().map((choice) => choice.id)
+
     expect(ids.length).toBeGreaterThan(5)
     expect(ids.filter((id) => !KNOWN_IDS.has(id))).toEqual([])
+    expect(ids).not.toContain(RESERVED_PROVIDER_ID)
+    expect([...ids].sort()).toEqual(
+      [...CANONICAL_PROVIDER_IDS]
+        .filter((id) => id !== RESERVED_PROVIDER_ID)
+        .sort(),
+    )
   })
 
   it('no surface hardcodes a credential env var any more', () => {
     for (const relPath of [
       'src/components/settings-dialog/settings-dialog.tsx',
-      'src/components/onboarding/claude-onboarding.tsx',
+      'src/screens/onboarding/lib/provider-choices.ts',
     ]) {
       const source = readFileSync(resolve(process.cwd(), relPath), 'utf8')
       // A bare `envKey: 'SOMETHING_API_KEY'` means the list drifted off-catalog.
@@ -129,7 +140,7 @@ describe('registries stay anchored to the catalog', () => {
 
   it('keeps exactly one implementation of stripProviderPrefix', () => {
     const copies = [
-      'src/components/onboarding/claude-onboarding.tsx',
+      'src/screens/onboarding/lib/provider-choices.ts',
       'src/components/settings-dialog/settings-dialog.tsx',
     ].filter((relPath) =>
       /function stripProviderPrefix/.test(
