@@ -33,8 +33,8 @@ export function PluginsStep({
   return (
     <WizardPanel>
       <p>
-        These are the core Interstellar Hermes Agent plugins — bundled extras
-        that unlock extra screens once they are turned on.
+        These are the core Interstellar Hermes Agent plugins. Each one is
+        bundled with the agent and unlocks an extra screen once it is turned on.
       </p>
       {error ? <WizardNote tone="warn">{error}</WizardNote> : null}
       {loading ? <p>Loading plugin status…</p> : null}

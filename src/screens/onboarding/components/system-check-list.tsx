@@ -30,6 +30,19 @@ export type SystemCheckListProps = {
 const STAGGER_STEP_MS = 60
 const STAGGER_CAP_MS = 480
 
+/**
+ * The dot is the only visual carrier of status, and it is a colour. Every row
+ * therefore also states its status in text, hidden visually but not from
+ * assistive tech — `unknown` reads as "could not tell" rather than as a
+ * failure, matching the rule `system-checks.ts` applies upstream.
+ */
+const STATUS_LABEL: Record<SystemCheck['status'], string> = {
+  ok: 'Passed',
+  warn: 'Warning',
+  fail: 'Failed',
+  unknown: 'Could not tell',
+}
+
 function typeDelayStyle(index: number): CSSProperties {
   const delay = Math.min(index * STAGGER_STEP_MS, STAGGER_CAP_MS)
   return { '--ob-type-delay': `${delay}ms` } as CSSProperties
@@ -59,6 +72,7 @@ export function SystemCheckList({
             <span className="ob-type" style={typeDelayStyle(index)}>
               <span className="ob-check-label">{check.label}</span>
             </span>
+            <span className="wz-sr">{STATUS_LABEL[check.status]}.</span>
             <span className="ob-check-detail">{check.detail}</span>
             {heal ? (
               <SelfHealActions

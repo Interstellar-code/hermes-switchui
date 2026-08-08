@@ -39,7 +39,13 @@ export function WizardReview({
       {[{ target, preview }, ...extras].map((entry, index) => (
         <section key={`${entry.target}-${index}`} className="wz-review-entry">
           <p className="wz-review-target">{entry.target}</p>
-          <pre className="wz-diff">{entry.preview}</pre>
+          {/* `.wz-diff` is `white-space: pre` with `overflow-x: auto`, so a
+              long line makes it a scrollable region — and a scrollable region
+              a keyboard cannot reach is a WCAG 2.1.1 failure. `tabIndex={0}`
+              is the fix; the ring comes from `.wz-diff:focus-visible`. */}
+          <pre className="wz-diff" tabIndex={0}>
+            {entry.preview}
+          </pre>
         </section>
       ))}
       {notes.map((note, index) => (

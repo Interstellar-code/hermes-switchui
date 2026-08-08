@@ -14,6 +14,18 @@
  */
 import type { WizardStatus, WizardStepDef } from './types'
 
+/**
+ * Done and skipped are drawn as a tick and a dimmer colour, neither of which
+ * survives into an accessible name — so each one is said out loud instead.
+ * `current` is left out: `aria-current="step"` already carries it.
+ */
+const STATUS_SUFFIX: Record<WizardStatus, string> = {
+  done: ', completed',
+  skipped: ', skipped',
+  active: '',
+  pending: '',
+}
+
 export type WizardStepperProps<TId extends string, TCtx> = {
   /** Already filtered to the rail — see `railSteps()`. */
   steps: ReadonlyArray<WizardStepDef<TId, TCtx>>
@@ -53,7 +65,7 @@ export function WizardStepper<TId extends string, TCtx>({
               <button
                 type="button"
                 aria-current={isCurrent ? 'step' : undefined}
-                aria-label={`Step ${index + 1} of ${total}: ${step.label}`}
+                aria-label={`Step ${index + 1} of ${total}: ${step.label}${STATUS_SUFFIX[status]}`}
                 disabled={!isReachable(step.id)}
                 onClick={() => onSelect(step.id)}
               >
