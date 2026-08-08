@@ -34,6 +34,7 @@ import {
   setTheme,
 } from '@/lib/theme'
 import { cn } from '@/lib/utils'
+import { getProviderEnvKey } from '@/lib/provider-catalog'
 import { useChatSettingsStore } from '@/hooks/use-chat-settings'
 import BackendUnavailableState from '@/components/backend-unavailable-state'
 import { getUnavailableReason } from '@/lib/feature-gates'
@@ -141,6 +142,11 @@ const SETTINGS_CARD_CLASS =
 
 // ── Section components ──────────────────────────────────────────────────
 
+/**
+ * Display cards for the quick settings dialog. Logos and sample model names
+ * are local presentation data; the credential env var comes from the shared
+ * catalog so it cannot drift from what the server actually writes.
+ */
 const PROVIDER_CARDS: Array<{
   id: string
   name: string
@@ -171,13 +177,18 @@ const PROVIDER_CARDS: Array<{
     logo: '/providers/anthropic.png',
     models: ['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-haiku-3-5'],
     authType: 'api_key',
-    envKey: 'ANTHROPIC_API_KEY',
+    envKey: getProviderEnvKey('anthropic') ?? 'ANTHROPIC_API_KEY',
   },
   {
     id: 'nous',
     name: 'Nous Portal',
     logo: '/providers/nous.png',
-    models: ['xiaomi/mimo-v2-pro', 'xiaomi/mimo-v2-omni', 'claude-3-llama-3.1-405b', 'claude-3-llama-3.1-70b'],
+    models: [
+      'xiaomi/mimo-v2-pro',
+      'xiaomi/mimo-v2-omni',
+      'claude-3-llama-3.1-405b',
+      'claude-3-llama-3.1-70b',
+    ],
     authType: 'oauth',
   },
   {
@@ -193,7 +204,7 @@ const PROVIDER_CARDS: Array<{
     logo: '/providers/openrouter.png',
     models: ['auto', 'deepseek/deepseek-r1', 'google/gemini-2.5-pro'],
     authType: 'api_key',
-    envKey: 'OPENROUTER_API_KEY',
+    envKey: getProviderEnvKey('openrouter') ?? 'OPENROUTER_API_KEY',
   },
   {
     id: 'zai',
@@ -201,7 +212,7 @@ const PROVIDER_CARDS: Array<{
     logo: '/providers/zhipu.png',
     models: ['glm-4-plus', 'glm-4-air'],
     authType: 'api_key',
-    envKey: 'GLM_API_KEY',
+    envKey: getProviderEnvKey('zai') ?? 'GLM_API_KEY',
   },
   {
     id: 'kimi-coding',
@@ -209,7 +220,7 @@ const PROVIDER_CARDS: Array<{
     logo: '/providers/kimi.png',
     models: ['kimi-latest', 'moonshot-v1-128k'],
     authType: 'api_key',
-    envKey: 'KIMI_API_KEY',
+    envKey: getProviderEnvKey('kimi-coding') ?? 'KIMI_API_KEY',
   },
   {
     id: 'minimax',
@@ -217,7 +228,7 @@ const PROVIDER_CARDS: Array<{
     logo: '/providers/minimax.png',
     models: ['MiniMax-M2.7', 'MiniMax-M2.7-Lightning'],
     authType: 'api_key',
-    envKey: 'MINIMAX_API_KEY',
+    envKey: getProviderEnvKey('minimax') ?? 'MINIMAX_API_KEY',
   },
   {
     id: 'xiaomi',
@@ -225,9 +236,16 @@ const PROVIDER_CARDS: Array<{
     logo: '/providers/xiaomi.png',
     models: ['mimo-v2-pro', 'mimo-v2-omni', 'mimo-v2-flash'],
     authType: 'api_key',
-    envKey: 'XIAOMI_API_KEY',
+    envKey: getProviderEnvKey('xiaomi') ?? 'XIAOMI_API_KEY',
   },
-  { id: 'custom', name: 'Custom', logo: '', models: [], authType: 'api_key', envKey: 'CUSTOM_API_KEY' },
+  {
+    id: 'custom',
+    name: 'Custom',
+    logo: '',
+    models: [],
+    authType: 'api_key',
+    envKey: getProviderEnvKey('manifest') ?? 'CUSTOM_API_KEY',
+  },
 ]
 
 function HermesContent() {
@@ -246,39 +264,51 @@ function HermesContent() {
   const [userProfileEnabled, setUserProfileEnabled] = useState(true)
   const [customBaseUrl, setCustomBaseUrl] = useState('')
   const [localDiscovery, setLocalDiscovery] = useState<{
-    providers: Array<{ id: string; name: string; online: boolean; modelCount: number; configured: boolean; needsRestart: boolean }>
+    providers: Array<{
+      id: string
+      name: string
+      online: boolean
+      modelCount: number
+      configured: boolean
+      needsRestart: boolean
+    }>
     models: Array<{ id: string; name: string; provider: string }>
   } | null>(null)
 
-  const fetchModelsForProvider = useCallback((providerId: string) => {
-    // For local providers, prefer auto-discovered models first
-    if (localDiscovery) {
-      const discovered = localDiscovery.models
-        .filter((m) => m.provider === providerId)
-        .map((m) => m.id)
-      if (discovered.length > 0) {
-        setAvailableModels(discovered)
-        return
+  const fetchModelsForProvider = useCallback(
+    (providerId: string) => {
+      // For local providers, prefer auto-discovered models first
+      if (localDiscovery) {
+        const discovered = localDiscovery.models
+          .filter((m) => m.provider === providerId)
+          .map((m) => m.id)
+        if (discovered.length > 0) {
+          setAvailableModels(discovered)
+          return
+        }
       }
-    }
-    fetch(
-      `/api/claude-proxy/api/available-models?provider=${encodeURIComponent(providerId)}`,
-    )
-      .then((r) => r.json())
-      .then((d: { models?: Array<{ id: string }> }) => {
-        setAvailableModels((d.models || []).map((m) => m.id))
-      })
-      .catch(() => {
-        // Fall back to hardcoded
-        const card = PROVIDER_CARDS.find((p) => p.id === providerId)
-        setAvailableModels(card?.models || [])
-      })
-  }, [localDiscovery])
+      fetch(
+        `/api/claude-proxy/api/available-models?provider=${encodeURIComponent(providerId)}`,
+      )
+        .then((r) => r.json())
+        .then((d: { models?: Array<{ id: string }> }) => {
+          setAvailableModels((d.models || []).map((m) => m.id))
+        })
+        .catch(() => {
+          // Fall back to hardcoded
+          const card = PROVIDER_CARDS.find((p) => p.id === providerId)
+          setAvailableModels(card?.models || [])
+        })
+    },
+    [localDiscovery],
+  )
 
   useEffect(() => {
     fetch('/api/local-providers')
       .then((r) => r.json())
-      .then((d: any) => { if (d.ok) setLocalDiscovery(d) })
+      .then((d: any) => {
+        if (d.ok) setLocalDiscovery(d)
+      })
       .catch(() => {})
   }, [])
 
@@ -301,7 +331,8 @@ function HermesContent() {
         setConfiguredKeys(keys)
         // Load custom provider config (may be stored as 'custom' or legacy 'manifest')
         const cfgProviders = (d.config?.providers || {}) as Record<string, any>
-        const customCfg = cfgProviders['custom'] || cfgProviders['manifest'] || {}
+        const customCfg =
+          cfgProviders['custom'] || cfgProviders['manifest'] || {}
         if (customCfg.base_url) setCustomBaseUrl(customCfg.base_url)
       })
       .catch(() => {})
@@ -406,11 +437,15 @@ function HermesContent() {
               (p.authType === 'api_key' &&
                 !!p.envKey &&
                 !!configuredKeys[p.envKey])
-            const missingKey = p.authType === 'api_key' && !verified && p.id !== 'custom'
+            const missingKey =
+              p.authType === 'api_key' && !verified && p.id !== 'custom'
             // hasKey gates click — keep OAuth + local clickable (existing
             // behaviour) so users can still authenticate via the card.
             const hasKey =
-              p.authType === 'none' || p.authType === 'oauth' || verified || p.id === 'custom'
+              p.authType === 'none' ||
+              p.authType === 'oauth' ||
+              verified ||
+              p.id === 'custom'
             return (
               <button
                 key={p.id}
@@ -441,7 +476,9 @@ function HermesContent() {
                 <span className="text-xs font-semibold mt-1">{p.name}</span>
                 <span className="text-[9px]" style={mutedStyle}>
                   {(() => {
-                    const disc = localDiscovery?.providers.find((lp) => lp.id === p.id)
+                    const disc = localDiscovery?.providers.find(
+                      (lp) => lp.id === p.id,
+                    )
                     if (disc?.online) return '🟢 Detected'
                     if (p.authType === 'oauth') return 'OAuth'
                     if (p.authType === 'none') return 'Local'
@@ -471,7 +508,10 @@ function HermesContent() {
                 .filter((m) => m.provider === activeProvider)
                 .map((m) => m.id)
               if (discovered && discovered.length > 0) return discovered
-              return PROVIDER_CARDS.find((p) => p.id === activeProvider)?.models || []
+              return (
+                PROVIDER_CARDS.find((p) => p.id === activeProvider)?.models ||
+                []
+              )
             })().map((model) => (
               <button
                 key={model}
@@ -495,7 +535,10 @@ function HermesContent() {
       {/* Custom OpenAI-compatible endpoint fields — Base URL only; API key lives in API Keys section */}
       {activeProvider === 'custom' && (
         <div>
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wider" style={mutedStyle}>
+          <p
+            className="mb-1 text-xs font-semibold uppercase tracking-wider"
+            style={mutedStyle}
+          >
             Custom Endpoint
           </p>
           <div className="space-y-1.5">
@@ -503,7 +546,10 @@ function HermesContent() {
               const isEditing = editingKey === 'custom_base_url'
               const hasValue = !!customBaseUrl
               return (
-                <div className="flex items-center gap-3 rounded-xl px-3 py-2.5" style={cardStyle}>
+                <div
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5"
+                  style={cardStyle}
+                >
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium">Base URL</div>
                     <div className="text-[11px] font-mono" style={mutedStyle}>
@@ -518,24 +564,74 @@ function HermesContent() {
                           autoFocus
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
-                              save({ config: { model: { provider: 'manifest' }, providers: { manifest: { type: 'openai', base_url: customBaseUrl, key_env: 'CUSTOM_API_KEY' } } } })
-                                .then(() => setEditingKey(null))
+                              save({
+                                config: {
+                                  model: { provider: 'manifest' },
+                                  providers: {
+                                    manifest: {
+                                      type: 'openai',
+                                      base_url: customBaseUrl,
+                                      key_env: 'CUSTOM_API_KEY',
+                                    },
+                                  },
+                                },
+                              }).then(() => setEditingKey(null))
                             }
                             if (e.key === 'Escape') setEditingKey(null)
                           }}
                         />
-                      ) : hasValue ? customBaseUrl : 'Not configured'}
+                      ) : hasValue ? (
+                        customBaseUrl
+                      ) : (
+                        'Not configured'
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={cn('size-2 rounded-full', hasValue ? 'bg-green-500' : 'bg-neutral-500')} />
+                    <span
+                      className={cn(
+                        'size-2 rounded-full',
+                        hasValue ? 'bg-green-500' : 'bg-neutral-500',
+                      )}
+                    />
                     {isEditing ? (
                       <>
-                        <button type="button" onClick={() => { save({ config: { model: { provider: 'manifest' }, providers: { manifest: { type: 'openai', base_url: customBaseUrl, key_env: 'CUSTOM_API_KEY' } } } }).then(() => setEditingKey(null)) }} className="text-xs font-medium text-green-400">Save</button>
-                        <button type="button" onClick={() => setEditingKey(null)} className="text-xs" style={mutedStyle}>Cancel</button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            save({
+                              config: {
+                                model: { provider: 'manifest' },
+                                providers: {
+                                  manifest: {
+                                    type: 'openai',
+                                    base_url: customBaseUrl,
+                                    key_env: 'CUSTOM_API_KEY',
+                                  },
+                                },
+                              },
+                            }).then(() => setEditingKey(null))
+                          }}
+                          className="text-xs font-medium text-green-400"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingKey(null)}
+                          className="text-xs"
+                          style={mutedStyle}
+                        >
+                          Cancel
+                        </button>
                       </>
                     ) : (
-                      <button type="button" onClick={() => setEditingKey('custom_base_url')} className="text-xs font-medium" style={{ color: 'var(--theme-accent)' }}>
+                      <button
+                        type="button"
+                        onClick={() => setEditingKey('custom_base_url')}
+                        className="text-xs font-medium"
+                        style={{ color: 'var(--theme-accent)' }}
+                      >
                         {hasValue ? 'Edit' : 'Add'}
                       </button>
                     )}
@@ -548,11 +644,17 @@ function HermesContent() {
       )}
 
       {(() => {
-        const disc = localDiscovery?.providers.find((lp) => lp.id === activeProvider)
+        const disc = localDiscovery?.providers.find(
+          (lp) => lp.id === activeProvider,
+        )
         if (!disc || !disc.needsRestart) return null
         return (
           <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200">
-            ⚠️ Gateway restart needed to use {disc.name}. Run <code className="rounded bg-black/30 px-1">hermes gateway restart</code> in your terminal.
+            ⚠️ Gateway restart needed to use {disc.name}. Run{' '}
+            <code className="rounded bg-black/30 px-1">
+              hermes gateway restart
+            </code>{' '}
+            in your terminal.
           </div>
         )
       })()}
@@ -1096,10 +1198,7 @@ function ChatContent() {
             value={cs.chatWidth}
             onChange={(e) =>
               updateCS({
-                chatWidth: e.target.value as
-                  | 'comfortable'
-                  | 'wide'
-                  | 'full',
+                chatWidth: e.target.value as 'comfortable' | 'wide' | 'full',
               })
             }
             className="h-8 rounded-md border border-primary-200 bg-primary-50 px-2 text-sm text-primary-900 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary-400"
@@ -1644,7 +1743,10 @@ function LanguageContent() {
         title="Language"
         description="Choose the display language for the workspace UI."
       />
-      <Row label="Interface Language" description="Translates navigation, labels, and buttons.">
+      <Row
+        label="Interface Language"
+        description="Translates navigation, labels, and buttons."
+      >
         <select
           value={getLocale()}
           onChange={(e) => {
@@ -1653,9 +1755,13 @@ function LanguageContent() {
           }}
           className="h-9 w-full rounded-lg border border-primary-200 dark:border-neutral-700 bg-primary-50 dark:bg-neutral-800 px-3 text-sm text-primary-900 dark:text-neutral-100 outline-none md:max-w-xs"
         >
-          {(Object.entries(LOCALE_LABELS) as Array<[LocaleId, string]>).map(([id, label]) => (
-            <option key={id} value={id}>{label}</option>
-          ))}
+          {(Object.entries(LOCALE_LABELS) as Array<[LocaleId, string]>).map(
+            ([id, label]) => (
+              <option key={id} value={id}>
+                {label}
+              </option>
+            ),
+          )}
         </select>
       </Row>
     </div>
@@ -1705,7 +1811,10 @@ export function SettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-mset="dialog" className="inset-0 h-full w-full max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-none border-0 p-0 shadow-xl md:inset-auto md:left-1/2 md:top-1/2 md:h-[min(88dvh,740px)] md:min-h-[520px] md:w-full md:max-w-3xl md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:border md:border-primary-200 bg-[var(--theme-bg)]">
+      <DialogContent
+        data-mset="dialog"
+        className="inset-0 h-full w-full max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-none border-0 p-0 shadow-xl md:inset-auto md:left-1/2 md:top-1/2 md:h-[min(88dvh,740px)] md:min-h-[520px] md:w-full md:max-w-3xl md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl md:border md:border-primary-200 bg-[var(--theme-bg)]"
+      >
         <div className="flex h-full min-h-0 flex-col">
           <div className="flex items-center justify-between border-b border-primary-200 bg-primary-50/80 px-4 py-4 md:rounded-t-2xl md:px-5">
             <div>
