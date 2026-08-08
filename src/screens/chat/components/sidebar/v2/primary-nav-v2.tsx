@@ -29,6 +29,7 @@ import { useBoards } from '@/lib/boards-api'
 import { useProjects } from '@/lib/projects-api'
 import { useNavCounts } from '@/hooks/use-nav-counts'
 import { useSelfImproveAvailable } from '@/hooks/use-self-improve-available'
+import { useSetupWizardStore } from '@/stores/setup-wizard-store'
 
 // ── Icons (inline SVG) ────────────────────────────────────────────────────────
 
@@ -82,6 +83,10 @@ const ICONS = {
   newchat: 'M3 8h10M8 3v10',
   cog: 'M8 5a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4',
   docs: 'M3 2h7l3 3v9H3V2zM10 2v3h3M5 8h6M5 11h4',
+  providers:
+    'M8 1.5l5.5 3v7L8 14.5l-5.5-3v-7l5.5-3zM8 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
+  setup:
+    'M2 14l7-7M9.5 2.5l1 1.5 1.5 1-1.5 1-1 1.5-1-1.5-1.5-1 1.5-1 1-1.5zM13 8l.6 1.1 1.1.6-1.1.6-.6 1.1-.6-1.1-1.1-.6 1.1-.6.6-1.1z',
   backups: 'M3 3h18v4H3V3zm0 6h18v12H3V9zm4 3h10v2H7v-2z',
 } as const
 
@@ -137,6 +142,8 @@ interface NavItemProps {
   label: string
   iconKey: keyof typeof ICONS
   to?: string
+  /** Action item — rendered as a real button instead of a link. */
+  onClick?: () => void
   active: boolean
   collapsed?: boolean
   badge?: string | number | null
@@ -147,6 +154,7 @@ function NavItem({
   label,
   iconKey,
   to,
+  onClick,
   active,
   collapsed,
   badge,
@@ -194,6 +202,27 @@ function NavItem({
       >
         {content}
       </Link>
+    )
+  }
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        style={{
+          ...style,
+          background: active ? style.background : 'none',
+          border: 'none',
+          borderLeft: active ? style.borderLeft : undefined,
+          textAlign: 'left',
+        }}
+        className="m-mono primary-nav-v2-item"
+        data-active={active ? 'true' : undefined}
+        title={collapsed ? label : undefined}
+      >
+        {content}
+      </button>
     )
   }
 
@@ -369,6 +398,7 @@ export function PrimaryNavV2() {
   const pathname = useRouterState({ select: selectPathname })
   const selfImproveAvailable = useSelfImproveAvailable()
   const openSearchModal = useSearchModal((s) => s.openModal)
+  const openSetupWizard = useSetupWizardStore((s) => s.openSetupWizard)
   const agentVersion = useAgentVersion()
   const [collapsed, setCollapsed] = useState<boolean>(readInitialCollapsed)
   const toggleCollapsed = useCallback(() => {
@@ -406,7 +436,8 @@ export function PrimaryNavV2() {
   const isPlugins = pathname.startsWith('/plugins')
   const isMcp = pathname.startsWith('/mcp')
   const isProfiles = pathname.startsWith('/profiles')
-  const isSettings = pathname.startsWith('/settings')
+  const isProviders = pathname.startsWith('/settings/providers')
+  const isSettings = pathname.startsWith('/settings') && !isProviders
   const isBackups = pathname === '/backups' || pathname.startsWith('/backups')
   const isDocs = pathname.startsWith('/docs')
   const boardsQuery = useBoards(true, !collapsed)
@@ -790,6 +821,13 @@ export function PrimaryNavV2() {
           collapsed={collapsed}
         />
         <NavItem
+          label="Providers"
+          iconKey="providers"
+          to="/settings/providers"
+          active={isProviders}
+          collapsed={collapsed}
+        />
+        <NavItem
           label="Skills"
           iconKey="skills"
           to="/skills"
@@ -831,6 +869,13 @@ export function PrimaryNavV2() {
 
         {/* HELP group */}
         {!collapsed && <GroupLabel label="Help" />}
+        <NavItem
+          label="Setup Wizard"
+          iconKey="setup"
+          onClick={openSetupWizard}
+          active={false}
+          collapsed={collapsed}
+        />
         <NavItem
           label="Docs"
           iconKey="docs"

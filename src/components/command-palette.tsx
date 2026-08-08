@@ -12,6 +12,7 @@ import {
   File01Icon,
   McpServerIcon,
   PuzzleIcon,
+  Rocket01Icon,
   Settings01Icon,
 } from '@hugeicons/core-free-icons'
 import type React from 'react'
@@ -35,6 +36,7 @@ import {
   CHAT_RUN_COMMAND_EVENT,
 } from '@/screens/chat/chat-events'
 import { useEnabledUserCommands } from '@/lib/commands-api'
+import { useSetupWizardStore } from '@/stores/setup-wizard-store'
 import { cn } from '@/lib/utils'
 
 type CommandPaletteProps = {
@@ -253,6 +255,24 @@ export function CommandPalette({ pathname, sessions }: CommandPaletteProps) {
         shortcut: 'Go',
         icon: Settings01Icon,
         onSelect: () => void navigate({ to: '/settings', search: {} }),
+      },
+      {
+        id: 'screen-providers',
+        group: 'Screens',
+        label: 'Providers',
+        keywords: 'provider model api key backend openai anthropic ollama',
+        shortcut: 'Go',
+        icon: Settings01Icon,
+        onSelect: () => void navigate({ to: '/settings/providers' }),
+      },
+      {
+        id: 'setup-wizard',
+        group: 'Screens',
+        label: 'Setup Wizard',
+        keywords: 'onboarding setup wizard connect backend first run guide',
+        shortcut: 'Run',
+        icon: Rocket01Icon,
+        onSelect: () => useSetupWizardStore.getState().openSetupWizard(),
       },
     ],
     [navigate],

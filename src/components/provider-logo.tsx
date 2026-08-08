@@ -26,6 +26,30 @@ function useIsLightTheme(): boolean {
   return light
 }
 
+/** Provider ids that ship a logo asset, mapped to their file name. */
+const PROVIDER_LOGO_FILES: Record<string, string> = {
+  nous: 'nous.png',
+  'openai-codex': 'openai.png',
+  openai: 'openai.png',
+  anthropic: 'anthropic.png',
+  openrouter: 'openrouter.png',
+  ollama: 'ollama.png',
+  'atomic-chat': 'atomic-chat.png',
+  kimi: 'kimi.png',
+  'kimi-coding': 'kimi.png',
+  minimax: 'minimax.png',
+  zai: 'zhipu.png',
+  zhipu: 'zhipu.png',
+}
+
+/**
+ * Whether a real logo exists for this provider. Callers that render their own
+ * themed fallback should check this rather than accept the grey placeholder.
+ */
+export function hasProviderLogo(provider: string): boolean {
+  return provider in PROVIDER_LOGO_FILES
+}
+
 export function ProviderLogo({
   provider,
   size = 32,
@@ -38,23 +62,7 @@ export function ProviderLogo({
   const isLight = useIsLightTheme()
   const base = isLight ? '/providers/light' : '/providers'
 
-  // Map provider IDs to file names
-  const fileMap: Record<string, string> = {
-    nous: 'nous.png',
-    'openai-codex': 'openai.png',
-    openai: 'openai.png',
-    anthropic: 'anthropic.png',
-    openrouter: 'openrouter.png',
-    ollama: 'ollama.png',
-    'atomic-chat': 'atomic-chat.png',
-    kimi: 'kimi.png',
-    'kimi-coding': 'kimi.png',
-    minimax: 'minimax.png',
-    zai: 'zhipu.png',
-    zhipu: 'zhipu.png',
-  }
-
-  const file = fileMap[provider]
+  const file = PROVIDER_LOGO_FILES[provider]
   if (!file) {
     return (
       <div

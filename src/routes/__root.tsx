@@ -31,6 +31,7 @@ import {
 } from '@/components/onboarding/claude-onboarding'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { LoginScreen } from '@/components/auth/login-screen'
+import { useSetupWizardStore } from '@/stores/setup-wizard-store'
 import { saveMissionStoreBeforeUnload } from '@/stores/mission-store'
 import { syncSessionProfileToPath } from '@/lib/session-scope'
 
@@ -274,6 +275,8 @@ function RootLayout() {
   )
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null)
   const [mounted, setMounted] = useState(false)
+  const setupWizardOpen = useSetupWizardStore((s) => s.open)
+  const closeSetupWizard = useSetupWizardStore((s) => s.closeSetupWizard)
   useApplyChatWidth()
 
   // The ambient chat profile is set by `/chat/$sessionKey` and must not outlive
@@ -323,7 +326,10 @@ function RootLayout() {
             modelConfigured?: boolean
           } | null,
         ) => {
-          if (status && (status.ok || (status.chatReady && status.modelConfigured))) {
+          if (
+            status &&
+            (status.ok || (status.chatReady && status.modelConfigured))
+          ) {
             localStorage.setItem(ONBOARDING_KEY, 'true')
             syncOnboardingCompletion()
           }
@@ -405,6 +411,11 @@ function RootLayout() {
           <SearchModal />
           <KeyboardShortcutsModal />
           <UpdateCenterNotifier />
+          {/* Sidebar-launched re-run of the setup wizard. Controlled mode →
+              it will not write provider config unless the user unlocks it. */}
+          {setupWizardOpen ? (
+            <ClaudeOnboarding open onClose={closeSetupWizard} />
+          ) : null}
           {rootSurfaceState.showPostOnboardingOverlays ? (
             <OnboardingTour />
           ) : null}

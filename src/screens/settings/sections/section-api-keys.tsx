@@ -27,83 +27,21 @@ import {
   revealEnv,
 } from '@/lib/hermes-client'
 import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
+import { humanizeEnvKey, useEnvVarRow } from '@/hooks/use-env-var-row'
 import { toast } from '@/components/ui/toast'
 
 // ── Helpers ───────────────────────────────────────────────────────
 
-function humanizeKey(key: string): string {
-  return key
-    .replace(/_/g, ' ')
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
 // ── EnvRow ────────────────────────────────────────────────────────
 
 function EnvRow({ envKey, info }: { envKey: string; info: EnvVarInfo }) {
-  const qc = useQueryClient()
-  const [revealedValue, setRevealedValue] = useState<string | null>(null)
-  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [editing, setEditing] = useState(false)
-  const [editValue, setEditValue] = useState('')
+  // Reveal/edit/delete behaviour is shared with the providers drawer — see
+  // src/hooks/use-env-var-row.ts. Only the markup lives here.
+  const row = useEnvVarRow(envKey)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
 
-  useEffect(() => () => { if (revealTimerRef.current) clearTimeout(revealTimerRef.current) }, [])
-
-  async function handleReveal() {
-    if (revealedValue !== null) {
-      setRevealedValue(null)
-      if (revealTimerRef.current) clearTimeout(revealTimerRef.current)
-      revealTimerRef.current = null
-      return
-    }
-    try {
-      const result = await revealEnv(envKey)
-      setRevealedValue(result.value)
-      if (revealTimerRef.current) clearTimeout(revealTimerRef.current)
-      revealTimerRef.current = setTimeout(() => {
-        setRevealedValue(null)
-        revealTimerRef.current = null
-      }, 30_000)
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Failed to reveal', { type: 'error' })
-    }
-  }
-
-  function handleEditOpen() {
-    setEditValue('')
-    setEditing(true)
-  }
-
-  async function handleEditSave() {
-    if (!editValue.trim()) {
-      toast('Value cannot be empty', { type: 'error' })
-      return
-    }
-    try {
-      await putEnv(envKey, editValue.trim())
-      await qc.invalidateQueries({ queryKey: ['env'] })
-      setEditing(false)
-      toast(`${humanizeKey(envKey)} updated`, { type: 'success' })
-    } catch {
-      toast('Failed to update key', { type: 'error' })
-    }
-  }
-
-  async function handleDelete() {
-    try {
-      await deleteEnv(envKey)
-      await qc.invalidateQueries({ queryKey: ['env'] })
-      toast(`${humanizeKey(envKey)} deleted`, { type: 'success' })
-    } catch {
-      toast('Failed to delete key', { type: 'error' })
-    } finally {
-      setConfirmDeleteOpen(false)
-    }
-  }
-
-  const displayValue = revealedValue || info.redacted_value || ''
-  const label = info.description ? info.description : humanizeKey(envKey)
+  const displayValue = row.revealedValue || info.redacted_value || ''
+  const label = info.description ? info.description : humanizeEnvKey(envKey)
 
   return (
     <>
@@ -113,31 +51,60 @@ function EnvRow({ envKey, info }: { envKey: string; info: EnvVarInfo }) {
         pill={info.is_set ? { t: 'set' } : { t: 'missing' }}
       >
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1 }}>
-          {editing ? (
+          {row.editing ? (
             <>
               <PasswordField
-                value={editValue}
+                value={row.editValue}
                 masked={false}
-                onChange={setEditValue}
+                onChange={row.setEditValue}
                 placeholder="Enter new value"
               />
-              <button type="button" className="btn btn-primary btn-sm" onClick={() => void handleEditSave()}>Save</button>
-              <button type="button" className="btn btn-sm" onClick={() => setEditing(false)}>Cancel</button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={row.busy}
+                onClick={() => void row.saveEdit()}
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={row.cancelEdit}
+              >
+                Cancel
+              </button>
             </>
           ) : (
             <>
               <PasswordField
                 value={displayValue}
-                masked={revealedValue === null}
+                masked={!row.isRevealed}
                 onChange={() => undefined}
                 disabled
               />
-              <button type="button" className="btn btn-sm" onClick={() => void handleReveal()}>
-                {revealedValue !== null ? 'Hide' : 'Reveal'}
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => void row.toggleReveal()}
+              >
+                {row.isRevealed ? 'Hide' : 'Reveal'}
               </button>
-              <button type="button" className="btn btn-sm" onClick={handleEditOpen}>Edit</button>
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={row.startEdit}
+              >
+                Edit
+              </button>
               {info.is_set && (
-                <button type="button" className="btn btn-sm btn-danger" onClick={() => setConfirmDeleteOpen(true)}>Delete</button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-danger"
+                  onClick={() => setConfirmDeleteOpen(true)}
+                >
+                  Delete
+                </button>
               )}
             </>
           )}
@@ -147,10 +114,12 @@ function EnvRow({ envKey, info }: { envKey: string; info: EnvVarInfo }) {
       <ConfirmDialog
         open={confirmDeleteOpen}
         title="Delete environment variable"
-        message={`Remove ${humanizeKey(envKey)}? This may break features that depend on it.`}
+        message={`Remove ${humanizeEnvKey(envKey)}? This may break features that depend on it.`}
         confirmLabel="Delete"
         destructive
-        onConfirm={() => void handleDelete()}
+        onConfirm={() => {
+          void row.remove().then(() => setConfirmDeleteOpen(false))
+        }}
         onCancel={() => setConfirmDeleteOpen(false)}
       />
     </>
@@ -180,7 +149,9 @@ function OAuthRow({ provider }: { provider: OAuthProvider }) {
       <tr>
         <td>{provider.name}</td>
         <td>
-          <span className={`pill ${provider.logged_in ? 'pill-ok' : 'pill-warn'}`}>
+          <span
+            className={`pill ${provider.logged_in ? 'pill-ok' : 'pill-warn'}`}
+          >
             {provider.logged_in ? 'logged in' : 'not connected'}
           </span>
         </td>
@@ -188,11 +159,17 @@ function OAuthRow({ provider }: { provider: OAuthProvider }) {
           {provider.token_preview ?? '—'}
         </td>
         <td style={{ fontSize: 11 }}>
-          {provider.expires_at ? new Date(provider.expires_at).toLocaleDateString() : '—'}
+          {provider.expires_at
+            ? new Date(provider.expires_at).toLocaleDateString()
+            : '—'}
         </td>
         <td>
           {provider.logged_in && (
-            <button type="button" className="btn btn-sm btn-danger" onClick={() => setConfirmOpen(true)}>
+            <button
+              type="button"
+              className="btn btn-sm btn-danger"
+              onClick={() => setConfirmOpen(true)}
+            >
               Sign out
             </button>
           )}
@@ -235,34 +212,62 @@ export default function SectionApiKeys() {
 
   const setCount = passwordEntries.filter(([, info]) => info.is_set).length
   const totalCount = passwordEntries.length
-  const oauthConnected = (oauthProviders ?? []).filter((p) => p.logged_in).length
+  const oauthConnected = (oauthProviders ?? []).filter(
+    (p) => p.logged_in,
+  ).length
 
   return (
     <div>
       <div className="section-head">
         <div>
           <h2>API Keys</h2>
-          <div className="desc">Manage environment credentials and OAuth provider connections.</div>
+          <div className="desc">
+            Manage environment credentials and OAuth provider connections.
+          </div>
         </div>
-        <div className="meta">Section · <b>api-keys</b></div>
+        <div className="meta">
+          Section · <b>api-keys</b>
+        </div>
       </div>
 
       {/* Summary card */}
       <SettingCard title="Keys overview">
-        <div style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div
+          style={{
+            padding: '12px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
           <div
             className="kv"
-            style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-text-faint)' }}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+              fontSize: '12px',
+              fontFamily: 'var(--m-font-mono)',
+              color: 'var(--m-text-faint)',
+            }}
           >
             <div>
-              <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>Env keys</span>
+              <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>
+                Env keys
+              </span>
               {' · '}
-              <b style={{ color: 'var(--m-text)' }}>{setCount}/{totalCount} set</b>
+              <b style={{ color: 'var(--m-text)' }}>
+                {setCount}/{totalCount} set
+              </b>
             </div>
             <div>
-              <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>OAuth</span>
+              <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>
+                OAuth
+              </span>
               {' · '}
-              <b style={{ color: 'var(--m-text)' }}>{oauthConnected} connected</b>
+              <b style={{ color: 'var(--m-text)' }}>
+                {oauthConnected} connected
+              </b>
             </div>
           </div>
           <button
@@ -277,10 +282,26 @@ export default function SectionApiKeys() {
 
       <SettingCard title="Environment variables">
         {envLoading && (
-          <div style={{ padding: '12px 18px', color: 'var(--m-text-faint)', fontSize: 12 }}>Loading…</div>
+          <div
+            style={{
+              padding: '12px 18px',
+              color: 'var(--m-text-faint)',
+              fontSize: 12,
+            }}
+          >
+            Loading…
+          </div>
         )}
         {!envLoading && passwordEntries.length === 0 && (
-          <div style={{ padding: '12px 18px', color: 'var(--m-text-faint)', fontSize: 12 }}>No password-type variables found.</div>
+          <div
+            style={{
+              padding: '12px 18px',
+              color: 'var(--m-text-faint)',
+              fontSize: 12,
+            }}
+          >
+            No password-type variables found.
+          </div>
         )}
         {passwordEntries.map(([key, info]) => (
           <EnvRow key={key} envKey={key} info={info} />
@@ -289,11 +310,25 @@ export default function SectionApiKeys() {
 
       <SettingCard title="OAuth providers">
         {oauthLoading && (
-          <div style={{ padding: '12px 18px', color: 'var(--m-text-faint)', fontSize: 12 }}>Loading…</div>
+          <div
+            style={{
+              padding: '12px 18px',
+              color: 'var(--m-text-faint)',
+              fontSize: 12,
+            }}
+          >
+            Loading…
+          </div>
         )}
         {!oauthLoading && (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+            <table
+              style={{
+                width: '100%',
+                fontSize: 12,
+                borderCollapse: 'collapse',
+              }}
+            >
               <thead>
                 <tr style={{ color: 'var(--m-text-faint)', textAlign: 'left' }}>
                   <th style={{ padding: '6px 12px' }}>Provider</th>
@@ -306,7 +341,12 @@ export default function SectionApiKeys() {
               <tbody>
                 {(oauthProviders ?? []).length === 0 ? (
                   <tr>
-                    <td colSpan={5} style={{ padding: '12px', color: 'var(--m-text-faint)' }}>No OAuth providers configured.</td>
+                    <td
+                      colSpan={5}
+                      style={{ padding: '12px', color: 'var(--m-text-faint)' }}
+                    >
+                      No OAuth providers configured.
+                    </td>
                   </tr>
                 ) : (
                   (oauthProviders ?? []).map((p) => (

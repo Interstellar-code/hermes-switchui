@@ -4,31 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { ProviderLogo } from '@/components/provider-logo'
-
-const KNOWN_PROVIDER_PREFIXES = [
-  'openrouter',
-  'anthropic',
-  'openai',
-  'openai-codex',
-  'nous',
-  'ollama',
-  'atomic-chat',
-  'zai',
-  'kimi-coding',
-  'minimax',
-  'minimax-cn',
-]
-
-function stripProviderPrefix(model: string): string {
-  if (!model) return model
-  const slash = model.indexOf('/')
-  if (slash === -1) return model
-  const prefix = model.slice(0, slash)
-  if (KNOWN_PROVIDER_PREFIXES.includes(prefix)) {
-    return model.slice(slash + 1)
-  }
-  return model
-}
+import { getProviderEnvKey, stripProviderPrefix } from '@/lib/provider-catalog'
 
 export const ONBOARDING_KEY = 'claude-onboarding-complete'
 export const ONBOARDING_COMPLETE_EVENT = 'claude:onboarding-complete'
@@ -59,6 +35,11 @@ type GatewayStatusResponse = {
   claudeUrl?: string
 }
 
+/**
+ * Onboarding shows a curated subset in a deliberate order — the free/local
+ * options first. Display copy stays local; the credential env var comes from
+ * the shared catalog so it can never drift from what the server writes.
+ */
 const PROVIDERS = [
   {
     id: 'nous',
@@ -80,7 +61,7 @@ const PROVIDERS = [
     logo: '/providers/anthropic.png',
     desc: 'API key required',
     authType: 'api_key',
-    envKey: 'ANTHROPIC_API_KEY',
+    envKey: getProviderEnvKey('anthropic') ?? undefined,
   },
   {
     id: 'openrouter',
@@ -88,7 +69,7 @@ const PROVIDERS = [
     logo: '/providers/openrouter.png',
     desc: 'API key required',
     authType: 'api_key',
-    envKey: 'OPENROUTER_API_KEY',
+    envKey: getProviderEnvKey('openrouter') ?? undefined,
   },
   {
     id: 'ollama',
@@ -105,11 +86,16 @@ const PROVIDERS = [
     authType: 'none',
   },
   {
+    // Stays `custom` deliberately. Onboarding writes the inline
+    // `model: { provider, base_url }` shape, and the gateway resolves `custom`
+    // there — it is only the *named* `providers: { custom: … }` lookup that
+    // rejects it. The env var is shared with the catalog's `manifest` entry.
     id: 'custom',
     name: 'Custom (OpenAI-compat)',
     logo: '/providers/openai.png',
     desc: 'Any OpenAI-compatible endpoint',
     authType: 'custom',
+    envKey: getProviderEnvKey('manifest') ?? undefined,
   },
 ]
 
@@ -130,8 +116,31 @@ function getEnhancedFeatureNames(
     .map((feature) => feature.label)
 }
 
-export function ClaudeOnboarding() {
-  const [show, setShow] = useState(false)
+export type ClaudeOnboardingProps = {
+  /**
+   * Controlled visibility. Passing this puts the wizard in *relaunch* mode:
+   * it stops self-gating on the `claude-onboarding-complete` flag, gains a
+   * close affordance, and — critically — will not write provider config or
+   * API keys until the user explicitly unlocks changes.
+   */
+  open?: boolean
+  /** Called when a relaunched wizard is finished or dismissed. */
+  onClose?: () => void
+}
+
+export function ClaudeOnboarding({
+  open,
+  onClose,
+}: ClaudeOnboardingProps = {}) {
+  // `open === undefined` → first-run mode (unchanged legacy behaviour).
+  const isRelaunch = open !== undefined
+  const [selfShow, setSelfShow] = useState(false)
+  const show = isRelaunch ? open : selfShow
+  // Relaunches start locked: an existing, working config must survive a
+  // curiosity click-through of the wizard untouched.
+  const [allowConfigWrites, setAllowConfigWrites] = useState(!isRelaunch)
+  const configLocked = isRelaunch && !allowConfigWrites
+  const [initialProvider, setInitialProvider] = useState('')
   const [step, setStep] = useState<Step>('welcome')
   const [backendStatus, setBackendStatus] = useState<
     'idle' | 'checking' | 'ready' | 'error'
@@ -152,7 +161,9 @@ export function ClaudeOnboarding() {
   >('idle')
   const [testMessage, setTestMessage] = useState('')
   const [configuredModel, setConfiguredModel] = useState('')
-  const [discoveredProviders, setDiscoveredProviders] = useState<Array<{ id: string; name?: string; configured?: boolean }>>([])
+  const [discoveredProviders, setDiscoveredProviders] = useState<
+    Array<{ id: string; name?: string; configured?: boolean }>
+  >([])
 
   const [oauthStep, setOauthStep] = useState<
     'idle' | 'loading' | 'waiting' | 'success' | 'error'
@@ -191,6 +202,7 @@ export function ClaudeOnboarding() {
         setSelectedModel((current) => current || normalizedModel)
       }
       if (data.activeProvider) {
+        setInitialProvider(data.activeProvider)
         setSelectedProvider((current) => current || data.activeProvider || null)
       }
       if (data.providers) {
@@ -268,6 +280,8 @@ export function ClaudeOnboarding() {
   const saveProviderConfig = useCallback(async () => {
     if (!selectedProvider) return true
     if (!canEditConfig) return true
+    // Relaunched wizard, changes not unlocked → never touch config.yaml/.env.
+    if (configLocked) return true
 
     setSaving(true)
     setSaveError('')
@@ -307,6 +321,7 @@ export function ClaudeOnboarding() {
     apiKey,
     baseUrl,
     canEditConfig,
+    configLocked,
     loadCurrentConfig,
     loadModels,
     selectedProvider,
@@ -315,6 +330,8 @@ export function ClaudeOnboarding() {
   const saveModelSelection = useCallback(async () => {
     const modelToSave = stripProviderPrefix(selectedModel || configuredModel)
     if (!modelToSave) return true
+    // Locked relaunch: leave both the displayed and the persisted model alone.
+    if (configLocked) return true
 
     setConfiguredModel(modelToSave)
 
@@ -336,7 +353,13 @@ export function ClaudeOnboarding() {
       setSaveError(err instanceof Error ? err.message : 'Failed to save model')
       return false
     }
-  }, [canEditConfig, configuredModel, selectedModel, selectedProvider])
+  }, [
+    canEditConfig,
+    configLocked,
+    configuredModel,
+    selectedModel,
+    selectedProvider,
+  ])
 
   const testConnection = useCallback(async () => {
     setTestStatus('testing')
@@ -455,10 +478,12 @@ export function ClaudeOnboarding() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    // Relaunches are driven entirely by the `open` prop.
+    if (isRelaunch) return
     if (!localStorage.getItem(ONBOARDING_KEY)) {
-      setShow(true)
+      setSelfShow(true)
     }
-  }, [])
+  }, [isRelaunch])
 
   useEffect(() => {
     return () => {
@@ -483,8 +508,24 @@ export function ClaudeOnboarding() {
   const complete = useCallback(() => {
     localStorage.setItem(ONBOARDING_KEY, 'true')
     dispatchOnboardingCompletionChanged(true)
-    setShow(false)
-  }, [])
+    setSelfShow(false)
+    onClose?.()
+  }, [onClose])
+
+  // Relaunch dismissal — closes without re-stamping the completion flag.
+  const dismiss = useCallback(() => {
+    setSelfShow(false)
+    onClose?.()
+  }, [onClose])
+
+  useEffect(() => {
+    if (!isRelaunch || !show) return undefined
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') dismiss()
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [dismiss, isRelaunch, show])
 
   if (!show) return null
 
@@ -508,6 +549,20 @@ export function ClaudeOnboarding() {
         backdropFilter: 'blur(12px)',
       }}
     >
+      {isRelaunch ? (
+        <button
+          type="button"
+          onClick={dismiss}
+          aria-label="Close setup wizard"
+          className="absolute right-5 top-5 rounded-full px-3 py-1.5 text-sm transition-colors"
+          style={{
+            border: '1px solid var(--theme-border)',
+            color: 'var(--theme-muted)',
+          }}
+        >
+          Close (Esc)
+        </button>
+      ) : null}
       <AnimatePresence mode="wait">
         <motion.div
           key={step}
@@ -528,11 +583,26 @@ export function ClaudeOnboarding() {
                   filter: 'drop-shadow(0 8px 24px rgba(99,102,241,0.3))',
                 }}
               />
-              <h2 className="text-xl font-bold">Welcome to Hermes Switch UI</h2>
+              <h2 className="text-xl font-bold">
+                {isRelaunch ? 'Setup Wizard' : 'Welcome to Hermes Switch UI'}
+              </h2>
               <p className="text-sm" style={mutedStyle}>
-                Works with any OpenAI-compatible backend. Hermes Agent gateway APIs
-                unlock sessions, memory, skills, and other extras automatically.
+                Works with any OpenAI-compatible backend. Hermes Agent gateway
+                APIs unlock sessions, memory, skills, and other extras
+                automatically.
               </p>
+              {isRelaunch ? (
+                <p
+                  className="rounded-lg px-3 py-2 text-xs"
+                  style={{
+                    border: '1px solid var(--theme-border)',
+                    color: 'var(--theme-muted)',
+                  }}
+                >
+                  Read-only re-run: your current provider, model, and API keys
+                  stay untouched unless you unlock changes later in the wizard.
+                </p>
+              ) : null}
               <button
                 onClick={() => {
                   setStep('connect')
@@ -542,8 +612,12 @@ export function ClaudeOnboarding() {
               >
                 Connect Backend
               </button>
-              <button onClick={complete} className="text-xs" style={mutedStyle}>
-                Skip setup
+              <button
+                onClick={isRelaunch ? dismiss : complete}
+                className="text-xs"
+                style={mutedStyle}
+              >
+                {isRelaunch ? 'Close' : 'Skip setup'}
               </button>
             </div>
           )}
@@ -600,9 +674,9 @@ export function ClaudeOnboarding() {
                     </p>
                     <p className="mt-2" style={mutedStyle}>
                       Use any backend that exposes{' '}
-                      <code>/v1/chat/completions</code>. If you point Hermes Agent
-                      Workspace at a Hermes Agent gateway, enhanced features unlock
-                      automatically.
+                      <code>/v1/chat/completions</code>. If you point Hermes
+                      Agent Workspace at a Hermes Agent gateway, enhanced
+                      features unlock automatically.
                     </p>
                     <div
                       className="mt-3 rounded-lg px-3 py-2 font-mono text-[11px]"
@@ -648,10 +722,40 @@ export function ClaudeOnboarding() {
                 Choose Provider and Model
               </h2>
               <p className="text-center text-xs" style={mutedStyle}>
-                {canEditConfig
-                  ? 'Save provider settings here, then choose a model before testing chat.'
-                  : 'This backend manages provider settings outside Hermes Switch UI. Confirm the model you expect to use, then test chat.'}
+                {configLocked
+                  ? 'Reviewing your existing setup. Nothing here is saved while changes are locked.'
+                  : canEditConfig
+                    ? 'Save provider settings here, then choose a model before testing chat.'
+                    : 'This backend manages provider settings outside Hermes Switch UI. Confirm the model you expect to use, then test chat.'}
               </p>
+
+              {configLocked ? (
+                <div className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-left text-xs text-amber-200">
+                  <p className="font-medium">
+                    Existing configuration is protected
+                  </p>
+                  <p>
+                    {initialProvider || configuredModel
+                      ? `This workspace already runs ${initialProvider || 'a configured provider'}${
+                          configuredModel ? ` on ${configuredModel}` : ''
+                        }.`
+                      : 'This workspace already has a working backend.'}{' '}
+                    Continuing through the wizard will not modify{' '}
+                    <code>~/.hermes/config.yaml</code> or your stored API keys.
+                  </p>
+                  <button
+                    onClick={() => setAllowConfigWrites(true)}
+                    className="w-full rounded-lg border border-amber-400/40 py-2 text-xs font-medium text-amber-100 transition-colors hover:bg-amber-500/20"
+                  >
+                    Unlock and allow changes
+                  </button>
+                </div>
+              ) : isRelaunch ? (
+                <div className="rounded-xl border border-red-500/30 bg-red-900/20 p-3 text-left text-xs text-red-200">
+                  Changes unlocked — saving now overwrites your current provider
+                  and model configuration.
+                </div>
+              ) : null}
 
               <div className="rounded-xl p-3 text-xs" style={cardStyle}>
                 <p style={mutedStyle}>Backend mode</p>
@@ -681,7 +785,9 @@ export function ClaudeOnboarding() {
                         id: p.id,
                         name: p.name || p.id,
                         logo: '/providers/openai.png',
-                        desc: p.configured ? 'Configured provider' : 'Custom provider',
+                        desc: p.configured
+                          ? 'Configured provider'
+                          : 'Custom provider',
                         authType: 'custom' as const,
                       })),
                   ]
@@ -696,7 +802,9 @@ export function ClaudeOnboarding() {
                       }}
                       className={cn(
                         'flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all',
-                        selectedProvider === p.id ? 'ring-2 ring-accent-500' : '',
+                        selectedProvider === p.id
+                          ? 'ring-2 ring-accent-500'
+                          : '',
                       )}
                       style={cardStyle}
                     >
@@ -722,7 +830,8 @@ export function ClaudeOnboarding() {
               {selectedProvider &&
                 isOAuth &&
                 selectedProvider === 'nous' &&
-                canEditConfig && (
+                canEditConfig &&
+                !configLocked && (
                   <div
                     className="space-y-3 rounded-xl p-4 text-left"
                     style={{ ...cardStyle, borderColor: 'var(--theme-border)' }}
@@ -801,7 +910,8 @@ export function ClaudeOnboarding() {
               {selectedProvider &&
                 isOAuth &&
                 selectedProvider === 'openai-codex' &&
-                canEditConfig && (
+                canEditConfig &&
+                !configLocked && (
                   <div
                     className="space-y-2 rounded-xl p-4 text-left"
                     style={{ ...cardStyle, borderColor: 'var(--theme-border)' }}
@@ -829,56 +939,58 @@ export function ClaudeOnboarding() {
                   </div>
                 )}
 
-              {selectedProvider && (needsApiKey || needsBaseUrl) && (
-                <div className="space-y-2 pt-1">
-                  {needsBaseUrl ? (
-                    <div>
-                      <label
-                        className="mb-1 block text-xs font-medium"
-                        style={mutedStyle}
-                      >
-                        {selectedProvider === 'ollama'
-                          ? 'Ollama URL'
-                          : selectedProvider === 'atomic-chat'
-                            ? 'Atomic Chat URL'
-                            : 'Base URL'}
-                      </label>
-                      <input
-                        type="text"
-                        value={baseUrl}
-                        onChange={(e) => setBaseUrl(e.target.value)}
-                        placeholder={
-                          selectedProvider === 'ollama'
-                            ? 'http://localhost:11434'
+              {selectedProvider &&
+                !configLocked &&
+                (needsApiKey || needsBaseUrl) && (
+                  <div className="space-y-2 pt-1">
+                    {needsBaseUrl ? (
+                      <div>
+                        <label
+                          className="mb-1 block text-xs font-medium"
+                          style={mutedStyle}
+                        >
+                          {selectedProvider === 'ollama'
+                            ? 'Ollama URL'
                             : selectedProvider === 'atomic-chat'
-                              ? 'http://127.0.0.1:1337/v1'
-                              : 'https://api.example.com/v1'
-                        }
-                        className="w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500"
-                        style={inputStyle}
-                      />
-                    </div>
-                  ) : null}
-                  {needsApiKey ? (
-                    <div>
-                      <label
-                        className="mb-1 block text-xs font-medium"
-                        style={mutedStyle}
-                      >
-                        API Key
-                      </label>
-                      <input
-                        type="password"
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        placeholder="sk-..."
-                        className="w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500"
-                        style={inputStyle}
-                      />
-                    </div>
-                  ) : null}
-                </div>
-              )}
+                              ? 'Atomic Chat URL'
+                              : 'Base URL'}
+                        </label>
+                        <input
+                          type="text"
+                          value={baseUrl}
+                          onChange={(e) => setBaseUrl(e.target.value)}
+                          placeholder={
+                            selectedProvider === 'ollama'
+                              ? 'http://localhost:11434'
+                              : selectedProvider === 'atomic-chat'
+                                ? 'http://127.0.0.1:1337/v1'
+                                : 'https://api.example.com/v1'
+                          }
+                          className="w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500"
+                          style={inputStyle}
+                        />
+                      </div>
+                    ) : null}
+                    {needsApiKey ? (
+                      <div>
+                        <label
+                          className="mb-1 block text-xs font-medium"
+                          style={mutedStyle}
+                        >
+                          API Key
+                        </label>
+                        <input
+                          type="password"
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          placeholder="sk-..."
+                          className="w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500"
+                          style={inputStyle}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                )}
 
               <div>
                 <label
@@ -893,7 +1005,8 @@ export function ClaudeOnboarding() {
                     onChange={(e) =>
                       setSelectedModel(stripProviderPrefix(e.target.value))
                     }
-                    className="w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500"
+                    disabled={configLocked}
+                    className="w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500 disabled:opacity-60"
                     style={inputStyle}
                   >
                     {availableModels.map((model) => (
@@ -908,14 +1021,17 @@ export function ClaudeOnboarding() {
                     value={selectedModel}
                     onChange={(e) => setSelectedModel(e.target.value)}
                     placeholder={configuredModel || 'gpt-4.1'}
-                    className="w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500"
+                    disabled={configLocked}
+                    className="w-full rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-accent-500 disabled:opacity-60"
                     style={inputStyle}
                   />
                 )}
                 <p className="mt-2 text-xs" style={mutedStyle}>
-                  {canFetchModels
-                    ? 'Models were fetched from the backend when available.'
-                    : 'If your backend does not expose /v1/models, enter the model name manually.'}
+                  {configLocked
+                    ? 'Model selection is locked while your existing configuration is protected.'
+                    : canFetchModels
+                      ? 'Models were fetched from the backend when available.'
+                      : 'If your backend does not expose /v1/models, enter the model name manually.'}
                 </p>
               </div>
 
@@ -934,6 +1050,7 @@ export function ClaudeOnboarding() {
               <div className="flex gap-2">
                 {selectedProvider &&
                 canEditConfig &&
+                !configLocked &&
                 (needsApiKey || needsBaseUrl) ? (
                   <button
                     onClick={() => void saveProviderConfig()}
@@ -978,8 +1095,8 @@ export function ClaudeOnboarding() {
               <div className="text-4xl">🧪</div>
               <h2 className="text-lg font-bold">Test Chat</h2>
               <p className="text-sm" style={mutedStyle}>
-                Verify that core chat works first. Enhanced Hermes Agent features are
-                optional and appear automatically when supported.
+                Verify that core chat works first. Enhanced Hermes Agent
+                features are optional and appear automatically when supported.
               </p>
 
               <div
@@ -1130,14 +1247,14 @@ export function ClaudeOnboarding() {
                   Available now: {enhancedFeatures.join(', ')}.
                 </p>
               ) : null}
-              {canEditConfig ? (
+              {canEditConfig && !configLocked ? (
                 <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-3 text-left text-xs text-yellow-200">
                   <p className="font-medium">One more step</p>
                   <p className="mt-1">
                     Provider changes are written to{' '}
                     <code>~/.hermes/config.yaml</code>, but the Hermes Agent
-                    gateway only reads its config at startup. Restart it to apply
-                    your selection:
+                    gateway only reads its config at startup. Restart it to
+                    apply your selection:
                   </p>
                   <div
                     className="mt-2 rounded-lg px-3 py-2 font-mono text-[11px]"
@@ -1152,10 +1269,10 @@ export function ClaudeOnboarding() {
                 </div>
               ) : null}
               <button
-                onClick={complete}
+                onClick={isRelaunch ? dismiss : complete}
                 className="w-full rounded-xl bg-accent-500 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-600"
               >
-                Open Workspace
+                {isRelaunch ? 'Back to Workspace' : 'Open Workspace'}
               </button>
             </div>
           )}

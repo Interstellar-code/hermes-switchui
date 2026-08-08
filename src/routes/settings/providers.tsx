@@ -1,11 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { usePageTitle } from '@/hooks/use-page-title'
-import { ProvidersScreen } from '@/screens/settings/providers-screen'
+import { ProvidersScreen } from '@/screens/providers/providers-screen'
 
 export const Route = createFileRoute('/settings/providers')({
   ssr: false,
   component: function SettingsProvidersRoute() {
-    usePageTitle('Provider Setup')
+    usePageTitle('Providers')
     return <ProvidersScreen />
   },
 })
