@@ -1,0 +1,62 @@
+'use client'
+
+/**
+ * self-heal-actions.tsx — the inline remediation control a `SystemCheck`
+ * attaches via its `heal` field. Purely presentational: it never calls the
+ * network itself, only reports "the user asked to run this" via `onRun`.
+ */
+import type { SystemCheck } from '../lib/system-checks'
+import { WizardField } from '@/components/wizard'
+
+export type SelfHealActionsProps = {
+  action: NonNullable<SystemCheck['heal']>
+  busy: boolean
+  onRun: () => void
+  gatewayUrl?: string
+  onGatewayUrlChange?: (value: string) => void
+}
+
+const RUN_LABEL: Record<NonNullable<SystemCheck['heal']>, string> = {
+  'start-agent': 'Start agent',
+  'restart-gateway': 'Restart gateway',
+  reprobe: 'Re-check',
+  'change-url': 'Save and re-check',
+}
+
+const BUSY_LABEL: Record<NonNullable<SystemCheck['heal']>, string> = {
+  'start-agent': 'Starting…',
+  'restart-gateway': 'Restarting…',
+  reprobe: 'Checking…',
+  'change-url': 'Saving…',
+}
+
+export function SelfHealActions({
+  action,
+  busy,
+  onRun,
+  gatewayUrl,
+  onGatewayUrlChange,
+}: SelfHealActionsProps) {
+  return (
+    <div className="ob-heal">
+      {action === 'change-url' ? (
+        <WizardField label="Gateway URL">
+          {(fieldProps) => (
+            <input
+              {...fieldProps}
+              type="url"
+              inputMode="url"
+              placeholder="http://127.0.0.1:8642"
+              value={gatewayUrl ?? ''}
+              disabled={busy}
+              onChange={(event) => onGatewayUrlChange?.(event.target.value)}
+            />
+          )}
+        </WizardField>
+      ) : null}
+      <button type="button" className="wz-btn" disabled={busy} onClick={onRun}>
+        {busy ? BUSY_LABEL[action] : RUN_LABEL[action]}
+      </button>
+    </div>
+  )
+}

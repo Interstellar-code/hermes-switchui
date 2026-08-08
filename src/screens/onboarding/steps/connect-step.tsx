@@ -1,0 +1,276 @@
+'use client'
+
+/**
+ * connect-step.tsx — supplies whatever the chosen provider needs to connect.
+ *
+ * Branches purely on `choice.authKind`. The one thing every branch shares is
+ * that it never writes anything — it only edits the transient draft via
+ * `onChange`; the actual write happens later, gated behind `useOnboardingSave`
+ * on the review step (see CLAUDE.md's write-path rule).
+ */
+import { useEffect, useState } from 'react'
+import { useOnboardingModels } from '../hooks/use-onboarding-models'
+import type {
+  OnboardingDraft,
+  OnboardingTransient,
+} from '../lib/onboarding-storage'
+import type { ProviderChoice } from '../lib/provider-choices'
+import {
+  WizardField,
+  WizardFieldRow,
+  WizardNote,
+  WizardPanel,
+} from '@/components/wizard'
+import { writeTextToClipboard } from '@/lib/clipboard'
+import { useNousOAuth } from '@/screens/providers/hooks/use-nous-oauth'
+
+export type ConnectStepProps = {
+  choice: ProviderChoice | null
+  draft: OnboardingDraft & OnboardingTransient
+  onChange: (patch: Partial<OnboardingDraft & OnboardingTransient>) => void
+  errors: Array<string>
+  hasStoredKey: boolean
+  systemCheckWarning: string | null
+}
+
+/** The model selector, always rendered — a `<select>` when the backend
+ * exposes `/v1/models`, otherwise a free-text fallback. */
+function ModelField({
+  choice,
+  draft,
+  onChange,
+}: {
+  choice: ProviderChoice
+  draft: OnboardingDraft & OnboardingTransient
+  onChange: ConnectStepProps['onChange']
+}) {
+  const { models, loading, error, refetch } = useOnboardingModels({
+    enabled: true,
+    providerId: choice.id,
+  })
+
+  return (
+    <WizardField
+      label="Default model"
+      hint={
+        loading
+          ? 'Loading models…'
+          : models.length > 0
+            ? 'Fetched from this backend.'
+            : 'This backend does not expose /v1/models — type the model name to use.'
+      }
+      error={
+        error ? (
+          <>
+            Could not load models ({error}).{' '}
+            <button type="button" className="wz-btn" onClick={refetch}>
+              Retry
+            </button>
+          </>
+        ) : undefined
+      }
+    >
+      {(fieldProps) =>
+        models.length > 0 ? (
+          <select
+            {...fieldProps}
+            value={draft.defaultModel}
+            onChange={(event) => onChange({ defaultModel: event.target.value })}
+          >
+            <option value="">Choose a model…</option>
+            {models.map((model) => (
+              <option key={model} value={model}>
+                {model}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            {...fieldProps}
+            type="text"
+            value={draft.defaultModel}
+            onChange={(event) => onChange({ defaultModel: event.target.value })}
+            placeholder="e.g. gpt-4.1"
+          />
+        )
+      }
+    </WizardField>
+  )
+}
+
+export function ConnectStep({
+  choice,
+  draft,
+  onChange,
+  errors,
+  hasStoredKey,
+  systemCheckWarning,
+}: ConnectStepProps) {
+  const oauth = useNousOAuth()
+  const [copiedCli, setCopiedCli] = useState(false)
+
+  // The providers dialog only resets this hook when it opens; onboarding
+  // reuses one long-lived step instance across provider switches, so it has
+  // to reset on every `choice.id` change or a stale OAuth session leaks
+  // across providers.
+  useEffect(() => {
+    oauth.reset()
+  }, [choice?.id])
+
+  async function copyCliCommand(command: string) {
+    try {
+      await writeTextToClipboard(command)
+      setCopiedCli(true)
+      setTimeout(() => setCopiedCli(false), 1800)
+    } catch {
+      // Clipboard unavailable — the command is still visible to copy by hand.
+    }
+  }
+
+  if (!choice) {
+    return <WizardNote tone="warn">Choose a provider first.</WizardNote>
+  }
+
+  const cliCommand = choice.cliCommand
+
+  return (
+    <div className="ob-connect">
+      {systemCheckWarning ? (
+        <WizardNote tone="warn">{systemCheckWarning}</WizardNote>
+      ) : null}
+
+      {choice.authKind === 'oauth' && choice.supportsOAuth ? (
+        <div className="ob-oauth">
+          {oauth.stage === 'idle' || oauth.stage === 'error' ? (
+            <>
+              {oauth.error ? (
+                <WizardNote tone="error">{oauth.error}</WizardNote>
+              ) : null}
+              <button
+                type="button"
+                className="wz-btn wz-btn-primary"
+                onClick={() => void oauth.start(choice.id)}
+              >
+                {oauth.stage === 'error'
+                  ? 'Retry sign-in'
+                  : `Connect with ${choice.name}`}
+              </button>
+            </>
+          ) : null}
+          {oauth.stage === 'starting' ? <p>Starting sign-in…</p> : null}
+          {oauth.stage === 'waiting' ? (
+            <>
+              <p>Enter this code at the portal:</p>
+              <p className="ob-oauth-code">{oauth.userCode}</p>
+              {oauth.verificationUrl ? (
+                <button
+                  type="button"
+                  className="wz-btn"
+                  onClick={() =>
+                    window.open(oauth.verificationUrl, '_blank', 'noopener')
+                  }
+                >
+                  Open portal
+                </button>
+              ) : null}
+              <p>Waiting for approval…</p>
+            </>
+          ) : null}
+          {oauth.stage === 'success' ? (
+            <WizardNote tone="ok">
+              Signed in. The credential is stored by the gateway.
+            </WizardNote>
+          ) : null}
+        </div>
+      ) : null}
+
+      {choice.authKind === 'oauth' && !choice.supportsOAuth ? (
+        <WizardNote tone="warn">
+          {choice.name} signs in through OAuth, but the gateway only implements
+          the device-code flow for Nous Portal today. Sign in outside Hermes
+          Switch UI, then continue — the credential is detected automatically.
+        </WizardNote>
+      ) : null}
+
+      {choice.authKind === 'cli-token' && cliCommand ? (
+        <WizardPanel heading="Sign in from a terminal">
+          <p>
+            {choice.name} authenticates through the CLI — the gateway has no
+            device-code flow for it. Run this, then continue:
+          </p>
+          <pre className="ob-cli">{cliCommand}</pre>
+          <button
+            type="button"
+            className="wz-btn"
+            onClick={() => void copyCliCommand(cliCommand)}
+          >
+            {copiedCli ? 'Copied' : 'Copy command'}
+          </button>
+        </WizardPanel>
+      ) : null}
+
+      {choice.authKind === 'api-key' ? (
+        <WizardFieldRow>
+          {choice.baseUrl === null ? (
+            <WizardField label="Base URL" htmlFor="ob-connect-base-url">
+              {(fieldProps) => (
+                <input
+                  {...fieldProps}
+                  type="text"
+                  value={draft.baseUrl}
+                  placeholder="https://api.example.com/v1"
+                  onChange={(event) =>
+                    onChange({ baseUrl: event.target.value })
+                  }
+                />
+              )}
+            </WizardField>
+          ) : null}
+          <WizardField
+            label="API key"
+            hint={
+              hasStoredKey ? 'Leave blank to keep the existing key.' : undefined
+            }
+            htmlFor="ob-connect-api-key"
+          >
+            {(fieldProps) => (
+              <input
+                {...fieldProps}
+                type="password"
+                value={draft.apiKey ?? ''}
+                placeholder={hasStoredKey ? 'unchanged' : 'sk-…'}
+                onChange={(event) => onChange({ apiKey: event.target.value })}
+              />
+            )}
+          </WizardField>
+        </WizardFieldRow>
+      ) : null}
+
+      {choice.authKind === 'local' ? (
+        <WizardField
+          label="Base URL"
+          hint={`${choice.name} runs locally — make sure it is started before continuing.`}
+          htmlFor="ob-connect-base-url"
+        >
+          {(fieldProps) => (
+            <input
+              {...fieldProps}
+              type="text"
+              value={draft.baseUrl}
+              placeholder={choice.baseUrl ?? 'http://127.0.0.1:11434/v1'}
+              onChange={(event) => onChange({ baseUrl: event.target.value })}
+            />
+          )}
+        </WizardField>
+      ) : null}
+
+      <ModelField choice={choice} draft={draft} onChange={onChange} />
+
+      {errors.map((error) => (
+        <WizardNote tone="error" key={error}>
+          {error}
+        </WizardNote>
+      ))}
+    </div>
+  )
+}

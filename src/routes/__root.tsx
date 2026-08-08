@@ -6,7 +6,7 @@ import {
   useRouterState,
 } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import appCss from '../styles.css?url'
 import { getRootSurfaceState } from './-root-layout-state'
 import type { AuthStatus } from '@/lib/claude-auth'
@@ -23,7 +23,7 @@ import { KeyboardShortcutsModal } from '@/components/keyboard-shortcuts-modal'
 import { UpdateCenterNotifier } from '@/components/update-center-notifier'
 import { initializeSettingsAppearance } from '@/hooks/use-settings'
 import { useApplyChatWidth } from '@/hooks/use-chat-settings'
-import { ClaudeOnboarding } from '@/components/onboarding/claude-onboarding'
+import { ONBOARDING_KEYS, OnboardingScreen } from '@/screens/onboarding'
 import { useOnboardingGate } from '@/screens/onboarding/lib/use-onboarding-gate'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { LoginScreen } from '@/components/auth/login-screen'
@@ -280,9 +280,23 @@ function RootLayout() {
   const loginBlocking = Boolean(
     authStatus?.authRequired && !authStatus.authenticated,
   )
-  const { gate, markEngaged, markDismissed } = useOnboardingGate({
+  const { gate, markEngaged, markComplete, markDismissed } = useOnboardingGate({
     probe: authResolved && !loginBlocking,
   })
+
+  // The wizard writes the terminal outcome itself; this only mirrors it into
+  // *this tab's* gate. Without it the gate keeps `active` set — engagement is
+  // per-session in-memory state that no storage event may clear (see
+  // `onboarding-gate.ts`) — and the surface would stay up over an empty
+  // wizard once the user finished or skipped.
+  const settleOnboarding = useCallback(() => {
+    if (typeof window === 'undefined') return
+    if (window.localStorage.getItem(ONBOARDING_KEYS.complete) === 'true') {
+      markComplete()
+    } else {
+      markDismissed()
+    }
+  }, [markComplete, markDismissed])
 
   // The ambient chat profile is set by `/chat/$sessionKey` and must not outlive
   // it. Applied during render, before the routed subtree renders, so a non-chat
@@ -371,7 +385,7 @@ function RootLayout() {
       <UserbackWidget />
       {mounted && rootSurfaceState.showLogin ? <LoginScreen /> : null}
       {mounted && rootSurfaceState.showOnboarding ? (
-        <ClaudeOnboarding onDismissSetup={markDismissed} />
+        <OnboardingScreen onClose={settleOnboarding} />
       ) : null}
       {rootSurfaceState.showWorkspaceShell ? (
         <>
@@ -394,7 +408,7 @@ function RootLayout() {
           {/* Sidebar-launched re-run of the setup wizard. Controlled mode →
               it will not write provider config unless the user unlocks it. */}
           {setupWizardOpen ? (
-            <ClaudeOnboarding open onClose={closeSetupWizard} />
+            <OnboardingScreen open onClose={closeSetupWizard} />
           ) : null}
         </>
       ) : null}
