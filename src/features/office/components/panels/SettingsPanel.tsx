@@ -11,7 +11,6 @@ type SettingsPanelProps = {
   onGatewayUrlChange?: (value: string) => void
   onGatewayTokenChange?: (value: string) => void
   onGatewayAdapterTypeChange?: (value: StudioGatewayAdapterType) => void
-  onOpenOnboarding?: () => void
   officeTitle: string
   officeTitleLoaded: boolean
   onOfficeTitleChange?: (title: string) => void

@@ -2468,7 +2468,6 @@ export function RetroOffice3D({
   onGatewayUrlChange,
   onGatewayTokenChange,
   onGatewayAdapterTypeChange,
-  onOpenOnboarding,
   atmAnalytics = null,
   feedEvents = EMPTY_FEED_EVENTS,
   gatewayStatus = "disconnected",
@@ -2588,7 +2587,6 @@ export function RetroOffice3D({
   onGatewayUrlChange?: (value: string) => void;
   onGatewayTokenChange?: (value: string) => void;
   onGatewayAdapterTypeChange?: (value: StudioGatewayAdapterType) => void;
-  onOpenOnboarding?: () => void;
   atmAnalytics?: OfficeUsageAnalyticsParams | null;
   feedEvents?: Array<FeedEvent>;
   gatewayStatus?: string;
@@ -7339,10 +7337,6 @@ export function RetroOffice3D({
                 onGatewayAdapterTypeChange={(value) =>
                   onGatewayAdapterTypeChange?.(value)
                 }
-                onOpenOnboarding={() => {
-                  onOpenOnboarding?.();
-                  setSettingsModalOpen(false);
-                }}
                 officeTitle={officeTitle}
                 officeTitleLoaded={officeTitleLoaded}
                 onOfficeTitleChange={(title) => onOfficeTitleChange?.(title)}
