@@ -63,3 +63,80 @@ describe('root layout surface state', () => {
     })
   })
 })
+
+describe('OnboardingGate', () => {
+  it('keeps the wizard up and the shell down while the user is engaged', () => {
+    expect(
+      getRootSurfaceState({
+        complete: false,
+        dismissed: false,
+        active: true,
+      }),
+    ).toEqual({
+      showLogin: false,
+      showOnboarding: true,
+      showWorkspaceShell: false,
+      showPostOnboardingOverlays: false,
+    })
+  })
+
+  it('keeps the wizard up when an engaged gate is also marked complete', () => {
+    // A cross-tab completion (or a late probe) must not unmount a wizard the
+    // user is standing in.
+    expect(
+      getRootSurfaceState({ complete: true, dismissed: false, active: true }),
+    ).toEqual({
+      showLogin: false,
+      showOnboarding: true,
+      showWorkspaceShell: false,
+      showPostOnboardingOverlays: false,
+    })
+  })
+
+  it('opens the workspace on dismissal but withholds post-onboarding overlays', () => {
+    expect(
+      getRootSurfaceState({ complete: false, dismissed: true, active: false }),
+    ).toEqual({
+      showLogin: false,
+      showOnboarding: false,
+      showWorkspaceShell: true,
+      showPostOnboardingOverlays: false,
+    })
+  })
+
+  it('opens the workspace and the post-onboarding overlays on completion', () => {
+    expect(
+      getRootSurfaceState({ complete: true, dismissed: false, active: false }),
+    ).toEqual({
+      showLogin: false,
+      showOnboarding: false,
+      showWorkspaceShell: true,
+      showPostOnboardingOverlays: true,
+    })
+  })
+
+  it('shows onboarding for a fresh gate', () => {
+    expect(
+      getRootSurfaceState({ complete: false, dismissed: false, active: false }),
+    ).toEqual({
+      showLogin: false,
+      showOnboarding: true,
+      showWorkspaceShell: false,
+      showPostOnboardingOverlays: false,
+    })
+  })
+
+  it('still shows login ahead of an engaged gate', () => {
+    expect(
+      getRootSurfaceState(
+        { complete: false, dismissed: false, active: true },
+        { authRequired: true, authenticated: false },
+      ),
+    ).toEqual({
+      showLogin: true,
+      showOnboarding: false,
+      showWorkspaceShell: false,
+      showPostOnboardingOverlays: false,
+    })
+  })
+})

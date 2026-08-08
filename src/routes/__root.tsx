@@ -23,11 +23,8 @@ import { KeyboardShortcutsModal } from '@/components/keyboard-shortcuts-modal'
 import { UpdateCenterNotifier } from '@/components/update-center-notifier'
 import { initializeSettingsAppearance } from '@/hooks/use-settings'
 import { useApplyChatWidth } from '@/hooks/use-chat-settings'
-import {
-  ClaudeOnboarding,
-  ONBOARDING_COMPLETE_EVENT,
-  ONBOARDING_KEY,
-} from '@/components/onboarding/claude-onboarding'
+import { ClaudeOnboarding } from '@/components/onboarding/claude-onboarding'
+import { useOnboardingGate } from '@/screens/onboarding/lib/use-onboarding-gate'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { LoginScreen } from '@/components/auth/login-screen'
 import { useSetupWizardStore } from '@/stores/setup-wizard-store'
@@ -269,14 +266,23 @@ export async function unregisterServiceWorkers({
 }
 
 function RootLayout() {
-  const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(
-    null,
-  )
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null)
   const [mounted, setMounted] = useState(false)
   const setupWizardOpen = useSetupWizardStore((s) => s.open)
   const closeSetupWizard = useSetupWizardStore((s) => s.closeSetupWizard)
   useApplyChatWidth()
+
+  // The connection probe is held back until auth has resolved *and* cleared.
+  // An unauthenticated visitor's probe used to stamp the completion flag on
+  // this browser, silently consuming first-run setup for whoever logged in
+  // next. Nothing behind the login screen gets to settle the onboarding gate.
+  const authResolved = authStatus !== null
+  const loginBlocking = Boolean(
+    authStatus?.authRequired && !authStatus.authenticated,
+  )
+  const { gate, markEngaged, markDismissed } = useOnboardingGate({
+    probe: authResolved && !loginBlocking,
+  })
 
   // The ambient chat profile is set by `/chat/$sessionKey` and must not outlive
   // it. Applied during render, before the routed subtree renders, so a non-chat
@@ -300,56 +306,11 @@ function RootLayout() {
     setMounted(true)
     initializeSettingsAppearance()
 
-    const syncOnboardingCompletion = () => {
-      try {
-        setOnboardingComplete(localStorage.getItem(ONBOARDING_KEY) === 'true')
-      } catch {
-        setOnboardingComplete(false)
-      }
-    }
-
     if (typeof window === 'undefined') {
       return undefined
     }
 
     window.addEventListener('beforeunload', saveMissionStoreBeforeUnload)
-    syncOnboardingCompletion()
-
-    void fetch('/api/connection-status')
-      .then((res) => (res.ok ? res.json() : null))
-      .then(
-        (
-          status: {
-            ok?: boolean
-            chatReady?: boolean
-            modelConfigured?: boolean
-          } | null,
-        ) => {
-          if (
-            status &&
-            (status.ok || (status.chatReady && status.modelConfigured))
-          ) {
-            localStorage.setItem(ONBOARDING_KEY, 'true')
-            syncOnboardingCompletion()
-          }
-        },
-      )
-      .catch(() => undefined)
-
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key && event.key !== ONBOARDING_KEY) return
-      syncOnboardingCompletion()
-    }
-
-    const handleOnboardingCompleteChanged = () => {
-      syncOnboardingCompletion()
-    }
-
-    window.addEventListener('storage', handleStorage)
-    window.addEventListener(
-      ONBOARDING_COMPLETE_EVENT,
-      handleOnboardingCompleteChanged,
-    )
 
     void unregisterServiceWorkers({
       serviceWorker:
@@ -359,11 +320,6 @@ function RootLayout() {
 
     return () => {
       window.removeEventListener('beforeunload', saveMissionStoreBeforeUnload)
-      window.removeEventListener('storage', handleStorage)
-      window.removeEventListener(
-        ONBOARDING_COMPLETE_EVENT,
-        handleOnboardingCompleteChanged,
-      )
     }
   }, [])
 
@@ -384,14 +340,39 @@ function RootLayout() {
     }
   }, [])
 
-  const rootSurfaceState = getRootSurfaceState(onboardingComplete, authStatus)
+  const rootSurfaceState = getRootSurfaceState(gate, authStatus)
+  const { showOnboarding } = rootSurfaceState
+
+  // Engagement is observed at the window rather than threaded through the
+  // wizard's internals: while onboarding is the only surface on screen, any
+  // pointer or key event is by definition the user working the wizard. Once
+  // marked, a late connection probe can no longer unmount it (see
+  // `onboarding-gate.ts`). Capture phase so a handler that stops propagation
+  // cannot hide the interaction from us.
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    // `mounted` as well as `showOnboarding`: the surface is only really on
+    // screen once the render guard below lets it through, and listening before
+    // that would let a stray click during hydration count as engagement.
+    if (!mounted || !showOnboarding) return undefined
+
+    const engage = () => markEngaged()
+    window.addEventListener('pointerdown', engage, { capture: true })
+    window.addEventListener('keydown', engage, { capture: true })
+    return () => {
+      window.removeEventListener('pointerdown', engage, { capture: true })
+      window.removeEventListener('keydown', engage, { capture: true })
+    }
+  }, [markEngaged, mounted, showOnboarding])
 
   return (
     <QueryClientProvider client={queryClient}>
       <Toaster />
       <UserbackWidget />
       {mounted && rootSurfaceState.showLogin ? <LoginScreen /> : null}
-      {mounted && rootSurfaceState.showOnboarding ? <ClaudeOnboarding /> : null}
+      {mounted && rootSurfaceState.showOnboarding ? (
+        <ClaudeOnboarding onDismissSetup={markDismissed} />
+      ) : null}
       {rootSurfaceState.showWorkspaceShell ? (
         <>
           <GlobalShortcutListener />
