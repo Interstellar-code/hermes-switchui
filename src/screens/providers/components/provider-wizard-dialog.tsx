@@ -16,6 +16,7 @@ import {
   verifyProviderVisible,
 } from '../lib/verify-provider'
 import { ProviderWriteError } from '../lib/write-paths'
+import { buildYamlPreview } from '../lib/yaml-preview'
 import type { LiveTestOutcome, VerifyOutcome } from '../lib/verify-provider'
 import type { ProviderView } from '../lib/provider-view'
 import {
@@ -48,45 +49,6 @@ type Props = {
   views: Array<ProviderView>
   onOpenChange: (open: boolean) => void
   onSaved: () => void
-}
-
-/** Renders the config.yaml fragment the save will merge in. */
-function buildYamlPreview(input: {
-  id: string
-  baseUrl: string
-  envKey: string
-  makeActive: boolean
-  defaultModel: string
-  inline: boolean
-}): string {
-  if (input.inline) {
-    return [
-      'model:',
-      `  provider: ${input.id}`,
-      input.baseUrl ? `  base_url: ${input.baseUrl}` : null,
-      input.defaultModel ? `  default: ${input.defaultModel}` : null,
-      '  api_key: ********',
-    ]
-      .filter(Boolean)
-      .join('\n')
-  }
-
-  const lines = [
-    'providers:',
-    `  ${input.id}:`,
-    '    type: openai',
-    input.baseUrl ? `    base_url: ${input.baseUrl}` : null,
-    input.envKey ? `    key_env: ${input.envKey}` : null,
-  ].filter(Boolean)
-
-  if (input.makeActive) {
-    lines.push(
-      'model:',
-      `  provider: ${input.id}`,
-      `  default: ${input.defaultModel || 'auto'}`,
-    )
-  }
-  return lines.join('\n')
 }
 
 export function ProviderWizardDialog({
