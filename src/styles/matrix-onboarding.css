@@ -1,0 +1,746 @@
+/**
+ * matrix-onboarding.css — the new onboarding flow, scoped to
+ * [data-screen="onboarding"] to prevent token bleed.
+ *
+ * SCOPE RULE: the `ob-` namespace is the only thing this file may style.
+ * Everything lives inside the single `[data-screen='onboarding'] { … }`
+ * block, using native CSS nesting. The only other top-level construct is
+ * `@keyframes`, which CSS nesting forbids from living inside a style rule.
+ *
+ * CASCADE RULE: `WizardShell` puts both `data-wizard` and
+ * `data-screen="onboarding"` on the same node, so this stylesheet and
+ * wizard.css (`src/components/wizard/wizard.css`) compose on that node.
+ * wizard.css owns the generic `wz-*` grammar (`.wz-steps`, `.wz-field`,
+ * `.wz-panel`, `.wz-btn`, `.wz-pick`, `.wz-grid`, `.wz-diff`, `.wz-foot`,
+ * `.wz-head`, `.wz-body`, `.wz-surface`, `.wz-progress`, `.wz-scan`,
+ * `.wz-modal`, `.wz-backdrop`) — this file never redefines it, only adds new
+ * `ob-*` classes alongside it. The one exception is the labelled "wizard
+ * overrides" section at the end: any rule there that must win against a
+ * `wz-*` rule uses the compound form `&[data-wizard] .wz-x`, which compiles
+ * to `[data-screen='onboarding'][data-wizard] .wz-x` — specificity (0,3,0).
+ * wizard.css's own `[data-wizard] .wz-x` is (0,2,0), so the override wins
+ * deterministically no matter which stylesheet's Vite chunk loads first.
+ *
+ * TOKENS: every themeable colour is `var(--m-X, var(--theme-Y))` so the ten
+ * non-Matrix themes resolve too. Glow and shadow tokens are effects, not
+ * colours, and may fall back to `none`. A literal `#00ff41` or
+ * `rgba(0,255,65,…)` here is a bug — re-tokenise on copy, per the providers
+ * and wizard ancestors this was ported from.
+ */
+
+@keyframes ob-scanline {
+  0% {
+    top: 0;
+    opacity: 0;
+  }
+  5% {
+    opacity: 0.4;
+  }
+  95% {
+    opacity: 0.4;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes ob-type {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+[data-screen='onboarding'] {
+  /* ── surface ──────────────────────────────────────────────────────────── */
+  &.ob-surface {
+    position: relative;
+    min-height: 100dvh;
+    width: 100%;
+    display: grid;
+    align-items: center;
+    justify-items: center;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+      env(safe-area-inset-bottom) env(safe-area-inset-left);
+    background: var(--m-bg, var(--theme-bg));
+    color: var(--m-text, var(--theme-text));
+    overflow: hidden;
+  }
+  /* The relaunch entry point (reopening onboarding from settings later)
+     frames the same content as a centred modal instead of a full page. */
+  &.ob-relaunch {
+    width: min(640px, calc(100vw - 32px));
+    height: fit-content;
+    max-height: min(86vh, calc(100vh - 64px));
+    margin: auto;
+  }
+
+  /* ── rain layer ───────────────────────────────────────────────────────── */
+  .ob-rain {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    opacity: 0.1;
+    pointer-events: none;
+  }
+
+  /* ── scanline (ported from sk-scanline) ──────────────────────────────── */
+  .ob-scan {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .ob-scan::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--m-green-500, var(--theme-accent)),
+      transparent
+    );
+    opacity: 0.4;
+    animation: ob-scanline 4s linear infinite;
+  }
+
+  /* ── welcome fork ─────────────────────────────────────────────────────── */
+  .ob-hero {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    text-align: center;
+    padding: 8px 0 4px;
+  }
+  .ob-logo {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    color: var(--m-green-500, var(--theme-accent));
+  }
+  .ob-title {
+    margin: 0;
+    font: 600 26px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.04em;
+    color: var(--m-text-strong, var(--theme-text));
+    text-shadow: var(--m-text-glow, none);
+  }
+  .ob-tagline {
+    margin: 0;
+    font: 400 13px var(--m-font-sans, system-ui, sans-serif);
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+
+  .ob-fork {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .ob-fork-card {
+    position: relative;
+    display: grid;
+    gap: 6px;
+    padding: 14px;
+    text-align: left;
+    overflow: hidden;
+    border: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+    border-radius: var(--m-radius-md, 4px);
+    background: var(--m-card, var(--theme-card));
+    cursor: pointer;
+    transition:
+      transform var(--m-dur-fast, 120ms) var(--m-ease-out, ease-out),
+      border-color var(--m-dur-fast, 120ms),
+      background var(--m-dur-fast, 120ms);
+  }
+  .ob-fork-card::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--m-green-500, var(--theme-accent));
+  }
+  .ob-fork-card:hover {
+    transform: translateY(-1px);
+    border-color: var(--m-border, var(--theme-border));
+    background: var(--m-fill-subtle, var(--theme-accent-subtle));
+  }
+  .ob-fork-card:focus-visible {
+    outline: none;
+    border-color: var(--m-green-500, var(--theme-accent));
+    box-shadow: 0 0 0 1px
+      color-mix(
+        in srgb,
+        var(--m-green-500, var(--theme-accent)) 55%,
+        transparent
+      );
+  }
+  .ob-fork-card .ob-t {
+    font: 600 13px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.02em;
+    color: var(--m-text-strong, var(--theme-text));
+  }
+  .ob-fork-card .ob-s {
+    font: 400 12px var(--m-font-sans, system-ui, sans-serif);
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+  .ob-fork-card .ob-meta {
+    font: 500 9.5px var(--m-font-mono, ui-monospace, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+
+  .ob-later {
+    position: relative;
+    z-index: 2;
+    justify-self: center;
+    margin-top: 4px;
+    padding: 0;
+    border: none;
+    background: none;
+    font: 400 11.5px var(--m-font-sans, system-ui, sans-serif);
+    color: var(--m-text-faint, var(--theme-muted));
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    transition: color var(--m-dur-fast, 120ms);
+  }
+  .ob-later:hover {
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+
+  /* ── system check ─────────────────────────────────────────────────────── */
+  .ob-checks {
+    display: grid;
+    gap: 6px;
+  }
+  .ob-check-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+    border-radius: var(--m-radius-md, 4px);
+    background: var(--m-card, var(--theme-card));
+  }
+  .ob-check-dot {
+    width: 8px;
+    height: 8px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--m-text-faint, var(--theme-muted));
+  }
+  .ob-check-dot.is-ok {
+    background: var(--m-green-500, var(--theme-accent));
+    box-shadow: 0 0 6px currentColor;
+  }
+  .ob-check-dot.is-warn {
+    background: var(--m-warning, #d6ff5f);
+  }
+  .ob-check-dot.is-fail {
+    background: var(--m-danger, #ff5f6d);
+  }
+  .ob-check-dot.is-unknown {
+    background: var(--m-text-faint, var(--theme-muted));
+  }
+  .ob-check-label {
+    font: 500 12.5px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text, var(--theme-text));
+  }
+  .ob-check-detail {
+    margin-left: auto;
+    text-align: right;
+    font: 400 11px var(--m-font-sans, system-ui, sans-serif);
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+  .ob-heal {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Typewriter reveal for check rows; stagger via --ob-type-delay set
+     inline per-row by the component. */
+  .ob-type {
+    display: inline-block;
+    overflow: hidden;
+    white-space: nowrap;
+    vertical-align: bottom;
+    animation: ob-type 620ms steps(24, end) both;
+    animation-delay: var(--ob-type-delay, 0ms);
+  }
+
+  /* ── provider picker ──────────────────────────────────────────────────── */
+  .ob-prov-groups {
+    display: grid;
+    gap: 16px;
+  }
+  .ob-prov-group {
+    display: grid;
+    gap: 8px;
+  }
+  .ob-prov-group-label {
+    font: 600 9.5px var(--m-font-mono, ui-monospace, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+  .ob-prov-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+  }
+  /* Composes .wz-pick — this only adds the internal layout the generic
+     pick card doesn't define (a logo/name row above the description). */
+  .ob-prov {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+  }
+  .ob-prov-logo {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex: none;
+    border: 1px solid var(--m-border, var(--theme-border));
+    border-radius: 5px;
+    background: var(--m-bg-deep, var(--theme-bg));
+    overflow: hidden;
+  }
+  .ob-prov-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  /* Themed two-letter monogram for catalog providers with no logo asset.
+     Same footprint as .ob-prov-logo so it reads as intentional, not broken. */
+  .ob-prov-fallback {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex: none;
+    border: 1px solid var(--m-border, var(--theme-border));
+    border-radius: 5px;
+    background: var(--m-fill-subtle, var(--theme-accent-subtle));
+    font: 700 11px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.02em;
+    color: var(--m-green-500, var(--theme-accent));
+  }
+  .ob-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 6px;
+    border: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+    border-radius: var(--m-radius-pill, 9999px);
+    font: 500 9px var(--m-font-mono, ui-monospace, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+  .ob-badge-oauth {
+    color: var(--m-info, #5fcfff);
+    border-color: color-mix(in srgb, var(--m-info, #5fcfff) 35%, transparent);
+  }
+  .ob-badge-local {
+    color: var(--m-warning, #d6ff5f);
+    border-color: color-mix(
+      in srgb,
+      var(--m-warning, #d6ff5f) 35%,
+      transparent
+    );
+  }
+  .ob-badge-cli {
+    color: var(--m-green-300, var(--theme-accent-secondary));
+    border-color: color-mix(
+      in srgb,
+      var(--m-green-300, var(--theme-accent-secondary)) 35%,
+      transparent
+    );
+  }
+
+  /* ── connect ──────────────────────────────────────────────────────────── */
+  .ob-connect {
+    display: grid;
+    gap: 12px;
+  }
+  .ob-oauth {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    text-align: center;
+    border: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+    border-radius: var(--m-radius-md, 4px);
+    background: var(--m-card, var(--theme-card));
+  }
+  .ob-oauth-code {
+    font: 600 28px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.3em;
+    color: var(--m-green-500, var(--theme-accent));
+    text-shadow: var(--m-text-glow, none);
+  }
+  .ob-cli {
+    padding: 10px 12px;
+    border-left: 3px solid var(--m-green-500, var(--theme-accent));
+    border-radius: var(--m-radius-md, 4px);
+    background: var(--m-bg-deep, var(--theme-bg));
+    color: var(--m-text, var(--theme-text));
+    font: 400 12px var(--m-font-mono, ui-monospace, monospace);
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  /* ── verify ───────────────────────────────────────────────────────────── */
+  .ob-verify {
+    display: grid;
+    gap: 10px;
+  }
+  .ob-verify-state {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+    border-radius: var(--m-radius-md, 4px);
+    font: 500 12px var(--m-font-mono, ui-monospace, monospace);
+  }
+  .ob-verify-state.is-confirmed {
+    color: var(--m-green-500, var(--theme-accent));
+    background: var(--m-fill, var(--theme-accent-subtle));
+    border-color: var(--m-border, var(--theme-border));
+  }
+  .ob-verify-state.is-pending {
+    color: var(--m-warning, #d6ff5f);
+    background: color-mix(in srgb, var(--m-warning, #d6ff5f) 7%, transparent);
+    border-color: color-mix(
+      in srgb,
+      var(--m-warning, #d6ff5f) 40%,
+      transparent
+    );
+  }
+  .ob-verify-state.is-missing {
+    color: var(--m-danger, #ff5f6d);
+    background: color-mix(in srgb, var(--m-danger, #ff5f6d) 8%, transparent);
+    border-color: color-mix(in srgb, var(--m-danger, #ff5f6d) 40%, transparent);
+  }
+  .ob-verify-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ── plugins ──────────────────────────────────────────────────────────── */
+  .ob-plugins {
+    display: grid;
+    gap: 6px;
+  }
+  .ob-plugin-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+    border-radius: var(--m-radius-md, 4px);
+    background: var(--m-card, var(--theme-card));
+  }
+  .ob-plugin-name {
+    font: 600 12.5px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text-strong, var(--theme-text));
+  }
+  .ob-plugin-purpose {
+    grid-column: 1 / -1;
+    font: 400 11.5px var(--m-font-sans, system-ui, sans-serif);
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+  .ob-plugin-unlocks {
+    grid-column: 1 / -1;
+    font: 400 10.5px var(--m-font-sans, system-ui, sans-serif);
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+  .ob-plugin-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    border: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+    border-radius: var(--m-radius-pill, 9999px);
+    font: 500 9.5px var(--m-font-mono, ui-monospace, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+  }
+  .ob-plugin-state.is-enabled {
+    color: var(--m-green-500, var(--theme-accent));
+    background: var(--m-fill, var(--theme-accent-subtle));
+    border-color: var(--m-border, var(--theme-border));
+  }
+  .ob-plugin-state.is-inactive {
+    color: var(--m-text-faint, var(--theme-muted));
+    background: color-mix(in srgb, currentColor 6%, transparent);
+  }
+  .ob-plugin-state.is-absent {
+    color: var(--m-warning, #d6ff5f);
+    background: color-mix(in srgb, var(--m-warning, #d6ff5f) 8%, transparent);
+    border-color: color-mix(
+      in srgb,
+      var(--m-warning, #d6ff5f) 35%,
+      transparent
+    );
+  }
+  .ob-plugin-state.is-self {
+    color: var(--m-info, #5fcfff);
+    background: color-mix(in srgb, var(--m-info, #5fcfff) 8%, transparent);
+    border-color: color-mix(in srgb, var(--m-info, #5fcfff) 35%, transparent);
+  }
+  .ob-plugin-cli {
+    grid-column: 1 / -1;
+    padding: 8px 10px;
+    border: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+    border-radius: var(--m-radius-md, 4px);
+    background: var(--m-bg-deep, var(--theme-bg));
+    color: var(--m-text-muted, var(--theme-muted));
+    font: 400 11px var(--m-font-mono, ui-monospace, monospace);
+    overflow-x: auto;
+  }
+  .ob-restart-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border: 1px solid
+      color-mix(in srgb, var(--m-warning, #d6ff5f) 40%, transparent);
+    border-radius: var(--m-radius-md, 4px);
+    background: color-mix(in srgb, var(--m-warning, #d6ff5f) 7%, transparent);
+    font: 400 11.5px var(--m-font-sans, system-ui, sans-serif);
+    color: var(--m-text, var(--theme-text));
+  }
+
+  /* ── theme picker ─────────────────────────────────────────────────────── */
+  .ob-themes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 8px;
+  }
+  .ob-theme {
+    display: grid;
+    gap: 6px;
+    padding: 10px;
+    text-align: left;
+    border: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+    border-radius: var(--m-radius-md, 4px);
+    background: var(--m-bg-deep, var(--theme-bg));
+    cursor: pointer;
+    transition:
+      border-color var(--m-dur-fast, 120ms),
+      background var(--m-dur-fast, 120ms);
+  }
+  .ob-theme:hover {
+    border-color: var(--m-border, var(--theme-border));
+  }
+  .ob-theme.on {
+    border-color: var(--m-green-500, var(--theme-accent));
+    background: var(--m-fill, var(--theme-accent-subtle));
+  }
+  /* Per-theme preview strip; the component passes --ob-swatch-1/2/3 inline
+     so this rule stays theme-agnostic. */
+  .ob-theme-swatch {
+    height: 28px;
+    border: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+    border-radius: var(--m-radius-sm, 2px);
+    background: linear-gradient(
+      90deg,
+      var(--ob-swatch-1, var(--m-bg, var(--theme-bg))) 0%,
+      var(--ob-swatch-2, var(--m-panel, var(--theme-panel))) 50%,
+      var(--ob-swatch-3, var(--m-green-500, var(--theme-accent))) 100%
+    );
+  }
+  .ob-theme-name {
+    font: 600 11.5px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text-strong, var(--theme-text));
+  }
+  .ob-theme-desc {
+    font: 400 10.5px var(--m-font-sans, system-ui, sans-serif);
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+
+  /* ── checklist ────────────────────────────────────────────────────────── */
+  .ob-list {
+    display: grid;
+    gap: 6px;
+  }
+  .ob-list-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 4px 10px;
+    padding: 9px 12px;
+    border: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+    border-radius: var(--m-radius-md, 4px);
+    background: var(--m-card, var(--theme-card));
+  }
+  .ob-list-icon {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    flex: none;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    font-size: 10px;
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+  .ob-list-item.is-done .ob-list-icon {
+    color: var(--m-green-500, var(--theme-accent));
+    box-shadow: 0 0 6px currentColor;
+  }
+  .ob-list-item.is-skipped .ob-list-icon {
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+  .ob-list-item.is-todo .ob-list-icon {
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+  .ob-list-item.is-blocked .ob-list-icon {
+    color: var(--m-danger, #ff5f6d);
+  }
+  .ob-list-label {
+    font: 500 12.5px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text, var(--theme-text));
+  }
+  .ob-list-detail {
+    grid-column: 2 / 3;
+    font: 400 11px var(--m-font-sans, system-ui, sans-serif);
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+  .ob-list-action {
+    justify-self: end;
+  }
+
+  /* ── summary ──────────────────────────────────────────────────────────── */
+  .ob-summary {
+    display: grid;
+    gap: 14px;
+  }
+  .ob-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+  }
+  .ob-stat {
+    display: grid;
+    gap: 3px;
+    padding: 10px 12px;
+    border: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+    border-radius: var(--m-radius-md, 4px);
+    background: var(--m-panel, var(--theme-panel));
+  }
+  .ob-stat-label {
+    font: 600 9px var(--m-font-mono, ui-monospace, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+  .ob-stat-value {
+    font: 600 16px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-green-500, var(--theme-accent));
+    text-shadow: var(--m-text-glow, none);
+  }
+  .ob-summary-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ── finish ───────────────────────────────────────────────────────────── */
+  .ob-finish {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    gap: 10px;
+    justify-items: center;
+    text-align: center;
+    padding: 12px 0;
+  }
+  .ob-finish-title {
+    margin: 0;
+    font: 600 22px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.04em;
+    color: var(--m-text-strong, var(--theme-text));
+    text-shadow: var(--m-text-glow, none);
+  }
+
+  /* ── narrow viewports ─────────────────────────────────────────────────── */
+  @media (max-width: 640px) {
+    &.ob-surface {
+      align-items: end;
+      max-height: 92dvh;
+      border-radius: var(--m-radius-lg, 8px) var(--m-radius-lg, 8px) 0 0;
+    }
+    .ob-fork {
+      grid-template-columns: 1fr;
+    }
+    .ob-prov-grid {
+      grid-template-columns: 1fr;
+    }
+    .ob-themes {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  /* ── reduced motion ───────────────────────────────────────────────────── */
+  /* Every animation declared above is disabled at its own rule; transitions
+     are killed wholesale via the universal selector below. */
+  @media (prefers-reduced-motion: reduce) {
+    .ob-rain {
+      display: none;
+    }
+    .ob-scan::after {
+      animation: none;
+      opacity: 0;
+    }
+    .ob-type {
+      animation: none;
+      width: auto;
+    }
+    &,
+    & * {
+      transition-duration: 0s !important;
+      transition-delay: 0s !important;
+    }
+  }
+
+  /* ── wizard overrides ─────────────────────────────────────────────────── */
+  /* Compound with [data-wizard] so these beat wizard.css's own rules
+     regardless of import order (see header comment for the specificity
+     math). Kept intentionally small — only where onboarding genuinely
+     needs to diverge from the generic shell. */
+
+  /* The generic shell paints its own repeating-stripe scan layer; onboarding
+     supplies its own single sweeping bar (.ob-scan) instead, so the two must
+     not run at once. */
+  &[data-wizard] .wz-scan {
+    display: none;
+  }
+
+  /* Onboarding's steps (hero, provider grid, theme picker) want more
+     breathing room than the denser generic wizard forms. */
+  &[data-wizard] .wz-body {
+    gap: var(--m-space-4, 16px);
+  }
+}

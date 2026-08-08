@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { ProviderLogo } from '@/components/provider-logo'
 import { getProviderEnvKey, stripProviderPrefix } from '@/lib/provider-catalog'
+import { writeOnboardingDismissed } from '@/screens/onboarding/lib/onboarding-storage'
 
 export const ONBOARDING_KEY = 'claude-onboarding-complete'
 export const ONBOARDING_COMPLETE_EVENT = 'claude:onboarding-complete'
@@ -126,11 +127,18 @@ export type ClaudeOnboardingProps = {
   open?: boolean
   /** Called when a relaunched wizard is finished or dismissed. */
   onClose?: () => void
+  /**
+   * First-run "Skip setup". Separate from `onClose` because skipping is not
+   * completion: it must record a *dismissal* so the user stays re-promptable.
+   * Falls back to writing the dismissal directly when unwired.
+   */
+  onDismissSetup?: () => void
 }
 
 export function ClaudeOnboarding({
   open,
   onClose,
+  onDismissSetup,
 }: ClaudeOnboardingProps = {}) {
   // `open === undefined` → first-run mode (unchanged legacy behaviour).
   const isRelaunch = open !== undefined
@@ -518,6 +526,20 @@ export function ClaudeOnboarding({
     onClose?.()
   }, [onClose])
 
+  // First-run "Skip setup". This used to call `complete()`, which stamped the
+  // completion flag — so anyone who skipped could never be prompted again.
+  // Skipping records a dismissal instead: it settles the surface (the
+  // workspace opens) without claiming setup ever happened.
+  const skipSetup = useCallback(() => {
+    if (onDismissSetup) {
+      onDismissSetup()
+    } else if (typeof window !== 'undefined') {
+      writeOnboardingDismissed(window.localStorage)
+    }
+    setSelfShow(false)
+    onClose?.()
+  }, [onClose, onDismissSetup])
+
   useEffect(() => {
     if (!isRelaunch || !show) return undefined
     const handleKey = (event: KeyboardEvent) => {
@@ -613,7 +635,7 @@ export function ClaudeOnboarding({
                 Connect Backend
               </button>
               <button
-                onClick={isRelaunch ? dismiss : complete}
+                onClick={isRelaunch ? dismiss : skipSetup}
                 className="text-xs"
                 style={mutedStyle}
               >
