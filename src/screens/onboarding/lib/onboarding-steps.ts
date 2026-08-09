@@ -177,7 +177,7 @@ export const ONBOARDING_STEPS: ReadonlyArray<
     id: 'plugins',
     label: 'Plugins',
     title: 'Core plugins',
-    blurb: 'Turn on the bundled plugins that unlock extra screens.',
+    blurb: 'Interstellar plugins, plus the upstream ones that unlock a screen.',
     enabled: (ctx) => ctx.branch === 'full',
     optional: true,
   },

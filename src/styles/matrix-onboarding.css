@@ -606,7 +606,21 @@
   /* ── plugins ──────────────────────────────────────────────────────────── */
   .ob-plugins {
     display: grid;
+    gap: 14px;
+  }
+  /* Two groups: ours, and the upstream ones that gate a screen this UI ships.
+     Same label grammar as the provider picker's groups. */
+  .ob-plugin-group {
+    display: grid;
     gap: 6px;
+    min-width: 0;
+  }
+  .ob-plugin-group-label {
+    margin: 0;
+    font: 600 9.5px var(--m-font-mono, ui-monospace, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--m-text-faint, var(--theme-muted));
   }
   .ob-plugin-row {
     display: grid;

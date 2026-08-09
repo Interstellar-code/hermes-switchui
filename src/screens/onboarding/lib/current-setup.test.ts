@@ -66,6 +66,7 @@ function pluginRow(name: string, state: CorePluginRow['state']): CorePluginRow {
     label: name,
     purpose: 'p',
     unlocks: null,
+    group: 'interstellar' as const,
     state,
     action: 'none',
     cliCommand: null,

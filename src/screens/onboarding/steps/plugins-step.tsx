@@ -45,8 +45,8 @@ export function PluginsStep({
     <WizardPanel>
       <CurrentSetupStrip facts={facts} />
       <p>
-        These are the core Interstellar Hermes Agent plugins. Each one is
-        bundled with the agent and unlocks an extra screen once it is turned on.
+        Plugins extend the agent. The first group is built by Interstellar; the
+        second is upstream, but each one gates a screen this workspace ships.
       </p>
       {error ? <WizardNote tone="warn">{error}</WizardNote> : null}
       {loading ? <p>Loading plugin status…</p> : null}

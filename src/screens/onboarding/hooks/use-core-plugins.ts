@@ -25,7 +25,10 @@ import { useProviderMutations } from '@/screens/providers/hooks/use-provider-mut
 const HUB_QUERY_KEY = ['onboarding', 'core-plugins-hub'] as const
 const STATUS_QUERY_KEY = ['onboarding', 'core-plugins-gateway-status'] as const
 
-type GatewayStatusPayload = { dashboard?: { available?: boolean } }
+type GatewayStatusPayload = {
+  dashboard?: { available?: boolean }
+  capabilities?: { kanban?: boolean; projects?: boolean }
+}
 
 async function fetchGatewayStatus(): Promise<GatewayStatusPayload | null> {
   try {
@@ -79,7 +82,13 @@ export function useCorePlugins(input: {
     enabled,
   })
 
-  const rows = buildCorePluginRows(hubQuery.data?.plugins ?? [])
+  // Capability flags, not just the hub: `kanban` ships no plugin.yaml and
+  // so never appears in a hub snapshot, which the row builder would
+  // otherwise read as "not installed" while the Tasks screen is working.
+  const rows = buildCorePluginRows(
+    hubQuery.data?.plugins ?? [],
+    statusQuery.data?.capabilities ?? {},
+  )
   const error = hubQuery.isError
     ? hubQuery.error instanceof Error
       ? hubQuery.error.message
