@@ -6,7 +6,7 @@
   padding: 10px 12px;
   border: 1px solid var(--m-border-subtle, var(--theme-border));
   border-radius: var(--m-radius-md, 6px);
-  background: var(--m-fill-subtle, var(--theme-hover));
+  background: var(--m-fill-subtle, var(--theme-accent-subtle));
   color: var(--m-text-muted, var(--theme-muted));
   font: 400 10.5px/1.5 var(--m-font-mono, ui-monospace, monospace);
 }
@@ -24,14 +24,14 @@
   padding: 0 9px;
   border: 1px solid var(--m-border-subtle, var(--theme-border));
   border-radius: 4px;
-  background: var(--m-bg, var(--theme-hover));
+  background: var(--m-bg, var(--theme-bg));
   color: var(--m-text, var(--theme-text));
   font: inherit;
 }
 
 [data-screen='plugins'] .pl-install input:focus {
   outline: none;
-  border-color: var(--m-green-500, #00ff41);
+  border-color: var(--m-green-500, var(--theme-accent));
 }
 
 [data-screen='plugins'] .pl-install button,
@@ -49,8 +49,8 @@
 
 [data-screen='plugins'] .pl-install button:hover:not(:disabled),
 [data-screen='plugins'] .pl-actions button:hover:not(:disabled) {
-  border-color: var(--m-green-500, #00ff41);
-  color: var(--m-green-500, #00ff41);
+  border-color: var(--m-green-500, var(--theme-accent));
+  color: var(--m-green-500, var(--theme-accent));
 }
 
 [data-screen='plugins'] .pl-actions button.pl-danger:hover:not(:disabled) {

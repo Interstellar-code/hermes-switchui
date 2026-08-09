@@ -5,7 +5,7 @@
 [data-screen='files'] {
   --f-bg: var(--m-bg, var(--theme-bg, #07110b));
   --f-panel: var(--m-panel, var(--theme-card, #0d1711));
-  --f-panel-2: var(--m-panel-2, #0a130e);
+  --f-panel-2: var(--m-panel-2, var(--theme-card2));
   --f-border: var(--m-border, var(--theme-border, rgba(51, 255, 102, 0.18)));
   --f-border-subtle: var(
     --m-border-subtle,
@@ -212,7 +212,7 @@
   .files-tree-search input {
     width: 100%;
     height: 32px;
-    background: var(--f-bg, var(--theme-hover));
+    background: var(--f-bg, var(--theme-bg));
     border: 1px solid var(--f-border-subtle);
     border-radius: 6px;
     padding: 0 10px;
@@ -1820,7 +1820,7 @@
 [data-screen='files'] .files-folder-listing .files-folder-name-search {
   width: 170px;
   height: 24px;
-  background: var(--f-bg, var(--theme-hover));
+  background: var(--f-bg, var(--theme-bg));
   border: 1px solid var(--f-border-subtle);
   border-radius: 6px;
   padding: 0 9px;

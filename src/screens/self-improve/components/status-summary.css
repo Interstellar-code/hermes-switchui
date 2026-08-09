@@ -5,7 +5,8 @@
   position: relative;
   overflow: hidden;
   background: var(--theme-card, var(--theme-card2, rgba(255, 255, 255, 0.03)));
-  border: 1px solid var(--m-green-800, rgba(74, 222, 128, 0.22));
+  border: 1px solid
+    var(--m-green-800, var(--theme-accent-border, rgba(74, 222, 128, 0.22)));
   border-radius: 12px;
   padding: 20px 22px;
   margin-bottom: 16px;
@@ -23,7 +24,7 @@
   background: linear-gradient(
     90deg,
     transparent,
-    var(--m-green-400, #4ade80),
+    var(--m-green-400, var(--theme-accent, #4ade80)),
     transparent
   );
   opacity: 0.45;
@@ -78,7 +79,10 @@
 
 /* Tint the chip border to match its dot tone (no extra markup needed). */
 .si-summary-pill:has(.si-summary-dot--ok) {
-  border-color: var(--m-green-800, rgba(74, 222, 128, 0.28));
+  border-color: var(
+    --m-green-800,
+    var(--theme-accent-border, rgba(74, 222, 128, 0.28))
+  );
 }
 .si-summary-pill:has(.si-summary-dot--warn) {
   border-color: rgba(251, 191, 36, 0.3);
@@ -129,7 +133,8 @@
   align-items: baseline;
   padding: 12px 14px;
   border-radius: 9px;
-  border: 1px solid var(--m-green-800, rgba(74, 222, 128, 0.22));
+  border: 1px solid
+    var(--m-green-800, var(--theme-accent-border, rgba(74, 222, 128, 0.22)));
   background: linear-gradient(
     90deg,
     rgba(74, 222, 128, 0.08),
@@ -150,8 +155,9 @@
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--m-green-400, #4ade80);
-  border: 1px solid var(--m-green-800, rgba(74, 222, 128, 0.28));
+  color: var(--m-green-400, var(--theme-accent, #4ade80));
+  border: 1px solid
+    var(--m-green-800, var(--theme-accent-border, rgba(74, 222, 128, 0.28)));
   border-radius: 5px;
   padding: 4px 7px;
   white-space: nowrap;
@@ -175,7 +181,7 @@ button.si-summary-next-step--action {
 }
 
 button.si-summary-next-step--action:hover {
-  border-color: var(--m-green-400, #4ade80);
+  border-color: var(--m-green-400, var(--theme-accent, #4ade80));
   background: linear-gradient(
     90deg,
     rgba(74, 222, 128, 0.13),
@@ -184,14 +190,14 @@ button.si-summary-next-step--action:hover {
 }
 
 button.si-summary-next-step--action:focus-visible {
-  outline: 2px solid var(--m-green-400, #4ade80);
+  outline: 2px solid var(--m-green-400, var(--theme-accent, #4ade80));
   outline-offset: 2px;
 }
 
 .si-summary-next-step-go {
   flex-shrink: 0;
   align-self: center;
-  color: var(--m-green-400, #4ade80);
+  color: var(--m-green-400, var(--theme-accent, #4ade80));
   font-family: var(--m-font-mono, monospace);
   font-size: 15px;
   font-weight: 600;

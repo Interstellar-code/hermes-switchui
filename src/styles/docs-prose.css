@@ -221,7 +221,9 @@
   overflow: hidden;
   flex-shrink: 0;
   height: 100%;
-  transition: width 180ms ease-out, min-width 180ms ease-out;
+  transition:
+    width 180ms ease-out,
+    min-width 180ms ease-out;
 }
 .docs-sidebar.sk-filter.collapsed {
   width: 44px;
@@ -240,7 +242,7 @@
 .docs-sidebar .sk-filter-hdr h2 {
   margin: 0;
   font: 700 12px var(--m-font-mono, ui-monospace, monospace);
-  letter-spacing: .14em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--m-green-500, var(--theme-accent));
   flex: 1;
@@ -248,7 +250,7 @@
 .docs-sidebar .sk-filter-hdr .ct {
   font: 600 10px var(--m-font-mono, ui-monospace, monospace);
   color: var(--m-text-muted, var(--theme-muted));
-  background: var(--m-fill-subtle, var(--theme-hover));
+  background: var(--m-fill-subtle, var(--theme-accent-subtle));
   border: 1px solid var(--m-border-subtle, var(--theme-border));
   padding: 1px 6px;
   border-radius: 999px;
@@ -266,7 +268,9 @@
   place-items: center;
   font-size: 16px;
   line-height: 1;
-  transition: color 120ms, border-color 120ms;
+  transition:
+    color 120ms,
+    border-color 120ms;
   flex-shrink: 0;
 }
 .docs-sidebar .sk-filter-hdr .collapse-btn:hover {
@@ -304,14 +308,14 @@
   font: 700 9px var(--m-font-mono, ui-monospace, monospace);
   writing-mode: vertical-rl;
   text-orientation: mixed;
-  letter-spacing: .14em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--m-green-500, var(--theme-accent));
 }
 .docs-sidebar .sk-rail .rail-badge {
   font: 600 9px var(--m-font-mono, ui-monospace, monospace);
   color: var(--m-text-muted, var(--theme-muted));
-  background: var(--m-fill-subtle, var(--theme-hover));
+  background: var(--m-fill-subtle, var(--theme-accent-subtle));
   border: 1px solid var(--m-border-subtle, var(--theme-border));
   padding: 1px 5px;
   border-radius: 999px;
@@ -325,7 +329,7 @@
 .docs-sidebar .sk-filter-search input {
   width: 100%;
   height: 32px;
-  background: var(--m-bg, var(--theme-hover));
+  background: var(--m-bg, var(--theme-bg));
   border: 1px solid var(--m-border-subtle, var(--theme-border));
   border-radius: 6px;
   padding: 0 10px;
@@ -339,7 +343,8 @@
 }
 .docs-sidebar .sk-filter-search input:focus {
   border-color: var(--m-green-500, var(--theme-accent));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 15%, transparent);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 15%, transparent);
 }
 
 /* scrollable body */
@@ -356,7 +361,7 @@
 .docs-sidebar .sk-filter-section .sec-label {
   font: 600 9.5px var(--m-font-mono, ui-monospace, monospace);
   text-transform: uppercase;
-  letter-spacing: .18em;
+  letter-spacing: 0.18em;
   color: var(--m-text-faint, var(--theme-muted));
   margin-bottom: 6px;
 }
@@ -382,16 +387,22 @@
   text-align: left;
   font: 500 11px var(--m-font-sans, system-ui, sans-serif);
   color: var(--m-text-muted, var(--theme-muted));
-  transition: background 100ms, color 100ms;
+  transition:
+    background 100ms,
+    color 100ms;
   text-decoration: none;
   gap: 6px;
 }
 .docs-sidebar .sk-filter-item:hover {
-  background: var(--m-fill-subtle, var(--theme-hover));
+  background: var(--m-fill-subtle, var(--theme-accent-subtle));
   color: var(--m-text, var(--theme-text));
 }
 .docs-sidebar .sk-filter-item.active {
-  background: color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 10%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--m-green-500, var(--theme-accent)) 10%,
+    transparent
+  );
   color: var(--m-green-500, var(--theme-accent));
 }
 .docs-sidebar .sk-filter-item .item-ct {
@@ -426,7 +437,7 @@
   font-weight: 600;
   text-transform: uppercase;
   font-size: 10px;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
 }
 .docs-sidebar .docs-folder-hdr--search {
   cursor: default;
