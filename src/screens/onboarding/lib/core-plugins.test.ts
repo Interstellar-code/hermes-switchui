@@ -24,9 +24,13 @@ function plugin(overrides: Partial<PluginsHubPlugin>): PluginsHubPlugin {
 describe('buildCorePluginRows', () => {
   it('bundled + inactive gets the enable action, no cli command', () => {
     const rows = buildCorePluginRows([
-      plugin({ name: 'kanban', source: 'bundled', runtimeStatus: 'inactive' }),
+      plugin({
+        name: 'personas',
+        source: 'bundled',
+        runtimeStatus: 'inactive',
+      }),
     ])
-    const row = rows.find((r) => r.name === 'kanban')
+    const row = rows.find((r) => r.name === 'personas')
     expect(row?.state).toBe('inactive')
     expect(row?.action).toBe('enable')
     expect(row?.cliCommand).toBeNull()
@@ -35,15 +39,42 @@ describe('buildCorePluginRows', () => {
   it('non-bundled + inactive falls back to the exact CLI command', () => {
     const rows = buildCorePluginRows([
       plugin({
-        name: 'projects',
+        name: 'a2a_fleet',
         source: 'plugins-hub',
         runtimeStatus: 'inactive',
       }),
     ])
-    const row = rows.find((r) => r.name === 'projects')
+    const row = rows.find((r) => r.name === 'a2a_fleet')
     expect(row?.state).toBe('inactive')
     expect(row?.action).toBe('cli')
-    expect(row?.cliCommand).toBe('hermes plugins enable projects')
+    expect(row?.cliCommand).toBe('hermes plugins enable a2a_fleet')
+  })
+
+  /**
+   * Membership is `author: Interstellar-code` in the plugin's own manifest.
+   * The gateway ships ~90 plugins and the hub payload carries no author
+   * field, so the rule lives in the curated list and is pinned here.
+   */
+  it('lists only the Interstellar-authored plugins', () => {
+    expect(CORE_PLUGINS.map((entry) => entry.name)).toEqual([
+      'workflow-engine',
+      'a2a_fleet',
+      'personas',
+      'mcp_lazy',
+      'hermes-switch-ui',
+    ])
+  })
+
+  it('excludes upstream plugins that are commonly enabled anyway', () => {
+    const names = new Set(CORE_PLUGINS.map((entry) => entry.name))
+    for (const upstream of [
+      'kanban',
+      'projects',
+      'herdr-agent-state',
+      'matrix-platform',
+    ]) {
+      expect(names.has(upstream)).toBe(false)
+    }
   })
 
   it('non-bundled + disabled also falls back to cli', () => {
