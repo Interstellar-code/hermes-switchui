@@ -27,6 +27,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useCorePlugins } from './hooks/use-core-plugins'
+import { useOnboardingMemory } from './hooks/use-onboarding-memory'
 import { useOnboardingProfiles } from './hooks/use-onboarding-profiles'
 import { useOnboardingSave } from './hooks/use-onboarding-save'
 import { useSystemChecks } from './hooks/use-system-checks'
@@ -48,6 +49,7 @@ import { canWriteConfig } from './lib/relaunch-lock'
 import { useOnboardingGate } from './lib/use-onboarding-gate'
 import { ConnectStep } from './steps/connect-step'
 import { FinishStep } from './steps/finish-step'
+import { MemoryStep } from './steps/memory-step'
 import { PluginsStep } from './steps/plugins-step'
 import { ProfileStep } from './steps/profile-step'
 import { ProviderStep } from './steps/provider-step'
@@ -91,6 +93,7 @@ const CONFIG_QUERY_KEY = ['onboarding', 'claude-config'] as const
 const FULL_ONLY: ReadonlySet<OnboardingStepId> = new Set([
   'system-check',
   'profile',
+  'memory',
   'plugins',
   'theme',
 ])
@@ -307,6 +310,10 @@ function OnboardingFlow({
     enabled: branch === 'full',
     canWrite,
   })
+  const memory = useOnboardingMemory({
+    enabled: branch === 'full',
+    canWrite,
+  })
 
   // Refreshed during render so callbacks below read the live draft without
   // taking it as a dependency. Declared here rather than beside the
@@ -513,10 +520,12 @@ function OnboardingFlow({
         verified: saveApi.verifyOutcome?.status === 'confirmed',
         pluginsTouched: plugins.touched,
         profileTouched: profiles.touched,
+        memoryTouched: memory.touched,
       }),
     [
       activeProvider,
       draft,
+      memory.touched,
       outcome,
       plugins.touched,
       profiles.touched,
@@ -694,6 +703,23 @@ function OnboardingFlow({
             canWrite={canWrite}
             needsRestart={profiles.needsRestart}
             facts={factsFor('profile')}
+          />
+        )
+
+      case 'memory':
+        return (
+          <MemoryStep
+            choices={memory.choices}
+            activeProvider={memory.activeProvider}
+            loading={memory.loading}
+            error={memory.error}
+            onSelect={(id) => void memory.select(id)}
+            selecting={memory.selecting}
+            canWrite={canWrite}
+            touched={memory.touched}
+            needsRestart={memory.needsRestart}
+            stats={memory.stats}
+            facts={factsFor('memory')}
           />
         )
 

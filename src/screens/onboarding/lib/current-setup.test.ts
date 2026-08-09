@@ -26,6 +26,7 @@ const CONFIG = {
       api_key: SECRET,
       default: 'auto',
     },
+    memory: { memory_enabled: true, provider: 'matrix-memory' },
   },
   activeProvider: 'custom',
   activeModel: 'openrouter/nvidia/nemotron-x',
@@ -112,6 +113,7 @@ const ALL_STEPS: Array<OnboardingStepId> = [
   'review',
   'verify',
   'profile',
+  'memory',
   'plugins',
   'theme',
   'finish',
@@ -395,6 +397,49 @@ describe('factsForStep', () => {
         state: 'active',
       },
     ])
+  })
+
+  it('leads the memory step with the provider that is configured', () => {
+    expect(factsForStep('memory', configured())).toEqual([
+      {
+        id: 'memory',
+        label: 'Memory provider',
+        value: 'Matrix Memory',
+        state: 'active',
+      },
+    ])
+  })
+
+  it('falls back to the raw name for a memory plugin the catalog has not caught up with', () => {
+    const setup = buildCurrentSetup({
+      config: {
+        ...CONFIG,
+        config: { ...CONFIG.config, memory: { provider: 'some-fork' } },
+      },
+      pluginRows: PLUGIN_ROWS,
+      checks: CHECKS,
+      themeId: 'matrix',
+      verifyOutcome: null,
+    })
+    expect(setup.activeMemoryProvider).toBe('some-fork')
+  })
+
+  it('reports built-in-only memory as no provider, and renders no fact', () => {
+    for (const memory of [undefined, { provider: '' }, { provider: '  ' }]) {
+      const setup = buildCurrentSetup({
+        config: {
+          ...CONFIG,
+          config: { ...CONFIG.config, memory },
+        },
+        pluginRows: PLUGIN_ROWS,
+        checks: CHECKS,
+        themeId: 'matrix',
+        verifyOutcome: null,
+      })
+      expect(setup.activeMemoryProvider).toBeNull()
+      // A strip of nothing but an em dash is noise, not context.
+      expect(factsForStep('memory', setup)).toEqual([])
+    }
   })
 
   it('names the current theme', () => {

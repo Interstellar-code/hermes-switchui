@@ -20,6 +20,7 @@ export type ChecklistItemId =
   | 'provider'
   | 'verify'
   | 'profile'
+  | 'memory'
   | 'plugins'
   | 'theme'
   | 'system-check'
@@ -48,6 +49,14 @@ export function buildChecklist(input: {
    * "the API returned OK" is not the same as "this is done".
    */
   profileTouched: boolean
+  /**
+   * Whether this session actually chose a memory provider. Treated exactly
+   * like `profileTouched`, and for the same reason: a 200 from
+   * `PATCH /api/claude-config` only rewrites `~/.hermes/config.yaml`, and
+   * `agent_init.py` does not read `memory.provider` again until the gateway
+   * restarts — so "the API returned OK" is not the same as "this is done".
+   */
+  memoryTouched: boolean
 }): Array<ChecklistItem> {
   const completeOutcome =
     input.outcome.kind === 'complete' ? input.outcome : null
@@ -62,6 +71,7 @@ export function buildChecklist(input: {
   const verified = input.verified || completed.has('verify')
   const pluginsTouched = input.pluginsTouched || completed.has('plugins')
   const profileTouched = input.profileTouched || completed.has('profile')
+  const memoryTouched = input.memoryTouched || completed.has('memory')
 
   function stateFor(
     id: ChecklistItemId,
@@ -98,6 +108,13 @@ export function buildChecklist(input: {
       detail: profileTouched ? 'Chosen.' : 'Not chosen yet.',
       state: stateFor('profile', profileTouched, false),
       goTo: 'profile',
+    },
+    {
+      id: 'memory',
+      label: 'Set up memory',
+      detail: memoryTouched ? 'Chosen.' : 'Not chosen yet.',
+      state: stateFor('memory', memoryTouched, false),
+      goTo: 'memory',
     },
     {
       id: 'plugins',

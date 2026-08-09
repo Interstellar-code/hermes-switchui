@@ -24,6 +24,7 @@ import type { OnboardingStepId } from './onboarding-steps'
 import type { ProfileChoice } from './profile-choices'
 import type { SystemCheck } from './system-checks'
 import { THEMES } from '@/lib/theme'
+import { getMemoryProviderInfo } from '@/lib/memory-provider-catalog'
 import {
   RESERVED_PROVIDER_ID,
   getProviderDisplayName,
@@ -66,6 +67,17 @@ export type CurrentSetup = {
    * configured" strip on a genuinely fresh one.
    */
   activeProfileName: string | null
+  /**
+   * The display label of the memory provider named in `config.memory.provider`
+   * — the catalog's label when this workspace knows the plugin, the raw name
+   * when it does not, and `null` when the config selects no external provider
+   * at all (built-in `MEMORY.md` / `USER.md` only).
+   *
+   * Like `activeProfileName`, deliberately *not* part of `anythingConfigured`:
+   * the agent ships a `memory:` block in its default config, so counting it
+   * would grow a "Currently configured" strip on a genuinely fresh install.
+   */
+  activeMemoryProvider: string | null
   /**
    * Whether *anything* about this workspace has been set up yet. A genuinely
    * fresh install must not grow a "Currently configured" box, and a theme is
@@ -154,6 +166,19 @@ function connectionLabelFrom(checks: Array<SystemCheck>): string | null {
   if (gateway?.status === 'ok') return 'Hermes gateway · reachable'
   if (gateway?.status === 'fail') return 'Hermes gateway · not responding'
   return null
+}
+
+/**
+ * The memory provider's display label. Falls back to the raw config value
+ * rather than to `null` for a plugin the catalog has not caught up with — a
+ * name the user can look up beats an em dash that says the field is unset.
+ */
+function memoryProviderLabel(
+  memoryBlock: Record<string, unknown> | null,
+): string | null {
+  const provider = str(memoryBlock, 'provider')
+  if (!provider) return null
+  return getMemoryProviderInfo(provider)?.label ?? provider
 }
 
 export function buildCurrentSetup(input: {
@@ -279,6 +304,7 @@ export function buildCurrentSetup(input: {
         ? input.verifyOutcome.modelCount
         : null,
     activeProfileName: activeProfileLabel(profileChoices),
+    activeMemoryProvider: memoryProviderLabel(record(yaml?.memory)),
     anythingConfigured:
       activeProviderId !== null ||
       configuredProviderIds.length > 0 ||
@@ -398,6 +424,11 @@ export function factsForStep(
     case 'profile':
       return meaningful([
         fact('profile', 'Active profile', setup.activeProfileName, 'active'),
+      ])
+
+    case 'memory':
+      return meaningful([
+        fact('memory', 'Memory provider', setup.activeMemoryProvider, 'active'),
       ])
 
     case 'plugins':

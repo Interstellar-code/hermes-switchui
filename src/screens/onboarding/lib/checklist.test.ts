@@ -33,6 +33,7 @@ describe('buildChecklist', () => {
       verified: false,
       pluginsTouched: false,
       profileTouched: false,
+      memoryTouched: false,
     })
     expect(items.find((i) => i.id === 'provider')?.state).toBe('done')
   })
@@ -45,6 +46,7 @@ describe('buildChecklist', () => {
       verified: false,
       pluginsTouched: false,
       profileTouched: false,
+      memoryTouched: false,
     })
     expect(items.find((i) => i.id === 'provider')?.state).toBe('todo')
   })
@@ -57,6 +59,7 @@ describe('buildChecklist', () => {
       verified: false,
       pluginsTouched: false,
       profileTouched: false,
+      memoryTouched: false,
     })
     expect(items.find((i) => i.id === 'verify')?.state).toBe('blocked')
   })
@@ -69,6 +72,7 @@ describe('buildChecklist', () => {
       verified: false,
       pluginsTouched: false,
       profileTouched: false,
+      memoryTouched: false,
     })
     expect(items.find((i) => i.id === 'verify')?.state).toBe('skipped')
   })
@@ -81,6 +85,7 @@ describe('buildChecklist', () => {
       verified: true,
       pluginsTouched: false,
       profileTouched: false,
+      memoryTouched: false,
     })
     expect(items.find((i) => i.id === 'verify')?.state).toBe('done')
   })
@@ -93,6 +98,7 @@ describe('buildChecklist', () => {
       verified: true,
       pluginsTouched: false,
       profileTouched: false,
+      memoryTouched: false,
     })
     expect(items.find((i) => i.id === 'plugins')?.state).toBe('todo')
   })
@@ -108,6 +114,7 @@ describe('buildChecklist', () => {
       verified: true,
       pluginsTouched: true,
       profileTouched: false,
+      memoryTouched: false,
     })
     expect(items.find((i) => i.id === 'profile')?.state).toBe('todo')
     expect(items.find((i) => i.id === 'profile')?.goTo).toBe('profile')
@@ -121,6 +128,7 @@ describe('buildChecklist', () => {
       verified: true,
       pluginsTouched: true,
       profileTouched: false,
+      memoryTouched: false,
     })
     expect(skipped.find((i) => i.id === 'profile')?.state).toBe('skipped')
 
@@ -131,8 +139,50 @@ describe('buildChecklist', () => {
       verified: true,
       pluginsTouched: true,
       profileTouched: true,
+      memoryTouched: false,
     })
     expect(touched.find((i) => i.id === 'profile')?.state).toBe('done')
+  })
+
+  it('memory is done only when memoryTouched is true — a 200 from the PATCH is not enough', () => {
+    // The write only rewrites `~/.hermes/config.yaml`; `agent_init.py` reads
+    // `memory.provider` once, at gateway startup, so this item is treated
+    // exactly like the profile and plugins ones.
+    const items = buildChecklist({
+      outcome: FRESH,
+      draft: draft(),
+      activeProvider: 'anthropic',
+      verified: true,
+      pluginsTouched: true,
+      profileTouched: true,
+      memoryTouched: false,
+    })
+    expect(items.find((i) => i.id === 'memory')?.state).toBe('todo')
+    expect(items.find((i) => i.id === 'memory')?.goTo).toBe('memory')
+  })
+
+  it('memory is skipped when the step was skipped, and done once touched', () => {
+    const skipped = buildChecklist({
+      outcome: FRESH,
+      draft: draft({ skipped: ['memory'] }),
+      activeProvider: 'anthropic',
+      verified: true,
+      pluginsTouched: true,
+      profileTouched: true,
+      memoryTouched: false,
+    })
+    expect(skipped.find((i) => i.id === 'memory')?.state).toBe('skipped')
+
+    const touched = buildChecklist({
+      outcome: FRESH,
+      draft: draft({ skipped: ['memory'] }),
+      activeProvider: 'anthropic',
+      verified: true,
+      pluginsTouched: true,
+      profileTouched: true,
+      memoryTouched: true,
+    })
+    expect(touched.find((i) => i.id === 'memory')?.state).toBe('done')
   })
 
   it('falls back to the outcome skipped list once the draft is gone', () => {
@@ -150,6 +200,7 @@ describe('buildChecklist', () => {
       verified: true,
       pluginsTouched: true,
       profileTouched: false,
+      memoryTouched: false,
     })
     expect(items.find((i) => i.id === 'theme')?.state).toBe('skipped')
   })
@@ -162,33 +213,43 @@ describe('buildChecklist', () => {
       verified: false,
       pluginsTouched: false,
       profileTouched: false,
+      memoryTouched: false,
     })
     expect(items.every((i) => i.state !== 'skipped')).toBe(true)
   })
 
-  it('derives verify/profile/plugins from the completion record once the draft is gone', () => {
+  it('derives verify/profile/memory/plugins from the completion record once the draft is gone', () => {
     // The exact state a finished full run leaves behind: the draft is deleted
     // by `handleFinish`, so `completed` on the outcome is the only evidence
-    // that verify, profile and plugins were done. Without it every
+    // that verify, profile, memory and plugins were done. Without it every
     // out-of-wizard consumer reports them outstanding forever.
     const complete: OnboardingOutcome = {
       kind: 'complete',
       at: 1,
       branch: 'full',
       skipped: [],
-      completed: ['verify', 'profile', 'plugins', 'theme', 'system-check'],
+      completed: [
+        'verify',
+        'profile',
+        'memory',
+        'plugins',
+        'theme',
+        'system-check',
+      ],
     }
     const items = buildChecklist({
       outcome: complete,
       draft: null,
       activeProvider: 'anthropic',
-      // All three false, exactly as `use-onboarding-checklist` passes them
+      // All four false, exactly as `use-onboarding-checklist` passes them
       // outside a live wizard session.
       verified: false,
       pluginsTouched: false,
       profileTouched: false,
+      memoryTouched: false,
     })
     expect(items.map((item) => item.state)).toEqual([
+      'done',
       'done',
       'done',
       'done',
@@ -215,8 +276,9 @@ describe('buildChecklist', () => {
       verified: false,
       pluginsTouched: false,
       profileTouched: false,
+      memoryTouched: false,
     })
-    expect(outstandingCount(items)).toBe(5)
+    expect(outstandingCount(items)).toBe(6)
   })
 
   it('goTo matches each item id 1:1 with a step id', () => {
@@ -227,6 +289,7 @@ describe('buildChecklist', () => {
       verified: false,
       pluginsTouched: false,
       profileTouched: false,
+      memoryTouched: false,
     })
     for (const item of items) {
       expect(item.goTo).toBe(item.id)
@@ -243,11 +306,12 @@ describe('outstandingCount', () => {
       verified: false,
       pluginsTouched: false,
       profileTouched: false,
+      memoryTouched: false,
     })
     // provider: todo, verify: blocked (no provider), profile: todo,
-    // plugins: todo, theme: skipped, system-check: todo
-    // → 4 todo + 1 skipped = 5
-    expect(outstandingCount(items)).toBe(5)
+    // memory: todo, plugins: todo, theme: skipped, system-check: todo
+    // → 5 todo + 1 skipped = 6
+    expect(outstandingCount(items)).toBe(6)
   })
 
   it('is zero once everything is done', () => {
@@ -258,6 +322,7 @@ describe('outstandingCount', () => {
       verified: true,
       pluginsTouched: true,
       profileTouched: true,
+      memoryTouched: true,
     })
     expect(outstandingCount(items)).toBe(0)
   })

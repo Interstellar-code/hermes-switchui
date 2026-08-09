@@ -5,13 +5,28 @@ import YAML from 'yaml'
 
 // ── New types for the Profiles Revamp (PR-04) ──────────────────────────────
 
+/**
+ * Every memory plugin the agent ships, plus `''` for "built-in files only".
+ *
+ * The narrow six-name version of this union was the type-level half of the bug
+ * `memory-provider-catalog.ts` documents: `matrix-memory`, `honcho` and
+ * `supermemory` exist on disk and one of them is a common active provider, so
+ * a config carrying any of them could not even be *described*, let alone
+ * offered. `''` is representable because that is exactly what the gateway
+ * writes when the external provider is switched off and only the Tier 1
+ * `MEMORY.md` / `USER.md` files remain.
+ */
 export type MemoryProvider =
+  | ''
+  | 'matrix-memory'
   | 'hindsight'
   | 'mem0'
   | 'openviking'
   | 'holographic'
   | 'retaindb'
   | 'byterover'
+  | 'honcho'
+  | 'supermemory'
 
 export type MemoryConfig = {
   memory_enabled?: boolean
@@ -93,7 +108,12 @@ export type ProfileDetail = {
 }
 
 const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/
-const BUILTIN_PROFILE_NAMES = new Set(['hermes-switch', 'neo', 'trinity', 'morpheus'])
+const BUILTIN_PROFILE_NAMES = new Set([
+  'hermes-switch',
+  'neo',
+  'trinity',
+  'morpheus',
+])
 const TEXT_REWRITE_EXTENSIONS = new Set([
   '.md',
   '.txt',
@@ -232,7 +252,8 @@ export function getActiveProfileName(): string {
 // screen mount + auto-refresh. The screen tolerates a brief lag on add/remove;
 // the cache prevents N+1 sync stat/readdir calls from blocking the event loop
 // on every API hit.
-let listProfilesCache: { ts: number; results: Array<ProfileSummary> } | null = null
+let listProfilesCache: { ts: number; results: Array<ProfileSummary> } | null =
+  null
 const LIST_PROFILES_TTL_MS = 5000
 
 export function listProfiles(): Array<ProfileSummary> {
@@ -309,7 +330,10 @@ export function listProfiles(): Array<ProfileSummary> {
           skillsDir,
           sessionsDir,
         ]),
-        description: typeof config.description === 'string' ? config.description : undefined,
+        description:
+          typeof config.description === 'string'
+            ? config.description
+            : undefined,
         agent_ui: config.agent_ui,
       })
     }
@@ -396,7 +420,10 @@ export function readProfile(name: string): ProfileDetail {
   const config = readYamlConfig(configPath)
 
   // Mark builtin profiles as readonly
-  const returnConfig: ProfileConfig & { readonly?: boolean; builtin?: boolean } = {
+  const returnConfig: ProfileConfig & {
+    readonly?: boolean
+    builtin?: boolean
+  } = {
     ...config,
     ...(isBuiltin && { readonly: true, builtin: true }),
   }
