@@ -24,6 +24,8 @@ export type SystemCheckListProps = {
     payload?: { gatewayUrl?: string },
   ) => void
   healing: string | null
+  /** Locked relaunch: render the probe results, offer no self-heal control. */
+  readOnly?: boolean
 }
 
 /** Stagger step between rows, capped so a long check list doesn't crawl. */
@@ -53,6 +55,7 @@ export function SystemCheckList({
   loading,
   onHeal,
   healing,
+  readOnly = false,
 }: SystemCheckListProps) {
   // Local drafts for any 'change-url' row's URL field, keyed by check id.
   // buildSystemChecks never currently emits 'change-url', but the type
@@ -62,7 +65,10 @@ export function SystemCheckList({
   return (
     <div className="ob-checks" role="status" aria-live="polite">
       {checks.map((check, index) => {
-        const heal = check.heal
+        // Absent rather than disabled while read-only: these buttons restart
+        // the gateway, and offering a greyed-out one still implies it is on
+        // the table.
+        const heal = readOnly ? undefined : check.heal
         return (
           <div key={check.id} className="ob-check-row">
             <span

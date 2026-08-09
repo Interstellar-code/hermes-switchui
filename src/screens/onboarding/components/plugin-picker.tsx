@@ -7,13 +7,16 @@
  * already encodes as `action`. This component just renders whichever
  * action it was handed — it never re-derives the constraint itself.
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CorePluginRow, CorePluginState } from '../lib/core-plugins'
+import { writeTextToClipboard } from '@/lib/clipboard'
 
 export type PluginPickerProps = {
   rows: Array<CorePluginRow>
   onToggle: (name: string, next: 'enable' | 'disable') => void
   busyName: string | null
+  /** Locked relaunch: show state, offer no control that mutates the agent. */
+  readOnly?: boolean
 }
 
 const STATE_CLASS: Record<CorePluginState, string> = {
@@ -51,13 +54,27 @@ const CopyIcon = (
 
 function PluginCliBlock({ command }: { command: string }) {
   const [copied, setCopied] = useState(false)
+  // The reset is a timer, so it outlives an unmount unless it is cleared —
+  // copying and then closing the wizard within 1.5s otherwise schedules a
+  // setState against a component that is gone.
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(
+    () => () => {
+      if (resetTimer.current !== null) clearTimeout(resetTimer.current)
+    },
+    [],
+  )
 
   const handleCopy = () => {
-    navigator.clipboard
-      .writeText(command)
+    // `writeTextToClipboard`, not `navigator.clipboard` directly: the latter
+    // is undefined on insecure origins (LAN/HTTP access is a supported
+    // deployment here) and throws synchronously out of the click handler.
+    writeTextToClipboard(command)
       .then(() => {
         setCopied(true)
-        window.setTimeout(() => setCopied(false), 1500)
+        if (resetTimer.current !== null) clearTimeout(resetTimer.current)
+        resetTimer.current = setTimeout(() => setCopied(false), 1500)
       })
       .catch(() => {
         /* clipboard blocked — the command is still visible to copy by hand */
@@ -86,10 +103,12 @@ function PluginRow({
   row,
   busy,
   onToggle,
+  readOnly,
 }: {
   row: CorePluginRow
   busy: boolean
   onToggle: (name: string, next: 'enable' | 'disable') => void
+  readOnly: boolean
 }) {
   return (
     <div className="ob-plugin-row">
@@ -101,7 +120,9 @@ function PluginRow({
       {row.unlocks ? (
         <p className="ob-plugin-unlocks">Unlocks {row.unlocks}.</p>
       ) : null}
-      {row.action === 'enable' ? (
+      {/* Absent, not disabled: a locked relaunch promises this screen is a
+          read, and a greyed-out Enable still reads as "almost allowed". */}
+      {!readOnly && row.action === 'enable' ? (
         <button
           type="button"
           className="wz-btn"
@@ -111,7 +132,7 @@ function PluginRow({
           {busy ? 'Enabling…' : 'Enable'}
         </button>
       ) : null}
-      {row.action === 'disable' ? (
+      {!readOnly && row.action === 'disable' ? (
         <button
           type="button"
           className="wz-btn"
@@ -128,7 +149,12 @@ function PluginRow({
   )
 }
 
-export function PluginPicker({ rows, onToggle, busyName }: PluginPickerProps) {
+export function PluginPicker({
+  rows,
+  onToggle,
+  busyName,
+  readOnly = false,
+}: PluginPickerProps) {
   return (
     <div className="ob-plugins">
       {rows.map((row) => (
@@ -137,6 +163,7 @@ export function PluginPicker({ rows, onToggle, busyName }: PluginPickerProps) {
           row={row}
           busy={busyName === row.name}
           onToggle={onToggle}
+          readOnly={readOnly}
         />
       ))}
     </div>

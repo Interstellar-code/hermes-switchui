@@ -52,8 +52,16 @@ export type UseCorePluginsResult = {
 
 export function useCorePlugins(input: {
   enabled: boolean
+  /**
+   * The `canWriteConfig` verdict for this run. Enabling a plugin and
+   * restarting the dashboard are server-side mutations, so a locked relaunch —
+   * whose summary promises the existing setup is read-only — must not perform
+   * them. `PluginsStep` already hides the controls; this is the guard that
+   * holds when a future caller forgets to.
+   */
+  canWrite: boolean
 }): UseCorePluginsResult {
-  const { enabled } = input
+  const { enabled, canWrite } = input
   const queryClient = useQueryClient()
   const [touched, setTouched] = useState(false)
   const [busyName, setBusyName] = useState<string | null>(null)
@@ -85,6 +93,7 @@ export function useCorePlugins(input: {
 
   const toggle = useCallback(
     async (name: string, next: 'enable' | 'disable') => {
+      if (!canWrite) return
       setBusyName(name)
       try {
         if (next === 'enable') {
@@ -101,10 +110,11 @@ export function useCorePlugins(input: {
         refetch()
       }
     },
-    [refetch],
+    [canWrite, refetch],
   )
 
   const restart = useCallback(async () => {
+    if (!canWrite) return
     try {
       await restartGateway.mutateAsync()
     } catch {
@@ -113,7 +123,7 @@ export function useCorePlugins(input: {
     } finally {
       refetch()
     }
-  }, [restartGateway, refetch])
+  }, [canWrite, restartGateway, refetch])
 
   return {
     rows,
@@ -125,6 +135,6 @@ export function useCorePlugins(input: {
     refetch,
     restart,
     restarting: restartGateway.isPending,
-    canRestart: statusQuery.data?.dashboard?.available === true,
+    canRestart: canWrite && statusQuery.data?.dashboard?.available === true,
   }
 }

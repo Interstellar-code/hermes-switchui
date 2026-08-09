@@ -39,6 +39,13 @@ export type OnboardingCtx = {
   saved: boolean
   hasStoredKey: boolean
   catalogBaseUrl: string | null
+  /**
+   * Whether this run is permitted to write config at all — the `canWriteConfig`
+   * verdict for the review step, which is the only step that writes. A locked
+   * relaunch has this false, and a step the user is *not permitted* to complete
+   * must not be allowed to block them: see `validateReviewStep`.
+   */
+  canWrite: boolean
 }
 
 const notSummary = (ctx: OnboardingCtx) => ctx.branch !== 'summary'
@@ -85,7 +92,16 @@ export function validateConnectStep(ctx: OnboardingCtx): Array<string> {
   return errors
 }
 
+/**
+ * The review gate is conditional on being able to write. In a locked relaunch
+ * Save is disabled and `save()` refuses, so `saved` can never become true —
+ * requiring it there left the user staring at "Press Save to write the
+ * configuration" with Next permanently blocked, no Skip offered, and only Back
+ * or Close as a way out. A step nobody is permitted to complete must never be
+ * a dead end.
+ */
 export function validateReviewStep(ctx: OnboardingCtx): Array<string> {
+  if (!ctx.canWrite) return []
   return ctx.saved ? [] : ['Press Save to write the configuration']
 }
 
@@ -167,7 +183,9 @@ export const ONBOARDING_STEPS: ReadonlyArray<
   {
     id: 'finish',
     label: 'Finish',
-    title: "You're set",
+    // Matches `FinishStep`'s own visible heading — house voice is plain
+    // sentence case, and the two must not disagree on the same screen.
+    title: 'Setup complete',
     blurb: 'Hermes Switch UI is ready to use.',
     enabled: notSummary,
     chromeless: true,

@@ -96,20 +96,52 @@ describe('useOnboardingChecklist', () => {
         at: Date.now(),
         branch: 'quick',
         skipped: [],
+        completed: ['theme'],
       }),
     )
     window.dispatchEvent(
       new StorageEvent('storage', { key: ONBOARDING_KEYS.outcome }),
     )
 
-    // Nothing skipped this time, but the outcome went from 'fresh' to
-    // 'complete' — still 4 outstanding (provider/plugins/theme/system-check
-    // as plain 'todo' instead of 'skipped'), so assert on item state instead
-    // of the count to prove the storage event actually triggered a re-read.
+    // 'theme' flips from 'todo' to 'done' off the completion record alone —
+    // both the proof that the storage event triggered a re-read, and the proof
+    // that a finished step stays finished once the draft has been cleared.
     await waitFor(() =>
       expect(
         result.current.items.find((item) => item.id === 'theme')?.state,
-      ).toBe('todo'),
+      ).toBe('done'),
+    )
+  })
+
+  it('clears the badge entirely after a completed full run', async () => {
+    // The regression this pins: `verified` and `pluginsTouched` are hardcoded
+    // false out here (they are live in-wizard probes), the draft is deleted on
+    // finish, and `writeOnboardingComplete` used to persist only `skipped`. A
+    // user who completed the full branch — verified, reviewed plugins, picked
+    // a theme — was left with a permanent `4` on the sidebar nav and
+    // "Setup Wizard (4 left)" in the command palette, with no way to clear it.
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ providers: [], activeProvider: 'anthropic' }),
+    })
+    window.localStorage.setItem(
+      ONBOARDING_KEYS.outcome,
+      JSON.stringify({
+        kind: 'complete',
+        at: Date.now(),
+        branch: 'full',
+        skipped: [],
+        completed: ['verify', 'plugins', 'theme', 'system-check'],
+      }),
+    )
+
+    const { result } = renderHook(() => useOnboardingChecklist(), {
+      wrapper: createWrapper(),
+    })
+
+    await waitFor(() => expect(result.current.outstanding).toBe(0))
+    expect(result.current.items.every((item) => item.state === 'done')).toBe(
+      true,
     )
   })
 

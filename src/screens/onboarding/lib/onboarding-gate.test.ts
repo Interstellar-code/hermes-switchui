@@ -59,6 +59,7 @@ describe('reduceGate', () => {
       at: 1,
       branch: 'quick',
       skipped: [],
+      completed: [],
     }
 
     const next = reduceGate(engaged(), { type: 'STORAGE_CHANGED', outcome })
@@ -95,7 +96,13 @@ describe('reduceGate', () => {
       },
       {
         name: 'complete',
-        outcome: { kind: 'complete', at: 42, branch: 'quick', skipped: [] },
+        outcome: {
+          kind: 'complete',
+          at: 42,
+          branch: 'quick',
+          skipped: [],
+          completed: [],
+        },
         expected: { complete: true, dismissed: false, active: false },
       },
     ]
@@ -122,7 +129,13 @@ describe('reduceGate', () => {
       { type: 'WIZARD_DISMISSED' },
       {
         type: 'STORAGE_CHANGED',
-        outcome: { kind: 'complete', at: 1, branch: 'full', skipped: [] },
+        outcome: {
+          kind: 'complete',
+          at: 1,
+          branch: 'full',
+          skipped: [],
+          completed: [],
+        },
       },
     ]
 

@@ -58,6 +58,25 @@ export type GateEvent =
  */
 export const AUTO_DETECT_GRACE_MS = 1_500
 
+/**
+ * Whether an auto-detection arriving now is allowed to settle the gate. The
+ * `AUTO_DETECTED` case below is the only consumer inside this module, but the
+ * hook needs the same answer to decide whether the detection is worth
+ * *persisting* — a detection that is refused here settles nothing, so writing
+ * it down would claim more than was observed.
+ */
+export function shouldAutoComplete(
+  gate: OnboardingGate,
+  elapsedMs: number,
+): boolean {
+  // 1. `active` — the user is standing in the wizard right now; completing
+  //    would unmount the surface under their cursor. This is the actual bug.
+  // 2. the grace window — even before the first interaction, a probe that
+  //    resolves after the welcome screen has painted is a visible yank.
+  if (gate.active) return false
+  return elapsedMs <= AUTO_DETECT_GRACE_MS
+}
+
 export const INITIAL_GATE: OnboardingGate = {
   complete: false,
   dismissed: false,
@@ -99,12 +118,7 @@ export function reduceGate(
       return { ...prev, active: true }
 
     case 'AUTO_DETECTED':
-      // 1. `active` — the user is standing in the wizard right now; completing
-      //    would unmount the surface under their cursor. This is the actual bug.
-      // 2. the grace window — even before the first interaction, a probe that
-      //    resolves after the welcome screen has painted is a visible yank.
-      if (prev.active) return prev
-      if (event.elapsedMs > AUTO_DETECT_GRACE_MS) return prev
+      if (!shouldAutoComplete(prev, event.elapsedMs)) return prev
       return { ...prev, complete: true }
 
     case 'WIZARD_FINISHED':

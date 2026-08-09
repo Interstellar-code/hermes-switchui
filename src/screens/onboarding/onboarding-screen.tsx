@@ -91,6 +91,17 @@ const FULL_ONLY: ReadonlySet<OnboardingStepId> = new Set([
   'theme',
 ])
 
+/**
+ * The branch a given step needs in order to be enabled at all. Used both for
+ * mid-flow jumps and for honouring a deep link at mount — landing on `theme`
+ * with `branch: 'summary'` would leave the step disabled and `useWizard` would
+ * silently reconcile the user somewhere else.
+ */
+function branchForStep(id: OnboardingStepId): OnboardingBranch {
+  if (id === 'summary') return 'summary'
+  return FULL_ONLY.has(id) ? 'full' : 'quick'
+}
+
 type ConfigProviderRow = {
   id?: string
   configured?: boolean
@@ -171,7 +182,12 @@ export type OnboardingScreenProps = {
   open?: boolean
   /** Fired when the wizard finishes or is closed. */
   onClose?: () => void
-  /** Deep link from the setup-wizard store. Ignored while the flow is locked. */
+  /**
+   * Deep link from the setup-wizard store — picks the *starting step*, in
+   * relaunch mode too. It never implies `unlocked`: a deep link must not be a
+   * way around the write lock, so the flow it opens is still read-only until
+   * the user unlocks it explicitly.
+   */
   initialStepId?: OnboardingStepId
 }
 
@@ -214,7 +230,11 @@ function OnboardingFlow({
     resolveEntryStep({ mode, outcome, hasWorkingProvider: false }),
   )
 
-  const [branch, setBranch] = useState<OnboardingBranch>(entry.branch)
+  // A deep link picks the starting step, so the branch has to start wherever
+  // that step is actually enabled — otherwise `useWizard` reconciles it away.
+  const [branch, setBranch] = useState<OnboardingBranch>(() =>
+    initialStepId ? branchForStep(initialStepId) : entry.branch,
+  )
   const [draft, setDraft] = useState<OnboardingDraft & OnboardingTransient>(
     () => ({
       ...emptyDraft(),
@@ -227,10 +247,13 @@ function OnboardingFlow({
 
   const locked = relaunch && !unlocked
 
-  // A deep link may pick the entry step, but never past the lock: a relaunch
-  // always opens on the read-only summary.
-  const [initialId] = useState<OnboardingStepId>(() =>
-    relaunch ? entry.stepId : (initialStepId ?? entry.stepId),
+  // A deep link picks the entry step — including on a relaunch, which is the
+  // only mode the sidebar/palette/dashboard links ever open. What it must not
+  // do is get past the lock, and it does not: `unlocked` stays false above, so
+  // every step it lands on renders read-only and `canWriteConfig` keeps
+  // refusing until the user chooses "Change setup".
+  const [initialId] = useState<OnboardingStepId>(
+    () => initialStepId ?? entry.stepId,
   )
 
   const { markComplete, markDismissed, markEngaged } = useOnboardingGate({
@@ -268,8 +291,20 @@ function OnboardingFlow({
     )
   }, [config, draft.providerId])
 
-  const system = useSystemChecks({ enabled: true })
-  const plugins = useCorePlugins({ enabled: branch === 'full' })
+  // One decision, consulted by every mutation the wizard can perform — not
+  // just the config PATCH. A locked relaunch tells the user their setup is
+  // read-only, so enabling a plugin or restarting the gateway from a step the
+  // checklist deep-links into has to be refused too.
+  const canWrite = canWriteConfig({ mode, unlocked, stepId: 'review' })
+
+  const system = useSystemChecks({ enabled: true, canWrite })
+  const plugins = useCorePlugins({ enabled: branch === 'full', canWrite })
+
+  // Refreshed during render so callbacks below read the live draft without
+  // taking it as a dependency. Declared here rather than beside the
+  // save-and-resume effect because `handleFinish` needs it too.
+  const draftRef = useRef(draft)
+  draftRef.current = draft
 
   const handleFinish = useCallback(
     (state: WizardState<OnboardingStepId>) => {
@@ -281,9 +316,21 @@ function OnboardingFlow({
         // survives — `markComplete` can only write `quick` / `[]`.
         markComplete()
         if (storage) {
+          // `completed` is persisted alongside `skipped` because the draft —
+          // the only other place it lived — is deleted on the next line. The
+          // sidebar badge and the command palette read the outcome, not the
+          // draft, and without this they reported a permanent full house of
+          // outstanding items to a user who had just finished everything.
           writeOnboardingComplete(storage, {
             branch,
-            skipped: idsWithStatus(state, 'skipped'),
+            skipped: union(
+              draftRef.current.skipped,
+              idsWithStatus(state, 'skipped'),
+            ),
+            completed: union(
+              draftRef.current.completed,
+              idsWithStatus(state, 'done'),
+            ),
           })
           clearOnboardingDraft(storage)
         }
@@ -299,6 +346,7 @@ function OnboardingFlow({
     saved,
     hasStoredKey,
     catalogBaseUrl: choice?.baseUrl ?? null,
+    canWrite,
   }
 
   const wz = useWizard<OnboardingStepId, OnboardingCtx>({
@@ -396,8 +444,6 @@ function OnboardingFlow({
   }, [choice, draft, saveApi])
 
   // ── save-and-resume ───────────────────────────────────────────────────────
-  const draftRef = useRef(draft)
-  draftRef.current = draft
   const firstSyncRef = useRef(true)
 
   // Step/status changes are persisted immediately: they are the coarse
@@ -510,6 +556,7 @@ function OnboardingFlow({
             loading={system.loading}
             onHeal={(action, payload) => void system.heal(action, payload)}
             healing={system.healing}
+            canWrite={canWrite}
           />
         )
 
@@ -541,7 +588,7 @@ function OnboardingFlow({
           <ReviewStep
             choice={choice}
             draft={draft}
-            canWrite={canWriteConfig({ mode, unlocked, stepId: 'review' })}
+            canWrite={canWrite}
             saving={saveApi.saving}
             saveError={saveApi.saveError}
             saved={saved}
@@ -582,6 +629,7 @@ function OnboardingFlow({
             canRestart={plugins.canRestart}
             restarting={plugins.restarting}
             onRestart={() => void plugins.restart()}
+            canWrite={canWrite}
           />
         )
 

@@ -18,6 +18,12 @@ export type SystemCheckStepProps = {
     payload?: { gatewayUrl?: string },
   ) => void
   healing: string | null
+  /**
+   * The `canWriteConfig` verdict. The checks themselves are reads and always
+   * run; the self-heal actions start the agent, re-probe the gateway and
+   * restart it, so a locked relaunch renders none of them.
+   */
+  canWrite: boolean
 }
 
 export function SystemCheckStep({
@@ -25,6 +31,7 @@ export function SystemCheckStep({
   loading,
   onHeal,
   healing,
+  canWrite,
 }: SystemCheckStepProps) {
   return (
     <WizardPanel>
@@ -33,11 +40,19 @@ export function SystemCheckStep({
         portable or freshly started backend, any of them can come back unknown —
         that means the check could not tell, not that something is broken.
       </WizardNote>
+      {!canWrite ? (
+        <WizardNote tone="warn">
+          Read-only for this run — the checks still run, but nothing here will
+          start or restart anything. Choose &ldquo;Change setup&rdquo; on the
+          summary first.
+        </WizardNote>
+      ) : null}
       <SystemCheckList
         checks={checks}
         loading={loading}
         onHeal={onHeal}
         healing={healing}
+        readOnly={!canWrite}
       />
     </WizardPanel>
   )

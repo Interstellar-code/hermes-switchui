@@ -8,7 +8,7 @@
  * `onChange`; the actual write happens later, gated behind `useOnboardingSave`
  * on the review step (see CLAUDE.md's write-path rule).
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useOnboardingModels } from '../hooks/use-onboarding-models'
 import type {
   OnboardingDraft,
@@ -108,6 +108,10 @@ export function ConnectStep({
 }: ConnectStepProps) {
   const oauth = useNousOAuth()
   const [copiedCli, setCopiedCli] = useState(false)
+  // The "Copied" reset is a timer, so it outlives an unmount unless cleared —
+  // copying and then leaving the step within 1.8s otherwise schedules a
+  // setState against a component that is gone.
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // The providers dialog only resets this hook when it opens; onboarding
   // reuses one long-lived step instance across provider switches, so it has
@@ -117,11 +121,19 @@ export function ConnectStep({
     oauth.reset()
   }, [choice?.id])
 
+  useEffect(
+    () => () => {
+      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current)
+    },
+    [],
+  )
+
   async function copyCliCommand(command: string) {
     try {
       await writeTextToClipboard(command)
       setCopiedCli(true)
-      setTimeout(() => setCopiedCli(false), 1800)
+      if (copiedTimer.current !== null) clearTimeout(copiedTimer.current)
+      copiedTimer.current = setTimeout(() => setCopiedCli(false), 1800)
     } catch {
       // Clipboard unavailable — the command is still visible to copy by hand.
     }
