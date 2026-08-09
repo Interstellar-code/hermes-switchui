@@ -580,6 +580,7 @@ function OnboardingFlow({
             errors={wz.errors}
             hasStoredKey={hasStoredKey}
             systemCheckWarning={systemCheckWarning}
+            canWrite={canWrite}
           />
         )
 

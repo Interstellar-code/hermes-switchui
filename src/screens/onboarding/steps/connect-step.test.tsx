@@ -89,6 +89,7 @@ describe('ConnectStep', () => {
         errors={[]}
         hasStoredKey={false}
         systemCheckWarning={null}
+        canWrite
       />,
     )
 
@@ -99,5 +100,57 @@ describe('ConnectStep', () => {
     view.unmount()
 
     expect(clearSpy).toHaveBeenCalled()
+  })
+})
+
+/**
+ * The OAuth device flow is not a draft edit — approving it writes tokens into
+ * the gateway's auth store immediately. A locked relaunch promises the
+ * existing setup is read-only, so the flow must not be startable from there.
+ */
+describe('ConnectStep — OAuth under a locked relaunch', () => {
+  const OAUTH_CHOICE: ProviderChoice = {
+    ...CHOICE,
+    id: 'nous',
+    name: 'Nous Portal',
+    authKind: 'oauth',
+    supportsOAuth: true,
+    cliCommand: null,
+  }
+
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+  })
+
+  function renderWith(canWrite: boolean) {
+    return render(
+      <ConnectStep
+        choice={OAUTH_CHOICE}
+        draft={{ ...DRAFT, providerId: 'nous' }}
+        onChange={vi.fn()}
+        errors={[]}
+        hasStoredKey={false}
+        systemCheckWarning={null}
+        canWrite={canWrite}
+      />,
+    )
+  }
+
+  it('offers the sign-in button when writes are permitted', () => {
+    renderWith(true)
+    expect(
+      screen.getByRole('button', { name: /Connect with Nous Portal/ }),
+    ).toBeTruthy()
+  })
+
+  it('withholds the sign-in button when writes are locked', () => {
+    renderWith(false)
+    expect(screen.queryByRole('button', { name: /Connect with/ })).toBeNull()
+  })
+
+  it('explains why sign-in is unavailable rather than failing silently', () => {
+    renderWith(false)
+    expect(screen.getByText(/Change setup/)).toBeTruthy()
   })
 })
