@@ -12,9 +12,24 @@
  * specific step (`openSetupWizard('provider')`, or `openSetupWizard('summary')`
  * for the read-only overview) instead of landing on the first rail step. A
  * bare `openSetupWizard()` call clears `target` so the wizard falls back to
- * its own entry-step resolution (the stepped `system-check` view on relaunch).
+ * its own entry-step resolution (`resolveEntryStep` in `onboarding-mode.ts`,
+ * which reads mode/outcome/provider state — not a fixed step).
  * `closeSetupWizard` clears `target` too, so a later bare open never inherits
  * a stale deep link from a previous jump.
+ *
+ * `STEP_IDS` (and so `normalizeTarget`) is built from `ONBOARDING_STEPS`,
+ * which still lists three retired ids — `system-check`, `review`, `verify` —
+ * permanently disabled and never rendered (see that file's header). They stay
+ * in the table, and so in this store's allowlist, purely so a deep link saved
+ * before the rebuild (a shortcut, a palette entry, a bookmarked dashboard
+ * card) still names a *known* step id instead of getting normalized to
+ * `null` and dumping the user on the wizard's front door. `resolveStepAlias`
+ * in `onboarding-steps.ts` maps each retired id onto its replacement
+ * (`system-check` → `connect`, `review`/`verify` → `provider`);
+ * `onboarding-screen.tsx` applies that mapping at mount before honouring
+ * `target`. Do not remove the retired ids from `ONBOARDING_STEPS` without
+ * also removing whatever still resolves to them — doing so silently breaks
+ * those saved links instead of erroring.
  *
  * Consumers: primary-nav-v2.tsx + command-palette.tsx + the dashboard setup
  * checklist card (open), __root.tsx (render).

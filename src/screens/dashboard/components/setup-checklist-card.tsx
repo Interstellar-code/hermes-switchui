@@ -21,7 +21,9 @@
 import { useEffect, useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Cancel01Icon } from '@hugeicons/core-free-icons'
+import type { ChecklistItem } from '@/screens/onboarding/lib/checklist'
 import { OnboardingChecklist } from '@/screens/onboarding/components/onboarding-checklist'
+import { outstandingRequiredCount } from '@/screens/onboarding/lib/checklist'
 import { useOnboardingChecklist } from '@/screens/onboarding/hooks/use-onboarding-checklist'
 import { useSetupWizardStore } from '@/stores/setup-wizard-store'
 import './setup-checklist-card.css'
@@ -60,9 +62,28 @@ export function shouldShowSetupChecklistCard(input: {
   return input.ready && input.outstanding > 0 && !input.dismissed
 }
 
+/**
+ * The headline text, extracted so it is unit-testable without mounting the
+ * card. Answers "what must I still do" — the required steps specifically —
+ * rather than the all-items `outstanding` count the card used before: that
+ * count (via `outstandingCount`) deliberately excludes `blocked` items (e.g.
+ * `chat` before a provider exists) so the sidebar/palette badges can reach
+ * zero, but the same exclusion means it can undercount required work still
+ * ahead. A provider not yet connected reads as "1 step left" from
+ * `outstanding` (just `provider`) even though the now-blocked `chat` is also
+ * required and unfinished; `outstandingRequiredCount` counts `blocked`
+ * required items too, so `2 of 4 required steps left` is what actually shows.
+ */
+export function describeRequiredSteps(items: Array<ChecklistItem>): string {
+  const total = items.filter((item) => item.required).length
+  const left = outstandingRequiredCount(items)
+  return `${left} of ${total} required step${total === 1 ? '' : 's'} left.`
+}
+
 export function SetupChecklistCard() {
   const { items, outstanding, ready } = useOnboardingChecklist()
   const openSetupWizard = useSetupWizardStore((s) => s.openSetupWizard)
+  const requiredStepsLabel = describeRequiredSteps(items)
   // Client-only read: SSR never has a dismissal to honour, and this render
   // is already gated by `ready` (also client-only), so there is nothing to
   // flash between the SSR pass and this effect settling.
@@ -112,7 +133,7 @@ export function SetupChecklistCard() {
         </button>
       </div>
       <p className="text-[11px]" style={{ color: 'var(--theme-muted)' }}>
-        {outstanding} step{outstanding === 1 ? '' : 's'} left from setup.
+        {requiredStepsLabel}
       </p>
       <OnboardingChecklist
         items={items}

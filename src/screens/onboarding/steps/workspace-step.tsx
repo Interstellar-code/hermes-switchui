@@ -181,10 +181,17 @@ export function WorkspaceStep({
 
           {preview ? (
             <>
-              <dl className="ob-current-facts">
-                <CwdLine label="Before" resolved={preview.before} />
-                <CwdLine label="After" resolved={preview.after} />
-              </dl>
+              <div className="ob-cwd-diff">
+                <dl className="ob-current-facts ob-cwd-diff-col">
+                  <CwdLine label="Before" resolved={preview.before} />
+                </dl>
+                <span className="ob-cwd-diff-arrow" aria-hidden="true">
+                  →
+                </span>
+                <dl className="ob-current-facts ob-cwd-diff-col is-after">
+                  <CwdLine label="After" resolved={preview.after} />
+                </dl>
+              </div>
               {preview.after.warnings.map((warning) => (
                 <WizardNote tone="warn" key={warning}>
                   {warning}

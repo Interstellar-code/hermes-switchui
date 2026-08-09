@@ -162,7 +162,13 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
   }
-  .ob-fork-card {
+  /* `.ob-plan-card` is the non-interactive twin of `.ob-fork-card`: same box,
+     same left accent rule, no affordances. The welcome step's four-step plan
+     is prose, not a control — it never gets a click handler — so it must not
+     borrow the pointer cursor, hover lift or focus ring that tell a sighted
+     or keyboard user "this does something." */
+  .ob-fork-card,
+  .ob-plan-card {
     position: relative;
     display: grid;
     gap: 6px;
@@ -172,13 +178,16 @@
     border: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
     border-radius: var(--m-radius-md, 4px);
     background: var(--m-card, var(--theme-card));
+  }
+  .ob-fork-card {
     cursor: pointer;
     transition:
       transform var(--m-dur-fast, 120ms) var(--m-ease-out, ease-out),
       border-color var(--m-dur-fast, 120ms),
       background var(--m-dur-fast, 120ms);
   }
-  .ob-fork-card::before {
+  .ob-fork-card::before,
+  .ob-plan-card::before {
     content: '';
     position: absolute;
     inset: 0 auto 0 0;
@@ -200,16 +209,19 @@
         transparent
       );
   }
-  .ob-fork-card .ob-t {
+  .ob-fork-card .ob-t,
+  .ob-plan-card .ob-t {
     font: 600 13px var(--m-font-mono, ui-monospace, monospace);
     letter-spacing: 0.02em;
     color: var(--m-text-strong, var(--theme-text));
   }
-  .ob-fork-card .ob-s {
+  .ob-fork-card .ob-s,
+  .ob-plan-card .ob-s {
     font: 400 12px var(--m-font-sans, system-ui, sans-serif);
     color: var(--m-text-muted, var(--theme-muted));
   }
-  .ob-fork-card .ob-meta {
+  .ob-fork-card .ob-meta,
+  .ob-plan-card .ob-meta {
     font: 500 9.5px var(--m-font-mono, ui-monospace, monospace);
     text-transform: uppercase;
     letter-spacing: 0.18em;
@@ -288,6 +300,28 @@
     font: 400 11px var(--m-font-sans, system-ui, sans-serif);
     color: var(--m-text-faint, var(--theme-muted));
   }
+  /* ── suppressed extras ────────────────────────────────────────────────── */
+  /* A card the extras step is *not* offering because the gateway's own
+     `onboarding.seen` already handled it. This is a footnote, not another
+     status check, so it drops `.ob-check-row`'s card border/background and
+     its status-dot column — there is nothing to signal ok/warn/fail here,
+     only "already done elsewhere" — and reads as one quiet line. */
+  .ob-extra-suppressed {
+    display: grid;
+    gap: 2px;
+  }
+  .ob-extra-suppressed-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 2px;
+  }
+  .ob-extra-suppressed-row .ob-check-label {
+    font-weight: 400;
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+
   /* The change-url variant puts a labelled input next to its button; at 320px
      that is two lines, not one. */
   .ob-heal {
@@ -503,6 +537,33 @@
   }
   .ob-current-value.is-unset {
     color: var(--m-text-faint, var(--theme-muted));
+  }
+
+  /* ── workspace cwd diff ───────────────────────────────────────────────── */
+  /* The workspace step's before → after preview is the confirmation gate for
+     the one setting in Switch UI that changes where the agent executes
+     commands. Two `.ob-current-facts` rows stacked on top of each other reads
+     as two facts, not as a change between them — this puts before and after
+     in their own columns with an arrow between so the eye compares left
+     against right instead of reading top to bottom. */
+  .ob-cwd-diff {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+  }
+  .ob-cwd-diff-col {
+    min-width: 0;
+  }
+  .ob-cwd-diff-arrow {
+    font: 600 16px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-green-500, var(--theme-accent));
+  }
+  /* The "after" value is the one the user is about to commit to — it gets the
+     same accent used for an active/confirmed value elsewhere in this file. */
+  .ob-cwd-diff-col.is-after .ob-current-value {
+    color: var(--m-green-500, var(--theme-accent));
+    text-shadow: var(--m-text-glow, none);
   }
 
   /* ── connect ──────────────────────────────────────────────────────────── */
@@ -1192,6 +1253,18 @@
     .ob-check-row {
       flex-wrap: wrap;
       row-gap: 4px;
+    }
+
+    /* Two columns plus an arrow will not fit at 320px — the before/after
+       path values are absolute filesystem paths, often longer than the
+       viewport is wide. Stack them and rotate the arrow to point down
+       instead of right so the before → after order still reads correctly. */
+    .ob-cwd-diff {
+      grid-template-columns: 1fr;
+      justify-items: start;
+    }
+    .ob-cwd-diff-arrow {
+      transform: rotate(90deg);
     }
 
     /* The relaunch sheet: `&[data-wizard].ob-relaunch` below is (0,3,0) and

@@ -86,7 +86,7 @@ export function WelcomeStep({
 
       <div className="ob-fork">
         {PLAN.map((entry) => (
-          <div key={entry.n} className="ob-fork-card">
+          <div key={entry.n} className="ob-plan-card">
             <span className="ob-meta">{entry.n}</span>
             <span className="ob-t">{entry.title}</span>
             <span className="ob-s">{entry.blurb}</span>

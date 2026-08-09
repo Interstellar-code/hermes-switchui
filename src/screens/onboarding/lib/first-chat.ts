@@ -20,7 +20,16 @@
  * A non-2xx response is plain JSON `{ ok: false, error }` instead, because a
  * credential failure can surface either way depending on how far the request
  * got before the provider rejected it.
+ *
+ * Credential-failure classification (`looksLikeCredentialFailure`) is
+ * imported from `verify-provider.ts` rather than kept as a local copy — this
+ * module and that one used to carry independent regexes that had already
+ * started disagreeing about which gateway errors count as a credential
+ * problem. See that module for the single definition; this file just uses it
+ * to decide whether the skip warning should talk about a rejected key or an
+ * unproven setup.
  */
+import { looksLikeCredentialFailure } from '@/screens/providers/lib/verify-provider'
 
 export type FirstChatParse = {
   /** The assistant's text, trimmed. Empty when nothing arrived. */
@@ -29,19 +38,7 @@ export type FirstChatParse = {
   error: string | null
 }
 
-/**
- * Signals in a gateway error that mean "the credential did not resolve",
- * rather than "the provider is down" or "the request was malformed". Kept
- * local rather than imported because it drives different copy here: the chat
- * gate uses it to decide whether the skip warning should talk about a rejected
- * key or an unproven setup.
- */
-const CREDENTIAL_ERROR_RE =
-  /\b(401|403|unauthor\w*|invalid[_ -]?api[_ -]?key|invalid[_ -]?token|no[_ -]?key|api[_ -]?key|authentication\w*|credential\w*|forbidden)\b/i
-
-export function looksLikeCredentialFailure(message: string): boolean {
-  return CREDENTIAL_ERROR_RE.test(message)
-}
+export { looksLikeCredentialFailure }
 
 function textFromDonePayload(data: Record<string, unknown>): string {
   const message = data.message

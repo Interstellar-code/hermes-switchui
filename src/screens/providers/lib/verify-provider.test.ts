@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  looksLikeCredentialFailure,
   parseLiveTestStream,
   sendLiveTestPrompt,
   verifyProviderAfterSave,
@@ -277,5 +278,37 @@ describe('verifyProviderAfterSave', () => {
     })
     expect(outcome.resolution.status).toBe('missing')
     expect(outcome.live).toBeNull()
+  })
+})
+
+describe('looksLikeCredentialFailure', () => {
+  // The onboarding first-chat gate (`onboarding/lib/first-chat.ts`) used to
+  // carry a second, broader copy of this regex — `\w*` on `unauthor`,
+  // `authentication` and `credential` — that this module's copy did not
+  // match. The two have been consolidated onto this (the broader) pattern;
+  // these are exactly the shapes the onboarding copy caught that the old
+  // provider-screen copy did not.
+  it('recognises the shapes providers actually return, including the `_error`-suffixed codes', () => {
+    for (const message of [
+      'Error code: 401 - invalid x-api-key',
+      '403 Forbidden',
+      'invalid_api_key',
+      'authentication_error',
+      'credential_error',
+      'unauthorized_client',
+      'No API key provided',
+    ]) {
+      expect(looksLikeCredentialFailure(message), message).toBe(true)
+    }
+  })
+
+  it('does not misread an outage as a credential problem', () => {
+    for (const message of [
+      'connection refused',
+      'The provider did not answer within 30 seconds.',
+      'model not found',
+    ]) {
+      expect(looksLikeCredentialFailure(message), message).toBe(false)
+    }
   })
 })

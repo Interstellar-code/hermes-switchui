@@ -22,7 +22,9 @@
  *      structurally-safe path that is itself a symlink pointing outside the
  *      docs root (or passes through one on the way down) is still caught
  *      here — the realpath check is what actually matters; step 1 is
- *      defense-in-depth for the common case.
+ *      defense-in-depth for the common case. This half lives in
+ *      `./path-containment` (`resolveContainedPath`) so `docs-asset.ts`
+ *      reuses the exact same check instead of a third hand-rolled variant.
  *   3. Only `.md` / `.mdx` files are servable — this is a docs reader, not a
  *      generic file server.
  *
@@ -36,9 +38,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { resolveClaudeAgentDir } from './claude-agent'
+import { PathContainmentError, resolveContainedPath } from './path-containment'
 
 /** Docusaurus site config: `url: 'https://hermes-agent.nousresearch.com'`, `baseUrl: '/docs/'`. */
-export const HERMES_DOCS_LIVE_BASE_URL = 'https://hermes-agent.nousresearch.com/docs/'
+export const HERMES_DOCS_LIVE_BASE_URL =
+  'https://hermes-agent.nousresearch.com/docs/'
 
 export type HermesDocsInvalidReason = 'invalid-path' | 'not-found'
 
@@ -79,7 +83,10 @@ const ALLOWED_EXTENSIONS = new Set(['.md', '.mdx'])
  * `docsRoot` itself must already exist (callers check that separately so
  * they can distinguish "no local install" from "bad path").
  */
-export function resolveHermesDocPath(docsRoot: string, rawPath: string): string {
+export function resolveHermesDocPath(
+  docsRoot: string,
+  rawPath: string,
+): string {
   const trimmed = rawPath.trim()
   if (!trimmed) {
     throw new HermesDocsPathError('Missing path', 'invalid-path')
@@ -89,48 +96,55 @@ export function resolveHermesDocPath(docsRoot: string, rawPath: string): string 
   }
 
   // Reject absolute paths in both POSIX and Windows form up front.
-  if (path.posix.isAbsolute(trimmed) || /^[A-Za-z]:[\\/]/.test(trimmed) || trimmed.startsWith('\\\\')) {
-    throw new HermesDocsPathError('Absolute paths are not allowed', 'invalid-path')
+  if (
+    path.posix.isAbsolute(trimmed) ||
+    /^[A-Za-z]:[\\/]/.test(trimmed) ||
+    trimmed.startsWith('\\\\')
+  ) {
+    throw new HermesDocsPathError(
+      'Absolute paths are not allowed',
+      'invalid-path',
+    )
   }
 
   // Normalize on POSIX separators regardless of platform so a `..\\` on
   // Windows-style input can't slip past a POSIX-only check.
   const posixCandidate = trimmed.replace(/\\/g, '/')
   const normalized = path.posix.normalize(posixCandidate)
-  if (normalized === '..' || normalized.startsWith('../') || path.posix.isAbsolute(normalized)) {
+  if (
+    normalized === '..' ||
+    normalized.startsWith('../') ||
+    path.posix.isAbsolute(normalized)
+  ) {
     throw new HermesDocsPathError('Path escapes the docs root', 'invalid-path')
   }
 
   const ext = path.posix.extname(normalized).toLowerCase()
   if (!ALLOWED_EXTENSIONS.has(ext)) {
-    throw new HermesDocsPathError('Only .md/.mdx files can be served', 'invalid-path')
+    throw new HermesDocsPathError(
+      'Only .md/.mdx files can be served',
+      'invalid-path',
+    )
   }
-
-  let realRoot: string
-  try {
-    realRoot = fs.realpathSync(docsRoot)
-  } catch {
-    // Caller is expected to have already verified the root exists; treat any
-    // race as "not found" rather than leaking the raw error.
-    throw new HermesDocsPathError('Docs root not found', 'not-found')
-  }
-
-  const joined = path.join(realRoot, normalized)
 
   let real: string
   try {
-    real = fs.realpathSync(joined)
-  } catch {
-    throw new HermesDocsPathError('Not found', 'not-found')
-  }
-
-  // The containment check that actually matters: realpath resolves every
-  // symlink in the chain (including the final component), so a symlink
-  // planted inside docsRoot that points outside it is caught here even
-  // though the pre-resolution path looked contained.
-  const rootWithSep = realRoot.endsWith(path.sep) ? realRoot : realRoot + path.sep
-  if (real !== realRoot && !real.startsWith(rootWithSep)) {
-    throw new HermesDocsPathError('Path escapes the docs root', 'invalid-path')
+    real = resolveContainedPath(docsRoot, normalized)
+  } catch (err) {
+    if (err instanceof PathContainmentError) {
+      // Caller is expected to have already verified the root exists; treat
+      // a root that vanished in a race, and a missing file, the same way —
+      // "not found" rather than leaking the raw filesystem error. A symlink
+      // escape is the one case worth calling out as an invalid path rather
+      // than a mere 404.
+      throw new HermesDocsPathError(
+        err.reason === 'escapes-root'
+          ? 'Path escapes the docs root'
+          : 'Not found',
+        err.reason === 'escapes-root' ? 'invalid-path' : 'not-found',
+      )
+    }
+    throw err
   }
 
   let stat: fs.Stats
@@ -148,7 +162,11 @@ export function resolveHermesDocPath(docsRoot: string, rawPath: string): string 
 
 export type HermesDocResult =
   | { ok: true; path: string; content: string }
-  | { ok: false; reason: 'no-docs-root' | HermesDocsInvalidReason; message: string }
+  | {
+      ok: false
+      reason: 'no-docs-root' | HermesDocsInvalidReason
+      message: string
+    }
 
 /**
  * Read one doc by its path relative to the docs root (e.g.

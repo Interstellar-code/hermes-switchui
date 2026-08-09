@@ -55,14 +55,14 @@ Each profile card, table row, and the detail drawer has an **Activate** action f
 
 The **Use default profile** header button is the reverse shortcut: it re-activates the synthetic `default` profile in one click (disabled when `default` is already active) and raises the same restart banner.
 
-### Live-gateway reachability
+### Live-gateway reachability — Selected vs. Serving
 
-Activating a profile only changes which one this workspace *wants* to run — on a gateway that multiplexes several profiles at once, the running process also has to actually be serving it. A card or row shows a small badge next to its status when that isn't guaranteed:
+Two separate facts get conflated if you only look at the "in use" status dot: **Selected** is this workspace's own opinion — which profile `~/.hermes/active_profile` names, shown by the dot. **Serving** is what the live gateway process is actually doing right now, independent of that pointer. Activating a profile changes Selected immediately; it does not, by itself, guarantee the running gateway is Serving it. A card or row shows a small badge next to its status whenever those two facts might disagree:
 
-- **not served** — the live gateway is multiplexing, but this profile isn't in the list it reports serving. Activating it will not make chats work until the gateway's own config is updated to include it.
-- **unknown** — the reachability probe itself failed (the dashboard was unreachable), so this can't be confirmed either way; treat it the same as "not served" until it clears.
+- **not served** — one of two situations, distinguished by hovering the badge: on a **multiplexing** gateway, this profile isn't in the list the gateway reports serving, so activating it will not make chats work until the gateway's own config is updated to include it; on a **single** (non-multiplexed) gateway, the running process is serving a *different* profile than the one this workspace has Selected — restarting the gateway (or reconciling which profile it's already running) is what closes the gap, not re-clicking Activate.
+- **unknown** — the reachability probe itself failed (the dashboard was unreachable, or a single-mode gateway didn't report which profile it's serving), so this can't be confirmed either way; treat it the same as "not served" until it clears.
 
-Neither badge appears on a single (non-multiplexed) gateway, or for a profile the live gateway confirms it serves — this is a quiet, scan-only signal, not a status shown for every profile.
+The badge is quiet by design — it appears only when Selected and Serving might not agree, never as a status shown for every profile, and it never appears for the profile the live gateway confirms it's actually serving.
 
 ## Persona pre-fill
 
@@ -95,6 +95,10 @@ Deleting a profile is recoverable, not permanent. **Delete** moves the profile's
 
 A fresh install now bootstraps `~/.hermes/active_profile` to the `hermes-switch` builtin agent rather than the synthetic `default`. Set `HERMES_DEFAULT_PROFILE` to a different builtin id before first run to adopt something else instead.
 
+## Seeded profiles and the working directory
+
+Profile configs do not inherit from the root `config.yaml` — each is a fully independent file, and the gateway never merges them. Left alone, that means a newly created profile has no `terminal:` block at all and the agent falls back to running in `$HOME` the moment you switch to it, even if the root config has an absolute `terminal.cwd` set. To close part of that gap, **the first time a builtin profile is seeded**, its `config.yaml` copies the root's `terminal:` block verbatim, if one exists. This is a one-time snapshot taken only at seed time, not real inheritance — a later change to the root's `terminal:` block does not propagate to a profile that already exists, and a profile created before this behavior shipped, or a profile with no root `terminal:` block to copy at the time it was seeded, still starts out with none. See [Working directory](./working-directory.md) for the full mechanism and how to set it per profile.
+
 ## Where data lives
 
 Profiles are plain directories under `~/.hermes/profiles/<name>/` (each holding its own `config.yaml`, `SOUL.md`, `skills/`, `sessions/`, etc.), read directly from the local filesystem — the workspace server reads them itself, and creating, editing, cloning, exporting, and deleting a profile never calls the gateway. They are not stored in the browser. Changes made through the wizard are written straight to those files on submission.
@@ -116,3 +120,6 @@ The one exception is the [live-gateway reachability](#live-gateway-reachability)
 - [Skills](./skills.md) — skills the agent can invoke
 - [MCP](./mcp.md) — external tool servers
 - [Plugins — Personas](../plugins/personas.md) — the personas plugin that powers the library
+- [Working directory](./working-directory.md) — what a profile's `terminal:` block controls, and what happens when it's missing
+- [Gateway](./gateway.md) — multiplexing, and what "Serving" means when it's on
+- [API keys](./providers/api-keys.md) — per-profile credential scoping under multiplexing

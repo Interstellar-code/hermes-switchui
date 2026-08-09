@@ -85,6 +85,7 @@ export default defineConfig({
           items: [
             { label: 'Welcome', slug: 'welcome' },
             { label: 'Install', slug: 'getting-started/install' },
+            { label: 'The Setup Wizard', slug: 'getting-started/setup-wizard' },
             { label: 'Connect a Provider', slug: 'getting-started/connecting-provider' },
             { label: 'Your First Chat', slug: 'getting-started/first-chat' },
             { label: 'Themes', slug: 'getting-started/theme' },
@@ -132,6 +133,10 @@ export default defineConfig({
             { label: 'Preferences', slug: 'settings/preferences' },
             { label: 'Themes', slug: 'settings/themes' },
             { label: 'Profiles', slug: 'settings/profiles' },
+            { label: 'Working Directory', slug: 'settings/working-directory' },
+            { label: 'Execution', slug: 'settings/execution' },
+            { label: 'Gateway', slug: 'settings/gateway' },
+            { label: 'Safety', slug: 'settings/safety' },
             { label: 'Workflows Backend', slug: 'settings/workflows-backend-toggle' },
           ],
         },

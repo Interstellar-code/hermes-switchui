@@ -2,6 +2,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
+import {
+  PathContainmentError,
+  resolveContainedPath,
+} from '../../server/path-containment'
 
 const DOCS_ROOT = path.join(process.cwd(), 'docs')
 
@@ -33,7 +37,10 @@ export const Route = createFileRoute('/api/docs-asset')({
     handlers: {
       GET: ({ request }) => {
         if (!isAuthenticated(request)) {
-          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json(
+            { ok: false, error: 'Unauthorized' },
+            { status: 401 },
+          )
         }
 
         const url = new URL(request.url)
@@ -65,22 +72,40 @@ export const Route = createFileRoute('/api/docs-asset')({
           )
         }
 
-        // Resolve to absolute path and confirm it's inside DOCS_ROOT
-        const resolved = path.join(DOCS_ROOT, normalized)
-        if (!resolved.startsWith(DOCS_ROOT + path.sep) && resolved !== DOCS_ROOT) {
+        // Resolve to a real, symlink-followed path and confirm it's inside
+        // DOCS_ROOT (also symlink-followed). A plain string-prefix check on
+        // the un-resolved path — what this route used to do — misses a
+        // symlink (file or directory) planted inside docs/ that points
+        // outside it: the joined path *looks* contained even though the
+        // filesystem resolves it elsewhere. See `path-containment.ts`,
+        // established in `server/hermes-docs.ts`. A missing DOCS_ROOT
+        // (fresh checkout with no docs/ built yet) degrades to the same 404
+        // rather than throwing.
+        let resolved: string
+        try {
+          resolved = resolveContainedPath(DOCS_ROOT, normalized)
+        } catch (err) {
+          if (
+            err instanceof PathContainmentError &&
+            err.reason === 'escapes-root'
+          ) {
+            return Response.json(
+              { ok: false, error: 'Invalid path' },
+              { status: 400 },
+            )
+          }
           return Response.json(
-            { ok: false, error: 'Invalid path' },
-            { status: 400 },
+            { ok: false, error: 'Not found' },
+            { status: 404 },
           )
-        }
-
-        if (!fs.existsSync(resolved)) {
-          return Response.json({ ok: false, error: 'Not found' }, { status: 404 })
         }
 
         const stat = fs.statSync(resolved)
         if (!stat.isFile()) {
-          return Response.json({ ok: false, error: 'Not found' }, { status: 404 })
+          return Response.json(
+            { ok: false, error: 'Not found' },
+            { status: 404 },
+          )
         }
 
         const buffer = fs.readFileSync(resolved)

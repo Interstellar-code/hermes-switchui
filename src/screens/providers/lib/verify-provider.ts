@@ -267,9 +267,27 @@ export type PostSaveVerification = {
   credentialFailed: boolean
 }
 
-/** Signals in a gateway error that mean "the credential did not resolve". */
-const CREDENTIAL_ERROR_RE =
-  /\b(401|403|unauthor|invalid[_ -]?api[_ -]?key|invalid[_ -]?token|no[_ -]?key|api[_ -]?key|authentication|credential|forbidden)\b/i
+/**
+ * Signals in a gateway error that mean "the credential did not resolve",
+ * rather than "the provider is down" or "the request was malformed".
+ *
+ * Single definition for both consumers of this classification —
+ * `verifyProviderAfterSave` here and the onboarding first-chat gate
+ * (`onboarding/lib/first-chat.ts`, which imports `looksLikeCredentialFailure`
+ * below). They used to carry independent copies that diverged: this one
+ * matched bare `authentication`/`credential`, the onboarding copy matched
+ * `\w*` on both so it also caught `authentication_error` and
+ * `credential_error` — real gateway error codes, not hypothetical ones — and
+ * would have kept classifying failures the other copy missed. Kept as the
+ * broader pattern for both.
+ */
+export const CREDENTIAL_ERROR_RE =
+  /\b(401|403|unauthor\w*|invalid[_ -]?api[_ -]?key|invalid[_ -]?token|no[_ -]?key|api[_ -]?key|authentication\w*|credential\w*|forbidden)\b/i
+
+/** Does this gateway error message look like a rejected/missing credential? */
+export function looksLikeCredentialFailure(message: string): boolean {
+  return CREDENTIAL_ERROR_RE.test(message)
+}
 
 /**
  * The full post-write check: does the gateway see the provider, and will it
@@ -292,6 +310,6 @@ export async function verifyProviderAfterSave(
     resolution,
     live,
     credentialFailed:
-      !live.ok && CREDENTIAL_ERROR_RE.test(live.gatewayError ?? live.message),
+      !live.ok && looksLikeCredentialFailure(live.gatewayError ?? live.message),
   }
 }

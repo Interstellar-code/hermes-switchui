@@ -47,7 +47,7 @@ function makeRequest(
 // Helper that rewires DOCS_ROOT and mocks isAuthenticated, then invokes the handler
 async function invoke(
   queryPath: string | null,
-  opts: { authenticated?: boolean } = {},
+  opts: { authenticated?: boolean; noRoot?: boolean } = {},
 ): Promise<Response> {
   const authed = opts.authenticated ?? true
 
@@ -63,10 +63,12 @@ async function invoke(
   process.cwd = () => tmpDocsRoot.replace(/\/docs$/, '')
 
   // Symlink: tmpDocsRoot IS the docs folder, so we need cwd() + '/docs' to
-  // resolve to it. Create docs/ symlink inside the parent tmp dir.
+  // resolve to it. Create docs/ symlink inside the parent tmp dir. Skipped
+  // for `noRoot` tests, which want cwd()+'/docs' to resolve to nothing at
+  // all (a fresh checkout with no docs/ built yet).
   const parent = path.dirname(tmpDocsRoot)
   const docsLink = path.join(parent, 'docs')
-  if (!fs.existsSync(docsLink)) {
+  if (!opts.noRoot && !fs.existsSync(docsLink)) {
     fs.symlinkSync(tmpDocsRoot, docsLink)
   }
   process.cwd = () => parent
@@ -77,7 +79,15 @@ async function invoke(
   }))
 
   const mod = await import('./docs-asset')
-  const handler = (mod.Route as unknown as { options: { server: { handlers: { GET: (ctx: { request: Request }) => Promise<Response> } } } }).options.server.handlers.GET
+  const handler = (
+    mod.Route as unknown as {
+      options: {
+        server: {
+          handlers: { GET: (ctx: { request: Request }) => Promise<Response> }
+        }
+      }
+    }
+  ).options.server.handlers.GET
 
   const request = makeRequest(queryPath, opts)
   const result = await handler({ request })
@@ -205,5 +215,74 @@ describe('/api/docs-asset', () => {
     // no script source is ever permitted
     expect(csp).not.toContain('script-src ')
     expect(res.headers.get('X-Frame-Options')).toBe('SAMEORIGIN')
+  })
+
+  // ── path containment ────────────────────────────────────────────────────
+  // A plain string-prefix check on the un-resolved path (what this route
+  // used to do) misses a symlink planted inside docs/ that points outside
+  // it: the joined path *looks* contained even though the filesystem
+  // resolves it elsewhere. These mirror the containment tests in
+  // `server/hermes-docs.test.ts`, which established the realpath-based fix.
+
+  it('rejects a symlinked FILE that escapes the docs root', async () => {
+    const outsideDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'docs-asset-outside-'),
+    )
+    try {
+      const secretPath = path.join(outsideDir, 'secret.png')
+      fs.writeFileSync(secretPath, 'not actually a png')
+      fs.symlinkSync(secretPath, path.join(tmpDocsRoot, 'escape-link.png'))
+
+      const res = await invoke('escape-link.png')
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.ok).toBe(false)
+    } finally {
+      fs.rmSync(outsideDir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a path through a symlinked DIRECTORY that escapes the docs root', async () => {
+    const outsideDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'docs-asset-outside-'),
+    )
+    try {
+      fs.writeFileSync(path.join(outsideDir, 'leak.png'), 'not actually a png')
+      fs.symlinkSync(outsideDir, path.join(tmpDocsRoot, 'escape-dir'))
+
+      const res = await invoke('escape-dir/leak.png')
+      expect(res.status).toBe(400)
+      const body = await res.json()
+      expect(body.ok).toBe(false)
+    } finally {
+      fs.rmSync(outsideDir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns 400 on an absolute path', async () => {
+    const res = await invoke('/etc/passwd')
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.ok).toBe(false)
+  })
+
+  it('still serves a legitimate nested asset once containment is realpath-based', async () => {
+    fs.mkdirSync(path.join(tmpDocsRoot, 'images', 'nested'), {
+      recursive: true,
+    })
+    fs.writeFileSync(
+      path.join(tmpDocsRoot, 'images', 'nested', 'deep.png'),
+      'fine',
+    )
+    const res = await invoke('images/nested/deep.png')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe('image/png')
+  })
+
+  it('degrades to a clean 404 rather than throwing when the docs root is missing', async () => {
+    const res = await invoke('images/test.png', { noRoot: true })
+    expect(res.status).toBe(404)
+    const body = await res.json()
+    expect(body.ok).toBe(false)
   })
 })

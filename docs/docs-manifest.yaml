@@ -13,6 +13,8 @@ pages:
   # Getting Started
   - slug: getting-started/install
     title: Install
+  - slug: getting-started/setup-wizard
+    title: The setup wizard
   - slug: getting-started/first-chat
     title: Your first chat
   - slug: getting-started/connecting-provider
@@ -92,6 +94,14 @@ pages:
     title: API keys
   - slug: settings/profiles
     title: Profiles
+  - slug: settings/working-directory
+    title: Working directory
+  - slug: settings/execution
+    title: Execution
+  - slug: settings/gateway
+    title: Gateway
+  - slug: settings/safety
+    title: Safety
   - slug: settings/skills
     title: Skills
   - slug: settings/skills/what-are-skills

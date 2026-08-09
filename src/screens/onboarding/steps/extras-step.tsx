@@ -71,10 +71,9 @@ export function ExtrasStep({
       </div>
 
       {suppressed.length > 0 ? (
-        <div className="ob-checks">
+        <div className="ob-extra-suppressed">
           {suppressed.map((card) => (
-            <div className="ob-check-row" key={card.id}>
-              <span className="ob-check-dot is-ok" aria-hidden="true" />
+            <div className="ob-extra-suppressed-row" key={card.id}>
               <span className="ob-check-label">{card.label}</span>
               <span className="ob-check-detail">{card.suppressedBy}</span>
             </div>
