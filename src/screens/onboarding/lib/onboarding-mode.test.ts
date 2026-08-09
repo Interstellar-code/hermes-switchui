@@ -15,6 +15,7 @@ const COMPLETE: OnboardingOutcome = {
   at: 1000,
   branch: 'quick',
   skipped: [],
+  completed: [],
 }
 
 describe('resolveEntryStep', () => {

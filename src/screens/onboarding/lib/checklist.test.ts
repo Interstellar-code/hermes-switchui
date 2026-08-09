@@ -97,6 +97,7 @@ describe('buildChecklist', () => {
       at: 1,
       branch: 'full',
       skipped: ['theme'],
+      completed: [],
     }
     const items = buildChecklist({
       outcome: complete,
@@ -117,6 +118,56 @@ describe('buildChecklist', () => {
       pluginsTouched: false,
     })
     expect(items.every((i) => i.state !== 'skipped')).toBe(true)
+  })
+
+  it('derives verify/plugins from the completion record once the draft is gone', () => {
+    // The exact state a finished full run leaves behind: the draft is deleted
+    // by `handleFinish`, so `completed` on the outcome is the only evidence
+    // that verify and plugins were done. Without it every out-of-wizard
+    // consumer reports them outstanding forever.
+    const complete: OnboardingOutcome = {
+      kind: 'complete',
+      at: 1,
+      branch: 'full',
+      skipped: [],
+      completed: ['verify', 'plugins', 'theme', 'system-check'],
+    }
+    const items = buildChecklist({
+      outcome: complete,
+      draft: null,
+      activeProvider: 'anthropic',
+      // Both false, exactly as `use-onboarding-checklist` passes them outside
+      // a live wizard session.
+      verified: false,
+      pluginsTouched: false,
+    })
+    expect(items.map((item) => item.state)).toEqual([
+      'done',
+      'done',
+      'done',
+      'done',
+      'done',
+    ])
+    expect(outstandingCount(items)).toBe(0)
+  })
+
+  it('a completion record with no `completed` field leaves items outstanding', () => {
+    // Tolerant read: a record written before `completed` existed is still a
+    // valid completion, it simply cannot prove any step was done.
+    const items = buildChecklist({
+      outcome: {
+        kind: 'complete',
+        at: 1,
+        branch: 'quick',
+        skipped: [],
+        completed: [],
+      },
+      draft: null,
+      activeProvider: 'anthropic',
+      verified: false,
+      pluginsTouched: false,
+    })
+    expect(outstandingCount(items)).toBe(4)
   })
 
   it('goTo matches each item id 1:1 with a step id', () => {

@@ -11,14 +11,15 @@
  *
  * `verified` and `pluginsTouched` are always passed as `false` here: those
  * signals come from live probes (`useSystemChecks`/`useCorePlugins`/the save
- * hook's verify outcome) that only run *inside* an active wizard session.
- * Outside the wizard we only have what's in storage, and neither of those is
- * independently persisted once the wizard's draft is cleared on completion —
- * the same gap `checklist.ts`'s header comment already documents for the
- * relaunch summary. `false` is the conservative read: an item that isn't
- * provably done falls through to whatever `skipped`/`todo` state the stored
- * outcome supports, which is exactly the "stay discoverable" behaviour this
- * hook exists for.
+ * hook's verify outcome) that only run *inside* an active wizard session, and
+ * outside the wizard we only have what is in storage.
+ *
+ * That is safe only because the completion record now carries `completed`:
+ * `buildChecklist` treats a step recorded as done by the run that finished as
+ * done, so `false` here means "no live proof", not "not done". Before that
+ * field existed, a user who completed the full branch kept a permanent `4`
+ * badge on the sidebar nav and "Setup Wizard (4 left)" in the command palette
+ * with no way to clear either.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'

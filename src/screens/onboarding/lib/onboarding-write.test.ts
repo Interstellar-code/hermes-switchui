@@ -8,6 +8,7 @@ import { buildOnboardingProviderChoices } from './provider-choices'
 import {
   buildInlineProviderPatch,
   buildProviderPatch,
+  buildSetActivePatch,
 } from '@/screens/providers/lib/write-paths'
 
 const choices = buildOnboardingProviderChoices()
@@ -15,6 +16,7 @@ const anthropic = choices.find((choice) => choice.id === 'anthropic')!
 const manifest = buildOnboardingProviderChoices().find(
   (choice) => choice.id === 'manifest',
 )!
+const nous = choices.find((choice) => choice.id === 'nous')!
 
 describe('buildOnboardingPatch', () => {
   it('matches buildProviderPatch exactly for the non-inline path', () => {
@@ -56,6 +58,68 @@ describe('buildOnboardingPatch', () => {
       makeActive: input.makeActive,
     })
     expect(patch).toEqual(expected)
+  })
+
+  it('writes no providers block for an OAuth-only provider with nothing to define', () => {
+    // `nous` has no catalog base URL and no env var: the gateway owns the
+    // endpoint and reads the token from its own auth store. A bare
+    // `providers.nous: {type: openai}` is not inert — the gateway's picker-side
+    // resolver (`resolve_provider_full` → `resolve_user_provider`) gives user
+    // config priority and performs no validation, so that entry replaces the
+    // real OAuth definition with an api-key one whose base_url is "".
+    expect(nous.baseUrl).toBeNull()
+    expect(nous.envKey).toBeNull()
+
+    const patch = buildOnboardingPatch({
+      choice: nous,
+      baseUrl: '',
+      apiKey: '',
+      defaultModel: 'auto',
+      makeActive: true,
+    })
+
+    expect(patch.config).not.toHaveProperty('providers')
+    expect(patch.config).toEqual(
+      buildSetActivePatch(nous.id, 'auto').config as Record<string, unknown>,
+    )
+    expect(patch.env).toBeUndefined()
+  })
+
+  it('writes nothing at all for such a provider when it is not being activated', () => {
+    const patch = buildOnboardingPatch({
+      choice: nous,
+      baseUrl: '',
+      apiKey: '',
+      defaultModel: '',
+      makeActive: false,
+    })
+    expect(patch).toEqual({ config: {} })
+  })
+
+  it('still writes a providers block once the user supplies a base URL', () => {
+    // The rule is "the entry would carry nothing", not "the provider is
+    // OAuth" — a typed endpoint is real information and must survive.
+    const patch = buildOnboardingPatch({
+      choice: nous,
+      baseUrl: 'https://inference.example/v1',
+      apiKey: '',
+      defaultModel: 'auto',
+      makeActive: true,
+    })
+    expect(patch.config).toHaveProperty('providers')
+  })
+
+  it('leaves api-key providers on the providers-map path untouched', () => {
+    // Guards the blast radius: anthropic resolves to `cli-token` in the
+    // onboarding picker, so an auth-kind-based rule would have broken it.
+    const patch = buildOnboardingPatch({
+      choice: anthropic,
+      baseUrl: '',
+      apiKey: '',
+      defaultModel: 'auto',
+      makeActive: true,
+    })
+    expect(patch.config).toHaveProperty('providers')
   })
 
   it('delegates env var naming to write-paths, not a literal', () => {

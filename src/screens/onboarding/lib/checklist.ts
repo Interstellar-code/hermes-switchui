@@ -2,9 +2,16 @@
  * checklist.ts — the "what's left" list the summary step renders on a
  * relaunch. Deliberately separate from `OnboardingDraft.skipped`: the draft
  * is cleared once the wizard finishes (`clearOnboardingDraft`), but the
- * checklist has to keep working after that, so it falls back to the
- * `skipped` list carried on a `'complete'` `OnboardingOutcome` once the draft
- * is gone.
+ * checklist has to keep working after that, so it falls back to the `skipped`
+ * *and* `completed` lists carried on a `'complete'` `OnboardingOutcome` once
+ * the draft is gone.
+ *
+ * `verified` / `pluginsTouched` are live signals that only exist while a
+ * wizard session is mounted. Outside one they arrive as `false`, so the
+ * completion record has to be able to answer for them — otherwise a user who
+ * finished the full branch keeps a permanent "4 left" badge with no way to
+ * clear it. Hence: an item is done if the live probe says so **or** the
+ * persisted run recorded that step as completed.
  */
 import type { OnboardingStepId } from './onboarding-steps'
 import type { OnboardingDraft, OnboardingOutcome } from './onboarding-storage'
@@ -33,11 +40,18 @@ export function buildChecklist(input: {
   verified: boolean
   pluginsTouched: boolean
 }): Array<ChecklistItem> {
-  const skippedSource =
-    input.draft?.skipped ??
-    (input.outcome.kind === 'complete' ? input.outcome.skipped : [])
+  const completeOutcome =
+    input.outcome.kind === 'complete' ? input.outcome : null
+  const skippedSource = input.draft?.skipped ?? completeOutcome?.skipped ?? []
   const skipped = new Set<OnboardingStepId>(skippedSource)
-  const completed = new Set<OnboardingStepId>(input.draft?.completed ?? [])
+  const completedSource =
+    input.draft?.completed ?? completeOutcome?.completed ?? []
+  const completed = new Set<OnboardingStepId>(completedSource)
+
+  // A finished run is the persisted stand-in for the live probes the wizard
+  // has and nobody else does.
+  const verified = input.verified || completed.has('verify')
+  const pluginsTouched = input.pluginsTouched || completed.has('plugins')
 
   function stateFor(
     id: ChecklistItemId,
@@ -64,15 +78,15 @@ export function buildChecklist(input: {
     {
       id: 'verify',
       label: 'Verify the connection',
-      detail: input.verified ? 'Verified.' : 'Not verified yet.',
-      state: stateFor('verify', input.verified, !input.activeProvider),
+      detail: verified ? 'Verified.' : 'Not verified yet.',
+      state: stateFor('verify', verified, !input.activeProvider),
       goTo: 'verify',
     },
     {
       id: 'plugins',
       label: 'Review core plugins',
-      detail: input.pluginsTouched ? 'Reviewed.' : 'Not reviewed yet.',
-      state: stateFor('plugins', input.pluginsTouched, false),
+      detail: pluginsTouched ? 'Reviewed.' : 'Not reviewed yet.',
+      state: stateFor('plugins', pluginsTouched, false),
       goTo: 'plugins',
     },
     {

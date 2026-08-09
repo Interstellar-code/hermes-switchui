@@ -55,8 +55,16 @@ export type UseSystemChecksResult = {
 
 export function useSystemChecks(input: {
   enabled: boolean
+  /**
+   * The `canWriteConfig` verdict for this run. The probes themselves are
+   * reads and always run; the self-heal actions are not — they POST
+   * /api/start-agent, /api/gateway-reprobe, rewrite the connection settings
+   * and restart the gateway. Restarting someone's gateway from a screen that
+   * says "read-only" is the violation this guard exists to prevent.
+   */
+  canWrite: boolean
 }): UseSystemChecksResult {
-  const { enabled } = input
+  const { enabled, canWrite } = input
   const [checks, setChecks] = useState<Array<SystemCheck>>([])
   const [loading, setLoading] = useState(false)
   const [healing, setHealing] = useState<string | null>(null)
@@ -101,6 +109,7 @@ export function useSystemChecks(input: {
       action: NonNullable<SystemCheck['heal']>,
       payload?: { gatewayUrl?: string },
     ) => {
+      if (!canWrite) return
       setHealing(action)
       const controller = new AbortController()
       try {
@@ -130,7 +139,7 @@ export function useSystemChecks(input: {
         load()
       }
     },
-    [load, restartGateway],
+    [canWrite, load, restartGateway],
   )
 
   return { checks, loading, refetch: load, heal, healing }

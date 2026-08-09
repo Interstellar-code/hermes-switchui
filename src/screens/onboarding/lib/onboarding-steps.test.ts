@@ -36,6 +36,7 @@ function ctx(overrides: Partial<OnboardingCtx> = {}): OnboardingCtx {
     saved: false,
     hasStoredKey: false,
     catalogBaseUrl: null,
+    canWrite: true,
     ...overrides,
   }
 }
@@ -84,6 +85,14 @@ describe('ONBOARDING_STEPS rail', () => {
       const step = ONBOARDING_STEPS.find((candidate) => candidate.id === id)
       expect(step?.chromeless).toBe(true)
     }
+  })
+
+  it("the finish step's title matches FinishStep's own visible heading", () => {
+    // Both render on the same screen — the shell title above, the <h3> below.
+    // They disagreed ("You're set" vs "Setup complete"), and the former is not
+    // the house voice.
+    const finish = ONBOARDING_STEPS.find((step) => step.id === 'finish')
+    expect(finish?.title).toBe('Setup complete')
   })
 
   it('has no duplicate ids', () => {
@@ -201,5 +210,21 @@ describe('validateReviewStep', () => {
 
   it('passes once saved', () => {
     expect(validateReviewStep(ctx({ saved: true }))).toEqual([])
+  })
+
+  it('does not block when the run is not permitted to write', () => {
+    // A locked relaunch disables Save and `save()` refuses, so `saved` can
+    // never become true. Requiring it made review a dead end: Next blocked
+    // forever, no Skip offered, only Back or Close. A step the user cannot
+    // complete must not be allowed to trap them.
+    expect(validateReviewStep(ctx({ saved: false, canWrite: false }))).toEqual(
+      [],
+    )
+  })
+
+  it('still blocks an unsaved review once writing is permitted again', () => {
+    expect(validateReviewStep(ctx({ saved: false, canWrite: true }))).toEqual([
+      'Press Save to write the configuration',
+    ])
   })
 })

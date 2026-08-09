@@ -181,4 +181,86 @@ describe('OnboardingScreen relaunch mode', () => {
     const { container } = renderScreen(<OnboardingScreen />)
     expect(container.firstChild).toBeNull()
   })
+
+  // ── the deep link ────────────────────────────────────────────────────────
+  // `__root.tsx` is the only caller and it always passes `open`, so a relaunch
+  // that discards `initialStepId` discards it always: the dashboard card's
+  // "Open: Pick a theme" link, the sidebar badge, the command palette and the
+  // `target` field on `setup-wizard-store` all described behaviour that could
+  // not happen. What the deep link must NOT do is imply `unlocked`.
+
+  it('honours a deep link to a step on the full branch', async () => {
+    installFetchMock()
+    renderScreen(
+      <OnboardingScreen open onClose={vi.fn()} initialStepId="theme" />,
+    )
+
+    const current = await screen.findByRole('button', { current: 'step' })
+    expect(current.textContent).toContain('Theme')
+  })
+
+  it('a deep-linked relaunch is still locked', async () => {
+    installFetchMock()
+    renderScreen(
+      <OnboardingScreen open onClose={vi.fn()} initialStepId="theme" />,
+    )
+    await screen.findByRole('button', { current: 'step' })
+
+    // One step back from theme is plugins, which is where the lock used to
+    // leak: `jumpTo` flipped the branch to 'full' without touching `unlocked`,
+    // so the step rendered live Enable/Disable buttons and `useCorePlugins`
+    // called enableAgentPlugin with no `canWriteConfig` consultation.
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    expect(await screen.findByText(/Read-only for this run/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Enable' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Disable' })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'Restart dashboard' }),
+    ).toBeNull()
+  })
+
+  it('a deep-linked system check offers no self-heal action while locked', async () => {
+    installFetchMock()
+    renderScreen(
+      <OnboardingScreen open onClose={vi.fn()} initialStepId="system-check" />,
+    )
+
+    expect(await screen.findByText(/Read-only for this run/)).toBeTruthy()
+    // These fire POST /api/start-agent, POST /api/gateway-reprobe and a
+    // gateway restart — from a screen that promised a read.
+    expect(screen.queryByRole('button', { name: /Start the agent/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Restart/ })).toBeNull()
+  })
+
+  it('does not dead-end the user on the review step while locked', async () => {
+    // `review` is not optional and `validateReviewStep` required `ctx.saved`,
+    // but Save is disabled and `save()` refuses while locked — so `saved`
+    // could never become true. Next was permanently blocked with "Press Save
+    // to write the configuration" and no Skip was offered.
+    installFetchMock()
+    renderScreen(<OnboardingScreen open onClose={vi.fn()} />)
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Open: Verify the connection',
+      }),
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Back' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    await walkProviderToReview()
+    const save = screen.getByRole('button', { name: 'Save' })
+    expect((save as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+    expect(
+      await screen.findByRole('button', { name: 'Verify connection' }),
+    ).toBeTruthy()
+    expect(
+      screen.queryByText(/Press Save to write the configuration/),
+    ).toBeNull()
+  })
 })

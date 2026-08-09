@@ -14,22 +14,39 @@
  *   2. `elapsedMs` is measured from the moment the probe is *issued*, not from
  *      mount, because that is the window the reducer is reasoning about — how
  *      long the user has been looking at the wizard before the answer arrived.
- *   3. Writes happen only in `markComplete`/`markDismissed`. The probe never
- *      persists anything, so a probe that fires behind the login screen (or
- *      against a backend the visitor is not entitled to) cannot leave a
- *      completion flag behind. Callers gate the probe on auth as well, but the
- *      no-write rule means that gate is defence in depth rather than the fix.
+ *   3. The probe never writes the completion flag. A probe that fires behind
+ *      the login screen (or against a backend the visitor is not entitled to)
+ *      must not be able to consume first-run setup for whoever logs in next.
+ *      What it *may* write, and only when `probe` is enabled — which the
+ *      caller sets to `authResolved && !loginBlocking`, so the unauthenticated
+ *      path never reaches this code at all — is the separate `autoDetected`
+ *      record. Without it an install with a working gateway and no completion
+ *      flag repainted the fullscreen wizard on every single boot and then
+ *      yanked it away once the probe resolved, forever. The record is distinct
+ *      from `complete` so "a machine noticed" stays distinguishable from "a
+ *      human finished", and it is only written when the detection actually
+ *      settles the gate (`shouldAutoComplete`) — a detection that lost the
+ *      race changes nothing and is not worth remembering.
  *
  * `typeof window` is checked because `__root.tsx` renders server-side under
  * TanStack Start; the fetch is abortable and every listener is torn down so
  * nothing can dispatch into an unmounted tree.
  */
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react'
-import { INITIAL_GATE, reduceGate } from './onboarding-gate'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react'
+import { INITIAL_GATE, reduceGate, shouldAutoComplete } from './onboarding-gate'
 import {
   ONBOARDING_COMPLETE_EVENT,
   ONBOARDING_KEYS,
+  readOnboardingAutoDetected,
   readOnboardingOutcome,
+  writeOnboardingAutoDetected,
   writeOnboardingComplete,
   writeOnboardingDismissed,
 } from './onboarding-storage'
@@ -78,8 +95,29 @@ function looksConfigured(status: ConnectionStatusPayload | null): boolean {
 function readGateOutcome(storage: Storage): OnboardingOutcome {
   const outcome = readOnboardingOutcome(storage)
   if (outcome.kind === 'complete') return outcome
-  if (storage.getItem(ONBOARDING_KEYS.complete) !== 'true') return outcome
-  return { kind: 'complete', at: Date.now(), branch: 'quick', skipped: [] }
+  if (storage.getItem(ONBOARDING_KEYS.complete) === 'true') {
+    return {
+      kind: 'complete',
+      at: Date.now(),
+      branch: 'quick',
+      skipped: [],
+      completed: [],
+    }
+  }
+  // A previous authenticated boot already established that this install is
+  // configured. Honouring it here is the whole point of persisting it: the
+  // probe below is then skipped, so nothing paints and vanishes.
+  const auto = readOnboardingAutoDetected(storage)
+  if (auto) {
+    return {
+      kind: 'complete',
+      at: auto.at,
+      branch: 'quick',
+      skipped: [],
+      completed: [],
+    }
+  }
+  return outcome
 }
 
 export function useOnboardingGate(options?: {
@@ -90,6 +128,12 @@ export function useOnboardingGate(options?: {
   const probeEnabled = options?.probe !== false
   const [gate, dispatch] = useReducer(reduceGate, INITIAL_GATE)
   const [hydrated, setHydrated] = useState(false)
+
+  // Refreshed during render so the probe callback below can ask about the
+  // *current* gate rather than the one that existed when it was issued —
+  // engagement during the probe's flight is exactly what must veto the write.
+  const gateRef = useRef(gate)
+  gateRef.current = gate
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
@@ -108,10 +152,14 @@ export function useOnboardingGate(options?: {
         .then((status: ConnectionStatusPayload | null) => {
           if (controller.signal.aborted) return
           if (!looksConfigured(status)) return
-          dispatch({
-            type: 'AUTO_DETECTED',
-            elapsedMs: Date.now() - startedAt,
-          })
+          const elapsedMs = Date.now() - startedAt
+          // Unreachable unless `probeEnabled` — i.e. unless the caller has
+          // already resolved auth and cleared any login gate. That is the
+          // security property; the branch is inside it, not next to it.
+          if (shouldAutoComplete(gateRef.current, elapsedMs)) {
+            writeOnboardingAutoDetected(storage)
+          }
+          dispatch({ type: 'AUTO_DETECTED', elapsedMs })
         })
         .catch(() => undefined)
     }
@@ -150,6 +198,7 @@ export function useOnboardingGate(options?: {
       writeOnboardingComplete(window.localStorage, {
         branch: 'quick',
         skipped: [],
+        completed: [],
       })
       window.dispatchEvent(
         new CustomEvent(ONBOARDING_COMPLETE_EVENT, {

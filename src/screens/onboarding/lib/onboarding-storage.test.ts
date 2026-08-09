@@ -4,9 +4,11 @@ import {
   ONBOARDING_DRAFT_VERSION,
   ONBOARDING_KEYS,
   clearOnboardingDraft,
+  readOnboardingAutoDetected,
   readOnboardingDraft,
   readOnboardingOutcome,
   sanitizeDraftForStorage,
+  writeOnboardingAutoDetected,
   writeOnboardingComplete,
   writeOnboardingDismissed,
   writeOnboardingDraft,
@@ -165,7 +167,70 @@ describe('readOnboardingOutcome', () => {
       at: expect.any(Number),
       branch: 'quick',
       skipped: ['verify'],
+      completed: [],
     })
+  })
+
+  it('round-trips the completed list, which the badge and palette read', () => {
+    const storage = new MemoryStorage()
+    writeOnboardingComplete(storage, {
+      branch: 'full',
+      skipped: ['verify'],
+      completed: ['provider', 'plugins', 'theme'],
+    })
+    const outcome = readOnboardingOutcome(storage)
+    expect(outcome).toMatchObject({
+      kind: 'complete',
+      completed: ['provider', 'plugins', 'theme'],
+    })
+  })
+
+  it('a record written before `completed` existed still reads as complete', () => {
+    // Tolerant, not versioned: treating the missing field as a shape mismatch
+    // would collapse the record to `fresh` and re-onboard the install.
+    const storage = new MemoryStorage()
+    storage.setItem(
+      ONBOARDING_KEYS.outcome,
+      JSON.stringify({
+        kind: 'complete',
+        at: 5,
+        branch: 'quick',
+        skipped: ['theme'],
+      }),
+    )
+    expect(readOnboardingOutcome(storage)).toEqual({
+      kind: 'complete',
+      at: 5,
+      branch: 'quick',
+      skipped: ['theme'],
+      completed: [],
+    })
+  })
+})
+
+describe('the auto-detected record', () => {
+  it('round-trips, and is a separate key from the completion flag', () => {
+    const storage = new MemoryStorage()
+    writeOnboardingAutoDetected(storage)
+
+    const record = readOnboardingAutoDetected(storage)
+    expect(record?.kind).toBe('auto-detected')
+    expect(record?.at).toBeGreaterThan(0)
+
+    // Critically: an auto-detection is not a claim that a human finished
+    // setup, so it must not stamp the flag the rest of the app reads.
+    expect(storage.getItem(ONBOARDING_KEYS.complete)).toBeNull()
+    expect(readOnboardingOutcome(storage)).toEqual({ kind: 'fresh' })
+  })
+
+  it('reads as null with no record, null storage, or corrupt JSON', () => {
+    expect(readOnboardingAutoDetected(null)).toBeNull()
+    expect(readOnboardingAutoDetected(new MemoryStorage())).toBeNull()
+
+    const storage = new MemoryStorage()
+    storage.setItem(ONBOARDING_KEYS.autoDetected, '{not json')
+    expect(() => readOnboardingAutoDetected(storage)).not.toThrow()
+    expect(readOnboardingAutoDetected(storage)).toBeNull()
   })
 
   it('writeOnboardingComplete also stamps the legacy complete key', () => {

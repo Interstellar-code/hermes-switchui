@@ -17,6 +17,11 @@
  * same lifetime discipline: `verify` polls for up to 20 seconds, so its
  * AbortController is scoped to this hook and aborted on unmount — a poll that
  * outlives the wizard would keep hitting /api/models behind a closed dialog.
+ * Unmount is not the only exit, though: this hook lives on the flow component,
+ * not on `VerifyStep`, so navigating away from verify (back, forward, or a
+ * jump) leaves the wizard mounted and the poll running. `stepId` is already an
+ * input here for the write lock, so it also drives the abort — leaving verify
+ * ends the poll exactly as closing the wizard does.
  * `liveTest` spends real tokens and is never called automatically.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -117,6 +122,14 @@ export function useOnboardingSave({
     }
   }, [])
 
+  // Nulled as well as aborted so a later return to the verify step gets a
+  // fresh controller rather than inheriting an already-aborted signal.
+  useEffect(() => {
+    if (stepId === 'verify') return
+    abortRef.current?.abort()
+    abortRef.current = null
+  }, [stepId])
+
   const statusQuery = useQuery({
     queryKey: GATEWAY_STATUS_KEY,
     queryFn: fetchGatewayStatus,
@@ -203,14 +216,20 @@ export function useOnboardingSave({
     }
   }, [])
 
+  // Restarting the gateway is a mutation of the user's running system, so it
+  // answers to the same lock the config PATCH does — a relaunch that promises
+  // "read-only" must not bounce a working gateway.
+  const canRestartHere = canWriteConfig({ mode, unlocked, stepId: 'review' })
+
   const restart = useCallback(async () => {
+    if (!canRestartHere) return
     try {
       await restartGateway.mutateAsync()
     } catch {
       // Best-effort: the verify step re-reads real gateway state either way,
       // and a failed restart is not a reason to strand the user on this step.
     }
-  }, [restartGateway])
+  }, [canRestartHere, restartGateway])
 
   return {
     save,
@@ -226,6 +245,7 @@ export function useOnboardingSave({
     liveOutcome,
     restart,
     restarting: restartGateway.isPending,
-    canRestart: statusQuery.data?.dashboard?.available === true,
+    canRestart:
+      canRestartHere && statusQuery.data?.dashboard?.available === true,
   }
 }
