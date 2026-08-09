@@ -1,11 +1,13 @@
-import { PAGE_SIZES_GRID, PAGE_SIZES_TABLE, usePageSize, useProfilesFilterStore, useProfilesViewStore } from '@/stores/profiles-screen-store'
+import { PAGE_SIZES_GRID, PAGE_SIZES_TABLE, usePageSize, useProfilesViewStore } from '@/stores/profiles-screen-store'
 
 type Props = {
   total: number
+  /** From `?page=` — the screen owns it, this component only asks for moves. */
+  page: number
+  onPageChange: (page: number) => void
 }
 
-export function ProfilePager({ total }: Props) {
-  const { page, setPage } = useProfilesFilterStore()
+export function ProfilePager({ total, page, onPageChange }: Props) {
   const { setPageSize, viewMode } = useProfilesViewStore()
   const pageSize = usePageSize()
   const pageSizeOptions = viewMode === 'grid' ? PAGE_SIZES_GRID : PAGE_SIZES_TABLE
@@ -17,7 +19,7 @@ export function ProfilePager({ total }: Props) {
 
   function go(p: number) {
     if (p < 1 || p > totalPages) return
-    setPage(p)
+    onPageChange(p)
   }
 
   const pages: Array<number> = []
@@ -40,7 +42,7 @@ export function ProfilePager({ total }: Props) {
         value={pageSize}
         onChange={(e) => {
           setPageSize(Number(e.target.value))
-          setPage(1)
+          onPageChange(1)
         }}
       >
         {pageSizeOptions.map((n) => (

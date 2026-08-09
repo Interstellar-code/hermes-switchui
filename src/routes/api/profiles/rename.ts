@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { renameProfile } from '../../../server/profiles-browser'
 import { requireJsonContentType } from '../../../server/rate-limit'
+import { errorResponse } from './-error-response'
 
 export const Route = createFileRoute('/api/profiles/rename')({
   server: {
@@ -22,15 +23,7 @@ export const Route = createFileRoute('/api/profiles/rename')({
             profile: renameProfile(body.oldName || '', body.newName || ''),
           })
         } catch (error) {
-          return Response.json(
-            {
-              error:
-                error instanceof Error
-                  ? error.message
-                  : 'Failed to rename profile',
-            },
-            { status: 500 },
-          )
+          return errorResponse(error, 'Failed to rename profile')
         }
       },
     },

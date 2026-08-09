@@ -113,10 +113,15 @@ import { Route as ApiSelfImproveHealthRouteImport } from './routes/api/self-impr
 import { Route as ApiSelfImproveExperimentsRouteImport } from './routes/api/self-improve/experiments'
 import { Route as ApiSelfImproveBaselinesRouteImport } from './routes/api/self-improve/baselines'
 import { Route as ApiProfilesUpdateRouteImport } from './routes/api/profiles/update'
+import { Route as ApiProfilesTrashRestoreRouteImport } from './routes/api/profiles/trash-restore'
+import { Route as ApiProfilesTrashPurgeRouteImport } from './routes/api/profiles/trash-purge'
+import { Route as ApiProfilesTrashListRouteImport } from './routes/api/profiles/trash-list'
 import { Route as ApiProfilesToolsetsRouteImport } from './routes/api/profiles/toolsets'
 import { Route as ApiProfilesRenameRouteImport } from './routes/api/profiles/rename'
 import { Route as ApiProfilesReadRouteImport } from './routes/api/profiles/read'
 import { Route as ApiProfilesListRouteImport } from './routes/api/profiles/list'
+import { Route as ApiProfilesImportRouteImport } from './routes/api/profiles/import'
+import { Route as ApiProfilesExportRouteImport } from './routes/api/profiles/export'
 import { Route as ApiProfilesDeleteRouteImport } from './routes/api/profiles/delete'
 import { Route as ApiProfilesCreateRouteImport } from './routes/api/profiles/create'
 import { Route as ApiProfilesActivateRouteImport } from './routes/api/profiles/activate'
@@ -750,6 +755,21 @@ const ApiProfilesUpdateRoute = ApiProfilesUpdateRouteImport.update({
   path: '/api/profiles/update',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProfilesTrashRestoreRoute = ApiProfilesTrashRestoreRouteImport.update({
+  id: '/api/profiles/trash-restore',
+  path: '/api/profiles/trash-restore',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProfilesTrashPurgeRoute = ApiProfilesTrashPurgeRouteImport.update({
+  id: '/api/profiles/trash-purge',
+  path: '/api/profiles/trash-purge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProfilesTrashListRoute = ApiProfilesTrashListRouteImport.update({
+  id: '/api/profiles/trash-list',
+  path: '/api/profiles/trash-list',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProfilesToolsetsRoute = ApiProfilesToolsetsRouteImport.update({
   id: '/api/profiles/toolsets',
   path: '/api/profiles/toolsets',
@@ -768,6 +788,16 @@ const ApiProfilesReadRoute = ApiProfilesReadRouteImport.update({
 const ApiProfilesListRoute = ApiProfilesListRouteImport.update({
   id: '/api/profiles/list',
   path: '/api/profiles/list',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProfilesImportRoute = ApiProfilesImportRouteImport.update({
+  id: '/api/profiles/import',
+  path: '/api/profiles/import',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProfilesExportRoute = ApiProfilesExportRouteImport.update({
+  id: '/api/profiles/export',
+  path: '/api/profiles/export',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiProfilesDeleteRoute = ApiProfilesDeleteRouteImport.update({
@@ -1520,10 +1550,15 @@ export interface FileRoutesByFullPath {
   '/api/profiles/activate': typeof ApiProfilesActivateRoute
   '/api/profiles/create': typeof ApiProfilesCreateRoute
   '/api/profiles/delete': typeof ApiProfilesDeleteRoute
+  '/api/profiles/export': typeof ApiProfilesExportRoute
+  '/api/profiles/import': typeof ApiProfilesImportRoute
   '/api/profiles/list': typeof ApiProfilesListRoute
   '/api/profiles/read': typeof ApiProfilesReadRoute
   '/api/profiles/rename': typeof ApiProfilesRenameRoute
   '/api/profiles/toolsets': typeof ApiProfilesToolsetsRoute
+  '/api/profiles/trash-list': typeof ApiProfilesTrashListRoute
+  '/api/profiles/trash-purge': typeof ApiProfilesTrashPurgeRoute
+  '/api/profiles/trash-restore': typeof ApiProfilesTrashRestoreRoute
   '/api/profiles/update': typeof ApiProfilesUpdateRoute
   '/api/self-improve/baselines': typeof ApiSelfImproveBaselinesRoute
   '/api/self-improve/experiments': typeof ApiSelfImproveExperimentsRouteWithChildren
@@ -1738,10 +1773,15 @@ export interface FileRoutesByTo {
   '/api/profiles/activate': typeof ApiProfilesActivateRoute
   '/api/profiles/create': typeof ApiProfilesCreateRoute
   '/api/profiles/delete': typeof ApiProfilesDeleteRoute
+  '/api/profiles/export': typeof ApiProfilesExportRoute
+  '/api/profiles/import': typeof ApiProfilesImportRoute
   '/api/profiles/list': typeof ApiProfilesListRoute
   '/api/profiles/read': typeof ApiProfilesReadRoute
   '/api/profiles/rename': typeof ApiProfilesRenameRoute
   '/api/profiles/toolsets': typeof ApiProfilesToolsetsRoute
+  '/api/profiles/trash-list': typeof ApiProfilesTrashListRoute
+  '/api/profiles/trash-purge': typeof ApiProfilesTrashPurgeRoute
+  '/api/profiles/trash-restore': typeof ApiProfilesTrashRestoreRoute
   '/api/profiles/update': typeof ApiProfilesUpdateRoute
   '/api/self-improve/baselines': typeof ApiSelfImproveBaselinesRoute
   '/api/self-improve/experiments': typeof ApiSelfImproveExperimentsRouteWithChildren
@@ -1959,10 +1999,15 @@ export interface FileRoutesById {
   '/api/profiles/activate': typeof ApiProfilesActivateRoute
   '/api/profiles/create': typeof ApiProfilesCreateRoute
   '/api/profiles/delete': typeof ApiProfilesDeleteRoute
+  '/api/profiles/export': typeof ApiProfilesExportRoute
+  '/api/profiles/import': typeof ApiProfilesImportRoute
   '/api/profiles/list': typeof ApiProfilesListRoute
   '/api/profiles/read': typeof ApiProfilesReadRoute
   '/api/profiles/rename': typeof ApiProfilesRenameRoute
   '/api/profiles/toolsets': typeof ApiProfilesToolsetsRoute
+  '/api/profiles/trash-list': typeof ApiProfilesTrashListRoute
+  '/api/profiles/trash-purge': typeof ApiProfilesTrashPurgeRoute
+  '/api/profiles/trash-restore': typeof ApiProfilesTrashRestoreRoute
   '/api/profiles/update': typeof ApiProfilesUpdateRoute
   '/api/self-improve/baselines': typeof ApiSelfImproveBaselinesRoute
   '/api/self-improve/experiments': typeof ApiSelfImproveExperimentsRouteWithChildren
@@ -2181,10 +2226,15 @@ export interface FileRouteTypes {
     | '/api/profiles/activate'
     | '/api/profiles/create'
     | '/api/profiles/delete'
+    | '/api/profiles/export'
+    | '/api/profiles/import'
     | '/api/profiles/list'
     | '/api/profiles/read'
     | '/api/profiles/rename'
     | '/api/profiles/toolsets'
+    | '/api/profiles/trash-list'
+    | '/api/profiles/trash-purge'
+    | '/api/profiles/trash-restore'
     | '/api/profiles/update'
     | '/api/self-improve/baselines'
     | '/api/self-improve/experiments'
@@ -2399,10 +2449,15 @@ export interface FileRouteTypes {
     | '/api/profiles/activate'
     | '/api/profiles/create'
     | '/api/profiles/delete'
+    | '/api/profiles/export'
+    | '/api/profiles/import'
     | '/api/profiles/list'
     | '/api/profiles/read'
     | '/api/profiles/rename'
     | '/api/profiles/toolsets'
+    | '/api/profiles/trash-list'
+    | '/api/profiles/trash-purge'
+    | '/api/profiles/trash-restore'
     | '/api/profiles/update'
     | '/api/self-improve/baselines'
     | '/api/self-improve/experiments'
@@ -2619,10 +2674,15 @@ export interface FileRouteTypes {
     | '/api/profiles/activate'
     | '/api/profiles/create'
     | '/api/profiles/delete'
+    | '/api/profiles/export'
+    | '/api/profiles/import'
     | '/api/profiles/list'
     | '/api/profiles/read'
     | '/api/profiles/rename'
     | '/api/profiles/toolsets'
+    | '/api/profiles/trash-list'
+    | '/api/profiles/trash-purge'
+    | '/api/profiles/trash-restore'
     | '/api/profiles/update'
     | '/api/self-improve/baselines'
     | '/api/self-improve/experiments'
@@ -2814,10 +2874,15 @@ export interface RootRouteChildren {
   ApiProfilesActivateRoute: typeof ApiProfilesActivateRoute
   ApiProfilesCreateRoute: typeof ApiProfilesCreateRoute
   ApiProfilesDeleteRoute: typeof ApiProfilesDeleteRoute
+  ApiProfilesExportRoute: typeof ApiProfilesExportRoute
+  ApiProfilesImportRoute: typeof ApiProfilesImportRoute
   ApiProfilesListRoute: typeof ApiProfilesListRoute
   ApiProfilesReadRoute: typeof ApiProfilesReadRoute
   ApiProfilesRenameRoute: typeof ApiProfilesRenameRoute
   ApiProfilesToolsetsRoute: typeof ApiProfilesToolsetsRoute
+  ApiProfilesTrashListRoute: typeof ApiProfilesTrashListRoute
+  ApiProfilesTrashPurgeRoute: typeof ApiProfilesTrashPurgeRoute
+  ApiProfilesTrashRestoreRoute: typeof ApiProfilesTrashRestoreRoute
   ApiProfilesUpdateRoute: typeof ApiProfilesUpdateRoute
   ApiSelfImproveBaselinesRoute: typeof ApiSelfImproveBaselinesRoute
   ApiSelfImproveExperimentsRoute: typeof ApiSelfImproveExperimentsRouteWithChildren
@@ -3562,6 +3627,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiProfilesUpdateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/profiles/trash-restore': {
+      id: '/api/profiles/trash-restore'
+      path: '/api/profiles/trash-restore'
+      fullPath: '/api/profiles/trash-restore'
+      preLoaderRoute: typeof ApiProfilesTrashRestoreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/profiles/trash-purge': {
+      id: '/api/profiles/trash-purge'
+      path: '/api/profiles/trash-purge'
+      fullPath: '/api/profiles/trash-purge'
+      preLoaderRoute: typeof ApiProfilesTrashPurgeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/profiles/trash-list': {
+      id: '/api/profiles/trash-list'
+      path: '/api/profiles/trash-list'
+      fullPath: '/api/profiles/trash-list'
+      preLoaderRoute: typeof ApiProfilesTrashListRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/profiles/toolsets': {
       id: '/api/profiles/toolsets'
       path: '/api/profiles/toolsets'
@@ -3588,6 +3674,20 @@ declare module '@tanstack/react-router' {
       path: '/api/profiles/list'
       fullPath: '/api/profiles/list'
       preLoaderRoute: typeof ApiProfilesListRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/profiles/import': {
+      id: '/api/profiles/import'
+      path: '/api/profiles/import'
+      fullPath: '/api/profiles/import'
+      preLoaderRoute: typeof ApiProfilesImportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/profiles/export': {
+      id: '/api/profiles/export'
+      path: '/api/profiles/export'
+      fullPath: '/api/profiles/export'
+      preLoaderRoute: typeof ApiProfilesExportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/profiles/delete': {
@@ -5041,10 +5141,15 @@ const rootRouteChildren: RootRouteChildren = {
   ApiProfilesActivateRoute: ApiProfilesActivateRoute,
   ApiProfilesCreateRoute: ApiProfilesCreateRoute,
   ApiProfilesDeleteRoute: ApiProfilesDeleteRoute,
+  ApiProfilesExportRoute: ApiProfilesExportRoute,
+  ApiProfilesImportRoute: ApiProfilesImportRoute,
   ApiProfilesListRoute: ApiProfilesListRoute,
   ApiProfilesReadRoute: ApiProfilesReadRoute,
   ApiProfilesRenameRoute: ApiProfilesRenameRoute,
   ApiProfilesToolsetsRoute: ApiProfilesToolsetsRoute,
+  ApiProfilesTrashListRoute: ApiProfilesTrashListRoute,
+  ApiProfilesTrashPurgeRoute: ApiProfilesTrashPurgeRoute,
+  ApiProfilesTrashRestoreRoute: ApiProfilesTrashRestoreRoute,
   ApiProfilesUpdateRoute: ApiProfilesUpdateRoute,
   ApiSelfImproveBaselinesRoute: ApiSelfImproveBaselinesRoute,
   ApiSelfImproveExperimentsRoute: ApiSelfImproveExperimentsRouteWithChildren,

@@ -1,4 +1,9 @@
 import type { NewAgentDraft, WizardStep } from '../types'
+import {
+  CONFIGURABLE_TOOLSETS,
+  DESTRUCTIVE_TOOLSETS,
+  getToolsetSecurityHint,
+} from '@/lib/toolsets'
 
 type Props = {
   draft: NewAgentDraft
@@ -45,8 +50,21 @@ function ReviewRow({ k, v }: { k: string; v: React.ReactNode }) {
   )
 }
 
+function toolsetLabel(key: string): string {
+  return CONFIGURABLE_TOOLSETS.find((t) => t.key === key)?.label ?? key
+}
+
 export function WizardStepReview({ draft, errors, submitError, onJumpTo }: Props) {
   const mcpNames = Object.keys(draft.mcp_servers)
+
+  // Subtractive model: disabled_toolsets lists what's OFF, everything else is
+  // ON. A destructive toolset (terminal/file/code_execution/computer_use/
+  // browser) that is NOT in that list is therefore enabled and worth flagging
+  // — it's the most consequential choice in the wizard and previously never
+  // appeared in the review at all (P-11).
+  const enabledDestructive = Array.from(DESTRUCTIVE_TOOLSETS).filter(
+    (key) => !draft.disabled_toolsets.includes(key),
+  )
 
   return (
     <div>
@@ -76,6 +94,12 @@ export function WizardStepReview({ draft, errors, submitError, onJumpTo }: Props
           {draft.tags.length > 0 && (
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {draft.tags.map((t) => <span key={t} className="pf-tag">{t}</span>)}
+            </div>
+          )}
+          {draft.description && (
+            <div className="review-prompt">
+              {draft.description.slice(0, 300)}
+              {draft.description.length > 300 ? '…' : ''}
             </div>
           )}
         </ReviewBlock>
@@ -124,8 +148,38 @@ export function WizardStepReview({ draft, errors, submitError, onJumpTo }: Props
           )}
         </ReviewBlock>
 
+        {/* Toolsets */}
+        <ReviewBlock title="Toolsets" step={6} onEdit={onJumpTo}>
+          {draft.disabled_toolsets.length === 0 ? (
+            <div className="review-row"><div className="v">All toolsets enabled</div></div>
+          ) : (
+            draft.disabled_toolsets.map((key) => (
+              <div key={key} className="review-row">
+                <div className="k">Disabled</div>
+                <div className="v">{toolsetLabel(key)}</div>
+              </div>
+            ))
+          )}
+          {enabledDestructive.length > 0 && (
+            <div className="review-row">
+              <div className="k">⚠ Risk</div>
+              <div className="v" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {enabledDestructive.map((key) => (
+                  <span
+                    key={key}
+                    className="wiz-toolset-warn-pill"
+                    title={getToolsetSecurityHint(key) ?? undefined}
+                  >
+                    {toolsetLabel(key)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </ReviewBlock>
+
         {/* Memory */}
-        <ReviewBlock title="Memory" step={6} onEdit={onJumpTo}>
+        <ReviewBlock title="Memory" step={7} onEdit={onJumpTo}>
           <ReviewRow k="Enabled" v={draft.memory_enabled ? 'Yes' : 'No'} />
           {draft.memory_enabled && <ReviewRow k="Provider" v={draft.memory_provider} />}
         </ReviewBlock>

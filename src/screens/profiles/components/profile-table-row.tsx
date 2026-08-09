@@ -1,33 +1,66 @@
 import type { AgentRow } from '../profiles-screen'
+import { formatRelative } from '@/lib/format'
+import { useProfileScopeStatus } from '@/hooks/use-profile-scope-status'
 
 type Props = {
   agent: AgentRow
-  onClick: () => void
+  /** Opens the detail drawer. Editing is a separate, explicit action (G-01). */
+  onOpen: () => void
   onActivate?: (profileName: string) => void
+  onEdit?: (agent: AgentRow) => void
   onRename?: (agent: AgentRow) => void
   onDelete?: (profileName: string) => void
   onClone?: (agent: AgentRow) => void
 }
 
-// Only the synthetic `default` row (active, no on-disk profileName) is protected.
-// Built-in-flagged profiles (hermes-switch/neo/trinity/morpheus) are real, editable
-// profiles — rename/clone/delete are allowed on them; the backend + confirm dialogs
-// remain the real guard.
-function isProtected(agent: AgentRow): boolean {
-  return agent.active === true && !agent.profileName
-}
-
-export function ProfileTableRow({ agent, onClick, onActivate, onRename, onDelete, onClone }: Props) {
+export function ProfileTableRow({
+  agent,
+  onOpen,
+  onActivate,
+  onEdit,
+  onRename,
+  onDelete,
+  onClone,
+}: Props) {
   const builtinClass = agent.builtin ? ' builtin' : ''
   const tierKey = `t${String(agent.tier)}` as 't1' | 't2' | 't3'
-  const protected_ = isProtected(agent)
+  const hasActions = Boolean(onActivate ?? onEdit ?? onRename ?? onClone ?? onDelete)
+  // P-07: rename/delete are withheld for built-ins because the server answers
+  // `Profile name "x" is reserved for built-in agents` (403). Say so instead of
+  // rendering buttons that are guaranteed to fail.
+  const lockTitle = agent.builtin
+    ? 'Built-in agent — it can be edited and cloned, but not renamed or deleted'
+    : 'Built-in agent — cannot be modified'
+  // G-05: live-gateway reachability, independent of the `status` column
+  // (which reflects this workspace's `active_profile` pointer, not gateway
+  // topology). See use-profile-scope-status.ts for the full semantics.
+  const { reachability } = useProfileScopeStatus(agent.profileName)
 
   return (
-    <tr className={builtinClass} data-profile={agent.name} onClick={onClick}>
+    <tr
+      className={`pf-tbl-row${builtinClass}`}
+      data-profile={agent.name}
+      // P-16: `<tr>` already has the implicit `row` role — overriding it would
+      // break the table's semantics — so keyboard access comes from making the
+      // row focusable and giving it an Enter/Space handler, matching the
+      // toolset tiles in wizard-step-toolset.tsx.
+      tabIndex={0}
+      aria-label={`${agent.name} — ${agent.role} — Tier ${agent.tier} — ${agent.status}. Open details.`}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          if (e.target !== e.currentTarget) return
+          e.preventDefault()
+          onOpen()
+        }
+      }}
+    >
       {/* Agent name + glyph */}
       <td>
         <div className="pf-tbl-name">
-          <div className={`pf-glyph pf-glyph-sm${agent.tier === 2 ? ' tier-2-glyph' : ''}`}>
+          <div
+            className={`pf-glyph pf-glyph-sm${agent.tier === 1 || agent.tier === 2 ? ` tier-${agent.tier}-glyph` : ''}`}
+          >
             {agent.glyph}
           </div>
           <div>
@@ -51,11 +84,25 @@ export function ProfileTableRow({ agent, onClick, onActivate, onRename, onDelete
           : <span style={{ opacity: 0.35 }}>—</span>}
       </td>
 
-      {/* Status */}
+      {/* Status — derived server-side (P-06) */}
       <td>
-        <div className={`pf-status ${agent.status}`}>
-          <div className="d" />
-          {agent.status}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className={`pf-status ${agent.status}`}>
+            <div className="d" />
+            {agent.status === 'active' ? 'in use' : agent.status}
+          </div>
+          {reachability !== 'served' && (
+            <span
+              className={`pf-scope-badge ${reachability === 'unknown' ? 'pf-scope-badge--unknown' : 'pf-scope-badge--not-served'}`}
+              title={
+                reachability === 'unknown'
+                  ? 'Gateway reachability unknown — the topology probe failed, so this cannot be confirmed as servable.'
+                  : 'Not served by the live gateway — this profile is not in its multiplexed profile list, so activating it will not respond to chats until the gateway config is updated.'
+              }
+            >
+              {reachability === 'unknown' ? 'unknown' : 'not served'}
+            </span>
+          )}
         </div>
       </td>
 
@@ -68,15 +115,18 @@ export function ProfileTableRow({ agent, onClick, onActivate, onRename, onDelete
         </div>
       </td>
 
-      {/* Last run */}
+      {/* Last used — P-12, unix seconds */}
       <td style={{ whiteSpace: 'nowrap', opacity: 0.6 }}>
-        {agent.last_run !== null ? formatRelative(agent.last_run) : '—'}
+        {agent.lastRunAt !== null ? formatRelative(agent.lastRunAt) : '—'}
       </td>
 
       {/* Actions */}
-      <td onClick={(e) => e.stopPropagation()}>
-        {protected_ ? (
-          <span className="pf-tbl-lock" title="Built-in agent — cannot be modified">
+      <td
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        {!hasActions ? (
+          <span className="pf-tbl-lock" title={lockTitle}>
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13" style={{ opacity: 0.3 }}>
               <rect x="3" y="7" width="10" height="8" rx="1.5"/>
               <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>
@@ -84,11 +134,12 @@ export function ProfileTableRow({ agent, onClick, onActivate, onRename, onDelete
           </span>
         ) : (
           <div className="pf-tbl-actions">
-            {!agent.active && agent.profileName && onActivate && (
+            {onActivate && (
               <button
                 type="button"
-                className="pf-tbl-action-btn"
-                title="Activate"
+                className="pf-tbl-action-btn pf-tbl-action-btn--primary"
+                title="Activate — make this the profile the gateway runs"
+                aria-label={`Activate ${agent.name}`}
                 onClick={() => onActivate(agent.profileName!)}
               >
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
@@ -97,23 +148,38 @@ export function ProfileTableRow({ agent, onClick, onActivate, onRename, onDelete
                 </svg>
               </button>
             )}
-            {agent.profileName && onRename && (
+            {onEdit && (
               <button
                 type="button"
                 className="pf-tbl-action-btn"
-                title="Rename"
-                onClick={() => onRename(agent)}
+                title="Edit"
+                aria-label={`Edit ${agent.name}`}
+                onClick={() => onEdit(agent)}
               >
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
                   <path d="M11.5 2.5a1.414 1.414 0 0 1 2 2L5 13H3v-2L11.5 2.5z"/>
                 </svg>
               </button>
             )}
-            {agent.profileName && onClone && (
+            {onRename && (
+              <button
+                type="button"
+                className="pf-tbl-action-btn"
+                title="Rename"
+                aria-label={`Rename ${agent.name}`}
+                onClick={() => onRename(agent)}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
+                  <path d="M4 3h8M8 3v10M6 13h4"/>
+                </svg>
+              </button>
+            )}
+            {onClone && (
               <button
                 type="button"
                 className="pf-tbl-action-btn"
                 title="Clone"
+                aria-label={`Clone ${agent.name}`}
                 onClick={() => onClone(agent)}
               >
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
@@ -122,11 +188,12 @@ export function ProfileTableRow({ agent, onClick, onActivate, onRename, onDelete
                 </svg>
               </button>
             )}
-            {agent.profileName && !agent.active && onDelete && (
+            {onDelete && (
               <button
                 type="button"
                 className="pf-tbl-action-btn pf-tbl-action-btn--danger"
                 title="Delete"
+                aria-label={`Delete ${agent.name}`}
                 onClick={() => onDelete(agent.profileName!)}
               >
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
@@ -134,17 +201,17 @@ export function ProfileTableRow({ agent, onClick, onActivate, onRename, onDelete
                 </svg>
               </button>
             )}
+            {agent.builtin && (
+              <span className="pf-tbl-lock" title={lockTitle}>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13" style={{ opacity: 0.3 }}>
+                  <rect x="3" y="7" width="10" height="8" rx="1.5"/>
+                  <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>
+                </svg>
+              </span>
+            )}
           </div>
         )}
       </td>
     </tr>
   )
-}
-
-function formatRelative(ts: number): string {
-  const diff = Math.floor((Date.now() / 1000) - ts)
-  if (diff < 60) return 'just now'
-  if (diff < 3600) return `${String(Math.floor(diff / 60))}m ago`
-  if (diff < 86400) return `${String(Math.floor(diff / 3600))}h ago`
-  return `${String(Math.floor(diff / 86400))}d ago`
 }

@@ -60,6 +60,7 @@ import {
   updateTask,
 } from '@/lib/tasks-api'
 import { useKanbanEvents } from '@/hooks/use-kanban-events'
+import { useProfilesList } from '@/hooks/use-profiles-list'
 import { toast } from '@/components/ui/toast'
 import {
   Popover,
@@ -409,11 +410,7 @@ export function TasksScreen() {
   })
 
   const assignees: Array<TaskAssignee> = assigneesQuery.data?.assignees ?? []
-  const profilesQuery = useQuery({
-    queryKey: ['profiles', 'list'],
-    queryFn: () => fetch('/api/profiles/list').then(r => r.json()) as Promise<{ profiles: Array<{ name: string }>; activeProfile: string }>,
-    staleTime: 60_000,
-  })
+  const profilesQuery = useProfilesList({ staleTime: 60_000 })
   const allTasks = tasksQuery.data ?? []
   const scopedTasks = useMemo(
     () => tenantFilter ? allTasks.filter((task) => task.tenant === tenantFilter) : allTasks,

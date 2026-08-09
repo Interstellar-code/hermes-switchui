@@ -1,4 +1,5 @@
 import type { McpServerConfig, MemoryProvider } from '@/server/profiles-browser'
+import { WIZARD_NAME_MESSAGE, WIZARD_NAME_RE } from '@/lib/profile-name'
 
 // ── Wizard draft state ────────────────────────────────────────────────────────
 
@@ -7,6 +8,12 @@ export type NewAgentDraft = {
   name: string
   glyph: string
   role: string
+  /**
+   * Longer free-text blurb, distinct from `role` (the short label shown on
+   * the profile card). Optional — round-trips independently of `role` and of
+   * the top-level `description` field written to config.yaml (P-08).
+   */
+  description: string
   tags: Array<string>
 
   // Step 2 — Persona
@@ -37,6 +44,7 @@ export const INITIAL_DRAFT: NewAgentDraft = {
   name: '',
   glyph: '',
   role: '',
+  description: '',
   tags: [],
   persona_id: null,
   system_prompt: '',
@@ -115,7 +123,9 @@ export const STEP_LABELS: Record<WizardStep, string> = {
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
-const NAME_RE = /^[a-z0-9-]{2,40}$/
+// Canonical name rules now live in @/lib/profile-name (P-09) — WIZARD_NAME_RE /
+// WIZARD_NAME_MESSAGE replace the formerly-local NAME_RE, verbatim on copy.
+// GLYPH_RE has no shared equivalent yet, so it stays local.
 const GLYPH_RE = /^[A-Z0-9]{1,3}$/
 
 export function validateStep(
@@ -126,8 +136,8 @@ export function validateStep(
 ): Array<string> {
   const errs: Array<string> = []
   if (step === 1) {
-    if (!NAME_RE.test(draft.name)) {
-      errs.push('Name must be 2–40 lowercase letters, numbers, or hyphens')
+    if (!WIZARD_NAME_RE.test(draft.name)) {
+      errs.push(WIZARD_NAME_MESSAGE)
     } else if (existingNames.includes(draft.name) && draft.name !== editName) {
       errs.push(`Name "${draft.name}" is already in use`)
     }
@@ -156,7 +166,7 @@ export function validateStep(
   // Steps 4, 5, 6 are optional
   // Step 7: memory_provider required only if memory_enabled
   else if (step === 7) {
-    if (draft.memory_enabled) {
+    if (draft.memory_enabled && !draft.memory_provider) {
       errs.push('Memory provider is required when memory is enabled')
     }
   }
@@ -177,6 +187,7 @@ export function isDraftDirty(draft: NewAgentDraft): boolean {
     draft.name !== '' ||
     draft.glyph !== '' ||
     draft.role !== '' ||
+    draft.description !== '' ||
     draft.tags.length > 0 ||
     draft.persona_id !== null ||
     draft.system_prompt !== '' ||

@@ -11,7 +11,17 @@ The Profiles page lets you browse, create, and edit agent profiles. Each profile
 
 ## What you see
 
-Navigate to **Profiles** in the sidebar. The page shows a paginated grid of profile cards. Each card displays the profile name, an avatar glyph, role label, and tag badges. Action buttons on each card let you activate, edit, clone, or delete the profile.
+Navigate to **Profiles** in the sidebar. The page shows a paginated grid of profile cards, with a view toggle to switch to a table (list) layout instead. Each card displays the profile name, an avatar glyph, role label, and tag badges. Action buttons on each card let you activate, edit, clone, or delete the profile. Table view carries the same actions plus **Rename** — the grid cards have no Rename button.
+
+A card or row can also show a small **not served** or **unknown** badge next to its status. That's the live gateway's reachability, not this workspace's — see [Live-gateway reachability](#live-gateway-reachability) under Activating a profile. It only appears when something is actionable, so a typical single-gateway setup never shows it.
+
+## Filtering and shareable links
+
+Search, tier, status, model, and tag filters — plus the current page — live in the URL (`?q=`, `?tier=`, `?status=`, `?model=`, `?tag=`, `?page=`), not in local component state only. Copying the address bar or bookmarking a filtered view reproduces the same list for anyone who opens it, and defaults are never written to the URL, so a plain `/profiles` with nothing applied stays exactly that.
+
+The wizard has its own deep link: `?edit=<profile-name>&step=<1-9>` opens straight into edit mode for that profile at the given step. An unrecognised or out-of-range step number clamps to the nearest valid step instead of failing.
+
+View mode (grid vs. table) and page size are **not** part of the URL — they're per-browser preferences stored locally, so sharing a link never changes what view the recipient sees.
 
 ## Creating a profile
 
@@ -19,21 +29,40 @@ Click **New Agent** to open the creation wizard. The wizard walks through 9 step
 
 | Step | Label | What you configure |
 |------|-------|--------------------|
-| 1 | Identity | Name, glyph, role label, and tags |
+| 1 | Identity | Name, glyph, role label, optional longer description, and tags |
 | 2 | Persona | Pick a curated persona — its system prompt is snapshotted into the profile. Selecting a persona pre-fills later steps. |
 | 3 | Model | Model name, provider, max turns, and reasoning effort |
 | 4 | Skills | Additional shared skill directories beyond the profile's own `skills/` folder |
 | 5 | MCP | MCP server entries (name, command, args, env) |
 | 6 | Toolsets | Which built-in toolsets to enable — uses a subtractive model (all enabled by default; deselect to disable) |
-| 7 | Memory | Enable or disable long-term memory and choose a provider (Hindsight or OpenViking) |
-| 8 | Config | Read-only preview of the YAML config that will be written |
-| 9 | Review | Final summary before creation |
+| 7 | Memory | Enable or disable long-term memory and choose a provider from the full catalog (Matrix Memory and Holographic run locally with no setup; Hindsight, Mem0, OpenViking, RetainDB, Supermemory, Honcho, and ByteRover each need a key, service, sign-in, or CLI) |
+| 8 | Config | Preview of the YAML config that will be written. In edit mode this is a before/after diff against the profile's currently saved config, not just a flat preview. |
+| 9 | Review | Final summary before creation, including a Toolsets block that calls out any destructive toolset (terminal, file, code execution, computer use, browser) still enabled |
 
 Click **Next** to advance. Validation runs on each step; errors are shown inline and block advancement until resolved.
 
 ## Editing a profile
 
-Click **Edit** on any profile card to open the wizard in edit mode. The wizard pre-seeds all fields from the profile's current saved configuration. The same 9 steps apply; only the name field is immutable (rename via the inline rename control on the card instead).
+Click **Edit** on any profile card or table row to open the wizard in edit mode. The wizard pre-seeds all fields from the profile's current saved configuration. The same 9 steps apply; only the name field is immutable. Renaming is a separate action available only in **table view** — switch the view toggle to table to reach it.
+
+## Profile details
+
+Click a profile card (outside its action buttons) to open its detail drawer. The drawer has three tabs — **Overview** (identity, model/provider, derived status, skill/session counts, on-disk path), **Config** (read-only `config.yaml` with secrets masked), and **Files** (`SOUL.md` and the memory files the agent has written). From the drawer you can activate, edit, clone, export, or delete the profile without going back to the grid.
+
+## Activating a profile
+
+Each profile card, table row, and the detail drawer has an **Activate** action for any profile that isn't already active. Activating writes `~/.hermes/active_profile` and returns `needsGatewayRestart: true` — the gateway does not hot-reload its config, so a banner appears at the top of the page. Its button reads **Restart gateway** when the gateway is currently up, or **Start gateway** when it looks stopped; either way the banner polls afterward and reports success or a timeout, and always offers a `hermes gateway restart` command you can copy and run by hand.
+
+The **Use default profile** header button is the reverse shortcut: it re-activates the synthetic `default` profile in one click (disabled when `default` is already active) and raises the same restart banner.
+
+### Live-gateway reachability
+
+Activating a profile only changes which one this workspace *wants* to run — on a gateway that multiplexes several profiles at once, the running process also has to actually be serving it. A card or row shows a small badge next to its status when that isn't guaranteed:
+
+- **not served** — the live gateway is multiplexing, but this profile isn't in the list it reports serving. Activating it will not make chats work until the gateway's own config is updated to include it.
+- **unknown** — the reachability probe itself failed (the dashboard was unreachable), so this can't be confirmed either way; treat it the same as "not served" until it clears.
+
+Neither badge appears on a single (non-multiplexed) gateway, or for a profile the live gateway confirms it serves — this is a quiet, scan-only signal, not a status shown for every profile.
 
 ## Persona pre-fill
 
@@ -48,17 +77,37 @@ The system prompt is fully editable after pre-fill — the persona is a starting
 
 ## Cloning a profile
 
-Click **Clone** on a profile card to create a copy with an auto-generated name. The clone opens directly in edit mode so you can rename and adjust it before saving.
+Click **Clone** on a profile card to open a small dialog prompting for the new profile's name (pre-filled as `<source>-copy`, editable, checked for uniqueness). Confirming creates the copy and opens it directly in the wizard's edit mode so you can adjust it before saving.
+
+A clone inherits the source's authored assets — `config.yaml` (with `agent_ui` normalized so the clone isn't marked as a factory-shipped agent), `SOUL.md`, and the `skills/` directory — but deliberately **not** its run history or credentials: `sessions/`, `memories/`, `memory/`, and `.env` are never copied. The clone starts with a clean history and needs its own API key if the source had one stored.
+
+## Exporting and importing profiles
+
+**Export**, in the detail drawer's action bar, downloads a profile as a `<name>.hermes-profile.json` bundle: `config.yaml` (secrets masked), `SOUL.md`, `MEMORY.md`, `IDENTITY.md`, and the `skills/` directory. The action bar states this up front, before you click — masking is best-effort pattern matching, so treat the file as *masked*, not guaranteed secret-free. Your `.env` file and session history are never included.
+
+**Import**, a header button on the Profiles page, accepts a `.hermes-profile.json` file and creates a new profile from it. If the bundle's name collides with an existing profile, a prompt lets you choose a different name and resubmit rather than failing outright.
+
+## Recently Deleted
+
+Deleting a profile is recoverable, not permanent. **Delete** moves the profile's directory into `~/.hermes/trash/<name>-<timestamp>` rather than removing it from disk. A **Recently Deleted** view (reachable from the Profiles page) lists everything currently in the trash — name, deletion time, and size — with per-entry **Restore** (moves it back to `~/.hermes/profiles/<name>`, failing if a profile with that name already exists again) and **Delete permanently** (irreversible) actions.
+
+## Default profile on a fresh install
+
+A fresh install now bootstraps `~/.hermes/active_profile` to the `hermes-switch` builtin agent rather than the synthetic `default`. Set `HERMES_DEFAULT_PROFILE` to a different builtin id before first run to adopt something else instead.
 
 ## Where data lives
 
-Profiles are stored by the Hermes Agent and fetched from the gateway at page load. They are not stored in the browser. Changes made through the wizard are written back to the gateway immediately on submission.
+Profiles are plain directories under `~/.hermes/profiles/<name>/` (each holding its own `config.yaml`, `SOUL.md`, `skills/`, `sessions/`, etc.), read directly from the local filesystem — the workspace server reads them itself, and creating, editing, cloning, exporting, and deleting a profile never calls the gateway. They are not stored in the browser. Changes made through the wizard are written straight to those files on submission.
+
+The one exception is the [live-gateway reachability](#live-gateway-reachability) badge, which does ask the gateway's dashboard what it's actually serving — that's the whole point of it, and it fails closed to "unknown" rather than guessing when the dashboard doesn't answer.
 
 ## Common issues
 
-**Profiles page is blank or shows an error.** The gateway must be running and the profiles endpoint must be available. Check the connection indicator on the Dashboard.
+**Profiles page is blank or shows an error.** The workspace reads `~/.hermes/profiles/` directly, so this usually means the directory is missing or unreadable rather than a gateway problem — check the workspace server logs.
 
-**A profile does not appear after creation.** If the gateway requires a restart to pick up new profile files, restart it and reload the page.
+**A profile switch doesn't seem to take effect.** Activating a profile needs a gateway restart to pick up the new config — use the restart banner that appears after activating (it offers Restart or Start depending on whether the gateway currently looks up or down), or restart the gateway manually and reload the page.
+
+**A card or row shows "not served" or "unknown".** See [Live-gateway reachability](#live-gateway-reachability) above — this means the multiplexed gateway isn't currently serving that profile, or its topology probe failed, independent of whether you've clicked Activate.
 
 **Persona library is empty.** The persona seeder must have been run on the agent side. Check the gateway logs.
 
