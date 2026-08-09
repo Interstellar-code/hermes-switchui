@@ -201,6 +201,29 @@ describe('isReachable', () => {
     expect(isReachable(STEPS, SIMPLE, atExtras, 'advanced')).toBe(false)
     expect(isReachable(STEPS, ADVANCED, atExtras, 'advanced')).toBe(true)
   })
+
+  // ── freeNavigation ──────────────────────────────────────────────────────
+  // The opt-in that turns the rail into a tab bar for a returning user. It
+  // widens *reachability*, never permission: a disabled step stays refused,
+  // because `enabled(ctx)` is branching, not a lock.
+
+  it('defaults to the visited-plus-one rule when no options are passed', () => {
+    expect(isReachable(STEPS, SIMPLE, atName, 'done', {})).toBe(false)
+    expect(isReachable(STEPS, SIMPLE, atName, 'done')).toBe(false)
+  })
+
+  it('reaches every active step under freeNavigation', () => {
+    const free = { freeNavigation: true }
+    for (const id of ['intro', 'name', 'extras', 'splash', 'done'] as const) {
+      expect(isReachable(STEPS, SIMPLE, atName, id, free), id).toBe(true)
+    }
+  })
+
+  it('still refuses a disabled step under freeNavigation', () => {
+    const free = { freeNavigation: true }
+    expect(isReachable(STEPS, SIMPLE, atName, 'advanced', free)).toBe(false)
+    expect(isReachable(STEPS, ADVANCED, atName, 'advanced', free)).toBe(true)
+  })
 })
 
 describe('GOTO', () => {
@@ -213,6 +236,34 @@ describe('GOTO', () => {
   it('is a no-op for an unreachable step', () => {
     const atName = run(SIMPLE, start(), { type: 'NEXT' })
     expect(run(SIMPLE, atName, { type: 'GOTO', id: 'done' })).toEqual(atName)
+  })
+
+  it('jumps to a far step when the caller opted into freeNavigation', () => {
+    const atName = run(SIMPLE, start(), { type: 'NEXT' })
+    const jumped = applyWizardAction(
+      STEPS,
+      SIMPLE,
+      atName,
+      { type: 'GOTO', id: 'done' },
+      { freeNavigation: true },
+    )
+    expect(jumped.currentId).toBe('done')
+    expect(jumped.status.done).toBe('active')
+    // The step it left is still merely visited — a jump is not a completion.
+    expect(jumped.status.name).toBe('active')
+  })
+
+  it('still refuses a disabled step under freeNavigation', () => {
+    const atName = run(SIMPLE, start(), { type: 'NEXT' })
+    expect(
+      applyWizardAction(
+        STEPS,
+        SIMPLE,
+        atName,
+        { type: 'GOTO', id: 'advanced' },
+        { freeNavigation: true },
+      ),
+    ).toEqual(atName)
   })
 })
 

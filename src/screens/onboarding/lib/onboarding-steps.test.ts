@@ -9,7 +9,11 @@ import {
 import { ONBOARDING_DRAFT_VERSION } from './onboarding-storage'
 import type { OnboardingCtx } from './onboarding-steps'
 import type { OnboardingDraft } from './onboarding-storage'
-import { railSteps } from '@/components/wizard/wizard-machine'
+import {
+  nextStepId,
+  prevStepId,
+  railSteps,
+} from '@/components/wizard/wizard-machine'
 
 function draft(overrides: Partial<OnboardingDraft> = {}): OnboardingDraft {
   return {
@@ -32,6 +36,8 @@ function draft(overrides: Partial<OnboardingDraft> = {}): OnboardingDraft {
 function ctx(overrides: Partial<OnboardingCtx> = {}): OnboardingCtx {
   return {
     branch: 'quick',
+    mode: 'first-run',
+    dirty: false,
     draft: draft(),
     saved: false,
     hasStoredKey: false,
@@ -70,6 +76,90 @@ describe('ONBOARDING_STEPS rail', () => {
       'plugins',
       'theme',
     ])
+    expect(ids).toHaveLength(9)
+  })
+
+  it('drops review from the FULL relaunch rail until the draft is dirty', () => {
+    const clean = railSteps(
+      ONBOARDING_STEPS,
+      ctx({ branch: 'full', mode: 'relaunch', dirty: false }),
+    ).map((step) => step.id)
+    expect(clean).toEqual([
+      'system-check',
+      'provider',
+      'connect',
+      'verify',
+      'profile',
+      'memory',
+      'plugins',
+      'theme',
+    ])
+    expect(clean).toHaveLength(8)
+
+    const dirty = railSteps(
+      ONBOARDING_STEPS,
+      ctx({ branch: 'full', mode: 'relaunch', dirty: true }),
+    ).map((step) => step.id)
+    expect(dirty).toContain('review')
+    expect(dirty).toHaveLength(9)
+    // It reappears in place, not at the end: `verify` reads the gateway for
+    // the provider named in the draft, so a save that has not happened yet
+    // would make verify report on the old configuration.
+    expect(dirty.indexOf('review')).toBeLessThan(dirty.indexOf('verify'))
+  })
+
+  it('keeps review on first-run and resume whether or not anything is dirty', () => {
+    for (const mode of ['first-run', 'resume'] as const) {
+      for (const dirty of [false, true]) {
+        const ids = railSteps(
+          ONBOARDING_STEPS,
+          ctx({ branch: 'full', mode, dirty }),
+        ).map((step) => step.id)
+        expect(ids, `${mode}/${dirty}`).toContain('review')
+      }
+    }
+  })
+
+  it('drops review entirely when the run may not write', () => {
+    // Reviewing a configuration you are not permitted to save is a step with
+    // no purpose; `validateReviewStep` already refuses to block there, and
+    // removing it from the rail means it cannot be reached at all.
+    for (const mode of ['first-run', 'relaunch'] as const) {
+      const ids = railSteps(
+        ONBOARDING_STEPS,
+        ctx({ branch: 'full', mode, dirty: true, canWrite: false }),
+      ).map((step) => step.id)
+      expect(ids, mode).not.toContain('review')
+    }
+  })
+
+  it('never blocks navigation with a review step that is not on the rail', () => {
+    // A step that is not in `activeSteps` cannot gate NEXT — the machine only
+    // validates the step it is standing on, and hops the missing one in both
+    // directions. This is what makes the conditional review safe.
+    const relaunchClean = ctx({
+      branch: 'full',
+      mode: 'relaunch',
+      dirty: false,
+      saved: false,
+    })
+    expect(nextStepId(ONBOARDING_STEPS, relaunchClean, 'connect')).toBe(
+      'verify',
+    )
+    expect(prevStepId(ONBOARDING_STEPS, relaunchClean, 'verify')).toBe(
+      'connect',
+    )
+
+    const relaunchDirty = ctx({
+      branch: 'full',
+      mode: 'relaunch',
+      dirty: true,
+      saved: false,
+    })
+    expect(nextStepId(ONBOARDING_STEPS, relaunchDirty, 'connect')).toBe(
+      'review',
+    )
+    expect(prevStepId(ONBOARDING_STEPS, relaunchDirty, 'verify')).toBe('review')
   })
 
   it('the memory step exists on the full branch only', () => {

@@ -10,6 +10,7 @@
  * worse, a second place to update. `ONBOARDING_STEPS` below is that one list.
  */
 import type { WizardStepDef } from '@/components/wizard/types'
+import type { OnboardingMode } from './onboarding-mode'
 import type { OnboardingDraft, OnboardingTransient } from './onboarding-storage'
 import { getProviderInfo } from '@/lib/provider-catalog'
 
@@ -31,6 +32,14 @@ export type OnboardingBranch = 'quick' | 'full' | 'summary'
 
 export type OnboardingCtx = {
   branch: OnboardingBranch
+  /** Why the wizard is open — see `onboarding-mode.ts`. */
+  mode: OnboardingMode
+  /**
+   * Has the user changed anything in this run? Only ever false → true, which
+   * matters: a step whose `enabled` keys off it can appear mid-flow but never
+   * vanish under the user's cursor.
+   */
+  dirty: boolean
   /**
    * The live draft, not the sanitized-for-storage shape: step validators
    * need `apiKey` (an `OnboardingTransient` field) to check whether the user
@@ -128,7 +137,7 @@ export const ONBOARDING_STEPS: ReadonlyArray<
   },
   {
     id: 'system-check',
-    label: 'System check',
+    label: 'System',
     title: 'System check',
     blurb: 'Confirm the gateway, chat, and dashboard are all reachable.',
     enabled: (ctx) => ctx.branch === 'full',
@@ -155,7 +164,19 @@ export const ONBOARDING_STEPS: ReadonlyArray<
     label: 'Review',
     title: 'Review and save',
     blurb: 'Check the configuration before it is written to config.yaml.',
-    enabled: notSummary,
+    // Deliberately *not* moved to the end of the flow, even though "review
+    // then save" reads like a final act: `verify` polls the gateway for the
+    // provider named in the draft, so verifying before the save has happened
+    // would report on the *old* configuration and call it a result. Review has
+    // to precede verify for verify to mean anything.
+    //
+    // What it does instead is disappear when there is nothing to review. On a
+    // relaunch the user is usually just looking, and a Review tab on a rail
+    // they are only browsing is an invitation to write config they never
+    // intended to change. First run and resume always show it — there, the
+    // whole point of the flow is to produce a configuration.
+    enabled: (ctx) =>
+      notSummary(ctx) && ctx.canWrite && (ctx.mode !== 'relaunch' || ctx.dirty),
     validate: validateReviewStep,
   },
   {
@@ -168,7 +189,7 @@ export const ONBOARDING_STEPS: ReadonlyArray<
   },
   {
     id: 'profile',
-    label: 'Agent profile',
+    label: 'Agent',
     title: 'Choose an agent profile',
     blurb: 'Pick which agent identity the gateway runs.',
     enabled: (ctx) => ctx.branch === 'full',

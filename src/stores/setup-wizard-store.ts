@@ -4,16 +4,17 @@
  * The first-run wizard (`src/screens/onboarding/onboarding-screen.tsx`) gates
  * itself on the `claude-onboarding-complete` localStorage flag. This store lets
  * the sidebar re-open the same wizard on demand, in a controlled (relaunch)
- * mode that opens read-only and writes no provider config until the user
- * explicitly unlocks it.
+ * mode that writes no provider config until the user presses one of its
+ * labelled write controls.
  *
  * `target` carries an optional deep link: the sidebar badge, the command
  * palette, and the dashboard checklist card can all jump straight to a
- * specific step (`openSetupWizard('provider')`) instead of landing on the
- * relaunch summary. A bare `openSetupWizard()` call clears `target` so the
- * wizard falls back to its own entry-step resolution (always the summary on
- * relaunch). `closeSetupWizard` clears `target` too, so a later bare open
- * never inherits a stale deep link from a previous jump.
+ * specific step (`openSetupWizard('provider')`, or `openSetupWizard('summary')`
+ * for the read-only overview) instead of landing on the first rail step. A
+ * bare `openSetupWizard()` call clears `target` so the wizard falls back to
+ * its own entry-step resolution (the stepped `system-check` view on relaunch).
+ * `closeSetupWizard` clears `target` too, so a later bare open never inherits
+ * a stale deep link from a previous jump.
  *
  * Consumers: primary-nav-v2.tsx + command-palette.tsx + the dashboard setup
  * checklist card (open), __root.tsx (render).
