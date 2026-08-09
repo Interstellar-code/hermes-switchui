@@ -9,10 +9,11 @@
  * read through this hook rather than duplicating the storage/fetch wiring
  * `onboarding-screen.tsx` already does for its own summary step.
  *
- * `verified` and `pluginsTouched` are always passed as `false` here: those
- * signals come from live probes (`useSystemChecks`/`useCorePlugins`/the save
- * hook's verify outcome) that only run *inside* an active wizard session, and
- * outside the wizard we only have what is in storage.
+ * `verified`, `pluginsTouched` and `profileTouched` are always passed as
+ * `false` here: those signals come from live probes
+ * (`useSystemChecks`/`useCorePlugins`/`useOnboardingProfiles`/the save hook's
+ * verify outcome) that only run *inside* an active wizard session, and outside
+ * the wizard we only have what is in storage.
  *
  * That is safe only because the completion record now carries `completed`:
  * `buildChecklist` treats a step recorded as done by the run that finished as
@@ -145,6 +146,7 @@ export function useOnboardingChecklist(): UseOnboardingChecklistResult {
             activeProvider,
             verified: false,
             pluginsTouched: false,
+            profileTouched: false,
           })
         : EMPTY_ITEMS,
     [activeProvider, ready, snapshot],

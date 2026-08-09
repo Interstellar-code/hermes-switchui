@@ -16,10 +16,12 @@
  * plaintext `model.api_key` on inline-model installs, so this file reads env
  * *names* only, never a key value, masked or otherwise.
  */
+import { activeProfileLabel, buildProfileChoices } from './profile-choices'
 import type { ThemeId } from '@/lib/theme'
 import type { VerifyOutcome } from '@/screens/providers/lib/verify-provider'
 import type { CorePluginRow } from './core-plugins'
 import type { OnboardingStepId } from './onboarding-steps'
+import type { ProfileChoice } from './profile-choices'
 import type { SystemCheck } from './system-checks'
 import { THEMES } from '@/lib/theme'
 import {
@@ -56,6 +58,14 @@ export type CurrentSetup = {
   gatewayUrl: string | null
   connectionLabel: string | null
   verifiedModelCount: number | null
+  /**
+   * The display name of the agent profile the gateway will boot into — the
+   * synthetic `Default` when `~/.hermes/active_profile` is absent, which is
+   * the common case. Deliberately *not* part of `anythingConfigured`: every
+   * install has an active profile, so counting it would grow a "Currently
+   * configured" strip on a genuinely fresh one.
+   */
+  activeProfileName: string | null
   /**
    * Whether *anything* about this workspace has been set up yet. A genuinely
    * fresh install must not grow a "Currently configured" box, and a theme is
@@ -159,6 +169,15 @@ export function buildCurrentSetup(input: {
    * response that carries it.
    */
   gatewayUrl?: string | null
+  /**
+   * Either the already-parsed `Array<ProfileChoice>` from
+   * `useOnboardingProfiles`, or the raw `/api/profiles/list` body. Both are
+   * accepted because the wizard holds the parsed list while an out-of-wizard
+   * caller has only the payload; an array is the former, anything else is fed
+   * through `buildProfileChoices` (which never throws on garbage). An empty
+   * array is "nothing has landed yet" and yields no profile name.
+   */
+  profiles?: unknown
 }): CurrentSetup {
   const payload = record(input.config)
   const yaml = record(payload?.config)
@@ -231,6 +250,12 @@ export function buildCurrentSetup(input: {
 
   const gatewayUrl = input.gatewayUrl?.trim() || null
 
+  const profileChoices: Array<ProfileChoice> = Array.isArray(input.profiles)
+    ? (input.profiles as Array<ProfileChoice>)
+    : input.profiles === undefined
+      ? []
+      : buildProfileChoices(input.profiles)
+
   return {
     activeProviderId,
     activeProviderName: activeProviderId
@@ -253,6 +278,7 @@ export function buildCurrentSetup(input: {
       input.verifyOutcome?.status === 'confirmed'
         ? input.verifyOutcome.modelCount
         : null,
+    activeProfileName: activeProfileLabel(profileChoices),
     anythingConfigured:
       activeProviderId !== null ||
       configuredProviderIds.length > 0 ||
@@ -367,6 +393,11 @@ export function factsForStep(
             ? null
             : plural(setup.verifiedModelCount, 'model'),
         ),
+      ])
+
+    case 'profile':
+      return meaningful([
+        fact('profile', 'Active profile', setup.activeProfileName, 'active'),
       ])
 
     case 'plugins':

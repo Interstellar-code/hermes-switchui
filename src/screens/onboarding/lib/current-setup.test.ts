@@ -10,6 +10,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { buildCurrentSetup, factsForStep } from './current-setup'
+import { buildProfileChoices } from './profile-choices'
 import type { CurrentSetup } from './current-setup'
 import type { CorePluginRow } from './core-plugins'
 import type { OnboardingStepId } from './onboarding-steps'
@@ -87,6 +88,7 @@ function configured(): CurrentSetup {
     themeId: 'claude-nous',
     verifyOutcome: { status: 'confirmed', modelCount: 42, message: 'ok' },
     gatewayUrl: 'http://127.0.0.1:8642',
+    profiles: buildProfileChoices(PROFILES_PAYLOAD),
   })
 }
 
@@ -108,10 +110,20 @@ const ALL_STEPS: Array<OnboardingStepId> = [
   'connect',
   'review',
   'verify',
+  'profile',
   'plugins',
   'theme',
   'finish',
 ]
+
+/** The raw `/api/profiles/list` body, as an out-of-wizard caller would pass it. */
+const PROFILES_PAYLOAD = {
+  activeProfile: 'neo',
+  profiles: [
+    { name: 'hermes-switch', agent_ui: { tier: 1, glyph: 'HS' } },
+    { name: 'neo', agent_ui: { tier: 2, glyph: 'NE' } },
+  ],
+}
 
 describe('buildCurrentSetup', () => {
   it('reads a fully configured workspace', () => {
@@ -129,7 +141,65 @@ describe('buildCurrentSetup', () => {
     expect(setup.connectionLabel).toBe('Hermes gateway · 6 of 6 capabilities')
     expect(setup.gatewayUrl).toBe('http://127.0.0.1:8642')
     expect(setup.verifiedModelCount).toBe(42)
+    expect(setup.activeProfileName).toBe('Neo')
     expect(setup.anythingConfigured).toBe(true)
+  })
+
+  it('accepts either parsed profile choices or the raw list payload', () => {
+    const fromPayload = buildCurrentSetup({
+      config: CONFIG,
+      pluginRows: [],
+      checks: [],
+      themeId: 'matrix',
+      verifyOutcome: null,
+      profiles: PROFILES_PAYLOAD,
+    })
+    expect(fromPayload.activeProfileName).toBe('Neo')
+    expect(configured().activeProfileName).toBe('Neo')
+  })
+
+  it('names the synthetic Default when no pointer file exists', () => {
+    // The common case: `~/.hermes/active_profile` is absent, so the root
+    // config is what runs and that is what the strip has to say.
+    const setup = buildCurrentSetup({
+      config: CONFIG,
+      pluginRows: [],
+      checks: [],
+      themeId: 'matrix',
+      verifyOutcome: null,
+      profiles: { profiles: [{ name: 'neo' }] },
+    })
+    expect(setup.activeProfileName).toBe('Default')
+  })
+
+  it('reports no profile until the list has landed', () => {
+    for (const profiles of [undefined, []]) {
+      const setup = buildCurrentSetup({
+        config: CONFIG,
+        pluginRows: [],
+        checks: [],
+        themeId: 'matrix',
+        verifyOutcome: null,
+        profiles,
+      })
+      expect(setup.activeProfileName).toBeNull()
+    }
+  })
+
+  it('an active profile alone never counts as a configured workspace', () => {
+    // Every install has one, so counting it would grow a "Currently
+    // configured" strip on a genuinely fresh machine.
+    const setup = buildCurrentSetup({
+      config: null,
+      pluginRows: [],
+      checks: [],
+      themeId: 'matrix',
+      verifyOutcome: null,
+      profiles: PROFILES_PAYLOAD,
+    })
+    expect(setup.activeProfileName).toBe('Neo')
+    expect(setup.anythingConfigured).toBe(false)
+    expect(factsForStep('profile', setup)).toEqual([])
   })
 
   it('counts a provider as configured only when it really is', () => {
@@ -310,6 +380,17 @@ describe('factsForStep', () => {
         id: 'plugins',
         label: 'Core plugins',
         value: '2 of 3 enabled',
+        state: 'active',
+      },
+    ])
+  })
+
+  it('leads the profile step with the agent identity that is live', () => {
+    expect(factsForStep('profile', configured())).toEqual([
+      {
+        id: 'profile',
+        label: 'Active profile',
+        value: 'Neo',
         state: 'active',
       },
     ])

@@ -47,10 +47,10 @@ describe('useOnboardingChecklist', () => {
 
     await waitFor(() => expect(result.current.ready).toBe(true))
 
-    expect(result.current.items).toHaveLength(5)
+    expect(result.current.items).toHaveLength(6)
     // Fresh install: no active provider, nothing skipped/completed — every
     // item that isn't the (blocked) verify step counts as outstanding.
-    expect(result.current.outstanding).toBe(4)
+    expect(result.current.outstanding).toBe(5)
   })
 
   it('re-reads when the onboarding-complete event fires', async () => {
@@ -114,12 +114,13 @@ describe('useOnboardingChecklist', () => {
   })
 
   it('clears the badge entirely after a completed full run', async () => {
-    // The regression this pins: `verified` and `pluginsTouched` are hardcoded
-    // false out here (they are live in-wizard probes), the draft is deleted on
-    // finish, and `writeOnboardingComplete` used to persist only `skipped`. A
-    // user who completed the full branch — verified, reviewed plugins, picked
-    // a theme — was left with a permanent `4` on the sidebar nav and
-    // "Setup Wizard (4 left)" in the command palette, with no way to clear it.
+    // The regression this pins: `verified`, `pluginsTouched` and
+    // `profileTouched` are hardcoded false out here (they are live in-wizard
+    // probes), the draft is deleted on finish, and `writeOnboardingComplete`
+    // used to persist only `skipped`. A user who completed the full branch —
+    // verified, chose a profile, reviewed plugins, picked a theme — was left
+    // with a permanent count on the sidebar nav and "Setup Wizard (N left)" in
+    // the command palette, with no way to clear it.
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({ providers: [], activeProvider: 'anthropic' }),
@@ -131,7 +132,7 @@ describe('useOnboardingChecklist', () => {
         at: Date.now(),
         branch: 'full',
         skipped: [],
-        completed: ['verify', 'plugins', 'theme', 'system-check'],
+        completed: ['verify', 'profile', 'plugins', 'theme', 'system-check'],
       }),
     )
 

@@ -21,6 +21,7 @@ export type OnboardingStepId =
   | 'connect'
   | 'review'
   | 'verify'
+  | 'profile'
   | 'plugins'
   | 'theme'
   | 'finish'
@@ -162,6 +163,14 @@ export const ONBOARDING_STEPS: ReadonlyArray<
     title: 'Verify the connection',
     blurb: 'Confirm the gateway can actually see the new provider.',
     enabled: notSummary,
+    optional: true,
+  },
+  {
+    id: 'profile',
+    label: 'Agent profile',
+    title: 'Choose an agent profile',
+    blurb: 'Pick which agent identity the gateway runs.',
+    enabled: (ctx) => ctx.branch === 'full',
     optional: true,
   },
   {

@@ -32,6 +32,7 @@ describe('buildChecklist', () => {
       activeProvider: 'anthropic',
       verified: false,
       pluginsTouched: false,
+      profileTouched: false,
     })
     expect(items.find((i) => i.id === 'provider')?.state).toBe('done')
   })
@@ -43,6 +44,7 @@ describe('buildChecklist', () => {
       activeProvider: null,
       verified: false,
       pluginsTouched: false,
+      profileTouched: false,
     })
     expect(items.find((i) => i.id === 'provider')?.state).toBe('todo')
   })
@@ -54,6 +56,7 @@ describe('buildChecklist', () => {
       activeProvider: null,
       verified: false,
       pluginsTouched: false,
+      profileTouched: false,
     })
     expect(items.find((i) => i.id === 'verify')?.state).toBe('blocked')
   })
@@ -65,6 +68,7 @@ describe('buildChecklist', () => {
       activeProvider: 'anthropic',
       verified: false,
       pluginsTouched: false,
+      profileTouched: false,
     })
     expect(items.find((i) => i.id === 'verify')?.state).toBe('skipped')
   })
@@ -76,6 +80,7 @@ describe('buildChecklist', () => {
       activeProvider: 'anthropic',
       verified: true,
       pluginsTouched: false,
+      profileTouched: false,
     })
     expect(items.find((i) => i.id === 'verify')?.state).toBe('done')
   })
@@ -87,8 +92,47 @@ describe('buildChecklist', () => {
       activeProvider: 'anthropic',
       verified: true,
       pluginsTouched: false,
+      profileTouched: false,
     })
     expect(items.find((i) => i.id === 'plugins')?.state).toBe('todo')
+  })
+
+  it('profile is done only when profileTouched is true — a 200 from activate is not enough', () => {
+    // Activation writes the `~/.hermes/active_profile` pointer and nothing
+    // else; the gateway does not re-read it until it restarts, so this item
+    // is treated exactly like the plugins one.
+    const items = buildChecklist({
+      outcome: FRESH,
+      draft: draft(),
+      activeProvider: 'anthropic',
+      verified: true,
+      pluginsTouched: true,
+      profileTouched: false,
+    })
+    expect(items.find((i) => i.id === 'profile')?.state).toBe('todo')
+    expect(items.find((i) => i.id === 'profile')?.goTo).toBe('profile')
+  })
+
+  it('profile is skipped when the step was skipped, and done once touched', () => {
+    const skipped = buildChecklist({
+      outcome: FRESH,
+      draft: draft({ skipped: ['profile'] }),
+      activeProvider: 'anthropic',
+      verified: true,
+      pluginsTouched: true,
+      profileTouched: false,
+    })
+    expect(skipped.find((i) => i.id === 'profile')?.state).toBe('skipped')
+
+    const touched = buildChecklist({
+      outcome: FRESH,
+      draft: draft({ skipped: ['profile'] }),
+      activeProvider: 'anthropic',
+      verified: true,
+      pluginsTouched: true,
+      profileTouched: true,
+    })
+    expect(touched.find((i) => i.id === 'profile')?.state).toBe('done')
   })
 
   it('falls back to the outcome skipped list once the draft is gone', () => {
@@ -105,6 +149,7 @@ describe('buildChecklist', () => {
       activeProvider: 'anthropic',
       verified: true,
       pluginsTouched: true,
+      profileTouched: false,
     })
     expect(items.find((i) => i.id === 'theme')?.state).toBe('skipped')
   })
@@ -116,32 +161,35 @@ describe('buildChecklist', () => {
       activeProvider: null,
       verified: false,
       pluginsTouched: false,
+      profileTouched: false,
     })
     expect(items.every((i) => i.state !== 'skipped')).toBe(true)
   })
 
-  it('derives verify/plugins from the completion record once the draft is gone', () => {
+  it('derives verify/profile/plugins from the completion record once the draft is gone', () => {
     // The exact state a finished full run leaves behind: the draft is deleted
     // by `handleFinish`, so `completed` on the outcome is the only evidence
-    // that verify and plugins were done. Without it every out-of-wizard
-    // consumer reports them outstanding forever.
+    // that verify, profile and plugins were done. Without it every
+    // out-of-wizard consumer reports them outstanding forever.
     const complete: OnboardingOutcome = {
       kind: 'complete',
       at: 1,
       branch: 'full',
       skipped: [],
-      completed: ['verify', 'plugins', 'theme', 'system-check'],
+      completed: ['verify', 'profile', 'plugins', 'theme', 'system-check'],
     }
     const items = buildChecklist({
       outcome: complete,
       draft: null,
       activeProvider: 'anthropic',
-      // Both false, exactly as `use-onboarding-checklist` passes them outside
-      // a live wizard session.
+      // All three false, exactly as `use-onboarding-checklist` passes them
+      // outside a live wizard session.
       verified: false,
       pluginsTouched: false,
+      profileTouched: false,
     })
     expect(items.map((item) => item.state)).toEqual([
+      'done',
       'done',
       'done',
       'done',
@@ -166,8 +214,9 @@ describe('buildChecklist', () => {
       activeProvider: 'anthropic',
       verified: false,
       pluginsTouched: false,
+      profileTouched: false,
     })
-    expect(outstandingCount(items)).toBe(4)
+    expect(outstandingCount(items)).toBe(5)
   })
 
   it('goTo matches each item id 1:1 with a step id', () => {
@@ -177,6 +226,7 @@ describe('buildChecklist', () => {
       activeProvider: null,
       verified: false,
       pluginsTouched: false,
+      profileTouched: false,
     })
     for (const item of items) {
       expect(item.goTo).toBe(item.id)
@@ -192,10 +242,12 @@ describe('outstandingCount', () => {
       activeProvider: null,
       verified: false,
       pluginsTouched: false,
+      profileTouched: false,
     })
-    // provider: todo, verify: blocked (no provider), plugins: todo,
-    // theme: skipped, system-check: todo → 3 todo + 1 skipped = 4
-    expect(outstandingCount(items)).toBe(4)
+    // provider: todo, verify: blocked (no provider), profile: todo,
+    // plugins: todo, theme: skipped, system-check: todo
+    // → 4 todo + 1 skipped = 5
+    expect(outstandingCount(items)).toBe(5)
   })
 
   it('is zero once everything is done', () => {
@@ -205,6 +257,7 @@ describe('outstandingCount', () => {
       activeProvider: 'anthropic',
       verified: true,
       pluginsTouched: true,
+      profileTouched: true,
     })
     expect(outstandingCount(items)).toBe(0)
   })
